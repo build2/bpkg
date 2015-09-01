@@ -1,0 +1,13 @@
+# file      : build/root.build
+# copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
+# license   : MIT; see accompanying LICENSE file
+
+using cxx
+
+hxx.ext =
+ixx.ext = ixx
+txx.ext = txx
+cxx.ext = cxx
+
+cxx.std = 11
+cxx.poptions += -I$out_root -I$src_root

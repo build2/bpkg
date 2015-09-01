@@ -1,0 +1,8 @@
+# file      : bpkg/buildfile
+# copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
+# license   : MIT; see accompanying LICENSE file
+
+import libs  = libbutl%lib{butl}
+import libs += libbpkg%lib{bpkg}
+
+exe{bpkg}: cxx{bpkg} $libs
