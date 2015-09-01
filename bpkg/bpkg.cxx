@@ -5,9 +5,31 @@
 #include <iostream>
 #include <exception>
 
+#include <bpkg/diagnostics>
+
 using namespace std;
+using namespace bpkg;
 
 int
 main ()
 {
+  tracer trace ("main");
+
+  try
+  {
+    // Trace verbosity.
+    //
+    verb = 0;
+  }
+  catch (const failed&)
+  {
+    return 1; // Diagnostics has already been issued.
+  }
+  /*
+  catch (const std::exception& e)
+  {
+    error << e.what ();
+    return 1;
+  }
+  */
 }

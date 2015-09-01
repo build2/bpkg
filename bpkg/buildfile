@@ -5,4 +5,4 @@
 import libs  = libbutl%lib{butl}
 import libs += libbpkg%lib{bpkg}
 
-exe{bpkg}: cxx{bpkg} $libs
+exe{bpkg}: cxx{bpkg diagnostics} $libs
