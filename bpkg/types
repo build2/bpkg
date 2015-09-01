@@ -1,0 +1,32 @@
+// file      : bpkg/types -*- C++ -*-
+// copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
+// license   : MIT; see accompanying LICENSE file
+
+#ifndef BPKG_TYPES
+#define BPKG_TYPES
+
+#include <vector>
+#include <string>
+
+#include <butl/path>
+#include <butl/path-io>
+
+namespace bpkg
+{
+  // Commonly-used types.
+  //
+  using strings = std::vector<std::string>;
+  using cstrings = std::vector<const char*>;
+
+  // <butl/path>
+  //
+  using butl::path;
+  using butl::dir_path;
+  using butl::basic_path;
+  using butl::invalid_path;
+
+  using paths = std::vector<path>;
+  using dir_paths = std::vector<dir_path>;
+}
+
+#endif // BPKG_TYPES

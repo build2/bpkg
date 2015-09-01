@@ -13,6 +13,8 @@
 #include <ostream>
 #include <exception>
 
+#include <bpkg/types>
+
 namespace bpkg
 {
   // Throw this exception to terminate the process. The handler should

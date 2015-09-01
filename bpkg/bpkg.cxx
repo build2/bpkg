@@ -5,6 +5,7 @@
 #include <iostream>
 #include <exception>
 
+#include <bpkg/types>
 #include <bpkg/diagnostics>
 
 using namespace std;
