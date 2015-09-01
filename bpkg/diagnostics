@@ -211,10 +211,10 @@ namespace bpkg
   {
   public:
     location () {}
-    location (std::string f, std::uint64_t l, std::uint64_t c)
+    location (string f, std::uint64_t l, std::uint64_t c)
         : file (std::move (f)), line (l), column (c) {}
 
-    std::string file;
+    string file;
     std::uint64_t line;
     std::uint64_t column;
   };

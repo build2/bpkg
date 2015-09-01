@@ -15,7 +15,9 @@ namespace bpkg
 {
   // Commonly-used types.
   //
-  using strings = std::vector<std::string>;
+  using std::string;
+
+  using strings = std::vector<string>;
   using cstrings = std::vector<const char*>;
 
   // <butl/path>
