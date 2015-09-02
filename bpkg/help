@@ -1,0 +1,22 @@
+// file      : bpkg/help -*- C++ -*-
+// copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
+// license   : MIT; see accompanying LICENSE file
+
+#ifndef BPKG_HELP
+#define BPKG_HELP
+
+#include <iosfwd>
+
+#include <bpkg/types>
+
+namespace bpkg
+{
+  class help_options;
+
+  int
+  help (const help_options&,
+        const string& topic,
+        void (*usage) (std::ostream&));
+}
+
+#endif // BPKG_HELP

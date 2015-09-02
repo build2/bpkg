@@ -2,7 +2,29 @@
 # copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
 # license   : MIT; see accompanying LICENSE file
 
+using cli
+
 import libs  = libbutl%lib{butl}
 import libs += libbpkg%lib{bpkg}
 
-exe{bpkg}: cxx{bpkg diagnostics} $libs
+exe{bpkg}: cxx{diagnostics} cli.cxx{common-options} \
+  cxx{bpkg} cli.cxx{bpkg-options}                   \
+  cxx{help} cli.cxx{help-options}                   \
+            cli.cxx{rep-create-options}             \
+  $libs
+
+cli.options += -I $src_root --include-with-brackets --include-prefix bpkg \
+--guard-prefix BPKG --generate-file-scanner --cli-namespace bpkg::cli \
+--generate-parse --long-usage --exclude-base
+
+# Option length must be the same to get commands/topics/options lists
+# aligned in the general help.
+#
+cli.cxx{common-options}: cli{common-options}
+cli.cxx{common-options}: cli.options += --option-length 22 --short-usage
+
+cli.cxx{bpkg-options}: cli{bpkg-options}
+cli.cxx{bpkg-options}: cli.options += --option-length 22 --short-usage
+
+cli.cxx{help-options}: cli{help-options}
+cli.cxx{rep-create-options}: cli{rep-create-options}

@@ -1,0 +1,41 @@
+// file      : bpkg/bpkg-options.cli
+// copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
+// license   : MIT; see accompanying LICENSE file
+
+include <bpkg/common-options.cli>;
+
+namespace bpkg
+{
+  class bpkg_options: common_options
+  {
+    bool --help;
+    bool --version;
+  };
+
+  class bpkg_commands
+  {
+    bool help
+    {
+      "[<topic>]",
+      "Show detailed help for a command or help topic.",
+      ""
+    };
+
+    bool rep-create
+    {
+      "[-d <dir>]",
+      "Create repository manifest file.",
+      ""
+    };
+  };
+
+  // Make sure these don't conflict with command names above.
+  //
+  class bpkg_topics
+  {
+    bool options
+    {
+      "Detailed description of common options."
+    };
+  };
+}

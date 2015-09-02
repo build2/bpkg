@@ -1,0 +1,23 @@
+// file      : bpkg/rep-create-options.cli
+// copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
+// license   : MIT; see accompanying LICENSE file
+
+include <bpkg/common-options.cli>;
+
+namespace bpkg
+{
+  class rep_create_options: common_options
+  {
+    /*
+      "Create repository manifest file (\cb{packages}) based on the
+       packages present in the repository directory."
+    */
+
+    std::string --directory | -d
+    {
+      "<dir>",
+      "Use <dir> as the repository root directory instead of the
+       current working directory."
+    };
+  };
+}

@@ -1,0 +1,16 @@
+// file      : bpkg/help-options.cli
+// copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
+// license   : MIT; see accompanying LICENSE file
+
+include <bpkg/common-options.cli>;
+
+namespace bpkg
+{
+  class help_options: common_options
+  {
+    /*
+    "Show detailed help for a command or help topic or the list of
+     available commands and topics if none was specified."
+    */
+  };
+}

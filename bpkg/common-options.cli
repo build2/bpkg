@@ -1,0 +1,48 @@
+// file      : bpkg/common-options.cli
+// copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
+// license   : MIT; see accompanying LICENSE file
+
+include <cstdint>;
+
+namespace bpkg
+{
+  class common_options = 0
+  {
+    bool -v
+    {
+      "Print actual commands being executed. This is equivalent to
+       \cb{--verbose 1}."
+    };
+
+    std::uint16_t --verbose = 0
+    {
+      "<level>",
+      "Set the diagnostics verbosity to <level> which can be between 0
+       (disabled) and 5 (lots of information). @@ Need to document
+       further."
+    };
+
+    // The following option is "fake" in that it is actually handled by
+    // argv_file_scanner. We have it here for documentation.
+    //
+    std::string --options-file
+    {
+      "<file>",
+      "Read additional options from <file> with each option appearing on a
+       separate line optionally followed by space and an option value. Empty
+       lines and lines starting with \cb{#} are ignored. Option values can
+       be enclosed in double (\cb{\"}) or single (\cb{'}) quotes to preserve
+       leading and trailing whitespaces as well as to specify empty values.
+       If the value itself contains trailing or leading quotes, enclose it
+       with an extra pair of quotes, for example \cb{'\"x\"'}. Non-leading
+       and non-trailing quotes are interpreted as being part of the option
+       value.
+
+       The semantics of providing options in a file is equivalent to providing
+       the same set of options in the same order on the command line at the
+       point where the \cb{--options-file} option is specified except that
+       the shell escaping and quoting is not required. You can repeat this
+       option to specify more than one options file."
+    };
+  };
+}
