@@ -23,7 +23,7 @@ namespace bpkg
 
     bool rep-create
     {
-      "[-d <dir>]",
+      "[<dir>]",
       "Create repository manifest file.",
       ""
     };

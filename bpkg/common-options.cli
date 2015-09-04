@@ -10,7 +10,7 @@ namespace bpkg
   {
     bool -v
     {
-      "Print actual commands being executed. This is equivalent to
+      "Print underlying commands being executed. This is equivalent to
        \cb{--verbose 1}."
     };
 
