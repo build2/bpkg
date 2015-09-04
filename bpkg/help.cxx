@@ -11,7 +11,6 @@
 #include <bpkg/diagnostics>
 
 #include <bpkg/bpkg-options>
-#include <bpkg/help-options>
 
 using namespace std;
 
@@ -50,7 +49,7 @@ namespace bpkg
       "specific ones."<< endl;
   }
 
-  int
+  void
   help (const help_options&, const string& t, void (*usage) (std::ostream&))
   {
     if (usage != nullptr)    // Command.
@@ -64,7 +63,5 @@ namespace bpkg
     else
       fail << "unknown bpkg command/help topic '" << t << "'" <<
         info << "run 'bpkg help' for more information";
-
-    return 0;
   }
 }

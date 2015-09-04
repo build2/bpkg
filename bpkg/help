@@ -8,12 +8,11 @@
 #include <iosfwd>
 
 #include <bpkg/types>
+#include <bpkg/help-options>
 
 namespace bpkg
 {
-  class help_options;
-
-  int
+  void
   help (const help_options&,
         const string& topic,
         void (*usage) (std::ostream&));

@@ -1,0 +1,17 @@
+// file      : bpkg/rep-create -*- C++ -*-
+// copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
+// license   : MIT; see accompanying LICENSE file
+
+#ifndef BPKG_REP_CREATE
+#define BPKG_REP_CREATE
+
+#include <bpkg/types>
+#include <bpkg/rep-create-options>
+
+namespace bpkg
+{
+  void
+  rep_create (const rep_create_options&, cli::scanner& args);
+}
+
+#endif // BPKG_REP_CREATE

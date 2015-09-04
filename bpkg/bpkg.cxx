@@ -11,11 +11,10 @@
 
 #include <bpkg/bpkg-options>
 
+// Commands.
+//
 #include <bpkg/help>
-#include <bpkg/help-options>
-
-//#include <bpkg/rep-create>
-#include <bpkg/rep-create-options>
+#include <bpkg/rep-create>
 
 using namespace std;
 using namespace bpkg;
@@ -111,10 +110,16 @@ try
       // If not, then it got to be a help topic.
       //
       if (cmd_argc != 1)
-        return help (ho, cmd_argv[1], nullptr);
+      {
+        help (ho, cmd_argv[1], nullptr);
+        return 0;
+      }
     }
     else
-      return help (ho, "", nullptr);
+    {
+      help (ho, "", nullptr);
+      return 0;
+    }
   }
 
   // Handle commands.
@@ -125,7 +130,8 @@ try
   if (cmd.help ())
   {
     assert (h);
-    return help (ho, "help", help_options::print_usage);
+    help (ho, "help", help_options::print_usage);
+    return 0;
   }
 
   // rep-create
@@ -133,15 +139,14 @@ try
   if (cmd.rep_create ())
   {
     if (h)
-      return help (ho, "rep-create", rep_create_options::print_usage);
-
-    auto o (parse<rep_create_options> (co, args));
-
-    if (verb)
-      text << "rep-create";
+      help (ho, "rep-create", rep_create_options::print_usage);
+    else
+      rep_create (parse<rep_create_options> (co, args), args);
 
     return 0;
   }
+
+  // @@ Would be nice to check that args doesn't contain any junk left.
 
   assert (false); // Unhandled command.
   return 1;
