@@ -263,6 +263,18 @@ namespace bpkg
       return location_prologue (type_, name_, get_location (l, data_));
     }
 
+    template <typename F, typename L, typename C>
+    location_prologue
+    operator() (F&& f, L&& l, C&& c) const
+    {
+      return location_prologue (
+        type_,
+        name_,
+        location (std::forward<F> (f),
+                  std::forward<L> (l),
+                  std::forward<C> (c)));
+    }
+
   protected:
     const char* type_;
     const char* name_;
@@ -313,6 +325,19 @@ namespace bpkg
     {
       return location_prologue (
         &epilogue, "error", nullptr, get_location (l, data_));
+    }
+
+    template <typename F, typename L, typename C>
+    location_prologue
+    operator() (F&& f, L&& l, C&& c) const
+    {
+      return location_prologue (
+        &epilogue,
+        "error",
+        nullptr,
+        location (std::forward<F> (f),
+                  std::forward<L> (l),
+                  std::forward<C> (c)));
     }
 
     static void
