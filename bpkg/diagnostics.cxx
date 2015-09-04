@@ -10,6 +10,40 @@ using namespace std;
 
 namespace bpkg
 {
+  // print_process
+  //
+  void
+  print_process (const char* const* args, size_t n)
+  {
+    diag_record r (text);
+    print_process (r, args, n);
+  }
+
+  void
+  print_process (diag_record& r, const char* const* args, size_t n)
+  {
+    size_t m (0);
+    const char* const* p (args);
+    do
+    {
+      if (m != 0)
+        r << " |"; // Trailing space will be added inside the loop.
+
+      for (m++; *p != nullptr; p++, m++)
+        r << (p != args ? " " : "")
+          << (**p == '\0' ? "\"" : "") // Quote empty arguments.
+          << *p
+          << (**p == '\0' ? "\"" : "");
+
+      if (m < n) // Can we examine the next element?
+      {
+        p++;
+        m++;
+      }
+
+    } while (*p != nullptr);
+  }
+
   // Trace verbosity level.
   //
   uint16_t verb;
