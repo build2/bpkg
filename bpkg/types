@@ -7,9 +7,9 @@
 
 #include <vector>
 #include <string>
+#include <ostream>
 
 #include <butl/path>
-#include <butl/path-io>
 
 namespace bpkg
 {
@@ -29,6 +29,21 @@ namespace bpkg
 
   using paths = std::vector<path>;
   using dir_paths = std::vector<dir_path>;
+
+  inline std::ostream&
+  operator<< (std::ostream& os, const path& p) {return os << p.string ();}
+
+  inline std::ostream&
+  operator<< (std::ostream& os, const dir_path& p)
+  {
+    const string& s (p.string ());
+    os << s;
+
+    if (!s.empty () && !dir_path::traits::is_separator (s.back ()))
+      os << dir_path::traits::directory_separator;
+
+    return os;
+  }
 }
 
 #endif // BPKG_TYPES
