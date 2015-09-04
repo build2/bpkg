@@ -11,14 +11,20 @@ namespace bpkg
     bool -v
     {
       "Print underlying commands being executed. This is equivalent to
-       \cb{--verbose 1}."
+       \cb{--verbose 2}."
     };
 
-    std::uint16_t --verbose = 0
+    bool -q
+    {
+      "Run quietly, only printing error messages. This is equivalent
+       to \cb{--verbose 0}."
+    };
+
+    std::uint16_t --verbose = 1
     {
       "<level>",
-      "Set the diagnostics verbosity to <level> which can be between 0
-       (disabled) and 5 (lots of information). @@ Need to document
+      "Set the diagnostics verbosity to <level> between 0 (disabled) and
+       5 (lots of information). The default is 1. @@ Need to document
        further."
     };
 

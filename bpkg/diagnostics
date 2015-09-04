@@ -52,14 +52,14 @@ namespace bpkg
     print_process (args.data (), args.size ());
   }
 
-  // Trace verbosity level.
+  // Verbosity level.
   //
-  // 0 - tracing disabled.
-  // 1 - TODO
-  // 2 - TODO
-  // 3 - TODO
-  // 4 - TODO
-  // 5 - TODO
+  // 0 - disabled
+  // 1 - general information messages
+  // 2 - underlying commands being executed
+  // 3 - information that could be helpful to the user
+  // 4 - information that could be helpful to the developer
+  // 5 - even more detailed information
   //
   // While uint8 is more than enough, use uint16 for the ease of printing.
   //

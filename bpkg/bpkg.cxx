@@ -37,7 +37,7 @@ parse (const common_options& co, cli::scanner& s)
 
   // Trace verbosity.
   //
-  verb = o.verbose () > 0 ? o.verbose () : (o.v () ? 1 : 0);
+  verb = o.verbose_specified () ? o.verbose () : o.v () ? 2 : o.q () ? 0 : 1;
 
   return o;
 }

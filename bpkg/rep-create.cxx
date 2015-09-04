@@ -95,7 +95,7 @@ namespace bpkg
         mf.string ().c_str (),
         nullptr};
 
-      if (verb)
+      if (verb >= 2)
         print_process (args);
 
       try
@@ -237,7 +237,9 @@ namespace bpkg
       {
         const package_manifest& m (p.second.second);
 
-        text << "adding " << m.name << " " << m.version;
+        if (verb)
+          text << "adding " << m.name << " " << m.version;
+
         m.serialize (s);
       }
 
@@ -252,7 +254,8 @@ namespace bpkg
       fail << "unable to write to " << p;
     }
 
-    text << pm.size () << " package(s)";
+    if (verb)
+      text << pm.size () << " package(s)";
   }
   catch (const invalid_path& e)
   {
