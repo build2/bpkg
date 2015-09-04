@@ -52,8 +52,20 @@ namespace bpkg
   void
   help (const help_options&, const string& t, void (*usage) (std::ostream&))
   {
+    ostream& o (cout);
+
     if (usage != nullptr)    // Command.
-      usage (cout);
+    {
+      usage (o);
+
+      o << endl
+        << "The common options are summarized below. For details, see the " <<
+        "'options' help" << endl
+        << "topic." << endl
+        << endl;
+
+      common_options::print_short_usage (o);
+    }
     else if (t.empty ())     // General help.
       help ();
     else if (t == "options") // Help topics.
