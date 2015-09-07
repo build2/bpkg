@@ -9,6 +9,7 @@
 #include <cassert>
 #include <fstream>
 #include <iostream>
+#include <system_error>
 
 #include <butl/process>
 #include <butl/fdstream>
@@ -19,6 +20,7 @@
 #include <bpkg/manifest-serializer>
 
 #include <bpkg/types>
+#include <bpkg/utility>
 #include <bpkg/diagnostics>
 
 using namespace std;
@@ -32,10 +34,11 @@ namespace bpkg
 
   static void
   collect (package_map& map, const dir_path& d, const dir_path& root)
+  try
   {
     tracer trace ("collect");
 
-    for (const dir_entry& de: dir_iterator (d))
+    for (const dir_entry& de: dir_iterator (d)) // system_error
     {
       path p (de.path ());
 
@@ -47,7 +50,7 @@ namespace bpkg
         continue;
       }
 
-      switch (de.type ()) // Follow symlinks.
+      switch (de.type ()) // Follow symlinks, system_error.
       {
       case entry_type::directory:
         {
@@ -174,6 +177,11 @@ namespace bpkg
       }
     }
   }
+  catch (const system_error& e)
+  {
+    error << "unable to scan directory " << d << ": " << e.what ();
+    throw failed ();
+  }
 
   void
   rep_create (const rep_create_options&, cli::scanner& args)
@@ -192,7 +200,7 @@ namespace bpkg
     //
     path rf (d / path ("repositories"));
 
-    if (!file_exists (rf))
+    if (!exists (rf))
       fail << "file " << rf << " does not exist";
 
     try
@@ -249,13 +257,17 @@ namespace bpkg
     {
       fail << "unable to save manifest: " << e.description;
     }
-    catch (const ifdstream::failure&)
+    catch (const ofstream::failure&)
     {
       fail << "unable to write to " << p;
     }
 
     if (verb)
-      text << pm.size () << " package(s)";
+    {
+      d.complete ();
+      d.normalize ();
+      text << pm.size () << " package(s) in " << d;
+    }
   }
   catch (const invalid_path& e)
   {

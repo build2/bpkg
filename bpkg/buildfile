@@ -7,7 +7,7 @@ using cli
 import libs  = libbutl%lib{butl}
 import libs += libbpkg%lib{bpkg}
 
-exe{bpkg}: cxx{diagnostics} cli.cxx{common-options} \
+exe{bpkg}: cxx{diagnostics utility} cli.cxx{common-options} \
   cxx{bpkg}       cli.cxx{bpkg-options}             \
   cxx{help}       cli.cxx{help-options}             \
   cxx{rep-create} cli.cxx{rep-create-options}       \

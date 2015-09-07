@@ -1,0 +1,19 @@
+// file      : bpkg/utility -*- C++ -*-
+// copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
+// license   : MIT; see accompanying LICENSE file
+
+#ifndef BPKG_UTILITY
+#define BPKG_UTILITY
+
+#include <bpkg/types>
+
+namespace bpkg
+{
+  bool
+  exists (const path&);
+
+  bool
+  exists (const dir_path&);
+}
+
+#endif // BPKG_UTILITY
