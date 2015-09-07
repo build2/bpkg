@@ -1,0 +1,17 @@
+// file      : bpkg/cfg-create -*- C++ -*-
+// copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
+// license   : MIT; see accompanying LICENSE file
+
+#ifndef BPKG_CFG_CREATE
+#define BPKG_CFG_CREATE
+
+#include <bpkg/types>
+#include <bpkg/cfg-create-options>
+
+namespace bpkg
+{
+  void
+  cfg_create (const cfg_create_options&, cli::scanner& args);
+}
+
+#endif // BPKG_CFG_CREATE

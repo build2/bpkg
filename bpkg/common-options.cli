@@ -3,6 +3,7 @@
 // license   : MIT; see accompanying LICENSE file
 
 include <cstdint>;
+include <bpkg/types>;
 
 namespace bpkg
 {

@@ -21,6 +21,13 @@ namespace bpkg
       ""
     };
 
+    bool cfg-create
+    {
+      "[<conf>]",
+      "Create configuration.",
+      ""
+    };
+
     bool rep-create
     {
       "[<dir>]",

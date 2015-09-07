@@ -9,11 +9,33 @@
 
 namespace bpkg
 {
+  // Filesystem.
+  //
   bool
   exists (const path&);
 
   bool
   exists (const dir_path&);
+
+  bool
+  empty (const dir_path&);
+
+  void
+  mk (const dir_path&);
+
+  void
+  mk_p (const dir_path&);
+
+  void
+  rm_r (const dir_path&, bool dir = true);
+
+  // Process.
+  //
+  void
+  run (const char* const args[]);
+
+  inline void
+  run (const cstrings& args) {run (args.data ());}
 }
 
 #endif // BPKG_UTILITY

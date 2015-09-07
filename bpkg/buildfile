@@ -7,15 +7,20 @@ using cli
 import libs  = libbutl%lib{butl}
 import libs += libbpkg%lib{bpkg}
 
-exe{bpkg}: cxx{diagnostics utility} cli.cxx{common-options} \
-  cxx{bpkg}       cli.cxx{bpkg-options}             \
-  cxx{help}       cli.cxx{help-options}             \
-  cxx{rep-create} cli.cxx{rep-create-options}       \
+exe{bpkg}: cxx{diagnostics utility}                          \
+                  cli.cxx{common-options} cxx{types-parsers} \
+  cxx{bpkg}       cli.cxx{bpkg-options}                      \
+  cxx{help}       cli.cxx{help-options}                      \
+  cxx{cfg-create} cli.cxx{cfg-create-options}                \
+  cxx{rep-create} cli.cxx{rep-create-options}                \
   $libs
 
+#@@ --cxx-prologue "#include <brep/types-parsers>"
+
 cli.options += -I $src_root --include-with-brackets --include-prefix bpkg \
---guard-prefix BPKG --generate-file-scanner --cli-namespace bpkg::cli \
---generate-specifier --generate-parse --long-usage --exclude-base
+--guard-prefix BPKG --cxx-prologue-file $src_base/types-parsers           \
+--cli-namespace bpkg::cli --generate-file-scanner --generate-specifier    \
+--generate-parse --long-usage --exclude-base
 
 # Option length must be the same to get commands/topics/options lists
 # aligned in the general help.
@@ -27,4 +32,5 @@ cli.cxx{bpkg-options}: cli{bpkg-options}
 cli.cxx{bpkg-options}: cli.options += --option-length 22 --short-usage
 
 cli.cxx{help-options}: cli{help-options}
+cli.cxx{cfg-create-options}: cli{cfg-create-options}
 cli.cxx{rep-create-options}: cli{rep-create-options}

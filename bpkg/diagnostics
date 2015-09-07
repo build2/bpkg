@@ -35,10 +35,10 @@ namespace bpkg
   // nameN arg arg ... nullptr nullptr
   //
   void
-  print_process (diag_record&, const char* const* args, std::size_t n = 0);
+  print_process (diag_record&, const char* const args[], std::size_t n = 0);
 
   void
-  print_process (const char* const* args, std::size_t n = 0);
+  print_process (const char* const args[], std::size_t n = 0);
 
   inline void
   print_process (diag_record& dr, const cstrings& args)
@@ -55,7 +55,7 @@ namespace bpkg
   // Verbosity level.
   //
   // 0 - disabled
-  // 1 - general information messages
+  // 1 - high-level information messages
   // 2 - underlying commands being executed
   // 3 - information that could be helpful to the user
   // 4 - information that could be helpful to the developer

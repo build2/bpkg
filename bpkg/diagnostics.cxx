@@ -13,14 +13,14 @@ namespace bpkg
   // print_process
   //
   void
-  print_process (const char* const* args, size_t n)
+  print_process (const char* const args[], size_t n)
   {
     diag_record r (text);
     print_process (r, args, n);
   }
 
   void
-  print_process (diag_record& r, const char* const* args, size_t n)
+  print_process (diag_record& r, const char* const args[], size_t n)
   {
     size_t m (0);
     const char* const* p (args);
@@ -44,7 +44,7 @@ namespace bpkg
     } while (*p != nullptr);
   }
 
-  // Trace verbosity level.
+  // Diagnostics verbosity level.
   //
   uint16_t verb;
 

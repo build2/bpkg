@@ -14,6 +14,7 @@
 // Commands.
 //
 #include <bpkg/help>
+#include <bpkg/cfg-create>
 #include <bpkg/rep-create>
 
 using namespace std;
@@ -35,7 +36,7 @@ parse (const common_options& co, cli::scanner& s)
   // Global initializations.
   //
 
-  // Trace verbosity.
+  // Diagnostics verbosity.
   //
   verb = o.verbose_specified () ? o.verbose () : o.v () ? 2 : o.q () ? 0 : 1;
 
@@ -131,6 +132,18 @@ try
   {
     assert (h);
     help (ho, "help", help_options::print_usage);
+    return 0;
+  }
+
+  // cfg-create
+  //
+  if (cmd.cfg_create ())
+  {
+    if (h)
+      help (ho, "cfg-create", cfg_create_options::print_usage);
+    else
+      cfg_create (parse<cfg_create_options> (co, args), args);
+
     return 0;
   }
 
