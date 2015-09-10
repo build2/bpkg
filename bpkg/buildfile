@@ -15,10 +15,8 @@ exe{bpkg}: cxx{diagnostics utility}                          \
   cxx{rep-create} cli.cxx{rep-create-options}                \
   $libs
 
-#@@ --cxx-prologue "#include <brep/types-parsers>"
-
 cli.options += -I $src_root --include-with-brackets --include-prefix bpkg \
---guard-prefix BPKG --cxx-prologue-file $src_base/types-parsers           \
+--guard-prefix BPKG --cxx-prologue "#include <bpkg/types-parsers>"        \
 --cli-namespace bpkg::cli --generate-file-scanner --generate-specifier    \
 --generate-parse --long-usage --exclude-base
 
