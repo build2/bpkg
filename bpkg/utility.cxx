@@ -36,7 +36,7 @@ namespace bpkg
   {
     try
     {
-      return file_exists (d);
+      return dir_exists (d);
     }
     catch (const system_error& e)
     {
@@ -63,6 +63,9 @@ namespace bpkg
   void
   mk (const dir_path& d)
   {
+    if (verb >= 3)
+      text << "mkdir " << d;
+
     try
     {
       try_mkdir (d);
@@ -76,6 +79,9 @@ namespace bpkg
   void
   mk_p (const dir_path& d)
   {
+    if (verb >= 3)
+      text << "mkdir -p " << d;
+
     try
     {
       try_mkdir_p (d);
@@ -89,6 +95,9 @@ namespace bpkg
   void
   rm_r (const dir_path& d, bool dir)
   {
+    if (verb >= 3)
+      text << "rmdir -r " << d << (dir ? "" : "*");
+
     try
     {
       rmdir_r (d, dir);

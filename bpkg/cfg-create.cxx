@@ -31,8 +31,12 @@ namespace bpkg
     //
     if (exists (d))
     {
+      level5 ([&]{trace << "directory " << d << " exists";});
+
       if (!empty (d))
       {
+        level5 ([&]{trace << "directory " << d << " not empty";});
+
         if (!o.wipe ())
           fail << "directory " << d << " is not empty";
 
@@ -40,7 +44,10 @@ namespace bpkg
       }
     }
     else
+    {
+      level5 ([&]{trace << "directory " << d << " does not exist";});
       mk_p (d);
+    }
 
     // Sort arguments into modules and configuration variables.
     //
