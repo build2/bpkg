@@ -31,6 +31,9 @@ namespace bpkg
 
   // Process.
   //
+  // The process command line is printed for verbosity >= 2 (essential
+  // command lines).
+  //
   void
   run (const char* const args[]);
 

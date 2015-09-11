@@ -46,7 +46,7 @@ namespace bpkg
       //
       if (p.string ().front () == '.')
       {
-        level3 ([&]{trace << "skipping '" << p << "' in " << d;});
+        level4 ([&]{trace << "skipping '" << p << "' in " << d;});
         continue;
       }
 
@@ -211,7 +211,7 @@ namespace bpkg
 
       manifest_parser mp (ifs, rf.string ());
       repository_manifests ms (mp);
-      level3 ([&]{trace << ms.size () - 1 << " prerequisite repository(s)";});
+      level4 ([&]{trace << ms.size () - 1 << " prerequisite repository(s)";});
     }
     catch (const manifest_parsing& e)
     {

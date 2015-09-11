@@ -56,10 +56,11 @@ namespace bpkg
   //
   // 0 - disabled
   // 1 - high-level information messages
-  // 2 - underlying commands being executed
-  // 3 - information that could be helpful to the user
-  // 4 - information that could be helpful to the developer
-  // 5 - even more detailed information
+  // 2 - essential underlying commands that are being executed
+  // 3 - all underlying commands that are being executed
+  // 4 - information that could be helpful to the user
+  // 5 - information that could be helpful to the developer
+  // 6 - even more detailed information
   //
   // While uint8 is more than enough, use uint16 for the ease of printing.
   //
@@ -70,6 +71,7 @@ namespace bpkg
   template <typename F> inline void level3 (const F& f) {if (verb >= 3) f ();}
   template <typename F> inline void level4 (const F& f) {if (verb >= 4) f ();}
   template <typename F> inline void level5 (const F& f) {if (verb >= 5) f ();}
+  template <typename F> inline void level6 (const F& f) {if (verb >= 6) f ();}
 
   // Diagnostic facility, base infrastructure (potentially reusable).
   //

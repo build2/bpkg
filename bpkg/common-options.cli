@@ -25,7 +25,7 @@ namespace bpkg
     {
       "<level>",
       "Set the diagnostics verbosity to <level> between 0 (disabled) and
-       5 (lots of information). The default is 1. @@ Need to document
+       6 (lots of information). The default is 1. @@ Need to document
        further."
     };
 
