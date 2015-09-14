@@ -7,6 +7,7 @@
 #include <memory>  // unique_ptr
 #include <utility> // move()
 
+#include <odb/schema-catalog.hxx>
 #include <odb/sqlite/exceptions.hxx>
 
 #include <bpkg/types>
@@ -17,6 +18,7 @@ using namespace std;
 namespace bpkg
 {
   using namespace odb::sqlite;
+  using odb::schema_catalog;
 
   database
   open (const dir_path& d, bool create)
@@ -46,6 +48,26 @@ namespace bpkg
       {
         db.connection ()->execute ("PRAGMA locking_mode = EXCLUSIVE");
         transaction t (db.begin_exclusive ());
+        t.commit ();
+      }
+
+      if (create)
+      {
+        // Create the new schema.
+        //
+        if (db.schema_version () != 0)
+          fail << f << ": already has database schema";
+
+        transaction t (db.begin ());
+        schema_catalog::create_schema (db);
+        t.commit ();
+      }
+      else
+      {
+        // Migrate the database if necessary.
+        //
+        transaction t (db.begin ());
+        schema_catalog::migrate (db);
         t.commit ();
       }
 

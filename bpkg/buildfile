@@ -9,12 +9,12 @@ import libs += libbutl%lib{butl}
 import libs += libodb%lib{odb}
 import libs += libodb-sqlite%lib{odb-sqlite}
 
-exe{bpkg}: cxx{database diagnostics utility}                 \
-                  cli.cxx{common-options} cxx{types-parsers} \
-  cxx{bpkg}       cli.cxx{bpkg-options}                      \
-  cxx{help}       cli.cxx{help-options}                      \
-  cxx{cfg-create} cli.cxx{cfg-create-options}                \
-  cxx{rep-create} cli.cxx{rep-create-options}                \
+exe{bpkg}: cxx{package package-odb database diagnostics utility} \
+                  cli.cxx{common-options} cxx{types-parsers}     \
+  cxx{bpkg}       cli.cxx{bpkg-options}                          \
+  cxx{help}       cli.cxx{help-options}                          \
+  cxx{cfg-create} cli.cxx{cfg-create-options}                    \
+  cxx{rep-create} cli.cxx{rep-create-options}                    \
   $libs
 
 cli.options += -I $src_root --include-with-brackets --include-prefix bpkg \

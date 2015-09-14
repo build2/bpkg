@@ -1,0 +1,94 @@
+// file      : bpkg/package -*- C++ -*-
+// copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
+// license   : MIT; see accompanying LICENSE file
+
+#ifndef BPKG_PACKAGE
+#define BPKG_PACKAGE
+
+#include <memory>  // shared_ptr
+#include <cstdint> // uint16
+#include <ostream>
+#include <utility> // move()
+
+#include <odb/core.hxx>
+
+#include <bpkg/types>
+
+#pragma db model version(1, 1, open)
+
+namespace bpkg
+{
+  // Use an image type to map version to the database since there
+  // is no way to modify individual components directly.
+  //
+  #pragma db value
+  struct _version
+  {
+    std::uint16_t epoch;
+    std::string upstream;
+    std::uint16_t revision;
+    std::string canonical_upstream;
+  };
+}
+
+#include <bpkg/manifest>
+
+namespace bpkg
+{
+  // version
+  //
+  #pragma db map type(version) as(_version)                                \
+    to(bpkg::_version{(?).epoch (),                                        \
+                      (?).upstream (),                                     \
+                      (?).revision (),                                     \
+                      (?).canonical_upstream ()})                          \
+    from(bpkg::version ((?).epoch, std::move ((?).upstream), (?).revision))
+
+  // state
+  //
+  enum class state
+  {
+    fetched,
+    unpacked,
+    configured,
+    updated,
+    broken
+  };
+
+  string
+  to_string (state);
+
+  state
+  from_string (const string&); // May throw invalid_argument.
+
+  inline std::ostream&
+  operator<< (std::ostream& os, state s) {return os << to_string (s);}
+
+  #pragma db map type(state) as(string) \
+    to(to_string (?))                   \
+    from(bpkg::from_string (?))
+
+  // package
+  //
+  #pragma db object pointer(std::shared_ptr)
+  class package
+  {
+  public:
+    using version_type = bpkg::version;
+    using state_type = bpkg::state;
+
+    string name;
+    version_type version;
+    state_type state;
+
+    // Database mapping.
+    //
+    #pragma db member(name) id
+
+  private:
+    friend class odb::access;
+    package () = default;
+  };
+}
+
+#endif // BPKG_PACKAGE

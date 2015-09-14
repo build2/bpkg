@@ -1,0 +1,15 @@
+<changelog xmlns="http://www.codesynthesis.com/xmlns/odb/changelog" database="sqlite" version="1">
+  <model version="1">
+    <table name="package" kind="object">
+      <column name="name" type="TEXT" null="true"/>
+      <column name="version_epoch" type="INTEGER" null="true"/>
+      <column name="version_upstream" type="TEXT" null="true"/>
+      <column name="version_revision" type="INTEGER" null="true"/>
+      <column name="version_canonical_upstream" type="TEXT" null="true"/>
+      <column name="state" type="TEXT" null="true"/>
+      <primary-key>
+        <column name="name"/>
+      </primary-key>
+    </table>
+  </model>
+</changelog>
