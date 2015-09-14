@@ -11,6 +11,7 @@
 
 #include <bpkg/types>
 #include <bpkg/utility>
+#include <bpkg/database>
 #include <bpkg/diagnostics>
 
 using namespace std;
@@ -144,6 +145,10 @@ namespace bpkg
       args.push_back (nullptr);
       run (args);
     }
+
+    // Create the database.
+    //
+    open (d, true);
 
     if (verb)
     {

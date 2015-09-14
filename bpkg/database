@@ -1,0 +1,21 @@
+// file      : bpkg/database -*- C++ -*-
+// copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
+// license   : MIT; see accompanying LICENSE file
+
+#ifndef BPKG_DATABASE
+#define BPKG_DATABASE
+
+#include <odb/sqlite/database.hxx>
+
+#include <bpkg/types>
+
+namespace bpkg
+{
+  using odb::sqlite::database;
+  using odb::sqlite::transaction;
+
+  database
+  open (const dir_path& configuration, bool create = false);
+}
+
+#endif // BPKG_DATABASE
