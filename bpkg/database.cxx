@@ -49,10 +49,15 @@ namespace bpkg
       // also fail if the database is inaccessible (e.g., file does not
       // exist, already used by another process, etc).
       //
+      try
       {
         db.connection ()->execute ("PRAGMA locking_mode = EXCLUSIVE");
         transaction t (db.begin_exclusive ());
         t.commit ();
+      }
+      catch (odb::timeout&)
+      {
+        fail << "configuration " << d << " is already used by another process";
       }
 
       if (create)
