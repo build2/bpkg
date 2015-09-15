@@ -11,6 +11,7 @@
 #include <odb/sqlite/exceptions.hxx>
 
 #include <bpkg/types>
+#include <bpkg/utility>
 #include <bpkg/diagnostics>
 
 using namespace std;
@@ -24,6 +25,9 @@ namespace bpkg
   open (const dir_path& d, bool create)
   {
     path f (d / path ("bpkg.sqlite3"));
+
+    if (!create && !exists (f))
+      fail << d << " does not look like a bpkg configuration directory";
 
     try
     {

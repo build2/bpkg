@@ -35,6 +35,18 @@ namespace bpkg
 
 namespace bpkg
 {
+  // path
+  //
+  #pragma db map type(path) as(string)  \
+    to((?).string ()) from(bpkg::path (?))
+
+  using optional_path = optional<path>;
+  using optional_string = optional<string>;
+
+  #pragma db map type(optional_path) as(bpkg::optional_string) \
+    to((?) ? (?)->string () : bpkg::optional_string ())        \
+    from((?) ? bpkg::path (*(?)) : bpkg::optional_path ())
+
   // version
   //
   #pragma db map type(version) as(_version)                                \
@@ -80,6 +92,14 @@ namespace bpkg
     string name;
     version_type version;
     state_type state;
+
+    // Path to the archive of this package, if any. If not absolute,
+    // then it is relative to the configuration directory. The purge
+    // flag indicates whether the archive should be removed when the
+    // packaged is purged.
+    //
+    optional<path> archive;
+    bool archive_purge;
 
     // Database mapping.
     //

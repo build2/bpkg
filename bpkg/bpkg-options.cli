@@ -21,6 +21,20 @@ namespace bpkg
       ""
     };
 
+    bool pkg-verify
+    {
+      "<archive>",
+      "Verify archive is a valid \cb{bpkg} package.",
+      ""
+    };
+
+    bool pkg-fetch
+    {
+      "<pkg> <ver>",
+      "Fetch package archive.",
+      ""
+    };
+
     bool cfg-create
     {
       "[<conf>]",

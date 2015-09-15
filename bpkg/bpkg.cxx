@@ -14,6 +14,8 @@
 // Commands.
 //
 #include <bpkg/help>
+#include <bpkg/pkg-verify>
+#include <bpkg/pkg-fetch>
 #include <bpkg/cfg-create>
 #include <bpkg/rep-create>
 
@@ -132,6 +134,30 @@ try
   {
     assert (h);
     help (ho, "help", help_options::print_usage);
+    return 0;
+  }
+
+  // pkg-verify
+  //
+  if (cmd.pkg_verify ())
+  {
+    if (h)
+      help (ho, "pkg-verify", pkg_verify_options::print_usage);
+    else
+      pkg_verify (parse<pkg_verify_options> (co, args), args);
+
+    return 0;
+  }
+
+  // pkg-fetch
+  //
+  if (cmd.pkg_fetch ())
+  {
+    if (h)
+      help (ho, "pkg-fetch", pkg_fetch_options::print_usage);
+    else
+      pkg_fetch (parse<pkg_fetch_options> (co, args), args);
+
     return 0;
   }
 

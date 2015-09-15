@@ -1,0 +1,44 @@
+// file      : bpkg/pkg-fetch-options.cli
+// copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
+// license   : MIT; see accompanying LICENSE file
+
+include <bpkg/common-options.cli>;
+
+/*
+"\section=1"
+"\name=bpkg-pkg-fetch"
+
+"\h{SYNOPSIS}
+
+bpkg pkg-fetch [<options>] (<pkg> <ver>)|(-a <archive>)"
+
+"\h{DESCRIPTION}
+
+The \cb{pkg-fetch} command fetches the archive for the specified package
+name and version from one of the configuration's repositories. If the
+\cb{-a|--archive} option is used, then instead of the name and version
+arguments, \cb{pkg-fetch} expects a local path to the package archive
+file. In this case, \cb{bpkg} will use the archive in place, without
+copying it to the configuration or package cache directories. It will
+also not attempt to remove the archive if the package is purged with
+the \cb{pkg-purge} command."
+*/
+
+namespace bpkg
+{
+  class pkg_fetch_options: common_options
+  {
+    dir_path --directory | -d (".")
+    {
+      "<dir>",
+      "Assume configuration is in <dir> rather than in the current working
+       directory."
+    };
+
+    bool --archive | -a
+    {
+      "Treat the argument as a package archive path rather than package
+       name/version to fetch."
+    };
+  };
+}

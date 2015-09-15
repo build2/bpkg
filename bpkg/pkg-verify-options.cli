@@ -1,0 +1,34 @@
+// file      : bpkg/pkg-verify-options.cli
+// copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
+// license   : MIT; see accompanying LICENSE file
+
+include <bpkg/common-options.cli>;
+
+/*
+"\section=1"
+"\name=bpkg-pkg-verify"
+
+"\h{SYNOPSIS}
+
+bpkg pkg-verify <archive>"
+
+"\h{DESCRIPTION}
+
+The \cb{pkg-verify} command verifies that the specified archive is a
+valid \cb{bpkg} package. Specifically, it checks that the archive
+contains a valid manifest file and that both the archive's name
+and its top-level directory match the canonical <name>-<version>
+form."
+*/
+
+namespace bpkg
+{
+  class pkg_verify_options: common_options
+  {
+    bool --silent
+    {
+      "Suppress error messages about the reason why the package is
+       invalid. Just return the error status."
+    };
+  };
+}

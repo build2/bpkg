@@ -11,9 +11,7 @@
 #include <iostream>
 #include <system_error>
 
-#include <butl/process>
-#include <butl/fdstream>
-#include <butl/filesystem>
+#include <butl/filesystem> // dir_iterator
 
 #include <bpkg/manifest>
 #include <bpkg/manifest-parser>
@@ -21,6 +19,7 @@
 
 #include <bpkg/types>
 #include <bpkg/utility>
+#include <bpkg/pkg-verify>
 #include <bpkg/diagnostics>
 
 using namespace std;
@@ -72,108 +71,29 @@ namespace bpkg
           continue;
       }
 
-      path fp (d / p);
-
-      // Figure out the package directory. Strip the top-level extension
-      // and, as a special case, if the second-level extension is .tar,
-      // strip that as well (e.g., .tar.bz2).
+      // Verify archive is a package and get its manifest.
       //
-      p = p.base ();
-      if (const char* e = p.extension ())
-      {
-        if (e == string ("tar"))
-          p = p.base ();
-      }
+      path a (d / p);
+      package_manifest m (pkg_verify (a));
 
-      level4 ([&]{trace << "found package " << p << " in " << fp;});
+      level4 ([&]{trace << m.name << " " << m.version << " in " << a;});
 
-      // Extract the manifest.
+      // Add package archive location relative to the repository root.
       //
-      path mf (p / path ("manifest"));
+      m.location = a.leaf (root);
 
-      const char* args[] {
-        "tar",
-        "-xOf",                // -O/--to-stdout -- extract to STDOUT.
-        fp.string ().c_str (),
-        mf.string ().c_str (),
-        nullptr};
+      package_key k (m.name, m.version); // Argument evaluation order.
+      auto r (map.emplace (move (k), package_data (a, move (m))));
 
-      if (verb >= 2)
-        print_process (args);
-
-      try
+      // Diagnose duplicates.
+      //
+      if (!r.second)
       {
-        process pr (args, 0, -1); // Open pipe to stdout.
+        const package_manifest& m (r.first->second.second);
 
-        try
-        {
-          ifdstream is (pr.in_ofd);
-          is.exceptions (ifdstream::badbit | ifdstream::failbit);
-
-          manifest_parser mp (is, mf.string ());
-          package_manifest m (mp);
-
-          // Verify package archive/directory is <name>-<version>.
-          //
-          {
-            path ep (m.name + "-" + m.version.string ());
-
-            if (p != ep)
-              fail << "package archive/directory name mismatch in " << fp <<
-                info << "extracted from archive '" << p << "'" <<
-                info << "expected from manifest '" << ep << "'";
-          }
-
-          // Add package archive location relative to the repository root.
-          //
-          m.location = fp.leaf (root);
-
-          package_key k (m.name, m.version); // Argument evaluation order.
-          auto r (map.emplace (move (k), package_data (fp, move (m))));
-
-          // Diagnose duplicates.
-          //
-          if (!r.second)
-          {
-            const package_manifest& m (r.first->second.second);
-
-            fail << "duplicate package " << m.name << " " << m.version <<
-              info << "first package archive is " << r.first->second.first <<
-              info << "second package archive is " << fp;
-          }
-        }
-        // Ignore these exceptions if the child process exited with
-        // an error status since that's the source of the failure.
-        //
-        catch (const manifest_parsing& e)
-        {
-          if (pr.wait ())
-            fail (e.name, e.line, e.column) << e.description <<
-              info << "package archive " << fp;
-        }
-        catch (const ifdstream::failure&)
-        {
-          if (pr.wait ())
-            fail << "unable to extract " << mf << " from " << fp;
-        }
-
-        if (!pr.wait ())
-        {
-          // While it is reasonable to assuming the child process issued
-          // diagnostics, tar, specifically, doesn't mention the archive
-          // name.
-          //
-          fail << fp << " does not appear to be a bpkg package";
-        }
-      }
-      catch (const process_error& e)
-      {
-        error << "unable to execute " << args[0] << ": " << e.what ();
-
-        if (e.child ())
-          exit (1);
-
-        throw failed ();
+        fail << "duplicate package " << m.name << " " << m.version <<
+          info << "first package archive is " << r.first->second.first <<
+          info << "second package archive is " << a;
       }
     }
   }

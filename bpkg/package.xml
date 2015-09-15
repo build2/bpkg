@@ -7,6 +7,8 @@
       <column name="version_revision" type="INTEGER" null="true"/>
       <column name="version_canonical_upstream" type="TEXT" null="true"/>
       <column name="state" type="TEXT" null="true"/>
+      <column name="archive" type="TEXT" null="true"/>
+      <column name="archive_purge" type="INTEGER" null="true"/>
       <primary-key>
         <column name="name"/>
       </primary-key>

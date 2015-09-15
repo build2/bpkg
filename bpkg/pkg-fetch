@@ -1,0 +1,17 @@
+// file      : bpkg/pkg-fetch -*- C++ -*-
+// copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
+// license   : MIT; see accompanying LICENSE file
+
+#ifndef BPKG_PKG_FETCH
+#define BPKG_PKG_FETCH
+
+#include <bpkg/types>
+#include <bpkg/pkg-fetch-options>
+
+namespace bpkg
+{
+  void
+  pkg_fetch (const pkg_fetch_options&, cli::scanner& args);
+}
+
+#endif // BPKG_PKG_FETCH

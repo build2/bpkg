@@ -7,7 +7,6 @@
 #include <utility> // move()
 #include <cassert>
 #include <fstream>
-#include <iostream>
 
 #include <bpkg/types>
 #include <bpkg/utility>

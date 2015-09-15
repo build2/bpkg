@@ -10,6 +10,7 @@
 #include <ostream>
 
 #include <butl/path>
+#include <butl/optional>
 
 namespace bpkg
 {
@@ -19,6 +20,8 @@ namespace bpkg
 
   using strings = std::vector<string>;
   using cstrings = std::vector<const char*>;
+
+  using butl::optional;
 
   // <butl/path>
   //
