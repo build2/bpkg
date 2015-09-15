@@ -10,7 +10,7 @@ include <bpkg/common-options.cli>;
 
 "\h{SYNOPSIS}
 
-bpkg pkg-fetch [<options>] (<pkg> <ver>)|(-a <archive>)"
+bpkg pkg-fetch [<options>] (<pkg> <ver>)|(-e <file>)"
 
 "\h{DESCRIPTION}
 
