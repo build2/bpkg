@@ -34,7 +34,7 @@ namespace bpkg
     path a;
     bool purge;
 
-    if (o.archive ())
+    if (o.existing ())
     {
       if (!args.more ())
         fail << "archive path argument expected" <<
