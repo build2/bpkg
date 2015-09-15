@@ -25,7 +25,7 @@ namespace bpkg
 {
   class cfg_create_options: common_options
   {
-    dir_path --directory | -d (".")
+    dir_path --directory|-d (".")
     {
       "<dir>",
       "Create configuration in <dir> rather than in the current working

@@ -28,14 +28,14 @@ namespace bpkg
 {
   class pkg_fetch_options: common_options
   {
-    dir_path --directory | -d (".")
+    dir_path --directory|-d (".")
     {
       "<dir>",
       "Assume configuration is in <dir> rather than in the current working
        directory."
     };
 
-    bool --archive | -a
+    bool --archive|-a
     {
       "Treat the argument as a package archive path rather than package
        name/version to fetch."
