@@ -6,6 +6,8 @@
 
 #include <iostream>
 
+#include <bpkg/utility>
+
 using namespace std;
 
 namespace bpkg
@@ -62,7 +64,7 @@ namespace bpkg
     // this ugly special check which we will be able to get rid of
     // once C++17 uncaught_exceptions() becomes available.
     //
-    if (!empty_ && (!uncaught_exception () /*|| exception_unwinding_dtor*/))
+    if (!empty_ && (!uncaught_exception () || exception_unwinding_dtor))
     {
       *diag_stream << os_.str () << endl;
 

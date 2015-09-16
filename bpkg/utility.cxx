@@ -132,4 +132,6 @@ namespace bpkg
       throw failed ();
     }
   }
+
+  bool exception_unwinding_dtor = false;
 }
