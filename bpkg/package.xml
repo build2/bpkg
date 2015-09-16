@@ -9,6 +9,8 @@
       <column name="state" type="TEXT" null="true"/>
       <column name="archive" type="TEXT" null="true"/>
       <column name="archive_purge" type="INTEGER" null="true"/>
+      <column name="source" type="TEXT" null="true"/>
+      <column name="source_purge" type="INTEGER" null="true"/>
       <primary-key>
         <column name="name"/>
       </primary-key>

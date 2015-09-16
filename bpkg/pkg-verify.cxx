@@ -4,6 +4,8 @@
 
 #include <bpkg/pkg-verify>
 
+#include <fstream>
+
 #include <butl/process>
 #include <butl/fdstream>
 
@@ -137,6 +139,61 @@ namespace bpkg
 
       if (e.child ())
         exit (1);
+
+      throw failed ();
+    }
+  }
+
+  package_manifest
+  pkg_verify (const dir_path& d, bool diag)
+  {
+    // Parse the manifest.
+    //
+    path mf (d / path ("manifest"));
+
+    if (!exists (mf))
+    {
+      if (diag)
+        error << "no manifest file in package directory " << d;
+
+      throw failed ();
+    }
+
+    try
+    {
+      ifstream ifs;
+      ifs.exceptions (ifstream::badbit | ifstream::failbit);
+      ifs.open (mf.string ());
+
+      manifest_parser mp (ifs, mf.string ());
+      package_manifest m (mp);
+
+      // Verify package directory is <name>-<version>.
+      //
+      dir_path ed (m.name + "-" + m.version.string ());
+
+      if (d.leaf () != ed)
+      {
+        if (diag)
+          error << "invalid package directory name '" << d.leaf () << "'" <<
+            info << "expected from manifest '" << ed << "'";
+
+        throw failed ();
+      }
+
+      return m;
+    }
+    catch (const manifest_parsing& e)
+    {
+      if (diag)
+        error (e.name, e.line, e.column) << e.description;
+
+      throw failed ();
+    }
+    catch (const ifstream::failure&)
+    {
+      if (diag)
+        error << "unable to read from " << mf;
 
       throw failed ();
     }

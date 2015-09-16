@@ -22,6 +22,12 @@ namespace bpkg
   //
   package_manifest
   pkg_verify (const path& archive, bool diag = true);
+
+  // Similar to the above but verifies that a source directory is
+  // a valid package.
+  //
+  package_manifest
+  pkg_verify (const dir_path& source, bool diag = true);
 }
 
 #endif // BPKG_PKG_VERIFY

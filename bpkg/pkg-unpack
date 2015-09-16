@@ -1,0 +1,17 @@
+// file      : bpkg/pkg-unpack -*- C++ -*-
+// copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
+// license   : MIT; see accompanying LICENSE file
+
+#ifndef BPKG_PKG_UNPACK
+#define BPKG_PKG_UNPACK
+
+#include <bpkg/types>
+#include <bpkg/pkg-unpack-options>
+
+namespace bpkg
+{
+  void
+  pkg_unpack (const pkg_unpack_options&, cli::scanner& args);
+}
+
+#endif // BPKG_PKG_UNPACK

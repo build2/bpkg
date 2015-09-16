@@ -16,6 +16,7 @@
 #include <bpkg/help>
 #include <bpkg/pkg-verify>
 #include <bpkg/pkg-fetch>
+#include <bpkg/pkg-unpack>
 #include <bpkg/cfg-create>
 #include <bpkg/rep-create>
 
@@ -157,6 +158,18 @@ try
       help (ho, "pkg-fetch", pkg_fetch_options::print_usage);
     else
       pkg_fetch (parse<pkg_fetch_options> (co, args), args);
+
+    return 0;
+  }
+
+  // pkg-unpack
+  //
+  if (cmd.pkg_unpack ())
+  {
+    if (h)
+      help (ho, "pkg-unpack", pkg_unpack_options::print_usage);
+    else
+      pkg_unpack (parse<pkg_unpack_options> (co, args), args);
 
     return 0;
   }

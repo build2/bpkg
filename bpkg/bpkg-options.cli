@@ -35,6 +35,13 @@ namespace bpkg
       ""
     };
 
+    bool pkg-unpack
+    {
+      "<pkg>",
+      "Unpack package archive.",
+      ""
+    };
+
     bool cfg-create
     {
       "[<conf>]",

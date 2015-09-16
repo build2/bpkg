@@ -37,15 +37,23 @@ namespace bpkg
 {
   // path
   //
+  using optional_string = optional<string>;
+  using optional_path = optional<path>;
+  using optional_dir_path = optional<dir_path>;
+
   #pragma db map type(path) as(string)  \
     to((?).string ()) from(bpkg::path (?))
-
-  using optional_path = optional<path>;
-  using optional_string = optional<string>;
 
   #pragma db map type(optional_path) as(bpkg::optional_string) \
     to((?) ? (?)->string () : bpkg::optional_string ())        \
     from((?) ? bpkg::path (*(?)) : bpkg::optional_path ())
+
+  #pragma db map type(dir_path) as(string)  \
+    to((?).string ()) from(bpkg::dir_path (?))
+
+  #pragma db map type(optional_dir_path) as(bpkg::optional_string) \
+    to((?) ? (?)->string () : bpkg::optional_string ())            \
+    from((?) ? bpkg::dir_path (*(?)) : bpkg::optional_dir_path ())
 
   // version
   //
@@ -100,6 +108,14 @@ namespace bpkg
     //
     optional<path> archive;
     bool archive_purge;
+
+    // Path to the source directory of this package, if any. If not
+    // absolute, then it is relative to the configuration directory.
+    // The purge flag indicates whether the directory should be
+    // removed when the packaged is purged.
+    //
+    optional<dir_path> source;
+    bool source_purge;
 
     // Database mapping.
     //

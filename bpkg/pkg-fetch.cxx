@@ -88,11 +88,11 @@ namespace bpkg
     //
     if (shared_ptr<package> p = db.find<package> (n))
       fail << "package " << n << " already exists in configuration " << d <<
-        info << "existing version: " << p->version << ", state: " << p->state;
+        info << "version: " << p->version << ", state: " << p->state;
 
     // Make the archive and configuration paths absolute and normalized.
     // If the archive is inside the configuration, use the relative path.
-    // This way we can move configuration around.
+    // This way we can move the configuration around.
     //
     d.complete ().normalize ();
     a.complete ().normalize ();
@@ -102,13 +102,19 @@ namespace bpkg
 
     // Add the package to the configuration.
     //
-    package p {move (m.name),
-               move (m.version),
-               state::fetched,
-               move (a),
-               purge};
+    shared_ptr<package> p (new package {
+        move (m.name),
+        move (m.version),
+        state::fetched,
+        move (a),
+        purge,
+        optional<dir_path> (), // No source directory yet.
+        false});
 
     db.persist (p);
     t.commit ();
+
+    if (verb)
+      text << "fetched " << p->name << " " << p->version;
   }
 }
