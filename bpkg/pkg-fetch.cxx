@@ -45,7 +45,7 @@ namespace bpkg
       if (!exists (a))
         fail << "archive file '" << a << "' does not exist";
 
-      purge = false;
+      purge = o.purge ();
     }
     else
     {

@@ -24,7 +24,7 @@ using namespace butl;
 namespace bpkg
 {
   static shared_ptr<package>
-  pkg_unpack (database& db, const dir_path& c, const dir_path& d)
+  pkg_unpack (database& db, const dir_path& c, const dir_path& d, bool purge)
   {
     tracer trace ("pkg_unpack(dir)");
 
@@ -66,7 +66,7 @@ namespace bpkg
         optional<path> (), // No archive
         false,             // Don't purge archive.
         move (ad),
-        false});           // Don't purge source.
+        purge});
 
     db.persist (p);
     t.commit ();
@@ -186,7 +186,7 @@ namespace bpkg
         fail << "package directory argument expected" <<
           info << "run 'bpkg help pkg-unpack' for more information";
 
-      p = pkg_unpack (db, c, dir_path (args.next ()));
+      p = pkg_unpack (db, c, dir_path (args.next ()), o.purge ());
     }
     else
     {

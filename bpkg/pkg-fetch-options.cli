@@ -19,9 +19,10 @@ name and version from one of the configuration's repositories. If the
 \cb{-e|--existing} option is used, then instead of the name and version
 arguments, \cb{pkg-fetch} expects a local path to the existing package
 archive. In this case, \cb{bpkg} will use the archive in place, without
-copying it to the configuration or package cache directories. It will
-also not attempt to remove the archive if the package is purged with
-the \cb{pkg-purge} command."
+copying it to the configuration or package cache directories. Also,
+unless the \cb{-p|--purge} option is specified, \cb{bpkg} will not
+attempt to remove the archive when the package is purged with the
+\cb{pkg-purge} command."
 */
 
 namespace bpkg
@@ -39,6 +40,11 @@ namespace bpkg
     {
       "Treat the argument as an existing package archive path rather than
        package name/version to fetch."
+    };
+
+    bool --purge|-p
+    {
+      "Remove the existing package archive when the package is purged."
     };
   };
 }

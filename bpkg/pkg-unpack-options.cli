@@ -19,8 +19,9 @@ fetched (\cb{pkg-fetch}) package. If the \cb{-e|--existing} option
 is used, then instead of the package name, \cb{pkg-unpack} expects
 a local path to the existing package source directory. In this case,
 \cb{bpkg} will use the directory in place, without copying it to the
-configuration or package cache directories. It will also not attempt
-to remove this directory if the package is purged with the \cb{pkg-purge}
+configuration or package cache directories. Also, unless the
+\cb{-p|--purge} option is specified, \cb{bpkg} will not attempt to
+remove this directory when the package is purged with the \cb{pkg-purge}
 command."
 */
 
@@ -39,6 +40,11 @@ namespace bpkg
     {
       "Treat the argument as an existing package directory path rather than
        package name to unpack."
+    };
+
+    bool --purge|-p
+    {
+      "Remove the existing package directory when the package is purged."
     };
   };
 }
