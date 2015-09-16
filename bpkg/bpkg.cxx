@@ -15,8 +15,10 @@
 //
 #include <bpkg/help>
 #include <bpkg/pkg-verify>
+#include <bpkg/pkg-status>
 #include <bpkg/pkg-fetch>
 #include <bpkg/pkg-unpack>
+#include <bpkg/pkg-purge>
 #include <bpkg/cfg-create>
 #include <bpkg/rep-create>
 
@@ -150,6 +152,18 @@ try
     return 0;
   }
 
+  // pkg-status
+  //
+  if (cmd.pkg_status ())
+  {
+    if (h)
+      help (ho, "pkg-status", pkg_status_options::print_usage);
+    else
+      pkg_status (parse<pkg_status_options> (co, args), args);
+
+    return 0;
+  }
+
   // pkg-fetch
   //
   if (cmd.pkg_fetch ())
@@ -170,6 +184,18 @@ try
       help (ho, "pkg-unpack", pkg_unpack_options::print_usage);
     else
       pkg_unpack (parse<pkg_unpack_options> (co, args), args);
+
+    return 0;
+  }
+
+  // pkg-purge
+  //
+  if (cmd.pkg_purge ())
+  {
+    if (h)
+      help (ho, "pkg-purge", pkg_purge_options::print_usage);
+    else
+      pkg_purge (parse<pkg_purge_options> (co, args), args);
 
     return 0;
   }

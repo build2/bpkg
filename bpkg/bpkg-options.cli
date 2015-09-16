@@ -28,6 +28,13 @@ namespace bpkg
       ""
     };
 
+    bool pkg-status
+    {
+      "<pkg>", // [<ver>]: 24
+      "Print package status.",
+      ""
+    };
+
     bool pkg-fetch
     {
       "<pkg> <ver>",
@@ -39,6 +46,13 @@ namespace bpkg
     {
       "<pkg>",
       "Unpack package archive.",
+      ""
+    };
+
+    bool pkg-purge
+    {
+      "<pkg>",
+      "Purge package.",
       ""
     };
 

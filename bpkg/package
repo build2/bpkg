@@ -104,7 +104,8 @@ namespace bpkg
     // Path to the archive of this package, if any. If not absolute,
     // then it is relative to the configuration directory. The purge
     // flag indicates whether the archive should be removed when the
-    // packaged is purged.
+    // packaged is purged. If the archive is not present, it should
+    // be false.
     //
     optional<path> archive;
     bool archive_purge;
@@ -112,7 +113,8 @@ namespace bpkg
     // Path to the source directory of this package, if any. If not
     // absolute, then it is relative to the configuration directory.
     // The purge flag indicates whether the directory should be
-    // removed when the packaged is purged.
+    // removed when the packaged is purged. If the source directory
+    // is not present, it should be false.
     //
     optional<dir_path> source;
     bool source_purge;

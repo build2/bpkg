@@ -1,0 +1,34 @@
+// file      : bpkg/pkg-status-options.cli
+// copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
+// license   : MIT; see accompanying LICENSE file
+
+include <bpkg/common-options.cli>;
+
+/*
+"\section=1"
+"\name=bpkg-pkg-status"
+
+"\h{SYNOPSIS}
+
+bpkg pkg-status <pkg> [<ver>]"
+
+"\h{DESCRIPTION}
+
+The \cb{pkg-status} command prints the status of the specified
+package or, if the <ver> argument is provided, package version.
+Note that the status is written to \cb{STDOUT}, not \cb{STDERR}.
+@@ TODO: output form and possible status values."
+*/
+
+namespace bpkg
+{
+  class pkg_status_options: common_options
+  {
+    dir_path --directory|-d (".")
+    {
+      "<dir>",
+      "Assume configuration is in <dir> rather than in the current working
+       directory."
+    };
+  };
+}

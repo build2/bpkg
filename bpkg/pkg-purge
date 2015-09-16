@@ -1,0 +1,17 @@
+// file      : bpkg/pkg-purge -*- C++ -*-
+// copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
+// license   : MIT; see accompanying LICENSE file
+
+#ifndef BPKG_PKG_PURGE
+#define BPKG_PKG_PURGE
+
+#include <bpkg/types>
+#include <bpkg/pkg-purge-options>
+
+namespace bpkg
+{
+  void
+  pkg_purge (const pkg_purge_options&, cli::scanner& args);
+}
+
+#endif // BPKG_PKG_PURGE
