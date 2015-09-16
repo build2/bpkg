@@ -93,6 +93,23 @@ namespace bpkg
   }
 
   void
+  rm (const path& f)
+  {
+    if (verb >= 3)
+      text << "rm " << f;
+
+    try
+    {
+      if (try_rmfile (f) == rmfile_status::not_exist)
+        fail << "unable to remove file " << f << ": file does not exist";
+    }
+    catch (const system_error& e)
+    {
+      fail << "unable to remove file " << f << ": " << e.what ();
+    }
+  }
+
+  void
   rm_r (const dir_path& d, bool dir)
   {
     if (verb >= 3)

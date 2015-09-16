@@ -30,6 +30,9 @@ namespace bpkg
   mk_p (const dir_path&);
 
   void
+  rm (const path&);
+
+  void
   rm_r (const dir_path&, bool dir = true);
 
   // Process.
