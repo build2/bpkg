@@ -150,5 +150,39 @@ namespace bpkg
     }
   }
 
+  void
+  run_b (const string& bspec, const strings& vars)
+  {
+    cstrings args {"b"};
+
+    // Map verbosity level. If we are running quiet or at level 1,
+    // then run build2 quiet. Otherwise, run it at the same level
+    // as us.
+    //
+    string vl;
+    if (verb <= 1)
+      args.push_back ("-q");
+    else if (verb == 2)
+      args.push_back ("-v");
+    else
+    {
+      vl = to_string (verb);
+      args.push_back ("--verbose");
+      args.push_back (vl.c_str ());
+    }
+
+    // Add config vars.
+    //
+    for (const string& v: vars)
+      args.push_back (v.c_str ());
+
+    // Add buildspec.
+    //
+    args.push_back (bspec.c_str ());
+
+    args.push_back (nullptr);
+    run (args);
+  }
+
   bool exception_unwinding_dtor = false;
 }

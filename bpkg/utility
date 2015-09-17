@@ -48,6 +48,11 @@ namespace bpkg
   inline void
   run (const cstrings& args) {run (args.data ());}
 
+  // Run build2, mapping verbosity levels.
+  //
+  void
+  run_b (const string& buildspec, const strings& vars = strings ());
+
   // Call a function if there is an exception.
   //
 
