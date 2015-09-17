@@ -144,113 +144,53 @@ try
     return 0;
   }
 
-  // pkg-verify
-  //
-  if (cmd.pkg_verify ())
-  {
-    if (h)
-      help (ho, "pkg-verify", pkg_verify_options::print_usage);
-    else
-      pkg_verify (parse<pkg_verify_options> (co, args), args);
 
-    return 0;
+  // Commands.
+  //
+  // if (cmd.pkg_verify ())
+  // {
+  //  if (h)
+  //    help (ho, "pkg-verify", pkg_verify_options::print_usage);
+  //  else
+  //    pkg_verify (parse<pkg_verify_options> (co, args), args);
+  //
+  //  return 0;
+  // }
+  //
+#define ANY_COMMAND(OBJ, CMD)                                      \
+  if (cmd.OBJ##_##CMD ())                                          \
+  {                                                                \
+    if (h)                                                         \
+      help (ho, #OBJ"-"#CMD, OBJ##_##CMD##_options::print_usage);  \
+    else                                                           \
+      OBJ##_##CMD (parse<OBJ##_##CMD##_options> (co, args), args); \
+                                                                   \
+    return 0;                                                      \
   }
 
-  // pkg-status
+  // pkg-* commands
   //
-  if (cmd.pkg_status ())
-  {
-    if (h)
-      help (ho, "pkg-status", pkg_status_options::print_usage);
-    else
-      pkg_status (parse<pkg_status_options> (co, args), args);
+#define PKG_COMMAND(CMD) ANY_COMMAND(pkg, CMD)
 
-    return 0;
-  }
+  PKG_COMMAND (verify);
+  PKG_COMMAND (status);
+  PKG_COMMAND (fetch);
+  PKG_COMMAND (unpack);
+  PKG_COMMAND (purge);
+  PKG_COMMAND (configure);
+  PKG_COMMAND (disfigure);
 
-  // pkg-fetch
+  // cfg-* commands
   //
-  if (cmd.pkg_fetch ())
-  {
-    if (h)
-      help (ho, "pkg-fetch", pkg_fetch_options::print_usage);
-    else
-      pkg_fetch (parse<pkg_fetch_options> (co, args), args);
+#define CFG_COMMAND(CMD) ANY_COMMAND(cfg, CMD)
 
-    return 0;
-  }
+  CFG_COMMAND (create);
 
-  // pkg-unpack
+  // rep-* commands
   //
-  if (cmd.pkg_unpack ())
-  {
-    if (h)
-      help (ho, "pkg-unpack", pkg_unpack_options::print_usage);
-    else
-      pkg_unpack (parse<pkg_unpack_options> (co, args), args);
+#define REP_COMMAND(CMD) ANY_COMMAND(rep, CMD)
 
-    return 0;
-  }
-
-  // pkg-purge
-  //
-  if (cmd.pkg_purge ())
-  {
-    if (h)
-      help (ho, "pkg-purge", pkg_purge_options::print_usage);
-    else
-      pkg_purge (parse<pkg_purge_options> (co, args), args);
-
-    return 0;
-  }
-
-  // pkg-configure
-  //
-  if (cmd.pkg_configure ())
-  {
-    if (h)
-      help (ho, "pkg-configure", pkg_configure_options::print_usage);
-    else
-      pkg_configure (parse<pkg_configure_options> (co, args), args);
-
-    return 0;
-  }
-
-  // pkg-disfigure
-  //
-  if (cmd.pkg_disfigure ())
-  {
-    if (h)
-      help (ho, "pkg-disfigure", pkg_disfigure_options::print_usage);
-    else
-      pkg_disfigure (parse<pkg_disfigure_options> (co, args), args);
-
-    return 0;
-  }
-
-  // cfg-create
-  //
-  if (cmd.cfg_create ())
-  {
-    if (h)
-      help (ho, "cfg-create", cfg_create_options::print_usage);
-    else
-      cfg_create (parse<cfg_create_options> (co, args), args);
-
-    return 0;
-  }
-
-  // rep-create
-  //
-  if (cmd.rep_create ())
-  {
-    if (h)
-      help (ho, "rep-create", rep_create_options::print_usage);
-    else
-      rep_create (parse<rep_create_options> (co, args), args);
-
-    return 0;
-  }
+  REP_COMMAND (create);
 
   // @@ Would be nice to check that args doesn't contain any junk left.
 
