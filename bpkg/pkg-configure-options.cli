@@ -1,0 +1,36 @@
+// file      : bpkg/pkg-configure-options.cli
+// copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
+// license   : MIT; see accompanying LICENSE file
+
+include <bpkg/common-options.cli>;
+
+/*
+"\section=1"
+"\name=bpkg-pkg-configure"
+
+"\h{SYNOPSIS}
+
+bpkg pkg-configure <pkg> [<conf-vars>]"
+
+"\h{DESCRIPTION}
+
+The \cb{pkg-configure} command configures the output directory for
+the previously unpacked (\cb{pkg-unpack}) package. The package
+inherits the common \cb{build2} configuration values that were
+specified when creating the \cb{bpkg} configuration (\cb{cfg-create}).
+Additional, package-specific configuration variables can be specified
+after the package name."
+*/
+
+namespace bpkg
+{
+  class pkg_configure_options: common_options
+  {
+    dir_path --directory|-d (".")
+    {
+      "<dir>",
+      "Assume configuration is in <dir> rather than in the current working
+       directory."
+    };
+  };
+}

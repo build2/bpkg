@@ -108,7 +108,7 @@ namespace bpkg
     // be false.
     //
     optional<path> archive;
-    bool archive_purge;
+    bool purge_archive;
 
     // Path to the source directory of this package, if any. If not
     // absolute, then it is relative to the configuration directory.
@@ -116,8 +116,17 @@ namespace bpkg
     // removed when the packaged is purged. If the source directory
     // is not present, it should be false.
     //
-    optional<dir_path> source;
-    bool source_purge;
+    optional<dir_path> src_root;
+    bool purge_src;
+
+    // Path to the output directory of this package, if any. It is
+    // always relative to the configuration directory and currently
+    // is always <name>-<version>. It is only set once the package
+    // is configured and its main purse is to keep track of what
+    // needs to be cleaned by the user before a broken package can
+    // be purged. Note that it could be the same as out_root.
+    //
+    optional<dir_path> out_root;
 
     // Database mapping.
     //

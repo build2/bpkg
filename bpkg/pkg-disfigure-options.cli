@@ -1,0 +1,32 @@
+// file      : bpkg/pkg-disfigure-options.cli
+// copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
+// license   : MIT; see accompanying LICENSE file
+
+include <bpkg/common-options.cli>;
+
+/*
+"\section=1"
+"\name=bpkg-pkg-disfigure"
+
+"\h{SYNOPSIS}
+
+bpkg pkg-disfigure <pkg> [<ver>]"
+
+"\h{DESCRIPTION}
+
+The \cb{pkg-disfigure} command disfigures the previously configured
+(\cb{pkg-configure}) package and returns it to the \cb{unpacked} state."
+*/
+
+namespace bpkg
+{
+  class pkg_disfigure_options: common_options
+  {
+    dir_path --directory|-d (".")
+    {
+      "<dir>",
+      "Assume configuration is in <dir> rather than in the current working
+       directory."
+    };
+  };
+}

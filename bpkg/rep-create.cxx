@@ -19,8 +19,9 @@
 
 #include <bpkg/types>
 #include <bpkg/utility>
-#include <bpkg/pkg-verify>
 #include <bpkg/diagnostics>
+
+#include <bpkg/pkg-verify>
 
 using namespace std;
 using namespace butl;

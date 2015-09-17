@@ -1,0 +1,17 @@
+// file      : bpkg/pkg-configure -*- C++ -*-
+// copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
+// license   : MIT; see accompanying LICENSE file
+
+#ifndef BPKG_PKG_CONFIGURE
+#define BPKG_PKG_CONFIGURE
+
+#include <bpkg/types>
+#include <bpkg/pkg-configure-options>
+
+namespace bpkg
+{
+  void
+  pkg_configure (const pkg_configure_options&, cli::scanner& args);
+}
+
+#endif // BPKG_PKG_CONFIGURE

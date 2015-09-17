@@ -1,0 +1,20 @@
+// file      : bpkg/forward -*- C++ -*-
+// copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
+// license   : MIT; see accompanying LICENSE file
+
+#ifndef BPKG_FORWARD
+#define BPKG_FORWARD
+
+#include <odb/sqlite/forward.hxx>
+
+namespace bpkg
+{
+  using odb::sqlite::database;
+  using odb::sqlite::transaction;
+
+  // <bpkg/package>
+  //
+  class package;
+}
+
+#endif // BPKG_FORWARD

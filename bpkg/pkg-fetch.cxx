@@ -13,8 +13,9 @@
 #include <bpkg/package-odb>
 #include <bpkg/utility>
 #include <bpkg/database>
-#include <bpkg/pkg-verify>
 #include <bpkg/diagnostics>
+
+#include <bpkg/pkg-verify>
 
 using namespace std;
 using namespace butl;
@@ -109,7 +110,9 @@ namespace bpkg
         move (a),
         purge,
         optional<dir_path> (), // No source directory yet.
-        false});
+        false,
+        optional<dir_path> ()  // No output directory yet.
+     });
 
     db.persist (p);
     t.commit ();

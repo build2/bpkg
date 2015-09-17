@@ -9,6 +9,7 @@ pkg=libhello
 ver=1.0.0
 pkga=../../hello/dist/$pkg-$ver.tar.bz2
 pkgd=../../hello/dist/$pkg-$ver
+out=$cfg/`basename $pkgd`
 
 function error ()
 {
@@ -129,7 +130,7 @@ test pkg-fetch -e $pkga
 test pkg-unpack $pkg
 test pkg-purge $pkg
 stat unknown
-gone $cfg/`basename $pkgd`
+gone $out
 
 # purge unpacked archive but --keep
 #
@@ -137,16 +138,16 @@ test pkg-fetch -e $pkga
 test pkg-unpack $pkg
 test pkg-purge --keep $pkg
 stat fetched
-gone $cfg/`basename $pkgd`
+gone $out
 test pkg-purge $pkg
 
 # directory --purge
 #
 cp -r $pkgd $cfg/
-test pkg-unpack -e -p $cfg/`basename $pkgd`
+test pkg-unpack -e -p $out
 test pkg-purge $pkg
 stat unknown
-gone $cfg/`basename $pkgd`
+gone $out
 
 # archive --purge
 #
@@ -155,7 +156,7 @@ test pkg-fetch -e -p $cfg/`basename $pkga`
 test pkg-unpack $pkg
 test pkg-purge $pkg
 stat unknown
-gone $cfg/`basename $pkgd`
+gone $out
 gone $cfg/`basename $pkga`
 
 # broken
@@ -163,15 +164,101 @@ gone $cfg/`basename $pkga`
 cp $pkga $cfg/
 test pkg-fetch -e -p $cfg/`basename $pkga`
 test pkg-unpack $pkg
-chmod 000 $cfg/`basename $pkgd`
+chmod 000 $out
 fail pkg-purge $pkg
 stat broken
 fail pkg-purge $pkg        # need --force
 fail pkg-purge -f -k $pkg  # can't keep broken
 fail pkg-purge -f $pkg     # directory still exists
-chmod 755 $cfg/`basename $pkgd`
-rm -r $cfg/`basename $pkgd`
+chmod 755 $out
+rm -r $out
 fail pkg-purge -f $pkg     # archive still exists
 rm $cfg/`basename $pkga`
+test pkg-purge -f $pkg
+stat unknown
+
+##
+## pkg-configure/pkg-disfigure
+##
+
+fail pkg-configure                        # package name expected
+fail pkg-configure config.dist.root=/tmp  # ditto
+fail pkg-configure $pkg $pkg              # unexpected argument
+fail pkg-configure $pkg                   # no such package
+
+fail pkg-disfigure                        # package name expected
+fail pkg-disfigure $pkg                   # no such package
+
+test pkg-fetch -e $pkga
+
+fail pkg-configure $pkg                   # wrong package state
+fail pkg-disfigure $pkg                   # wrong package state
+
+test pkg-purge $pkg
+
+# src == out
+#
+test pkg-fetch -e $pkga
+test pkg-unpack $pkg
+test pkg-configure $pkg
+stat configured
+test pkg-disfigure $pkg
+stat unpacked
+test pkg-purge $pkg
+stat unknown
+
+# src != out
+#
+test pkg-unpack -e $pkgd
+test pkg-configure $pkg
+stat configured
+test pkg-disfigure $pkg
+stat unpacked
+test pkg-purge $pkg
+stat unknown
+gone $out
+
+# out still exists after disfigure
+#
+test pkg-unpack -e $pkgd
+test pkg-configure $pkg
+touch $out/stray
+fail pkg-disfigure $pkg
+stat broken
+rm -r $out
+test pkg-purge -f $pkg
+stat unknown
+
+# disfigure failed
+#
+test pkg-unpack -e $pkgd
+test pkg-configure $pkg
+chmod 555 $out
+fail pkg-disfigure $pkg
+stat broken
+chmod 755 $out
+rm -r $out
+test pkg-purge -f $pkg
+stat unknown
+
+# configure failed but disfigure succeeds
+#
+test pkg-unpack -e $pkgd
+mkdir -p $out/build
+chmod 555 $out/build
+fail pkg-configure $pkg
+stat unpacked
+test pkg-purge $pkg
+stat unknown
+
+# configure and disfigure both failed
+#
+test pkg-unpack -e $pkgd
+mkdir -p $out/build
+chmod 555 $out $out/build # Both to trip configure and disfigure.
+fail pkg-configure $pkg
+stat broken
+chmod 755 $out $out/build
+rm -r $out
 test pkg-purge -f $pkg
 stat unknown

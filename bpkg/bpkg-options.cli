@@ -56,6 +56,20 @@ namespace bpkg
       ""
     };
 
+    bool pkg-configure
+    {
+      "<pkg>",
+      "Configure package.",
+      ""
+    };
+
+    bool pkg-disfigure
+    {
+      "<pkg>",
+      "Disfigure package.",
+      ""
+    };
+
     bool cfg-create
     {
       "[<conf>]",

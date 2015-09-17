@@ -14,11 +14,15 @@
 // Commands.
 //
 #include <bpkg/help>
+
 #include <bpkg/pkg-verify>
 #include <bpkg/pkg-status>
 #include <bpkg/pkg-fetch>
 #include <bpkg/pkg-unpack>
 #include <bpkg/pkg-purge>
+#include <bpkg/pkg-configure>
+#include <bpkg/pkg-disfigure>
+
 #include <bpkg/cfg-create>
 #include <bpkg/rep-create>
 
@@ -196,6 +200,30 @@ try
       help (ho, "pkg-purge", pkg_purge_options::print_usage);
     else
       pkg_purge (parse<pkg_purge_options> (co, args), args);
+
+    return 0;
+  }
+
+  // pkg-configure
+  //
+  if (cmd.pkg_configure ())
+  {
+    if (h)
+      help (ho, "pkg-configure", pkg_configure_options::print_usage);
+    else
+      pkg_configure (parse<pkg_configure_options> (co, args), args);
+
+    return 0;
+  }
+
+  // pkg-disfigure
+  //
+  if (cmd.pkg_disfigure ())
+  {
+    if (h)
+      help (ho, "pkg-disfigure", pkg_disfigure_options::print_usage);
+    else
+      pkg_disfigure (parse<pkg_disfigure_options> (co, args), args);
 
     return 0;
   }

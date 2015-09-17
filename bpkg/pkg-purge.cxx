@@ -78,11 +78,9 @@ namespace bpkg
 
     // First clean up the package source directory.
     //
-    if (p->source_purge)
+    if (p->purge_src)
     {
-      dir_path d (*p->source);
-      if (d.relative ())
-        d = c / d;
+      dir_path d (p->src_root->absolute () ? *p->src_root : c / *p->src_root);
 
       if (p->state != state::broken)
       {
@@ -91,8 +89,8 @@ namespace bpkg
           if (exists (d)) // Don't complain if someone did our job for us.
             rm_r (d);
 
-          p->source = optional<dir_path> ();
-          p->source_purge = false;
+          p->src_root = optional<dir_path> ();
+          p->purge_src = false;
         }
         catch (const failed&)
         {
@@ -100,9 +98,8 @@ namespace bpkg
           db.update (p);
           t.commit ();
 
-          if (verb)
-            text << "broke " << p->name << " " << p->version;
-
+          info << "package " << n << " is now broken; "
+               << "use 'pkg-purge --force' to remove";
           throw;
         }
       }
@@ -117,13 +114,24 @@ namespace bpkg
       }
     }
 
+    // Also check the output directory of broken packages.
+    //
+    if (p->out_root)
+    {
+      assert (p->state == state::broken); // Can only be present if broken.
+
+      dir_path d (c / *p->out_root); // Always relative.
+
+      if (exists (d))
+        fail << "broken package " << n << " output directory still exists" <<
+          info << "remove " << d << " manually then re-run pkg-purge";
+    }
+
     // Now the archive. Pretty much the same code as above but for a file.
     //
-    if (p->archive_purge && !o.keep ())
+    if (p->purge_archive && !o.keep ())
     {
-      path a (*p->archive);
-      if (a.relative ())
-        a = c / a;
+      path a (p->archive->absolute () ? *p->archive : c / *p->archive);
 
       if (p->state != state::broken)
       {
@@ -133,7 +141,7 @@ namespace bpkg
             rm (a);
 
           p->archive = optional<path> ();
-          p->archive_purge = false;
+          p->purge_archive = false;
         }
         catch (const failed&)
         {
@@ -141,9 +149,8 @@ namespace bpkg
           db.update (p);
           t.commit ();
 
-          if (verb)
-            text << "broke " << p->name << " " << p->version;
-
+          info << "package " << n << " is now broken; "
+               << "use 'pkg-purge --force' to remove";
           throw;
         }
       }

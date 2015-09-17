@@ -15,8 +15,9 @@
 #include <bpkg/package-odb>
 #include <bpkg/utility>
 #include <bpkg/database>
-#include <bpkg/pkg-verify>
 #include <bpkg/diagnostics>
+
+#include <bpkg/pkg-verify>
 
 using namespace std;
 using namespace butl;
@@ -63,10 +64,12 @@ namespace bpkg
         move (m.name),
         move (m.version),
         state::unpacked,
-        optional<path> (), // No archive
-        false,             // Don't purge archive.
+        optional<path> (),    // No archive
+        false,                // Don't purge archive.
         move (ad),
-        purge});
+        purge,
+        optional<dir_path> () // No output directory yet.
+     });
 
     db.persist (p);
     t.commit ();
@@ -86,7 +89,8 @@ namespace bpkg
       fail << "package " << name << " does not exist in configuration " << c;
 
     if (p->state != state::fetched)
-      fail << "package " << name << " is already in " << p->state << " state";
+      fail << "package " << name << " is " << p->state <<
+        info << "expected it to be fetched";
 
     level4 ([&]{trace << p->name << " " << p->version;});
 
@@ -95,9 +99,7 @@ namespace bpkg
     // If the archive path is not absolute, then it must be relative
     // to the configuration.
     //
-    path a (*p->archive);
-    if (a.relative ())
-      a = c / a;
+    path a (p->archive->absolute () ? *p->archive : c / *p->archive);
 
     level4 ([&]{trace << "archive: " << a;});
 
@@ -155,8 +157,8 @@ namespace bpkg
       throw failed ();
     }
 
-    p->source = d.leaf (); // For now assuming to be in configuration.
-    p->source_purge = true;
+    p->src_root = d.leaf (); // For now assuming to be in configuration.
+    p->purge_src = true;
 
     p->state = state::unpacked;
 
