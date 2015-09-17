@@ -12,6 +12,8 @@
 
 namespace bpkg
 {
+  using std::move;
+
   // Filesystem.
   //
   bool
