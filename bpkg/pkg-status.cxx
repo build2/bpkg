@@ -60,6 +60,7 @@ namespace bpkg
     }
 
     shared_ptr<package> p (db.query_one<package> (q));
+    t.commit ();
 
     if (p == nullptr)
     {
