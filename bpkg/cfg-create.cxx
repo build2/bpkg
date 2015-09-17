@@ -23,30 +23,30 @@ namespace bpkg
   {
     tracer trace ("cfg_create");
 
-    dir_path d (o.directory ());
-    level4 ([&]{trace << "creating configuration in " << d;});
+    dir_path c (o.directory ());
+    level4 ([&]{trace << "creating configuration in " << c;});
 
     // If the directory already exists, make sure it is empty.
     // Otherwise, create it.
     //
-    if (exists (d))
+    if (exists (c))
     {
-      level5 ([&]{trace << "directory " << d << " exists";});
+      level5 ([&]{trace << "directory " << c << " exists";});
 
-      if (!empty (d))
+      if (!empty (c))
       {
-        level5 ([&]{trace << "directory " << d << " not empty";});
+        level5 ([&]{trace << "directory " << c << " not empty";});
 
         if (!o.wipe ())
-          fail << "directory " << d << " is not empty";
+          fail << "directory " << c << " is not empty";
 
-        rm_r (d, false);
+        rm_r (c, false);
       }
     }
     else
     {
-      level5 ([&]{trace << "directory " << d << " does not exist";});
-      mk_p (d);
+      level5 ([&]{trace << "directory " << c << " does not exist";});
+      mk_p (c);
     }
 
     // Sort arguments into modules and configuration variables.
@@ -62,12 +62,12 @@ namespace bpkg
 
     // Create build/.
     //
-    dir_path bd (d / dir_path ("build"));
-    mk (bd);
+    dir_path b (c / dir_path ("build"));
+    mk (b);
 
     // Write build/bootstrap.build.
     //
-    path f (bd / path ("bootstrap.build"));
+    path f (b / path ("bootstrap.build"));
     try
     {
       ofstream ofs;
@@ -94,7 +94,7 @@ namespace bpkg
 
     // Write root buildfile.
     //
-    f = path (d / path ("buildfile"));
+    f = path (c / path ("buildfile"));
     try
     {
       ofstream ofs;
@@ -112,17 +112,16 @@ namespace bpkg
 
     // Configure.
     //
-    run_b ("configure(" + d.string () + "/)", vars);
+    run_b ("configure(" + c.string () + "/)", vars);
 
     // Create the database.
     //
-    open (d, true);
+    open (c, true);
 
     if (verb)
     {
-      d.complete ();
-      d.normalize ();
-      text << "created new configuration in " << d;
+      c.complete ().normalize ();
+      text << "created new configuration in " << c;
     }
   }
 }

@@ -23,7 +23,7 @@ namespace bpkg
   {
     tracer trace ("pkg_configure");
 
-    dir_path c (o.directory ());
+    const dir_path& c (o.directory ());
     level4 ([&]{trace << "configuration: " << c;});
 
     // Sort arguments into the package name and configuration variables.

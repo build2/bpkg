@@ -27,10 +27,10 @@ namespace bpkg
   {
     tracer trace ("pkg_fetch");
 
-    dir_path d (o.directory ());
-    level4 ([&]{trace << "configuration: " << d;});
+    dir_path c (o.directory ());
+    level4 ([&]{trace << "configuration: " << c;});
 
-    database db (open (d));
+    database db (open (c));
 
     path a;
     bool purge;
@@ -88,18 +88,18 @@ namespace bpkg
     // See if this package already exists in this configuration.
     //
     if (shared_ptr<package> p = db.find<package> (n))
-      fail << "package " << n << " already exists in configuration " << d <<
+      fail << "package " << n << " already exists in configuration " << c <<
         info << "version: " << p->version << ", state: " << p->state;
 
     // Make the archive and configuration paths absolute and normalized.
     // If the archive is inside the configuration, use the relative path.
     // This way we can move the configuration around.
     //
-    d.complete ().normalize ();
+    c.complete ().normalize ();
     a.complete ().normalize ();
 
-    if (a.sub (d))
-      a = a.leaf (d);
+    if (a.sub (c))
+      a = a.leaf (c);
 
     // Add the package to the configuration.
     //

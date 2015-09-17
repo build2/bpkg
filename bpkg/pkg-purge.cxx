@@ -23,7 +23,7 @@ namespace bpkg
   {
     tracer trace ("pkg_purge");
 
-    dir_path c (o.directory ());
+    const dir_path& c (o.directory ());
     level4 ([&]{trace << "configuration: " << c;});
 
     if (!args.more ())
