@@ -46,7 +46,7 @@ namespace bpkg
       }
     }
 
-    database db (open (c));
+    database db (open (c, trace));
     transaction t (db.begin ());
 
     using query = odb::query<package>;

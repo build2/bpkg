@@ -22,8 +22,10 @@ namespace bpkg
   using odb::schema_catalog;
 
   database
-  open (const dir_path& d, bool create)
+  open (const dir_path& d, tracer& tr, bool create)
   {
+    tracer trace ("open");
+
     path f (d / path ("bpkg.sqlite3"));
 
     if (!create && !exists (f))
@@ -41,6 +43,8 @@ namespace bpkg
                    "",                    // Default VFS.
                    move (cf));
 
+      db.tracer (trace);
+
       // Lock the database for as long as the connection is active. First
       // we set locking_mode to EXCLUSIVE which instructs SQLite not to
       // release any locks until the connection is closed. Then we force
@@ -53,6 +57,23 @@ namespace bpkg
       {
         db.connection ()->execute ("PRAGMA locking_mode = EXCLUSIVE");
         transaction t (db.begin_exclusive ());
+
+        if (create)
+        {
+          // Create the new schema.
+          //
+          if (db.schema_version () != 0)
+            fail << f << ": already has database schema";
+
+          schema_catalog::create_schema (db);
+        }
+        else
+        {
+          // Migrate the database if necessary.
+          //
+          schema_catalog::migrate (db);
+        }
+
         t.commit ();
       }
       catch (odb::timeout&)
@@ -60,26 +81,7 @@ namespace bpkg
         fail << "configuration " << d << " is already used by another process";
       }
 
-      if (create)
-      {
-        // Create the new schema.
-        //
-        if (db.schema_version () != 0)
-          fail << f << ": already has database schema";
-
-        transaction t (db.begin ());
-        schema_catalog::create_schema (db);
-        t.commit ();
-      }
-      else
-      {
-        // Migrate the database if necessary.
-        //
-        transaction t (db.begin ());
-        schema_catalog::migrate (db);
-        t.commit ();
-      }
-
+      db.tracer (tr); // Switch to the caller's tracer.
       return db;
     }
     catch (const database_exception& e)

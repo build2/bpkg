@@ -8,6 +8,7 @@
 #include <odb/sqlite/database.hxx>
 
 #include <bpkg/types>
+#include <bpkg/diagnostics>
 
 namespace bpkg
 {
@@ -15,7 +16,7 @@ namespace bpkg
   using odb::sqlite::transaction;
 
   database
-  open (const dir_path& configuration, bool create = false);
+  open (const dir_path& configuration, tracer&, bool create = false);
 }
 
 #endif // BPKG_DATABASE

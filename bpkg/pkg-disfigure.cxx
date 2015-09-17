@@ -22,6 +22,7 @@ namespace bpkg
                  const shared_ptr<package>& p)
   {
     tracer trace ("pkg_disfigure");
+    t.tracer (trace); // "Tail" call, never restored.
 
     database& db (t.database ());
 
@@ -102,7 +103,7 @@ namespace bpkg
 
     string n (args.next ());
 
-    database db (open (c));
+    database db (open (c, trace));
     transaction t (db.begin ());
 
     shared_ptr<package> p (db.find<package> (n));

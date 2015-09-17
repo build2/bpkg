@@ -28,6 +28,7 @@ namespace bpkg
   pkg_unpack (database& db, const dir_path& c, const dir_path& d, bool purge)
   {
     tracer trace ("pkg_unpack(dir)");
+    db.tracer (trace); // "Tail" call, never restored.
 
     if (!exists (d))
       fail << "package directory " << d << " does not exist";
@@ -81,6 +82,7 @@ namespace bpkg
   pkg_unpack (database& db, const dir_path& c, const string& name)
   {
     tracer trace ("pkg_unpack(pkg)");
+    db.tracer (trace); // "Tail" call, never restored.
 
     transaction t (db.begin ());
     shared_ptr<package> p (db.find<package> (name));
@@ -176,7 +178,7 @@ namespace bpkg
     const dir_path& c (o.directory ());
     level4 ([&]{trace << "configuration: " << c;});
 
-    database db (open (c));
+    database db (open (c, trace));
 
     shared_ptr<package> p;
 

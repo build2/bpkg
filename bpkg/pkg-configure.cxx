@@ -47,7 +47,7 @@ namespace bpkg
       fail << "package name argument expected" <<
         info << "run 'bpkg help pkg-configure' for more information";
 
-    database db (open (c));
+    database db (open (c, trace));
     transaction t (db.begin ());
 
     shared_ptr<package> p (db.find<package> (n));

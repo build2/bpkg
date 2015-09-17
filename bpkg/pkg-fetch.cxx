@@ -30,7 +30,7 @@ namespace bpkg
     dir_path c (o.directory ());
     level4 ([&]{trace << "configuration: " << c;});
 
-    database db (open (c));
+    database db (open (c, trace));
 
     path a;
     bool purge;

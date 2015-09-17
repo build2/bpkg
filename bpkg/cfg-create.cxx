@@ -116,7 +116,7 @@ namespace bpkg
 
     // Create the database.
     //
-    open (c, true);
+    open (c, trace, true);
 
     if (verb)
     {
