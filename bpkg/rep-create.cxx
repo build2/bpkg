@@ -28,8 +28,29 @@ using namespace butl;
 
 namespace bpkg
 {
-  using package_key = pair<string, version>;
-  using package_data = pair<path, package_manifest>;
+  struct package_key
+  {
+    string name;
+    bpkg::version version;
+
+    // There shouldn't be multiple revisions of the same package
+    // in a repository, thus we compare versions ignoring the
+    // revision.
+    //
+    bool
+    operator< (const package_key& y) const
+    {
+      int r (name.compare (y.name));
+      return r < 0 || (r == 0 && version.compare (y.version, true) < 0);
+    }
+  };
+
+  struct package_data
+  {
+    path archive;
+    package_manifest manifest;
+  };
+
   using package_map = map<package_key, package_data>;
 
   static void
@@ -83,17 +104,22 @@ namespace bpkg
       //
       m.location = a.leaf (root);
 
-      package_key k (m.name, m.version); // Argument evaluation order.
-      auto r (map.emplace (move (k), package_data (a, move (m))));
+      package_key k {m.name, m.version}; // Argument evaluation order.
+      auto r (map.emplace (move (k), package_data {a, move (m)}));
 
       // Diagnose duplicates.
       //
       if (!r.second)
       {
-        const package_manifest& m (r.first->second.second);
+        const package_manifest& m (r.first->second.manifest);
 
-        fail << "duplicate package " << m.name << " " << m.version <<
-          info << "first package archive is " << r.first->second.first <<
+        // Strip the revision from the version we print in case the
+        // packages only differ in revisions and thus shouldn't be
+        // both in this repository.
+        //
+        fail << "duplicate package " << m.name << " "
+             << m.version.string (true) <<
+          info << "first package archive is " << r.first->second.archive <<
           info << "second package archive is " << a;
       }
     }
@@ -164,7 +190,7 @@ namespace bpkg
 
       for (const auto& p: pm)
       {
-        const package_manifest& m (p.second.second);
+        const package_manifest& m (p.second.manifest);
 
         if (verb)
           text << "adding " << m.name << " " << m.version;
