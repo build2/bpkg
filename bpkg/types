@@ -25,6 +25,7 @@ namespace bpkg
   using std::shared_ptr;
 
   using butl::optional;
+  using butl::nullopt;
 
   // <butl/path>
   //

@@ -82,7 +82,7 @@ namespace bpkg
       throw;
     }
 
-    p->out_root = optional<dir_path> ();
+    p->out_root = nullopt;
     p->state = state::unpacked;
 
     db.update (p);

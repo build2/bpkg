@@ -65,11 +65,11 @@ namespace bpkg
         move (m.name),
         move (m.version),
         state::unpacked,
-        optional<path> (),    // No archive
-        false,                // Don't purge archive.
+        nullopt,    // No archive
+        false,      // Don't purge archive.
         move (ad),
         purge,
-        optional<dir_path> () // No output directory yet.
+        nullopt     // No output directory yet.
      });
 
     db.persist (p);

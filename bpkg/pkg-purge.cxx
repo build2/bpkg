@@ -89,7 +89,7 @@ namespace bpkg
           if (exists (d)) // Don't complain if someone did our job for us.
             rm_r (d);
 
-          p->src_root = optional<dir_path> ();
+          p->src_root = nullopt;
           p->purge_src = false;
         }
         catch (const failed&)
@@ -140,7 +140,7 @@ namespace bpkg
           if (exists (a))
             rm (a);
 
-          p->archive = optional<path> ();
+          p->archive = nullopt;
           p->purge_archive = false;
         }
         catch (const failed&)

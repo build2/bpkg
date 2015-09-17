@@ -109,9 +109,9 @@ namespace bpkg
         state::fetched,
         move (a),
         purge,
-        optional<dir_path> (), // No source directory yet.
+        nullopt, // No source directory yet.
         false,
-        optional<dir_path> ()  // No output directory yet.
+        nullopt  // No output directory yet.
      });
 
     db.persist (p);
