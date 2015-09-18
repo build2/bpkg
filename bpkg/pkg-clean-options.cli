@@ -1,0 +1,27 @@
+// file      : bpkg/pkg-clean-options.cli
+// copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
+// license   : MIT; see accompanying LICENSE file
+
+include <bpkg/pkg-common-options.cli>;
+
+/*
+"\section=1"
+"\name=bpkg-pkg-clean"
+
+"\h{SYNOPSIS}
+
+bpkg pkg-clean <pkg>"
+
+"\h{DESCRIPTION}
+
+The \cb{pkg-clean} command cleans the previously configured
+(\cb{pkg-configure}) package. Underneath, this command doesn't
+do much more than run (\cb{b clean})."
+*/
+
+namespace bpkg
+{
+  class pkg_clean_options: pkg_common_options
+  {
+  };
+}

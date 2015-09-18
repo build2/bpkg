@@ -23,6 +23,7 @@ exe{bpkg}: cxx{package package-odb database diagnostics utility} \
   cxx{pkg-configure}  cli.cxx{pkg-configure-options}             \
   cxx{pkg-disfigure}  cli.cxx{pkg-disfigure-options}             \
                       cli.cxx{pkg-update-options}                \
+                      cli.cxx{pkg-clean-options}                 \
   cxx{cfg-create}     cli.cxx{cfg-create-options}                \
   cxx{rep-create}     cli.cxx{rep-create-options}                \
   $libs
@@ -55,6 +56,7 @@ cli.cxx{pkg-purge-options}:     cli{pkg-purge-options}
 cli.cxx{pkg-configure-options}: cli{pkg-configure-options}
 cli.cxx{pkg-disfigure-options}: cli{pkg-disfigure-options}
 cli.cxx{pkg-update-options}:    cli{pkg-update-options}
+cli.cxx{pkg-clean-options}:     cli{pkg-clean-options}
 
 cli.cxx{pkg-verify-options}: cli{pkg-verify-options}
 cli.cxx{pkg-verify-options}: cli.options += --exclude-base

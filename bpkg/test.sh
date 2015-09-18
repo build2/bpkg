@@ -291,3 +291,34 @@ test pkg-update $pkg
 test pkg-update $pkg
 test pkg-disfigure $pkg
 test pkg-purge $pkg
+
+##
+## pkg-clean
+##
+
+fail pkg-clean           # package name expected
+fail pkg-clean $pkg      # no such package
+test pkg-fetch -e $pkga
+fail pkg-clean $pkg      # wrong package state
+test pkg-purge $pkg
+
+# src == out
+#
+test pkg-fetch -e $pkga
+test pkg-unpack $pkg
+test pkg-configure $pkg
+test pkg-update $pkg
+test pkg-clean $pkg
+test pkg-clean $pkg
+test pkg-disfigure $pkg
+test pkg-purge $pkg
+
+# src != out
+#
+test pkg-unpack -e $pkgd
+test pkg-configure $pkg
+test pkg-update $pkg
+test pkg-clean $pkg
+test pkg-clean $pkg
+test pkg-disfigure $pkg
+test pkg-purge $pkg

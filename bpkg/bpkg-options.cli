@@ -77,6 +77,13 @@ namespace bpkg
       ""
     };
 
+    bool pkg-clean
+    {
+      "<pkg>",
+      "Clean package.",
+      ""
+    };
+
     bool cfg-create
     {
       "[<conf>]",
