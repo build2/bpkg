@@ -23,6 +23,7 @@ namespace bpkg
 
     o << "usage: bpkg --help" << endl
       << "       bpkg --version" << endl
+      << "       bpkg help [<command>|<topic>]" << endl
       << "       bpkg [<common-options>] <command> [<command-options>] " <<
       "[<command-args>]" << endl
       << endl;
@@ -39,14 +40,15 @@ namespace bpkg
     bpkg_topics::print_short_usage (o);
     o << endl;
 
-    o << "The common options are:" << endl
+    o << "The common options are summarized below. Note that they can also "
+      "be specified" << endl
+      << "as part of the command-specific options." << endl
       << endl;
 
     common_options::print_short_usage (o);
     o << endl;
 
-    o << "The common options can also be specified as part of the command-" <<
-      "specific ones."<< endl;
+    o << ""<< endl;
   }
 
   void
