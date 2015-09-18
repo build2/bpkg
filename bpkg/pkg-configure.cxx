@@ -90,7 +90,7 @@ namespace bpkg
     //
     try
     {
-      run_b (bspec);
+      run_b (bspec, true, vars); // Run quiet.
     }
     catch (const failed&)
     {

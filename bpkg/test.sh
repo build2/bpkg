@@ -262,3 +262,32 @@ chmod 755 $out $out/build
 rm -r $out
 test pkg-purge -f $pkg
 stat unknown
+
+##
+## pkg-update
+##
+
+fail pkg-update           # package name expected
+fail pkg-update $pkg      # no such package
+test pkg-fetch -e $pkga
+fail pkg-update $pkg      # wrong package state
+test pkg-purge $pkg
+
+# src == out
+#
+test pkg-fetch -e $pkga
+test pkg-unpack $pkg
+test pkg-configure $pkg
+test pkg-update $pkg
+test pkg-update $pkg
+test pkg-disfigure $pkg
+test pkg-purge $pkg
+
+# src != out
+#
+test pkg-unpack -e $pkgd
+test pkg-configure $pkg
+test pkg-update $pkg
+test pkg-update $pkg
+test pkg-disfigure $pkg
+test pkg-purge $pkg

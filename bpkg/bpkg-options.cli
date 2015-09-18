@@ -70,6 +70,13 @@ namespace bpkg
       ""
     };
 
+    bool pkg-update
+    {
+      "<pkg>",
+      "Update package.",
+      ""
+    };
+
     bool cfg-create
     {
       "[<conf>]",

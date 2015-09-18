@@ -69,7 +69,7 @@ namespace bpkg
     try
     {
       if (exists (out_root))
-        run_b (bspec);
+        run_b (bspec, true); // Run quiet.
 
       // Make sure the out directory is gone unless it is the same as src.
       //

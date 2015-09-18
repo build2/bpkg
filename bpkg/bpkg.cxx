@@ -22,6 +22,7 @@
 #include <bpkg/pkg-purge>
 #include <bpkg/pkg-configure>
 #include <bpkg/pkg-disfigure>
+#include <bpkg/pkg-update>
 
 #include <bpkg/cfg-create>
 #include <bpkg/rep-create>
@@ -179,6 +180,7 @@ try
   PKG_COMMAND (purge);
   PKG_COMMAND (configure);
   PKG_COMMAND (disfigure);
+  PKG_COMMAND (update);
 
   // cfg-* commands
   //

@@ -48,10 +48,13 @@ namespace bpkg
   inline void
   run (const cstrings& args) {run (args.data ());}
 
-  // Run build2, mapping verbosity levels.
+  // Run build2, mapping verbosity levels. If quiet is true, then
+  // run build2 quiet if our verbosity level is 1.
   //
   void
-  run_b (const string& buildspec, const strings& vars = strings ());
+  run_b (const string& buildspec,
+         bool quiet = false,
+         const strings& vars = strings ());
 
   // Call a function if there is an exception.
   //

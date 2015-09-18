@@ -1,0 +1,33 @@
+// file      : bpkg/pkg-update-options.cli
+// copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
+// license   : MIT; see accompanying LICENSE file
+
+include <bpkg/common-options.cli>;
+
+/*
+"\section=1"
+"\name=bpkg-pkg-update"
+
+"\h{SYNOPSIS}
+
+bpkg pkg-update <pkg>"
+
+"\h{DESCRIPTION}
+
+The \cb{pkg-update} command updates the previously configured
+(\cb{pkg-configure}) package. Underneath, this command doesn't
+do much more than run (\cb{b update})."
+*/
+
+namespace bpkg
+{
+  class pkg_update_options: common_options
+  {
+    dir_path --directory|-d (".")
+    {
+      "<dir>",
+      "Assume configuration is in <dir> rather than in the current working
+       directory."
+    };
+  };
+}

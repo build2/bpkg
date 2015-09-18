@@ -1,0 +1,17 @@
+// file      : bpkg/pkg-update -*- C++ -*-
+// copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
+// license   : MIT; see accompanying LICENSE file
+
+#ifndef BPKG_PKG_UPDATE
+#define BPKG_PKG_UPDATE
+
+#include <bpkg/types>
+#include <bpkg/pkg-update-options>
+
+namespace bpkg
+{
+  void
+  pkg_update (const pkg_update_options&, cli::scanner& args);
+}
+
+#endif // BPKG_PKG_UPDATE

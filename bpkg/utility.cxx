@@ -151,7 +151,7 @@ namespace bpkg
   }
 
   void
-  run_b (const string& bspec, const strings& vars)
+  run_b (const string& bspec, bool quiet, const strings& vars)
   {
     cstrings args {"b"};
 
@@ -160,11 +160,11 @@ namespace bpkg
     // as us.
     //
     string vl;
-    if (verb <= 1)
+    if (verb <= (quiet ? 1 : 0))
       args.push_back ("-q");
     else if (verb == 2)
       args.push_back ("-v");
-    else
+    else if (verb > 2)
     {
       vl = to_string (verb);
       args.push_back ("--verbose");
