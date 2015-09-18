@@ -13,6 +13,8 @@ exe{bpkg}: cxx{package package-odb database diagnostics utility} \
                       cli.cxx{common-options} cxx{types-parsers} \
   cxx{bpkg}           cli.cxx{bpkg-options}                      \
   cxx{help}           cli.cxx{help-options}                      \
+                      cli.cxx{pkg-common-options}                \
+  cxx{pkg-command}                                               \
   cxx{pkg-verify}     cli.cxx{pkg-verify-options}                \
   cxx{pkg-status}     cli.cxx{pkg-status-options}                \
   cxx{pkg-fetch}      cli.cxx{pkg-fetch-options}                 \
@@ -20,34 +22,49 @@ exe{bpkg}: cxx{package package-odb database diagnostics utility} \
   cxx{pkg-purge}      cli.cxx{pkg-purge-options}                 \
   cxx{pkg-configure}  cli.cxx{pkg-configure-options}             \
   cxx{pkg-disfigure}  cli.cxx{pkg-disfigure-options}             \
-  cxx{pkg-update}     cli.cxx{pkg-update-options}                \
+                      cli.cxx{pkg-update-options}                \
   cxx{cfg-create}     cli.cxx{cfg-create-options}                \
   cxx{rep-create}     cli.cxx{rep-create-options}                \
   $libs
 
+# Option length must be the same to get commands/topics/options aligned.
+#
 cli.options += -I $src_root --include-with-brackets --include-prefix bpkg \
 --guard-prefix BPKG --cxx-prologue "#include <bpkg/types-parsers>"        \
 --cli-namespace bpkg::cli --generate-file-scanner --generate-specifier    \
---generate-parse --long-usage --exclude-base
+--generate-parse --long-usage --option-length 22
 
-# Option length must be the same to get commands/topics/options lists
-# aligned in the general help.
-#
 cli.cxx{common-options}: cli{common-options}
-cli.cxx{common-options}: cli.options += --option-length 22 --short-usage
+cli.cxx{common-options}: cli.options += --short-usage
 
 cli.cxx{bpkg-options}: cli{bpkg-options}
-cli.cxx{bpkg-options}: cli.options += --option-length 22 --short-usage
+cli.cxx{bpkg-options}: cli.options += --short-usage
 
 cli.cxx{help-options}: cli{help-options}
+cli.cxx{help-options}: cli.options += --exclude-base
 
-cli.cxx{pkg-verify-options}:     cli{pkg-verify-options}
-cli.cxx{pkg-status-options}:     cli{pkg-status-options}
-cli.cxx{pkg-fetch-options}:      cli{pkg-fetch-options}
-cli.cxx{pkg-unpack-options}:     cli{pkg-unpack-options}
-cli.cxx{pkg-purge-options}:      cli{pkg-purge-options}
-cli.cxx{pkg-configure-options}:  cli{pkg-configure-options}
-cli.cxx{pkg-disfigure-options}:  cli{pkg-disfigure-options}
-cli.cxx{pkg-update-options}:     cli{pkg-update-options}
-cli.cxx{cfg-create-options}:     cli{cfg-create-options}
-cli.cxx{rep-create-options}:     cli{rep-create-options}
+# pkg-*
+#
+cli.cxx{pkg-common-options}: cli{pkg-common-options}
+cli.cxx{pkg-common-options}: cli.options += --exclude-base
+
+cli.cxx{pkg-status-options}:    cli{pkg-status-options}
+cli.cxx{pkg-fetch-options}:     cli{pkg-fetch-options}
+cli.cxx{pkg-unpack-options}:    cli{pkg-unpack-options}
+cli.cxx{pkg-purge-options}:     cli{pkg-purge-options}
+cli.cxx{pkg-configure-options}: cli{pkg-configure-options}
+cli.cxx{pkg-disfigure-options}: cli{pkg-disfigure-options}
+cli.cxx{pkg-update-options}:    cli{pkg-update-options}
+
+cli.cxx{pkg-verify-options}: cli{pkg-verify-options}
+cli.cxx{pkg-verify-options}: cli.options += --exclude-base
+
+# cfg-*
+#
+cli.cxx{cfg-create-options}: cli{cfg-create-options}
+cli.cxx{cfg-create-options}: cli.options += --exclude-base
+
+# rep-*
+#
+cli.cxx{rep-create-options}: cli{rep-create-options}
+cli.cxx{rep-create-options}: cli.options += --exclude-base

@@ -6,12 +6,16 @@
 #define BPKG_PKG_UPDATE
 
 #include <bpkg/types>
+#include <bpkg/pkg-command>
 #include <bpkg/pkg-update-options>
 
 namespace bpkg
 {
-  void
-  pkg_update (const pkg_update_options&, cli::scanner& args);
+  inline void
+  pkg_update (const pkg_update_options& o, cli::scanner& args)
+  {
+    pkg_command ("update", o, args);
+  }
 }
 
 #endif // BPKG_PKG_UPDATE

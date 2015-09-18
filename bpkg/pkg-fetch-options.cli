@@ -2,7 +2,7 @@
 // copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-include <bpkg/common-options.cli>;
+include <bpkg/pkg-common-options.cli>;
 
 /*
 "\section=1"
@@ -27,15 +27,8 @@ attempt to remove the archive when the package is purged with the
 
 namespace bpkg
 {
-  class pkg_fetch_options: common_options
+  class pkg_fetch_options: pkg_common_options
   {
-    dir_path --directory|-d (".")
-    {
-      "<dir>",
-      "Assume configuration is in <dir> rather than in the current working
-       directory."
-    };
-
     bool --existing|-e
     {
       "Treat the argument as an existing package archive path rather than

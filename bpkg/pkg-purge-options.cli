@@ -2,7 +2,7 @@
 // copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-include <bpkg/common-options.cli>;
+include <bpkg/pkg-common-options.cli>;
 
 /*
 "\section=1"
@@ -26,15 +26,8 @@ this mode)."
 
 namespace bpkg
 {
-  class pkg_purge_options: common_options
+  class pkg_purge_options: pkg_common_options
   {
-    dir_path --directory|-d (".")
-    {
-      "<dir>",
-      "Assume configuration is in <dir> rather than in the current working
-       directory."
-    };
-
     bool --keep|-k
     {
       "Keep the package archive. Note that in this mode the package is

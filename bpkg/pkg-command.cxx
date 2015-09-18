@@ -1,8 +1,8 @@
-// file      : bpkg/pkg-update.cxx -*- C++ -*-
+// file      : bpkg/pkg-command.cxx -*- C++ -*-
 // copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-#include <bpkg/pkg-update>
+#include <bpkg/pkg-command>
 
 #include <bpkg/types>
 #include <bpkg/package>
@@ -17,16 +17,19 @@ using namespace butl;
 namespace bpkg
 {
   void
-  pkg_update (const pkg_update_options& o, cli::scanner& args)
+  pkg_command (const string& cmd,
+               const pkg_common_options& o,
+               cli::scanner& args)
   {
-    tracer trace ("pkg_update");
+    tracer trace ("pkg_command");
+    level4 ([&]{trace << "command: " << cmd;});
 
     const dir_path& c (o.directory ());
     level4 ([&]{trace << "configuration: " << c;});
 
     if (!args.more ())
       fail << "package name argument expected" <<
-        info << "run 'bpkg help pkg-update' for more information";
+        info << "run 'bpkg help pkg-" << cmd << "' for more information";
 
     string n (args.next ());
 
@@ -51,14 +54,13 @@ namespace bpkg
 
     // Form the buildspec.
     //
-    string bspec ("update(" + out_root.string () + "/)");
+    string bspec (cmd + "(" + out_root.string () + "/)");
     level4 ([&]{trace << "buildspec: " << bspec;});
 
-    // Update.
-    //
     run_b (bspec);
 
     if (verb)
-      text << "updated " << p->name << " " << p->version;
+      text << cmd << (cmd.back () != 'e' ? "ed " : "d ")
+           << p->name << " " << p->version;
   }
 }
