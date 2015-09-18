@@ -41,18 +41,26 @@ namespace bpkg
 
     // Form the buildspec.
     //
-    // Why do we need to specify src_root? While it shouldn't be
-    // necessary for a completely configured package, we might
-    // also be called to disfigure a partially configured one.
-    //
     string bspec;
 
-    if (src_root == out_root)
-      bspec = "disfigure(" + out_root.string () + "/)";
+    if (p->state != state::broken)
+    {
+      bspec = "clean(" + out_root.string () + "/) "
+        "disfigure(" + out_root.string () + "/)";
+    }
     else
-      bspec = "disfigure(" +
-        src_root.string () + "/@" +
-        out_root.string () + "/)";
+    {
+      // Why do we need to specify src_root? While it's unnecessary
+      // for a completely configured package, here we disfigure a
+      // partially configured one.
+      //
+      if (src_root == out_root)
+        bspec = "disfigure(" + out_root.string () + "/)";
+      else
+        bspec = "disfigure(" +
+          src_root.string () + "/@" +
+          out_root.string () + "/)";
+    }
 
     level4 ([&]{trace << "buildspec: " << bspec;});
 

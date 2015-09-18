@@ -68,11 +68,10 @@ namespace bpkg
   //
   enum class state
   {
+    broken,
     fetched,
     unpacked,
-    configured,
-    updated,
-    broken
+    configured
   };
 
   string

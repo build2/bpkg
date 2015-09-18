@@ -15,11 +15,10 @@ namespace bpkg
   {
     switch (s)
     {
+    case state::broken:     return "broken";
     case state::fetched:    return "fetched";
     case state::unpacked:   return "unpacked";
     case state::configured: return "configured";
-    case state::updated:    return "updated";
-    case state::broken:     return "broken";
     }
 
     return string (); // Should never reach.
@@ -28,11 +27,10 @@ namespace bpkg
   state
   from_string (const string& s)
   {
-         if (s == "fetched")    return state::fetched;
+         if (s == "broken")     return state::broken;
+    else if (s == "fetched")    return state::fetched;
     else if (s == "unpacked")   return state::unpacked;
     else if (s == "configured") return state::configured;
-    else if (s == "updated")    return state::updated;
-    else if (s == "broken")     return state::broken;
     else                        throw invalid_argument (s);
   }
 }

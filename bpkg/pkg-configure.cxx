@@ -101,10 +101,10 @@ namespace bpkg
       // the broken state.
       //
 
-      // Pretend we are configured.
+      // Indicate to pkg_disfigure() we are partially configured.
       //
       p->out_root = out_root.leaf ();
-      p->state = state::configured;
+      p->state = state::broken;
 
       pkg_disfigure (c, t, p); // Commits the transaction.
       throw;
