@@ -5,14 +5,17 @@
 #ifndef BPKG_PACKAGE
 #define BPKG_PACKAGE
 
-#include <memory>  // shared_ptr
+#include <set>
+#include <vector>
 #include <cstdint> // uint16
 #include <ostream>
 #include <utility> // move()
+#include <cstdint> // uint16
 
 #include <odb/core.hxx>
 
 #include <bpkg/types>
+#include <bpkg/utility>
 
 #pragma db model version(1, 1, open)
 
@@ -25,9 +28,9 @@ namespace bpkg
   struct _version
   {
     std::uint16_t epoch;
-    std::string upstream;
+    string upstream;
     std::uint16_t revision;
-    std::string canonical_upstream;
+    string canonical_upstream;
   };
 }
 
@@ -35,6 +38,20 @@ namespace bpkg
 
 namespace bpkg
 {
+  // compare_lazy_ptr
+  //
+  // Compare two lazy pointers via the pointed-to object ids.
+  //
+  struct compare_lazy_ptr
+  {
+    template <typename P>
+    bool
+    operator() (const P& x, const P& y) const
+    {
+      return x.object_id () < y.object_id ();
+    }
+  };
+
   // path
   //
   using optional_string = optional<string>;
@@ -64,6 +81,140 @@ namespace bpkg
                       (?).canonical_upstream ()})                          \
     from(bpkg::version ((?).epoch, std::move ((?).upstream), (?).revision))
 
+  // repository
+  //
+  #pragma db object pointer(std::shared_ptr) session
+  class repository
+  {
+  public:
+    // We use a weak pointer for prerequisite repositories because we
+    // might have cycles.
+    //
+    using complements_type =
+      std::set<lazy_shared_ptr<repository>, compare_lazy_ptr>;
+    using prerequisites_type =
+      std::set<lazy_weak_ptr<repository>, compare_lazy_ptr>;
+
+    repository_location location;
+    complements_type complements;
+    prerequisites_type prerequisites;
+
+  public:
+    explicit
+    repository (repository_location l): location (move (l)) {}
+
+    // Database mapping.
+    //
+    #pragma db value
+    struct _id_type
+    {
+      string name; // Canonical name.
+      string location;
+    };
+
+    _id_type
+    _id () const;
+
+    void
+    _id (_id_type&&);
+
+    #pragma db member(location) transient
+
+    #pragma db member(id) virtual(_id_type) before id(name) \
+      get(_id) set(_id (std::move (?))) column("")
+
+    #pragma db member(complements) id_column("repository") \
+      value_column("complement") value_not_null
+
+    #pragma db member(prerequisites) id_column("repository") \
+      value_column("prerequisite") value_not_null
+
+  private:
+    friend class odb::access;
+    repository () = default;
+  };
+
+  // package_version_id
+  //
+  #pragma db value
+  struct package_version_id
+  {
+    string        name;
+    std::uint16_t epoch;
+    string        upstream; // Canonical upstream.
+    std::uint16_t revision;
+
+    #pragma db member(epoch)    column("version_epoch")
+    #pragma db member(upstream) column("version_upstream")
+    #pragma db member(revision) column("version_revision")
+  };
+
+  bool
+  operator< (const package_version_id&, const package_version_id&);
+
+  // package_location
+  //
+  #pragma db value
+  struct package_location
+  {
+    using repository_type = bpkg::repository;
+
+    lazy_shared_ptr<repository_type> repository;
+    path location; // Relative to the repository.
+  };
+
+  // available_package
+  //
+  #pragma db object pointer(shared_ptr) session
+  class available_package
+  {
+  public:
+    using version_type = bpkg::version;
+
+    string name;
+    version_type version;
+
+    // List of repositories to which this package version belongs (yes,
+    // in our world, it can be in multiple, unrelated repositories).
+    //
+    std::vector<package_location> locations;
+
+    // Database mapping.
+    //
+
+    // id
+    //
+    #pragma db value
+    struct _id_type
+    {
+      package_version_id data;
+      string version_original_upstream;
+
+      #pragma db member(data) column("")
+    };
+
+    _id_type
+    _id () const;
+
+    void
+    _id (_id_type&&);
+
+    #pragma db member(name) transient
+    #pragma db member(version) transient
+
+    #pragma db member(id) virtual(_id_type) before id(data) \
+      get(_id) set(_id (std::move (?))) column("")
+
+    // repositories
+    //
+    #pragma db member(locations) id_column("") value_column("") \
+      unordered value_not_null
+
+  private:
+    friend class odb::access;
+    available_package () = default;
+  };
+
   // state
   //
   enum class state
@@ -89,7 +240,7 @@ namespace bpkg
 
   // package
   //
-  #pragma db object pointer(shared_ptr)
+  #pragma db object pointer(shared_ptr) session
   class package
   {
   public:

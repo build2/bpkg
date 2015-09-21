@@ -1,0 +1,35 @@
+// file      : bpkg/rep-add-options.cli
+// copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
+// license   : MIT; see accompanying LICENSE file
+
+include <bpkg/common-options.cli>;
+
+/*
+"\section=1"
+"\name=bpkg-rep-add"
+
+"\h{SYNOPSIS}
+
+bpkg rep-add [<options>] <rep>"
+
+"\h{DESCRIPTION}
+
+The \cb{rep-add} command adds the specified source repository to the
+configuration. Note that this command doesn't fetch the available
+packages list for the newly added repository. To do that, use the
+\cb{rep-fetch} command.
+"
+*/
+
+namespace bpkg
+{
+  class rep_add_options: common_options
+  {
+    dir_path --directory|-d (".")
+    {
+      "<dir>",
+      "Assume configuration is in <dir> rather than in the current working
+       directory."
+    };
+  };
+}

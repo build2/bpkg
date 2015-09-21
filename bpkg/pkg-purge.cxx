@@ -4,8 +4,6 @@
 
 #include <bpkg/pkg-purge>
 
-#include <memory> // shared_ptr
-
 #include <bpkg/types>
 #include <bpkg/package>
 #include <bpkg/package-odb>

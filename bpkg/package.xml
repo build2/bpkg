@@ -1,5 +1,95 @@
 <changelog xmlns="http://www.codesynthesis.com/xmlns/odb/changelog" database="sqlite" version="1">
   <model version="1">
+    <table name="repository" kind="object">
+      <column name="name" type="TEXT" null="true"/>
+      <column name="location" type="TEXT" null="true"/>
+      <primary-key>
+        <column name="name"/>
+      </primary-key>
+    </table>
+    <table name="repository_complements" kind="container">
+      <column name="repository" type="TEXT" null="true"/>
+      <column name="complement" type="TEXT" null="true"/>
+      <foreign-key name="repository_fk" on-delete="CASCADE">
+        <column name="repository"/>
+        <references table="repository">
+          <column name="name"/>
+        </references>
+      </foreign-key>
+      <index name="repository_complements_repository_i">
+        <column name="repository"/>
+      </index>
+      <foreign-key name="complement_fk" deferrable="DEFERRED">
+        <column name="complement"/>
+        <references table="repository">
+          <column name="name"/>
+        </references>
+      </foreign-key>
+    </table>
+    <table name="repository_prerequisites" kind="container">
+      <column name="repository" type="TEXT" null="true"/>
+      <column name="prerequisite" type="TEXT" null="true"/>
+      <foreign-key name="repository_fk" on-delete="CASCADE">
+        <column name="repository"/>
+        <references table="repository">
+          <column name="name"/>
+        </references>
+      </foreign-key>
+      <index name="repository_prerequisites_repository_i">
+        <column name="repository"/>
+      </index>
+      <foreign-key name="prerequisite_fk" deferrable="DEFERRED">
+        <column name="prerequisite"/>
+        <references table="repository">
+          <column name="name"/>
+        </references>
+      </foreign-key>
+    </table>
+    <table name="available_package" kind="object">
+      <column name="name" type="TEXT" null="true"/>
+      <column name="version_epoch" type="INTEGER" null="true"/>
+      <column name="version_upstream" type="TEXT" null="true"/>
+      <column name="version_revision" type="INTEGER" null="true"/>
+      <column name="version_original_upstream" type="TEXT" null="true"/>
+      <primary-key>
+        <column name="name"/>
+        <column name="version_epoch"/>
+        <column name="version_upstream"/>
+        <column name="version_revision"/>
+      </primary-key>
+    </table>
+    <table name="available_package_locations" kind="container">
+      <column name="name" type="TEXT" null="true"/>
+      <column name="version_epoch" type="INTEGER" null="true"/>
+      <column name="version_upstream" type="TEXT" null="true"/>
+      <column name="version_revision" type="INTEGER" null="true"/>
+      <column name="repository" type="TEXT" null="true"/>
+      <column name="location" type="TEXT" null="true"/>
+      <foreign-key name="object_id_fk" on-delete="CASCADE">
+        <column name="name"/>
+        <column name="version_epoch"/>
+        <column name="version_upstream"/>
+        <column name="version_revision"/>
+        <references table="available_package">
+          <column name="name"/>
+          <column name="version_epoch"/>
+          <column name="version_upstream"/>
+          <column name="version_revision"/>
+        </references>
+      </foreign-key>
+      <index name="available_package_locations_object_id_i">
+        <column name="name"/>
+        <column name="version_epoch"/>
+        <column name="version_upstream"/>
+        <column name="version_revision"/>
+      </index>
+      <foreign-key name="repository_fk" deferrable="DEFERRED">
+        <column name="repository"/>
+        <references table="repository">
+          <column name="name"/>
+        </references>
+      </foreign-key>
+    </table>
     <table name="package" kind="object">
       <column name="name" type="TEXT" null="true"/>
       <column name="version_epoch" type="INTEGER" null="true"/>

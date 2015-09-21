@@ -7,8 +7,10 @@
 
 #include <vector>
 #include <string>
-#include <memory>   // shared_ptr
+#include <memory>   // shared_ptr, unique_ptr
 #include <ostream>
+
+#include <odb/lazy-ptr.hxx>
 
 #include <butl/path>
 #include <butl/optional>
@@ -22,10 +24,18 @@ namespace bpkg
   using strings = std::vector<string>;
   using cstrings = std::vector<const char*>;
 
-  using std::shared_ptr;
-
   using butl::optional;
   using butl::nullopt;
+
+  // Smart pointers
+  //
+  using std::unique_ptr;
+
+  using std::shared_ptr;
+  using std::weak_ptr;
+
+  using odb::lazy_shared_ptr;
+  using odb::lazy_weak_ptr;
 
   // <butl/path>
   //

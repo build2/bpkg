@@ -26,6 +26,8 @@
 #include <bpkg/pkg-clean>
 
 #include <bpkg/cfg-create>
+
+#include <bpkg/rep-add>
 #include <bpkg/rep-create>
 
 using namespace std;
@@ -194,6 +196,7 @@ try
   //
 #define REP_COMMAND(CMD) ANY_COMMAND(rep, CMD)
 
+  REP_COMMAND (add);
   REP_COMMAND (create);
 
   // @@ Would be nice to check that args doesn't contain any junk left.

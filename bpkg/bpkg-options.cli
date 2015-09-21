@@ -91,6 +91,13 @@ namespace bpkg
       ""
     };
 
+    bool rep-add
+    {
+      "<rep>",
+      "Add repository to configuration.",
+      ""
+    };
+
     bool rep-create
     {
       "[<dir>]",

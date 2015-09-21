@@ -4,8 +4,6 @@
 
 #include <bpkg/pkg-fetch>
 
-#include <memory> // shared_ptr
-
 #include <bpkg/manifest>
 
 #include <bpkg/types>

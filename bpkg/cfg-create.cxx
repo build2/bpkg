@@ -9,6 +9,8 @@
 #include <fstream>
 
 #include <bpkg/types>
+#include <bpkg/package>
+#include <bpkg/package-odb>
 #include <bpkg/utility>
 #include <bpkg/database>
 #include <bpkg/diagnostics>
@@ -116,7 +118,13 @@ namespace bpkg
 
     // Create the database.
     //
-    open (c, trace, true);
+    database db (open (c, trace, true));
+
+    // Add the special, root repository object with empty location.
+    //
+    transaction t (db.begin ());
+    db.persist (repository (repository_location ()));
+    t.commit ();
 
     if (verb)
     {

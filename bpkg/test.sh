@@ -71,8 +71,33 @@ test cfg-create --wipe config.cxx=g++-4.9 cxx config.install.root=/tmp/install
 stat unknown
 
 ##
+## rep-add
+##
+
+fail rep-add         # repository location expected
+fail rep-add stable  # invalid location
+fail rep-add http:// # invalid location
+
+# relative path
+#
+test rep-add ./1/math/stable
+fail rep-add ./1/../1/math/stable # duplicate
+
+# absolute path
+#
+test rep-add /tmp/1/misc/stable
+fail rep-add /tmp/1/../1/misc/stable # duplicate
+
+# remote URL
+#
+test rep-add http://pkg.example.org/1/testing
+fail rep-add http://www.example.org/1/testing # duplicate
+
+
+##
 ## pkg-fetch
 ##
+
 
 # fetch existing archive
 #

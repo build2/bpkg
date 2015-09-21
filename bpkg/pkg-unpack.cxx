@@ -4,8 +4,6 @@
 
 #include <bpkg/pkg-unpack>
 
-#include <memory> // shared_ptr
-
 #include <butl/process>
 
 #include <bpkg/manifest>

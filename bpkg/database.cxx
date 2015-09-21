@@ -4,9 +4,6 @@
 
 #include <bpkg/database>
 
-#include <memory>  // unique_ptr
-#include <utility> // move()
-
 #include <odb/schema-catalog.hxx>
 #include <odb/sqlite/exceptions.hxx>
 

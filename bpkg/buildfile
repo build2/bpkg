@@ -25,6 +25,7 @@ exe{bpkg}: cxx{package package-odb database diagnostics utility} \
                       cli.cxx{pkg-update-options}                \
                       cli.cxx{pkg-clean-options}                 \
   cxx{cfg-create}     cli.cxx{cfg-create-options}                \
+  cxx{rep-add}        cli.cxx{rep-add-options}                   \
   cxx{rep-create}     cli.cxx{rep-create-options}                \
   $libs
 
@@ -68,5 +69,8 @@ cli.cxx{cfg-create-options}: cli.options += --exclude-base
 
 # rep-*
 #
+cli.cxx{rep-add-options}: cli{rep-add-options}
+cli.cxx{rep-add-options}: cli.options += --exclude-base
+
 cli.cxx{rep-create-options}: cli{rep-create-options}
 cli.cxx{rep-create-options}: cli.options += --exclude-base
