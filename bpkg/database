@@ -17,6 +17,17 @@ namespace bpkg
 
   database
   open (const dir_path& configuration, tracer&, bool create = false);
+
+  struct tracer_guard
+  {
+    tracer_guard (database& db, tracer& t)
+        : db_ (db), t_ (db.tracer ()) {db.tracer (t);}
+    ~tracer_guard () {db_.tracer (*t_);}
+
+  private:
+    database& db_;
+    odb::tracer* t_;
+  };
 }
 
 #endif // BPKG_DATABASE
