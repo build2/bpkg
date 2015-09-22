@@ -159,11 +159,7 @@ namespace bpkg
     std::uint16_t revision;
 
     package_version_id () = default;
-    package_version_id (string n, const version& v)
-        : name (move (n)),
-          epoch (v.epoch ()),
-          upstream (v.canonical_upstream ()),
-          revision (v.revision ()) {}
+    package_version_id (string, const version&);
 
     #pragma db member(epoch)    column("version_epoch")
     #pragma db member(upstream) column("version_upstream")
@@ -315,5 +311,7 @@ namespace bpkg
     package () = default;
   };
 }
+
+#include <bpkg/package.ixx>
 
 #endif // BPKG_PACKAGE

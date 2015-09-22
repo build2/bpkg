@@ -4,7 +4,6 @@
 
 #include <bpkg/package>
 
-#include <cassert>
 #include <stdexcept> // invalid_argument
 
 using namespace std;
