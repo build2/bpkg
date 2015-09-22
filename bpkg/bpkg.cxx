@@ -2,11 +2,11 @@
 // copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-#include <cassert>
 #include <iostream>
 #include <exception>
 
 #include <bpkg/types>
+#include <bpkg/utility>
 #include <bpkg/diagnostics>
 
 #include <bpkg/bpkg-options>
@@ -28,6 +28,7 @@
 #include <bpkg/cfg-create>
 
 #include <bpkg/rep-add>
+#include <bpkg/rep-fetch>
 #include <bpkg/rep-create>
 
 using namespace std;
@@ -197,6 +198,7 @@ try
 #define REP_COMMAND(CMD) ANY_COMMAND(rep, CMD)
 
   REP_COMMAND (add);
+  REP_COMMAND (fetch);
   REP_COMMAND (create);
 
   // @@ Would be nice to check that args doesn't contain any junk left.

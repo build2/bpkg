@@ -5,8 +5,6 @@
 #include <bpkg/rep-create>
 
 #include <map>
-#include <utility>  // pair, move()
-#include <cassert>
 #include <fstream>
 #include <iostream>
 #include <system_error>
@@ -144,6 +142,10 @@ namespace bpkg
 
     // Load the 'repositories' file to make sure it is there and
     // is valid.
+    //
+    // @@ The same code as in rep-fetch.
+    // @@ Should we check for duplicates? Or should this be done at
+    //    the manifest level?
     //
     path rf (d / path ("repositories"));
 

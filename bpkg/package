@@ -9,8 +9,6 @@
 #include <vector>
 #include <cstdint> // uint16
 #include <ostream>
-#include <utility> // move()
-#include <cstdint> // uint16
 
 #include <odb/core.hxx>
 
@@ -99,6 +97,15 @@ namespace bpkg
     complements_type complements;
     prerequisites_type prerequisites;
 
+    const string&
+    name () const {return location.canonical_name ();}
+
+    // Used to detect recursive fecthing. Will probably be replaced
+    // by the 'repositories' file timestamp or hashsum later.
+    //
+    #pragma db transient
+    bool fetched = false;
+
   public:
     explicit
     repository (repository_location l): location (move (l)) {}
@@ -134,6 +141,13 @@ namespace bpkg
     repository () = default;
   };
 
+  #pragma db view object(repository) query(repository::id.name != "" && (?))
+  struct repository_count
+  {
+    #pragma db column("count(" + repository::id.name + ")")
+    size_t result;
+  };
+
   // package_version_id
   //
   #pragma db value
@@ -143,6 +157,13 @@ namespace bpkg
     std::uint16_t epoch;
     string        upstream; // Canonical upstream.
     std::uint16_t revision;
+
+    package_version_id () = default;
+    package_version_id (string n, const version& v)
+        : name (move (n)),
+          epoch (v.epoch ()),
+          upstream (v.canonical_upstream ()),
+          revision (v.revision ()) {}
 
     #pragma db member(epoch)    column("version_epoch")
     #pragma db member(upstream) column("version_upstream")
@@ -213,6 +234,13 @@ namespace bpkg
   private:
     friend class odb::access;
     available_package () = default;
+  };
+
+  #pragma db view object(available_package)
+  struct available_package_count
+  {
+    #pragma db column("count(" + available_package::id.data.name + ")")
+    size_t result;
   };
 
   // state

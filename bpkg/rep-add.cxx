@@ -32,19 +32,19 @@ namespace bpkg
 
     // Figure out the repository location.
     //
-    const char* s (args.next ());
+    const char* arg (args.next ());
     repository_location rl;
     try
     {
-      rl = repository_location (s, repository_location ());
+      rl = repository_location (arg, repository_location ());
 
       if (rl.relative ()) // Throws if location is empty.
         rl = repository_location (
-          dir_path (s).complete ().normalize ().string ());
+          dir_path (arg).complete ().normalize ().string ());
     }
     catch (const invalid_argument& e)
     {
-      fail << "invalid repository location '" << s << "': " << e.what ();
+      fail << "invalid repository location '" << arg << "': " << e.what ();
     }
 
     const string& rn (rl.canonical_name ());
@@ -53,6 +53,7 @@ namespace bpkg
     //
     database db (open (c, trace));
     transaction t (db.begin ());
+    session s; // Repository dependencies can have cycles.
 
     // It is possible that this repository is already in the database.
     // For example, it might be a prerequisite of one of the already

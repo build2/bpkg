@@ -22,9 +22,9 @@ namespace bpkg
                  const shared_ptr<package>& p)
   {
     tracer trace ("pkg_disfigure");
-    t.tracer (trace); // "Tail" call, never restored.
 
     database& db (t.database ());
+    tracer_guard tg (db, trace);
 
     // Calculate package's src_root and out_root.
     //

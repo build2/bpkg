@@ -1,0 +1,7 @@
+# math/testing
+#
+: 1
+location: ../../misc/testing
+:
+location: ../stable
+:

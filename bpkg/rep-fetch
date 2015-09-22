@@ -1,0 +1,17 @@
+// file      : bpkg/rep-fetch -*- C++ -*-
+// copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
+// license   : MIT; see accompanying LICENSE file
+
+#ifndef BPKG_REP_FETCH
+#define BPKG_REP_FETCH
+
+#include <bpkg/types>
+#include <bpkg/rep-fetch-options>
+
+namespace bpkg
+{
+  void
+  rep_fetch (const rep_fetch_options&, cli::scanner& args);
+}
+
+#endif // BPKG_REP_FETCH

@@ -4,8 +4,6 @@
 
 #include <bpkg/cfg-create>
 
-#include <utility> // move()
-#include <cassert>
 #include <fstream>
 
 #include <bpkg/types>

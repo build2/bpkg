@@ -5,6 +5,7 @@
 #ifndef BPKG_UTILITY
 #define BPKG_UTILITY
 
+#include <cassert>
 #include <utility>   // move()
 #include <exception> // uncaught_exception ()
 

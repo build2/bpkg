@@ -4,10 +4,10 @@
 
 #include <bpkg/help>
 
-#include <cassert>
 #include <iostream>
 
 #include <bpkg/types>
+#include <bpkg/utility>
 #include <bpkg/diagnostics>
 
 #include <bpkg/bpkg-options>

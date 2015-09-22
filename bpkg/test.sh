@@ -10,6 +10,7 @@ ver=1.0.0
 pkga=../../hello/dist/$pkg-$ver.tar.bz2
 pkgd=../../hello/dist/$pkg-$ver
 out=$cfg/`basename $pkgd`
+rep=../../hello/1/hello
 
 function error ()
 {
@@ -19,25 +20,33 @@ function error ()
 
 function test ()
 {
-  local cmd=$1
-  shift
+  local cmd=$1; shift
+  local ops=
 
-  $bpkg $cmd -d $cfg $*
+  if [ "$cmd" != "rep-create" ]; then
+    ops="-d $cfg"
+  fi
+
+  $bpkg $cmd $ops $*
 
   if [ $? -ne 0 ]; then
-    error "failed: $bpkg $cmd -d $cfg $*"
+    error "failed: $bpkg $cmd $ops $*"
   fi
 }
 
 function fail ()
 {
-  local cmd=$1
-  shift
+  local cmd=$1; shift
+  local ops=
 
-  $bpkg $cmd -d $cfg $*
+  if [ "$cmd" != "rep-create" ]; then
+    ops="-d $cfg"
+  fi
+
+  $bpkg $cmd $ops $*
 
   if [ $? -eq 0 ]; then
-    error "succeeded: $bpkg $cmd -d $cfg $*"
+    error "succeeded: $bpkg $cmd $ops $*"
   fi
 
   return 0
@@ -64,6 +73,19 @@ function gone ()
 }
 
 ##
+## rep-create
+##
+
+fail rep-create # no 'repositories' file
+
+test rep-create ../tests/repository/1/misc/stable
+test rep-create ../tests/repository/1/misc/testing
+
+test rep-create ../tests/repository/1/math/stable
+test rep-create ../tests/repository/1/math/testing
+test rep-create ../tests/repository/1/math/unstable
+
+##
 ## cfg-create
 ##
 
@@ -73,6 +95,8 @@ stat unknown
 ##
 ## rep-add
 ##
+
+test cfg-create --wipe
 
 fail rep-add         # repository location expected
 fail rep-add stable  # invalid location
@@ -93,6 +117,42 @@ fail rep-add /tmp/1/../1/misc/stable # duplicate
 test rep-add http://pkg.example.org/1/testing
 fail rep-add http://www.example.org/1/testing # duplicate
 
+##
+## rep-fetch
+##
+
+test cfg-create --wipe
+
+fail rep-fetch # no repositories
+
+# hello repository
+#
+test cfg-create --wipe
+test rep-add $rep
+test rep-fetch
+test rep-fetch
+
+# math/unstable repository
+#
+test cfg-create --wipe
+test rep-add ../tests/repository/1/math/unstable
+test rep-fetch
+test rep-fetch
+
+# both
+#
+test cfg-create --wipe
+test rep-add $rep
+test rep-add ../tests/repository/1/math/unstable
+test rep-fetch
+test rep-fetch
+
+## @@
+##
+##
+
+test cfg-create --wipe config.cxx=g++-4.9 cxx config.install.root=/tmp/install
+stat unknown
 
 ##
 ## pkg-fetch

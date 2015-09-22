@@ -52,15 +52,7 @@ namespace bpkg
   available_package::_id_type available_package::
   _id () const
   {
-    return _id_type {
-      {
-        name,
-        version.epoch (),
-        version.canonical_upstream (),
-        version.revision ()
-      },
-      version.upstream ()
-    };
+    return _id_type {package_version_id (name, version), version.upstream ()};
   }
 
   void available_package::

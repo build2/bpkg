@@ -7,8 +7,7 @@
 
 #include <string>
 #include <cstdint>
-#include <utility> // move(), forward()
-#include <cassert>
+#include <utility> // forward()
 #include <sstream>
 #include <ostream>
 #include <exception>
@@ -16,6 +15,7 @@
 #include <odb/tracer.hxx>
 
 #include <bpkg/types>
+#include <bpkg/utility>
 
 namespace bpkg
 {
