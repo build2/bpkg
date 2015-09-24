@@ -8,8 +8,8 @@
 #include <stdexcept>
 
 #include <bpkg/manifest>
-#include <bpkg/manifest-parser>
 
+#include <bpkg/fetch>
 #include <bpkg/types>
 #include <bpkg/package>
 #include <bpkg/package-odb>
@@ -35,42 +35,14 @@ namespace bpkg
 
     const repository_location& rl (r->location);
     level4 ([&]{trace << r->name () << " " << rl;});
-
-    assert (rl.absolute () /*|| rl.remote ()*/);
+    assert (rl.absolute () || rl.remote ());
 
     r->fetched = true; // Mark as being fetched.
-
-    //@@ The same code as in rep-create.
-    //
 
     // Load the 'repositories' file and use it to populate the
     // prerequisite and complement repository sets.
     //
-    repository_manifests rms;
-    {
-      path f (rl.path () / path ("repositories"));
-
-      if (!exists (f))
-        fail << "file " << f << " does not exist";
-
-      try
-      {
-        ifstream ifs;
-        ifs.exceptions (ofstream::badbit | ofstream::failbit);
-        ifs.open (f.string ());
-
-        manifest_parser mp (ifs, f.string ());
-        rms = repository_manifests (mp);
-      }
-      catch (const manifest_parsing& e)
-      {
-        fail (e.name, e.line, e.column) << e.description;
-      }
-      catch (const ifstream::failure&)
-      {
-        fail << "unable to read from " << f;
-      }
-    }
+    repository_manifests rms (fetch_repositories (rl));
 
     for (repository_manifest& rm: rms)
     {
@@ -126,31 +98,7 @@ namespace bpkg
     // @@ We need to check that that 'repositories' file hasn't
     //    changed since.
     //
-    package_manifests pms;
-    {
-      path f (rl.path () / path ("packages"));
-
-      if (!exists (f))
-        fail << "file " << f << " does not exist";
-
-      try
-      {
-        ifstream ifs;
-        ifs.exceptions (ofstream::badbit | ofstream::failbit);
-        ifs.open (f.string ());
-
-        manifest_parser mp (ifs, f.string ());
-        pms = package_manifests (mp);
-      }
-      catch (const manifest_parsing& e)
-      {
-        fail (e.name, e.line, e.column) << e.description;
-      }
-      catch (const ifstream::failure&)
-      {
-        fail << "unable to read from " << f;
-      }
-    }
+    package_manifests pms (fetch_packages (rl));
 
     // "Suspend" session while persisting packages to reduce memory
     // consumption.

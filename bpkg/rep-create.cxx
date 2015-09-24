@@ -12,9 +12,9 @@
 #include <butl/filesystem> // dir_iterator
 
 #include <bpkg/manifest>
-#include <bpkg/manifest-parser>
 #include <bpkg/manifest-serializer>
 
+#include <bpkg/fetch>
 #include <bpkg/types>
 #include <bpkg/utility>
 #include <bpkg/diagnostics>
@@ -143,33 +143,8 @@ namespace bpkg
     // Load the 'repositories' file to make sure it is there and
     // is valid.
     //
-    // @@ The same code as in rep-fetch.
-    // @@ Should we check for duplicates? Or should this be done at
-    //    the manifest level?
-    //
-    path rf (d / path ("repositories"));
-
-    if (!exists (rf))
-      fail << "file " << rf << " does not exist";
-
-    try
-    {
-      ifstream ifs;
-      ifs.exceptions (ofstream::badbit | ofstream::failbit);
-      ifs.open (rf.string ());
-
-      manifest_parser mp (ifs, rf.string ());
-      repository_manifests ms (mp);
-      level4 ([&]{trace << ms.size () - 1 << " prerequisite repository(s)";});
-    }
-    catch (const manifest_parsing& e)
-    {
-      fail (e.name, e.line, e.column) << e.description;
-    }
-    catch (const ifstream::failure&)
-    {
-      fail << "unable to read from " << rf;
-    }
+    repository_manifests rms (fetch_repositories (d));
+    level4 ([&]{trace << rms.size () - 1 << " prerequisite repository(s)";});
 
     // While we could have serialized as we go along, the order of
     // packages will be pretty much random and not reproducible. By

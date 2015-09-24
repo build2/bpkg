@@ -1,0 +1,22 @@
+// file      : bpkg/fetch -*- C++ -*-
+// copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
+// license   : MIT; see accompanying LICENSE file
+
+#ifndef BPKG_FETCH
+#define BPKG_FETCH
+
+#include <bpkg/manifest>
+
+#include <bpkg/types>
+#include <bpkg/utility>
+
+namespace bpkg
+{
+  repository_manifests fetch_repositories (const dir_path&);
+  repository_manifests fetch_repositories (const repository_location&);
+
+  package_manifests fetch_packages (const dir_path&);
+  package_manifests fetch_packages (const repository_location&);
+}
+
+#endif // BPKG_FETCH
