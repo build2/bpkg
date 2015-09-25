@@ -6,6 +6,7 @@
 
 #include <bpkg/manifest>
 
+#include <bpkg/fetch>
 #include <bpkg/types>
 #include <bpkg/package>
 #include <bpkg/package-odb>
@@ -29,6 +30,8 @@ namespace bpkg
     level4 ([&]{trace << "configuration: " << c;});
 
     database db (open (c, trace));
+    transaction t (db.begin ());
+    session s;
 
     path a;
     bool purge;
@@ -52,21 +55,60 @@ namespace bpkg
         fail << "package name argument expected" <<
           info << "run 'bpkg help pkg-fetch' for more information";
 
-      string name (args.next ());
+      string n (args.next ());
 
       if (!args.more ())
         fail << "package version argument expected" <<
           info << "run 'bpkg help pkg-fetch' for more information";
 
-      string ver (args.next ());
-
-      // TODO:
+      //@@ Same code as in pkg-status. Similar problem to repo_location;
+      //   need a place for such utilities.
       //
-      // - Will need to use some kind or auto_rm/exception guard on
-      //   fetched file.
-      //
+      version v;
+      {
+        const char* s (args.next ());
+        try
+        {
+          v = version (s);
+        }
+        catch (const invalid_argument& e)
+        {
+          fail << "invalid package version '" << s << "': " << e.what ();
+        }
+      }
 
-      fail << "pkg-fetch " << name << " " << ver << " not yet implemented";
+      if (db.query_value<repository_count> () == 0)
+        fail << "configuration " << c << " has no repositories" <<
+          info << "use 'bpkg rep-add' to add a repository";
+
+      if (db.query_value<available_package_count> () == 0)
+        fail << "configuration " << c << " has no available packages" <<
+          info << "use 'bpkg rep-fetch' to fetch available packages list";
+
+      shared_ptr<available_package> p (
+        db.find<available_package> (package_version_id (n, v)));
+
+      if (p == nullptr)
+        fail << "package " << n << " " << v << " is not available";
+
+      // Pick a repository. Prefer local ones over the remote.
+      //
+      const package_location* pl (&p->locations.front ());
+
+      for (const package_location& l: p->locations)
+      {
+        if (!l.repository.load ()->location.remote ())
+        {
+          pl = &l;
+          break;
+        }
+      }
+
+      if (verb > 1)
+        text << "fetching " << pl->location.leaf () << " "
+             << "from " << pl->repository->name ();
+
+      a = fetch_archive (o, pl->repository->location, pl->location, c);
       purge = true;
     }
 
@@ -78,10 +120,6 @@ namespace bpkg
     level4 ([&]{trace << m.name << " " << m.version;});
 
     const auto& n (m.name);
-
-    // Database time.
-    //
-    transaction t (db.begin ());
 
     // See if this package already exists in this configuration.
     //

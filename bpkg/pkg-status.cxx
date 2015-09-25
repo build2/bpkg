@@ -42,7 +42,7 @@ namespace bpkg
       }
       catch (const invalid_argument& e)
       {
-        fail << "invalid package version '" << s << "'";
+        fail << "invalid package version '" << s << "': " << e.what ();
       }
     }
 

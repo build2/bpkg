@@ -20,6 +20,12 @@ namespace bpkg
   package_manifests fetch_packages (const dir_path&);
   package_manifests fetch_packages (const common_options&,
                                     const repository_location&);
+
+  path
+  fetch_archive (const common_options&,
+                 const repository_location&,
+                 const path& archive,
+                 const dir_path& destdir);
 }
 
 #endif // BPKG_FETCH

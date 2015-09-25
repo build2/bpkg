@@ -146,6 +146,8 @@ namespace bpkg
   {
     #pragma db column("count(" + repository::id.name + ")")
     size_t result;
+
+    operator size_t () const {return result;}
   };
 
   // package_version_id
@@ -237,6 +239,8 @@ namespace bpkg
   {
     #pragma db column("count(" + available_package::id.data.name + ")")
     size_t result;
+
+    operator size_t () const {return result;}
   };
 
   // state

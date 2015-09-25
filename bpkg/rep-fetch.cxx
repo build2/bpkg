@@ -166,7 +166,7 @@ namespace bpkg
     const auto& ua (root->complements); // User-added repositories.
 
     if (ua.empty ())
-      fail << "configuration has no repositories" <<
+      fail << "configuration " << c << " has no repositories" <<
         info << "use 'bpkg rep-add' to add a repository";
 
     // Clean repositories and available packages. At the end only
@@ -206,8 +206,8 @@ namespace bpkg
     size_t rcount, pcount;
     if (verb)
     {
-      rcount = db.query_value<repository_count> ().result;
-      pcount = db.query_value<available_package_count> ().result;
+      rcount = db.query_value<repository_count> ();
+      pcount = db.query_value<available_package_count> ();
     }
 
     t.commit ();

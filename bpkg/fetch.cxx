@@ -85,8 +85,12 @@ namespace bpkg
   }
 
   static process
-  start_wget (const path& prog, const strings& ops, const string& url)
+  start_wget (const path& prog,
+              const strings& ops,
+              const string& url,
+              const path& out)
   {
+    bool fo (!out.empty ()); // Output to file.
     string ua (BPKG_USER_AGENT " wget/" + to_string (wget_major) + "."
                + to_string (wget_minor));
 
@@ -95,11 +99,12 @@ namespace bpkg
       "-U", ua.c_str ()
     };
 
-    // Map verbosity level. If we are running quiet or at level 1,
-    // then run wget quiet. At level 2 and 3 run it at the default
-    // level (so we will print the command line and it will display
-    // the progress, error messages, etc). Higher than that -- run
-    // it with debug output.
+    // Map verbosity level. If we are running quiet or at level 1
+    // and the output is STDOUT, then run wget quiet. If at level
+    // 1 and the output is a file, then show the progress bar. At
+    // level 2 and 3 run it at the default level (so we will print
+    // the command line and it will display the progress, error
+    // messages, etc). Higher than that -- run it with debug output.
     //
     // In the wget world quiet means don't print anything, not even
     // error messages. There is also the -nv mode (aka "non-verbose")
@@ -108,8 +113,20 @@ namespace bpkg
     // If things go south, we suggest (in fetch_url()) below that the
     // user re-runs the command with -v to see all the gory details.
     //
-    if (verb < 2)
+    if (verb < (fo ? 1 : 2))
       args.push_back ("-q");
+    else if (fo && verb == 1)
+    {
+      // Wget 1.16 introduced the --show-progress option which in the
+      // quiet mode shows a nice and tidy progress bar (if only it also
+      // showed errors, then it would have been perfect).
+      //
+      if (wget_major > 1 || (wget_major == 1 && wget_minor >= 16))
+      {
+        args.push_back ("-q");
+        args.push_back ("--show-progress");
+      }
+    }
     else if (verb > 3)
       args.push_back ("-d");
 
@@ -119,15 +136,26 @@ namespace bpkg
     for (const string& o: ops)
       args.push_back (o.c_str ());
 
-    args.push_back ("-O");         // Output to...
-    args.push_back ("-");          // ...STDOUT.
+    // Output.
+    //
+    string o (fo ? out.leaf ().string () : "-");
+    args.push_back ("-O");
+    args.push_back (o.c_str ());
+
     args.push_back (url.c_str ());
     args.push_back (nullptr);
 
     if (verb >= 2)
       print_process (args);
 
-    return process (args.data (), 0, -1); // Failure handled by the caller.
+    // If we are fetching into a file, change the wget's directory to
+    // that of the output file. We do it this way so that we end up with
+    // just the file name (rather than the whole path) in the progress
+    // report. Process exceptions must be handled by the caller.
+    //
+    return fo
+      ? process (out.directory ().string ().c_str (), args.data ())
+      : process (args.data (), 0, -1);
   }
 
   // curl
@@ -163,8 +191,13 @@ namespace bpkg
   }
 
   static process
-  start_curl (const path& prog, const strings& ops, const string& url)
+  start_curl (const path& prog,
+              const strings& ops,
+              const string& url,
+              const path& out)
   {
+    bool fo (!out.empty ()); // Output to file.
+
     cstrings args {
       prog.string ().c_str (),
       "-f", // Fail on HTTP errors (e.g., 404).
@@ -172,16 +205,20 @@ namespace bpkg
       "-A", (BPKG_USER_AGENT " curl")
     };
 
-    // Map verbosity level. If we are running quiet or at level 1,
-    // then run curl quiet. At level 2 and 3 run it at the default
-    // level (so we will print the command line and it will display
-    // the progress). Higher than that -- run it verbose.
+    // Map verbosity level. If we are running quiet or at level 1
+    // and the output is STDOUT, then run curl quiet. If at level
+    // 1 and the output is a file, then show the progress bar. At
+    // level 2 and 3 run it at the default level (so we will print
+    // the command line and it will display its elaborate progress).
+    // Higher than that -- run it verbose.
     //
-    if (verb < 2)
+    if (verb < (fo ? 1 : 2))
     {
       args.push_back ("-s");
       args.push_back ("-S"); // But show errors.
     }
+    else if (fo && verb == 1)
+      args.push_back ("--progress-bar");
     else if (verb > 3)
       args.push_back ("-v");
 
@@ -191,13 +228,32 @@ namespace bpkg
     for (const string& o: ops)
       args.push_back (o.c_str ());
 
+    // Output. By default curl writes to STDOUT.
+    //
+    if (fo)
+    {
+      args.push_back ("-o");
+      args.push_back (out.string ().c_str ());
+    }
+
     args.push_back (url.c_str ());
     args.push_back (nullptr);
 
     if (verb >= 2)
       print_process (args);
+    else if (verb == 1 && fo)
+      //
+      // Unfortunately curl doesn't print the filename being fetched
+      // next to the progress bar. So the best we can do is print it
+      // on the previous line. Ugly, I know.
+      //
+      text << out.leaf () << ':';
 
-    return process (args.data (), 0, -1); // Failure handled by the caller.
+    // Process exceptions must be handled by the caller.
+    //
+    return fo
+      ? process (args.data ())
+      : process (args.data (), 0, -1);
   }
 
   // fetch
@@ -235,22 +291,27 @@ namespace bpkg
   }
 
   static process
-  start_fetch (const path& prog, const strings& ops, const string& url)
+  start_fetch (const path& prog,
+               const strings& ops,
+               const string& url,
+               const path& out)
   {
-    // -T|--timeout   120 seconds by default, leave it at that for now.
-    // -n|--no-mtime
-    //
+    bool fo (!out.empty ()); // Output to file.
+
     cstrings args {
       prog.string ().c_str (),
       "--user-agent", (BPKG_USER_AGENT " fetch")
     };
 
-    // Map verbosity level. If we are running quiet or at level 1,
-    // then run fetch quiet. At level 2 and 3 run it at the default
-    // level (so we will print the command line and it will display
+    if (fo)
+      args.push_back ("--no-mtime"); // Use our own mtime.
+
+    // Map verbosity level. If we are running quiet then run fetch quiet.
+    // If we are at level 1 and we are fetching into a file or we are at
+    // level 2 or 3, then run it at the default level (so it will display
     // the progress). Higher than that -- run it verbose.
     //
-    if (verb < 2)
+    if (verb < (fo ? 1 : 2))
       args.push_back ("-q");
     else if (verb > 3)
       args.push_back ("-v");
@@ -261,15 +322,26 @@ namespace bpkg
     for (const string& o: ops)
       args.push_back (o.c_str ());
 
-    args.push_back ("-o");         // Output to...
-    args.push_back ("-");          // ...STDOUT.
+    // Output.
+    //
+    string o (fo ? out.leaf ().string () : "-");
+    args.push_back ("-o");
+    args.push_back (o.c_str ());
+
     args.push_back (url.c_str ());
     args.push_back (nullptr);
 
     if (verb >= 2)
       print_process (args);
 
-    return process (args.data (), 0, -1); // Failure handled by the caller.
+    // If we are fetching into a file, change the fetch's directory to
+    // that of the output file. We do it this way so that we end up with
+    // just the file name (rather than the whole path) in the progress
+    // report. Process exceptions must be handled by the caller.
+    //
+    return fo
+      ? process (out.directory ().string ().c_str (), args.data ())
+      : process (args.data (), 0, -1);
   }
 
   // The dispatcher.
@@ -361,21 +433,25 @@ namespace bpkg
     return fetch_kind;
   }
 
+  // If out is empty, then fetch to STDOUT. In this case also don't
+  // show any progress unless we are running verbose.
+  //
   static process
-  start (const common_options& o, const string& url)
+  start (const common_options& o, const string& url, const path& out = path ())
   {
-    process (*start) (const path&, const strings&, const string&) = nullptr;
+    process (*f) (
+      const path&, const strings&, const string&, const path&) = nullptr;
 
     switch (check (o))
     {
-    case wget:  start = &start_wget;  break;
-    case curl:  start = &start_curl;  break;
-    case fetch: start = &start_fetch; break;
+    case wget:  f = &start_wget;  break;
+    case curl:  f = &start_curl;  break;
+    case fetch: f = &start_fetch; break;
     }
 
     try
     {
-      return start (fetch_path, o.fetch_option (), url);
+      return f (fetch_path, o.fetch_option (), url, out);
     }
     catch (const process_error& e)
     {
@@ -388,15 +464,9 @@ namespace bpkg
     }
   }
 
-  template <typename M>
-  static M
-  fetch_url (const common_options& o,
-             const string& host,
-             uint16_t port,
-             const path& file)
+  static string
+  to_url (const string& host, uint16_t port, const path& file)
   {
-    // Assemble the URL.
-    //
     //@@ Absolute path in URL: how is this going to work on Windows?
     //   Change to relative: watch for empty path.
     //
@@ -409,7 +479,44 @@ namespace bpkg
       url += ":" + to_string (port);
 
     url += file.posix_string ();
+    return url;
+  }
 
+  static path
+  fetch_file (const common_options& o,
+              const string& host,
+              uint16_t port,
+              const path& f,
+              const dir_path& d)
+  {
+    path r (d / f.leaf ());
+
+    if (exists (r))
+      fail << "file " << r << " already exists";
+
+    string url (to_url (host, port, f));
+    process pr (start (o, url, r));
+
+    if (!pr.wait ())
+    {
+      // While it is reasonable to assuming the child process issued
+      // diagnostics, some may not mention the URL.
+      //
+      fail << "unable to fetch " << url <<
+        info << "re-run with -v for more information";
+    }
+
+    return r;
+  }
+
+  template <typename M>
+  static M
+  fetch_manifest (const common_options& o,
+                  const string& host,
+                  uint16_t port,
+                  const path& f)
+  {
+    string url (to_url (host, port, f));
     process pr (start (o, url));
 
     try
@@ -452,9 +559,48 @@ namespace bpkg
     throw failed ();
   }
 
+  static path
+  fetch_file (const path& f, const dir_path& d)
+  {
+    if (!exists (f))
+      fail << "file " << f << " does not exist";
+
+    path r (d / f.leaf ());
+
+    if (exists (r))
+      fail << "file " << r << " already exists";
+
+    try
+    {
+      ifstream ifs (f.string (), ios::binary);
+      if (!ifs.is_open ())
+        fail << "unable to open " << f << " in read mode";
+
+      ofstream ofs (r.string (), ios::binary);
+      if (!ofs.is_open ())
+        fail << "unable to open " << r << " in write mode";
+
+      ifs.exceptions (ofstream::badbit | ofstream::failbit);
+      ofs.exceptions (ofstream::badbit | ofstream::failbit);
+
+      ofs << ifs.rdbuf();
+
+      // In case they throw.
+      //
+      ifs.close ();
+      ofs.close ();
+    }
+    catch (const iostream::failure&)
+    {
+      fail << "unable to copy " << f << " to " << r << ": io error";
+    }
+
+    return r;
+  }
+
   template <typename M>
   static M
-  fetch_file (const path& f)
+  fetch_manifest (const path& f)
   {
     if (!exists (f))
       fail << "file " << f << " does not exist";
@@ -485,7 +631,7 @@ namespace bpkg
   repository_manifests
   fetch_repositories (const dir_path& d)
   {
-    return fetch_file<repository_manifests> (d / repositories);
+    return fetch_manifest<repository_manifests> (d / repositories);
   }
 
   repository_manifests
@@ -496,8 +642,8 @@ namespace bpkg
     path f (rl.path () / repositories);
 
     return rl.remote ()
-      ? fetch_url<repository_manifests> (o, rl.host (), rl.port (), f)
-      : fetch_file<repository_manifests> (f);
+      ? fetch_manifest<repository_manifests> (o, rl.host (), rl.port (), f)
+      : fetch_manifest<repository_manifests> (f);
   }
 
   static const path packages ("packages");
@@ -505,7 +651,7 @@ namespace bpkg
   package_manifests
   fetch_packages (const dir_path& d)
   {
-    return fetch_file<package_manifests> (d / packages);
+    return fetch_manifest<package_manifests> (d / packages);
   }
 
   package_manifests
@@ -516,7 +662,23 @@ namespace bpkg
     path f (rl.path () / packages);
 
     return rl.remote ()
-      ? fetch_url<package_manifests> (o, rl.host (), rl.port (), f)
-      : fetch_file<package_manifests> (f);
+      ? fetch_manifest<package_manifests> (o, rl.host (), rl.port (), f)
+      : fetch_manifest<package_manifests> (f);
+  }
+
+  path
+  fetch_archive (const common_options& o,
+                 const repository_location& rl,
+                 const path& a,
+                 const dir_path& d)
+  {
+    assert (a.relative ());
+    assert (rl.remote () || rl.absolute ());
+
+    path f (rl.path () / a);
+
+    return rl.remote ()
+      ? fetch_file (o, rl.host (), rl.port (), f, d)
+      : fetch_file (f, d);
   }
 }

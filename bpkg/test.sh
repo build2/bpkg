@@ -163,17 +163,50 @@ test cfg-create --wipe
 test rep-add http://pkg.cppget.org/1/hello
 test rep-fetch
 
+##
+## pkg-fetch
+##
+
+test cfg-create --wipe
+
+fail pkg-fetch -e                # archive expected
+fail pkg-fetch -e ./no-such-file # archive does not exist
+
+fail pkg-fetch                  # package name expected
+fail pkg-fetch libhello         # package version expected
+fail pkg-fetch libhello 1/2/3   # invalid package version
+
+fail pkg-fetch libhello 1.0.0   # no repositories
+test rep-add $rep
+fail pkg-fetch libhello 1.0.0   # no packages
+test rep-fetch
+fail pkg-fetch libhello 2+1.0.0 # not available
+
+# local
+#
+test cfg-create --wipe
+test rep-add $rep
+test rep-fetch
+test pkg-fetch libhello 1.0.0
+test pkg-unpack libhello
+test pkg-purge libhello
+
+# remote
+#
+test cfg-create --wipe
+test rep-add http://pkg.cppget.org/1/hello
+test rep-fetch
+#test pkg-fetch libheavy 1.0.0
+test pkg-fetch libhello 1.0.0
+test pkg-unpack libhello
+test pkg-purge libhello
+
 ## @@
 ##
 ##
 
 test cfg-create --wipe config.cxx=g++-4.9 cxx config.install.root=/tmp/install
 stat unknown
-
-##
-## pkg-fetch
-##
-
 
 # fetch existing archive
 #
