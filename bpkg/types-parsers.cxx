@@ -10,10 +10,10 @@ namespace bpkg
 {
   namespace cli
   {
-    void parser<dir_path>::
-    parse (dir_path& x, bool& xs, scanner& s)
+    template <typename T>
+    static void
+    parse_path (T& x, scanner& s)
     {
-      xs = true;
       const char* o (s.next ());
 
       if (!s.more ())
@@ -23,7 +23,7 @@ namespace bpkg
 
       try
       {
-        x = dir_path (v);
+        x = T (v);
 
         if (x.empty ())
           throw invalid_value (o, v);
@@ -32,6 +32,20 @@ namespace bpkg
       {
         throw invalid_value (o, v);
       }
+    }
+
+    void parser<path>::
+    parse (path& x, bool& xs, scanner& s)
+    {
+      xs = true;
+      parse_path (x, s);
+    }
+
+    void parser<dir_path>::
+    parse (dir_path& x, bool& xs, scanner& s)
+    {
+      xs = true;
+      parse_path (x, s);
     }
   }
 }

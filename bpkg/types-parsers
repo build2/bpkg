@@ -20,6 +20,13 @@ namespace bpkg
     struct parser;
 
     template <>
+    struct parser<path>
+    {
+      static void
+      parse (path&, bool&, scanner&);
+    };
+
+    template <>
     struct parser<dir_path>
     {
       static void
