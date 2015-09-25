@@ -38,7 +38,8 @@ namespace bpkg
         level5 ([&]{trace << "directory " << c << " not empty";});
 
         if (!o.wipe ())
-          fail << "directory " << c << " is not empty";
+          fail << "directory " << c << " is not empty" <<
+            info << "use --wipe to clean it up but be careful";
 
         rm_r (c, false);
       }
