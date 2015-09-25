@@ -456,3 +456,20 @@ test pkg-clean $pkg
 test pkg-clean $pkg
 test pkg-disfigure $pkg
 test pkg-purge $pkg
+
+##
+## Scenarios.
+##
+
+# build package from remote repository
+#
+test cfg-create --wipe cxx
+test rep-add http://pkg.cppget.org/1/hello
+test rep-fetch
+test pkg-fetch $pkg $ver
+test pkg-unpack $pkg
+test pkg-configure $pkg
+test pkg-update $pkg
+test pkg-clean $pkg
+test pkg-disfigure $pkg
+test pkg-purge $pkg
