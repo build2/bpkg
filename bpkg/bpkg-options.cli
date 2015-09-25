@@ -105,6 +105,13 @@ namespace bpkg
       ""
     };
 
+    bool rep-info
+    {
+      "<rep>",
+      "Print information about repository.",
+      ""
+    };
+
     bool rep-create
     {
       "[<dir>]",

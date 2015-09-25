@@ -28,6 +28,7 @@ exe{bpkg}: cxx{fetch package package-odb database diagnostics    \
   cxx{cfg-create}     cli.cxx{cfg-create-options}                \
   cxx{rep-add}        cli.cxx{rep-add-options}                   \
   cxx{rep-fetch}      cli.cxx{rep-fetch-options}                 \
+  cxx{rep-info}       cli.cxx{rep-info-options}                  \
   cxx{rep-create}     cli.cxx{rep-create-options}                \
   $libs
 
@@ -76,6 +77,9 @@ cli.cxx{rep-add-options}: cli.options += --exclude-base
 
 cli.cxx{rep-fetch-options}: cli{rep-fetch-options}
 cli.cxx{rep-fetch-options}: cli.options += --exclude-base
+
+cli.cxx{rep-info-options}: cli{rep-info-options}
+cli.cxx{rep-info-options}: cli.options += --exclude-base
 
 cli.cxx{rep-create-options}: cli{rep-create-options}
 cli.cxx{rep-create-options}: cli.options += --exclude-base

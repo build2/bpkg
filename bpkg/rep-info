@@ -1,0 +1,17 @@
+// file      : bpkg/rep-info -*- C++ -*-
+// copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
+// license   : MIT; see accompanying LICENSE file
+
+#ifndef BPKG_REP_INFO
+#define BPKG_REP_INFO
+
+#include <bpkg/types>
+#include <bpkg/rep-info-options>
+
+namespace bpkg
+{
+  void
+  rep_info (const rep_info_options&, cli::scanner& args);
+}
+
+#endif // BPKG_REP_INFO

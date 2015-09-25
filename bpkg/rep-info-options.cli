@@ -1,0 +1,51 @@
+// file      : bpkg/rep-info-options.cli
+// copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
+// license   : MIT; see accompanying LICENSE file
+
+include <bpkg/common-options.cli>;
+
+/*
+"\section=1"
+"\name=bpkg-rep-info"
+
+"\h{SYNOPSIS}
+
+bpkg rep-info [<options>] <rep>"
+
+"\h{DESCRIPTION}
+
+The \cb{rep-info} command prints information about the specified repository.
+By default it print the repository's name and location as the first line
+followed by the list of prerequisite/complement repositories and the list
+of available packages. This default behavior, however, can be altered in
+various ways using options listed below."
+*/
+
+namespace bpkg
+{
+  class rep_info_options: common_options
+  {
+    bool --name|-n
+    {
+      "Print the specified repository's name and location."
+    };
+
+    bool --repositories|-r
+    {
+      "Print information about prerequisite/complement repositories."
+    };
+
+    bool --packages|-p
+    {
+      "Print information about available packages."
+    };
+
+    bool --manifest|-m
+    {
+      "Instead of printing the information in the human-readable form, dump
+       it as manifest(s). Normally you would use this option in combination
+       with \cb{--packages|-p} or \cb{--repositories|-r} to only dump one
+       of the manifests."
+    };
+  };
+}

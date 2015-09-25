@@ -30,6 +30,7 @@
 
 #include <bpkg/rep-add>
 #include <bpkg/rep-fetch>
+#include <bpkg/rep-info>
 #include <bpkg/rep-create>
 
 using namespace std;
@@ -201,6 +202,7 @@ try
 
   REP_COMMAND (add);
   REP_COMMAND (fetch);
+  REP_COMMAND (info);
   REP_COMMAND (create);
 
   // @@ Would be nice to check that args doesn't contain any junk left.

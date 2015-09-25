@@ -23,7 +23,7 @@ function test ()
   local cmd=$1; shift
   local ops=
 
-  if [ "$cmd" != "rep-create" ]; then
+  if [ "$cmd" != "rep-create" -a "$cmd" != "rep-info" ]; then
     ops="-d $cfg"
   fi
 
@@ -39,7 +39,7 @@ function fail ()
   local cmd=$1; shift
   local ops=
 
-  if [ "$cmd" != "rep-create" ]; then
+  if [ "$cmd" != "rep-create" -a "$cmd" != "rep-info" ]; then
     ops="-d $cfg"
   fi
 
@@ -84,6 +84,16 @@ test rep-create ../tests/repository/1/misc/testing
 test rep-create ../tests/repository/1/math/stable
 test rep-create ../tests/repository/1/math/testing
 test rep-create ../tests/repository/1/math/unstable
+
+##
+## rep-info
+##
+
+fail rep-info # repository location expected
+
+test rep-info ../tests/repository/1/misc/testing
+test rep-info -m ../tests/repository/1/math/unstable
+test rep-info http://pkg.cppget.org/1/hello
 
 ##
 ## cfg-create
