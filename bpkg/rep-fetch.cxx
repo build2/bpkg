@@ -23,26 +23,31 @@ using namespace butl;
 namespace bpkg
 {
   static void
-  rep_fetch (transaction& t, const shared_ptr<repository>& r)
+  rep_fetch (const common_options& co,
+             transaction& t,
+             const shared_ptr<repository>& r)
   {
     tracer trace ("rep_fetch(rep)");
 
     database& db (t.database ());
     tracer_guard tg (db, trace);
 
-    if (verb >= 2)
-      text << "fetching " << r->name ();
-
     const repository_location& rl (r->location);
     level4 ([&]{trace << r->name () << " " << rl;});
     assert (rl.absolute () || rl.remote ());
+
+    // The fetch_*() functions below will be quiet at level 1, which
+    // can be quite confusing if the download hangs.
+    //
+    if (verb >= (rl.remote () ? 1 : 2))
+      text << "fetching " << r->name ();
 
     r->fetched = true; // Mark as being fetched.
 
     // Load the 'repositories' file and use it to populate the
     // prerequisite and complement repository sets.
     //
-    repository_manifests rms (fetch_repositories (rl));
+    repository_manifests rms (fetch_repositories (co, rl));
 
     for (repository_manifest& rm: rms)
     {
@@ -82,7 +87,7 @@ namespace bpkg
       // (or is already being) fetched.
       //
       if (!pr->fetched)
-        rep_fetch (t, pr);
+        rep_fetch (co, t, pr);
 
       level4 ([&]{trace << pr->name () << " prerequisite of " << r->name ();});
 
@@ -98,7 +103,7 @@ namespace bpkg
     // @@ We need to check that that 'repositories' file hasn't
     //    changed since.
     //
-    package_manifests pms (fetch_packages (rl));
+    package_manifests pms (fetch_packages (co, rl));
 
     // "Suspend" session while persisting packages to reduce memory
     // consumption.
@@ -196,7 +201,7 @@ namespace bpkg
     // their packages.
     //
     for (const lazy_shared_ptr<repository>& lp: ua)
-      rep_fetch (t, lp.load ());
+      rep_fetch (o, t, lp.load ());
 
     size_t rcount, pcount;
     if (verb)

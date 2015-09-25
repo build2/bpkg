@@ -2,6 +2,7 @@
 // copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
+include <vector>;
 include <cstdint>;
 include <bpkg/types>;
 
@@ -29,10 +30,35 @@ namespace bpkg
        further."
     };
 
+    path --fetch
+    {
+      "<path>",
+      "The fetch program that should be used to download remote resources.
+       Currently, \cb{bpkg} recognizes \cb{curl}, \cb{wget}, and \cb{fetch}.
+       Note that the last component of <path> must contain one of these
+       names as a substring in order for \cb{bpkg} to recognize which
+       program is being used. You can also specify additional options that
+       should be passed to the fetch program with \cb{--fetch-option}.
+
+       If the fetch program is not specified, then \cb{bpkg} will try to
+       discover if one of the above program is available and use that.
+       Currently, \cb{bpkg} has the following preference order: \cb{wget}
+       1.16 or higher (supports \cb{--show-progress}), \cb{curl},
+       \cb{wget}, and \cb{fetch}."
+    };
+
+    strings --fetch-option
+    {
+      "<opt>",
+      "Additional option that should be passed to the fetch program. See
+       \cb{--fetch} for more information on the fetch program. Repeat this
+       option to specify multiple fetch options."
+    };
+
     // The following option is "fake" in that it is actually handled by
     // argv_file_scanner. We have it here for documentation.
     //
-    std::string --options-file
+    string --options-file
     {
       "<file>",
       "Read additional options from <file> with each option appearing on a

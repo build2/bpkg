@@ -10,6 +10,7 @@
 #include <bpkg/diagnostics>
 
 #include <bpkg/bpkg-options>
+#include <bpkg/bpkg-version>
 
 // Commands.
 //
@@ -72,7 +73,8 @@ try
 
   if (bo.version ())
   {
-    cout << "bpkg 0.0.0" << endl
+    cout << "bpkg " << BPKG_VERSION_STR << "; " <<
+      "libbpkg " << LIBBPKG_VERSION_STR << endl
          << "Copyright (c) 2014-2015 Code Synthesis Ltd" << endl
          << "This is free software released under the MIT license." << endl;
     return 0;

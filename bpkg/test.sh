@@ -147,6 +147,12 @@ test rep-add ../tests/repository/1/math/unstable
 test rep-fetch
 test rep-fetch
 
+# remote
+#
+test cfg-create --wipe
+test rep-add http://pkg.cppget.org/1/hello
+test rep-fetch
+
 ## @@
 ##
 ##
