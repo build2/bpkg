@@ -61,14 +61,25 @@ namespace bpkg
         {
           for (const repository_manifest& rm: rms)
           {
-            if (rm.location.empty ())
-              continue; // Itself.
+            repository_role rr (rm.effective_role ());
+
+            if (rr == repository_role::base)
+              continue; // Entry for this repository.
 
             repository_location l (rm.location, rl); // Complete.
+            const string& n (l.canonical_name ());
 
-            //@@ Handle complements.
-            //
-            cout << "prerequisite " << l.canonical_name () << " " << l << endl;
+            switch (rr)
+            {
+            case repository_role::complement:
+              cout << "complement " << n << " " << l << endl;
+              break;
+            case repository_role::prerequisite:
+              cout << "prerequisite " << n << " " << l << endl;
+              break;
+            case repository_role::base:
+              assert (false);
+            }
           }
         }
       }

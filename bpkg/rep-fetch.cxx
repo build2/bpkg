@@ -51,7 +51,9 @@ namespace bpkg
 
     for (repository_manifest& rm: rms)
     {
-      if (rm.location.empty ())
+      repository_role rr (rm.effective_role ());
+
+      if (rr == repository_role::base)
         continue; // Entry for this repository.
 
       // If the location is relative, complete it using this repository
@@ -89,12 +91,37 @@ namespace bpkg
       if (!pr->fetched)
         rep_fetch (co, t, pr);
 
-      level4 ([&]{trace << pr->name () << " prerequisite of " << r->name ();});
-
-      if (!r->prerequisites.insert (lazy_weak_ptr<repository> (db, pr)).second)
+      // @@ What if we have duplicated? Ideally, we would like to check
+      //    this once and as early as possible. The original idea was to
+      //    do it during manifest parsing and serialization. But at that
+      //    stage we have no way of completing relative locations (which
+      //    is required to calculate canonical names). Current thinking is
+      //    that we should have something like rep-verify (similar to
+      //    pkg-verify) that performs (potentially expensive) repository
+      //    verifications, including making sure prerequisites can be
+      //    satisfied from the listed repositories, etc. Perhaps we can
+      //    also re-use some of that functionality here. I.e., instead of
+      //    calling the "naked" fetch_repositories() above, we will call
+      //    a function from rep-verify that will perform extra verifications.
+      //
+      switch (rr)
       {
-        fail << "duplicate prerequisite repository " << pr->location << " "
-             << "in " << r->name ();
+      case repository_role::complement:
+        {
+          level4 ([&]{trace << pr->name () << " complement of "
+                            << r->name ();});
+          r->complements.insert (lazy_shared_ptr<repository> (db, pr));
+          break;
+        }
+      case repository_role::prerequisite:
+        {
+          level4 ([&]{trace << pr->name () << " prerequisite of "
+                            << r->name ();});
+          r->prerequisites.insert (lazy_weak_ptr<repository> (db, pr));
+          break;
+        }
+      case repository_role::base:
+        assert (false);
       }
     }
 
