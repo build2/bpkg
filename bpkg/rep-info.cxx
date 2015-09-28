@@ -14,6 +14,7 @@
 #include <bpkg/types>
 #include <bpkg/utility>
 #include <bpkg/diagnostics>
+#include <bpkg/manifest-utility>
 
 using namespace std;
 using namespace butl;
@@ -29,24 +30,7 @@ namespace bpkg
       fail << "repository location argument expected" <<
         info << "run 'bpkg help rep-info' for more information";
 
-    // Figure out the repository location.
-    //
-    // @@ The same code as in rep-add, factor out.
-    //
-    const char* arg (args.next ());
-    repository_location rl;
-    try
-    {
-      rl = repository_location (arg, repository_location ());
-
-      if (rl.relative ()) // Throws if location is empty.
-        rl = repository_location (
-          dir_path (arg).complete ().normalize ().string ());
-    }
-    catch (const invalid_argument& e)
-    {
-      fail << "invalid repository location '" << arg << "': " << e.what ();
-    }
+    repository_location rl (parse_location (args.next ()));
 
     // Fetch everything we will need before printing anything.
     //

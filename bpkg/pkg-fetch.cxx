@@ -13,6 +13,7 @@
 #include <bpkg/utility>
 #include <bpkg/database>
 #include <bpkg/diagnostics>
+#include <bpkg/manifest-utility>
 
 #include <bpkg/pkg-verify>
 
@@ -61,21 +62,7 @@ namespace bpkg
         fail << "package version argument expected" <<
           info << "run 'bpkg help pkg-fetch' for more information";
 
-      //@@ Same code as in pkg-status. Similar problem to repo_location;
-      //   need a place for such utilities.
-      //
-      version v;
-      {
-        const char* s (args.next ());
-        try
-        {
-          v = version (s);
-        }
-        catch (const invalid_argument& e)
-        {
-          fail << "invalid package version '" << s << "': " << e.what ();
-        }
-      }
+      version v (parse_version (args.next ()));
 
       if (db.query_value<repository_count> () == 0)
         fail << "configuration " << c << " has no repositories" <<

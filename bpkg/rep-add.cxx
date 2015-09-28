@@ -12,6 +12,7 @@
 #include <bpkg/utility>
 #include <bpkg/database>
 #include <bpkg/diagnostics>
+#include <bpkg/manifest-utility>
 
 using namespace std;
 using namespace butl;
@@ -30,23 +31,7 @@ namespace bpkg
       fail << "repository location argument expected" <<
         info << "run 'bpkg help rep-add' for more information";
 
-    // Figure out the repository location.
-    //
-    const char* arg (args.next ());
-    repository_location rl;
-    try
-    {
-      rl = repository_location (arg, repository_location ());
-
-      if (rl.relative ()) // Throws if location is empty.
-        rl = repository_location (
-          dir_path (arg).complete ().normalize ().string ());
-    }
-    catch (const invalid_argument& e)
-    {
-      fail << "invalid repository location '" << arg << "': " << e.what ();
-    }
-
+    repository_location rl (parse_location (args.next ()));
     const string& rn (rl.canonical_name ());
 
     // Create the new repository and add is as a complement to the root.

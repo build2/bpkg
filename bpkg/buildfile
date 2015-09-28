@@ -9,27 +9,27 @@ import libs += libbutl%lib{butl}
 import libs += libodb%lib{odb}
 import libs += libodb-sqlite%lib{odb-sqlite}
 
-exe{bpkg}: cxx{fetch package package-odb database diagnostics    \
-               utility}                                          \
-                      cli.cxx{common-options} cxx{types-parsers} \
-  cxx{bpkg}           cli.cxx{bpkg-options}                      \
-  cxx{help}           cli.cxx{help-options}                      \
-                      cli.cxx{pkg-common-options}                \
-  cxx{pkg-command}                                               \
-  cxx{pkg-verify}     cli.cxx{pkg-verify-options}                \
-  cxx{pkg-status}     cli.cxx{pkg-status-options}                \
-  cxx{pkg-fetch}      cli.cxx{pkg-fetch-options}                 \
-  cxx{pkg-unpack}     cli.cxx{pkg-unpack-options}                \
-  cxx{pkg-purge}      cli.cxx{pkg-purge-options}                 \
-  cxx{pkg-configure}  cli.cxx{pkg-configure-options}             \
-  cxx{pkg-disfigure}  cli.cxx{pkg-disfigure-options}             \
-                      cli.cxx{pkg-update-options}                \
-                      cli.cxx{pkg-clean-options}                 \
-  cxx{cfg-create}     cli.cxx{cfg-create-options}                \
-  cxx{rep-add}        cli.cxx{rep-add-options}                   \
-  cxx{rep-fetch}      cli.cxx{rep-fetch-options}                 \
-  cxx{rep-info}       cli.cxx{rep-info-options}                  \
-  cxx{rep-create}     cli.cxx{rep-create-options}                \
+exe{bpkg}: cxx{fetch package package-odb manifest-utility database \
+               diagnostics utility}                                \
+                      cli.cxx{common-options} cxx{types-parsers}   \
+  cxx{bpkg}           cli.cxx{bpkg-options}                        \
+  cxx{help}           cli.cxx{help-options}                        \
+                      cli.cxx{pkg-common-options}                  \
+  cxx{pkg-command}                                                 \
+  cxx{pkg-verify}     cli.cxx{pkg-verify-options}                  \
+  cxx{pkg-status}     cli.cxx{pkg-status-options}                  \
+  cxx{pkg-fetch}      cli.cxx{pkg-fetch-options}                   \
+  cxx{pkg-unpack}     cli.cxx{pkg-unpack-options}                  \
+  cxx{pkg-purge}      cli.cxx{pkg-purge-options}                   \
+  cxx{pkg-configure}  cli.cxx{pkg-configure-options}               \
+  cxx{pkg-disfigure}  cli.cxx{pkg-disfigure-options}               \
+                      cli.cxx{pkg-update-options}                  \
+                      cli.cxx{pkg-clean-options}                   \
+  cxx{cfg-create}     cli.cxx{cfg-create-options}                  \
+  cxx{rep-add}        cli.cxx{rep-add-options}                     \
+  cxx{rep-fetch}      cli.cxx{rep-fetch-options}                   \
+  cxx{rep-info}       cli.cxx{rep-info-options}                    \
+  cxx{rep-create}     cli.cxx{rep-create-options}                  \
   $libs
 
 # Option length must be the same to get commands/topics/options aligned.

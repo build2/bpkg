@@ -12,6 +12,7 @@
 #include <bpkg/utility>
 #include <bpkg/database>
 #include <bpkg/diagnostics>
+#include <bpkg/manifest-utility>
 
 using namespace std;
 using namespace butl;
@@ -34,17 +35,7 @@ namespace bpkg
 
     version v;
     if (args.more ())
-    {
-      const char* s (args.next ());
-      try
-      {
-        v = version (s);
-      }
-      catch (const invalid_argument& e)
-      {
-        fail << "invalid package version '" << s << "': " << e.what ();
-      }
-    }
+      v = parse_version (args.next ());
 
     database db (open (c, trace));
     transaction t (db.begin ());

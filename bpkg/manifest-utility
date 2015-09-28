@@ -1,0 +1,26 @@
+// file      : bpkg/manifest-utility -*- C++ -*-
+// copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
+// license   : MIT; see accompanying LICENSE file
+
+#ifndef BPKG_MANIFEST_UTILITY
+#define BPKG_MANIFEST_UTILITY
+
+#include <bpkg/manifest>
+
+#include <bpkg/types>
+#include <bpkg/utility>
+
+namespace bpkg
+{
+  version
+  parse_version (const char*);
+
+  // First use the passed location as is. If the result is relative,
+  // then assume this is a relative path to the repository directory
+  // and complete it based on the current working directory.
+  //
+  repository_location
+  parse_location (const char*);
+}
+
+#endif // BPKG_MANIFEST_UTILITY
