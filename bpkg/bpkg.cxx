@@ -142,73 +142,85 @@ try
 
   // Handle commands.
   //
-
-  // help
-  //
-  if (cmd.help ())
+  for (;;)
   {
-    assert (h);
-    help (ho, "help", help_options::print_usage);
-    return 0;
-  }
+    // help
+    //
+    if (cmd.help ())
+    {
+      assert (h);
+      help (ho, "help", help_options::print_usage);
+      break;
+    }
 
+    // Commands.
+    //
+    // if (cmd.pkg_verify ())
+    // {
+    //  if (h)
+    //    help (ho, "pkg-verify", pkg_verify_options::print_usage);
+    //  else
+    //    pkg_verify (parse<pkg_verify_options> (co, args), args);
+    //
+    //  return 0;
+    // }
+    //
+#define ANY_COMMAND(OBJ, CMD)                                           \
+    if (cmd.OBJ##_##CMD ())                                             \
+    {                                                                   \
+      if (h)                                                            \
+        help (ho, #OBJ"-"#CMD, OBJ##_##CMD##_options::print_usage);     \
+      else                                                              \
+        OBJ##_##CMD (parse<OBJ##_##CMD##_options> (co, args), args);    \
+                                                                        \
+      break;                                                            \
+    }
 
-  // Commands.
-  //
-  // if (cmd.pkg_verify ())
-  // {
-  //  if (h)
-  //    help (ho, "pkg-verify", pkg_verify_options::print_usage);
-  //  else
-  //    pkg_verify (parse<pkg_verify_options> (co, args), args);
-  //
-  //  return 0;
-  // }
-  //
-#define ANY_COMMAND(OBJ, CMD)                                      \
-  if (cmd.OBJ##_##CMD ())                                          \
-  {                                                                \
-    if (h)                                                         \
-      help (ho, #OBJ"-"#CMD, OBJ##_##CMD##_options::print_usage);  \
-    else                                                           \
-      OBJ##_##CMD (parse<OBJ##_##CMD##_options> (co, args), args); \
-                                                                   \
-    return 0;                                                      \
-  }
-
-  // pkg-* commands
-  //
+    // pkg-* commands
+    //
 #define PKG_COMMAND(CMD) ANY_COMMAND(pkg, CMD)
 
-  PKG_COMMAND (verify);
-  PKG_COMMAND (status);
-  PKG_COMMAND (fetch);
-  PKG_COMMAND (unpack);
-  PKG_COMMAND (purge);
-  PKG_COMMAND (configure);
-  PKG_COMMAND (disfigure);
-  PKG_COMMAND (update);
-  PKG_COMMAND (clean);
+    PKG_COMMAND (verify);
+    PKG_COMMAND (status);
+    PKG_COMMAND (fetch);
+    PKG_COMMAND (unpack);
+    PKG_COMMAND (purge);
+    PKG_COMMAND (configure);
+    PKG_COMMAND (disfigure);
+    PKG_COMMAND (update);
+    PKG_COMMAND (clean);
 
-  // cfg-* commands
-  //
+    // cfg-* commands
+    //
 #define CFG_COMMAND(CMD) ANY_COMMAND(cfg, CMD)
 
-  CFG_COMMAND (create);
+    CFG_COMMAND (create);
 
-  // rep-* commands
-  //
+    // rep-* commands
+    //
 #define REP_COMMAND(CMD) ANY_COMMAND(rep, CMD)
 
-  REP_COMMAND (add);
-  REP_COMMAND (fetch);
-  REP_COMMAND (info);
-  REP_COMMAND (create);
+    REP_COMMAND (add);
+    REP_COMMAND (fetch);
+    REP_COMMAND (info);
+    REP_COMMAND (create);
 
-  // @@ Would be nice to check that args doesn't contain any junk left.
+    assert (false);
+    fail << "unhandled command";
+  }
 
-  assert (false); // Unhandled command.
-  return 1;
+  // Warn if args contain some leftover junk. We already successfully
+  // performed the command so failing would probably be misleading.
+  //
+  if (args.more ())
+  {
+    diag_record dr;
+    dr << warn << "ignoring unexpected argument(s)";
+    while (args.more ())
+      dr << " '" << args.next () << "'";
+  }
+
+  return 0;
 }
 catch (const failed&)
 {
