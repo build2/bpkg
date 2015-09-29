@@ -77,7 +77,10 @@ namespace bpkg
   }
 
   static shared_ptr<package>
-  pkg_unpack (database& db, const dir_path& c, const string& name)
+  pkg_unpack (const common_options& co,
+              database& db,
+              const dir_path& c,
+              const string& name)
   {
     tracer trace ("pkg_unpack(pkg)");
     tracer_guard tg (db, trace);
@@ -120,19 +123,28 @@ namespace bpkg
     //
     auto_rm_r arm (d);
 
-    const char* args[] {
-      "tar",
-      "-C", c.string ().c_str (), // -C/--directory -- change to directory.
-      "-xf",
-      a.string ().c_str (),
-      nullptr};
+    cstrings args {co.tar ().string ().c_str ()};
+
+    // Add extra options.
+    //
+    for (const string& o: co.tar_option ())
+      args.push_back (o.c_str ());
+
+    // -C/--directory -- change to directory.
+    //
+    args.push_back ("-C");
+    args.push_back (c.string ().c_str ());
+
+    args.push_back ("-xf");
+    args.push_back (a.string ().c_str ());
+    args.push_back (nullptr);
 
     if (verb >= 2)
       print_process (args);
 
     try
     {
-      process pr (args);
+      process pr (args.data ());
 
       // While it is reasonable to assuming the child process issued
       // diagnostics, tar, specifically, doesn't mention the archive
@@ -194,7 +206,7 @@ namespace bpkg
         fail << "package name argument expected" <<
           info << "run 'bpkg help pkg-unpack' for more information";
 
-      p = pkg_unpack (db, c, args.next ());
+      p = pkg_unpack (o, db, c, args.next ());
     }
 
     if (verb)

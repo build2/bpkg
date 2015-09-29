@@ -105,7 +105,7 @@ namespace bpkg
 
     // Verify archive is a package and get its manifest.
     //
-    package_manifest m (pkg_verify (a));
+    package_manifest m (pkg_verify (o, a));
     level4 ([&]{trace << m.name << " " << m.version;});
 
     const auto& n (m.name);

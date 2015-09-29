@@ -52,7 +52,10 @@ namespace bpkg
   using package_map = map<package_key, package_data>;
 
   static void
-  collect (package_map& map, const dir_path& d, const dir_path& root)
+  collect (const common_options& co,
+           package_map& map,
+           const dir_path& d,
+           const dir_path& root)
   try
   {
     tracer trace ("collect");
@@ -73,7 +76,7 @@ namespace bpkg
       {
       case entry_type::directory:
         {
-          collect (map, path_cast<dir_path> (d / p), root);
+          collect (co, map, path_cast<dir_path> (d / p), root);
           continue;
         }
       case entry_type::regular:
@@ -94,7 +97,7 @@ namespace bpkg
       // Verify archive is a package and get its manifest.
       //
       path a (d / p);
-      package_manifest m (pkg_verify (a));
+      package_manifest m (pkg_verify (co, a));
 
       level4 ([&]{trace << m.name << " " << m.version << " in " << a;});
 
@@ -129,7 +132,7 @@ namespace bpkg
   }
 
   void
-  rep_create (const rep_create_options&, cli::scanner& args)
+  rep_create (const rep_create_options& o, cli::scanner& args)
   try
   {
     tracer trace ("rep_create");
@@ -151,7 +154,7 @@ namespace bpkg
     // collecting all the manifests in a map we get a sorted list.
     //
     package_map pm;
-    collect (pm, d, d);
+    collect (o, pm, d, d);
 
     // Serialize.
     //

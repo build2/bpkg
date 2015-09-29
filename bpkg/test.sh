@@ -4,6 +4,8 @@ trap 'exit 1' ERR
 
 bpkg="./bpkg $*"
 #bpkg="valgrind -q ./bpkg $*"
+#bpkg="./bpkg --fetch curl $*"
+#bpkg="./bpkg --fetch fetch --tar bsdtar $*"
 cfg=/tmp/conf
 pkg=libhello
 ver=1.0.0

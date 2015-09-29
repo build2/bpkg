@@ -54,6 +54,24 @@ namespace bpkg
        option to specify multiple fetch options."
     };
 
+    path --tar = "tar"
+    {
+      "<path>",
+      "The tar program that should be used to extract package archives. For
+       example, \cb{gtar} or \cb{bsdtar}. You can also specify additional
+       options that should be passed to the tar program with
+       \cb{--tar-option}. If the tar program is not explicitly specified,
+       then \cb{bpkg} will use \cb{tar} by default."
+    };
+
+    strings --tar-option
+    {
+      "<opt>",
+      "Additional option that should be passed to the tar program. See
+       \cb{--tar} for more information on the tar program. Repeat this
+       option to specify multiple tar options."
+    };
+
     // The following option is "fake" in that it is actually handled by
     // argv_file_scanner. We have it here for documentation.
     //

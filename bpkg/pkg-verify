@@ -21,7 +21,7 @@ namespace bpkg
   // invalid.
   //
   package_manifest
-  pkg_verify (const path& archive, bool diag = true);
+  pkg_verify (const common_options&, const path& archive, bool diag = true);
 
   // Similar to the above but verifies that a source directory is
   // a valid package.

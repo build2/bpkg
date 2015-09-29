@@ -21,7 +21,7 @@ using namespace butl;
 namespace bpkg
 {
   package_manifest
-  pkg_verify (const path& af, bool diag)
+  pkg_verify (const common_options& co, const path& af, bool diag)
   {
     // Figure out the package directory. Strip the top-level extension
     // and, as a special case, if the second-level extension is .tar,
@@ -38,12 +38,21 @@ namespace bpkg
     //
     path mf (pd / path ("manifest"));
 
-    const char* args[] {
-      "tar",
-      "-xOf",                // -O/--to-stdout -- extract to STDOUT.
-      af.string ().c_str (),
-      mf.string ().c_str (),
-      nullptr};
+    cstrings args {co.tar ().string ().c_str ()};
+
+    // Add extra options.
+    //
+    for (const string& o: co.tar_option ())
+      args.push_back (o.c_str ());
+
+    // -O/--to-stdout -- extract to STDOUT.
+    //
+    args.push_back ("-O");
+
+    args.push_back ("-xf");
+    args.push_back (af.string ().c_str ());
+    args.push_back (mf.string ().c_str ());
+    args.push_back (nullptr);
 
     if (verb >= 2)
       print_process (args);
@@ -60,7 +69,7 @@ namespace bpkg
       // since we assume that the child error is always the reason for
       // the manifest parsing failure.
       //
-      process pr (args, 0, -1, (diag ? 2 : 1));
+      process pr (args.data (), 0, -1, (diag ? 2 : 1));
 
       try
       {
@@ -218,7 +227,7 @@ namespace bpkg
     // If we were asked to run silent, don't yap about the reason
     // why the package is invalid. Just return the error status.
     //
-    package_manifest m (pkg_verify (a, !o.silent ()));
+    package_manifest m (pkg_verify (o, a, !o.silent ()));
 
     if (verb && !o.silent ())
       text << "valid package " << m.name << " " << m.version;
