@@ -35,6 +35,7 @@ namespace bpkg
     session s;
 
     path a;
+    auto_rm arm;
     bool purge;
 
     if (o.existing ())
@@ -96,6 +97,7 @@ namespace bpkg
              << "from " << pl->repository->name;
 
       a = fetch_archive (o, pl->repository->location, pl->location, c);
+      arm = auto_rm (a);
       purge = true;
     }
 
@@ -138,7 +140,9 @@ namespace bpkg
      });
 
     db.persist (p);
+
     t.commit ();
+    arm.cancel ();
 
     if (verb)
       text << "fetched " << p->name << " " << p->version;

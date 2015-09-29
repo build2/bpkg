@@ -495,6 +495,8 @@ namespace bpkg
       fail << "file " << r << " already exists";
 
     string url (to_url (host, port, f));
+
+    auto_rm arm (r);
     process pr (start (o, url, r));
 
     if (!pr.wait ())
@@ -506,6 +508,7 @@ namespace bpkg
         info << "re-run with -v for more information";
     }
 
+    arm.cancel ();
     return r;
   }
 
@@ -576,6 +579,8 @@ namespace bpkg
       if (!ifs.is_open ())
         fail << "unable to open " << f << " in read mode";
 
+      auto_rm arm (r);
+
       ofstream ofs (r.string (), ios::binary);
       if (!ofs.is_open ())
         fail << "unable to open " << r << " in write mode";
@@ -589,6 +594,8 @@ namespace bpkg
       //
       ifs.close ();
       ofs.close ();
+
+      arm.cancel ();
     }
     catch (const iostream::failure&)
     {

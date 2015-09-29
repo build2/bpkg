@@ -7,7 +7,6 @@
 #include <system_error>
 
 #include <butl/process>
-#include <butl/filesystem>
 
 #include <bpkg/types>
 #include <bpkg/diagnostics>

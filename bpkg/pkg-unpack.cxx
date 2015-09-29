@@ -115,6 +115,11 @@ namespace bpkg
     if (exists (d))
       fail << "package directory " << d << " already exists";
 
+    // What should we do if tar or something after it fails? Cleaning
+    // up the package directory sounds like the right thing to do.
+    //
+    auto_rm_r arm (d);
+
     const char* args[] {
       "tar",
       "-C", c.string ().c_str (), // -C/--directory -- change to directory.
@@ -124,17 +129,6 @@ namespace bpkg
 
     if (verb >= 2)
       print_process (args);
-
-    // What should we do if tar or something after it fails? Cleaning
-    // up the package directory sounds like the right thing to do.
-    //
-    auto dg (
-      make_exception_guard (
-        [&d]()
-        {
-          if (exists (d))
-            rm_r (d);
-        }));
 
     try
     {
@@ -164,6 +158,8 @@ namespace bpkg
 
     db.update (p);
     t.commit ();
+
+    arm.cancel ();
 
     return p;
   }

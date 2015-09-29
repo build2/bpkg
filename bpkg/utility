@@ -9,6 +9,8 @@
 #include <utility>   // move()
 #include <exception> // uncaught_exception ()
 
+#include <butl/filesystem>
+
 #include <bpkg/types>
 
 namespace bpkg
@@ -37,6 +39,9 @@ namespace bpkg
 
   void
   rm_r (const dir_path&, bool dir = true);
+
+  using auto_rm = butl::auto_rmfile;
+  using auto_rm_r = butl::auto_rmdir;
 
   // Process.
   //
