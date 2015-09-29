@@ -73,7 +73,7 @@ namespace bpkg
           info << "use 'bpkg rep-fetch' to fetch available packages list";
 
       shared_ptr<available_package> p (
-        db.find<available_package> (package_version_id (n, v)));
+        db.find<available_package> (available_package_id (n, v)));
 
       if (p == nullptr)
         fail << "package " << n << " " << v << " is not available";
@@ -93,7 +93,7 @@ namespace bpkg
 
       if (verb > 1)
         text << "fetching " << pl->location.leaf () << " "
-             << "from " << pl->repository->name ();
+             << "from " << pl->repository->name;
 
       a = fetch_archive (o, pl->repository->location, pl->location, c);
       purge = true;

@@ -56,10 +56,20 @@ function fail ()
 #
 function stat ()
 {
-  local s=`$bpkg pkg-status -d $cfg $pkg $ver`
+  local c="$bpkg pkg-status -d $cfg"
+
+  if [ $# -eq 1 ]; then
+    c="$c $pkg $ver"
+  elif [ $# -eq 2 ]; then
+    c="$c $1"; shift
+  elif [ $# -eq 3 ]; then
+    c="$c $1 $2"; shift; shift
+  fi
+
+  local s=`$c`
 
   if [ "$s" != "$1" ]; then
-    error "status: $s, expected: $1"
+    error "status: '"$s"', expected: '"$1"'"
   fi
 }
 
@@ -396,6 +406,53 @@ chmod 755 $out $out/build
 rm -r $out
 test pkg-purge -f $pkg
 stat unknown
+
+##
+## pkg-status (also tested in pkg-{fetch,unpack,configure,disfigure,purge}
+##
+
+test rep-create ../tests/repository/1/status/stable
+test rep-create ../tests/repository/1/status/extra
+test rep-create ../tests/repository/1/status/testing
+test rep-create ../tests/repository/1/status/unstable
+
+# basics
+#
+test cfg-create --wipe
+stat libfoo 1.0.0 "unknown"
+stat libfoo "unknown"
+test rep-add ../tests/repository/1/status/stable
+test rep-fetch
+stat libfoo 1.0.0 "available"
+stat libfoo "available 1.0.0"
+test pkg-fetch libfoo 1.0.0
+stat libfoo 1.0.0 "fetched"
+stat libfoo "fetched 1.0.0"
+
+# multiple versions/revisions
+#
+test cfg-create --wipe
+test rep-add ../tests/repository/1/status/extra
+test rep-fetch
+stat libbar "available 1.1.0-1"
+test rep-add ../tests/repository/1/status/stable
+test rep-fetch
+stat libbar "available 1.1.0-1 1.0.0"
+
+test cfg-create --wipe
+test rep-add ../tests/repository/1/status/testing
+test rep-fetch
+stat libbar "available 1.1.0 1.0.0-1 1.0.0"
+
+test cfg-create --wipe
+test rep-add ../tests/repository/1/status/unstable
+test rep-fetch
+stat libbar "available 2.0.0 1.1.0 1.0.0-1 1.0.0"
+test pkg-fetch libbar 1.0.0-1
+stat libbar "fetched 1.0.0-1; available 2.0.0 1.1.0"
+test pkg-purge libbar
+test pkg-fetch libbar 2.0.0
+stat libbar "fetched 2.0.0"
 
 ##
 ## pkg-update

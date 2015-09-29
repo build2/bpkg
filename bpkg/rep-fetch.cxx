@@ -33,14 +33,14 @@ namespace bpkg
     tracer_guard tg (db, trace);
 
     const repository_location& rl (r->location);
-    level4 ([&]{trace << r->name () << " " << rl;});
+    level4 ([&]{trace << r->name << " " << rl;});
     assert (rl.absolute () || rl.remote ());
 
     // The fetch_*() functions below will be quiet at level 1, which
     // can be quite confusing if the download hangs.
     //
     if (verb >= (rl.remote () ? 1 : 2))
-      text << "fetching " << r->name ();
+      text << "fetching " << r->name;
 
     r->fetched = true; // Mark as being fetched.
 
@@ -108,15 +108,13 @@ namespace bpkg
       {
       case repository_role::complement:
         {
-          level4 ([&]{trace << pr->name () << " complement of "
-                            << r->name ();});
+          level4 ([&]{trace << pr->name << " complement of " << r->name;});
           r->complements.insert (lazy_shared_ptr<repository> (db, pr));
           break;
         }
       case repository_role::prerequisite:
         {
-          level4 ([&]{trace << pr->name () << " prerequisite of "
-                            << r->name ();});
+          level4 ([&]{trace << pr->name << " prerequisite of " << r->name;});
           r->prerequisites.insert (lazy_weak_ptr<repository> (db, pr));
           break;
         }
@@ -146,13 +144,11 @@ namespace bpkg
 
       shared_ptr<available_package> p (
         db.find<available_package> (
-          package_version_id (pm.name, pm.version)));
+          available_package_id (pm.name, pm.version)));
 
       if (p == nullptr)
       {
-        p.reset (new available_package {move (pm.name),
-                                        move (pm.version),
-                                        {}});
+        p.reset (new available_package (move (pm.name), move (pm.version)));
         persist = true;
       }
 
@@ -210,7 +206,7 @@ namespace bpkg
       }
       else if (ua.find (lazy_shared_ptr<repository> (db, r)) != ua.end ())
       {
-        level4 ([&]{trace << "cleaning " << r->name ();});
+        level4 ([&]{trace << "cleaning " << r->name;});
 
         r->complements.clear ();
         r->prerequisites.clear ();
@@ -219,7 +215,7 @@ namespace bpkg
       }
       else
       {
-        level4 ([&]{trace << "erasing " << r->name ();});
+        level4 ([&]{trace << "erasing " << r->name;});
         db.erase (r);
       }
     }

@@ -3,7 +3,6 @@
 // license   : MIT; see accompanying LICENSE file
 
 include <vector>;
-include <cstdint>;
 include <bpkg/types>;
 
 namespace bpkg
@@ -22,7 +21,7 @@ namespace bpkg
        to \cb{--verbose 0}."
     };
 
-    std::uint16_t --verbose = 1
+    uint16_t --verbose = 1
     {
       "<level>",
       "Set the diagnostics verbosity to <level> between 0 (disabled) and

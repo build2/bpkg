@@ -4,14 +4,12 @@
 
 namespace bpkg
 {
-  // package_version_id
+  // available_package_id
   //
-  inline package_version_id::
-  package_version_id (string n, const version& v)
+  inline available_package_id::
+  available_package_id (string n, const bpkg::version& v)
       : name (move (n)),
-        epoch (v.epoch ()),
-        upstream (v.canonical_upstream ()),
-        revision (v.revision ())
+        version {v.epoch (), v.canonical_upstream (), v.revision ()}
   {
   }
 }

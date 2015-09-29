@@ -12,27 +12,12 @@
 
 #include <odb/core.hxx>
 
+#include <bpkg/manifest>
+
 #include <bpkg/types>
 #include <bpkg/utility>
 
 #pragma db model version(1, 1, open)
-
-namespace bpkg
-{
-  // Use an image type to map version to the database since there
-  // is no way to modify individual components directly.
-  //
-  #pragma db value
-  struct _version
-  {
-    std::uint16_t epoch;
-    string upstream;
-    std::uint16_t revision;
-    string canonical_upstream;
-  };
-}
-
-#include <bpkg/manifest>
 
 namespace bpkg
 {
@@ -49,6 +34,7 @@ namespace bpkg
       return x.object_id () < y.object_id ();
     }
   };
+
 
   // path
   //
@@ -70,14 +56,73 @@ namespace bpkg
     to((?) ? (?)->string () : bpkg::optional_string ())            \
     from((?) ? bpkg::dir_path (*(?)) : bpkg::optional_dir_path ())
 
+
   // version
   //
+  // Sometimes we need to split the version into two parts: the part
+  // that goes into the object id (epoch, canonical upstream, revision)
+  // and the original upstream. This is what the canonical_version and
+  // upstream_version value types are for. Note that upstream_version
+  // derives from version and uses it as storage. The idea here is this:
+  // when we split the version, we often still want to have the "whole"
+  // version object readily accessible and that's exactly what this
+  // strange contraption is for. See available_package for an example
+  // on how everything fits together.
+  //
+  //
+  #pragma db value
+  struct canonical_version
+  {
+    uint16_t epoch;
+    string   canonical_upstream;
+    uint16_t revision;
+  };
+
+  #pragma db value transient
+  struct upstream_version: version
+  {
+    #pragma db member(upstream) virtual(string)         \
+      get(this.upstream ())                             \
+      set(this = bpkg::version (0, std::move (?), 0))
+
+    upstream_version () = default;
+    upstream_version (version v): version (move (v)) {}
+    upstream_version&
+    operator= (version v) {version& b (*this); b = v; return *this;}
+
+    void
+    init (const canonical_version& cv, const upstream_version& uv)
+    {
+      *this = version (cv.epoch, uv.upstream (), cv.revision);
+      assert (cv.canonical_upstream == canonical_upstream ());
+    }
+  };
+
+  // Use an image type to map version to the database since there
+  // is no way to modify individual components directly.
+  //
+  #pragma db value
+  struct _version
+  {
+    uint16_t epoch;
+    string canonical_upstream;
+    uint16_t revision;
+    string upstream;
+  };
+
   #pragma db map type(version) as(_version)                                \
     to(bpkg::_version{(?).epoch (),                                        \
-                      (?).upstream (),                                     \
+                      (?).canonical_upstream (),                           \
                       (?).revision (),                                     \
-                      (?).canonical_upstream ()})                          \
+                      (?).upstream ()})                                    \
     from(bpkg::version ((?).epoch, std::move ((?).upstream), (?).revision))
+
+
+  // repository_location
+  //
+  #pragma db map type(repository_location) as(string)     \
+    to((?).string ()) from(bpkg::repository_location (?))
+
 
   // repository
   //
@@ -86,19 +131,17 @@ namespace bpkg
   {
   public:
     // We use a weak pointer for prerequisite repositories because we
-    // might have cycles.
+    // could have cycles. No cycles in complements, thought.
     //
     using complements_type =
       std::set<lazy_shared_ptr<repository>, compare_lazy_ptr>;
     using prerequisites_type =
       std::set<lazy_weak_ptr<repository>, compare_lazy_ptr>;
 
+    string name; // Object id (canonical name).
     repository_location location;
     complements_type complements;
     prerequisites_type prerequisites;
-
-    const string&
-    name () const {return location.canonical_name ();}
 
     // Used to detect recursive fecthing. Will probably be replaced
     // by the 'repositories' file timestamp or hashsum later.
@@ -108,27 +151,18 @@ namespace bpkg
 
   public:
     explicit
-    repository (repository_location l): location (move (l)) {}
+    repository (repository_location l): location (move (l))
+    {
+      name = location.canonical_name ();
+    }
 
     // Database mapping.
     //
-    #pragma db value
-    struct _id_type
-    {
-      string name; // Canonical name.
-      string location;
-    };
+    #pragma db member(name) id
 
-    _id_type
-    _id () const;
-
-    void
-    _id (_id_type&&);
-
-    #pragma db member(location) transient
-
-    #pragma db member(id) virtual(_id_type) before id(name) \
-      get(_id) set(_id (std::move (?))) column("")
+    #pragma db member(location)                                  \
+      set(this.location = std::move (?);                         \
+          assert (this.name == this.location.canonical_name ()))
 
     #pragma db member(complements) id_column("repository") \
       value_column("complement") value_not_null
@@ -141,35 +175,15 @@ namespace bpkg
     repository () = default;
   };
 
-  #pragma db view object(repository) query(repository::id.name != "" && (?))
+  #pragma db view object(repository) query(repository::name != "" && (?))
   struct repository_count
   {
-    #pragma db column("count(" + repository::id.name + ")")
+    #pragma db column("count(*)")
     size_t result;
 
     operator size_t () const {return result;}
   };
 
-  // package_version_id
-  //
-  #pragma db value
-  struct package_version_id
-  {
-    string        name;
-    std::uint16_t epoch;
-    string        upstream; // Canonical upstream.
-    std::uint16_t revision;
-
-    package_version_id () = default;
-    package_version_id (string, const version&);
-
-    #pragma db member(epoch)    column("version_epoch")
-    #pragma db member(upstream) column("version_upstream")
-    #pragma db member(revision) column("version_revision")
-  };
-
-  bool
-  operator< (const package_version_id&, const package_version_id&);
 
   // package_location
   //
@@ -182,50 +196,44 @@ namespace bpkg
     path location; // Relative to the repository.
   };
 
+
   // available_package
   //
+  #pragma db value
+  struct available_package_id
+  {
+    string name;
+    canonical_version version;
+
+    available_package_id () = default;
+    available_package_id (string, const bpkg::version&);
+  };
+
+  bool
+  operator< (const available_package_id&, const available_package_id&);
+
   #pragma db object pointer(shared_ptr) session
   class available_package
   {
   public:
-    using version_type = bpkg::version;
-
-    string name;
-    version_type version;
+    available_package_id id;
+    upstream_version version;
 
     // List of repositories to which this package version belongs (yes,
     // in our world, it can be in multiple, unrelated repositories).
     //
     std::vector<package_location> locations;
 
+  public:
+    available_package (string name, bpkg::version v)
+        : id (move (name), v), version (move (v)) {}
+
     // Database mapping.
     //
+    #pragma db member(id) id column("")
 
-    // id
-    //
-    #pragma db value
-    struct _id_type
-    {
-      package_version_id data;
-      string version_original_upstream;
+    #pragma db member(version) set(this.version.init (this.id.version, (?)))
 
-      #pragma db member(data) column("")
-    };
-
-    _id_type
-    _id () const;
-
-    void
-    _id (_id_type&&);
-
-    #pragma db member(name) transient
-    #pragma db member(version) transient
-
-    #pragma db member(id) virtual(_id_type) before id(data) \
-      get(_id) set(_id (std::move (?))) column("")
-
-    // repositories
-    //
     #pragma db member(locations) id_column("") value_column("") \
       unordered value_not_null
 
@@ -237,11 +245,12 @@ namespace bpkg
   #pragma db view object(available_package)
   struct available_package_count
   {
-    #pragma db column("count(" + available_package::id.data.name + ")")
+    #pragma db column("count(*)")
     size_t result;
 
     operator size_t () const {return result;}
   };
+
 
   // state
   //
@@ -266,6 +275,7 @@ namespace bpkg
     to(to_string (?))                   \
     from(bpkg::from_string (?))
 
+
   // package
   //
   #pragma db object pointer(shared_ptr) session
@@ -275,7 +285,7 @@ namespace bpkg
     using version_type = bpkg::version;
     using state_type = bpkg::state;
 
-    string name;
+    string name; // Object id.
     version_type version;
     state_type state;
 
@@ -314,6 +324,44 @@ namespace bpkg
     friend class odb::access;
     package () = default;
   };
+
+  // Version comparison operators.
+  //
+  // @@ Still not sure if this is conceptually the right way to do
+  //    it (should we document it as an advanced technique?). Also
+  //    the return type (query_base) ugliness.
+  //
+  template <typename T>
+  inline auto
+  operator== (const T& x, const version& y) -> decltype (x.epoch == 0)
+  {
+    return x.epoch == y.epoch () &&
+      x.canonical_upstream == y.canonical_upstream () &&
+      x.revision == y.revision ();
+  }
+
+  template <typename T>
+  inline auto
+  operator> (const T& x, const version& y) -> decltype (x.epoch > 0)
+  {
+    return x.epoch > y.epoch () ||
+      (x.epoch == y.epoch () &&
+       x.canonical_upstream > y.canonical_upstream ()) ||
+      (x.epoch == y.epoch () &&
+       x.canonical_upstream == y.canonical_upstream () &&
+       x.revision > y.revision ());
+  }
+
+  template <typename T>
+  inline auto
+  order_by_version_desc (const T& x) -> //decltype ("ORDER BY" + x.epoch)
+                                        decltype (x.epoch == 0)
+  {
+    return "ORDER BY"
+      + x.epoch + "DESC,"
+      + x.canonical_upstream + "DESC,"
+      + x.revision + "DESC";
+  }
 }
 
 #include <bpkg/package.ixx>

@@ -5,9 +5,13 @@
 #ifndef BPKG_DATABASE
 #define BPKG_DATABASE
 
-#include <utility> // forward()
+#include <utility>     // forward()
+#include <type_traits> // remove_reference
 
+#include <odb/result.hxx>
 #include <odb/session.hxx>
+
+#include <odb/sqlite/query.hxx>
 #include <odb/sqlite/database.hxx>
 
 #include <bpkg/types>
@@ -15,8 +19,10 @@
 
 namespace bpkg
 {
+  using odb::result;
   using odb::session;
 
+  using odb::sqlite::query;
   using odb::sqlite::database;
   using odb::sqlite::transaction;
 
@@ -47,7 +53,7 @@ namespace bpkg
   public:
     pointer_result_range (R&& r): r_ (std::forward<R> (r)) {}
 
-    using base_iterator = typename R::iterator;
+    using base_iterator = typename std::remove_reference<R>::type::iterator;
 
     struct iterator: base_iterator
     {
