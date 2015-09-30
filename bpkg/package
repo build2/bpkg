@@ -327,9 +327,13 @@ namespace bpkg
 
   // Version comparison operators.
   //
+  // They allow comparing a lhs object that has epoch, canonical_upstream,
+  // and revision data members to the rhs version object. The idea is that
+  // this works for both query members of types version and canonical_version
+  // as well as for comparing canonical_version to version.
+  //
   // @@ Still not sure if this is conceptually the right way to do
-  //    it (should we document it as an advanced technique?). Also
-  //    the return type (query_base) ugliness.
+  //    it (should we document it as an advanced technique?).
   //
   template <typename T>
   inline auto
@@ -338,6 +342,18 @@ namespace bpkg
     return x.epoch == y.epoch () &&
       x.canonical_upstream == y.canonical_upstream () &&
       x.revision == y.revision ();
+  }
+
+  template <typename T>
+  inline auto
+  operator< (const T& x, const version& y) -> decltype (x.epoch < 0)
+  {
+    return x.epoch < y.epoch () ||
+      (x.epoch == y.epoch () &&
+       x.canonical_upstream < y.canonical_upstream ()) ||
+      (x.epoch == y.epoch () &&
+       x.canonical_upstream == y.canonical_upstream () &&
+       x.revision < y.revision ());
   }
 
   template <typename T>
