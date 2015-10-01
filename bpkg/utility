@@ -5,6 +5,7 @@
 #ifndef BPKG_UTILITY
 #define BPKG_UTILITY
 
+#include <memory>    // make_shared()
 #include <cassert>
 #include <utility>   // move()
 #include <exception> // uncaught_exception ()
@@ -16,6 +17,7 @@
 namespace bpkg
 {
   using std::move;
+  using std::make_shared;
 
   // Filesystem.
   //

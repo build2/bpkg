@@ -16,6 +16,8 @@
 //
 #include <bpkg/help>
 
+#include <bpkg/build>
+
 #include <bpkg/pkg-verify>
 #include <bpkg/pkg-status>
 #include <bpkg/pkg-fetch>
@@ -165,20 +167,26 @@ try
     //  return 0;
     // }
     //
-#define ANY_COMMAND(OBJ, CMD)                                           \
-    if (cmd.OBJ##_##CMD ())                                             \
+#define COMMAND_IMPL(NP, SP, CMD)                                       \
+    if (cmd.NP##CMD ())                                                 \
     {                                                                   \
       if (h)                                                            \
-        help (ho, #OBJ"-"#CMD, OBJ##_##CMD##_options::print_usage);     \
+        help (ho, SP#CMD, NP##CMD##_options::print_usage);              \
       else                                                              \
-        OBJ##_##CMD (parse<OBJ##_##CMD##_options> (co, args), args);    \
+        NP##CMD (parse<NP##CMD##_options> (co, args), args);            \
                                                                         \
       break;                                                            \
     }
 
+    // High-level commands.
+    //
+#define COMMAND(CMD) COMMAND_IMPL(, "", CMD)
+
+    COMMAND(build);
+
     // pkg-* commands
     //
-#define PKG_COMMAND(CMD) ANY_COMMAND(pkg, CMD)
+#define PKG_COMMAND(CMD) COMMAND_IMPL(pkg_, "pkg-", CMD)
 
     PKG_COMMAND (verify);
     PKG_COMMAND (status);
@@ -192,13 +200,13 @@ try
 
     // cfg-* commands
     //
-#define CFG_COMMAND(CMD) ANY_COMMAND(cfg, CMD)
+#define CFG_COMMAND(CMD) COMMAND_IMPL(cfg_, "cfg-", CMD)
 
     CFG_COMMAND (create);
 
     // rep-* commands
     //
-#define REP_COMMAND(CMD) ANY_COMMAND(rep, CMD)
+#define REP_COMMAND(CMD) COMMAND_IMPL(rep_, "rep-", CMD)
 
     REP_COMMAND (add);
     REP_COMMAND (fetch);

@@ -2,7 +2,7 @@
 // copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-include <bpkg/common-options.cli>;
+include <bpkg/configuration-options.cli>;
 
 /*
 "\section=1"
@@ -21,13 +21,7 @@ and available package lists for all the repositories that were added
 
 namespace bpkg
 {
-  class rep_fetch_options: common_options
+  class rep_fetch_options: configuration_options
   {
-    dir_path --directory|-d (".")
-    {
-      "<dir>",
-      "Assume configuration is in <dir> rather than in the current working
-       directory."
-    };
   };
 }

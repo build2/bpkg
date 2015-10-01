@@ -222,11 +222,11 @@ namespace bpkg
     // List of repositories to which this package version belongs (yes,
     // in our world, it can be in multiple, unrelated repositories).
     //
-    std::vector<package_location> locations;
+    std::vector<package_location> locations; //@@ Map?
 
   public:
-    available_package (string name, bpkg::version v)
-        : id (move (name), v), version (move (v)) {}
+    available_package (package_manifest&& m)
+        : id (move (m.name), m.version), version (move (m.version)) {}
 
     // Database mapping.
     //
@@ -251,6 +251,16 @@ namespace bpkg
     operator size_t () const {return result;}
   };
 
+  // Only return packages that are in the specified repository or its
+  // complements, recursively. While you could maybe come up with a
+  // (barely comprehensible) view/query to achieve this, doing it on
+  // the "client side" is definitely more straightforward.
+  //
+  std::vector<shared_ptr<available_package>>
+  filter (const shared_ptr<repository>&, odb::result<available_package>&&);
+
+  shared_ptr<available_package>
+  filter_one (const shared_ptr<repository>&, odb::result<available_package>&&);
 
   // state
   //

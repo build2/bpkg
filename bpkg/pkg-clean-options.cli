@@ -2,7 +2,7 @@
 // copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-include <bpkg/pkg-common-options.cli>;
+include <bpkg/configuration-options.cli>;
 
 /*
 "\section=1"
@@ -21,7 +21,7 @@ do much more than run (\cb{b clean})."
 
 namespace bpkg
 {
-  class pkg_clean_options: pkg_common_options
+  class pkg_clean_options: configuration_options
   {
   };
 }

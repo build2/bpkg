@@ -84,45 +84,9 @@ namespace bpkg
 
       // Only consider packages that are in repositories that were
       // explicitly added to the configuration and their complements,
-      // transitively. While we could maybe come up with a (barely
-      // comprehensible) view/query to achieve this, doing it on the
-      // "client side" is definitely more straightforward.
+      // recursively.
       //
-      shared_ptr<repository> root (db.load<repository> (""));
-
-      for (shared_ptr<available_package> ap:
-             pointer_result (db.query<available_package> (q)))
-      {
-        function<bool (const shared_ptr<repository>&)> find =
-          [&ap, &find](const shared_ptr<repository>& r) -> bool
-        {
-          const auto& cs (r->complements);
-
-          for (const package_location& pl: ap->locations)
-          {
-            // First check all the complements without loading them.
-            //
-            if (cs.find (pl.repository) != cs.end ())
-              return true;
-
-            // If not found, then load the complements and check them
-            // recursively.
-            //
-            for (lazy_shared_ptr<repository> cr: cs)
-            {
-              if (find (cr.load ()))
-                return true;
-            }
-          }
-
-          return false;
-        };
-
-        level4 ([&]{trace << "available " << ap->version;});
-
-        if (find (root))
-          aps.push_back (ap);
-      }
+      aps = filter (db.load<repository> (""), db.query<available_package> (q));
     }
 
     t.commit ();

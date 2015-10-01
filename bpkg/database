@@ -8,10 +8,10 @@
 #include <utility>     // forward()
 #include <type_traits> // remove_reference
 
+#include <odb/query.hxx>
 #include <odb/result.hxx>
 #include <odb/session.hxx>
 
-#include <odb/sqlite/query.hxx>
 #include <odb/sqlite/database.hxx>
 
 #include <bpkg/types>
@@ -19,10 +19,10 @@
 
 namespace bpkg
 {
+  using odb::query;
   using odb::result;
   using odb::session;
 
-  using odb::sqlite::query;
   using odb::sqlite::database;
   using odb::sqlite::transaction;
 

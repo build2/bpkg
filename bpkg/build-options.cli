@@ -1,0 +1,33 @@
+// file      : bpkg/build-options.cli
+// copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
+// license   : MIT; see accompanying LICENSE file
+
+include <bpkg/configuration-options.cli>;
+
+/*
+"\section=1"
+"\name=bpkg-build"
+
+"\h{SYNOPSIS}
+
+bpkg build [<options>] (<pkg>[/<ver>]|<file>|<dir>)..."
+
+"\h{DESCRIPTION}
+
+The \cb{build} command builds one or more packages including all their
+prerequisites. Each package can be specified as just the name (<pkg>)
+with optional package version (<ver>) in which case the package will
+be automatically fetched from one of the configuration's source
+repositories (see \cb{rep-add} and \cb{rep-fetch}). Alternatively,
+the package can be specified as either the path to the package
+source archive (<file>) or package source directory (<dir>). See
+\cb{pkg-fetch} and \cb{pkg-unpack} for more information on the
+semantics of specifying the package as an archive or directory.
+*/
+
+namespace bpkg
+{
+  class build_options: configuration_options
+  {
+  };
+}

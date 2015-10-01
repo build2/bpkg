@@ -1,4 +1,4 @@
-// file      : bpkg/pkg-common-options.cli
+// file      : bpkg/configuration-options.cli
 // copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
@@ -6,7 +6,9 @@ include <bpkg/common-options.cli>;
 
 namespace bpkg
 {
-  class pkg_common_options: common_options
+  // Common options for commands that operate on a configuration.
+  //
+  class configuration_options: common_options
   {
     dir_path --directory|-d (".")
     {

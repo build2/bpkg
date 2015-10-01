@@ -18,7 +18,7 @@ namespace bpkg
 {
   void
   pkg_command (const string& cmd,
-               const pkg_common_options& o,
+               const configuration_options& o,
                cli::scanner& args)
   {
     tracer trace ("pkg_command");

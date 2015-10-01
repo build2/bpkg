@@ -21,6 +21,13 @@ namespace bpkg
       ""
     };
 
+    bool build
+    {
+      "<pkg>...",
+      "Build one or more packages.",
+      ""
+    };
+
     bool pkg-verify
     {
       "<archive>",

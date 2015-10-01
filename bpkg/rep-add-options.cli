@@ -2,7 +2,7 @@
 // copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-include <bpkg/common-options.cli>;
+include <bpkg/configuration-options.cli>;
 
 /*
 "\section=1"
@@ -23,13 +23,7 @@ packages list for the newly added repository. To do that, use the
 
 namespace bpkg
 {
-  class rep_add_options: common_options
+  class rep_add_options: configuration_options
   {
-    dir_path --directory|-d (".")
-    {
-      "<dir>",
-      "Assume configuration is in <dir> rather than in the current working
-       directory."
-    };
   };
 }

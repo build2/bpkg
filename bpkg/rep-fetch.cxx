@@ -81,7 +81,7 @@ namespace bpkg
 
       if (pr == nullptr)
       {
-        pr.reset (new repository (move (rm.location)));
+        pr = make_shared<repository> (move (rm.location));
         db.persist (pr); // Enter into session, important if recursive.
       }
 
@@ -148,7 +148,7 @@ namespace bpkg
 
       if (p == nullptr)
       {
-        p.reset (new available_package (move (pm.name), move (pm.version)));
+        p = make_shared<available_package> (move (pm));
         persist = true;
       }
 

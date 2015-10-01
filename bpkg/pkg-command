@@ -6,7 +6,7 @@
 #define BPKG_PKG_COMMAND
 
 #include <bpkg/types>
-#include <bpkg/pkg-common-options>
+#include <bpkg/configuration-options>
 
 namespace bpkg
 {
@@ -14,7 +14,7 @@ namespace bpkg
   //
   void
   pkg_command (const string& cmd, // Without the 'pkg-' prefix.
-               const pkg_common_options&,
+               const configuration_options&,
                cli::scanner& args);
 }
 
