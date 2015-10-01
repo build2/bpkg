@@ -117,12 +117,12 @@ namespace bpkg
   }
 
   state
-  from_string (const string& s)
+  to_state (const string& s)
   {
          if (s == "broken")     return state::broken;
     else if (s == "fetched")    return state::fetched;
     else if (s == "unpacked")   return state::unpacked;
     else if (s == "configured") return state::configured;
-    else                        throw invalid_argument (s);
+    else throw invalid_argument ("invalid package state '" + s + "'");
   }
 }

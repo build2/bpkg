@@ -90,6 +90,68 @@
         </references>
       </foreign-key>
     </table>
+    <table name="available_package_dependencies" kind="container">
+      <column name="name" type="TEXT" null="true"/>
+      <column name="version_epoch" type="INTEGER" null="true"/>
+      <column name="version_canonical_upstream" type="TEXT" null="true"/>
+      <column name="version_revision" type="INTEGER" null="true"/>
+      <column name="index" type="INTEGER" null="true"/>
+      <column name="conditional" type="INTEGER" null="true"/>
+      <column name="comment" type="TEXT" null="true"/>
+      <foreign-key name="object_id_fk" on-delete="CASCADE">
+        <column name="name"/>
+        <column name="version_epoch"/>
+        <column name="version_canonical_upstream"/>
+        <column name="version_revision"/>
+        <references table="available_package">
+          <column name="name"/>
+          <column name="version_epoch"/>
+          <column name="version_canonical_upstream"/>
+          <column name="version_revision"/>
+        </references>
+      </foreign-key>
+      <index name="available_package_dependencies_object_id_i">
+        <column name="name"/>
+        <column name="version_epoch"/>
+        <column name="version_canonical_upstream"/>
+        <column name="version_revision"/>
+      </index>
+      <index name="available_package_dependencies_index_i">
+        <column name="index"/>
+      </index>
+    </table>
+    <table name="available_package_dependency_alternatives" kind="container">
+      <column name="name" type="TEXT" null="true"/>
+      <column name="version_epoch" type="INTEGER" null="true"/>
+      <column name="version_canonical_upstream" type="TEXT" null="true"/>
+      <column name="version_revision" type="INTEGER" null="true"/>
+      <column name="dependency_index" type="INTEGER" null="true"/>
+      <column name="index" type="INTEGER" null="true"/>
+      <column name="dep_name" type="TEXT" null="true"/>
+      <column name="dep_operation" type="TEXT" null="true"/>
+      <column name="dep_version_epoch" type="INTEGER" null="true"/>
+      <column name="dep_version_canonical_upstream" type="TEXT" null="true"/>
+      <column name="dep_version_revision" type="INTEGER" null="true"/>
+      <column name="dep_version_upstream" type="TEXT" null="true"/>
+      <foreign-key name="object_id_fk" on-delete="CASCADE">
+        <column name="name"/>
+        <column name="version_epoch"/>
+        <column name="version_canonical_upstream"/>
+        <column name="version_revision"/>
+        <references table="available_package">
+          <column name="name"/>
+          <column name="version_epoch"/>
+          <column name="version_canonical_upstream"/>
+          <column name="version_revision"/>
+        </references>
+      </foreign-key>
+      <index name="available_package_dependency_alternatives_object_id_i">
+        <column name="name"/>
+        <column name="version_epoch"/>
+        <column name="version_canonical_upstream"/>
+        <column name="version_revision"/>
+      </index>
+    </table>
     <table name="package" kind="object">
       <column name="name" type="TEXT" null="true"/>
       <column name="version_epoch" type="INTEGER" null="true"/>

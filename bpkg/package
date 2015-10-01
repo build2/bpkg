@@ -5,14 +5,14 @@
 #ifndef BPKG_PACKAGE
 #define BPKG_PACKAGE
 
+#include <map>
 #include <set>
 #include <vector>
 #include <cstdint> // uint16
 #include <ostream>
 
 #include <odb/core.hxx>
-
-#include <bpkg/manifest>
+#include <odb/nested-container.hxx>
 
 #include <bpkg/types>
 #include <bpkg/utility>
@@ -21,8 +21,6 @@
 
 namespace bpkg
 {
-  // compare_lazy_ptr
-  //
   // Compare two lazy pointers via the pointed-to object ids.
   //
   struct compare_lazy_ptr
@@ -34,7 +32,6 @@ namespace bpkg
       return x.object_id () < y.object_id ();
     }
   };
-
 
   // path
   //
@@ -56,7 +53,25 @@ namespace bpkg
     to((?) ? (?)->string () : bpkg::optional_string ())            \
     from((?) ? bpkg::dir_path (*(?)) : bpkg::optional_dir_path ())
 
+  // An image type that is used to map version to the database since
+  // there is no way to modify individual components directly. We have
+  // to define it before including <bpkg/manifest> since some value
+  // types that are defined there use version as their data members.
+  //
+  #pragma db value
+  struct _version
+  {
+    uint16_t epoch;
+    string canonical_upstream;
+    uint16_t revision;
+    string upstream;
+  };
+}
 
+#include <bpkg/manifest>
+
+namespace bpkg
+{
   // version
   //
   // Sometimes we need to split the version into two parts: the part
@@ -96,18 +111,6 @@ namespace bpkg
       *this = version (cv.epoch, uv.upstream (), cv.revision);
       assert (cv.canonical_upstream == canonical_upstream ());
     }
-  };
-
-  // Use an image type to map version to the database since there
-  // is no way to modify individual components directly.
-  //
-  #pragma db value
-  struct _version
-  {
-    uint16_t epoch;
-    string canonical_upstream;
-    uint16_t revision;
-    string upstream;
   };
 
   #pragma db map type(version) as(_version)                                \
@@ -196,6 +199,18 @@ namespace bpkg
     path location; // Relative to the repository.
   };
 
+  // dependencies
+  //
+  #pragma db map type(comparison) as(string) \
+    to(to_string (?))                        \
+    from(bpkg::to_comparison (?))
+
+  #pragma db value(dependency_condition) definition
+  #pragma db value(dependency) definition
+  #pragma db member(dependency::condition) column("")
+  #pragma db value(dependency_alternatives) definition
+
+  using dependencies = std::vector<dependency_alternatives>;
 
   // available_package
   //
@@ -224,18 +239,42 @@ namespace bpkg
     //
     std::vector<package_location> locations; //@@ Map?
 
+    // Package manifest data.
+    //
+    using dependencies_type = bpkg::dependencies;
+
+    dependencies_type dependencies;
+
   public:
     available_package (package_manifest&& m)
-        : id (move (m.name), m.version), version (move (m.version)) {}
+        : id (move (m.name), m.version),
+          version (move (m.version)),
+          dependencies (move (m.dependencies)) {}
 
     // Database mapping.
     //
     #pragma db member(id) id column("")
-
     #pragma db member(version) set(this.version.init (this.id.version, (?)))
-
     #pragma db member(locations) id_column("") value_column("") \
       unordered value_not_null
+
+    // dependencies
+    //
+    using _dependency_key = odb::nested_key<dependency_alternatives>;
+    using _dependency_alternatives_type =
+      std::map<_dependency_key, dependency>;
+
+    #pragma db value(_dependency_key)
+    #pragma db member(_dependency_key::outer) column("dependency_index")
+    #pragma db member(_dependency_key::inner) column("index")
+
+    #pragma db member(dependencies) id_column("") value_column("")
+    #pragma db member(dependency_alternatives)                \
+      virtual(_dependency_alternatives_type)                  \
+      after(dependencies)                                     \
+      get(odb::nested_get (this.dependencies))                \
+      set(odb::nested_set (this.dependencies, std::move (?))) \
+      id_column("") key_column("") value_column("dep_")
 
   private:
     friend class odb::access;
@@ -276,14 +315,14 @@ namespace bpkg
   to_string (state);
 
   state
-  from_string (const string&); // May throw invalid_argument.
+  to_state (const string&); // May throw invalid_argument.
 
   inline std::ostream&
   operator<< (std::ostream& os, state s) {return os << to_string (s);}
 
   #pragma db map type(state) as(string) \
     to(to_string (?))                   \
-    from(bpkg::from_string (?))
+    from(bpkg::to_state (?))
 
 
   // package

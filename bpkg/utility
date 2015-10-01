@@ -18,6 +18,7 @@ namespace bpkg
 {
   using std::move;
   using std::make_shared;
+  using std::to_string; // To complement bpkg::to_string().
 
   // Filesystem.
   //
