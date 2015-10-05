@@ -149,7 +149,7 @@ namespace bpkg
         // explicitly added to the configuration and their complements,
         // recursively.
         //
-        ap = filter_one (root, db.query<available_package> (q));
+        ap = filter_one (root, db.query<available_package> (q)).first;
       }
 
       // Load the package that may have already been selected and

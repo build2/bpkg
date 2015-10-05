@@ -40,34 +40,53 @@ namespace bpkg
   // available_package
   //
 
-  // Check if the package is available from the specified repository or
-  // one of its complements, recursively. Return the first repository
-  // that contains the package or NULL if none are.
+  // Check if the package is available from the specified repository,
+  // its prerequisite repositories, or one of their complements,
+  // recursively. Return the first repository that contains the
+  // package or NULL if none are.
   //
   static shared_ptr<repository>
   find (const shared_ptr<repository>& r,
-        const shared_ptr<available_package>& ap)
+        const shared_ptr<available_package>& ap,
+        bool prereq = true)
   {
+    const auto& ps (r->prerequisites);
     const auto& cs (r->complements);
 
     for (const package_location& pl: ap->locations)
     {
+      const lazy_shared_ptr<repository>& lr (pl.repository);
+
       // First check the repository itself.
       //
-      if (pl.repository.object_id () == r->name)
+      if (lr.object_id () == r->name)
         return r;
 
-      // Then check all the complements without loading them.
+      // Then check all the complements and prerequisites without
+      // loading them.
       //
-      if (cs.find (pl.repository) != cs.end ())
-        return pl.repository.load ();
+      if (cs.find (lr) != cs.end () || (prereq && ps.find (lr) != ps.end ()))
+        return lr.load ();
 
-      // Finally, load the complements and check them recursively.
+      // Finally, load the complements and prerequisites and check them
+      // recursively.
       //
       for (const lazy_shared_ptr<repository>& cr: cs)
       {
-        if (shared_ptr<repository> r = find (cr.load (), ap))
+        // Should we consider prerequisites of our complements as our
+        // prerequisites? I'd say not.
+        //
+        if (shared_ptr<repository> r = find (cr.load (), ap, false))
           return r;
+      }
+
+      if (prereq)
+      {
+        for (const lazy_weak_ptr<repository>& pr: ps)
+        {
+          if (shared_ptr<repository> r = find (pr.load (), ap, false))
+            return r;
+        }
       }
     }
 
@@ -88,16 +107,18 @@ namespace bpkg
     return aps;
   }
 
-  shared_ptr<available_package>
+  pair<shared_ptr<available_package>, shared_ptr<repository>>
   filter_one (const shared_ptr<repository>& r, result<available_package>&& apr)
   {
+    using result = pair<shared_ptr<available_package>, shared_ptr<repository>>;
+
     for (shared_ptr<available_package> ap: pointer_result (apr))
     {
-      if (find (r, ap) != nullptr)
-        return ap;
+      if (shared_ptr<repository> pr = find (r, ap))
+        return result (move (ap), move (pr));
     }
 
-    return nullptr;
+    return result ();
   }
 
   // state

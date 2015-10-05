@@ -37,6 +37,7 @@ namespace bpkg
     path a;
     auto_rm arm;
     bool purge;
+    repository_location rl;
 
     if (o.existing ())
     {
@@ -50,6 +51,11 @@ namespace bpkg
         fail << "archive file '" << a << "' does not exist";
 
       purge = o.purge ();
+
+      // Use the special root repository as the repository of this
+      // package.
+      //
+      rl = repository_location ();
     }
     else
     {
@@ -79,7 +85,8 @@ namespace bpkg
       if (p == nullptr)
         fail << "package " << n << " " << v << " is not available";
 
-      // Pick a repository. Prefer local ones over the remote.
+      // Pick a repository. Preferring local ones over the remote seems
+      // like a sensible thing to do.
       //
       const package_location* pl (&p->locations.front ());
 
@@ -96,7 +103,8 @@ namespace bpkg
         text << "fetching " << pl->location.leaf () << " "
              << "from " << pl->repository->name;
 
-      a = fetch_archive (o, pl->repository->location, pl->location, c);
+      rl = pl->repository->location;
+      a = fetch_archive (o, rl, pl->location, c);
       arm = auto_rm (a);
       purge = true;
     }
@@ -132,6 +140,7 @@ namespace bpkg
         move (m.name),
         move (m.version),
         state::fetched,
+        move (rl),
         move (a),
         purge,
         nullopt, // No source directory yet.

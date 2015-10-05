@@ -57,12 +57,14 @@ namespace bpkg
     if (ad.sub (ac))
       ad = ad.leaf (ac);
 
-    // Add the package to the configuration.
+    // Add the package to the configuration. Use the special root
+    // repository as the repository of this package.
     //
     shared_ptr<package> p (new package {
         move (m.name),
         move (m.version),
         state::unpacked,
+        repository_location (),
         nullopt,    // No archive
         false,      // Don't purge archive.
         move (ad),
