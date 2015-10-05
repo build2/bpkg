@@ -97,8 +97,8 @@ namespace bpkg
   #pragma db value transient
   struct upstream_version: version
   {
-    #pragma db member(upstream) virtual(string)         \
-      get(this.upstream ())                             \
+    #pragma db member(upstream_) virtual(string)      \
+      get(this.upstream)                              \
       set(this = bpkg::version (0, std::move (?), 0))
 
     upstream_version () = default;
@@ -109,16 +109,16 @@ namespace bpkg
     void
     init (const canonical_version& cv, const upstream_version& uv)
     {
-      *this = version (cv.epoch, uv.upstream (), cv.revision);
-      assert (cv.canonical_upstream == canonical_upstream ());
+      *this = version (cv.epoch, uv.upstream, cv.revision);
+      assert (cv.canonical_upstream == canonical_upstream);
     }
   };
 
   #pragma db map type(version) as(_version)                                \
-    to(bpkg::_version{(?).epoch (),                                        \
-                      (?).canonical_upstream (),                           \
-                      (?).revision (),                                     \
-                      (?).upstream ()})                                    \
+    to(bpkg::_version{(?).epoch,                                           \
+                      (?).canonical_upstream,                              \
+                      (?).revision,                                        \
+                      (?).upstream})                                       \
     from(bpkg::version ((?).epoch, std::move ((?).upstream), (?).revision))
 
 
@@ -398,45 +398,38 @@ namespace bpkg
 
   // Version comparison operators.
   //
-  // They allow comparing a lhs object that has epoch, canonical_upstream,
-  // and revision data members to the rhs version object. The idea is that
-  // this works for both query members of types version and canonical_version
-  // as well as for comparing canonical_version to version.
+  // They allow comparing objects that have epoch, canonical_upstream,
+  // and revision data members. The idea is that this works for both
+  // query members of types version and canonical_version as well as
+  // for comparing canonical_version to version.
   //
-  // @@ Still not sure if this is conceptually the right way to do
-  //    it (should we document it as an advanced technique?).
-  //
-  template <typename T>
+  template <typename T1, typename T2>
   inline auto
-  operator== (const T& x, const version& y) -> decltype (x.epoch == 0)
+  operator== (const T1& x, const T2& y) -> decltype (x.epoch == y.epoch)
   {
-    return x.epoch == y.epoch () &&
-      x.canonical_upstream == y.canonical_upstream () &&
-      x.revision == y.revision ();
+    return x.epoch == y.epoch &&
+      x.canonical_upstream == y.canonical_upstream &&
+      x.revision == y.revision;
   }
 
-  template <typename T>
+  template <typename T1, typename T2>
   inline auto
-  operator< (const T& x, const version& y) -> decltype (x.epoch < 0)
+  operator< (const T1& x, const T2& y) -> decltype (x.epoch < y.epoch)
   {
-    return x.epoch < y.epoch () ||
-      (x.epoch == y.epoch () &&
-       x.canonical_upstream < y.canonical_upstream ()) ||
-      (x.epoch == y.epoch () &&
-       x.canonical_upstream == y.canonical_upstream () &&
-       x.revision < y.revision ());
+    return x.epoch < y.epoch ||
+      (x.epoch == y.epoch && x.canonical_upstream < y.canonical_upstream) ||
+      (x.epoch == y.epoch && x.canonical_upstream == y.canonical_upstream &&
+       x.revision < y.revision);
   }
 
-  template <typename T>
+  template <typename T1, typename T2>
   inline auto
-  operator> (const T& x, const version& y) -> decltype (x.epoch > 0)
+  operator> (const T1& x, const T2& y) -> decltype (x.epoch > y.epoch)
   {
-    return x.epoch > y.epoch () ||
-      (x.epoch == y.epoch () &&
-       x.canonical_upstream > y.canonical_upstream ()) ||
-      (x.epoch == y.epoch () &&
-       x.canonical_upstream == y.canonical_upstream () &&
-       x.revision > y.revision ());
+    return x.epoch > y.epoch ||
+      (x.epoch == y.epoch && x.canonical_upstream > y.canonical_upstream) ||
+      (x.epoch == y.epoch && x.canonical_upstream == y.canonical_upstream &&
+       x.revision > y.revision);
   }
 
   template <typename T>
