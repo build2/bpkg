@@ -104,6 +104,8 @@ namespace bpkg
       //    calling the "naked" fetch_repositories() above, we will call
       //    a function from rep-verify that will perform extra verifications.
       //
+      // @@ Also check for self-prerequisite.
+      //
       switch (rr)
       {
       case repository_role::complement:
