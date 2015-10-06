@@ -206,9 +206,9 @@ namespace bpkg
     to(to_string (?))                        \
     from(bpkg::to_comparison (?))
 
-  #pragma db value(dependency_condition) definition
+  #pragma db value(dependency_constraint) definition
   #pragma db value(dependency) definition
-  #pragma db member(dependency::condition) column("")
+  #pragma db member(dependency::constraint) column("")
   #pragma db value(dependency_alternatives) definition
 
   using dependencies = std::vector<dependency_alternatives>;
