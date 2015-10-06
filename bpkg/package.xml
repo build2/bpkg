@@ -169,5 +169,29 @@
         <column name="name"/>
       </primary-key>
     </table>
+    <table name="package_prerequisites" kind="container">
+      <column name="package" type="TEXT" null="true"/>
+      <column name="prerequisite" type="TEXT" null="true"/>
+      <column name="operation" type="TEXT" null="true"/>
+      <column name="version_epoch" type="INTEGER" null="true"/>
+      <column name="version_canonical_upstream" type="TEXT" null="true"/>
+      <column name="version_revision" type="INTEGER" null="true"/>
+      <column name="version_upstream" type="TEXT" null="true"/>
+      <foreign-key name="package_fk" on-delete="CASCADE">
+        <column name="package"/>
+        <references table="package">
+          <column name="name"/>
+        </references>
+      </foreign-key>
+      <index name="package_prerequisites_package_i">
+        <column name="package"/>
+      </index>
+      <foreign-key name="prerequisite_fk" deferrable="DEFERRED">
+        <column name="prerequisite"/>
+        <references table="package">
+          <column name="name"/>
+        </references>
+      </foreign-key>
+    </table>
   </model>
 </changelog>

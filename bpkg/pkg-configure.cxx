@@ -10,7 +10,9 @@
 #include <bpkg/utility>
 #include <bpkg/database>
 #include <bpkg/diagnostics>
+#include <bpkg/satisfaction>
 
+#include <bpkg/pkg-verify>
 #include <bpkg/pkg-disfigure>
 
 using namespace std;
@@ -49,6 +51,7 @@ namespace bpkg
 
     database db (open (c, trace));
     transaction t (db.begin ());
+    session s;
 
     shared_ptr<package> p (db.find<package> (n));
 
@@ -72,6 +75,60 @@ namespace bpkg
 
     level4 ([&]{trace << "src_root: " << src_root << ", "
                       << "out_root: " << out_root;});
+
+    // Verify all our prerequisites are configured and populate the
+    // prerequisites list.
+    //
+    {
+      assert (p->prerequisites.empty ());
+
+      package_manifest m (pkg_verify (src_root));
+
+      for (const dependency_alternatives& da: m.dependencies)
+      {
+        assert (!da.conditional); //@@ TODO
+
+        bool satisfied (false);
+        for (const dependency& d: da)
+        {
+          if (shared_ptr<package> dp = db.find<package> (d.name))
+          {
+            if (dp->state != state::configured)
+              continue;
+
+            if (!satisfies (dp->version, d.constraint))
+              continue;
+
+            auto r (p->prerequisites.emplace (dp, d.constraint));
+
+            // If we already have a dependency on this package, pick the
+            // stricter of the two constraints.
+            //
+            if (!r.second)
+            {
+              auto& c (r.first->second);
+
+              bool s1 (satisfies (c, d.constraint));
+              bool s2 (satisfies (d.constraint, c));
+
+              if (!s1 && !s2)
+                fail << "incompatible constraints "
+                     << "(" << d.name << " " << *c << ") and "
+                     << "(" << d.name << " " << *d.constraint << ")";
+
+              if (s2 && !s1)
+                c = d.constraint;
+            }
+
+            satisfied = true;
+            break;
+          }
+        }
+
+        if (!satisfied)
+          fail << "no configured package satisfies dependency on " << da;
+      }
+    }
 
     // Form the buildspec.
     //

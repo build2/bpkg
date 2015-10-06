@@ -387,14 +387,57 @@ namespace bpkg
     //
     optional<dir_path> out_root;
 
+    // A map of "effective" prerequisites (i.e., pointers to other
+    // selected packages) to optional dependency constraint.
+    //
+    using prerequisites_type = std::map<lazy_shared_ptr<package>,
+                                        optional<dependency_constraint>,
+                                        compare_lazy_ptr>;
+    prerequisites_type prerequisites;
+
     // Database mapping.
     //
     #pragma db member(name) id
+
+    #pragma db member(prerequisites) id_column("package") \
+      key_column("prerequisite") value_column("") key_not_null
 
   private:
     friend class odb::access;
     package () = default;
   };
+
+  // Return a list of packages that depend on this package along with
+  // their constraints.
+  //
+  /*
+  #pragma db view object(package) \
+    container(package::prerequisites = pp inner: pp.key)
+  struct package_dependents
+  {
+    #pragma db column(pp.id)
+    string name;
+
+    #pragma db column(pp.value)
+    optional<dependency_constraint> constraint;
+  };
+  */
+
+  // @@ Using raw container table since ODB doesn't support containers
+  //    in views yet.
+  //
+  #pragma db view object(package)               \
+    table("package_prerequisites" = "pp" inner: \
+          "pp.prerequisite = " + package::name)
+  struct package_dependents
+  {
+    #pragma db column("pp.package")
+    string name;
+
+    #pragma db column("pp.")
+    optional<dependency_constraint> constraint;
+  };
+
 
   // Version comparison operators.
   //

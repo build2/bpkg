@@ -409,6 +409,73 @@ rm -r $out
 test pkg-purge -f $pkg
 stat unknown
 
+# dependency management
+#
+test rep-create ../tests/repository/1/depend/stable
+test cfg-create --wipe
+test rep-add ../tests/repository/1/depend/stable
+test rep-fetch
+
+test pkg-fetch libbar 1.0.0
+test pkg-unpack libbar
+fail pkg-configure libbar # no libfoo
+stat libbar 1.0.0 "unpacked"
+test pkg-fetch libfoo 1.0.0
+test pkg-unpack libfoo
+fail pkg-configure libbar # libfoo not configured
+test pkg-configure libfoo
+test pkg-configure libbar
+fail pkg-disfigure libfoo # libbar still depends on libfoo
+test pkg-disfigure libbar
+test pkg-disfigure libfoo
+test pkg-purge libbar
+test pkg-purge libfoo
+
+test pkg-fetch libfoo 1.0.0
+test pkg-unpack libfoo
+test pkg-configure libfoo
+test pkg-fetch libbar 1.1.0
+test pkg-unpack libbar
+fail pkg-configure libbar # libfoo >= 1.1.0
+test pkg-disfigure libfoo
+test pkg-purge libfoo
+test pkg-fetch libfoo 1.1.0
+test pkg-unpack libfoo
+test pkg-configure libfoo
+test pkg-configure libbar
+test pkg-disfigure libbar
+test pkg-disfigure libfoo
+test pkg-purge libfoo
+test pkg-purge libbar
+
+test pkg-fetch libfoo 1.1.0
+test pkg-unpack libfoo
+test pkg-configure libfoo
+test pkg-fetch libbar 1.2.0
+test pkg-unpack libbar
+fail pkg-configure libbar # libfoo >= 1.2.0
+test pkg-disfigure libfoo
+test pkg-purge libfoo
+test pkg-fetch libfoo 1.2.0
+test pkg-unpack libfoo
+test pkg-configure libfoo
+test pkg-configure libbar
+fail pkg-disfigure libfoo # "package libbar on libfoo >= 1.2.0"
+test pkg-disfigure libbar
+test pkg-disfigure libfoo
+test pkg-purge libfoo
+test pkg-purge libbar
+
+test pkg-fetch libfoo 1.1.0
+test pkg-unpack libfoo
+test pkg-configure libfoo
+test pkg-fetch libbar 1.3.0
+test pkg-unpack libbar
+fail pkg-configure libbar # incompatible constraints
+test pkg-disfigure libfoo
+test pkg-purge libfoo
+test pkg-purge libbar
+
 ##
 ## pkg-status (also tested in pkg-{fetch,unpack,configure,disfigure,purge}
 ##

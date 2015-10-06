@@ -21,10 +21,39 @@ namespace bpkg
                  transaction& t,
                  const shared_ptr<package>& p)
   {
+    assert (p->state == state::configured || p->state == state::broken);
+
     tracer trace ("pkg_disfigure");
 
     database& db (t.database ());
     tracer_guard tg (db, trace);
+
+    // Check that we have no dependents.
+    //
+    if (p->state == state::configured)
+    {
+      using query = query<package_dependents>;
+
+      auto r (db.query<package_dependents> (query::name == p->name));
+
+      if (!r.empty ())
+      {
+        diag_record dr;
+        dr << fail << "package " << p->name << " still has dependencies:";
+
+        for (const package_dependents& pd: r)
+        {
+          dr << info << "package " << pd.name;
+
+          if (pd.constraint)
+            dr << " on " << p->name << " " << *pd.constraint;
+        }
+      }
+    }
+
+    // Since we are no longer configured, clear the prerequisites list.
+    //
+    p->prerequisites.clear ();
 
     // Calculate package's src_root and out_root.
     //
@@ -43,7 +72,7 @@ namespace bpkg
     //
     string bspec;
 
-    if (p->state != state::broken)
+    if (p->state == state::configured)
     {
       bspec = "clean(" + out_root.string () + "/) "
         "disfigure(" + out_root.string () + "/)";

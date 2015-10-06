@@ -69,7 +69,8 @@ namespace bpkg
         false,      // Don't purge archive.
         move (ad),
         purge,
-        nullopt     // No output directory yet.
+        nullopt,    // No output directory yet.
+        {}          // No prerequisites captured yet.
      });
 
     db.persist (p);
