@@ -53,12 +53,12 @@ namespace bpkg
     transaction t (db.begin ());
     session s;
 
-    shared_ptr<package> p (db.find<package> (n));
+    shared_ptr<selected_package> p (db.find<selected_package> (n));
 
     if (p == nullptr)
       fail << "package " << n << " does not exist in configuration " << c;
 
-    if (p->state != state::unpacked)
+    if (p->state != package_state::unpacked)
       fail << "package " << n << " is " << p->state <<
         info << "expected it to be unpacked";
 
@@ -91,9 +91,11 @@ namespace bpkg
         bool satisfied (false);
         for (const dependency& d: da)
         {
-          if (shared_ptr<package> dp = db.find<package> (d.name))
+          const string& n (d.name);
+
+          if (shared_ptr<selected_package> dp = db.find<selected_package> (n))
           {
-            if (dp->state != state::configured)
+            if (dp->state != package_state::configured)
               continue;
 
             if (!satisfies (dp->version, d.constraint))
@@ -113,8 +115,8 @@ namespace bpkg
 
               if (!s1 && !s2)
                 fail << "incompatible constraints "
-                     << "(" << d.name << " " << *c << ") and "
-                     << "(" << d.name << " " << *d.constraint << ")";
+                     << "(" << n << " " << *c << ") and "
+                     << "(" << n << " " << *d.constraint << ")";
 
               if (s2 && !s1)
                 c = d.constraint;
@@ -161,14 +163,14 @@ namespace bpkg
       // Indicate to pkg_disfigure() we are partially configured.
       //
       p->out_root = out_root.leaf ();
-      p->state = state::broken;
+      p->state = package_state::broken;
 
       pkg_disfigure (c, t, p); // Commits the transaction.
       throw;
     }
 
     p->out_root = out_root.leaf ();
-    p->state = state::configured;
+    p->state = package_state::configured;
 
     db.update (p);
     t.commit ();

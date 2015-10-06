@@ -120,7 +120,7 @@ namespace bpkg
 
     // See if this package already exists in this configuration.
     //
-    if (shared_ptr<package> p = db.find<package> (n))
+    if (shared_ptr<selected_package> p = db.find<selected_package> (n))
       fail << "package " << n << " already exists in configuration " << c <<
         info << "version: " << p->version << ", state: " << p->state;
 
@@ -136,10 +136,10 @@ namespace bpkg
 
     // Add the package to the configuration.
     //
-    shared_ptr<package> p (new package {
+    shared_ptr<selected_package> p (new selected_package {
         move (m.name),
         move (m.version),
-        state::fetched,
+        package_state::fetched,
         move (rl),
         move (a),
         purge,

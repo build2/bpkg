@@ -46,15 +46,15 @@ namespace bpkg
 
     // First search in the packages that already exist in this configuration.
     //
-    shared_ptr<package> p;
+    shared_ptr<selected_package> p;
     {
-      using query = query<package>;
+      using query = query<selected_package>;
       query q (query::name == n);
 
       if (!v.empty ())
         q = q && query::version == v;
 
-      p = db.query_one<package> (q);
+      p = db.query_one<selected_package> (q);
     }
 
     // Now look for available packages. If the user specified the version

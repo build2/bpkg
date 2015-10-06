@@ -33,7 +33,7 @@ namespace bpkg
     database db (open (c, trace));
     transaction t (db.begin ());
 
-    shared_ptr<package> p (db.find<package> (n));
+    shared_ptr<selected_package> p (db.find<selected_package> (n));
 
     if (p == nullptr)
       fail << "package " << n << " does not exist in configuration " << c;
@@ -42,7 +42,7 @@ namespace bpkg
     //
     switch (p->state)
     {
-    case state::fetched:
+    case package_state::fetched:
       {
         // If we have --keep, then this is a no-op. We could have
         // detected this and returned but we still want the normal
@@ -51,14 +51,14 @@ namespace bpkg
         //
         break;
       }
-    case state::unpacked:
+    case package_state::unpacked:
       {
         if (o.keep () && !p->archive)
           fail << "package " << n << " has no archive to keep";
 
         break;
       }
-    case state::broken:
+    case package_state::broken:
       {
         if (!o.force ())
           fail << "broken package " << n << " can only be purged with --force";
@@ -80,7 +80,7 @@ namespace bpkg
     {
       dir_path d (p->src_root->absolute () ? *p->src_root : c / *p->src_root);
 
-      if (p->state != state::broken)
+      if (p->state != package_state::broken)
       {
         try
         {
@@ -92,7 +92,7 @@ namespace bpkg
         }
         catch (const failed&)
         {
-          p->state = state::broken;
+          p->state = package_state::broken;
           db.update (p);
           t.commit ();
 
@@ -116,7 +116,9 @@ namespace bpkg
     //
     if (p->out_root)
     {
-      assert (p->state == state::broken); // Can only be present if broken.
+      // Can only be present if broken.
+      //
+      assert (p->state == package_state::broken);
 
       dir_path d (c / *p->out_root); // Always relative.
 
@@ -131,7 +133,7 @@ namespace bpkg
     {
       path a (p->archive->absolute () ? *p->archive : c / *p->archive);
 
-      if (p->state != state::broken)
+      if (p->state != package_state::broken)
       {
         try
         {
@@ -143,7 +145,7 @@ namespace bpkg
         }
         catch (const failed&)
         {
-          p->state = state::broken;
+          p->state = package_state::broken;
           db.update (p);
           t.commit ();
 
@@ -162,9 +164,9 @@ namespace bpkg
 
     if (o.keep ())
     {
-      if (p->state != state::fetched) // That no-op we were talking about.
+      if (p->state != package_state::fetched) // No-op we were talking about.
       {
-        p->state = state::fetched;
+        p->state = package_state::fetched;
         db.update (p);
       }
     }

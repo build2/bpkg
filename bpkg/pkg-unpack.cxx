@@ -22,7 +22,7 @@ using namespace butl;
 
 namespace bpkg
 {
-  static shared_ptr<package>
+  static shared_ptr<selected_package>
   pkg_unpack (database& db, const dir_path& c, const dir_path& d, bool purge)
   {
     tracer trace ("pkg_unpack(dir)");
@@ -42,7 +42,7 @@ namespace bpkg
 
     // See if this package already exists in this configuration.
     //
-    if (shared_ptr<package> p = db.find<package> (n))
+    if (shared_ptr<selected_package> p = db.find<selected_package> (n))
       fail << "package " << n << " already exists in configuration " << c <<
         info << "version: " << p->version << ", state: " << p->state;
 
@@ -60,10 +60,10 @@ namespace bpkg
     // Add the package to the configuration. Use the special root
     // repository as the repository of this package.
     //
-    shared_ptr<package> p (new package {
+    shared_ptr<selected_package> p (new selected_package {
         move (m.name),
         move (m.version),
-        state::unpacked,
+        package_state::unpacked,
         repository_location (),
         nullopt,    // No archive
         false,      // Don't purge archive.
@@ -79,7 +79,7 @@ namespace bpkg
     return p;
   }
 
-  static shared_ptr<package>
+  static shared_ptr<selected_package>
   pkg_unpack (const common_options& co,
               database& db,
               const dir_path& c,
@@ -89,12 +89,12 @@ namespace bpkg
     tracer_guard tg (db, trace);
 
     transaction t (db.begin ());
-    shared_ptr<package> p (db.find<package> (name));
+    shared_ptr<selected_package> p (db.find<selected_package> (name));
 
     if (p == nullptr)
       fail << "package " << name << " does not exist in configuration " << c;
 
-    if (p->state != state::fetched)
+    if (p->state != package_state::fetched)
       fail << "package " << name << " is " << p->state <<
         info << "expected it to be fetched";
 
@@ -169,7 +169,7 @@ namespace bpkg
     p->src_root = d.leaf (); // For now assuming to be in configuration.
     p->purge_src = true;
 
-    p->state = state::unpacked;
+    p->state = package_state::unpacked;
 
     db.update (p);
     t.commit ();
@@ -189,7 +189,7 @@ namespace bpkg
 
     database db (open (c, trace));
 
-    shared_ptr<package> p;
+    shared_ptr<selected_package> p;
 
     if (o.existing ())
     {

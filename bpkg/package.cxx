@@ -124,26 +124,26 @@ namespace bpkg
   // state
   //
   string
-  to_string (state s)
+  to_string (package_state s)
   {
     switch (s)
     {
-    case state::broken:     return "broken";
-    case state::fetched:    return "fetched";
-    case state::unpacked:   return "unpacked";
-    case state::configured: return "configured";
+    case package_state::broken:     return "broken";
+    case package_state::fetched:    return "fetched";
+    case package_state::unpacked:   return "unpacked";
+    case package_state::configured: return "configured";
     }
 
     return string (); // Should never reach.
   }
 
-  state
-  to_state (const string& s)
+  package_state
+  to_package_state (const string& s)
   {
-         if (s == "broken")     return state::broken;
-    else if (s == "fetched")    return state::fetched;
-    else if (s == "unpacked")   return state::unpacked;
-    else if (s == "configured") return state::configured;
+         if (s == "broken")     return package_state::broken;
+    else if (s == "fetched")    return package_state::fetched;
+    else if (s == "unpacked")   return package_state::unpacked;
+    else if (s == "configured") return package_state::configured;
     else throw invalid_argument ("invalid package state '" + s + "'");
   }
 }

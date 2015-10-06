@@ -312,9 +312,9 @@ namespace bpkg
   std::pair<shared_ptr<available_package>, shared_ptr<repository>>
   filter_one (const shared_ptr<repository>&, odb::result<available_package>&&);
 
-  // state
+  // package_state
   //
-  enum class state
+  enum class package_state
   {
     broken,
     fetched,
@@ -323,31 +323,30 @@ namespace bpkg
   };
 
   string
-  to_string (state);
+  to_string (package_state);
 
-  state
-  to_state (const string&); // May throw invalid_argument.
+  package_state
+  to_package_state (const string&); // May throw invalid_argument.
 
   inline std::ostream&
-  operator<< (std::ostream& os, state s) {return os << to_string (s);}
+  operator<< (std::ostream& os, package_state s) {return os << to_string (s);}
 
-  #pragma db map type(state) as(string) \
-    to(to_string (?))                   \
-    from(bpkg::to_state (?))
+  #pragma db map type(package_state) as(string) \
+    to(to_string (?))                           \
+    from(bpkg::to_package_state (?))
 
 
   // package
   //
   #pragma db object pointer(shared_ptr) session
-  class package
+  class selected_package
   {
   public:
     using version_type = bpkg::version;
-    using state_type = bpkg::state;
 
     string name; // Object id.
     version_type version;
-    state_type state;
+    package_state state;
 
     // Repository from which this package came. Note that it is not
     // a pointer to the repository object because it could be wiped
@@ -390,7 +389,7 @@ namespace bpkg
     // A map of "effective" prerequisites (i.e., pointers to other
     // selected packages) to optional dependency constraint.
     //
-    using prerequisites_type = std::map<lazy_shared_ptr<package>,
+    using prerequisites_type = std::map<lazy_shared_ptr<selected_package>,
                                         optional<dependency_constraint>,
                                         compare_lazy_ptr>;
     prerequisites_type prerequisites;
@@ -404,16 +403,16 @@ namespace bpkg
 
   private:
     friend class odb::access;
-    package () = default;
+    selected_package () = default;
   };
 
   // Return a list of packages that depend on this package along with
   // their constraints.
   //
   /*
-  #pragma db view object(package) \
-    container(package::prerequisites = pp inner: pp.key)
-  struct package_dependents
+  #pragma db view object(selected_package) \
+    container(selected_package::prerequisites = pp inner: pp.key)
+  struct package_dependent
   {
     #pragma db column(pp.id)
     string name;
@@ -426,10 +425,10 @@ namespace bpkg
   // @@ Using raw container table since ODB doesn't support containers
   //    in views yet.
   //
-  #pragma db view object(package)               \
-    table("package_prerequisites" = "pp" inner: \
-          "pp.prerequisite = " + package::name)
-  struct package_dependents
+  #pragma db view object(selected_package)               \
+    table("selected_package_prerequisites" = "pp" inner: \
+          "pp.prerequisite = " + selected_package::name)
+  struct package_dependent
   {
     #pragma db column("pp.package")
     string name;

@@ -21,7 +21,7 @@ using namespace butl;
 
 namespace bpkg
 {
-  struct selected_package // @@ Swap names.
+  struct satisfied_package
   {
     shared_ptr<available_package> ap; // Note: might be transient.
 
@@ -29,7 +29,7 @@ namespace bpkg
     optional<dir_path> directory;
   };
 
-  using packages = vector<selected_package>;
+  using packages = vector<satisfied_package>;
 
   void
   build (const build_options& o, cli::scanner& args)
@@ -58,7 +58,7 @@ namespace bpkg
     {
       const char* s (args.next ());
 
-      selected_package pkg;
+      satisfied_package pkg;
 
       // Reduce all the potential variations (archive, directory,
       // package, package version) to the single available_package
@@ -158,9 +158,9 @@ namespace bpkg
       // package that we will be building (which may or may not be
       // the same as the selected package).
       //
-      shared_ptr<package> p (db.find<package> (n));
+      shared_ptr<selected_package> p (db.find<selected_package> (n));
 
-      if (p != nullptr && p->state == state::broken)
+      if (p != nullptr && p->state == package_state::broken)
         fail << "unable to build broken package " << n <<
           info << "use 'pkg-purge --force' to remove";
 
@@ -215,7 +215,7 @@ namespace bpkg
         // can get its manifest.
         //
         ap = make_shared<available_package> (
-          p->state == state::fetched
+          p->state == package_state::fetched
           ? pkg_verify (o, *p->archive)
           : pkg_verify (*p->src_root));
       }

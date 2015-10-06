@@ -19,9 +19,10 @@ namespace bpkg
   void
   pkg_disfigure (const dir_path& c,
                  transaction& t,
-                 const shared_ptr<package>& p)
+                 const shared_ptr<selected_package>& p)
   {
-    assert (p->state == state::configured || p->state == state::broken);
+    assert (p->state == package_state::configured ||
+            p->state == package_state::broken);
 
     tracer trace ("pkg_disfigure");
 
@@ -30,18 +31,18 @@ namespace bpkg
 
     // Check that we have no dependents.
     //
-    if (p->state == state::configured)
+    if (p->state == package_state::configured)
     {
-      using query = query<package_dependents>;
+      using query = query<package_dependent>;
 
-      auto r (db.query<package_dependents> (query::name == p->name));
+      auto r (db.query<package_dependent> (query::name == p->name));
 
       if (!r.empty ())
       {
         diag_record dr;
         dr << fail << "package " << p->name << " still has dependencies:";
 
-        for (const package_dependents& pd: r)
+        for (const package_dependent& pd: r)
         {
           dr << info << "package " << pd.name;
 
@@ -72,7 +73,7 @@ namespace bpkg
     //
     string bspec;
 
-    if (p->state == state::configured)
+    if (p->state == package_state::configured)
     {
       bspec = "clean(" + out_root.string () + "/) "
         "disfigure(" + out_root.string () + "/)";
@@ -110,7 +111,7 @@ namespace bpkg
       // If we failed to disfigure the package, set it to the broken
       // state. The user can then try to clean things up with pkg-purge.
       //
-      p->state = state::broken;
+      p->state = package_state::broken;
       db.update (p);
       t.commit ();
 
@@ -120,7 +121,7 @@ namespace bpkg
     }
 
     p->out_root = nullopt;
-    p->state = state::unpacked;
+    p->state = package_state::unpacked;
 
     db.update (p);
     t.commit ();
@@ -143,12 +144,12 @@ namespace bpkg
     database db (open (c, trace));
     transaction t (db.begin ());
 
-    shared_ptr<package> p (db.find<package> (n));
+    shared_ptr<selected_package> p (db.find<selected_package> (n));
 
     if (p == nullptr)
       fail << "package " << n << " does not exist in configuration " << c;
 
-    if (p->state != state::configured)
+    if (p->state != package_state::configured)
       fail << "package " << n << " is " << p->state <<
         info << "expected it to be configured";
 

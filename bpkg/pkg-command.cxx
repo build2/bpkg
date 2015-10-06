@@ -36,13 +36,13 @@ namespace bpkg
     database db (open (c, trace));
 
     transaction t (db.begin ());
-    shared_ptr<package> p (db.find<package> (n));
+    shared_ptr<selected_package> p (db.find<selected_package> (n));
     t.commit ();
 
     if (p == nullptr)
       fail << "package " << n << " does not exist in configuration " << c;
 
-    if (p->state != state::configured)
+    if (p->state != package_state::configured)
       fail << "package " << n << " is " << p->state <<
         info << "expected it to be configured";
 

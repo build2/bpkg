@@ -14,7 +14,7 @@ namespace bpkg
 
   // <bpkg/package>
   //
-  class package;
+  class selected_package;
 }
 
 #endif // BPKG_FORWARD
