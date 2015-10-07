@@ -456,6 +456,15 @@ namespace bpkg
 
   template <typename T1, typename T2>
   inline auto
+  operator!= (const T1& x, const T2& y) -> decltype (x.epoch != y.epoch)
+  {
+    return x.epoch != y.epoch ||
+      x.canonical_upstream != y.canonical_upstream ||
+      x.revision != y.revision;
+  }
+
+  template <typename T1, typename T2>
+  inline auto
   operator< (const T1& x, const T2& y) -> decltype (x.epoch < y.epoch)
   {
     return x.epoch < y.epoch ||
@@ -466,12 +475,32 @@ namespace bpkg
 
   template <typename T1, typename T2>
   inline auto
+  operator<= (const T1& x, const T2& y) -> decltype (x.epoch <= y.epoch)
+  {
+    return x.epoch < y.epoch ||
+      (x.epoch == y.epoch && x.canonical_upstream < y.canonical_upstream) ||
+      (x.epoch == y.epoch && x.canonical_upstream == y.canonical_upstream &&
+       x.revision <= y.revision);
+  }
+
+  template <typename T1, typename T2>
+  inline auto
   operator> (const T1& x, const T2& y) -> decltype (x.epoch > y.epoch)
   {
     return x.epoch > y.epoch ||
       (x.epoch == y.epoch && x.canonical_upstream > y.canonical_upstream) ||
       (x.epoch == y.epoch && x.canonical_upstream == y.canonical_upstream &&
        x.revision > y.revision);
+  }
+
+  template <typename T1, typename T2>
+  inline auto
+  operator>= (const T1& x, const T2& y) -> decltype (x.epoch >= y.epoch)
+  {
+    return x.epoch > y.epoch ||
+      (x.epoch == y.epoch && x.canonical_upstream > y.canonical_upstream) ||
+      (x.epoch == y.epoch && x.canonical_upstream == y.canonical_upstream &&
+       x.revision >= y.revision);
   }
 
   template <typename T>
