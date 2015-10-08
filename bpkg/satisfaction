@@ -23,7 +23,8 @@ namespace bpkg
   }
 
   // Return true if any version that satisfies l also satisfies r, or, in
-  // other words, l is stricter than or equal to r.
+  // other words, l is stricter than or equal to r. Or, in yet other words,
+  // l is a subset of r.
   //
   bool
   satisfies (const dependency_constraint& l, const dependency_constraint& r);

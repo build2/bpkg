@@ -53,9 +53,9 @@ namespace bpkg
       {
         switch (ro)
         {
-        case op::eq: return rv <  lv;
-        case op::lt: return rv <= lv;
-        case op::le: return rv <  lv;
+        case op::eq: return lv <  rv;
+        case op::lt: return lv <= rv;
+        case op::le: return lv <  rv;
         case op::gt:
         case op::ge: return false;
         }
@@ -64,9 +64,9 @@ namespace bpkg
       {
         switch (ro)
         {
-        case op::eq: return rv <= lv;
-        case op::lt: return rv <  lv;
-        case op::le: return rv <= lv;
+        case op::eq: return lv <= rv;
+        case op::lt: return lv <  rv;
+        case op::le: return lv <= rv;
         case op::gt:
         case op::ge: return false;
         }
