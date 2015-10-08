@@ -29,5 +29,10 @@ namespace bpkg
 {
   class build_options: configuration_options
   {
+    bool --print-only|-p
+    {
+      "Print to \cb{STDOUT} what would be done without actually doing
+       anything."
+    };
   };
 }

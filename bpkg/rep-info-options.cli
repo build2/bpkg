@@ -18,7 +18,8 @@ The \cb{rep-info} command prints information about the specified repository.
 By default it print the repository's name and location as the first line
 followed by the list of prerequisite/complement repositories and the list
 of available packages. This default behavior, however, can be altered in
-various ways using options listed below."
+various ways using options listed below. Note that the information is
+written to \cb{STDOUT}, not \cb{STDERR}."
 */
 
 namespace bpkg

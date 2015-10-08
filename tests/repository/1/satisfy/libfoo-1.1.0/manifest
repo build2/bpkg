@@ -1,0 +1,7 @@
+: 1
+name: libfoo
+version: 1.1.0
+summary: libfoo
+license: MIT
+url: http://example.org
+email: pkg@example.org

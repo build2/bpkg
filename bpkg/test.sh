@@ -29,7 +29,14 @@ function test ()
     ops="-d $cfg"
   fi
 
-  $bpkg $cmd $ops $*
+  if [ -t 0 ]; then
+    $bpkg $cmd $ops $*
+  else
+    # There is no way to get the exit code in process substiution
+    # so spoil the output.
+    #
+    diff -u - <($bpkg $cmd $ops $* || echo "<invalid output>")
+  fi
 
   if [ $? -ne 0 ]; then
     error "failed: $bpkg $cmd $ops $*"
@@ -83,6 +90,8 @@ function gone ()
     error "path $1 still exists"
   fi
 }
+
+if false; then
 
 ##
 ## rep-create
@@ -584,7 +593,7 @@ test pkg-disfigure $pkg
 test pkg-purge $pkg
 
 ##
-## Scenarios.
+## Low-level command scenarios.
 ##
 
 # build package from remote repository
@@ -599,3 +608,270 @@ test pkg-update $pkg
 test pkg-clean $pkg
 test pkg-disfigure $pkg
 test pkg-purge $pkg
+
+##
+## High-level commands.
+##
+
+fi
+
+##
+## build
+##
+
+# 1
+#
+test rep-create ../tests/repository/1/satisfy/t1
+test cfg-create --wipe
+
+fail build -p               # package name expected
+fail build -p libfoo        # unknown package
+fail build -p libfoo/1.0.0  # unknown package
+test build -p ../tests/repository/1/satisfy/libfoo-1.1.0.tar.gz <<EOF
+build libfoo 1.1.0
+EOF
+test build -p ../tests/repository/1/satisfy/libfoo-1.1.0 <<EOF
+build libfoo 1.1.0
+EOF
+
+test pkg-unpack -e ../tests/repository/1/satisfy/libfoo-1.1.0
+test build -p libfoo <<< "build libfoo 1.1.0"
+test build -p libfoo/1.1.0 <<< "build libfoo 1.1.0"
+test build -p libfoo libfoo <<< "build libfoo 1.1.0"
+test build -p libfoo libfoo/1.1.0 <<< "build libfoo 1.1.0"
+test build -p libfoo/1.1.0 libfoo <<< "build libfoo 1.1.0"
+test build -p libfoo/1.1.0 libfoo/1.1.0 <<< "build libfoo 1.1.0"
+fail build -p libfoo/1.0.0
+test pkg-purge libfoo
+
+test rep-add ../tests/repository/1/satisfy/t1
+test rep-fetch
+test build -p libfoo <<< "build libfoo 1.0.0"
+test build -p libfoo/1.0.0 <<< "build libfoo 1.0.0"
+test build -p libfoo libfoo <<< "build libfoo 1.0.0"
+test build -p libfoo libfoo/1.0.0 <<< "build libfoo 1.0.0"
+test build -p libfoo/1.0.0 libfoo <<< "build libfoo 1.0.0"
+test build -p libfoo/1.0.0 libfoo/1.0.0 <<< "build libfoo 1.0.0"
+fail build -p libfoo/1.1.0
+
+test pkg-unpack -e ../tests/repository/1/satisfy/libfoo-1.1.0
+test build -p libfoo <<< "build libfoo 1.1.0"
+test build -p libfoo/1.0.0 <<< "downgrade libfoo 1.0.0"
+fail build -p libfoo/0.0.0
+test pkg-purge libfoo
+
+test pkg-fetch -e ../tests/repository/1/satisfy/libfoo-0.0.0.tar.gz
+test pkg-unpack libfoo
+test build -p libfoo <<< "upgrade libfoo 1.0.0"
+test build -p libfoo/0.0.0 <<< "build libfoo 0.0.0"
+fail build -p libfoo/1.1.0
+test pkg-purge libfoo
+
+# 2 (libbar depends on libfoo)
+#
+test rep-create ../tests/repository/1/satisfy/t2
+test cfg-create --wipe
+test rep-add ../tests/repository/1/satisfy/t2
+test rep-fetch
+
+test build -p libbar <<EOF
+build libfoo 1.0.0
+build libbar 1.0.0
+EOF
+test build -p libbar libfoo <<EOF
+build libfoo 1.0.0
+build libbar 1.0.0
+EOF
+test build -p libbar libfoo/1.0.0 <<EOF
+build libfoo 1.0.0
+build libbar 1.0.0
+EOF
+test build -p libbar libfoo libbar/1.0.0 <<EOF
+build libfoo 1.0.0
+build libbar 1.0.0
+EOF
+fail build -p libbar libfoo/1.1.0
+
+test pkg-fetch -e ../tests/repository/1/satisfy/libfoo-0.0.0.tar.gz
+test pkg-unpack libfoo
+test build -p libbar <<EOF
+build libfoo 0.0.0
+build libbar 1.0.0
+EOF
+test build -p libbar libfoo <<EOF
+upgrade libfoo 1.0.0
+build libbar 1.0.0
+EOF
+test build -p libbar libfoo/0.0.0 <<EOF
+build libfoo 0.0.0
+build libbar 1.0.0
+EOF
+test pkg-purge libfoo
+
+test pkg-unpack -e ../tests/repository/1/satisfy/libfoo-1.1.0
+test build -p libbar <<EOF
+build libfoo 1.1.0
+build libbar 1.0.0
+EOF
+test build -p libbar libfoo <<EOF
+build libfoo 1.1.0
+build libbar 1.0.0
+EOF
+test build -p libbar libfoo/1.0.0 <<EOF
+downgrade libfoo 1.0.0
+build libbar 1.0.0
+EOF
+test pkg-purge libfoo
+
+# 3 (libbaz depends on libbar; libbar in prerequisite repository)
+#
+test rep-create ../tests/repository/1/satisfy/t3
+test cfg-create --wipe
+test rep-add ../tests/repository/1/satisfy/t3
+test rep-fetch
+
+# only in prerequisite repository
+#
+fail build -p libfoo
+fail build -p libbar
+fail build -p libbaz libbar
+
+test build -p libbaz <<EOF
+build libfoo 1.0.0
+build libbar 1.0.0
+build libbaz 1.0.0
+EOF
+
+test rep-add ../tests/repository/1/satisfy/t2
+test rep-fetch
+
+# order
+#
+test build -p libfox libfoo <<EOF
+build libfox 1.0.0
+build libfoo 1.0.0
+EOF
+
+test build -p libfoo libfox <<EOF
+build libfoo 1.0.0
+build libfox 1.0.0
+EOF
+
+test build -p libbaz libfoo <<EOF
+build libfoo 1.0.0
+build libbar 1.0.0
+build libbaz 1.0.0
+EOF
+
+test build -p libfoo libbaz <<EOF
+build libfoo 1.0.0
+build libbar 1.0.0
+build libbaz 1.0.0
+EOF
+
+test build -p libbaz libfox <<EOF
+build libfoo 1.0.0
+build libbar 1.0.0
+build libbaz 1.0.0
+build libfox 1.0.0
+EOF
+
+test build -p libfox libbaz <<EOF
+build libfox 1.0.0
+build libfoo 1.0.0
+build libbar 1.0.0
+build libbaz 1.0.0
+EOF
+
+test build -p libfox libfoo libbaz <<EOF
+build libfox 1.0.0
+build libfoo 1.0.0
+build libbar 1.0.0
+build libbaz 1.0.0
+EOF
+
+test build -p libfox libbaz libfoo <<EOF
+build libfox 1.0.0
+build libfoo 1.0.0
+build libbar 1.0.0
+build libbaz 1.0.0
+EOF
+
+test build -p libfoo libfox libbaz <<EOF
+build libfoo 1.0.0
+build libfox 1.0.0
+build libbar 1.0.0
+build libbaz 1.0.0
+EOF
+
+test build -p libfoo libbaz libfox <<EOF
+build libfoo 1.0.0
+build libbar 1.0.0
+build libbaz 1.0.0
+build libfox 1.0.0
+EOF
+
+# this one is contradictory: baz before fox but fox before foo
+#
+test build -p libbaz libfox libfoo <<EOF
+build libfox 1.0.0
+build libfoo 1.0.0
+build libbar 1.0.0
+build libbaz 1.0.0
+EOF
+
+test build -p libbaz libfoo libfox <<EOF
+build libfoo 1.0.0
+build libbar 1.0.0
+build libbaz 1.0.0
+build libfox 1.0.0
+EOF
+
+# 4 (libbaz depends on libfoo and libbar; libbar depends on libfoo >= 1.1.0)
+#
+test rep-create ../tests/repository/1/satisfy/t4a
+test rep-create ../tests/repository/1/satisfy/t4b
+test rep-create ../tests/repository/1/satisfy/t4c
+test cfg-create --wipe
+test rep-add ../tests/repository/1/satisfy/t4c
+test rep-fetch
+
+test build -p libbaz <<EOF
+build libfoo 1.1.0
+build libbar 1.1.0
+build libbaz 1.1.0
+EOF
+
+test build -p libfoo libbaz <<EOF
+build libfoo 1.1.0
+build libbar 1.1.0
+build libbaz 1.1.0
+EOF
+
+fail build -p libfoo/1.0.0 libbaz
+fail build -p libfoo/1.1.0 libbaz
+
+# upgrade warning
+#
+test pkg-fetch -e ../tests/repository/1/satisfy/libfoo-0.0.0.tar.gz
+test pkg-unpack libfoo
+test build -p libbaz <<EOF
+upgrade libfoo 1.1.0
+build libbar 1.1.0
+build libbaz 1.1.0
+EOF
+test pkg-purge libfoo
+
+# downgrade error
+#
+test pkg-fetch -e ../tests/repository/1/satisfy/libfoo-1.2.0.tar.gz
+test pkg-unpack libfoo
+fail build -p libbaz
+test rep-add ../tests/repository/1/satisfy/t4a
+test rep-fetch
+test build -p libfoo/1.1.0 libbaz <<EOF
+downgrade libfoo 1.1.0
+build libbar 1.1.0
+build libbaz 1.1.0
+EOF
+test pkg-purge libfoo

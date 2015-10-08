@@ -7,6 +7,7 @@
 #include <map>
 #include <list>
 #include <iterator>   // make_move_iterator()
+#include <iostream>   // cout
 #include <functional> // reference_wrapper
 
 #include <butl/utility> // reverse_iterate()
@@ -88,6 +89,7 @@ namespace bpkg
   //
   std::pair<shared_ptr<available_package>, shared_ptr<repository>>
   make_available (const common_options& options,
+                  const dir_path& cd,
                   database& db,
                   const shared_ptr<selected_package>& sp)
   {
@@ -102,12 +104,15 @@ namespace bpkg
     // The package is in at least fetched state, which means we should
     // be able to get its manifest.
     //
-    shared_ptr<available_package> ap (make_shared<available_package> (
-      sp->state == package_state::fetched
-      ? pkg_verify (options, *sp->archive)
-      : pkg_verify (*sp->src_root)));
+    const optional<path>& a (sp->archive);
+    const optional<dir_path>& d (sp->src_root);
 
-    return make_pair (move (ap), move (ar));
+    package_manifest m (
+      sp->state == package_state::fetched
+      ? pkg_verify (options, a->absolute () ? *a : cd / *a)
+      : pkg_verify (d->absolute () ? *d : cd / *d));
+
+    return make_pair (make_shared<available_package> (move (m)), move (ar));
   }
 
   // A "dependency-ordered" list of packages and their prerequisites.
@@ -191,9 +196,12 @@ namespace bpkg
     //
     bool
     collect (const common_options& options,
+             const dir_path& cd,
              database& db,
              satisfied_package&& pkg)
     {
+      tracer trace ("collect");
+
       auto i (map_.find (pkg.available->id.name));
 
       // If we already have an entry for this package name, then we
@@ -201,6 +209,8 @@ namespace bpkg
       //
       if (i != map_.end ())
       {
+        const string& n (i->first);
+
         // At the end we want p1 to point to the object that we keep
         // and p2 to the object whose constraints we should copy.
         //
@@ -244,11 +254,10 @@ namespace bpkg
             //
             if (auto c1 = test (p2, p1))
             {
-              const string& n (i->first);
               const string& d1 (c1->dependent);
               const string& d2 (c2->dependent);
 
-              fail << "unable to satisfy package " << n << " constraints" <<
+              fail << "unable to satisfy constraints on package " << n <<
                 info << d1 << " depends on (" << n << " " << c1->value << ")" <<
                 info << d2 << " depends on (" << n << " " << c2->value << ")" <<
                 info << "available " << n << " " << p1->available->version <<
@@ -259,6 +268,9 @@ namespace bpkg
             else
               swap (p1, p2);
           }
+
+          level4 ([&]{trace << "pick " << n << " " << p1->available->version
+                            << " over " << p2->available->version;});
         }
 
         // See if we are replacing the object. If not, then we don't
@@ -284,6 +296,8 @@ namespace bpkg
       else
       {
         string n (pkg.available->id.name); // Note: copy; see emplace() below.
+
+        level4 ([&]{trace << "add " << n << " " << pkg.available->version;});
 
         // This is the first time we are adding this package name to the
         // map. If it is already selected, then we need to make sure that
@@ -401,7 +415,7 @@ namespace bpkg
               info << "use 'pkg-purge --force' to remove";
 
           if (satisfies (dsp->version, d.constraint))
-            rp = make_available (options, db, dsp);
+            rp = make_available (options, cd, db, dsp);
           else
             // Remember that we may be forcing up/downgrade; we will deal
             // with it below.
@@ -420,17 +434,21 @@ namespace bpkg
         // (i.e., it wasn't already there) and we are forcing an upgrade,
         // then warn. Downgrade -- outright refuse.
         //
-        if (collect (options, db, move (dp)) && force)
+        if (collect (options, cd, db, move (dp)) && force)
         {
           const version& v (rp.first->version);
 
-          if (v > dsp->version)
-            warn << "package " << name << " dependency " << d << " is forcing "
-                 << "upgrade of " << d.name << " to " << v;
-          else
-            fail << "package " << name << " dependency " << d << " is forcing "
-                 << "downgrade of " << d.name << " to " << v <<
-              info << "explicitly request downgraded version to continue";
+          bool u (v > dsp->version);
+          bool c (d.constraint);
+          diag_record dr;
+
+          (u ? dr << warn : dr << fail)
+            << "package " << name << " dependency on "
+            << (c ? "(" : "") << d << (c ? ")" : "") << " is forcing "
+            << (u ? "up" : "down") << "grade of " << d.name << " to " << v;
+
+          if (!u)
+            dr << info << "explicitly specify version downgrade to continue";
         }
       }
 
@@ -438,10 +456,11 @@ namespace bpkg
     }
 
     // Order the previously-collected package with the specified name
-    // returning its positions.
+    // returning its positions. If reorder is true, then reorder this
+    // package to be considered as "early" as possible.
     //
     iterator
-    order (const string& name)
+    order (const string& name, bool reorder = true)
     {
       // Every package that we order should have already be collected.
       //
@@ -450,10 +469,16 @@ namespace bpkg
 
       // If this package is already in the list, then that would also
       // mean all its prerequisites are in the list and we can just
-      // return its position.
+      // return its position. Unless we want it reordered.
       //
-      if (mi->second.position != list_.end ())
-        return mi->second.position;
+      iterator& pos (mi->second.position);
+      if (pos != list_.end ())
+      {
+        if (reorder)
+          list_.erase (pos);
+        else
+          return pos;
+      }
 
       const satisfied_package& p (mi->second.package);
 
@@ -471,12 +496,18 @@ namespace bpkg
           p.selected->version != p.available->version ||
           p.selected->state != package_state::configured)
       {
-        for (const dependency_alternatives& da: p.available->dependencies)
+        // We are iterating in reverse so that when we iterate over
+        // the dependency list (also in reverse), prerequisites will
+        // be built in the order that is as close to the manifest as
+        // possible.
+        //
+        for (const dependency_alternatives& da:
+               reverse_iterate (p.available->dependencies))
         {
           assert (!da.conditional && da.size () == 1); // @@ TODO
           const dependency& d (da.front ());
 
-          iterator j (order (d.name));
+          iterator j (order (d.name, false));
 
           // Figure out if j is before i, in which case set i to j. The
           // goal here is to find the position of our first prerequisite.
@@ -487,7 +518,7 @@ namespace bpkg
         }
       }
 
-      return mi->second.position = list_.insert (i, p);
+      return pos = list_.insert (i, p);
     }
 
   private:
@@ -630,6 +661,8 @@ namespace bpkg
         fail << "unable to build broken package " << n <<
           info << "use 'pkg-purge --force' to remove";
 
+      bool found (true);
+
       // If the user asked for a specific version, then that's what
       // we ought to be building.
       //
@@ -646,7 +679,8 @@ namespace bpkg
           if (sp != nullptr && sp->version == v)
             break; // Derive ap from sp below.
 
-          fail << "unknown package " << n << " " << v;
+          found = false;
+          break;
         }
       }
       //
@@ -667,10 +701,28 @@ namespace bpkg
         else
         {
           if (sp == nullptr)
-            fail << "unknown package " << n;
+            found = false;
 
-          // Derive ap from sp below.
+          // Otherwise, derive ap from sp below.
         }
+      }
+
+      if (!found)
+      {
+        diag_record dr;
+
+        dr << fail << "unknown package " << n;
+        if (!v.empty ())
+          dr << " " << v;
+
+        // Let's help the new user out here a bit.
+        //
+        if (db.query_value<repository_count> () == 0)
+          dr << info << "configuration " << c << " has no repositories"
+             << info << "use 'bpkg rep-add' to add a repository";
+        else if (db.query_value<available_package_count> () == 0)
+          dr << info << "configuration " << c << " has no available packages"
+             << info << "use 'bpkg rep-fetch' to fetch available packages list";
       }
 
       // If the available_package object is still NULL, then it means
@@ -680,7 +732,7 @@ namespace bpkg
       {
         assert (sp != nullptr);
 
-        auto rp (make_available (o, db, sp));
+        auto rp (make_available (o, c, db, sp));
         ap = rp.first;
         ar = rp.second; // Could be NULL (orphan).
       }
@@ -695,10 +747,10 @@ namespace bpkg
       //
       if (!v.empty ())
         p.constraints.emplace_back (
-          "<command line>",
+          "command line",
           dependency_constraint {comparison::eq, v});
 
-      pkgs.collect (o, db, move (p));
+      pkgs.collect (o, c, db, move (p));
       names.push_back (n);
     }
 
@@ -731,7 +783,16 @@ namespace bpkg
       else
         a = sp->version < ap->version ? "upgrade" : "downgrade";
 
-      text << a << " " << ap->id.name << " " << ap->version;
+      if (o.print_only ())
+        cout << a << " " << ap->id.name << " " << ap->version << endl;
+      else
+        text << a << " " << ap->id.name << " " << ap->version;
+    }
+
+    if (o.print_only ())
+    {
+      t.commit ();
+      return;
     }
 
     t.commit ();
