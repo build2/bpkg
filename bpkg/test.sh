@@ -91,8 +91,6 @@ function gone ()
   fi
 }
 
-if false; then
-
 ##
 ## rep-create
 ##
@@ -613,8 +611,6 @@ test pkg-purge $pkg
 ## High-level commands.
 ##
 
-fi
-
 ##
 ## build
 ##
@@ -671,6 +667,9 @@ test pkg-purge libfoo
 #
 test rep-create ../tests/repository/1/satisfy/t2
 test cfg-create --wipe
+
+fail build ../tests/repository/1/satisfy/libbar-1.0.0.tar.gz
+
 test rep-add ../tests/repository/1/satisfy/t2
 test rep-fetch
 
@@ -874,4 +873,20 @@ downgrade libfoo 1.1.0
 build libbar 1.1.0
 build libbaz 1.1.0
 EOF
+test pkg-purge libfoo
+
+# dependent prevents upgrade/downgrade
+#
+test pkg-fetch libfoo 1.1.0
+test pkg-unpack libfoo
+test pkg-configure libfoo
+test pkg-fetch libbar 1.1.0
+test pkg-unpack libbar
+test pkg-configure libbar
+fail build -p ../tests/repository/1/satisfy/libfoo-1.2.0.tar.gz
+fail build -p libfoo/1.0.0
+test build -p libfoo/1.1.0 <<< "build libfoo 1.1.0"
+test pkg-disfigure libbar
+test pkg-disfigure libfoo
+test pkg-purge libbar
 test pkg-purge libfoo

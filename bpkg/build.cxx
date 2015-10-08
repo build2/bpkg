@@ -332,9 +332,8 @@ namespace bpkg
               continue;
             }
 
-            const char* a (r < 0 ? "upgrade" : "downgrade");
-
-            fail << "unable to " << a << " package " << n << " to " << v <<
+            fail << "unable to " << (r < 0 ? "up" : "down") << "grade "
+                 << "package " << n << " " << sp->version << " to " << v <<
               info << pd.name << " depends on (" << n << " " << c << ")" <<
               info << "explicitly specify " << n << " version to manually "
                  << "satisfy this constraint";
@@ -398,8 +397,14 @@ namespace bpkg
         auto rp (find_available (db, d.name, ar, d.constraint));
 
         if (rp.first == nullptr)
-          fail << "unknown prerequisite " << d << " of package " << name <<
-            info << "repository " << ar->location << " appears to be broken";
+        {
+          diag_record dr;
+          dr << fail << "unknown prerequisite " << d << " of package " << name;
+
+          if (!ar->location.empty ())
+            dr << info << "repository " << ar->location << " appears to "
+                       << "be broken";
+        }
 
         // Next see if this package is already selected. If we already
         // have it in the configuraion and it satisfies our dependency
@@ -436,16 +441,18 @@ namespace bpkg
         //
         if (collect (options, cd, db, move (dp)) && force)
         {
-          const version& v (rp.first->version);
+          const version& sv (dsp->version);
+          const version& av (rp.first->version);
 
-          bool u (v > dsp->version);
+          bool u (av > sv);
           bool c (d.constraint);
           diag_record dr;
 
           (u ? dr << warn : dr << fail)
             << "package " << name << " dependency on "
             << (c ? "(" : "") << d << (c ? ")" : "") << " is forcing "
-            << (u ? "up" : "down") << "grade of " << d.name << " to " << v;
+            << (u ? "up" : "down") << "grade of " << d.name << " " << sv
+            << " to " << av;
 
           if (!u)
             dr << info << "explicitly specify version downgrade to continue";
