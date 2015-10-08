@@ -32,17 +32,15 @@ namespace bpkg
       fail << "package name argument expected" <<
         info << "run 'bpkg help pkg-status' for more information";
 
-    string n (args.next ());
+    const char* arg (args.next ());
+    string n (parse_package_name (arg));
+    version v (parse_package_version (arg));
 
-    version v;
-    if (args.more ())
-      v = parse_version (args.next ());
+    level4 ([&]{trace << "package " << n << "; version " << v;});
 
     database db (open (c, trace));
     transaction t (db.begin ());
     session s;
-
-    level4 ([&]{trace << "package " << n << "; version " << v;});
 
     // First search in the packages that already exist in this configuration.
     //

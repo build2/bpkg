@@ -51,18 +51,6 @@ namespace bpkg
     return version ();
   }
 
-  version
-  parse_version (const char* s)
-  try
-  {
-    return version (s);
-  }
-  catch (const invalid_argument& e)
-  {
-    error << "invalid package version '" << s << "': " << e.what ();
-    throw failed ();
-  }
-
   repository_location
   parse_location (const char* s)
   try

@@ -37,14 +37,14 @@ namespace bpkg
 
     bool pkg-status
     {
-      "<pkg>", // [<ver>]: 24
+      "<pkg>", // [/<ver>]: 24
       "Print package status.",
       ""
     };
 
     bool pkg-fetch
     {
-      "<pkg> <ver>",
+      "<pkg>/<ver>",
       "Fetch package archive.",
       ""
     };

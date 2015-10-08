@@ -60,16 +60,16 @@ namespace bpkg
     else
     {
       if (!args.more ())
-        fail << "package name argument expected" <<
+        fail << "package name/version argument expected" <<
           info << "run 'bpkg help pkg-fetch' for more information";
 
-      string n (args.next ());
+      const char* arg (args.next ());
+      string n (parse_package_name (arg));
+      version v (parse_package_version (arg));
 
-      if (!args.more ())
-        fail << "package version argument expected" <<
+      if (v.empty ())
+        fail << "package version expected" <<
           info << "run 'bpkg help pkg-fetch' for more information";
-
-      version v (parse_version (args.next ()));
 
       if (db.query_value<repository_count> () == 0)
         fail << "configuration " << c << " has no repositories" <<

@@ -10,14 +10,14 @@ include <bpkg/configuration-options.cli>;
 
 "\h{SYNOPSIS}
 
-bpkg pkg-fetch [<options>] (<pkg> <ver>)|(-e <file>)"
+bpkg pkg-fetch [<options>] (<pkg>/<ver>)|(-e <file>)"
 
 "\h{DESCRIPTION}
 
 The \cb{pkg-fetch} command fetches the archive for the specified package
 name and version from one of the configuration's repositories. If the
 \cb{-e|--existing} option is used, then instead of the name and version
-arguments, \cb{pkg-fetch} expects a local path to the existing package
+argument, \cb{pkg-fetch} expects a local path to the existing package
 archive. In this case, \cb{bpkg} will use the archive in place, without
 copying it to the configuration or package cache directories. Also,
 unless the \cb{-p|--purge} option is specified, \cb{bpkg} will not

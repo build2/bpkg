@@ -68,11 +68,9 @@ function stat ()
   local c="$bpkg pkg-status -d $cfg"
 
   if [ $# -eq 1 ]; then
-    c="$c $pkg $ver"
+    c="$c $pkg/$ver"
   elif [ $# -eq 2 ]; then
     c="$c $1"; shift
-  elif [ $# -eq 3 ]; then
-    c="$c $1 $2"; shift; shift
   fi
 
   local s=`$c`
@@ -193,20 +191,20 @@ fail pkg-fetch -e ./no-such-file # archive does not exist
 
 fail pkg-fetch                  # package name expected
 fail pkg-fetch libhello         # package version expected
-fail pkg-fetch libhello 1/2/3   # invalid package version
+fail pkg-fetch libhello/1/2/3   # invalid package version
 
-fail pkg-fetch libhello 1.0.0   # no repositories
+fail pkg-fetch libhello/1.0.0   # no repositories
 test rep-add $rep
-fail pkg-fetch libhello 1.0.0   # no packages
+fail pkg-fetch libhello/1.0.0   # no packages
 test rep-fetch
-fail pkg-fetch libhello 2+1.0.0 # not available
+fail pkg-fetch libhello/2+1.0.0 # not available
 
 # local
 #
 test cfg-create --wipe
 test rep-add $rep
 test rep-fetch
-test pkg-fetch libhello 1.0.0
+test pkg-fetch libhello/1.0.0
 test pkg-unpack libhello
 test pkg-purge libhello
 
@@ -215,8 +213,8 @@ test pkg-purge libhello
 test cfg-create --wipe
 test rep-add http://pkg.cppget.org/1/hello
 test rep-fetch
-#test pkg-fetch libheavy 1.0.0
-test pkg-fetch libhello 1.0.0
+#test pkg-fetch libheavy/1.0.0
+test pkg-fetch libhello/1.0.0
 test pkg-unpack libhello
 test pkg-purge libhello
 
@@ -423,11 +421,11 @@ test cfg-create --wipe
 test rep-add ../tests/repository/1/depend/stable
 test rep-fetch
 
-test pkg-fetch libbar 1.0.0
+test pkg-fetch libbar/1.0.0
 test pkg-unpack libbar
 fail pkg-configure libbar # no libfoo
-stat libbar 1.0.0 "unpacked"
-test pkg-fetch libfoo 1.0.0
+stat libbar/1.0.0 "unpacked"
+test pkg-fetch libfoo/1.0.0
 test pkg-unpack libfoo
 fail pkg-configure libbar # libfoo not configured
 test pkg-configure libfoo
@@ -438,15 +436,15 @@ test pkg-disfigure libfoo
 test pkg-purge libbar
 test pkg-purge libfoo
 
-test pkg-fetch libfoo 1.0.0
+test pkg-fetch libfoo/1.0.0
 test pkg-unpack libfoo
 test pkg-configure libfoo
-test pkg-fetch libbar 1.1.0
+test pkg-fetch libbar/1.1.0
 test pkg-unpack libbar
 fail pkg-configure libbar # libfoo >= 1.1.0
 test pkg-disfigure libfoo
 test pkg-purge libfoo
-test pkg-fetch libfoo 1.1.0
+test pkg-fetch libfoo/1.1.0
 test pkg-unpack libfoo
 test pkg-configure libfoo
 test pkg-configure libbar
@@ -455,15 +453,15 @@ test pkg-disfigure libfoo
 test pkg-purge libfoo
 test pkg-purge libbar
 
-test pkg-fetch libfoo 1.1.0
+test pkg-fetch libfoo/1.1.0
 test pkg-unpack libfoo
 test pkg-configure libfoo
-test pkg-fetch libbar 1.2.0
+test pkg-fetch libbar/1.2.0
 test pkg-unpack libbar
 fail pkg-configure libbar # libfoo >= 1.2.0
 test pkg-disfigure libfoo
 test pkg-purge libfoo
-test pkg-fetch libfoo 1.2.0
+test pkg-fetch libfoo/1.2.0
 test pkg-unpack libfoo
 test pkg-configure libfoo
 test pkg-configure libbar
@@ -473,10 +471,10 @@ test pkg-disfigure libfoo
 test pkg-purge libfoo
 test pkg-purge libbar
 
-test pkg-fetch libfoo 1.1.0
+test pkg-fetch libfoo/1.1.0
 test pkg-unpack libfoo
 test pkg-configure libfoo
-test pkg-fetch libbar 1.3.0
+test pkg-fetch libbar/1.3.0
 test pkg-unpack libbar
 fail pkg-configure libbar # incompatible constraints
 test pkg-disfigure libfoo
@@ -495,14 +493,14 @@ test rep-create ../tests/repository/1/status/unstable
 # basics
 #
 test cfg-create --wipe
-stat libfoo 1.0.0 "unknown"
+stat libfoo/1.0.0 "unknown"
 stat libfoo "unknown"
 test rep-add ../tests/repository/1/status/stable
 test rep-fetch
-stat libfoo 1.0.0 "available"
+stat libfoo/1.0.0 "available"
 stat libfoo "available 1.0.0"
-test pkg-fetch libfoo 1.0.0
-stat libfoo 1.0.0 "fetched"
+test pkg-fetch libfoo/1.0.0
+stat libfoo/1.0.0 "fetched"
 stat libfoo "fetched 1.0.0"
 
 # multiple versions/revisions
@@ -524,10 +522,10 @@ test cfg-create --wipe
 test rep-add ../tests/repository/1/status/unstable
 test rep-fetch
 stat libbar "available 2.0.0 1.1.0 1.0.0-1 1.0.0"
-test pkg-fetch libbar 1.0.0-1
+test pkg-fetch libbar/1.0.0-1
 stat libbar "fetched 1.0.0-1; available 2.0.0 1.1.0"
 test pkg-purge libbar
-test pkg-fetch libbar 2.0.0
+test pkg-fetch libbar/2.0.0
 stat libbar "fetched 2.0.0"
 
 ##
@@ -599,7 +597,7 @@ test pkg-purge $pkg
 test cfg-create --wipe cxx
 test rep-add http://pkg.cppget.org/1/hello
 test rep-fetch
-test pkg-fetch $pkg $ver
+test pkg-fetch $pkg/$ver
 test pkg-unpack $pkg
 test pkg-configure $pkg
 test pkg-update $pkg
@@ -889,10 +887,10 @@ test pkg-purge libfoo
 
 # dependent prevents upgrade/downgrade
 #
-test pkg-fetch libfoo 1.1.0
+test pkg-fetch libfoo/1.1.0
 test pkg-unpack libfoo
 test pkg-configure libfoo
-test pkg-fetch libbar 1.1.0
+test pkg-fetch libbar/1.1.0
 test pkg-unpack libbar
 test pkg-configure libbar
 fail build -p ../tests/repository/1/satisfy/libfoo-1.2.0.tar.gz

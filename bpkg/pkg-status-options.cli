@@ -10,13 +10,13 @@ include <bpkg/configuration-options.cli>;
 
 "\h{SYNOPSIS}
 
-bpkg pkg-status <pkg> [<ver>]"
+bpkg pkg-status <pkg>[/<ver>]"
 
 "\h{DESCRIPTION}
 
 The \cb{pkg-status} command prints the status of the specified
-package or, if the <ver> argument is provided, package version.
-Note that the status is written to \cb{STDOUT}, not \cb{STDERR}.
+package or, if <ver> is specified, package version. Note that the
+status is written to \cb{STDOUT}, not \cb{STDERR}.
 @@ TODO: output form and possible status values."
 */
 

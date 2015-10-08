@@ -20,9 +20,6 @@ namespace bpkg
   version
   parse_package_version (const char*);
 
-  version
-  parse_version (const char*); //@@ TMP
-
   // First use the passed location as is. If the result is relative,
   // then assume this is a relative path to the repository directory
   // and complete it based on the current working directory.
