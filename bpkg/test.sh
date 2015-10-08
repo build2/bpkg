@@ -826,6 +826,18 @@ build libbaz 1.0.0
 build libfox 1.0.0
 EOF
 
+test build -p libbaz libfoo libbar <<EOF
+build libfoo 1.0.0
+build libbar 1.0.0
+build libbaz 1.0.0
+EOF
+
+test build -p libbaz libbar libfoo <<EOF
+build libfoo 1.0.0
+build libbar 1.0.0
+build libbaz 1.0.0
+EOF
+
 # 4 (libbaz depends on libfoo and libbar; libbar depends on libfoo >= 1.1.0)
 #
 test rep-create ../tests/repository/1/satisfy/t4a
