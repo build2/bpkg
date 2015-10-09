@@ -900,3 +900,56 @@ test pkg-disfigure libbar
 test pkg-disfigure libfoo
 test pkg-purge libbar
 test pkg-purge libfoo
+
+# dependent reconfigure
+#
+test cfg-create --wipe
+
+test pkg-fetch -e ../tests/repository/1/satisfy/libfoo-1.0.0.tar.gz
+test pkg-unpack libfoo
+test pkg-configure libfoo
+test pkg-fetch -e ../tests/repository/1/satisfy/libbar-1.0.0.tar.gz
+test pkg-unpack libbar
+test pkg-configure libbar
+test pkg-fetch -e ../tests/repository/1/satisfy/libbaz-1.1.0.tar.gz
+test pkg-unpack libbaz
+test pkg-configure libbaz
+
+test rep-add ../tests/repository/1/satisfy/t4a
+test rep-add ../tests/repository/1/satisfy/t4b
+test rep-fetch
+
+test build -p libbar <<EOF
+upgrade libfoo 1.1.0
+upgrade libbar 1.1.0
+reconfigure libbaz
+EOF
+
+test build -p libfoo <<EOF
+upgrade libfoo 1.1.0
+reconfigure libbar
+reconfigure libbaz
+EOF
+
+test build -p libfoo libbar/1.0.0 <<EOF
+upgrade libfoo 1.1.0
+reconfigure/build libbar 1.0.0
+reconfigure libbaz
+EOF
+
+test build -p libbar/1.0.0 libfoo <<EOF
+upgrade libfoo 1.1.0
+reconfigure/build libbar 1.0.0
+reconfigure libbaz
+EOF
+
+test build -p libbaz libfoo <<EOF
+upgrade libfoo 1.1.0
+reconfigure libbar
+reconfigure/build libbaz 1.1.0
+EOF
+
+test build -p libbaz libfoo/1.0.0 <<EOF
+build libfoo 1.0.0
+build libbaz 1.1.0
+EOF

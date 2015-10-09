@@ -150,7 +150,7 @@ namespace bpkg
   struct satisfied_package
   {
     shared_ptr<selected_package>  selected;   // NULL if not selected.
-    shared_ptr<available_package> available;  // Can be fake/transient.
+    shared_ptr<available_package> available;  // Can be NULL, fake/transient.
     shared_ptr<bpkg::repository>  repository; // Can be NULL (orphan) or root.
 
     // Constraint value plus, normally, the dependent package name that
@@ -169,6 +169,25 @@ namespace bpkg
     };
 
     vector<constraint_type> constraints;
+
+    // True if we need to reconfigure this package. If available package
+    // is NULL, then reconfigure must be true (this is a dependent that
+    // needs to be reconfigured because its prerequisite is being up/down-
+    // graded). Note that in some cases reconfigure is naturally implied.
+    // For example, if an already configured package is being up/down-
+    // graded. For such cases we don't guarantee that the reconfigure flag
+    // is true. We only make sure to set it for cases that would otherwise
+    // miss the need for the reconfiguration.
+    //
+    // At first, it may seem that this flag is redundant and having the
+    // available package set to NULL is sufficient. But consider the case
+    // where the user asked us to build a package that is already in the
+    // configured state (so all we have to do is pkg-update). Next, add
+    // to this a prerequisite package that is being upgraded. Now our
+    // original package has to be reconfigured. But without this flag
+    // we won't know (available for our package won't be NULL).
+    //
+    bool reconfigure;
   };
 
   struct satisfied_packages
@@ -193,6 +212,7 @@ namespace bpkg
     {
       tracer trace ("collect");
 
+      assert (pkg.available != nullptr); // No dependents allowed here.
       auto i (map_.find (pkg.available->id.name));
 
       // If we already have an entry for this package name, then we
@@ -339,8 +359,9 @@ namespace bpkg
       // this process if the package is already configured since that would
       // mean all its prerequisites are configured as well. Note that this
       // is not merely an optimization: the package could be an orphan in
-      // which case the below logic will fail. By skipping the prerequisite
-      // check we are able to gracefully handle configured orphans.
+      // which case the below logic will fail (no repository in which to
+      // search for prerequisites). By skipping the prerequisite check we
+      // are able to gracefully handle configured orphans.
       //
       const satisfied_package& p (i->second.package);
       const shared_ptr<selected_package>& sp (p.selected);
@@ -351,11 +372,7 @@ namespace bpkg
           sp->state == package_state::configured)
         return true;
 
-      const shared_ptr<repository>& ar (p.repository);
-      const string& name (ap->id.name);
-
-      // Show how we got here if things go wrong while recursively
-      // collecting prerequisites.
+      // Show how we got here if things go wrong.
       //
       auto g (
         make_exception_guard (
@@ -363,6 +380,9 @@ namespace bpkg
           {
             info << "while satisfying " << ap->id.name << " " << ap->version;
           }));
+
+      const shared_ptr<repository>& ar (p.repository);
+      const string& name (ap->id.name);
 
       for (const dependency_alternatives& da: ap->dependencies)
       {
@@ -419,7 +439,7 @@ namespace bpkg
             force = true;
         }
 
-        satisfied_package dp {dsp, rp.first, rp.second, {}};
+        satisfied_package dp {dsp, rp.first, rp.second, {}, false};
 
         // Add our constraint, if we have one.
         //
@@ -478,21 +498,58 @@ namespace bpkg
           return pos;
       }
 
+      // Order all the prerequisites of this package and compute the
+      // position of its "earliest" prerequisite -- this is where it
+      // will be inserted.
+      //
       const satisfied_package& p (mi->second.package);
+      const shared_ptr<selected_package>& sp (p.selected);
+      const shared_ptr<available_package>& ap (p.available);
+
+      assert (ap != nullptr); // No dependents allowed here.
 
       // Unless this package needs something to be before it, add it to
       // the end of the list.
       //
       iterator i (list_.end ());
 
-      // Order all the prerequisites of this package and compute the
-      // position of its "earliest" prerequisite -- this is where it
-      // will be inserted. Similar to collect(), prune if configured
-      // package (we don't have its prerequisites in the map).
+      // Figure out if j is before i, in which case set i to j. The goal
+      // here is to find the position of our "earliest" prerequisite.
       //
-      if (p.selected == nullptr ||
-          p.selected->version != p.available->version ||
-          p.selected->state != package_state::configured)
+      auto update = [this, &i] (iterator j)
+      {
+        for (iterator k (j); i != j && k != list_.end ();)
+          if (++k == i)
+            i = j;
+      };
+
+      // Similar to collect(), we can prune if the package is already
+      // configured, right? Not so fast. While in collect() we didn't
+      // need to add prerequisites of such a package, it doesn't mean
+      // that they actually never ended up in the map via another way.
+      // For example, some can be a part of the initial selection. And
+      // in that case we must order things properly.
+      //
+      // So here we are going to do things differently depending on
+      // whether the package is already configured or not. If it is,
+      // then that means we can use its prerequisites list. Otherwise,
+      // we use the manifest data.
+      //
+      if (sp != nullptr &&
+          sp->version == ap->version &&
+          sp->state == package_state::configured)
+      {
+        for (const auto& p: sp->prerequisites)
+        {
+          const string& name (p.first.object_id ());
+
+          // The prerequisites may not necessarily be on the map.
+          //
+          if (map_.find (name) != map_.end ())
+            update (order (name, false));
+        }
+      }
+      else
       {
         // We are iterating in reverse so that when we iterate over
         // the dependency list (also in reverse), prerequisites will
@@ -505,18 +562,110 @@ namespace bpkg
           assert (!da.conditional && da.size () == 1); // @@ TODO
           const dependency& d (da.front ());
 
-          iterator j (order (d.name, false));
-
-          // Figure out if j is before i, in which case set i to j. The
-          // goal here is to find the position of our first prerequisite.
-          //
-          for (iterator k (j); i != j && k != list_.end ();)
-            if (++k == i)
-              i = j;
+          update (order (d.name, false));
         }
       }
 
       return pos = list_.insert (i, p);
+    }
+
+    // If a configured package is being up/down-graded then that means
+    // all its dependents could be affected and we have to reconfigure
+    // them. This function examines every package that is already on
+    // the list and collects and orders all its dependents.
+    //
+    // Should we reconfigure just the direct depends or also include
+    // indirect, recursively? Consider this plauisible scenario as an
+    // example: We are upgrading a package to a version that provides
+    // an additional API. When its direct dependent gets reconfigured,
+    // it notices this new API and exposes its own extra functionality
+    // that is based on it. Now it would make sense to let its own
+    // dependents (which would be our original package's indirect ones)
+    // to also notice this.
+    //
+    void
+    collect_order_dependents (database& db)
+    {
+      // For each package on the list we want to insert all its dependents
+      // before it so that they get configured after the package on which
+      // they depend is configured (remember, our build order is reverse,
+      // with the last package being built first). This applies to both
+      // packages that are already on the list as well as the ones that
+      // we add, recursively.
+      //
+      for (auto i (list_.begin ()); i != list_.end (); ++i)
+      {
+        const satisfied_package& p (*i);
+
+        // Prune if this is not a configured package being up/down-graded
+        // or reconfigured.
+        //
+        if (p.selected != nullptr &&
+            p.selected->state == package_state::configured &&
+            (p.reconfigure || p.selected->version != p.available->version))
+          collect_order_dependents (db, i);
+      }
+    }
+
+    void
+    collect_order_dependents (database& db, iterator pos)
+    {
+      tracer trace ("collect_order_dependents");
+
+      const satisfied_package& p (*pos);
+      const string& n (p.selected->name);
+
+      using query = query<package_dependent>;
+
+      for (auto& pd: db.query<package_dependent> (query::name == n))
+      {
+        string& dn (pd.name);
+
+        // We can have three cases here: the package is already on the
+        // list, the package is in the map (but not on the list) and it
+        // is in neither.
+        //
+        //
+        auto i (map_.find (dn));
+
+        if (i != map_.end ())
+        {
+          satisfied_package& dp (i->second.package);
+
+          // Force reconfiguration in both cases.
+          //
+          dp.reconfigure = true;
+
+          if (i->second.position == list_.end ())
+          {
+            // Clean the satisfied_package object up to make sure we don't
+            // inadvertently force up/down-grade.
+            //
+            dp.available = nullptr;
+            dp.repository = nullptr;
+
+            i->second.position = list_.insert (pos, dp);
+          }
+        }
+        else
+        {
+          shared_ptr<selected_package> dsp (db.load<selected_package> (dn));
+
+          i = map_.emplace (
+            move (dn),
+            data_type
+            {
+              list_.end (),
+              satisfied_package {move (dsp), nullptr, nullptr, {}, true}
+            }).first;
+
+          i->second.position = list_.insert (pos, i->second.package);
+        }
+
+        // Collect our own dependents inserting them before us.
+        //
+        collect_order_dependents (db, i->second.position);
+      }
     }
 
   private:
@@ -739,7 +888,7 @@ namespace bpkg
       //
       level4 ([&]{trace << "collect " << ap->id.name << " " << ap->version;});
 
-      satisfied_package p {move (sp), move (ap), move (ar), {}};
+      satisfied_package p {move (sp), move (ap), move (ar), {}, false};
 
       // "Fix" the version the user asked for by adding the '==' constraint.
       //
@@ -764,6 +913,12 @@ namespace bpkg
     for (const string& n: reverse_iterate (names))
       pkgs.order (n);
 
+    // Finally, collect and order all the dependents that we will need
+    // to reconfigure because of the up/down-grades of package that are
+    // already on the list.
+    //
+    pkgs.collect_order_dependents (db);
+
     // Print what we are going to do, then ask for the user's confirmation.
     //
     for (const satisfied_package& p: reverse_iterate (pkgs))
@@ -771,20 +926,37 @@ namespace bpkg
       const shared_ptr<selected_package>& sp (p.selected);
       const shared_ptr<available_package>& ap (p.available);
 
-      const char* a;
+      const char* act;
+      string n;
+      version v;
 
-      // Even if we already have this package selected, we have to
-      // make sure it is configured and updated.
-      //
-      if (sp == nullptr || sp->version == ap->version)
-        a = "build";
+      if (ap == nullptr)
+      {
+        // This is a dependent needing reconfiguration.
+        //
+        assert (sp != nullptr && p.reconfigure);
+
+        n = sp->name;
+        act = "reconfigure";
+      }
       else
-        a = sp->version < ap->version ? "upgrade" : "downgrade";
+      {
+        n = ap->id.name;
+        v = ap->version;
+
+        // Even if we already have this package selected, we have to
+        // make sure it is configured and updated.
+        //
+        if (sp == nullptr || sp->version == v)
+          act = p.reconfigure ? "reconfigure/build" : "build";
+        else
+          act = sp->version < v ? "upgrade" : "downgrade";
+      }
 
       if (o.print_only ())
-        cout << a << " " << ap->id.name << " " << ap->version << endl;
+        cout << act << " " << n << (v.empty () ? "" : " ") << v << endl;
       else
-        text << a << " " << ap->id.name << " " << ap->version;
+        text << act << " " << n << (v.empty () ? "" : " ") << v;
     }
 
     if (o.print_only ())
