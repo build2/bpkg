@@ -133,11 +133,11 @@ namespace bpkg
   // prerequisites (and so on, recursively) in a map trying to satisfy
   // any dependency constraints. Specifically, during this step, we may
   // "upgrade" or "downgrade" a package that is already in a map as a
-  // result of another package depending on it and, for example requiring
+  // result of another package depending on it and, for example, requiring
   // a different version. One notable side-effect of this process is that
   // we may end up with a lot more packages in the map than we will have
-  // on the list. This is because some of the prerequisites of upgraded
-  // or downgraded packages may no longer need to be built.
+  // on the list. This is because some of the prerequisites of "upgraded"
+  // or "downgraded" packages may no longer need to be built.
   //
   // Note also that we don't try to do exhaustive constraint satisfaction
   // (i.e., there is no backtracking). Specifically, if we have two
@@ -171,15 +171,6 @@ namespace bpkg
     vector<constraint_type> constraints;
   };
 
-  // Now that we have collected all the package versions that we need
-  // to build, arrange them in the "dependency order", that is, with
-  // every package on the list only possibly depending on the ones
-  // after it. Iterate over the names we have collected on the previous
-  // step in reverse so that when we iterate over the packages (also in
-  // reverse), things will be built as close as possible to the order
-  // specified by the user (it may still get altered if there are
-  // dependencies between the specified packages).
-  //
   struct satisfied_packages
   {
     using list_type = list<reference_wrapper<const satisfied_package>>;
