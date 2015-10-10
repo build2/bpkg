@@ -22,10 +22,10 @@ namespace bpkg
                 const shared_ptr<selected_package>& p,
                 bool archive)
   {
+    tracer trace ("pkg_purge_archive");
+
     assert (p->state == package_state::fetched ||
             p->state == package_state::unpacked);
-
-    tracer trace ("pkg_purge_archive");
 
     database& db (t.database ());
     tracer_guard tg (db, trace);

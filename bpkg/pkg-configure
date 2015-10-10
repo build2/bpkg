@@ -6,12 +6,21 @@
 #define BPKG_PKG_CONFIGURE
 
 #include <bpkg/types>
+#include <bpkg/forward> // transaction, selected_package
 #include <bpkg/pkg-configure-options>
 
 namespace bpkg
 {
   void
   pkg_configure (const pkg_configure_options&, cli::scanner& args);
+
+  // Configure the package, update its state, and commit the transaction.
+  //
+  void
+  pkg_configure (const dir_path& configuration,
+                 transaction&,
+                 const shared_ptr<selected_package>&,
+                 const strings& config_vars);
 }
 
 #endif // BPKG_PKG_CONFIGURE

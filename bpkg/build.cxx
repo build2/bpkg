@@ -23,7 +23,11 @@
 
 #include <bpkg/common-options>
 
+#include <bpkg/pkg-fetch>
+#include <bpkg/pkg-unpack>
+#include <bpkg/pkg-update>
 #include <bpkg/pkg-verify>
+#include <bpkg/pkg-configure>
 #include <bpkg/pkg-disfigure>
 
 using namespace std;
@@ -35,6 +39,7 @@ namespace bpkg
   //
   //    - User-selected vs auto-selected packages.
   //    - Detect and complain about dependency cycles.
+  //    - Configuration vars (both passed and preserved)
   //
 
   // Try to find a package that optionally satisfies the specified
@@ -205,17 +210,16 @@ namespace bpkg
 
   struct satisfied_packages
   {
-    using list_type = list<reference_wrapper<const satisfied_package>>;
+    using list_type = list<reference_wrapper<satisfied_package>>;
 
     using iterator = list_type::iterator;
-    using const_iterator = list_type::const_iterator;
-    using const_reverse_iterator = list_type::const_reverse_iterator;
+    using reverse_iterator = list_type::reverse_iterator;
 
-    const_iterator begin () const {return list_.begin ();}
-    const_iterator end () const {return list_.end ();}
+    iterator begin () {return list_.begin ();}
+    iterator end () {return list_.end ();}
 
-    const_reverse_iterator rbegin () const {return list_.rbegin ();}
-    const_reverse_iterator rend () const {return list_.rend ();}
+    reverse_iterator rbegin () {return list_.rbegin ();}
+    reverse_iterator rend () {return list_.rend ();}
 
     // Collect the package. Return true if this package version was,
     // in fact, added to the map and false if it was already there
@@ -519,7 +523,7 @@ namespace bpkg
       // position of its "earliest" prerequisite -- this is where it
       // will be inserted.
       //
-      const satisfied_package& p (mi->second.package);
+      satisfied_package& p (mi->second.package);
       const shared_ptr<selected_package>& sp (p.selected);
       const shared_ptr<available_package>& ap (p.available);
 
@@ -995,16 +999,20 @@ namespace bpkg
       return;
 
     // Ok, we have the green light. The overall action plan is as follows.
-    // Note that for some actions, e.g., drop or fetch, the order is not
-    // really important. We will, however, do it right to left since that
-    // is the order closest to that of the user selection.
     //
     // 1. disfigure  up/down-graded, reconfigured [left to right]
-    // 2. drop       up/down-graded
+    // 2. purge      up/down-graded
     // 3. fetch      new, up/down-graded
     // 4. unpack     new, up/down-graded
     // 5. configure  all                          [right to left]
     // 6. build      user selection               [right to left]
+    //
+    // Note that for some actions, e.g., purge or fetch, the order is not
+    // really important. We will, however, do it right to left since that
+    // is the order closest to that of the user selection.
+    //
+    // We are also going to combine purge/fetch/unpack into a single step
+    // and use the replace mode so it will become just fetch/unpack.
     //
 
     // disfigure
@@ -1028,6 +1036,121 @@ namespace bpkg
 
       if (verb)
         text << "disfigured " << sp->name << " " << sp->version;
+    }
+
+    // fetch/unpack
+    //
+    for (satisfied_package& p: reverse_iterate (pkgs))
+    {
+      shared_ptr<selected_package>& sp (p.selected);
+      const shared_ptr<available_package>& ap (p.available);
+
+      if (ap == nullptr) // Skip dependents.
+        continue;
+
+      // Fetch if this is a new package or if we are up/down-grading.
+      //
+      if (sp == nullptr || sp->version != ap->version)
+      {
+        sp.reset (); // For the directory case below.
+
+        // Distinguish between the package and archive/directory cases.
+        //
+        const package_location& pl (ap->locations[0]); // Got to have one.
+
+        if (pl.repository.object_id () != "") // Special root?
+        {
+          transaction t (db.begin ());
+          sp = pkg_fetch (o,
+                          c,
+                          t,
+                          ap->id.name,
+                          ap->version,
+                          true); // Replace; commits the transaction.
+        }
+        else if (exists (pl.location)) // Directory case is handled by unpack.
+        {
+          transaction t (db.begin ());
+          sp = pkg_fetch (o,
+                          c,
+                          t,
+                          pl.location, // Archive path.
+                          true,        // Replace
+                          false);      // Don't purge; commits the transaction.
+        }
+
+        if (sp != nullptr) // Actually unpacked something?
+        {
+          assert (sp->state == package_state::fetched);
+
+          if (verb)
+            text << "fetched " << sp->name << " " << sp->version;
+        }
+      }
+
+      // Unpack. Note that the package can still be NULL if this is the
+      // directory case (see the fetch code above).
+      //
+      if (sp == nullptr || sp->state == package_state::fetched)
+      {
+        if (sp != nullptr)
+        {
+          transaction t (db.begin ());
+          sp = pkg_unpack (o, c, t, ap->id.name); // Commits the transaction.
+        }
+        else
+        {
+          const package_location& pl (ap->locations[0]);
+          assert (pl.repository.object_id () == ""); // Special root.
+
+          transaction t (db.begin ());
+          sp = pkg_unpack (c,
+                           t,
+                           path_cast<dir_path> (pl.location),
+                           true,   // Replace.
+                           false); // Don't purge; commits the transaction.
+        }
+
+        assert (sp->state == package_state::unpacked);
+
+        if (verb)
+          text << "unpacked " << sp->name << " " << sp->version;
+      }
+    }
+
+    // configure
+    //
+    for (const satisfied_package& p: reverse_iterate (pkgs))
+    {
+      const shared_ptr<selected_package>& sp (p.selected);
+
+      assert (sp != nullptr);
+
+      // We configure everything that isn't already configured.
+      //
+      if (sp->state == package_state::configured)
+        continue;
+
+      transaction t (db.begin ());
+      pkg_configure (c, t, sp, strings ()); // Commits the transaction.
+      assert (sp->state == package_state::configured);
+
+      if (verb)
+        text << "configured " << sp->name << " " << sp->version;
+    }
+
+    // update
+    //
+    for (const satisfied_package& p: reverse_iterate (pkgs))
+    {
+      const shared_ptr<selected_package>& sp (p.selected);
+
+      // @@ TODO: update user selection only.
+      //
+      pkg_update (c, sp);
+
+      if (verb)
+        text << "updated " << sp->name << " " << sp->version;
     }
   }
 }

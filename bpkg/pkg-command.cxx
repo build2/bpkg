@@ -18,11 +18,33 @@ namespace bpkg
 {
   void
   pkg_command (const string& cmd,
+               const dir_path& c,
+               const shared_ptr<selected_package>& p)
+  {
+    tracer trace ("pkg_command");
+
+    assert (p->state == package_state::configured);
+    assert (p->out_root); // Should be present since configured.
+
+    level4 ([&]{trace << "command: " << cmd;});
+
+    dir_path out_root (c / *p->out_root); // Always relative.
+    level4 ([&]{trace << "out_root: " << out_root;});
+
+    // Form the buildspec.
+    //
+    string bspec (cmd + "(" + out_root.string () + "/)");
+    level4 ([&]{trace << "buildspec: " << bspec;});
+
+    run_b (bspec);
+  }
+
+  void
+  pkg_command (const string& cmd,
                const configuration_options& o,
                cli::scanner& args)
   {
     tracer trace ("pkg_command");
-    level4 ([&]{trace << "command: " << cmd;});
 
     const dir_path& c (o.directory ());
     level4 ([&]{trace << "configuration: " << c;});
@@ -48,16 +70,7 @@ namespace bpkg
 
     level4 ([&]{trace << p->name << " " << p->version;});
 
-    assert (p->out_root); // Should be present since configured.
-    dir_path out_root (c / *p->out_root); // Always relative.
-    level4 ([&]{trace << "out_root: " << out_root;});
-
-    // Form the buildspec.
-    //
-    string bspec (cmd + "(" + out_root.string () + "/)");
-    level4 ([&]{trace << "buildspec: " << bspec;});
-
-    run_b (bspec);
+    pkg_command (cmd, c, p);
 
     if (verb)
       text << cmd << (cmd.back () != 'e' ? "ed " : "d ")

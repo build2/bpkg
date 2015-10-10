@@ -23,14 +23,16 @@ using namespace butl;
 
 namespace bpkg
 {
-  static shared_ptr<selected_package>
-  pkg_unpack (database& db,
-              const dir_path& c,
+  shared_ptr<selected_package>
+  pkg_unpack (const dir_path& c,
+              transaction& t,
               const dir_path& d,
               bool replace,
               bool purge)
   {
-    tracer trace ("pkg_unpack(dir)");
+    tracer trace ("pkg_unpack");
+
+    database& db (t.database ());
     tracer_guard tg (db, trace);
 
     if (!exists (d))
@@ -51,8 +53,6 @@ namespace bpkg
 
     if (ad.sub (ac))
       ad = ad.leaf (ac);
-
-    transaction t (db.begin ());
 
     // See if this package already exists in this configuration.
     //
@@ -112,16 +112,17 @@ namespace bpkg
     return p;
   }
 
-  static shared_ptr<selected_package>
+  shared_ptr<selected_package>
   pkg_unpack (const common_options& co,
-              database& db,
               const dir_path& c,
+              transaction& t,
               const string& name)
   {
-    tracer trace ("pkg_unpack(pkg)");
+    tracer trace ("pkg_unpack");
+
+    database& db (t.database ());
     tracer_guard tg (db, trace);
 
-    transaction t (db.begin ());
     shared_ptr<selected_package> p (db.find<selected_package> (name));
 
     if (p == nullptr)
@@ -224,6 +225,7 @@ namespace bpkg
     level4 ([&]{trace << "configuration: " << c;});
 
     database db (open (c, trace));
+    transaction t (db.begin ());
 
     shared_ptr<selected_package> p;
 
@@ -236,7 +238,7 @@ namespace bpkg
           info << "run 'bpkg help pkg-unpack' for more information";
 
       p = pkg_unpack (
-        db, c, dir_path (args.next ()), o.replace (), o.purge ());
+        c, t, dir_path (args.next ()), o.replace (), o.purge ());
     }
     else
     {
@@ -246,7 +248,7 @@ namespace bpkg
         fail << "package name argument expected" <<
           info << "run 'bpkg help pkg-unpack' for more information";
 
-      p = pkg_unpack (o, db, c, args.next ());
+      p = pkg_unpack (o, c, t, args.next ());
     }
 
     if (verb)

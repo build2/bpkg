@@ -21,53 +21,21 @@ using namespace butl;
 namespace bpkg
 {
   void
-  pkg_configure (const pkg_configure_options& o, cli::scanner& args)
+  pkg_configure (const dir_path& c,
+                 transaction& t,
+                 const shared_ptr<selected_package>& p,
+                 const strings& vars)
   {
     tracer trace ("pkg_configure");
 
-    const dir_path& c (o.directory ());
-    level4 ([&]{trace << "configuration: " << c;});
+    assert (p->state == package_state::unpacked);
+    assert (p->src_root); // Must be set since unpacked.
 
-    // Sort arguments into the package name and configuration variables.
-    //
-    string n;
-    strings vars;
-
-    while (args.more ())
-    {
-      string a (args.next ());
-
-      if (a.find ('=') != string::npos)
-        vars.push_back (move (a));
-      else if (n.empty ())
-        n = move (a);
-      else
-        fail << "unexpected argument '" << a << "'";
-    }
-
-    if (n.empty ())
-      fail << "package name argument expected" <<
-        info << "run 'bpkg help pkg-configure' for more information";
-
-    database db (open (c, trace));
-    transaction t (db.begin ());
-    session s;
-
-    shared_ptr<selected_package> p (db.find<selected_package> (n));
-
-    if (p == nullptr)
-      fail << "package " << n << " does not exist in configuration " << c;
-
-    if (p->state != package_state::unpacked)
-      fail << "package " << n << " is " << p->state <<
-        info << "expected it to be unpacked";
-
-    level4 ([&]{trace << p->name << " " << p->version;});
+    database& db (t.database ());
+    tracer_guard tg (db, trace);
 
     // Calculate package's src_root and out_root.
     //
-    assert (p->src_root); // Must be set since unpacked.
-
     dir_path src_root (p->src_root->absolute ()
                        ? *p->src_root
                        : c / *p->src_root);
@@ -174,6 +142,53 @@ namespace bpkg
 
     db.update (p);
     t.commit ();
+  }
+
+  void
+  pkg_configure (const pkg_configure_options& o, cli::scanner& args)
+  {
+    tracer trace ("pkg_configure");
+
+    const dir_path& c (o.directory ());
+    level4 ([&]{trace << "configuration: " << c;});
+
+    // Sort arguments into the package name and configuration variables.
+    //
+    string n;
+    strings vars;
+
+    while (args.more ())
+    {
+      string a (args.next ());
+
+      if (a.find ('=') != string::npos)
+        vars.push_back (move (a));
+      else if (n.empty ())
+        n = move (a);
+      else
+        fail << "unexpected argument '" << a << "'";
+    }
+
+    if (n.empty ())
+      fail << "package name argument expected" <<
+        info << "run 'bpkg help pkg-configure' for more information";
+
+    database db (open (c, trace));
+    transaction t (db.begin ());
+    session s;
+
+    shared_ptr<selected_package> p (db.find<selected_package> (n));
+
+    if (p == nullptr)
+      fail << "package " << n << " does not exist in configuration " << c;
+
+    if (p->state != package_state::unpacked)
+      fail << "package " << n << " is " << p->state <<
+        info << "expected it to be unpacked";
+
+    level4 ([&]{trace << p->name << " " << p->version;});
+
+    pkg_configure (c, t, p, vars); // Commits the transaction.
 
     if (verb)
       text << "configured " << p->name << " " << p->version;
