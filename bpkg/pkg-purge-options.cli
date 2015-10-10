@@ -16,8 +16,8 @@ bpkg pkg-purge [<options>] <pkg>"
 
 The \cb{pkg-purge} command removes the package directory and archive
 from the filesystem and removes the package from the configuration's
-database. Only packages in the \cb{fetched} and \cb{unpacked} state
-can be purged plus broken packages if the \cb{-f|--force} options is
+database. Only packages in the \cb{fetched} and \cb{unpacked} state can
+be purged plus \cb{broken} packages if the \cb{-f|--force} options is
 specified (see this option's description for details on purging broken
 packages). If the \cb{-k|--keep} option is specified, then the package
 archive is not removed (see this option's description for details on

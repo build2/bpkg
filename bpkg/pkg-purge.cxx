@@ -17,6 +17,40 @@ using namespace butl;
 namespace bpkg
 {
   void
+  pkg_purge_archive (const dir_path& c,
+                     transaction& t,
+                     const shared_ptr<selected_package>& p)
+  {
+    assert (p->purge_archive && p->state != package_state::broken);
+
+    tracer trace ("pkg_purge_archive");
+
+    database& db (t.database ());
+    tracer_guard tg (db, trace);
+
+    path a (p->archive->absolute () ? *p->archive : c / *p->archive);
+
+    try
+    {
+      if (exists (a))
+        rm (a);
+
+      p->archive = nullopt;
+      p->purge_archive = false;
+    }
+    catch (const failed&)
+    {
+      p->state = package_state::broken;
+      db.update (p);
+      t.commit ();
+
+      info << "package " << p->name << " is now broken; "
+           << "use 'pkg-purge --force' to remove";
+      throw;
+    }
+  }
+
+  void
   pkg_purge (const pkg_purge_options& o, cli::scanner& args)
   {
     tracer trace ("pkg_purge");
@@ -131,31 +165,12 @@ namespace bpkg
     //
     if (p->purge_archive && !o.keep ())
     {
-      path a (p->archive->absolute () ? *p->archive : c / *p->archive);
-
       if (p->state != package_state::broken)
-      {
-        try
-        {
-          if (exists (a))
-            rm (a);
-
-          p->archive = nullopt;
-          p->purge_archive = false;
-        }
-        catch (const failed&)
-        {
-          p->state = package_state::broken;
-          db.update (p);
-          t.commit ();
-
-          info << "package " << n << " is now broken; "
-               << "use 'pkg-purge --force' to remove";
-          throw;
-        }
-      }
+        pkg_purge_archive (c, t, p);
       else
       {
+        path a (p->archive->absolute () ? *p->archive : c / *p->archive);
+
         if (exists (a))
           fail << "broken package " << n << " archive still exists" <<
             info << "remove " << a << " manually then re-run pkg-purge";

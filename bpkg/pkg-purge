@@ -6,12 +6,21 @@
 #define BPKG_PKG_PURGE
 
 #include <bpkg/types>
+#include <bpkg/forward> // transaction, selected_package
 #include <bpkg/pkg-purge-options>
 
 namespace bpkg
 {
   void
   pkg_purge (const pkg_purge_options&, cli::scanner& args);
+
+  // Remove package archive. If this fails, set the package state to
+  // broken, commit the transaction, and fail.
+  //
+  void
+  pkg_purge_archive (const dir_path& configuration,
+                     transaction&,
+                     const shared_ptr<selected_package>&);
 }
 
 #endif // BPKG_PKG_PURGE
