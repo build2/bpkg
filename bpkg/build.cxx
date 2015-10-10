@@ -24,6 +24,7 @@
 #include <bpkg/common-options>
 
 #include <bpkg/pkg-verify>
+#include <bpkg/pkg-disfigure>
 
 using namespace std;
 using namespace butl;
@@ -33,6 +34,7 @@ namespace bpkg
   // @@ TODO
   //
   //    - User-selected vs auto-selected packages.
+  //    - Detect and complain about dependency cycles.
   //
 
   // Try to find a package that optionally satisfies the specified
@@ -173,11 +175,13 @@ namespace bpkg
     // True if we need to reconfigure this package. If available package
     // is NULL, then reconfigure must be true (this is a dependent that
     // needs to be reconfigured because its prerequisite is being up/down-
-    // graded). Note that in some cases reconfigure is naturally implied.
-    // For example, if an already configured package is being up/down-
-    // graded. For such cases we don't guarantee that the reconfigure flag
-    // is true. We only make sure to set it for cases that would otherwise
-    // miss the need for the reconfiguration.
+    // graded or reconfigured). Note that in some cases reconfigure is
+    // naturally implied. For example, if an already configured package
+    // is being up/down-graded. For such cases we don't guarantee that
+    // the reconfigure flag is true. We only make sure to set it for
+    // cases that would otherwise miss the need for the reconfiguration.
+    // As a result, use the reconfigure() accessor which detects both
+    // explicit and implied cases.
     //
     // At first, it may seem that this flag is redundant and having the
     // available package set to NULL is sufficient. But consider the case
@@ -187,7 +191,16 @@ namespace bpkg
     // original package has to be reconfigured. But without this flag
     // we won't know (available for our package won't be NULL).
     //
-    bool reconfigure;
+    bool reconfigure_;
+
+    bool
+    reconfigure () const
+    {
+      return selected != nullptr &&
+        selected->state == package_state::configured &&
+        (reconfigure_ || // Must be checked first, available could be NULL.
+         selected->version != available->version);
+    }
   };
 
   struct satisfied_packages
@@ -195,10 +208,14 @@ namespace bpkg
     using list_type = list<reference_wrapper<const satisfied_package>>;
 
     using iterator = list_type::iterator;
-    using reverse_iterator = list_type::const_reverse_iterator;
+    using const_iterator = list_type::const_iterator;
+    using const_reverse_iterator = list_type::const_reverse_iterator;
 
-    reverse_iterator rbegin () const {return list_.rbegin ();}
-    reverse_iterator rend () const {return list_.rend ();}
+    const_iterator begin () const {return list_.begin ();}
+    const_iterator end () const {return list_.end ();}
+
+    const_reverse_iterator rbegin () const {return list_.rbegin ();}
+    const_reverse_iterator rend () const {return list_.rend ();}
 
     // Collect the package. Return true if this package version was,
     // in fact, added to the map and false if it was already there
@@ -600,9 +617,7 @@ namespace bpkg
         // Prune if this is not a configured package being up/down-graded
         // or reconfigured.
         //
-        if (p.selected != nullptr &&
-            p.selected->state == package_state::configured &&
-            (p.reconfigure || p.selected->version != p.available->version))
+        if (p.reconfigure ())
           collect_order_dependents (db, i);
       }
     }
@@ -634,7 +649,7 @@ namespace bpkg
 
           // Force reconfiguration in both cases.
           //
-          dp.reconfigure = true;
+          dp.reconfigure_ = true;
 
           if (i->second.position == list_.end ())
           {
@@ -694,230 +709,242 @@ namespace bpkg
         info << "run 'bpkg help build' for more information";
 
     database db (open (c, trace));
-    transaction t (db.begin ());
+
+    // Note that the session spans all our transactions. The idea here is
+    // that selected_package objects in the satisfied_packages list below
+    // will be cached in this session. When subsequent transactions modify
+    // any of these objects, they will modify the cached instance, which
+    // means our list will always "see" their updated state.
+    //
     session s;
 
-    shared_ptr<repository> root (db.load<repository> (""));
-
-    // Start assembling the list of packages we will need to build by
-    // first collecting the user's selection and its prerequisites.
+    // Assemble the list of packages we will need to build.
     //
     satisfied_packages pkgs;
     vector<string> names;
-
-    while (args.more ())
     {
-      const char* s (args.next ());
+      transaction t (db.begin ());
 
-      // Reduce all the potential variations (archive, directory, package
-      // name, package name/version) to a single available_package object.
-      //
-      string n;
-      version v;
+      shared_ptr<repository> root (db.load<repository> (""));
 
-      shared_ptr<repository> ar;
-      shared_ptr<available_package> ap;
-
-      // Is this a package archive?
-      //
-      try
+      while (args.more ())
       {
-        path a (s);
-        if (exists (a))
-        {
-          package_manifest m (pkg_verify (o, a, false));
+        const char* s (args.next ());
 
-          // This is a package archive (note that we shouldn't throw
-          // failed from here on).
-          //
-          level4 ([&]{trace << "archive " << a;});
-          n = m.name;
-          v = m.version;
-          ar = root;
-          ap = make_shared<available_package> (move (m));
-          ap->locations.push_back (package_location {root, move (a)});
-        }
-      }
-      catch (const invalid_path&)
-      {
-        // Not a valid path so cannot be an archive.
-      }
-      catch (const failed&)
-      {
-        // Not a valid package archive.
-      }
-
-      // Is this a package directory?
-      //
-      try
-      {
-        dir_path d (s);
-        if (exists (d))
-        {
-          package_manifest m (pkg_verify (d, false));
-
-          // This is a package directory (note that we shouldn't throw
-          // failed from here on).
-          //
-          level4 ([&]{trace << "directory " << d;});
-          n = m.name;
-          v = m.version;
-          ap = make_shared<available_package> (move (m));
-          ar = root;
-          ap->locations.push_back (package_location {root, move (d)});
-        }
-      }
-      catch (const invalid_path&)
-      {
-        // Not a valid path so cannot be an archive.
-      }
-      catch (const failed&)
-      {
-        // Not a valid package archive.
-      }
-
-      // Then it got to be a package name with optional version.
-      //
-      if (ap == nullptr)
-      {
-        n = parse_package_name (s);
-        v = parse_package_version (s);
-        level4 ([&]{trace << "package " << n << "; version " << v;});
-
-        // Either get the user-specified version or the latest.
+        // Reduce all the potential variations (archive, directory, package
+        // name, package name/version) to a single available_package object.
         //
-        auto rp (
-          v.empty ()
-          ? find_available (db, n, root, nullopt)
-          : find_available (db, n, root,
-                            dependency_constraint {comparison::eq, v}));
+        string n;
+        version v;
 
-        ap = rp.first;
-        ar = rp.second;
-      }
+        shared_ptr<repository> ar;
+        shared_ptr<available_package> ap;
 
-      // Load the package that may have already been selected and
-      // figure out what exactly we need to do here. The end goal
-      // is the available_package object corresponding to the actual
-      // package that we will be building (which may or may not be
-      // the same as the selected package).
-      //
-      shared_ptr<selected_package> sp (db.find<selected_package> (n));
-
-      if (sp != nullptr && sp->state == package_state::broken)
-        fail << "unable to build broken package " << n <<
-          info << "use 'pkg-purge --force' to remove";
-
-      bool found (true);
-
-      // If the user asked for a specific version, then that's what
-      // we ought to be building.
-      //
-      if (!v.empty ())
-      {
-        for (;;)
+        // Is this a package archive?
+        //
+        try
         {
-          if (ap != nullptr) // Must be that version, see above.
+          path a (s);
+          if (exists (a))
+          {
+            package_manifest m (pkg_verify (o, a, false));
+
+            // This is a package archive (note that we shouldn't throw
+            // failed from here on).
+            //
+            level4 ([&]{trace << "archive " << a;});
+            n = m.name;
+            v = m.version;
+            ar = root;
+            ap = make_shared<available_package> (move (m));
+            ap->locations.push_back (package_location {root, move (a)});
+          }
+        }
+        catch (const invalid_path&)
+        {
+          // Not a valid path so cannot be an archive.
+        }
+        catch (const failed&)
+        {
+          // Not a valid package archive.
+        }
+
+        // Is this a package directory?
+        //
+        try
+        {
+          dir_path d (s);
+          if (exists (d))
+          {
+            package_manifest m (pkg_verify (d, false));
+
+            // This is a package directory (note that we shouldn't throw
+            // failed from here on).
+            //
+            level4 ([&]{trace << "directory " << d;});
+            n = m.name;
+            v = m.version;
+            ap = make_shared<available_package> (move (m));
+            ar = root;
+            ap->locations.push_back (package_location {root, move (d)});
+          }
+        }
+        catch (const invalid_path&)
+        {
+          // Not a valid path so cannot be an archive.
+        }
+        catch (const failed&)
+        {
+          // Not a valid package archive.
+        }
+
+        // Then it got to be a package name with optional version.
+        //
+        if (ap == nullptr)
+        {
+          n = parse_package_name (s);
+          v = parse_package_version (s);
+          level4 ([&]{trace << "package " << n << "; version " << v;});
+
+          // Either get the user-specified version or the latest.
+          //
+          auto rp (
+            v.empty ()
+            ? find_available (db, n, root, nullopt)
+            : find_available (db, n, root,
+                              dependency_constraint {comparison::eq, v}));
+
+          ap = rp.first;
+          ar = rp.second;
+        }
+
+        // Load the package that may have already been selected and
+        // figure out what exactly we need to do here. The end goal
+        // is the available_package object corresponding to the actual
+        // package that we will be building (which may or may not be
+        // the same as the selected package).
+        //
+        shared_ptr<selected_package> sp (db.find<selected_package> (n));
+
+        if (sp != nullptr && sp->state == package_state::broken)
+          fail << "unable to build broken package " << n <<
+            info << "use 'pkg-purge --force' to remove";
+
+        bool found (true);
+
+        // If the user asked for a specific version, then that's what
+        // we ought to be building.
+        //
+        if (!v.empty ())
+        {
+          for (;;)
+          {
+            if (ap != nullptr) // Must be that version, see above.
+              break;
+
+            // Otherwise, our only chance is that the already selected
+            // object is that exact version.
+            //
+            if (sp != nullptr && sp->version == v)
+              break; // Derive ap from sp below.
+
+            found = false;
             break;
-
-          // Otherwise, our only chance is that the already selected
-          // object is that exact version.
-          //
-          if (sp != nullptr && sp->version == v)
-            break; // Derive ap from sp below.
-
-          found = false;
-          break;
+          }
         }
-      }
-      //
-      // No explicit version was specified by the user.
-      //
-      else
-      {
-        if (ap != nullptr)
-        {
-          // Even if this package is already in the configuration, should
-          // we have a newer version, we treat it as an upgrade request;
-          // otherwise, why specify the package in the first place? We just
-          // need to check if what we already have is "better" (i.e., newer).
-          //
-          if (sp != nullptr && ap->id.version < sp->version)
-            ap = nullptr; // Derive ap from sp below.
-        }
+        //
+        // No explicit version was specified by the user.
+        //
         else
         {
-          if (sp == nullptr)
-            found = false;
+          if (ap != nullptr)
+          {
+            // Even if this package is already in the configuration, should
+            // we have a newer version, we treat it as an upgrade request;
+            // otherwise, why specify the package in the first place? We just
+            // need to check if what we already have is "better" (i.e., newer).
+            //
+            if (sp != nullptr && ap->id.version < sp->version)
+              ap = nullptr; // Derive ap from sp below.
+          }
+          else
+          {
+            if (sp == nullptr)
+              found = false;
 
-          // Otherwise, derive ap from sp below.
+            // Otherwise, derive ap from sp below.
+          }
         }
-      }
 
-      if (!found)
-      {
-        diag_record dr;
+        if (!found)
+        {
+          diag_record dr;
 
-        dr << fail << "unknown package " << n;
-        if (!v.empty ())
-          dr << " " << v;
+          dr << fail << "unknown package " << n;
+          if (!v.empty ())
+            dr << " " << v;
 
-        // Let's help the new user out here a bit.
+          // Let's help the new user out here a bit.
+          //
+          if (db.query_value<repository_count> () == 0)
+            dr << info << "configuration " << c << " has no repositories"
+               << info << "use 'bpkg rep-add' to add a repository";
+          else if (db.query_value<available_package_count> () == 0)
+            dr << info << "configuration " << c << " has no available packages"
+               << info << "use 'bpkg rep-fetch' to fetch available packages "
+               << "list";
+        }
+
+        // If the available_package object is still NULL, then it means
+        // we need to get one corresponding to the selected package.
         //
-        if (db.query_value<repository_count> () == 0)
-          dr << info << "configuration " << c << " has no repositories"
-             << info << "use 'bpkg rep-add' to add a repository";
-        else if (db.query_value<available_package_count> () == 0)
-          dr << info << "configuration " << c << " has no available packages"
-             << info << "use 'bpkg rep-fetch' to fetch available packages list";
+        if (ap == nullptr)
+        {
+          assert (sp != nullptr);
+
+          auto rp (make_available (o, c, db, sp));
+          ap = rp.first;
+          ar = rp.second; // Could be NULL (orphan).
+        }
+
+        // Finally add this package to the list.
+        //
+        level4 ([&]{trace << "collect " << ap->id.name << " "
+                          << ap->version;});
+
+        satisfied_package p {move (sp), move (ap), move (ar), {}, false};
+
+        // "Fix" the version the user asked for by adding the '==' constraint.
+        //
+        if (!v.empty ())
+          p.constraints.emplace_back (
+            "command line",
+            dependency_constraint {comparison::eq, v});
+
+        pkgs.collect (o, c, db, move (p));
+        names.push_back (n);
       }
 
-      // If the available_package object is still NULL, then it means
-      // we need to get one corresponding to the selected package.
+      // Now that we have collected all the package versions that we need
+      // to build, arrange them in the "dependency order", that is, with
+      // every package on the list only possibly depending on the ones
+      // after it. Iterate over the names we have collected on the previous
+      // step in reverse so that when we iterate over the packages (also in
+      // reverse), things will be built as close as possible to the order
+      // specified by the user (it may still get altered if there are
+      // dependencies between the specified packages).
       //
-      if (ap == nullptr)
-      {
-        assert (sp != nullptr);
+      for (const string& n: reverse_iterate (names))
+        pkgs.order (n);
 
-        auto rp (make_available (o, c, db, sp));
-        ap = rp.first;
-        ar = rp.second; // Could be NULL (orphan).
-      }
-
-      // Finally add this package to the list.
+      // Finally, collect and order all the dependents that we will need
+      // to reconfigure because of the up/down-grades of packages that
+      // are now on the list.
       //
-      level4 ([&]{trace << "collect " << ap->id.name << " " << ap->version;});
+      pkgs.collect_order_dependents (db);
 
-      satisfied_package p {move (sp), move (ap), move (ar), {}, false};
-
-      // "Fix" the version the user asked for by adding the '==' constraint.
-      //
-      if (!v.empty ())
-        p.constraints.emplace_back (
-          "command line",
-          dependency_constraint {comparison::eq, v});
-
-      pkgs.collect (o, c, db, move (p));
-      names.push_back (n);
+      t.commit ();
     }
-
-    // Now that we have collected all the package versions that we need
-    // to build, arrange them in the "dependency order", that is, with
-    // every package on the list only possibly depending on the ones
-    // after it. Iterate over the names we have collected on the previous
-    // step in reverse so that when we iterate over the packages (also in
-    // reverse), things will be built as close as possible to the order
-    // specified by the user (it may still get altered if there are
-    // dependencies between the specified packages).
-    //
-    for (const string& n: reverse_iterate (names))
-      pkgs.order (n);
-
-    // Finally, collect and order all the dependents that we will need
-    // to reconfigure because of the up/down-grades of package that are
-    // already on the list.
-    //
-    pkgs.collect_order_dependents (db);
 
     // Print what we are going to do, then ask for the user's confirmation.
     //
@@ -934,7 +961,7 @@ namespace bpkg
       {
         // This is a dependent needing reconfiguration.
         //
-        assert (sp != nullptr && p.reconfigure);
+        assert (sp != nullptr && p.reconfigure ());
 
         n = sp->name;
         act = "reconfigure";
@@ -948,23 +975,59 @@ namespace bpkg
         // make sure it is configured and updated.
         //
         if (sp == nullptr || sp->version == v)
-          act = p.reconfigure ? "reconfigure/build" : "build";
+          act = p.reconfigure () ? "reconfigure/build" : "build";
         else
           act = sp->version < v ? "upgrade" : "downgrade";
       }
 
       if (o.print_only ())
         cout << act << " " << n << (v.empty () ? "" : " ") << v << endl;
-      else
+      else if (verb)
         text << act << " " << n << (v.empty () ? "" : " ") << v;
     }
 
     if (o.print_only ())
-    {
-      t.commit ();
       return;
-    }
 
-    t.commit ();
+    // Ask the user if we should continue.
+    //
+    if (!(o.yes () || yn_prompt ("continue? [Y/n]", 'y')))
+      return;
+
+    // Ok, we have the green light. The overall action plan is as follows.
+    // Note that for some actions, e.g., drop or fetch, the order is not
+    // really important. We will, however, do it right to left since that
+    // is the order closest to that of the user selection.
+    //
+    // 1. disfigure  up/down-graded, reconfigured [left to right]
+    // 2. drop       up/down-graded
+    // 3. fetch      new, up/down-graded
+    // 4. unpack     new, up/down-graded
+    // 5. configure  all                          [right to left]
+    // 6. build      user selection               [right to left]
+    //
+
+    // disfigure
+    //
+    for (const satisfied_package& p: pkgs)
+    {
+      // We are only interested in configured packages that are either
+      // up/down-graded or need reconfiguration (e.g., dependents).
+      //
+      if (!p.reconfigure ())
+        continue;
+
+      const shared_ptr<selected_package>& sp (p.selected);
+
+      // Each package is disfigured in its own transaction, so that we
+      // always leave the configuration in a valid state.
+      //
+      transaction t (db.begin ());
+      pkg_disfigure (c, t, sp); // Commits the transaction.
+      assert (sp->state == package_state::unpacked);
+
+      if (verb)
+        text << "disfigured " << sp->name << " " << sp->version;
+    }
   }
 }

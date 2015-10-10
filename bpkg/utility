@@ -20,6 +20,14 @@ namespace bpkg
   using std::make_shared;
   using std::to_string; // To complement bpkg::to_string().
 
+  // Y/N prompt. The def argument, if specified, should be either 'y'
+  // or 'no'. It is used as the default answer, in case the user just
+  // hits enter. Issue diagnostics and throw failed if no answer could
+  // be extracted from STDOUT (e.g., because it was closed).
+  //
+  bool
+  yn_prompt (const char* prompt, char def = '\0');
+
   // Filesystem.
   //
   bool

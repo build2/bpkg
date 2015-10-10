@@ -29,6 +29,11 @@ namespace bpkg
 {
   class build_options: configuration_options
   {
+    bool --yes|-y
+    {
+      "Assume the answer to all prompts is \cb{yes}."
+    };
+
     bool --print-only|-p
     {
       "Print to \cb{STDOUT} what would be done without actually doing

@@ -4,6 +4,7 @@
 
 #include <bpkg/utility>
 
+#include <iostream>     // cout cin
 #include <system_error>
 
 #include <butl/process>
@@ -16,6 +17,46 @@ using namespace butl;
 
 namespace bpkg
 {
+  bool
+  yn_prompt (const char* prompt, char def)
+  {
+    // Writing a robust Y/N prompt is more difficult than one would
+    // expect...
+    //
+    string a;
+    do
+    {
+      *diag_stream << prompt << ' ';
+
+      // getline() will set the failbit if it failed to extract anything,
+      // not even the delimiter and eofbit if it reached eof before seeing
+      // the delimiter.
+      //
+      //
+      getline (cin, a);
+
+      bool f (cin.fail ());
+      bool e (cin.eof ());
+
+      if (f || e)
+        *diag_stream << endl; // Assume no delimiter (newline).
+
+      if (f)
+        fail << "unable to read y/n answer from STDOUT";
+
+      if (a.empty () && def != '\0')
+      {
+        // Don't treat eof as the default answer. We need to see the
+        // actual newline.
+        //
+        if (!e)
+          a = def;
+      }
+    } while (a != "y" && a != "n");
+
+    return a == "y";
+  }
+
   bool
   exists (const path& f)
   {
