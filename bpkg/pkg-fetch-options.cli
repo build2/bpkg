@@ -17,9 +17,9 @@ bpkg pkg-fetch [<options>] (<pkg>/<ver>)|(-e <file>)"
 The \cb{pkg-fetch} command fetches the archive for the specified package
 name and version from one of the configuration's repositories. If the
 \cb{-r|--replace} option is specified, then \cb{pkg-fetch} will replace the
-archive of a package that is already in the \cb{fetched} state. Otherwise,
-\cb{pkg-fetch} expects the package to not exist in the configuration's
-database.
+archive of a package that is already in the \cb{fetched} or \cb{unpacked}
+state. Otherwise, \cb{pkg-fetch} expects the package to not exist in the
+configuration's database.
 
 If the \cb{-e|--existing} option is used, then instead of the name and
 version argument, \cb{pkg-fetch} expects a local path to the existing
@@ -36,7 +36,7 @@ namespace bpkg
   {
     bool --replace|-r
     {
-      "Replace the archive if the package is already fetched."
+      "Replace the archive if the package is already fetched or unpacked."
     };
 
     bool --existing|-e

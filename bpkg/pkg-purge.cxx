@@ -17,26 +17,42 @@ using namespace butl;
 namespace bpkg
 {
   void
-  pkg_purge_archive (const dir_path& c,
-                     transaction& t,
-                     const shared_ptr<selected_package>& p)
+  pkg_purge_fs (const dir_path& c,
+                transaction& t,
+                const shared_ptr<selected_package>& p,
+                bool archive)
   {
-    assert (p->purge_archive && p->state != package_state::broken);
+    assert (p->state == package_state::fetched ||
+            p->state == package_state::unpacked);
 
     tracer trace ("pkg_purge_archive");
 
     database& db (t.database ());
     tracer_guard tg (db, trace);
 
-    path a (p->archive->absolute () ? *p->archive : c / *p->archive);
-
     try
     {
-      if (exists (a))
-        rm (a);
+      if (p->purge_src)
+      {
+        dir_path d (p->src_root->absolute () ? *p->src_root : c / *p->src_root);
 
-      p->archive = nullopt;
-      p->purge_archive = false;
+        if (exists (d)) // Don't complain if someone did our job for us.
+          rm_r (d);
+
+        p->src_root = nullopt;
+        p->purge_src = false;
+      }
+
+      if (p->purge_archive && archive)
+      {
+        path a (p->archive->absolute () ? *p->archive : c / *p->archive);
+
+        if (exists (a))
+          rm (a);
+
+        p->archive = nullopt;
+        p->purge_archive = false;
+      }
     }
     catch (const failed&)
     {
@@ -108,66 +124,30 @@ namespace bpkg
       }
     }
 
-    // First clean up the package source directory.
+    // For a broken package we just verify that all the filesystem objects
+    // were cleaned up by the user.
     //
-    if (p->purge_src)
+    if (p->state == package_state::broken)
     {
-      dir_path d (p->src_root->absolute () ? *p->src_root : c / *p->src_root);
-
-      if (p->state != package_state::broken)
+      if (p->out_root)
       {
-        try
-        {
-          if (exists (d)) // Don't complain if someone did our job for us.
-            rm_r (d);
+        dir_path d (c / *p->out_root); // Always relative.
 
-          p->src_root = nullopt;
-          p->purge_src = false;
-        }
-        catch (const failed&)
-        {
-          p->state = package_state::broken;
-          db.update (p);
-          t.commit ();
-
-          info << "package " << n << " is now broken; "
-               << "use 'pkg-purge --force' to remove";
-          throw;
-        }
+        if (exists (d))
+          fail << "broken package " << n << " output directory still exists" <<
+            info << "remove " << d << " manually then re-run pkg-purge";
       }
-      else
+
+      if (p->purge_src)
       {
-        // If we are broken, simply make sure the user cleaned things up
-        // manually.
-        //
+        dir_path d (p->src_root->absolute () ? *p->src_root : c / *p->src_root);
+
         if (exists (d))
           fail << "broken package " << n << " source directory still exists" <<
             info << "remove " << d << " manually then re-run pkg-purge";
       }
-    }
 
-    // Also check the output directory of broken packages.
-    //
-    if (p->out_root)
-    {
-      // Can only be present if broken.
-      //
-      assert (p->state == package_state::broken);
-
-      dir_path d (c / *p->out_root); // Always relative.
-
-      if (exists (d))
-        fail << "broken package " << n << " output directory still exists" <<
-          info << "remove " << d << " manually then re-run pkg-purge";
-    }
-
-    // Now the archive. Pretty much the same code as above but for a file.
-    //
-    if (p->purge_archive && !o.keep ())
-    {
-      if (p->state != package_state::broken)
-        pkg_purge_archive (c, t, p);
-      else
+      if (p->purge_archive)
       {
         path a (p->archive->absolute () ? *p->archive : c / *p->archive);
 
@@ -176,7 +156,14 @@ namespace bpkg
             info << "remove " << a << " manually then re-run pkg-purge";
       }
     }
+    else
+    {
+      assert (!p->out_root);
+      pkg_purge_fs (c, t, p, !o.keep ());
+    }
 
+    // Finally, update the database state.
+    //
     if (o.keep ())
     {
       if (p->state != package_state::fetched) // No-op we were talking about.

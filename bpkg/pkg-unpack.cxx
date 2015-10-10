@@ -15,6 +15,7 @@
 #include <bpkg/database>
 #include <bpkg/diagnostics>
 
+#include <bpkg/pkg-purge>
 #include <bpkg/pkg-verify>
 
 using namespace std;
@@ -23,7 +24,11 @@ using namespace butl;
 namespace bpkg
 {
   static shared_ptr<selected_package>
-  pkg_unpack (database& db, const dir_path& c, const dir_path& d, bool purge)
+  pkg_unpack (database& db,
+              const dir_path& c,
+              const dir_path& d,
+              bool replace,
+              bool purge)
   {
     tracer trace ("pkg_unpack(dir)");
     tracer_guard tg (db, trace);
@@ -36,16 +41,6 @@ namespace bpkg
     package_manifest m (pkg_verify (d));
     level4 ([&]{trace << d << ": " << m.name << " " << m.version;});
 
-    const auto& n (m.name);
-
-    transaction t (db.begin ());
-
-    // See if this package already exists in this configuration.
-    //
-    if (shared_ptr<selected_package> p = db.find<selected_package> (n))
-      fail << "package " << n << " already exists in configuration " << c <<
-        info << "version: " << p->version << ", state: " << p->state;
-
     // Make the package and configuration paths absolute and normalized.
     // If the package is inside the configuration, use the relative path.
     // This way we can move the configuration around.
@@ -57,25 +52,63 @@ namespace bpkg
     if (ad.sub (ac))
       ad = ad.leaf (ac);
 
-    // Add the package to the configuration. Use the special root
-    // repository as the repository of this package.
+    transaction t (db.begin ());
+
+    // See if this package already exists in this configuration.
     //
-    shared_ptr<selected_package> p (new selected_package {
+    const string& n (m.name);
+    shared_ptr<selected_package> p (db.find<selected_package> (n));
+
+    if (p != nullptr)
+    {
+      bool s (p->state == package_state::fetched ||
+              p->state == package_state::unpacked);
+
+      if (!replace || !s)
+      {
+        diag_record dr (fail);
+
+        dr << "package " << n << " already exists in configuration " << c <<
+          info << "version: " << p->version << ", state: " << p->state;
+
+        if (s) // Suitable state for replace?
+          dr << info << "use 'pkg-unpack --replace|-r' to replace";
+      }
+
+      // Clean up the source directory and archive of the package we are
+      // replacing. Once this is done, there is no going back. If things
+      // go badly, we can't simply abort the transaction.
+      //
+      pkg_purge_fs (c, t, p);
+
+      // Use the special root repository as the repository of this package.
+      //
+      p->version = move (m.version);
+      p->state = package_state::unpacked;
+      p->repository = repository_location ();
+      p->src_root = move (ad);
+      p->purge_src = purge;
+
+      db.update (p);
+    }
+    else
+    {
+      p.reset (new selected_package {
         move (m.name),
         move (m.version),
         package_state::unpacked,
-        repository_location (),
+        repository_location (), // Root repository.
         nullopt,    // No archive
         false,      // Don't purge archive.
         move (ad),
         purge,
         nullopt,    // No output directory yet.
-        {}          // No prerequisites captured yet.
-     });
+        {}});       // No prerequisites captured yet.
 
-    db.persist (p);
+      db.persist (p);
+    }
+
     t.commit ();
-
     return p;
   }
 
@@ -184,6 +217,9 @@ namespace bpkg
   {
     tracer trace ("pkg_unpack");
 
+    if (o.replace () && !o.existing ())
+      fail << "-r|--replace can only be specified with -e|--existing";
+
     const dir_path& c (o.directory ());
     level4 ([&]{trace << "configuration: " << c;});
 
@@ -199,7 +235,8 @@ namespace bpkg
         fail << "package directory argument expected" <<
           info << "run 'bpkg help pkg-unpack' for more information";
 
-      p = pkg_unpack (db, c, dir_path (args.next ()), o.purge ());
+      p = pkg_unpack (
+        db, c, dir_path (args.next ()), o.replace (), o.purge ());
     }
     else
     {

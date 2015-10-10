@@ -52,21 +52,24 @@ namespace bpkg
     {
       shared_ptr<selected_package> p (db.find<selected_package> (n));
 
-      if (p == nullptr ||
-          (p->state == package_state::fetched && o.replace ()))
-        return p;
-
+      if (p != nullptr)
       {
-        diag_record dr (error);
+        bool s (p->state == package_state::fetched ||
+                p->state == package_state::unpacked);
 
-        dr << "package " << n << " already exists in configuration " << c <<
-          info << "version: " << p->version << ", state: " << p->state;
+        if (!o.replace () || !s)
+        {
+          diag_record dr (fail);
 
-        if (p->state == package_state::fetched)
-          dr << info << "use 'pkg-fetch --replace|-r' to replace its archive";
+          dr << "package " << n << " already exists in configuration " << c <<
+            info << "version: " << p->version << ", state: " << p->state;
+
+          if (s) // Suitable state for replace?
+            dr << info << "use 'pkg-fetch --replace|-r' to replace";
+        }
       }
 
-      throw failed ();
+      return p;
     };
 
     if (o.existing ())
@@ -167,14 +170,14 @@ namespace bpkg
 
     if (sp != nullptr)
     {
-      // Clean up the archive we are replacing. Once this is done, there
-      // is no going back. If things go badly, we can't simply abort the
-      // transaction.
+      // Clean up the source directory and archive of the package we are
+      // replacing. Once this is done, there is no going back. If things
+      // go badly, we can't simply abort the transaction.
       //
-      if (sp->purge_archive)
-        pkg_purge_archive (c, t, sp);
+      pkg_purge_fs (c, t, sp);
 
       sp->version = move (m.version);
+      sp->state = package_state::fetched;
       sp->repository = move (rl);
       sp->archive = move (a);
       sp->purge_archive = purge;

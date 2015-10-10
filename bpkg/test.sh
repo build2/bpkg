@@ -212,9 +212,11 @@ test pkg-purge libfoo
 test pkg-fetch -e ../tests/repository/1/fetch/t1/libfoo-1.0.0.tar.gz
 stat libfoo/1.0.0 fetched
 test pkg-unpack libfoo
-fail pkg-fetch -r libfoo/1.0.0
-fail pkg-fetch -r -e ../tests/repository/1/fetch/t1/libfoo-1.0.0.tar.gz
-test pkg-purge -k libfoo
+test pkg-fetch -r libfoo/1.1.0
+stat libfoo/1.1.0 fetched
+test pkg-unpack libfoo
+test pkg-fetch -r -e ../tests/repository/1/fetch/t1/libfoo-1.0.0.tar.gz
+stat libfoo/1.0.0 fetched
 test pkg-fetch -r libfoo/1.1.0
 stat libfoo/1.1.0 fetched
 test pkg-fetch -r -e ../tests/repository/1/fetch/t1/libfoo-1.0.0.tar.gz
@@ -231,6 +233,7 @@ test pkg-fetch libhello/1.0.0
 test pkg-unpack libhello
 test pkg-purge libhello
 
+
 ## @@
 ##
 ##
@@ -245,6 +248,29 @@ test pkg-fetch -e $pkga
 stat fetched
 test pkg-purge $pkg
 stat unknown
+
+##
+## pkg-unpack
+##
+
+# @@ TODO
+
+# replace
+#
+test cfg-create --wipe
+test rep-add ../tests/repository/1/fetch/t1
+test rep-fetch
+test pkg-fetch libfoo/1.0.0
+fail pkg-unpack -e ../tests/repository/1/fetch/libfoo-1.1.0
+test pkg-unpack -r -e ../tests/repository/1/fetch/libfoo-1.1.0
+stat libfoo/1.1.0 unpacked
+test pkg-purge libfoo
+test pkg-fetch libfoo/1.0.0
+test pkg-unpack libfoo
+fail pkg-unpack -e ../tests/repository/1/fetch/libfoo-1.1.0
+test pkg-unpack -r -e ../tests/repository/1/fetch/libfoo-1.1.0
+stat libfoo/1.1.0 unpacked
+test pkg-purge libfoo
 
 
 ##
