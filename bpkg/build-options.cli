@@ -23,6 +23,9 @@ the package can be specified as either the path to the package
 source archive (<file>) or package source directory (<dir>). See
 \cb{pkg-fetch} and \cb{pkg-unpack} for more information on the
 semantics of specifying the package as an archive or directory.
+
+The \cb{build} command also supports several \cb{--*-only} options
+that allow you to limit the amount of work that will be done.
 */
 
 namespace bpkg
@@ -32,6 +35,11 @@ namespace bpkg
     bool --yes|-y
     {
       "Assume the answer to all prompts is \cb{yes}."
+    };
+
+    bool --configure-only|-c
+    {
+      "Configuring all the packages but don't update."
     };
 
     bool --print-only|-p

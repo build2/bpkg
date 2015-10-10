@@ -1141,16 +1141,19 @@ namespace bpkg
 
     // update
     //
-    for (const satisfied_package& p: reverse_iterate (pkgs))
+    if (!o.configure_only ())
     {
-      const shared_ptr<selected_package>& sp (p.selected);
+      for (const satisfied_package& p: reverse_iterate (pkgs))
+      {
+        const shared_ptr<selected_package>& sp (p.selected);
 
-      // @@ TODO: update user selection only.
-      //
-      pkg_update (c, sp);
+        // @@ TODO: update the user selection only.
+        //
+        pkg_update (c, sp);
 
-      if (verb)
-        text << "updated " << sp->name << " " << sp->version;
+        if (verb)
+          text << "updated " << sp->name << " " << sp->version;
+      }
     }
   }
 }
