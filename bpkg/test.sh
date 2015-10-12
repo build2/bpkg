@@ -1,11 +1,23 @@
 #! /usr/bin/env bash
 
+# -v Run verbose. By default, this script runs bpkg quiet and suppresses
+#    error messages in the fail tests. Note that when this options is
+#    specified, bpkg is called with default verbosity level. If you want
+#    more bpkg diagnostics, add the --verbose N option.
+#
+
 trap 'exit 1' ERR
 
-bpkg="./bpkg $*"
-#bpkg="valgrind -q ./bpkg $*"
-#bpkg="./bpkg --fetch curl $*"
-#bpkg="./bpkg --fetch fetch --tar bsdtar $*"
+function error ()
+{
+  echo "$*" 1>&2
+  exit 1
+}
+
+bpkg="./bpkg"
+#bpkg="valgrind -q ./bpkg"
+#bpkg="./bpkg --fetch curl"
+#bpkg="./bpkg --fetch fetch --tar bsdtar"
 cfg=/tmp/conf
 pkg=libhello
 ver=1.0.0
@@ -14,12 +26,32 @@ pkgd=../../hello/dist/$pkg-$ver
 out=$cfg/`basename $pkgd`
 rep=../../hello/1/hello
 
-function error ()
-{
-  echo "$*" 1>&2
-  exit 1
-}
+abs_rep=`realpath ../tests/repository/1`
 
+verbose=n
+options=
+
+while [ $# -gt 0 ]; do
+  case $1 in
+    -v)
+      verbose=y
+      shift
+      ;;
+    *)
+      options="$options $1"
+      shift
+      ;;
+  esac
+done
+
+if [ "$verbose" != "y" ]; then
+  options="$options -q"
+fi
+
+bpkg="$bpkg $options"
+
+#
+#
 function test ()
 {
   local cmd=$1; shift
@@ -32,8 +64,8 @@ function test ()
   if [ -t 0 ]; then
     $bpkg $cmd $ops $*
   else
-    # There is no way to get the exit code in process substiution
-    # so spoil the output.
+    # There is no way to get the exit code in process substitution
+    # so ruin the output.
     #
     diff -u - <($bpkg $cmd $ops $* || echo "<invalid output>")
   fi
@@ -52,7 +84,11 @@ function fail ()
     ops="-d $cfg"
   fi
 
-  $bpkg $cmd $ops $*
+  if [ "$verbose" = "y" ]; then
+    $bpkg $cmd $ops $*
+  else
+    $bpkg $cmd $ops $* 2>/dev/null
+  fi
 
   if [ $? -eq 0 ]; then
     error "succeeded: $bpkg $cmd $ops $*"
@@ -108,9 +144,27 @@ test rep-create ../tests/repository/1/math/unstable
 
 fail rep-info # repository location expected
 
-test rep-info ../tests/repository/1/misc/testing
-test rep-info -m ../tests/repository/1/math/unstable
-test rep-info http://pkg.cppget.org/1/hello
+test rep-info ../tests/repository/1/misc/testing <<EOF
+misc/testing $abs_rep/misc/testing
+complement misc/stable $abs_rep/misc/stable
+libhello 1.0.0-1
+EOF
+
+test rep-info -m ../tests/repository/1/math/unstable <<EOF
+math/unstable $abs_rep/math/unstable
+: 1
+location: ../../misc/testing
+:
+location: ../testing
+role: complement
+:
+EOF
+
+test rep-info http://pkg.cppget.org/1/hello <<EOF
+cppget.org/hello http://pkg.cppget.org/1/hello
+libheavy 1.0.0
+libhello 1.0.0
+EOF
 
 ##
 ## cfg-create

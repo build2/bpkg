@@ -469,7 +469,8 @@ namespace bpkg
 
         // Now collect this prerequisite. If it was actually collected
         // (i.e., it wasn't already there) and we are forcing an upgrade,
-        // then warn. Downgrade -- outright refuse.
+        // then warn, unless we are running quiet. Downgrade -- outright
+        // refuse.
         //
         if (collect (options, cd, db, move (dp)) && force)
         {
@@ -477,17 +478,21 @@ namespace bpkg
           const version& av (rp.first->version);
 
           bool u (av > sv);
-          bool c (d.constraint);
-          diag_record dr;
 
-          (u ? dr << warn : dr << fail)
-            << "package " << name << " dependency on "
-            << (c ? "(" : "") << d << (c ? ")" : "") << " is forcing "
-            << (u ? "up" : "down") << "grade of " << d.name << " " << sv
-            << " to " << av;
+          if (verb || !u)
+          {
+            bool c (d.constraint);
+            diag_record dr;
 
-          if (!u)
-            dr << info << "explicitly specify version downgrade to continue";
+            (u ? dr << warn : dr << fail)
+              << "package " << name << " dependency on "
+              << (c ? "(" : "") << d << (c ? ")" : "") << " is forcing "
+              << (u ? "up" : "down") << "grade of " << d.name << " " << sv
+              << " to " << av;
+
+            if (!u)
+              dr << info << "explicitly specify version downgrade to continue";
+          }
         }
       }
 
