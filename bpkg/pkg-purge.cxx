@@ -134,7 +134,8 @@ namespace bpkg
         dir_path d (c / *p->out_root); // Always relative.
 
         if (exists (d))
-          fail << "broken package " << n << " output directory still exists" <<
+          fail << "output directory of broken package " << n
+               << " still exists" <<
             info << "remove " << d << " manually then re-run pkg-purge";
       }
 
@@ -143,7 +144,8 @@ namespace bpkg
         dir_path d (p->src_root->absolute () ? *p->src_root : c / *p->src_root);
 
         if (exists (d))
-          fail << "broken package " << n << " source directory still exists" <<
+          fail << "source directory of broken package " << n
+               << " still exists" <<
             info << "remove " << d << " manually then re-run pkg-purge";
       }
 
@@ -152,7 +154,7 @@ namespace bpkg
         path a (p->archive->absolute () ? *p->archive : c / *p->archive);
 
         if (exists (a))
-          fail << "broken package " << n << " archive still exists" <<
+          fail << "archive file of broken package " << n << " still exists" <<
             info << "remove " << a << " manually then re-run pkg-purge";
       }
     }
