@@ -1,7 +1,7 @@
-# math/unstable
+# bar/unstable
 #
 : 1
-location: ../../misc/testing
+location: ../../foo/testing
 :
 location: ../testing
 role: complement

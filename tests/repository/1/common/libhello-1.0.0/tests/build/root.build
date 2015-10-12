@@ -1,0 +1,10 @@
+using cxx
+
+hxx.ext =
+cxx.ext = cxx
+
+cxx.std = 11
+
+# Every exe{} here is by default a test.
+#
+test.exe = true

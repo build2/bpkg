@@ -1,0 +1,8 @@
+lib{hello}: cxx{hello} hxx{hello}
+
+cxx.poptions += -I$src_root
+lib{hello}: cxx.export.poptions = -I$src_root
+
+# Install into the hello/ subdirectory of, say, /usr/include/.
+#
+install.include = $install.include/hello

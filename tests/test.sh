@@ -1,9 +1,28 @@
 #! /usr/bin/env bash
 
-# -v Run verbose. By default, this script runs bpkg quiet and suppresses
+# Usage: test.sh [test-options] [bpkg-common-options]
+#
+# Test options are:
+#
+# -v
+#    Run verbose. By default, this script runs bpkg quiet and suppresses
 #    error messages in the fail tests. Note that when this options is
 #    specified, bpkg is called with default verbosity level. If you want
 #    more bpkg diagnostics, add the --verbose N option.
+#
+# --remote
+#    Test using the remote repositories. Normally, you would first run the
+#    local test in order to create the repositories, then publish them (see
+#    repository/publish.sh), and finally run the remote test.
+#
+# --valgrind
+#    Run under valgrind (takes forever).
+#
+# Some common bpkg use-cases worth testing:
+#
+# --fetch wget
+# --fetch curl
+# --fetch fetch --tar bsdtar
 #
 
 trap 'exit 1' ERR
@@ -15,20 +34,10 @@ function error ()
 }
 
 bpkg="../bpkg/bpkg"
-#bpkg="valgrind -q ../bpkg/bpkg"
-#bpkg="../bpkg/bpkg --fetch curl"
-#bpkg="../bpkg/bpkg --fetch fetch --tar bsdtar"
 cfg=/tmp/conf
-pkg=libhello
-ver=1.0.0
-pkga=../../hello/dist/$pkg-$ver.tar.bz2
-pkgd=../../hello/dist/$pkg-$ver
-out=$cfg/`basename $pkgd`
-rep=../../hello/1/hello
-
-abs_rep=`pwd`/repository/1
 
 verbose=n
+remote=n
 options=
 
 while [ $# -gt 0 ]; do
@@ -37,7 +46,22 @@ while [ $# -gt 0 ]; do
       verbose=y
       shift
       ;;
+    --remote)
+      remote=y
+      shift
+      ;;
+    --valgrind)
+      bpkg="valgrind -q $bpkg"
+      shift
+      ;;
     *)
+      # If this is the --verbose bpkg option, switch to the verbose
+      # mode as well.
+      #
+      if [ "$1" == "--verbose" ]; then
+        verbose=y
+      fi
+
       options="$options $1"
       shift
       ;;
@@ -49,6 +73,18 @@ if [ "$verbose" != "y" ]; then
 fi
 
 bpkg="$bpkg $options"
+
+# Repository location, name, and absolute location prefixes.
+#
+if [ "$remote" = "y" ]; then
+  rep=http://pkg.cppget.org/tests/1
+  repn=cppget.org/
+  repa=$rep
+else
+  rep=repository/1
+  repn=
+  repa=`pwd`/$rep
+fi
 
 #
 #
@@ -101,18 +137,10 @@ function fail ()
 #
 function stat ()
 {
-  local c="$bpkg pkg-status -d $cfg"
+  local s=`$bpkg pkg-status -d $cfg $1`
 
-  if [ $# -eq 1 ]; then
-    c="$c $pkg/$ver"
-  elif [ $# -eq 2 ]; then
-    c="$c $1"; shift
-  fi
-
-  local s=`$c`
-
-  if [ "$s" != "$1" ]; then
-    error "status: '"$s"', expected: '"$1"'"
+  if [ "$s" != "$2" ]; then
+    error "status: '"$s"', expected: '"$2"'"
   fi
 }
 
@@ -131,12 +159,14 @@ function gone ()
 
 fail rep-create # no 'repositories' file
 
-test rep-create repository/1/misc/stable
-test rep-create repository/1/misc/testing
+test rep-create repository/1/common/hello
 
-test rep-create repository/1/math/stable
-test rep-create repository/1/math/testing
-test rep-create repository/1/math/unstable
+test rep-create repository/1/common/foo/stable
+test rep-create repository/1/common/foo/testing
+
+test rep-create repository/1/common/bar/stable
+test rep-create repository/1/common/bar/testing
+test rep-create repository/1/common/bar/unstable
 
 ##
 ## rep-info
@@ -144,34 +174,43 @@ test rep-create repository/1/math/unstable
 
 fail rep-info # repository location expected
 
-test rep-info repository/1/misc/testing <<EOF
-misc/testing $abs_rep/misc/testing
-complement misc/stable $abs_rep/misc/stable
-libhello 1.0.0-1
+test rep-info $rep/common/foo/testing <<EOF
+${repn}common/foo/testing $repa/common/foo/testing
+complement ${repn}common/foo/stable $repa/common/foo/stable
+libfoo 1.1.0
 EOF
 
-test rep-info -m repository/1/math/unstable <<EOF
-math/unstable $abs_rep/math/unstable
+test rep-info -m -r -n $rep/common/bar/unstable <<EOF
+${repn}common/bar/unstable $repa/common/bar/unstable
 : 1
-location: ../../misc/testing
+location: ../../foo/testing
 :
 location: ../testing
 role: complement
 :
 EOF
 
-test rep-info http://pkg.cppget.org/1/hello <<EOF
-cppget.org/hello http://pkg.cppget.org/1/hello
-libheavy 1.0.0
-libhello 1.0.0
+test rep-info -m -p $rep/common/bar/unstable <<EOF
+: 1
+name: libbar
+version: 1.1.1
+summary: libbar
+license: MIT
+url: http://example.org
+email: pkg@example.org
+depends: libfoo >= 1.1.0
+location: libbar-1.1.1.tar.gz
 EOF
 
 ##
 ## cfg-create
 ##
 
-test cfg-create --wipe config.cxx=g++-4.9 cxx config.install.root=/tmp/install
-stat unknown
+test cfg-create --wipe cxx config.install.root=/tmp/install
+stat libfoo unknown
+
+test cfg-create --wipe config.install.root=/tmp/install cxx
+stat libfoo unknown
 
 ##
 ## rep-add
@@ -185,13 +224,13 @@ fail rep-add http:// # invalid location
 
 # relative path
 #
-test rep-add ./1/math/stable
-fail rep-add ./1/../1/math/stable # duplicate
+test rep-add ./1/bar/stable
+fail rep-add ./1/../1/bar/stable # duplicate
 
 # absolute path
 #
-test rep-add /tmp/1/misc/stable
-fail rep-add /tmp/1/../1/misc/stable # duplicate
+test rep-add /tmp/1/foo/stable
+fail rep-add /tmp/1/../1/foo/stable # duplicate
 
 # remote URL
 #
@@ -209,34 +248,29 @@ fail rep-fetch # no repositories
 # hello repository
 #
 test cfg-create --wipe
-test rep-add $rep
+test rep-add $rep/common/hello
 test rep-fetch
 test rep-fetch
 
-# math/unstable repository
+# bar/unstable repository
 #
 test cfg-create --wipe
-test rep-add repository/1/math/unstable
+test rep-add $rep/common/bar/unstable
 test rep-fetch
 test rep-fetch
 
 # both
 #
 test cfg-create --wipe
-test rep-add $rep
-test rep-add repository/1/math/unstable
+test rep-add $rep/common/hello
+test rep-add $rep/common/bar/unstable
 test rep-fetch
-test rep-fetch
-
-# remote
-#
-test cfg-create --wipe
-test rep-add http://pkg.cppget.org/1/hello
 test rep-fetch
 
 ##
 ## pkg-fetch
 ##
+
 test rep-create repository/1/fetch/t1
 test cfg-create --wipe
 
@@ -248,59 +282,41 @@ fail pkg-fetch libfoo            # package version expected
 fail pkg-fetch libfoo/1/2/3      # invalid package version
 
 fail pkg-fetch libfoo/1.0.0      # no repositories
-test rep-add repository/1/fetch/t1
+test rep-add $rep/fetch/t1
 fail pkg-fetch libfoo/1.0.0      # no packages
 test rep-fetch
 fail pkg-fetch libfoo/2+1.0.0    # not available
 
-# local
-#
 test cfg-create --wipe
-test rep-add repository/1/fetch/t1
+test rep-add $rep/fetch/t1
 test rep-fetch
 test pkg-fetch libfoo/1.0.0
 stat libfoo/1.0.0 fetched
 fail pkg-fetch libfoo/1.0.0
-fail pkg-fetch -e repository/1/fetch/t1/libfoo-1.0.0.tar.gz
+fail pkg-fetch -e repository/1/fetch/libfoo-1.0.0.tar.gz
 test pkg-purge libfoo
-test pkg-fetch -e repository/1/fetch/t1/libfoo-1.0.0.tar.gz
+test pkg-fetch -e repository/1/fetch/libfoo-1.0.0.tar.gz
 stat libfoo/1.0.0 fetched
 test pkg-unpack libfoo
 test pkg-fetch -r libfoo/1.1.0
 stat libfoo/1.1.0 fetched
 test pkg-unpack libfoo
-test pkg-fetch -r -e repository/1/fetch/t1/libfoo-1.0.0.tar.gz
+test pkg-fetch -r -e repository/1/fetch/libfoo-1.0.0.tar.gz
 stat libfoo/1.0.0 fetched
 test pkg-fetch -r libfoo/1.1.0
 stat libfoo/1.1.0 fetched
-test pkg-fetch -r -e repository/1/fetch/t1/libfoo-1.0.0.tar.gz
+test pkg-fetch -r -e repository/1/fetch/libfoo-1.0.0.tar.gz
 stat libfoo/1.0.0 fetched
 test pkg-purge libfoo
 
-# remote
+# hello
 #
 test cfg-create --wipe
-test rep-add http://pkg.cppget.org/1/hello
+test rep-add $rep/common/hello
 test rep-fetch
-#test pkg-fetch libheavy/1.0.0
 test pkg-fetch libhello/1.0.0
 test pkg-unpack libhello
 test pkg-purge libhello
-
-## @@
-##
-##
-
-test cfg-create --wipe config.cxx=g++-4.9 cxx config.install.root=/tmp/install
-stat unknown
-
-# fetch existing archive
-#
-stat unknown
-test pkg-fetch -e $pkga
-stat fetched
-test pkg-purge $pkg
-stat unknown
 
 ##
 ## pkg-unpack
@@ -311,7 +327,7 @@ stat unknown
 # replace
 #
 test cfg-create --wipe
-test rep-add repository/1/fetch/t1
+test rep-add $rep/fetch/t1
 test rep-fetch
 test pkg-fetch libfoo/1.0.0
 fail pkg-unpack -e repository/1/fetch/libfoo-1.1.0
@@ -325,192 +341,199 @@ test pkg-unpack -r -e repository/1/fetch/libfoo-1.1.0
 stat libfoo/1.1.0 unpacked
 test pkg-purge libfoo
 
-
 ##
 ## pkg-purge
 ##
 
-fail pkg-purge
-fail pkg-purge $pkg
+test cfg-create --wipe
+
+fail pkg-purge         # missing package name
+fail pkg-purge libfoo  # no such package
 
 # purge fetched
 #
-test pkg-fetch -e $pkga
-test pkg-purge $pkg
-stat unknown
+test pkg-fetch -e repository/1/fetch/libfoo-1.0.0.tar.gz
+test pkg-purge libfoo
+stat libfoo unknown
 
 # --keep
 #
-test pkg-fetch -e $pkga
-test pkg-purge -k $pkg
-stat fetched
-test pkg-purge $pkg
+test pkg-fetch -e repository/1/fetch/libfoo-1.0.0.tar.gz
+test pkg-purge -k libfoo
+stat libfoo "fetched 1.0.0"
+test pkg-purge libfoo
 
-# archive --purge
+# archive and --purge
 #
-cp $pkga $cfg/
-test pkg-fetch -e -p $cfg/`basename $pkga`
-test pkg-purge $pkg
-stat unknown
-gone $cfg/`basename $pkga`
+cp repository/1/fetch/libfoo-1.0.0.tar.gz $cfg/
+test pkg-fetch -e -p $cfg/libfoo-1.0.0.tar.gz
+test pkg-purge libfoo
+stat libfoo unknown
+gone $cfg/libfoo-1.0.0.tar.gz
 
 # no archive but --keep
 #
-test pkg-unpack -e $pkgd
-fail pkg-purge --keep $pkg
-stat unpacked
-test pkg-purge $pkg
+test pkg-unpack -e repository/1/fetch/libfoo-1.1.0
+fail pkg-purge --keep libfoo
+stat libfoo "unpacked 1.1.0"
+test pkg-purge libfoo
 
 # purge unpacked directory
 #
-test pkg-unpack -e $pkgd
-test pkg-purge $pkg
-stat unknown
+test pkg-unpack -e repository/1/fetch/libfoo-1.1.0
+test pkg-purge libfoo
+stat libfoo unknown
 
 # purge unpacked archive
 #
-test pkg-fetch -e $pkga
-test pkg-unpack $pkg
-test pkg-purge $pkg
-stat unknown
-gone $out
+test pkg-fetch -e repository/1/fetch/libfoo-1.0.0.tar.gz
+test pkg-unpack libfoo
+test pkg-purge libfoo
+stat libfoo unknown
+gone $cfg/libfoo-1.0.0
 
 # purge unpacked archive but --keep
 #
-test pkg-fetch -e $pkga
-test pkg-unpack $pkg
-test pkg-purge --keep $pkg
-stat fetched
-gone $out
-test pkg-purge $pkg
+test pkg-fetch -e repository/1/fetch/libfoo-1.0.0.tar.gz
+test pkg-unpack libfoo
+test pkg-purge --keep libfoo
+stat libfoo "fetched 1.0.0"
+gone $cfg/libfoo-1.0.0
+test pkg-purge libfoo
+stat libfoo unknown
 
-# directory --purge
+# directory and --purge
 #
-cp -r $pkgd $cfg/
-test pkg-unpack -e -p $out
-test pkg-purge $pkg
-stat unknown
-gone $out
+cp -r repository/1/fetch/libfoo-1.1.0 $cfg/
+test pkg-unpack -e -p $cfg/libfoo-1.1.0
+test pkg-purge libfoo
+stat libfoo unknown
+gone $cfg/libfoo-1.1.0
 
-# archive --purge
+# archive and --purge
 #
-cp $pkga $cfg/
-test pkg-fetch -e -p $cfg/`basename $pkga`
-test pkg-unpack $pkg
-test pkg-purge $pkg
-stat unknown
-gone $out
-gone $cfg/`basename $pkga`
+cp repository/1/fetch/libfoo-1.0.0.tar.gz $cfg/
+test pkg-fetch -e -p $cfg/libfoo-1.0.0.tar.gz
+test pkg-unpack libfoo
+test pkg-purge libfoo
+stat libfoo unknown
+gone $cfg/libfoo-1.0.0
+gone $cfg/libfoo-1.0.0.tar.gz
 
 # broken
 #
-cp $pkga $cfg/
-test pkg-fetch -e -p $cfg/`basename $pkga`
-test pkg-unpack $pkg
-chmod 000 $out
-fail pkg-purge $pkg
-stat broken
-fail pkg-purge $pkg        # need --force
-fail pkg-purge -f -k $pkg  # can't keep broken
-fail pkg-purge -f $pkg     # directory still exists
-chmod 755 $out
-rm -r $out
-fail pkg-purge -f $pkg     # archive still exists
-rm $cfg/`basename $pkga`
-test pkg-purge -f $pkg
-stat unknown
+cp repository/1/fetch/libfoo-1.0.0.tar.gz $cfg/
+test pkg-fetch -e -p $cfg/libfoo-1.0.0.tar.gz
+test pkg-unpack libfoo
+chmod 000 $cfg/libfoo-1.0.0
+fail pkg-purge libfoo
+stat libfoo/1.0.0 broken
+fail pkg-purge libfoo        # need --force
+fail pkg-purge -f -k libfoo  # can't keep broken
+fail pkg-purge -f libfoo     # out directory still exists
+chmod 755 $cfg/libfoo-1.0.0
+rm -r $cfg/libfoo-1.0.0
+fail pkg-purge -f libfoo     # archive still exists
+rm $cfg/libfoo-1.0.0.tar.gz
+test pkg-purge -f libfoo
+stat libfoo unknown
 
 ##
 ## pkg-configure/pkg-disfigure
 ##
 
+test cfg-create --wipe
+test rep-add $rep/common/hello
+test rep-fetch
+
 fail pkg-configure                        # package name expected
 fail pkg-configure config.dist.root=/tmp  # ditto
-fail pkg-configure $pkg $pkg              # unexpected argument
-fail pkg-configure $pkg                   # no such package
+fail pkg-configure libhello libhello      # unexpected argument
+fail pkg-configure libhello1              # no such package
 
 fail pkg-disfigure                        # package name expected
-fail pkg-disfigure $pkg                   # no such package
+fail pkg-disfigure libhello1              # no such package
 
-test pkg-fetch -e $pkga
+test pkg-fetch libhello/1.0.0
 
-fail pkg-configure $pkg                   # wrong package state
-fail pkg-disfigure $pkg                   # wrong package state
+fail pkg-configure libhello               # wrong package state
+fail pkg-disfigure libhello               # wrong package state
 
-test pkg-purge $pkg
+test pkg-purge libhello
 
 # src == out
 #
-test pkg-fetch -e $pkga
-test pkg-unpack $pkg
-test pkg-configure $pkg
-stat configured
-test pkg-disfigure $pkg
-stat unpacked
-test pkg-purge $pkg
-stat unknown
+test pkg-fetch libhello/1.0.0
+test pkg-unpack libhello
+test pkg-configure libhello
+stat libhello "configured 1.0.0"
+test pkg-disfigure libhello
+stat libhello "unpacked 1.0.0"
+test pkg-purge libhello
+stat libhello/1.0.0 available
 
 # src != out
 #
-test pkg-unpack -e $pkgd
-test pkg-configure $pkg
-stat configured
-test pkg-disfigure $pkg
-stat unpacked
-test pkg-purge $pkg
-stat unknown
-gone $out
+test cfg-create --wipe
+test pkg-unpack -e repository/1/common/libhello-1.0.0
+test pkg-configure libhello
+stat libhello "configured 1.0.0"
+test pkg-disfigure libhello
+stat libhello "unpacked 1.0.0"
+test pkg-purge libhello
+stat libhello unknown
+gone $cfg/libhello-1.0.0
 
 # out still exists after disfigure
 #
-test pkg-unpack -e $pkgd
-test pkg-configure $pkg
-touch $out/stray
-fail pkg-disfigure $pkg
-stat broken
-rm -r $out
-test pkg-purge -f $pkg
-stat unknown
+test pkg-unpack -e repository/1/common/libhello-1.0.0
+test pkg-configure libhello
+touch $cfg/libhello-1.0.0/stray
+fail pkg-disfigure libhello
+stat libhello/1.0.0 broken
+rm -r $cfg/libhello-1.0.0
+test pkg-purge -f libhello
+stat libhello unknown
 
 # disfigure failed
 #
-test pkg-unpack -e $pkgd
-test pkg-configure $pkg
-chmod 555 $out
-fail pkg-disfigure $pkg
-stat broken
-chmod 755 $out
-rm -r $out
-test pkg-purge -f $pkg
-stat unknown
+test pkg-unpack -e repository/1/common/libhello-1.0.0
+test pkg-configure libhello
+chmod 555 $cfg/libhello-1.0.0
+fail pkg-disfigure libhello
+stat libhello/1.0.0 broken
+chmod 755 $cfg/libhello-1.0.0
+rm -r $cfg/libhello-1.0.0
+test pkg-purge -f libhello
+stat libhello unknown
 
 # configure failed but disfigure succeeds
 #
-test pkg-unpack -e $pkgd
-mkdir -p $out/build
-chmod 555 $out/build
-fail pkg-configure $pkg
-stat unpacked
-test pkg-purge $pkg
-stat unknown
+test pkg-unpack -e repository/1/common/libhello-1.0.0
+mkdir -p $cfg/libhello-1.0.0/build
+chmod 555 $cfg/libhello-1.0.0/build
+fail pkg-configure libhello
+stat libhello "unpacked 1.0.0"
+test pkg-purge libhello
+stat libhello unknown
 
 # configure and disfigure both failed
 #
-test pkg-unpack -e $pkgd
-mkdir -p $out/build
-chmod 555 $out $out/build # Both to trip configure and disfigure.
-fail pkg-configure $pkg
-stat broken
-chmod 755 $out $out/build
-rm -r $out
-test pkg-purge -f $pkg
-stat unknown
+test pkg-unpack -e repository/1/common/libhello-1.0.0
+mkdir -p $cfg/libhello-1.0.0/build
+chmod 555 $cfg/libhello-1.0.0 $cfg/libhello-1.0.0/build # Trip both con/dis.
+fail pkg-configure libhello
+stat libhello/1.0.0 broken
+chmod 755 $cfg/libhello-1.0.0 $cfg/libhello-1.0.0/build
+rm -r $cfg/libhello-1.0.0
+test pkg-purge -f libhello
+stat libhello unknown
 
 # dependency management
 #
 test rep-create repository/1/depend/stable
 test cfg-create --wipe
-test rep-add repository/1/depend/stable
+test rep-add $rep/depend/stable
 test rep-fetch
 
 test pkg-fetch libbar/1.0.0
@@ -587,7 +610,7 @@ test rep-create repository/1/status/unstable
 test cfg-create --wipe
 stat libfoo/1.0.0 "unknown"
 stat libfoo "unknown"
-test rep-add repository/1/status/stable
+test rep-add $rep/status/stable
 test rep-fetch
 stat libfoo/1.0.0 "available"
 stat libfoo "available 1.0.0"
@@ -598,20 +621,20 @@ stat libfoo "fetched 1.0.0"
 # multiple versions/revisions
 #
 test cfg-create --wipe
-test rep-add repository/1/status/extra
+test rep-add $rep/status/extra
 test rep-fetch
 stat libbar "available 1.1.0-1"
-test rep-add repository/1/status/stable
+test rep-add $rep/status/stable
 test rep-fetch
 stat libbar "available 1.1.0-1 1.0.0"
 
 test cfg-create --wipe
-test rep-add repository/1/status/testing
+test rep-add $rep/status/testing
 test rep-fetch
 stat libbar "available 1.1.0 1.0.0-1 1.0.0"
 
 test cfg-create --wipe
-test rep-add repository/1/status/unstable
+test rep-add $rep/status/unstable
 test rep-fetch
 stat libbar "available 2.0.0 1.1.0 1.0.0-1 1.0.0"
 test pkg-fetch libbar/1.0.0-1
@@ -624,78 +647,88 @@ stat libbar "fetched 2.0.0"
 ## pkg-update
 ##
 
-fail pkg-update           # package name expected
-fail pkg-update $pkg      # no such package
-test pkg-fetch -e $pkga
-fail pkg-update $pkg      # wrong package state
-test pkg-purge $pkg
+test cfg-create --wipe
+test rep-add $rep/common/hello
+test rep-fetch
+
+fail pkg-update                # package name expected
+fail pkg-update libhello       # no such package
+test pkg-fetch libhello/1.0.0
+fail pkg-update libhello       # wrong package state
+test pkg-purge libhello
 
 # src == out
 #
-test pkg-fetch -e $pkga
-test pkg-unpack $pkg
-test pkg-configure $pkg
-test pkg-update $pkg
-test pkg-update $pkg
-test pkg-disfigure $pkg
-test pkg-purge $pkg
+test pkg-fetch libhello/1.0.0
+test pkg-unpack libhello
+test pkg-configure libhello
+test pkg-update libhello
+test pkg-update libhello
+test pkg-disfigure libhello
+test pkg-purge libhello
 
 # src != out
 #
-test pkg-unpack -e $pkgd
-test pkg-configure $pkg
-test pkg-update $pkg
-test pkg-update $pkg
-test pkg-disfigure $pkg
-test pkg-purge $pkg
+test cfg-create --wipe
+test pkg-unpack -e repository/1/common/libhello-1.0.0
+test pkg-configure libhello
+test pkg-update libhello
+test pkg-update libhello
+test pkg-disfigure libhello
+test pkg-purge libhello
 
 ##
 ## pkg-clean
 ##
 
-fail pkg-clean           # package name expected
-fail pkg-clean $pkg      # no such package
-test pkg-fetch -e $pkga
-fail pkg-clean $pkg      # wrong package state
-test pkg-purge $pkg
+test cfg-create --wipe
+test rep-add $rep/common/hello
+test rep-fetch
+
+fail pkg-clean                # package name expected
+fail pkg-clean libhello       # no such package
+test pkg-fetch libhello/1.0.0
+fail pkg-clean libhello       # wrong package state
+test pkg-purge libhello
 
 # src == out
 #
-test pkg-fetch -e $pkga
-test pkg-unpack $pkg
-test pkg-configure $pkg
-test pkg-update $pkg
-test pkg-clean $pkg
-test pkg-clean $pkg
-test pkg-disfigure $pkg
-test pkg-purge $pkg
+test pkg-fetch libhello/1.0.0
+test pkg-unpack libhello
+test pkg-configure libhello
+test pkg-update libhello
+test pkg-clean libhello
+test pkg-clean libhello
+test pkg-disfigure libhello
+test pkg-purge libhello
 
 # src != out
 #
-test pkg-unpack -e $pkgd
-test pkg-configure $pkg
-test pkg-update $pkg
-test pkg-clean $pkg
-test pkg-clean $pkg
-test pkg-disfigure $pkg
-test pkg-purge $pkg
+test cfg-create --wipe
+test pkg-unpack -e repository/1/common/libhello-1.0.0
+test pkg-configure libhello
+test pkg-update libhello
+test pkg-clean libhello
+test pkg-clean libhello
+test pkg-disfigure libhello
+test pkg-purge libhello
 
 ##
 ## Low-level command scenarios.
 ##
 
-# build package from remote repository
+# build and clean package
 #
 test cfg-create --wipe cxx
-test rep-add http://pkg.cppget.org/1/hello
+test rep-add $rep/common/hello
 test rep-fetch
-test pkg-fetch $pkg/$ver
-test pkg-unpack $pkg
-test pkg-configure $pkg
-test pkg-update $pkg
-test pkg-clean $pkg
-test pkg-disfigure $pkg
-test pkg-purge $pkg
+test pkg-fetch libhello/1.0.0
+test pkg-unpack libhello
+test pkg-configure libhello
+test pkg-update libhello
+test pkg-clean libhello
+test pkg-disfigure libhello
+test pkg-purge libhello
 
 ##
 ## High-level commands.
@@ -730,7 +763,7 @@ test build -p libfoo/1.1.0 libfoo/1.1.0 <<< "build libfoo 1.1.0"
 fail build -p libfoo/1.0.0
 test pkg-purge libfoo
 
-test rep-add repository/1/satisfy/t1
+test rep-add $rep/satisfy/t1
 test rep-fetch
 test build -p libfoo <<< "build libfoo 1.0.0"
 test build -p libfoo/1.0.0 <<< "build libfoo 1.0.0"
@@ -760,7 +793,7 @@ test cfg-create --wipe
 
 fail build repository/1/satisfy/libbar-1.0.0.tar.gz
 
-test rep-add repository/1/satisfy/t2
+test rep-add $rep/satisfy/t2
 test rep-fetch
 
 test build -p libbar <<EOF
@@ -816,7 +849,7 @@ test pkg-purge libfoo
 #
 test rep-create repository/1/satisfy/t3
 test cfg-create --wipe
-test rep-add repository/1/satisfy/t3
+test rep-add $rep/satisfy/t3
 test rep-fetch
 
 # only in prerequisite repository
@@ -831,7 +864,7 @@ build libbar 1.0.0
 build libbaz 1.0.0
 EOF
 
-test rep-add repository/1/satisfy/t2
+test rep-add $rep/satisfy/t2
 test rep-fetch
 
 # order
@@ -934,7 +967,7 @@ test rep-create repository/1/satisfy/t4a
 test rep-create repository/1/satisfy/t4b
 test rep-create repository/1/satisfy/t4c
 test cfg-create --wipe
-test rep-add repository/1/satisfy/t4c
+test rep-add $rep/satisfy/t4c
 test rep-fetch
 
 test build -p libbaz <<EOF
@@ -968,7 +1001,7 @@ test pkg-purge libfoo
 test pkg-fetch -e repository/1/satisfy/libfoo-1.2.0.tar.gz
 test pkg-unpack libfoo
 fail build -p libbaz
-test rep-add repository/1/satisfy/t4a
+test rep-add $rep/satisfy/t4a
 test rep-fetch
 test build -p libfoo/1.1.0 libbaz <<EOF
 downgrade libfoo 1.1.0
@@ -1007,8 +1040,8 @@ test pkg-fetch -e repository/1/satisfy/libbaz-1.1.0.tar.gz
 test pkg-unpack libbaz
 test pkg-configure libbaz
 
-test rep-add repository/1/satisfy/t4a
-test rep-add repository/1/satisfy/t4b
+test rep-add $rep/satisfy/t4a
+test rep-add $rep/satisfy/t4b
 test rep-fetch
 
 test build -p libbar <<EOF

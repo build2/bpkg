@@ -1,0 +1,10 @@
+using cxx
+
+hxx.ext =
+cxx.ext = cxx
+
+cxx.std = 11
+
+# Don't try to install tests.
+#
+tests/: install = false
