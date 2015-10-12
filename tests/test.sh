@@ -14,10 +14,10 @@ function error ()
   exit 1
 }
 
-bpkg="./bpkg"
-#bpkg="valgrind -q ./bpkg"
-#bpkg="./bpkg --fetch curl"
-#bpkg="./bpkg --fetch fetch --tar bsdtar"
+bpkg="../bpkg/bpkg"
+#bpkg="valgrind -q ../bpkg/bpkg"
+#bpkg="../bpkg/bpkg --fetch curl"
+#bpkg="../bpkg/bpkg --fetch fetch --tar bsdtar"
 cfg=/tmp/conf
 pkg=libhello
 ver=1.0.0
@@ -26,7 +26,7 @@ pkgd=../../hello/dist/$pkg-$ver
 out=$cfg/`basename $pkgd`
 rep=../../hello/1/hello
 
-abs_rep=`realpath ../tests/repository/1`
+abs_rep=`pwd`/repository/1
 
 verbose=n
 options=
@@ -131,12 +131,12 @@ function gone ()
 
 fail rep-create # no 'repositories' file
 
-test rep-create ../tests/repository/1/misc/stable
-test rep-create ../tests/repository/1/misc/testing
+test rep-create repository/1/misc/stable
+test rep-create repository/1/misc/testing
 
-test rep-create ../tests/repository/1/math/stable
-test rep-create ../tests/repository/1/math/testing
-test rep-create ../tests/repository/1/math/unstable
+test rep-create repository/1/math/stable
+test rep-create repository/1/math/testing
+test rep-create repository/1/math/unstable
 
 ##
 ## rep-info
@@ -144,13 +144,13 @@ test rep-create ../tests/repository/1/math/unstable
 
 fail rep-info # repository location expected
 
-test rep-info ../tests/repository/1/misc/testing <<EOF
+test rep-info repository/1/misc/testing <<EOF
 misc/testing $abs_rep/misc/testing
 complement misc/stable $abs_rep/misc/stable
 libhello 1.0.0-1
 EOF
 
-test rep-info -m ../tests/repository/1/math/unstable <<EOF
+test rep-info -m repository/1/math/unstable <<EOF
 math/unstable $abs_rep/math/unstable
 : 1
 location: ../../misc/testing
@@ -216,7 +216,7 @@ test rep-fetch
 # math/unstable repository
 #
 test cfg-create --wipe
-test rep-add ../tests/repository/1/math/unstable
+test rep-add repository/1/math/unstable
 test rep-fetch
 test rep-fetch
 
@@ -224,7 +224,7 @@ test rep-fetch
 #
 test cfg-create --wipe
 test rep-add $rep
-test rep-add ../tests/repository/1/math/unstable
+test rep-add repository/1/math/unstable
 test rep-fetch
 test rep-fetch
 
@@ -237,7 +237,7 @@ test rep-fetch
 ##
 ## pkg-fetch
 ##
-test rep-create ../tests/repository/1/fetch/t1
+test rep-create repository/1/fetch/t1
 test cfg-create --wipe
 
 fail pkg-fetch -e                # archive expected
@@ -248,7 +248,7 @@ fail pkg-fetch libfoo            # package version expected
 fail pkg-fetch libfoo/1/2/3      # invalid package version
 
 fail pkg-fetch libfoo/1.0.0      # no repositories
-test rep-add ../tests/repository/1/fetch/t1
+test rep-add repository/1/fetch/t1
 fail pkg-fetch libfoo/1.0.0      # no packages
 test rep-fetch
 fail pkg-fetch libfoo/2+1.0.0    # not available
@@ -256,24 +256,24 @@ fail pkg-fetch libfoo/2+1.0.0    # not available
 # local
 #
 test cfg-create --wipe
-test rep-add ../tests/repository/1/fetch/t1
+test rep-add repository/1/fetch/t1
 test rep-fetch
 test pkg-fetch libfoo/1.0.0
 stat libfoo/1.0.0 fetched
 fail pkg-fetch libfoo/1.0.0
-fail pkg-fetch -e ../tests/repository/1/fetch/t1/libfoo-1.0.0.tar.gz
+fail pkg-fetch -e repository/1/fetch/t1/libfoo-1.0.0.tar.gz
 test pkg-purge libfoo
-test pkg-fetch -e ../tests/repository/1/fetch/t1/libfoo-1.0.0.tar.gz
+test pkg-fetch -e repository/1/fetch/t1/libfoo-1.0.0.tar.gz
 stat libfoo/1.0.0 fetched
 test pkg-unpack libfoo
 test pkg-fetch -r libfoo/1.1.0
 stat libfoo/1.1.0 fetched
 test pkg-unpack libfoo
-test pkg-fetch -r -e ../tests/repository/1/fetch/t1/libfoo-1.0.0.tar.gz
+test pkg-fetch -r -e repository/1/fetch/t1/libfoo-1.0.0.tar.gz
 stat libfoo/1.0.0 fetched
 test pkg-fetch -r libfoo/1.1.0
 stat libfoo/1.1.0 fetched
-test pkg-fetch -r -e ../tests/repository/1/fetch/t1/libfoo-1.0.0.tar.gz
+test pkg-fetch -r -e repository/1/fetch/t1/libfoo-1.0.0.tar.gz
 stat libfoo/1.0.0 fetched
 test pkg-purge libfoo
 
@@ -311,17 +311,17 @@ stat unknown
 # replace
 #
 test cfg-create --wipe
-test rep-add ../tests/repository/1/fetch/t1
+test rep-add repository/1/fetch/t1
 test rep-fetch
 test pkg-fetch libfoo/1.0.0
-fail pkg-unpack -e ../tests/repository/1/fetch/libfoo-1.1.0
-test pkg-unpack -r -e ../tests/repository/1/fetch/libfoo-1.1.0
+fail pkg-unpack -e repository/1/fetch/libfoo-1.1.0
+test pkg-unpack -r -e repository/1/fetch/libfoo-1.1.0
 stat libfoo/1.1.0 unpacked
 test pkg-purge libfoo
 test pkg-fetch libfoo/1.0.0
 test pkg-unpack libfoo
-fail pkg-unpack -e ../tests/repository/1/fetch/libfoo-1.1.0
-test pkg-unpack -r -e ../tests/repository/1/fetch/libfoo-1.1.0
+fail pkg-unpack -e repository/1/fetch/libfoo-1.1.0
+test pkg-unpack -r -e repository/1/fetch/libfoo-1.1.0
 stat libfoo/1.1.0 unpacked
 test pkg-purge libfoo
 
@@ -508,9 +508,9 @@ stat unknown
 
 # dependency management
 #
-test rep-create ../tests/repository/1/depend/stable
+test rep-create repository/1/depend/stable
 test cfg-create --wipe
-test rep-add ../tests/repository/1/depend/stable
+test rep-add repository/1/depend/stable
 test rep-fetch
 
 test pkg-fetch libbar/1.0.0
@@ -577,17 +577,17 @@ test pkg-purge libbar
 ## pkg-status (also tested in pkg-{fetch,unpack,configure,disfigure,purge}
 ##
 
-test rep-create ../tests/repository/1/status/stable
-test rep-create ../tests/repository/1/status/extra
-test rep-create ../tests/repository/1/status/testing
-test rep-create ../tests/repository/1/status/unstable
+test rep-create repository/1/status/stable
+test rep-create repository/1/status/extra
+test rep-create repository/1/status/testing
+test rep-create repository/1/status/unstable
 
 # basics
 #
 test cfg-create --wipe
 stat libfoo/1.0.0 "unknown"
 stat libfoo "unknown"
-test rep-add ../tests/repository/1/status/stable
+test rep-add repository/1/status/stable
 test rep-fetch
 stat libfoo/1.0.0 "available"
 stat libfoo "available 1.0.0"
@@ -598,20 +598,20 @@ stat libfoo "fetched 1.0.0"
 # multiple versions/revisions
 #
 test cfg-create --wipe
-test rep-add ../tests/repository/1/status/extra
+test rep-add repository/1/status/extra
 test rep-fetch
 stat libbar "available 1.1.0-1"
-test rep-add ../tests/repository/1/status/stable
+test rep-add repository/1/status/stable
 test rep-fetch
 stat libbar "available 1.1.0-1 1.0.0"
 
 test cfg-create --wipe
-test rep-add ../tests/repository/1/status/testing
+test rep-add repository/1/status/testing
 test rep-fetch
 stat libbar "available 1.1.0 1.0.0-1 1.0.0"
 
 test cfg-create --wipe
-test rep-add ../tests/repository/1/status/unstable
+test rep-add repository/1/status/unstable
 test rep-fetch
 stat libbar "available 2.0.0 1.1.0 1.0.0-1 1.0.0"
 test pkg-fetch libbar/1.0.0-1
@@ -707,20 +707,20 @@ test pkg-purge $pkg
 
 # 1
 #
-test rep-create ../tests/repository/1/satisfy/t1
+test rep-create repository/1/satisfy/t1
 test cfg-create --wipe
 
 fail build -p               # package name expected
 fail build -p libfoo        # unknown package
 fail build -p libfoo/1.0.0  # unknown package
-test build -p ../tests/repository/1/satisfy/libfoo-1.1.0.tar.gz <<EOF
+test build -p repository/1/satisfy/libfoo-1.1.0.tar.gz <<EOF
 build libfoo 1.1.0
 EOF
-test build -p ../tests/repository/1/satisfy/libfoo-1.1.0 <<EOF
+test build -p repository/1/satisfy/libfoo-1.1.0 <<EOF
 build libfoo 1.1.0
 EOF
 
-test pkg-unpack -e ../tests/repository/1/satisfy/libfoo-1.1.0
+test pkg-unpack -e repository/1/satisfy/libfoo-1.1.0
 test build -p libfoo <<< "build libfoo 1.1.0"
 test build -p libfoo/1.1.0 <<< "build libfoo 1.1.0"
 test build -p libfoo libfoo <<< "build libfoo 1.1.0"
@@ -730,7 +730,7 @@ test build -p libfoo/1.1.0 libfoo/1.1.0 <<< "build libfoo 1.1.0"
 fail build -p libfoo/1.0.0
 test pkg-purge libfoo
 
-test rep-add ../tests/repository/1/satisfy/t1
+test rep-add repository/1/satisfy/t1
 test rep-fetch
 test build -p libfoo <<< "build libfoo 1.0.0"
 test build -p libfoo/1.0.0 <<< "build libfoo 1.0.0"
@@ -740,13 +740,13 @@ test build -p libfoo/1.0.0 libfoo <<< "build libfoo 1.0.0"
 test build -p libfoo/1.0.0 libfoo/1.0.0 <<< "build libfoo 1.0.0"
 fail build -p libfoo/1.1.0
 
-test pkg-unpack -e ../tests/repository/1/satisfy/libfoo-1.1.0
+test pkg-unpack -e repository/1/satisfy/libfoo-1.1.0
 test build -p libfoo <<< "build libfoo 1.1.0"
 test build -p libfoo/1.0.0 <<< "downgrade libfoo 1.0.0"
 fail build -p libfoo/0.0.0
 test pkg-purge libfoo
 
-test pkg-fetch -e ../tests/repository/1/satisfy/libfoo-0.0.0.tar.gz
+test pkg-fetch -e repository/1/satisfy/libfoo-0.0.0.tar.gz
 test pkg-unpack libfoo
 test build -p libfoo <<< "upgrade libfoo 1.0.0"
 test build -p libfoo/0.0.0 <<< "build libfoo 0.0.0"
@@ -755,12 +755,12 @@ test pkg-purge libfoo
 
 # 2 (libbar depends on libfoo)
 #
-test rep-create ../tests/repository/1/satisfy/t2
+test rep-create repository/1/satisfy/t2
 test cfg-create --wipe
 
-fail build ../tests/repository/1/satisfy/libbar-1.0.0.tar.gz
+fail build repository/1/satisfy/libbar-1.0.0.tar.gz
 
-test rep-add ../tests/repository/1/satisfy/t2
+test rep-add repository/1/satisfy/t2
 test rep-fetch
 
 test build -p libbar <<EOF
@@ -781,7 +781,7 @@ build libbar 1.0.0
 EOF
 fail build -p libbar libfoo/1.1.0
 
-test pkg-fetch -e ../tests/repository/1/satisfy/libfoo-0.0.0.tar.gz
+test pkg-fetch -e repository/1/satisfy/libfoo-0.0.0.tar.gz
 test pkg-unpack libfoo
 test build -p libbar <<EOF
 build libfoo 0.0.0
@@ -797,7 +797,7 @@ build libbar 1.0.0
 EOF
 test pkg-purge libfoo
 
-test pkg-unpack -e ../tests/repository/1/satisfy/libfoo-1.1.0
+test pkg-unpack -e repository/1/satisfy/libfoo-1.1.0
 test build -p libbar <<EOF
 build libfoo 1.1.0
 build libbar 1.0.0
@@ -814,9 +814,9 @@ test pkg-purge libfoo
 
 # 3 (libbaz depends on libbar; libbar in prerequisite repository)
 #
-test rep-create ../tests/repository/1/satisfy/t3
+test rep-create repository/1/satisfy/t3
 test cfg-create --wipe
-test rep-add ../tests/repository/1/satisfy/t3
+test rep-add repository/1/satisfy/t3
 test rep-fetch
 
 # only in prerequisite repository
@@ -831,7 +831,7 @@ build libbar 1.0.0
 build libbaz 1.0.0
 EOF
 
-test rep-add ../tests/repository/1/satisfy/t2
+test rep-add repository/1/satisfy/t2
 test rep-fetch
 
 # order
@@ -930,11 +930,11 @@ EOF
 
 # 4 (libbaz depends on libfoo and libbar; libbar depends on libfoo >= 1.1.0)
 #
-test rep-create ../tests/repository/1/satisfy/t4a
-test rep-create ../tests/repository/1/satisfy/t4b
-test rep-create ../tests/repository/1/satisfy/t4c
+test rep-create repository/1/satisfy/t4a
+test rep-create repository/1/satisfy/t4b
+test rep-create repository/1/satisfy/t4c
 test cfg-create --wipe
-test rep-add ../tests/repository/1/satisfy/t4c
+test rep-add repository/1/satisfy/t4c
 test rep-fetch
 
 test build -p libbaz <<EOF
@@ -954,7 +954,7 @@ fail build -p libfoo/1.1.0 libbaz
 
 # upgrade warning
 #
-test pkg-fetch -e ../tests/repository/1/satisfy/libfoo-0.0.0.tar.gz
+test pkg-fetch -e repository/1/satisfy/libfoo-0.0.0.tar.gz
 test pkg-unpack libfoo
 test build -p libbaz <<EOF
 upgrade libfoo 1.1.0
@@ -965,10 +965,10 @@ test pkg-purge libfoo
 
 # downgrade error
 #
-test pkg-fetch -e ../tests/repository/1/satisfy/libfoo-1.2.0.tar.gz
+test pkg-fetch -e repository/1/satisfy/libfoo-1.2.0.tar.gz
 test pkg-unpack libfoo
 fail build -p libbaz
-test rep-add ../tests/repository/1/satisfy/t4a
+test rep-add repository/1/satisfy/t4a
 test rep-fetch
 test build -p libfoo/1.1.0 libbaz <<EOF
 downgrade libfoo 1.1.0
@@ -985,7 +985,7 @@ test pkg-configure libfoo
 test pkg-fetch libbar/1.1.0
 test pkg-unpack libbar
 test pkg-configure libbar
-fail build -p ../tests/repository/1/satisfy/libfoo-1.2.0.tar.gz
+fail build -p repository/1/satisfy/libfoo-1.2.0.tar.gz
 fail build -p libfoo/1.0.0
 test build -p libfoo/1.1.0 <<< "build libfoo 1.1.0"
 test pkg-disfigure libbar
@@ -997,18 +997,18 @@ test pkg-purge libfoo
 #
 test cfg-create --wipe
 
-test pkg-fetch -e ../tests/repository/1/satisfy/libfoo-1.0.0.tar.gz
+test pkg-fetch -e repository/1/satisfy/libfoo-1.0.0.tar.gz
 test pkg-unpack libfoo
 test pkg-configure libfoo
-test pkg-fetch -e ../tests/repository/1/satisfy/libbar-1.0.0.tar.gz
+test pkg-fetch -e repository/1/satisfy/libbar-1.0.0.tar.gz
 test pkg-unpack libbar
 test pkg-configure libbar
-test pkg-fetch -e ../tests/repository/1/satisfy/libbaz-1.1.0.tar.gz
+test pkg-fetch -e repository/1/satisfy/libbaz-1.1.0.tar.gz
 test pkg-unpack libbaz
 test pkg-configure libbaz
 
-test rep-add ../tests/repository/1/satisfy/t4a
-test rep-add ../tests/repository/1/satisfy/t4b
+test rep-add repository/1/satisfy/t4a
+test rep-add repository/1/satisfy/t4b
 test rep-fetch
 
 test build -p libbar <<EOF
