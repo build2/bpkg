@@ -467,10 +467,7 @@ namespace bpkg
   static string
   to_url (const string& host, uint16_t port, const path& file)
   {
-    //@@ Absolute path in URL: how is this going to work on Windows?
-    //   Change to relative: watch for empty path.
-    //
-    assert (file.absolute ());
+    assert (file.relative ());
 
     string url ("http://");
     url += host;
@@ -478,7 +475,7 @@ namespace bpkg
     if (port != 0)
       url += ":" + to_string (port);
 
-    url += file.posix_string ();
+    url += "/" + file.posix_string ();
     return url;
   }
 
