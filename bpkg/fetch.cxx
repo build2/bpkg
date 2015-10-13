@@ -467,7 +467,10 @@ namespace bpkg
   static string
   to_url (const string& host, uint16_t port, const path& file)
   {
-    assert (file.relative ());
+    assert (!file.empty () && file.relative ());
+
+    if (*file.begin () == "..")
+      fail << "invalid URL path " << file;
 
     string url ("http://");
     url += host;
@@ -476,6 +479,7 @@ namespace bpkg
       url += ":" + to_string (port);
 
     url += "/" + file.posix_string ();
+
     return url;
   }
 
@@ -680,6 +684,15 @@ namespace bpkg
     assert (rl.remote () || rl.absolute ());
 
     path f (rl.path () / a);
+
+    try
+    {
+      f.normalize ();
+    }
+    catch (const invalid_path&)
+    {
+      fail << "invalid archive location " << rl << "/" << f;
+    }
 
     return rl.remote ()
       ? fetch_file (o, rl.host (), rl.port (), f, d)
