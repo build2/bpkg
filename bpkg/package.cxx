@@ -19,22 +19,7 @@ namespace bpkg
   operator< (const available_package_id& x, const available_package_id& y)
   {
     int r (x.name.compare (y.name));
-
-    if (r != 0)
-      return r < 0;
-
-    const auto& xv (x.version);
-    const auto& yv (y.version);
-
-    if (xv.epoch != yv.epoch)
-      return xv.epoch < yv.epoch;
-
-    r = xv.canonical_upstream.compare (yv.canonical_upstream);
-
-    if (r != 0)
-      return r < 0;
-
-    return xv.revision < yv.revision;
+    return r != 0 ? r < 0 : x.version < y.version;
   }
 
   // available_package
