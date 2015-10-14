@@ -467,7 +467,7 @@ namespace bpkg
   static string
   to_url (const string& host, uint16_t port, const path& file)
   {
-    assert (!file.empty () && file.relative ());
+    assert (file.relative ());
 
     if (*file.begin () == "..")
       fail << "invalid URL path " << file;
@@ -680,7 +680,7 @@ namespace bpkg
                  const path& a,
                  const dir_path& d)
   {
-    assert (a.relative ());
+    assert (!a.empty () && a.relative ());
     assert (rl.remote () || rl.absolute ());
 
     path f (rl.path () / a);
