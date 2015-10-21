@@ -159,6 +159,8 @@
       <column name="version_revision" type="INTEGER" null="true"/>
       <column name="version_upstream" type="TEXT" null="true"/>
       <column name="state" type="TEXT" null="true"/>
+      <column name="hold_package" type="INTEGER" null="true"/>
+      <column name="hold_version" type="INTEGER" null="true"/>
       <column name="repository" type="TEXT" null="true"/>
       <column name="archive" type="TEXT" null="true"/>
       <column name="purge_archive" type="INTEGER" null="true"/>

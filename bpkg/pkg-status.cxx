@@ -100,6 +100,12 @@ namespace bpkg
       if (v.empty ())
         cout << " " << p->version;
 
+      if (p->hold_package)
+        cout << " hold_package";
+
+      if (p->hold_version)
+        cout << " hold_version";
+
       found = true;
     }
 

@@ -97,6 +97,8 @@ namespace bpkg
         move (m.name),
         move (m.version),
         package_state::unpacked,
+        false,   // hold package
+        false,   // hold version
         repository_location (), // Root repository.
         nullopt,    // No archive
         false,      // Don't purge archive.

@@ -160,6 +160,12 @@ namespace bpkg
     shared_ptr<available_package> available;  // Can be NULL, fake/transient.
     shared_ptr<bpkg::repository>  repository; // Can be NULL (orphan) or root.
 
+    // Hold flags. Note that we can only "increase" the values that are
+    // already in the selected package.
+    //
+    bool hold_package;
+    bool hold_version;
+
     // Constraint value plus, normally, the dependent package name that
     // placed this constraint but can also be some other name for the
     // initial selection (e.g., package version specified by the user
@@ -460,7 +466,14 @@ namespace bpkg
             force = true;
         }
 
-        satisfied_package dp {dsp, rp.first, rp.second, {}, false};
+        satisfied_package dp {
+          dsp,
+          rp.first,
+          rp.second,
+          false,  // Hold package.
+          false,  // Hold version.
+          {},     // Constraints.
+          false}; // Reconfigure.
 
         // Add our constraint, if we have one.
         //
@@ -468,9 +481,9 @@ namespace bpkg
           dp.constraints.emplace_back (name, *d.constraint);
 
         // Now collect this prerequisite. If it was actually collected
-        // (i.e., it wasn't already there) and we are forcing an upgrade,
-        // then warn, unless we are running quiet. Downgrade -- outright
-        // refuse.
+        // (i.e., it wasn't already there) and we are forcing an upgrade
+        // and the version is not held, then warn, unless we are running
+        // quiet. Downgrade or upgrade of a held version -- refuse.
         //
         if (collect (options, cd, db, move (dp)) && force)
         {
@@ -478,20 +491,26 @@ namespace bpkg
           const version& av (rp.first->version);
 
           bool u (av > sv);
+          bool f (dsp->hold_version || !u); // Fail if downgrade or held.
 
-          if (verb || !u)
+          if (verb || f)
           {
             bool c (d.constraint);
             diag_record dr;
 
-            (u ? dr << warn : dr << fail)
+            (f ? dr << fail : dr << warn)
               << "package " << name << " dependency on "
               << (c ? "(" : "") << d << (c ? ")" : "") << " is forcing "
               << (u ? "up" : "down") << "grade of " << d.name << " " << sv
               << " to " << av;
 
-            if (!u)
-              dr << info << "explicitly specify version downgrade to continue";
+            if (dsp->hold_version)
+              dr << info << "package version " << d.name << " " << sv
+                 << " is held";
+
+            if (f)
+              dr << info << "explicitly request version "
+                 << (u ? "up" : "down") << "grade to continue";
           }
         }
       }
@@ -680,7 +699,14 @@ namespace bpkg
             data_type
             {
               list_.end (),
-              satisfied_package {move (dsp), nullptr, nullptr, {}, true}
+              satisfied_package {
+                move (dsp),
+                nullptr,
+                nullptr,
+                false,  // Hold package.
+                false,  // Hold version.
+                {},     // Constraints.
+                true}   // Reconfigure.
             }).first;
 
           i->second.position = list_.insert (pos, i->second.package);
@@ -921,7 +947,14 @@ namespace bpkg
         level4 ([&]{trace << "collect " << ap->id.name << " "
                           << ap->version;});
 
-        satisfied_package p {move (sp), move (ap), move (ar), {}, false};
+        satisfied_package p {
+          move (sp),
+          move (ap),
+          move (ar),
+          true,         // Hold package.
+          !v.empty (),  // Hold version.
+          {},           // Constraints.
+          false};       // Reconfigure.
 
         // "Fix" the version the user asked for by adding the '==' constraint.
         //
@@ -1142,6 +1175,40 @@ namespace bpkg
 
       if (verb)
         text << "configured " << sp->name << " " << sp->version;
+    }
+
+    // Small detour: update the hold state. While we could have tried
+    // to "weave" it into one of the previous actions, things there
+    // are already convoluted enough.
+    //
+    for (const satisfied_package& p: reverse_iterate (pkgs))
+    {
+      const shared_ptr<selected_package>& sp (p.selected);
+      assert (sp != nullptr);
+
+      // Note that we should only "increase" the hold state.
+      //
+      bool hp (p.hold_package && sp->hold_package != p.hold_package);
+      bool hv (p.hold_version && sp->hold_version != p.hold_version);
+
+      if (hp || hv)
+      {
+        if (hp) sp->hold_package = true;
+        if (hv) sp->hold_version = true;
+
+        transaction t (db.begin ());
+        db.update (sp);
+        t.commit ();
+
+        if (verb > 1)
+        {
+          if (hp)
+            text << "hold package " << sp->name;
+
+          if (hv)
+            text << "hold version " << sp->name << " " << sp->version;
+        }
+      }
     }
 
     // update

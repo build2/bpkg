@@ -1078,3 +1078,54 @@ test build -p libbaz libfoo/1.0.0 <<EOF
 build libfoo 1.0.0
 build libbaz 1.1.0
 EOF
+
+# hold
+#
+test cfg-create --wipe
+test build -y repository/1/satisfy/libfoo-1.0.0.tar.gz
+stat libfoo "configured 1.0.0 hold_package hold_version"
+test build -y repository/1/satisfy/libfoo-1.1.0
+stat libfoo "configured 1.1.0 hold_package hold_version"
+
+test cfg-create --wipe
+test rep-add $rep/satisfy/t4c
+test rep-fetch
+test build -y libfoo
+stat libfoo "configured 1.0.0 hold_package"
+test build -y libfoo/1.0.0
+stat libfoo "configured 1.0.0 hold_package hold_version"
+
+test cfg-create --wipe
+test rep-add $rep/satisfy/t4c
+test rep-fetch
+test build -y libfoo/1.0.0
+stat libfoo "configured 1.0.0 hold_package hold_version"
+
+test cfg-create --wipe
+test pkg-fetch -e repository/1/satisfy/libfoo-1.0.0.tar.gz
+test pkg-unpack libfoo
+test pkg-configure libfoo
+stat libfoo "configured 1.0.0"
+test build -y libfoo
+stat libfoo "configured 1.0.0 hold_package"
+
+test cfg-create --wipe
+test rep-add $rep/satisfy/t4c
+test rep-fetch
+test build -y libfoo
+stat libfoo "configured 1.0.0 hold_package"
+test build -y libbaz
+stat libfoo "configured 1.1.0 hold_package"
+
+test cfg-create --wipe
+test rep-add $rep/satisfy/t4c
+test rep-fetch
+test build -y libfoo/1.0.0
+stat libfoo "configured 1.0.0 hold_package hold_version"
+fail build -y libbaz
+
+test cfg-create --wipe
+test rep-add $rep/satisfy/t4c
+test rep-fetch
+test build -y libbaz
+stat libfoo "configured 1.1.0"

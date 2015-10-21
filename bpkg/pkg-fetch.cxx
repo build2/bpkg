@@ -73,6 +73,8 @@ namespace bpkg
         move (n),
         move (v),
         package_state::fetched,
+        false,   // hold package
+        false,   // hold version
         move (rl),
         move (a),
         purge,

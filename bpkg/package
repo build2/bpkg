@@ -348,6 +348,16 @@ namespace bpkg
     version_type version;
     package_state state;
 
+    // The hold flags indicate whether this package and/or version
+    // should be retained in the configuration. A held package will
+    // not be automatically removed. A held version will not be
+    // automatically upgraded. Note also that the two flags are
+    // orthogonal: we may want to keep a specific version of the
+    // package as long as it has dependents.
+    //
+    bool hold_package;
+    bool hold_version;
+
     // Repository from which this package came. Note that it is not
     // a pointer to the repository object because it could be wiped
     // out (e.g., as a result of rep-fetch). We call such packages
