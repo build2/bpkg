@@ -28,6 +28,13 @@ namespace bpkg
       ""
     };
 
+    bool drop
+    {
+      "<pkg>...",
+      "Drop one or more packages.",
+      ""
+    };
+
     bool pkg-verify
     {
       "<archive>",

@@ -16,6 +16,7 @@ exe{bpkg}: cxx{satisfaction fetch package package-odb manifest-utility \
   cxx{help}           cli.cxx{help-options}                            \
                       cli.cxx{configuration-options}                   \
   cxx{build}          cli.cxx{build-options}                           \
+  cxx{drop}           cli.cxx{drop-options}                            \
   cxx{pkg-command}                                                     \
   cxx{pkg-verify}     cli.cxx{pkg-verify-options}                      \
   cxx{pkg-status}     cli.cxx{pkg-status-options}                      \
@@ -55,6 +56,7 @@ cli.cxx{configuration-options}: cli.options += --exclude-base
 #
 #
 cli.cxx{build-options}: cli{build-options}
+cli.cxx{drop-options}: cli{drop-options}
 
 # pkg-*
 #

@@ -17,6 +17,7 @@
 #include <bpkg/help>
 
 #include <bpkg/build>
+#include <bpkg/drop>
 
 #include <bpkg/pkg-verify>
 #include <bpkg/pkg-status>
@@ -183,6 +184,7 @@ try
 #define COMMAND(CMD) COMMAND_IMPL(, "", CMD)
 
     COMMAND(build);
+    COMMAND(drop);
 
     // pkg-* commands
     //
