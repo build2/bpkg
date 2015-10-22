@@ -144,7 +144,7 @@ namespace bpkg
     t.commit ();
   }
 
-  void
+  int
   pkg_configure (const pkg_configure_options& o, cli::scanner& args)
   {
     tracer trace ("pkg_configure");
@@ -192,5 +192,7 @@ namespace bpkg
 
     if (verb)
       text << "configured " << p->name << " " << p->version;
+
+    return 0;
   }
 }

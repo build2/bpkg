@@ -11,7 +11,7 @@
 
 namespace bpkg
 {
-  void
+  int
   pkg_unpack (const pkg_unpack_options&, cli::scanner& args);
 
   // Unpack the package as a source directory and commit the transaction.

@@ -153,6 +153,8 @@ function gone ()
   fi
 }
 
+#if false; then
+
 ##
 ## rep-create
 ##
@@ -1129,3 +1131,24 @@ test rep-add $rep/satisfy/t4c
 test rep-fetch
 test build -y libbaz
 stat libfoo "configured 1.1.0"
+
+##
+## drop
+##
+test cfg-create --wipe
+
+fail drop -p               # package name expected
+fail drop -p libfoo        # unknown package
+fail drop -p libfoo/1.0.0  # unknown package
+
+# dependents
+#
+test cfg-create --wipe
+test rep-add $rep/satisfy/t4c
+test rep-fetch
+test build -y libbaz
+fail drop -y libfoo
+fail drop -y libfoo libbar
+fail drop -y libfoo libbaz
+test drop -y libfoo libbaz libbar
+test drop -y --drop-dependent libfoo

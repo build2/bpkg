@@ -10,7 +10,7 @@
 
 namespace bpkg
 {
-  void
+  int
   rep_info (const rep_info_options&, cli::scanner& args);
 }
 

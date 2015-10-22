@@ -226,7 +226,7 @@ namespace bpkg
     return p;
   }
 
-  void
+  int
   pkg_fetch (const pkg_fetch_options& o, cli::scanner& args)
   {
     tracer trace ("pkg_fetch");
@@ -269,5 +269,7 @@ namespace bpkg
 
     if (verb)
       text << "fetched " << p->name << " " << p->version;
+
+    return 0;
   }
 }

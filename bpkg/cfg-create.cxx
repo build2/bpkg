@@ -18,7 +18,7 @@ using namespace butl;
 
 namespace bpkg
 {
-  void
+  int
   cfg_create (const cfg_create_options& o, cli::scanner& args)
   {
     tracer trace ("cfg_create");
@@ -130,5 +130,7 @@ namespace bpkg
       c.complete ().normalize ();
       text << "created new configuration in " << c;
     }
+
+    return 0;
   }
 }

@@ -13,7 +13,7 @@
 
 namespace bpkg
 {
-  void
+  int
   pkg_fetch (const pkg_fetch_options&, cli::scanner& args);
 
   // Fetch the package as an archive file and commit the transaction.

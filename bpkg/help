@@ -12,7 +12,7 @@
 
 namespace bpkg
 {
-  void
+  int
   help (const help_options&,
         const string& topic,
         void (*usage) (std::ostream&));

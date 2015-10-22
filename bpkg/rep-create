@@ -10,7 +10,7 @@
 
 namespace bpkg
 {
-  void
+  int
   rep_create (const rep_create_options&, cli::scanner& args);
 }
 

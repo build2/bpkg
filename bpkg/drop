@@ -10,7 +10,7 @@
 
 namespace bpkg
 {
-  void
+  int
   drop (const drop_options&, cli::scanner& args);
 }
 

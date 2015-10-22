@@ -39,7 +39,7 @@ namespace bpkg
     run_b (bspec);
   }
 
-  void
+  int
   pkg_command (const string& cmd,
                const configuration_options& o,
                cli::scanner& args)
@@ -75,5 +75,7 @@ namespace bpkg
     if (verb)
       text << cmd << (cmd.back () != 'e' ? "ed " : "d ")
            << p->name << " " << p->version;
+
+    return 0;
   }
 }

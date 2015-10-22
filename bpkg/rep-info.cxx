@@ -21,7 +21,7 @@ using namespace butl;
 
 namespace bpkg
 {
-  void
+  int
   rep_info (const rep_info_options& o, cli::scanner& args)
   {
     tracer trace ("rep_info");
@@ -108,5 +108,7 @@ namespace bpkg
     {
       fail << "unable to write to STDOUT";
     }
+
+    return 0;
   }
 }

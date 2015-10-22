@@ -12,7 +12,7 @@
 
 namespace bpkg
 {
-  void
+  int
   pkg_verify (const pkg_verify_options&, cli::scanner& args);
 
   // Verify archive is a valid package and return its manifest. Throw

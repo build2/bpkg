@@ -215,7 +215,7 @@ namespace bpkg
     return p;
   }
 
-  void
+  int
   pkg_unpack (const pkg_unpack_options& o, cli::scanner& args)
   {
     tracer trace ("pkg_unpack");
@@ -255,5 +255,7 @@ namespace bpkg
 
     if (verb)
       text << "unpacked " << p->name << " " << p->version;
+
+    return 0;
   }
 }

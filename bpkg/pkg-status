@@ -10,7 +10,7 @@
 
 namespace bpkg
 {
-  void
+  int
   pkg_status (const pkg_status_options&, cli::scanner& args);
 }
 

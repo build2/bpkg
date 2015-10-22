@@ -131,7 +131,7 @@ namespace bpkg
     throw failed ();
   }
 
-  void
+  int
   rep_create (const rep_create_options& o, cli::scanner& args)
   try
   {
@@ -195,9 +195,12 @@ namespace bpkg
       d.normalize ();
       text << pm.size () << " package(s) in " << d;
     }
+
+    return 0;
   }
   catch (const invalid_path& e)
   {
-    fail << "invalid path: '" << e.path () << "'";
+    error << "invalid path: '" << e.path () << "'";
+    throw failed ();
   }
 }

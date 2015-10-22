@@ -13,7 +13,7 @@ namespace bpkg
 {
   // Common pkg-{update,clean,test,install,...} implementation.
   //
-  void
+  int
   pkg_command (const string& cmd, // Without the 'pkg-' prefix.
                const configuration_options&,
                cli::scanner& args);

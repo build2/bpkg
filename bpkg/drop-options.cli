@@ -31,10 +31,17 @@ namespace bpkg
     bool --yes|-y
     {
       "Assume the answer to all prompts is \cb{yes}. Note that this option
-       does not apply to the dropping of dependents confirmation."
+       does not apply to the dropping of dependents; use \cb{--drop-dependent}
+       for that."
     };
 
-    bool --disfigure-only|-d
+    bool --drop-dependent
+    {
+      "Don't warn about or ask for confirmation of dropping dependent
+       packages."
+    };
+
+    bool --disfigure-only
     {
       "Disfigure all the packages but don't purge."
     };

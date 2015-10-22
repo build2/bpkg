@@ -208,7 +208,7 @@ namespace bpkg
     }
   }
 
-  void
+  int
   pkg_verify (const pkg_verify_options& o, cli::scanner& args)
   {
     tracer trace ("pkg_verify");
@@ -227,9 +227,18 @@ namespace bpkg
     // If we were asked to run silent, don't yap about the reason
     // why the package is invalid. Just return the error status.
     //
-    package_manifest m (pkg_verify (o, a, !o.silent ()));
+    try
+    {
+      package_manifest m (pkg_verify (o, a, !o.silent ()));
 
-    if (verb && !o.silent ())
-      text << "valid package " << m.name << " " << m.version;
+      if (verb && !o.silent ())
+        text << "valid package " << m.name << " " << m.version;
+
+      return 0;
+    }
+    catch (const failed&)
+    {
+      return 1;
+    }
   }
 }

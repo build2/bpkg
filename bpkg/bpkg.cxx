@@ -145,6 +145,7 @@ try
 
   // Handle commands.
   //
+  int r (1);
   for (;;)
   {
     // help
@@ -152,7 +153,7 @@ try
     if (cmd.help ())
     {
       assert (h);
-      help (ho, "help", help_options::print_usage);
+      r = help (ho, "help", help_options::print_usage);
       break;
     }
 
@@ -163,7 +164,7 @@ try
     //  if (h)
     //    help (ho, "pkg-verify", pkg_verify_options::print_usage);
     //  else
-    //    pkg_verify (parse<pkg_verify_options> (co, args), args);
+    //    r = pkg_verify (parse<pkg_verify_options> (co, args), args);
     //
     //  return 0;
     // }
@@ -174,7 +175,7 @@ try
       if (h)                                                            \
         help (ho, SP#CMD, NP##CMD##_options::print_usage);              \
       else                                                              \
-        NP##CMD (parse<NP##CMD##_options> (co, args), args);            \
+        r = NP##CMD (parse<NP##CMD##_options> (co, args), args);        \
                                                                         \
       break;                                                            \
     }
@@ -218,6 +219,9 @@ try
     assert (false);
     fail << "unhandled command";
   }
+
+  if (r != 0)
+    return r;
 
   // Warn if args contain some leftover junk. We already successfully
   // performed the command so failing would probably be misleading.

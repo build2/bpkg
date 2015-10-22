@@ -175,7 +175,7 @@ namespace bpkg
     db.update (r);
   }
 
-  void
+  int
   rep_fetch (const rep_fetch_options& o, cli::scanner&)
   {
     tracer trace ("rep_fetch");
@@ -239,5 +239,7 @@ namespace bpkg
 
     if (verb)
       text << pcount << " package(s) in " << rcount << " repository(s)";
+
+    return 0;
   }
 }

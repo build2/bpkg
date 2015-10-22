@@ -19,7 +19,7 @@ using namespace butl;
 
 namespace bpkg
 {
-  void
+  int
   rep_add (const rep_add_options& o, cli::scanner& args)
   {
     tracer trace ("rep_add");
@@ -64,5 +64,7 @@ namespace bpkg
 
     if (verb)
       text << "added " << rn;
+
+    return 0;
   }
 }

@@ -731,7 +731,7 @@ namespace bpkg
     map_type map_;
   };
 
-  void
+  int
   build (const build_options& o, cli::scanner& args)
   {
     tracer trace ("build");
@@ -1029,12 +1029,12 @@ namespace bpkg
     }
 
     if (o.print_only ())
-      return;
+      return 0;
 
     // Ask the user if we should continue.
     //
     if (!(o.yes () || yn_prompt ("continue? [Y/n]", 'y')))
-      return;
+      return 1;
 
     // Ok, we have the green light. The overall action plan is as follows.
     //
@@ -1230,5 +1230,7 @@ namespace bpkg
           text << "updated " << sp->name << " " << sp->version;
       }
     }
+
+    return 0;
   }
 }

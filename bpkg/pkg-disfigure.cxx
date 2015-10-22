@@ -127,7 +127,7 @@ namespace bpkg
     t.commit ();
   }
 
-  void
+  int
   pkg_disfigure (const pkg_disfigure_options& o, cli::scanner& args)
   {
     tracer trace ("pkg_disfigure");
@@ -159,5 +159,7 @@ namespace bpkg
 
     if (verb)
       text << "disfigured " << p->name << " " << p->version;
+
+    return 0;
   }
 }

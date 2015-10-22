@@ -66,7 +66,7 @@ namespace bpkg
     }
   }
 
-  void
+  int
   pkg_purge (const pkg_purge_options& o, cli::scanner& args)
   {
     tracer trace ("pkg_purge");
@@ -182,5 +182,7 @@ namespace bpkg
     if (verb)
         text << (o.keep () ? "keeping archive " : "purged ")
              << p->name << " " << p->version;
+
+    return 0;
   }
 }

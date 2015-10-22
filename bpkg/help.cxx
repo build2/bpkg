@@ -51,7 +51,7 @@ namespace bpkg
     o << ""<< endl;
   }
 
-  void
+  int
   help (const help_options&, const string& t, void (*usage) (std::ostream&))
   {
     ostream& o (cout);
@@ -77,5 +77,7 @@ namespace bpkg
     else
       fail << "unknown bpkg command/help topic '" << t << "'" <<
         info << "run 'bpkg help' for more information";
+
+    return 0;
   }
 }

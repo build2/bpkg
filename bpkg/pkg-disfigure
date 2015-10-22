@@ -11,7 +11,7 @@
 
 namespace bpkg
 {
-  void
+  int
   pkg_disfigure (const pkg_disfigure_options&, cli::scanner& args);
 
   // Disfigure the package, update its state, and commit the

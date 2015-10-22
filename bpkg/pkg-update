@@ -12,10 +12,10 @@
 
 namespace bpkg
 {
-  inline void
+  inline int
   pkg_update (const pkg_update_options& o, cli::scanner& args)
   {
-    pkg_command ("update", o, args);
+    return pkg_command ("update", o, args);
   }
 
   inline void

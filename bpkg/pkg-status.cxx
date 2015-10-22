@@ -20,7 +20,7 @@ using namespace butl;
 
 namespace bpkg
 {
-  void
+  int
   pkg_status (const pkg_status_options& o, cli::scanner& args)
   {
     tracer trace ("pkg_status");
@@ -129,5 +129,6 @@ namespace bpkg
       cout << "unknown";
 
     cout << endl;
+    return 0;
   }
 }
