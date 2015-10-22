@@ -8,6 +8,7 @@
 #include <list>
 #include <iterator>   // make_move_iterator()
 #include <iostream>   // cout
+#include <algorithm>  // find()
 #include <functional> // reference_wrapper
 
 #include <butl/utility> // reverse_iterate()
@@ -37,7 +38,6 @@ namespace bpkg
 {
   // @@ TODO
   //
-  //    - User-selected vs auto-selected packages.
   //    - Detect and complain about dependency cycles.
   //    - Configuration vars (both passed and preserved)
   //
@@ -1219,8 +1219,11 @@ namespace bpkg
       {
         const shared_ptr<selected_package>& sp (p.selected);
 
-        // @@ TODO: update the user selection only.
+        // Update the user selection only.
         //
+        if (find (names.begin (), names.end (), sp->name) == names.end ())
+          continue;
+
         pkg_update (c, sp);
 
         if (verb)
