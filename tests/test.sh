@@ -93,7 +93,9 @@ function test ()
   local cmd=$1; shift
   local ops=
 
-  if [ "$cmd" != "rep-create" -a "$cmd" != "rep-info" ]; then
+  if [ "$cmd" != "rep-create" -a \
+       "$cmd" != "rep-info" -a   \
+       "$cmd" != "pkg-verify" ]; then
     ops="-d $cfg"
   fi
 
@@ -116,7 +118,9 @@ function fail ()
   local cmd=$1; shift
   local ops=
 
-  if [ "$cmd" != "rep-create" -a "$cmd" != "rep-info" ]; then
+  if [ "$cmd" != "rep-create" -a \
+       "$cmd" != "rep-info" -a   \
+       "$cmd" != "pkg-verify" ]; then
     ops="-d $cfg"
   fi
 
@@ -155,11 +159,27 @@ function gone ()
 
 #if false; then
 
+
+##
+## Low-level commands.
+##
+
+
+##
+## pkg-verify
+##
+fail pkg-verify                 # archive expected
+fail pkg-verify ./no-such-file  # archive does not exist
+fail pkg-verify repository/1/common/not-a-package.tar.gz
+fail pkg-verify --silent repository/1/common/not-a-package.tar.gz
+test pkg-verify repository/1/common/hello/libhello-1.0.0.tar.gz
+
+
 ##
 ## rep-create
 ##
-
-fail rep-create # no 'repositories' file
+fail rep-create                      # no 'repositories' file
+fail rep-create repository/1/satisfy # unexpected files
 
 test rep-create repository/1/common/hello
 
@@ -170,10 +190,10 @@ test rep-create repository/1/common/bar/stable
 test rep-create repository/1/common/bar/testing
 test rep-create repository/1/common/bar/unstable
 
+
 ##
 ## rep-info
 ##
-
 fail rep-info # repository location expected
 
 test rep-info $rep/common/foo/testing <<EOF
@@ -204,20 +224,20 @@ depends: libfoo >= 1.1.0
 location: libbar-1.1.1.tar.gz
 EOF
 
+
 ##
 ## cfg-create
 ##
-
 test cfg-create --wipe cxx config.install.root=/tmp/install
 stat libfoo unknown
 
 test cfg-create --wipe config.install.root=/tmp/install cxx
 stat libfoo unknown
 
+
 ##
 ## rep-add
 ##
-
 test cfg-create --wipe
 
 fail rep-add         # repository location expected
@@ -239,10 +259,10 @@ fail rep-add /tmp/1/../1/foo/stable # duplicate
 test rep-add http://pkg.example.org/1/testing
 fail rep-add http://www.example.org/1/testing # duplicate
 
+
 ##
 ## rep-fetch
 ##
-
 test cfg-create --wipe
 
 fail rep-fetch # no repositories
@@ -269,10 +289,10 @@ test rep-add $rep/common/bar/unstable
 test rep-fetch
 test rep-fetch
 
+
 ##
 ## pkg-fetch
 ##
-
 test rep-create repository/1/fetch/t1
 test cfg-create --wipe
 
@@ -317,20 +337,33 @@ test cfg-create --wipe
 test rep-add $rep/common/hello
 test rep-fetch
 test pkg-fetch libhello/1.0.0
-test pkg-unpack libhello
 test pkg-purge libhello
+
 
 ##
 ## pkg-unpack
 ##
-
-# @@ TODO
-
-# replace
-#
 test cfg-create --wipe
+fail pkg-unpack -r # replace only with existing
+fail pkg-unpack -e # package directory expected
+fail pkg-unpack    # package name expected
+
 test rep-add $rep/fetch/t1
 test rep-fetch
+
+# existing
+#
+fail pkg-unpack -e ./no-such-dir # package directory does not exist
+fail pkg-unpack -e ./repository  # not a package directory
+test pkg-fetch libfoo/1.0.0
+fail pkg-unpack -e repository/1/fetch/libfoo-1.1.0 # already exists
+test pkg-purge libfoo
+test pkg-unpack -e repository/1/fetch/libfoo-1.1.0
+stat libfoo/1.1.0 unpacked
+test pkg-purge libfoo
+
+# existing & replace
+#
 test pkg-fetch libfoo/1.0.0
 fail pkg-unpack -e repository/1/fetch/libfoo-1.1.0
 test pkg-unpack -r -e repository/1/fetch/libfoo-1.1.0
@@ -343,10 +376,31 @@ test pkg-unpack -r -e repository/1/fetch/libfoo-1.1.0
 stat libfoo/1.1.0 unpacked
 test pkg-purge libfoo
 
+# package name
+#
+fail pkg-unpack libfoo # no such package in configuration
+test pkg-unpack -e repository/1/fetch/libfoo-1.1.0
+fail pkg-unpack libfoo # wrong package state
+test pkg-purge libfoo
+test pkg-fetch libfoo/1.0.0
+stat libfoo/1.0.0 fetched
+test pkg-unpack libfoo
+stat libfoo/1.0.0 unpacked
+test pkg-purge libfoo
+
+# hello
+#
+test cfg-create --wipe
+test rep-add $rep/common/hello
+test rep-fetch
+test pkg-fetch libhello/1.0.0
+test pkg-unpack libhello
+test pkg-purge libhello
+
+
 ##
 ## pkg-purge
 ##
-
 test cfg-create --wipe
 
 fail pkg-purge         # missing package name
@@ -440,10 +494,10 @@ rm $cfg/libfoo-1.0.0.tar.gz
 test pkg-purge -f libfoo
 stat libfoo unknown
 
+
 ##
 ## pkg-configure/pkg-disfigure
 ##
-
 test cfg-create --wipe
 test rep-add $rep/common/hello
 test rep-fetch
@@ -598,10 +652,10 @@ test pkg-disfigure libfoo
 test pkg-purge libfoo
 test pkg-purge libbar
 
-##
-## pkg-status (also tested in pkg-{fetch,unpack,configure,disfigure,purge}
-##
 
+##
+## pkg-status (also tested in pkg-{fetch,unpack,configure,disfigure,purge})
+##
 test rep-create repository/1/status/stable
 test rep-create repository/1/status/extra
 test rep-create repository/1/status/testing
@@ -645,10 +699,10 @@ test pkg-purge libbar
 test pkg-fetch libbar/2.0.0
 stat libbar "fetched 2.0.0"
 
+
 ##
 ## pkg-update
 ##
-
 test cfg-create --wipe
 test rep-add $rep/common/hello
 test rep-fetch
@@ -679,10 +733,10 @@ test pkg-update libhello
 test pkg-disfigure libhello
 test pkg-purge libhello
 
+
 ##
 ## pkg-clean
 ##
-
 test cfg-create --wipe
 test rep-add $rep/common/hello
 test rep-fetch
@@ -715,9 +769,11 @@ test pkg-clean libhello
 test pkg-disfigure libhello
 test pkg-purge libhello
 
+
 ##
 ## Low-level command scenarios.
 ##
+
 
 # build and clean package
 #
@@ -732,15 +788,17 @@ test pkg-clean libhello
 test pkg-disfigure libhello
 test pkg-purge libhello
 
+
 ##
 ## High-level commands.
 ##
+
 
 ##
 ## build
 ##
 
-# 1
+# 1 (libfoo)
 #
 test rep-create repository/1/satisfy/t1
 test cfg-create --wipe
@@ -1083,6 +1141,16 @@ build libfoo 1.0.0
 build libbaz 1.1.0
 EOF
 
+# actually build
+#
+test cfg-create --wipe
+test rep-add $rep/satisfy/t4c
+test rep-fetch
+test build -y libbaz
+stat libfoo/1.1.0 "configured"
+stat libbar/1.1.0 "configured"
+stat libbaz/1.1.0 "configured hold_package"
+
 # hold
 #
 test cfg-create --wipe
@@ -1288,6 +1356,8 @@ drop libbar
 drop libfox
 EOF
 
+# actually drop
+#
 test drop -y --drop-dependent libbar
 stat libfox/1.0.0 "available"
 stat libfoo/1.1.0 "unknown"

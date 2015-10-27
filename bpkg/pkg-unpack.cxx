@@ -221,7 +221,7 @@ namespace bpkg
     tracer trace ("pkg_unpack");
 
     if (o.replace () && !o.existing ())
-      fail << "-r|--replace can only be specified with -e|--existing";
+      fail << "--replace|-r can only be specified with --existing|-e";
 
     const dir_path& c (o.directory ());
     level4 ([&]{trace << "configuration: " << c;});
