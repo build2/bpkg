@@ -525,7 +525,7 @@ namespace bpkg
     iterator
     order (const string& name, bool reorder = true)
     {
-      // Every package that we order should have already be collected.
+      // Every package that we order should have already been collected.
       //
       auto mi (map_.find (name));
       assert (mi != map_.end ());
@@ -588,7 +588,7 @@ namespace bpkg
         {
           const string& name (p.first.object_id ());
 
-          // The prerequisites may not necessarily be on the map.
+          // The prerequisites may not necessarily be in the map.
           //
           if (map_.find (name) != map_.end ())
             update (order (name, false));
@@ -668,7 +668,6 @@ namespace bpkg
         // list, the package is in the map (but not on the list) and it
         // is in neither.
         //
-        //
         auto i (map_.find (dn));
 
         if (i != map_.end ())
@@ -725,10 +724,8 @@ namespace bpkg
       satisfied_package package;
     };
 
-    using map_type = map<string, data_type>;
-
     list_type list_;
-    map_type map_;
+    map<string, data_type> map_;
   };
 
   int
@@ -756,7 +753,7 @@ namespace bpkg
     // Assemble the list of packages we will need to build.
     //
     satisfied_packages pkgs;
-    vector<string> names;
+    strings names;
     {
       transaction t (db.begin ());
 
@@ -990,42 +987,45 @@ namespace bpkg
 
     // Print what we are going to do, then ask for the user's confirmation.
     //
-    for (const satisfied_package& p: reverse_iterate (pkgs))
+    if (o.print_only () || !o.yes ())
     {
-      const shared_ptr<selected_package>& sp (p.selected);
-      const shared_ptr<available_package>& ap (p.available);
-
-      const char* act;
-      string n;
-      version v;
-
-      if (ap == nullptr)
+      for (const satisfied_package& p: reverse_iterate (pkgs))
       {
-        // This is a dependent needing reconfiguration.
-        //
-        assert (sp != nullptr && p.reconfigure ());
+        const shared_ptr<selected_package>& sp (p.selected);
+        const shared_ptr<available_package>& ap (p.available);
 
-        n = sp->name;
-        act = "reconfigure";
-      }
-      else
-      {
-        n = ap->id.name;
-        v = ap->version;
+        const char* act;
+        string n;
+        version v;
 
-        // Even if we already have this package selected, we have to
-        // make sure it is configured and updated.
-        //
-        if (sp == nullptr || sp->version == v)
-          act = p.reconfigure () ? "reconfigure/build" : "build";
+        if (ap == nullptr)
+        {
+          // This is a dependent needing reconfiguration.
+          //
+          assert (sp != nullptr && p.reconfigure ());
+
+          n = sp->name;
+          act = "reconfigure";
+        }
         else
-          act = sp->version < v ? "upgrade" : "downgrade";
-      }
+        {
+          n = ap->id.name;
+          v = ap->version;
 
-      if (o.print_only ())
-        cout << act << " " << n << (v.empty () ? "" : " ") << v << endl;
-      else if (verb)
-        text << act << " " << n << (v.empty () ? "" : " ") << v;
+          // Even if we already have this package selected, we have to
+          // make sure it is configured and updated.
+          //
+          if (sp == nullptr || sp->version == v)
+            act = p.reconfigure () ? "reconfigure/build" : "build";
+          else
+            act = sp->version < v ? "upgrade" : "downgrade";
+        }
+
+        if (o.print_only ())
+          cout << act << " " << n << (v.empty () ? "" : " ") << v << endl;
+        else if (verb)
+          text << act << " " << n << (v.empty () ? "" : " ") << v;
+      }
     }
 
     if (o.print_only ())
@@ -1036,7 +1036,7 @@ namespace bpkg
     if (!(o.yes () || yn_prompt ("continue? [Y/n]", 'y')))
       return 1;
 
-    // Ok, we have the green light. The overall action plan is as follows.
+    // Ok, we have "all systems go". The overall action plan is as follows.
     //
     // 1. disfigure  up/down-graded, reconfigured [left to right]
     // 2. purge      up/down-graded
@@ -1211,24 +1211,24 @@ namespace bpkg
       }
     }
 
+    if (o.configure_only ())
+      return 0;
+
     // update
     //
-    if (!o.configure_only ())
+    for (const satisfied_package& p: reverse_iterate (pkgs))
     {
-      for (const satisfied_package& p: reverse_iterate (pkgs))
-      {
-        const shared_ptr<selected_package>& sp (p.selected);
+      const shared_ptr<selected_package>& sp (p.selected);
 
-        // Update the user selection only.
-        //
-        if (find (names.begin (), names.end (), sp->name) == names.end ())
-          continue;
+      // Update the user selection only.
+      //
+      if (find (names.begin (), names.end (), sp->name) == names.end ())
+        continue;
 
-        pkg_update (c, sp);
+      pkg_update (c, sp);
 
-        if (verb)
-          text << "updated " << sp->name << " " << sp->version;
-      }
+      if (verb)
+        text << "updated " << sp->name << " " << sp->version;
     }
 
     return 0;
