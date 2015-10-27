@@ -153,8 +153,7 @@ namespace bpkg
   // give up and ask the user to resolve this manually by explicitly
   // specifying the version that will satisfy both constraints.
   //
-  //
-  struct satisfied_package
+  struct build_package
   {
     shared_ptr<selected_package>  selected;   // NULL if not selected.
     shared_ptr<available_package> available;  // Can be NULL, fake/transient.
@@ -214,19 +213,8 @@ namespace bpkg
     }
   };
 
-  struct satisfied_packages
+  struct build_packages: list<reference_wrapper<build_package>>
   {
-    using list_type = list<reference_wrapper<satisfied_package>>;
-
-    using iterator = list_type::iterator;
-    using reverse_iterator = list_type::reverse_iterator;
-
-    iterator begin () {return list_.begin ();}
-    iterator end () {return list_.end ();}
-
-    reverse_iterator rbegin () {return list_.rbegin ();}
-    reverse_iterator rend () {return list_.rend ();}
-
     // Collect the package. Return true if this package version was,
     // in fact, added to the map and false if it was already there
     // or the existing version was preferred.
@@ -235,8 +223,10 @@ namespace bpkg
     collect (const common_options& options,
              const dir_path& cd,
              database& db,
-             satisfied_package&& pkg)
+             build_package&& pkg)
     {
+      using std::swap; // ...and not list::swap().
+
       tracer trace ("collect");
 
       assert (pkg.available != nullptr); // No dependents allowed here.
@@ -252,15 +242,15 @@ namespace bpkg
         // At the end we want p1 to point to the object that we keep
         // and p2 to the object whose constraints we should copy.
         //
-        satisfied_package* p1 (&i->second.package);
-        satisfied_package* p2 (&pkg);
+        build_package* p1 (&i->second.package);
+        build_package* p2 (&pkg);
 
         // If versions are the same, then all we have to do is copy the
         // constraint (p1/p2 already point to where we would want them to).
         //
         if (p1->available->version != p2->available->version)
         {
-          using constraint_type = satisfied_package::constraint_type;
+          using constraint_type = build_package::constraint_type;
 
           // If the versions differ, we have to pick one. Start with the
           // newest version since if both satisfy, then that's the one we
@@ -274,7 +264,7 @@ namespace bpkg
           // pointer to the unsatisfied constraint or NULL if all are
           // satisfied.
           //
-          auto test = [] (satisfied_package* pv, satisfied_package* pc)
+          auto test = [] (build_package* pv, build_package* pc)
             -> const constraint_type*
           {
             for (const constraint_type& c: pc->constraints)
@@ -378,8 +368,7 @@ namespace bpkg
           }
         }
 
-        i = map_.emplace (move (n),
-                          data_type {list_.end (), move (pkg)}).first;
+        i = map_.emplace (move (n), data_type {end (), move (pkg)}).first;
       }
 
       // Now collect all the prerequisites recursively. But first "prune"
@@ -390,7 +379,7 @@ namespace bpkg
       // search for prerequisites). By skipping the prerequisite check we
       // are able to gracefully handle configured orphans.
       //
-      const satisfied_package& p (i->second.package);
+      const build_package& p (i->second.package);
       const shared_ptr<selected_package>& sp (p.selected);
       const shared_ptr<available_package>& ap (p.available);
 
@@ -466,7 +455,7 @@ namespace bpkg
             force = true;
         }
 
-        satisfied_package dp {
+        build_package dp {
           dsp,
           rp.first,
           rp.second,
@@ -535,10 +524,10 @@ namespace bpkg
       // return its position. Unless we want it reordered.
       //
       iterator& pos (mi->second.position);
-      if (pos != list_.end ())
+      if (pos != end ())
       {
         if (reorder)
-          list_.erase (pos);
+          erase (pos);
         else
           return pos;
       }
@@ -547,7 +536,7 @@ namespace bpkg
       // position of its "earliest" prerequisite -- this is where it
       // will be inserted.
       //
-      satisfied_package& p (mi->second.package);
+      build_package& p (mi->second.package);
       const shared_ptr<selected_package>& sp (p.selected);
       const shared_ptr<available_package>& ap (p.available);
 
@@ -556,14 +545,14 @@ namespace bpkg
       // Unless this package needs something to be before it, add it to
       // the end of the list.
       //
-      iterator i (list_.end ());
+      iterator i (end ());
 
       // Figure out if j is before i, in which case set i to j. The goal
       // here is to find the position of our "earliest" prerequisite.
       //
       auto update = [this, &i] (iterator j)
       {
-        for (iterator k (j); i != j && k != list_.end ();)
+        for (iterator k (j); i != j && k != end ();)
           if (++k == i)
             i = j;
       };
@@ -611,7 +600,7 @@ namespace bpkg
         }
       }
 
-      return pos = list_.insert (i, p);
+      return pos = insert (i, p);
     }
 
     // If a configured package is being up/down-graded then that means
@@ -638,9 +627,9 @@ namespace bpkg
       // packages that are already on the list as well as the ones that
       // we add, recursively.
       //
-      for (auto i (list_.begin ()); i != list_.end (); ++i)
+      for (auto i (begin ()); i != end (); ++i)
       {
-        const satisfied_package& p (*i);
+        const build_package& p (*i);
 
         // Prune if this is not a configured package being up/down-graded
         // or reconfigured.
@@ -655,7 +644,7 @@ namespace bpkg
     {
       tracer trace ("collect_order_dependents");
 
-      const satisfied_package& p (*pos);
+      const build_package& p (*pos);
       const string& n (p.selected->name);
 
       using query = query<package_dependent>;
@@ -672,21 +661,21 @@ namespace bpkg
 
         if (i != map_.end ())
         {
-          satisfied_package& dp (i->second.package);
+          build_package& dp (i->second.package);
 
           // Force reconfiguration in both cases.
           //
           dp.reconfigure_ = true;
 
-          if (i->second.position == list_.end ())
+          if (i->second.position == end ())
           {
-            // Clean the satisfied_package object up to make sure we don't
+            // Clean the build_package object up to make sure we don't
             // inadvertently force up/down-grade.
             //
             dp.available = nullptr;
             dp.repository = nullptr;
 
-            i->second.position = list_.insert (pos, dp);
+            i->second.position = insert (pos, dp);
           }
         }
         else
@@ -697,8 +686,8 @@ namespace bpkg
             move (dn),
             data_type
             {
-              list_.end (),
-              satisfied_package {
+              end (),
+              build_package {
                 move (dsp),
                 nullptr,
                 nullptr,
@@ -708,7 +697,7 @@ namespace bpkg
                 true}   // Reconfigure.
             }).first;
 
-          i->second.position = list_.insert (pos, i->second.package);
+          i->second.position = insert (pos, i->second.package);
         }
 
         // Collect our own dependents inserting them before us.
@@ -721,10 +710,9 @@ namespace bpkg
     struct data_type
     {
       iterator position;         // Note: can be end(), see collect().
-      satisfied_package package;
+      build_package package;
     };
 
-    list_type list_;
     map<string, data_type> map_;
   };
 
@@ -743,16 +731,16 @@ namespace bpkg
     database db (open (c, trace));
 
     // Note that the session spans all our transactions. The idea here is
-    // that selected_package objects in the satisfied_packages list below
-    // will be cached in this session. When subsequent transactions modify
-    // any of these objects, they will modify the cached instance, which
-    // means our list will always "see" their updated state.
+    // that selected_package objects in the build_packages list below will
+    // be cached in this session. When subsequent transactions modify any
+    // of these objects, they will modify the cached instance, which means
+    // our list will always "see" their updated state.
     //
     session s;
 
     // Assemble the list of packages we will need to build.
     //
-    satisfied_packages pkgs;
+    build_packages pkgs;
     strings names;
     {
       transaction t (db.begin ());
@@ -944,7 +932,7 @@ namespace bpkg
         level4 ([&]{trace << "collect " << ap->id.name << " "
                           << ap->version;});
 
-        satisfied_package p {
+        build_package p {
           move (sp),
           move (ap),
           move (ar),
@@ -989,7 +977,7 @@ namespace bpkg
     //
     if (o.print_only () || !o.yes ())
     {
-      for (const satisfied_package& p: reverse_iterate (pkgs))
+      for (const build_package& p: reverse_iterate (pkgs))
       {
         const shared_ptr<selected_package>& sp (p.selected);
         const shared_ptr<available_package>& ap (p.available);
@@ -1055,7 +1043,7 @@ namespace bpkg
 
     // disfigure
     //
-    for (const satisfied_package& p: pkgs)
+    for (const build_package& p: pkgs)
     {
       // We are only interested in configured packages that are either
       // up/down-graded or need reconfiguration (e.g., dependents).
@@ -1078,7 +1066,7 @@ namespace bpkg
 
     // fetch/unpack
     //
-    for (satisfied_package& p: reverse_iterate (pkgs))
+    for (build_package& p: reverse_iterate (pkgs))
     {
       shared_ptr<selected_package>& sp (p.selected);
       const shared_ptr<available_package>& ap (p.available);
@@ -1158,7 +1146,7 @@ namespace bpkg
 
     // configure
     //
-    for (const satisfied_package& p: reverse_iterate (pkgs))
+    for (const build_package& p: reverse_iterate (pkgs))
     {
       const shared_ptr<selected_package>& sp (p.selected);
 
@@ -1181,7 +1169,7 @@ namespace bpkg
     // to "weave" it into one of the previous actions, things there
     // are already convoluted enough.
     //
-    for (const satisfied_package& p: reverse_iterate (pkgs))
+    for (const build_package& p: reverse_iterate (pkgs))
     {
       const shared_ptr<selected_package>& sp (p.selected);
       assert (sp != nullptr);
@@ -1216,7 +1204,7 @@ namespace bpkg
 
     // update
     //
-    for (const satisfied_package& p: reverse_iterate (pkgs))
+    for (const build_package& p: reverse_iterate (pkgs))
     {
       const shared_ptr<selected_package>& sp (p.selected);
 
