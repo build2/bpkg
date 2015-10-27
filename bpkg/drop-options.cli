@@ -35,6 +35,12 @@ namespace bpkg
        for that."
     };
 
+    bool --no|-n
+    {
+      "Assume the answer to all prompts is \cb{no}. Only makes sense together
+       with \cb{--print-only|-p}."
+    };
+
     bool --drop-dependent
     {
       "Don't warn about or ask for confirmation of dropping dependent

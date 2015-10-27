@@ -66,6 +66,26 @@ namespace bpkg
     }
   }
 
+  void
+  pkg_purge (const dir_path& c,
+             transaction& t,
+             const shared_ptr<selected_package>& p)
+  {
+    assert (p->state == package_state::fetched ||
+            p->state == package_state::unpacked);
+
+    tracer trace ("pkg_purge");
+
+    database& db (t.database ());
+    tracer_guard tg (db, trace);
+
+    assert (!p->out_root);
+    pkg_purge_fs (c, t, p, true);
+
+    db.erase (p);
+    t.commit ();
+  }
+
   int
   pkg_purge (const pkg_purge_options& o, cli::scanner& args)
   {

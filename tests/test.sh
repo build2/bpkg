@@ -140,7 +140,7 @@ function stat ()
   local s=`$bpkg pkg-status -d $cfg $1`
 
   if [ "$s" != "$2" ]; then
-    error "status: '"$s"', expected: '"$2"'"
+    error "status $1: '"$s"', expected: '"$2"'"
   fi
 }
 
@@ -968,6 +968,8 @@ EOF
 test rep-create repository/1/satisfy/t4a
 test rep-create repository/1/satisfy/t4b
 test rep-create repository/1/satisfy/t4c
+test rep-create repository/1/satisfy/t4d
+
 test cfg-create --wipe
 test rep-add $rep/satisfy/t4c
 test rep-fetch
@@ -1132,6 +1134,7 @@ test rep-fetch
 test build -y libbaz
 stat libfoo "configured 1.1.0"
 
+
 ##
 ## drop
 ##
@@ -1141,14 +1144,153 @@ fail drop -p               # package name expected
 fail drop -p libfoo        # unknown package
 fail drop -p libfoo/1.0.0  # unknown package
 
-# dependents
-#
 test cfg-create --wipe
 test rep-add $rep/satisfy/t4c
 test rep-fetch
 test build -y libbaz
+
+test drop -p -y libfoo libbaz libbar <<EOF
+drop libbaz
+drop libbar
+drop libfoo
+EOF
+
+# dependents
+#
 fail drop -y libfoo
 fail drop -y libfoo libbar
 fail drop -y libfoo libbaz
-test drop -y libfoo libbaz libbar
-test drop -y --drop-dependent libfoo
+
+test drop -p -y --drop-dependent libfoo <<EOF
+drop libbaz
+drop libbar
+drop libfoo
+EOF
+
+test drop -p --drop-dependent libfoo libbaz <<EOF
+drop libbaz
+drop libbar
+drop libfoo
+EOF
+
+test drop -p --drop-dependent libbaz libfoo <<EOF
+drop libbaz
+drop libbar
+drop libfoo
+EOF
+
+# prerequisites
+#
+test drop -p -y libbaz <<EOF
+drop libbaz
+drop libbar
+drop libfoo
+EOF
+
+test drop -p -n libbaz <<EOF
+drop libbaz
+EOF
+
+test drop -p -n libbar libbaz <<EOF
+drop libbaz
+drop libbar
+EOF
+
+test drop -p -n libbaz libbar <<EOF
+drop libbaz
+drop libbar
+EOF
+
+# prerequisites and dependents
+#
+test drop -p -y --drop-dependent libbar <<EOF
+drop libbaz
+drop libbar
+drop libfoo
+EOF
+
+test cfg-create --wipe
+test rep-add $rep/satisfy/t4d
+test rep-fetch
+test build -y libbiz
+
+test drop -p -y libbiz <<EOF
+drop libbiz
+drop libbaz
+drop libbar
+drop libfoo
+drop libfox
+EOF
+
+test drop -p -y libfox libbiz <<EOF
+drop libbiz
+drop libfox
+drop libbaz
+drop libbar
+drop libfoo
+EOF
+
+test drop -p -y --drop-dependent libfox <<EOF
+drop libbiz
+drop libfox
+drop libbaz
+drop libbar
+drop libfoo
+EOF
+
+test drop -p -y --drop-dependent libbaz <<EOF
+drop libbiz
+drop libbaz
+drop libbar
+drop libfoo
+drop libfox
+EOF
+
+test drop -p -y --drop-dependent libbar <<EOF
+drop libbiz
+drop libbaz
+drop libbar
+drop libfoo
+drop libfox
+EOF
+
+test drop -p -y --drop-dependent libfoo <<EOF
+drop libbiz
+drop libbaz
+drop libbar
+drop libfoo
+drop libfox
+EOF
+
+test drop -p -n --drop-dependent libfox libbaz <<EOF
+drop libbiz
+drop libfox
+drop libbaz
+EOF
+
+test drop -p -n --drop-dependent libbaz libfox <<EOF
+drop libbiz
+drop libbaz
+drop libfox
+EOF
+
+test drop -p -n --drop-dependent libfox libbar <<EOF
+drop libbiz
+drop libfox
+drop libbaz
+drop libbar
+EOF
+
+test drop -p -n --drop-dependent libbar libfox <<EOF
+drop libbiz
+drop libbaz
+drop libbar
+drop libfox
+EOF
+
+test drop -y --drop-dependent libbar
+stat libfox/1.0.0 "available"
+stat libfoo/1.1.0 "unknown"
+stat libbar/1.1.0 "unknown"
+stat libbaz/1.1.0 "unknown"
+stat libbiz/1.0.0 "available"
