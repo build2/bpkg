@@ -66,17 +66,17 @@ namespace bpkg
 
       query q (query::id.name == n);
 
-      // If we found an existing package, then only look for versions
-      // greater than what already exists.
+      // If the user specified the version, then only look for that
+      // specific version.
       //
-      if (p != nullptr)
-        q = q && query::id.version > p->version;
-      else if (!v.empty ())
-        //
-        // Otherwise, if the user specified the version, then only look for
-        // that specific version.
-        //
+      if (!v.empty ())
         q = q && query::id.version == v;
+      //
+      // Otherwise, if we found an existing package, then only look for
+      // versions greater than what already exists.
+      //
+      else if (p != nullptr)
+        q = q && query::id.version > p->version;
 
       q += order_by_version_desc (query::id.version);
 

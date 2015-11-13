@@ -4,21 +4,104 @@
 
 include <bpkg/configuration-options.cli>;
 
-/*
 "\section=1"
 "\name=bpkg-pkg-status"
+"\summary=print package status"
 
-"\h{SYNOPSIS}
+"\project=bpkg"          //@@ command line
+"\version=0.1.0"         //@@ command line
+"\date=12 November 2015" //@@ command line; release date
 
-bpkg pkg-status <pkg>[/<ver>]"
+{
+"<options> <pkg> <ver>",
 
-"\h{DESCRIPTION}
+"\h|SYNOPSIS|
 
-The \cb{pkg-status} command prints the status of the specified
-package or, if <ver> is specified, package version. Note that the
-status is written to \cb{STDOUT}, not \cb{STDERR}.
-@@ TODO: output form and possible status values."
-*/
+\c{\b{bpkg pkg-status} [<options>] <pkg>[/<ver>]}
+
+\h|DESCRIPTION|
+
+The \cb{pkg-status} command prints the status of the specified package or, if
+<ver> is specified, package version. Note that the status is written to
+\cb{STDOUT}, not \cb{STDERR}.
+
+The status format is regular. First always comes one of the following status
+words:
+
+\dl|
+
+\li|\cb{unknown}
+
+    package is not part of the configuration nor available in one of the
+    repositories|
+
+\li|\cb{available}
+
+    package is not part of the configuration but is available in one of the
+    repositories|
+
+\li|\cb{fetched}
+
+    package is part of the configuration and is fetched|
+
+\li|\cb{unpacked}
+
+    package is part of the configuration and is unpacked|
+
+\li|\cb{configured}
+
+    package is part of the configuration and is configured||
+
+
+If only the package name was specified without the package version, then the
+\cb{available} status word is followed by the list of available versions.
+
+Similarly, if only the package name was specified, then the \cb{fetched},
+\cb{unpacked}, and \cb{configured} status words are followed by the version
+of the package. After the possible package version, these status words may
+be followed by one or more sub-status words. Currently, these can be
+\cb{hold_package} (package should not be automatically dropped) and
+\cb{hold_version} (package should not be automatically upgraded). Finally,
+if only the package name was specified and newer versions are available
+in the repositories, then the sub-status words are followed by '\cb{;}',
+the \cb{available} status word, and the list of newer versions.
+
+Below are some examples, assuming the configuration has libfoo 1.0.0
+configured and held as well as libfoo 1.1.0 and 1.1.1 available from a
+repository.
+
+\
+bpkg pkg-status libbar
+unknown
+
+bpkg pkg-status libbar/1.0.0
+unknown
+
+bpkg pkg-status libfoo/1.0.0
+configured hold_package
+
+bpkg pkg-status libfoo/1.1.0
+available
+
+bpkg pkg-status libfoo
+configured 1.0.0 hold_package; available 1.1.0 1.1.1
+\
+
+Assuming now that we dropped libfoo from the configuration:
+
+\
+bpkg pkg-status libfoo/1.0.0
+unknown
+
+bpkg pkg-status libfoo/1.1.0
+available
+
+bpkg pkg-status libfoo
+available 1.1.0 1.1.1
+\
+
+\h|OPTIONS|"
+}
 
 namespace bpkg
 {
