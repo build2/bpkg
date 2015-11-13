@@ -32,7 +32,6 @@ namespace bpkg
       // not even the delimiter and eofbit if it reached eof before seeing
       // the delimiter.
       //
-      //
       getline (cin, a);
 
       bool f (cin.fail ());
