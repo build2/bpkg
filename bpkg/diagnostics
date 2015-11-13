@@ -54,7 +54,7 @@ namespace bpkg
     print_process (args.data (), args.size ());
   }
 
-  // Verbosity level.
+  // Verbosity level. Update documentation for --verbose if changing.
   //
   // 0 - disabled
   // 1 - high-level information messages

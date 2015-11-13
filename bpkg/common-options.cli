@@ -2,7 +2,6 @@
 // copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-include <vector>;
 include <bpkg/types>;
 
 namespace bpkg
@@ -25,8 +24,22 @@ namespace bpkg
     {
       "<level>",
       "Set the diagnostics verbosity to <level> between 0 (disabled) and
-       6 (lots of information). The default is 1. @@ Need to document
-       further."
+       6 (lots of information). The default is 1. The following additional
+       classes of diagnostics are produced at each level:
+
+       \ol|
+
+       \li|high-level information messages|
+
+       \li|essential underlying commands that are being executed|
+
+       \li|all underlying commands that are being executed|
+
+       \li|information that could be helpful to the user|
+
+       \li|information that could be helpful to the developer|
+
+       \li|even more detailed information||"
     };
 
     path --fetch
