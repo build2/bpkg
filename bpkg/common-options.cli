@@ -4,6 +4,10 @@
 
 include <bpkg/types>;
 
+"\section=1"
+"\name=bpkg-common"
+"\summary=common options for all commands"
+
 namespace bpkg
 {
   class common_options = 0

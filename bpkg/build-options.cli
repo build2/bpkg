@@ -8,10 +8,6 @@ include <bpkg/configuration-options.cli>;
 "\name=bpkg-build"
 "\summary=build one or more packages"
 
-"\project=bpkg"          //@@ command line
-"\version=0.1.0"         //@@ command line
-"\date=12 November 2015" //@@ command line; release date
-
 {
 "<options> <pkg> <ver> <file> <dir>",
 

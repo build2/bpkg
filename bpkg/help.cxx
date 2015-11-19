@@ -21,6 +21,8 @@ namespace bpkg
   {
     ostream& o (cout);
 
+    //@@ TODO
+
     o << "usage: bpkg --help" << endl
       << "       bpkg --version" << endl
       << "       bpkg help [<command>|<topic>]" << endl
@@ -60,9 +62,11 @@ namespace bpkg
     {
       usage (o);
 
+      //@@ TODO
+
       o << endl
         << "The common options are summarized below. For details, see the " <<
-        "'options' help" << endl
+        "'common' help" << endl
         << "topic." << endl
         << endl;
 
@@ -70,9 +74,9 @@ namespace bpkg
     }
     else if (t.empty ())     // General help.
       help ();
-    else if (t == "options") // Help topics.
+    else if (t == "common")  // Help topics.
     {
-      common_options::print_long_usage (cout);
+      print_bpkg_common_long_usage (cout);
     }
     else
       fail << "unknown bpkg command/help topic '" << t << "'" <<

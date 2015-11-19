@@ -4,10 +4,11 @@
 
 include <bpkg/common-options.cli>;
 
-/*
 "\section=1"
 "\name=bpkg-pkg-verify"
+"\summary=verify archive is a valid package"
 
+/*
 "\h{SYNOPSIS}
 
 bpkg pkg-verify <archive>"

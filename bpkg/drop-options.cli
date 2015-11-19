@@ -4,10 +4,11 @@
 
 include <bpkg/configuration-options.cli>;
 
-/*
 "\section=1"
 "\name=bpkg-drop"
+"\summary=drop one or more packages"
 
+/*
 "\h{SYNOPSIS}
 
 bpkg drop [<options>] <pkg>..."

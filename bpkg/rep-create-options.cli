@@ -4,6 +4,10 @@
 
 include <bpkg/common-options.cli>;
 
+"\section=1"
+"\name=bpkg-rep-create"
+"\summary=create repository manifest file"
+
 namespace bpkg
 {
   class rep_create_options: common_options

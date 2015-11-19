@@ -173,7 +173,7 @@ try
     if (cmd.NP##CMD ())                                                 \
     {                                                                   \
       if (h)                                                            \
-        help (ho, SP#CMD, NP##CMD##_options::print_usage);              \
+        help (ho, SP#CMD, print_bpkg_##NP##CMD##_usage);                \
       else                                                              \
         r = NP##CMD (parse<NP##CMD##_options> (co, args), args);        \
                                                                         \

@@ -4,10 +4,11 @@
 
 include <bpkg/common-options.cli>;
 
-/*
 "\section=1"
 "\name=bpkg-rep-info"
+"\summary=print information about repository"
 
+/*
 "\h{SYNOPSIS}
 
 bpkg rep-info [<options>] <rep>"

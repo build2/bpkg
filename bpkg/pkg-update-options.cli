@@ -4,10 +4,11 @@
 
 include <bpkg/configuration-options.cli>;
 
-/*
 "\section=1"
 "\name=bpkg-pkg-update"
+"\summary=update package"
 
+/*
 "\h{SYNOPSIS}
 
 bpkg pkg-update <pkg>"

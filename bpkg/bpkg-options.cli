@@ -4,6 +4,10 @@
 
 include <bpkg/common-options.cli>;
 
+"\section=1"
+"\name=bpkg"
+"\summary=build2 package manager"
+
 namespace bpkg
 {
   class bpkg_options: common_options
@@ -38,7 +42,7 @@ namespace bpkg
     bool pkg-verify
     {
       "<archive>",
-      "Verify archive is a valid \cb{bpkg} package.",
+      "Verify archive is a valid package.",
       ""
     };
 
@@ -138,7 +142,7 @@ namespace bpkg
   //
   class bpkg_topics
   {
-    bool options
+    bool common
     {
       "Detailed description of common options."
     };

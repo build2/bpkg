@@ -4,10 +4,11 @@
 
 include <bpkg/common-options.cli>;
 
-/*
 "\section=1"
 "\name=bpkg-cfg-create"
+"\summary=create configuration"
 
+/*
 "\h{SYNOPSIS}
 
 bpkg cfg-create [<options>] [(<module>|<conf-var>)...]"

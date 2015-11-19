@@ -39,7 +39,8 @@ exe{bpkg}: cxx{satisfaction fetch package package-odb manifest-utility \
 cli.options += -I $src_root --include-with-brackets --include-prefix bpkg \
 --guard-prefix BPKG --cxx-prologue "#include <bpkg/types-parsers>"        \
 --cli-namespace bpkg::cli --generate-file-scanner --generate-specifier    \
---generate-parse --long-usage --option-length 22
+--generate-parse --ansi-color --page-usage 'bpkg::print_$name$_'          \
+--long-usage --option-length 20
 
 cli.cxx{common-options}: cli{common-options}
 cli.cxx{common-options}: cli.options += --short-usage

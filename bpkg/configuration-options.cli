@@ -4,6 +4,8 @@
 
 include <bpkg/common-options.cli>;
 
+"\name=configuration" // Not a man page.
+
 namespace bpkg
 {
   // Common options for commands that operate on a configuration.

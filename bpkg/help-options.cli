@@ -4,6 +4,10 @@
 
 include <bpkg/common-options.cli>;
 
+"\section=1"
+"\name=bpkg-help"
+"\summary=show help for a command or help topic"
+
 namespace bpkg
 {
   class help_options: common_options
