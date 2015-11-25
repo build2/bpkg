@@ -12,10 +12,10 @@
 
 namespace bpkg
 {
+  using usage_function = cli::usage_para (std::ostream&, cli::usage_para);
+
   int
-  help (const help_options&,
-        const string& topic,
-        void (*usage) (std::ostream&));
+  help (const help_options&, const string& topic, usage_function* usage);
 }
 
 #endif // BPKG_HELP

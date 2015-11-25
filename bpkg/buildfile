@@ -40,19 +40,17 @@ cli.options += -I $src_root --include-with-brackets --include-prefix bpkg \
 --guard-prefix BPKG --cxx-prologue "#include <bpkg/types-parsers>"        \
 --cli-namespace bpkg::cli --generate-file-scanner --generate-specifier    \
 --generate-parse --ansi-color --page-usage 'bpkg::print_$name$_'          \
---long-usage --option-length 20
+--include-base-last --long-usage --option-length 20
 
 cli.cxx{common-options}: cli{common-options}
 cli.cxx{common-options}: cli.options += --short-usage
 
+cli.cxx{configuration-options}: cli{configuration-options}
+
 cli.cxx{bpkg-options}: cli{bpkg-options}
-cli.cxx{bpkg-options}: cli.options += --short-usage
+cli.cxx{bpkg-options}: cli.options += --suppress-undocumented
 
 cli.cxx{help-options}: cli{help-options}
-cli.cxx{help-options}: cli.options += --exclude-base
-
-cli.cxx{configuration-options}: cli{configuration-options}
-cli.cxx{configuration-options}: cli.options += --exclude-base
 
 #
 #
@@ -69,22 +67,15 @@ cli.cxx{pkg-configure-options}: cli{pkg-configure-options}
 cli.cxx{pkg-disfigure-options}: cli{pkg-disfigure-options}
 cli.cxx{pkg-update-options}:    cli{pkg-update-options}
 cli.cxx{pkg-clean-options}:     cli{pkg-clean-options}
-
-cli.cxx{pkg-verify-options}: cli{pkg-verify-options}
-cli.cxx{pkg-verify-options}: cli.options += --exclude-base
+cli.cxx{pkg-verify-options}:    cli{pkg-verify-options}
 
 # cfg-*
 #
 cli.cxx{cfg-create-options}: cli{cfg-create-options}
-cli.cxx{cfg-create-options}: cli.options += --exclude-base
 
 # rep-*
 #
 cli.cxx{rep-add-options}:   cli{rep-add-options}
 cli.cxx{rep-fetch-options}: cli{rep-fetch-options}
-
 cli.cxx{rep-info-options}: cli{rep-info-options}
-cli.cxx{rep-info-options}: cli.options += --exclude-base
-
 cli.cxx{rep-create-options}: cli{rep-create-options}
-cli.cxx{rep-create-options}: cli.options += --exclude-base

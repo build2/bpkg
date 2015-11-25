@@ -8,41 +8,42 @@ include <bpkg/configuration-options.cli>;
 "\name=bpkg-build"
 "\summary=build one or more packages"
 
-{
-"<options> <pkg> <ver> <file> <dir>",
-
-"\h|SYNOPSIS|
-
-\c{\b{bpkg build} [<options>] (<pkg>[/<ver>] | <file> | <dir>)...}
-
-\h|DESCRIPTION|
-
-The \cb{build} command builds one or more packages including all their
-prerequisites. Each package can be specified as just the name (<pkg>) with
-optional package version (<ver>) in which case the package will be
-automatically fetched from one of the configuration's source repositories
-(see the \cb{rep-add} and \cb{rep-fetch} commands). Alternatively, the
-package can be specified as either the path to the package source archive
-(<file>) or package source directory (<dir>). See the \cb{pkg-fetch} and
-\cb{pkg-unpack} commands for more information on the semantics of specifying
-the package as an archive or directory.
-
-Packages that are specified explicitly on the command line will be \i{held},
-that is, they will not be considered for automatic removal if they no longer
-have any dependents. Packages that are specified with the explicit package
-version (<ver>) or as an archive or directory, will, in addition, have their
-versions held, that is, they will not be automatically upgraded.
-
-The \cb{build} command also supports several \cb{--*-only} options that allow
-you to limit the amount of work that will be done.
-
-\h|OPTIONS|"
-}
-
 namespace bpkg
 {
+  {
+    "<options> <pkg> <ver> <file> <dir>",
+
+    "\h|SYNOPSIS|
+
+     \c{\b{bpkg build} [<options>] (<pkg>[/<ver>] | <file> | <dir>)...}
+
+     \h|DESCRIPTION|
+
+     The \cb{build} command builds one or more packages including all their
+     prerequisites. Each package can be specified as just the name (<pkg>) with
+     optional package version (<ver>) in which case the package will be
+     automatically fetched from one of the configuration's source repositories
+     (see the \cb{rep-add} and \cb{rep-fetch} commands). Alternatively, the
+     package can be specified as either the path to the package source archive
+     (<file>) or package source directory (<dir>). See the \cb{pkg-fetch} and
+     \cb{pkg-unpack} commands for more information on the semantics of
+     specifying the package as an archive or directory.
+
+     Packages that are specified explicitly on the command line will be
+     \i{held}, that is, they will not be considered for automatic removal if
+     they no longer have any dependents. Packages that are specified with the
+     explicit package version (<ver>) or as an archive or directory, will, in
+     addition, have their versions held, that is, they will not be
+     automatically upgraded.
+
+     The \cb{build} command also supports several \cb{--*-only} options that
+     allow you to limit the amount of work that will be done."
+  }
+
   class build_options: configuration_options
   {
+    "\h|BUILD OPTIONS|"
+
     bool --yes|-y
     {
       "Assume the answer to all prompts is \cb{yes}."

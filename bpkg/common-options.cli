@@ -5,13 +5,38 @@
 include <bpkg/types>;
 
 "\section=1"
-"\name=bpkg-common"
-"\summary=common options for all commands"
+"\name=bpkg-common-options"
+"\summary=options common for all commands"
 
 namespace bpkg
 {
+  {
+    "<common-options>",
+
+    "\h|SYNOPSIS|
+
+     \c{\b{bpkg} [<common-options>] ...}
+
+     \h|DESCRIPTION|
+
+     The common options can be specified either before the command or after,
+     togethere with the command-specific options."
+  }
+
   class common_options = 0
   {
+    "\h|COMMON OPTIONS|"
+
+    // Retain this note only in the summary.
+    //
+    {
+      "",
+      "The common options are summarized below with a more detailed description
+       available as the \l{bpkg-common-options(1) \cb{common-options}} help
+       topic.",
+      ""
+    }
+
     bool -v
     {
       "Print underlying commands being executed. This is equivalent to

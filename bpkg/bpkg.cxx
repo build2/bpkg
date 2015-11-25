@@ -72,10 +72,10 @@ try
 
   // First parse common options and --version/--help.
   //
-  bpkg_options bo;
-  bo.parse (args, unknown_mode::stop);
+  options o;
+  o.parse (args, unknown_mode::stop);
 
-  if (bo.version ())
+  if (o.version ())
   {
     cout << "bpkg " << BPKG_VERSION_STR << "; " <<
       "libbpkg " << LIBBPKG_VERSION_STR << endl
@@ -84,13 +84,13 @@ try
     return 0;
   }
 
-  if (bo.help ())
+  if (o.help ())
   {
     help (help_options (), "", nullptr);
     return 0;
   }
 
-  const common_options& co (bo);
+  const common_options& co (o);
 
   // The next argument should be a command.
   //
@@ -100,7 +100,7 @@ try
 
   int cmd_argc (2);
   char* cmd_argv[] {argv[0], const_cast<char*> (args.next ())};
-  bpkg_commands cmd;
+  commands cmd;
   cmd.parse (cmd_argc, cmd_argv, true, unknown_mode::stop);
 
   if (cmd_argc != 1)
@@ -125,7 +125,7 @@ try
 
       // First see if this is a command.
       //
-      cmd = bpkg_commands (); // Clear help option.
+      cmd = commands (); // Clear the help option.
       cmd.parse (cmd_argc, cmd_argv, true, unknown_mode::stop);
 
       // If not, then it got to be a help topic.
