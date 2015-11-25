@@ -85,10 +85,7 @@ try
   }
 
   if (o.help ())
-  {
-    help (help_options (), "", nullptr);
-    return 0;
-  }
+    return help (help_options (), "", nullptr);
 
   const common_options& co (o);
 
@@ -131,16 +128,10 @@ try
       // If not, then it got to be a help topic.
       //
       if (cmd_argc != 1)
-      {
-        help (ho, cmd_argv[1], nullptr);
-        return 0;
-      }
+        return help (ho, cmd_argv[1], nullptr);
     }
     else
-    {
-      help (ho, "", nullptr);
-      return 0;
-    }
+      return help (ho, "", nullptr);
   }
 
   // Handle commands.
@@ -162,7 +153,7 @@ try
     // if (cmd.pkg_verify ())
     // {
     //  if (h)
-    //    help (ho, "pkg-verify", pkg_verify_options::print_usage);
+    //    r = help (ho, "pkg-verify", pkg_verify_options::print_usage);
     //  else
     //    r = pkg_verify (parse<pkg_verify_options> (co, args), args);
     //
@@ -173,7 +164,7 @@ try
     if (cmd.NP##CMD ())                                                 \
     {                                                                   \
       if (h)                                                            \
-        help (ho, SP#CMD, print_bpkg_##NP##CMD##_usage);                \
+        r = help (ho, SP#CMD, print_bpkg_##NP##CMD##_usage);            \
       else                                                              \
         r = NP##CMD (parse<NP##CMD##_options> (co, args), args);        \
                                                                         \
