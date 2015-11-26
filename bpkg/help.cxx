@@ -68,7 +68,7 @@ namespace bpkg
       {
         // By default try less.
         //
-        prompt = "-Ps" + indent_ + name + " (press q to quit, h for help)";
+        prompt = "-Ps" + name + " (press q to quit, h for help)";
 
         args.push_back ("less");
         args.push_back ("-R");            // Handle ANSI color.
