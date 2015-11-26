@@ -5,7 +5,8 @@
 #include <bpkg/help>
 
 #ifndef _WIN32
-#  include <unistd.h>    // close()
+#  include <unistd.h>    // close(), STDOUT_FILENO
+#  include <sys/ioctl.h> // ioctl()
 #else
 #  include <io.h>        // _close()
 #endif
@@ -28,14 +29,33 @@ using namespace butl;
 
 namespace bpkg
 {
-  struct pager
+  struct pager: protected std::streambuf
   {
     pager (const common_options& co, const string& name)
     {
+      bool up (co.pager_specified ()); // User's pager.
+
+      // If we are using the default pager, try to get the terminal width
+      // so that we can center the output.
+      //
+      if (!up)
+      {
+        size_t col (0);
+
+#ifndef _WIN32
+#  ifdef TIOCGWINSZ
+        struct winsize w;
+        if (ioctl (STDOUT_FILENO, TIOCGWINSZ, &w) == 0)
+          col = static_cast<size_t> (w.ws_col);
+#  endif
+#else
+#endif
+        if (col > 80)
+          indent_.assign ((col - 80) / 2, ' ');
+      }
+
       cstrings args;
       string prompt;
-
-      bool up (co.pager_specified ()); // User's pager.
 
       if (up)
       {
@@ -48,7 +68,7 @@ namespace bpkg
       {
         // By default try less.
         //
-        prompt = "-Ps" + name + " (press q to quit, h for help)";
+        prompt = "-Ps" + indent_ + name + " (press q to quit, h for help)";
 
         args.push_back ("less");
         args.push_back ("-R");            // Handle ANSI color.
@@ -107,6 +127,11 @@ namespace bpkg
         if (up)
           throw failed ();
       }
+
+      // Setup the indentation machinery.
+      //
+      if (!indent_.empty ())
+        buf_ = stream ().rdbuf (this);
     }
 
     std::ostream&
@@ -118,15 +143,54 @@ namespace bpkg
     bool
     wait ()
     {
+      // Teardown the indentation machinery.
+      //
+      if (buf_ != nullptr)
+      {
+        stream ().rdbuf (buf_);
+        buf_ = nullptr;
+      }
+
       os_.close ();
       return p_.wait ();
     }
 
     ~pager () {wait ();}
 
+    // streambuf output interface.
+    //
+  protected:
+    using int_type = std::streambuf::int_type;
+    using traits_type = std::streambuf::traits_type;
+
+    virtual int_type
+    overflow (int_type c)
+    {
+      if (prev_ == '\n' && c != '\n') // Don't indent blanks.
+      {
+        auto n (static_cast<streamsize> (indent_.size ()));
+
+        if (buf_->sputn (indent_.c_str (), n) != n)
+          return traits_type::eof ();
+      }
+
+      prev_ = c;
+      return buf_->sputc (c);
+    }
+
+    virtual int
+    sync ()
+    {
+      return buf_->pubsync ();
+    }
+
   private:
     process p_;
     ofdstream os_;
+
+    string indent_;
+    int_type prev_ = '\n'; // Previous character.
+    std::streambuf* buf_ = nullptr;
   };
 
   int
