@@ -52,9 +52,10 @@ namespace bpkg
     uint16_t --verbose = 1
     {
       "<level>",
-      "Set the diagnostics verbosity to <level> between 0 (disabled) and
-       6 (lots of information). The default is 1. The following additional
-       classes of diagnostics are produced at each level:
+      "Set the diagnostics verbosity to <level> between 0 and 6. Level 0
+       disables any non-error messages while level 6 produces lots of
+       information, with level 1 beeing the default. The following additional
+       types of diagnostics are produced at each level:
 
        \ol|
 
@@ -74,12 +75,12 @@ namespace bpkg
     path --fetch
     {
       "<path>",
-      "The fetch program that should be used to download remote resources.
-       Currently, \cb{bpkg} recognizes \cb{curl}, \cb{wget}, and \cb{fetch}.
-       Note that the last component of <path> must contain one of these
-       names as a substring in order for \cb{bpkg} to recognize which
-       program is being used. You can also specify additional options that
-       should be passed to the fetch program with \cb{--fetch-option}.
+      "The fetch program to be used to download remote resources. Currently,
+       \cb{bpkg} recognizes \cb{curl}, \cb{wget}, and \cb{fetch}. Note that
+       the last component of <path> must contain one of these names as a
+       substring in order for \cb{bpkg} to recognize which program is being
+       used. You can also specify additional options that should be passed
+       to the fetch program with \cb{--fetch-option}.
 
        If the fetch program is not specified, then \cb{bpkg} will try to
        discover if one of the above program is available and use that.
@@ -91,27 +92,47 @@ namespace bpkg
     strings --fetch-option
     {
       "<opt>",
-      "Additional option that should be passed to the fetch program. See
-       \cb{--fetch} for more information on the fetch program. Repeat this
-       option to specify multiple fetch options."
+      "Additional option to be passed to the fetch program. See \cb{--fetch}
+       for more information on the fetch program. Repeat this option to
+       specify multiple fetch options."
     };
 
     path --tar = "tar"
     {
       "<path>",
-      "The tar program that should be used to extract package archives. For
-       example, \cb{gtar} or \cb{bsdtar}. You can also specify additional
-       options that should be passed to the tar program with
-       \cb{--tar-option}. If the tar program is not explicitly specified,
-       then \cb{bpkg} will use \cb{tar} by default."
+      "The tar program to be used to extract package archives. For example,
+       \cb{gtar} or \cb{bsdtar}. You can also specify additional options that
+       should be passed to the tar program with \cb{--tar-option}. If the tar
+       program is not explicitly specified, then \cb{bpkg} will use \cb{tar}
+       by default."
     };
 
     strings --tar-option
     {
       "<opt>",
-      "Additional option that should be passed to the tar program. See
-       \cb{--tar} for more information on the tar program. Repeat this
-       option to specify multiple tar options."
+      "Additional option to be passed to the tar program. See \cb{--tar} for
+       more information on the tar program. Repeat this option to specify
+       multiple tar options."
+    };
+
+    string --pager // String to allow empty value.
+    {
+      "<path>",
+      "The pager program to be used to show text, such as help. Commonly
+       used pager programs are \cb{less} and \cb{more}. You can also specify
+       additional options that should be passed to the pager program with
+       \cb{--pager-option}. If an empty string is specified as the pager
+       program, then no pager will be used. If the pager program is not
+       explicitly specified, then \cb{bpkg} will try to use \cb{less}. If it
+       is not available, then no pager will be used."
+    };
+
+    strings --pager-option
+    {
+      "<opt>",
+      "Additional option to be passed to the pager program. See \cb{--pager}
+       for more information on the pager program. Repeat this option to
+       specify multiple pager options."
     };
 
     // The following option is "fake" in that it is actually handled by
@@ -120,7 +141,7 @@ namespace bpkg
     string --options-file
     {
       "<file>",
-      "Read additional options from <file> with each option appearing on a
+      "Read additional options from <file>. Each option should appearing on a
        separate line optionally followed by space and an option value. Empty
        lines and lines starting with \cb{#} are ignored. Option values can
        be enclosed in double (\cb{\"}) or single (\cb{'}) quotes to preserve

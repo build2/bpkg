@@ -30,22 +30,47 @@ namespace bpkg
 {
   struct pager
   {
-    pager (const string& name)
+    pager (const common_options& co, const string& name)
     {
-      // First try less.
+      cstrings args;
+      string prompt;
+
+      bool up (co.pager_specified ()); // User's pager.
+
+      if (up)
+      {
+        if (co.pager ().empty ())
+          return; // No pager should be used.
+
+        args.push_back (co.pager ().c_str ());
+      }
+      else
+      {
+        // By default try less.
+        //
+        prompt = "-Ps" + name + " (press q to quit, h for help)";
+
+        args.push_back ("less");
+        args.push_back ("-R");            // Handle ANSI color.
+        args.push_back (prompt.c_str ());
+      }
+
+      // Add extra pager options.
+      //
+      for (const string& o: co.pager_option ())
+        args.push_back (o.c_str ());
+
+      args.push_back (nullptr);
+
+      if (verb >= 2)
+        print_process (args);
+
+      // Ignore errors and go without a pager unless the pager was specified
+      // by the user.
       //
       try
       {
-        string prompt ("-Ps" + name + " (press q to quit, h for help)");
-
-        const char* args[] = {
-          "less",
-          "-R",                 // ANSI color
-          prompt.c_str (),
-          nullptr
-        };
-
-        p_ = process (args, -1); // Redirect child's stdin to a pipe.
+        p_ = process (args.data (), -1); // Redirect child's stdin to a pipe.
 
         // Wait a bit and see if the pager has exited before reading
         // anything (e.g., because exec() couldn't find the program).
@@ -63,14 +88,24 @@ namespace bpkg
 #else
           _close (p_.out_fd);
 #endif
+          if (up)
+            fail << "pager " << args[0] << " exited unexpectedly";
         }
         else
           os_.open (p_.out_fd);
       }
       catch (const process_error& e)
       {
+        // Ignore unless it was a user-specified pager.
+        //
+        if (up)
+          error << "unable to execute " << args[0] << ": " << e.what ();
+
         if (e.child ())
           exit (1);
+
+        if (up)
+          throw failed ();
       }
     }
 
@@ -95,7 +130,7 @@ namespace bpkg
   };
 
   int
-  help (const help_options&, const string& t, usage_function* usage)
+  help (const help_options& o, const string& t, usage_function* usage)
   {
     if (usage == nullptr) // Not a command.
     {
@@ -108,7 +143,7 @@ namespace bpkg
           info << "run 'bpkg help' for more information";
     }
 
-    pager p ("bpkg " + (t.empty () ? "help" : t));
+    pager p (o, "bpkg " + (t.empty () ? "help" : t));
     usage (p.stream (), cli::usage_para::none);
 
     // If the pager failed, assume it has issued some diagnostics.
