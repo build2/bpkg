@@ -8,6 +8,10 @@
 #  include <unistd.h>    // close(), STDOUT_FILENO
 #  include <sys/ioctl.h> // ioctl()
 #else
+#  ifndef WIN32_LEAN_AND_MEAN
+#    define WIN32_LEAN_AND_MEAN
+#  endif
+#  include <windows.h>   // GetConsoleScreenBufferInfo(), GetStdHandle()
 #  include <io.h>        // _close()
 #endif
 
@@ -49,6 +53,10 @@ namespace bpkg
           col = static_cast<size_t> (w.ws_col);
 #  endif
 #else
+#error  TODO: needs testing
+        CONSOLE_SCREEN_BUFFER_INFO w;
+        if (GetConsoleScreenBufferInfo (GetStdHandle (STD_OUTPUT_HANDLE), &w))
+          col = static_cast<size_t> (w.srWindow.Right - w.srWindow.Left + 1);
 #endif
         if (col > 80)
           indent_.assign ((col - 80) / 2, ' ');
