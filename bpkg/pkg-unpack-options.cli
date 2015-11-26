@@ -39,17 +39,17 @@ namespace bpkg
     {
       "Treat the argument as an existing package directory path rather than
        package name to unpack."
-    };
+    }
 
     bool --purge|-p
     {
       "Remove the existing package directory when the package is purged."
-    };
+    }
 
     bool --replace|-r
     {
       "Replace the source directory if the package is already unpacked or
        fetched. Can only be specified together with \cb{-e|--existing}."
-    };
+    }
   };
 }

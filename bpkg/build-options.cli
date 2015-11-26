@@ -47,17 +47,17 @@ namespace bpkg
     bool --yes|-y
     {
       "Assume the answer to all prompts is \cb{yes}."
-    };
+    }
 
     bool --configure-only|-c
     {
       "Configure all the packages but don't update."
-    };
+    }
 
     bool --print-only|-p
     {
       "Print to \cb{STDOUT} what would be done without actually doing
        anything."
-    };
+    }
   };
 }

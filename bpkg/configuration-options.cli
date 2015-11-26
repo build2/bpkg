@@ -17,6 +17,6 @@ namespace bpkg
       "<dir>",
       "Assume configuration is in <dir> rather than in the current working
        directory."
-    };
+    }
   };
 }

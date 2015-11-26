@@ -31,12 +31,12 @@ namespace bpkg
       "<dir>",
       "Create configuration in <dir> rather than in the current working
        directory."
-    };
+    }
 
     bool --wipe
     {
       "Wipe the configuration directory clean before creating the new
        configuration."
-    };
+    }
   };
 }

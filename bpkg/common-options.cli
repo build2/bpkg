@@ -41,13 +41,13 @@ namespace bpkg
     {
       "Print underlying commands being executed. This is equivalent to
        \cb{--verbose 2}."
-    };
+    }
 
     bool -q
     {
       "Run quietly, only printing error messages. This is equivalent
        to \cb{--verbose 0}."
-    };
+    }
 
     uint16_t --verbose = 1
     {
@@ -70,7 +70,7 @@ namespace bpkg
        \li|information that could be helpful to the developer|
 
        \li|even more detailed information||"
-    };
+    }
 
     path --fetch
     {
@@ -87,7 +87,7 @@ namespace bpkg
        Currently, \cb{bpkg} has the following preference order: \cb{wget}
        1.16 or higher (supports \cb{--show-progress}), \cb{curl},
        \cb{wget}, and \cb{fetch}."
-    };
+    }
 
     strings --fetch-option
     {
@@ -95,7 +95,7 @@ namespace bpkg
       "Additional option to be passed to the fetch program. See \cb{--fetch}
        for more information on the fetch program. Repeat this option to
        specify multiple fetch options."
-    };
+    }
 
     path --tar = "tar"
     {
@@ -105,7 +105,7 @@ namespace bpkg
        should be passed to the tar program with \cb{--tar-option}. If the tar
        program is not explicitly specified, then \cb{bpkg} will use \cb{tar}
        by default."
-    };
+    }
 
     strings --tar-option
     {
@@ -113,7 +113,7 @@ namespace bpkg
       "Additional option to be passed to the tar program. See \cb{--tar} for
        more information on the tar program. Repeat this option to specify
        multiple tar options."
-    };
+    }
 
     string --pager // String to allow empty value.
     {
@@ -125,7 +125,7 @@ namespace bpkg
        program, then no pager will be used. If the pager program is not
        explicitly specified, then \cb{bpkg} will try to use \cb{less}. If it
        is not available, then no pager will be used."
-    };
+    }
 
     strings --pager-option
     {
@@ -133,7 +133,7 @@ namespace bpkg
       "Additional option to be passed to the pager program. See \cb{--pager}
        for more information on the pager program. Repeat this option to
        specify multiple pager options."
-    };
+    }
 
     // The following option is "fake" in that it is actually handled by
     // argv_file_scanner. We have it here for documentation.
@@ -156,6 +156,6 @@ namespace bpkg
        point where the \cb{--options-file} option is specified except that
        the shell escaping and quoting is not required. You can repeat this
        option to specify more than one options file."
-    };
+    }
   };
 }

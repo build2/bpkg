@@ -34,13 +34,13 @@ namespace bpkg
       "Keep the package archive. Note that in this mode the package is
        still retained in the configuration's database in the \cb{fetched}
        state."
-    };
+    }
 
     bool --force|-f
     {
       "Purge a broken package. In this mode \cb{bpkg} will verify that
        the package directory and archive no longer exist and will remove
        the package from the configuration's database."
-    };
+    }
   };
 }

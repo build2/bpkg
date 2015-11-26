@@ -30,6 +30,6 @@ namespace bpkg
     {
       "Suppress error messages about the reason why the package is
        invalid. Just return the error status."
-    };
+    }
   };
 }

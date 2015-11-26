@@ -38,17 +38,17 @@ namespace bpkg
     bool --replace|-r
     {
       "Replace the archive if the package is already fetched or unpacked."
-    };
+    }
 
     bool --existing|-e
     {
       "Treat the argument as an existing package archive path rather than
        package name/version to fetch."
-    };
+    }
 
     bool --purge|-p
     {
       "Remove the existing package archive when the package is purged."
-    };
+    }
   };
 }

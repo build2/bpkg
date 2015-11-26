@@ -37,119 +37,119 @@ namespace bpkg
       "[<topic>]",
       "Show help for a command or help topic \- \l{bpkg-help(1)}.",
       ""
-    };
+    }
 
     bool build
     {
       "<pkg>...",
       "Build one or more packages \- \l{bpkg-build-options(1)}.",
       ""
-    };
+    }
 
     bool drop
     {
       "<pkg>...",
       "Drop one or more packages.",
       ""
-    };
+    }
 
     bool pkg-verify
     {
       "<archive>",
       "Verify archive is a valid package.",
       ""
-    };
+    }
 
     bool pkg-status
     {
       "<pkg>", // [/<ver>]: 24
       "Print package status.",
       ""
-    };
+    }
 
     bool pkg-fetch
     {
       "<pkg>/<ver>",
       "Fetch package archive.",
       ""
-    };
+    }
 
     bool pkg-unpack
     {
       "<pkg>",
       "Unpack package archive.",
       ""
-    };
+    }
 
     bool pkg-purge
     {
       "<pkg>",
       "Purge package.",
       ""
-    };
+    }
 
     bool pkg-configure
     {
       "<pkg>",
       "Configure package.",
       ""
-    };
+    }
 
     bool pkg-disfigure
     {
       "<pkg>",
       "Disfigure package.",
       ""
-    };
+    }
 
     bool pkg-update
     {
       "<pkg>",
       "Update package.",
       ""
-    };
+    }
 
     bool pkg-clean
     {
       "<pkg>",
       "Clean package.",
       ""
-    };
+    }
 
     bool cfg-create
     {
       "[<conf>]",
       "Create configuration.",
       ""
-    };
+    }
 
     bool rep-add
     {
       "<rep>",
       "Add repository to configuration.",
       ""
-    };
+    }
 
     bool rep-fetch
     {
       "",
       "Fetch available packages list.",
       ""
-    };
+    }
 
     bool rep-info
     {
       "<rep>",
       "Print information about repository.",
       ""
-    };
+    }
 
     bool rep-create
     {
       "[<dir>]",
       "Create repository manifest file.",
       ""
-    };
+    }
   };
 
   // Make sure these don't conflict with command names above.
@@ -161,7 +161,7 @@ namespace bpkg
     bool common-options
     {
       "Options common for all commands \- \l{bpkg-common-options(1)}."
-    };
+    }
   };
 
   class options: common_options

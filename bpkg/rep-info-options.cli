@@ -30,17 +30,17 @@ namespace bpkg
     bool --name|-n
     {
       "Print the specified repository's name and location."
-    };
+    }
 
     bool --repositories|-r
     {
       "Print information about prerequisite/complement repositories."
-    };
+    }
 
     bool --packages|-p
     {
       "Print information about available packages."
-    };
+    }
 
     bool --manifest|-m
     {
@@ -48,6 +48,6 @@ namespace bpkg
        it as manifest(s). Normally you would use this option in combination
        with \cb{--packages|-p} or \cb{--repositories|-r} to only dump one
        of the manifests."
-    };
+    }
   };
 }
