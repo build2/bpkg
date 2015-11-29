@@ -3,4 +3,9 @@
 # license   : MIT; see accompanying LICENSE file
 
 project = bpkg
+version = 0.1.0
+
 using config
+using dist
+
+dist.package = $project-$version

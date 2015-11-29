@@ -9,30 +9,42 @@ import libs += libbutl%lib{butl}
 import libs += libodb%lib{odb}
 import libs += libodb-sqlite%lib{odb-sqlite}
 
-exe{bpkg}: cxx{satisfaction fetch package package-odb manifest-utility \
-               database diagnostics utility}                           \
-                      cli.cxx{common-options} cxx{types-parsers}       \
-  cxx{bpkg}           cli.cxx{bpkg-options}                            \
-  cxx{help}           cli.cxx{help-options}                            \
-                      cli.cxx{configuration-options}                   \
-  cxx{build}          cli.cxx{build-options}                           \
-  cxx{drop}           cli.cxx{drop-options}                            \
-  cxx{pkg-command}                                                     \
-  cxx{pkg-verify}     cli.cxx{pkg-verify-options}                      \
-  cxx{pkg-status}     cli.cxx{pkg-status-options}                      \
-  cxx{pkg-fetch}      cli.cxx{pkg-fetch-options}                       \
-  cxx{pkg-unpack}     cli.cxx{pkg-unpack-options}                      \
-  cxx{pkg-purge}      cli.cxx{pkg-purge-options}                       \
-  cxx{pkg-configure}  cli.cxx{pkg-configure-options}                   \
-  cxx{pkg-disfigure}  cli.cxx{pkg-disfigure-options}                   \
-                      cli.cxx{pkg-update-options}                      \
-                      cli.cxx{pkg-clean-options}                       \
-  cxx{cfg-create}     cli.cxx{cfg-create-options}                      \
-  cxx{rep-add}        cli.cxx{rep-add-options}                         \
-  cxx{rep-fetch}      cli.cxx{rep-fetch-options}                       \
-  cxx{rep-info}       cli.cxx{rep-info-options}                        \
-  cxx{rep-create}     cli.cxx{rep-create-options}                      \
-  $libs
+exe{bpkg}:                                                               \
+{ hxx             }{ bpkg-version     }                                  \
+{             cxx }{ bpkg             } cli.cxx{ bpkg-options          } \
+{ hxx         cxx }{ build            } cli.cxx{ build-options         } \
+{ hxx         cxx }{ cfg-create       } cli.cxx{ cfg-create-options    } \
+                                        cli.cxx{ common-options        } \
+                                        cli.cxx{ configuration-options } \
+{ hxx         cxx }{ database         }                                  \
+{ hxx         cxx }{ diagnostics      }                                  \
+{ hxx         cxx }{ drop             } cli.cxx{ drop-options          } \
+{ hxx         cxx }{ fetch            }                                  \
+{ hxx             }{ forward          }                                  \
+{ hxx         cxx }{ help             } cli.cxx{ help-options          } \
+{ hxx         cxx }{ manifest-utility }                                  \
+{ hxx ixx     cxx }{ package          }                                  \
+{ hxx ixx     cxx }{ package-odb      } file{package.xml}                \
+{ hxx             }{ pkg-clean        } cli.cxx{ pkg-clean-options     } \
+{ hxx         cxx }{ pkg-command      }                                  \
+{ hxx         cxx }{ pkg-configure    } cli.cxx{ pkg-configure-options } \
+{ hxx         cxx }{ pkg-disfigure    } cli.cxx{ pkg-disfigure-options } \
+{ hxx         cxx }{ pkg-fetch        } cli.cxx{ pkg-fetch-options     } \
+{ hxx         cxx }{ pkg-purge        } cli.cxx{ pkg-purge-options     } \
+{ hxx         cxx }{ pkg-status       } cli.cxx{ pkg-status-options    } \
+{ hxx         cxx }{ pkg-unpack       } cli.cxx{ pkg-unpack-options    } \
+{ hxx             }{ pkg-update       } cli.cxx{ pkg-update-options    } \
+{ hxx         cxx }{ pkg-verify       } cli.cxx{ pkg-verify-options    } \
+{ hxx         cxx }{ rep-add          } cli.cxx{ rep-add-options       } \
+{ hxx         cxx }{ rep-create       } cli.cxx{ rep-create-options    } \
+{ hxx         cxx }{ rep-fetch        } cli.cxx{ rep-fetch-options     } \
+{ hxx         cxx }{ rep-info         } cli.cxx{ rep-info-options      } \
+{ hxx         cxx }{ satisfaction     }                                  \
+{ hxx             }{ types            }                                  \
+{ hxx         cxx }{ types-parsers    }                                  \
+{ hxx         cxx }{ utility          }                                  \
+{ hxx             }{ wrapper-traits   }                                  \
+$libs
 
 # Option length must be the same to get commands/topics/options aligned.
 #
