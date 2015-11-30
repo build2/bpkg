@@ -11,3 +11,7 @@ cxx.ext = cxx
 
 cxx.std = 11
 cxx.poptions += -I$out_root -I$src_root
+
+# Don't install tests.
+#
+tests/: install = false

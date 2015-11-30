@@ -7,5 +7,6 @@ version = 0.1.0
 
 using config
 using dist
+using install
 
 dist.package = $project-$version
