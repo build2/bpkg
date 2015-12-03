@@ -50,12 +50,13 @@ $libs
 # source files instead of using the cli.cxx{} group (it won't be there
 # unless the module is loaded).
 #
-# @@ TODO: make it optional.
-# @@ The cli{} target won't be available while it would be nice to
-#    detect that .cli file is newer than the generated files. Hack:
-#    use ctt= cli.used ? cli : file, then $ctt{common-options}. Uh.
-#
-using cli
+using? cli
+
+if! $cli.loaded
+{
+  define cli: file
+  cli{*}: extension = cli
+}
 
 {hxx ixx cxx}{common-options}:        cli{common-options}
 {hxx ixx cxx}{configuration-options}: cli{configuration-options}
