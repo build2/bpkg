@@ -4,6 +4,7 @@
 
 #ifndef BPKG_VERSION // Note: using the version macro itself.
 
+#include <butl/version> // LIBBUTL_VERSION
 #include <bpkg/version> // LIBBPKG_VERSION
 
 // Version format is AABBCCDD where
@@ -27,14 +28,14 @@
 // compatible, thought we might have a minimum version requirement.
 //
 //                     AABBCCDD
-#if (LIBBPKG_VERSION <    10000 || \
+#if (LIBBPKG_VERSION <     9901 || \
      LIBBPKG_VERSION >   990000)
 #  error incompatible libbpkg version
 #endif
 
 //                       AABBCCDD
-#define BPKG_VERSION        10000
-#define BPKG_VERSION_STR "0.1.0"
+#define BPKG_VERSION         9901
+#define BPKG_VERSION_STR "0.1.0.a1"
 
 // User agent.
 //
@@ -72,6 +73,7 @@
 
 #define BPKG_USER_AGENT                                              \
   "bpkg/" BPKG_VERSION_STR " (" BPKG_OS "; +http://build2.org) "     \
-  "libbpkg/" LIBBPKG_VERSION_STR
+  "libbpkg/" LIBBPKG_VERSION_STR                                     \
+  "libbutl/" LIBBUTL_VERSION_STR
 
 #endif // BPKG_VERSION
