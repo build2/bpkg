@@ -91,9 +91,6 @@ if! $cli.loaded
 {hxx ixx cxx}{rep-info-options}:   cli{rep-info-options}
 {hxx ixx cxx}{rep-create-options}: cli{rep-create-options}
 
-# if $cli.used
-# {
-#
 # Option length must be the same to get commands/topics/options aligned.
 #
 cli.options += -I $src_root --include-with-brackets --include-prefix bpkg \
@@ -104,8 +101,6 @@ cli.options += -I $src_root --include-with-brackets --include-prefix bpkg \
 
 cli.cxx{common-options}: cli.options += --short-usage # Both short and long.
 cli.cxx{bpkg-options}: cli.options += --suppress-undocumented # --help, etc.
-#
-# }
 
 # Include generated cli files into the distribution.
 #
