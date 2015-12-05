@@ -63,7 +63,7 @@ namespace bpkg
     t.commit ();
 
     if (verb)
-      text << "added " << rn;
+      text << "added repository " << rn;
 
     return 0;
   }
