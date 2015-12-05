@@ -71,6 +71,16 @@ namespace bpkg
 
 #include <bpkg/manifest>
 
+// Prevent assert() macro expansion in get/set expressions. This should
+// appear after all #include directives since the assert() macro is
+// redefined in each <assert.h> inclusion.
+//
+#ifdef ODB_COMPILER
+#  undef assert
+#  define assert assert
+void assert (int);
+#endif
+
 namespace bpkg
 {
   // version
