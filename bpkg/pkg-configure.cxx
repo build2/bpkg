@@ -50,7 +50,7 @@ namespace bpkg
     {
       assert (p->prerequisites.empty ());
 
-      package_manifest m (pkg_verify (src_root));
+      package_manifest m (pkg_verify (src_root, true));
 
       for (const dependency_alternatives& da: m.dependencies)
       {

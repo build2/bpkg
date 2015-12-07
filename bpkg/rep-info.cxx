@@ -32,10 +32,11 @@ namespace bpkg
 
     repository_location rl (parse_location (args.next ()));
 
-    // Fetch everything we will need before printing anything.
+    // Fetch everything we will need before printing anything. Ignore
+    // unknown manifest entries unless we are dumping them.
     //
-    repository_manifests rms (fetch_repositories (o, rl));
-    package_manifests pms (fetch_packages (o, rl));
+    repository_manifests rms (fetch_repositories (o, rl, !o.manifest ()));
+    package_manifests pms (fetch_packages (o, rl, !o.manifest ()));
 
     // Now print.
     //

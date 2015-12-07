@@ -116,8 +116,8 @@ namespace bpkg
 
     package_manifest m (
       sp->state == package_state::fetched
-      ? pkg_verify (options, a->absolute () ? *a : cd / *a)
-      : pkg_verify (d->absolute () ? *d : cd / *d));
+      ? pkg_verify (options, a->absolute () ? *a : cd / *a, true)
+      : pkg_verify (d->absolute () ? *d : cd / *d, true));
 
     return make_pair (make_shared<available_package> (move (m)), move (ar));
   }
@@ -767,7 +767,7 @@ namespace bpkg
           path a (s);
           if (exists (a))
           {
-            package_manifest m (pkg_verify (o, a, false));
+            package_manifest m (pkg_verify (o, a, true, false));
 
             // This is a package archive (note that we shouldn't throw
             // failed from here on).
@@ -796,7 +796,7 @@ namespace bpkg
           dir_path d (s);
           if (exists (d))
           {
-            package_manifest m (pkg_verify (d, false));
+            package_manifest m (pkg_verify (d, true, false));
 
             // This is a package directory (note that we shouldn't throw
             // failed from here on).

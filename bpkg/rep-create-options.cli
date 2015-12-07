@@ -19,5 +19,10 @@ namespace bpkg
       "Use <dir> as the repository root directory instead of the
        current working directory."
     */
+
+    bool --ignore-unknown
+    {
+      "Ignore unknown manifest entries."
+    }
   };
 }

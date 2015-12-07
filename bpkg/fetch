@@ -13,13 +13,17 @@
 
 namespace bpkg
 {
-  repository_manifests fetch_repositories (const dir_path&);
+  repository_manifests fetch_repositories (const dir_path&,
+                                           bool ignore_unknown);
   repository_manifests fetch_repositories (const common_options&,
-                                           const repository_location&);
+                                           const repository_location&,
+                                           bool ignore_unknown);
 
-  package_manifests fetch_packages (const dir_path&);
+  package_manifests fetch_packages (const dir_path&,
+                                    bool ignore_unknown);
   package_manifests fetch_packages (const common_options&,
-                                    const repository_location&);
+                                    const repository_location&,
+                                    bool ignore_unknown);
 
   path
   fetch_archive (const common_options&,

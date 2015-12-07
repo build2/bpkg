@@ -21,7 +21,7 @@ using namespace butl;
 namespace bpkg
 {
   package_manifest
-  pkg_verify (const common_options& co, const path& af, bool diag)
+  pkg_verify (const common_options& co, const path& af, bool iu, bool diag)
   {
     // Figure out the package directory. Strip the top-level extension
     // and, as a special case, if the second-level extension is .tar,
@@ -77,7 +77,7 @@ namespace bpkg
         is.exceptions (ifdstream::badbit | ifdstream::failbit);
 
         manifest_parser mp (is, mf.string ());
-        package_manifest m (mp);
+        package_manifest m (mp, iu);
         is.close ();
 
         if (pr.wait ())
@@ -154,7 +154,7 @@ namespace bpkg
   }
 
   package_manifest
-  pkg_verify (const dir_path& d, bool diag)
+  pkg_verify (const dir_path& d, bool iu, bool diag)
   {
     // Parse the manifest.
     //
@@ -175,7 +175,7 @@ namespace bpkg
       ifs.open (mf.string ());
 
       manifest_parser mp (ifs, mf.string ());
-      package_manifest m (mp);
+      package_manifest m (mp, iu);
 
       // Verify package directory is <name>-<version>.
       //
@@ -229,7 +229,8 @@ namespace bpkg
     //
     try
     {
-      package_manifest m (pkg_verify (o, a, !o.silent ()));
+      package_manifest m (
+        pkg_verify (o, a, o.ignore_unknown (), !o.silent ()));
 
       if (verb && !o.silent ())
         text << "valid package " << m.name << " " << m.version;

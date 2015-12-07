@@ -52,7 +52,7 @@ namespace bpkg
   using package_map = map<package_key, package_data>;
 
   static void
-  collect (const common_options& co,
+  collect (const rep_create_options& o,
            package_map& map,
            const dir_path& d,
            const dir_path& root)
@@ -76,7 +76,7 @@ namespace bpkg
       {
       case entry_type::directory:
         {
-          collect (co, map, path_cast<dir_path> (d / p), root);
+          collect (o, map, path_cast<dir_path> (d / p), root);
           continue;
         }
       case entry_type::regular:
@@ -97,7 +97,7 @@ namespace bpkg
       // Verify archive is a package and get its manifest.
       //
       path a (d / p);
-      package_manifest m (pkg_verify (co, a));
+      package_manifest m (pkg_verify (o, a, o.ignore_unknown ()));
 
       level4 ([&]{trace << m.name << " " << m.version << " in " << a;});
 
@@ -146,7 +146,7 @@ namespace bpkg
     // Load the 'repositories' file to make sure it is there and
     // is valid.
     //
-    repository_manifests rms (fetch_repositories (d));
+    repository_manifests rms (fetch_repositories (d, o.ignore_unknown ()));
     level4 ([&]{trace << rms.size () - 1 << " prerequisite repository(s)";});
 
     // While we could have serialized as we go along, the order of

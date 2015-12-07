@@ -40,7 +40,7 @@ namespace bpkg
 
     // Verify the directory is a package and get its manifest.
     //
-    package_manifest m (pkg_verify (d));
+    package_manifest m (pkg_verify (d, true));
     level4 ([&]{trace << d << ": " << m.name << " " << m.version;});
 
     // Make the package and configuration paths absolute and normalized.

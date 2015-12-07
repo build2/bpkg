@@ -47,7 +47,7 @@ namespace bpkg
     // Load the 'repositories' file and use it to populate the
     // prerequisite and complement repository sets.
     //
-    repository_manifests rms (fetch_repositories (co, rl));
+    repository_manifests rms (fetch_repositories (co, rl, true));
 
     for (repository_manifest& rm: rms)
     {
@@ -130,7 +130,7 @@ namespace bpkg
     // @@ We need to check that that 'repositories' file hasn't
     //    changed since.
     //
-    package_manifests pms (fetch_packages (co, rl));
+    package_manifests pms (fetch_packages (co, rl, true));
 
     // "Suspend" session while persisting packages to reduce memory
     // consumption.

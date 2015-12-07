@@ -518,7 +518,8 @@ namespace bpkg
   fetch_manifest (const common_options& o,
                   const string& host,
                   uint16_t port,
-                  const path& f)
+                  const path& f,
+                  bool ignore_unknown)
   {
     string url (to_url (host, port, f));
     process pr (start (o, url));
@@ -529,7 +530,7 @@ namespace bpkg
       is.exceptions (ifdstream::badbit | ifdstream::failbit);
 
       manifest_parser mp (is, url);
-      M m (mp);
+      M m (mp, ignore_unknown);
       is.close ();
 
       if (pr.wait ())
@@ -608,7 +609,7 @@ namespace bpkg
 
   template <typename M>
   static M
-  fetch_manifest (const path& f)
+  fetch_manifest (const path& f, bool ignore_unknown)
   {
     if (!exists (f))
       fail << "file " << f << " does not exist";
@@ -620,7 +621,7 @@ namespace bpkg
       ifs.open (f.string ());
 
       manifest_parser mp (ifs, f.string ());
-      return M (mp);
+      return M (mp, ignore_unknown);
     }
     catch (const manifest_parsing& e)
     {
@@ -637,41 +638,45 @@ namespace bpkg
   static const path repositories ("repositories");
 
   repository_manifests
-  fetch_repositories (const dir_path& d)
+  fetch_repositories (const dir_path& d, bool iu)
   {
-    return fetch_manifest<repository_manifests> (d / repositories);
+    return fetch_manifest<repository_manifests> (d / repositories, iu);
   }
 
   repository_manifests
-  fetch_repositories (const common_options& o, const repository_location& rl)
+  fetch_repositories (const common_options& o,
+                      const repository_location& rl,
+                      bool iu)
   {
     assert (rl.remote () || rl.absolute ());
 
     path f (rl.path () / repositories);
 
     return rl.remote ()
-      ? fetch_manifest<repository_manifests> (o, rl.host (), rl.port (), f)
-      : fetch_manifest<repository_manifests> (f);
+      ? fetch_manifest<repository_manifests> (o, rl.host (), rl.port (), f, iu)
+      : fetch_manifest<repository_manifests> (f, iu);
   }
 
   static const path packages ("packages");
 
   package_manifests
-  fetch_packages (const dir_path& d)
+  fetch_packages (const dir_path& d, bool iu)
   {
-    return fetch_manifest<package_manifests> (d / packages);
+    return fetch_manifest<package_manifests> (d / packages, iu);
   }
 
   package_manifests
-  fetch_packages (const common_options& o, const repository_location& rl)
+  fetch_packages (const common_options& o,
+                  const repository_location& rl,
+                  bool iu)
   {
     assert (rl.remote () || rl.absolute ());
 
     path f (rl.path () / packages);
 
     return rl.remote ()
-      ? fetch_manifest<package_manifests> (o, rl.host (), rl.port (), f)
-      : fetch_manifest<package_manifests> (f);
+      ? fetch_manifest<package_manifests> (o, rl.host (), rl.port (), f, iu)
+      : fetch_manifest<package_manifests> (f, iu);
   }
 
   path
