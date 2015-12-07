@@ -1,7 +1,7 @@
 using cxx
 
-hxx.ext =
-cxx.ext = cxx
+hxx{*}: extension =
+cxx{*}: extension = cxx
 
 cxx.std = 11
 
