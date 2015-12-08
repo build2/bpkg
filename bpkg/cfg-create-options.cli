@@ -8,24 +8,38 @@ include <bpkg/common-options.cli>;
 "\name=bpkg-cfg-create"
 "\summary=create configuration"
 
-/*
-"\h{SYNOPSIS}
-
-bpkg cfg-create [<options>] [(<module>|<conf-var>)...]"
-
-"\h{DESCRIPTION}
-
-The \cb{cfg-create} command creates a new \cb{bpkg} configuration with
-the specified \cb{build2} modules and configuration variables. Unless
-the \cb{--wipe} option is specified, \cb{cfg-create} expects the
-configuration directory to not exist (in which case it will be created)
-or to be empty."
-*/
-
 namespace bpkg
 {
+  {
+    "<options> <module> <conf-var>",
+
+    "\h|SYNOPSIS|
+
+     \c{\b{bpkg cfg-create} [<options>] [(<module> | <conf-var>)...]}
+
+     \h|DESCRIPTION|
+
+     The \cb{cfg-create} command creates a new \cb{bpkg} configuration with
+     the specified \cb{build2} modules and configuration variables. Unless
+     the \cb{--wipe} option is specified, \cb{cfg-create} expects the
+     configuration directory to be empty or to not exist (in which case it
+     will be created).
+
+     By default the resulting configuration only loads the \cb{config} and
+     \cb{install} modules. However, additional modules and, if required,
+     their configuration variables can be specified as the \cb{cfg-create}
+     arguments. For example:
+
+     \
+     bpkg cfg-create cxx config.cxx=clang++ config.install.root=/usr/local
+     \
+     "
+  }
+
   class cfg_create_options: common_options
   {
+    "\h|CFG-CREATE OPTIONS|"
+
     dir_path --directory|-d (".")
     {
       "<dir>",
