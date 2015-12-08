@@ -1,0 +1,19 @@
+: 1
+name: bpkg
+version: 0.1.0
+summary: build2 package manager
+license: MIT
+tags: build2, c++, package, manager
+description-file: README
+changes-file: NEWS
+url: http://build2.org
+email: build2-users@build2.org
+requires: c++11
+requires: build2 >= 0.1.0
+requires: libodb >= 2.5.0-a3
+requires: libodb-sqlite >= 2.5.0-a3
+# @@ Should probably become conditional dependency.
+requires: ? cli ; Only required if changing .cli files.
+# @@ Need libb* [0.1.0 0.2.0-].
+depends: libbutl == 0.1.0
+depends: libbpkg == 0.1.0
