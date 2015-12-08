@@ -113,7 +113,7 @@ namespace bpkg
 
     // Configure.
     //
-    run_b ("configure(" + c.string () + "/)", true, vars); // Run quiet.
+    run_b (o, "configure(" + c.string () + "/)", true, vars); // Run quiet.
 
     // Create the database.
     //

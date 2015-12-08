@@ -1057,7 +1057,7 @@ namespace bpkg
       // always leave the configuration in a valid state.
       //
       transaction t (db.begin ());
-      pkg_disfigure (c, t, sp); // Commits the transaction.
+      pkg_disfigure (c, o, t, sp); // Commits the transaction.
       assert (sp->state == package_state::unpacked);
 
       if (verb)
@@ -1158,7 +1158,7 @@ namespace bpkg
         continue;
 
       transaction t (db.begin ());
-      pkg_configure (c, t, sp, strings ()); // Commits the transaction.
+      pkg_configure (c, o, t, sp, strings ()); // Commits the transaction.
       assert (sp->state == package_state::configured);
 
       if (verb)
@@ -1213,7 +1213,7 @@ namespace bpkg
       if (find (names.begin (), names.end (), sp->name) == names.end ())
         continue;
 
-      pkg_update (c, sp);
+      pkg_update (c, o, sp);
 
       if (verb)
         text << "updated " << sp->name << " " << sp->version;

@@ -18,6 +18,7 @@ namespace bpkg
 {
   void
   pkg_disfigure (const dir_path& c,
+                 const common_options& o,
                  transaction& t,
                  const shared_ptr<selected_package>& p)
   {
@@ -99,7 +100,7 @@ namespace bpkg
     try
     {
       if (exists (out_root))
-        run_b (bspec, true); // Run quiet.
+        run_b (o, bspec, true); // Run quiet.
 
       // Make sure the out directory is gone unless it is the same as src.
       //
@@ -155,7 +156,7 @@ namespace bpkg
 
     level4 ([&]{trace << p->name << " " << p->version;});
 
-    pkg_disfigure (c, t, p); // Commits the transaction.
+    pkg_disfigure (c, o, t, p); // Commits the transaction.
 
     if (verb)
       text << "disfigured " << p->name << " " << p->version;

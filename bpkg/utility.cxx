@@ -190,9 +190,12 @@ namespace bpkg
   }
 
   void
-  run_b (const string& bspec, bool quiet, const strings& vars)
+  run_b (const common_options& co,
+         const string& bspec,
+         bool quiet,
+         const strings& vars)
   {
-    cstrings args {"b"};
+    cstrings args {co.build ().string ().c_str ()};
 
     // Map verbosity level. If we are running quiet or at level 1,
     // then run build2 quiet. Otherwise, run it at the same level
@@ -209,6 +212,11 @@ namespace bpkg
       args.push_back ("--verbose");
       args.push_back (vl.c_str ());
     }
+
+    // Add user options.
+    //
+    for (const string& o: co.build_option ())
+      args.push_back (o.c_str ());
 
     // Add config vars.
     //

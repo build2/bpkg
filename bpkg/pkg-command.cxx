@@ -19,6 +19,7 @@ namespace bpkg
   void
   pkg_command (const string& cmd,
                const dir_path& c,
+               const common_options& o,
                const shared_ptr<selected_package>& p)
   {
     tracer trace ("pkg_command");
@@ -36,7 +37,7 @@ namespace bpkg
     string bspec (cmd + "(" + out_root.string () + "/)");
     level4 ([&]{trace << "buildspec: " << bspec;});
 
-    run_b (bspec);
+    run_b (o, bspec);
   }
 
   int
@@ -70,7 +71,7 @@ namespace bpkg
 
     level4 ([&]{trace << p->name << " " << p->version;});
 
-    pkg_command (cmd, c, p);
+    pkg_command (cmd, c, o, p);
 
     if (verb)
       text << cmd << (cmd.back () != 'e' ? "ed " : "d ")

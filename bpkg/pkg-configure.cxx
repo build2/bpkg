@@ -22,6 +22,7 @@ namespace bpkg
 {
   void
   pkg_configure (const dir_path& c,
+                 const common_options& o,
                  transaction& t,
                  const shared_ptr<selected_package>& p,
                  const strings& vars)
@@ -117,7 +118,7 @@ namespace bpkg
     //
     try
     {
-      run_b (bspec, true, vars); // Run quiet.
+      run_b (o, bspec, true, vars); // Run quiet.
     }
     catch (const failed&)
     {
@@ -133,7 +134,7 @@ namespace bpkg
       p->out_root = out_root.leaf ();
       p->state = package_state::broken;
 
-      pkg_disfigure (c, t, p); // Commits the transaction.
+      pkg_disfigure (c, o, t, p); // Commits the transaction.
       throw;
     }
 
@@ -188,7 +189,7 @@ namespace bpkg
 
     level4 ([&]{trace << p->name << " " << p->version;});
 
-    pkg_configure (c, t, p, vars); // Commits the transaction.
+    pkg_configure (c, o, t, p, vars); // Commits the transaction.
 
     if (verb)
       text << "configured " << p->name << " " << p->version;
