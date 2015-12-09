@@ -360,8 +360,7 @@ namespace bpkg
              << "as well:";
 
           for (const dependent_name& dn: dnames)
-              dr << text << dn.name
-                 << " (because dropping " << dn.prq_name << ")";
+            dr << text << dn.name << " (requires " << dn.prq_name << ")";
         }
 
         if (o.yes ())

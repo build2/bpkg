@@ -5,6 +5,7 @@
 #include <bpkg/pkg-build>
 
 #include <map>
+#include <set>
 #include <list>
 #include <iterator>   // make_move_iterator()
 #include <iostream>   // cout
@@ -182,6 +183,11 @@ namespace bpkg
 
     vector<constraint_type> constraints;
 
+    // Set of package names that caused this package to be built. Empty
+    // name signifies user selection.
+    //
+    set<string> required_by;
+
     // True if we need to reconfigure this package. If available package
     // is NULL, then reconfigure must be true (this is a dependent that
     // needs to be reconfigured because its prerequisite is being up/down-
@@ -317,6 +323,9 @@ namespace bpkg
         p1->constraints.insert (p1->constraints.end (),
                                 make_move_iterator (p2->constraints.begin ()),
                                 make_move_iterator (p2->constraints.end ()));
+
+        p1->required_by.insert (p2->required_by.begin (),
+                                p2->required_by.end ());
 
         if (!replace)
           return false;
@@ -462,6 +471,7 @@ namespace bpkg
           false,  // Hold package.
           false,  // Hold version.
           {},     // Constraints.
+          {name}, // Required by.
           false}; // Reconfigure.
 
         // Add our constraint, if we have one.
@@ -663,6 +673,8 @@ namespace bpkg
         {
           build_package& dp (i->second.package);
 
+          dp.required_by.insert (n);
+
           // Force reconfiguration in both cases.
           //
           dp.reconfigure_ = true;
@@ -694,6 +706,7 @@ namespace bpkg
                 false,  // Hold package.
                 false,  // Hold version.
                 {},     // Constraints.
+                {n},    // Required by.
                 true}   // Reconfigure.
             }).first;
 
@@ -939,6 +952,7 @@ namespace bpkg
           true,         // Hold package.
           !v.empty (),  // Hold version.
           {},           // Constraints.
+          {""},         // Required by (command line).
           false};       // Reconfigure.
 
         // "Fix" the version the user asked for by adding the '==' constraint.
@@ -982,37 +996,41 @@ namespace bpkg
         const shared_ptr<selected_package>& sp (p.selected);
         const shared_ptr<available_package>& ap (p.available);
 
-        const char* act;
-        string n;
-        version v;
-
+        string act;
         if (ap == nullptr)
         {
           // This is a dependent needing reconfiguration.
           //
           assert (sp != nullptr && p.reconfigure ());
-
-          n = sp->name;
-          act = "reconfigure";
+          act = "reconfigure " + sp->name;
         }
         else
         {
-          n = ap->id.name;
-          v = ap->version;
-
           // Even if we already have this package selected, we have to
           // make sure it is configured and updated.
           //
-          if (sp == nullptr || sp->version == v)
-            act = p.reconfigure () ? "reconfigure/build" : "build";
+          if (sp == nullptr || sp->version == ap->version)
+            act = p.reconfigure () ? "reconfigure/build " : "build ";
           else
-            act = sp->version < v ? "upgrade" : "downgrade";
+            act = sp->version < ap->version ? "upgrade " : "downgrade ";
+
+          act += ap->id.name + ' ' + ap->version.string ();
         }
 
+        string rb;
+        if (p.required_by.find ("") == p.required_by.end ()) // User selection?
+        {
+          for (const string& n: p.required_by)
+            rb += ' ' + n;
+        }
+
+        if (!rb.empty ())
+          act += " (required by" + rb + ')';
+
         if (o.print_only ())
-          cout << act << " " << n << (v.empty () ? "" : " ") << v << endl;
+          cout << act << endl;
         else if (verb)
-          text << act << " " << n << (v.empty () ? "" : " ") << v;
+          text << act;
       }
     }
 
