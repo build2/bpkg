@@ -370,7 +370,7 @@ namespace bpkg
 
     // Repository from which this package came. Note that it is not
     // a pointer to the repository object because it could be wiped
-    // out (e.g., as a result of rep-fetch). We call such packages
+    // out (e.g., as a result of cfg-fetch). We call such packages
     // "orphans". While we can get a list of orphan's prerequisites
     // (by loading its manifest), we wouldn't know which repository
     // to use as a base to resolve them. As a result, an orphan that

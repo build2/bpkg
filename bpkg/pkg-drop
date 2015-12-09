@@ -1,0 +1,17 @@
+// file      : bpkg/pkg-drop -*- C++ -*-
+// copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
+// license   : MIT; see accompanying LICENSE file
+
+#ifndef BPKG_PKG_DROP
+#define BPKG_PKG_DROP
+
+#include <bpkg/types>
+#include <bpkg/pkg-drop-options>
+
+namespace bpkg
+{
+  int
+  pkg_drop (const pkg_drop_options&, cli::scanner& args);
+}
+
+#endif // BPKG_PKG_DROP

@@ -93,7 +93,7 @@ namespace bpkg
     path --fetch
     {
       "<path>",
-      "The fetch program to be used to download remote resources. Currently,
+      "The fetch program to be used to download resources. Currently,
        \cb{bpkg} recognizes \cb{curl}, \cb{wget}, and \cb{fetch}. Note that
        the last component of <path> must contain one of these names as a
        substring in order for \cb{bpkg} to recognize which program is being

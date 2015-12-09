@@ -16,9 +16,8 @@
 //
 #include <bpkg/help>
 
-#include <bpkg/build>
-#include <bpkg/drop>
-
+#include <bpkg/pkg-build>
+#include <bpkg/pkg-drop>
 #include <bpkg/pkg-verify>
 #include <bpkg/pkg-status>
 #include <bpkg/pkg-fetch>
@@ -29,10 +28,10 @@
 #include <bpkg/pkg-update>
 #include <bpkg/pkg-clean>
 
+#include <bpkg/cfg-add>
 #include <bpkg/cfg-create>
+#include <bpkg/cfg-fetch>
 
-#include <bpkg/rep-add>
-#include <bpkg/rep-fetch>
 #include <bpkg/rep-info>
 #include <bpkg/rep-create>
 
@@ -172,17 +171,12 @@ try
       break;                                                            \
     }
 
-    // High-level commands.
-    //
-#define COMMAND(CMD) COMMAND_IMPL(, "", CMD)
-
-    COMMAND(build);
-    COMMAND(drop);
-
     // pkg-* commands
     //
 #define PKG_COMMAND(CMD) COMMAND_IMPL(pkg_, "pkg-", CMD)
 
+    PKG_COMMAND (build);
+    PKG_COMMAND (drop);
     PKG_COMMAND (verify);
     PKG_COMMAND (status);
     PKG_COMMAND (fetch);
@@ -197,14 +191,14 @@ try
     //
 #define CFG_COMMAND(CMD) COMMAND_IMPL(cfg_, "cfg-", CMD)
 
+    CFG_COMMAND (add);
     CFG_COMMAND (create);
+    CFG_COMMAND (fetch);
 
     // rep-* commands
     //
 #define REP_COMMAND(CMD) COMMAND_IMPL(rep_, "rep-", CMD)
 
-    REP_COMMAND (add);
-    REP_COMMAND (fetch);
     REP_COMMAND (info);
     REP_COMMAND (create);
 

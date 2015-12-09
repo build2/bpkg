@@ -1,8 +1,8 @@
-// file      : bpkg/rep-fetch.cxx -*- C++ -*-
+// file      : bpkg/cfg-fetch.cxx -*- C++ -*-
 // copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-#include <bpkg/rep-fetch>
+#include <bpkg/cfg-fetch>
 
 #include <fstream>
 #include <stdexcept>
@@ -23,11 +23,11 @@ using namespace butl;
 namespace bpkg
 {
   static void
-  rep_fetch (const common_options& co,
+  cfg_fetch (const common_options& co,
              transaction& t,
              const shared_ptr<repository>& r)
   {
-    tracer trace ("rep_fetch(rep)");
+    tracer trace ("cfg_fetch(rep)");
 
     database& db (t.database ());
     tracer_guard tg (db, trace);
@@ -89,7 +89,7 @@ namespace bpkg
       // (or is already being) fetched.
       //
       if (!pr->fetched)
-        rep_fetch (co, t, pr);
+        cfg_fetch (co, t, pr);
 
       // @@ What if we have duplicated? Ideally, we would like to check
       //    this once and as early as possible. The original idea was to
@@ -176,9 +176,9 @@ namespace bpkg
   }
 
   int
-  rep_fetch (const rep_fetch_options& o, cli::scanner&)
+  cfg_fetch (const cfg_fetch_options& o, cli::scanner&)
   {
-    tracer trace ("rep_fetch");
+    tracer trace ("cfg_fetch");
 
     dir_path c (o.directory ());
     level4 ([&]{trace << "configuration: " << c;});
@@ -192,7 +192,7 @@ namespace bpkg
 
     if (ua.empty ())
       fail << "configuration " << c << " has no repositories" <<
-        info << "use 'bpkg rep-add' to add a repository";
+        info << "use 'bpkg cfg-add' to add a repository";
 
     // Clean repositories and available packages. At the end only
     // repositories that were explicitly added by the user and the
@@ -226,7 +226,7 @@ namespace bpkg
     // their packages.
     //
     for (const lazy_shared_ptr<repository>& lp: ua)
-      rep_fetch (o, t, lp.load ());
+      cfg_fetch (o, t, lp.load ());
 
     size_t rcount, pcount;
     if (verb)

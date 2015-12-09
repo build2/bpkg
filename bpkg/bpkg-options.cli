@@ -39,17 +39,59 @@ namespace bpkg
       ""
     }
 
-    bool build
+    bool cfg-create|create
     {
-      "<pkg>...",
-      "Build one or more packages \- \l{bpkg-build-options(1)}.",
+      "<dir>",
+      "Create configuration.",
       ""
     }
 
-    bool drop
+    bool cfg-add|add
     {
-      "<pkg>...",
-      "Drop one or more packages.",
+      "<rep>",
+      "Add repository to configuration.",
+      ""
+    }
+
+    bool cfg-fetch|fetch
+    {
+      "",
+      "Fetch list of available packages.",
+      ""
+    }
+
+    bool pkg-status|status
+    {
+      "<pkg>",
+      "Print package status.",
+      ""
+    }
+
+    bool pkg-build|build
+    {
+      "<pkg>",
+      "Build package(s) \- \l{bpkg-pkg-build(1)}.",
+      ""
+    }
+
+    bool pkg-drop|drop
+    {
+      "<pkg>",
+      "Drop package(s).",
+      ""
+    }
+
+    bool pkg-update|update
+    {
+      "<pkg>",
+      "Update package.",
+      ""
+    }
+
+    bool pkg-clean|clean
+    {
+      "<pkg>",
+      "Clean package.",
       ""
     }
 
@@ -57,13 +99,6 @@ namespace bpkg
     {
       "<archive>",
       "Verify archive is a valid package.",
-      ""
-    }
-
-    bool pkg-status
-    {
-      "<pkg>", // [/<ver>]: 24
-      "Print package status.",
       ""
     }
 
@@ -81,13 +116,6 @@ namespace bpkg
       ""
     }
 
-    bool pkg-purge
-    {
-      "<pkg>",
-      "Purge package.",
-      ""
-    }
-
     bool pkg-configure
     {
       "<pkg>",
@@ -102,38 +130,10 @@ namespace bpkg
       ""
     }
 
-    bool pkg-update
+    bool pkg-purge
     {
       "<pkg>",
-      "Update package.",
-      ""
-    }
-
-    bool pkg-clean
-    {
-      "<pkg>",
-      "Clean package.",
-      ""
-    }
-
-    bool cfg-create
-    {
-      "[<conf>]",
-      "Create configuration.",
-      ""
-    }
-
-    bool rep-add
-    {
-      "<rep>",
-      "Add repository to configuration.",
-      ""
-    }
-
-    bool rep-fetch
-    {
-      "",
-      "Fetch available packages list.",
+      "Purge package.",
       ""
     }
 
@@ -147,7 +147,7 @@ namespace bpkg
     bool rep-create
     {
       "[<dir>]",
-      "Create repository manifest file.",
+      "Generate repository packages manifest.",
       ""
     }
   };
@@ -160,7 +160,7 @@ namespace bpkg
 
     bool common-options
     {
-      "Options common for all commands \- \l{bpkg-common-options(1)}."
+      "Details on common options \- \l{bpkg-common-options(1)}."
     }
   };
 

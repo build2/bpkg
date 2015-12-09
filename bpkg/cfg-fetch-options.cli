@@ -1,28 +1,28 @@
-// file      : bpkg/rep-fetch-options.cli
+// file      : bpkg/cfg-fetch-options.cli
 // copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
 include <bpkg/configuration-options.cli>;
 
 "\section=1"
-"\name=bpkg-rep-fetch"
+"\name=bpkg-cfg-fetch"
 "\summary=fetch available packages list"
 
 /*
 "\h{SYNOPSIS}
 
-bpkg rep-fetch [<options>]"
+bpkg cfg-fetch [<options>]"
 
 "\h{DESCRIPTION}
 
-The \cb{rep-fetch} command recursively fetches the prerequisite repository
+The \cb{cfg-fetch} command recursively fetches the prerequisite repository
 and available package lists for all the repositories that were added
-(\cb{rep-add}) to the configuration."
+(\cb{cfg-add}) to the configuration."
 */
 
 namespace bpkg
 {
-  class rep_fetch_options: configuration_options
+  class cfg_fetch_options: configuration_options
   {
   };
 }

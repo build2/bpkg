@@ -1,33 +1,33 @@
-// file      : bpkg/drop-options.cli
+// file      : bpkg/pkg-drop-options.cli
 // copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
 include <bpkg/configuration-options.cli>;
 
 "\section=1"
-"\name=bpkg-drop"
+"\name=bpkg-pkg-drop"
 "\summary=drop one or more packages"
 
 /*
 "\h{SYNOPSIS}
 
-bpkg drop [<options>] <pkg>..."
+bpkg pkg-drop [<options>] <pkg>..."
 
 "\h{DESCRIPTION}
 
-The \cb{drop} command drops one or more packages from the configuration.
+The \cb{pkg-drop} command drops one or more packages from the configuration.
 If the packages being dropped still have dependents, then those will have
 to be drop as well and you will be prompted for a confirmation. Similarly,
 if the packages being dropped have prerequisites that are no longer needed,
 you will be offered to drop those as well.
 
-The \cb{drop} command also supports several \cb{--*-only} options that allow
-you to limit the amount of work that will be done.
+The \cb{pkg-drop} command also supports several \cb{--*-only} options that
+allow you to limit the amount of work that will be done.
 */
 
 namespace bpkg
 {
-  class drop_options: configuration_options
+  class pkg_drop_options: configuration_options
   {
     bool --yes|-y
     {

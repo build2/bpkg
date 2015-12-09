@@ -1,0 +1,17 @@
+// file      : bpkg/pkg-build -*- C++ -*-
+// copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
+// license   : MIT; see accompanying LICENSE file
+
+#ifndef BPKG_PKG_BUILD
+#define BPKG_PKG_BUILD
+
+#include <bpkg/types>
+#include <bpkg/pkg-build-options>
+
+namespace bpkg
+{
+  int
+  pkg_build (const pkg_build_options&, cli::scanner& args);
+}
+
+#endif // BPKG_PKG_BUILD

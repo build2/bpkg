@@ -1,11 +1,11 @@
-// file      : bpkg/build-options.cli
+// file      : bpkg/pkg-build-options.cli
 // copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
 include <bpkg/configuration-options.cli>;
 
 "\section=1"
-"\name=bpkg-build"
+"\name=bpkg-pkg-build"
 "\summary=build one or more packages"
 
 namespace bpkg
@@ -15,15 +15,15 @@ namespace bpkg
 
     "\h|SYNOPSIS|
 
-     \c{\b{bpkg build} [<options>] (<pkg>[/<ver>] | <file> | <dir>)...}
+     \c{\b{bpkg pkg-build} [<options>] (<pkg>[/<ver>] | <file> | <dir>)...}
 
      \h|DESCRIPTION|
 
-     The \cb{build} command builds one or more packages including all their
+     The \cb{pkg-build} command builds one or more packages including all their
      prerequisites. Each package can be specified as just the name (<pkg>) with
      optional package version (<ver>) in which case the package will be
      automatically fetched from one of the configuration's source repositories
-     (see the \cb{rep-add} and \cb{rep-fetch} commands). Alternatively, the
+     (see the \cb{cfg-add} and \cb{cfg-fetch} commands). Alternatively, the
      package can be specified as either the path to the package source archive
      (<file>) or package source directory (<dir>). See the \cb{pkg-fetch} and
      \cb{pkg-unpack} commands for more information on the semantics of
@@ -36,13 +36,13 @@ namespace bpkg
      addition, have their versions held, that is, they will not be
      automatically upgraded.
 
-     The \cb{build} command also supports several \cb{--*-only} options that
-     allow you to limit the amount of work that will be done."
+     The \cb{pkg-build} command also supports several \cb{--*-only} options
+     that allow you to limit the amount of work that will be done."
   }
 
-  class build_options: configuration_options
+  class pkg_build_options: configuration_options
   {
-    "\h|BUILD OPTIONS|"
+    "\h|PKG-BUILD OPTIONS|"
 
     bool --yes|-y
     {

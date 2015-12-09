@@ -1,8 +1,8 @@
-// file      : bpkg/drop.cxx -*- C++ -*-
+// file      : bpkg/pkg-drop.cxx -*- C++ -*-
 // copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-#include <bpkg/drop>
+#include <bpkg/pkg-drop>
 
 #include <map>
 #include <list>
@@ -293,9 +293,9 @@ namespace bpkg
   };
 
   int
-  drop (const drop_options& o, cli::scanner& args)
+  pkg_drop (const pkg_drop_options& o, cli::scanner& args)
   {
-    tracer trace ("drop");
+    tracer trace ("pkg_drop");
 
     if (o.yes () && o.no ())
       fail << "both --yes|-y and --no|-n specified";
@@ -305,7 +305,7 @@ namespace bpkg
 
     if (!args.more ())
       fail << "package name argument expected" <<
-        info << "run 'bpkg help drop' for more information";
+        info << "run 'bpkg help pkg-drop' for more information";
 
     database db (open (c, trace));
 

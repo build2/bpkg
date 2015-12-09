@@ -1,8 +1,8 @@
-// file      : bpkg/build.cxx -*- C++ -*-
+// file      : bpkg/pkg-build.cxx -*- C++ -*-
 // copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-#include <bpkg/build>
+#include <bpkg/pkg-build>
 
 #include <map>
 #include <list>
@@ -717,16 +717,16 @@ namespace bpkg
   };
 
   int
-  build (const build_options& o, cli::scanner& args)
+  pkg_build (const pkg_build_options& o, cli::scanner& args)
   {
-    tracer trace ("build");
+    tracer trace ("pkg_build");
 
     const dir_path& c (o.directory ());
     level4 ([&]{trace << "configuration: " << c;});
 
     if (!args.more ())
       fail << "package name argument expected" <<
-        info << "run 'bpkg help build' for more information";
+        info << "run 'bpkg help pkg-build' for more information";
 
     database db (open (c, trace));
 
@@ -908,10 +908,10 @@ namespace bpkg
           //
           if (db.query_value<repository_count> () == 0)
             dr << info << "configuration " << c << " has no repositories"
-               << info << "use 'bpkg rep-add' to add a repository";
+               << info << "use 'bpkg cfg-add' to add a repository";
           else if (db.query_value<available_package_count> () == 0)
             dr << info << "configuration " << c << " has no available packages"
-               << info << "use 'bpkg rep-fetch' to fetch available packages "
+               << info << "use 'bpkg cfg-fetch' to fetch available packages "
                << "list";
         }
 
