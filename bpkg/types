@@ -28,8 +28,10 @@ namespace bpkg
   using std::size_t;
   using std::string;
 
-  using strings = std::vector<string>;
-  using cstrings = std::vector<const char*>;
+  using std::vector;
+
+  using strings = vector<string>;
+  using cstrings = vector<const char*>;
 
   using butl::optional;
   using butl::nullopt;

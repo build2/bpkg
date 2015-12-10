@@ -24,10 +24,10 @@ namespace bpkg
   {
     tracer trace ("pkg_command");
 
+    level4 ([&]{trace << "command: " << cmd;});
+
     assert (p->state == package_state::configured);
     assert (p->out_root); // Should be present since configured.
-
-    level4 ([&]{trace << "command: " << cmd;});
 
     dir_path out_root (c / *p->out_root); // Always relative.
     level4 ([&]{trace << "out_root: " << out_root;});
@@ -35,6 +35,41 @@ namespace bpkg
     // Form the buildspec.
     //
     string bspec (cmd + "(" + out_root.string () + "/)");
+    level4 ([&]{trace << "buildspec: " << bspec;});
+
+    run_b (o, bspec);
+  }
+
+  void
+  pkg_command (const string& cmd,
+               const dir_path& c,
+               const common_options& o,
+               const vector<shared_ptr<selected_package>>& ps)
+  {
+    tracer trace ("pkg_command");
+
+    level4 ([&]{trace << "command: " << cmd;});
+
+    // Form the buildspec.
+    //
+    string bspec (cmd + "(");
+
+    for (const shared_ptr<selected_package>& p: ps)
+    {
+      assert (p->state == package_state::configured);
+      assert (p->out_root); // Should be present since configured.
+
+      dir_path out_root (c / *p->out_root); // Always relative.
+      level4 ([&]{trace << p->name << " out_root: " << out_root;});
+
+      if (bspec.back () != '(')
+        bspec += ' ';
+      bspec += out_root.string ();
+      bspec += '/';
+    }
+
+    bspec += ')';
+
     level4 ([&]{trace << "buildspec: " << bspec;});
 
     run_b (o, bspec);
@@ -54,28 +89,38 @@ namespace bpkg
       fail << "package name argument expected" <<
         info << "run 'bpkg help pkg-" << cmd << "' for more information";
 
-    string n (args.next ());
+    vector<shared_ptr<selected_package>> ps;
+    {
+      database db (open (c, trace));
+      transaction t (db.begin ());
 
-    database db (open (c, trace));
+      while (args.more ())
+      {
+        string n (args.next ());
+        shared_ptr<selected_package> p (db.find<selected_package> (n));
 
-    transaction t (db.begin ());
-    shared_ptr<selected_package> p (db.find<selected_package> (n));
-    t.commit ();
+        if (p == nullptr)
+          fail << "package " << n << " does not exist in configuration " << c;
 
-    if (p == nullptr)
-      fail << "package " << n << " does not exist in configuration " << c;
+        if (p->state != package_state::configured)
+          fail << "package " << n << " is " << p->state <<
+            info << "expected it to be configured";
 
-    if (p->state != package_state::configured)
-      fail << "package " << n << " is " << p->state <<
-        info << "expected it to be configured";
+        level4 ([&]{trace << p->name << " " << p->version;});
+        ps.push_back (move (p));
+      }
 
-    level4 ([&]{trace << p->name << " " << p->version;});
+      t.commit ();
+    }
 
-    pkg_command (cmd, c, o, p);
+    pkg_command (cmd, c, o, ps);
 
     if (verb)
-      text << cmd << (cmd.back () != 'e' ? "ed " : "d ")
-           << p->name << " " << p->version;
+    {
+      for (const shared_ptr<selected_package>& p: ps)
+        text << cmd << (cmd.back () != 'e' ? "ed " : "d ")
+             << p->name << " " << p->version;
+    }
 
     return 0;
   }
