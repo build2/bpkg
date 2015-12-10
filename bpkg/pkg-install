@@ -1,0 +1,22 @@
+// file      : bpkg/pkg-install -*- C++ -*-
+// copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
+// license   : MIT; see accompanying LICENSE file
+
+#ifndef BPKG_PKG_INSTALL
+#define BPKG_PKG_INSTALL
+
+#include <bpkg/types>
+#include <bpkg/forward> // selected_package
+#include <bpkg/pkg-command>
+#include <bpkg/pkg-install-options>
+
+namespace bpkg
+{
+  inline int
+  pkg_install (const pkg_install_options& o, cli::scanner& args)
+  {
+    return pkg_command ("install", o, args);
+  }
+}
+
+#endif // BPKG_PKG_INSTALL

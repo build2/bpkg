@@ -1,0 +1,36 @@
+// file      : bpkg/pkg-install-options.cli
+// copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
+// license   : MIT; see accompanying LICENSE file
+
+include <bpkg/configuration-options.cli>;
+
+"\section=1"
+"\name=bpkg-pkg-install"
+"\summary=install package"
+
+namespace bpkg
+{
+  {
+    "<options> <pkg>",
+
+    "\h|SYNOPSIS|
+
+     \c{\b{bpkg pkg-install} [<options>] <pkg>...}
+
+     \h|DESCRIPTION|
+
+     The \cb{pkg-install} command installs one or more packages. Underneath,
+     this command doesn't do much more than run \cb{b install}. The
+     installation directory can be specified when creating the configuration
+     (\l{bpkg-cfg-create(1)}) with the \cb{config.install.root} configuration
+     variable."
+
+     // @@ Would be nice to be able to specify the root it in the command.
+     //    Probably an option to specify additional configuration vars.
+  }
+
+  class pkg_install_options: configuration_options
+  {
+    "\h|PKG-INSTALL OPTIONS|"
+  };
+}

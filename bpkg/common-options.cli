@@ -136,9 +136,9 @@ namespace bpkg
     string --pager // String to allow empty value.
     {
       "<path>",
-      "The pager program to be used to show text, such as help. Commonly
-       used pager programs are \cb{less} and \cb{more}. You can also specify
-       additional options that should be passed to the pager program with
+      "The pager program to be used to show long text. Commonly used pager
+       programs are \cb{less} and \cb{more}. You can also specify additional
+       options that should be passed to the pager program with
        \cb{--pager-option}. If an empty string is specified as the pager
        program, then no pager will be used. If the pager program is not
        explicitly specified, then \cb{bpkg} will try to use \cb{less}. If it

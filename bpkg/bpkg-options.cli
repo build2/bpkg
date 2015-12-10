@@ -55,44 +55,42 @@ namespace bpkg
 
     bool cfg-fetch|fetch
     {
-      "",
-      "Fetch list of available packages.",
-      ""
+      "Fetch list of available packages."
     }
 
     bool pkg-status|status
     {
-      "<pkg>",
-      "Print package status.",
-      ""
+      "Print package status."
     }
 
     bool pkg-build|build
     {
-      "<pkg>",
-      "Build package(s) \- \l{bpkg-pkg-build(1)}.",
-      ""
+      "Build package \- \l{bpkg-pkg-build(1)}."
     }
 
     bool pkg-drop|drop
     {
-      "<pkg>",
-      "Drop package(s).",
-      ""
+      "Drop package."
+    }
+
+    bool pkg-install|install
+    {
+      "Install package."
+    }
+
+    bool pkg-uninstall|uninstall
+    {
+      "Uninstall package."
     }
 
     bool pkg-update|update
     {
-      "<pkg>",
-      "Update package.",
-      ""
+      "Update package."
     }
 
     bool pkg-clean|clean
     {
-      "<pkg>",
-      "Clean package.",
-      ""
+      "Clean package."
     }
 
     bool pkg-verify
@@ -111,37 +109,27 @@ namespace bpkg
 
     bool pkg-unpack
     {
-      "<pkg>",
-      "Unpack package archive.",
-      ""
+      "Unpack package archive."
     }
 
     bool pkg-configure
     {
-      "<pkg>",
-      "Configure package.",
-      ""
+      "Configure package."
     }
 
     bool pkg-disfigure
     {
-      "<pkg>",
-      "Disfigure package.",
-      ""
+      "Disfigure package."
     }
 
     bool pkg-purge
     {
-      "<pkg>",
-      "Purge package.",
-      ""
+      "Purge package."
     }
 
     bool rep-info
     {
-      "<rep>",
-      "Print information about repository.",
-      ""
+      "Print information about repository."
     }
 
     bool rep-create

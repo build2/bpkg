@@ -11,7 +11,7 @@ include <bpkg/configuration-options.cli>;
 /*
 "\h{SYNOPSIS}
 
-bpkg pkg-update <pkg>"
+bpkg pkg-update <pkg>..."
 
 "\h{DESCRIPTION}
 

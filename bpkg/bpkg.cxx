@@ -17,16 +17,18 @@
 #include <bpkg/help>
 
 #include <bpkg/pkg-build>
-#include <bpkg/pkg-drop>
-#include <bpkg/pkg-verify>
-#include <bpkg/pkg-status>
-#include <bpkg/pkg-fetch>
-#include <bpkg/pkg-unpack>
-#include <bpkg/pkg-purge>
+#include <bpkg/pkg-clean>
 #include <bpkg/pkg-configure>
 #include <bpkg/pkg-disfigure>
+#include <bpkg/pkg-drop>
+#include <bpkg/pkg-fetch>
+#include <bpkg/pkg-install>
+#include <bpkg/pkg-purge>
+#include <bpkg/pkg-status>
+#include <bpkg/pkg-uninstall>
+#include <bpkg/pkg-unpack>
 #include <bpkg/pkg-update>
-#include <bpkg/pkg-clean>
+#include <bpkg/pkg-verify>
 
 #include <bpkg/cfg-add>
 #include <bpkg/cfg-create>
@@ -176,16 +178,18 @@ try
 #define PKG_COMMAND(CMD) COMMAND_IMPL(pkg_, "pkg-", CMD)
 
     PKG_COMMAND (build);
-    PKG_COMMAND (drop);
-    PKG_COMMAND (verify);
-    PKG_COMMAND (status);
-    PKG_COMMAND (fetch);
-    PKG_COMMAND (unpack);
-    PKG_COMMAND (purge);
+    PKG_COMMAND (clean);
     PKG_COMMAND (configure);
     PKG_COMMAND (disfigure);
+    PKG_COMMAND (drop);
+    PKG_COMMAND (fetch);
+    PKG_COMMAND (install);
+    PKG_COMMAND (purge);
+    PKG_COMMAND (status);
+    PKG_COMMAND (uninstall);
+    PKG_COMMAND (unpack);
     PKG_COMMAND (update);
-    PKG_COMMAND (clean);
+    PKG_COMMAND (verify);
 
     // cfg-* commands
     //
