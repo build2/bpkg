@@ -75,15 +75,36 @@ namespace bpkg
       ofs.exceptions (ofstream::badbit | ofstream::failbit);
       ofs.open (f.string ());
 
-      ofs << "# Maintained automatically by bpkg, do not edit." << endl
+      ofs << "# Maintained automatically by bpkg. Edit if you know what " <<
+        "you are doing." << endl
           << "#" << endl
           << "project =" << endl
           << "amalgamation =" << endl
+          << endl
           << "using config" << endl
+          << "using test" << endl
           << "using install" << endl;
+    }
+    catch (const ofstream::failure&)
+    {
+      fail << "unable to write to " << f;
+    }
 
-      // Load user-supplied modules in bootstrap.build instead of root.build
-      // since we don't know whether they can be loaded in the latter.
+    // Write build/root.build.
+    //
+    f = b / path ("root.build");
+    try
+    {
+      ofstream ofs;
+      ofs.exceptions (ofstream::badbit | ofstream::failbit);
+      ofs.open (f.string ());
+
+      ofs << "# Maintained automatically by bpkg. Edit if you know what " <<
+        "you are doing." << endl
+          << "#" << endl;
+
+      // Load user-supplied modules. We don't really know whether they must
+      // be loaded in bootstrap.
       //
       for (const string& m: mods)
         ofs << "using " << m << endl;
@@ -95,14 +116,15 @@ namespace bpkg
 
     // Write root buildfile.
     //
-    f = path (c / path ("buildfile"));
+    f = c / path ("buildfile");
     try
     {
       ofstream ofs;
       ofs.exceptions (ofstream::badbit | ofstream::failbit);
       ofs.open (f.string ());
 
-      ofs << "# Maintained automatically by bpkg, do not edit." << endl
+      ofs << "# Maintained automatically by bpkg. Edit if you know what " <<
+        "you are doing." << endl
           << "#" << endl
           << "./:" << endl;
     }

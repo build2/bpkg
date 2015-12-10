@@ -25,8 +25,8 @@ namespace bpkg
      configuration directory to be empty or to not exist (in which case it
      will be created).
 
-     By default the resulting configuration only loads the \cb{config} and
-     \cb{install} modules. However, additional modules and, if required,
+     By default the resulting configuration loads the \cb{config}, \cb{test},
+     and \cb{install} modules. However, additional modules and, if required,
      their configuration variables can be specified as the \cb{cfg-create}
      arguments. For example:
 
