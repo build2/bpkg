@@ -25,7 +25,7 @@ namespace bpkg
      (\l{bpkg-cfg-create(1)}) with the \cb{config.install.root} configuration
      variable."
 
-     // @@ Would be nice to be able to specify the root it in the command.
+     // @@ Would be nice to be able to specify the root in the command.
      //    Probably an option to specify additional configuration vars.
   }
 
