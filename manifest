@@ -12,6 +12,7 @@ requires: c++11
 requires: build2 >= 0.1.0
 requires: libodb >= 2.5.0-a3
 requires: libodb-sqlite >= 2.5.0-a3
+requires: sqlite3
 # @@ Should probably become conditional dependency.
 requires: ? cli ; Only required if changing .cli files.
 # @@ Need libb* [0.1.0 0.2.0-].
