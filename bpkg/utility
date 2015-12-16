@@ -8,7 +8,7 @@
 #include <memory>    // make_shared()
 #include <cassert>
 #include <utility>   // move()
-#include <exception> // uncaught_exception ()
+#include <exception> // uncaught_exception()
 
 #include <butl/filesystem>
 
