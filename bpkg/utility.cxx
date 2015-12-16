@@ -12,6 +12,8 @@
 #include <bpkg/types>
 #include <bpkg/diagnostics>
 
+#include <bpkg/common-options>
+
 using namespace std;
 using namespace butl;
 

@@ -13,7 +13,6 @@
 #include <butl/filesystem>
 
 #include <bpkg/types>
-#include <bpkg/common-options>
 
 namespace bpkg
 {
@@ -69,6 +68,8 @@ namespace bpkg
   // Run build2, mapping verbosity levels. If quiet is true, then
   // run build2 quiet if our verbosity level is 1.
   //
+  class common_options;
+
   void
   run_b (const common_options&,
          const string& buildspec,
