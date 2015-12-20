@@ -3,5 +3,5 @@
 # license   : MIT; see accompanying LICENSE file
 
 d = bpkg/
-./: $d doc{LICENSE} file{manifest version}
+./: $d doc{LICENSE version} file{manifest}
 include $d
