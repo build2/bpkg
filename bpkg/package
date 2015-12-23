@@ -18,7 +18,7 @@
 #include <bpkg/types>
 #include <bpkg/utility>
 
-#pragma db model version(1, 1, closed)
+#pragma db model version(1, 1, open)
 
 namespace bpkg
 {
@@ -64,8 +64,10 @@ namespace bpkg
   {
     uint16_t epoch;
     string canonical_upstream;
+    string canonical_release;
     uint16_t revision;
     string upstream;
+    string release;
   };
 }
 
@@ -86,12 +88,12 @@ namespace bpkg
   // version
   //
   // Sometimes we need to split the version into two parts: the part
-  // that goes into the object id (epoch, canonical upstream, revision)
-  // and the original upstream. This is what the canonical_version and
-  // upstream_version value types are for. Note that upstream_version
-  // derives from version and uses it as storage. The idea here is this:
-  // when we split the version, we often still want to have the "whole"
-  // version object readily accessible and that's exactly what this
+  // that goes into the object id (epoch, canonical upstream, canonical
+  // release, revision) and the original upstream and release. This is what
+  // the canonical_version and upstream_version value types are for. Note that
+  // upstream_version derives from version and uses it as storage. The idea
+  // here is this: when we split the version, we often still want to have the
+  // "whole" version object readily accessible and that's exactly what this
   // strange contraption is for. See available_package for an example
   // on how everything fits together.
   //
@@ -101,15 +103,31 @@ namespace bpkg
   {
     uint16_t epoch;
     string   canonical_upstream;
+
+    // By a fluke SQLite 3 uses BINARY collation for UTF-8-encoded TEXT columns
+    // by default. So no need to adjust it to make "absent" and specified
+    // canonical releases to compare properly. But better to keep an eye on
+    // it not to miss a moment if SQLite plug UCA-compliant collation.
+    // Note: PostgreSQL uses UCA-compliant one by default for UTF8-encoded
+    // TEXT columns.
+    //
+    // Unicode Collation Algorithm (UCA): http://unicode.org/reports/tr10/
+    //
+    string   canonical_release;
+
     uint16_t revision;
   };
 
   #pragma db value transient
   struct upstream_version: version
   {
-    #pragma db member(upstream_) virtual(string)      \
-      get(this.upstream)                              \
-      set(this = bpkg::version (0, std::move (?), 0))
+    #pragma db member(upstream_) virtual(string)           \
+      get(this.upstream)                                   \
+      set(this = bpkg::version (0, std::move (?), "~", 0))
+
+    #pragma db member(release_) virtual(string)                      \
+      get(this.release)                                              \
+      set(this = bpkg::version (0, this.upstream, std::move (?), 0))
 
     upstream_version () = default;
     upstream_version (version v): version (move (v)) {}
@@ -119,17 +137,23 @@ namespace bpkg
     void
     init (const canonical_version& cv, const upstream_version& uv)
     {
-      *this = version (cv.epoch, uv.upstream, cv.revision);
-      assert (cv.canonical_upstream == canonical_upstream);
+      *this = version (cv.epoch, uv.upstream, uv.release, cv.revision);
+      assert (cv.canonical_upstream == canonical_upstream &&
+              cv.canonical_release == canonical_release);
     }
   };
 
-  #pragma db map type(version) as(_version)                                \
-    to(bpkg::_version{(?).epoch,                                           \
-                      (?).canonical_upstream,                              \
-                      (?).revision,                                        \
-                      (?).upstream})                                       \
-    from(bpkg::version ((?).epoch, std::move ((?).upstream), (?).revision))
+  #pragma db map type(version) as(_version)       \
+    to(bpkg::_version{(?).epoch,                  \
+                      (?).canonical_upstream,     \
+                      (?).canonical_release,      \
+                      (?).revision,               \
+                      (?).upstream,               \
+                      (?).release})               \
+    from(bpkg::version ((?).epoch,                \
+                        std::move ((?).upstream), \
+                        std::move ((?).release),  \
+                        (?).revision))
 
 
   // repository_location
@@ -461,9 +485,9 @@ namespace bpkg
   // Version comparison operators.
   //
   // They allow comparing objects that have epoch, canonical_upstream,
-  // and revision data members. The idea is that this works for both
-  // query members of types version and canonical_version as well as
-  // for comparing canonical_version to version.
+  // canonical_release, and revision data members. The idea is that this
+  // works for both query members of types version and canonical_version
+  // as well as for comparing canonical_version to version.
   //
   template <typename T1, typename T2>
   inline auto
@@ -471,6 +495,7 @@ namespace bpkg
   {
     return x.epoch == y.epoch &&
       x.canonical_upstream == y.canonical_upstream &&
+      x.canonical_release == y.canonical_release &&
       x.revision == y.revision;
   }
 
@@ -480,6 +505,7 @@ namespace bpkg
   {
     return x.epoch != y.epoch ||
       x.canonical_upstream != y.canonical_upstream ||
+      x.canonical_release != y.canonical_release ||
       x.revision != y.revision;
   }
 
@@ -490,7 +516,9 @@ namespace bpkg
     return x.epoch < y.epoch ||
       (x.epoch == y.epoch && x.canonical_upstream < y.canonical_upstream) ||
       (x.epoch == y.epoch && x.canonical_upstream == y.canonical_upstream &&
-       x.revision < y.revision);
+       x.canonical_release < y.canonical_release) ||
+      (x.epoch == y.epoch && x.canonical_upstream == y.canonical_upstream &&
+       x.canonical_release == y.canonical_release && x.revision < y.revision);
   }
 
   template <typename T1, typename T2>
@@ -500,7 +528,9 @@ namespace bpkg
     return x.epoch < y.epoch ||
       (x.epoch == y.epoch && x.canonical_upstream < y.canonical_upstream) ||
       (x.epoch == y.epoch && x.canonical_upstream == y.canonical_upstream &&
-       x.revision <= y.revision);
+       x.canonical_release < y.canonical_release) ||
+      (x.epoch == y.epoch && x.canonical_upstream == y.canonical_upstream &&
+       x.canonical_release == y.canonical_release && x.revision <= y.revision);
   }
 
   template <typename T1, typename T2>
@@ -510,7 +540,9 @@ namespace bpkg
     return x.epoch > y.epoch ||
       (x.epoch == y.epoch && x.canonical_upstream > y.canonical_upstream) ||
       (x.epoch == y.epoch && x.canonical_upstream == y.canonical_upstream &&
-       x.revision > y.revision);
+       x.canonical_release > y.canonical_release) ||
+      (x.epoch == y.epoch && x.canonical_upstream == y.canonical_upstream &&
+       x.canonical_release == y.canonical_release && x.revision > y.revision);
   }
 
   template <typename T1, typename T2>
@@ -520,7 +552,9 @@ namespace bpkg
     return x.epoch > y.epoch ||
       (x.epoch == y.epoch && x.canonical_upstream > y.canonical_upstream) ||
       (x.epoch == y.epoch && x.canonical_upstream == y.canonical_upstream &&
-       x.revision >= y.revision);
+       x.canonical_release > y.canonical_release) ||
+      (x.epoch == y.epoch && x.canonical_upstream == y.canonical_upstream &&
+       x.canonical_release == y.canonical_release && x.revision >= y.revision);
   }
 
   template <typename T>
@@ -531,6 +565,7 @@ namespace bpkg
     return "ORDER BY"
       + x.epoch + "DESC,"
       + x.canonical_upstream + "DESC,"
+      + x.canonical_release + "DESC,"
       + x.revision + "DESC";
   }
 }

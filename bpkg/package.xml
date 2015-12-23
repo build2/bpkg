@@ -49,12 +49,15 @@
       <column name="name" type="TEXT" null="true"/>
       <column name="version_epoch" type="INTEGER" null="true"/>
       <column name="version_canonical_upstream" type="TEXT" null="true"/>
+      <column name="version_canonical_release" type="TEXT" null="true"/>
       <column name="version_revision" type="INTEGER" null="true"/>
       <column name="version_upstream" type="TEXT" null="true"/>
+      <column name="version_release" type="TEXT" null="true"/>
       <primary-key>
         <column name="name"/>
         <column name="version_epoch"/>
         <column name="version_canonical_upstream"/>
+        <column name="version_canonical_release"/>
         <column name="version_revision"/>
       </primary-key>
     </table>
@@ -62,6 +65,7 @@
       <column name="name" type="TEXT" null="true"/>
       <column name="version_epoch" type="INTEGER" null="true"/>
       <column name="version_canonical_upstream" type="TEXT" null="true"/>
+      <column name="version_canonical_release" type="TEXT" null="true"/>
       <column name="version_revision" type="INTEGER" null="true"/>
       <column name="repository" type="TEXT" null="true"/>
       <column name="location" type="TEXT" null="true"/>
@@ -69,11 +73,13 @@
         <column name="name"/>
         <column name="version_epoch"/>
         <column name="version_canonical_upstream"/>
+        <column name="version_canonical_release"/>
         <column name="version_revision"/>
         <references table="available_package">
           <column name="name"/>
           <column name="version_epoch"/>
           <column name="version_canonical_upstream"/>
+          <column name="version_canonical_release"/>
           <column name="version_revision"/>
         </references>
       </foreign-key>
@@ -81,6 +87,7 @@
         <column name="name"/>
         <column name="version_epoch"/>
         <column name="version_canonical_upstream"/>
+        <column name="version_canonical_release"/>
         <column name="version_revision"/>
       </index>
       <foreign-key name="repository_fk" deferrable="DEFERRED">
@@ -94,6 +101,7 @@
       <column name="name" type="TEXT" null="true"/>
       <column name="version_epoch" type="INTEGER" null="true"/>
       <column name="version_canonical_upstream" type="TEXT" null="true"/>
+      <column name="version_canonical_release" type="TEXT" null="true"/>
       <column name="version_revision" type="INTEGER" null="true"/>
       <column name="index" type="INTEGER" null="true"/>
       <column name="conditional" type="INTEGER" null="true"/>
@@ -102,11 +110,13 @@
         <column name="name"/>
         <column name="version_epoch"/>
         <column name="version_canonical_upstream"/>
+        <column name="version_canonical_release"/>
         <column name="version_revision"/>
         <references table="available_package">
           <column name="name"/>
           <column name="version_epoch"/>
           <column name="version_canonical_upstream"/>
+          <column name="version_canonical_release"/>
           <column name="version_revision"/>
         </references>
       </foreign-key>
@@ -114,6 +124,7 @@
         <column name="name"/>
         <column name="version_epoch"/>
         <column name="version_canonical_upstream"/>
+        <column name="version_canonical_release"/>
         <column name="version_revision"/>
       </index>
       <index name="available_package_dependencies_index_i">
@@ -124,6 +135,7 @@
       <column name="name" type="TEXT" null="true"/>
       <column name="version_epoch" type="INTEGER" null="true"/>
       <column name="version_canonical_upstream" type="TEXT" null="true"/>
+      <column name="version_canonical_release" type="TEXT" null="true"/>
       <column name="version_revision" type="INTEGER" null="true"/>
       <column name="dependency_index" type="INTEGER" null="true"/>
       <column name="index" type="INTEGER" null="true"/>
@@ -131,17 +143,21 @@
       <column name="dep_operation" type="TEXT" null="true"/>
       <column name="dep_version_epoch" type="INTEGER" null="true"/>
       <column name="dep_version_canonical_upstream" type="TEXT" null="true"/>
+      <column name="dep_version_canonical_release" type="TEXT" null="true"/>
       <column name="dep_version_revision" type="INTEGER" null="true"/>
       <column name="dep_version_upstream" type="TEXT" null="true"/>
+      <column name="dep_version_release" type="TEXT" null="true"/>
       <foreign-key name="object_id_fk" on-delete="CASCADE">
         <column name="name"/>
         <column name="version_epoch"/>
         <column name="version_canonical_upstream"/>
+        <column name="version_canonical_release"/>
         <column name="version_revision"/>
         <references table="available_package">
           <column name="name"/>
           <column name="version_epoch"/>
           <column name="version_canonical_upstream"/>
+          <column name="version_canonical_release"/>
           <column name="version_revision"/>
         </references>
       </foreign-key>
@@ -149,6 +165,7 @@
         <column name="name"/>
         <column name="version_epoch"/>
         <column name="version_canonical_upstream"/>
+        <column name="version_canonical_release"/>
         <column name="version_revision"/>
       </index>
     </table>
@@ -156,8 +173,10 @@
       <column name="name" type="TEXT" null="true"/>
       <column name="version_epoch" type="INTEGER" null="true"/>
       <column name="version_canonical_upstream" type="TEXT" null="true"/>
+      <column name="version_canonical_release" type="TEXT" null="true"/>
       <column name="version_revision" type="INTEGER" null="true"/>
       <column name="version_upstream" type="TEXT" null="true"/>
+      <column name="version_release" type="TEXT" null="true"/>
       <column name="state" type="TEXT" null="true"/>
       <column name="hold_package" type="INTEGER" null="true"/>
       <column name="hold_version" type="INTEGER" null="true"/>
@@ -177,8 +196,10 @@
       <column name="operation" type="TEXT" null="true"/>
       <column name="version_epoch" type="INTEGER" null="true"/>
       <column name="version_canonical_upstream" type="TEXT" null="true"/>
+      <column name="version_canonical_release" type="TEXT" null="true"/>
       <column name="version_revision" type="INTEGER" null="true"/>
       <column name="version_upstream" type="TEXT" null="true"/>
+      <column name="version_release" type="TEXT" null="true"/>
       <foreign-key name="package_fk" on-delete="CASCADE">
         <column name="package"/>
         <references table="selected_package">

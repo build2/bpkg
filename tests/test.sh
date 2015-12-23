@@ -679,22 +679,22 @@ stat libfoo "fetched 1.0.0"
 test cfg-create --wipe
 test cfg-add $rep/status/extra
 test cfg-fetch
-stat libbar "available 1.1.0-1"
+stat libbar "available 1.1.0+1"
 test cfg-add $rep/status/stable
 test cfg-fetch
-stat libbar "available 1.1.0-1 1.0.0"
+stat libbar "available 1.1.0+1 1.0.0"
 
 test cfg-create --wipe
 test cfg-add $rep/status/testing
 test cfg-fetch
-stat libbar "available 1.1.0 1.0.0-1 1.0.0"
+stat libbar "available 1.1.0 1.0.0+1 1.0.0"
 
 test cfg-create --wipe
 test cfg-add $rep/status/unstable
 test cfg-fetch
-stat libbar "available 2.0.0 1.1.0 1.0.0-1 1.0.0"
-test pkg-fetch libbar/1.0.0-1
-stat libbar "fetched 1.0.0-1; available 2.0.0 1.1.0"
+stat libbar "available 2.0.0 1.1.0 1.0.0+1 1.0.0"
+test pkg-fetch libbar/1.0.0+1
+stat libbar "fetched 1.0.0+1; available 2.0.0 1.1.0"
 test pkg-purge libbar
 test pkg-fetch libbar/2.0.0
 stat libbar "fetched 2.0.0"
