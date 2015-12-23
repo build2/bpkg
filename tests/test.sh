@@ -851,7 +851,7 @@ test cfg-add $rep/satisfy/t2
 test cfg-fetch
 
 test pkg-build -p libbar <<EOF
-build libfoo 1.0.0
+build libfoo 1.0.0 (required by libbar)
 build libbar 1.0.0
 EOF
 test pkg-build -p libbar libfoo <<EOF
@@ -871,7 +871,7 @@ fail pkg-build -p libbar libfoo/1.1.0
 test pkg-fetch -e repository/1/satisfy/libfoo-0.0.0.tar.gz
 test pkg-unpack libfoo
 test pkg-build -p libbar <<EOF
-build libfoo 0.0.0
+build libfoo 0.0.0 (required by libbar)
 build libbar 1.0.0
 EOF
 test pkg-build -p libbar libfoo <<EOF
@@ -886,7 +886,7 @@ test pkg-purge libfoo
 
 test pkg-unpack -e repository/1/satisfy/libfoo-1.1.0
 test pkg-build -p libbar <<EOF
-build libfoo 1.1.0
+build libfoo 1.1.0 (required by libbar)
 build libbar 1.0.0
 EOF
 test pkg-build -p libbar libfoo <<EOF
@@ -913,8 +913,8 @@ fail pkg-build -p libbar
 fail pkg-build -p libbaz libbar
 
 test pkg-build -p libbaz <<EOF
-build libfoo 1.0.0
-build libbar 1.0.0
+build libfoo 1.0.0 (required by libbar)
+build libbar 1.0.0 (required by libbaz)
 build libbaz 1.0.0
 EOF
 
@@ -935,54 +935,54 @@ EOF
 
 test pkg-build -p libbaz libfoo <<EOF
 build libfoo 1.0.0
-build libbar 1.0.0
+build libbar 1.0.0 (required by libbaz)
 build libbaz 1.0.0
 EOF
 
 test pkg-build -p libfoo libbaz <<EOF
 build libfoo 1.0.0
-build libbar 1.0.0
+build libbar 1.0.0 (required by libbaz)
 build libbaz 1.0.0
 EOF
 
 test pkg-build -p libbaz libfox <<EOF
-build libfoo 1.0.0
-build libbar 1.0.0
+build libfoo 1.0.0 (required by libbar)
+build libbar 1.0.0 (required by libbaz)
 build libbaz 1.0.0
 build libfox 1.0.0
 EOF
 
 test pkg-build -p libfox libbaz <<EOF
 build libfox 1.0.0
-build libfoo 1.0.0
-build libbar 1.0.0
+build libfoo 1.0.0 (required by libbar)
+build libbar 1.0.0 (required by libbaz)
 build libbaz 1.0.0
 EOF
 
 test pkg-build -p libfox libfoo libbaz <<EOF
 build libfox 1.0.0
 build libfoo 1.0.0
-build libbar 1.0.0
+build libbar 1.0.0 (required by libbaz)
 build libbaz 1.0.0
 EOF
 
 test pkg-build -p libfox libbaz libfoo <<EOF
 build libfox 1.0.0
 build libfoo 1.0.0
-build libbar 1.0.0
+build libbar 1.0.0 (required by libbaz)
 build libbaz 1.0.0
 EOF
 
 test pkg-build -p libfoo libfox libbaz <<EOF
 build libfoo 1.0.0
 build libfox 1.0.0
-build libbar 1.0.0
+build libbar 1.0.0 (required by libbaz)
 build libbaz 1.0.0
 EOF
 
 test pkg-build -p libfoo libbaz libfox <<EOF
 build libfoo 1.0.0
-build libbar 1.0.0
+build libbar 1.0.0 (required by libbaz)
 build libbaz 1.0.0
 build libfox 1.0.0
 EOF
@@ -992,13 +992,13 @@ EOF
 test pkg-build -p libbaz libfox libfoo <<EOF
 build libfox 1.0.0
 build libfoo 1.0.0
-build libbar 1.0.0
+build libbar 1.0.0 (required by libbaz)
 build libbaz 1.0.0
 EOF
 
 test pkg-build -p libbaz libfoo libfox <<EOF
 build libfoo 1.0.0
-build libbar 1.0.0
+build libbar 1.0.0 (required by libbaz)
 build libbaz 1.0.0
 build libfox 1.0.0
 EOF
@@ -1027,14 +1027,14 @@ test cfg-add $rep/satisfy/t4c
 test cfg-fetch
 
 test pkg-build -p libbaz <<EOF
-build libfoo 1.1.0
-build libbar 1.1.0
+build libfoo 1.1.0 (required by libbar libbaz)
+build libbar 1.1.0 (required by libbaz)
 build libbaz 1.1.0
 EOF
 
 test pkg-build -p libfoo libbaz <<EOF
 build libfoo 1.1.0
-build libbar 1.1.0
+build libbar 1.1.0 (required by libbaz)
 build libbaz 1.1.0
 EOF
 
@@ -1046,8 +1046,8 @@ fail pkg-build -p libfoo/1.1.0 libbaz
 test pkg-fetch -e repository/1/satisfy/libfoo-0.0.0.tar.gz
 test pkg-unpack libfoo
 test pkg-build -p libbaz <<EOF
-upgrade libfoo 1.1.0
-build libbar 1.1.0
+upgrade libfoo 1.1.0 (required by libbar libbaz)
+build libbar 1.1.0 (required by libbaz)
 build libbaz 1.1.0
 EOF
 test pkg-purge libfoo
@@ -1061,7 +1061,7 @@ test cfg-add $rep/satisfy/t4a
 test cfg-fetch
 test pkg-build -p libfoo/1.1.0 libbaz <<EOF
 downgrade libfoo 1.1.0
-build libbar 1.1.0
+build libbar 1.1.0 (required by libbaz)
 build libbaz 1.1.0
 EOF
 test pkg-purge libfoo
@@ -1101,32 +1101,32 @@ test cfg-add $rep/satisfy/t4b
 test cfg-fetch
 
 test pkg-build -p libbar <<EOF
-upgrade libfoo 1.1.0
+upgrade libfoo 1.1.0 (required by libbar)
 upgrade libbar 1.1.0
-reconfigure libbaz
+reconfigure libbaz (required by libbar libfoo)
 EOF
 
 test pkg-build -p libfoo <<EOF
 upgrade libfoo 1.1.0
-reconfigure libbar
-reconfigure libbaz
+reconfigure libbar (required by libfoo)
+reconfigure libbaz (required by libbar libfoo)
 EOF
 
 test pkg-build -p libfoo libbar/1.0.0 <<EOF
 upgrade libfoo 1.1.0
 reconfigure/build libbar 1.0.0
-reconfigure libbaz
+reconfigure libbaz (required by libbar libfoo)
 EOF
 
 test pkg-build -p libbar/1.0.0 libfoo <<EOF
 upgrade libfoo 1.1.0
 reconfigure/build libbar 1.0.0
-reconfigure libbaz
+reconfigure libbaz (required by libbar libfoo)
 EOF
 
 test pkg-build -p libbaz libfoo <<EOF
 upgrade libfoo 1.1.0
-reconfigure libbar
+reconfigure libbar (required by libfoo)
 reconfigure/build libbaz 1.1.0
 EOF
 
