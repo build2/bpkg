@@ -15,94 +15,68 @@ namespace bpkg
   bool
   satisfies (const version& v, const dependency_constraint& c)
   {
-    using op = comparison;
+    assert (!c.empty ());
 
-    // Note that the constraint's version is always rhs (libfoo >= 1.2.3).
-    //
-    switch (c.operation)
-    {
-    case op::eq: return v == c.version;
-    case op::lt: return v <  c.version;
-    case op::gt: return v >  c.version;
-    case op::le: return v <= c.version;
-    case op::ge: return v >= c.version;
-    }
+    bool s (true);
 
-    assert (false);
-    return false;
+    if (c.min_version)
+      s = c.min_open ? v > *c.min_version : v >= *c.min_version;
+
+    if (s && c.max_version)
+      s = c.max_open ? v < *c.max_version : v <= *c.max_version;
+
+    return s;
   }
 
   bool
   satisfies (const dependency_constraint& l, const dependency_constraint& r)
   {
-    using op = comparison;
+    assert (!l.empty () && !r.empty ());
 
-    op lo (l.operation);
-    op ro (r.operation);
+    bool s (false);
 
-    const version& lv (l.version);
-    const version& rv (r.version);
-
-    switch (lo)
+    if (l.min_version)
     {
-    case op::eq: // ==
+      if (r.min_version)
       {
-        switch (ro)
-        {
-        case op::eq: return lv == rv;
-        case op::lt: return lv <  rv;
-        case op::le: return lv <= rv;
-        case op::gt: return lv >  rv;
-        case op::ge: return lv >= rv;
-        }
+        if (l.min_open)
+          // Doesn't matter if r is min_open or not.
+          //
+          s = *l.min_version >= *r.min_version;
+        else
+          s = r.min_open
+            ? *l.min_version > *r.min_version
+            : *l.min_version >= *r.min_version;
       }
-    case op::lt: // <
+      else
+        s = true; // Doesn't matter what l.min_version is.
+    }
+    else
+      s = !r.min_version;
+
+    if (s)
+    {
+      if (l.max_version)
       {
-        switch (ro)
+        if (r.max_version)
         {
-        case op::lt: return lv <= rv;
-        case op::le: return lv <  rv;
-        case op::eq:
-        case op::gt:
-        case op::ge: return false;
+          if (l.max_open)
+            // Doesn't matter if r is max_open or not.
+            //
+            s = *l.max_version <= *r.max_version;
+          else
+            s = r.max_open
+              ? *l.max_version < *r.max_version
+              : *l.max_version <= *r.max_version;
         }
+        else
+          // Doesn't matter what l.max_version is, so leave s to be true.
+          ;
       }
-    case op::le: // <=
-      {
-        switch (ro)
-        {
-        case op::lt: return lv <  rv;
-        case op::le: return lv <= rv;
-        case op::eq:
-        case op::gt:
-        case op::ge: return false;
-        }
-      }
-    case op::gt: // >
-      {
-        switch (ro)
-        {
-        case op::gt: return lv >= rv;
-        case op::ge: return lv >  rv;
-        case op::eq:
-        case op::lt:
-        case op::le: return false;
-        }
-      }
-    case op::ge: // >=
-      {
-        switch (ro)
-        {
-        case op::gt: return lv >  rv;
-        case op::ge: return lv >= rv;
-        case op::eq:
-        case op::lt:
-        case op::le: return false;
-        }
-      }
+      else
+        s = !r.max_version;
     }
 
-    assert (false);
-    return false;
+    return s;
   }
 }

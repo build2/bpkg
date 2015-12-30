@@ -50,7 +50,7 @@ namespace bpkg
   // Return the package and the repository in which it was found or
   // NULL for both if not found.
   //
-  std::pair<shared_ptr<available_package>, shared_ptr<repository>>
+  pair<shared_ptr<available_package>, shared_ptr<repository>>
   find_available (database& db,
                   const string& name,
                   const shared_ptr<repository>& r,
@@ -64,25 +64,26 @@ namespace bpkg
     // If there is a constraint, then translate it to the query. Otherwise,
     // get the latest version.
     //
-    bool order (true);
     if (c)
     {
-      const version& v (c->version);
-
-      // Note that the constraint's version is always rhs (libfoo >= 1.2.3).
-      //
-      switch (c->operation)
+      if (c->min_version)
       {
-      case comparison::eq: q = q && vm == v; order = false; break;
-      case comparison::lt: q = q && vm <  v; break;
-      case comparison::gt: q = q && vm >  v; break;
-      case comparison::le: q = q && vm <= v; break;
-      case comparison::ge: q = q && vm >= v; break;
+        if (c->min_open)
+          q = q && vm > *c->min_version;
+        else
+          q = q && vm >= *c->min_version;
+      }
+
+      if (c->max_version)
+      {
+        if (c->max_open)
+          q = q && vm < *c->max_version;
+        else
+          q = q && vm <= *c->max_version;
       }
     }
 
-    if (order)
-      q += order_by_version_desc (vm);
+    q += order_by_version_desc (vm);
 
     // Filter the result based on the repository to which each version
     // belongs.
@@ -95,7 +96,7 @@ namespace bpkg
   // that the package locations list is left empty and that the
   // returned repository could be NULL if the package is an orphan.
   //
-  std::pair<shared_ptr<available_package>, shared_ptr<repository>>
+  pair<shared_ptr<available_package>, shared_ptr<repository>>
   make_available (const common_options& options,
                   const dir_path& cd,
                   database& db,
@@ -844,8 +845,7 @@ namespace bpkg
           auto rp (
             v.empty ()
             ? find_available (db, n, root, nullopt)
-            : find_available (db, n, root,
-                              dependency_constraint {comparison::eq, v}));
+            : find_available (db, n, root, dependency_constraint (v)));
 
           ap = rp.first;
           ar = rp.second;
@@ -960,7 +960,7 @@ namespace bpkg
         if (!v.empty ())
           p.constraints.emplace_back (
             "command line",
-            dependency_constraint {comparison::eq, v});
+            dependency_constraint (v));
 
         pkgs.collect (o, c, db, move (p));
         names.push_back (n);

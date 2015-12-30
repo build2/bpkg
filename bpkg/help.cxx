@@ -33,7 +33,7 @@ using namespace butl;
 
 namespace bpkg
 {
-  struct pager: protected std::streambuf
+  struct pager: protected streambuf
   {
     pager (const common_options& co, const string& name)
     {
@@ -142,10 +142,10 @@ namespace bpkg
         buf_ = stream ().rdbuf (this);
     }
 
-    std::ostream&
+    ostream&
     stream ()
     {
-      return os_.is_open () ? os_ : std::cout;
+      return os_.is_open () ? os_ : cout;
     }
 
     bool
@@ -168,8 +168,8 @@ namespace bpkg
     // streambuf output interface.
     //
   protected:
-    using int_type = std::streambuf::int_type;
-    using traits_type = std::streambuf::traits_type;
+    using int_type = streambuf::int_type;
+    using traits_type = streambuf::traits_type;
 
     virtual int_type
     overflow (int_type c)
@@ -198,7 +198,7 @@ namespace bpkg
 
     string indent_;
     int_type prev_ = '\n'; // Previous character.
-    std::streambuf* buf_ = nullptr;
+    streambuf* buf_ = nullptr;
   };
 
   int

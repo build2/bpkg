@@ -18,7 +18,7 @@
 #include <bpkg/types>
 #include <bpkg/utility>
 
-#pragma db model version(1, 1, open)
+#pragma db model version(2, 2, open)
 
 namespace bpkg
 {
@@ -67,7 +67,7 @@ namespace bpkg
     string canonical_release;
     uint16_t revision;
     string upstream;
-    string release;
+    optional<string> release;
   };
 }
 
@@ -103,31 +103,29 @@ namespace bpkg
   {
     uint16_t epoch;
     string   canonical_upstream;
-
-    // By a fluke SQLite 3 uses BINARY collation for UTF-8-encoded TEXT columns
-    // by default. So no need to adjust it to make "absent" and specified
-    // canonical releases to compare properly. But better to keep an eye on
-    // it not to miss a moment if SQLite plug UCA-compliant collation.
-    // Note: PostgreSQL uses UCA-compliant one by default for UTF8-encoded
-    // TEXT columns.
-    //
-    // Unicode Collation Algorithm (UCA): http://unicode.org/reports/tr10/
-    //
     string   canonical_release;
-
     uint16_t revision;
+
+    // By default SQLite3 uses BINARY collation for TEXT columns. So while this
+    // means we don't need to do anything special to make "absent" (~) and
+    // specified canonical releases compare properly, better make it explicit
+    // in case the Unicode Collation Algorithm (UCA, where '~' < 'a') becomes
+    // the default.
+    //
+    #pragma db member(canonical_release) options("COLLATE BINARY")
   };
 
   #pragma db value transient
   struct upstream_version: version
   {
-    #pragma db member(upstream_) virtual(string)           \
-      get(this.upstream)                                   \
-      set(this = bpkg::version (0, std::move (?), "~", 0))
+    #pragma db member(upstream_) virtual(string)                      \
+      get(this.upstream)                                              \
+      set(this = bpkg::version (0, std::move (?), std::string (), 0))
 
-    #pragma db member(release_) virtual(string)                      \
-      get(this.release)                                              \
-      set(this = bpkg::version (0, this.upstream, std::move (?), 0))
+    #pragma db member(release_) virtual(optional_string)              \
+      get(this.release)                                               \
+      set(this = bpkg::version (                                      \
+            0, std::move (this.upstream), std::move (?), 0))
 
     upstream_version () = default;
     upstream_version (version v): version (move (v)) {}
@@ -155,6 +153,24 @@ namespace bpkg
                         std::move ((?).release),  \
                         (?).revision))
 
+  using optional_version = optional<version>;
+  using _optional_version = optional<_version>;
+
+  #pragma db map type(optional_version) as(_optional_version) \
+    to((?)                                                    \
+       ? bpkg::_version{(?)->epoch,                           \
+                        (?)->canonical_upstream,              \
+                        (?)->canonical_release,               \
+                        (?)->revision,                        \
+                        (?)->upstream,                        \
+                        (?)->release}                         \
+       : bpkg::_optional_version ())                          \
+    from((?)                                                  \
+         ? bpkg::version ((?)->epoch,                         \
+                          std::move ((?)->upstream),          \
+                          std::move ((?)->release),           \
+                          (?)->revision)                      \
+         : bpkg::optional_version ())
 
   // repository_location
   //
@@ -236,10 +252,6 @@ namespace bpkg
 
   // dependencies
   //
-  #pragma db map type(comparison) as(string) \
-    to(to_string (?))                        \
-    from(bpkg::to_comparison (?))
-
   #pragma db value(dependency_constraint) definition
   #pragma db value(dependency) definition
   #pragma db member(dependency::constraint) column("")

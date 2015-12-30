@@ -590,7 +590,7 @@ namespace bpkg
       ifs.exceptions (ofstream::badbit | ofstream::failbit);
       ofs.exceptions (ofstream::badbit | ofstream::failbit);
 
-      ofs << ifs.rdbuf();
+      ofs << ifs.rdbuf ();
 
       // In case they throw.
       //

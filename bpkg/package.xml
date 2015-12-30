@@ -1,5 +1,5 @@
 <changelog xmlns="http://www.codesynthesis.com/xmlns/odb/changelog" database="sqlite" version="1">
-  <model version="1">
+  <model version="2">
     <table name="repository" kind="object">
       <column name="name" type="TEXT" null="true"/>
       <column name="location" type="TEXT" null="true"/>
@@ -49,7 +49,7 @@
       <column name="name" type="TEXT" null="true"/>
       <column name="version_epoch" type="INTEGER" null="true"/>
       <column name="version_canonical_upstream" type="TEXT" null="true"/>
-      <column name="version_canonical_release" type="TEXT" null="true"/>
+      <column name="version_canonical_release" type="TEXT" null="true" options="COLLATE BINARY"/>
       <column name="version_revision" type="INTEGER" null="true"/>
       <column name="version_upstream" type="TEXT" null="true"/>
       <column name="version_release" type="TEXT" null="true"/>
@@ -65,7 +65,7 @@
       <column name="name" type="TEXT" null="true"/>
       <column name="version_epoch" type="INTEGER" null="true"/>
       <column name="version_canonical_upstream" type="TEXT" null="true"/>
-      <column name="version_canonical_release" type="TEXT" null="true"/>
+      <column name="version_canonical_release" type="TEXT" null="true" options="COLLATE BINARY"/>
       <column name="version_revision" type="INTEGER" null="true"/>
       <column name="repository" type="TEXT" null="true"/>
       <column name="location" type="TEXT" null="true"/>
@@ -101,7 +101,7 @@
       <column name="name" type="TEXT" null="true"/>
       <column name="version_epoch" type="INTEGER" null="true"/>
       <column name="version_canonical_upstream" type="TEXT" null="true"/>
-      <column name="version_canonical_release" type="TEXT" null="true"/>
+      <column name="version_canonical_release" type="TEXT" null="true" options="COLLATE BINARY"/>
       <column name="version_revision" type="INTEGER" null="true"/>
       <column name="index" type="INTEGER" null="true"/>
       <column name="conditional" type="INTEGER" null="true"/>
@@ -135,18 +135,25 @@
       <column name="name" type="TEXT" null="true"/>
       <column name="version_epoch" type="INTEGER" null="true"/>
       <column name="version_canonical_upstream" type="TEXT" null="true"/>
-      <column name="version_canonical_release" type="TEXT" null="true"/>
+      <column name="version_canonical_release" type="TEXT" null="true" options="COLLATE BINARY"/>
       <column name="version_revision" type="INTEGER" null="true"/>
       <column name="dependency_index" type="INTEGER" null="true"/>
       <column name="index" type="INTEGER" null="true"/>
       <column name="dep_name" type="TEXT" null="true"/>
-      <column name="dep_operation" type="TEXT" null="true"/>
-      <column name="dep_version_epoch" type="INTEGER" null="true"/>
-      <column name="dep_version_canonical_upstream" type="TEXT" null="true"/>
-      <column name="dep_version_canonical_release" type="TEXT" null="true"/>
-      <column name="dep_version_revision" type="INTEGER" null="true"/>
-      <column name="dep_version_upstream" type="TEXT" null="true"/>
-      <column name="dep_version_release" type="TEXT" null="true"/>
+      <column name="dep_min_version_epoch" type="INTEGER" null="true"/>
+      <column name="dep_min_version_canonical_upstream" type="TEXT" null="true"/>
+      <column name="dep_min_version_canonical_release" type="TEXT" null="true"/>
+      <column name="dep_min_version_revision" type="INTEGER" null="true"/>
+      <column name="dep_min_version_upstream" type="TEXT" null="true"/>
+      <column name="dep_min_version_release" type="TEXT" null="true"/>
+      <column name="dep_max_version_epoch" type="INTEGER" null="true"/>
+      <column name="dep_max_version_canonical_upstream" type="TEXT" null="true"/>
+      <column name="dep_max_version_canonical_release" type="TEXT" null="true"/>
+      <column name="dep_max_version_revision" type="INTEGER" null="true"/>
+      <column name="dep_max_version_upstream" type="TEXT" null="true"/>
+      <column name="dep_max_version_release" type="TEXT" null="true"/>
+      <column name="dep_min_open" type="INTEGER" null="true"/>
+      <column name="dep_max_open" type="INTEGER" null="true"/>
       <foreign-key name="object_id_fk" on-delete="CASCADE">
         <column name="name"/>
         <column name="version_epoch"/>
@@ -193,13 +200,20 @@
     <table name="selected_package_prerequisites" kind="container">
       <column name="package" type="TEXT" null="true"/>
       <column name="prerequisite" type="TEXT" null="true"/>
-      <column name="operation" type="TEXT" null="true"/>
-      <column name="version_epoch" type="INTEGER" null="true"/>
-      <column name="version_canonical_upstream" type="TEXT" null="true"/>
-      <column name="version_canonical_release" type="TEXT" null="true"/>
-      <column name="version_revision" type="INTEGER" null="true"/>
-      <column name="version_upstream" type="TEXT" null="true"/>
-      <column name="version_release" type="TEXT" null="true"/>
+      <column name="min_version_epoch" type="INTEGER" null="true"/>
+      <column name="min_version_canonical_upstream" type="TEXT" null="true"/>
+      <column name="min_version_canonical_release" type="TEXT" null="true"/>
+      <column name="min_version_revision" type="INTEGER" null="true"/>
+      <column name="min_version_upstream" type="TEXT" null="true"/>
+      <column name="min_version_release" type="TEXT" null="true"/>
+      <column name="max_version_epoch" type="INTEGER" null="true"/>
+      <column name="max_version_canonical_upstream" type="TEXT" null="true"/>
+      <column name="max_version_canonical_release" type="TEXT" null="true"/>
+      <column name="max_version_revision" type="INTEGER" null="true"/>
+      <column name="max_version_upstream" type="TEXT" null="true"/>
+      <column name="max_version_release" type="TEXT" null="true"/>
+      <column name="min_open" type="INTEGER" null="true"/>
+      <column name="max_open" type="INTEGER" null="true"/>
       <foreign-key name="package_fk" on-delete="CASCADE">
         <column name="package"/>
         <references table="selected_package">
