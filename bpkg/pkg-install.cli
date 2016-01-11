@@ -1,8 +1,8 @@
-// file      : bpkg/pkg-install-options.cli
+// file      : bpkg/pkg-install.cli
 // copyright : Copyright (c) 2014-2016 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-include <bpkg/configuration-options.cli>;
+include <bpkg/configuration.cli>;
 
 "\section=1"
 "\name=bpkg-pkg-install"

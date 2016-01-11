@@ -60,41 +60,41 @@ if! $cli.loaded
   cli{*}: extension = cli
 }
 
-{hxx ixx cxx}{common-options}:        cli{common-options}
-{hxx ixx cxx}{configuration-options}: cli{configuration-options}
-{hxx ixx cxx}{bpkg-options}:          cli{bpkg-options}
+{hxx ixx cxx}{common-options}:        cli{common}
+{hxx ixx cxx}{configuration-options}: cli{configuration}
+{hxx ixx cxx}{bpkg-options}:          cli{bpkg}
 
 # Help command.
 #
-{hxx ixx cxx}{help-options}:  cli{help-options}
+{hxx ixx cxx}{help-options}: cli{help}
 
 # pkg-* command.
 #
 
-{hxx ixx cxx}{pkg-build-options}:     cli{pkg-build-options}
-{hxx ixx cxx}{pkg-clean-options}:     cli{pkg-clean-options}
-{hxx ixx cxx}{pkg-configure-options}: cli{pkg-configure-options}
-{hxx ixx cxx}{pkg-disfigure-options}: cli{pkg-disfigure-options}
-{hxx ixx cxx}{pkg-drop-options}:      cli{pkg-drop-options}
-{hxx ixx cxx}{pkg-fetch-options}:     cli{pkg-fetch-options}
-{hxx ixx cxx}{pkg-install-options}:   cli{pkg-install-options}
-{hxx ixx cxx}{pkg-purge-options}:     cli{pkg-purge-options}
-{hxx ixx cxx}{pkg-status-options}:    cli{pkg-status-options}
-{hxx ixx cxx}{pkg-uninstall-options}: cli{pkg-uninstall-options}
-{hxx ixx cxx}{pkg-unpack-options}:    cli{pkg-unpack-options}
-{hxx ixx cxx}{pkg-update-options}:    cli{pkg-update-options}
-{hxx ixx cxx}{pkg-verify-options}:    cli{pkg-verify-options}
+{hxx ixx cxx}{pkg-build-options}:     cli{pkg-build}
+{hxx ixx cxx}{pkg-clean-options}:     cli{pkg-clean}
+{hxx ixx cxx}{pkg-configure-options}: cli{pkg-configure}
+{hxx ixx cxx}{pkg-disfigure-options}: cli{pkg-disfigure}
+{hxx ixx cxx}{pkg-drop-options}:      cli{pkg-drop}
+{hxx ixx cxx}{pkg-fetch-options}:     cli{pkg-fetch}
+{hxx ixx cxx}{pkg-install-options}:   cli{pkg-install}
+{hxx ixx cxx}{pkg-purge-options}:     cli{pkg-purge}
+{hxx ixx cxx}{pkg-status-options}:    cli{pkg-status}
+{hxx ixx cxx}{pkg-uninstall-options}: cli{pkg-uninstall}
+{hxx ixx cxx}{pkg-unpack-options}:    cli{pkg-unpack}
+{hxx ixx cxx}{pkg-update-options}:    cli{pkg-update}
+{hxx ixx cxx}{pkg-verify-options}:    cli{pkg-verify}
 
 # cfg-* command.
 #
-{hxx ixx cxx}{cfg-create-options}: cli{cfg-create-options}
+{hxx ixx cxx}{cfg-create-options}: cli{cfg-create}
 
 # rep-* command.
 #
-{hxx ixx cxx}{cfg-add-options}:    cli{cfg-add-options}
-{hxx ixx cxx}{cfg-fetch-options}:  cli{cfg-fetch-options}
-{hxx ixx cxx}{rep-info-options}:   cli{rep-info-options}
-{hxx ixx cxx}{rep-create-options}: cli{rep-create-options}
+{hxx ixx cxx}{cfg-add-options}:    cli{cfg-add}
+{hxx ixx cxx}{cfg-fetch-options}:  cli{cfg-fetch}
+{hxx ixx cxx}{rep-info-options}:   cli{rep-info}
+{hxx ixx cxx}{rep-create-options}: cli{rep-create}
 
 # Option length must be the same to get commands/topics/options aligned.
 #
