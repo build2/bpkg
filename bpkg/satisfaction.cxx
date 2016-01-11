@@ -70,8 +70,9 @@ namespace bpkg
               : *l.max_version <= *r.max_version;
         }
         else
+        {
           // Doesn't matter what l.max_version is, so leave s to be true.
-          ;
+        }
       }
       else
         s = !r.max_version;
