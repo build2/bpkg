@@ -82,7 +82,7 @@ if [ "$remote" = "y" ]; then
   repa=$rep
 else
   rep=repository/1
-  repn=
+  repn=`pwd`/repository/
   repa=`pwd`/$rep
 fi
 
