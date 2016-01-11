@@ -102,10 +102,12 @@ cli.options += -I $src_root --include-with-brackets --include-prefix bpkg \
 --guard-prefix BPKG --cxx-prologue "#include <bpkg/types-parsers>"        \
 --cli-namespace bpkg::cli --generate-file-scanner --generate-specifier    \
 --generate-parse --ansi-color --page-usage 'bpkg::print_$name$_'          \
---include-base-last --long-usage --option-length 23
+--include-base-last --option-length 23
 
-cli.cxx{common-options}: cli.options += --short-usage # Both short and long.
-cli.cxx{bpkg-options}: cli.options += --suppress-undocumented # --help, etc.
+cli.cxx{common-options}: cli.options += --short-usage --long-usage # Both.
+cli.cxx{bpkg-options}: cli.options += --short-usage --suppress-undocumented
+
+cli.options += --long-usage # All other pages -- long usage.
 
 # Include generated cli files into the distribution.
 #
