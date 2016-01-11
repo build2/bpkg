@@ -10,11 +10,21 @@ include <bpkg/common.cli>;
 
 namespace bpkg
 {
+  {
+    "<command> <topic>",
+
+    "\h|SYNOPSIS|
+
+     \c{\b{bpkg help} [<command> | <topic>]}
+
+     \h|DESCRIPTION|
+
+     Show the detailed help for <command> or help <topic> or a summary of
+     available commands and topics if none was specified."
+  }
+
   class help_options: common_options
   {
-    /*
-    "Show detailed help for a command or help topic or the list of
-     available commands and topics if none was specified."
-    */
+    //"\h|HELP OPTIONS|"
   };
 }

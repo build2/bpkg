@@ -6,7 +6,7 @@ include <bpkg/types>;
 
 "\section=1"
 "\name=bpkg-common-options"
-"\summary=options common for all commands"
+"\summary=details on common options"
 
 namespace bpkg
 {
@@ -19,8 +19,9 @@ namespace bpkg
 
      \h|DESCRIPTION|
 
-     The common options can be specified either before the command or after,
-     togethere with the command-specific options."
+     The common options control behavior that is common to all or most of the
+     \cb{bpkg} commands. They can be specified either before the command or
+     after, together with the command-specific options."
   }
 
   class common_options = 0
@@ -32,8 +33,7 @@ namespace bpkg
     {
       "",
       "The common options are summarized below with a more detailed description
-       available as the \l{bpkg-common-options(1) \cb{common-options}} help
-       topic.",
+       available in \l{bpkg-common-options(1)}.",
       ""
     }
 
@@ -61,9 +61,9 @@ namespace bpkg
 
        \li|high-level information messages|
 
-       \li|essential underlying commands that are being executed|
+       \li|essential underlying commands being executed|
 
-       \li|all underlying commands that are being executed|
+       \li|all underlying commands being executed|
 
        \li|information that could be helpful to the user|
 

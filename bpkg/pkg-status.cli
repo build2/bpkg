@@ -15,7 +15,7 @@ namespace bpkg
 
     "\h|SYNOPSIS|
 
-     \c{\b{bpkg pkg-status} [<options>] <pkg>[/<ver>]}
+     \c{\b{bpkg pkg-status}|\b{status} [<options>] <pkg>[/<ver>]}
 
      \h|DESCRIPTION|
 
@@ -23,19 +23,19 @@ namespace bpkg
      if <ver> is specified, package version. Note that the status is written
      to \cb{STDOUT}, not \cb{STDERR}.
 
-     The status format is regular. First always comes one of the following
-     status words:
+     The status output format is regular. First always comes one of the
+     following status words:
 
      \dl|
 
      \li|\cb{unknown}
 
-         package is not part of the configuration nor available in one of the
+         package is not part of the configuration nor available from any of the
          repositories|
 
      \li|\cb{available}
 
-         package is not part of the configuration but is available in one of
+         package is not part of the configuration but is available from one of
          the repositories|
 
      \li|\cb{fetched}
@@ -48,7 +48,12 @@ namespace bpkg
 
      \li|\cb{configured}
 
-         package is part of the configuration and is configured||
+         package is part of the configuration and is configured|
+
+     \li|\cb{broken}
+
+         package is part of the configuration and is broken (broken packages
+         can only be purged; see \l{bpkg-pkg-purge(1)})||
 
 
      If only the package name was specified without the package version, then
@@ -56,47 +61,47 @@ namespace bpkg
      versions.
 
      Similarly, if only the package name was specified, then the \cb{fetched},
-     \cb{unpacked}, and \cb{configured} status words are followed by the
-     version of the package. After the possible package version, these status
+     \cb{unpacked}, \cb{configured}, and \cb{broken} status words are followed
+     by the version of the package. After the package version, these status
      words may be followed by one or more sub-status words. Currently, these
-     can be \cb{hold_package} (package should not be automatically dropped)
-     and \cb{hold_version} (package should not be automatically upgraded).
-     Finally, if only the package name was specified and newer versions are
-     available in the repositories, then the sub-status words are followed
+     can be \cb{hold_package} (package should not be automatically dropped) and
+     \cb{hold_version} (package should not be automatically upgraded). Finally,
+     if only the package name was specified and newer versions are available
+     from some of the repositories, then the sub-status word is followed
      by '\cb{;}', the \cb{available} status word, and the list of newer
      versions.
 
-     Below are some examples, assuming the configuration has libfoo 1.0.0
-     configured and held as well as libfoo 1.1.0 and 1.1.1 available from a
-     repository.
+     Below are some examples, assuming the configuration has \cb{libfoo}
+     \cb{1.0.0} configured and held as well as \cb{libfoo} \cb{1.1.0} and
+     \cb{1.1.1} available from a repository.
 
      \
-     bpkg pkg-status libbar
+     bpkg status libbar
      unknown
 
-     bpkg pkg-status libbar/1.0.0
+     bpkg status libbar/1.0.0
      unknown
 
-     bpkg pkg-status libfoo/1.0.0
+     bpkg status libfoo/1.0.0
      configured hold_package
 
-     bpkg pkg-status libfoo/1.1.0
+     bpkg status libfoo/1.1.0
      available
 
-     bpkg pkg-status libfoo
+     bpkg status libfoo
      configured 1.0.0 hold_package; available 1.1.0 1.1.1
      \
 
-     Assuming now that we dropped libfoo from the configuration:
+     Assuming now that we dropped \cb{libfoo} from the configuration:
 
      \
-     bpkg pkg-status libfoo/1.0.0
+     bpkg status libfoo/1.0.0
      unknown
 
-     bpkg pkg-status libfoo/1.1.0
+     bpkg status libfoo/1.1.0
      available
 
-     bpkg pkg-status libfoo
+     bpkg status libfoo
      available 1.1.0 1.1.1
      \
      "

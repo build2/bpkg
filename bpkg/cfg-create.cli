@@ -15,7 +15,7 @@ namespace bpkg
 
     "\h|SYNOPSIS|
 
-     \c{\b{bpkg cfg-create} [<options>] [(<module> | <conf-var>)...]}
+     \c{\b{bpkg cfg-create}|\b{create} [<options>] [(<module> | <conf-var>)...]}
 
      \h|DESCRIPTION|
 
@@ -25,7 +25,7 @@ namespace bpkg
      configuration directory to be empty or to not exist (in which case it
      will be created).
 
-     By default the resulting configuration loads the \cb{config}, \cb{test},
+     By default, the resulting configuration loads the \cb{config}, \cb{test},
      and \cb{install} modules. However, additional modules and, if required,
      their configuration variables can be specified as the \cb{cfg-create}
      arguments. For example:
@@ -43,14 +43,15 @@ namespace bpkg
     dir_path --directory|-d (".")
     {
       "<dir>",
-      "Create configuration in <dir> rather than in the current working
+      "Create the configuration in <dir> rather than in the current working
        directory."
     }
 
     bool --wipe
     {
       "Wipe the configuration directory clean before creating the new
-       configuration."
+       configuration. For safety, this option requires that you specify the
+       configuration directory explicitly with \cb{--directory|-d}."
     }
   };
 }

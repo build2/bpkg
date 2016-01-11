@@ -23,6 +23,9 @@ namespace bpkg
   {
     tracer trace ("cfg_create");
 
+    if (o.wipe () && !o.directory_specified ())
+      fail << "--wipe requires explicit --directory|-d";
+
     dir_path c (o.directory ());
     level4 ([&]{trace << "creating configuration in " << c;});
 

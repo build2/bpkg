@@ -15,12 +15,12 @@ namespace bpkg
 
     "\h|SYNOPSIS|
 
-     \c{\b{bpkg pkg-uninstall} [<options>] <pkg>...}
+     \c{\b{bpkg pkg-uninstall}|\b{uninstall} [<options>] <pkg>...}
 
      \h|DESCRIPTION|
 
      The \cb{pkg-uninstall} command uninstalls one or more packages that were
-     previously installed with \l{bpkg-cfg-install(1)}. Underneath, this
+     previously installed with \l{bpkg-pkg-install(1)}. Underneath, this
      command doesn't do much more than run \cb{b uninstall}."
   }
 

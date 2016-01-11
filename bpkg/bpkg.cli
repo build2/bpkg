@@ -17,125 +17,137 @@ namespace bpkg
 
      \cb{bpkg --help}\n
      \cb{bpkg --version}\n
-     \c{\b{bpkg help} [<command>|<topic>]}\n
+     \c{\b{bpkg help} [<command> | <topic>]}\n
      \c{\b{bpkg} [<common-options>] <command> [<command-options>] <command-args>}
 
      \h|DESCRIPTION|
 
-     @@ TODO
+     @@ TODO Is this a good place to describe some general concepts, like
+     configuration, repositories, packages?
+
+     The example workflow would be:
 
      Note that the common options can also be specified as part of the
-     command-specific options."
+     command-specific options.
+
+     For a detailed description of any command or help topic, use the \cb{help}
+     command or see the corresponding man page (the man pages have the
+     \cb{bpkg-} prefix, for example \l{bpkg-help(1)})."
   }
 
   class commands
   {
     "\h|COMMANDS|"
 
+    //
+    // NOTE: Use the same sentence as in the page's \summary and make
+    // sure it is short enough to fit in one line in usage.
+    //
+
     bool help
     {
       "[<topic>]",
-      "Show help for a command or help topic \- \l{bpkg-help(1)}.",
+      "\l{bpkg-help(1)} \- show help for a command or help topic",
       ""
     }
 
     bool cfg-create|create
     {
       "<dir>",
-      "Create configuration.",
+      "\l{bpkg-cfg-create(1)} \- create configuration",
       ""
     }
 
     bool cfg-add|add
     {
       "<rep>",
-      "Add repository to configuration.",
+      "\l{bpkg-cfg-add(1)} \- add repository to configuration",
       ""
     }
 
     bool cfg-fetch|fetch
     {
-      "Fetch list of available packages."
+      "\l{bpkg-cfg-fetch(1)} \- fetch list of available packages"
     }
 
     bool pkg-status|status
     {
-      "Print package status."
+      "\l{bpkg-pkg-status(1)} \- print package status"
     }
 
     bool pkg-build|build
     {
-      "Build package \- \l{bpkg-pkg-build(1)}."
+      "\l{bpkg-pkg-build(1)} \- build package"
     }
 
     bool pkg-drop|drop
     {
-      "Drop package."
+      "\l{bpkg-pkg-drop(1)} \- drop package"
     }
 
     bool pkg-install|install
     {
-      "Install package."
+      "\l{bpkg-pkg-install(1)} \- install package"
     }
 
     bool pkg-uninstall|uninstall
     {
-      "Uninstall package."
+      "\l{bpkg-pkg-uninstall(1)} \- uninstall package"
     }
 
     bool pkg-update|update
     {
-      "Update package."
+      "\l{bpkg-pkg-update(1)} \- update package"
     }
 
     bool pkg-clean|clean
     {
-      "Clean package."
+      "\l{bpkg-pkg-clean(1)} \- clean package"
     }
 
     bool pkg-verify
     {
       "<archive>",
-      "Verify archive is a valid package.",
+      "\l{bpkg-pkg-verify(1)} \- verify package archive",
       ""
     }
 
     bool pkg-fetch
     {
       "<pkg>/<ver>",
-      "Fetch package archive.",
+      "\l{bpkg-pkg-fetch(1)} \- fetch package archive",
       ""
     }
 
     bool pkg-unpack
     {
-      "Unpack package archive."
+      "\l{bpkg-pkg-unpack(1)} \- unpack package archive"
     }
 
     bool pkg-configure
     {
-      "Configure package."
+      "\l{bpkg-pkg-configure(1)} \- configure package"
     }
 
     bool pkg-disfigure
     {
-      "Disfigure package."
+      "\l{bpkg-pkg-disfigure(1)} \- disfigure package"
     }
 
     bool pkg-purge
     {
-      "Purge package."
+      "\l{bpkg-pkg-purge(1)} \- purge package"
     }
 
     bool rep-info
     {
-      "Print information about repository."
+      "\l{bpkg-rep-info(1)} \- print repository information"
     }
 
     bool rep-create
     {
       "[<dir>]",
-      "Generate repository packages manifest.",
+      "\l{bpkg-rep-create(1)} \- create repository",
       ""
     }
   };
@@ -148,7 +160,7 @@ namespace bpkg
 
     bool common-options
     {
-      "Details on common options \- \l{bpkg-common-options(1)}."
+      "\l{bpkg-common-options(1)} \- details on common options"
     }
   };
 

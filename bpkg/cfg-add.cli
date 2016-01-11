@@ -8,23 +8,25 @@ include <bpkg/configuration.cli>;
 "\name=bpkg-cfg-add"
 "\summary=add repository to configuration"
 
-/*
-"\h{SYNOPSIS}
-
-bpkg cfg-add [<options>] <rep>"
-
-"\h{DESCRIPTION}
-
-The \cb{cfg-add} command adds the specified source repository to the
-configuration. Note that this command doesn't fetch the available
-packages list for the newly added repository. To do that, use the
-\cb{cfg-fetch} command.
-"
-*/
-
 namespace bpkg
 {
+  {
+    "<options> <rep>",
+
+    "\h|SYNOPSIS|
+
+     \c{\b{bpkg cfg-add}|\b{add} [<options>] <rep>}
+
+     \h|DESCRIPTION|
+
+     The \cb{cfg-add} command adds the specified package repository to the
+     configuration. Note that it doesn't fetch the list of available packages
+     for the newly added repository. For that, use the \l{bpkg-cfg-fetch(1)}
+     command, normally, after adding all the repositories you wish to use."
+  }
+
   class cfg_add_options: configuration_options
   {
+    "\h|CFG-ADD OPTIONS|"
   };
 }

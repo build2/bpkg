@@ -6,19 +6,28 @@ include <bpkg/common.cli>;
 
 "\section=1"
 "\name=bpkg-rep-create"
-"\summary=create repository manifest file"
+"\summary=create repository"
 
 namespace bpkg
 {
+  {
+    "<options> <dir>",
+
+    "\h|SYNOPSIS|
+
+     \c{\b{bpkg rep-create} [<options>] [<dir>]}
+
+     \h|DESCRIPTION|
+
+     The \cb{rep-create} command regenerates the \cb{packages} manifest file
+     based on the files present in the repository directory. If <dir> is not
+     specified, then the current working directory is used as the repository
+     root."
+  }
+
   class rep_create_options: common_options
   {
-    /*
-      "Create repository manifest file (\cb{packages}) based on the
-       packages present in the repository directory."
-
-      "Use <dir> as the repository root directory instead of the
-       current working directory."
-    */
+    "\h|REP-CREATE OPTIONS|"
 
     bool --ignore-unknown
     {

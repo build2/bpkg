@@ -15,7 +15,7 @@ namespace bpkg
 
     "\h|SYNOPSIS|
 
-     \c{\b{bpkg pkg-install} [<options>] <pkg>...}
+     \c{\b{bpkg pkg-install}|\b{install} [<options>] <pkg>...}
 
      \h|DESCRIPTION|
 

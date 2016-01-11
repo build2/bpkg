@@ -8,24 +8,26 @@ include <bpkg/configuration.cli>;
 "\name=bpkg-pkg-configure"
 "\summary=configure package"
 
-/*
-"\h{SYNOPSIS}
-
-bpkg pkg-configure <pkg> [<conf-vars>]"
-
-"\h{DESCRIPTION}
-
-The \cb{pkg-configure} command configures the output directory for
-the previously unpacked (\cb{pkg-unpack}) package. The package
-inherits the common \cb{build2} configuration values that were
-specified when creating the \cb{bpkg} configuration (\cb{cfg-create}).
-Additional, package-specific configuration variables can be specified
-after the package name."
-*/
-
 namespace bpkg
 {
+  {
+    "<options> <pkg> <conf-var>",
+
+    "\h|SYNOPSIS|
+
+     \c{\b{bpkg pkg-configure} [<options>] <pkg> [<conf-var>...]}
+
+     \h|DESCRIPTION|
+
+     The \cb{pkg-configure} command configures the previously unpacked
+     (\l{bpkg-pkg-unpack(1)}) package. The package inherits the common
+     \cb{build2} configuration values that were specified when creating the
+     configuration (\l{bpkg-cfg-create(1)}). Additional, package-specific
+     configuration variables can be specified after the package name."
+  }
+
   class pkg_configure_options: configuration_options
   {
+    "\h|PKG-CONFIGURE OPTIONS|"
   };
 }

@@ -6,29 +6,34 @@ include <bpkg/configuration.cli>;
 
 "\section=1"
 "\name=bpkg-pkg-drop"
-"\summary=drop one or more packages"
-
-/*
-"\h{SYNOPSIS}
-
-bpkg pkg-drop [<options>] <pkg>..."
-
-"\h{DESCRIPTION}
-
-The \cb{pkg-drop} command drops one or more packages from the configuration.
-If the packages being dropped still have dependents, then those will have
-to be drop as well and you will be prompted for a confirmation. Similarly,
-if the packages being dropped have prerequisites that are no longer needed,
-you will be offered to drop those as well.
-
-The \cb{pkg-drop} command also supports several \cb{--*-only} options that
-allow you to limit the amount of work that will be done.
-*/
+"\summary=drop package"
 
 namespace bpkg
 {
+  {
+    "<options>",
+
+    "\h|SYNOPSIS|
+
+     \c{\b{bpkg pkg-drop}|\b{drop} [<options>] <pkg>...}
+
+     \h|DESCRIPTION|
+
+     The \cb{pkg-drop} command drops one or more packages from the
+     configuration. If the packages being dropped still have dependent
+     packages, then those will have to be drop as well and you will be prompted
+     to confirm. Similarly, if the packages being dropped have prerequisite
+     packages that would otherwise no longer be needed, you will be offered to
+     drop those as well.
+
+     The \cb{pkg-drop} command also supports several \cb{--*-only} options that
+     allow you to limit the amount of work that will be done."
+  }
+
   class pkg_drop_options: configuration_options
   {
+    "\h|PKG-DROP OPTIONS|"
+
     bool --yes|-y
     {
       "Assume the answer to all prompts is \cb{yes}. Note that this option
@@ -44,19 +49,19 @@ namespace bpkg
 
     bool --drop-dependent
     {
-      "Don't warn about or ask for confirmation of dropping dependent
+      "Don't warn about or ask for confirmation if dropping dependent
        packages."
-    }
-
-    bool --disfigure-only
-    {
-      "Disfigure all the packages but don't purge."
     }
 
     bool --print-only|-p
     {
       "Print to \cb{STDOUT} what would be done without actually doing
        anything."
+    }
+
+    bool --disfigure-only
+    {
+      "Disfigure all the packages but don't purge."
     }
   };
 }

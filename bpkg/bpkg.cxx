@@ -146,7 +146,7 @@ try
     if (cmd.help ())
     {
       assert (h);
-      r = help (ho, "help", help_options::print_usage);
+      r = help (ho, "help", print_bpkg_help_usage);
       break;
     }
 
@@ -155,7 +155,7 @@ try
     // if (cmd.pkg_verify ())
     // {
     //  if (h)
-    //    r = help (ho, "pkg-verify", pkg_verify_options::print_usage);
+    //    r = help (ho, "pkg-verify", print_bpkg_pkg_verify_usage);
     //  else
     //    r = pkg_verify (parse<pkg_verify_options> (co, args), args);
     //

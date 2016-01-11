@@ -6,23 +6,27 @@ include <bpkg/configuration.cli>;
 
 "\section=1"
 "\name=bpkg-cfg-fetch"
-"\summary=fetch available packages list"
-
-/*
-"\h{SYNOPSIS}
-
-bpkg cfg-fetch [<options>]"
-
-"\h{DESCRIPTION}
-
-The \cb{cfg-fetch} command recursively fetches the prerequisite repository
-and available package lists for all the repositories that were added
-(\cb{cfg-add}) to the configuration."
-*/
+"\summary=fetch list of available packages"
 
 namespace bpkg
 {
+  {
+    "<options>",
+
+    "\h|SYNOPSIS|
+
+     \c{\b{bpkg cfg-fetch}|\b{fetch} [<options>]}
+
+     \h|DESCRIPTION|
+
+     The \cb{cfg-fetch} command fetches the list of available packages for all
+     the repositories that were previously added with the \l{bpkg-cfg-add(1)}
+     command as well as all their complement and prerequisite repositories,
+     recursively."
+  }
+
   class cfg_fetch_options: configuration_options
   {
+    "\h|CFG-FETCH OPTIONS|"
   };
 }

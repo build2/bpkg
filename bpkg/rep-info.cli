@@ -6,27 +6,31 @@ include <bpkg/common.cli>;
 
 "\section=1"
 "\name=bpkg-rep-info"
-"\summary=print information about repository"
-
-/*
-"\h{SYNOPSIS}
-
-bpkg rep-info [<options>] <rep>"
-
-"\h{DESCRIPTION}
-
-The \cb{rep-info} command prints information about the specified repository.
-By default it print the repository's name and location as the first line
-followed by the list of prerequisite/complement repositories and the list
-of available packages. This default behavior, however, can be altered in
-various ways using options listed below. Note that the information is
-written to \cb{STDOUT}, not \cb{STDERR}."
-*/
+"\summary=print repository information"
 
 namespace bpkg
 {
+  {
+    "<options> <rep>",
+
+    "\h|SYNOPSIS|
+
+     \c{\b{bpkg rep-info} [<options>] <rep>}
+
+     \h|DESCRIPTION|
+
+     The \cb{rep-info} command prints various information about the specified
+     repository. By default it print the repository's name and location as the
+     first line followed by the list of complement and prerequisite
+     repositories and the list of available packages. This default behavior,
+     however, can be altered in various ways using options listed below. Note
+     that the information is written to \cb{STDOUT}, not \cb{STDERR}."
+  }
+
   class rep_info_options: common_options
   {
+    "\h|REP-INFO OPTIONS|"
+
     bool --name|-n
     {
       "Print the specified repository's name and location."
@@ -34,20 +38,20 @@ namespace bpkg
 
     bool --repositories|-r
     {
-      "Print information about prerequisite/complement repositories."
+      "Print the list of complement and prerequisite repositories."
     }
 
     bool --packages|-p
     {
-      "Print information about available packages."
+      "Print the list of available packages."
     }
 
     bool --manifest|-m
     {
-      "Instead of printing the information in the human-readable form, dump
-       it as manifest(s). Normally you would use this option in combination
-       with \cb{--packages|-p} or \cb{--repositories|-r} to only dump one
-       of the manifests."
+      "Instead of printing the information in the human-readable form, dump it
+       as manifest(s). Normally you would use this option in combination with
+       \cb{--packages|-p} or \cb{--repositories|-r} to only dump one of the
+       manifests."
     }
   };
 }

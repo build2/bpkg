@@ -8,33 +8,37 @@ include <bpkg/configuration.cli>;
 "\name=bpkg-pkg-fetch"
 "\summary=fetch package archive"
 
-/*
-"\h{SYNOPSIS}
-
-bpkg pkg-fetch [<options>] (<pkg>/<ver>)|(-e <file>)"
-
-"\h{DESCRIPTION}
-
-The \cb{pkg-fetch} command fetches the archive for the specified package
-name and version from one of the configuration's repositories. If the
-\cb{-r|--replace} option is specified, then \cb{pkg-fetch} will replace the
-archive of a package that is already in the \cb{fetched} or \cb{unpacked}
-state. Otherwise, \cb{pkg-fetch} expects the package to not exist in the
-configuration's database.
-
-If the \cb{-e|--existing} option is used, then instead of the name and
-version argument, \cb{pkg-fetch} expects a local path to the existing
-package archive. In this case, \cb{bpkg} will use the archive in place,
-without copying it to the configuration or package cache directories.
-Also, unless the \cb{-p|--purge} option is specified, \cb{bpkg} will
-not attempt to remove the archive when the package is purged with the
-\cb{pkg-purge} command."
-*/
-
 namespace bpkg
 {
+  {
+    "<options> <pkg> <ver> <file>",
+
+    "\h|SYNOPSIS|
+
+     \c{\b{bpkg pkg-fetch} [<options>] (<pkg>/<ver>) | (-e <file>)}
+
+     \h|DESCRIPTION|
+
+     The \cb{pkg-fetch} command fetches the archive for the specified package
+     name and version from one of the repositories (\l{bpkg-cfg-add(1)}). If
+     the \cb{--replace|-r} option is specified, then \cb{pkg-fetch} will
+     replace the archive of a package that is already in the \cb{fetched} or
+     \cb{unpacked} state (\l{bpkg-pkg-status(1)}). Otherwise, \cb{pkg-fetch}
+     expects the package to not exist in the configuration.
+
+     If the \cb{--existing|-e} option is used, then instead of the name and
+     version arguments, \cb{pkg-fetch} expects a local path to an existing
+     package archive. In this case, \cb{bpkg} will use the archive in place,
+     without copying it to the configuration or package cache directories.
+     Also, unless the \cb{--purge|-p} option is specified, \cb{bpkg} will not
+     attempt to remove this archive when the package is later purged with the
+     \l{bpkg-pkg-purge(1)} command."
+  }
+
   class pkg_fetch_options: configuration_options
   {
+    "\h|PKG-FETCH OPTIONS|"
+
     bool --replace|-r
     {
       "Replace the archive if the package is already fetched or unpacked."
@@ -43,7 +47,7 @@ namespace bpkg
     bool --existing|-e
     {
       "Treat the argument as an existing package archive path rather than
-       package name/version to fetch."
+       the package name/version to fetch."
     }
 
     bool --purge|-p
