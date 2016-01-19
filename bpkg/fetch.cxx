@@ -464,15 +464,24 @@ namespace bpkg
     }
   }
 
+  using protocol = repository_location::protocol;
+
   static string
-  to_url (const string& host, uint16_t port, const path& file)
+  to_url (protocol proto, const string& host, uint16_t port, const path& file)
   {
     assert (file.relative ());
 
     if (*file.begin () == "..")
       fail << "invalid URL path " << file;
 
-    string url ("http://");
+    string url;
+
+    switch (proto)
+    {
+    case protocol::http: url = "http://"; break;
+    case protocol::https: url = "https://"; break;
+    }
+
     url += host;
 
     if (port != 0)
@@ -485,6 +494,7 @@ namespace bpkg
 
   static path
   fetch_file (const common_options& o,
+              protocol proto,
               const string& host,
               uint16_t port,
               const path& f,
@@ -495,7 +505,7 @@ namespace bpkg
     if (exists (r))
       fail << "file " << r << " already exists";
 
-    string url (to_url (host, port, f));
+    string url (to_url (proto, host, port, f));
 
     auto_rm arm (r);
     process pr (start (o, url, r));
@@ -516,12 +526,13 @@ namespace bpkg
   template <typename M>
   static M
   fetch_manifest (const common_options& o,
+                  protocol proto,
                   const string& host,
                   uint16_t port,
                   const path& f,
                   bool ignore_unknown)
   {
-    string url (to_url (host, port, f));
+    string url (to_url (proto, host, port, f));
     process pr (start (o, url));
 
     try
@@ -653,7 +664,8 @@ namespace bpkg
     path f (rl.path () / repositories);
 
     return rl.remote ()
-      ? fetch_manifest<repository_manifests> (o, rl.host (), rl.port (), f, iu)
+      ? fetch_manifest<repository_manifests> (
+          o, rl.proto (), rl.host (), rl.port (), f, iu)
       : fetch_manifest<repository_manifests> (f, iu);
   }
 
@@ -675,7 +687,8 @@ namespace bpkg
     path f (rl.path () / packages);
 
     return rl.remote ()
-      ? fetch_manifest<package_manifests> (o, rl.host (), rl.port (), f, iu)
+      ? fetch_manifest<package_manifests> (
+          o, rl.proto (), rl.host (), rl.port (), f, iu)
       : fetch_manifest<package_manifests> (f, iu);
   }
 
@@ -700,7 +713,7 @@ namespace bpkg
     }
 
     return rl.remote ()
-      ? fetch_file (o, rl.host (), rl.port (), f, d)
+      ? fetch_file (o, rl.proto (), rl.host (), rl.port (), f, d)
       : fetch_file (f, d);
   }
 }
