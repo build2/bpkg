@@ -31,7 +31,7 @@ namespace bpkg
      arguments. For example:
 
      \
-     bpkg cfg-create cxx config.cxx=clang++ config.install.root=/usr/local
+     bpkg create cxx config.cxx=clang++ config.install.root=/usr/local
      \
      "
   }
