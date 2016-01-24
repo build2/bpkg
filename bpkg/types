@@ -10,6 +10,7 @@
 #include <memory>   // shared_ptr, unique_ptr
 #include <cstddef>  // size_t
 #include <cstdint>  // uint{8,16,32,64}_t
+#include <istream>
 #include <ostream>
 
 #include <odb/lazy-ptr.hxx>
@@ -32,6 +33,9 @@ namespace bpkg
 
   using strings = vector<string>;
   using cstrings = vector<const char*>;
+
+  using std::istream;
+  using std::ostream;
 
   using butl::optional;
   using butl::nullopt;
@@ -56,11 +60,11 @@ namespace bpkg
   using paths = std::vector<path>;
   using dir_paths = std::vector<dir_path>;
 
-  inline std::ostream&
-  operator<< (std::ostream& os, const path& p) {return os << p.string ();}
+  inline ostream&
+  operator<< (ostream& os, const path& p) {return os << p.string ();}
 
-  inline std::ostream&
-  operator<< (std::ostream& os, const dir_path& p)
+  inline ostream&
+  operator<< (ostream& os, const dir_path& p)
   {
     const string& s (p.string ());
     os << s;

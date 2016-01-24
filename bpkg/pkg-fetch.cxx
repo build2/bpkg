@@ -11,6 +11,7 @@
 #include <bpkg/package>
 #include <bpkg/package-odb>
 #include <bpkg/utility>
+#include <bpkg/checksum>
 #include <bpkg/database>
 #include <bpkg/diagnostics>
 #include <bpkg/manifest-utility>
@@ -23,7 +24,6 @@ using namespace butl;
 
 namespace bpkg
 {
-
   static shared_ptr<selected_package>
   pkg_fetch (dir_path c,
              transaction& t,
@@ -217,6 +217,20 @@ namespace bpkg
 
     path a (fetch_archive (co, pl->repository->location, pl->location, c));
     auto_rm arm (a);
+
+    // We can't be fetching an archive for a transient object.
+    //
+    assert (ap->sha256sum);
+
+    const string& sha256sum (sha256 (co, a));
+    if (sha256sum != *ap->sha256sum)
+    {
+      fail << "checksum mismatch for " << n << " " << v <<
+        info << pl->repository->name << " has " << *ap->sha256sum <<
+        info << "fetched archive has " << sha256sum <<
+        info << "try again, if problem persists, consider reporting this to "
+           << "the repository maintainer";
+    }
 
     shared_ptr<selected_package> p (
       pkg_fetch (c,

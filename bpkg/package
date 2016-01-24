@@ -302,11 +302,16 @@ namespace bpkg
 
     dependencies_type dependencies;
 
+    // Present for non-transient objects only.
+    //
+    optional<string> sha256sum;
+
   public:
     available_package (package_manifest&& m)
         : id (move (m.name), m.version),
           version (move (m.version)),
-          dependencies (move (m.dependencies)) {}
+          dependencies (move (m.dependencies)),
+          sha256sum (move (m.sha256sum)) {}
 
     // Database mapping.
     //

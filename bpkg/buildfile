@@ -13,6 +13,7 @@ exe{bpkg}:                                                                   \
 {hxx         cxx}{ cfg-add          } {hxx ixx cxx}{ cfg-add-options       } \
 {hxx         cxx}{ cfg-create       } {hxx ixx cxx}{ cfg-create-options    } \
 {hxx         cxx}{ cfg-fetch        } {hxx ixx cxx}{ cfg-fetch-options     } \
+{hxx         cxx}{ checksum         }                                        \
                                       {hxx ixx cxx}{ common-options        } \
                                       {hxx ixx cxx}{ configuration-options } \
 {hxx         cxx}{ database         }                                        \

@@ -53,6 +53,7 @@
       <column name="version_revision" type="INTEGER" null="true"/>
       <column name="version_upstream" type="TEXT" null="true"/>
       <column name="version_release" type="TEXT" null="true"/>
+      <column name="sha256sum" type="TEXT" null="true"/>
       <primary-key>
         <column name="name"/>
         <column name="version_epoch"/>

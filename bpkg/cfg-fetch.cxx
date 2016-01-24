@@ -58,10 +58,26 @@ namespace bpkg
 
     r->fetched = true; // Mark as being fetched.
 
-    // Load the 'repositories' file and use it to populate the
-    // prerequisite and complement repository sets.
+    // Load the 'packages' file. We do this first so that we can get and
+    // verify the checksum of the 'repositories' file which below.
     //
-    repository_manifests rms (fetch_repositories (co, rl, true));
+    package_manifests pms (fetch_packages (co, rl, true));
+
+    // Load the 'repositories' file and use it to populate the prerequisite and
+    // complement repository sets.
+    //
+    repository_manifests rms;
+
+    try
+    {
+      rms = fetch_repositories (co, rl, pms.sha256sum, true);
+    }
+    catch (const checksum_mismatch&)
+    {
+      fail << "repository files checksum mismatch for "
+           << rl.canonical_name () <<
+        info << "try again";
+    }
 
     for (repository_manifest& rm: rms)
     {
@@ -150,13 +166,6 @@ namespace bpkg
       }
     }
 
-    // Load the 'packages' file.
-    //
-    // @@ We need to check that that 'repositories' file hasn't
-    //    changed since.
-    //
-    package_manifests pms (fetch_packages (co, rl, true));
-
     // "Suspend" session while persisting packages to reduce memory
     // consumption.
     //
@@ -177,6 +186,27 @@ namespace bpkg
       {
         p = make_shared<available_package> (move (pm));
         persist = true;
+      }
+      else
+      {
+        // Make sure this is the same package.
+        //
+        assert (p->sha256sum && !p->locations.empty ()); // Can't be transient.
+
+        if (*pm.sha256sum != *p->sha256sum)
+        {
+          // All the previous repositories that contain this package have the
+          // same checksum (since they passed this test), so we can pick any
+          // to show to the user.
+          //
+          const string& r1 (rl.canonical_name ());
+          const string& r2 (p->locations[0].repository.object_id ());
+
+          fail << "checksum mismatch for " << pm.name << " " << pm.version <<
+            info << r1 << " has " << *pm.sha256sum <<
+            info << r2 << " has " << *p->sha256sum <<
+            info << "consider reporting this to the repository maintainers";
+        }
       }
 
       // This repository shouldn't already be in the location set since
@@ -251,7 +281,12 @@ namespace bpkg
     // their packages.
     //
     for (const lazy_shared_ptr<repository>& lp: ua)
-      cfg_fetch (o, t, lp.load (), root, ""); // No reason (user-added).
+    {
+      shared_ptr<repository> r (lp.load ());
+
+      if (!r->fetched) // Can already be loaded as a prerequisite/complement.
+        cfg_fetch (o, t, r, root, ""); // No reason (user-added).
+    }
 
     size_t rcount, pcount;
     if (verb)

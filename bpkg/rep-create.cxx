@@ -14,9 +14,11 @@
 #include <bpkg/manifest>
 #include <bpkg/manifest-serializer>
 
-#include <bpkg/fetch>
 #include <bpkg/types>
 #include <bpkg/utility>
+
+#include <bpkg/checksum>
+#include <bpkg/fetch>
 #include <bpkg/diagnostics>
 
 #include <bpkg/pkg-verify>
@@ -50,6 +52,9 @@ namespace bpkg
   };
 
   using package_map = map<package_key, package_data>;
+
+  static const path repositories ("repositories");
+  static const path packages ("packages");
 
   static void
   collect (const rep_create_options& o,
@@ -89,8 +94,7 @@ namespace bpkg
       //
       if (d == root)
       {
-        if (p == path ("repositories") ||
-            p == path ("packages"))
+        if (p == repositories || p == packages)
           continue;
       }
 
@@ -99,7 +103,12 @@ namespace bpkg
       path a (d / p);
       package_manifest m (pkg_verify (o, a, o.ignore_unknown ()));
 
-      level4 ([&]{trace << m.name << " " << m.version << " in " << a;});
+      // Calculate its checksum.
+      //
+      m.sha256sum = sha256 (o, a);
+
+      level4 ([&]{trace << m.name << " " << m.version << " in " << a
+                        << " sha256sum " << *m.sha256sum;});
 
       // Add package archive location relative to the repository root.
       //
@@ -156,9 +165,22 @@ namespace bpkg
     package_map pm;
     collect (o, pm, d, d);
 
+    package_manifests manifests;
+    manifests.sha256sum = sha256 (o, path (d / repositories));
+
+    for (auto& p: pm)
+    {
+      package_manifest& m (p.second.manifest);
+
+      if (verb)
+        text << "adding " << m.name << " " << m.version;
+
+      manifests.emplace_back (move (m));
+    }
+
     // Serialize.
     //
-    path p (d / path ("packages"));
+    path p (d / packages);
 
     try
     {
@@ -167,18 +189,7 @@ namespace bpkg
       ofs.open (p.string ());
 
       manifest_serializer s (ofs, p.string ());
-
-      for (const auto& p: pm)
-      {
-        const package_manifest& m (p.second.manifest);
-
-        if (verb)
-          text << "adding " << m.name << " " << m.version;
-
-        m.serialize (s);
-      }
-
-      s.next ("", ""); // The end.
+      manifests.serialize (s);
     }
     catch (const manifest_serialization& e)
     {

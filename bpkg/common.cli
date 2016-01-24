@@ -101,7 +101,7 @@ namespace bpkg
        to the fetch program with \cb{--fetch-option}.
 
        If the fetch program is not specified, then \cb{bpkg} will try to
-       discover if one of the above program is available and use that.
+       discover if one of the above programs is available and use that.
        Currently, \cb{bpkg} has the following preference order: \cb{wget}
        1.16 or higher (supports \cb{--show-progress}), \cb{curl},
        \cb{wget}, and \cb{fetch}."
@@ -113,6 +113,30 @@ namespace bpkg
       "Additional option to be passed to the fetch program. See \cb{--fetch}
        for more information on the fetch program. Repeat this option to
        specify multiple fetch options."
+    }
+
+    path --sha256
+    {
+      "<path>",
+      "The sha256 program to be used to calculate SHA256 sums. Currently,
+       \cb{bpkg} recognizes \cb{sha256}, \cb{sha256sum}, and \cb{shasum}.
+       Note that the last component of <path> must contain one of these names
+       as a substring in order for \cb{bpkg} to recognize which program is
+       being used. You can also specify additional options that should be
+       passed to the sha256 program with \cb{--sha256-option}.
+
+       If the sha256 program is not specified, then \cb{bpkg} will try to
+       discover if one of the above programs is available and use that.
+       Currently, \cb{bpkg} has the following preference order: \cb{sha256},
+       \cb{sha256sum}, and \cb{shasum}."
+    }
+
+    strings --sha256-option
+    {
+      "<opt>",
+      "Additional option to be passed to the sha256 program. See \cb{--sha256}
+       for more information on the sha256 program. Repeat this option to
+       specify multiple sha256 options."
     }
 
     path --tar = "tar"

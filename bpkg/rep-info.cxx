@@ -35,8 +35,20 @@ namespace bpkg
     // Fetch everything we will need before printing anything. Ignore
     // unknown manifest entries unless we are dumping them.
     //
-    repository_manifests rms (fetch_repositories (o, rl, !o.manifest ()));
     package_manifests pms (fetch_packages (o, rl, !o.manifest ()));
+
+    repository_manifests rms;
+
+    try
+    {
+      rms = fetch_repositories (o, rl, pms.sha256sum, !o.manifest ());
+    }
+    catch (const checksum_mismatch&)
+    {
+      fail << "repository files checksum mismatch for "
+           << rl.canonical_name () <<
+        info << "try again";
+    }
 
     // Now print.
     //

@@ -214,6 +214,8 @@ EOF
 
 test rep-info -m -p $rep/common/bar/unstable <<EOF
 : 1
+sha256sum: 3034b727288efbb52b7b6e41fe147b815e7b3aa704e8cef6c2ee8d7421ab5b72
+:
 name: libbar
 version: 1.1.1
 summary: libbar
@@ -222,6 +224,7 @@ url: http://example.org
 email: pkg@example.org
 depends: libfoo >= 1.1.0
 location: libbar-1.1.1.tar.gz
+sha256sum: abb073e9729bbc914f26ed0dedad9f5ead2c73a36cbc1e8f2702d6fde7634ff3
 EOF
 
 

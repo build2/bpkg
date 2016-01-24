@@ -5,18 +5,27 @@
 #ifndef BPKG_FETCH
 #define BPKG_FETCH
 
+#include <exception>
+
 #include <bpkg/manifest>
 
 #include <bpkg/types>
 #include <bpkg/utility>
+
 #include <bpkg/common-options>
 
 namespace bpkg
 {
+  class checksum_mismatch: public std::exception {};
+
   repository_manifests fetch_repositories (const dir_path&,
                                            bool ignore_unknown);
+
+  // Verify the checksum and throw checksum_mismatch if it doesn't match.
+  //
   repository_manifests fetch_repositories (const common_options&,
                                            const repository_location&,
+                                           const string& sha256sum,
                                            bool ignore_unknown);
 
   package_manifests fetch_packages (const dir_path&,
