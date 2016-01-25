@@ -1072,8 +1072,22 @@ namespace bpkg
           // Even if we already have this package selected, we have to
           // make sure it is configured and updated.
           //
-          if (sp == nullptr || sp->version == ap->version)
+          if (sp == nullptr)
+            act = "build ";
+          else if (sp->version == ap->version)
+          {
+            // If this package is already configured and is not part of the
+            // user selection, then there is nothing we will be explicitly
+            // doing with it (it might still get updated indirectly as part
+            // of the user selection update).
+            //
+            if (!p.reconfigure () &&
+                sp->state == package_state::configured &&
+                find (names.begin (), names.end (), sp->name) == names.end ())
+              continue;
+
             act = p.reconfigure () ? "reconfigure/build " : "build ";
+          }
           else
             act = sp->version < ap->version ? "upgrade " : "downgrade ";
 
