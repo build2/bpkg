@@ -26,8 +26,9 @@ namespace bpkg
               bool ignore_unknown,
               bool diag = true);
 
-  // Similar to the above but verifies that a source directory is
-  // a valid package.
+  // Similar to the above but verifies that a source directory is a valid
+  // package. Note that it doesn't enforce the <name>-<version> form for the
+  // directory itself.
   //
   package_manifest
   pkg_verify (const dir_path& source, bool ignore_unknown, bool diag = true);

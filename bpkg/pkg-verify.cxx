@@ -177,18 +177,20 @@ namespace bpkg
       manifest_parser mp (ifs, mf.string ());
       package_manifest m (mp, iu);
 
-      // Verify package directory is <name>-<version>.
+      // We used to verify package directory is <name>-<version> but it is
+      // not clear why we should enforce it in this case (i.e., the user
+      // provides us with a package directory).
       //
-      dir_path ed (m.name + "-" + m.version.string ());
-
-      if (d.leaf () != ed)
-      {
-        if (diag)
-          error << "invalid package directory name '" << d.leaf () << "'" <<
-            info << "expected from manifest '" << ed << "'";
-
-        throw failed ();
-      }
+      // dir_path ed (m.name + "-" + m.version.string ());
+      //
+      // if (d.leaf () != ed)
+      // {
+      //  if (diag)
+      //    error << "invalid package directory name '" << d.leaf () << "'" <<
+      //      info << "expected from manifest '" << ed << "'";
+      //
+      //  throw failed ();
+      // }
 
       return m;
     }
