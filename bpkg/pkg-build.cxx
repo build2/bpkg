@@ -87,7 +87,7 @@ namespace bpkg
       {
         const version& v (*c->min_version);
 
-        q = compare_version_eq (vm, v, v.revision != 0);
+        q = q && compare_version_eq (vm, v, v.revision != 0);
 
         if (v.revision == 0)
           q += order_by_revision_desc (vm);
