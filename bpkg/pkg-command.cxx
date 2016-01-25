@@ -44,18 +44,40 @@ namespace bpkg
   pkg_command (const string& cmd,
                const dir_path& c,
                const common_options& o,
-               const vector<shared_ptr<selected_package>>& ps)
+               const strings& cvars,
+               const vector<pkg_command_vars>& ps)
   {
     tracer trace ("pkg_command");
 
     level4 ([&]{trace << "command: " << cmd;});
 
-    // Form the buildspec.
+    // This one is a bit tricky: we can only update all the packages at once if
+    // they don't have any package-specific variables. But let's try to handle
+    // this with the same logic (being clever again).
     //
-    string bspec (cmd + "(");
+    string bspec;
 
-    for (const shared_ptr<selected_package>& p: ps)
+    auto run = [&trace, &o, &cvars, &bspec](const strings& vars = strings ())
+      {
+        if (!bspec.empty ())
+        {
+          bspec += ')';
+          level4 ([&]{trace << "buildspec: " << bspec;});
+          run_b (o, bspec, false, cvars, vars);
+          bspec.clear ();
+        }
+      };
+
+    for (const pkg_command_vars& pv: ps)
     {
+      if (!pv.vars.empty ())
+        run (); // Run previously collected packages.
+
+      if (bspec.empty ())
+        bspec = cmd + '(';
+
+      const shared_ptr<selected_package>& p (pv.pkg);
+
       assert (p->state == package_state::configured);
       assert (p->out_root); // Should be present since configured.
 
@@ -66,13 +88,12 @@ namespace bpkg
         bspec += ' ';
       bspec += out_root.string ();
       bspec += '/';
+
+      if (!pv.vars.empty ())
+        run (pv.vars); // Run this package.
     }
 
-    bspec += ')';
-
-    level4 ([&]{trace << "buildspec: " << bspec;});
-
-    run_b (o, bspec);
+    run ();
   }
 
   int
@@ -85,11 +106,29 @@ namespace bpkg
     const dir_path& c (o.directory ());
     level4 ([&]{trace << "configuration: " << c;});
 
+    // First read the common variables.
+    //
+    auto read_vars = [&args](strings& v)
+      {
+        for (; args.more (); args.next ())
+        {
+          string a (args.peek ());
+
+          if (a.find ('=') == string::npos)
+            break;
+
+          v.push_back (move (a));
+        }
+      };
+
+    strings cvars;
+    read_vars (cvars);
+
     if (!args.more ())
       fail << "package name argument expected" <<
         info << "run 'bpkg help pkg-" << cmd << "' for more information";
 
-    vector<shared_ptr<selected_package>> ps;
+    vector<pkg_command_vars> ps;
     {
       database db (open (c, trace));
       transaction t (db.begin ());
@@ -107,19 +146,25 @@ namespace bpkg
             info << "expected it to be configured";
 
         level4 ([&]{trace << p->name << " " << p->version;});
-        ps.push_back (move (p));
+
+        // Read package-specific variables.
+        //
+        strings vars;
+        read_vars (vars);
+
+        ps.push_back (pkg_command_vars {move (p), move (vars)});
       }
 
       t.commit ();
     }
 
-    pkg_command (cmd, c, o, ps);
+    pkg_command (cmd, c, o, cvars, ps);
 
     if (verb)
     {
-      for (const shared_ptr<selected_package>& p: ps)
+      for (const pkg_command_vars& pv: ps)
         text << cmd << (cmd.back () != 'e' ? "ed " : "d ")
-             << p->name << " " << p->version;
+             << pv.pkg->name << " " << pv.pkg->version;
     }
 
     return 0;

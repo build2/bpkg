@@ -74,7 +74,8 @@ namespace bpkg
   run_b (const common_options&,
          const string& buildspec,
          bool quiet = false,
-         const strings& vars = strings ());
+         const strings& vars1 = strings (),
+         const strings& vars2 = strings ());
 
   // Call a function if there is an exception.
   //

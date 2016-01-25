@@ -11,22 +11,30 @@ include <bpkg/configuration.cli>;
 namespace bpkg
 {
   {
-    "<options> <pkg>",
+    "<options> <vars> <pkg>",
 
     "\h|SYNOPSIS|
 
-     \c{\b{bpkg pkg-install}|\b{install} [<options>] <pkg>...}
+     \c{\b{bpkg pkg-install}|\b{install} [<options>] [<vars>] (<pkg> [<vars>])...}
 
      \h|DESCRIPTION|
 
      The \cb{pkg-install} command installs one or more packages. Underneath,
-     this command doesn't do much more than run \cb{b install}. The
-     installation directory can be specified when creating the configuration
-     (\l{bpkg-cfg-create(1)}) with the \cb{config.install.root} configuration
-     variable."
+     this command doesn't do much more than run \cb{b install}.
 
-     // @@ Would be nice to be able to specify the root in the command.
-     //    Probably an option to specify additional configuration vars.
+     Additional command line variables (<vars>, normally \cb{config.*}) can be
+     passed to the build system by either specifying them before the packages,
+     in which case they apply to all of them, or after a specific package, in
+     which case they apply only to this package. Specifically, this mechanism
+     can be used to specify the installation directory, for example:
+
+     \
+     bpkg install config.install.root=/usr/local \
+       config.install.root.sudo=sudo libfoo libbar
+     \
+
+     Alternatively, the installation directory can be specified once when
+     creating the configuration (\l{bpkg-cfg-create(1)})."
   }
 
   class pkg_install_options: configuration_options

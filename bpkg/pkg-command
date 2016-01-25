@@ -20,6 +20,12 @@ namespace bpkg
                const configuration_options&,
                cli::scanner& args);
 
+  struct pkg_command_vars
+  {
+    shared_ptr<selected_package> pkg;
+    strings vars;
+  };
+
   void
   pkg_command (const string& cmd,
                const dir_path& configuration,
@@ -30,7 +36,8 @@ namespace bpkg
   pkg_command (const string& cmd,
                const dir_path& configuration,
                const common_options&,
-               const vector<shared_ptr<selected_package>>&);
+               const strings& common_vars,
+               const vector<pkg_command_vars>&);
 }
 
 #endif // BPKG_PKG_COMMAND

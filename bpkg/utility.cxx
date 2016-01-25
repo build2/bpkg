@@ -195,7 +195,8 @@ namespace bpkg
   run_b (const common_options& co,
          const string& bspec,
          bool quiet,
-         const strings& vars)
+         const strings& vars1,
+         const strings& vars2)
   {
     cstrings args {co.build ().string ().c_str ()};
 
@@ -222,7 +223,10 @@ namespace bpkg
 
     // Add config vars.
     //
-    for (const string& v: vars)
+    for (const string& v: vars1)
+      args.push_back (v.c_str ());
+
+    for (const string& v: vars2)
       args.push_back (v.c_str ());
 
     // Add buildspec.
