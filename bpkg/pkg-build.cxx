@@ -66,24 +66,55 @@ namespace bpkg
     //
     if (c)
     {
-      if (c->min_version)
+      // If the constraint is equality and the revision is not explicitly
+      // specified, then compare ignoring the revision. The idea is that when
+      // the user runs 'bpkg build libfoo/1.0.0' and there is 1.0.0+1
+      // available, it should just work. The user shouldn't have to spell the
+      // revision explicitly. Similarly, when we have 'depends: libfoo ==
+      // 1.0.0', then it would be strange if 1.0.0+1 did not satisfy this
+      // constraint.
+      //
+      // Note that strictly speaking 0 doesn't mean unspecified. Which means
+      // with this implementation there is no way to say "I really mean
+      // revision 0" since 1.0.0 == 1.0.0+0. One can, in the current model, say
+      // libfoo == 1.0.0+1, though. This is probably ok since one would assume
+      // any subsequent revision of a package is only better than the ones
+      // before.
+      //
+      if (c->min_version &&
+          c->max_version &&
+          *c->min_version == *c->max_version)
       {
-        if (c->min_open)
-          q = q && vm > *c->min_version;
-        else
-          q = q && vm >= *c->min_version;
-      }
+        const version& v (*c->min_version);
 
-      if (c->max_version)
+        q = compare_version_eq (vm, v, v.revision != 0);
+
+        if (v.revision == 0)
+          q += order_by_revision_desc (vm);
+      }
+      else
       {
-        if (c->max_open)
-          q = q && vm < *c->max_version;
-        else
-          q = q && vm <= *c->max_version;
+        if (c->min_version)
+        {
+          if (c->min_open)
+            q = q && vm > *c->min_version;
+          else
+            q = q && vm >= *c->min_version;
+        }
+
+        if (c->max_version)
+        {
+          if (c->max_open)
+            q = q && vm < *c->max_version;
+          else
+            q = q && vm <= *c->max_version;
+        }
+
+        q += order_by_version_desc (vm);
       }
     }
-
-    q += order_by_version_desc (vm);
+    else
+      q += order_by_version_desc (vm);
 
     // Filter the result based on the repository to which each version
     // belongs.

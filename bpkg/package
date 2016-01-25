@@ -503,13 +503,34 @@ namespace bpkg
   //
   template <typename T1, typename T2>
   inline auto
+  compare_version_eq (const T1& x, const T2& y, bool revision)
+    -> decltype (x.epoch == y.epoch)
+  {
+    // Since we don't quite know what T1 and T2 are (and where the resulting
+    // expression will run), let's not push our luck with something like
+    // (revision || x.revision == y.revision).
+    //
+    if (revision)
+      return x.epoch == y.epoch &&
+        x.canonical_upstream == y.canonical_upstream &&
+        x.canonical_release == y.canonical_release &&
+        x.revision == y.revision;
+    else
+      return x.epoch == y.epoch &&
+        x.canonical_upstream == y.canonical_upstream &&
+        x.canonical_release == y.canonical_release;
+  }
+
+  /*
+  Currently unused (and probably should stay that way).
+
+  template <typename T1, typename T2>
+  inline auto
   operator== (const T1& x, const T2& y) -> decltype (x.epoch == y.epoch)
   {
-    return x.epoch == y.epoch &&
-      x.canonical_upstream == y.canonical_upstream &&
-      x.canonical_release == y.canonical_release &&
-      x.revision == y.revision;
+    return compare_version_eq (x, y, true);
   }
+  */
 
   template <typename T1, typename T2>
   inline auto
@@ -579,6 +600,14 @@ namespace bpkg
       + x.canonical_upstream + "DESC,"
       + x.canonical_release + "DESC,"
       + x.revision + "DESC";
+  }
+
+  template <typename T>
+  inline auto
+  order_by_revision_desc (const T& x) -> //decltype ("ORDER BY" + x.epoch)
+                                         decltype (x.revision == 0)
+  {
+    return "ORDER BY" + x.revision + "DESC";
   }
 }
 

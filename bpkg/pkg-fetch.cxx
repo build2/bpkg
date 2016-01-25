@@ -186,6 +186,11 @@ namespace bpkg
       fail << "configuration " << c << " has no available packages" <<
         info << "use 'bpkg cfg-fetch' to fetch available packages list";
 
+    // Note that here we compare including the revision (unlike, say in
+    // pkg-status). Which means one cannot just specify 1.0.0 and get 1.0.0+1
+    // -- they must spell it out explicitly. This is probably ok since this is
+    // a low-level command where some extra precision doesn't hurt.
+    //
     shared_ptr<available_package> ap (
       db.find<available_package> (available_package_id (n, v)));
 

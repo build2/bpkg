@@ -50,7 +50,7 @@ namespace bpkg
       query q (query::name == n);
 
       if (!v.empty ())
-        q = q && query::version == v;
+        q = q && compare_version_eq (query::version, v, v.revision != 0);
 
       p = db.query_one<selected_package> (q);
     }
@@ -60,29 +60,32 @@ namespace bpkg
     // no need to look for it in available packages.
     //
     vector<shared_ptr<available_package>> aps;
-    if (p == nullptr || v.empty ())
     {
       using query = query<available_package>;
 
       query q (query::id.name == n);
 
-      // If the user specified the version, then only look for that
-      // specific version.
+      // If we found an existing package, then only look for versions greater
+      // than what already exists.
       //
-      if (!v.empty ())
-        q = q && query::id.version == v;
-      //
-      // Otherwise, if we found an existing package, then only look for
-      // versions greater than what already exists.
-      //
-      else if (p != nullptr)
+      if (p != nullptr)
+      {
         q = q && query::id.version > p->version;
+        q += order_by_version_desc (query::id.version);
+      }
+      //
+      // Otherwise, if the user specified the version, then only look for that
+      // specific version (we still do it since there are might be other
+      // revisions).
+      //
+      else if (!v.empty ())
+      {
+        q = q && compare_version_eq (query::id.version, v, v.revision != 0);
+        q += order_by_revision_desc (query::id.version);
+      }
 
-      q += order_by_version_desc (query::id.version);
-
-      // Only consider packages that are in repositories that were
-      // explicitly added to the configuration and their complements,
-      // recursively.
+      // Only consider packages that are in repositories that were explicitly
+      // added to the configuration and their complements, recursively.
       //
       aps = filter (db.load<repository> (""), db.query<available_package> (q));
     }
@@ -97,7 +100,7 @@ namespace bpkg
 
       // Also print the version of the package unless the user specified it.
       //
-      if (v.empty ())
+      if (v != p->version)
         cout << " " << p->version;
 
       if (p->hold_package)
@@ -113,10 +116,10 @@ namespace bpkg
     {
       cout << (found ? "; " : "") << "available";
 
-      // If the user specified the version, then there will be only one
-      // entry.
+      // If the user specified the version, then there might only be one
+      // entry in which case it is useless to repeat it.
       //
-      if (v.empty ())
+      if (v.empty () || aps.size () > 1 || aps[0]->version != v)
       {
         for (shared_ptr<available_package> ap: aps)
           cout << ' ' << ap->version;
