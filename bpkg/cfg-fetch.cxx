@@ -25,7 +25,9 @@ namespace bpkg
   static void
   cfg_fetch (const common_options& co,
              transaction& t,
-             const shared_ptr<repository>& r)
+             const shared_ptr<repository>& r,
+             const shared_ptr<repository>& root,
+             const string& reason)
   {
     tracer trace ("cfg_fetch(rep)");
 
@@ -39,8 +41,20 @@ namespace bpkg
     // The fetch_*() functions below will be quiet at level 1, which
     // can be quite confusing if the download hangs.
     //
-    if (verb >= (rl.remote () ? 1 : 2))
-      text << "fetching " << r->name;
+    if (verb)
+    {
+      diag_record dr (text);
+
+      dr << "fetching " << r->name;
+
+      const auto& ua (root->complements);
+
+      if (ua.find (lazy_shared_ptr<repository> (db, r)) == ua.end ())
+      {
+        assert (!reason.empty ());
+        dr << " (" << reason << ")";
+      }
+    }
 
     r->fetched = true; // Mark as being fetched.
 
@@ -89,7 +103,18 @@ namespace bpkg
       // (or is already being) fetched.
       //
       if (!pr->fetched)
-        cfg_fetch (co, t, pr);
+      {
+        string reason;
+        switch (rr)
+        {
+        case repository_role::complement:   reason = "complements ";     break;
+        case repository_role::prerequisite: reason = "prerequisite of "; break;
+        case repository_role::base: assert (false);
+        }
+        reason += r->name;
+
+        cfg_fetch (co, t, pr, root, reason);
+      }
 
       // @@ What if we have duplicated? Ideally, we would like to check
       //    this once and as early as possible. The original idea was to
@@ -226,7 +251,7 @@ namespace bpkg
     // their packages.
     //
     for (const lazy_shared_ptr<repository>& lp: ua)
-      cfg_fetch (o, t, lp.load ());
+      cfg_fetch (o, t, lp.load (), root, ""); // No reason (user-added).
 
     size_t rcount, pcount;
     if (verb)
