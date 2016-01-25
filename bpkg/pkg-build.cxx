@@ -761,9 +761,18 @@ namespace bpkg
 
       shared_ptr<repository> root (db.load<repository> (""));
 
-      while (args.more ())
+      // Here is what happens here: are are going to try and guess whether we
+      // are dealing with a package archive, package directory, or package
+      // name/version by first trying it as an archive, then as a directory,
+      // and then assume it is name/version. Sometimes, however, it is really
+      // one of the first two but just broken. In this case things are really
+      // confusing since we suppress all diagnostics for the first two
+      // "guesses". So what we are going to do here is re-run them with full
+      // diagnostics if the name/version guess doesn't pan out.
+      //
+      for (bool diag (false); args.more (); )
       {
-        const char* s (args.next ());
+        const char* s (args.peek ());
 
         // Reduce all the potential variations (archive, directory, package
         // name, package name/version) to a single available_package object.
@@ -781,7 +790,11 @@ namespace bpkg
           path a (s);
           if (exists (a))
           {
-            package_manifest m (pkg_verify (o, a, true, false));
+            if (diag)
+              info << "'" << s << "' does not appear to be a valid package "
+                   << "archive: ";
+
+            package_manifest m (pkg_verify (o, a, true, diag));
 
             // This is a package archive (note that we shouldn't throw
             // failed from here on).
@@ -810,7 +823,11 @@ namespace bpkg
           dir_path d (s);
           if (exists (d))
           {
-            package_manifest m (pkg_verify (d, true, false));
+            if (diag)
+              info << "'" << s << "' does not appear to be a valid package "
+                   << "directory: ";
+
+            package_manifest m (pkg_verify (d, true, diag));
 
             // This is a package directory (note that we shouldn't throw
             // failed from here on).
@@ -832,24 +849,39 @@ namespace bpkg
           // Not a valid package archive.
         }
 
+        // If this was a diagnostics "run", then we are done.
+        //
+        if (diag)
+          throw failed ();
+
         // Then it got to be a package name with optional version.
         //
         if (ap == nullptr)
         {
-          n = parse_package_name (s);
-          v = parse_package_version (s);
-          level4 ([&]{trace << "package " << n << "; version " << v;});
+          try
+          {
+            n = parse_package_name (s);
+            v = parse_package_version (s);
+            level4 ([&]{trace << "package " << n << "; version " << v;});
 
-          // Either get the user-specified version or the latest.
-          //
-          auto rp (
-            v.empty ()
-            ? find_available (db, n, root, nullopt)
-            : find_available (db, n, root, dependency_constraint (v)));
+            // Either get the user-specified version or the latest.
+            //
+            auto rp (
+              v.empty ()
+              ? find_available (db, n, root, nullopt)
+              : find_available (db, n, root, dependency_constraint (v)));
 
-          ap = rp.first;
-          ar = rp.second;
+            ap = rp.first;
+            ar = rp.second;
+          }
+          catch (const failed&)
+          {
+            diag = true;
+            continue;
+          }
         }
+
+        args.next (); // We are handling this argument.
 
         // Load the package that may have already been selected and
         // figure out what exactly we need to do here. The end goal
