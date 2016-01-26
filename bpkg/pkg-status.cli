@@ -15,16 +15,17 @@ namespace bpkg
 
     "\h|SYNOPSIS|
 
-     \c{\b{bpkg pkg-status}|\b{status} [<options>] <pkg>[/<ver>]}
+     \c{\b{bpkg pkg-status}|\b{status} [<options>] <pkg>[/<ver>]...}
 
      \h|DESCRIPTION|
 
-     The \cb{pkg-status} command prints the status of the specified package or,
-     if <ver> is specified, package version. Note that the status is written
-     to \cb{STDOUT}, not \cb{STDERR}.
+     The \cb{pkg-status} command prints the status of the specified packages
+     or, if <ver> is specified, package versions. Note that the status is
+     written to \cb{STDOUT}, not \cb{STDERR}.
 
-     The status output format is regular. First always comes one of the
-     following status words:
+     The status output format is regular. If several packages were specified,
+     then each line starts with the package name (and version, if specified)
+     followed by '\cb{:}'. Then comes one of the following status words:
 
      \dl|
 
@@ -54,7 +55,6 @@ namespace bpkg
 
          package is part of the configuration and is broken (broken packages
          can only be purged; see \l{bpkg-pkg-purge(1)})||
-
 
      If only the package name was specified without the package version, then
      the \cb{available} status word is followed by the list of available
@@ -90,6 +90,10 @@ namespace bpkg
 
      bpkg status libfoo
      configured 1.0.0 hold_package; available 1.1.0 1.1.1
+
+     bpkg status libfoo/1.0.0 libbar
+     libfoo/1.0.0: configured hold_package
+     libbar: unknown
      \
 
      Assuming now that we dropped \cb{libfoo} from the configuration:
