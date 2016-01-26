@@ -87,6 +87,8 @@ namespace bpkg
           q = q && compare_version_eq (query::id.version, v, v.revision != 0);
           q += order_by_revision_desc (query::id.version);
         }
+        else
+          q += order_by_version_desc (query::id.version);
 
         // Only consider packages that are in repositories that were explicitly
         // added to the configuration and their complements, recursively.

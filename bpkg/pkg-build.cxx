@@ -66,20 +66,20 @@ namespace bpkg
     //
     if (c)
     {
-      // If the constraint is equality and the revision is not explicitly
-      // specified, then compare ignoring the revision. The idea is that when
-      // the user runs 'bpkg build libfoo/1.0.0' and there is 1.0.0+1
-      // available, it should just work. The user shouldn't have to spell the
-      // revision explicitly. Similarly, when we have 'depends: libfoo ==
-      // 1.0.0', then it would be strange if 1.0.0+1 did not satisfy this
-      // constraint.
+      // If the revision is not explicitly specified, then compare ignoring the
+      // revision. The idea is that when the user runs 'bpkg build libfoo/1'
+      // and there is 1+1 available, it should just work. The user shouldn't
+      // have to spell the revision explicitly. Similarly, when we have
+      // 'depends: libfoo == 1', then it would be strange if 1+1 did not
+      // satisfy this constraint. The same for libfoo <= 1 -- 1+1 should
+      // satisfy.
       //
       // Note that strictly speaking 0 doesn't mean unspecified. Which means
       // with this implementation there is no way to say "I really mean
-      // revision 0" since 1.0.0 == 1.0.0+0. One can, in the current model, say
-      // libfoo == 1.0.0+1, though. This is probably ok since one would assume
-      // any subsequent revision of a package is only better than the ones
-      // before.
+      // revision 0" since 1 == 1+0. One can, in the current model, say libfoo
+      // == 1+1, though. This is probably ok since one would assume any
+      // subsequent revision of a package version are just as (un)satisfactory
+      // as the first one.
       //
       if (c->min_version &&
           c->max_version &&
@@ -96,18 +96,22 @@ namespace bpkg
       {
         if (c->min_version)
         {
+          const version& v (*c->min_version);
+
           if (c->min_open)
-            q = q && vm > *c->min_version;
+            q = q && compare_version_gt (vm, v, v.revision != 0);
           else
-            q = q && vm >= *c->min_version;
+            q = q && compare_version_ge (vm, v, v.revision != 0);
         }
 
         if (c->max_version)
         {
+          const version& v (*c->max_version);
+
           if (c->max_open)
-            q = q && vm < *c->max_version;
+            q = q && compare_version_lt (vm, v, v.revision != 0);
           else
-            q = q && vm <= *c->max_version;
+            q = q && compare_version_le (vm, v, v.revision != 0);
         }
 
         q += order_by_version_desc (vm);

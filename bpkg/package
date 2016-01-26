@@ -508,17 +508,15 @@ namespace bpkg
   {
     // Since we don't quite know what T1 and T2 are (and where the resulting
     // expression will run), let's not push our luck with something like
-    // (revision || x.revision == y.revision).
+    // (!revision || x.revision == y.revision).
     //
-    if (revision)
-      return x.epoch == y.epoch &&
-        x.canonical_upstream == y.canonical_upstream &&
-        x.canonical_release == y.canonical_release &&
-        x.revision == y.revision;
-    else
-      return x.epoch == y.epoch &&
-        x.canonical_upstream == y.canonical_upstream &&
-        x.canonical_release == y.canonical_release;
+    auto r (x.epoch == y.epoch &&
+            x.canonical_upstream == y.canonical_upstream &&
+            x.canonical_release == y.canonical_release);
+
+    return revision
+      ? r && x.revision == y.revision
+      : r;
   }
 
   /*
@@ -528,66 +526,137 @@ namespace bpkg
   inline auto
   operator== (const T1& x, const T2& y) -> decltype (x.epoch == y.epoch)
   {
-    return compare_version_eq (x, y, true);
+  return compare_version_eq (x, y, true);
   }
   */
 
   template <typename T1, typename T2>
   inline auto
+  compare_version_ne (const T1& x, const T2& y, bool revision)
+    -> decltype (x.epoch == y.epoch)
+  {
+    auto r (x.epoch != y.epoch ||
+            x.canonical_upstream != y.canonical_upstream ||
+            x.canonical_release != y.canonical_release);
+
+    return revision
+      ? r || x.revision != y.revision
+      : r;
+  }
+
+  template <typename T1, typename T2>
+  inline auto
   operator!= (const T1& x, const T2& y) -> decltype (x.epoch != y.epoch)
   {
-    return x.epoch != y.epoch ||
-      x.canonical_upstream != y.canonical_upstream ||
-      x.canonical_release != y.canonical_release ||
-      x.revision != y.revision;
+    return compare_version_ne (x, y, true);
+  }
+
+  template <typename T1, typename T2>
+  inline auto
+  compare_version_lt (const T1& x, const T2& y, bool revision)
+    -> decltype (x.epoch == y.epoch)
+  {
+    auto r (
+      x.epoch < y.epoch ||
+      (x.epoch == y.epoch && x.canonical_upstream < y.canonical_upstream) ||
+      (x.epoch == y.epoch && x.canonical_upstream == y.canonical_upstream &&
+       x.canonical_release < y.canonical_release));
+
+    return revision
+      ? r ||
+      (x.epoch == y.epoch && x.canonical_upstream == y.canonical_upstream &&
+       x.canonical_release == y.canonical_release && x.revision < y.revision)
+      : r;
   }
 
   template <typename T1, typename T2>
   inline auto
   operator< (const T1& x, const T2& y) -> decltype (x.epoch < y.epoch)
   {
-    return x.epoch < y.epoch ||
-      (x.epoch == y.epoch && x.canonical_upstream < y.canonical_upstream) ||
+    return compare_version_lt (x, y, true);
+  }
+
+  template <typename T1, typename T2>
+  inline auto
+  compare_version_le (const T1& x, const T2& y, bool revision)
+    -> decltype (x.epoch == y.epoch)
+  {
+    auto r (
+      x.epoch < y.epoch ||
+      (x.epoch == y.epoch && x.canonical_upstream < y.canonical_upstream));
+
+    return revision
+      ? r ||
       (x.epoch == y.epoch && x.canonical_upstream == y.canonical_upstream &&
        x.canonical_release < y.canonical_release) ||
       (x.epoch == y.epoch && x.canonical_upstream == y.canonical_upstream &&
-       x.canonical_release == y.canonical_release && x.revision < y.revision);
+       x.canonical_release == y.canonical_release && x.revision <= y.revision)
+      : r ||
+      (x.epoch == y.epoch && x.canonical_upstream == y.canonical_upstream &&
+       x.canonical_release <= y.canonical_release);
   }
+
+  /*
+  Currently unused (and probably should stay that way).
 
   template <typename T1, typename T2>
   inline auto
   operator<= (const T1& x, const T2& y) -> decltype (x.epoch <= y.epoch)
   {
-    return x.epoch < y.epoch ||
-      (x.epoch == y.epoch && x.canonical_upstream < y.canonical_upstream) ||
+    return compare_version_le (x, y, true);
+  }
+  */
+
+  template <typename T1, typename T2>
+  inline auto
+  compare_version_gt (const T1& x, const T2& y, bool revision)
+    -> decltype (x.epoch == y.epoch)
+  {
+    auto r (
+      x.epoch > y.epoch ||
+      (x.epoch == y.epoch && x.canonical_upstream > y.canonical_upstream) ||
       (x.epoch == y.epoch && x.canonical_upstream == y.canonical_upstream &&
-       x.canonical_release < y.canonical_release) ||
+       x.canonical_release > y.canonical_release));
+
+    return revision
+      ? r ||
       (x.epoch == y.epoch && x.canonical_upstream == y.canonical_upstream &&
-       x.canonical_release == y.canonical_release && x.revision <= y.revision);
+       x.canonical_release == y.canonical_release && x.revision > y.revision)
+      : r;
   }
 
   template <typename T1, typename T2>
   inline auto
   operator> (const T1& x, const T2& y) -> decltype (x.epoch > y.epoch)
   {
-    return x.epoch > y.epoch ||
-      (x.epoch == y.epoch && x.canonical_upstream > y.canonical_upstream) ||
+    return compare_version_gt (x, y, true);
+  }
+
+  template <typename T1, typename T2>
+  inline auto
+  compare_version_ge (const T1& x, const T2& y, bool revision)
+    -> decltype (x.epoch == y.epoch)
+  {
+    auto r (
+      x.epoch > y.epoch ||
+      (x.epoch == y.epoch && x.canonical_upstream > y.canonical_upstream));
+
+    return revision
+      ? r ||
       (x.epoch == y.epoch && x.canonical_upstream == y.canonical_upstream &&
        x.canonical_release > y.canonical_release) ||
       (x.epoch == y.epoch && x.canonical_upstream == y.canonical_upstream &&
-       x.canonical_release == y.canonical_release && x.revision > y.revision);
+       x.canonical_release == y.canonical_release && x.revision >= y.revision)
+      : r ||
+      (x.epoch == y.epoch && x.canonical_upstream == y.canonical_upstream &&
+       x.canonical_release >= y.canonical_release);
   }
 
   template <typename T1, typename T2>
   inline auto
   operator>= (const T1& x, const T2& y) -> decltype (x.epoch >= y.epoch)
   {
-    return x.epoch > y.epoch ||
-      (x.epoch == y.epoch && x.canonical_upstream > y.canonical_upstream) ||
-      (x.epoch == y.epoch && x.canonical_upstream == y.canonical_upstream &&
-       x.canonical_release > y.canonical_release) ||
-      (x.epoch == y.epoch && x.canonical_upstream == y.canonical_upstream &&
-       x.canonical_release == y.canonical_release && x.revision >= y.revision);
+    return compare_version_ge (x, y, true);
   }
 
   template <typename T>
