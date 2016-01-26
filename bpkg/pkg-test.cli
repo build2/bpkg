@@ -1,0 +1,36 @@
+// file      : bpkg/pkg-test.cli
+// copyright : Copyright (c) 2014-2016 Code Synthesis Ltd
+// license   : MIT; see accompanying LICENSE file
+
+include <bpkg/configuration.cli>;
+
+"\section=1"
+"\name=bpkg-pkg-test"
+"\summary=test package"
+
+namespace bpkg
+{
+  {
+    "<options> <vars> <pkg>",
+
+    "\h|SYNOPSIS|
+
+     \c{\b{bpkg pkg-test}|\b{test} [<options>] [<vars>] (<pkg> [<vars>])...}
+
+     \h|DESCRIPTION|
+
+     The \cb{pkg-test} command tests the previously configured (via
+     \l{bpkg-pkg-build(1)} or \l{bpkg-pkg-configure(1)}) package. Underneath,
+     this command doesn't do much more than run \cb{b test}.
+
+     Additional command line variables (<vars>, normally \cb{config.*}) can be
+     passed to the build system by either specifying them before the packages,
+     in which case they apply to all of them, or after a specific package, in
+     which case they apply only to this package."
+  }
+
+  class pkg_test_options: configuration_options
+  {
+    "\h|PKG-TEST OPTIONS|"
+  };
+}

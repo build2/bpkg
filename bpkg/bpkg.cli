@@ -100,6 +100,11 @@ namespace bpkg
       "\l{bpkg-pkg-update(1)} \- update package"
     }
 
+    bool pkg-test|test
+    {
+      "\l{bpkg-pkg-test(1)} \- test package"
+    }
+
     bool pkg-clean|clean
     {
       "\l{bpkg-pkg-clean(1)} \- clean package"

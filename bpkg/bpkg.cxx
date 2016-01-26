@@ -25,6 +25,7 @@
 #include <bpkg/pkg-install>
 #include <bpkg/pkg-purge>
 #include <bpkg/pkg-status>
+#include <bpkg/pkg-test>
 #include <bpkg/pkg-uninstall>
 #include <bpkg/pkg-unpack>
 #include <bpkg/pkg-update>
@@ -186,6 +187,7 @@ try
     PKG_COMMAND (install);
     PKG_COMMAND (purge);
     PKG_COMMAND (status);
+    PKG_COMMAND (test);
     PKG_COMMAND (uninstall);
     PKG_COMMAND (unpack);
     PKG_COMMAND (update);

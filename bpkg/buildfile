@@ -33,6 +33,7 @@ exe{bpkg}:                                                                   \
 {hxx            }{ pkg-install      } {hxx ixx cxx}{ pkg-install-options   } \
 {hxx         cxx}{ pkg-purge        } {hxx ixx cxx}{ pkg-purge-options     } \
 {hxx         cxx}{ pkg-status       } {hxx ixx cxx}{ pkg-status-options    } \
+{hxx            }{ pkg-test         } {hxx ixx cxx}{ pkg-test-options      } \
 {hxx            }{ pkg-uninstall    } {hxx ixx cxx}{ pkg-uninstall-options } \
 {hxx         cxx}{ pkg-unpack       } {hxx ixx cxx}{ pkg-unpack-options    } \
 {hxx            }{ pkg-update       } {hxx ixx cxx}{ pkg-update-options    } \
@@ -79,6 +80,7 @@ if! $cli.loaded
 {hxx ixx cxx}{pkg-fetch-options}:     cli{pkg-fetch}
 {hxx ixx cxx}{pkg-install-options}:   cli{pkg-install}
 {hxx ixx cxx}{pkg-purge-options}:     cli{pkg-purge}
+{hxx ixx cxx}{pkg-test-options}:      cli{pkg-test}
 {hxx ixx cxx}{pkg-status-options}:    cli{pkg-status}
 {hxx ixx cxx}{pkg-uninstall-options}: cli{pkg-uninstall}
 {hxx ixx cxx}{pkg-unpack-options}:    cli{pkg-unpack}
