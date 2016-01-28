@@ -59,17 +59,17 @@ namespace bpkg
 
        \ol|
 
-       \li|high-level information messages|
+       \li|High-level information messages.|
 
-       \li|essential underlying commands being executed|
+       \li|Essential underlying commands being executed.|
 
-       \li|all underlying commands being executed|
+       \li|All underlying commands being executed.|
 
-       \li|information that could be helpful to the user|
+       \li|Information that could be helpful to the user.|
 
-       \li|information that could be helpful to the developer|
+       \li|Information that could be helpful to the developer.|
 
-       \li|even more detailed information||"
+       \li|Even more detailed information.||"
     }
 
     path --build = "b"

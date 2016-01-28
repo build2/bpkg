@@ -31,30 +31,30 @@ namespace bpkg
 
      \li|\cb{unknown}
 
-         package is not part of the configuration nor available from any of the
-         repositories|
+         Package is not part of the configuration nor available from any of the
+         repositories.|
 
      \li|\cb{available}
 
-         package is not part of the configuration but is available from one of
-         the repositories|
+         Package is not part of the configuration but is available from one of
+         the repositories.|
 
      \li|\cb{fetched}
 
-         package is part of the configuration and is fetched|
+         Package is part of the configuration and is fetched.|
 
      \li|\cb{unpacked}
 
-         package is part of the configuration and is unpacked|
+         Package is part of the configuration and is unpacked.|
 
      \li|\cb{configured}
 
-         package is part of the configuration and is configured|
+         Package is part of the configuration and is configured.|
 
      \li|\cb{broken}
 
-         package is part of the configuration and is broken (broken packages
-         can only be purged; see \l{bpkg-pkg-purge(1)})||
+         Package is part of the configuration and is broken (broken packages
+         can only be purged; see \l{bpkg-pkg-purge(1)}).||
 
      If only the package name was specified without the package version, then
      the \cb{available} status word is followed by the list of available
