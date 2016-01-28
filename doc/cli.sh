@@ -1,7 +1,7 @@
 #! /usr/bin/env bash
 
 version="0.2.0"
-date="XX January 2016"
+date="January 2016"
 
 trap 'exit 1' ERR
 set -o errtrace # Trap in functions.
