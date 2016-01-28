@@ -33,13 +33,15 @@ function compile ()
     shift
   done
 
-  cli -I .. -v version="$version" -v date="$date" --include-base-last "${o[@]}" \
---generate-html --html-prologue-file prologue.xhtml --html-epilogue-file \
-epilogue.xhtml --html-suffix .xhtml ../bpkg/$n.cli
+  cli -I .. -v project="bpkg" -v version="$version" -v date="$date" \
+--include-base-last "${o[@]}" --generate-html --html-prologue-file \
+man-prologue.xhtml --html-epilogue-file man-epilogue.xhtml --html-suffix \
+.xhtml ../bpkg/$n.cli
 
-  cli -I .. -v version="$version" -v date="$date" --include-base-last "${o[@]}" \
---generate-man --man-prologue-file prologue.1 --man-epilogue-file epilogue.1 \
---man-suffix .1 ../bpkg/$n.cli
+  cli -I .. -v project="bpkg" -v version="$version" -v date="$date" \
+--include-base-last "${o[@]}" --generate-man --man-prologue-file \
+man-prologue.1 --man-epilogue-file man-epilogue.1 --man-suffix .1 \
+../bpkg/$n.cli
 }
 
 o="--output-prefix bpkg- --class-doc bpkg::common_options=short"
