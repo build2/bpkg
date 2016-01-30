@@ -22,17 +22,116 @@ namespace bpkg
 
      \h|DESCRIPTION|
 
-     @@ TODO Is this a good place to describe some general concepts, like
-     configuration, repositories, packages?
-
-     The example workflow would be:
-
-     Note that the common options can also be specified as part of the
-     command-specific options.
+     The \cb{build2} package manager is used to manipulate configurations,
+     packages, and repositories using a set of commands that are summarized
+     below.
 
      For a detailed description of any command or help topic, use the \cb{help}
      command or see the corresponding man page (the man pages have the
-     \cb{bpkg-} prefix, for example \l{bpkg-help(1)})."
+     \cb{bpkg-} prefix, for example \l{bpkg-help(1)}). Note that the common
+     options can also be specified as part of the command-specific options, for
+     convenience."
+  }
+
+  // For usage it's nice to see the list of commands on the first page. So
+  // let's not put this "extended" description into usage.
+  //
+  {
+    "",
+    "",
+
+    "A \i{bpkg configuration} is a directory that will contain packages built
+     with similar settings. For example, a configuration can be for a specific
+     target (\cb{i686}, \cb{x86_64}), compiler (\cb{clang}, \cb{gcc}) compile
+     options (\cb{-O3}, \cb{-g}), and so on. Configurations are relatively
+     cheap and can be created and thrown away as needed. Configurations can be
+     moved and copied by simply moving and copying the directories. Note,
+     however, that a move or copy may render some packages out-of-date. In the
+     \cb{build2} build system terms a \cb{bpkg} configuration is an
+     amalgamation that contains packages as subprojects.
+
+     A \i{bpkg package} is an archive or directory that contains a \cb{build2}
+     project plus a package \cb{manifest} file. \cb{bpkg} can either use
+     package archives/directories directly from the filesystem or it can fetch
+     archives from repositories.
+
+     A \i{bpkg repository} is a collection of packages as well as prerequisite
+     and complement repositories. A repository is identified by its location,
+     which can be a local filesystem path or a remote HTTP or HTTPS URL.
+
+     A typical \cb{bpkg} workflow would consist of the following steps.
+
+     \dl|
+
+     \li|\b{Create Configuration}\n
+
+         \
+         bpkg create cxx config.cxx=clang++ config.cxx.coptions=-O3 \
+           config.install.root=/usr/local config.install.root.sudo=sudo
+         \
+
+         |
+
+     \li|\n\b{Add Source Repositories}\n
+
+         \
+         bpkg add https://pkg.cppget.org/1/stable
+         \
+
+         Repeat this command to add more repositories.
+         |
+
+     \li|\n\b{Fetch Available Packages List}\n
+
+         \
+         bpkg fetch
+         \
+
+         |
+
+     \li|\n\b{Fetch and Build Packages}\n
+
+         \
+         bpkg build libfoo bar
+         \
+
+         |
+
+     \li|\n\b{Drop Package}\n
+
+         If some packages are no longer needed, we can remove them from the
+         configuration.
+
+         \
+         bpkg drop libfoo
+         \
+
+         |
+
+     \li|\n\b{Refresh Available Packages List}\n
+
+         \
+         bpkg fetch
+         \
+
+         |
+
+     \li|\n\b{Upgrade Packages}\n
+
+         \
+         bpkg build bar
+         \
+
+         |
+
+     \li|\n\b{Install Packages}\n
+
+         \
+         bpkg install bar
+         \
+
+         ||
+     "
   }
 
   class commands
@@ -174,4 +273,9 @@ namespace bpkg
     bool --help;
     bool --version;
   };
+
+  "\h|EXIT STATUS|
+
+  Non-zero exit status is returned in case of an error.
+  "
 }
