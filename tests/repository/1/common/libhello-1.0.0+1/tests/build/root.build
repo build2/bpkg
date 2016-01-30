@@ -5,6 +5,6 @@ cxx{*}: extension = cxx
 
 cxx.std = 11
 
-# Every exe{} here is by default a test.
+# Every exe{} in this subproject is by default a test.
 #
 test.exe = true

@@ -5,6 +5,6 @@ cxx{*}: extension = cxx
 
 cxx.std = 11
 
-# Don't try to install tests.
+# Don't install tests.
 #
 tests/: install = false

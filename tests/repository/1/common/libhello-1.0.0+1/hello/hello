@@ -1,0 +1,11 @@
+// file: hello/hello -*- C++ -*-
+
+#pragma once
+
+#include <string>
+
+namespace hello
+{
+  void
+  say (const std::string& name);
+}

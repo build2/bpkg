@@ -172,7 +172,7 @@ fail pkg-verify                 # archive expected
 fail pkg-verify ./no-such-file  # archive does not exist
 fail pkg-verify repository/1/common/not-a-package.tar.gz
 fail pkg-verify --silent repository/1/common/not-a-package.tar.gz
-test pkg-verify repository/1/common/hello/libhello-1.0.0.tar.gz
+test pkg-verify repository/1/common/hello/libhello-1.0.0+1.tar.gz
 
 
 ##
@@ -339,7 +339,7 @@ test pkg-purge libfoo
 test cfg-create --wipe
 test cfg-add $rep/common/hello
 test cfg-fetch
-test pkg-fetch libhello/1.0.0
+test pkg-fetch libhello/1.0.0+1
 test pkg-purge libhello
 
 
@@ -396,7 +396,7 @@ test pkg-purge libfoo
 test cfg-create --wipe
 test cfg-add $rep/common/hello
 test cfg-fetch
-test pkg-fetch libhello/1.0.0
+test pkg-fetch libhello/1.0.0+1
 test pkg-unpack libhello
 test pkg-purge libhello
 
@@ -513,7 +513,7 @@ fail pkg-configure libhello1              # no such package
 fail pkg-disfigure                        # package name expected
 fail pkg-disfigure libhello1              # no such package
 
-test pkg-fetch libhello/1.0.0
+test pkg-fetch libhello/1.0.0+1
 
 fail pkg-configure libhello               # wrong package state
 fail pkg-disfigure libhello               # wrong package state
@@ -522,69 +522,69 @@ test pkg-purge libhello
 
 # src == out
 #
-test pkg-fetch libhello/1.0.0
+test pkg-fetch libhello/1.0.0+1
 test pkg-unpack libhello
 test pkg-configure libhello
-stat libhello "configured 1.0.0"
+stat libhello "configured 1.0.0+1"
 test pkg-disfigure libhello
-stat libhello "unpacked 1.0.0"
+stat libhello "unpacked 1.0.0+1"
 test pkg-purge libhello
-stat libhello/1.0.0 available
+stat libhello/1.0.0 "available 1.0.0+1"
 
 # src != out
 #
 test cfg-create --wipe
-test pkg-unpack -e repository/1/common/libhello-1.0.0
+test pkg-unpack -e repository/1/common/libhello-1.0.0+1
 test pkg-configure libhello
-stat libhello "configured 1.0.0"
+stat libhello "configured 1.0.0+1"
 test pkg-disfigure libhello
-stat libhello "unpacked 1.0.0"
+stat libhello "unpacked 1.0.0+1"
 test pkg-purge libhello
 stat libhello unknown
-gone $cfg/libhello-1.0.0
+gone $cfg/libhello-1.0.0+1
 
 # out still exists after disfigure
 #
-test pkg-unpack -e repository/1/common/libhello-1.0.0
+test pkg-unpack -e repository/1/common/libhello-1.0.0+1
 test pkg-configure libhello
-touch $cfg/libhello-1.0.0/stray
+touch $cfg/libhello-1.0.0+1/stray
 fail pkg-disfigure libhello
-stat libhello/1.0.0 broken
-rm -r $cfg/libhello-1.0.0
+stat libhello/1.0.0+1 broken
+rm -r $cfg/libhello-1.0.0+1
 test pkg-purge -f libhello
 stat libhello unknown
 
 # disfigure failed
 #
-test pkg-unpack -e repository/1/common/libhello-1.0.0
+test pkg-unpack -e repository/1/common/libhello-1.0.0+1
 test pkg-configure libhello
-chmod 555 $cfg/libhello-1.0.0
+chmod 555 $cfg/libhello-1.0.0+1
 fail pkg-disfigure libhello
-stat libhello/1.0.0 broken
-chmod 755 $cfg/libhello-1.0.0
-rm -r $cfg/libhello-1.0.0
+stat libhello/1.0.0+1 broken
+chmod 755 $cfg/libhello-1.0.0+1
+rm -r $cfg/libhello-1.0.0+1
 test pkg-purge -f libhello
 stat libhello unknown
 
 # configure failed but disfigure succeeds
 #
-test pkg-unpack -e repository/1/common/libhello-1.0.0
-mkdir -p $cfg/libhello-1.0.0/build
-chmod 555 $cfg/libhello-1.0.0/build
+test pkg-unpack -e repository/1/common/libhello-1.0.0+1
+mkdir -p $cfg/libhello-1.0.0+1/build
+chmod 555 $cfg/libhello-1.0.0+1/build
 fail pkg-configure libhello
-stat libhello "unpacked 1.0.0"
+stat libhello "unpacked 1.0.0+1"
 test pkg-purge libhello
 stat libhello unknown
 
 # configure and disfigure both failed
 #
-test pkg-unpack -e repository/1/common/libhello-1.0.0
-mkdir -p $cfg/libhello-1.0.0/build
-chmod 555 $cfg/libhello-1.0.0 $cfg/libhello-1.0.0/build # Trip both con/dis.
+test pkg-unpack -e repository/1/common/libhello-1.0.0+1
+mkdir -p $cfg/libhello-1.0.0+1/build
+chmod 555 $cfg/libhello-1.0.0+1 $cfg/libhello-1.0.0+1/build # Trip both con/dis.
 fail pkg-configure libhello
-stat libhello/1.0.0 broken
-chmod 755 $cfg/libhello-1.0.0 $cfg/libhello-1.0.0/build
-rm -r $cfg/libhello-1.0.0
+stat libhello/1.0.0+1 broken
+chmod 755 $cfg/libhello-1.0.0+1 $cfg/libhello-1.0.0+1/build
+rm -r $cfg/libhello-1.0.0+1
 test pkg-purge -f libhello
 stat libhello unknown
 
@@ -712,13 +712,13 @@ test cfg-fetch
 
 fail pkg-update                # package name expected
 fail pkg-update libhello       # no such package
-test pkg-fetch libhello/1.0.0
+test pkg-fetch libhello/1.0.0+1
 fail pkg-update libhello       # wrong package state
 test pkg-purge libhello
 
 # src == out
 #
-test pkg-fetch libhello/1.0.0
+test pkg-fetch libhello/1.0.0+1
 test pkg-unpack libhello
 test pkg-configure libhello
 test pkg-update libhello
@@ -729,7 +729,7 @@ test pkg-purge libhello
 # src != out
 #
 test cfg-create --wipe
-test pkg-unpack -e repository/1/common/libhello-1.0.0
+test pkg-unpack -e repository/1/common/libhello-1.0.0+1
 test pkg-configure libhello
 test pkg-update libhello
 test pkg-update libhello
@@ -744,15 +744,15 @@ test cfg-create --wipe
 test cfg-add $rep/common/hello
 test cfg-fetch
 
-fail pkg-clean                # package name expected
-fail pkg-clean libhello       # no such package
-test pkg-fetch libhello/1.0.0
-fail pkg-clean libhello       # wrong package state
+fail pkg-clean                  # package name expected
+fail pkg-clean libhello         # no such package
+test pkg-fetch libhello/1.0.0+1
+fail pkg-clean libhello         # wrong package state
 test pkg-purge libhello
 
 # src == out
 #
-test pkg-fetch libhello/1.0.0
+test pkg-fetch libhello/1.0.0+1
 test pkg-unpack libhello
 test pkg-configure libhello
 test pkg-update libhello
@@ -764,7 +764,7 @@ test pkg-purge libhello
 # src != out
 #
 test cfg-create --wipe
-test pkg-unpack -e repository/1/common/libhello-1.0.0
+test pkg-unpack -e repository/1/common/libhello-1.0.0+1
 test pkg-configure libhello
 test pkg-update libhello
 test pkg-clean libhello
@@ -783,7 +783,7 @@ test pkg-purge libhello
 test cfg-create --wipe cxx
 test cfg-add $rep/common/hello
 test cfg-fetch
-test pkg-fetch libhello/1.0.0
+test pkg-fetch libhello/1.0.0+1
 test pkg-unpack libhello
 test pkg-configure libhello
 test pkg-update libhello

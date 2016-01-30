@@ -1,3 +1,0 @@
-d = hello/ tests/
-.: $d file{version manifest}
-include $d

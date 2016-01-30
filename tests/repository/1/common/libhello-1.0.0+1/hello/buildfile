@@ -1,4 +1,4 @@
-lib{hello}: cxx{hello} hxx{hello}
+lib{hello}: {hxx cxx}{hello}
 
 cxx.poptions += -I$src_root
 lib{hello}: cxx.export.poptions = -I$src_root

@@ -9,7 +9,7 @@ using namespace std;
 namespace hello
 {
   void
-  say (const char* n)
+  say (const string& n)
   {
     cout << "Hello, " << n << '!' << endl;
   }
