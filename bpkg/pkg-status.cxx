@@ -59,9 +59,7 @@ namespace bpkg
         p = db.query_one<selected_package> (q);
       }
 
-      // Now look for available packages. If the user specified the version
-      // explicitly and we found the corresponding existing package, then
-      // no need to look for it in available packages.
+      // Now look for available packages.
       //
       vector<shared_ptr<available_package>> aps;
       {
@@ -69,26 +67,19 @@ namespace bpkg
 
         query q (query::id.name == n);
 
-        // If we found an existing package, then only look for versions greater
-        // than what already exists.
+        // If the user specified the version, then only look for that specific
+        // version (we still do it since there might be other revisions).
+        //
+        if (!v.empty ())
+          q = q && compare_version_eq (query::id.version, v, v.revision != 0);
+
+        // And if we found an existing package, then only look for versions
+        // greater than what already exists.
         //
         if (p != nullptr)
-        {
           q = q && query::id.version > p->version;
-          q += order_by_version_desc (query::id.version);
-        }
-        //
-        // Otherwise, if the user specified the version, then only look for
-        // that specific version (we still do it since there are might be other
-        // revisions).
-        //
-        else if (!v.empty ())
-        {
-          q = q && compare_version_eq (query::id.version, v, v.revision != 0);
-          q += order_by_revision_desc (query::id.version);
-        }
-        else
-          q += order_by_version_desc (query::id.version);
+
+        q += order_by_version_desc (query::id.version);
 
         // Only consider packages that are in repositories that were explicitly
         // added to the configuration and their complements, recursively.
