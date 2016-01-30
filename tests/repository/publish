@@ -7,4 +7,4 @@
 # --progress
 #
 rsync -v -rlpt --exclude '.*' --copy-unsafe-links --prune-empty-dirs \
---delete-after $* 1/ pkg.cppget.org:/var/bpkg/tests/1/
+--delete-after $* 1/ build2.org:/var/bpkg/1/tests/

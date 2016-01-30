@@ -77,8 +77,8 @@ bpkg="$bpkg $options"
 # Repository location, name, and absolute location prefixes.
 #
 if [ "$remote" = "y" ]; then
-  rep=http://pkg.cppget.org/tests/1
-  repn=cppget.org/
+  rep=https://build2.org/pkg/1/tests
+  repn=build2.org/tests/
   repa=$rep
 else
   rep=repository/1
@@ -260,7 +260,7 @@ fail cfg-add /tmp/1/../1/foo/stable # duplicate
 # remote URL
 #
 test cfg-add http://pkg.example.org/1/testing
-fail cfg-add http://www.example.org/1/testing # duplicate
+fail cfg-add https://www.example.org/1/testing # duplicate
 
 
 ##
