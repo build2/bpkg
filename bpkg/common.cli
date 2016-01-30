@@ -54,7 +54,7 @@ namespace bpkg
       "<level>",
       "Set the diagnostics verbosity to <level> between 0 and 6. Level 0
        disables any non-error messages while level 6 produces lots of
-       information, with level 1 beeing the default. The following additional
+       information, with level 1 being the default. The following additional
        types of diagnostics are produced at each level:
 
        \ol|
