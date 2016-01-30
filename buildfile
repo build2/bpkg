@@ -3,5 +3,7 @@
 # license   : MIT; see accompanying LICENSE file
 
 d = bpkg/
-./: $d doc{LICENSE version} file{manifest}
+./: $d doc{INSTALL LICENSE version} file{manifest}
 include $d
+
+$src_base/doc{INSTALL}: install = false

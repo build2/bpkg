@@ -1,0 +1,5 @@
+Note: unless you specifically only need the build2 package manager and not the
+complete build2 toolchain, you should use the build2-toolchain distribution
+instead.
+
+@@ TODO
