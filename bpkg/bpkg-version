@@ -74,7 +74,7 @@
 #endif
 
 #define BPKG_USER_AGENT                                              \
-  "bpkg/" BPKG_VERSION_STR " (" BPKG_OS "; +http://build2.org)"      \
+  "bpkg/" BPKG_VERSION_STR " (" BPKG_OS "; +https://build2.org)"     \
   " libbpkg/" LIBBPKG_VERSION_STR                                    \
   " libbutl/" LIBBUTL_VERSION_STR
 
