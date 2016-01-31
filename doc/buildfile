@@ -1,0 +1,37 @@
+# file      : doc/buildfile
+# copyright : Copyright (c) 2014-2016 Code Synthesis Ltd
+# license   : MIT; see accompanying LICENSE file
+
+cmds =             \
+bpkg-cfg-add 	   \
+bpkg-cfg-create    \
+bpkg-cfg-fetch     \
+bpkg-help          \
+bpkg-pkg-build     \
+bpkg-pkg-clean     \
+bpkg-pkg-configure \
+bpkg-pkg-disfigure \
+bpkg-pkg-drop      \
+bpkg-pkg-fetch     \
+bpkg-pkg-install   \
+bpkg-pkg-purge     \
+bpkg-pkg-status    \
+bpkg-pkg-test      \
+bpkg-pkg-uninstall \
+bpkg-pkg-unpack    \
+bpkg-pkg-update    \
+bpkg-pkg-verify    \
+bpkg-rep-create    \
+bpkg-rep-info
+
+define css: file
+css{*}: extension = css
+
+define xhtml: doc
+xhtml{*}: extension = xhtml
+
+./: {man1 xhtml}{bpkg bpkg-common-options $cmds} \
+    css{common pre-box man} 	                 \
+    file{man-prologue.1 man-epilogue.1           \
+         man-prologue.xhtml man-epilogue.xhtml   \
+         cli.sh}
