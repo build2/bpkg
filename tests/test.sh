@@ -22,7 +22,12 @@
 #
 # --fetch wget
 # --fetch curl
-# --fetch fetch --tar bsdtar
+# --fetch fetch --fetch-option --no-verify-peer
+#
+# --tar bsdtar
+#
+# --sha256 shasum
+# --sha256 sha256-freebsd
 #
 
 trap 'exit 1' ERR
