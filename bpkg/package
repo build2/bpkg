@@ -18,7 +18,7 @@
 #include <bpkg/types>
 #include <bpkg/utility>
 
-#pragma db model version(2, 2, open)
+#pragma db model version(2, 2, closed)
 
 namespace bpkg
 {
