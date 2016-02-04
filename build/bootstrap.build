@@ -3,7 +3,7 @@
 # license   : MIT; see accompanying LICENSE file
 
 project = bpkg
-version = 0.2.0
+version = 0.3.0-a1
 
 using build@0.2.0
 using config
