@@ -1,2 +1,5 @@
 bpkg*.xhtml
 bpkg*.1
+build2-package-manager-manual*.ps
+build2-package-manager-manual*.pdf
+build2-package-manager-manual.xhtml

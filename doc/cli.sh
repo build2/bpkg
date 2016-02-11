@@ -13,6 +13,9 @@ while [ $# -gt 0 ]; do
   case $1 in
     --clean)
       rm -f bpkg*.xhtml bpkg*.1
+      rm -f build2-package-manager-manual*.ps \
+	 build2-package-manager-manual*.pdf   \
+	 build2-package-manager-manual.xhtml
       exit 0
       ;;
     *)
@@ -58,3 +61,18 @@ pkg-test pkg-uninstall pkg-unpack pkg-update pkg-verify rep-create rep-info"
 for p in $pages; do
   compile $p $o
 done
+
+# Manual.
+#
+cli -I .. -v version="$version" -v date="$date" \
+--generate-html --html-suffix .xhtml \
+--html-prologue-file doc-prologue.xhtml \
+--html-epilogue-file doc-epilogue.xhtml \
+--link-regex '%b([-.].+)%../../build2/doc/b$1%' \
+--output-prefix build2-package-manager- manual.cli
+
+html2ps -f doc.html2ps:a4.html2ps -o build2-package-manager-manual-a4.ps build2-package-manager-manual.xhtml
+ps2pdf14 -sPAPERSIZE=a4 -dOptimize=true -dEmbedAllFonts=true build2-package-manager-manual-a4.ps build2-package-manager-manual-a4.pdf
+
+html2ps -f doc.html2ps:letter.html2ps -o build2-package-manager-manual-letter.ps build2-package-manager-manual.xhtml
+ps2pdf14 -sPAPERSIZE=letter -dOptimize=true -dEmbedAllFonts=true build2-package-manager-manual-letter.ps build2-package-manager-manual-letter.pdf
