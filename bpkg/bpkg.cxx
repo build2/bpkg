@@ -4,12 +4,11 @@
 
 #include <cstring>   // strcmp()
 #include <iostream>
-#include <exception>
 
 #include <bpkg/types>
 #include <bpkg/utility>
-#include <bpkg/diagnostics>
 
+#include <bpkg/diagnostics>
 #include <bpkg/bpkg-options>
 #include <bpkg/bpkg-version>
 

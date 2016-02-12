@@ -9,8 +9,6 @@
 
 #include <odb/statement.hxx>
 
-#include <bpkg/utility>
-
 using namespace std;
 
 namespace bpkg

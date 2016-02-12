@@ -6,6 +6,8 @@
 #define BPKG_PKG_TEST
 
 #include <bpkg/types>
+#include <bpkg/utility>
+
 #include <bpkg/pkg-command>
 #include <bpkg/pkg-test-options>
 

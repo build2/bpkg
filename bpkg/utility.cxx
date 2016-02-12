@@ -4,14 +4,11 @@
 
 #include <bpkg/utility>
 
-#include <iostream>     // cout cin
-#include <system_error>
+#include <iostream>     // cout, cin
 
 #include <butl/process>
 
-#include <bpkg/types>
 #include <bpkg/diagnostics>
-
 #include <bpkg/common-options>
 
 using namespace std;

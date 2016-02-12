@@ -6,6 +6,8 @@
 #define BPKG_REP_CREATE
 
 #include <bpkg/types>
+#include <bpkg/utility>
+
 #include <bpkg/rep-create-options>
 
 namespace bpkg

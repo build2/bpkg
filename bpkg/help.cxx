@@ -4,14 +4,9 @@
 
 #include <bpkg/help>
 
-#include <system_error>
-
 #include <butl/pager>
 
-#include <bpkg/types>
-#include <bpkg/utility>
 #include <bpkg/diagnostics>
-
 #include <bpkg/bpkg-options>
 
 using namespace std;

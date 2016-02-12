@@ -4,12 +4,8 @@
 
 #include <bpkg/cfg-add>
 
-#include <stdexcept> // invalid_argument
-
-#include <bpkg/types>
 #include <bpkg/package>
 #include <bpkg/package-odb>
-#include <bpkg/utility>
 #include <bpkg/database>
 #include <bpkg/diagnostics>
 #include <bpkg/manifest-utility>

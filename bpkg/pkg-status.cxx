@@ -5,12 +5,9 @@
 #include <bpkg/pkg-status>
 
 #include <iostream>   // cout
-#include <functional> // function
 
-#include <bpkg/types>
 #include <bpkg/package>
 #include <bpkg/package-odb>
-#include <bpkg/utility>
 #include <bpkg/database>
 #include <bpkg/diagnostics>
 #include <bpkg/manifest-utility>

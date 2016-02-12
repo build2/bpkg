@@ -5,12 +5,7 @@
 #ifndef BPKG_DIAGNOSTICS
 #define BPKG_DIAGNOSTICS
 
-#include <string>
-#include <cstdint>
-#include <utility> // forward()
 #include <sstream>
-#include <ostream>
-#include <exception>
 
 #include <odb/tracer.hxx>
 
@@ -37,10 +32,10 @@ namespace bpkg
   // nameN arg arg ... nullptr nullptr
   //
   void
-  print_process (diag_record&, const char* const args[], std::size_t n = 0);
+  print_process (diag_record&, const char* const args[], size_t n = 0);
 
   void
-  print_process (const char* const args[], std::size_t n = 0);
+  print_process (const char* const args[], size_t n = 0);
 
   inline void
   print_process (diag_record& dr, const cstrings& args)
@@ -77,7 +72,7 @@ namespace bpkg
 
   // Diagnostic facility, base infrastructure (potentially reusable).
   //
-  extern std::ostream* diag_stream;
+  extern ostream* diag_stream;
 
   template <typename> struct diag_prologue;
   template <typename> struct diag_mark;
@@ -129,7 +124,7 @@ namespace bpkg
     @@ libstdc++ doesn't yet have the ostringstream move support.
 
     diag_record (diag_record&& r)
-        : os_ (std::move (r.os_))
+        : os_ (move (r.os_))
     {
       empty_ = r.empty_;
       r.empty_ = true;
@@ -172,11 +167,11 @@ namespace bpkg
 
     template <typename... A>
     diag_prologue (A&&... a)
-        : B (std::forward<A> (a)...), epilogue_ (nullptr) {}
+        : B (forward<A> (a)...), epilogue_ (nullptr) {}
 
     template <typename... A>
     diag_prologue (diag_epilogue e, A&&... a)
-        : B (std::forward<A> (a)...), epilogue_ (e) {}
+        : B (forward<A> (a)...), epilogue_ (e) {}
 
     template <typename T>
     diag_record
@@ -207,7 +202,7 @@ namespace bpkg
     diag_mark (): B () {}
 
     template <typename... A>
-    diag_mark (A&&... a): B (std::forward<A> (a)...) {}
+    diag_mark (A&&... a): B (forward<A> (a)...) {}
 
     template <typename T>
     diag_record
@@ -244,12 +239,12 @@ namespace bpkg
   {
   public:
     location () {}
-    location (string f, std::uint64_t l, std::uint64_t c)
-        : file (std::move (f)), line (l), column (c) {}
+    location (string f, uint64_t l, uint64_t c)
+        : file (move (f)), line (l), column (c) {}
 
     string file;
-    std::uint64_t line;
-    std::uint64_t column;
+    uint64_t line;
+    uint64_t column;
   };
 
   struct location_prologue_base
@@ -303,9 +298,7 @@ namespace bpkg
       return location_prologue (
         type_,
         name_,
-        location (std::forward<F> (f),
-                  std::forward<L> (l),
-                  std::forward<C> (c)));
+        location (forward<F> (f), forward<L> (l), forward<C> (c)));
     }
 
   protected:
@@ -382,9 +375,7 @@ namespace bpkg
         &epilogue,
         "error",
         nullptr,
-        location (std::forward<F> (f),
-                  std::forward<L> (l),
-                  std::forward<C> (c)));
+        location (forward<F> (f), forward<L> (l), forward<C> (c)));
     }
 
     static void

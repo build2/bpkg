@@ -5,8 +5,6 @@
 #include <bpkg/package>
 #include <bpkg/package-odb>
 
-#include <stdexcept> // invalid_argument
-
 #include <bpkg/database>
 
 using namespace std;

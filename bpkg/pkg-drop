@@ -6,6 +6,8 @@
 #define BPKG_PKG_DROP
 
 #include <bpkg/types>
+#include <bpkg/utility>
+
 #include <bpkg/pkg-drop-options>
 
 namespace bpkg

@@ -6,6 +6,8 @@
 #define BPKG_CFG_FETCH
 
 #include <bpkg/types>
+#include <bpkg/utility>
+
 #include <bpkg/cfg-fetch-options>
 
 namespace bpkg

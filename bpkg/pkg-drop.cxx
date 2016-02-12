@@ -6,14 +6,10 @@
 
 #include <map>
 #include <list>
-#include <vector>
 #include <iostream>   // cout
-#include <functional> // reference_wrapper
 
-#include <bpkg/types>
 #include <bpkg/package>
 #include <bpkg/package-odb>
-#include <bpkg/utility>
 #include <bpkg/database>
 #include <bpkg/diagnostics>
 #include <bpkg/satisfaction>

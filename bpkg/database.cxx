@@ -7,8 +7,6 @@
 #include <odb/schema-catalog.hxx>
 #include <odb/sqlite/exceptions.hxx>
 
-#include <bpkg/types>
-#include <bpkg/utility>
 #include <bpkg/diagnostics>
 
 using namespace std;

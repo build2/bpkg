@@ -7,17 +7,11 @@
 #include <map>
 #include <set>
 #include <list>
-#include <iterator>   // make_move_iterator()
 #include <iostream>   // cout
 #include <algorithm>  // find()
-#include <functional> // reference_wrapper
 
-#include <butl/utility> // reverse_iterate()
-
-#include <bpkg/types>
 #include <bpkg/package>
 #include <bpkg/package-odb>
-#include <bpkg/utility>
 #include <bpkg/database>
 #include <bpkg/diagnostics>
 #include <bpkg/satisfaction>

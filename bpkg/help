@@ -5,14 +5,14 @@
 #ifndef BPKG_HELP
 #define BPKG_HELP
 
-#include <iosfwd>
-
 #include <bpkg/types>
+#include <bpkg/utility>
+
 #include <bpkg/help-options>
 
 namespace bpkg
 {
-  using usage_function = cli::usage_para (std::ostream&, cli::usage_para);
+  using usage_function = cli::usage_para (ostream&, cli::usage_para);
 
   int
   help (const help_options&, const string& topic, usage_function* usage);

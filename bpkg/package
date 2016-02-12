@@ -7,10 +7,6 @@
 
 #include <map>
 #include <set>
-#include <vector>
-#include <cstdint> // uint16
-#include <ostream>
-#include <utility> // pair
 
 #include <odb/core.hxx>
 #include <odb/nested-container.hxx>
@@ -257,7 +253,7 @@ namespace bpkg
   #pragma db member(dependency::constraint) column("")
   #pragma db value(dependency_alternatives) definition
 
-  using dependencies = std::vector<dependency_alternatives>;
+  using dependencies = vector<dependency_alternatives>;
 
   // available_package
   //
@@ -294,7 +290,7 @@ namespace bpkg
     // with the thinking being that since the package is already in at
     // least fetched state, we shouldn't be needing its location.
     //
-    std::vector<package_location> locations; //@@ Map?
+    vector<package_location> locations; //@@ Map?
 
     // Package manifest data.
     //
@@ -357,10 +353,10 @@ namespace bpkg
   // (barely comprehensible) view/query to achieve this, doing it on
   // the "client side" is definitely more straightforward.
   //
-  std::vector<shared_ptr<available_package>>
+  vector<shared_ptr<available_package>>
   filter (const shared_ptr<repository>&, odb::result<available_package>&&);
 
-  std::pair<shared_ptr<available_package>, shared_ptr<repository>>
+  pair<shared_ptr<available_package>, shared_ptr<repository>>
   filter_one (const shared_ptr<repository>&, odb::result<available_package>&&);
 
   // package_state
@@ -379,8 +375,8 @@ namespace bpkg
   package_state
   to_package_state (const string&); // May throw invalid_argument.
 
-  inline std::ostream&
-  operator<< (std::ostream& os, package_state s) {return os << to_string (s);}
+  inline ostream&
+  operator<< (ostream& os, package_state s) {return os << to_string (s);}
 
   #pragma db map type(package_state) as(string) \
     to(to_string (?))                           \

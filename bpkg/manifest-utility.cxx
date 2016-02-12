@@ -4,8 +4,6 @@
 
 #include <bpkg/manifest-utility>
 
-#include <stdexcept> // invalid_argument
-
 #include <bpkg/diagnostics>
 
 using namespace std;

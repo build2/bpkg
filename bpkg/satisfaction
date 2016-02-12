@@ -6,8 +6,9 @@
 #define BPKG_SATISFACTION
 
 #include <bpkg/types>
-#include <bpkg/package>
 #include <bpkg/utility>
+
+#include <bpkg/package>
 
 namespace bpkg
 {

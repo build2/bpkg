@@ -5,8 +5,6 @@
 #ifndef BPKG_FETCH
 #define BPKG_FETCH
 
-#include <exception>
-
 #include <bpkg/manifest>
 
 #include <bpkg/types>

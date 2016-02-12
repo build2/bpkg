@@ -5,14 +5,11 @@
 #include <bpkg/rep-info>
 
 #include <iostream>  // cout
-#include <stdexcept> // invalid_argument
 
 #include <bpkg/manifest>
 #include <bpkg/manifest-serializer>
 
 #include <bpkg/fetch>
-#include <bpkg/types>
-#include <bpkg/utility>
 #include <bpkg/diagnostics>
 #include <bpkg/manifest-utility>
 

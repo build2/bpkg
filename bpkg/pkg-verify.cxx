@@ -11,8 +11,6 @@
 
 #include <bpkg/manifest-parser>
 
-#include <bpkg/types>
-#include <bpkg/utility>
 #include <bpkg/diagnostics>
 
 using namespace std;

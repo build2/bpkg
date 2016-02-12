@@ -6,6 +6,8 @@
 #define BPKG_PKG_BUILD
 
 #include <bpkg/types>
+#include <bpkg/utility>
+
 #include <bpkg/pkg-build-options>
 
 namespace bpkg

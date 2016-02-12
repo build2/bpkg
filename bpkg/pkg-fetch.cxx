@@ -7,10 +7,8 @@
 #include <bpkg/manifest>
 
 #include <bpkg/fetch>
-#include <bpkg/types>
 #include <bpkg/package>
 #include <bpkg/package-odb>
-#include <bpkg/utility>
 #include <bpkg/checksum>
 #include <bpkg/database>
 #include <bpkg/diagnostics>

@@ -4,10 +4,8 @@
 
 #include <bpkg/pkg-configure>
 
-#include <bpkg/types>
 #include <bpkg/package>
 #include <bpkg/package-odb>
-#include <bpkg/utility>
 #include <bpkg/database>
 #include <bpkg/diagnostics>
 #include <bpkg/satisfaction>

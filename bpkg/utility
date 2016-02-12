@@ -5,9 +5,14 @@
 #ifndef BPKG_UTILITY
 #define BPKG_UTILITY
 
-#include <memory>    // make_shared()
-#include <cassert>
-#include <utility>   // move()
+#include <memory>   // make_shared()
+#include <string>   // to_string()
+#include <utility>  // move(), forward(), declval(), make_pair()
+#include <cassert>  // assert()
+#include <iterator> // make_move_iterator()
+
+#include <butl/utility> // reverse_iterate()
+
 #include <exception> // uncaught_exception()
 
 #include <butl/filesystem>
@@ -17,8 +22,17 @@
 namespace bpkg
 {
   using std::move;
+  using std::forward;
+  using std::declval;
+
+  using std::make_pair;
   using std::make_shared;
-  using std::to_string; // To complement bpkg::to_string().
+  using std::make_move_iterator;
+  using std::to_string;
+
+  // <butl/utility>
+  //
+  using butl::reverse_iterate;
 
   // Y/N prompt. The def argument, if specified, should be either 'y'
   // or 'no'. It is used as the default answer, in case the user just

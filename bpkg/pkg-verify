@@ -8,6 +8,8 @@
 #include <bpkg/manifest>
 
 #include <bpkg/types>
+#include <bpkg/utility>
+
 #include <bpkg/pkg-verify-options>
 
 namespace bpkg

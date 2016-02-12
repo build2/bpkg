@@ -7,15 +7,11 @@
 #include <map>
 #include <fstream>
 #include <iostream>
-#include <system_error>
 
 #include <butl/filesystem> // dir_iterator
 
 #include <bpkg/manifest>
 #include <bpkg/manifest-serializer>
-
-#include <bpkg/types>
-#include <bpkg/utility>
 
 #include <bpkg/checksum>
 #include <bpkg/fetch>

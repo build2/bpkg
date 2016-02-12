@@ -6,6 +6,8 @@
 #define BPKG_REP_INFO
 
 #include <bpkg/types>
+#include <bpkg/utility>
+
 #include <bpkg/rep-info-options>
 
 namespace bpkg
