@@ -2,6 +2,7 @@
 // copyright : Copyright (c) 2014-2016 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
+#include <cstring>   // strcmp()
 #include <iostream>
 #include <exception>
 
@@ -41,18 +42,46 @@
 using namespace std;
 using namespace bpkg;
 
-// Initialize the command option class O with the common options
-// and then parse the rest of the arguments. Once this is done,
-// use the "final" values of the common options to do global
-// initializations (verbosity level, etc).
+// Initialize the command option class O with the common options and then
+// parse the rest of the command line placing non-option arguments to args.
+// Once this is done, use the "final" values of the common options to do
+// global initializations (verbosity level, etc).
 //
 template <typename O>
 static O
-parse (const common_options& co, cli::scanner& s)
+parse (const common_options& co, cli::scanner& scan, strings& args)
 {
   O o;
   static_cast<common_options&> (o) = co;
-  o.parse (s);
+
+  // We want to be able to specify options and arguments in any order (it is
+  // really handy to just add -v at the end of the command line).
+  //
+  for (bool opt (true); scan.more (); )
+  {
+    if (opt)
+    {
+      // If we see first "--", then we are done parsing options.
+      //
+      if (strcmp (scan.peek (), "--") == 0)
+      {
+        scan.next ();
+        opt = false;
+        continue;
+      }
+
+      // Parse the next chunk of options until we reach an argument (or eos).
+      //
+      o.parse (scan);
+
+      if (!scan.more ())
+        break;
+
+      // Fall through.
+    }
+
+    args.push_back (scan.next ());
+  }
 
   // Global initializations.
   //
@@ -70,12 +99,12 @@ try
 {
   using namespace cli;
 
-  argv_file_scanner args (argc, argv, "--options-file");
+  argv_file_scanner scan (argc, argv, "--options-file");
 
   // First parse common options and --version/--help.
   //
   options o;
-  o.parse (args, unknown_mode::stop);
+  o.parse (scan, unknown_mode::stop);
 
   if (o.version ())
   {
@@ -87,19 +116,22 @@ try
     return 0;
   }
 
-  if (o.help ())
-    return help (help_options (), "", nullptr);
+  strings argsv; // To be filled by parse() above.
+  vector_scanner args (argsv);
 
   const common_options& co (o);
 
+  if (o.help ())
+    return help (parse<help_options> (co, scan, argsv), "", nullptr);
+
   // The next argument should be a command.
   //
-  if (!args.more ())
+  if (!scan.more ())
     fail << "bpkg command expected" <<
       info << "run 'bpkg help' for more information";
 
   int cmd_argc (2);
-  char* cmd_argv[] {argv[0], const_cast<char*> (args.next ())};
+  char* cmd_argv[] {argv[0], const_cast<char*> (scan.next ())};
   commands cmd;
   cmd.parse (cmd_argc, cmd_argv, true, unknown_mode::stop);
 
@@ -116,7 +148,7 @@ try
 
   if (h)
   {
-    ho = parse<help_options> (co, args);
+    ho = parse<help_options> (co, scan, argsv);
 
     if (args.more ())
     {
@@ -158,9 +190,9 @@ try
     //  if (h)
     //    r = help (ho, "pkg-verify", print_bpkg_pkg_verify_usage);
     //  else
-    //    r = pkg_verify (parse<pkg_verify_options> (co, args), args);
+    //    r = pkg_verify (parse<pkg_verify_options> (co, scan, argsv), args);
     //
-    //  return 0;
+    //  break;
     // }
     //
 #define COMMAND_IMPL(NP, SP, CMD)                                       \
@@ -169,7 +201,7 @@ try
       if (h)                                                            \
         r = help (ho, SP#CMD, print_bpkg_##NP##CMD##_usage);            \
       else                                                              \
-        r = NP##CMD (parse<NP##CMD##_options> (co, args), args);        \
+        r = NP##CMD (parse<NP##CMD##_options> (co, scan, argsv), args); \
                                                                         \
       break;                                                            \
     }
@@ -234,9 +266,7 @@ catch (const failed&)
 }
 catch (const cli::exception& e)
 {
-  *diag_stream << "error: ";
-  e.print (*diag_stream);
-  *diag_stream << endl;
+  error << e;
   return 1;
 }
 /*

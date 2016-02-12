@@ -101,11 +101,11 @@ if! $cli.loaded
 
 # Option length must be the same to get commands/topics/options aligned.
 #
-cli.options += -I $src_root --include-with-brackets --include-prefix bpkg \
---guard-prefix BPKG --cxx-prologue "#include <bpkg/types-parsers>"        \
---cli-namespace bpkg::cli --generate-file-scanner --generate-specifier    \
---generate-parse --ansi-color --page-usage 'bpkg::print_$name$_'          \
---include-base-last --option-length 23
+cli.options += -I $src_root --include-with-brackets --include-prefix bpkg   \
+--guard-prefix BPKG --cxx-prologue "#include <bpkg/types-parsers>"          \
+--cli-namespace bpkg::cli --generate-vector-scanner --generate-file-scanner \
+--generate-specifier --generate-parse --page-usage 'bpkg::print_$name$_'    \
+--ansi-color --include-base-last --option-length 23
 
 cli.cxx{common-options}: cli.options += --short-usage --long-usage # Both.
 cli.cxx{bpkg-options}: cli.options += --short-usage --suppress-undocumented

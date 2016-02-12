@@ -26,11 +26,11 @@ namespace bpkg
      packages, and repositories using a set of commands that are summarized
      below.
 
-     For a detailed description of any command or help topic, use the \cb{help}
-     command or see the corresponding man page (the man pages have the
-     \cb{bpkg-} prefix, for example \l{bpkg-help(1)}). Note that the common
-     options can also be specified as part of the command-specific options, for
-     convenience."
+     For a detailed description of any command or help topic, use the
+     \cb{help} command or see the corresponding man page (the man pages have
+     the \cb{bpkg-} prefix, for example \l{bpkg-help(1)}). Note also that
+     <command-options> and <command-args> can be specified in any order and
+     <common-options> can be specified as part of <command-options>."
   }
 
   // For usage it's nice to see the list of commands on the first page. So
@@ -152,9 +152,7 @@ namespace bpkg
 
     bool cfg-create|create
     {
-      "<dir>",
-      "\l{bpkg-cfg-create(1)} \- create configuration",
-      ""
+      "\l{bpkg-cfg-create(1)} \- create configuration"
     }
 
     bool cfg-add|add
@@ -218,9 +216,7 @@ namespace bpkg
 
     bool pkg-fetch
     {
-      "<pkg>/<ver>",
-      "\l{bpkg-pkg-fetch(1)} \- fetch package archive",
-      ""
+      "\l{bpkg-pkg-fetch(1)} \- fetch package archive"
     }
 
     bool pkg-unpack
