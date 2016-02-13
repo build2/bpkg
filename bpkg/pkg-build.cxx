@@ -19,6 +19,7 @@
 
 #include <bpkg/common-options>
 
+#include <bpkg/pkg-drop>
 #include <bpkg/pkg-fetch>
 #include <bpkg/pkg-unpack>
 #include <bpkg/pkg-update>
@@ -1133,6 +1134,22 @@ namespace bpkg
     // We are also going to combine purge/fetch/unpack into a single step
     // and use the replace mode so it will become just fetch/unpack.
     //
+    // Almost forgot, there is one more thing: when we upgrade or downgrade a
+    // package, it may change the list of its prerequisites. Which means we
+    // may end up with packages that are no longer necessary and it would be
+    // nice to offer to drop those. This, howeve, is a tricky business and is
+    // the domain of pkg_drop(). For example, a prerequisite may still have
+    // other dependents (so it looks like we shouldn't be dropping it) but
+    // they are all from the "drop set" (so we should offer to drop it after
+    // all); pkg_drop() knows how to deal with all this.
+    //
+    // So what we are going to do is this: before disfiguring packages we will
+    // collect all their old prerequisites. This will be the "potentially to
+    // drop" list. Then, after configuration, when the new dependencies are
+    // established, we will pass them to pkg_drop() whose job will be to
+    // figure out which ones can be dropped, prompt the user, etc.
+    //
+    set<shared_ptr<selected_package>> drop_pkgs;
 
     // disfigure
     //
@@ -1150,6 +1167,20 @@ namespace bpkg
       // always leave the configuration in a valid state.
       //
       transaction t (db.begin ());
+
+      // Collect prerequisites to be potentially dropped.
+      //
+      if (!o.keep_prerequisite ())
+      {
+        for (const auto& pair: sp->prerequisites)
+        {
+          shared_ptr<selected_package> pp (pair.first.load ());
+
+          if (!pp->hold_package)
+            drop_pkgs.insert (move (pp));
+        }
+      }
+
       pkg_disfigure (c, o, t, sp); // Commits the transaction.
       assert (sp->state == package_state::unpacked);
 
@@ -1291,6 +1322,12 @@ namespace bpkg
         }
       }
     }
+
+    // Now that we have the final dependency state, see if we need to drop
+    // packages that are no longer necessary.
+    //
+    if (!drop_pkgs.empty ())
+      pkg_drop (c, o, db, drop_pkgs, !o.yes ());
 
     if (o.configure_only ())
       return 0;

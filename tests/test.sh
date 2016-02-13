@@ -1204,6 +1204,34 @@ test cfg-fetch
 test pkg-build -y libbaz
 stat libfoo "configured 1.1.0"
 
+# drop prerequisites on downgrade
+#
+test rep-create repository/1/satisfy/t5
+test cfg-create --wipe
+test cfg-add $rep/satisfy/t2
+test cfg-fetch
+
+test pkg-build -y libbar
+stat libfoo "configured 1.0.0"
+stat libbar "configured 1.0.0 hold_package"
+
+test cfg-add $rep/satisfy/t5
+test cfg-fetch
+
+test pkg-build -y libbar
+stat libfoo "available 1.0.0"
+stat libbar "configured 1.2.0 hold_package"
+
+#@@test pkg-build -y libbar/1.0.0 libfoo
+test pkg-build -y libbar/1.0.0
+test pkg-build -y libfoo
+stat libfoo "configured 1.0.0 hold_package"
+stat libbar "configured 1.0.0 hold_package hold_version; available 1.2.0"
+
+test pkg-build -y libbar
+stat libfoo "configured 1.0.0 hold_package"
+#@@stat libbar "configured 1.2.0 hold_package"
+stat libbar "configured 1.2.0 hold_package hold_version"
 
 ##
 ## pkg-drop

@@ -5,7 +5,10 @@
 #ifndef BPKG_PKG_DROP
 #define BPKG_PKG_DROP
 
+#include <set>
+
 #include <bpkg/types>
+#include <bpkg/forward> // database, selected_package
 #include <bpkg/utility>
 
 #include <bpkg/pkg-drop-options>
@@ -14,6 +17,16 @@ namespace bpkg
 {
   int
   pkg_drop (const pkg_drop_options&, cli::scanner& args);
+
+  // Examine the list of prerequisite packages and drop those that don't
+  // have any dependents. Note that it should be called in session.
+  //
+  void
+  pkg_drop (const dir_path& configuration,
+            const common_options&,
+            database&,
+            const std::set<shared_ptr<selected_package>>&,
+            bool prompt);
 }
 
 #endif // BPKG_PKG_DROP

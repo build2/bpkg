@@ -76,7 +76,7 @@ namespace bpkg
       return map_.emplace (move (n), data_type {end (), {move (p), r}}).second;
     }
 
-    // Collect all the dependets of the user selection retutning the list
+    // Collect all the dependets of the user selection returning the list
     // of their names. Dependents of dependents are collected recursively.
     //
     dependent_names
@@ -90,7 +90,7 @@ namespace bpkg
 
         // Unconfigured package cannot have any dependents.
         //
-        if (dp.reason == drop_reason::user &&
+        if (dp.reason != drop_reason::dependent &&
             dp.package->state == package_state::configured)
           collect_dependents (db, dns, dp.package);
       }
@@ -150,11 +150,11 @@ namespace bpkg
 
       for (const auto& pair: p->prerequisites)
       {
-        const string& pn (pair.first.object_id ());
+        const lazy_shared_ptr<selected_package>& lpp (pair.first);
 
-        if (map_.find (pn) == map_.end ())
+        if (map_.find (lpp.object_id ()) == map_.end ())
         {
-          shared_ptr<selected_package> pp (db.load<selected_package> (pn));
+          shared_ptr<selected_package> pp (lpp.load ());
 
           if (!pp->hold_package) // Prune held packages.
           {
@@ -287,6 +287,103 @@ namespace bpkg
 
     map<string, data_type> map_;
   };
+
+  // Drop ordered list of packages.
+  //
+  static int
+  pkg_drop (const dir_path& c,
+            const common_options& o,
+            database& db,
+            const drop_packages& pkgs,
+            bool drop_prq,
+            bool print_only,
+            bool disfigure_only,
+            bool yes,
+            bool no)
+  {
+    // Print what we are going to do, then ask for the user's confirmation.
+    //
+    if (print_only || !(yes || no))
+    {
+      for (const drop_package& dp: pkgs)
+      {
+        // Skip prerequisites if we weren't instructed to drop them.
+        //
+        if (dp.reason == drop_reason::prerequisite && !drop_prq)
+          continue;
+
+        const shared_ptr<selected_package>& p (dp.package);
+
+        if (print_only)
+          cout << "drop " << p->name << endl;
+        else if (verb)
+          text << "drop " << p->name;
+      }
+
+      if (print_only)
+        return 0;
+    }
+
+    // Ask the user if we should continue.
+    //
+    if (no || !(yes || yn_prompt ("continue? [Y/n]", 'y')))
+      return 1;
+
+    // All that's left to do is first disfigure configured packages and
+    // then purge all of them. We do both left to right (i.e., from more
+    // dependent to less dependent). For disfigure this order is required.
+    // For purge, it will be the order closest to the one specified by the
+    // user.
+    //
+    for (const drop_package& dp: pkgs)
+    {
+      // Skip prerequisites if we weren't instructed to drop them.
+      //
+      if (dp.reason == drop_reason::prerequisite && !drop_prq)
+        continue;
+
+      const shared_ptr<selected_package>& p (dp.package);
+
+      if (p->state != package_state::configured)
+        continue;
+
+      // Each package is disfigured in its own transaction, so that we always
+      // leave the configuration in a valid state.
+      //
+      transaction t (db.begin ());
+      pkg_disfigure (c, o, t, p); // Commits the transaction.
+      assert (p->state == package_state::unpacked);
+
+      if (verb)
+        text << "disfigured " << p->name;
+    }
+
+    if (disfigure_only)
+      return 0;
+
+    // Purge.
+    //
+    for (const drop_package& dp: pkgs)
+    {
+      // Skip prerequisites if we weren't instructed to drop them.
+      //
+      if (dp.reason == drop_reason::prerequisite && !drop_prq)
+        continue;
+
+      const shared_ptr<selected_package>& p (dp.package);
+
+      assert (p->state == package_state::fetched ||
+              p->state == package_state::unpacked);
+
+      transaction t (db.begin ());
+      pkg_purge (c, t, p); // Commits the transaction, p is now transient.
+
+      if (verb)
+        text << "purged " << p->name;
+    }
+
+    return 0;
+  }
 
   int
   pkg_drop (const pkg_drop_options& o, cli::scanner& args)
@@ -421,87 +518,86 @@ namespace bpkg
       t.commit ();
     }
 
-    // Print what we are going to do, then ask for the user's confirmation.
+    return pkg_drop (c,
+                     o,
+                     db,
+                     pkgs,
+                     drop_prq,
+                     o.print_only (),
+                     o.disfigure_only (),
+                     o.yes (),
+                     o.no ());
+  }
+
+  // Examine the list of prerequsite packages and drop those that don't
+  // have any dependents.
+  //
+  void
+  pkg_drop (const dir_path& c,
+            const common_options& o,
+            database& db,
+            const set<shared_ptr<selected_package>>& prqs,
+            bool prompt)
+  {
+    assert (session::has_current ());
+
+    // Assemble the list of packages we will be dropping.
     //
-    if (o.print_only () || !(o.yes () || o.no ()))
+    drop_packages pkgs;
     {
-      for (const drop_package& dp: pkgs)
+      transaction t (db.begin ());
+
+      // First add all the "caller selection" of packages to the list and
+      // collect their prerequisites (these will be the candidates to drop
+      // as well).
+      //
+      for (const shared_ptr<selected_package>& p: prqs)
       {
-        // Skip prerequisites if we weren't instructed to drop them.
-        //
-        if (dp.reason == drop_reason::prerequisite && !drop_prq)
-          continue;
+        assert (p->state != package_state::broken);
 
-        const shared_ptr<selected_package>& p (dp.package);
-
-        if (o.print_only ())
-          cout << "drop " << p->name << endl;
-        else if (verb)
-          text << "drop " << p->name;
+        if (pkgs.collect (p, drop_reason::prerequisite))
+          pkgs.collect_prerequisites (db, p);
       }
 
-      if (o.print_only ())
-        return 0;
+      // Now arrange them (and their prerequisites) in the dependency order.
+      //
+      for (const shared_ptr<selected_package>& p: prqs)
+        pkgs.order (p->name);
+
+      // Finally filter out those that we cannot drop.
+      //
+      bool r (pkgs.filter_prerequisites (db));
+
+      t.commit ();
+
+      if (!r)
+        return; // Nothing can be dropped.
     }
 
-    // Ask the user if we should continue.
-    //
-    if (o.no () || !(o.yes () || yn_prompt ("continue? [Y/n]", 'y')))
-      return 1;
-
-    // All that's left to do is first disfigure configured packages and
-    // then purge all of them. We do both left to right (i.e., from more
-    // dependent to less dependent). For disfigure this order is required.
-    // For purge, it will be the order closest to the one specified by the
-    // user.
-    //
-    for (const drop_package& dp: pkgs)
+    if (prompt)
     {
-      // Skip prerequisites if we weren't instructed to drop them.
-      //
-      if (dp.reason == drop_reason::prerequisite && !drop_prq)
-        continue;
+      {
+        diag_record dr (text);
 
-      const shared_ptr<selected_package>& p (dp.package);
+        dr << "following prerequisite packages were automatically "
+           << "built and will no longer be necessary:";
 
-      if (p->state != package_state::configured)
-        continue;
+        for (const drop_package& dp: pkgs)
+          dr << text << dp.package->name;
+      }
 
-      // Each package is disfigured in its own transaction, so that we
-      // always leave the configuration in a valid state.
-      //
-      transaction t (db.begin ());
-      pkg_disfigure (c, o, t, p); // Commits the transaction.
-      assert (p->state == package_state::unpacked);
-
-      if (verb)
-        text << "disfigured " << p->name;
+      if (!yn_prompt ("drop prerequisite packages? [Y/n]", 'y'))
+        return;
     }
 
-    if (o.disfigure_only ())
-      return 0;
-
-    // Purge.
-    //
-    for (const drop_package& dp: pkgs)
-    {
-      // Skip prerequisites if we weren't instructed to drop them.
-      //
-      if (dp.reason == drop_reason::prerequisite && !drop_prq)
-        continue;
-
-      const shared_ptr<selected_package>& p (dp.package);
-
-      assert (p->state == package_state::fetched ||
-              p->state == package_state::unpacked);
-
-      transaction t (db.begin ());
-      pkg_purge (c, t, p); // Commits the transaction, p is now transient.
-
-      if (verb)
-        text << "purged " << p->name;
-    }
-
-    return 0;
+    pkg_drop (c,
+              o,
+              db,
+              pkgs,
+              true,   // Drop prerequisites (that's what we are here for).
+              false,  // Print-only (too late for that).
+              false,  // Disfigure-only (could be an option).
+              true,   // Yes (don't print the plan or prompt).
+              false); // No (we already said yes).
   }
 }

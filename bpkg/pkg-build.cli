@@ -52,6 +52,12 @@ namespace bpkg
       "Assume the answer to all prompts is \cb{yes}."
     }
 
+    bool --keep-prerequisite
+    {
+      "Don't offer to drop prerequsite packages that were automatically built
+       and will no longer be necessary."
+    }
+
     bool --print-only|-p
     {
       "Print to \cb{STDOUT} what would be done without actually doing
