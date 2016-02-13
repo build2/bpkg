@@ -1222,16 +1222,13 @@ test pkg-build -y libbar
 stat libfoo "available 1.0.0"
 stat libbar "configured 1.2.0 hold_package"
 
-#@@test pkg-build -y libbar/1.0.0 libfoo
-test pkg-build -y libbar/1.0.0
-test pkg-build -y libfoo
+test pkg-build -y libbar/1.0.0 libfoo
 stat libfoo "configured 1.0.0 hold_package"
 stat libbar "configured 1.0.0 hold_package hold_version; available 1.2.0"
 
 test pkg-build -y libbar
 stat libfoo "configured 1.0.0 hold_package"
-#@@stat libbar "configured 1.2.0 hold_package"
-stat libbar "configured 1.2.0 hold_package hold_version"
+stat libbar "configured 1.2.0 hold_package"
 
 ##
 ## pkg-drop

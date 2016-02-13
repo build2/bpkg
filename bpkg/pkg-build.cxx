@@ -191,11 +191,11 @@ namespace bpkg
     shared_ptr<available_package> available;  // Can be NULL, fake/transient.
     shared_ptr<bpkg::repository>  repository; // Can be NULL (orphan) or root.
 
-    // Hold flags. Note that we can only "increase" the values that are
+    // Hold flags. Note that we only "increase" the hold_package value that is
     // already in the selected package.
     //
-    bool hold_package;
-    bool hold_version;
+    optional<bool> hold_package;
+    optional<bool> hold_version;
 
     // Constraint value plus, normally, the dependent package name that
     // placed this constraint but can also be some other name for the
@@ -358,6 +358,16 @@ namespace bpkg
         p1->required_by.insert (p2->required_by.begin (),
                                 p2->required_by.end ());
 
+        // Also copy hold_* flags if they are "stronger".
+        //
+        if (!p1->hold_package ||
+            (p2->hold_package && *p2->hold_package > *p1->hold_package))
+          p1->hold_package = p2->hold_package;
+
+        if (!p1->hold_version ||
+            (p2->hold_version && *p2->hold_version > *p1->hold_version))
+          p1->hold_version = p2->hold_version;
+
         if (!replace)
           return false;
       }
@@ -499,11 +509,11 @@ namespace bpkg
           dsp,
           rp.first,
           rp.second,
-          false,  // Hold package.
-          false,  // Hold version.
-          {},     // Constraints.
-          {name}, // Required by.
-          false}; // Reconfigure.
+          nullopt,  // Hold package.
+          nullopt,  // Hold version.
+          {},       // Constraints.
+          {name},   // Required by.
+          false};   // Reconfigure.
 
         // Add our constraint, if we have one.
         //
@@ -520,8 +530,10 @@ namespace bpkg
           const version& sv (dsp->version);
           const version& av (rp.first->version);
 
+          // Fail if downgrade or held.
+          //
           bool u (av > sv);
-          bool f (dsp->hold_version || !u); // Fail if downgrade or held.
+          bool f (dsp->hold_version || !u);
 
           if (verb || f)
           {
@@ -734,11 +746,11 @@ namespace bpkg
                 move (dsp),
                 nullptr,
                 nullptr,
-                false,  // Hold package.
-                false,  // Hold version.
-                {},     // Constraints.
-                {n},    // Required by.
-                true}   // Reconfigure.
+                nullopt,  // Hold package.
+                nullopt,  // Hold version.
+                {},       // Constraints.
+                {n},      // Required by.
+                true}     // Reconfigure.
             }).first;
 
           i->second.position = insert (pos, i->second.package);
@@ -1298,15 +1310,17 @@ namespace bpkg
       const shared_ptr<selected_package>& sp (p.selected);
       assert (sp != nullptr);
 
-      // Note that we should only "increase" the hold state.
+      // Note that we should only "increase" the hold_package state. For
+      // version, if the user requested upgrade to the (unsepcified) latest,
+      // then we want to reset it.
       //
-      bool hp (p.hold_package && sp->hold_package != p.hold_package);
-      bool hv (p.hold_version && sp->hold_version != p.hold_version);
+      bool hp (p.hold_package ? *p.hold_package : sp->hold_package);
+      bool hv (p.hold_version ? *p.hold_version : sp->hold_version);
 
-      if (hp || hv)
+      if (hp != sp->hold_package || hv != sp->hold_version)
       {
-        if (hp) sp->hold_package = true;
-        if (hv) sp->hold_version = true;
+        sp->hold_package = hp;
+        sp->hold_version = hv;
 
         transaction t (db.begin ());
         db.update (sp);
