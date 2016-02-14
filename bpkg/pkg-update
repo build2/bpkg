@@ -23,9 +23,10 @@ namespace bpkg
   inline void
   pkg_update (const dir_path& configuration,
               const common_options& o,
-              const shared_ptr<selected_package>& p)
+              const strings& common_vars,
+              const vector<pkg_command_vars>& pkgs)
   {
-    pkg_command ("update", configuration, o, p);
+    pkg_command ("update", configuration, o, common_vars, pkgs);
   }
 }
 

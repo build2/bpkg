@@ -18,30 +18,6 @@ namespace bpkg
   pkg_command (const string& cmd,
                const dir_path& c,
                const common_options& o,
-               const shared_ptr<selected_package>& p)
-  {
-    tracer trace ("pkg_command");
-
-    level4 ([&]{trace << "command: " << cmd;});
-
-    assert (p->state == package_state::configured);
-    assert (p->out_root); // Should be present since configured.
-
-    dir_path out_root (c / *p->out_root); // Always relative.
-    level4 ([&]{trace << "out_root: " << out_root;});
-
-    // Form the buildspec.
-    //
-    string bspec (cmd + "(" + out_root.string () + "/)");
-    level4 ([&]{trace << "buildspec: " << bspec;});
-
-    run_b (o, bspec);
-  }
-
-  void
-  pkg_command (const string& cmd,
-               const dir_path& c,
-               const common_options& o,
                const strings& cvars,
                const vector<pkg_command_vars>& ps)
   {

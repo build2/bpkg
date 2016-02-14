@@ -30,12 +30,6 @@ namespace bpkg
   pkg_command (const string& cmd,
                const dir_path& configuration,
                const common_options&,
-               const shared_ptr<selected_package>&);
-
-  void
-  pkg_command (const string& cmd,
-               const dir_path& configuration,
-               const common_options&,
                const strings& common_vars,
                const vector<pkg_command_vars>&);
 }

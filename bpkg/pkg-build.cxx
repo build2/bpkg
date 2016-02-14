@@ -1348,19 +1348,27 @@ namespace bpkg
 
     // update
     //
+    // Here we want to update all the packages at once, to facilitate
+    // parallelism.
+    //
+    vector<pkg_command_vars> upkgs;
+
     for (const build_package& p: reverse_iterate (pkgs))
     {
       const shared_ptr<selected_package>& sp (p.selected);
 
       // Update the user selection only.
       //
-      if (find (names.begin (), names.end (), sp->name) == names.end ())
-        continue;
+      if (find (names.begin (), names.end (), sp->name) != names.end ())
+        upkgs.push_back (pkg_command_vars {sp, strings ()});
+    }
 
-      pkg_update (c, o, sp);
+    pkg_update (c, o, strings (), upkgs);
 
-      if (verb)
-        text << "updated " << sp->name << " " << sp->version;
+    if (verb)
+    {
+      for (const pkg_command_vars& pv: upkgs)
+        text << "updated " << pv.pkg->name << " " << pv.pkg->version;
     }
 
     return 0;
