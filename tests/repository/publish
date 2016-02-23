@@ -6,5 +6,11 @@
 # --dry-run
 # --progress
 #
-rsync -v -rlpt --exclude '.*' --copy-unsafe-links --prune-empty-dirs \
---delete-after $* 1/ build2.org:/var/bpkg/1/tests/
+rsync -v -rlpt --copy-unsafe-links \
+--prune-empty-dirs --delete-after --delete-excluded $* \
+--include '*/'            \
+--include '*.tar.gz'      \
+--include 'packages'      \
+--include 'repositories'  \
+--exclude '*'             \
+1/ build2.org:/var/bpkg/1/tests/
