@@ -394,7 +394,7 @@ namespace bpkg
       fail << "both --yes|-y and --no|-n specified";
 
     const dir_path& c (o.directory ());
-    level4 ([&]{trace << "configuration: " << c;});
+    l4 ([&]{trace << "configuration: " << c;});
 
     if (!args.more ())
       fail << "package name argument expected" <<
@@ -424,7 +424,7 @@ namespace bpkg
       while (args.more ())
       {
         string n (args.next ());
-        level4 ([&]{trace << "package " << n;});
+        l4 ([&]{trace << "package " << n;});
 
         shared_ptr<selected_package> p (db.find<selected_package> (n));
 

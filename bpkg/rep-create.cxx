@@ -69,7 +69,7 @@ namespace bpkg
       //
       if (p.string ().front () == '.')
       {
-        level4 ([&]{trace << "skipping '" << p << "' in " << d;});
+        l4 ([&]{trace << "skipping '" << p << "' in " << d;});
         continue;
       }
 
@@ -103,8 +103,8 @@ namespace bpkg
       //
       m.sha256sum = sha256 (o, a);
 
-      level4 ([&]{trace << m.name << " " << m.version << " in " << a
-                        << " sha256sum " << *m.sha256sum;});
+      l4 ([&]{trace << m.name << " " << m.version << " in " << a
+                    << " sha256sum " << *m.sha256sum;});
 
       // Add package archive location relative to the repository root.
       //
@@ -146,13 +146,13 @@ namespace bpkg
     if (d.empty ())
       throw invalid_path (d.string ());
 
-    level4 ([&]{trace << "creating repository in " << d;});
+    l4 ([&]{trace << "creating repository in " << d;});
 
     // Load the 'repositories' file to make sure it is there and
     // is valid.
     //
     repository_manifests rms (fetch_repositories (d, o.ignore_unknown ()));
-    level4 ([&]{trace << rms.size () - 1 << " prerequisite repository(s)";});
+    l4 ([&]{trace << rms.size () - 1 << " prerequisite repository(s)";});
 
     // While we could have serialized as we go along, the order of
     // packages will be pretty much random and not reproducible. By

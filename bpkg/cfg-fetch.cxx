@@ -32,7 +32,7 @@ namespace bpkg
     tracer_guard tg (db, trace);
 
     const repository_location& rl (r->location);
-    level4 ([&]{trace << r->name << " " << rl;});
+    l4 ([&]{trace << r->name << " " << rl;});
     assert (rl.absolute () || rl.remote ());
 
     // The fetch_*() functions below will be quiet at level 1, which
@@ -148,13 +148,13 @@ namespace bpkg
       {
       case repository_role::complement:
         {
-          level4 ([&]{trace << pr->name << " complement of " << r->name;});
+          l4 ([&]{trace << pr->name << " complement of " << r->name;});
           r->complements.insert (lazy_shared_ptr<repository> (db, pr));
           break;
         }
       case repository_role::prerequisite:
         {
-          level4 ([&]{trace << pr->name << " prerequisite of " << r->name;});
+          l4 ([&]{trace << pr->name << " prerequisite of " << r->name;});
           r->prerequisites.insert (lazy_weak_ptr<repository> (db, pr));
           break;
         }
@@ -233,7 +233,7 @@ namespace bpkg
     tracer trace ("cfg_fetch");
 
     dir_path c (o.directory ());
-    level4 ([&]{trace << "configuration: " << c;});
+    l4 ([&]{trace << "configuration: " << c;});
 
     database db (open (c, trace));
     transaction t (db.begin ());
@@ -256,11 +256,11 @@ namespace bpkg
     {
       if (r == root)
       {
-        level5 ([&]{trace << "skipping root";});
+        l5 ([&]{trace << "skipping root";});
       }
       else if (ua.find (lazy_shared_ptr<repository> (db, r)) != ua.end ())
       {
-        level4 ([&]{trace << "cleaning " << r->name;});
+        l4 ([&]{trace << "cleaning " << r->name;});
 
         r->complements.clear ();
         r->prerequisites.clear ();
@@ -269,7 +269,7 @@ namespace bpkg
       }
       else
       {
-        level4 ([&]{trace << "erasing " << r->name;});
+        l4 ([&]{trace << "erasing " << r->name;});
         db.erase (r);
       }
     }

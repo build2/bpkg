@@ -334,8 +334,8 @@ namespace bpkg
               swap (p1, p2);
           }
 
-          level4 ([&]{trace << "pick " << n << " " << p1->available->version
-                            << " over " << p2->available->version;});
+          l4 ([&]{trace << "pick " << n << " " << p1->available->version
+                        << " over " << p2->available->version;});
         }
 
         // See if we are replacing the object. If not, then we don't
@@ -375,7 +375,7 @@ namespace bpkg
       {
         string n (pkg.available->id.name); // Note: copy; see emplace() below.
 
-        level4 ([&]{trace << "add " << n << " " << pkg.available->version;});
+        l4 ([&]{trace << "add " << n << " " << pkg.available->version;});
 
         // This is the first time we are adding this package name to the
         // map. If it is already selected, then we need to make sure that
@@ -778,7 +778,7 @@ namespace bpkg
     tracer trace ("pkg_build");
 
     const dir_path& c (o.directory ());
-    level4 ([&]{trace << "configuration: " << c;});
+    l4 ([&]{trace << "configuration: " << c;});
 
     if (!args.more ())
       fail << "package name argument expected" <<
@@ -841,7 +841,7 @@ namespace bpkg
             // This is a package archive (note that we shouldn't throw
             // failed from here on).
             //
-            level4 ([&]{trace << "archive " << a;});
+            l4 ([&]{trace << "archive " << a;});
             n = m.name;
             v = m.version;
             ar = root;
@@ -874,7 +874,7 @@ namespace bpkg
             // This is a package directory (note that we shouldn't throw
             // failed from here on).
             //
-            level4 ([&]{trace << "directory " << d;});
+            l4 ([&]{trace << "directory " << d;});
             n = m.name;
             v = m.version;
             ap = make_shared<available_package> (move (m));
@@ -904,7 +904,7 @@ namespace bpkg
           {
             n = parse_package_name (s);
             v = parse_package_version (s);
-            level4 ([&]{trace << "package " << n << "; version " << v;});
+            l4 ([&]{trace << "package " << n << "; version " << v;});
 
             // Either get the user-specified version or the latest.
             //
@@ -1016,8 +1016,7 @@ namespace bpkg
 
         // Finally add this package to the list.
         //
-        level4 ([&]{trace << "collect " << ap->id.name << " "
-                          << ap->version;});
+        l4 ([&]{trace << "collect " << ap->id.name << " " << ap->version;});
 
         build_package p {
           move (sp),

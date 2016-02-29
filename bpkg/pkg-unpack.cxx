@@ -39,7 +39,7 @@ namespace bpkg
     // Verify the directory is a package and get its manifest.
     //
     package_manifest m (pkg_verify (d, true));
-    level4 ([&]{trace << d << ": " << m.name << " " << m.version;});
+    l4 ([&]{trace << d << ": " << m.name << " " << m.version;});
 
     // Make the package and configuration paths absolute and normalized.
     // If the package is inside the configuration, use the relative path.
@@ -132,7 +132,7 @@ namespace bpkg
       fail << "package " << name << " is " << p->state <<
         info << "expected it to be fetched";
 
-    level4 ([&]{trace << p->name << " " << p->version;});
+    l4 ([&]{trace << p->name << " " << p->version;});
 
     assert (p->archive); // Should have archive in the fetched state.
 
@@ -141,7 +141,7 @@ namespace bpkg
     //
     path a (p->archive->absolute () ? *p->archive : c / *p->archive);
 
-    level4 ([&]{trace << "archive: " << a;});
+    l4 ([&]{trace << "archive: " << a;});
 
     // Extract the package directory. Currently we always extract it
     // into the configuration directory. But once we support package
@@ -222,7 +222,7 @@ namespace bpkg
       fail << "--replace|-r can only be specified with --existing|-e";
 
     const dir_path& c (o.directory ());
-    level4 ([&]{trace << "configuration: " << c;});
+    l4 ([&]{trace << "configuration: " << c;});
 
     database db (open (c, trace));
     transaction t (db.begin ());

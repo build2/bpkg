@@ -21,7 +21,7 @@ namespace bpkg
     tracer trace ("cfg_add");
 
     dir_path c (o.directory ());
-    level4 ([&]{trace << "configuration: " << c;});
+    l4 ([&]{trace << "configuration: " << c;});
 
     if (!args.more ())
       fail << "repository location argument expected" <<

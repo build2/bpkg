@@ -136,12 +136,12 @@ namespace bpkg
     if (!exists (a))
       fail << "archive file '" << a << "' does not exist";
 
-    level4 ([&]{trace << "archive: " << a << ", purge: " << purge;});
+    l4 ([&]{trace << "archive: " << a << ", purge: " << purge;});
 
     // Verify archive is a package and get its manifest.
     //
     package_manifest m (pkg_verify (co, a, true));
-    level4 ([&]{trace << m.name << " " << m.version;});
+    l4 ([&]{trace << m.name << " " << m.version;});
 
     // Check/diagnose an already existing package.
     //
@@ -249,7 +249,7 @@ namespace bpkg
     tracer trace ("pkg_fetch");
 
     dir_path c (o.directory ());
-    level4 ([&]{trace << "configuration: " << c;});
+    l4 ([&]{trace << "configuration: " << c;});
 
     database db (open (c, trace));
     transaction t (db.begin ());

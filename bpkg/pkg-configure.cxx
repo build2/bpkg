@@ -40,8 +40,8 @@ namespace bpkg
                        : c / *p->src_root);
     dir_path out_root (c / dir_path (p->name + "-" + p->version.string ()));
 
-    level4 ([&]{trace << "src_root: " << src_root << ", "
-                      << "out_root: " << out_root;});
+    l4 ([&]{trace << "src_root: " << src_root << ", "
+                  << "out_root: " << out_root;});
 
     // Verify all our prerequisites are configured and populate the
     // prerequisites list.
@@ -110,7 +110,7 @@ namespace bpkg
         src_root.string () + "/@" +
         out_root.string () + "/)";
 
-    level4 ([&]{trace << "buildspec: " << bspec;});
+    l4 ([&]{trace << "buildspec: " << bspec;});
 
     // Configure.
     //
@@ -149,7 +149,7 @@ namespace bpkg
     tracer trace ("pkg_configure");
 
     const dir_path& c (o.directory ());
-    level4 ([&]{trace << "configuration: " << c;});
+    l4 ([&]{trace << "configuration: " << c;});
 
     // Sort arguments into the package name and configuration variables.
     //
@@ -185,7 +185,7 @@ namespace bpkg
       fail << "package " << n << " is " << p->state <<
         info << "expected it to be unpacked";
 
-    level4 ([&]{trace << p->name << " " << p->version;});
+    l4 ([&]{trace << p->name << " " << p->version;});
 
     pkg_configure (c, o, t, p, vars); // Commits the transaction.
 

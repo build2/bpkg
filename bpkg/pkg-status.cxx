@@ -23,7 +23,7 @@ namespace bpkg
     tracer trace ("pkg_status");
 
     const dir_path& c (o.directory ());
-    level4 ([&]{trace << "configuration: " << c;});
+    l4 ([&]{trace << "configuration: " << c;});
 
     if (!args.more ())
       fail << "package name argument expected" <<
@@ -41,7 +41,7 @@ namespace bpkg
       string n (parse_package_name (arg));
       version v (parse_package_version (arg));
 
-      level4 ([&]{trace << "package " << n << "; version " << v;});
+      l4 ([&]{trace << "package " << n << "; version " << v;});
 
       // First search in the packages that already exist in this configuration.
       //

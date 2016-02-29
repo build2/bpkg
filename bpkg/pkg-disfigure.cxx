@@ -65,8 +65,8 @@ namespace bpkg
                        : c / *p->src_root);
     dir_path out_root (c / *p->out_root); // Always relative.
 
-    level4 ([&]{trace << "src_root: " << src_root << ", "
-                      << "out_root: " << out_root;});
+    l4 ([&]{trace << "src_root: " << src_root << ", "
+                  << "out_root: " << out_root;});
 
     // Form the buildspec.
     //
@@ -91,7 +91,7 @@ namespace bpkg
           out_root.string () + "/)";
     }
 
-    level4 ([&]{trace << "buildspec: " << bspec;});
+    l4 ([&]{trace << "buildspec: " << bspec;});
 
     // Disfigure.
     //
@@ -132,7 +132,7 @@ namespace bpkg
     tracer trace ("pkg_disfigure");
 
     const dir_path& c (o.directory ());
-    level4 ([&]{trace << "configuration: " << c;});
+    l4 ([&]{trace << "configuration: " << c;});
 
     if (!args.more ())
       fail << "package name argument expected" <<
@@ -152,7 +152,7 @@ namespace bpkg
       fail << "package " << n << " is " << p->state <<
         info << "expected it to be configured";
 
-    level4 ([&]{trace << p->name << " " << p->version;});
+    l4 ([&]{trace << p->name << " " << p->version;});
 
     pkg_disfigure (c, o, t, p); // Commits the transaction.
 

@@ -222,7 +222,7 @@ namespace bpkg
     if (!exists (a))
       fail << "archive file '" << a << "' does not exist";
 
-    level4 ([&]{trace << "archive: " << a;});
+    l4 ([&]{trace << "archive: " << a;});
 
     // If we were asked to run silent, don't yap about the reason
     // why the package is invalid. Just return the error status.

@@ -64,14 +64,14 @@ namespace bpkg
         if (p != s.size () && s[p] == '.')
           wget_minor = static_cast<uint16_t> (stoul (string (s, p + 1)));
 
-        level4 ([&]{trace << "version " << wget_major << '.' << wget_minor;});
+        l4 ([&]{trace << "version " << wget_major << '.' << wget_minor;});
       }
       catch (const std::exception&)
       {
         wget_major = 0;
         wget_minor = 0;
 
-        level4 ([&]{trace << "unable to extract version from '" << l << "'";});
+        l4 ([&]{trace << "unable to extract version from '" << l << "'";});
       }
 
       return pr.wait ();

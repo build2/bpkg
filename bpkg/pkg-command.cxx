@@ -23,7 +23,7 @@ namespace bpkg
   {
     tracer trace ("pkg_command");
 
-    level4 ([&]{trace << "command: " << cmd;});
+    l4 ([&]{trace << "command: " << cmd;});
 
     // This one is a bit tricky: we can only update all the packages at once if
     // they don't have any package-specific variables. But let's try to handle
@@ -36,7 +36,7 @@ namespace bpkg
         if (!bspec.empty ())
         {
           bspec += ')';
-          level4 ([&]{trace << "buildspec: " << bspec;});
+          l4 ([&]{trace << "buildspec: " << bspec;});
           run_b (o, bspec, false, cvars, vars);
           bspec.clear ();
         }
@@ -56,7 +56,7 @@ namespace bpkg
       assert (p->out_root); // Should be present since configured.
 
       dir_path out_root (c / *p->out_root); // Always relative.
-      level4 ([&]{trace << p->name << " out_root: " << out_root;});
+      l4 ([&]{trace << p->name << " out_root: " << out_root;});
 
       if (bspec.back () != '(')
         bspec += ' ';
@@ -78,7 +78,7 @@ namespace bpkg
     tracer trace ("pkg_command");
 
     const dir_path& c (o.directory ());
-    level4 ([&]{trace << "configuration: " << c;});
+    l4 ([&]{trace << "configuration: " << c;});
 
     // First read the common variables.
     //
@@ -119,7 +119,7 @@ namespace bpkg
           fail << "package " << n << " is " << p->state <<
             info << "expected it to be configured";
 
-        level4 ([&]{trace << p->name << " " << p->version;});
+        l4 ([&]{trace << p->name << " " << p->version;});
 
         // Read package-specific variables.
         //

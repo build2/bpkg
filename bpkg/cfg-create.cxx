@@ -25,18 +25,18 @@ namespace bpkg
       fail << "--wipe requires explicit --directory|-d";
 
     dir_path c (o.directory ());
-    level4 ([&]{trace << "creating configuration in " << c;});
+    l4 ([&]{trace << "creating configuration in " << c;});
 
     // If the directory already exists, make sure it is empty.
     // Otherwise, create it.
     //
     if (exists (c))
     {
-      level5 ([&]{trace << "directory " << c << " exists";});
+      l5 ([&]{trace << "directory " << c << " exists";});
 
       if (!empty (c))
       {
-        level5 ([&]{trace << "directory " << c << " not empty";});
+        l5 ([&]{trace << "directory " << c << " not empty";});
 
         if (!o.wipe ())
           fail << "directory " << c << " is not empty" <<
@@ -47,7 +47,7 @@ namespace bpkg
     }
     else
     {
-      level5 ([&]{trace << "directory " << c << " does not exist";});
+      l5 ([&]{trace << "directory " << c << " does not exist";});
       mk_p (c);
     }
 
