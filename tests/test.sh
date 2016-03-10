@@ -225,11 +225,24 @@ name: libbar
 version: 1.1.1
 summary: libbar
 license: MIT
+description: \\
+libbar is a very modern C++ XML parser.
+
+It has an API that we believe should have already been in Boost or even in
+the C++ standard library.
+
+\\
+changes: \\
+* Applied upstream patch for critical bug bar.
+
+* Applied upstream patch for critical bug foo.
+
+\\
 url: http://example.org
 email: pkg@example.org
 depends: libfoo >= 1.1.0
 location: libbar-1.1.1.tar.gz
-sha256sum: abb073e9729bbc914f26ed0dedad9f5ead2c73a36cbc1e8f2702d6fde7634ff3
+sha256sum: d09700602ff78ae405b6d4850e34660e939d27676e015a23b549884497c8bb45
 EOF
 
 

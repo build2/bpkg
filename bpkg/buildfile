@@ -8,6 +8,7 @@ import libs += libodb%lib{odb}
 import libs += libodb-sqlite%lib{odb-sqlite}
 
 exe{bpkg}:                                                                   \
+{hxx         cxx}{ archive          }                                        \
 {hxx            }{ bpkg-version     }                                        \
 {            cxx}{ bpkg             } {hxx ixx cxx}{ bpkg-options          } \
 {hxx         cxx}{ cfg-add          } {hxx ixx cxx}{ cfg-add-options       } \

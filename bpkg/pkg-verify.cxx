@@ -11,6 +11,7 @@
 
 #include <bpkg/manifest-parser>
 
+#include <bpkg/archive>
 #include <bpkg/diagnostics>
 
 using namespace std;
@@ -20,135 +21,110 @@ namespace bpkg
 {
   package_manifest
   pkg_verify (const common_options& co, const path& af, bool iu, bool diag)
+  try
   {
-    // Figure out the package directory. Strip the top-level extension
-    // and, as a special case, if the second-level extension is .tar,
-    // strip that as well (e.g., .tar.bz2).
-    //
-    path pd (af.leaf ().base ());
-    if (const char* e = pd.extension ())
-    {
-      if (e == string ("tar"))
-        pd = pd.base ();
-    }
-
-    // Extract the manifest.
-    //
+    dir_path pd (package_dir (af));
     path mf (pd / path ("manifest"));
 
-    cstrings args {co.tar ().string ().c_str ()};
-
-    // Add extra options.
+    // If diag is false, we need to make tar not print any diagnostics.
+    // There doesn't seem to be an option to suppress this and the only
+    // way is to redirect STDERR to something like /dev/null. To keep
+    // things simple, we are going to redirect it to STDOUT, which we
+    // in turn redirect to a pipe and use to parse the manifest data.
+    // If things go badly for tar and it starts spitting errors instead
+    // of the manifest, the manifest parser will fail. But that's ok
+    // since we assume that the child error is always the reason for
+    // the manifest parsing failure.
     //
-    for (const string& o: co.tar_option ())
-      args.push_back (o.c_str ());
+    process pr (start_extract (co, af, mf, diag));
 
-    // -O/--to-stdout -- extract to STDOUT.
-    //
-    args.push_back ("-O");
-
-    args.push_back ("-xf");
-    args.push_back (af.string ().c_str ());
-    args.push_back (mf.string ().c_str ());
-    args.push_back (nullptr);
-
-    if (verb >= 2)
-      print_process (args);
+    ifdstream is (pr.in_ofd);
+    is.exceptions (ifdstream::badbit | ifdstream::failbit);
 
     try
     {
-      // If diag is false, we need to make tar not print any diagnostics.
-      // There doesn't seem to be an option to suppress this and the only
-      // way is to redirect STDERR to something like /dev/null. To keep
-      // things simple, we are going to redirect it to STDOUT, which we
-      // in turn redirect to a pipe and use to parse the manifest data.
-      // If things go badly for tar and it starts spitting errors instead
-      // of the manifest, the manifest parser will fail. But that's ok
-      // since we assume that the child error is always the reason for
-      // the manifest parsing failure.
-      //
-      process pr (args.data (), 0, -1, (diag ? 2 : 1));
+      manifest_parser mp (is, mf.string ());
+      package_manifest m (mp, iu);
+      is.close ();
 
-      try
+      if (pr.wait ())
       {
-        ifdstream is (pr.in_ofd);
-        is.exceptions (ifdstream::badbit | ifdstream::failbit);
+        // Verify package archive/directory is <name>-<version>.
+        //
+        dir_path ed (m.name + "-" + m.version.string ());
 
-        manifest_parser mp (is, mf.string ());
-        package_manifest m (mp, iu);
-        is.close ();
-
-        if (pr.wait ())
-        {
-          // Verify package archive/directory is <name>-<version>.
-          //
-          path ed (m.name + "-" + m.version.string ());
-
-          if (pd != ed)
-          {
-            if (diag)
-              error << "package archive/directory name mismatch in " << af <<
-                info << "extracted from archive '" << pd << "'" <<
-                info << "expected from manifest '" << ed << "'";
-
-            throw failed ();
-          }
-
-          return m;
-        }
-
-        // Child existed with an error, fall through.
-      }
-      // Ignore these exceptions if the child process exited with
-      // an error status since that's the source of the failure.
-      //
-      catch (const manifest_parsing& e)
-      {
-        if (pr.wait ())
+        if (pd != ed)
         {
           if (diag)
-            error (e.name, e.line, e.column) << e.description <<
-              info << "package archive " << af;
+            error << "package archive/directory name mismatch in " << af <<
+              info << "extracted from archive '" << pd << "'" <<
+              info << "expected from manifest '" << ed << "'";
 
           throw failed ();
         }
-      }
-      catch (const ifdstream::failure&)
-      {
-        if (pr.wait ())
-        {
-          if (diag)
-            error << "unable to extract " << mf << " from " << af;
 
-          throw failed ();
-        }
+        return m;
       }
 
-      // We should only get here if the child exited with an error
-      // status.
-      //
-      assert (!pr.wait ());
-
-      // While it is reasonable to assuming the child process issued
-      // diagnostics, tar, specifically, doesn't mention the archive
-      // name.
-      //
-      if (diag)
-        error << af << " does not appear to be a bpkg package";
-
-      throw failed ();
+      // Child exited with an error, fall through.
     }
-    catch (const process_error& e)
+    // Ignore these exceptions if the child process exited with
+    // an error status since that's the source of the failure.
+    //
+    catch (const manifest_parsing& e)
     {
-      // Note: this is not an "invalid package" case, so no diag check.
+      // Before we used to just close the file descriptor to signal to the
+      // other end that we are not interested in the rest. But tar doesn't
+      // take this very well (SIGPIPE). So now we are going to skip until
+      // the end.
       //
-      error << "unable to execute " << args[0] << ": " << e.what ();
+      if (!is.eof ())
+        is.ignore (numeric_limits<streamsize>::max ());
+      is.close ();
 
-      if (e.child ())
-        exit (1);
+      if (pr.wait ())
+      {
+        if (diag)
+          error (e.name, e.line, e.column) << e.description <<
+            info << "package archive " << af;
 
-      throw failed ();
+        throw failed ();
+      }
     }
+    catch (const ifdstream::failure&)
+    {
+      is.close ();
+
+      if (pr.wait ())
+      {
+        if (diag)
+          error << "unable to extract " << mf << " from " << af;
+
+        throw failed ();
+      }
+    }
+
+    // We should only get here if the child exited with an error
+    // status.
+    //
+    assert (!pr.wait ());
+
+    // While it is reasonable to assuming the child process issued
+    // diagnostics, tar, specifically, doesn't mention the archive
+    // name.
+    //
+    if (diag)
+      error << af << " does not appear to be a bpkg package";
+
+    throw failed ();
+  }
+  catch (const process_error& e)
+  {
+    // Note: this is not an "invalid package" case, so no diag check.
+    //
+    error << "unable to extract manifest file from " << af << ": "
+          << e.what ();
+    throw failed ();
   }
 
   package_manifest

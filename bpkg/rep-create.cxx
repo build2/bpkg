@@ -13,8 +13,9 @@
 #include <bpkg/manifest>
 #include <bpkg/manifest-serializer>
 
-#include <bpkg/checksum>
 #include <bpkg/fetch>
+#include <bpkg/archive>
+#include <bpkg/checksum>
 #include <bpkg/diagnostics>
 
 #include <bpkg/pkg-verify>
@@ -109,6 +110,39 @@ namespace bpkg
       // Add package archive location relative to the repository root.
       //
       m.location = a.leaf (root);
+
+      dir_path pd (m.name + "-" + m.version.string ());
+
+      // Expand the description-file manifest value.
+      //
+      if (m.description && m.description->file)
+      {
+        path f (pd / m.description->path);
+        string s (extract (o, a, f));
+
+        if (s.empty ())
+          fail << "description-file value in manifest of package archive "
+               << a << " references empty file " << f;
+
+        m.description = text_file (move (s));
+      }
+
+      // Expand the changes-file manifest values.
+      //
+      for (auto& c: m.changes)
+      {
+        if (c.file)
+        {
+          path f (pd / c.path);
+          string s (extract (o, a, f));
+
+          if (s.empty ())
+            fail << "changes-file value in manifest of package archive " << a
+                 << " references empty file " << f;
+
+          c = text_file (move (s));
+        }
+      }
 
       package_key k {m.name, m.version}; // Argument evaluation order.
       auto r (map.emplace (move (k), package_data {a, move (m)}));
