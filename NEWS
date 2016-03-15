@@ -1,0 +1,23 @@
+Version 0.3.0
+
+  * Command line options and arguments can now be specified in any order. This
+    is especially useful if you want to re-run the previous command with -v:
+
+    bpkg update libfoo -v
+
+  * The pkg-build command will now offer to drop prerequisite packages that
+    are no longer necessary. This can happen if a package that is being
+    upgraded or downgraded changes its prerequisite set. You can use the
+    --keep-prerequisite option to suppress this behavior.
+
+  * The pkg-build command now updates all packages at once (with a single
+    build system invocation) instead of sequentially one at a time. This
+    should improve performance, especially once parallelism is supported.
+
+  * The rep-create command now loads the description-file and changes-file
+    files from the package archives and includes their contents inline into
+    the 'packages' manifest file.
+
+Version 0.2.0
+
+  * First public release.
