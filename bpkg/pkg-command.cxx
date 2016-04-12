@@ -31,16 +31,17 @@ namespace bpkg
     //
     string bspec;
 
-    auto run = [&trace, &o, &cvars, &bspec](const strings& vars = strings ())
+    auto run =
+      [&trace, &c, &o, &cvars, &bspec] ( const strings& vars = strings ())
+    {
+      if (!bspec.empty ())
       {
-        if (!bspec.empty ())
-        {
-          bspec += ')';
-          l4 ([&]{trace << "buildspec: " << bspec;});
-          run_b (o, bspec, false, cvars, vars);
-          bspec.clear ();
-        }
-      };
+        bspec += ')';
+        l4 ([&]{trace << "buildspec: " << bspec;});
+        run_b (o, c, bspec, false, vars, cvars);
+        bspec.clear ();
+      }
+    };
 
     for (const pkg_command_vars& pv: ps)
     {

@@ -79,17 +79,19 @@ namespace bpkg
   inline void
   run (const cstrings& args) {run (args.data ());}
 
-  // Run build2, mapping verbosity levels. If quiet is true, then
-  // run build2 quiet if our verbosity level is 1.
+  // Run build2, mapping verbosity levels. If quiet is true, then run build2
+  // quiet if our verbosity level is 1. Common vars (cvars) are set on the
+  // configuration scope.
   //
   class common_options;
 
   void
   run_b (const common_options&,
+         const dir_path& configuration,
          const string& buildspec,
          bool quiet = false,
-         const strings& vars1 = strings (),
-         const strings& vars2 = strings ());
+         const strings& pvars = strings (),
+         const strings& cvars = strings ());
 
   // Call a function if there is an exception.
   //

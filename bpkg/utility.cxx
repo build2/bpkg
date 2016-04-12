@@ -190,10 +190,11 @@ namespace bpkg
 
   void
   run_b (const common_options& co,
+         const dir_path& c,
          const string& bspec,
          bool quiet,
-         const strings& vars1,
-         const strings& vars2)
+         const strings& pvars,
+         const strings& cvars)
   {
     cstrings args {co.build ().string ().c_str ()};
 
@@ -220,10 +221,22 @@ namespace bpkg
 
     // Add config vars.
     //
-    for (const string& v: vars1)
-      args.push_back (v.c_str ());
+    strings storage;
+    storage.reserve (cvars.size ());
+    for (const string& v: cvars)
+    {
+      // Don't scope-qualify global variables.
+      //
+      if (v[0] != '!')
+      {
+        storage.push_back (c.string () + "/:" + v);
+        args.push_back (storage.back ().c_str ());
+      }
+      else
+        args.push_back (v.c_str ());
+    }
 
-    for (const string& v: vars2)
+    for (const string& v: pvars)
       args.push_back (v.c_str ());
 
     // Add buildspec.

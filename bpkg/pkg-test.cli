@@ -25,8 +25,8 @@ namespace bpkg
 
      Additional command line variables (<vars>, normally \cb{config.*}) can be
      passed to the build system by either specifying them before the packages,
-     in which case they apply to all of them, or after a specific package, in
-     which case they apply only to this package."
+     in which case they apply to the whole configuration, or after a specific
+     package, in which case they apply only to this package."
   }
 
   class pkg_test_options: configuration_options

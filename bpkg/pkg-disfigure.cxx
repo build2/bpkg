@@ -98,7 +98,7 @@ namespace bpkg
     try
     {
       if (exists (out_root))
-        run_b (o, bspec, true); // Run quiet.
+        run_b (o, c, bspec, true); // Run quiet.
 
       // Make sure the out directory is gone unless it is the same as src.
       //
