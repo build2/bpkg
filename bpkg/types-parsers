@@ -9,6 +9,7 @@
 #define BPKG_TYPES_PARSERS
 
 #include <bpkg/types>
+#include <bpkg/options-types>
 
 namespace bpkg
 {
@@ -31,6 +32,13 @@ namespace bpkg
     {
       static void
       parse (dir_path&, bool&, scanner&);
+    };
+
+    template <>
+    struct parser<auth>
+    {
+      static void
+      parse (auth&, bool&, scanner&);
     };
   }
 }

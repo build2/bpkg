@@ -138,6 +138,10 @@ namespace bpkg
     //
     run_b (o, c, "configure(" + c.string () + "/)", true, vars); // Run quiet.
 
+    // Create .bpkg/.
+    //
+    mk (c / dir_path (".bpkg"));
+
     // Create the database.
     //
     database db (open (c, trace, true));

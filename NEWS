@@ -1,3 +1,9 @@
+Version 0.4.0
+
+  * Add support for repository authentication. The rep-create command can now
+    sign the repository, and cfg-fetch and rep-info commands can authenticate
+    the repository being fetched.
+
 Version 0.3.0
 
   * Command line options and arguments can now be specified in any order. This

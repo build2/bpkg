@@ -7,14 +7,19 @@
 
 #include <map>
 #include <set>
+#include <ratio>
+#include <chrono>
+#include <type_traits> // static_assert
 
 #include <odb/core.hxx>
 #include <odb/nested-container.hxx>
 
+#include <butl/timestamp>
+
 #include <bpkg/types>
 #include <bpkg/utility>
 
-#pragma db model version(2, 2, closed)
+#pragma db model version(3, 3, open)
 
 namespace bpkg
 {
@@ -49,6 +54,29 @@ namespace bpkg
   #pragma db map type(optional_dir_path) as(bpkg::optional_string) \
     to((?) ? (?)->string () : bpkg::optional_string ())            \
     from((?) ? bpkg::dir_path (*(?)) : bpkg::optional_dir_path ())
+
+  // timestamp
+  //
+  using butl::timestamp;
+  using butl::timestamp_unknown;
+
+  // Ensure that timestamp can be represented in nonoseconds without loss of
+  // accuracy, so the following ODB mapping is adequate.
+  //
+  static_assert (
+    std::ratio_greater_equal<timestamp::period,
+                             std::chrono::nanoseconds::period>::value,
+    "The following timestamp ODB mapping is invalid");
+
+  // As pointed out in butl/timestamp we will overflow in year 2262, but by
+  // that time some larger basic type will be available for mapping.
+  //
+  #pragma db map type(timestamp) as(uint64_t)                 \
+    to(std::chrono::duration_cast<std::chrono::nanoseconds> ( \
+         (?).time_since_epoch ()).count ())                   \
+    from(butl::timestamp (                                    \
+      std::chrono::duration_cast<butl::timestamp::duration> ( \
+        std::chrono::nanoseconds (?))))
 
   // An image type that is used to map version to the database since
   // there is no way to modify individual components directly. We have
@@ -176,7 +204,7 @@ namespace bpkg
 
   // repository
   //
-  #pragma db object pointer(std::shared_ptr) session
+  #pragma db object pointer(shared_ptr) session
   class repository
   {
   public:
@@ -464,6 +492,90 @@ namespace bpkg
     friend class odb::access;
     selected_package () = default;
   };
+
+
+  // certificate
+  //
+  // Information extracted from a repository X.509 certificate. The actual
+  // certificate is stored on disk as .bpkg/certs/<fingerprint>.pem (we have
+  // to store it as a file because that's the only way to pass it to openssl).
+  //
+  // If a repository is not authenticated (has no certificate/signature,
+  // called unauth from now on), then we ask for the user's confirmation and
+  // create a dummy certificate in order not to ask for the same confirmation
+  // (for this repository) on next fetch. The problem is, there could be
+  // multiple sections in such a repository and it would be annoying to
+  // confirm all of them. So what we are going to do is create a dummy
+  // certificate not for this specific repository location but for a
+  // repository location only up to the version, so the name member will
+  // contain the name prefix rather than the full name (just like a normal
+  // certificate would). The fingerprint member for such a dummy certificate
+  // contains the SHA256 checksum of this name. Members other then name and
+  // fingerprint are meaningless for the dummy certificate.
+  //
+  #pragma db object pointer(shared_ptr) session
+  class certificate
+  {
+  public:
+    string fingerprint;  // Object id (note: SHA256 fingerprint).
+
+    string name;         // CN component of Subject.
+    string organization; // O component of Subject.
+    string email;        // email: in Subject Alternative Name.
+
+    timestamp start_date; // notBefore (UTC)
+    timestamp end_date;   // notAfter  (UTC)
+
+    bool
+    dummy () const {return start_date == timestamp_unknown;}
+
+    bool
+    expired () const
+    {
+      assert (!dummy ());
+      return timestamp::clock::now () > end_date;
+    }
+
+  public:
+    certificate (string f,
+                 string n,
+                 string o,
+                 string e,
+                 timestamp sd,
+                 timestamp ed)
+        : fingerprint (move (f)),
+          name (move (n)),
+          organization (move (o)),
+          email (move (e)),
+          start_date (move (sd)),
+          end_date (move (ed))
+    {
+    }
+
+    // Create dummy certificate.
+    //
+    certificate (string f, string n)
+        : fingerprint (move (f)),
+          name (move (n)),
+          start_date (timestamp_unknown),
+          end_date (timestamp_unknown)
+    {
+    }
+
+    // Database mapping.
+    //
+    #pragma db member(fingerprint) id
+
+  private:
+    friend class odb::access;
+    certificate () = default;
+  };
+
+  // Note: prints all the certificate information on one line so mostly
+  // useful for tracing.
+  //
+  ostream&
+  operator<< (ostream&, const certificate&);
 
   // Return a list of packages that depend on this package along with
   // their constraints.

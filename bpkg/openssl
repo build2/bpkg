@@ -1,0 +1,31 @@
+// file      : bpkg/openssl -*- C++ -*-
+// copyright : Copyright (c) 2014-2016 Code Synthesis Ltd
+// license   : MIT; see accompanying LICENSE file
+
+#ifndef BPKG_OPENSSL
+#define BPKG_OPENSSL
+
+#include <butl/process>
+
+#include <bpkg/types>
+#include <bpkg/utility>
+
+#include <bpkg/common-options>
+
+namespace bpkg
+{
+  // Start the openssl process. Parameters in, out, err flags if the caller
+  // wish to write to, or read from the process STDIN, STDOUT, STDERR streams.
+  // If out and err are both true, then STDERR is redirected to STDOUT, and
+  // they both can be read from in_ofd descriptor.
+  //
+  butl::process
+  start_openssl (const common_options&,
+                 const char* command,
+                 const cstrings& options,
+                 bool in = false,
+                 bool out = false,
+                 bool err = false);
+}
+
+#endif // BPKG_OPENSSL

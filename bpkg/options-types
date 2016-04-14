@@ -1,0 +1,18 @@
+// file      : bpkg/options-types -*- C++ -*-
+// copyright : Copyright (c) 2014-2016 Code Synthesis Ltd
+// license   : MIT; see accompanying LICENSE file
+
+#ifndef BPKG_OPTIONS_TYPES
+#define BPKG_OPTIONS_TYPES
+
+namespace bpkg
+{
+  enum class auth
+  {
+    none,
+    remote,
+    all
+  };
+}
+
+#endif // BPKG_OPTIONS_TYPES

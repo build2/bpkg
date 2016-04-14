@@ -13,6 +13,7 @@
 #include <bpkg/manifest>
 #include <bpkg/manifest-serializer>
 
+#include <bpkg/auth>
 #include <bpkg/fetch>
 #include <bpkg/archive>
 #include <bpkg/checksum>
@@ -52,6 +53,7 @@ namespace bpkg
 
   static const path repositories ("repositories");
   static const path packages ("packages");
+  static const path signature ("signature");
 
   static void
   collect (const rep_create_options& o,
@@ -91,7 +93,7 @@ namespace bpkg
       //
       if (d == root)
       {
-        if (p == repositories || p == packages)
+        if (p == repositories || p == packages || p == signature)
           continue;
       }
 
@@ -208,18 +210,52 @@ namespace bpkg
       manifests.emplace_back (move (m));
     }
 
-    // Serialize.
+    // Serialize packages manifest, optionally generate the signature manifest.
     //
     path p (d / packages);
 
     try
     {
-      ofstream ofs;
-      ofs.exceptions (ofstream::badbit | ofstream::failbit);
-      ofs.open (p.string ());
+      {
+        ofstream ofs;
+        ofs.exceptions (ofstream::badbit | ofstream::failbit);
+        ofs.open (p.string ());
 
-      manifest_serializer s (ofs, p.string ());
-      manifests.serialize (s);
+        manifest_serializer s (ofs, p.string ());
+        manifests.serialize (s);
+      }
+
+      const optional<string>& cert (rms.back ().certificate);
+      if (cert)
+      {
+        const string& key (o.key ());
+        if (key.empty ())
+          fail << "--key option required" <<
+            info << "repository manifest contains a certificate" <<
+            info << "run 'bpkg help rep-create' for more information";
+
+        signature_manifest m;
+        m.sha256sum = sha256 (o, p);
+        m.signature = sign_repository (o, m.sha256sum, key, *cert, d);
+
+        p = path (d / signature);
+
+        ofstream ofs;
+        ofs.exceptions (ofstream::badbit | ofstream::failbit);
+        ofs.open (p.string ());
+
+        manifest_serializer s (ofs, p.string ());
+        m.serialize (s);
+      }
+      else
+      {
+        if (o.key_specified ())
+          warn << "--key option ignored" <<
+            info << "repository manifest contains no certificate" <<
+            info << "run 'bpkg help rep-create' for more information";
+
+        try_rmfile (path (d / signature), true);
+      }
     }
     catch (const manifest_serialization& e)
     {

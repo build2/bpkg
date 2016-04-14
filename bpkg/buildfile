@@ -9,6 +9,7 @@ import libs += libodb-sqlite%lib{odb-sqlite}
 
 exe{bpkg}:                                                                   \
 {hxx         cxx}{ archive          }                                        \
+{hxx         cxx}{ auth             }                                        \
 {hxx            }{ bpkg-version     }                                        \
 {            cxx}{ bpkg             } {hxx ixx cxx}{ bpkg-options          } \
 {hxx         cxx}{ cfg-add          } {hxx ixx cxx}{ cfg-add-options       } \
@@ -23,6 +24,7 @@ exe{bpkg}:                                                                   \
 {hxx            }{ forward          }                                        \
 {hxx         cxx}{ help             } {hxx ixx cxx}{ help-options          } \
 {hxx         cxx}{ manifest-utility }                                        \
+{hxx         cxx}{ openssl          }                                        \
 {hxx ixx     cxx}{ package          }                                        \
 {hxx ixx     cxx}{ package-odb      }          file{ package.xml           } \
 {hxx         cxx}{ pkg-build        } {hxx ixx cxx}{ pkg-build-options     } \

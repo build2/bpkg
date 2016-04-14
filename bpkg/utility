@@ -35,7 +35,7 @@ namespace bpkg
   using butl::reverse_iterate;
 
   // Y/N prompt. The def argument, if specified, should be either 'y'
-  // or 'no'. It is used as the default answer, in case the user just
+  // or 'n'. It is used as the default answer, in case the user just
   // hits enter. Issue diagnostics and throw failed if no answer could
   // be extracted from STDOUT (e.g., because it was closed).
   //

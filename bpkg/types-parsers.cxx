@@ -47,5 +47,25 @@ namespace bpkg
       xs = true;
       parse_path (x, s);
     }
+
+    void parser<auth>::
+    parse (auth& x, bool& xs, scanner& s)
+    {
+      xs = true;
+      const char* o (s.next ());
+
+      if (!s.more ())
+        throw missing_value (o);
+
+      const string v (s.next ());
+      if (v == "none")
+        x = auth::none;
+      else if (v == "remote")
+        x = auth::remote;
+      else if (v == "all")
+        x = auth::all;
+      else
+        throw invalid_value (o, v);
+    }
   }
 }

@@ -8,6 +8,7 @@
 
 #include <bpkg/manifest>
 
+#include <bpkg/auth>
 #include <bpkg/fetch>
 #include <bpkg/package>
 #include <bpkg/package-odb>
@@ -20,7 +21,7 @@ using namespace butl;
 namespace bpkg
 {
   static void
-  cfg_fetch (const common_options& co,
+  cfg_fetch (const configuration_options& co,
              transaction& t,
              const shared_ptr<repository>& r,
              const shared_ptr<repository>& root,
@@ -55,25 +56,50 @@ namespace bpkg
 
     r->fetched = true; // Mark as being fetched.
 
-    // Load the 'packages' file. We do this first so that we can get and
-    // verify the checksum of the 'repositories' file which below.
+    // Load the 'repositories' file and use it to populate the prerequisite
+    // and complement repository sets.
     //
-    package_manifests pms (fetch_packages (co, rl, true));
+    pair<repository_manifests, string/*checksum*/> rmc (
+      fetch_repositories (co, rl, true));
 
-    // Load the 'repositories' file and use it to populate the prerequisite and
-    // complement repository sets.
-    //
-    repository_manifests rms;
+    repository_manifests& rms (rmc.first);
 
-    try
+    bool a (co.auth () != auth::none &&
+            (co.auth () == auth::all || rl.remote ()));
+
+    shared_ptr<const certificate> cert;
+
+    if (a)
     {
-      rms = fetch_repositories (co, rl, pms.sha256sum, true);
+      cert = authenticate_certificate (
+        co, &co.directory (), rms.back ().certificate, rl);
+
+      a = !cert->dummy ();
     }
-    catch (const checksum_mismatch&)
-    {
-      fail << "repository files checksum mismatch for "
+
+    // Load the 'packages' file.
+    //
+    pair<package_manifests, string/*checksum*/> pmc (
+      fetch_packages (co, rl, true));
+
+    package_manifests& pms (pmc.first);
+
+    if (rmc.second != pms.sha256sum)
+      fail << "repositories manifest file checksum mismatch for "
            << rl.canonical_name () <<
         info << "try again";
+
+    if (a)
+    {
+      signature_manifest sm (fetch_signature (co, rl, true));
+
+      if (sm.sha256sum != pmc.second)
+        fail << "packages manifest file checksum mismatch for "
+             << rl.canonical_name () <<
+          info << "try again";
+
+      assert (cert != nullptr);
+      authenticate_repository (co, &co.directory (), nullopt, *cert, sm, rl);
     }
 
     for (repository_manifest& rm: rms)

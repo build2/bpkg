@@ -24,7 +24,16 @@ namespace bpkg
      first line followed by the list of complement and prerequisite
      repositories and the list of available packages. This default behavior,
      however, can be altered in various ways using options listed below. Note
-     that the information is written to \cb{STDOUT}, not \cb{STDERR}."
+     that the information is written to \cb{STDOUT}, not \cb{STDERR}.
+
+     If the current working directory contains a \cb{bpkg} configuration, then
+     \cb{rep-info} will use its certificate database for the repository
+     authentication. That is, it will trust the repository's certificate if it
+     is already trusted by the configuration. Otherwise it will add the
+     certificate to the configuration if you confirm it is trusted. You can
+     specify an alternative configuration directory with the
+     \cb{--directory|-d} option. To disable using the configuration in the
+     current working directory pass this option with an empty path."
   }
 
   class rep_info_options: common_options
@@ -52,6 +61,12 @@ namespace bpkg
        as manifest(s). Normally you would use this option in combination with
        \cb{--packages|-p} or \cb{--repositories|-r} to only dump one of the
        manifests."
+    }
+
+    string --directory|-d // String to allow empty value.
+    {
+      "<dir>",
+      "Use configuration in <dir> for the trusted certificate database."
     }
   };
 }

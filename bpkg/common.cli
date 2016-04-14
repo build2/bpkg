@@ -2,7 +2,10 @@
 // copyright : Copyright (c) 2014-2016 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
+include <set>;
+
 include <bpkg/types>;
+include <bpkg/options-types>;
 
 "\section=1"
 "\name=bpkg-common-options"
@@ -155,6 +158,60 @@ namespace bpkg
       "Additional option to be passed to the tar program. See \cb{--tar} for
        more information on the tar program. Repeat this option to specify
        multiple tar options."
+    }
+
+    path --openssl = "openssl"
+    {
+      "<path>",
+      "The openssl program to be used for crypto operations. You can also
+       specify additional options that should be passed to the openssl
+       program with \cb{--openssl-option}. If the openssl program is not
+       explicitly specified, then \cb{bpkg} will use \cb{openssl} by default."
+    }
+
+    strings --openssl-option
+    {
+      "<opt>",
+      "Additional option to be passed to the openssl program. See
+       \cb{--openssl} for more information on the openssl program. Repeat this
+       option to specify multiple openssl options."
+    }
+
+    bpkg::auth --auth = bpkg::auth::remote
+    {
+      "<type>",
+      "Repository types be authenticated. Valid values for this option are
+       \cb{none}, \cb{remote}, \cb{all}. By default only remote repositories
+       are authenticated. You can request authentication of local repositories
+       by passing \cb{all} or disable authentication completely by passing
+       \cb{none}."
+    }
+
+    std::set<string> --trust
+    {
+      "<fingerprint>",
+      "Trust repository certificate with a SHA256 <fingerprint>. Such a
+       certificate is trusted automatically, without prompting the user for
+       a confirmation. Repeat this option to trust multiple certificates.
+
+       Note that by default \cb{openssl} prints a SHA1 fingerprint and to
+       obtain a SHA256 one you will need to pass the \cb{-sha256} option,
+       for example:
+
+       \
+       openssl x509 -sha256 -fingerprint -noout -in cert.pem
+       \
+      "
+    }
+
+    bool --trust-yes|-y
+    {
+      "Assume the answer to all authentication prompts is \cb{yes}."
+    }
+
+    bool --trust-no|-n
+    {
+      "Assume the answer to all authentication prompts is \cb{no}."
     }
 
     string --pager // String to allow empty value.

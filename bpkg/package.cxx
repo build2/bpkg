@@ -129,4 +129,20 @@ namespace bpkg
     else if (s == "configured") return package_state::configured;
     else throw invalid_argument ("invalid package state '" + s + "'");
   }
+
+  // certificate
+  //
+  ostream&
+  operator<< (ostream& os, const certificate& c)
+  {
+    using butl::operator<<;
+
+    if (c.dummy ())
+      os << c.name << " (dummy)";
+    else
+      os << c.name << ", \"" << c.organization << "\" <" << c.email << ">, "
+         << c.start_date << " - " << c.end_date << ", " << c.fingerprint;
+
+    return os;
+  }
 }

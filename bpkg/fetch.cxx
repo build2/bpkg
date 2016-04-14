@@ -524,16 +524,13 @@ namespace bpkg
     return r;
   }
 
-  // If sha256sum is empty, then don't verify.
-  //
   template <typename M>
-  static M
+  static pair<M, string/*checksum*/>
   fetch_manifest (const common_options& o,
                   protocol proto,
                   const string& host,
                   uint16_t port,
                   const path& f,
-                  const string& sha256sum,
                   bool ignore_unknown)
   {
     string url (to_url (proto, host, port, f));
@@ -544,35 +541,24 @@ namespace bpkg
       ifdstream is (pr.in_ofd);
       is.exceptions (ifdstream::badbit | ifdstream::failbit);
 
-      M m;
-      if (sha256sum.empty ())
-      {
-        manifest_parser mp (is, url);
-        m = M (mp, ignore_unknown);
-        is.close ();
-      }
-      else
-      {
-        // Unfortunately we cannot rewind STDOUT as we do below for files.
-        // There doesn't seem to be anything better than reading the entire
-        // file into memory and then streaming it twice, once to calculate
-        // the checksum and the second time to actually parse.
-        //
-        stringstream ss;
-        ss << is.rdbuf ();
-        is.close ();
+      // Unfortunately we cannot rewind STDOUT as we do below for files. There
+      // doesn't seem to be anything better than reading the entire file into
+      // memory and then streaming it twice, once to calculate the checksum
+      // and the second time to actually parse.
+      //
+      stringstream ss;
+      ss << is.rdbuf ();
+      is.close ();
 
-        if (sha256sum != sha256 (o, ss))
-          throw checksum_mismatch ();
+      string sha256sum (sha256 (o, ss));
 
-        ss.clear (); ss.seekg (0); // Rewind.
+      ss.clear (); ss.seekg (0); // Rewind.
 
-        manifest_parser mp (ss, url);
-        m = M (mp, ignore_unknown);
-      }
+      manifest_parser mp (ss, url);
+      M m (mp, ignore_unknown);
 
       if (pr.wait ())
-        return m;
+        return make_pair (move (m), move (sha256sum));
 
       // Child existed with an error, fall through.
     }
@@ -645,13 +631,12 @@ namespace bpkg
     return r;
   }
 
-  // If sha256sum is empty, then don't verify.
+  // If o is nullptr, then don't calculate the checksum.
   //
   template <typename M>
-  static M
+  static pair<M, string/*checksum*/>
   fetch_manifest (const common_options* o,
                   const path& f,
-                  const string& sha256sum,
                   bool ignore_unknown)
   {
     if (!exists (f))
@@ -663,18 +648,15 @@ namespace bpkg
       ifs.exceptions (ofstream::badbit | ofstream::failbit);
       ifs.open (f.string ());
 
-      if (!sha256sum.empty ())
+      string sha256sum;
+      if (o != nullptr)
       {
-        assert (o != nullptr);
-
-        if (sha256sum != sha256 (*o, ifs))
-          throw checksum_mismatch ();
-
+        sha256sum = sha256 (*o, ifs);
         ifs.seekg (0); // Rewind the file stream.
       }
 
       manifest_parser mp (ifs, f.string ());
-      return M (mp, ignore_unknown);
+      return make_pair (M (mp, ignore_unknown), move (sha256sum));
     }
     catch (const manifest_parsing& e)
     {
@@ -694,16 +676,12 @@ namespace bpkg
   fetch_repositories (const dir_path& d, bool iu)
   {
     return fetch_manifest<repository_manifests> (
-      nullptr,
-      d / repositories,
-      "", // No checksum verification.
-      iu);
+      nullptr, d / repositories, iu).first;
   }
 
-  repository_manifests
+  pair<repository_manifests, string/*checksum*/>
   fetch_repositories (const common_options& o,
                       const repository_location& rl,
-                      const string& sha256sum,
                       bool iu)
   {
     assert (rl.remote () || rl.absolute ());
@@ -712,8 +690,8 @@ namespace bpkg
 
     return rl.remote ()
       ? fetch_manifest<repository_manifests> (
-          o, rl.proto (), rl.host (), rl.port (), f, sha256sum, iu)
-      : fetch_manifest<repository_manifests> (&o, f, sha256sum, iu);
+          o, rl.proto (), rl.host (), rl.port (), f, iu)
+      : fetch_manifest<repository_manifests> (&o, f, iu);
   }
 
   static const path packages ("packages");
@@ -721,10 +699,10 @@ namespace bpkg
   package_manifests
   fetch_packages (const dir_path& d, bool iu)
   {
-    return fetch_manifest<package_manifests> (nullptr, d / packages, "", iu);
+    return fetch_manifest<package_manifests> (nullptr, d / packages, iu).first;
   }
 
-  package_manifests
+  pair<package_manifests, string/*checksum*/>
   fetch_packages (const common_options& o,
                   const repository_location& rl,
                   bool iu)
@@ -735,8 +713,25 @@ namespace bpkg
 
     return rl.remote ()
       ? fetch_manifest<package_manifests> (
-          o, rl.proto (), rl.host (), rl.port (), f, "", iu)
-      : fetch_manifest<package_manifests> (&o, f, "", iu);
+          o, rl.proto (), rl.host (), rl.port (), f, iu)
+      : fetch_manifest<package_manifests> (&o, f, iu);
+  }
+
+  static const path signature ("signature");
+
+  signature_manifest
+  fetch_signature (const common_options& o,
+                   const repository_location& rl,
+                   bool iu)
+  {
+    assert (rl.remote () || rl.absolute ());
+
+    path f (rl.path () / signature);
+
+    return rl.remote ()
+      ? fetch_manifest<signature_manifest> (
+          o, rl.proto (), rl.host (), rl.port (), f, iu).first
+      : fetch_manifest<signature_manifest> (nullptr, f, iu).first;
   }
 
   path
