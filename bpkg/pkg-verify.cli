@@ -39,8 +39,8 @@ namespace bpkg
     bool --ignore-unknown
     {
       "Ignore unknown manifest entries. By default, \cb{bpkg} will refuse to
-       declare such a package validate since it cannot be sure the unknown
-       entries are valid."
+       declare such a package valid since it cannot be sure the unknown entries
+       are valid."
     }
   };
 }

@@ -11,7 +11,7 @@ include <bpkg/configuration.cli>;
 namespace bpkg
 {
   {
-    "<options>",
+    "<options> <pkg>",
 
     "\h|SYNOPSIS|
 
