@@ -19,11 +19,20 @@ namespace bpkg
 
     bool s (true);
 
+    // See notes in pkg-build:find_available() on ignoring revision in
+    // comparison.
+    //
     if (c.min_version)
-      s = c.min_open ? v > *c.min_version : v >= *c.min_version;
+    {
+      int i (v.compare (*c.min_version, c.min_version->revision == 0));
+      s = c.min_open ? i > 0 : i >= 0;
+    }
 
     if (s && c.max_version)
-      s = c.max_open ? v < *c.max_version : v <= *c.max_version;
+    {
+      int i (v.compare (*c.max_version, c.max_version->revision == 0));
+      s = c.max_open ? i < 0 : i <= 0;
+    }
 
     return s;
   }
@@ -33,20 +42,23 @@ namespace bpkg
   {
     assert (!l.empty () && !r.empty ());
 
+    // See notes in pkg-build:find_available() on ignoring revision in
+    // comparison.
+    //
     bool s (false);
 
     if (l.min_version)
     {
       if (r.min_version)
       {
+        int i (l.min_version->compare (*r.min_version,
+                                       r.min_version->revision == 0));
         if (l.min_open)
           // Doesn't matter if r is min_open or not.
           //
-          s = *l.min_version >= *r.min_version;
+          s = i >= 0;
         else
-          s = r.min_open
-            ? *l.min_version > *r.min_version
-            : *l.min_version >= *r.min_version;
+          s = r.min_open ? i > 0 : i >= 0;
       }
       else
         s = true; // Doesn't matter what l.min_version is.
@@ -60,14 +72,14 @@ namespace bpkg
       {
         if (r.max_version)
         {
+          int i (l.max_version->compare (*r.max_version,
+                                         r.max_version->revision == 0));
           if (l.max_open)
             // Doesn't matter if r is max_open or not.
             //
-            s = *l.max_version <= *r.max_version;
+            s = i <= 0;
           else
-            s = r.max_open
-              ? *l.max_version < *r.max_version
-              : *l.max_version <= *r.max_version;
+            s = r.max_open ? i < 0 : i <= 0;
         }
         else
         {
