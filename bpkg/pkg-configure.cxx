@@ -70,8 +70,9 @@ namespace bpkg
 
             auto r (p->prerequisites.emplace (dp, d.constraint));
 
-            // If we already have a dependency on this package, pick the
-            // stricter of the two constraints.
+            // Currently we can only capture a single constraint, so if we
+            // already have a dependency on this package and one constraint is
+            // not a subset of the other, complain.
             //
             if (!r.second)
             {
@@ -81,9 +82,9 @@ namespace bpkg
               bool s2 (satisfies (d.constraint, c));
 
               if (!s1 && !s2)
-                fail << "incompatible constraints "
-                     << "(" << n << " " << *c << ") and "
-                     << "(" << n << " " << *d.constraint << ")";
+                fail << "multiple dependencies on package " << n <<
+                  info << n << " " << *c <<
+                  info << n << " " << *d.constraint;
 
               if (s2 && !s1)
                 c = d.constraint;
