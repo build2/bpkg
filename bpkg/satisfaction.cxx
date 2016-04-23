@@ -42,8 +42,8 @@ namespace bpkg
   {
     assert (!l.empty () && !r.empty ());
 
-    // See notes in pkg-build:find_available() on ignoring revision in
-    // comparison.
+    // Note: the revision ignoring logic is still unclear/unimplemented. It
+    // seems it will be specific to each case below.
     //
     bool s (false);
 
@@ -51,8 +51,7 @@ namespace bpkg
     {
       if (r.min_version)
       {
-        int i (l.min_version->compare (*r.min_version,
-                                       r.min_version->revision == 0));
+        int i (l.min_version->compare (*r.min_version, false));
         if (l.min_open)
           // Doesn't matter if r is min_open or not.
           //
@@ -72,8 +71,7 @@ namespace bpkg
       {
         if (r.max_version)
         {
-          int i (l.max_version->compare (*r.max_version,
-                                         r.max_version->revision == 0));
+          int i (l.max_version->compare (*r.max_version, false));
           if (l.max_open)
             // Doesn't matter if r is max_open or not.
             //

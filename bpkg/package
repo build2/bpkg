@@ -447,8 +447,10 @@ namespace bpkg
     //
     optional<dir_path> out_root;
 
-    // A map of "effective" prerequisites (i.e., pointers to other
-    // selected packages) to optional dependency constraint.
+    // A map of "effective" prerequisites (i.e., pointers to other selected
+    // packages) to optional dependency constraint. Note that because it is a
+    // single constraint, we don't support multiple dependencies on the same
+    // package (e.g., two ranges of versions). See pkg_configure().
     //
     using prerequisites_type = std::map<lazy_shared_ptr<selected_package>,
                                         optional<dependency_constraint>,
