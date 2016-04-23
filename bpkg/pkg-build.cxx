@@ -179,9 +179,9 @@ namespace bpkg
   // "upgrade" or "downgrade" a package that is already in a map as a
   // result of another package depending on it and, for example, requiring
   // a different version. One notable side-effect of this process is that
-  // we may end up with a lot more packages in the map than we will have
-  // on the list. This is because some of the prerequisites of "upgraded"
-  // or "downgraded" packages may no longer need to be built.
+  // we may end up with a lot more packages in the map (but not in the list)
+  // than we will have on the list. This is because some of the prerequisites
+  // of "upgraded" or "downgraded" packages may no longer need to be built.
   //
   // Note also that we don't try to do exhaustive constraint satisfaction
   // (i.e., there is no backtracking). Specifically, if we have two
@@ -368,50 +368,11 @@ namespace bpkg
       }
       else
       {
+        // This is the first time we are adding this package name to the map.
+        //
         string n (pkg.available->id.name); // Note: copy; see emplace() below.
 
         level4 ([&]{trace << "add " << n << " " << pkg.available->version;});
-
-        // This is the first time we are adding this package name to the
-        // map. If it is already selected, then we need to make sure that
-        // packages that already depend on it (called dependents) are ok
-        // with the up/downgrade. We will also have to keep doing this
-        // every time we choose a new available package above. So what
-        // we are going to do is copy the dependents' constrains over to
-        // our constraint list; this way they will be automatically taken
-        // into account by the rest of the logic.
-        //
-        const shared_ptr<selected_package>& sp (pkg.selected);
-        const shared_ptr<available_package>& ap (pkg.available);
-
-        int r;
-        if (sp != nullptr &&
-            sp->state == package_state::configured &&
-            (r = sp->version.compare (ap->version)) != 0)
-        {
-          using query = query<package_dependent>;
-
-          for (const auto& pd: db.query<package_dependent> (query::name == n))
-          {
-            if (!pd.constraint)
-              continue;
-
-            const version& v (ap->version);
-            const dependency_constraint& c (*pd.constraint);
-
-            if (satisfies (v, c))
-            {
-              pkg.constraints.emplace_back (pd.name, c);
-              continue;
-            }
-
-            fail << "unable to " << (r < 0 ? "up" : "down") << "grade "
-                 << "package " << n << " " << sp->version << " to " << v <<
-              info << pd.name << " depends on (" << n << " " << c << ")" <<
-              info << "explicitly specify " << n << " version to manually "
-                 << "satisfy this constraint";
-          }
-        }
 
         i = map_.emplace (move (n), data_type {end (), move (pkg)}).first;
       }
@@ -652,7 +613,8 @@ namespace bpkg
     // If a configured package is being up/down-graded then that means
     // all its dependents could be affected and we have to reconfigure
     // them. This function examines every package that is already on
-    // the list and collects and orders all its dependents.
+    // the list and collects and orders all its dependents. We also need
+    // to make sure the dependents are ok with the up/downgrade.
     //
     // Should we reconfigure just the direct depends or also include
     // indirect, recursively? Consider this plauisible scenario as an
@@ -690,26 +652,90 @@ namespace bpkg
     {
       tracer trace ("collect_order_dependents");
 
-      const build_package& p (*pos);
-      const string& n (p.selected->name);
+      build_package& p (*pos);
+      const shared_ptr<selected_package>& sp (p.selected);
+      const shared_ptr<available_package>& ap (p.available);
+
+      const string& n (sp->name);
+
+      // See if we are up/downgrading this package. In particular, the
+      // available package could be NULL meaning we are just reconfiguring.
+      //
+      int ud (ap != nullptr ? sp->version.compare (ap->version) : 0);
 
       using query = query<package_dependent>;
 
       for (auto& pd: db.query<package_dependent> (query::name == n))
       {
         string& dn (pd.name);
+        auto i (map_.find (dn));
+
+        // First make sure the up/downgraded package still satisfies this
+        // dependent.
+        //
+        bool check (ud != 0 && pd.constraint);
+
+        // There is one tricky aspect: the dependent could be in the process
+        // of being up/downgraded as well. In this case all we need to do is
+        // detect this situation and skip the test since all the (new)
+        // contraints of this package have been satisfied in collect().
+        //
+        if (check && i != map_.end () && i->second.position != end ())
+        {
+          build_package& dp (i->second.package);
+
+          check = dp.available == nullptr ||
+            dp.selected->version == dp.available->version;
+        }
+
+        if (check)
+        {
+          const version& v (ap->version);
+          const dependency_constraint& c (*pd.constraint);
+
+          if (!satisfies (v, c))
+          {
+            diag_record dr;
+
+            dr << fail << "unable to " << (ud < 0 ? "up" : "down") << "grade "
+               << "package " << n << " " << sp->version << " to " << v;
+
+            dr << info << "because package " << dn << " depends on (" << n
+               << " " << c << ")";
+
+            string rb;
+            if (p.required_by.find ("") == p.required_by.end ())
+            {
+              for (const string& n: p.required_by)
+                rb += ' ' + n;
+            }
+
+            if (!rb.empty ())
+              dr << info << "package " << n << " " << v << " required by"
+                 << rb;
+
+            dr << info << "explicitly request up/downgrade of package " << dn;
+
+            dr << info << "or explicitly specify package " << n << " version "
+               << "to manually satisfy these constraints";
+          }
+
+          // Add this contraint to the list for completeness.
+          //
+          p.constraints.emplace_back (dn, c);
+        }
 
         // We can have three cases here: the package is already on the
         // list, the package is in the map (but not on the list) and it
         // is in neither.
         //
-        auto i (map_.find (dn));
-
         if (i != map_.end ())
         {
+          // Now add to the list.
+          //
           build_package& dp (i->second.package);
 
-          dp.required_by.insert (n);
+          p.required_by.insert (dn);
 
           // Force reconfiguration in both cases.
           //
