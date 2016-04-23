@@ -7,6 +7,7 @@
 #include <map>
 #include <set>
 #include <list>
+#include <cstring>    // strlen()
 #include <iterator>   // make_move_iterator()
 #include <iostream>   // cout
 #include <algorithm>  // find()
@@ -834,6 +835,7 @@ namespace bpkg
       for (bool diag (false); args.more (); )
       {
         const char* s (args.peek ());
+        size_t sn (strlen (s));
 
         // Reduce all the potential variations (archive, directory, package
         // name, package name/version) to a single available_package object.
@@ -879,35 +881,44 @@ namespace bpkg
 
         // Is this a package directory?
         //
-        try
+        // We used to just check any name which led to some really bizarre
+        // behavior where a sub-directory of the working directory happened
+        // to contain a manifest file and was therefore treated as a package
+        // directory. So now we will only do this test if the name ends with
+        // the directory separator.
+        //
+        if (sn != 0 && path::traits::is_separator (s[sn - 1]))
         {
-          dir_path d (s);
-          if (exists (d))
+          try
           {
-            if (diag)
-              info << "'" << s << "' does not appear to be a valid package "
-                   << "directory: ";
+            dir_path d (s);
+            if (exists (d))
+            {
+              if (diag)
+                info << "'" << s << "' does not appear to be a valid package "
+                     << "directory: ";
 
-            package_manifest m (pkg_verify (d, true, diag));
+              package_manifest m (pkg_verify (d, true, diag));
 
-            // This is a package directory (note that we shouldn't throw
-            // failed from here on).
-            //
-            level4 ([&]{trace << "directory " << d;});
-            n = m.name;
-            v = m.version;
-            ap = make_shared<available_package> (move (m));
-            ar = root;
-            ap->locations.push_back (package_location {root, move (d)});
+              // This is a package directory (note that we shouldn't throw
+              // failed from here on).
+              //
+              level4 ([&]{trace << "directory " << d;});
+              n = m.name;
+              v = m.version;
+              ap = make_shared<available_package> (move (m));
+              ar = root;
+              ap->locations.push_back (package_location {root, move (d)});
+            }
           }
-        }
-        catch (const invalid_path&)
-        {
-          // Not a valid path so cannot be an archive.
-        }
-        catch (const failed&)
-        {
-          // Not a valid package archive.
+          catch (const invalid_path&)
+          {
+            // Not a valid path so cannot be an archive.
+          }
+          catch (const failed&)
+          {
+            // Not a valid package archive.
+          }
         }
 
         // If this was a diagnostics "run", then we are done.
