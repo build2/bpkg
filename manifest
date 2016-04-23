@@ -4,8 +4,8 @@ version: 0.2.0
 summary: build2 package manager
 license: MIT
 tags: build2, c++, package, manager
-description-file: README
-changes-file: NEWS
+#description-file: README
+#changes-file: NEWS
 url: https://build2.org
 email: users@build2.org
 requires: c++11
