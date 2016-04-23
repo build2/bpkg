@@ -824,7 +824,7 @@ fail pkg-build -p libfoo/1.0.0  # unknown package
 test pkg-build -p repository/1/satisfy/libfoo-1.1.0.tar.gz <<EOF
 build libfoo 1.1.0
 EOF
-test pkg-build -p repository/1/satisfy/libfoo-1.1.0 <<EOF
+test pkg-build -p repository/1/satisfy/libfoo-1.1.0/ <<EOF
 build libfoo 1.1.0
 EOF
 
@@ -1171,7 +1171,7 @@ stat libbaz/1.1.0 "configured hold_package"
 test cfg-create --wipe
 test pkg-build -y repository/1/satisfy/libfoo-1.0.0.tar.gz
 stat libfoo "configured 1.0.0 hold_package hold_version"
-test pkg-build -y repository/1/satisfy/libfoo-1.1.0
+test pkg-build -y repository/1/satisfy/libfoo-1.1.0/
 stat libfoo "configured 1.1.0 hold_package hold_version"
 
 test cfg-create --wipe
