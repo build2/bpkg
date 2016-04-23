@@ -18,6 +18,11 @@ Version 0.3.0
     files from the package archives and includes their contents inline into
     the 'packages' manifest file.
 
+Version 0.2.1
+
+  * The pkg-build command no longer considers an argument as a potential
+    package directory unless it ends with a directory separator.
+
 Version 0.2.0
 
   * First public release.
