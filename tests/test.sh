@@ -1122,32 +1122,32 @@ test cfg-add $rep/satisfy/t4b
 test cfg-fetch
 
 test pkg-build -p libbar <<EOF
-upgrade libfoo 1.1.0 (required by libbar)
+upgrade libfoo 1.1.0 (required by libbar libbaz)
 upgrade libbar 1.1.0
-reconfigure libbaz (required by libbar libfoo)
+reconfigure libbaz (required by libbar)
 EOF
 
 test pkg-build -p libfoo <<EOF
 upgrade libfoo 1.1.0
 reconfigure libbar (required by libfoo)
-reconfigure libbaz (required by libbar libfoo)
+reconfigure libbaz (required by libbar)
 EOF
 
 test pkg-build -p libfoo libbar/1.0.0 <<EOF
 upgrade libfoo 1.1.0
 reconfigure/build libbar 1.0.0
-reconfigure libbaz (required by libbar libfoo)
+reconfigure libbaz (required by libbar)
 EOF
 
 test pkg-build -p libbar/1.0.0 libfoo <<EOF
 upgrade libfoo 1.1.0
 reconfigure/build libbar 1.0.0
-reconfigure libbaz (required by libbar libfoo)
+reconfigure libbaz (required by libbar)
 EOF
 
 test pkg-build -p libbaz libfoo <<EOF
 upgrade libfoo 1.1.0
-reconfigure libbar (required by libfoo)
+reconfigure libbar (required by libbaz libfoo)
 reconfigure/build libbaz 1.1.0
 EOF
 
