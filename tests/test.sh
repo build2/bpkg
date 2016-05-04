@@ -1482,9 +1482,15 @@ EOF
 
 # cfg-fetch
 #
+signed_fp=`rep_cert_fp pkg/1/build2.org/auth/signed`
 test cfg-create --wipe
 test cfg-add $rep/auth/signed
-test cfg-fetch --trust `rep_cert_fp pkg/1/build2.org/auth/signed`
+test cfg-fetch --trust $signed_fp
+test cfg-fetch
+
+test cfg-create --wipe
+test cfg-add $rep/auth/signed
+test cfg-fetch --trust-no --trust $signed_fp
 test cfg-fetch
 test cfg-fetch --trust-no # certificate is already trusted
 
@@ -1532,12 +1538,12 @@ fail cfg-fetch --trust-yes # packages file signature:mismatch
 # rep-info
 #
 test cfg-create --wipe
-test rep-info --trust-yes -d $cfg $rep/auth/signed <<EOF
+test rep-info --trust-no --trust $signed_fp -d $cfg $rep/auth/signed <<EOF
 ${repn}auth/signed $repa/auth/signed
 libfoo 1.0.0
 EOF
 
-test rep-info -d $cfg $rep/auth/signed <<EOF
+test rep-info --trust-no -d $cfg $rep/auth/signed <<EOF
 ${repn}auth/signed $repa/auth/signed
 libfoo 1.0.0
 EOF
@@ -1548,7 +1554,7 @@ ${repn}auth/signed $repa/auth/signed
 libfoo 1.0.0
 EOF
 
-fail rep-info $rep/auth/signed <<EOF
+fail rep-info --trust-no $rep/auth/signed <<EOF
 ${repn}auth/signed $repa/auth/signed
 libfoo 1.0.0
 EOF
@@ -1559,7 +1565,7 @@ ${repn}auth/unsigned1 $repa/auth/unsigned1
 libfoo 1.0.0
 EOF
 
-test rep-info -d $cfg $rep/auth/unsigned2 <<EOF
+test rep-info --trust-no -d $cfg $rep/auth/unsigned2 <<EOF
 ${repn}auth/unsigned2 $repa/auth/unsigned2
 libfoo 1.0.0
 EOF
@@ -1570,7 +1576,7 @@ ${repn}auth/unsigned1 $repa/auth/unsigned1
 libfoo 1.0.0
 EOF
 
-fail rep-info $rep/auth/unsigned1 <<EOF
+fail rep-info --trust-no $rep/auth/unsigned1 <<EOF
 ${repn}auth/unsigned1 $repa/auth/unsigned1
 libfoo 1.0.0
 EOF
