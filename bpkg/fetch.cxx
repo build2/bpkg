@@ -538,23 +538,26 @@ namespace bpkg
 
     try
     {
-      ifdstream is (pr.in_ofd);
+      // Unfortunately we cannot read from the original source twice as we do
+      // below for files. There doesn't seem to be anything better than reading
+      // the entire file into memory and then streaming it twice, once to
+      // calculate the checksum and the second time to actually parse. We need
+      // to read the original stream in the binary mode for the checksum
+      // calculation, then use the binary data to create the text stream for
+      // the manifest parsing.
+      //
+      ifdstream is (pr.in_ofd, fdtranslate::binary);
       is.exceptions (ifdstream::badbit | ifdstream::failbit);
 
-      // Unfortunately we cannot rewind STDOUT as we do below for files. There
-      // doesn't seem to be anything better than reading the entire file into
-      // memory and then streaming it twice, once to calculate the checksum
-      // and the second time to actually parse.
-      //
-      stringstream ss;
-      ss << is.rdbuf ();
+      stringstream bs (ios::in | ios::out | ios::binary);
+      bs << is.rdbuf ();
       is.close ();
 
-      string sha256sum (sha256 (o, ss));
+      string sha256sum (sha256 (o, bs));
 
-      ss.clear (); ss.seekg (0); // Rewind.
+      istringstream ts (bs.str ()); // Text mode.
 
-      manifest_parser mp (ss, url);
+      manifest_parser mp (ts, url);
       M m (mp, ignore_unknown);
 
       if (pr.wait ())
@@ -644,16 +647,17 @@ namespace bpkg
 
     try
     {
-      ifstream ifs;
-      ifs.exceptions (ofstream::badbit | ofstream::failbit);
-      ifs.open (f.string ());
-
+      // We can not use the same file stream for both calculating the checksum
+      // and reading the manifest. The file should be opened in the binary
+      // mode for the first operation and in the text mode for the second one.
+      //
       string sha256sum;
       if (o != nullptr)
-      {
-        sha256sum = sha256 (*o, ifs);
-        ifs.seekg (0); // Rewind the file stream.
-      }
+        sha256sum = sha256 (*o, f); // Read file in the binary mode.
+
+      ifstream ifs;
+      ifs.exceptions (ofstream::badbit | ofstream::failbit);
+      ifs.open (f.string ());  // Open file in the text mode.
 
       manifest_parser mp (ifs, f.string ());
       return make_pair (M (mp, ignore_unknown), move (sha256sum));

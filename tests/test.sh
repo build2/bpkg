@@ -32,6 +32,12 @@
 
 trap 'exit 1' ERR
 
+tmp_file=`mktemp`
+
+# Remove temporary file on exit. Cover the case when exit due to an error.
+#
+trap 'rm -f $tmp_file' EXIT
+
 function error ()
 {
   echo "$*" 1>&2
@@ -40,6 +46,10 @@ function error ()
 
 bpkg="../bpkg/bpkg"
 cfg=/tmp/conf
+
+if [ "${MSYSTEM:0:5}" = "MINGW" ]; then
+  msys=y
+fi
 
 verbose=n
 remote=n
@@ -79,19 +89,16 @@ fi
 
 bpkg="$bpkg $options"
 
-# Repository location, name, and absolute location prefixes. Note that the
-# local path is carefully crafted so that we end up with the same repository
-# names in both cases. This is necessary for the authentication tests to work
-# in both cases.
+# Repository location and name prefixes. Note that the local path is carefully
+# crafted so that we end up with the same repository names in both cases. This
+# is necessary for the authentication tests to work in both cases.
 #
 if [ "$remote" = "y" ]; then
   rep=https://build2.org/bpkg/1
   repn=build2.org/
-  repa=$rep
 else
   rep=pkg/1/build2.org
   repn=build2.org/
-  repa=`pwd`/$rep
 fi
 
 #
@@ -115,10 +122,8 @@ function test ()
   if [ -t 0 ]; then
     $bpkg $cmd $ops $*
   else
-    # There is no way to get the exit code in process substitution
-    # so ruin the output.
-    #
-    diff -u - <($bpkg $cmd $ops $* || echo "<invalid output>")
+    $bpkg $cmd $ops $* >$tmp_file
+    diff --strip-trailing-cr -u - $tmp_file
   fi
 
   if [ $? -ne 0 ]; then
@@ -196,6 +201,21 @@ function edit ()
   mv $path.bak $path
 }
 
+# Repository absolute location from a relative path.
+#
+function location ()
+{
+  if [ "$remote" = "y" ]; then
+    echo $rep/$1
+  elif [ "$msys" = "y" ]; then
+    # Convert Windows path like c:/abc/xyz to the c:\abc\xyz canonical form.
+    #
+    echo `pwd -W`/$rep/$1 | sed 's%/%\\%g'
+  else
+    echo `pwd`/$rep/$1
+  fi
+}
+
 ##
 ## Low-level commands.
 ##
@@ -233,13 +253,13 @@ test rep-create pkg/1/build2.org/common/bar/unstable
 fail rep-info # repository location expected
 
 test rep-info --trust-yes $rep/common/foo/testing <<EOF
-${repn}common/foo/testing $repa/common/foo/testing
-complement ${repn}common/foo/stable $repa/common/foo/stable
+${repn}common/foo/testing `location common/foo/testing`
+complement ${repn}common/foo/stable `location common/foo/stable`
 libfoo 1.1.0
 EOF
 
 test rep-info -m -r -n --trust-yes $rep/common/bar/unstable <<EOF
-${repn}common/bar/unstable $repa/common/bar/unstable
+${repn}common/bar/unstable `location common/bar/unstable`
 : 1
 location: ../../foo/testing
 :
@@ -276,6 +296,26 @@ location: libbar-1.1.1.tar.gz
 sha256sum: d09700602ff78ae405b6d4850e34660e939d27676e015a23b549884497c8bb45
 EOF
 
+hello_fp=`rep_cert_fp pkg/1/build2.org/common/hello`
+test rep-info -m -p --trust $hello_fp $rep/common/hello <<EOF
+: 1
+sha256sum: 8d324fa7911038778b215d28805c6546e737e0092f79f7bd167cf2e28f4ad96f
+:
+name: libhello
+version: 1.0.0+1
+summary: The "Hello World" example library
+license: MIT
+tags: c++, hello, world, example
+description: \\
+A simple library that implements the "Hello World" example in C++. Its primary
+goal is to show a canonical build2/bpkg project/package.
+\\
+url: http://www.example.org/libhello
+email: hello-users@example.org
+requires: c++11
+location: libhello-1.0.0+1.tar.gz
+sha256sum: ceff9f39dbff496ece817d6806ab3723b065dcdff1734683fe64a60c103f7f9b
+EOF
 
 ##
 ## cfg-create
@@ -321,7 +361,6 @@ fail cfg-fetch # no repositories
 
 # hello repository
 #
-hello_fp=`rep_cert_fp pkg/1/build2.org/common/hello`
 test cfg-create --wipe
 test cfg-add $rep/common/hello
 test cfg-fetch --trust $hello_fp
@@ -361,7 +400,6 @@ test cfg-add $rep/fetch/t1
 fail pkg-fetch libfoo/1.0.0      # no packages
 test cfg-fetch --trust-yes
 fail pkg-fetch libfoo/2+1.0.0    # not available
-
 test cfg-create --wipe
 test cfg-add $rep/fetch/t1
 test cfg-fetch --trust-yes
@@ -1539,44 +1577,44 @@ fail cfg-fetch --trust-yes # packages file signature:mismatch
 #
 test cfg-create --wipe
 test rep-info --trust-no --trust $signed_fp -d $cfg $rep/auth/signed <<EOF
-${repn}auth/signed $repa/auth/signed
+${repn}auth/signed `location auth/signed`
 libfoo 1.0.0
 EOF
 
 test rep-info --trust-no -d $cfg $rep/auth/signed <<EOF
-${repn}auth/signed $repa/auth/signed
+${repn}auth/signed `location auth/signed`
 libfoo 1.0.0
 EOF
 
 test cfg-create --wipe
 test rep-info --trust-yes $rep/auth/signed <<EOF
-${repn}auth/signed $repa/auth/signed
+${repn}auth/signed `location auth/signed`
 libfoo 1.0.0
 EOF
 
 fail rep-info --trust-no $rep/auth/signed <<EOF
-${repn}auth/signed $repa/auth/signed
+${repn}auth/signed `location auth/signed`
 libfoo 1.0.0
 EOF
 
 test cfg-create --wipe
 test rep-info --trust-yes -d $cfg $rep/auth/unsigned1 <<EOF
-${repn}auth/unsigned1 $repa/auth/unsigned1
+${repn}auth/unsigned1 `location auth/unsigned1`
 libfoo 1.0.0
 EOF
 
 test rep-info --trust-no -d $cfg $rep/auth/unsigned2 <<EOF
-${repn}auth/unsigned2 $repa/auth/unsigned2
+${repn}auth/unsigned2 `location auth/unsigned2`
 libfoo 1.0.0
 EOF
 
 test cfg-create --wipe
 test rep-info --trust-yes $rep/auth/unsigned1 <<EOF
-${repn}auth/unsigned1 $repa/auth/unsigned1
+${repn}auth/unsigned1 `location auth/unsigned1`
 libfoo 1.0.0
 EOF
 
 fail rep-info --trust-no $rep/auth/unsigned1 <<EOF
-${repn}auth/unsigned1 $repa/auth/unsigned1
+${repn}auth/unsigned1 `location auth/unsigned1`
 libfoo 1.0.0
 EOF

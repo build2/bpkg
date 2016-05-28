@@ -219,7 +219,12 @@ namespace bpkg
       {
         ofstream ofs;
         ofs.exceptions (ofstream::badbit | ofstream::failbit);
-        ofs.open (p.string ());
+
+        // While we can do nothing about repositories files edited on Windows
+        // and littered with the carriage return characters, there is no
+        // reason to litter the auto-generated packages and signature files.
+        //
+        ofs.open (p.string (), ofstream::out | ofstream::binary);
 
         manifest_serializer s (ofs, p.string ());
         manifests.serialize (s);
@@ -242,7 +247,7 @@ namespace bpkg
 
         ofstream ofs;
         ofs.exceptions (ofstream::badbit | ofstream::failbit);
-        ofs.open (p.string ());
+        ofs.open (p.string (), ofstream::out | ofstream::binary);
 
         manifest_serializer s (ofs, p.string ());
         m.serialize (s);

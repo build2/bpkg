@@ -679,7 +679,9 @@ namespace bpkg
 
       try
       {
-        ofdstream os (pr.out_fd);
+        // Write the signature to the openssl process input in the binary mode.
+        //
+        ofdstream os (pr.out_fd, fdtranslate::binary);
         os.exceptions (ofdstream::badbit);
 
         for (const auto& c: sm.signature)
@@ -763,7 +765,9 @@ namespace bpkg
       process pr (start_openssl (
         co, "pkeyutl", {"-sign", "-inkey", key_name.c_str ()}, true, true));
 
-      ifdstream is (pr.in_ofd);
+      // Read the signature from the openssl process output in the binary mode.
+      //
+      ifdstream is (pr.in_ofd, fdtranslate::binary);
       is.exceptions (ifdstream::badbit);
 
       try

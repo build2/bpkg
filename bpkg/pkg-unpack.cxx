@@ -172,6 +172,12 @@ namespace bpkg
     args.push_back ("-C");
     args.push_back (c.string ().c_str ());
 
+    // An archive name that has a colon in it specifies a file or device on a
+    // remote machine. That makes it impossible to use absolute Windows paths
+    // unless we add the --force-local option.
+    //
+    args.push_back ("--force-local");
+
     args.push_back ("-xf");
     args.push_back (a.string ().c_str ());
     args.push_back (nullptr);

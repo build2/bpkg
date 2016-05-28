@@ -269,7 +269,12 @@ namespace bpkg
 
     try
     {
-      return f (sha256_path, o.sha256_option ());
+      process pr (f (sha256_path, o.sha256_option ()));
+
+      // Prevent any data modifications on the way to the hashing program.
+      //
+      fdmode (pr.out_fd, fdtranslate::binary);
+      return pr;
     }
     catch (const process_error& e)
     {

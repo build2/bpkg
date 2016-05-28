@@ -48,9 +48,21 @@ namespace bpkg
     //
     args.push_back ("-O");
 
+    // An archive name that has a colon in it specifies a file or device on a
+    // remote machine. That makes it impossible to use absolute Windows paths
+    // unless we add the --force-local option.
+    //
+    args.push_back ("--force-local");
+
     args.push_back ("-xf");
     args.push_back (a.string ().c_str ());
-    args.push_back (f.string ().c_str ());
+
+    // MSYS tar doesn't find archived file if it's path is provided in Windows
+    // notation.
+    //
+    string fs (f.posix_string ());
+    args.push_back (fs.c_str ());
+
     args.push_back (nullptr);
 
     if (verb >= 2)
