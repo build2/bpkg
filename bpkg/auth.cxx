@@ -233,7 +233,36 @@ namespace bpkg
           "-subject",
           "-dates",
           "-email",
-          "-nameopt", "RFC2253,sep_multiline"
+
+          // Previously we have used "RFC2253,sep_multiline" format to display
+          // the requested fields, but that resulted in some undesirable
+          // behavior like escaping commas (\,) while dispaying only one field
+          // per line. The reason for that is RFC2253 specifier which get
+          // expanded into:
+          //
+          // esc_2253,esc_ctrl,esc_msb,utf8,dump_nostr,dump_unknown,dump_der,
+          // sep_comma_plus,dn_rev,sname.
+          //
+          // Now we filtered them and leave just those specifiers that we
+          // really need:
+          //
+          // utf8          - use UTF8 encoding for strings;
+          //
+          // esc_ctrl      - display control characters in \XX notation (we
+          //                 don't expect them in properly created
+          //                 certificates, but it's better to print this way if
+          //                 they appear);
+          //
+          // sname         - use short form for field names (like
+          //                 "O=Code Synthesis" vs
+          //                 "organizationName=Code Synthesis");
+          //
+          // dump_nostr    - do not print any binary data in the binary form;
+          // dump_der
+          //
+          // sep_multiline - display field per line.
+          //
+          "-nameopt", "utf8,esc_ctrl,dump_nostr,dump_der,sname,sep_multiline"
         },
         true,
         true));
