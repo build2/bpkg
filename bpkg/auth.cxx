@@ -314,23 +314,22 @@ namespace bpkg
 
         auto parse_date = [&s](size_t o, const char* name) -> timestamp
           {
-            // Certificate dates are internally represented as ASN.1
+            // Certificate validity dates are internally represented as ASN.1
             // GeneralizedTime and UTCTime
-            // (http://www.obj-sys.com/asn1tutorial/node14.html). They are
-            // printed by openssl in the 'MON DD HH:MM:SS[.fff][ GMT]' format.
-            // MON is a month abbreviated name (C locale), .fff is a fraction
-            // of a second expressed in milliseconds, timezone is either GMT or
-            // absent (means local time). Examples:
+            // (https://www.ietf.org/rfc/rfc4517.txt). While GeneralizedTime
+            // format allows fraction of a second to be specified, the x.509
+            // Certificate specification (https://www.ietf.org/rfc/rfc5280.txt)
+            // do not permit them to be included into the validity dates. These
+            // dates are printed by openssl in the 'MON DD HH:MM:SS[ GMT]'
+            // format. MON is a month abbreviated name (C locale), timezone is
+            // either GMT or absent (means local time). Examples:
             //
             // Apr 11 10:20:02 2016 GMT
             // Apr 11 10:20:02 2016
-            // Apr 11 10:20:02.123 2016 GMT
-            // Apr 11 10:20:02.123 2016
             //
             // We will require the date to be in GMT, as generally can not
             // interpret the certificate origin local time. Note:
-            // openssl-generated certificate dates are always in GMT, and with
-            // milliseconds omitted.
+            // openssl-generated certificate dates are always in GMT.
             //
             try
             {
@@ -338,7 +337,7 @@ namespace bpkg
               //
               const char* end;
               timestamp t (from_string (
-                s.c_str () + o, "%b %d %H:%M:%S%[.M] %Y", false, &end));
+                s.c_str () + o, "%b %d %H:%M:%S %Y", false, &end));
 
               if (strcmp (end, " GMT") == 0)
                 return t;
