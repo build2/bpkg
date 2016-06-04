@@ -61,8 +61,10 @@ namespace bpkg
 
       if (bspec.back () != '(')
         bspec += ' ';
+
+      bspec += '\'';
       bspec += out_root.string ();
-      bspec += '/';
+      bspec += "/'";
 
       if (!pv.vars.empty ())
         run (pv.vars); // Run this package.

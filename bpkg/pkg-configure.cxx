@@ -105,11 +105,11 @@ namespace bpkg
     string bspec;
 
     if (src_root == out_root)
-      bspec = "configure(" + out_root.string () + "/)";
+      bspec = "configure('" + out_root.string () + "/')";
     else
-      bspec = "configure(" +
-        src_root.string () + "/@" +
-        out_root.string () + "/)";
+      bspec = "configure('" +
+        src_root.string () + "/'@'" +
+        out_root.string () + "/')";
 
     l4 ([&]{trace << "buildspec: " << bspec;});
 

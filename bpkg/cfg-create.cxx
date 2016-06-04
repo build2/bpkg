@@ -136,7 +136,8 @@ namespace bpkg
 
     // Configure.
     //
-    run_b (o, c, "configure(" + c.string () + "/)", true, vars); // Run quiet.
+    // Run quiet.
+    run_b (o, c, "configure('" + c.string () + "/')", true, vars);
 
     // Create .bpkg/.
     //

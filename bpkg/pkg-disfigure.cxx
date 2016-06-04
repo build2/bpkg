@@ -74,8 +74,8 @@ namespace bpkg
 
     if (p->state == package_state::configured)
     {
-      bspec = "clean(" + out_root.string () + "/) "
-        "disfigure(" + out_root.string () + "/)";
+      bspec = "clean('" + out_root.string () + "/') "
+        "disfigure('" + out_root.string () + "/')";
     }
     else
     {
@@ -84,11 +84,11 @@ namespace bpkg
       // partially configured one.
       //
       if (src_root == out_root)
-        bspec = "disfigure(" + out_root.string () + "/)";
+        bspec = "disfigure('" + out_root.string () + "/')";
       else
-        bspec = "disfigure(" +
-          src_root.string () + "/@" +
-          out_root.string () + "/)";
+        bspec = "disfigure('" +
+          src_root.string () + "/'@'" +
+          out_root.string () + "/')";
     }
 
     l4 ([&]{trace << "buildspec: " << bspec;});
