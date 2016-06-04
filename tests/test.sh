@@ -654,27 +654,36 @@ rm -r $cfg/libhello-1.0.0+1
 test pkg-purge -f libhello
 stat libhello unknown
 
-# configure failed but disfigure succeeds
+# While it's forbidden to delete a directory with write permissions being
+# revoked with the 'chmod 555' command in MSYS, it's still allowed to create
+# subdirectories and files inside such a directory. This is why the following
+# 'fail pkg-configure libhello' test cases undesirably succeed in MSYS.
 #
-test pkg-unpack -e pkg/1/build2.org/common/libhello-1.0.0+1
-mkdir -p $cfg/libhello-1.0.0+1/build
-chmod 555 $cfg/libhello-1.0.0+1/build
-fail pkg-configure libhello
-stat libhello "unpacked 1.0.0+1"
-test pkg-purge libhello
-stat libhello unknown
+if [ "$msys" != "y" ]; then
+  # configure failed but disfigure succeeds
+  #
+  test pkg-unpack -e pkg/1/build2.org/common/libhello-1.0.0+1
+  mkdir -p $cfg/libhello-1.0.0+1/build
+  chmod 555 $cfg/libhello-1.0.0+1/build
+  fail pkg-configure libhello
+  stat libhello "unpacked 1.0.0+1"
+  test pkg-purge libhello
+  stat libhello unknown
 
-# configure and disfigure both failed
-#
-test pkg-unpack -e pkg/1/build2.org/common/libhello-1.0.0+1
-mkdir -p $cfg/libhello-1.0.0+1/build
-chmod 555 $cfg/libhello-1.0.0+1 $cfg/libhello-1.0.0+1/build # Trip both con/dis.
-fail pkg-configure libhello
-stat libhello/1.0.0+1 broken
-chmod 755 $cfg/libhello-1.0.0+1 $cfg/libhello-1.0.0+1/build
-rm -r $cfg/libhello-1.0.0+1
-test pkg-purge -f libhello
-stat libhello unknown
+  # configure and disfigure both failed
+  #
+  test pkg-unpack -e pkg/1/build2.org/common/libhello-1.0.0+1
+  mkdir -p $cfg/libhello-1.0.0+1/build
+  # Trip both con/dis.
+  #
+  chmod 555 $cfg/libhello-1.0.0+1 $cfg/libhello-1.0.0+1/build
+  fail pkg-configure libhello
+  stat libhello/1.0.0+1 broken
+  chmod 755 $cfg/libhello-1.0.0+1 $cfg/libhello-1.0.0+1/build
+  rm -r $cfg/libhello-1.0.0+1
+  test pkg-purge -f libhello
+  stat libhello unknown
+fi
 
 # dependency management
 #
