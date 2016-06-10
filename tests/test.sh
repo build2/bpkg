@@ -47,7 +47,7 @@ function error ()
 bpkg="../bpkg/bpkg"
 cfg=/tmp/conf
 
-if [ "${MSYSTEM:0:5}" = "MINGW" ]; then
+if [ "${MSYSTEM:0:5}" = "MINGW" -o "${MSYSTEM:0:4}" = "MSYS" ]; then
   msys=y
 fi
 
