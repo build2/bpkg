@@ -2,12 +2,12 @@
 
 trap 'exit 1' ERR
 
-odb=/home/boris/work/odb/odb/odb/odb
+odb=odb
 lib="\
--I/home/boris/work/odb/libodb-sqlite-default \
--I/home/boris/work/odb/libodb-sqlite \
--I/home/boris/work/odb/libodb-default \
--I/home/boris/work/odb/libodb"
+-I$HOME/work/odb/libodb-sqlite-default \
+-I$HOME/work/odb/libodb-sqlite \
+-I$HOME/work/odb/libodb-default \
+-I$HOME/work/odb/libodb"
 
 $odb $lib -I.. -I../../libbpkg -I../../libbutl \
   -d sqlite --std c++11 --hxx-suffix "" --generate-query --generate-schema \
