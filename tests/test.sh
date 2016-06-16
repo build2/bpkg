@@ -206,13 +206,13 @@ function edit ()
 function location ()
 {
   if [ "$remote" = "y" ]; then
-    echo $rep/$1
+    echo "$rep/$1"
   elif [ "$msys" = "y" ]; then
     # Convert Windows path like c:/abc/xyz to the c:\abc\xyz canonical form.
     #
-    echo `pwd -W`/$rep/$1 | sed 's%/%\\%g'
+    echo "`pwd -W`/$rep/$1" | sed 's%/%\\%g'
   else
-    echo `pwd`/$rep/$1
+    echo "`pwd`/$rep/$1"
   fi
 }
 
