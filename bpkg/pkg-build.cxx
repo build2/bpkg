@@ -807,6 +807,16 @@ namespace bpkg
     const dir_path& c (o.directory ());
     l4 ([&]{trace << "configuration: " << c;});
 
+    if (o.drop_prerequisite () && o.keep_prerequisite ())
+      fail << "both --drop-prerequisite|-D and --keep-prerequisite|-K "
+           << "specified" <<
+        info << "run 'bpkg help pkg-build' for more information";
+
+    if (o.update_dependent () && o.leave_dependent ())
+      fail << "both --update-dependent|-U and --leave-dependent|-L "
+           << "specified" <<
+        info << "run 'bpkg help pkg-build' for more information";
+
     if (!args.more ())
       fail << "package name argument expected" <<
         info << "run 'bpkg help pkg-build' for more information";
@@ -1098,7 +1108,11 @@ namespace bpkg
     }
 
     // Print what we are going to do, then ask for the user's confirmation.
+    // While at it, detect if we have any dependents that the user may want to
+    // update.
     //
+    bool update_dependents (false);
+
     if (o.print_only () || !o.yes ())
     {
       for (const build_package& p: reverse_iterate (pkgs))
@@ -1107,12 +1121,15 @@ namespace bpkg
         const shared_ptr<available_package>& ap (p.available);
 
         string act;
+        string cause;
         if (ap == nullptr)
         {
           // This is a dependent needing reconfiguration.
           //
           assert (sp != nullptr && p.reconfigure ());
+          update_dependents = true;
           act = "reconfigure " + sp->name;
+          cause = "dependent of";
         }
         else
         {
@@ -1139,6 +1156,7 @@ namespace bpkg
             act = sp->version < ap->version ? "upgrade " : "downgrade ";
 
           act += ap->id.name + ' ' + ap->version.string ();
+          cause = "required by";
         }
 
         string rb;
@@ -1149,7 +1167,7 @@ namespace bpkg
         }
 
         if (!rb.empty ())
-          act += " (required by" + rb + ')';
+          act += " (" + cause + rb + ')';
 
         if (o.print_only ())
           cout << act << endl;
@@ -1165,6 +1183,15 @@ namespace bpkg
     //
     if (!(o.yes () || yn_prompt ("continue? [Y/n]", 'y')))
       return 1;
+
+    // Figure out if we also should update dependents.
+    //
+    if (o.leave_dependent ())
+      update_dependents = false;
+    else if (o.yes () || o.update_dependent ())
+      update_dependents = true;
+    else if (update_dependents) // Don't prompt if there aren't any.
+      update_dependents = yn_prompt ("update dependent packages? [Y/n]", 'y');
 
     // Ok, we have "all systems go". The overall action plan is as follows.
     //
@@ -1196,6 +1223,11 @@ namespace bpkg
     // drop" list. Then, after configuration, when the new dependencies are
     // established, we will pass them to pkg_drop() whose job will be to
     // figure out which ones can be dropped, prompt the user, etc.
+    //
+    // We also have the other side of this logic: dependent packages that we
+    // reconfigure because their prerequsites got upgraded/downgraded and that
+    // the user may want to in addition update (that update_dependents flag
+    // above). This case we handle in house.
     //
     set<shared_ptr<selected_package>> drop_pkgs;
 
@@ -1362,6 +1394,15 @@ namespace bpkg
         db.update (sp);
         t.commit ();
 
+        // Clean up if this package ended up in the potention drop set.
+        //
+        if (hp)
+        {
+          auto i (drop_pkgs.find (sp));
+          if (i != drop_pkgs.end ())
+            drop_pkgs.erase (i);
+        }
+
         if (verb > 1)
         {
           if (hp)
@@ -1377,7 +1418,8 @@ namespace bpkg
     // packages that are no longer necessary.
     //
     if (!drop_pkgs.empty ())
-      pkg_drop (c, o, db, drop_pkgs, !o.yes ());
+      drop_pkgs = pkg_drop (
+        c, o, db, drop_pkgs, !(o.yes () || o.drop_prerequisite ()));
 
     if (o.configure_only ())
       return 0;
@@ -1389,14 +1431,34 @@ namespace bpkg
     //
     vector<pkg_command_vars> upkgs;
 
+    // First add the user selection.
+    //
     for (const build_package& p: reverse_iterate (pkgs))
     {
       const shared_ptr<selected_package>& sp (p.selected);
 
-      // Update the user selection only.
-      //
       if (find (names.begin (), names.end (), sp->name) != names.end ())
         upkgs.push_back (pkg_command_vars {sp, strings ()});
+    }
+
+    // Then add dependents. We do it as a separate step so that they are
+    // updated after the user selection.
+    //
+    if (update_dependents)
+    {
+      for (const build_package& p: reverse_iterate (pkgs))
+      {
+        const shared_ptr<selected_package>& sp (p.selected);
+
+        if (p.reconfigure () && p.available == nullptr)
+        {
+          // Note that it is entirely possible this package got dropped so
+          // we need to check for that.
+          //
+          if (drop_pkgs.find (sp) == drop_pkgs.end ())
+            upkgs.push_back (pkg_command_vars {sp, strings ()});
+        }
+      }
     }
 
     pkg_update (c, o, strings (), upkgs);

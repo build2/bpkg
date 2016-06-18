@@ -26,8 +26,8 @@ namespace bpkg
      packages that would otherwise no longer be needed, you will be offered to
      drop those as well.
 
-     The \cb{pkg-drop} command also supports several \cb{--*-only} options that
-     allow you to limit the amount of work that will be done."
+     The \cb{pkg-drop} command also supports several options (described below)
+     that allow you to control the amount of work that will be done."
   }
 
   class pkg_drop_options: configuration_options
@@ -51,6 +51,23 @@ namespace bpkg
     {
       "Don't warn about or ask for confirmation if dropping dependent
        packages."
+    }
+
+    bool --keep-dependent|-K
+    {
+      "Issue an error if attempting to drop dependent packages."
+    }
+
+    bool --drop-prerequisite|-D
+    {
+      "Drop without confirmation prerequsite packages that were automatically
+       built and will no longer be necessary."
+    }
+
+    bool --keep-prerequisite
+    {
+      "Don't offer to drop prerequsite packages that were automatically built
+       and will no longer be necessary."
     }
 
     bool --print-only|-p

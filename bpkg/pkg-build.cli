@@ -20,11 +20,16 @@ namespace bpkg
      \h|DESCRIPTION|
 
      The \cb{pkg-build} command builds one or more packages including all their
-     prerequisites. Each package can be specified as just the name (<pkg>) with
-     optional package version (<ver>) in which case the package will be
-     automatically fetched from one of the repositories. See the
-     \l{bpkg-cfg-add(1)} and \l{bpkg-cfg-fetch(1)} commands for more
-     information on package repositories.
+     prerequisites. Besides building new packages, this command is also used to
+     upgrade or downgrade packages that already exists in the configuration.
+
+     Each package can be specified as just the name (<pkg>) with optional
+     package version (<ver>) in which case the package will be automatically
+     fetched from one of the repositories. See the \l{bpkg-cfg-add(1)} and
+     \l{bpkg-cfg-fetch(1)} commands for more information on package
+     repositories. If <ver> is not specified, then the latest available
+     version will be built. To downgrade, the desired version must be
+     specified explicitly.
 
      Alternatively, the package can be specified as either the path to the
      package archive (<file>) or to the package directory (<dir>/; note that
@@ -39,8 +44,8 @@ namespace bpkg
      addition, have their versions held, that is, they will not be
      automatically upgraded.
 
-     The \cb{pkg-build} command also supports several \cb{--*-only} options
-     that allow you to limit the amount of work that will be done."
+     The \cb{pkg-build} command also supports several options (described
+     below) that allow you to control the amount of work that will be done."
   }
 
   class pkg_build_options: configuration_options
@@ -52,10 +57,28 @@ namespace bpkg
       "Assume the answer to all prompts is \cb{yes}."
     }
 
-    bool --keep-prerequisite
+    bool --drop-prerequisite|-D
+    {
+      "Drop without confirmation prerequsite packages that were automatically
+       built and will no longer be necessary."
+    }
+
+    bool --keep-prerequisite|-K
     {
       "Don't offer to drop prerequsite packages that were automatically built
        and will no longer be necessary."
+    }
+
+    bool --update-dependent|-U
+    {
+      "Update without confirmation dependent packages that are reconfigured
+       due to their prerequisites being upgraded or downgraded."
+    }
+
+    bool --leave-dependent|-L
+    {
+      "Don't offer to update dependent packages that are reconfigured due to
+       their prerequisites being upgraded or downgraded."
     }
 
     bool --print-only|-p

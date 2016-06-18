@@ -1203,30 +1203,30 @@ test cfg-fetch --trust-yes
 test pkg-build -p libbar <<EOF
 upgrade libfoo 1.1.0 (required by libbar libbaz)
 upgrade libbar 1.1.0
-reconfigure libbaz (required by libbar)
+reconfigure libbaz (dependent of libbar)
 EOF
 
 test pkg-build -p libfoo <<EOF
 upgrade libfoo 1.1.0
-reconfigure libbar (required by libfoo)
-reconfigure libbaz (required by libbar)
+reconfigure libbar (dependent of libfoo)
+reconfigure libbaz (dependent of libbar)
 EOF
 
 test pkg-build -p libfoo libbar/1.0.0 <<EOF
 upgrade libfoo 1.1.0
 reconfigure/build libbar 1.0.0
-reconfigure libbaz (required by libbar)
+reconfigure libbaz (dependent of libbar)
 EOF
 
 test pkg-build -p libbar/1.0.0 libfoo <<EOF
 upgrade libfoo 1.1.0
 reconfigure/build libbar 1.0.0
-reconfigure libbaz (required by libbar)
+reconfigure libbaz (dependent of libbar)
 EOF
 
 test pkg-build -p libbaz libfoo <<EOF
 upgrade libfoo 1.1.0
-reconfigure libbar (required by libbaz libfoo)
+reconfigure libbar (dependent of libbaz libfoo)
 reconfigure/build libbaz 1.1.0
 EOF
 

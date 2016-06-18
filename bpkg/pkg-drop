@@ -19,9 +19,10 @@ namespace bpkg
   pkg_drop (const pkg_drop_options&, cli::scanner& args);
 
   // Examine the list of prerequisite packages and drop those that don't
-  // have any dependents. Note that it should be called in session.
+  // have any dependents. Return the set of packages that were actually
+  // dropped. Note that it should be called in session.
   //
-  void
+  std::set<shared_ptr<selected_package>>
   pkg_drop (const dir_path& configuration,
             const common_options&,
             database&,

@@ -390,11 +390,21 @@ namespace bpkg
   {
     tracer trace ("pkg_drop");
 
+    const dir_path& c (o.directory ());
+    l4 ([&]{trace << "configuration: " << c;});
+
     if (o.yes () && o.no ())
       fail << "both --yes|-y and --no|-n specified";
 
-    const dir_path& c (o.directory ());
-    l4 ([&]{trace << "configuration: " << c;});
+    if (o.drop_dependent () && o.keep_dependent ())
+      fail << "both --drop-dependent and --keep-dependent|-K "
+           << "specified" <<
+        info << "run 'bpkg help pkg-drop' for more information";
+
+    if (o.drop_prerequisite () && o.keep_prerequisite ())
+      fail << "both --drop-prerequisite|-D and --keep-prerequisite "
+           << "specified" <<
+        info << "run 'bpkg help pkg-drop' for more information";
 
     if (!args.more ())
       fail << "package name argument expected" <<
@@ -447,7 +457,12 @@ namespace bpkg
       if (!dnames.empty () && !o.drop_dependent ())
       {
         {
-          diag_record dr (text);
+          diag_record dr;
+
+          if (o.keep_dependent ())
+            dr << fail;
+          else
+            dr << text;
 
           dr << "following dependent packages will have to be dropped "
              << "as well:";
@@ -497,7 +512,10 @@ namespace bpkg
       // have dependents other than the ones we are dropping). If there are
       // some that we can drop, ask the user for confirmation.
       //
-      if (pkgs.filter_prerequisites (db) && !(drop_prq = o.yes ()) && !o.no ())
+      if (pkgs.filter_prerequisites (db) &&
+          !o.keep_prerequisite () &&
+          !(drop_prq = o.drop_prerequisite ()) &&
+          !(drop_prq = o.yes ()) && !o.no ())
       {
         {
           diag_record dr (text);
@@ -529,10 +547,7 @@ namespace bpkg
                      o.no ());
   }
 
-  // Examine the list of prerequsite packages and drop those that don't
-  // have any dependents.
-  //
-  void
+  set<shared_ptr<selected_package>>
   pkg_drop (const dir_path& c,
             const common_options& o,
             database& db,
@@ -571,7 +586,7 @@ namespace bpkg
       t.commit ();
 
       if (!r)
-        return; // Nothing can be dropped.
+        return {}; // Nothing can be dropped.
     }
 
     if (prompt)
@@ -587,7 +602,7 @@ namespace bpkg
       }
 
       if (!yn_prompt ("drop prerequisite packages? [Y/n]", 'y'))
-        return;
+        return {};
     }
 
     pkg_drop (c,
@@ -599,5 +614,11 @@ namespace bpkg
               false,  // Disfigure-only (could be an option).
               true,   // Yes (don't print the plan or prompt).
               false); // No (we already said yes).
+
+    set<shared_ptr<selected_package>> r;
+    for (const drop_package& dp: pkgs)
+      r.insert (dp.package);
+
+    return r;
   }
 }
