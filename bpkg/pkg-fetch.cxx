@@ -178,11 +178,11 @@ namespace bpkg
 
     if (db.query_value<repository_count> () == 0)
       fail << "configuration " << c << " has no repositories" <<
-        info << "use 'bpkg cfg-add' to add a repository";
+        info << "use 'bpkg rep-add' to add a repository";
 
     if (db.query_value<available_package_count> () == 0)
       fail << "configuration " << c << " has no available packages" <<
-        info << "use 'bpkg cfg-fetch' to fetch available packages list";
+        info << "use 'bpkg rep-fetch' to fetch available packages list";
 
     // Note that here we compare including the revision (unlike, say in
     // pkg-status). Which means one cannot just specify 1.0.0 and get 1.0.0+1

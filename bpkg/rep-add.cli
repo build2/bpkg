@@ -1,11 +1,11 @@
-// file      : bpkg/cfg-add.cli
+// file      : bpkg/rep-add.cli
 // copyright : Copyright (c) 2014-2016 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
 include <bpkg/configuration.cli>;
 
 "\section=1"
-"\name=bpkg-cfg-add"
+"\name=bpkg-rep-add"
 "\summary=add repository to configuration"
 
 namespace bpkg
@@ -15,18 +15,18 @@ namespace bpkg
 
     "\h|SYNOPSIS|
 
-     \c{\b{bpkg cfg-add}|\b{add} [<options>] <rep>}
+     \c{\b{bpkg rep-add}|\b{add} [<options>] <rep>}
 
      \h|DESCRIPTION|
 
-     The \cb{cfg-add} command adds the specified package repository to the
+     The \cb{rep-add} command adds the specified package repository to the
      configuration. Note that it doesn't fetch the list of available packages
-     for the newly added repository. For that, use the \l{bpkg-cfg-fetch(1)}
+     for the newly added repository. For that, use the \l{bpkg-rep-fetch(1)}
      command, normally, after adding all the repositories you wish to use."
   }
 
-  class cfg_add_options: configuration_options
+  class rep_add_options: configuration_options
   {
-    "\h|CFG-ADD OPTIONS|"
+    "\h|REP-ADD OPTIONS|"
   };
 }

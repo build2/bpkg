@@ -1,5 +1,8 @@
 Version 0.4.0
 
+  * Rename the cfg-add command to rep-add (the add alias stays the same) and
+    cfg-fetch to rep-fetch (the fetch alias stays the same).
+
   * The pkg-build command now offers to automatically update dependent
     packages that were reconfigured.
 
@@ -12,7 +15,7 @@ Version 0.4.0
     the command's man page for details.
 
   * Add support for repository authentication. The rep-create command can now
-    sign the repository, and cfg-fetch and rep-info commands can authenticate
+    sign the repository, and rep-fetch and rep-info commands can authenticate
     the repository being fetched.
 
 Version 0.3.0

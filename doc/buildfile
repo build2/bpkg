@@ -3,9 +3,7 @@
 # license   : MIT; see accompanying LICENSE file
 
 cmds =             \
-bpkg-cfg-add 	   \
 bpkg-cfg-create    \
-bpkg-cfg-fetch     \
 bpkg-help          \
 bpkg-pkg-build     \
 bpkg-pkg-clean     \
@@ -21,7 +19,9 @@ bpkg-pkg-uninstall \
 bpkg-pkg-unpack    \
 bpkg-pkg-update    \
 bpkg-pkg-verify    \
+bpkg-rep-add 	   \
 bpkg-rep-create    \
+bpkg-rep-fetch     \
 bpkg-rep-info
 
 define css: file

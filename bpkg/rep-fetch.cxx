@@ -1,8 +1,8 @@
-// file      : bpkg/cfg-fetch.cxx -*- C++ -*-
+// file      : bpkg/rep-fetch.cxx -*- C++ -*-
 // copyright : Copyright (c) 2014-2016 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-#include <bpkg/cfg-fetch>
+#include <bpkg/rep-fetch>
 
 #include <fstream>
 
@@ -21,13 +21,13 @@ using namespace butl;
 namespace bpkg
 {
   static void
-  cfg_fetch (const configuration_options& co,
+  rep_fetch (const configuration_options& co,
              transaction& t,
              const shared_ptr<repository>& r,
              const shared_ptr<repository>& root,
              const string& reason)
   {
-    tracer trace ("cfg_fetch(rep)");
+    tracer trace ("rep_fetch(rep)");
 
     database& db (t.database ());
     tracer_guard tg (db, trace);
@@ -152,7 +152,7 @@ namespace bpkg
         }
         reason += r->name;
 
-        cfg_fetch (co, t, pr, root, reason);
+        rep_fetch (co, t, pr, root, reason);
       }
 
       // @@ What if we have duplicated? Ideally, we would like to check
@@ -254,9 +254,9 @@ namespace bpkg
   }
 
   int
-  cfg_fetch (const cfg_fetch_options& o, cli::scanner&)
+  rep_fetch (const rep_fetch_options& o, cli::scanner&)
   {
-    tracer trace ("cfg_fetch");
+    tracer trace ("rep_fetch");
 
     dir_path c (o.directory ());
     l4 ([&]{trace << "configuration: " << c;});
@@ -270,7 +270,7 @@ namespace bpkg
 
     if (ua.empty ())
       fail << "configuration " << c << " has no repositories" <<
-        info << "use 'bpkg cfg-add' to add a repository";
+        info << "use 'bpkg rep-add' to add a repository";
 
     // Clean repositories and available packages. At the end only
     // repositories that were explicitly added by the user and the
@@ -308,7 +308,7 @@ namespace bpkg
       shared_ptr<repository> r (lp.load ());
 
       if (!r->fetched) // Can already be loaded as a prerequisite/complement.
-        cfg_fetch (o, t, r, root, ""); // No reason (user-added).
+        rep_fetch (o, t, r, root, ""); // No reason (user-added).
     }
 
     size_t rcount, pcount;

@@ -13,9 +13,7 @@ exe{bpkg}:                                                                   \
 {hxx         cxx}{ auth             }                                        \
 {hxx            }{ bpkg-version     }                                        \
 {            cxx}{ bpkg             } {hxx ixx cxx}{ bpkg-options          } \
-{hxx         cxx}{ cfg-add          } {hxx ixx cxx}{ cfg-add-options       } \
 {hxx         cxx}{ cfg-create       } {hxx ixx cxx}{ cfg-create-options    } \
-{hxx         cxx}{ cfg-fetch        } {hxx ixx cxx}{ cfg-fetch-options     } \
 {hxx         cxx}{ checksum         }                                        \
                                       {hxx ixx cxx}{ common-options        } \
                                       {hxx ixx cxx}{ configuration-options } \
@@ -43,7 +41,9 @@ exe{bpkg}:                                                                   \
 {hxx         cxx}{ pkg-unpack       } {hxx ixx cxx}{ pkg-unpack-options    } \
 {hxx            }{ pkg-update       } {hxx ixx cxx}{ pkg-update-options    } \
 {hxx         cxx}{ pkg-verify       } {hxx ixx cxx}{ pkg-verify-options    } \
+{hxx         cxx}{ rep-add          } {hxx ixx cxx}{ rep-add-options       } \
 {hxx         cxx}{ rep-create       } {hxx ixx cxx}{ rep-create-options    } \
+{hxx         cxx}{ rep-fetch        } {hxx ixx cxx}{ rep-fetch-options     } \
 {hxx         cxx}{ rep-info         } {hxx ixx cxx}{ rep-info-options      } \
 {hxx         cxx}{ satisfaction     }                                        \
 {hxx            }{ types            }                                        \
@@ -98,8 +98,8 @@ if! $cli.loaded
 
 # rep-* command.
 #
-{hxx ixx cxx}{cfg-add-options}:    cli{cfg-add}
-{hxx ixx cxx}{cfg-fetch-options}:  cli{cfg-fetch}
+{hxx ixx cxx}{rep-add-options}:    cli{rep-add}
+{hxx ixx cxx}{rep-fetch-options}:  cli{rep-fetch}
 {hxx ixx cxx}{rep-info-options}:   cli{rep-info}
 {hxx ixx cxx}{rep-create-options}: cli{rep-create}
 

@@ -114,7 +114,7 @@ function test ()
     ops="-d $cfg"
   fi
 
-  if [ "$cmd" = "cfg-fetch" -o \
+  if [ "$cmd" = "rep-fetch" -o \
        "$cmd" = "rep-info" ]; then
     ops="$ops --auth all"
   fi
@@ -142,7 +142,7 @@ function fail ()
     ops="-d $cfg"
   fi
 
-  if [ "$cmd" = "cfg-fetch" -o \
+  if [ "$cmd" = "rep-fetch" -o \
        "$cmd" = "rep-info" ]; then
     ops="$ops --auth all"
   fi
@@ -328,58 +328,58 @@ stat libfoo unknown
 
 
 ##
-## cfg-add
+## rep-add
 ##
 test cfg-create --wipe
 
-fail cfg-add         # repository location expected
-fail cfg-add stable  # invalid location
-fail cfg-add http:// # invalid location
+fail rep-add         # repository location expected
+fail rep-add stable  # invalid location
+fail rep-add http:// # invalid location
 
 # relative path
 #
-test cfg-add ./1/bar/stable
-fail cfg-add ./1/../1/bar/stable # duplicate
+test rep-add ./1/bar/stable
+fail rep-add ./1/../1/bar/stable # duplicate
 
 # absolute path
 #
-test cfg-add /tmp/1/foo/stable
-fail cfg-add /tmp/1/../1/foo/stable # duplicate
+test rep-add /tmp/1/foo/stable
+fail rep-add /tmp/1/../1/foo/stable # duplicate
 
 # remote URL
 #
-test cfg-add http://pkg.example.org/1/testing
-fail cfg-add https://www.example.org/1/testing # duplicate
+test rep-add http://pkg.example.org/1/testing
+fail rep-add https://www.example.org/1/testing # duplicate
 
 
 ##
-## cfg-fetch
+## rep-fetch
 ##
 test cfg-create --wipe
 
-fail cfg-fetch # no repositories
+fail rep-fetch # no repositories
 
 # hello repository
 #
 test cfg-create --wipe
-test cfg-add $rep/common/hello
-test cfg-fetch --trust $hello_fp
-test cfg-fetch
+test rep-add $rep/common/hello
+test rep-fetch --trust $hello_fp
+test rep-fetch
 
 # bar/unstable repository
 #
 test cfg-create --wipe
-test cfg-add $rep/common/bar/unstable
-test cfg-fetch --trust-yes
-test cfg-fetch
+test rep-add $rep/common/bar/unstable
+test rep-fetch --trust-yes
+test rep-fetch
 
 # both
 #
 test cfg-create --wipe
-test cfg-add $rep/common/hello
-test cfg-add $rep/common/bar/unstable
-test cfg-fetch --trust-yes
-test cfg-fetch
+test rep-add $rep/common/hello
+test rep-add $rep/common/bar/unstable
+test rep-fetch --trust-yes
+test rep-fetch
 
 
 ##
@@ -396,13 +396,13 @@ fail pkg-fetch libfoo            # package version expected
 fail pkg-fetch libfoo/1/2/3      # invalid package version
 
 fail pkg-fetch libfoo/1.0.0      # no repositories
-test cfg-add $rep/fetch/t1
+test rep-add $rep/fetch/t1
 fail pkg-fetch libfoo/1.0.0      # no packages
-test cfg-fetch --trust-yes
+test rep-fetch --trust-yes
 fail pkg-fetch libfoo/2+1.0.0    # not available
 test cfg-create --wipe
-test cfg-add $rep/fetch/t1
-test cfg-fetch --trust-yes
+test rep-add $rep/fetch/t1
+test rep-fetch --trust-yes
 test pkg-fetch libfoo/1.0.0
 stat libfoo/1.0.0 fetched
 fail pkg-fetch libfoo/1.0.0
@@ -425,8 +425,8 @@ test pkg-purge libfoo
 # hello
 #
 test cfg-create --wipe
-test cfg-add $rep/common/hello
-test cfg-fetch --trust $hello_fp
+test rep-add $rep/common/hello
+test rep-fetch --trust $hello_fp
 test pkg-fetch libhello/1.0.0+1
 test pkg-purge libhello
 
@@ -439,8 +439,8 @@ fail pkg-unpack -r # replace only with existing
 fail pkg-unpack -e # package directory expected
 fail pkg-unpack    # package name expected
 
-test cfg-add $rep/fetch/t1
-test cfg-fetch --trust-yes
+test rep-add $rep/fetch/t1
+test rep-fetch --trust-yes
 
 # existing
 #
@@ -482,8 +482,8 @@ test pkg-purge libfoo
 # hello
 #
 test cfg-create --wipe
-test cfg-add $rep/common/hello
-test cfg-fetch --trust $hello_fp
+test rep-add $rep/common/hello
+test rep-fetch --trust $hello_fp
 test pkg-fetch libhello/1.0.0+1
 test pkg-unpack libhello
 test pkg-purge libhello
@@ -590,8 +590,8 @@ stat libfoo unknown
 ## pkg-configure/pkg-disfigure
 ##
 test cfg-create --wipe
-test cfg-add $rep/common/hello
-test cfg-fetch --trust $hello_fp
+test rep-add $rep/common/hello
+test rep-fetch --trust $hello_fp
 
 fail pkg-configure                        # package name expected
 fail pkg-configure config.dist.root=/tmp  # ditto
@@ -689,8 +689,8 @@ fi
 #
 test rep-create pkg/1/build2.org/depend/stable
 test cfg-create --wipe
-test cfg-add $rep/depend/stable
-test cfg-fetch --trust-yes
+test rep-add $rep/depend/stable
+test rep-fetch --trust-yes
 
 test pkg-fetch libbar/1.0.0
 test pkg-unpack libbar
@@ -766,8 +766,8 @@ test rep-create pkg/1/build2.org/status/unstable
 test cfg-create --wipe
 stat libfoo/1.0.0 "unknown"
 stat libfoo "unknown"
-test cfg-add $rep/status/stable
-test cfg-fetch --trust-yes
+test rep-add $rep/status/stable
+test rep-fetch --trust-yes
 stat libfoo/1.0.0 "available"
 stat libfoo "available 1.0.0"
 test pkg-fetch libfoo/1.0.0
@@ -777,21 +777,21 @@ stat libfoo "fetched 1.0.0"
 # multiple versions/revisions
 #
 test cfg-create --wipe
-test cfg-add $rep/status/extra
-test cfg-fetch --trust-yes
+test rep-add $rep/status/extra
+test rep-fetch --trust-yes
 stat libbar "available 1.1.0+1"
-test cfg-add $rep/status/stable
-test cfg-fetch --trust-yes
+test rep-add $rep/status/stable
+test rep-fetch --trust-yes
 stat libbar "available 1.1.0+1 1.0.0"
 
 test cfg-create --wipe
-test cfg-add $rep/status/testing
-test cfg-fetch --trust-yes
+test rep-add $rep/status/testing
+test rep-fetch --trust-yes
 stat libbar "available 1.1.0 1.0.0+1 1.0.0"
 
 test cfg-create --wipe
-test cfg-add $rep/status/unstable
-test cfg-fetch --trust-yes
+test rep-add $rep/status/unstable
+test rep-fetch --trust-yes
 stat libbar "available 2.0.0 1.1.0 1.0.0+1 1.0.0"
 test pkg-fetch libbar/1.0.0+1
 stat libbar "fetched 1.0.0+1; available 2.0.0 1.1.0"
@@ -804,8 +804,8 @@ stat libbar "fetched 2.0.0"
 ## pkg-update
 ##
 test cfg-create --wipe
-test cfg-add $rep/common/hello
-test cfg-fetch --trust $hello_fp
+test rep-add $rep/common/hello
+test rep-fetch --trust $hello_fp
 
 fail pkg-update                # package name expected
 fail pkg-update libhello       # no such package
@@ -838,8 +838,8 @@ test pkg-purge libhello
 ## pkg-clean
 ##
 test cfg-create --wipe
-test cfg-add $rep/common/hello
-test cfg-fetch --trust $hello_fp
+test rep-add $rep/common/hello
+test rep-fetch --trust $hello_fp
 
 fail pkg-clean                  # package name expected
 fail pkg-clean libhello         # no such package
@@ -878,8 +878,8 @@ test pkg-purge libhello
 # build and clean package
 #
 test cfg-create --wipe cxx
-test cfg-add $rep/common/hello
-test cfg-fetch --trust $hello_fp
+test rep-add $rep/common/hello
+test rep-fetch --trust $hello_fp
 test pkg-fetch libhello/1.0.0+1
 test pkg-unpack libhello
 test pkg-configure libhello
@@ -917,8 +917,8 @@ test pkg-build -p libfoo/1.1.0 libfoo/1.1.0 <<< "build libfoo 1.1.0"
 fail pkg-build -p libfoo/1.0.0
 test pkg-purge libfoo
 
-test cfg-add $rep/satisfy/t1
-test cfg-fetch --trust-yes
+test rep-add $rep/satisfy/t1
+test rep-fetch --trust-yes
 test pkg-build -p libfoo <<< "build libfoo 1.0.0"
 test pkg-build -p libfoo/1.0.0 <<< "build libfoo 1.0.0"
 test pkg-build -p libfoo libfoo <<< "build libfoo 1.0.0"
@@ -947,8 +947,8 @@ test cfg-create --wipe
 
 fail pkg-build pkg/1/build2.org/satisfy/libbar-1.0.0.tar.gz
 
-test cfg-add $rep/satisfy/t2
-test cfg-fetch --trust-yes
+test rep-add $rep/satisfy/t2
+test rep-fetch --trust-yes
 
 test pkg-build -p libbar <<EOF
 build libfoo 1.0.0 (required by libbar)
@@ -1003,8 +1003,8 @@ test pkg-purge libfoo
 #
 test rep-create pkg/1/build2.org/satisfy/t3
 test cfg-create --wipe
-test cfg-add $rep/satisfy/t3
-test cfg-fetch --trust-yes
+test rep-add $rep/satisfy/t3
+test rep-fetch --trust-yes
 
 # only in prerequisite repository
 #
@@ -1018,8 +1018,8 @@ build libbar 1.0.0 (required by libbaz)
 build libbaz 1.0.0
 EOF
 
-test cfg-add $rep/satisfy/t2
-test cfg-fetch
+test rep-add $rep/satisfy/t2
+test rep-fetch
 
 # order
 #
@@ -1123,8 +1123,8 @@ test rep-create pkg/1/build2.org/satisfy/t4c
 test rep-create pkg/1/build2.org/satisfy/t4d
 
 test cfg-create --wipe
-test cfg-add $rep/satisfy/t4c
-test cfg-fetch --trust-yes
+test rep-add $rep/satisfy/t4c
+test rep-fetch --trust-yes
 
 test pkg-build -p libbaz <<EOF
 build libfoo 1.1.0 (required by libbar libbaz)
@@ -1157,8 +1157,8 @@ test pkg-purge libfoo
 test pkg-fetch -e pkg/1/build2.org/satisfy/libfoo-1.2.0.tar.gz
 test pkg-unpack libfoo
 fail pkg-build -p libbaz
-test cfg-add $rep/satisfy/t4a
-test cfg-fetch --trust-yes
+test rep-add $rep/satisfy/t4a
+test rep-fetch --trust-yes
 test pkg-build -p libfoo/1.1.0 libbaz <<EOF
 downgrade libfoo 1.1.0
 build libbar 1.1.0 (required by libbaz)
@@ -1196,9 +1196,9 @@ test pkg-fetch -e pkg/1/build2.org/satisfy/libbaz-1.1.0.tar.gz
 test pkg-unpack libbaz
 test pkg-configure libbaz
 
-test cfg-add $rep/satisfy/t4a
-test cfg-add $rep/satisfy/t4b
-test cfg-fetch --trust-yes
+test rep-add $rep/satisfy/t4a
+test rep-add $rep/satisfy/t4b
+test rep-fetch --trust-yes
 
 test pkg-build -p libbar <<EOF
 upgrade libfoo 1.1.0 (required by libbar libbaz)
@@ -1238,8 +1238,8 @@ EOF
 # actually build
 #
 test cfg-create --wipe
-test cfg-add $rep/satisfy/t4c
-test cfg-fetch --trust-yes
+test rep-add $rep/satisfy/t4c
+test rep-fetch --trust-yes
 test pkg-build -y libbaz
 stat libfoo/1.1.0 "configured"
 stat libbar/1.1.0 "configured"
@@ -1254,16 +1254,16 @@ test pkg-build -y pkg/1/build2.org/satisfy/libfoo-1.1.0/
 stat libfoo "configured 1.1.0 hold_package hold_version"
 
 test cfg-create --wipe
-test cfg-add $rep/satisfy/t4c
-test cfg-fetch --trust-yes
+test rep-add $rep/satisfy/t4c
+test rep-fetch --trust-yes
 test pkg-build -y libfoo
 stat libfoo "configured 1.0.0 hold_package"
 test pkg-build -y libfoo/1.0.0
 stat libfoo "configured 1.0.0 hold_package hold_version"
 
 test cfg-create --wipe
-test cfg-add $rep/satisfy/t4c
-test cfg-fetch --trust-yes
+test rep-add $rep/satisfy/t4c
+test rep-fetch --trust-yes
 test pkg-build -y libfoo/1.0.0
 stat libfoo "configured 1.0.0 hold_package hold_version"
 
@@ -1276,23 +1276,23 @@ test pkg-build -y libfoo
 stat libfoo "configured 1.0.0 hold_package"
 
 test cfg-create --wipe
-test cfg-add $rep/satisfy/t4c
-test cfg-fetch --trust-yes
+test rep-add $rep/satisfy/t4c
+test rep-fetch --trust-yes
 test pkg-build -y libfoo
 stat libfoo "configured 1.0.0 hold_package"
 test pkg-build -y libbaz
 stat libfoo "configured 1.1.0 hold_package"
 
 test cfg-create --wipe
-test cfg-add $rep/satisfy/t4c
-test cfg-fetch --trust-yes
+test rep-add $rep/satisfy/t4c
+test rep-fetch --trust-yes
 test pkg-build -y libfoo/1.0.0
 stat libfoo "configured 1.0.0 hold_package hold_version"
 fail pkg-build -y libbaz
 
 test cfg-create --wipe
-test cfg-add $rep/satisfy/t4c
-test cfg-fetch --trust-yes
+test rep-add $rep/satisfy/t4c
+test rep-fetch --trust-yes
 test pkg-build -y libbaz
 stat libfoo "configured 1.1.0"
 
@@ -1300,15 +1300,15 @@ stat libfoo "configured 1.1.0"
 #
 test rep-create pkg/1/build2.org/satisfy/t5
 test cfg-create --wipe
-test cfg-add $rep/satisfy/t2
-test cfg-fetch --trust-yes
+test rep-add $rep/satisfy/t2
+test rep-fetch --trust-yes
 
 test pkg-build -y libbar
 stat libfoo "configured 1.0.0"
 stat libbar "configured 1.0.0 hold_package"
 
-test cfg-add $rep/satisfy/t5
-test cfg-fetch --trust-yes
+test rep-add $rep/satisfy/t5
+test rep-fetch --trust-yes
 
 test pkg-build -y libbar
 stat libfoo "available 1.0.0"
@@ -1332,8 +1332,8 @@ fail pkg-drop -p libfoo        # unknown package
 fail pkg-drop -p libfoo/1.0.0  # unknown package
 
 test cfg-create --wipe
-test cfg-add $rep/satisfy/t4c
-test cfg-fetch --trust-yes
+test rep-add $rep/satisfy/t4c
+test rep-fetch --trust-yes
 test pkg-build -y libbaz
 
 test pkg-drop -p -y libfoo libbaz libbar <<EOF
@@ -1397,8 +1397,8 @@ drop libfoo
 EOF
 
 test cfg-create --wipe
-test cfg-add $rep/satisfy/t4d
-test cfg-fetch --trust-yes
+test rep-add $rep/satisfy/t4d
+test rep-fetch --trust-yes
 test pkg-build -y libbiz
 
 test pkg-drop -p -y libbiz <<EOF
@@ -1527,60 +1527,60 @@ rUyP0KNG65tdWnVTMqg6Q/YXhtRZLHoD6+QbiYLlruR1phu4y4fDt7AKxoXfeme/a86A37UogZY=
 \\
 EOF
 
-# cfg-fetch
+# rep-fetch
 #
 signed_fp=`rep_cert_fp pkg/1/build2.org/auth/signed`
 test cfg-create --wipe
-test cfg-add $rep/auth/signed
-test cfg-fetch --trust $signed_fp
-test cfg-fetch
+test rep-add $rep/auth/signed
+test rep-fetch --trust $signed_fp
+test rep-fetch
 
 test cfg-create --wipe
-test cfg-add $rep/auth/signed
-test cfg-fetch --trust-no --trust $signed_fp
-test cfg-fetch
-test cfg-fetch --trust-no # certificate is already trusted
+test rep-add $rep/auth/signed
+test rep-fetch --trust-no --trust $signed_fp
+test rep-fetch
+test rep-fetch --trust-no # certificate is already trusted
 
 test cfg-create --wipe
-test cfg-add $rep/auth/signed
-test cfg-fetch --trust-yes
-test cfg-fetch
+test rep-add $rep/auth/signed
+test rep-fetch --trust-yes
+test rep-fetch
 
 test cfg-create --wipe
-test cfg-add $rep/auth/signed
-fail cfg-fetch --trust-no
+test rep-add $rep/auth/signed
+fail rep-fetch --trust-no
 
 test cfg-create --wipe
-test cfg-add $rep/auth/signed
-fail cfg-fetch --trust-yes --trust-no # inconsistent options
+test rep-add $rep/auth/signed
+fail rep-fetch --trust-yes --trust-no # inconsistent options
 
 test cfg-create --wipe
-test cfg-add $rep/auth/unsigned1
-test cfg-fetch --trust-yes
-test cfg-fetch
-test cfg-add $rep/auth/unsigned2
-test cfg-fetch
-test cfg-fetch --trust-no # certificates are already trusted
+test rep-add $rep/auth/unsigned1
+test rep-fetch --trust-yes
+test rep-fetch
+test rep-add $rep/auth/unsigned2
+test rep-fetch
+test rep-fetch --trust-no # certificates are already trusted
 
 test cfg-create --wipe
-test cfg-add $rep/auth/unsigned1
-fail cfg-fetch --trust-no
+test rep-add $rep/auth/unsigned1
+fail rep-fetch --trust-no
 
 test cfg-create --wipe
-test cfg-add $rep/auth/name-mismatch
-fail cfg-fetch --trust-yes # certificate name mismatch
+test rep-add $rep/auth/name-mismatch
+fail rep-fetch --trust-yes # certificate name mismatch
 
 test cfg-create --wipe
-test cfg-add $rep/auth/expired
-fail cfg-fetch --trust-yes # certificate expired
+test rep-add $rep/auth/expired
+fail rep-fetch --trust-yes # certificate expired
 
 test cfg-create --wipe
-test cfg-add $rep/auth/sha256sum-mismatch
-fail cfg-fetch --trust-yes # packages file checksum mismatch
+test rep-add $rep/auth/sha256sum-mismatch
+fail rep-fetch --trust-yes # packages file checksum mismatch
 
 test cfg-create --wipe
-test cfg-add $rep/auth/signature-mismatch
-fail cfg-fetch --trust-yes # packages file signature:mismatch
+test rep-add $rep/auth/signature-mismatch
+fail rep-fetch --trust-yes # packages file signature:mismatch
 
 # rep-info
 #

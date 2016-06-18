@@ -1042,10 +1042,10 @@ namespace bpkg
           //
           if (db.query_value<repository_count> () == 0)
             dr << info << "configuration " << c << " has no repositories"
-               << info << "use 'bpkg cfg-add' to add a repository";
+               << info << "use 'bpkg rep-add' to add a repository";
           else if (db.query_value<available_package_count> () == 0)
             dr << info << "configuration " << c << " has no available packages"
-               << info << "use 'bpkg cfg-fetch' to fetch available packages "
+               << info << "use 'bpkg rep-fetch' to fetch available packages "
                << "list";
         }
 

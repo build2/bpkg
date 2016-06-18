@@ -54,9 +54,9 @@ o="--output-prefix bpkg- --class-doc bpkg::common_options=short"
 compile "common" $o --output-suffix "-options" --class-doc bpkg::common_options=long
 compile "bpkg" $o --output-prefix "" --suppress-undocumented --class-doc bpkg::commands=short --class-doc bpkg::topics=short
 
-pages="cfg-add cfg-create cfg-fetch help pkg-build pkg-clean pkg-configure \
-pkg-disfigure pkg-drop pkg-fetch pkg-install pkg-purge pkg-status \
-pkg-test pkg-uninstall pkg-unpack pkg-update pkg-verify rep-create rep-info"
+pages="cfg-create help pkg-build pkg-clean pkg-configure pkg-disfigure \
+pkg-drop pkg-fetch pkg-install pkg-purge pkg-status pkg-test pkg-uninstall \
+pkg-unpack pkg-update pkg-verify rep-add rep-create rep-fetch rep-info"
 
 for p in $pages; do
   compile $p $o

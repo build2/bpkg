@@ -25,8 +25,8 @@ namespace bpkg
 
      Each package can be specified as just the name (<pkg>) with optional
      package version (<ver>) in which case the package will be automatically
-     fetched from one of the repositories. See the \l{bpkg-cfg-add(1)} and
-     \l{bpkg-cfg-fetch(1)} commands for more information on package
+     fetched from one of the repositories. See the \l{bpkg-rep-add(1)} and
+     \l{bpkg-rep-fetch(1)} commands for more information on package
      repositories. If <ver> is not specified, then the latest available
      version will be built. To downgrade, the desired version must be
      specified explicitly.

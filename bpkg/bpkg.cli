@@ -155,16 +155,26 @@ namespace bpkg
       "\l{bpkg-cfg-create(1)} \- create configuration"
     }
 
-    bool cfg-add|add
+    bool rep-info
     {
-      "<rep>",
-      "\l{bpkg-cfg-add(1)} \- add repository to configuration",
-      ""
+      "\l{bpkg-rep-info(1)} \- print repository information"
     }
 
-    bool cfg-fetch|fetch
+    bool rep-add|add
     {
-      "\l{bpkg-cfg-fetch(1)} \- fetch list of available packages"
+      "\l{bpkg-rep-add(1)} \- add repository to configuration"
+    }
+
+    bool rep-fetch|fetch
+    {
+      "\l{bpkg-rep-fetch(1)} \- fetch list of available packages"
+    }
+
+    bool rep-create
+    {
+      "[<dir>]",
+      "\l{bpkg-rep-create(1)} \- create repository",
+      ""
     }
 
     bool pkg-status|status
@@ -237,18 +247,6 @@ namespace bpkg
     bool pkg-purge
     {
       "\l{bpkg-pkg-purge(1)} \- purge package"
-    }
-
-    bool rep-info
-    {
-      "\l{bpkg-rep-info(1)} \- print repository information"
-    }
-
-    bool rep-create
-    {
-      "[<dir>]",
-      "\l{bpkg-rep-create(1)} \- create repository",
-      ""
     }
   };
 

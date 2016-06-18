@@ -16,6 +16,8 @@
 //
 #include <bpkg/help>
 
+#include <bpkg/cfg-create>
+
 #include <bpkg/pkg-build>
 #include <bpkg/pkg-clean>
 #include <bpkg/pkg-configure>
@@ -31,12 +33,10 @@
 #include <bpkg/pkg-update>
 #include <bpkg/pkg-verify>
 
-#include <bpkg/cfg-add>
-#include <bpkg/cfg-create>
-#include <bpkg/cfg-fetch>
-
-#include <bpkg/rep-info>
+#include <bpkg/rep-add>
 #include <bpkg/rep-create>
+#include <bpkg/rep-fetch>
+#include <bpkg/rep-info>
 
 using namespace std;
 using namespace bpkg;
@@ -205,6 +205,12 @@ try
       break;                                                            \
     }
 
+    // cfg-* commands
+    //
+#define CFG_COMMAND(CMD) COMMAND_IMPL(cfg_, "cfg-", CMD)
+
+    CFG_COMMAND (create);
+
     // pkg-* commands
     //
 #define PKG_COMMAND(CMD) COMMAND_IMPL(pkg_, "pkg-", CMD)
@@ -224,20 +230,14 @@ try
     PKG_COMMAND (update);
     PKG_COMMAND (verify);
 
-    // cfg-* commands
-    //
-#define CFG_COMMAND(CMD) COMMAND_IMPL(cfg_, "cfg-", CMD)
-
-    CFG_COMMAND (add);
-    CFG_COMMAND (create);
-    CFG_COMMAND (fetch);
-
     // rep-* commands
     //
 #define REP_COMMAND(CMD) COMMAND_IMPL(rep_, "rep-", CMD)
 
-    REP_COMMAND (info);
+    REP_COMMAND (add);
     REP_COMMAND (create);
+    REP_COMMAND (fetch);
+    REP_COMMAND (info);
 
     assert (false);
     fail << "unhandled command";

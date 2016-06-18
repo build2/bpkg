@@ -1,8 +1,8 @@
-// file      : bpkg/cfg-add.cxx -*- C++ -*-
+// file      : bpkg/rep-add.cxx -*- C++ -*-
 // copyright : Copyright (c) 2014-2016 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-#include <bpkg/cfg-add>
+#include <bpkg/rep-add>
 
 #include <bpkg/package>
 #include <bpkg/package-odb>
@@ -16,16 +16,16 @@ using namespace butl;
 namespace bpkg
 {
   int
-  cfg_add (const cfg_add_options& o, cli::scanner& args)
+  rep_add (const rep_add_options& o, cli::scanner& args)
   {
-    tracer trace ("cfg_add");
+    tracer trace ("rep_add");
 
     dir_path c (o.directory ());
     l4 ([&]{trace << "configuration: " << c;});
 
     if (!args.more ())
       fail << "repository location argument expected" <<
-        info << "run 'bpkg help cfg-add' for more information";
+        info << "run 'bpkg help rep-add' for more information";
 
     repository_location rl (parse_location (args.next ()));
     const string& rn (rl.canonical_name ());
