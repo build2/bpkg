@@ -1,0 +1,19 @@
+// file      : bpkg/repository-signing.cli
+// copyright : Copyright (c) 2014-2016 Code Synthesis Ltd
+// license   : MIT; see accompanying LICENSE file
+
+include <bpkg/common-options>;
+
+"\section=1"
+"\name=bpkg-repository-signing"
+"\summary=how to sign repository"
+
+"
+\h|SYNOPSIS|
+
+\c{\b{bpkg rep-create --key} ...}
+
+\h|DESCRIPTION|
+
+TODO
+"

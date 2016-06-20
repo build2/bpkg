@@ -9,6 +9,10 @@
 #include <bpkg/diagnostics>
 #include <bpkg/bpkg-options>
 
+// Help topics.
+//
+#include <bpkg/repository-signing>
+
 using namespace std;
 using namespace butl;
 
@@ -21,8 +25,13 @@ namespace bpkg
     {
       if (t.empty ())             // General help.
         usage = &print_bpkg_usage;
-      else if (t == "common-options")  // Help topics.
+      //
+      // Help topics.
+      //
+      else if (t == "common-options")
         usage = &print_bpkg_common_options_long_usage;
+      else if (t == "repository-signing")
+        usage = &print_bpkg_repository_signing_usage;
       else
         fail << "unknown bpkg command/help topic '" << t << "'" <<
           info << "run 'bpkg help' for more information";

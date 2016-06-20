@@ -3,3 +3,5 @@ bpkg
 *-options.?xx
 *-odb
 *-odb.?xx
+repository-signing
+repository-signing.cxx

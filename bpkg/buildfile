@@ -45,6 +45,7 @@ exe{bpkg}:                                                                   \
 {hxx         cxx}{ rep-create       } {hxx ixx cxx}{ rep-create-options    } \
 {hxx         cxx}{ rep-fetch        } {hxx ixx cxx}{ rep-fetch-options     } \
 {hxx         cxx}{ rep-info         } {hxx ixx cxx}{ rep-info-options      } \
+                                      {hxx     cxx}{ repository-signing    } \
 {hxx         cxx}{ satisfaction     }                                        \
 {hxx            }{ types            }                                        \
 {hxx         cxx}{ types-parsers    }                                        \
@@ -103,6 +104,10 @@ if! $cli.loaded
 {hxx ixx cxx}{rep-info-options}:   cli{rep-info}
 {hxx ixx cxx}{rep-create-options}: cli{rep-create}
 
+# Help topics.
+#
+{hxx cxx}{repository-signing}: cli{repository-signing}
+
 # Option length must be the same to get commands/topics/options aligned.
 #
 cli.options += -I $src_root --include-with-brackets --include-prefix bpkg   \
@@ -115,6 +120,10 @@ cli.cxx{common-options}: cli.options += --short-usage --long-usage # Both.
 cli.cxx{bpkg-options}: cli.options += --short-usage --suppress-undocumented
 
 cli.options += --long-usage # All other pages -- long usage.
+
+# Avoid generating CLI runtime and empty inline file for help topics.
+#
+cli.cxx{repository-signing}: cli.options += --suppress-cli --suppress-inline
 
 # Include generated cli files into the distribution.
 #

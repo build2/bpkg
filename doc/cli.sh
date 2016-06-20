@@ -56,7 +56,8 @@ compile "bpkg" $o --output-prefix "" --suppress-undocumented --class-doc bpkg::c
 
 pages="cfg-create help pkg-build pkg-clean pkg-configure pkg-disfigure \
 pkg-drop pkg-fetch pkg-install pkg-purge pkg-status pkg-test pkg-uninstall \
-pkg-unpack pkg-update pkg-verify rep-add rep-create rep-fetch rep-info"
+pkg-unpack pkg-update pkg-verify rep-add rep-create rep-fetch rep-info \
+repository-signing"
 
 for p in $pages; do
   compile $p $o

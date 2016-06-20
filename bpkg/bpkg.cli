@@ -260,6 +260,11 @@ namespace bpkg
     {
       "\l{bpkg-common-options(1)} \- details on common options"
     }
+
+    bool repository-signing
+    {
+      "\l{bpkg-repository-signing(1)} \- how to sign repository"
+    }
   };
 
   class options: common_options
