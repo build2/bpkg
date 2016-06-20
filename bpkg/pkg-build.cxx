@@ -926,15 +926,15 @@ namespace bpkg
               ap = make_shared<available_package> (move (m));
               ar = root;
               ap->locations.push_back (package_location {root, move (d)});
-          }
+            }
           }
           catch (const invalid_path&)
           {
-            // Not a valid path so cannot be an archive.
+            // Not a valid path so cannot be a package directory.
           }
           catch (const failed&)
           {
-            // Not a valid package archive.
+            // Not a valid package directory.
           }
         }
 
