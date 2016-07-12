@@ -844,4 +844,15 @@ namespace bpkg
 
     throw failed ();
   }
+
+  shared_ptr<certificate>
+  parse_certificate (const common_options& co,
+                     const string& cert_pem,
+                     const repository_location& rl)
+  {
+    return parse_cert (co,
+                       real_fingerprint (co, cert_pem, rl),
+                       cert_pem,
+                       rl.canonical_name ());
+  }
 }

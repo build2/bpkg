@@ -1587,22 +1587,30 @@ fail rep-fetch --trust-yes # packages file signature:mismatch
 test cfg-create --wipe
 test rep-info --trust-no --trust $signed_fp -d $cfg $rep/auth/signed <<EOF
 ${repn}auth/signed `location auth/signed`
+CN=build2.org/O=Code Synthesis/info@build2.org
+$signed_fp
 libfoo 1.0.0
 EOF
 
 test rep-info --trust-no -d $cfg $rep/auth/signed <<EOF
 ${repn}auth/signed `location auth/signed`
+CN=build2.org/O=Code Synthesis/info@build2.org
+$signed_fp
 libfoo 1.0.0
 EOF
 
 test cfg-create --wipe
 test rep-info --trust-yes $rep/auth/signed <<EOF
 ${repn}auth/signed `location auth/signed`
+CN=build2.org/O=Code Synthesis/info@build2.org
+$signed_fp
 libfoo 1.0.0
 EOF
 
 fail rep-info --trust-no $rep/auth/signed <<EOF
 ${repn}auth/signed `location auth/signed`
+CN=build2.org/O=Code Synthesis/info@build2.org
+$signed_fp
 libfoo 1.0.0
 EOF
 

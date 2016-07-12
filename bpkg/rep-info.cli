@@ -21,10 +21,14 @@ namespace bpkg
 
      The \cb{rep-info} command prints various information about the specified
      repository. By default it print the repository's name and location as the
-     first line followed by the list of complement and prerequisite
-     repositories and the list of available packages. This default behavior,
-     however, can be altered in various ways using options listed below. Note
-     that the information is written to \cb{STDOUT}, not \cb{STDERR}.
+     first line. If the repository is signed, the certificate information
+     (name/organization/email) is printed as the next line following by the
+     certificate fingerprint. Then comes the list of complement and
+     prerequisite repositories followed by the list of available packages.
+
+     This default format can be altered in various ways using options listed
+     below. Note also that the information is written to \cb{STDOUT}, not
+     \cb{STDERR}.
 
      If the current working directory contains a \cb{bpkg} configuration, then
      \cb{rep-info} will use its certificate database for the repository
@@ -42,7 +46,31 @@ namespace bpkg
 
     bool --name|-n
     {
-      "Print the specified repository's name and location."
+      "Print the repository's name and location."
+    }
+
+    bool --cert-fingerprint
+    {
+      "Print the repository's certificate fingerprint or empty line if the
+       repository is unsigned."
+    }
+
+    bool --cert-name
+    {
+      "Print the repository's certificate common name (CN) or empty line if
+       the repository is unsigned."
+    }
+
+    bool --cert-organization
+    {
+      "Print the repository's certificate organization name (O) or empty line
+       if the repository is unsigned."
+    }
+
+    bool --cert-email
+    {
+      "Print the repository's certificate email or empty line if the
+       repository is unsigned."
     }
 
     bool --repositories|-r

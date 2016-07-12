@@ -91,6 +91,14 @@ namespace bpkg
                    const string& key_name, // --key option value
                    const string& cert_pem,
                    const dir_path& repository);
+
+  // Parse a repository certificate. The repository location argument is used
+  // for diagnostics only.
+  //
+  shared_ptr<certificate>
+  parse_certificate (const common_options&,
+                     const string& cert_pem,
+                     const repository_location&);
 }
 
 #endif // BPKG_AUTH

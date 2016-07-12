@@ -6,6 +6,8 @@
 
 #include <iostream>  // cout
 
+#include <butl/sha256> // sha256_to_fingerprint()
+
 #include <bpkg/manifest>
 #include <bpkg/manifest-serializer>
 
@@ -94,7 +96,15 @@ namespace bpkg
 
     // Now print.
     //
-    bool all (!o.name () && !o.repositories () && !o.packages ());
+    bool cert_info (o.cert_fingerprint ()  ||
+                    o.cert_name ()         ||
+                    o.cert_organization () ||
+                    o.cert_email ());
+
+    bool all (!o.name ()         &&
+              !o.repositories () &&
+              !o.packages ()     &&
+              !cert_info);
 
     try
     {
@@ -102,6 +112,75 @@ namespace bpkg
 
       if (all || o.name ())
         cout << rl.canonical_name () << " " << rl << endl;
+
+      // Certificate.
+      //
+      if (all || cert_info)
+      {
+        if (cert_pem)
+        {
+          // Repository is signed. If we got the repository certificate as the
+          // result of authentication then use it for printing as well.
+          // Otherwise parse it's PEM representation.
+          //
+          if (cert == nullptr)
+            cert = parse_certificate (o, *cert_pem, rl);
+          else
+            assert (!cert->dummy ());
+        }
+        else if (cert != nullptr)
+        {
+          // Reset the dummy certificate pointer that we got as a result of
+          // the unsigned repository authentication.
+          //
+          assert (cert->dummy ());
+          cert = nullptr;
+        }
+
+        if (all)
+        {
+          // Print in the human-friendly format (nothing for an unsigned
+          // repository).
+          //
+          if (cert != nullptr)
+            cout << "CN=" << cert->name << "/O=" << cert->organization <<
+              "/" << cert->email << endl
+                 << sha256_to_fingerprint (cert->fingerprint) << endl;
+        }
+        else
+        {
+          // Print in the structured format if any of --cert-* options are
+          // specified. Print empty lines for an unsigned repository.
+          //
+          if (o.cert_fingerprint ())
+          {
+            if (cert != nullptr)
+              cout << sha256_to_fingerprint (cert->fingerprint);
+            cout << endl;
+          }
+
+          if (o.cert_name ())
+          {
+            if (cert != nullptr)
+              cout << "name:" << cert->name;
+            cout << endl;
+          }
+
+          if (o.cert_organization ())
+          {
+            if (cert != nullptr)
+              cout << cert->organization;
+            cout << endl;
+          }
+
+          if (o.cert_email ())
+          {
+            if (cert != nullptr)
+              cout << cert->email;
+            cout << endl;
+          }
+        }
+      }
 
       // Repositories.
       //

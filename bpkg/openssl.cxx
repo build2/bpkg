@@ -5,7 +5,6 @@
 #include <bpkg/openssl>
 
 #include <butl/process>
-#include <butl/fdstream>
 
 #include <bpkg/diagnostics>
 
