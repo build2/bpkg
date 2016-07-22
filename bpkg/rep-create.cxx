@@ -5,9 +5,9 @@
 #include <bpkg/rep-create>
 
 #include <map>
-#include <fstream>
 #include <iostream>
 
+#include <butl/fdstream>
 #include <butl/filesystem> // dir_iterator
 
 #include <bpkg/manifest>
@@ -217,17 +217,15 @@ namespace bpkg
     try
     {
       {
-        ofstream ofs;
-        ofs.exceptions (ofstream::badbit | ofstream::failbit);
-
         // While we can do nothing about repositories files edited on Windows
         // and littered with the carriage return characters, there is no
         // reason to litter the auto-generated packages and signature files.
         //
-        ofs.open (p.string (), ofstream::out | ofstream::binary);
+        ofdstream ofs (p, ios::binary);
 
         manifest_serializer s (ofs, p.string ());
         manifests.serialize (s);
+        ofs.close ();
       }
 
       const optional<string>& cert (rms.back ().certificate);
@@ -245,12 +243,11 @@ namespace bpkg
 
         p = path (d / signature);
 
-        ofstream ofs;
-        ofs.exceptions (ofstream::badbit | ofstream::failbit);
-        ofs.open (p.string (), ofstream::out | ofstream::binary);
+        ofdstream ofs (p, ios::binary);
 
         manifest_serializer s (ofs, p.string ());
         m.serialize (s);
+        ofs.close ();
       }
       else
       {
@@ -266,9 +263,9 @@ namespace bpkg
     {
       fail << "unable to save manifest: " << e.description;
     }
-    catch (const ofstream::failure&)
+    catch (const ofdstream::failure& e)
     {
-      fail << "unable to write to " << p;
+      fail << "unable to write to " << p << ": " << e.what ();
     }
 
     if (verb)

@@ -4,7 +4,7 @@
 
 #include <bpkg/cfg-create>
 
-#include <fstream>
+#include <butl/fdstream>
 
 #include <bpkg/package>
 #include <bpkg/package-odb>
@@ -72,9 +72,7 @@ namespace bpkg
     path f (b / path ("bootstrap.build"));
     try
     {
-      ofstream ofs;
-      ofs.exceptions (ofstream::badbit | ofstream::failbit);
-      ofs.open (f.string ());
+      ofdstream ofs (f);
 
       ofs << "# Maintained automatically by bpkg. Edit if you know what " <<
         "you are doing." << endl
@@ -85,10 +83,12 @@ namespace bpkg
           << "using config" << endl
           << "using test" << endl
           << "using install" << endl;
+
+      ofs.close ();
     }
-    catch (const ofstream::failure&)
+    catch (const ofdstream::failure& e)
     {
-      fail << "unable to write to " << f;
+      fail << "unable to write to " << f << ": " << e.what ();
     }
 
     // Write build/root.build.
@@ -96,9 +96,7 @@ namespace bpkg
     f = b / path ("root.build");
     try
     {
-      ofstream ofs;
-      ofs.exceptions (ofstream::badbit | ofstream::failbit);
-      ofs.open (f.string ());
+      ofdstream ofs (f);
 
       ofs << "# Maintained automatically by bpkg. Edit if you know what " <<
         "you are doing." << endl
@@ -109,10 +107,12 @@ namespace bpkg
       //
       for (const string& m: mods)
         ofs << "using " << m << endl;
+
+      ofs.close ();
     }
-    catch (const ofstream::failure&)
+    catch (const ofdstream::failure& e)
     {
-      fail << "unable to write to " << f;
+      fail << "unable to write to " << f << ": " << e.what ();
     }
 
     // Write root buildfile.
@@ -120,18 +120,18 @@ namespace bpkg
     f = c / path ("buildfile");
     try
     {
-      ofstream ofs;
-      ofs.exceptions (ofstream::badbit | ofstream::failbit);
-      ofs.open (f.string ());
+      ofdstream ofs (f);
 
       ofs << "# Maintained automatically by bpkg. Edit if you know what " <<
         "you are doing." << endl
           << "#" << endl
           << "./:" << endl;
+
+      ofs.close ();
     }
-    catch (const ofstream::failure&)
+    catch (const ofdstream::failure& e)
     {
-      fail << "unable to write to " << f;
+      fail << "unable to write to " << f << ": " << e.what ();
     }
 
     // Configure.

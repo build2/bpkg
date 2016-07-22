@@ -4,8 +4,6 @@
 
 #include <bpkg/pkg-verify>
 
-#include <fstream>
-
 #include <butl/process>
 #include <butl/fdstream>
 
@@ -38,11 +36,9 @@ namespace bpkg
     //
     process pr (start_extract (co, af, mf, diag));
 
-    ifdstream is (pr.in_ofd);
-    is.exceptions (ifdstream::badbit | ifdstream::failbit);
-
     try
     {
+      ifdstream is (pr.in_ofd, fdstream_mode::skip);
       manifest_parser mp (is, mf.string ());
       package_manifest m (mp, iu);
       is.close ();
@@ -73,15 +69,6 @@ namespace bpkg
     //
     catch (const manifest_parsing& e)
     {
-      // Before we used to just close the file descriptor to signal to the
-      // other end that we are not interested in the rest. But tar doesn't
-      // take this very well (SIGPIPE). So now we are going to skip until
-      // the end.
-      //
-      if (!is.eof ())
-        is.ignore (numeric_limits<streamsize>::max ());
-      is.close ();
-
       if (pr.wait ())
       {
         if (diag)
@@ -93,8 +80,6 @@ namespace bpkg
     }
     catch (const ifdstream::failure&)
     {
-      is.close ();
-
       if (pr.wait ())
       {
         if (diag)
@@ -144,10 +129,7 @@ namespace bpkg
 
     try
     {
-      ifstream ifs;
-      ifs.exceptions (ifstream::badbit | ifstream::failbit);
-      ifs.open (mf.string ());
-
+      ifdstream ifs (mf);
       manifest_parser mp (ifs, mf.string ());
       package_manifest m (mp, iu);
 
@@ -175,10 +157,10 @@ namespace bpkg
 
       throw failed ();
     }
-    catch (const ifstream::failure&)
+    catch (const ifdstream::failure& e)
     {
       if (diag)
-        error << "unable to read from " << mf;
+        error << "unable to read from " << mf << ": " << e.what ();
 
       throw failed ();
     }

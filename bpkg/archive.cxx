@@ -93,15 +93,14 @@ namespace bpkg
 
     try
     {
-      ifdstream is (pr.in_ofd);
-
       // Do not throw when eofbit is set (end of stream reached), and
       // when failbit is set (getline() failed to extract any character).
       //
-      is.exceptions (ifdstream::badbit);
+      ifdstream is (pr.in_ofd, ifdstream::badbit);
 
       string s;
       getline (is, s, '\0');
+      is.close ();
 
       if (pr.wait ())
         return s;
@@ -113,7 +112,7 @@ namespace bpkg
       // Child exit status doesn't matter. Just wait for the process
       // completion and fall through.
       //
-      pr.wait ();
+      pr.wait (); // Check throw.
     }
 
     // While it is reasonable to assuming the child process issued diagnostics

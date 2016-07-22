@@ -4,9 +4,9 @@
 
 #include <bpkg/auth>
 
+#include <ios>
 #include <ratio>
 #include <limits>    // numeric_limits
-#include <fstream>
 #include <cstring>   // strlen(), strcmp()
 #include <iterator>  // ostreambuf_iterator, istreambuf_iterator
 
@@ -118,21 +118,20 @@ namespace bpkg
       process pr (start_openssl (
         co, "x509", {"-sha256", "-noout", "-fingerprint"}, true, true));
 
-      ifdstream is (pr.in_ofd);
-      is.exceptions (ifdstream::badbit);
-
       try
       {
+        ifdstream is (pr.in_ofd, fdstream_mode::skip);
         ofdstream os (pr.out_fd);
-        os.exceptions (ofdstream::badbit);
         os << pem;
         os.close ();
 
         string s;
+        getline (is, s);
+        is.close ();
+
         const size_t n (19);
-        if (!(getline (is, s) && s.size () > n &&
-              s.compare (0, n, "SHA256 Fingerprint=") == 0))
-          throw istream::failure ("");
+        if (!(s.size () > n && s.compare (0, n, "SHA256 Fingerprint=") == 0))
+          throw ifdstream::failure ("");
 
         string fp;
 
@@ -142,10 +141,8 @@ namespace bpkg
         }
         catch (const invalid_argument&)
         {
-          throw istream::failure ("");
+          throw ifdstream::failure ("");
         }
-
-        is.close ();
 
         if (pr.wait ())
           return fp;
@@ -153,16 +150,12 @@ namespace bpkg
         // Fall through.
         //
       }
-      catch (const istream::failure&)
+      catch (const ios_base::failure&)
       {
-        // Child input writing or output reading error.
-        //
-        is.close ();
-
         // Child exit status doesn't matter. Just wait for the process
         // completion and fall through.
         //
-        pr.wait ();
+        pr.wait (); // Check throw.
       }
 
       error << "unable to calculate certificate fingerprint for "
@@ -267,13 +260,14 @@ namespace bpkg
         true,
         true));
 
-      ifdstream is (pr.in_ofd);
-      is.exceptions (ifdstream::badbit);
-
       try
       {
+        // We unset failbit to provide the detailed error description (which
+        // certificate field is missed) on failure.
+        //
+        ifdstream is (pr.in_ofd, fdstream_mode::skip, ifdstream::badbit);
+
         ofdstream os (pr.out_fd);
-        os.exceptions (ofdstream::badbit);
 
         // Reading from and writing to the child process standard streams from
         // the same thread is generally a bad idea. Depending on the program
@@ -413,27 +407,15 @@ namespace bpkg
         // Fall through.
         //
       }
-      catch (const istream::failure&)
+      catch (const ios_base::failure&)
       {
-        // Child input writing or output reading error.
-        //
-        is.close ();
-
         // Child exit status doesn't matter. Just wait for the process
         // completion and fall through.
         //
-        pr.wait ();
+        pr.wait (); // Check throw.
       }
       catch (const invalid_argument& e)
       {
-        // Certificate parsing error. Skip until the end, not to offend the
-        // child with the broken pipe. Never knows how it will take it.
-        //
-        if (!is.eof ())
-          is.ignore (numeric_limits<streamsize>::max ());
-
-        is.close ();
-
         // If the child exited with an error status, then omit any output
         // parsing diagnostics since we were probably parsing garbage.
         //
@@ -570,14 +552,13 @@ namespace bpkg
 
       try
       {
-        ofstream ofs;
-        ofs.exceptions (ofstream::badbit | ofstream::failbit);
-        ofs.open (f.string ());
+        ofdstream ofs (f);
         ofs << *pem;
+        ofs.close ();
       }
-      catch (const ofstream::failure&)
+      catch (const ofdstream::failure& e)
       {
-        fail << "unable to write certificate to " << f;
+        fail << "unable to write certificate to " << f << ": " << e.what ();
       }
     }
 
@@ -656,15 +637,15 @@ namespace bpkg
       {
         f = path::temp_path ("bpkg");
 
-        ofstream ofs;
-        ofs.exceptions (ofstream::badbit | ofstream::failbit);
-        ofs.open (f.string ());
+        ofdstream ofs (f);
         rm = auto_rmfile (f);
         ofs << *cert_pem;
+        ofs.close ();
       }
-      catch (const ofstream::failure&)
+      catch (const ofdstream::failure& e)
       {
-        fail << "unable to save certificate to temporary file " << f;
+        fail << "unable to save certificate to temporary file " << f
+             << ": "  << e.what ();
       }
       catch (const system_error& e)
       {
@@ -702,15 +683,13 @@ namespace bpkg
         true,
         true));
 
-      ifdstream is (pr.in_ofd);
-      is.exceptions (ifdstream::badbit);
-
       try
       {
+        ifdstream is (pr.in_ofd, fdstream_mode::skip);
+
         // Write the signature to the openssl process input in the binary mode.
         //
-        ofdstream os (pr.out_fd, fdtranslate::binary);
-        os.exceptions (ofdstream::badbit);
+        ofdstream os (pr.out_fd, fdstream_mode::binary);
 
         for (const auto& c: sm.signature)
           os.put (c); // Sets badbit on failure.
@@ -718,7 +697,9 @@ namespace bpkg
         os.close ();
 
         string s;
-        bool v (getline (is, s) && is.eof ());
+        getline (is, s);
+
+        bool v (is.eof ());
         is.close ();
 
         if (pr.wait () && v)
@@ -733,16 +714,12 @@ namespace bpkg
         // Fall through.
         //
       }
-      catch (const istream::failure&)
+      catch (const ios_base::failure&)
       {
-        // Child input writing or output reading error.
-        //
-        is.close ();
-
         // Child exit status doesn't matter. Just wait for the process
         // completion and fall through.
         //
-        pr.wait ();
+        pr.wait (); // Check throw.
       }
 
       error << "unable to authenticate repository " << rl.canonical_name ();
@@ -793,15 +770,14 @@ namespace bpkg
       process pr (start_openssl (
         co, "pkeyutl", {"-sign", "-inkey", key_name.c_str ()}, true, true));
 
-      // Read the signature from the openssl process output in the binary mode.
-      //
-      ifdstream is (pr.in_ofd, fdtranslate::binary);
-      is.exceptions (ifdstream::badbit);
-
       try
       {
+        // Read the signature from the openssl process output in the binary
+        // mode.
+        //
+        ifdstream is (pr.in_ofd, fdstream_mode::binary | fdstream_mode::skip);
+
         ofdstream os (pr.out_fd);
-        os.exceptions (ofdstream::badbit);
         os << sha256sum;
         os.close ();
 
@@ -819,16 +795,12 @@ namespace bpkg
         // Fall through.
         //
       }
-      catch (const istream::failure&)
+      catch (const iostream::failure&)
       {
-        // Child input writing or output reading error.
-        //
-        is.close ();
-
         // Child exit status doesn't matter. Just wait for the process
         // completion and fall through.
         //
-        pr.wait ();
+        pr.wait (); // Check throw.
       }
 
       error << "unable to sign repository " << r;

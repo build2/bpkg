@@ -4,7 +4,6 @@
 
 #include <bpkg/checksum>
 
-#include <fstream>
 #include <streambuf>
 
 #include <butl/process>
@@ -36,21 +35,33 @@ namespace bpkg
     {
       process pr (args, 0, -1, 1); // Redirect STDOUT and STDERR to a pipe.
 
-      ifdstream is (pr.in_ofd);
-      string l;
-      getline (is, l);
+      try
+      {
+        ifdstream is (pr.in_ofd);
 
-      return
-        l == "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-        && pr.wait ();
+        string l;
+        getline (is, l);
+        is.close ();
+
+        return
+          pr.wait () &&
+          l ==
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+      }
+      catch (const ifdstream::failure&)
+      {
+        // Fall through.
+      }
     }
     catch (const process_error& e)
     {
       if (e.child ())
         exit (1);
 
-      return false;
+      // Fall through.
     }
+
+    return false;
   }
 
   static process
@@ -89,19 +100,30 @@ namespace bpkg
     {
       process pr (args, 0, -1); // Redirect STDOUT to a pipe.
 
-      ifdstream is (pr.in_ofd);
-      string l;
-      getline (is, l);
+      try
+      {
+        ifdstream is (pr.in_ofd, fdstream_mode::skip);
 
-      return l.compare (0, 9, "sha256sum") == 0 && pr.wait ();
+        string l;
+        getline (is, l);
+        is.close ();
+
+        return pr.wait () && l.compare (0, 9, "sha256sum") == 0;
+      }
+      catch (const ifdstream::failure&)
+      {
+        // Fall through.
+      }
     }
     catch (const process_error& e)
     {
       if (e.child ())
         exit (1);
 
-      return false;
+      // Fall through.
     }
+
+    return false;
   }
 
   static process
@@ -140,19 +162,30 @@ namespace bpkg
     {
       process pr (args, 0, -1); // Redirect STDOUT to a pipe.
 
-      ifdstream is (pr.in_ofd);
-      string l;
-      getline (is, l);
+      try
+      {
+        ifdstream is (pr.in_ofd);
 
-      return l.size () != 0 && l[0] >= '0' && l[0] <= '9' && pr.wait ();
+        string l;
+        getline (is, l);
+        is.close ();
+
+        return pr.wait () && l.size () != 0 && l[0] >= '0' && l[0] <= '9';
+      }
+      catch (const ifdstream::failure&)
+      {
+        // Fall through.
+      }
     }
     catch (const process_error& e)
     {
       if (e.child ())
         exit (1);
 
-      return false;
+      // Fall through.
     }
+
+    return false;
   }
 
   static process
@@ -273,7 +306,7 @@ namespace bpkg
 
       // Prevent any data modifications on the way to the hashing program.
       //
-      fdmode (pr.out_fd, fdtranslate::binary);
+      fdmode (pr.out_fd, fdstream_mode::binary);
       return pr;
     }
     catch (const process_error& e)
@@ -294,11 +327,8 @@ namespace bpkg
 
     try
     {
+      ifdstream is (pr.in_ofd, fdstream_mode::skip);
       ofdstream os (pr.out_fd);
-      os.exceptions (ofdstream::badbit | ofdstream::failbit);
-
-      ifdstream is (pr.in_ofd);
-      is.exceptions (ifdstream::badbit | ifdstream::failbit);
 
       os << &sb;
       os.close ();
@@ -319,7 +349,7 @@ namespace bpkg
         return s;
       }
 
-      // Child existed with an error, fall through.
+      // Child exited with an error, fall through.
     }
     // Ignore these exceptions if the child process exited with an error status
     // since that's the source of the failure.
@@ -373,17 +403,12 @@ namespace bpkg
 
     try
     {
-      ifstream ifs (f.string (), ios::binary);
-      if (!ifs.is_open ())
-        fail << "unable to open " << f << " in read mode";
-
-      ifs.exceptions (ofstream::badbit | ofstream::failbit);
-
+      ifdstream ifs (f, ios::binary);
       return sha256 (o, ifs);
     }
-    catch (const iostream::failure&)
+    catch (const iostream::failure& e)
     {
-      error << "unable read " << f;
+      error << "unable read " << f << ": " << e.what ();
       throw failed ();
     }
   }

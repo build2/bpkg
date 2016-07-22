@@ -4,7 +4,6 @@
 
 #include <bpkg/fetch>
 
-#include <fstream>
 #include <sstream>
 
 #include <butl/process>
@@ -44,12 +43,22 @@ namespace bpkg
     {
       process pr (args, 0, -1); // Redirect STDOUT to a pipe.
 
-      ifdstream is (pr.in_ofd);
       string l;
-      getline (is, l);
 
-      if (l.compare (0, 9, "GNU Wget ") != 0)
+      try
+      {
+        ifdstream is (pr.in_ofd, fdstream_mode::skip);
+
+        getline (is, l);
+        is.close ();
+
+        if (!(pr.wait () && l.compare (0, 9, "GNU Wget ") == 0))
+          return false;
+      }
+      catch (const ifdstream::failure&)
+      {
         return false;
+      }
 
       // Extract the version. If something goes wrong, set the version
       // to 0 so that we treat it as a really old wget.
@@ -74,7 +83,7 @@ namespace bpkg
         l4 ([&]{trace << "unable to extract version from '" << l << "'";});
       }
 
-      return pr.wait ();
+      return true;
     }
     catch (const process_error& e)
     {
@@ -176,19 +185,30 @@ namespace bpkg
     {
       process pr (args, 0, -1); // Redirect STDOUT to a pipe.
 
-      ifdstream is (pr.in_ofd);
-      string l;
-      getline (is, l);
+      try
+      {
+        ifdstream is (pr.in_ofd, fdstream_mode::skip);
 
-      return l.compare (0, 5, "curl ") == 0 && pr.wait ();
+        string l;
+        getline (is, l);
+        is.close ();
+
+        return pr.wait () && l.compare (0, 5, "curl ") == 0;
+      }
+      catch (const ifdstream::failure&)
+      {
+        // Fall through.
+      }
     }
     catch (const process_error& e)
     {
       if (e.child ())
         exit (1);
 
-      return false;
+      // Fall through.
     }
+
+    return false;
   }
 
   static process
@@ -276,19 +296,30 @@ namespace bpkg
     {
       process pr (args, 0, -1, 1); // Redirect STDOUT and STDERR to a pipe.
 
-      ifdstream is (pr.in_ofd);
-      string l;
-      getline (is, l);
+      try
+      {
+        ifdstream is (pr.in_ofd, fdstream_mode::skip);
 
-      return l.compare (0, 13, "usage: fetch ") == 0;
+        string l;
+        getline (is, l);
+        is.close ();
+
+        return pr.wait () && l.compare (0, 13, "usage: fetch ") == 0;
+      }
+      catch (const ifdstream::failure&)
+      {
+        // Fall through.
+      }
     }
     catch (const process_error& e)
     {
       if (e.child ())
         exit (1);
 
-      return false;
+      // Fall through.
     }
+
+    return false;
   }
 
   static process
@@ -546,8 +577,7 @@ namespace bpkg
       // calculation, then use the binary data to create the text stream for
       // the manifest parsing.
       //
-      ifdstream is (pr.in_ofd, fdtranslate::binary);
-      is.exceptions (ifdstream::badbit | ifdstream::failbit);
+      ifdstream is (pr.in_ofd, fdstream_mode::binary);
 
       stringstream bs (ios::in | ios::out | ios::binary);
       bs << is.rdbuf ();
@@ -604,18 +634,15 @@ namespace bpkg
 
     try
     {
-      ifstream ifs (f.string (), ios::binary);
-      if (!ifs.is_open ())
-        fail << "unable to open " << f << " in read mode";
+      // @@ Shouldn't we use cpfile() instead?
+      //
+      // @@ Yes, definitely.
+      //
+      ifdstream ifs (f, ios::binary);
 
-      auto_rm arm (r);
-
-      ofstream ofs (r.string (), ios::binary);
-      if (!ofs.is_open ())
-        fail << "unable to open " << r << " in write mode";
-
-      ifs.exceptions (ofstream::badbit | ofstream::failbit);
-      ofs.exceptions (ofstream::badbit | ofstream::failbit);
+      auto_rm arm;
+      ofdstream ofs (r, ios::binary);
+      arm = auto_rm (r);
 
       ofs << ifs.rdbuf ();
 
@@ -626,9 +653,9 @@ namespace bpkg
 
       arm.cancel ();
     }
-    catch (const iostream::failure&)
+    catch (const ifdstream::failure& e)
     {
-      fail << "unable to copy " << f << " to " << r << ": io error";
+      fail << "unable to copy " << f << " to " << r << ": " << e.what ();
     }
 
     return r;
@@ -655,9 +682,7 @@ namespace bpkg
       if (o != nullptr)
         sha256sum = sha256 (*o, f); // Read file in the binary mode.
 
-      ifstream ifs;
-      ifs.exceptions (ofstream::badbit | ofstream::failbit);
-      ifs.open (f.string ());  // Open file in the text mode.
+      ifdstream ifs (f);  // Open file in the text mode.
 
       manifest_parser mp (ifs, f.string ());
       return make_pair (M (mp, ignore_unknown), move (sha256sum));
@@ -666,9 +691,9 @@ namespace bpkg
     {
       error (e.name, e.line, e.column) << e.description;
     }
-    catch (const ifstream::failure&)
+    catch (const ifdstream::failure& e)
     {
-      error << "unable to read from " << f;
+      error << "unable to read from " << f << ": " << e.what ();
     }
 
     throw failed ();

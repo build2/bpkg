@@ -4,8 +4,6 @@
 
 #include <bpkg/rep-fetch>
 
-#include <fstream>
-
 #include <bpkg/manifest>
 
 #include <bpkg/auth>

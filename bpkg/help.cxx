@@ -50,10 +50,16 @@ namespace bpkg
       //
       return p.wait () ? 0 : 1;
     }
+    // Catch ios_base::failure as std::system_error together with the
+    // pager-specific exceptions.
+    //
     catch (const system_error& e)
     {
       error << "pager failed: " << e.what ();
-      throw failed ();
+
+      // Fall through.
     }
+
+    throw failed ();
   }
 }
