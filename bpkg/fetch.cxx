@@ -624,36 +624,13 @@ namespace bpkg
   static path
   fetch_file (const path& f, const dir_path& d)
   {
-    if (!exists (f))
-      fail << "file " << f << " does not exist";
-
     path r (d / f.leaf ());
-
-    if (exists (r))
-      fail << "file " << r << " already exists";
 
     try
     {
-      // @@ Shouldn't we use cpfile() instead?
-      //
-      // @@ Yes, definitely.
-      //
-      ifdstream ifs (f, ios::binary);
-
-      auto_rm arm;
-      ofdstream ofs (r, ios::binary);
-      arm = auto_rm (r);
-
-      ofs << ifs.rdbuf ();
-
-      // In case they throw.
-      //
-      ifs.close ();
-      ofs.close ();
-
-      arm.cancel ();
+      cpfile (f, r);
     }
-    catch (const ifdstream::failure& e)
+    catch (const system_error& e)
     {
       fail << "unable to copy " << f << " to " << r << ": " << e.what ();
     }
