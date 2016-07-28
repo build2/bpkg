@@ -279,7 +279,7 @@ namespace bpkg
   }
   catch (const invalid_path& e)
   {
-    error << "invalid path: '" << e.path () << "'";
+    error << "invalid path: '" << e.path << "'";
     throw failed ();
   }
 }
