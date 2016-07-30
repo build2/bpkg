@@ -180,7 +180,7 @@ namespace bpkg
 
     dir_path d (args.more () ? args.next () : ".");
     if (d.empty ())
-      throw invalid_path (d.string ());
+      throw invalid_path (d.representation ());
 
     l4 ([&]{trace << "creating repository in " << d;});
 

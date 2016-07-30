@@ -104,12 +104,14 @@ namespace bpkg
     //
     string bspec;
 
+    // Use path representation to get canonical trailing slash.
+    //
     if (src_root == out_root)
-      bspec = "configure('" + out_root.string () + "/')";
+      bspec = "configure('" + out_root.representation () + "')";
     else
       bspec = "configure('" +
-        src_root.string () + "/'@'" +
-        out_root.string () + "/')";
+        src_root.representation () + "'@'" +
+        out_root.representation () + "')";
 
     l4 ([&]{trace << "buildspec: " << bspec;});
 

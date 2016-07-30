@@ -16,6 +16,9 @@ using namespace butl;
 
 namespace bpkg
 {
+  const dir_path bpkg_dir (".bpkg");
+  const dir_path certs_dir (dir_path (bpkg_dir) /= "certs");
+
   bool
   yn_prompt (const char* prompt, char def)
   {
@@ -229,7 +232,9 @@ namespace bpkg
       //
       if (v[0] != '!')
       {
-        storage.push_back (c.string () + "/:" + v);
+        // Use path representation to get canonical trailing slash.
+        //
+        storage.push_back (c.representation () + ':' + v);
         args.push_back (storage.back ().c_str ());
       }
       else

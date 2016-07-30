@@ -21,16 +21,7 @@ namespace bpkg
   {
     tracer trace ("open");
 
-    // @@ Shouldn't we create database file in d / ".bpkg" directory ?
-    //
-    // @@ Yes, let's do it. Also perhaps downloaded packages as well?
-    //    We might as well.
-    //
-    // @@ Don't think would be natural to keep package archives there as, the
-    //    user should see which packages are downloaded without need to look
-    //    into the "hidden" directory.
-    //
-    path f (d / path (".bpkg/bpkg.sqlite3"));
+    path f (d / bpkg_dir / "bpkg.sqlite3");
 
     if (!create && !exists (f))
       fail << d << " does not look like a bpkg configuration directory";

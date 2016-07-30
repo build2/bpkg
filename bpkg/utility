@@ -34,6 +34,11 @@ namespace bpkg
   //
   using butl::reverse_iterate;
 
+  // Widely-used paths.
+  //
+  extern const dir_path bpkg_dir;  // .bpkg/
+  extern const dir_path certs_dir; // .bpkg/certs/
+
   // Y/N prompt. The def argument, if specified, should be either 'y'
   // or 'n'. It is used as the default answer, in case the user just
   // hits enter. Issue diagnostics and throw failed if no answer could

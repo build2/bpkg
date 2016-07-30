@@ -136,12 +136,13 @@ namespace bpkg
 
     // Configure.
     //
-    // Run quiet.
-    run_b (o, c, "configure('" + c.string () + "/')", true, vars);
+    // Run quiet. Use path representation to get canonical trailing slash.
+    //
+    run_b (o, c, "configure('" + c.representation () + "')", true, vars);
 
     // Create .bpkg/.
     //
-    mk (c / dir_path (".bpkg"));
+    mk (c / bpkg_dir);
 
     // Create the database.
     //

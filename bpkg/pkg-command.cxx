@@ -62,9 +62,11 @@ namespace bpkg
       if (bspec.back () != '(')
         bspec += ' ';
 
+      // Use path representation to get canonical trailing slash.
+      //
       bspec += '\'';
-      bspec += out_root.string ();
-      bspec += "/'";
+      bspec += out_root.representation ();
+      bspec += '\'';
 
       if (!pv.vars.empty ())
         run (pv.vars); // Run this package.

@@ -72,10 +72,13 @@ namespace bpkg
     //
     string bspec;
 
+    // Use path representation to get canonical trailing slash.
+    //
+    const string& rep (out_root.representation ());
+
     if (p->state == package_state::configured)
     {
-      bspec = "clean('" + out_root.string () + "/') "
-        "disfigure('" + out_root.string () + "/')";
+      bspec = "clean('" + rep + "') " "disfigure('" + rep + "')";
     }
     else
     {
@@ -84,11 +87,10 @@ namespace bpkg
       // partially configured one.
       //
       if (src_root == out_root)
-        bspec = "disfigure('" + out_root.string () + "/')";
+        bspec = "disfigure('" + rep + "')";
       else
-        bspec = "disfigure('" +
-          src_root.string () + "/'@'" +
-          out_root.string () + "/')";
+        bspec = "disfigure('" + src_root.representation () + "'@'" +
+          rep + "')";
     }
 
     l4 ([&]{trace << "buildspec: " << bspec;});

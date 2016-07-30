@@ -37,15 +37,17 @@ namespace bpkg
 
     // Construct the prefix as a relative repository location.
     //
-    string p (".");
+    dir_path p;
     for (auto i (rl.path ().rbegin ()), e (rl.path ().rend ()); i != e; ++i)
     {
       const string& c (*i);
       if (!c.empty () && c.find_first_not_of ("1234567890") == string::npos)
         break;
 
-      p = "../" + p;
+      p /= "..";
     }
+
+    p /= ".";
 
     // If this is a remote location then use the canonical name prefix. For
     // a local location this doesn't always work. Consider:
@@ -57,13 +59,9 @@ namespace bpkg
     // use the location rather than the name prefix.
     //
     if (rl.remote ())
-      return repository_location (p, rl).canonical_name ();
+      return repository_location (p.posix_string (), rl).canonical_name ();
     else
-    {
-      path lp (rl.path () / path (p));
-      lp.normalize ();
-      return lp.string ();
-    }
+      return (rl.path () / p).normalize ().string ();
   }
 
   // Authenticate a dummy certificate. If trusted, it will authenticate all
@@ -512,8 +510,6 @@ namespace bpkg
     return cert;
   }
 
-  static const dir_path certs_dir (".bpkg/certs");
-
   // Authenticate a certificate with the database. First check if it is
   // already authenticated. If not, authenticate and add to the database.
   //
@@ -579,7 +575,7 @@ namespace bpkg
       fail << "--trust-yes and --trust-no are mutually exclusive";
 
     if (conf != nullptr && conf->empty ())
-      conf = dir_exists (path (".bpkg")) ? &current_dir : nullptr;
+      conf = dir_exists (bpkg_dir) ? &current_dir : nullptr;
 
     assert (conf == nullptr || !conf->empty ());
 
@@ -619,7 +615,7 @@ namespace bpkg
     tracer trace ("authenticate_repository");
 
     if (conf != nullptr && conf->empty ())
-      conf = dir_exists (path (".bpkg")) ? &current_dir : nullptr;
+      conf = dir_exists (bpkg_dir) ? &current_dir : nullptr;
 
     assert (conf == nullptr || !conf->empty ());
 

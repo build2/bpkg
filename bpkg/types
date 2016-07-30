@@ -81,22 +81,10 @@ namespace bpkg
   using paths = std::vector<path>;
   using dir_paths = std::vector<dir_path>;
 
-  // Custom path printing.
+  // Custom path printing (with trailing slash for directories).
   //
   inline ostream&
-  operator<< (ostream& os, const path& p) {return os << p.string ();}
-
-  inline ostream&
-  operator<< (ostream& os, const dir_path& p)
-  {
-    const string& s (p.string ());
-    os << s;
-
-    if (!s.empty () && !dir_path::traits::is_separator (s.back ()))
-      os << dir_path::traits::directory_separator;
-
-    return os;
-  }
+  operator<< (ostream& os, const path& p) {return os << p.representation ();}
 }
 
 #endif // BPKG_TYPES
