@@ -330,7 +330,12 @@ namespace bpkg
       ifdstream is (pr.in_ofd, fdstream_mode::skip);
       ofdstream os (pr.out_fd);
 
-      os << &sb;
+      // Note that the eof check is important: if the stream is at eof, write
+      // will fail.
+      //
+      if (sb.sgetc () != ifdstream::traits_type::eof ())
+        os << &sb;
+
       os.close ();
 
       // All three tools output the sum as the first word.

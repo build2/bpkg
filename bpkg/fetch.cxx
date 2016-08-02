@@ -578,9 +578,14 @@ namespace bpkg
       // the manifest parsing.
       //
       ifdstream is (pr.in_ofd, fdstream_mode::binary);
-
       stringstream bs (ios::in | ios::out | ios::binary);
-      bs << is.rdbuf ();
+
+      // Note that the eof check is important: if the stream is at eof, write
+      // will fail.
+      //
+      if (is.peek () != ifdstream::traits_type::eof ())
+        bs << is.rdbuf ();
+
       is.close ();
 
       string sha256sum (sha256 (o, bs));
