@@ -433,6 +433,16 @@ namespace bpkg
           fail << "package " << name << " " << ap->version << " is orphaned" <<
             info << "explicitly upgrade it to a new version";
 
+        // We look for prerequisites only in the repositories of this package
+        // (and not in all the repositories of this configuration). At first
+        // this might look strange, but it also kind of makes sense: we only
+        // use repositories "approved" for this package version. Consider this
+        // scenario as an example: hello/1.0.0 and libhello/1.0.0 in stable
+        // and libhello/2.0.0 in testing. As a prerequisite of hello, which
+        // version should libhello resolve to? While one can probably argue
+        // either way, resolving it to 1.0.0 is the conservative choice and
+        // the user can always override it by explicitly building libhello.
+        //
         auto rp (find_available (db, d.name, ar, d.constraint));
 
         if (rp.first == nullptr)
