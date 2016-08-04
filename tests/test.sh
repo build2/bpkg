@@ -15,6 +15,9 @@
 #    local test in order to create the repositories, then publish them (see
 #    pkg/publish.sh), and finally run the remote test.
 #
+# -c <compiler>
+#    Use the compiler specified to configure cxx module.
+#
 # --valgrind
 #    Run under valgrind (takes forever).
 #
@@ -54,6 +57,7 @@ fi
 verbose=n
 remote=n
 options=
+cxx_options=
 
 while [ $# -gt 0 ]; do
   case $1 in
@@ -67,6 +71,11 @@ while [ $# -gt 0 ]; do
       ;;
     --valgrind)
       bpkg="valgrind -q $bpkg"
+      shift
+      ;;
+    -c)
+      shift
+      cxx_options="config.cxx=$1"
       shift
       ;;
     *)
@@ -297,6 +306,7 @@ sha256sum: d09700602ff78ae405b6d4850e34660e939d27676e015a23b549884497c8bb45
 EOF
 
 hello_fp=`rep_cert_fp pkg/1/build2.org/common/hello`
+
 test rep-info -m -p --trust $hello_fp $rep/common/hello <<EOF
 : 1
 sha256sum: 8d324fa7911038778b215d28805c6546e737e0092f79f7bd167cf2e28f4ad96f
@@ -314,16 +324,16 @@ url: http://www.example.org/libhello
 email: hello-users@example.org
 requires: c++11
 location: libhello-1.0.0+1.tar.gz
-sha256sum: ceff9f39dbff496ece817d6806ab3723b065dcdff1734683fe64a60c103f7f9b
+sha256sum: ff68e5269b5f594996a016ba2789f646cf5753e8baa0e9b4b77c4c4b81c41326
 EOF
 
 ##
 ## cfg-create
 ##
-test cfg-create --wipe cxx config.install.root=/tmp/install
+test cfg-create --wipe cxx $cxx_options config.install.root=/tmp/install
 stat libfoo unknown
 
-test cfg-create --wipe config.install.root=/tmp/install cxx
+test cfg-create --wipe config.install.root=/tmp/install cxx $cxx_options
 stat libfoo unknown
 
 
@@ -585,7 +595,6 @@ rm $cfg/libfoo-1.0.0.tar.gz
 test pkg-purge -f libfoo
 stat libfoo unknown
 
-
 ##
 ## pkg-configure/pkg-disfigure
 ##
@@ -603,7 +612,7 @@ fail pkg-disfigure libhello1              # no such package
 
 test pkg-fetch libhello/1.0.0+1
 
-fail pkg-configure libhello               # wrong package state
+fail pkg-configure libhello $cxx_options  # wrong package state
 fail pkg-disfigure libhello               # wrong package state
 
 test pkg-purge libhello
@@ -612,7 +621,7 @@ test pkg-purge libhello
 #
 test pkg-fetch libhello/1.0.0+1
 test pkg-unpack libhello
-test pkg-configure libhello
+test pkg-configure libhello $cxx_options
 stat libhello "configured 1.0.0+1"
 test pkg-disfigure libhello
 stat libhello "unpacked 1.0.0+1"
@@ -623,7 +632,7 @@ stat libhello/1.0.0 "available 1.0.0+1"
 #
 test cfg-create --wipe
 test pkg-unpack -e pkg/1/build2.org/common/libhello-1.0.0+1
-test pkg-configure libhello
+test pkg-configure libhello $cxx_options
 stat libhello "configured 1.0.0+1"
 test pkg-disfigure libhello
 stat libhello "unpacked 1.0.0+1"
@@ -634,7 +643,7 @@ gone $cfg/libhello-1.0.0+1
 # out still exists after disfigure
 #
 test pkg-unpack -e pkg/1/build2.org/common/libhello-1.0.0+1
-test pkg-configure libhello
+test pkg-configure libhello $cxx_options
 touch $cfg/libhello-1.0.0+1/stray
 fail pkg-disfigure libhello
 stat libhello/1.0.0+1 broken
@@ -645,7 +654,7 @@ stat libhello unknown
 # disfigure failed
 #
 test pkg-unpack -e pkg/1/build2.org/common/libhello-1.0.0+1
-test pkg-configure libhello
+test pkg-configure libhello $cxx_options
 chmod 555 $cfg/libhello-1.0.0+1
 fail pkg-disfigure libhello
 stat libhello/1.0.0+1 broken
@@ -665,7 +674,7 @@ if [ "$msys" != "y" ]; then
   test pkg-unpack -e pkg/1/build2.org/common/libhello-1.0.0+1
   mkdir -p $cfg/libhello-1.0.0+1/build
   chmod 555 $cfg/libhello-1.0.0+1/build
-  fail pkg-configure libhello
+  fail pkg-configure libhello $cxx_options
   stat libhello "unpacked 1.0.0+1"
   test pkg-purge libhello
   stat libhello unknown
@@ -677,7 +686,7 @@ if [ "$msys" != "y" ]; then
   # Trip both con/dis.
   #
   chmod 555 $cfg/libhello-1.0.0+1 $cfg/libhello-1.0.0+1/build
-  fail pkg-configure libhello
+  fail pkg-configure libhello $cxx_options
   stat libhello/1.0.0+1 broken
   chmod 755 $cfg/libhello-1.0.0+1 $cfg/libhello-1.0.0+1/build
   rm -r $cfg/libhello-1.0.0+1
@@ -817,7 +826,7 @@ test pkg-purge libhello
 #
 test pkg-fetch libhello/1.0.0+1
 test pkg-unpack libhello
-test pkg-configure libhello
+test pkg-configure libhello $cxx_options
 test pkg-update libhello
 test pkg-update libhello
 test pkg-disfigure libhello
@@ -827,7 +836,7 @@ test pkg-purge libhello
 #
 test cfg-create --wipe
 test pkg-unpack -e pkg/1/build2.org/common/libhello-1.0.0+1
-test pkg-configure libhello
+test pkg-configure libhello $cxx_options
 test pkg-update libhello
 test pkg-update libhello
 test pkg-disfigure libhello
@@ -851,7 +860,7 @@ test pkg-purge libhello
 #
 test pkg-fetch libhello/1.0.0+1
 test pkg-unpack libhello
-test pkg-configure libhello
+test pkg-configure libhello $cxx_options
 test pkg-update libhello
 test pkg-clean libhello
 test pkg-clean libhello
@@ -862,7 +871,7 @@ test pkg-purge libhello
 #
 test cfg-create --wipe
 test pkg-unpack -e pkg/1/build2.org/common/libhello-1.0.0+1
-test pkg-configure libhello
+test pkg-configure libhello $cxx_options
 test pkg-update libhello
 test pkg-clean libhello
 test pkg-clean libhello
@@ -877,12 +886,12 @@ test pkg-purge libhello
 
 # build and clean package
 #
-test cfg-create --wipe cxx
+test cfg-create --wipe cxx $cxx_options
 test rep-add $rep/common/hello
 test rep-fetch --trust $hello_fp
 test pkg-fetch libhello/1.0.0+1
 test pkg-unpack libhello
-test pkg-configure libhello
+test pkg-configure libhello $cxx_options
 test pkg-update libhello
 test pkg-clean libhello
 test pkg-disfigure libhello

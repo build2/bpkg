@@ -4,8 +4,10 @@
 
 #include <string>
 
+#include <hello/export>
+
 namespace hello
 {
-  void
+  LIBHELLO_EXPORT void
   say (const std::string& name);
 }
