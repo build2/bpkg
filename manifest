@@ -10,10 +10,9 @@ url: https://build2.org
 email: users@build2.org
 requires: c++11
 requires: build2 >= 0.3.0
-requires: libodb >= 2.5.0-a3
-requires: libodb-sqlite >= 2.5.0-a3
-requires: sqlite3
 # @@ Should probably become conditional dependency.
 requires: ? cli ; Only required if changing .cli files.
 depends: libbutl == 0.4.0-a1
 depends: libbpkg == 0.4.0-a1
+depends: libodb [2.5.0-a9 2.6.0-); 2.5.X
+depends: libodb-sqlite [2.5.0-a9 2.6.0-); 2.5.X
