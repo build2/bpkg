@@ -68,6 +68,12 @@ if! $cli.loaded
   cli{*}: extension = cli
 }
 
+# Include generated cli files into the distribution.
+#
+hxx{*-options}: dist = true
+ixx{*-options}: dist = true
+cxx{*-options}: dist = true
+
 {hxx ixx cxx}{common-options}:        cli{common}
 {hxx ixx cxx}{configuration-options}: cli{configuration}
 {hxx ixx cxx}{bpkg-options}:          cli{bpkg}
@@ -108,6 +114,7 @@ if! $cli.loaded
 # Help topics.
 #
 {hxx cxx}{repository-signing}: cli{repository-signing}
+{hxx cxx}{repository-signing}: dist = true
 
 # Option length must be the same to get commands/topics/options aligned.
 #
@@ -125,9 +132,3 @@ cli.options += --long-usage # All other pages -- long usage.
 # Avoid generating CLI runtime and empty inline file for help topics.
 #
 cli.cxx{repository-signing}: cli.options += --suppress-cli --suppress-inline
-
-# Include generated cli files into the distribution.
-#
-hxx{*-options}: dist = true
-ixx{*-options}: dist = true
-cxx{*-options}: dist = true
