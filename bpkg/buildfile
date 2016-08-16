@@ -54,6 +54,11 @@ exe{bpkg}:                                                                   \
 {hxx            }{ wrapper-traits   }                                        \
 $libs
 
+# Disable VC "unknown pragma" warning.
+#
+if ($cxx.id == "msvc")
+  cxx.coptions += /wd4068
+
 # Load the cli module but only if it's available. This way a distribution
 # that includes pre-generated files can be built without installing cli.
 # This is also the reason why above we explicitly spelled out individual
