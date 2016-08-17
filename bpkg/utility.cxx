@@ -199,7 +199,11 @@ namespace bpkg
          const strings& pvars,
          const strings& cvars)
   {
-    cstrings args {co.build ().string ().c_str ()};
+    const char* b (co.build_specified ()
+                   ? co.build ().string ().c_str ()
+                   : "b" BPKG_EXE_SUFFIX);
+
+    cstrings args {b};
 
     // Map verbosity level. If we are running quiet or at level 1,
     // then run build2 quiet. Otherwise, run it at the same level

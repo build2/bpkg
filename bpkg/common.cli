@@ -75,14 +75,17 @@ namespace bpkg
        \li|Even more detailed information.||"
     }
 
-    path --build = "b"
+    path --build
     {
       "<path>",
       "The build program to be used to build packages. This should be the path
        to the build2 \cb{b} executable. You can also specify additional options
-       that should be passed to the build program with \cb{--build-option}. If
-       the build program is not explicitly specified, then \cb{bpkg} will use
-       \cb{b} by default."
+       that should be passed to the build program with \cb{--build-option}.
+
+       If the build program is not explicitly specified, then \cb{bpkg} will
+       by default use \cb{b} plus an executable suffix if one was specified
+       when building \cb{bpkg}. So, for example, if \cb{bpkg} name was set
+       to \cb{bpkg-1.0}, then it will look for \cb{b-1.0}."
     }
 
     strings --build-option
