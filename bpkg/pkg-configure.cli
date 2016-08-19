@@ -11,7 +11,7 @@ include <bpkg/configuration.cli>;
 namespace bpkg
 {
   {
-    "<options> <pkg> <conf-var>",
+    "<options> <pkg> <ver> <conf-var>",
 
     "\h|SYNOPSIS|
 
@@ -19,11 +19,19 @@ namespace bpkg
 
      \h|DESCRIPTION|
 
-     The \cb{pkg-configure} command configures the previously unpacked
-     (\l{bpkg-pkg-unpack(1)}) package. The package inherits the common
-     \cb{build2} configuration values that were specified when creating the
-     configuration (\l{bpkg-cfg-create(1)}). Additional, package-specific
-     configuration variables can be specified after the package name."
+     The \cb{pkg-configure} command configures either the previously unpacked
+     (\l{bpkg-pkg-unpack(1)}) source code package or a package that is present
+     in the system.
+
+     A source code package inherits the common \cb{build2} configuration
+     values that were specified when creating the configuration
+     (\l{bpkg-cfg-create(1)}). Additional, package-specific configuration
+     variables can be specified after the package name.
+
+     A system package is specified using the \c{\b{sys:}<pkg>[/<ver>]}
+     syntax. If the package version (<ver>) is not specified, then it is
+     considered to be unknown but satisfying any dependency constraint. Such a
+     version is displayed as \cb{*}."
   }
 
   class pkg_configure_options: configuration_options

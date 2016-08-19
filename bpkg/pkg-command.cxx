@@ -124,7 +124,10 @@ namespace bpkg
           fail << "package " << n << " is " << p->state <<
             info << "expected it to be configured";
 
-        l4 ([&]{trace << p->name << " " << p->version;});
+        if (p->substate == package_substate::system)
+          fail << "cannot " << cmd << " system package " << n;
+
+        l4 ([&]{trace << *p;});
 
         // Read package-specific variables.
         //
@@ -142,8 +145,7 @@ namespace bpkg
     if (verb)
     {
       for (const pkg_command_vars& pv: ps)
-        text << cmd << (cmd.back () != 'e' ? "ed " : "d ")
-             << pv.pkg->name << " " << pv.pkg->version;
+        text << cmd << (cmd.back () != 'e' ? "ed " : "d ") << *pv.pkg;
     }
 
     return 0;

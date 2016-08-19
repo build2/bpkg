@@ -20,8 +20,9 @@ namespace bpkg
      \h|DESCRIPTION|
 
      The \cb{pkg-disfigure} command disfigures the previously configured
-     (via \l{bpkg-pkg-build(1)} or \l{bpkg-pkg-configure(1)}) package and
-     returns it to the \cb{unpacked} state."
+     (via \l{bpkg-pkg-build(1)} or \l{bpkg-pkg-configure(1)}) package. A
+     source code package is returned to the \cb{unpacked} state. A system
+     package is removed from the configuration."
   }
 
   class pkg_disfigure_options: configuration_options

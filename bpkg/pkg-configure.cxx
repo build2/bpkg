@@ -9,6 +9,7 @@
 #include <bpkg/database>
 #include <bpkg/diagnostics>
 #include <bpkg/satisfaction>
+#include <bpkg/manifest-utility>
 
 #include <bpkg/pkg-verify>
 #include <bpkg/pkg-disfigure>
@@ -146,6 +147,36 @@ namespace bpkg
     t.commit ();
   }
 
+  shared_ptr<selected_package>
+  pkg_configure_system (const string& n, const version& v, transaction& t)
+  {
+    tracer trace ("pkg_configure_system");
+
+    database& db (t.database ());
+    tracer_guard tg (db, trace);
+
+    shared_ptr<selected_package> p (
+      new selected_package {
+        n,
+        v,
+        package_state::configured,
+        package_substate::system,
+        false,                     // Don't hold package.
+        false,                     // Don't hold version.
+        repository_location (),    // Root repository.
+        nullopt,                   // No source archive.
+        false,                     // No auto-purge (does not get there).
+        nullopt,                   // No source directory.
+        false,
+        nullopt,                   // No output directory.
+        {}});                      // No prerequisites.
+
+    db.persist (p);
+    t.commit ();
+
+    return p;
+  }
+
   int
   pkg_configure (const pkg_configure_options& o, cli::scanner& args)
   {
@@ -175,25 +206,62 @@ namespace bpkg
       fail << "package name argument expected" <<
         info << "run 'bpkg help pkg-configure' for more information";
 
+    const char* package (n.c_str ());
+    package_scheme ps (parse_package_scheme (package));
+
+    if (ps == package_scheme::sys && !vars.empty ())
+      fail << "configuration variables specified for a system package";
+
     database db (open (c, trace));
     transaction t (db.begin ());
     session s;
 
-    shared_ptr<selected_package> p (db.find<selected_package> (n));
+    shared_ptr<selected_package> p;
 
-    if (p == nullptr)
-      fail << "package " << n << " does not exist in configuration " << c;
+    // pkg_configure() commits the transaction.
+    //
+    if (ps == package_scheme::sys)
+    {
+      // Configure system package.
+      //
+      version v (parse_package_version (package));
+      n = parse_package_name (package);
 
-    if (p->state != package_state::unpacked)
-      fail << "package " << n << " is " << p->state <<
-        info << "expected it to be unpacked";
+      p = db.find<selected_package> (n);
 
-    l4 ([&]{trace << p->name << " " << p->version;});
+      if (p != nullptr)
+        fail << "package " << n << " already exists in configuration " << c;
 
-    pkg_configure (c, o, t, p, vars); // Commits the transaction.
+      shared_ptr<repository> rep (db.load<repository> ("")); // Root.
+
+      using query = query<available_package>;
+      query q (query::id.name == n);
+
+      if (filter_one (rep, db.query<available_package> (q)).first == nullptr)
+        fail << "unknown package " << n;
+
+      p = pkg_configure_system (n, v.empty () ? wildcard_version : v, t);
+    }
+    else
+    {
+      // Configure unpacked package.
+      //
+      p = db.find<selected_package> (n);
+
+      if (p == nullptr)
+        fail << "package " << n << " does not exist in configuration " << c;
+
+      if (p->state != package_state::unpacked)
+        fail << "package " << n << " is " << p->state <<
+          info << "expected it to be unpacked";
+
+      l4 ([&]{trace << *p;});
+
+      pkg_configure (c, o, t, p, vars);
+    }
 
     if (verb)
-      text << "configured " << p->name << " " << p->version;
+      text << "configured " << *p;
 
     return 0;
   }

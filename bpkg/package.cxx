@@ -11,6 +11,8 @@ using namespace std;
 
 namespace bpkg
 {
+  const version wildcard_version (0, "0", nullopt, 0);
+
   // available_package_id
   //
   bool
@@ -22,7 +24,6 @@ namespace bpkg
 
   // available_package
   //
-
   // Check if the package is available from the specified repository,
   // its prerequisite repositories, or one of their complements,
   // recursively. Return the first repository that contains the
@@ -104,6 +105,21 @@ namespace bpkg
     return result ();
   }
 
+  // selected_package
+  //
+  string selected_package::
+  version_string () const
+  {
+    return version != wildcard_version ? version.string () : "*";
+  }
+
+  ostream&
+  operator<< (ostream& os, const selected_package& p)
+  {
+    os << (p.system () ? "sys:" : "") << p.name << "/" << p.version_string ();
+    return os;
+  }
+
   // state
   //
   string
@@ -111,6 +127,7 @@ namespace bpkg
   {
     switch (s)
     {
+    case package_state::transient:  return "transient";
     case package_state::broken:     return "broken";
     case package_state::fetched:    return "fetched";
     case package_state::unpacked:   return "unpacked";
@@ -123,11 +140,34 @@ namespace bpkg
   package_state
   to_package_state (const string& s)
   {
-         if (s == "broken")     return package_state::broken;
+         if (s == "transient")  return package_state::transient;
+    else if (s == "broken")     return package_state::broken;
     else if (s == "fetched")    return package_state::fetched;
     else if (s == "unpacked")   return package_state::unpacked;
     else if (s == "configured") return package_state::configured;
     else throw invalid_argument ("invalid package state '" + s + "'");
+  }
+
+  // substate
+  //
+  string
+  to_string (package_substate s)
+  {
+    switch (s)
+    {
+    case package_substate::none:   return "none";
+    case package_substate::system: return "system";
+    }
+
+    return string (); // Should never reach.
+  }
+
+  package_substate
+  to_package_substate (const string& s)
+  {
+         if (s == "none")   return package_substate::none;
+    else if (s == "system") return package_substate::system;
+    else throw invalid_argument ("invalid package substate '" + s + "'");
   }
 
   // certificate

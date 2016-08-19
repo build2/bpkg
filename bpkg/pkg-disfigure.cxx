@@ -25,6 +25,8 @@ namespace bpkg
 
     tracer trace ("pkg_disfigure");
 
+    l4 ([&]{trace << *p;});
+
     database& db (t.database ());
     tracer_guard tg (db, trace);
 
@@ -49,6 +51,17 @@ namespace bpkg
             dr << " on " << p->name << " " << *pd.constraint;
         }
       }
+    }
+
+    if (p->substate == package_substate::system)
+    {
+      db.erase (p);
+      t.commit ();
+
+      p->state = package_state::transient;
+      p->substate = package_substate::none;
+
+      return;
     }
 
     // Since we are no longer configured, clear the prerequisites list.
@@ -154,12 +167,15 @@ namespace bpkg
       fail << "package " << n << " is " << p->state <<
         info << "expected it to be configured";
 
-    l4 ([&]{trace << p->name << " " << p->version;});
-
     pkg_disfigure (c, o, t, p); // Commits the transaction.
 
+    assert (p->state == package_state::unpacked ||
+            p->state == package_state::transient);
+
     if (verb)
-      text << "disfigured " << p->name << " " << p->version;
+      text << (p->state == package_state::transient
+               ? "purged "
+               : "disfigured ") << *p;
 
     return 0;
   }

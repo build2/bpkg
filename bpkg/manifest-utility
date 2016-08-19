@@ -12,6 +12,20 @@
 
 namespace bpkg
 {
+  // Package naming schemes.
+  //
+  enum class package_scheme
+  {
+    none,
+    sys
+  };
+
+  // Extract scheme from [<scheme>:]<package>. Position the pointer right after
+  // the scheme end if present, otherwise leave unchanged.
+  //
+  package_scheme
+  parse_package_scheme (const char*&);
+
   // Extract name and version components from <name>[/<version>].
   //
   string

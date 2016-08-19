@@ -67,7 +67,9 @@ namespace bpkg
         diag_record dr (fail);
 
         dr << "package " << n << " already exists in configuration " << c <<
-          info << "version: " << p->version << ", state: " << p->state;
+          info << "version: " << p->version_string ()
+           << ", state: " << p->state
+           << ", substate: " << p->substate;
 
         if (s) // Suitable state for replace?
           dr << info << "use 'pkg-unpack --replace|-r' to replace";
@@ -95,6 +97,7 @@ namespace bpkg
         move (m.name),
         move (m.version),
         package_state::unpacked,
+        package_substate::none,
         false,   // hold package
         false,   // hold version
         repository_location (), // Root repository.
@@ -132,7 +135,7 @@ namespace bpkg
       fail << "package " << name << " is " << p->state <<
         info << "expected it to be fetched";
 
-    l4 ([&]{trace << p->name << " " << p->version;});
+    l4 ([&]{trace << *p;});
 
     assert (p->archive); // Should have archive in the fetched state.
 
@@ -258,7 +261,7 @@ namespace bpkg
     }
 
     if (verb)
-      text << "unpacked " << p->name << " " << p->version;
+      text << "unpacked " << *p;
 
     return 0;
   }

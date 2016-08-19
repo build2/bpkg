@@ -82,6 +82,8 @@ namespace bpkg
 
     db.erase (p);
     t.commit ();
+
+    p->state = package_state::transient;
   }
 
   int
@@ -190,16 +192,18 @@ namespace bpkg
       {
         p->state = package_state::fetched;
         db.update (p);
+        t.commit ();
       }
     }
     else
+    {
       db.erase (p);
-
-    t.commit ();
+      t.commit ();
+      p->state = package_state::transient;
+    }
 
     if (verb)
-        text << (o.keep () ? "keeping archive " : "purged ")
-             << p->name << " " << p->version;
+        text << (o.keep () ? "keeping archive " : "purged ") << *p;
 
     return 0;
   }

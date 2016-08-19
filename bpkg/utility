@@ -11,7 +11,7 @@
 #include <cassert>  // assert()
 #include <iterator> // make_move_iterator()
 
-#include <butl/utility> // reverse_iterate()
+#include <butl/utility> // casecmp(), reverse_iterate()
 
 #include <exception> // uncaught_exception()
 
@@ -32,6 +32,7 @@ namespace bpkg
 
   // <butl/utility>
   //
+  using butl::casecmp;
   using butl::reverse_iterate;
 
   // Widely-used paths.

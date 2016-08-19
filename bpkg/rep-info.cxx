@@ -230,7 +230,7 @@ namespace bpkg
         else
         {
           for (const package_manifest& pm: pms)
-            cout << pm.name << " " << pm.version << endl;
+            cout << pm.name << "/" << pm.version << endl;
         }
       }
     }

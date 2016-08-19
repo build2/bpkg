@@ -17,6 +17,9 @@ namespace bpkg
   {
     assert (!c.empty ());
 
+    if (v == wildcard_version)
+      return true;
+
     bool s (true);
 
     // See notes in pkg-build:find_available() on ignoring revision in

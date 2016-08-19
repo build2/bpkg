@@ -25,7 +25,9 @@ namespace bpkg
 
      The status output format is regular. If several packages were specified,
      then each line starts with the package name (and version, if specified)
-     followed by '\cb{:}'. Then comes one of the following status words:
+     followed by '\cb{:}'. Then comes one of the status words listed below.
+     Some of them can be optionally followed by '\cb{,}' (no spaces) and a
+     sub-status word.
 
      \dl|
 
@@ -49,7 +51,11 @@ namespace bpkg
 
      \li|\cb{configured}
 
-         Package is part of the configuration and is configured.|
+         Package is part of the configuration and is configured. May be
+         followed by the \cb{system} sub-status indicating a package coming
+         from the system. The version of such a system package (described
+         below) may be the special '\cb{*}' value indicating a wildcard
+         version.|
 
      \li|\cb{broken}
 
@@ -58,7 +64,10 @@ namespace bpkg
 
      If only the package name was specified without the package version, then
      the \cb{available} status word is followed by the list of available
-     versions.
+     versions. The last version on this list may have the \cb{sys:} prefix
+     indicating an available system version. Such a system version may be
+     the special '\cb{?}' value indicating that a package may or may not
+     be available from the system and its version is unknown.
 
      Similarly, if only the package name was specified, then the \cb{fetched},
      \cb{unpacked}, \cb{configured}, and \cb{broken} status words are followed
@@ -73,7 +82,7 @@ namespace bpkg
 
      Below are some examples, assuming the configuration has \cb{libfoo}
      \cb{1.0.0} configured and held as well as \cb{libfoo} \cb{1.1.0} and
-     \cb{1.1.1} available from a repository.
+     \cb{1.1.1} available from source and \cb{1.1.0} from the system.
 
      \
      bpkg status libbar
@@ -86,10 +95,13 @@ namespace bpkg
      configured hold_package
 
      bpkg status libfoo/1.1.0
+     available 1.1.0 sys:1.1.0
+
+     bpkg status libfoo/1.1.1
      available
 
      bpkg status libfoo
-     configured 1.0.0 hold_package; available 1.1.0 1.1.1
+     configured 1.0.0 hold_package; available 1.1.0 1.1.1 sys:1.1.0
 
      bpkg status libfoo/1.0.0 libbar
      libfoo/1.0.0: configured hold_package
@@ -102,12 +114,19 @@ namespace bpkg
      bpkg status libfoo/1.0.0
      unknown
 
-     bpkg status libfoo/1.1.0
-     available
-
      bpkg status libfoo
-     available 1.1.0 1.1.1
+     available 1.1.0 1.1.1 sys:1.1.0
      \
+
+     And assuming now that we built \cb{libfoo} as a system package with
+     the wildcard version:
+
+     \
+     bpkg status libfoo
+     configured,system * hold_package; available 1.1.0 1.1.1 sys:1.1.0
+     unknown
+     \
+
      "
   }
 

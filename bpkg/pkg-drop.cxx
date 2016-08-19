@@ -352,10 +352,14 @@ namespace bpkg
       //
       transaction t (db.begin ());
       pkg_disfigure (c, o, t, p); // Commits the transaction.
-      assert (p->state == package_state::unpacked);
+
+      assert (p->state == package_state::unpacked ||
+              p->state == package_state::transient);
 
       if (verb)
-        text << "disfigured " << p->name;
+        text << (p->state == package_state::transient
+                 ? "purged "
+                 : "disfigured ") << p->name;
     }
 
     if (disfigure_only)
@@ -371,6 +375,9 @@ namespace bpkg
         continue;
 
       const shared_ptr<selected_package>& p (dp.package);
+
+      if (p->state == package_state::transient) // Fully purged by disfigure.
+        continue;
 
       assert (p->state == package_state::fetched ||
               p->state == package_state::unpacked);
@@ -526,7 +533,8 @@ namespace bpkg
           for (const drop_package& dp: pkgs)
           {
             if (dp.reason == drop_reason::prerequisite)
-              dr << text << dp.package->name;
+              dr << text << (dp.package->system () ? "sys:" : "")
+                 << dp.package->name;
           }
         }
 

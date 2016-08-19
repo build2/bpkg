@@ -9,6 +9,7 @@
 #include <bpkg/forward> // transaction, selected_package
 #include <bpkg/utility>
 
+#include <bpkg/package>
 #include <bpkg/pkg-configure-options>
 
 namespace bpkg
@@ -24,6 +25,11 @@ namespace bpkg
                  transaction&,
                  const shared_ptr<selected_package>&,
                  const strings& config_vars);
+
+  // Configure a system package and commit the transaction.
+  //
+  shared_ptr<selected_package>
+  pkg_configure_system (const string& name, const version&, transaction&);
 }
 
 #endif // BPKG_PKG_CONFIGURE

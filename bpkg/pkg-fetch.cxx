@@ -71,6 +71,7 @@ namespace bpkg
         move (n),
         move (v),
         package_state::fetched,
+        package_substate::none,
         false,   // hold package
         false,   // hold version
         move (rl),
@@ -115,7 +116,9 @@ namespace bpkg
         diag_record dr (fail);
 
         dr << "package " << n << " already exists in configuration " << c <<
-          info << "version: " << p->version << ", state: " << p->state;
+          info << "version: " << p->version_string ()
+           << ", state: " << p->state
+           << ", substate: " << p->substate;
 
         if (s) // Suitable state for replace?
           dr << info << "use 'pkg-fetch --replace|-r' to replace";
@@ -285,7 +288,7 @@ namespace bpkg
     }
 
     if (verb)
-      text << "fetched " << p->name << " " << p->version;
+      text << "fetched " << *p;
 
     return 0;
   }

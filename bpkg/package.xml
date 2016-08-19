@@ -1,5 +1,22 @@
 <changelog xmlns="http://www.codesynthesis.com/xmlns/odb/changelog" database="sqlite" version="1">
-  <model version="3">
+  <changeset version="3">
+    <alter-table name="selected_package">
+      <add-column name="substate" type="TEXT" null="true" default="'none'"/>
+    </alter-table>
+    <add-table name="certificate" kind="object">
+      <column name="fingerprint" type="TEXT" null="true"/>
+      <column name="name" type="TEXT" null="true"/>
+      <column name="organization" type="TEXT" null="true"/>
+      <column name="email" type="TEXT" null="true"/>
+      <column name="start_date" type="INTEGER" null="true"/>
+      <column name="end_date" type="INTEGER" null="true"/>
+      <primary-key>
+        <column name="fingerprint"/>
+      </primary-key>
+    </add-table>
+  </changeset>
+
+  <model version="2">
     <table name="repository" kind="object">
       <column name="name" type="TEXT" null="true"/>
       <column name="location" type="TEXT" null="true"/>
@@ -230,17 +247,6 @@
           <column name="name"/>
         </references>
       </foreign-key>
-    </table>
-    <table name="certificate" kind="object">
-      <column name="fingerprint" type="TEXT" null="true"/>
-      <column name="name" type="TEXT" null="true"/>
-      <column name="organization" type="TEXT" null="true"/>
-      <column name="email" type="TEXT" null="true"/>
-      <column name="start_date" type="INTEGER" null="true"/>
-      <column name="end_date" type="INTEGER" null="true"/>
-      <primary-key>
-        <column name="fingerprint"/>
-      </primary-key>
     </table>
   </model>
 </changelog>

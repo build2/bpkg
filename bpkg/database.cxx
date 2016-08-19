@@ -7,7 +7,10 @@
 #include <odb/schema-catalog.hxx>
 #include <odb/sqlite/exceptions.hxx>
 
+#include <bpkg/package>
+#include <bpkg/package-odb>
 #include <bpkg/diagnostics>
+#include <bpkg/system-repository>
 
 using namespace std;
 
@@ -75,6 +78,20 @@ namespace bpkg
       {
         fail << "configuration " << d << " is already used by another process";
       }
+
+      // Query for all the packages with the system substate and enter their
+      // versions into system_repository as non-authoritative. This way an
+      // available_package (e.g., a stub) will automatically "see" system
+      // version, if one is known.
+      //
+      transaction t (db.begin ());
+
+      for (const auto& p:
+             db.query<selected_package> (
+               query<selected_package>::substate == "system"))
+        system_repository.insert (p.name, p.version, false);
+
+      t.commit ();
 
       db.tracer (tr); // Switch to the caller's tracer.
       return db;

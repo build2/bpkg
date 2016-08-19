@@ -11,11 +11,12 @@ include <bpkg/configuration.cli>;
 namespace bpkg
 {
   {
-    "<options> <pkg> <ver> <file> <dir>",
+    "<options> <scheme> <pkg> <ver> <file> <dir>",
 
     "\h|SYNOPSIS|
 
-     \c{\b{bpkg pkg-build}|\b{build} [<options>] (<pkg>[/<ver>] | <file> | <dir>/)...}
+     \c{\b{bpkg pkg-build}|\b{build} [<options>] ([<scheme>:]<pkg>[/<ver>] |
+        <file> | <dir>/)...}
 
      \h|DESCRIPTION|
 
@@ -24,14 +25,25 @@ namespace bpkg
      upgrade or downgrade packages that already exists in the configuration.
 
      Each package can be specified as just the name (<pkg>) with optional
-     package version (<ver>) in which case the package will be automatically
-     fetched from one of the repositories. See the \l{bpkg-rep-add(1)} and
-     \l{bpkg-rep-fetch(1)} commands for more information on package
-     repositories. If <ver> is not specified, then the latest available
-     version will be built. To downgrade, the desired version must be
-     specified explicitly.
+     package version (<ver>) in which case the source code for the package
+     will be automatically fetched from one of the repositories. See the
+     \l{bpkg-rep-add(1)} and \l{bpkg-rep-fetch(1)} commands for more
+     information on package repositories. If <ver> is not specified, then the
+     latest available version will be fetched. To downgrade, the desired
+     version must be specified explicitly.
 
-     Alternatively, the package can be specified as either the path to the
+     A package name (<pkg>) can also be prefixed with a package scheme
+     (<scheme>:). Currently the only recognized scheme is \cb{sys:} which
+     instructs \cb{pkg-build} to configure the package as available from the
+     system rather than building it from source. If the system package version
+     (<ver>) is not specified, then it is considered to be unknown but
+     satisfying any dependency constraint. Such a version is displayed as
+     \cb{*}. In certain cases you may want to indicate that a certain package
+     is available from the system but only add it to the configuration if it
+     is required by other packages being built. In this case you can use the
+     \cb{?sys:} system scheme variant.
+
+     Alternatively, a package can be specified as either the path to the
      package archive (<file>) or to the package directory (<dir>/; note that
      it must end with a directory separator). See the \l{bpkg-pkg-fetch(1)}
      and \l{bpkg-pkg-unpack(1)} commands for more information on the semantics

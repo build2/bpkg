@@ -19,7 +19,7 @@
 #include <bpkg/types>
 #include <bpkg/utility>
 
-#pragma db model version(3, 3, open)
+#pragma db model version(2, 3, open)
 
 namespace bpkg
 {
@@ -96,6 +96,7 @@ namespace bpkg
 }
 
 #include <bpkg/manifest>
+#include <bpkg/system-repository>
 
 // Prevent assert() macro expansion in get/set expressions. This should
 // appear after all #include directives since the assert() macro is
@@ -283,6 +284,12 @@ namespace bpkg
 
   using dependencies = vector<dependency_alternatives>;
 
+  // Wildcard version. Satisfies any dependency constraint and is represented
+  // as 0+0 (which is also the "stub version"; since a real version is always
+  // greater than the stub version, we reuse it to signify a special case).
+  //
+  extern const version wildcard_version;
+
   // available_package
   //
   #pragma db value
@@ -302,6 +309,8 @@ namespace bpkg
   class available_package
   {
   public:
+    using version_type = bpkg::version;
+
     available_package_id id;
     upstream_version version;
 
@@ -330,12 +339,50 @@ namespace bpkg
     //
     optional<string> sha256sum;
 
+  private:
+    #pragma db transient
+    mutable optional<version_type> system_version_;
+
   public:
     available_package (package_manifest&& m)
         : id (move (m.name), m.version),
           version (move (m.version)),
           dependencies (move (m.dependencies)),
           sha256sum (move (m.sha256sum)) {}
+
+    // Create a stub available package with a fixed system version. This
+    // constructor is only used to create transient/fake available packages
+    // based on the system selected packages.
+    //
+    available_package (string n, version_type sysv)
+        : id (move (n), wildcard_version),
+          version (wildcard_version),
+          system_version_ (sysv) {}
+
+    bool
+    stub () const {return version.compare (wildcard_version, true) == 0;}
+
+    // Return package system version if one has been discovered. Note that
+    // we do not implicitly assume a wildcard version.
+    //
+    const version_type*
+    system_version () const
+    {
+      if (!system_version_)
+      {
+        if (const system_package* sp = system_repository.find (id.name))
+        {
+          // Only cache if it is authoritative.
+          //
+          if (sp->authoritative)
+            system_version_ = sp->version;
+          else
+            return &sp->version;
+        }
+      }
+
+      return system_version_ ? &*system_version_ : nullptr;
+    }
 
     // Database mapping.
     //
@@ -391,6 +438,7 @@ namespace bpkg
   //
   enum class package_state
   {
+    transient, // No longer or not yet in the database.
     broken,
     fetched,
     unpacked,
@@ -410,6 +458,26 @@ namespace bpkg
     to(to_string (?))                           \
     from(bpkg::to_package_state (?))
 
+  // package_substate
+  //
+  enum class package_substate
+  {
+    none,
+    system // System package; valid states: configured.
+  };
+
+  string
+  to_string (package_substate);
+
+  package_substate
+  to_package_substate (const string&); // May throw invalid_argument.
+
+  inline ostream&
+  operator<< (ostream& os, package_substate s) {return os << to_string (s);}
+
+  #pragma db map type(package_substate) as(string) \
+    to(to_string (?))                              \
+    from(bpkg::to_package_substate (?))
 
   // package
   //
@@ -422,6 +490,7 @@ namespace bpkg
     string name; // Object id.
     version_type version;
     package_state state;
+    package_substate substate;
 
     // The hold flags indicate whether this package and/or version
     // should be retained in the configuration. A held package will
@@ -481,6 +550,23 @@ namespace bpkg
                                         compare_lazy_ptr>;
     prerequisites_type prerequisites;
 
+    bool
+    system () const
+    {
+      // The system substate is only valid for the configured state.
+      //
+      assert (substate != package_substate::system ||
+              state == package_state::configured);
+
+      return substate == package_substate::system;
+    }
+
+    // Represent the wildcard version with the "*" string. Represent naturally
+    // all other versions.
+    //
+    string
+    version_string () const;
+
     // Database mapping.
     //
     #pragma db member(name) id
@@ -488,11 +574,18 @@ namespace bpkg
     #pragma db member(prerequisites) id_column("package") \
       key_column("prerequisite") value_column("") key_not_null
 
+    #pragma db member(substate) default("none")
+
   private:
     friend class odb::access;
     selected_package () = default;
   };
 
+  // Print the package name, version and the 'sys:' prefix for the system
+  // substate. The wildcard version is represented with the "*" string.
+  //
+  ostream&
+  operator<< (ostream&, const selected_package&);
 
   // certificate
   //

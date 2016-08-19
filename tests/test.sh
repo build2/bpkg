@@ -176,7 +176,7 @@ function stat ()
   local s=`$bpkg pkg-status -d $cfg $1`
 
   if [ "$s" != "$2" ]; then
-    error "status $1: '"$s"', expected: '"$2"'"
+    error "status $1: '$s', expected: '$2'"
   fi
 }
 
@@ -188,8 +188,6 @@ function gone ()
     error "path $1 still exists"
   fi
 }
-
-#if false; then
 
 # Repository certificate fingerprint.
 #
@@ -229,7 +227,6 @@ function location ()
 ## Low-level commands.
 ##
 
-
 ##
 ## pkg-verify
 ##
@@ -264,7 +261,7 @@ fail rep-info # repository location expected
 test rep-info --trust-yes $rep/common/foo/testing <<EOF
 ${repn}common/foo/testing `location common/foo/testing`
 complement ${repn}common/foo/stable `location common/foo/stable`
-libfoo 1.1.0
+libfoo/1.1.0
 EOF
 
 test rep-info -m -r -n --trust-yes $rep/common/bar/unstable <<EOF
@@ -414,22 +411,22 @@ test cfg-create --wipe
 test rep-add $rep/fetch/t1
 test rep-fetch --trust-yes
 test pkg-fetch libfoo/1.0.0
-stat libfoo/1.0.0 fetched
+stat libfoo/1.0.0 "fetched; available"
 fail pkg-fetch libfoo/1.0.0
 fail pkg-fetch -e pkg/1/build2.org/fetch/libfoo-1.0.0.tar.gz
 test pkg-purge libfoo
 test pkg-fetch -e pkg/1/build2.org/fetch/libfoo-1.0.0.tar.gz
-stat libfoo/1.0.0 fetched
+stat libfoo/1.0.0 "fetched; available"
 test pkg-unpack libfoo
 test pkg-fetch -r libfoo/1.1.0
-stat libfoo/1.1.0 fetched
+stat libfoo/1.1.0 "fetched; available"
 test pkg-unpack libfoo
 test pkg-fetch -r -e pkg/1/build2.org/fetch/libfoo-1.0.0.tar.gz
-stat libfoo/1.0.0 fetched
+stat libfoo/1.0.0 "fetched; available"
 test pkg-fetch -r libfoo/1.1.0
-stat libfoo/1.1.0 fetched
+stat libfoo/1.1.0 "fetched; available"
 test pkg-fetch -r -e pkg/1/build2.org/fetch/libfoo-1.0.0.tar.gz
-stat libfoo/1.0.0 fetched
+stat libfoo/1.0.0 "fetched; available"
 test pkg-purge libfoo
 
 # hello
@@ -460,7 +457,7 @@ test pkg-fetch libfoo/1.0.0
 fail pkg-unpack -e pkg/1/build2.org/fetch/libfoo-1.1.0 # already exists
 test pkg-purge libfoo
 test pkg-unpack -e pkg/1/build2.org/fetch/libfoo-1.1.0
-stat libfoo/1.1.0 unpacked
+stat libfoo/1.1.0 "unpacked; available"
 test pkg-purge libfoo
 
 # existing & replace
@@ -468,13 +465,13 @@ test pkg-purge libfoo
 test pkg-fetch libfoo/1.0.0
 fail pkg-unpack -e pkg/1/build2.org/fetch/libfoo-1.1.0
 test pkg-unpack -r -e pkg/1/build2.org/fetch/libfoo-1.1.0
-stat libfoo/1.1.0 unpacked
+stat libfoo/1.1.0 "unpacked; available"
 test pkg-purge libfoo
 test pkg-fetch libfoo/1.0.0
 test pkg-unpack libfoo
 fail pkg-unpack -e pkg/1/build2.org/fetch/libfoo-1.1.0
 test pkg-unpack -r -e pkg/1/build2.org/fetch/libfoo-1.1.0
-stat libfoo/1.1.0 unpacked
+stat libfoo/1.1.0 "unpacked; available"
 test pkg-purge libfoo
 
 # package name
@@ -484,9 +481,9 @@ test pkg-unpack -e pkg/1/build2.org/fetch/libfoo-1.1.0
 fail pkg-unpack libfoo # wrong package state
 test pkg-purge libfoo
 test pkg-fetch libfoo/1.0.0
-stat libfoo/1.0.0 fetched
+stat libfoo/1.0.0 "fetched; available"
 test pkg-unpack libfoo
-stat libfoo/1.0.0 unpacked
+stat libfoo/1.0.0 "unpacked; available"
 test pkg-purge libfoo
 
 # hello
@@ -622,9 +619,9 @@ test pkg-purge libhello
 test pkg-fetch libhello/1.0.0+1
 test pkg-unpack libhello
 test pkg-configure libhello $cxx_options
-stat libhello "configured 1.0.0+1"
+stat libhello "configured 1.0.0+1; available sys:?"
 test pkg-disfigure libhello
-stat libhello "unpacked 1.0.0+1"
+stat libhello "unpacked 1.0.0+1; available sys:?"
 test pkg-purge libhello
 stat libhello/1.0.0 "available 1.0.0+1"
 
@@ -704,7 +701,7 @@ test rep-fetch --trust-yes
 test pkg-fetch libbar/1.0.0
 test pkg-unpack libbar
 fail pkg-configure libbar # no libfoo
-stat libbar/1.0.0 "unpacked"
+stat libbar/1.0.0 "unpacked; available"
 test pkg-fetch libfoo/1.0.0
 test pkg-unpack libfoo
 fail pkg-configure libbar # libfoo not configured
@@ -778,35 +775,35 @@ stat libfoo "unknown"
 test rep-add $rep/status/stable
 test rep-fetch --trust-yes
 stat libfoo/1.0.0 "available"
-stat libfoo "available 1.0.0"
+stat libfoo "available 1.0.0 sys:?"
 test pkg-fetch libfoo/1.0.0
-stat libfoo/1.0.0 "fetched"
-stat libfoo "fetched 1.0.0"
+stat libfoo/1.0.0 "fetched; available"
+stat libfoo "fetched 1.0.0; available sys:?"
 
 # multiple versions/revisions
 #
 test cfg-create --wipe
 test rep-add $rep/status/extra
 test rep-fetch --trust-yes
-stat libbar "available 1.1.0+1"
+stat libbar "available 1.1.0+1 sys:?"
 test rep-add $rep/status/stable
 test rep-fetch --trust-yes
-stat libbar "available 1.1.0+1 1.0.0"
+stat libbar "available 1.1.0+1 1.0.0 sys:?"
 
 test cfg-create --wipe
 test rep-add $rep/status/testing
 test rep-fetch --trust-yes
-stat libbar "available 1.1.0 1.0.0+1 1.0.0"
+stat libbar "available 1.1.0 1.0.0+1 1.0.0 sys:?"
 
 test cfg-create --wipe
 test rep-add $rep/status/unstable
 test rep-fetch --trust-yes
-stat libbar "available 2.0.0 1.1.0 1.0.0+1 1.0.0"
+stat libbar "available 2.0.0 1.1.0 1.0.0+1 1.0.0 sys:?"
 test pkg-fetch libbar/1.0.0+1
-stat libbar "fetched 1.0.0+1; available 2.0.0 1.1.0"
+stat libbar "fetched 1.0.0+1; available 2.0.0 1.1.0 sys:?"
 test pkg-purge libbar
 test pkg-fetch libbar/2.0.0
-stat libbar "fetched 2.0.0"
+stat libbar "fetched 2.0.0; available sys:?"
 
 
 ##
@@ -910,42 +907,38 @@ fail pkg-build -p               # package name expected
 fail pkg-build -p libfoo        # unknown package
 fail pkg-build -p libfoo/1.0.0  # unknown package
 test pkg-build -p pkg/1/build2.org/satisfy/libfoo-1.1.0.tar.gz <<EOF
-build libfoo 1.1.0
+build libfoo/1.1.0
 EOF
 test pkg-build -p pkg/1/build2.org/satisfy/libfoo-1.1.0/ <<EOF
-build libfoo 1.1.0
+build libfoo/1.1.0
 EOF
 
 test pkg-unpack -e pkg/1/build2.org/satisfy/libfoo-1.1.0
-test pkg-build -p libfoo <<< "build libfoo 1.1.0"
-test pkg-build -p libfoo/1.1.0 <<< "build libfoo 1.1.0"
-test pkg-build -p libfoo libfoo <<< "build libfoo 1.1.0"
-test pkg-build -p libfoo libfoo/1.1.0 <<< "build libfoo 1.1.0"
-test pkg-build -p libfoo/1.1.0 libfoo <<< "build libfoo 1.1.0"
-test pkg-build -p libfoo/1.1.0 libfoo/1.1.0 <<< "build libfoo 1.1.0"
+test pkg-build -p libfoo <<< "build libfoo/1.1.0"
+test pkg-build -p libfoo/1.1.0 <<< "build libfoo/1.1.0"
+test pkg-build -p libfoo libfoo <<< "build libfoo/1.1.0"
+fail pkg-build -p libfoo libfoo/1.1.0
+fail pkg-build -p libfoo/1.1.0 libfoo
+test pkg-build -p libfoo/1.1.0 libfoo/1.1.0 <<< "build libfoo/1.1.0"
 fail pkg-build -p libfoo/1.0.0
 test pkg-purge libfoo
 
 test rep-add $rep/satisfy/t1
 test rep-fetch --trust-yes
-test pkg-build -p libfoo <<< "build libfoo 1.0.0"
-test pkg-build -p libfoo/1.0.0 <<< "build libfoo 1.0.0"
-test pkg-build -p libfoo libfoo <<< "build libfoo 1.0.0"
-test pkg-build -p libfoo libfoo/1.0.0 <<< "build libfoo 1.0.0"
-test pkg-build -p libfoo/1.0.0 libfoo <<< "build libfoo 1.0.0"
-test pkg-build -p libfoo/1.0.0 libfoo/1.0.0 <<< "build libfoo 1.0.0"
+test pkg-build -p libfoo <<< "build libfoo/1.0.0"
+test pkg-build -p libfoo/1.0.0 <<< "build libfoo/1.0.0"
 fail pkg-build -p libfoo/1.1.0
 
 test pkg-unpack -e pkg/1/build2.org/satisfy/libfoo-1.1.0
-test pkg-build -p libfoo <<< "build libfoo 1.1.0"
-test pkg-build -p libfoo/1.0.0 <<< "downgrade libfoo 1.0.0"
-fail pkg-build -p libfoo/0.0.0
+test pkg-build -p libfoo <<< "build libfoo/1.1.0"
+test pkg-build -p libfoo/1.0.0 <<< "downgrade libfoo/1.0.0"
+fail pkg-build -p libfoo/0.0.1
 test pkg-purge libfoo
 
-test pkg-fetch -e pkg/1/build2.org/satisfy/libfoo-0.0.0.tar.gz
+test pkg-fetch -e pkg/1/build2.org/satisfy/libfoo-0.0.1.tar.gz
 test pkg-unpack libfoo
-test pkg-build -p libfoo <<< "upgrade libfoo 1.0.0"
-test pkg-build -p libfoo/0.0.0 <<< "build libfoo 0.0.0"
+test pkg-build -p libfoo <<< "upgrade libfoo/1.0.0"
+test pkg-build -p libfoo/0.0.1 <<< "build libfoo/0.0.1"
 fail pkg-build -p libfoo/1.1.0
 test pkg-purge libfoo
 
@@ -960,51 +953,48 @@ test rep-add $rep/satisfy/t2
 test rep-fetch --trust-yes
 
 test pkg-build -p libbar <<EOF
-build libfoo 1.0.0 (required by libbar)
-build libbar 1.0.0
+build libfoo/1.0.0 (required by libbar)
+build libbar/1.0.0
 EOF
 test pkg-build -p libbar libfoo <<EOF
-build libfoo 1.0.0
-build libbar 1.0.0
+build libfoo/1.0.0
+build libbar/1.0.0
 EOF
 test pkg-build -p libbar libfoo/1.0.0 <<EOF
-build libfoo 1.0.0
-build libbar 1.0.0
+build libfoo/1.0.0
+build libbar/1.0.0
 EOF
-test pkg-build -p libbar libfoo libbar/1.0.0 <<EOF
-build libfoo 1.0.0
-build libbar 1.0.0
-EOF
+fail pkg-build -p libbar libfoo libbar/1.0.0
 fail pkg-build -p libbar libfoo/1.1.0
 
-test pkg-fetch -e pkg/1/build2.org/satisfy/libfoo-0.0.0.tar.gz
+test pkg-fetch -e pkg/1/build2.org/satisfy/libfoo-0.0.1.tar.gz
 test pkg-unpack libfoo
 test pkg-build -p libbar <<EOF
-build libfoo 0.0.0 (required by libbar)
-build libbar 1.0.0
+build libfoo/0.0.1 (required by libbar)
+build libbar/1.0.0
 EOF
 test pkg-build -p libbar libfoo <<EOF
-upgrade libfoo 1.0.0
-build libbar 1.0.0
+upgrade libfoo/1.0.0
+build libbar/1.0.0
 EOF
-test pkg-build -p libbar libfoo/0.0.0 <<EOF
-build libfoo 0.0.0
-build libbar 1.0.0
+test pkg-build -p libbar libfoo/0.0.1 <<EOF
+build libfoo/0.0.1
+build libbar/1.0.0
 EOF
 test pkg-purge libfoo
 
 test pkg-unpack -e pkg/1/build2.org/satisfy/libfoo-1.1.0
 test pkg-build -p libbar <<EOF
-build libfoo 1.1.0 (required by libbar)
-build libbar 1.0.0
+build libfoo/1.1.0 (required by libbar)
+build libbar/1.0.0
 EOF
 test pkg-build -p libbar libfoo <<EOF
-build libfoo 1.1.0
-build libbar 1.0.0
+build libfoo/1.1.0
+build libbar/1.0.0
 EOF
 test pkg-build -p libbar libfoo/1.0.0 <<EOF
-downgrade libfoo 1.0.0
-build libbar 1.0.0
+downgrade libfoo/1.0.0
+build libbar/1.0.0
 EOF
 test pkg-purge libfoo
 
@@ -1022,9 +1012,9 @@ fail pkg-build -p libbar
 fail pkg-build -p libbaz libbar
 
 test pkg-build -p libbaz <<EOF
-build libfoo 1.0.0 (required by libbar)
-build libbar 1.0.0 (required by libbaz)
-build libbaz 1.0.0
+build libfoo/1.0.0 (required by libbar)
+build libbar/1.0.0 (required by libbaz)
+build libbaz/1.0.0
 EOF
 
 test rep-add $rep/satisfy/t2
@@ -1033,95 +1023,95 @@ test rep-fetch
 # order
 #
 test pkg-build -p libfox libfoo <<EOF
-build libfox 1.0.0
-build libfoo 1.0.0
+build libfox/1.0.0
+build libfoo/1.0.0
 EOF
 
 test pkg-build -p libfoo libfox <<EOF
-build libfoo 1.0.0
-build libfox 1.0.0
+build libfoo/1.0.0
+build libfox/1.0.0
 EOF
 
 test pkg-build -p libbaz libfoo <<EOF
-build libfoo 1.0.0
-build libbar 1.0.0 (required by libbaz)
-build libbaz 1.0.0
+build libfoo/1.0.0
+build libbar/1.0.0 (required by libbaz)
+build libbaz/1.0.0
 EOF
 
 test pkg-build -p libfoo libbaz <<EOF
-build libfoo 1.0.0
-build libbar 1.0.0 (required by libbaz)
-build libbaz 1.0.0
+build libfoo/1.0.0
+build libbar/1.0.0 (required by libbaz)
+build libbaz/1.0.0
 EOF
 
 test pkg-build -p libbaz libfox <<EOF
-build libfoo 1.0.0 (required by libbar)
-build libbar 1.0.0 (required by libbaz)
-build libbaz 1.0.0
-build libfox 1.0.0
+build libfoo/1.0.0 (required by libbar)
+build libbar/1.0.0 (required by libbaz)
+build libbaz/1.0.0
+build libfox/1.0.0
 EOF
 
 test pkg-build -p libfox libbaz <<EOF
-build libfox 1.0.0
-build libfoo 1.0.0 (required by libbar)
-build libbar 1.0.0 (required by libbaz)
-build libbaz 1.0.0
+build libfox/1.0.0
+build libfoo/1.0.0 (required by libbar)
+build libbar/1.0.0 (required by libbaz)
+build libbaz/1.0.0
 EOF
 
 test pkg-build -p libfox libfoo libbaz <<EOF
-build libfox 1.0.0
-build libfoo 1.0.0
-build libbar 1.0.0 (required by libbaz)
-build libbaz 1.0.0
+build libfox/1.0.0
+build libfoo/1.0.0
+build libbar/1.0.0 (required by libbaz)
+build libbaz/1.0.0
 EOF
 
 test pkg-build -p libfox libbaz libfoo <<EOF
-build libfox 1.0.0
-build libfoo 1.0.0
-build libbar 1.0.0 (required by libbaz)
-build libbaz 1.0.0
+build libfox/1.0.0
+build libfoo/1.0.0
+build libbar/1.0.0 (required by libbaz)
+build libbaz/1.0.0
 EOF
 
 test pkg-build -p libfoo libfox libbaz <<EOF
-build libfoo 1.0.0
-build libfox 1.0.0
-build libbar 1.0.0 (required by libbaz)
-build libbaz 1.0.0
+build libfoo/1.0.0
+build libfox/1.0.0
+build libbar/1.0.0 (required by libbaz)
+build libbaz/1.0.0
 EOF
 
 test pkg-build -p libfoo libbaz libfox <<EOF
-build libfoo 1.0.0
-build libbar 1.0.0 (required by libbaz)
-build libbaz 1.0.0
-build libfox 1.0.0
+build libfoo/1.0.0
+build libbar/1.0.0 (required by libbaz)
+build libbaz/1.0.0
+build libfox/1.0.0
 EOF
 
 # this one is contradictory: baz before fox but fox before foo
 #
 test pkg-build -p libbaz libfox libfoo <<EOF
-build libfox 1.0.0
-build libfoo 1.0.0
-build libbar 1.0.0 (required by libbaz)
-build libbaz 1.0.0
+build libfox/1.0.0
+build libfoo/1.0.0
+build libbar/1.0.0 (required by libbaz)
+build libbaz/1.0.0
 EOF
 
 test pkg-build -p libbaz libfoo libfox <<EOF
-build libfoo 1.0.0
-build libbar 1.0.0 (required by libbaz)
-build libbaz 1.0.0
-build libfox 1.0.0
+build libfoo/1.0.0
+build libbar/1.0.0 (required by libbaz)
+build libbaz/1.0.0
+build libfox/1.0.0
 EOF
 
 test pkg-build -p libbaz libfoo libbar <<EOF
-build libfoo 1.0.0
-build libbar 1.0.0
-build libbaz 1.0.0
+build libfoo/1.0.0
+build libbar/1.0.0
+build libbaz/1.0.0
 EOF
 
 test pkg-build -p libbaz libbar libfoo <<EOF
-build libfoo 1.0.0
-build libbar 1.0.0
-build libbaz 1.0.0
+build libfoo/1.0.0
+build libbar/1.0.0
+build libbaz/1.0.0
 EOF
 
 # 4 (libbaz depends on libfoo and libbar; libbar depends on libfoo >= 1.1.0)
@@ -1136,15 +1126,15 @@ test rep-add $rep/satisfy/t4c
 test rep-fetch --trust-yes
 
 test pkg-build -p libbaz <<EOF
-build libfoo 1.1.0 (required by libbar libbaz)
-build libbar 1.1.0 (required by libbaz)
-build libbaz 1.1.0
+build libfoo/1.1.0 (required by libbar libbaz)
+build libbar/1.1.0 (required by libbaz)
+build libbaz/1.1.0
 EOF
 
 test pkg-build -p libfoo libbaz <<EOF
-build libfoo 1.1.0
-build libbar 1.1.0 (required by libbaz)
-build libbaz 1.1.0
+build libfoo/1.1.0
+build libbar/1.1.0 (required by libbaz)
+build libbaz/1.1.0
 EOF
 
 fail pkg-build -p libfoo/1.0.0 libbaz
@@ -1152,12 +1142,12 @@ fail pkg-build -p libfoo/1.1.0 libbaz
 
 # upgrade warning
 #
-test pkg-fetch -e pkg/1/build2.org/satisfy/libfoo-0.0.0.tar.gz
+test pkg-fetch -e pkg/1/build2.org/satisfy/libfoo-0.0.1.tar.gz
 test pkg-unpack libfoo
 test pkg-build -p libbaz <<EOF
-upgrade libfoo 1.1.0 (required by libbar libbaz)
-build libbar 1.1.0 (required by libbaz)
-build libbaz 1.1.0
+upgrade libfoo/1.1.0 (required by libbar libbaz)
+build libbar/1.1.0 (required by libbaz)
+build libbaz/1.1.0
 EOF
 test pkg-purge libfoo
 
@@ -1169,9 +1159,9 @@ fail pkg-build -p libbaz
 test rep-add $rep/satisfy/t4a
 test rep-fetch --trust-yes
 test pkg-build -p libfoo/1.1.0 libbaz <<EOF
-downgrade libfoo 1.1.0
-build libbar 1.1.0 (required by libbaz)
-build libbaz 1.1.0
+downgrade libfoo/1.1.0
+build libbar/1.1.0 (required by libbaz)
+build libbaz/1.1.0
 EOF
 test pkg-purge libfoo
 
@@ -1185,7 +1175,7 @@ test pkg-unpack libbar
 test pkg-configure libbar
 fail pkg-build -p pkg/1/build2.org/satisfy/libfoo-1.2.0.tar.gz
 fail pkg-build -p libfoo/1.0.0
-test pkg-build -p libfoo/1.1.0 <<< "build libfoo 1.1.0"
+test pkg-build -p libfoo/1.1.0 <<< "build libfoo/1.1.0"
 test pkg-disfigure libbar
 test pkg-disfigure libfoo
 test pkg-purge libbar
@@ -1210,38 +1200,38 @@ test rep-add $rep/satisfy/t4b
 test rep-fetch --trust-yes
 
 test pkg-build -p libbar <<EOF
-upgrade libfoo 1.1.0 (required by libbar libbaz)
-upgrade libbar 1.1.0
+upgrade libfoo/1.1.0 (required by libbar libbaz)
+upgrade libbar/1.1.0
 reconfigure libbaz (dependent of libbar)
 EOF
 
 test pkg-build -p libfoo <<EOF
-upgrade libfoo 1.1.0
+upgrade libfoo/1.1.0
 reconfigure libbar (dependent of libfoo)
 reconfigure libbaz (dependent of libbar)
 EOF
 
 test pkg-build -p libfoo libbar/1.0.0 <<EOF
-upgrade libfoo 1.1.0
-reconfigure/build libbar 1.0.0
+upgrade libfoo/1.1.0
+reconfigure/build libbar/1.0.0
 reconfigure libbaz (dependent of libbar)
 EOF
 
 test pkg-build -p libbar/1.0.0 libfoo <<EOF
-upgrade libfoo 1.1.0
-reconfigure/build libbar 1.0.0
+upgrade libfoo/1.1.0
+reconfigure/build libbar/1.0.0
 reconfigure libbaz (dependent of libbar)
 EOF
 
 test pkg-build -p libbaz libfoo <<EOF
-upgrade libfoo 1.1.0
+upgrade libfoo/1.1.0
 reconfigure libbar (dependent of libbaz libfoo)
-reconfigure/build libbaz 1.1.0
+reconfigure/build libbaz/1.1.0
 EOF
 
 test pkg-build -p libbaz libfoo/1.0.0 <<EOF
-build libfoo 1.0.0
-build libbaz 1.1.0
+build libfoo/1.0.0
+build libbaz/1.1.0
 EOF
 
 # actually build
@@ -1250,9 +1240,9 @@ test cfg-create --wipe
 test rep-add $rep/satisfy/t4c
 test rep-fetch --trust-yes
 test pkg-build -y libbaz
-stat libfoo/1.1.0 "configured"
+stat libfoo/1.1.0 "configured; available"
 stat libbar/1.1.0 "configured"
-stat libbaz/1.1.0 "configured hold_package"
+stat libbaz/1.1.0 "configured hold_package; available"
 
 # hold
 #
@@ -1266,15 +1256,15 @@ test cfg-create --wipe
 test rep-add $rep/satisfy/t4c
 test rep-fetch --trust-yes
 test pkg-build -y libfoo
-stat libfoo "configured 1.0.0 hold_package"
+stat libfoo "configured 1.0.0 hold_package; available sys:?"
 test pkg-build -y libfoo/1.0.0
-stat libfoo "configured 1.0.0 hold_package hold_version"
+stat libfoo "configured 1.0.0 hold_package hold_version; available sys:?"
 
 test cfg-create --wipe
 test rep-add $rep/satisfy/t4c
 test rep-fetch --trust-yes
 test pkg-build -y libfoo/1.0.0
-stat libfoo "configured 1.0.0 hold_package hold_version"
+stat libfoo "configured 1.0.0 hold_package hold_version; available sys:?"
 
 test cfg-create --wipe
 test pkg-fetch -e pkg/1/build2.org/satisfy/libfoo-1.0.0.tar.gz
@@ -1288,22 +1278,22 @@ test cfg-create --wipe
 test rep-add $rep/satisfy/t4c
 test rep-fetch --trust-yes
 test pkg-build -y libfoo
-stat libfoo "configured 1.0.0 hold_package"
+stat libfoo "configured 1.0.0 hold_package; available sys:?"
 test pkg-build -y libbaz
-stat libfoo "configured 1.1.0 hold_package"
+stat libfoo "configured 1.1.0 hold_package; available sys:?"
 
 test cfg-create --wipe
 test rep-add $rep/satisfy/t4c
 test rep-fetch --trust-yes
 test pkg-build -y libfoo/1.0.0
-stat libfoo "configured 1.0.0 hold_package hold_version"
+stat libfoo "configured 1.0.0 hold_package hold_version; available sys:?"
 fail pkg-build -y libbaz
 
 test cfg-create --wipe
 test rep-add $rep/satisfy/t4c
 test rep-fetch --trust-yes
 test pkg-build -y libbaz
-stat libfoo "configured 1.1.0"
+stat libfoo "configured 1.1.0; available sys:?"
 
 # drop prerequisites on downgrade
 #
@@ -1313,23 +1303,23 @@ test rep-add $rep/satisfy/t2
 test rep-fetch --trust-yes
 
 test pkg-build -y libbar
-stat libfoo "configured 1.0.0"
-stat libbar "configured 1.0.0 hold_package"
+stat libfoo "configured 1.0.0; available sys:?"
+stat libbar "configured 1.0.0 hold_package; available sys:?"
 
 test rep-add $rep/satisfy/t5
 test rep-fetch --trust-yes
 
 test pkg-build -y libbar
-stat libfoo "available 1.0.0"
-stat libbar "configured 1.2.0 hold_package"
+stat libfoo "available 1.0.0 sys:?"
+stat libbar "configured 1.2.0 hold_package; available sys:?"
 
 test pkg-build -y libbar/1.0.0 libfoo
-stat libfoo "configured 1.0.0 hold_package"
-stat libbar "configured 1.0.0 hold_package hold_version; available 1.2.0"
+stat libfoo "configured 1.0.0 hold_package; available sys:?"
+stat libbar "configured 1.0.0 hold_package hold_version; available 1.2.0 sys:?"
 
 test pkg-build -y libbar
-stat libfoo "configured 1.0.0 hold_package"
-stat libbar "configured 1.2.0 hold_package"
+stat libfoo "configured 1.0.0 hold_package; available sys:?"
+stat libbar "configured 1.2.0 hold_package; available sys:?"
 
 ##
 ## pkg-drop
@@ -1598,14 +1588,14 @@ test rep-info --trust-no --trust $signed_fp -d $cfg $rep/auth/signed <<EOF
 ${repn}auth/signed `location auth/signed`
 CN=build2.org/O=Code Synthesis/info@build2.org
 $signed_fp
-libfoo 1.0.0
+libfoo/1.0.0
 EOF
 
 test rep-info --trust-no -d $cfg $rep/auth/signed <<EOF
 ${repn}auth/signed `location auth/signed`
 CN=build2.org/O=Code Synthesis/info@build2.org
 $signed_fp
-libfoo 1.0.0
+libfoo/1.0.0
 EOF
 
 test cfg-create --wipe
@@ -1613,34 +1603,385 @@ test rep-info --trust-yes $rep/auth/signed <<EOF
 ${repn}auth/signed `location auth/signed`
 CN=build2.org/O=Code Synthesis/info@build2.org
 $signed_fp
-libfoo 1.0.0
+libfoo/1.0.0
 EOF
 
 fail rep-info --trust-no $rep/auth/signed <<EOF
 ${repn}auth/signed `location auth/signed`
 CN=build2.org/O=Code Synthesis/info@build2.org
 $signed_fp
-libfoo 1.0.0
+libfoo/1.0.0
 EOF
 
 test cfg-create --wipe
 test rep-info --trust-yes -d $cfg $rep/auth/unsigned1 <<EOF
 ${repn}auth/unsigned1 `location auth/unsigned1`
-libfoo 1.0.0
+libfoo/1.0.0
 EOF
 
 test rep-info --trust-no -d $cfg $rep/auth/unsigned2 <<EOF
 ${repn}auth/unsigned2 `location auth/unsigned2`
-libfoo 1.0.0
+libfoo/1.0.0
 EOF
 
 test cfg-create --wipe
 test rep-info --trust-yes $rep/auth/unsigned1 <<EOF
 ${repn}auth/unsigned1 `location auth/unsigned1`
-libfoo 1.0.0
+libfoo/1.0.0
 EOF
 
 fail rep-info --trust-no $rep/auth/unsigned1 <<EOF
 ${repn}auth/unsigned1 `location auth/unsigned1`
-libfoo 1.0.0
+libfoo/1.0.0
 EOF
+
+##
+## system
+##
+
+test rep-create pkg/1/build2.org/system/t1 # foo/2 (->libbar>=2), libbar/2
+test rep-create pkg/1/build2.org/system/t2 # foo/2 (->libbar>=2), libbar/0+1
+test rep-create pkg/1/build2.org/system/t3 # ->t2; foo/2 (->libbar>=2)
+
+function build ()
+{
+  test build -p $*
+  test build -y $*
+}
+
+# Fetch system/t1 repository: foo/2 (->libbar/2), libbar/2
+#
+test cfg-create --wipe
+test rep-add $rep/system/t1
+test rep-fetch --trust-yes
+
+# Fail to build different combinations of package duplicates on the command
+# line.
+#
+fail build sys:libbar ?sys:libbar
+fail build ?sys:libbar sys:libbar
+fail build ?sys:libbar libbar
+fail build libbar ?sys:libbar
+fail build sys:libbar libbar
+fail build libbar sys:libbar
+
+# Build sys:libbar/*.
+#
+build sys:libbar <<< 'configure sys:libbar/*'
+stat libbar \
+     'configured,system * hold_package hold_version; available 2 1 sys:?'
+stat libbaz 'available 2 sys:?'
+
+# Build foo with preconfigured sys:libbar/*.
+#
+build foo <<< "build foo/2"
+stat foo 'configured 2 hold_package; available sys:?'
+stat libbar \
+     'configured,system * hold_package hold_version; available 2 1 sys:?'
+stat libbaz 'available 2 sys:?'
+
+# Reconfigure sys:libbar/* to 2.
+#
+build sys:libbar/2 <<EOF
+reconfigure sys:libbar/2
+reconfigure foo (dependent of libbar)
+EOF
+stat foo 'configured 2 hold_package; available sys:?'
+stat libbar 'configured,system 2 hold_package hold_version; available sys:?'
+stat libbaz 'available 2 sys:?'
+
+# Reconfigure sys:libbar/2 to libbar/2.
+#
+build libbar/2 <<EOF
+build libbaz/2 (required by libbar)
+reconfigure/build libbar/2
+reconfigure foo (dependent of libbar)
+EOF
+stat foo 'configured 2 hold_package; available sys:?'
+stat libbar 'configured 2 hold_package hold_version; available sys:?'
+stat libbaz 'configured 2; available sys:?'
+
+# Drop all, build foo and sys:libbar/2.
+#
+test pkg-drop -y foo libbar
+
+build foo sys:libbar/2 <<EOF
+configure sys:libbar/2
+build foo/2
+EOF
+stat foo 'configured 2 hold_package; available sys:?'
+stat libbar 'configured,system 2 hold_package hold_version; available sys:?'
+stat libbaz 'available 2 sys:?'
+
+# Drop all, build sys:libbar/2 and foo.
+#
+test pkg-drop -y foo libbar
+
+build sys:libbar/2 foo <<EOF
+configure sys:libbar/2
+build foo/2
+EOF
+stat foo 'configured 2 hold_package; available sys:?'
+stat libbar 'configured,system 2 hold_package hold_version; available sys:?'
+stat libbaz 'available 2 sys:?'
+
+# Drop all, build libbar/2, then foo and sys:libbar/2.
+#
+test pkg-drop -y foo libbar
+
+build libbar/2 <<EOF
+build libbaz/2 (required by libbar)
+build libbar/2
+EOF
+stat libbar 'configured 2 hold_package hold_version; available sys:?'
+stat libbaz 'configured 2; available sys:?'
+
+build foo sys:libbar/2 <<EOF
+reconfigure sys:libbar/2
+build foo/2
+EOF
+stat foo 'configured 2 hold_package; available sys:?'
+stat libbar 'configured,system 2 hold_package hold_version; available sys:?'
+stat libbaz 'available 2 sys:?'
+
+# Drop all, build libbar/2, then foo and sys:libbar/2.
+#
+test pkg-drop -y foo libbar
+
+build libbar/2 <<EOF
+build libbaz/2 (required by libbar)
+build libbar/2
+EOF
+stat libbar 'configured 2 hold_package hold_version; available sys:?'
+stat libbaz 'configured 2; available sys:?'
+
+build foo sys:libbar <<EOF
+reconfigure sys:libbar/*
+build foo/2
+EOF
+stat foo 'configured 2 hold_package; available sys:?'
+stat libbar \
+     'configured,system * hold_package hold_version; available 2 1 sys:?'
+stat libbaz 'available 2 sys:?'
+
+# Drop all, build sys:libbar/2, then foo and libbar/2, then reconfigure to
+# sys:libbar/2 and afterwards to libbar/2.
+#
+test pkg-drop -y foo libbar
+
+build sys:libbar/2 <<< "configure sys:libbar/2"
+stat libbar 'configured,system 2 hold_package hold_version; available sys:?'
+
+build foo libbar/2 <<EOF
+build libbaz/2 (required by libbar)
+reconfigure/build libbar/2
+build foo/2
+EOF
+stat foo 'configured 2 hold_package; available sys:?'
+stat libbar 'configured 2 hold_package hold_version; available sys:?'
+stat libbaz 'configured 2; available sys:?'
+
+build sys:libbar/2 <<EOF
+reconfigure sys:libbar/2
+reconfigure foo (dependent of libbar)
+EOF
+stat foo 'configured 2 hold_package; available sys:?'
+stat libbar 'configured,system 2 hold_package hold_version; available sys:?'
+stat libbaz 'available 2 sys:?'
+
+build libbar/2 <<EOF
+build libbaz/2 (required by libbar)
+reconfigure/build libbar/2
+reconfigure foo (dependent of libbar)
+EOF
+stat foo 'configured 2 hold_package; available sys:?'
+stat libbar 'configured 2 hold_package hold_version; available sys:?'
+stat libbaz 'configured 2; available sys:?'
+
+# Drop all, configure sys:libbar/1, then fail to build foo but succeed to
+# build foo libbar.
+#
+test pkg-drop -y foo libbar
+
+build sys:libbar/1 <<< "configure sys:libbar/1"
+stat libbar 'configured,system 1 hold_package hold_version; available 2 sys:?'
+stat libbaz 'available 2 sys:?'
+
+fail build foo
+
+build foo libbar <<EOF
+build libbaz/2 (required by libbar)
+upgrade libbar/2
+build foo/2
+EOF
+stat foo 'configured 2 hold_package; available sys:?'
+stat libbar 'configured 2 hold_package; available sys:?'
+stat libbaz 'configured 2; available sys:?'
+
+# Drop all, then build foo ?sys:libbar.
+#
+test pkg-drop -y foo libbar
+
+build foo ?sys:libbar<<EOF
+build libbaz/2 (required by libbar)
+build libbar/2 (required by foo)
+build foo/2
+EOF
+stat foo 'configured 2 hold_package; available sys:?'
+stat libbar 'configured 2; available sys:?'
+stat libbaz 'configured 2; available sys:?'
+
+# Drop all, configure libbar/1, then fail to build foo and foo ?sys:libbar/2,
+# but succeed to build foo sys:libbar/2.
+#
+test pkg-drop -y foo libbar
+
+build libbar/1 <<EOF
+build libbaz/2 (required by libbar)
+build libbar/1
+EOF
+stat libbar 'configured 1 hold_package hold_version; available 2 sys:?'
+
+fail build foo
+
+# libbar/2 is picked up (not optional sys:libbar/2) as a foo dependent and so
+# fail to upgrade held version 1.
+#
+fail build foo ?sys:libbar/2
+
+build foo sys:libbar/2 <<EOF
+reconfigure sys:libbar/2
+build foo/2
+EOF
+
+# Fetch system/t2 repository: foo/2 (->libbar>=2), libbar/0+1
+#
+test cfg-create --wipe
+test rep-add $rep/system/t2
+test rep-fetch --trust-yes
+
+# Fail to build foo having no system package configured.
+#
+fail build foo
+fail build foo libbar
+stat foo 'available 2 sys:?'
+stat libbar 'available sys:?'
+
+# Build foo configuring sys:libbar.
+#
+build foo sys:libbar <<EOF
+configure sys:libbar/*
+build foo/2
+EOF
+stat foo 'configured 2 hold_package; available sys:?'
+stat libbar 'configured,system * hold_package hold_version; available sys:?'
+
+# Drop all, configure sys:libbar/1, then fail to build foo, but succeed to
+# build foo sys:libbar/2.
+#
+test pkg-drop -y foo libbar
+
+build sys:libbar/1 <<< "configure sys:libbar/1"
+stat libbar 'configured,system 1 hold_package hold_version; available sys:?'
+
+fail build foo
+build foo sys:libbar/2 <<EOF
+reconfigure sys:libbar/2
+build foo/2
+EOF
+
+# Drop all, fail to build build foo sys:libbar/1, then configure sys:libbar/2
+# but still fail to build foo sys:libbar/1.
+#
+test pkg-drop -y foo libbar
+
+fail build foo sys:libbar/1
+
+build sys:libbar/2 <<< "configure sys:libbar/2"
+stat libbar 'configured,system 2 hold_package hold_version; available sys:?'
+
+fail build foo sys:libbar/1
+
+# Drop all, configure sys:libbar/1, then fail to build sys:libbar/1.1 foo.
+#
+test pkg-drop -y libbar
+
+build sys:libbar/1 <<< "configure sys:libbar/1"
+stat libbar 'configured,system 1 hold_package hold_version; available sys:?'
+
+fail build sys:libbar/1.1 foo
+
+# Drop all, build foo ?sys:libbar, then drop foo and make sure libbar is purged
+# as well.
+#
+test pkg-drop -y libbar
+
+build foo ?sys:libbar<<EOF
+configure sys:libbar/* (required by foo)
+build foo/2
+EOF
+stat foo 'configured 2 hold_package; available sys:?'
+stat libbar 'configured,system *; available sys:?'
+
+test pkg-drop -y foo
+stat foo 'available 2 sys:?'
+stat libbar 'available sys:?'
+
+# Build sys:libbar/1, then build foo ?sys:libbar, then drop foo and make sure
+# libbar stays.
+#
+build sys:libbar/1<<EOF
+configure sys:libbar/1
+EOF
+stat libbar 'configured,system 1 hold_package hold_version; available sys:?'
+
+fail build foo
+
+build foo ?sys:libbar/2 <<EOF
+reconfigure sys:libbar/2 (required by foo)
+build foo/2
+EOF
+
+stat foo 'configured 2 hold_package; available sys:?'
+stat libbar 'configured,system 2 hold_package hold_version; available sys:?'
+
+test pkg-drop -y foo
+stat foo 'available 2 sys:?'
+stat libbar 'configured,system 2 hold_package hold_version; available sys:?'
+
+# Fetch system/t2 repository: foo/2 (->libbar>=2), libbar/0+1
+#
+test cfg-create --wipe
+test rep-add $rep/system/t3 # ->t2; foo/2 (->libbar>=2)
+test rep-fetch --trust-yes
+
+# After test number of faulty builds, then build foo ?sys:libbar/2. Afterwards
+# fail attempts to reconfigure libbar.
+#
+fail build foo
+fail build sys:libbar/1
+fail build foo sys:libbar/1
+fail build foo ?sys:libbar/1
+stat foo 'available 2 sys:?'
+stat libbar 'unknown'
+
+build foo ?sys:libbar/2 <<EOF
+configure sys:libbar/2 (required by foo)
+build foo/2
+EOF
+
+# libbar while being selected is still unknown.
+#
+fail build sys:libbar
+fail build foo sys:libbar
+
+build foo ?sys:libbar/3 <<EOF
+build foo/2
+EOF
+
+build foo ?sys:libbar <<EOF
+build foo/2
+EOF
+
+stat foo 'configured 2 hold_package; available sys:?'
+stat libbar 'configured,system 2'
