@@ -79,10 +79,10 @@ namespace bpkg
   // command lines).
   //
   void
-  run (const char* const args[]);
+  run (const char* args[]);
 
   inline void
-  run (const cstrings& args) {run (args.data ());}
+  run (cstrings& args) {run (args.data ());}
 
   // Run build2, mapping verbosity levels. If quiet is true, then run build2
   // quiet if our verbosity level is 1. Common vars (cvars) are set on the

@@ -168,7 +168,7 @@ namespace bpkg
   }
 
   void
-  run (const char* const args[])
+  run (const char* args[])
   {
     if (verb >= 2)
       print_process (args);
