@@ -167,15 +167,19 @@ namespace bpkg
     }
   }
 
-  void
-  run (const char* args[])
-  {
-    if (verb >= 2)
-      print_process (args);
+  dir_path exec_dir;
 
+  void
+  run (const char* args[], const dir_path& fallback)
+  {
     try
     {
-      process pr (args);
+      process_path pp (process::path_search (args[0], fallback));
+
+      if (verb >= 2)
+        print_process (args);
+
+      process pr (pp, args);
 
       if (!pr.wait ())
         throw failed (); // Assume the child issued diagnostics.
@@ -253,7 +257,13 @@ namespace bpkg
     args.push_back (bspec.c_str ());
 
     args.push_back (nullptr);
-    run (args);
+
+    // Use our executable directory as a fallback search since normally the
+    // entire toolchain is installed into one directory. This way, for
+    // example, if we installed into /opt/build2 and run bpkg with absolute
+    // path (and without PATH), then bpkg will be able to find "its" b.
+    //
+    run (args, exec_dir);
   }
 
   bool exception_unwinding_dtor = false;

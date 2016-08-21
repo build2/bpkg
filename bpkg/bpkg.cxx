@@ -98,6 +98,8 @@ try
 {
   using namespace cli;
 
+  exec_dir = path (argv[0]).directory ();
+
   argv_file_scanner scan (argc, argv, "--options-file");
 
   // First parse common options and --version/--help.

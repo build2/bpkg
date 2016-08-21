@@ -78,11 +78,22 @@ namespace bpkg
   // The process command line is printed for verbosity >= 2 (essential
   // command lines).
   //
+  // If fallback is specified, then this directory is searched for the
+  // executable as a last resort.
+  //
   void
-  run (const char* args[]);
+  run (const char* args[], const dir_path& fallback = dir_path ());
 
   inline void
-  run (cstrings& args) {run (args.data ());}
+  run (cstrings& args, const dir_path& fallback = dir_path ())
+  {
+    run (args.data (), fallback);
+  }
+
+  // Directory extracted from argv[0] (i.e., this process' recall directory)
+  // or empty if there is none. Can be used as a search fallback.
+  //
+  extern dir_path exec_dir;
 
   // Run build2, mapping verbosity levels. If quiet is true, then run build2
   // quiet if our verbosity level is 1. Common vars (cvars) are set on the
