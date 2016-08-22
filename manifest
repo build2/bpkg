@@ -14,5 +14,5 @@ requires: build2 >= 0.3.0
 requires: ? cli ; Only required if changing .cli files.
 depends: libbutl == 0.4.0-a1
 depends: libbpkg == 0.4.0-a1
-depends: libodb [2.5.0-a9 2.6.0-); 2.5.X
-depends: libodb-sqlite [2.5.0-a9 2.6.0-); 2.5.X
+depends: libodb [2.5.0-a10 2.6.0-); 2.5.X
+depends: libodb-sqlite [2.5.0-a10 2.6.0-); 2.5.X
