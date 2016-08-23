@@ -59,7 +59,25 @@ namespace bpkg
     while (args.more ())
     {
       string a (args.next ());
-      (a.find ('=') != string::npos ? vars : mods).push_back (move (a));
+
+      if (a.find ('=') != string::npos)
+      {
+        vars.push_back (move (a));
+      }
+      else if (!a.empty ())
+      {
+        // Append .config unless the module name ends with '.', in which case
+        // strip it.
+        //
+        if (a.back () != '.')
+          a += ".config";
+        else
+          a.pop_back ();
+
+        mods.push_back (move (a));
+      }
+      else
+        fail << "empty string as argument";
     }
 
     // Create build/.
@@ -106,7 +124,14 @@ namespace bpkg
       // be loaded in bootstrap.
       //
       for (const string& m: mods)
-        ofs << "using " << m << endl;
+      {
+        // If the module name start with '?', then use optional load.
+        //
+        if (m.front () != '?')
+          ofs << "using " << m << endl;
+        else
+          ofs << "using? " << m.c_str () + 1 << endl;
+      }
 
       ofs.close ();
     }
