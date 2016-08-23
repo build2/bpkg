@@ -11,4 +11,4 @@ objs{*}: cxx.poptions += -DLIBHELLO_SHARED_BUILD
 
 # Install into the hello/ subdirectory of, say, /usr/include/.
 #
-install.include = $install.include/hello
+install.include = $install.include/hello/
