@@ -19,7 +19,7 @@
 #include <bpkg/types>
 #include <bpkg/utility>
 
-#pragma db model version(2, 3, open)
+#pragma db model version(3, 3, open)
 
 namespace bpkg
 {
@@ -573,8 +573,6 @@ namespace bpkg
 
     #pragma db member(prerequisites) id_column("package") \
       key_column("prerequisite") value_column("") key_not_null
-
-    #pragma db member(substate) default("none")
 
   private:
     friend class odb::access;
