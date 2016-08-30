@@ -321,7 +321,7 @@ url: http://www.example.org/libhello
 email: hello-users@example.org
 requires: c++11
 location: libhello-1.0.0+1.tar.gz
-sha256sum: ff68e5269b5f594996a016ba2789f646cf5753e8baa0e9b4b77c4c4b81c41326
+sha256sum: 1d8f7d987044c09bfb7a621f217cfc6530c3d0f0337eaf749f059a932c9fc1d7
 EOF
 
 ##

@@ -13,6 +13,20 @@ cxx{*}: extension = cxx
 
 cxx.poptions =+ -I$out_root -I$src_root
 
-# Don't install tests.
+# Load the cli module but only if it's available. This way a distribution
+# that includes pre-generated files can be built without installing cli.
+# This is also the reason why above we explicitly spelled out individual
+# source files instead of using the cli.cxx{} group (it won't be there
+# unless the module is loaded).
 #
-tests/: install = false
+using? cli
+
+if! $cli.loaded
+{
+  define cli: file
+  cli{*}: extension = cli
+}
+
+# All exe{} in tests/ are, well, tests.
+#
+tests/exe{*}: test = true
