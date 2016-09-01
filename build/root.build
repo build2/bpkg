@@ -21,7 +21,7 @@ cxx.poptions =+ -I$out_root -I$src_root
 #
 using? cli
 
-if! $cli.loaded
+if! $cli.configured
 {
   define cli: file
   cli{*}: extension = cli
