@@ -229,7 +229,8 @@ namespace bpkg
       fail << "checksum mismatch for " << n << " " << v <<
         info << pl->repository->name << " has " << *ap->sha256sum <<
         info << "fetched archive has " << sha256sum <<
-        info << "try again, if problem persists, consider reporting this to "
+        info << "consider re-fetching package list and trying again" <<
+        info << "if problem persists, consider reporting this to "
            << "the repository maintainer";
     }
 
