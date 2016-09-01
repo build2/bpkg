@@ -501,7 +501,8 @@ namespace bpkg
       text << "certificate is for " << cert->name << ", \""
            << cert->organization << "\" <" << cert->email << ">";
 
-      text << "certificate SHA256 fingerprint is " << cert_fp;
+      text << "certificate SHA256 fingerprint:";
+      text << cert_fp;
     }
 
     if (co.trust_no () || !yn_prompt ("trust this certificate? [y/N]", 'n'))
