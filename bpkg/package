@@ -384,6 +384,31 @@ namespace bpkg
       return system_version_ ? &*system_version_ : nullptr;
     }
 
+    // As above but also return an indication if the version information is
+    // authoritative.
+    //
+    pair<const version_type*, bool>
+    system_version_authoritative () const
+    {
+      const system_package* sp (system_repository.find (id.name));
+
+      if (!system_version_)
+      {
+        if (sp != nullptr)
+        {
+          // Only cache if it is authoritative.
+          //
+          if (sp->authoritative)
+            system_version_ = sp->version;
+          else
+            return make_pair (&sp->version, false);
+        }
+      }
+
+      return make_pair (system_version_ ?  &*system_version_ : nullptr,
+                        sp != nullptr ? sp->authoritative : false);
+    }
+
     // Database mapping.
     //
     #pragma db member(id) id column("")

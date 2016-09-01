@@ -1823,13 +1823,12 @@ stat libbaz 'configured 2; available sys:?'
 test pkg-drop -y foo libbar
 
 build foo ?sys:libbar<<EOF
-build libbaz/2 (required by libbar)
-build libbar/2 (required by foo)
+configure sys:libbar/* (required by foo)
 build foo/2
 EOF
 stat foo 'configured 2 hold_package; available sys:?'
-stat libbar 'configured 2; available sys:?'
-stat libbaz 'configured 2; available sys:?'
+stat libbar 'configured,system *; available 2 1 sys:?'
+stat libbaz 'available 2 sys:?'
 
 # Drop all, configure libbar/1, then fail to build foo and foo ?sys:libbar/2,
 # but succeed to build foo sys:libbar/2.
@@ -1841,18 +1840,25 @@ build libbaz/2 (required by libbar)
 build libbar/1
 EOF
 stat libbar 'configured 1 hold_package hold_version; available 2 sys:?'
+stat libbaz 'configured 2; available sys:?'
 
 fail build foo
 
-# libbar/2 is picked up (not optional sys:libbar/2) as a foo dependent and so
-# fail to upgrade held version 1.
-#
-fail build foo ?sys:libbar/2
+build foo ?sys:libbar/2<<EOF
+reconfigure sys:libbar/2 (required by foo)
+build foo/2
+EOF
+stat foo 'configured 2 hold_package; available sys:?'
+stat libbar 'configured,system 2 hold_package hold_version; available sys:?'
+stat libbaz 'available 2 sys:?'
 
 build foo sys:libbar/2 <<EOF
 reconfigure sys:libbar/2
 build foo/2
 EOF
+stat foo 'configured 2 hold_package; available sys:?'
+stat libbar 'configured,system 2 hold_package hold_version; available sys:?'
+stat libbaz 'available 2 sys:?'
 
 # Fetch system/t2 repository: foo/2 (->libbar>=2), libbar/0+1
 #

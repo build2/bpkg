@@ -536,8 +536,15 @@ namespace bpkg
 
         // If all that's available is a stub then we need to make sure the
         // package is present in the system repository and it's version
-        // satisfies the constraint.
+        // satisfies the constraint. If a source package is available but there
+        // is an optional system package specified on the command line and it's
+        // version satisfies the constraint then the system package should be
+        // preferred. To recognize such a case we just need to check if the
+        // authoritative system version is set and it satisfies the constraint.
+        // If the corresponding system package is non-optional it will be
+        // preferred anyway.
         //
+        bool system (false);
         if (dap->stub ())
         {
           if (dap->system_version () == nullptr)
@@ -553,6 +560,17 @@ namespace bpkg
               info << "sys:" << d.name << "/" << *dap->system_version ()
                  << " does not satisfy the constrains";
           }
+
+          system = true;
+        }
+        else
+        {
+          auto p (dap->system_version_authoritative ());
+
+          if (p.first != nullptr &&
+              p.second && // Authoritative.
+              satisfies (*p.first, d.constraint))
+            system = true;
         }
 
         // Next see if this package is already selected. If we already
@@ -569,7 +587,10 @@ namespace bpkg
               info << "use 'pkg-purge --force' to remove";
 
           if (satisfies (dsp->version, d.constraint))
+          {
             rp = make_available (options, cd, db, dsp);
+            system = dsp->system ();
+          }
           else
             // Remember that we may be forcing up/downgrade; we will deal
             // with it below.
@@ -584,7 +605,7 @@ namespace bpkg
           nullopt,      // Hold package.
           nullopt,      // Hold version.
           {},           // Constraints.
-          dap->stub (), // System.
+          system,       // System.
           {name},       // Required by.
           false};       // Reconfigure.
 
