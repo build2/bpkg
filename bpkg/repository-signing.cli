@@ -15,5 +15,177 @@ include <bpkg/common-options>;
 
 \h|DESCRIPTION|
 
-TODO
+The purpose of signing a repository is to prevent tampering with packages
+either during transmission or on the repository \i{host machine}. Ideally,
+you would generate and sign the repository manifests on a separate
+\i{build machine} that is behind a firewall. This way, if (or, really,
+when) your host machine is compromised, it will be difficult for an attacker
+to compromise the repository packages without being noticed. Since the
+repository key is kept on the build machine (or, better yet, on a \i{one-way}
+PIV/PKCS#11 device; see below) they will not be able to re-sign the modified
+repository.
+
+\cb{bpkg} uses X.509 public key cryptography for repository signing.
+Currently, only the explicit \i{first use} certificate authentication is
+implemented.  That is, for an unknown (to this \cb{bpkg} configuration)
+repository certificate its subject information and fingerprint are presented
+to the user. If the user confirms the authenticity of the certificate, then it
+is added to the configuration and any repository that in the future presents
+this certificate is trusted without further confirmations, provided its name
+matches the certificate's subject (see below). In the future a certificate
+authority (CA)-based model may be added.
+
+The rest of this guide shows how to create a key/certificate pair for
+\cb{bpkg} repository signing and use it to sign a repository. At the end it
+also briefly explains how to store the private key on a PIV/PKCS#11 device
+using Yubikey 4 as an example.
+
+\dl|
+
+\li|1. Generate Private Key\n
+
+The first step is to generate the private key:
+
+\
+$ openssl genrsa -aes256 2048 >key.pem
+\
+
+If you would like to generate a key without a password protection (not a good
+idea except for testing), leave the \cb{-aes256} option out. You may also need
+to add \cb{-nodes} depending on your \cb{openssl(1)} configuration.
+|
+
+\li|\n2. Generate Certificate\n
+
+Next create the certificate configuration file by saving the following into
+\cb{cert.conf}. You may want to keep it around in case you need to renew an
+expired certificate, etc.
+
+\
+name  = example.com
+org   = Example, Inc
+email = admin@example.com
+
+[req]
+distinguished_name = req_distinguished_name
+x509_extensions    = v3_req
+prompt             = no
+utf8               = yes
+
+[req_distinguished_name]
+O  = $org
+CN = name:$name
+
+[v3_req]
+keyUsage         = critical,digitalSignature
+extendedKeyUsage = critical,codeSigning
+subjectAltName   = email:$email
+\
+
+Adjust the first three lines to match your details. If the repository is
+hosted by an organization, use the organization's name for \cb{org}. If you
+host it as an individual, put your full, real name there. Using any kind of
+aliases or nicknames is a bad idea (except, again, for testing). Remember,
+users of your repository will be presented with this information and if they
+see it was signed by someone named SmellySnook, they will unlikely to trust
+it. Also use a working email address in case users need to contact you about
+issues with your certificate.
+
+The \cb{name} field is a canonical repository name prefix. Any repository with
+a canonical name that starts with this prefix can be authenticated by this
+certificate. For example, name \cb{example.com} will match any repository
+hosted on \cb{{,www.,pkg.,bpkg.\}example.com}. While name
+\cb{example.com/math} will match \cb{{...\}example.com/pkg/1/math} but not
+\cb{{...\}example.com/pkg/1/misc}. See the repository manifest documentation
+for more information on canonical names. Note also that the \cb{name:} prefix
+in \cb{CN} value is not a typo.
+
+Once the configuration file is ready, generate the certificate:
+
+\
+openssl req -x509 -new -sha256 -key key.pem -config cert.conf \
+-days 730 >cert.pem
+\
+
+To verify the certificate information, run:
+
+\
+openssl x509 -noout -nameopt RFC2253,sep_multiline \
+-subject -dates -email <cert.pem
+\
+
+|
+
+\li|\n3. Add Certificate to the Repository\n
+
+Add the \cb{certificate:} field for the base repository (\cb{role: base})
+in the \cb{repositories} manifest file(s):
+
+\
+certificate: \
+<cert>
+\\
+\
+
+Replace \i{cert} with the entire contents of \cb{cert.pem} (including the
+\c{BEGIN CERTIFICATE} and \c{END CERTIFICATE} lines). So you will have
+an entry along these lines:
+
+\
+certificate: \
+-----BEGIN CERTIFICATE-----
+MIIDQjCCAiqgAwIBAgIJAIUgsIqSnesGMA0GCSqGSIb3DQEBCwUAMDkxFzAVBgNV
+.
+.
+.
++NOVBamEvjn58ZcLfWh2oKee7ulIZg==
+-----END CERTIFICATE-----
+\\
+\
+
+|
+
+\li|\n4. Sign the Repository\n
+
+When generating the repository manifests with the \l{bpkg-rep-create(1)}
+command, specify the path to \cb{key.pem} with the \cb{--key} option:
+
+\
+bpkg rep-create --key key.pem /path/to/repository
+\
+
+You will be prompted for a password to unlock the private key.
+|
+
+\li|\n5. Using PIV/PKCS#11 Device\n
+
+This optional step shows how to load the private key into Yubikey 4 and then
+use it instead of the private key itself for signing the repository. Note that
+you need OpenSSL 1.0.2 or later for the signing part to work.
+
+First change the Yubikey MKEY, PUK, and PIN if necessary. You should
+definitely do this if it still has the factory defaults. Then import the
+private key and the certificate into Yubikey (replace \i{mkey} with the
+management key):
+
+\
+yubico-piv-tool --key=<mkey> -a import-key -s 9c <key.pem
+yubico-piv-tool --key=<mkey> -a import-certificate -s 9c <cert.pem
+\
+
+After this you will normally save the certificate/private key onto backup
+media, store it in a secure, offline location, and remove the key from the
+build machine.
+
+To sign the repository with Yubikey specify the following options instead of
+just \cb{--key} as on step 4 (\c{\"SIGN key\"} is the name for slot \c{9c}):
+
+\
+bpkg rep-create \
+--openssl-option -engine --openssl-option pkcs11 \
+--openssl-option -keyform --openssl-option engine \
+--key \"label_SIGN key\" /path/to/repository
+\
+
+||
 "
