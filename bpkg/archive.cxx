@@ -50,9 +50,12 @@ namespace bpkg
 
     // An archive name that has a colon in it specifies a file or device on a
     // remote machine. That makes it impossible to use absolute Windows paths
-    // unless we add the --force-local option.
+    // unless we add the --force-local option. Note that BSD tar doesn't
+    // support this option.
     //
+#ifdef _WIN32
     args.push_back ("--force-local");
+#endif
 
     args.push_back ("-xf");
     args.push_back (a.string ().c_str ());
