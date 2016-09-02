@@ -670,9 +670,9 @@ namespace bpkg
     try
     {
       process pr (start_openssl (
-        co, "pkeyutl",
+        co, "rsautl",
         {
-          "-verifyrecover",
+          "-verify",
           "-certin",
           "-inkey",
           f.string ().c_str ()
@@ -765,7 +765,7 @@ namespace bpkg
     try
     {
       process pr (start_openssl (
-        co, "pkeyutl", {"-sign", "-inkey", key_name.c_str ()}, true, true));
+        co, "rsautl", {"-sign", "-inkey", key_name.c_str ()}, true, true));
 
       try
       {
