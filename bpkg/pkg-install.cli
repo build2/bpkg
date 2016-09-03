@@ -31,7 +31,7 @@ namespace bpkg
 
      \
      bpkg install config.install.root=/usr/local \
-       config.install.root.sudo=sudo libfoo libbar
+       config.install.sudo=sudo libfoo libbar
      \
 
      Alternatively, the installation directory can be specified once when

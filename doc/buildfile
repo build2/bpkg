@@ -30,9 +30,9 @@ css{*}: extension = css
 define xhtml: doc
 xhtml{*}: extension = xhtml
 
-./: {man1 xhtml}{bpkg bpkg-common-options $cmds} \
-    css{common pre-box man} 	                 \
-    file{man-prologue.1 man-epilogue.1           \
+./: {man1 xhtml}{bpkg bpkg-common-options bpkg-repository-signing $cmds} \
+    css{common pre-box man} 	                                         \
+    file{man-prologue.1 man-epilogue.1                                   \
          man-prologue.xhtml man-epilogue.xhtml}
 
 ./: doc{build2-package-manager-manual.xhtml        \
