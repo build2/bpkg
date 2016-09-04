@@ -1,6 +1,6 @@
 : 1
 name: libhello
-version: 1.0.0+1
+version: 1.0.0
 summary: The "Hello World" example library
 license: MIT
 tags: c++, hello, world, example
@@ -11,3 +11,4 @@ goal is to show a canonical build2/bpkg project/package.
 url: http://www.example.org/libhello
 email: hello-users@example.org
 requires: c++11
+requires: build2 >= 0.4.0

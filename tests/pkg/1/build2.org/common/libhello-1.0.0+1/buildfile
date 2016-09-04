@@ -1,3 +1,0 @@
-d = hello/ tests/
-./: $d doc{version} file{manifest}
-include $d

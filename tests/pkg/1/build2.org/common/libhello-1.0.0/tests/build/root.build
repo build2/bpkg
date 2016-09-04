@@ -1,10 +1,10 @@
+cxx.std = 11
+
 using cxx
 
 hxx{*}: extension =
 cxx{*}: extension = cxx
 
-cxx.std = 11
-
 # Every exe{} in this subproject is by default a test.
 #
-test.exe = true
+exe{*}: test = true

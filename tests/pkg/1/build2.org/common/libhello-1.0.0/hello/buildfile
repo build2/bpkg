@@ -1,0 +1,21 @@
+lib{hello}: {hxx cxx}{hello} hxx{export}
+
+# For pre-releases use the complete version to make sure they cannot be used
+# in place of another pre-release or the final version.
+#
+if $abi_prerelease
+  lib{hello}: bin.lib.version = @-$version
+else
+  lib{hello}: bin.lib.version = @-$abi_major.$abi_minor
+
+cxx.poptions += -I$src_root
+obja{*}: cxx.poptions += -DLIBHELLO_STATIC_BUILD
+objs{*}: cxx.poptions += -DLIBHELLO_SHARED_BUILD
+
+lib{hello}: cxx.export.poptions = -I$src_root
+liba{hello}: cxx.export.poptions += -DLIBHELLO_STATIC
+libs{hello}: cxx.export.poptions += -DLIBHELLO_SHARED
+
+# Install into the hello/ subdirectory of, say, /usr/include/.
+#
+install.include = $install.include/hello/

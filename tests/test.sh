@@ -234,7 +234,7 @@ fail pkg-verify                 # archive expected
 fail pkg-verify ./no-such-file  # archive does not exist
 fail pkg-verify pkg/1/build2.org/common/not-a-package.tar.gz
 fail pkg-verify --silent pkg/1/build2.org/common/not-a-package.tar.gz
-test pkg-verify pkg/1/build2.org/common/hello/libhello-1.0.0+1.tar.gz
+test pkg-verify pkg/1/build2.org/common/hello/libhello-1.0.0.tar.gz
 
 
 ##
@@ -261,6 +261,7 @@ fail rep-info # repository location expected
 test rep-info --trust-yes $rep/common/foo/testing <<EOF
 ${repn}common/foo/testing `location common/foo/testing`
 complement ${repn}common/foo/stable `location common/foo/stable`
+
 libfoo/1.1.0
 EOF
 
@@ -309,7 +310,7 @@ test rep-info -m -p --trust $hello_fp $rep/common/hello <<EOF
 sha256sum: 8d324fa7911038778b215d28805c6546e737e0092f79f7bd167cf2e28f4ad96f
 :
 name: libhello
-version: 1.0.0+1
+version: 1.0.0
 summary: The "Hello World" example library
 license: MIT
 tags: c++, hello, world, example
@@ -320,8 +321,9 @@ goal is to show a canonical build2/bpkg project/package.
 url: http://www.example.org/libhello
 email: hello-users@example.org
 requires: c++11
-location: libhello-1.0.0+1.tar.gz
-sha256sum: 1d8f7d987044c09bfb7a621f217cfc6530c3d0f0337eaf749f059a932c9fc1d7
+requires: build2 >= 0.4.0
+location: libhello-1.0.0.tar.gz
+sha256sum: 4d3f26addc718eb186192edc50b0c60b4eda3da92ebb4537b3f187206a260f12
 EOF
 
 ##
@@ -434,7 +436,7 @@ test pkg-purge libfoo
 test cfg-create --wipe
 test rep-add $rep/common/hello
 test rep-fetch --trust $hello_fp
-test pkg-fetch libhello/1.0.0+1
+test pkg-fetch libhello/1.0.0
 test pkg-purge libhello
 
 
@@ -491,7 +493,7 @@ test pkg-purge libfoo
 test cfg-create --wipe
 test rep-add $rep/common/hello
 test rep-fetch --trust $hello_fp
-test pkg-fetch libhello/1.0.0+1
+test pkg-fetch libhello/1.0.0
 test pkg-unpack libhello
 test pkg-purge libhello
 
@@ -607,7 +609,7 @@ fail pkg-configure libhello1              # no such package
 fail pkg-disfigure                        # package name expected
 fail pkg-disfigure libhello1              # no such package
 
-test pkg-fetch libhello/1.0.0+1
+test pkg-fetch libhello/1.0.0
 
 fail pkg-configure libhello $cxx_options  # wrong package state
 fail pkg-disfigure libhello               # wrong package state
@@ -616,47 +618,47 @@ test pkg-purge libhello
 
 # src == out
 #
-test pkg-fetch libhello/1.0.0+1
+test pkg-fetch libhello/1.0.0
 test pkg-unpack libhello
 test pkg-configure libhello $cxx_options
-stat libhello "configured 1.0.0+1; available sys:?"
+stat libhello "configured 1.0.0; available sys:?"
 test pkg-disfigure libhello
-stat libhello "unpacked 1.0.0+1; available sys:?"
+stat libhello "unpacked 1.0.0; available sys:?"
 test pkg-purge libhello
-stat libhello/1.0.0 "available 1.0.0+1"
+stat libhello/1.0.0 "available"
 
 # src != out
 #
 test cfg-create --wipe
-test pkg-unpack -e pkg/1/build2.org/common/libhello-1.0.0+1
+test pkg-unpack -e pkg/1/build2.org/common/libhello-1.0.0
 test pkg-configure libhello $cxx_options
-stat libhello "configured 1.0.0+1"
+stat libhello "configured 1.0.0"
 test pkg-disfigure libhello
-stat libhello "unpacked 1.0.0+1"
+stat libhello "unpacked 1.0.0"
 test pkg-purge libhello
 stat libhello unknown
-gone $cfg/libhello-1.0.0+1
+gone $cfg/libhello-1.0.0
 
 # out still exists after disfigure
 #
-test pkg-unpack -e pkg/1/build2.org/common/libhello-1.0.0+1
+test pkg-unpack -e pkg/1/build2.org/common/libhello-1.0.0
 test pkg-configure libhello $cxx_options
-touch $cfg/libhello-1.0.0+1/stray
+touch $cfg/libhello-1.0.0/stray
 fail pkg-disfigure libhello
-stat libhello/1.0.0+1 broken
-rm -r $cfg/libhello-1.0.0+1
+stat libhello/1.0.0 broken
+rm -r $cfg/libhello-1.0.0
 test pkg-purge -f libhello
 stat libhello unknown
 
 # disfigure failed
 #
-test pkg-unpack -e pkg/1/build2.org/common/libhello-1.0.0+1
+test pkg-unpack -e pkg/1/build2.org/common/libhello-1.0.0
 test pkg-configure libhello $cxx_options
-chmod 555 $cfg/libhello-1.0.0+1
+chmod 555 $cfg/libhello-1.0.0
 fail pkg-disfigure libhello
-stat libhello/1.0.0+1 broken
-chmod 755 $cfg/libhello-1.0.0+1
-rm -r $cfg/libhello-1.0.0+1
+stat libhello/1.0.0 broken
+chmod 755 $cfg/libhello-1.0.0
+rm -r $cfg/libhello-1.0.0
 test pkg-purge -f libhello
 stat libhello unknown
 
@@ -668,25 +670,25 @@ stat libhello unknown
 if [ "$msys" != "y" ]; then
   # configure failed but disfigure succeeds
   #
-  test pkg-unpack -e pkg/1/build2.org/common/libhello-1.0.0+1
-  mkdir -p $cfg/libhello-1.0.0+1/build
-  chmod 555 $cfg/libhello-1.0.0+1/build
+  test pkg-unpack -e pkg/1/build2.org/common/libhello-1.0.0
+  mkdir -p $cfg/libhello-1.0.0/build
+  chmod 555 $cfg/libhello-1.0.0/build
   fail pkg-configure libhello $cxx_options
-  stat libhello "unpacked 1.0.0+1"
+  stat libhello "unpacked 1.0.0"
   test pkg-purge libhello
   stat libhello unknown
 
   # configure and disfigure both failed
   #
-  test pkg-unpack -e pkg/1/build2.org/common/libhello-1.0.0+1
-  mkdir -p $cfg/libhello-1.0.0+1/build
+  test pkg-unpack -e pkg/1/build2.org/common/libhello-1.0.0
+  mkdir -p $cfg/libhello-1.0.0/build
   # Trip both con/dis.
   #
-  chmod 555 $cfg/libhello-1.0.0+1 $cfg/libhello-1.0.0+1/build
+  chmod 555 $cfg/libhello-1.0.0 $cfg/libhello-1.0.0/build
   fail pkg-configure libhello $cxx_options
-  stat libhello/1.0.0+1 broken
-  chmod 755 $cfg/libhello-1.0.0+1 $cfg/libhello-1.0.0+1/build
-  rm -r $cfg/libhello-1.0.0+1
+  stat libhello/1.0.0 broken
+  chmod 755 $cfg/libhello-1.0.0 $cfg/libhello-1.0.0/build
+  rm -r $cfg/libhello-1.0.0
   test pkg-purge -f libhello
   stat libhello unknown
 fi
@@ -815,13 +817,13 @@ test rep-fetch --trust $hello_fp
 
 fail pkg-update                # package name expected
 fail pkg-update libhello       # no such package
-test pkg-fetch libhello/1.0.0+1
+test pkg-fetch libhello/1.0.0
 fail pkg-update libhello       # wrong package state
 test pkg-purge libhello
 
 # src == out
 #
-test pkg-fetch libhello/1.0.0+1
+test pkg-fetch libhello/1.0.0
 test pkg-unpack libhello
 test pkg-configure libhello $cxx_options
 test pkg-update libhello
@@ -832,7 +834,7 @@ test pkg-purge libhello
 # src != out
 #
 test cfg-create --wipe
-test pkg-unpack -e pkg/1/build2.org/common/libhello-1.0.0+1
+test pkg-unpack -e pkg/1/build2.org/common/libhello-1.0.0
 test pkg-configure libhello $cxx_options
 test pkg-update libhello
 test pkg-update libhello
@@ -849,13 +851,13 @@ test rep-fetch --trust $hello_fp
 
 fail pkg-clean                  # package name expected
 fail pkg-clean libhello         # no such package
-test pkg-fetch libhello/1.0.0+1
+test pkg-fetch libhello/1.0.0
 fail pkg-clean libhello         # wrong package state
 test pkg-purge libhello
 
 # src == out
 #
-test pkg-fetch libhello/1.0.0+1
+test pkg-fetch libhello/1.0.0
 test pkg-unpack libhello
 test pkg-configure libhello $cxx_options
 test pkg-update libhello
@@ -867,7 +869,7 @@ test pkg-purge libhello
 # src != out
 #
 test cfg-create --wipe
-test pkg-unpack -e pkg/1/build2.org/common/libhello-1.0.0+1
+test pkg-unpack -e pkg/1/build2.org/common/libhello-1.0.0
 test pkg-configure libhello $cxx_options
 test pkg-update libhello
 test pkg-clean libhello
@@ -886,7 +888,7 @@ test pkg-purge libhello
 test cfg-create --wipe cxx $cxx_options
 test rep-add $rep/common/hello
 test rep-fetch --trust $hello_fp
-test pkg-fetch libhello/1.0.0+1
+test pkg-fetch libhello/1.0.0
 test pkg-unpack libhello
 test pkg-configure libhello $cxx_options
 test pkg-update libhello
@@ -1588,6 +1590,7 @@ test rep-info --trust-no --trust $signed_fp -d $cfg $rep/auth/signed <<EOF
 ${repn}auth/signed `location auth/signed`
 CN=build2.org/O=Code Synthesis/info@build2.org
 $signed_fp
+
 libfoo/1.0.0
 EOF
 
@@ -1595,6 +1598,7 @@ test rep-info --trust-no -d $cfg $rep/auth/signed <<EOF
 ${repn}auth/signed `location auth/signed`
 CN=build2.org/O=Code Synthesis/info@build2.org
 $signed_fp
+
 libfoo/1.0.0
 EOF
 
@@ -1603,6 +1607,7 @@ test rep-info --trust-yes $rep/auth/signed <<EOF
 ${repn}auth/signed `location auth/signed`
 CN=build2.org/O=Code Synthesis/info@build2.org
 $signed_fp
+
 libfoo/1.0.0
 EOF
 
@@ -1610,28 +1615,33 @@ fail rep-info --trust-no $rep/auth/signed <<EOF
 ${repn}auth/signed `location auth/signed`
 CN=build2.org/O=Code Synthesis/info@build2.org
 $signed_fp
+
 libfoo/1.0.0
 EOF
 
 test cfg-create --wipe
 test rep-info --trust-yes -d $cfg $rep/auth/unsigned1 <<EOF
 ${repn}auth/unsigned1 `location auth/unsigned1`
+
 libfoo/1.0.0
 EOF
 
 test rep-info --trust-no -d $cfg $rep/auth/unsigned2 <<EOF
 ${repn}auth/unsigned2 `location auth/unsigned2`
+
 libfoo/1.0.0
 EOF
 
 test cfg-create --wipe
 test rep-info --trust-yes $rep/auth/unsigned1 <<EOF
 ${repn}auth/unsigned1 `location auth/unsigned1`
+
 libfoo/1.0.0
 EOF
 
 fail rep-info --trust-no $rep/auth/unsigned1 <<EOF
 ${repn}auth/unsigned1 `location auth/unsigned1`
+
 libfoo/1.0.0
 EOF
 

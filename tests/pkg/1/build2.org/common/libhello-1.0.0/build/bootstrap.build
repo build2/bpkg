@@ -1,0 +1,22 @@
+project = libhello
+
+using build@0.4.0-a1
+
+version = 1.0.0
+
+abi_major = 1
+abi_minor = 0
+abi_patch = 0
+abi_prerelease = false
+
+revision = 0
+
+dist.package = $project-$version
+
+if ($revision != 0)
+  dist.package += +$revision
+
+using config
+using dist
+using test
+using install
