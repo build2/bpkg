@@ -207,12 +207,16 @@ namespace bpkg
       "
     }
 
-    bool --trust-yes|-y
+    // Note that if a command for which one can specify these options also
+    // have --yes/--no (for all prompts), then those values should be
+    // propagated to these ones.
+    //
+    bool --trust-yes
     {
       "Assume the answer to all authentication prompts is \cb{yes}."
     }
 
-    bool --trust-no|-n
+    bool --trust-no
     {
       "Assume the answer to all authentication prompts is \cb{no}."
     }
