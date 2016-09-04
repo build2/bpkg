@@ -91,7 +91,9 @@ parse (const common_options& co, cli::scanner& scan, strings& args)
 
   // Diagnostics verbosity.
   //
-  verb = o.verbose_specified () ? o.verbose () : o.v () ? 2 : o.q () ? 0 : 1;
+  verb = o.verbose_specified ()
+    ? o.verbose ()
+    : o.V () ? 3 : o.v () ? 2 : o.q () ? 0 : 1;
 
   return o;
 }
