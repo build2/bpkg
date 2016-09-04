@@ -304,7 +304,7 @@ namespace bpkg
         getline (is, l);
         is.close ();
 
-        return pr.wait () && l.compare (0, 13, "usage: fetch ") == 0;
+        return l.compare (0, 13, "usage: fetch ") == 0;
       }
       catch (const ifdstream::failure&)
       {
