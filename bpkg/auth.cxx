@@ -82,13 +82,15 @@ namespace bpkg
 
     if (co.trust_yes ())
     {
-      if (verb)
-        info << "trusting unsigned repository " << rl.canonical_name ();
+      if (verb >= 2)
+        info << "unsigned repository " << rl.canonical_name () <<
+          " trusted by command line";
     }
     else
     {
-      (co.trust_no () ? error : warn) << "repository " << rl.canonical_name ()
-                                      << " is unsigned";
+      (co.trust_no ()
+       ? error
+       : warn) << "repository " << rl.canonical_name () << " is unsigned";
     }
 
     if (co.trust_no () ||
@@ -485,9 +487,9 @@ namespace bpkg
 
     if (trust)
     {
-      if (verb)
-        info << "trusting non-authenticated certificate for repository "
-             << rl.canonical_name ();
+      if (verb >= 2)
+        info << "certificate for repository " << rl.canonical_name () <<
+          " authenticated by command line";
 
       return cert;
     }
