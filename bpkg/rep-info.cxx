@@ -229,6 +229,10 @@ namespace bpkg
         }
         else
         {
+          // Separate package list from the general repository info.
+          //
+          cout << endl;
+
           for (const package_manifest& pm: pms)
             cout << pm.name << "/" << pm.version << endl;
         }
