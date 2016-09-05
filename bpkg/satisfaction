@@ -9,6 +9,7 @@
 #include <bpkg/utility>
 
 #include <bpkg/package>
+#include <bpkg/common-options>
 
 namespace bpkg
 {
@@ -36,6 +37,14 @@ namespace bpkg
   {
     return l ? (!r || satisfies (*l, *r)) : !r;
   }
+
+  // Special build-time dependencies.
+  //
+  void
+  satisfy_build2 (const common_options&, const string& pkg, const dependency&);
+
+  void
+  satisfy_bpkg (const common_options&, const string& pkg, const dependency&);
 }
 
 #endif // BPKG_SATISFACTION

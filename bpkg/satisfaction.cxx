@@ -4,8 +4,13 @@
 
 #include <bpkg/satisfaction>
 
+#include <butl/process>
+#include <butl/fdstream>
+
+#include <bpkg/utility>
 #include <bpkg/package-odb>
 #include <bpkg/diagnostics>
+#include <bpkg/bpkg-version>
 
 using namespace std;
 using namespace butl;
@@ -92,5 +97,91 @@ namespace bpkg
     }
 
     return s;
+  }
+
+  static version build2_version;
+
+  void
+  satisfy_build2 (const common_options& co,
+                  const string& pkg,
+                  const dependency& d)
+  {
+    assert (d.name == "build2");
+
+    // Extract, parse, and cache build2 version string.
+    //
+    if (build2_version.empty ())
+    {
+      const char* args[] = {name_b (co), "--version", nullptr};
+
+      try
+      {
+        process_path pp (process::path_search (args[0], exec_dir));
+
+        if (verb >= 3)
+          print_process (args);
+
+        process pr (pp, args, 0, -1); // Redirect STDOUT to pipe.
+
+        string l;
+        try
+        {
+          ifdstream is (pr.in_ofd, fdstream_mode::skip);
+          getline (is, l);
+          is.close ();
+
+          if (pr.wait () && l.compare (0, 7, "build2 ") == 0)
+          {
+            try
+            {
+              build2_version = version (string (l, 7));
+            }
+            catch (const invalid_argument&) {} // Fall through.
+          }
+
+          // Fall through.
+        }
+        catch (const ifdstream::failure&)
+        {
+          pr.wait ();
+          // Fall through.
+        }
+
+        if (build2_version.empty ())
+          fail << "unable to determine build2 version of " << args[0];
+      }
+      catch (const process_error& e)
+      {
+        error << "unable to execute " << args[0] << ": " << e.what ();
+
+        if (e.child ())
+          exit (1);
+
+        throw failed ();
+      }
+    }
+
+    if (!satisfies (build2_version, d.constraint))
+      fail << "unable to satisfy constraint (" << d << ") for package "
+           << pkg <<
+        info << "available build2 version is " << build2_version;
+  }
+
+  static version bpkg_version;
+
+  void
+  satisfy_bpkg (const common_options&, const string& pkg, const dependency& d)
+  {
+    assert (d.name == "bpkg");
+
+    // Parse and cache bpkg version string.
+    //
+    if (bpkg_version.empty ())
+      bpkg_version = version (BPKG_VERSION_STR);
+
+    if (!satisfies (bpkg_version, d.constraint))
+      fail << "unable to satisfy constraint (" << d << ") for package "
+           << pkg <<
+        info << "available bpkg version is " << bpkg_version;
   }
 }

@@ -7,6 +7,7 @@
 #include <iostream>     // cout, cin
 
 #include <butl/process>
+#include <butl/fdstream>
 
 #include <bpkg/diagnostics>
 #include <bpkg/common-options>
@@ -195,6 +196,14 @@ namespace bpkg
     }
   }
 
+  const char*
+  name_b (const common_options& co)
+  {
+    return co.build_specified ()
+      ? co.build ().string ().c_str ()
+      : "b" BPKG_EXE_SUFFIX;
+  }
+
   void
   run_b (const common_options& co,
          const dir_path& c,
@@ -203,11 +212,7 @@ namespace bpkg
          const strings& pvars,
          const strings& cvars)
   {
-    const char* b (co.build_specified ()
-                   ? co.build ().string ().c_str ()
-                   : "b" BPKG_EXE_SUFFIX);
-
-    cstrings args {b};
+    cstrings args {name_b (co)};
 
     // Map verbosity level. If we are running quiet or at level 1,
     // then run build2 quiet. Otherwise, run it at the same level

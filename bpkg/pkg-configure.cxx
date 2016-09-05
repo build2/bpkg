@@ -61,6 +61,32 @@ namespace bpkg
         {
           const string& n (d.name);
 
+          if (da.buildtime)
+          {
+            // Handle special names.
+            //
+            if (n == "build2")
+            {
+              if (d.constraint)
+                satisfy_build2 (o, m.name, d);
+
+              satisfied = true;
+              break;
+            }
+            else if (n == "bpkg")
+            {
+              if (d.constraint)
+                satisfy_bpkg (o, m.name, d);
+
+              satisfied = true;
+              break;
+            }
+            // else
+            //
+            // @@ TODO: in the future we would need to at least make sure the
+            // build and target machines are the same. See also pkg-build.
+          }
+
           if (shared_ptr<selected_package> dp = db.find<selected_package> (n))
           {
             if (dp->state != package_state::configured)

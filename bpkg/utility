@@ -76,8 +76,8 @@ namespace bpkg
 
   // Process.
   //
-  // The process command line is printed for verbosity >= 2 (essential
-  // command lines).
+  // By default the process command line is printed for verbosity >= 2
+  // (essential command lines).
   //
   // If fallback is specified, then this directory is searched for the
   // executable as a last resort.
@@ -101,6 +101,9 @@ namespace bpkg
   // configuration scope.
   //
   class common_options;
+
+  const char*
+  name_b (const common_options&);
 
   void
   run_b (const common_options&,

@@ -106,6 +106,7 @@
       <column name="version_revision" type="INTEGER" null="true"/>
       <column name="index" type="INTEGER" null="true"/>
       <column name="conditional" type="INTEGER" null="true"/>
+      <column name="buildtime" type="INTEGER" null="true"/>
       <column name="comment" type="TEXT" null="true"/>
       <foreign-key name="object_id_fk" on-delete="CASCADE">
         <column name="name"/>

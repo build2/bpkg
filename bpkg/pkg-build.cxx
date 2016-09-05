@@ -499,6 +499,31 @@ namespace bpkg
           fail << "multiple dependency alternatives not yet supported";
 
         const dependency& d (da.front ());
+        const string& dn (d.name);
+
+        if (da.buildtime)
+        {
+          // Handle special names.
+          //
+          if (dn == "build2")
+          {
+            if (d.constraint)
+              satisfy_build2 (options, name, d);
+
+            continue;
+          }
+          else if (dn == "bpkg")
+          {
+            if (d.constraint)
+              satisfy_bpkg (options, name, d);
+
+            continue;
+          }
+          // else
+          //
+          // @@ TODO: in the future we would need to at least make sure the
+          // build and target machines are the same. See also pkg-configure.
+        }
 
         // The first step is to always find the available package even
         // if, in the end, it won't be the one we select. If we cannot
@@ -521,7 +546,7 @@ namespace bpkg
         // either way, resolving it to 1.0.0 is the conservative choice and
         // the user can always override it by explicitly building libhello.
         //
-        auto rp (find_available (db, d.name, ar, d.constraint));
+        auto rp (find_available (db, dn, ar, d.constraint));
         shared_ptr<available_package>& dap (rp.first);
 
         if (dap == nullptr)
@@ -550,14 +575,14 @@ namespace bpkg
           if (dap->system_version () == nullptr)
             fail << "prerequisite " << d << " of package " << name << " is "
                  << "not available in source" <<
-              info << "specify ?sys:" << d.name << " if it is available "
-                 << "from the system";
+              info << "specify ?sys:" << dn << " if it is available from the "
+                 << "system";
 
           if (!satisfies (*dap->system_version (), d.constraint))
           {
             fail << "prerequisite " << d << " of package " << name << " is "
                  << "not available in source" <<
-              info << "sys:" << d.name << "/" << *dap->system_version ()
+              info << "sys:" << dn << "/" << *dap->system_version ()
                  << " does not satisfy the constrains";
           }
 
@@ -579,11 +604,11 @@ namespace bpkg
         // worse, downgrade).
         //
         bool force (false);
-        shared_ptr<selected_package> dsp (db.find<selected_package> (d.name));
+        shared_ptr<selected_package> dsp (db.find<selected_package> (dn));
         if (dsp != nullptr)
         {
           if (dsp->state == package_state::broken)
-            fail << "unable to build broken package " << d.name <<
+            fail << "unable to build broken package " << dn <<
               info << "use 'pkg-purge --force' to remove";
 
           if (satisfies (dsp->version, d.constraint))
@@ -777,6 +802,12 @@ namespace bpkg
           {
             assert (!da.conditional && da.size () == 1); // @@ TODO
             const dependency& d (da.front ());
+            const string& dn (d.name);
+
+            // Skip special names.
+            //
+            if (da.buildtime && (dn == "build2" || dn == "bpkg"))
+              continue;
 
             update (order (d.name, false));
           }
