@@ -50,7 +50,7 @@ The first step is to generate the private key:
 $ openssl genrsa -aes256 2048 >key.pem
 \
 
-If you would like to generate a key without a password protection (not a good
+If you would like to generate a key without password protection (not a good
 idea except for testing), leave the \cb{-aes256} option out. You may also need
 to add \cb{-nodes} depending on your \cb{openssl(1)} configuration.
 |
@@ -87,7 +87,7 @@ hosted by an organization, use the organization's name for \cb{org}. If you
 host it as an individual, put your full, real name there. Using any kind of
 aliases or nicknames is a bad idea (except, again, for testing). Remember,
 users of your repository will be presented with this information and if they
-see it was signed by someone named SmellySnook, they will unlikely to trust
+see it was signed by someone named SmellySnook, they will unlikely trust
 it. Also use a working email address in case users need to contact you about
 issues with your certificate.
 
@@ -98,25 +98,25 @@ hosted on \cb{{,www.,pkg.,bpkg.\}example.com}. While name
 \cb{example.com/math} will match \cb{{...\}example.com/pkg/1/math} but not
 \cb{{...\}example.com/pkg/1/misc}. See the repository manifest documentation
 for more information on canonical names. Note also that the \cb{name:} prefix
-in \cb{CN} value is not a typo.
+in the \cb{CN} value is not a typo.
 
 Once the configuration file is ready, generate the certificate:
 
 \
-openssl req -x509 -new -sha256 -key key.pem -config cert.conf \
--days 730 >cert.pem
+openssl req -x509 -new -sha256 -key key.pem \
+  -config cert.conf -days 730 >cert.pem
 \
 
 To verify the certificate information, run:
 
 \
 openssl x509 -noout -nameopt RFC2253,sep_multiline \
--subject -dates -email <cert.pem
+  -subject -dates -email <cert.pem
 \
 
 |
 
-\li|\n3. Add Certificate to the Repository\n
+\li|\n3. Add Certificate to Repository\n
 
 Add the \cb{certificate:} field for the base repository (\cb{role: base})
 in the \cb{repositories} manifest file(s):
@@ -129,7 +129,7 @@ certificate: \
 
 Replace \i{cert} with the entire contents of \cb{cert.pem} (including the
 \c{BEGIN CERTIFICATE} and \c{END CERTIFICATE} lines). So you will have
-an entry along these lines:
+an entry like this:
 
 \
 certificate: \
@@ -145,13 +145,13 @@ MIIDQjCCAiqgAwIBAgIJAIUgsIqSnesGMA0GCSqGSIb3DQEBCwUAMDkxFzAVBgNV
 
 |
 
-\li|\n4. Sign the Repository\n
+\li|\n4. Sign Repository\n
 
 When generating the repository manifests with the \l{bpkg-rep-create(1)}
 command, specify the path to \cb{key.pem} with the \cb{--key} option:
 
 \
-bpkg rep-create --key key.pem /path/to/repository
+bpkg rep-create --key /path/to/key.pem /path/to/repository
 \
 
 You will be prompted for a password to unlock the private key.
@@ -161,7 +161,7 @@ You will be prompted for a password to unlock the private key.
 
 This optional step shows how to load the private key into Yubikey 4 and then
 use it instead of the private key itself for signing the repository. Note that
-you need OpenSSL 1.0.2 or later for the signing part to work.
+you will need OpenSSL 1.0.2 or later for the signing part to work.
 
 First change the Yubikey MKEY, PUK, and PIN if necessary. You should
 definitely do this if it still has the factory defaults. Then import the
@@ -178,13 +178,13 @@ media, store it in a secure, offline location, and remove the key from the
 build machine.
 
 To sign the repository with Yubikey specify the following options instead of
-just \cb{--key} as on step 4 (\c{\"SIGN key\"} is the name for slot \c{9c}):
+just \cb{--key} as at step 4 (\c{\"SIGN key\"} is the name for slot \c{9c}):
 
 \
-bpkg rep-create \
---openssl-option -engine --openssl-option pkcs11 \
---openssl-option -keyform --openssl-option engine \
---key \"label_SIGN key\" /path/to/repository
+bpkg rep-create                                     \
+  --openssl-option -engine --openssl-option pkcs11  \
+  --openssl-option -keyform --openssl-option engine \
+  --key \"label_SIGN key\" /path/to/repository
 \
 
 ||
