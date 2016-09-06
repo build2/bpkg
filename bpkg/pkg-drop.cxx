@@ -317,7 +317,9 @@ namespace bpkg
         if (print_only)
           cout << "drop " << p->name << endl;
         else if (verb)
-          text << "drop " << p->name;
+          // Print indented for better visual separation.
+          //
+          text << "  drop " << p->name;
       }
 
       if (print_only)

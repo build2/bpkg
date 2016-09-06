@@ -1521,7 +1521,9 @@ namespace bpkg
         if (o.print_only ())
           cout << act << endl;
         else if (verb)
-          text << act;
+          // Print indented for better visual separation.
+          //
+          text << "  " << act;
       }
     }
 
