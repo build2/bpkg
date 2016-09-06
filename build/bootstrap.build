@@ -3,7 +3,6 @@
 # license   : MIT; see accompanying LICENSE file
 
 project = bpkg
-subprojects = # No subprojects.
 
 using build@0.4.0
 
