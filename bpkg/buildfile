@@ -54,10 +54,12 @@ exe{bpkg}:                                                                    \
 {hxx            }{ wrapper-traits    }                                        \
                    $libs
 
-# Disable VC "unknown pragma" warning.
+# Disable "unknown pragma" warnings.
 #
 if ($cxx.id == "msvc")
   cxx.coptions += /wd4068
+elif ($cxx.id == "icc")
+  cxx.coptions += -Wno-unknown-pragmas
 
 obj{utility}: cxx.poptions += -DBPKG_EXE_SUFFIX='"'$bin.exe.suffix'"'
 
