@@ -66,7 +66,7 @@ namespace bpkg
      \li|\b{Create Configuration}\n
 
          \
-         bpkg create cxx config.cxx=clang++ config.cxx.coptions=-O3 \
+         bpkg create cc config.cxx=clang++ config.cc.coptions=-O3 \
            config.install.root=/usr/local config.install.sudo=sudo
          \
 
