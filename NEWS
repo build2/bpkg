@@ -1,22 +1,69 @@
 Version 0.4.0
 
-  * Rename the cfg-add command to rep-add (the add alias stays the same) and
-    cfg-fetch to rep-fetch (the fetch alias stays the same).
+  * Support for repository signing and authentication.
 
-  * The pkg-build command now offers to automatically update dependent
+    The rep-create command can now sign the repository with rep-fetch(fetch)
+    and rep-info authenticating it. See the bpkg-repository-signing(1) help
+    topic for details.
+
+  * Support for system packages.
+
+    Now a package can be "built" as available from the system rather than
+    compiling it from source. To specify a system package the new sys: package
+    scheme is used, for example:
+
+    bpkg build sys:libsqlite3
+
+    Currently, if no version is specified for a system package, then it is
+    considered to be unknown but satisfying any dependency constraint (such a
+    wildcard version is displayed as '*'). In the future bpkg will support
+    querying system package managers (rpm, dpkg, pkg-config) for the installed
+    version.
+
+    See the pkg-build(build) man page for details.
+
+  * Support for stub packages.
+
+    A stub is a package without source code. It has the special upstream
+    version 0 (with a possible revision, for example 0+1) and can only be
+    built as a system package.
+
+  * Support for build-time dependencies.
+
+    Now a depends: value in the package manifest that starts with '*' is
+    recognized as a built-time dependency.  Currently, build-time dependencies
+    are treated in the same way as normal (run-time) ones except that the
+    'build2' and 'bpkg' names are recognized as special. They can be used to
+    specify a constraint (usually the required minimum version) on the build2
+    build system and package manager, respectively. In the future, the
+    semantics for build-time dependencies will be extended, for example, to
+    verify that they can be executed on the build machine and/or to build them
+    in a separate configuration in case of cross-compilation.
+
+  * The pkg-build(build) command now offers to automatically update dependent
     packages that were reconfigured.
 
-    It also supports the following new options: --drop-prerequisite|-D,
-    --update-dependent|-U, --leave-dependent|-L, as well as the -K alias for
-    --keep-prerequisite. See the command's man page for details.
+    It also supports the following new options:
 
-  * The pkg-drop command now supports the following new options:
-    --keep-dependent|-K, --drop-prerequisite|-D, and --keep-prerequisite. See
-    the command's man page for details.
+    --drop-prerequisite|-D
+    --update-dependent|-U
+    --leave-dependent|-L
 
-  * Add support for repository authentication. The rep-create command can now
-    sign the repository, and rep-fetch and rep-info commands can authenticate
-    the repository being fetched.
+     As well as the -K alias for --keep-prerequisite. See the command's man
+     page for details.
+
+  * The pkg-drop(drop) command now supports the following new options:
+
+    --keep-dependent|-K,
+    --drop-prerequisite|-D
+    --keep-prerequisite
+
+    See the command's man page for details.
+
+  * The cfg-add command was renamed to rep-add (the add alias stays the same)
+    and cfg-fetch to rep-fetch (the fetch alias stays the same).
+
+  * The new -V option is an alias for --verbose 3 (show all commands).
 
 Version 0.3.0
 
