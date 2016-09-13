@@ -97,7 +97,7 @@ namespace bpkg
         (!co.trust_yes () &&
          !yn_prompt (
            string ("continue without authenticating repositories at " +
-                   cert->name + "? [y/N]").c_str (), 'n')))
+                   cert->name + "? [y/n]").c_str ())))
       throw failed ();
 
     return cert;
@@ -507,7 +507,7 @@ namespace bpkg
       text << cert_fp;
     }
 
-    if (co.trust_no () || !yn_prompt ("trust this certificate? [y/N]", 'n'))
+    if (co.trust_no () || !yn_prompt ("trust this certificate? [y/n]"))
       throw failed ();
 
     return cert;
