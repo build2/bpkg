@@ -1455,6 +1455,14 @@ namespace bpkg
     //
     bool update_dependents (false);
 
+    // Print the plan and ask for the user's confirmation only if some implicit
+    // action (such as building prerequisite or reconfiguring dependent
+    // package) to be taken or there is a selected package which version must
+    // be changed.
+    //
+    string plan;
+    bool print_plan (false);
+
     if (o.print_only () || !o.yes ())
     {
       for (const build_package& p: reverse_iterate (pkgs))
@@ -1466,6 +1474,10 @@ namespace bpkg
         if (p.available == nullptr)
         {
           // This is a dependent needing reconfiguration.
+          //
+          // This is an implicit reconfiguration which requires the plan to be
+          // printed. Will flag that later when composing the list of
+          // prerequisites.
           //
           assert (sp != nullptr && p.reconfigure ());
           update_dependents = true;
@@ -1488,7 +1500,7 @@ namespace bpkg
             //
             if (!p.reconfigure () &&
                 sp->state == package_state::configured &&
-                find (names.begin (), names.end (), sp->name) == names.end ())
+                !p.user_selection ())
               continue;
 
             act = p.system
@@ -1498,11 +1510,15 @@ namespace bpkg
                 : "build ";
           }
           else
+          {
             act = p.system
               ? "reconfigure "
               : sp->version < p.available_version ()
                 ? "upgrade "
                 : "downgrade ";
+
+            print_plan = true;
+          }
 
           act += p.available_name ();
           cause = "required by";
@@ -1513,6 +1529,13 @@ namespace bpkg
         {
           for (const string& n: p.required_by)
             rb += ' ' + n;
+
+          // If not user-selected, then there should be another (implicit)
+          // reason for the action.
+          //
+          assert (!rb.empty ());
+
+          print_plan = true;
         }
 
         if (!rb.empty ())
@@ -1523,16 +1546,19 @@ namespace bpkg
         else if (verb)
           // Print indented for better visual separation.
           //
-          text << "  " << act;
+          plan += (plan.empty () ? "  " : "\n  ") + act;
       }
     }
 
     if (o.print_only ())
       return 0;
 
+    if (print_plan)
+      text << plan;
+
     // Ask the user if we should continue.
     //
-    if (!(o.yes () || yn_prompt ("continue? [Y/n]", 'y')))
+    if (!(o.yes () || !print_plan || yn_prompt ("continue? [Y/n]", 'y')))
       return 1;
 
     // Figure out if we also should update dependents.
@@ -1846,7 +1872,7 @@ namespace bpkg
       const shared_ptr<selected_package>& sp (p.selected);
 
       if (!sp->system () && // System package doesn't need update.
-          find (names.begin (), names.end (), sp->name) != names.end ())
+          p.user_selection ())
         upkgs.push_back (pkg_command_vars {sp, strings ()});
     }
 

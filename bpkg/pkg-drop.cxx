@@ -299,11 +299,12 @@ namespace bpkg
             bool print_only,
             bool disfigure_only,
             bool yes,
-            bool no)
+            bool no,
+            bool print_plan)
   {
     // Print what we are going to do, then ask for the user's confirmation.
     //
-    if (print_only || !(yes || no))
+    if (print_only || !(yes || no || !print_plan))
     {
       for (const drop_package& dp: pkgs)
       {
@@ -328,7 +329,7 @@ namespace bpkg
 
     // Ask the user if we should continue.
     //
-    if (no || !(yes || yn_prompt ("continue? [Y/n]", 'y')))
+    if (no || !(yes || !print_plan || yn_prompt ("continue? [Y/n]", 'y')))
       return 1;
 
     // All that's left to do is first disfigure configured packages and
@@ -433,6 +434,12 @@ namespace bpkg
     //
     drop_packages pkgs;
     bool drop_prq (false);
+
+    // Print the plan and ask for the user's confirmation only if there are
+    // additional packages (such as dependents or prerequisites of the
+    // explicitly listed packages) to be dropped.
+    //
+    bool print_plan (false);
     {
       transaction t (db.begin ());
 
@@ -486,6 +493,8 @@ namespace bpkg
 
         if (o.no () || !yn_prompt ("drop dependent packages? [y/N]", 'n'))
           return 1;
+
+        print_plan = true;
       }
 
       // Collect all the prerequisites that are not held. These will be
@@ -541,6 +550,9 @@ namespace bpkg
         }
 
         drop_prq = yn_prompt ("drop prerequisite packages? [Y/n]", 'y');
+
+        if (drop_prq)
+          print_plan = true;
       }
 
       t.commit ();
@@ -554,7 +566,8 @@ namespace bpkg
                      o.print_only (),
                      o.disfigure_only (),
                      o.yes (),
-                     o.no ());
+                     o.no (),
+                     print_plan);
   }
 
   set<shared_ptr<selected_package>>
@@ -623,7 +636,8 @@ namespace bpkg
               false,  // Print-only (too late for that).
               false,  // Disfigure-only (could be an option).
               true,   // Yes (don't print the plan or prompt).
-              false); // No (we already said yes).
+              false,  // No (we already said yes).
+              false); // Don't print the plan (just to reiterate).
 
     set<shared_ptr<selected_package>> r;
     for (const drop_package& dp: pkgs)
