@@ -50,8 +50,8 @@ namespace bpkg
       //
       return p.wait () ? 0 : 1;
     }
-    // Catch ios_base::failure as std::system_error together with the
-    // pager-specific exceptions.
+    // Catch io_error as std::system_error together with the pager-specific
+    // exceptions.
     //
     catch (const system_error& e)
     {

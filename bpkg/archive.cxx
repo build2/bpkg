@@ -110,7 +110,7 @@ namespace bpkg
 
       // Fall through.
     }
-    catch (const ifdstream::failure&)
+    catch (const io_error&)
     {
       // Child exit status doesn't matter. Just wait for the process
       // completion and fall through.

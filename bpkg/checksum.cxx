@@ -48,7 +48,7 @@ namespace bpkg
           l ==
             "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
       }
-      catch (const ifdstream::failure&)
+      catch (const io_error&)
       {
         // Fall through.
       }
@@ -110,7 +110,7 @@ namespace bpkg
 
         return pr.wait () && l.compare (0, 9, "sha256sum") == 0;
       }
-      catch (const ifdstream::failure&)
+      catch (const io_error&)
       {
         // Fall through.
       }
@@ -172,7 +172,7 @@ namespace bpkg
 
         return pr.wait () && l.size () != 0 && l[0] >= '0' && l[0] <= '9';
       }
-      catch (const ifdstream::failure&)
+      catch (const io_error&)
       {
         // Fall through.
       }
@@ -359,7 +359,7 @@ namespace bpkg
     // Ignore these exceptions if the child process exited with an error status
     // since that's the source of the failure.
     //
-    catch (const iostream::failure&)
+    catch (const io_error&)
     {
       if (pr.wait ())
         fail << "unable to read/write '" << sha256_path << "' output/input";
@@ -411,7 +411,7 @@ namespace bpkg
       ifdstream ifs (f, ios::binary);
       return sha256 (o, ifs);
     }
-    catch (const iostream::failure& e)
+    catch (const io_error& e)
     {
       error << "unable read " << f << ": " << e.what ();
       throw failed ();

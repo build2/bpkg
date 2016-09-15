@@ -242,7 +242,7 @@ namespace bpkg
     {
       fail << "unable to serialize manifest: " << e.description;
     }
-    catch (const ostream::failure&)
+    catch (const io_error&)
     {
       fail << "unable to write to STDOUT";
     }

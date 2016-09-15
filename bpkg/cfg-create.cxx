@@ -104,7 +104,7 @@ namespace bpkg
 
       ofs.close ();
     }
-    catch (const ofdstream::failure& e)
+    catch (const io_error& e)
     {
       fail << "unable to write to " << f << ": " << e.what ();
     }
@@ -135,7 +135,7 @@ namespace bpkg
 
       ofs.close ();
     }
-    catch (const ofdstream::failure& e)
+    catch (const io_error& e)
     {
       fail << "unable to write to " << f << ": " << e.what ();
     }
@@ -154,7 +154,7 @@ namespace bpkg
 
       ofs.close ();
     }
-    catch (const ofdstream::failure& e)
+    catch (const io_error& e)
     {
       fail << "unable to write to " << f << ": " << e.what ();
     }

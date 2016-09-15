@@ -55,7 +55,7 @@ namespace bpkg
         if (!(pr.wait () && l.compare (0, 9, "GNU Wget ") == 0))
           return false;
       }
-      catch (const ifdstream::failure&)
+      catch (const io_error&)
       {
         return false;
       }
@@ -195,7 +195,7 @@ namespace bpkg
 
         return pr.wait () && l.compare (0, 5, "curl ") == 0;
       }
-      catch (const ifdstream::failure&)
+      catch (const io_error&)
       {
         // Fall through.
       }
@@ -306,7 +306,7 @@ namespace bpkg
 
         return l.compare (0, 13, "usage: fetch ") == 0;
       }
-      catch (const ifdstream::failure&)
+      catch (const io_error&)
       {
         // Fall through.
       }
@@ -608,7 +608,7 @@ namespace bpkg
       if (pr.wait ())
         fail (e.name, e.line, e.column) << e.description;
     }
-    catch (const ifdstream::failure&)
+    catch (const io_error&)
     {
       if (pr.wait ())
         fail << "unable to read fetched " << url;
@@ -673,7 +673,7 @@ namespace bpkg
     {
       error (e.name, e.line, e.column) << e.description;
     }
-    catch (const ifdstream::failure& e)
+    catch (const io_error& e)
     {
       error << "unable to read from " << f << ": " << e.what ();
     }

@@ -78,7 +78,7 @@ namespace bpkg
         throw failed ();
       }
     }
-    catch (const ifdstream::failure&)
+    catch (const io_error&)
     {
       if (pr.wait ())
       {
@@ -157,7 +157,7 @@ namespace bpkg
 
       throw failed ();
     }
-    catch (const ifdstream::failure& e)
+    catch (const io_error& e)
     {
       if (diag)
         error << "unable to read from " << mf << ": " << e.what ();

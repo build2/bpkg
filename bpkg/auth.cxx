@@ -4,7 +4,6 @@
 
 #include <bpkg/auth>
 
-#include <ios>
 #include <ratio>
 #include <limits>    // numeric_limits
 #include <cstring>   // strlen(), strcmp()
@@ -131,7 +130,7 @@ namespace bpkg
 
         const size_t n (19);
         if (!(s.size () > n && s.compare (0, n, "SHA256 Fingerprint=") == 0))
-          throw ifdstream::failure ("");
+          throw io_error ("");
 
         string fp;
 
@@ -141,7 +140,7 @@ namespace bpkg
         }
         catch (const invalid_argument&)
         {
-          throw ifdstream::failure ("");
+          throw io_error ("");
         }
 
         if (pr.wait ())
@@ -150,7 +149,7 @@ namespace bpkg
         // Fall through.
         //
       }
-      catch (const ios_base::failure&)
+      catch (const io_error&)
       {
         // Child exit status doesn't matter. Just wait for the process
         // completion and fall through.
@@ -407,7 +406,7 @@ namespace bpkg
         // Fall through.
         //
       }
-      catch (const ios_base::failure&)
+      catch (const io_error&)
       {
         // Child exit status doesn't matter. Just wait for the process
         // completion and fall through.
@@ -555,7 +554,7 @@ namespace bpkg
         ofs << *pem;
         ofs.close ();
       }
-      catch (const ofdstream::failure& e)
+      catch (const io_error& e)
       {
         fail << "unable to write certificate to " << f << ": " << e.what ();
       }
@@ -641,7 +640,7 @@ namespace bpkg
         ofs << *cert_pem;
         ofs.close ();
       }
-      catch (const ofdstream::failure& e)
+      catch (const io_error& e)
       {
         fail << "unable to save certificate to temporary file " << f
              << ": "  << e.what ();
@@ -713,7 +712,7 @@ namespace bpkg
         // Fall through.
         //
       }
-      catch (const ios_base::failure&)
+      catch (const io_error&)
       {
         // Child exit status doesn't matter. Just wait for the process
         // completion and fall through.
@@ -794,7 +793,7 @@ namespace bpkg
         // Fall through.
         //
       }
-      catch (const iostream::failure&)
+      catch (const io_error&)
       {
         // Child exit status doesn't matter. Just wait for the process
         // completion and fall through.

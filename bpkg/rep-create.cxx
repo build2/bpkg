@@ -5,7 +5,6 @@
 #include <bpkg/rep-create>
 
 #include <map>
-#include <iostream>
 
 #include <butl/fdstream>
 #include <butl/filesystem> // dir_iterator
@@ -263,7 +262,7 @@ namespace bpkg
     {
       fail << "unable to save manifest: " << e.description;
     }
-    catch (const ofdstream::failure& e)
+    catch (const io_error& e)
     {
       fail << "unable to write to " << p << ": " << e.what ();
     }
