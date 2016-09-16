@@ -28,12 +28,14 @@ namespace bpkg
     //
     const char* args[] = {prog.string ().c_str (), "-q", "-s", "", nullptr};
 
-    if (verb >= 3)
-      print_process (args);
-
     try
     {
-      process pr (args, 0, -1, 1); // Redirect STDOUT and STDERR to a pipe.
+      process_path pp (process::path_search (args[0]));
+
+      if (verb >= 3)
+        print_process (args);
+
+      process pr (pp, args, 0, -1, 1); // Redirect STDOUT and STDERR to a pipe.
 
       try
       {
@@ -74,13 +76,15 @@ namespace bpkg
 
     args.push_back (nullptr);
 
+    process_path pp (process::path_search (args[0]));
+
     if (verb >= 2)
       print_process (args);
 
     // Pipe both STDIN and STDOUT. Process exceptions must be handled by
     // the caller.
     //
-    return process (args.data (), -1, -1);
+    return process (pp, args.data (), -1, -1);
   }
 
   // sha256sum
@@ -93,12 +97,14 @@ namespace bpkg
     //
     const char* args[] = {prog.string ().c_str (), "--version", nullptr};
 
-    if (verb >= 3)
-      print_process (args);
-
     try
     {
-      process pr (args, 0, -1); // Redirect STDOUT to a pipe.
+      process_path pp (process::path_search (args[0]));
+
+      if (verb >= 3)
+        print_process (args);
+
+      process pr (pp, args, 0, -1); // Redirect STDOUT to a pipe.
 
       try
       {
@@ -136,13 +142,15 @@ namespace bpkg
 
     args.push_back (nullptr);
 
+    process_path pp (process::path_search (args[0]));
+
     if (verb >= 2)
       print_process (args);
 
     // Pipe both STDIN and STDOUT. Process exceptions must be handled by
     // the caller.
     //
-    return process (args.data (), -1, -1);
+    return process (pp, args.data (), -1, -1);
   }
 
   // shasum
@@ -155,12 +163,14 @@ namespace bpkg
     //
     const char* args[] = {prog.string ().c_str (), "--version", nullptr};
 
-    if (verb >= 3)
-      print_process (args);
-
     try
     {
-      process pr (args, 0, -1); // Redirect STDOUT to a pipe.
+      process_path pp (process::path_search (args[0]));
+
+      if (verb >= 3)
+        print_process (args);
+
+      process pr (pp, args, 0, -1); // Redirect STDOUT to a pipe.
 
       try
       {
@@ -198,13 +208,15 @@ namespace bpkg
 
     args.push_back (nullptr);
 
+    process_path pp (process::path_search (args[0]));
+
     if (verb >= 2)
       print_process (args);
 
     // Pipe both STDIN and STDOUT. Process exceptions must be handled by
     // the caller.
     //
-    return process (args.data (), -1, -1);
+    return process (pp, args.data (), -1, -1);
   }
 
   // The dispatcher.

@@ -36,12 +36,14 @@ namespace bpkg
     //
     const char* args[] = {prog.string ().c_str (), "--version", nullptr};
 
-    if (verb >= 3)
-      print_process (args);
-
     try
     {
-      process pr (args, 0, -1); // Redirect STDOUT to a pipe.
+      process_path pp (process::path_search (args[0]));
+
+      if (verb >= 3)
+        print_process (args);
+
+      process pr (pp, args, 0, -1); // Redirect STDOUT to a pipe.
 
       string l;
 
@@ -155,6 +157,8 @@ namespace bpkg
     args.push_back (url.c_str ());
     args.push_back (nullptr);
 
+    process_path pp (process::path_search (args[0]));
+
     if (verb >= 2)
       print_process (args);
 
@@ -164,8 +168,8 @@ namespace bpkg
     // report. Process exceptions must be handled by the caller.
     //
     return fo
-      ? process (out.directory ().string ().c_str (), args.data ())
-      : process (args.data (), 0, -1);
+      ? process (out.directory ().string ().c_str (), pp, args.data ())
+      : process (pp, args.data (), 0, -1);
   }
 
   // curl
@@ -178,12 +182,14 @@ namespace bpkg
     //
     const char* args[] = {prog.string ().c_str (), "--version", nullptr};
 
-    if (verb >= 3)
-      print_process (args);
-
     try
     {
-      process pr (args, 0, -1); // Redirect STDOUT to a pipe.
+      process_path pp (process::path_search (args[0]));
+
+      if (verb >= 3)
+        print_process (args);
+
+      process pr (pp, args, 0, -1); // Redirect STDOUT to a pipe.
 
       try
       {
@@ -260,6 +266,8 @@ namespace bpkg
     args.push_back (url.c_str ());
     args.push_back (nullptr);
 
+    process_path pp (process::path_search (args[0]));
+
     if (verb >= 2)
       print_process (args);
     else if (verb == 1 && fo)
@@ -273,8 +281,8 @@ namespace bpkg
     // Process exceptions must be handled by the caller.
     //
     return fo
-      ? process (args.data ())
-      : process (args.data (), 0, -1);
+      ? process (pp, args.data ())
+      : process (pp, args.data (), 0, -1);
   }
 
   // fetch
@@ -289,12 +297,14 @@ namespace bpkg
     //
     const char* args[] = {prog.string ().c_str (), nullptr};
 
-    if (verb >= 3)
-      print_process (args);
-
     try
     {
-      process pr (args, 0, -1, 1); // Redirect STDOUT and STDERR to a pipe.
+      process_path pp (process::path_search (args[0]));
+
+      if (verb >= 3)
+        print_process (args);
+
+      process pr (pp, args, 0, -1, 1); // Redirect STDOUT and STDERR to a pipe.
 
       try
       {
@@ -363,6 +373,8 @@ namespace bpkg
     args.push_back (url.c_str ());
     args.push_back (nullptr);
 
+    process_path pp (process::path_search (args[0]));
+
     if (verb >= 2)
       print_process (args);
 
@@ -372,8 +384,8 @@ namespace bpkg
     // report. Process exceptions must be handled by the caller.
     //
     return fo
-      ? process (out.directory ().string ().c_str (), args.data ())
-      : process (args.data (), 0, -1);
+      ? process (out.directory ().string ().c_str (), pp, args.data ())
+      : process (pp, args.data (), 0, -1);
   }
 
   // The dispatcher.

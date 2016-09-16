@@ -68,14 +68,16 @@ namespace bpkg
 
     args.push_back (nullptr);
 
-    if (verb >= 2)
-      print_process (args);
-
     try
     {
+      process_path pp (process::path_search (args[0]));
+
+      if (verb >= 2)
+        print_process (args);
+
       // If err is false, then redirect STDERR to STDOUT.
       //
-      return process (args.data (), 0, -1, (err ? 2 : 1));
+      return process (pp, args.data (), 0, -1, (err ? 2 : 1));
     }
     catch (const process_error& e)
     {

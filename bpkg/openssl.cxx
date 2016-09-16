@@ -34,16 +34,18 @@ namespace bpkg
     args.insert (args.end (), options.begin (), options.end ());
     args.push_back (nullptr);
 
-    if (verb >= 2)
-      print_process (args);
-
     try
     {
+      process_path pp (process::path_search (args[0]));
+
+      if (verb >= 2)
+        print_process (args);
+
       // If the caller is interested in reading STDOUT and STDERR, then
       // redirect STDERR to STDOUT, so both can be read from the same stream.
       //
       return process (
-        args.data (), in ? -1 : 0, out ? -1 : 1, err ? (out ? 1 : -1): 2);
+        pp, args.data (), in ? -1 : 0, out ? -1 : 1, err ? (out ? 1 : -1): 2);
     }
     catch (const process_error& e)
     {

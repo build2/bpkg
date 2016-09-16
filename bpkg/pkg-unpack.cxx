@@ -188,12 +188,14 @@ namespace bpkg
     args.push_back (a.string ().c_str ());
     args.push_back (nullptr);
 
-    if (verb >= 2)
-      print_process (args);
-
     try
     {
-      process pr (args.data ());
+      process_path pp (process::path_search (args[0]));
+
+      if (verb >= 2)
+        print_process (args);
+
+      process pr (pp, args.data ());
 
       // While it is reasonable to assuming the child process issued
       // diagnostics, tar, specifically, doesn't mention the archive
