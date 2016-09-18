@@ -189,7 +189,7 @@ namespace bpkg
     bpkg::auth --auth = bpkg::auth::remote
     {
       "<type>",
-      "Repository types be authenticated. Valid values for this option are
+      "Types of repositories to authenticate. Valid values for this option are
        \cb{none}, \cb{remote}, \cb{all}. By default only remote repositories
        are authenticated. You can request authentication of local repositories
        by passing \cb{all} or disable authentication completely by passing
