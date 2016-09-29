@@ -6,10 +6,10 @@
 
 #include <iostream>  // cout
 
-#include <butl/sha256> // sha256_to_fingerprint()
+#include <butl/sha256>              // sha256_to_fingerprint()
+#include <butl/manifest-serializer>
 
 #include <bpkg/manifest>
-#include <bpkg/manifest-serializer>
 
 #include <bpkg/auth>
 #include <bpkg/fetch>

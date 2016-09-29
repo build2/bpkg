@@ -9,8 +9,7 @@
 #include <butl/process>
 #include <butl/fdstream>
 #include <butl/filesystem>
-
-#include <bpkg/manifest-parser>
+#include <butl/manifest-parser>
 
 #include <bpkg/checksum>
 #include <bpkg/diagnostics>

@@ -6,8 +6,7 @@
 
 #include <butl/process>
 #include <butl/fdstream>
-
-#include <bpkg/manifest-parser>
+#include <butl/manifest-parser>
 
 #include <bpkg/archive>
 #include <bpkg/diagnostics>

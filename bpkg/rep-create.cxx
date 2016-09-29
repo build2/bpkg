@@ -8,9 +8,9 @@
 
 #include <butl/fdstream>
 #include <butl/filesystem> // dir_iterator
+#include <butl/manifest-serializer>
 
 #include <bpkg/manifest>
-#include <bpkg/manifest-serializer>
 
 #include <bpkg/auth>
 #include <bpkg/fetch>
