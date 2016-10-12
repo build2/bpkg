@@ -6,8 +6,8 @@
 
 # Copy default-cert.pem content to the certificate value of the following
 # manifest files:
-#   pkg/1/build2.org/auth/mismatched/signature/repositories
-#   pkg/1/build2.org/auth/mismatched/sha256sum/repositories
+#   pkg/1/build2.org/auth/signature-mismatch/repositories
+#   pkg/1/build2.org/auth/sha256sum-mismatch/repositories
 #   pkg/1/build2.org/auth/signed/repositories
 #   pkg/1/build2.org/common/hello/repositories
 #
@@ -15,13 +15,13 @@ openssl req -x509 -new -key key.pem -days 365 -config default-openssl.cnf > \
 	default-cert.pem
 
 # Copy mismatch-cert.pem content to the certificate value of
-# pkg/1/build2.org/auth/mismatched/name/repositories manifest file.
+# pkg/1/build2.org/auth/name-mismatch/repositories manifest file.
 #
 openssl req -x509 -new -key key.pem -days 365 -config mismatch-openssl.cnf > \
         mismatch-cert.pem
 
 # Copy noemail-cert.pem content to the certificate value of
-# pkg/1/faulty/auth/noemail/repositories manifest file.
+# pkg/1/build2.org/auth/create-noemail/repositories manifest file.
 #
 openssl req -x509 -new -key key.pem -days 365 -config noemail-openssl.cnf > \
         noemail-cert.pem
@@ -30,7 +30,7 @@ openssl req -x509 -new -key key.pem -days 365 -config noemail-openssl.cnf > \
 # it expired for the testing purposes. But if you do, copy expired-cert.pem
 # content to the certificate value of the following manifest files:
 #   pkg/1/build2.org/auth/expired/repositories
-#   pkg/1/faulty/auth/expired/repositories
+#   pkg/1/build2.org/auth/create-expired/repositories
 #
 # To regenerate the packages and signature manifest files run:
 #
