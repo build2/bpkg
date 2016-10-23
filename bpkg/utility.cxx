@@ -92,8 +92,7 @@ namespace bpkg
   {
     try
     {
-      dir_iterator i (d);
-      return i == end (i);
+      return dir_empty (d);
     }
     catch (const system_error& e)
     {
