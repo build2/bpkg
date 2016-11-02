@@ -37,7 +37,7 @@ namespace bpkg
 
     try
     {
-      ifdstream is (pr.in_ofd, fdstream_mode::skip);
+      ifdstream is (move (pr.in_ofd), fdstream_mode::skip);
       manifest_parser mp (is, mf.string ());
       package_manifest m (mp, iu);
       is.close ();

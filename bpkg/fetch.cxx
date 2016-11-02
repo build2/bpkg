@@ -48,7 +48,7 @@ namespace bpkg
 
       try
       {
-        ifdstream is (pr.in_ofd, fdstream_mode::skip);
+        ifdstream is (move (pr.in_ofd), fdstream_mode::skip);
 
         getline (is, l);
         is.close ();
@@ -192,7 +192,7 @@ namespace bpkg
 
       try
       {
-        ifdstream is (pr.in_ofd, fdstream_mode::skip);
+        ifdstream is (move (pr.in_ofd), fdstream_mode::skip);
 
         string l;
         getline (is, l);
@@ -307,7 +307,7 @@ namespace bpkg
 
       try
       {
-        ifdstream is (pr.in_ofd, fdstream_mode::skip);
+        ifdstream is (move (pr.in_ofd), fdstream_mode::skip);
 
         string l;
         getline (is, l);
@@ -588,7 +588,7 @@ namespace bpkg
       // calculation, then use the binary data to create the text stream for
       // the manifest parsing.
       //
-      ifdstream is (pr.in_ofd, fdstream_mode::binary);
+      ifdstream is (move (pr.in_ofd), fdstream_mode::binary);
       stringstream bs (ios::in | ios::out | ios::binary);
 
       // Note that the eof check is important: if the stream is at eof, write

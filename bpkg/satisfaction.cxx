@@ -126,7 +126,7 @@ namespace bpkg
         string l;
         try
         {
-          ifdstream is (pr.in_ofd, fdstream_mode::skip);
+          ifdstream is (move (pr.in_ofd), fdstream_mode::skip);
           getline (is, l);
           is.close ();
 

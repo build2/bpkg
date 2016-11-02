@@ -101,7 +101,7 @@ namespace bpkg
       // Do not throw when eofbit is set (end of stream reached), and
       // when failbit is set (getline() failed to extract any character).
       //
-      ifdstream is (pr.in_ofd, ifdstream::badbit);
+      ifdstream is (move (pr.in_ofd), ifdstream::badbit);
 
       string s;
       getline (is, s, '\0');

@@ -119,8 +119,8 @@ namespace bpkg
 
       try
       {
-        ifdstream is (pr.in_ofd, fdstream_mode::skip);
-        ofdstream os (pr.out_fd);
+        ifdstream is (move (pr.in_ofd), fdstream_mode::skip);
+        ofdstream os (move (pr.out_fd));
         os << pem;
         os.close ();
 
@@ -264,9 +264,10 @@ namespace bpkg
         // We unset failbit to provide the detailed error description (which
         // certificate field is missed) on failure.
         //
-        ifdstream is (pr.in_ofd, fdstream_mode::skip, ifdstream::badbit);
+        ifdstream is (
+          move (pr.in_ofd), fdstream_mode::skip, ifdstream::badbit);
 
-        ofdstream os (pr.out_fd);
+        ofdstream os (move (pr.out_fd));
 
         // Reading from and writing to the child process standard streams from
         // the same thread is generally a bad idea. Depending on the program
@@ -683,11 +684,11 @@ namespace bpkg
 
       try
       {
-        ifdstream is (pr.in_ofd, fdstream_mode::skip);
+        ifdstream is (move (pr.in_ofd), fdstream_mode::skip);
 
         // Write the signature to the openssl process input in the binary mode.
         //
-        ofdstream os (pr.out_fd, fdstream_mode::binary);
+        ofdstream os (move (pr.out_fd), fdstream_mode::binary);
 
         for (const auto& c: sm.signature)
           os.put (c); // Sets badbit on failure.
@@ -773,9 +774,10 @@ namespace bpkg
         // Read the signature from the openssl process output in the binary
         // mode.
         //
-        ifdstream is (pr.in_ofd, fdstream_mode::binary | fdstream_mode::skip);
+        ifdstream is (
+          move (pr.in_ofd), fdstream_mode::binary | fdstream_mode::skip);
 
-        ofdstream os (pr.out_fd);
+        ofdstream os (move (pr.out_fd));
         os << sha256sum;
         os.close ();
 

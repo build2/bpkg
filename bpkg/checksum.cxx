@@ -39,7 +39,7 @@ namespace bpkg
 
       try
       {
-        ifdstream is (pr.in_ofd);
+        ifdstream is (move (pr.in_ofd));
 
         string l;
         getline (is, l);
@@ -108,7 +108,7 @@ namespace bpkg
 
       try
       {
-        ifdstream is (pr.in_ofd, fdstream_mode::skip);
+        ifdstream is (move (pr.in_ofd), fdstream_mode::skip);
 
         string l;
         getline (is, l);
@@ -174,7 +174,7 @@ namespace bpkg
 
       try
       {
-        ifdstream is (pr.in_ofd);
+        ifdstream is (move (pr.in_ofd));
 
         string l;
         getline (is, l);
@@ -318,7 +318,7 @@ namespace bpkg
 
       // Prevent any data modifications on the way to the hashing program.
       //
-      fdmode (pr.out_fd, fdstream_mode::binary);
+      fdmode (pr.out_fd.get (), fdstream_mode::binary);
       return pr;
     }
     catch (const process_error& e)
@@ -339,8 +339,8 @@ namespace bpkg
 
     try
     {
-      ifdstream is (pr.in_ofd, fdstream_mode::skip);
-      ofdstream os (pr.out_fd);
+      ifdstream is (move (pr.in_ofd), fdstream_mode::skip);
+      ofdstream os (move (pr.out_fd));
 
       // Note that the eof check is important: if the stream is at eof, write
       // will fail.
