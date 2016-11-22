@@ -98,8 +98,7 @@ namespace bpkg
     }
     catch (const database_exception& e)
     {
-      error << f << ": " << e.message ();
-      throw failed ();
+      fail << f << ": " << e.message () << endf;
     }
   }
 }

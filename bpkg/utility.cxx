@@ -68,8 +68,7 @@ namespace bpkg
     }
     catch (const system_error& e)
     {
-      error << "unable to stat path " << f << ": " << e.what ();
-      throw failed ();
+      fail << "unable to stat path " << f << ": " << e.what () << endf;
     }
   }
 
@@ -82,8 +81,7 @@ namespace bpkg
     }
     catch (const system_error& e)
     {
-      error << "unable to stat path " << d << ": " << e.what ();
-      throw failed ();
+      fail << "unable to stat path " << d << ": " << e.what () << endf;
     }
   }
 
@@ -96,8 +94,7 @@ namespace bpkg
     }
     catch (const system_error& e)
     {
-      error << "unable to scan directory " << d << ": " << e.what ();
-      throw failed ();
+      fail << "unable to scan directory " << d << ": " << e.what () << endf;
     }
   }
 

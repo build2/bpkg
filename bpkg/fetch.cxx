@@ -632,9 +632,8 @@ namespace bpkg
     // While it is reasonable to assuming the child process issued
     // diagnostics, some may not mention the URL.
     //
-    error << "unable to fetch " << url <<
-      info << "re-run with -v for more information";
-    throw failed ();
+    fail << "unable to fetch " << url <<
+      info << "re-run with -v for more information" << endf;
   }
 
   static path
@@ -682,14 +681,12 @@ namespace bpkg
     }
     catch (const manifest_parsing& e)
     {
-      error (e.name, e.line, e.column) << e.description;
+      fail (e.name, e.line, e.column) << e.description << endf;
     }
     catch (const io_error& e)
     {
-      error << "unable to read from " << f << ": " << e.what ();
+      fail << "unable to read from " << f << ": " << e.what () << endf;
     }
-
-    throw failed ();
   }
 
   static const path repositories ("repositories");

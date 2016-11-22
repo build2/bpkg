@@ -106,9 +106,8 @@ namespace bpkg
   {
     // Note: this is not an "invalid package" case, so no diag check.
     //
-    error << "unable to extract manifest file from " << af << ": "
-          << e.what ();
-    throw failed ();
+    fail << "unable to extract manifest file from " << af << ": "
+         << e.what () << endf;
   }
 
   package_manifest

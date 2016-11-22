@@ -167,8 +167,7 @@ namespace bpkg
   }
   catch (const system_error& e)
   {
-    error << "unable to scan directory " << d << ": " << e.what ();
-    throw failed ();
+    fail << "unable to scan directory " << d << ": " << e.what () << endf;
   }
 
   int
@@ -278,7 +277,6 @@ namespace bpkg
   }
   catch (const invalid_path& e)
   {
-    error << "invalid path: '" << e.path << "'";
-    throw failed ();
+    fail << "invalid path: '" << e.path << "'" << endf;
   }
 }

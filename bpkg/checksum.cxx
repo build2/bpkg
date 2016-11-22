@@ -384,10 +384,8 @@ namespace bpkg
     // While it is reasonable to assuming the child process issued diagnostics,
     // issue something just in case.
     //
-    error << "unable to calculate SHA256 sum using '" << sha256_path << "'" <<
-      info << "re-run with -v for more information";
-
-    throw failed ();
+    fail << "unable to calculate SHA256 sum using '" << sha256_path << "'" <<
+      info << "re-run with -v for more information" << endf;
   }
 
   struct memstreambuf: streambuf
@@ -425,8 +423,7 @@ namespace bpkg
     }
     catch (const io_error& e)
     {
-      error << "unable read " << f << ": " << e.what ();
-      throw failed ();
+      fail << "unable read " << f << ": " << e.what () << endf;
     }
   }
 }

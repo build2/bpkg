@@ -125,12 +125,11 @@ namespace bpkg
     // archive name. So print the error message whatever the child exit status
     // is.
     //
-    error << "unable to extract " << f << " from " << a;
-    throw failed ();
+    fail << "unable to extract " << f << " from " << a << endf;
   }
   catch (const process_error& e)
   {
-    error << "unable to extract " << f << " from " << a << ": " << e.what ();
-    throw failed ();
+    fail << "unable to extract " << f << " from " << a << ": " << e.what ()
+         << endf;
   }
 }

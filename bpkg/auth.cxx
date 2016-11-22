@@ -420,10 +420,8 @@ namespace bpkg
         // parsing diagnostics since we were probably parsing garbage.
         //
         if (pr.wait ())
-        {
-          error << "invalid certificate for " << repo << ": " << e.what ();
-          throw failed ();
-        }
+          fail << "invalid certificate for " << repo << ": " << e.what ()
+               << endf;
 
         // Fall through.
       }

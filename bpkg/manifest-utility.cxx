@@ -78,7 +78,6 @@ namespace bpkg
   }
   catch (const invalid_argument& e)
   {
-    error << "invalid repository location '" << s << "': " << e.what ();
-    throw failed ();
+    fail << "invalid repository location '" << s << "': " << e.what () << endf;
   }
 }

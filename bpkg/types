@@ -82,11 +82,21 @@ namespace bpkg
 
   using paths = std::vector<path>;
   using dir_paths = std::vector<dir_path>;
+}
 
+// In order to be found (via ADL) these have to be either in std:: or in
+// butl::. The latter is bad idea since libbutl includes the default
+// implementation.
+//
+namespace std
+{
   // Custom path printing (with trailing slash for directories).
   //
   inline ostream&
-  operator<< (ostream& os, const path& p) {return os << p.representation ();}
+  operator<< (ostream& os, const ::butl::path& p)
+  {
+    return os << p.representation ();
+  }
 }
 
 #endif // BPKG_TYPES
