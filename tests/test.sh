@@ -323,7 +323,7 @@ email: hello-users@example.org
 requires: c++11
 requires: build2 >= 0.4.0
 location: libhello-1.0.0.tar.gz
-sha256sum: 4d3f26addc718eb186192edc50b0c60b4eda3da92ebb4537b3f187206a260f12
+sha256sum: 1c1c4fe4eed33d6eb46db62d6273f821580df79bf7e939f5a481a95ef248c784
 EOF
 
 ##

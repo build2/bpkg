@@ -8,11 +8,11 @@ if $abi_prerelease
 else
   lib{hello}: bin.lib.version = @-$abi_major.$abi_minor
 
-cxx.poptions += -I$src_root
+cxx.poptions += "-I$src_root"
 obja{*}: cxx.poptions += -DLIBHELLO_STATIC_BUILD
 objs{*}: cxx.poptions += -DLIBHELLO_SHARED_BUILD
 
-lib{hello}: cxx.export.poptions = -I$src_root
+lib{hello}: cxx.export.poptions = "-I$src_root"
 liba{hello}: cxx.export.poptions += -DLIBHELLO_STATIC
 libs{hello}: cxx.export.poptions += -DLIBHELLO_SHARED
 
