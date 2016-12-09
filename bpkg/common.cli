@@ -52,7 +52,7 @@ namespace bpkg
        \cb{--verbose 3}."
     }
 
-    bool -q
+    bool --quiet|-q
     {
       "Run quietly, only printing error messages. This is equivalent
        to \cb{--verbose 0}."
