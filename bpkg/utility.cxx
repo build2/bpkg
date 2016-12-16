@@ -266,6 +266,4 @@ namespace bpkg
     //
     run (args, exec_dir);
   }
-
-  bool exception_unwinding_dtor = false;
 }
