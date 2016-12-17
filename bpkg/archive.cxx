@@ -21,11 +21,8 @@ namespace bpkg
     // level extension is .tar, strip that as well (e.g., .tar.bz2).
     //
     path d (a.leaf ().base ());
-    if (const char* e = d.extension ())
-    {
-      if (e == string ("tar"))
-        d = d.base ();
-    }
+    if (d.extension () == "tar")
+      d = d.base ();
     return path_cast<dir_path> (d);
   }
 
