@@ -68,7 +68,7 @@ namespace bpkg
     }
     catch (const system_error& e)
     {
-      fail << "unable to stat path " << f << ": " << e.what () << endf;
+      fail << "unable to stat path " << f << ": " << e << endf;
     }
   }
 
@@ -81,7 +81,7 @@ namespace bpkg
     }
     catch (const system_error& e)
     {
-      fail << "unable to stat path " << d << ": " << e.what () << endf;
+      fail << "unable to stat path " << d << ": " << e << endf;
     }
   }
 
@@ -94,7 +94,7 @@ namespace bpkg
     }
     catch (const system_error& e)
     {
-      fail << "unable to scan directory " << d << ": " << e.what () << endf;
+      fail << "unable to scan directory " << d << ": " << e << endf;
     }
   }
 
@@ -110,7 +110,7 @@ namespace bpkg
     }
     catch (const system_error& e)
     {
-      fail << "unable to create directory " << d << ": " << e.what ();
+      fail << "unable to create directory " << d << ": " << e;
     }
   }
 
@@ -126,7 +126,7 @@ namespace bpkg
     }
     catch (const system_error& e)
     {
-      fail << "unable to create directory " << d << ": " << e.what ();
+      fail << "unable to create directory " << d << ": " << e;
     }
   }
 
@@ -143,7 +143,7 @@ namespace bpkg
     }
     catch (const system_error& e)
     {
-      fail << "unable to remove file " << f << ": " << e.what ();
+      fail << "unable to remove file " << f << ": " << e;
     }
   }
 
@@ -160,7 +160,7 @@ namespace bpkg
     catch (const system_error& e)
     {
       fail << "unable to remove " << (dir ? "" : "contents of ")
-           << "directory " << d << ": " << e.what ();
+           << "directory " << d << ": " << e;
     }
   }
 
@@ -183,7 +183,7 @@ namespace bpkg
     }
     catch (const process_error& e)
     {
-      error << "unable to execute " << args[0] << ": " << e.what ();
+      error << "unable to execute " << args[0] << ": " << e;
 
       if (e.child ())
         exit (1);

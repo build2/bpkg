@@ -323,7 +323,7 @@ namespace bpkg
     }
     catch (const process_error& e)
     {
-      error << "unable to execute " << sha256_path << ": " << e.what ();
+      error << "unable to execute " << sha256_path << ": " << e;
 
       if (e.child ())
         exit (1);
@@ -423,7 +423,7 @@ namespace bpkg
     }
     catch (const io_error& e)
     {
-      fail << "unable read " << f << ": " << e.what () << endf;
+      fail << "unable read " << f << ": " << e << endf;
     }
   }
 }

@@ -303,7 +303,7 @@ catch (const cli::exception& e)
 /*
 catch (const std::exception& e)
 {
-  error << e.what ();
+  error << e;
   return 1;
 }
 */

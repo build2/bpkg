@@ -106,8 +106,8 @@ namespace bpkg
   {
     // Note: this is not an "invalid package" case, so no diag check.
     //
-    fail << "unable to extract manifest file from " << af << ": "
-         << e.what () << endf;
+    fail << "unable to extract manifest file from " << af << ": " << e
+         << endf;
   }
 
   package_manifest
@@ -158,7 +158,7 @@ namespace bpkg
     catch (const io_error& e)
     {
       if (diag)
-        error << "unable to read from " << mf << ": " << e.what ();
+        error << "unable to read from " << mf << ": " << e;
 
       throw failed ();
     }

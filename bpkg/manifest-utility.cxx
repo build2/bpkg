@@ -57,7 +57,7 @@ namespace bpkg
       }
       catch (const invalid_argument& e)
       {
-        fail << "invalid package version '" << p << "': " << e.what ();
+        fail << "invalid package version '" << p << "': " << e;
       }
     }
 
@@ -78,6 +78,6 @@ namespace bpkg
   }
   catch (const invalid_argument& e)
   {
-    fail << "invalid repository location '" << s << "': " << e.what () << endf;
+    fail << "invalid repository location '" << s << "': " << e << endf;
   }
 }

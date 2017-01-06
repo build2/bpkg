@@ -106,7 +106,7 @@ namespace bpkg
     }
     catch (const io_error& e)
     {
-      fail << "unable to write to " << f << ": " << e.what ();
+      fail << "unable to write to " << f << ": " << e;
     }
 
     // Write build/root.build.
@@ -137,7 +137,7 @@ namespace bpkg
     }
     catch (const io_error& e)
     {
-      fail << "unable to write to " << f << ": " << e.what ();
+      fail << "unable to write to " << f << ": " << e;
     }
 
     // Write root buildfile.
@@ -156,7 +156,7 @@ namespace bpkg
     }
     catch (const io_error& e)
     {
-      fail << "unable to write to " << f << ": " << e.what ();
+      fail << "unable to write to " << f << ": " << e;
     }
 
     // Configure.

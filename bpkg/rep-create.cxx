@@ -167,7 +167,7 @@ namespace bpkg
   }
   catch (const system_error& e)
   {
-    fail << "unable to scan directory " << d << ": " << e.what () << endf;
+    fail << "unable to scan directory " << d << ": " << e << endf;
   }
 
   int
@@ -263,7 +263,7 @@ namespace bpkg
     }
     catch (const io_error& e)
     {
-      fail << "unable to write to " << p << ": " << e.what ();
+      fail << "unable to write to " << p << ": " << e;
     }
 
     if (verb)

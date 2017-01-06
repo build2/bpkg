@@ -498,7 +498,7 @@ namespace bpkg
     }
     catch (const process_error& e)
     {
-      error << "unable to execute " << fetch_path << ": " << e.what ();
+      error << "unable to execute " << fetch_path << ": " << e;
 
       if (e.child ())
         exit (1);
@@ -647,7 +647,7 @@ namespace bpkg
     }
     catch (const system_error& e)
     {
-      fail << "unable to copy " << f << " to " << r << ": " << e.what ();
+      fail << "unable to copy " << f << " to " << r << ": " << e;
     }
 
     return r;
@@ -685,7 +685,7 @@ namespace bpkg
     }
     catch (const io_error& e)
     {
-      fail << "unable to read from " << f << ": " << e.what () << endf;
+      fail << "unable to read from " << f << ": " << e << endf;
     }
   }
 

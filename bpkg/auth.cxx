@@ -165,7 +165,7 @@ namespace bpkg
     catch (const process_error& e)
     {
       error << "unable to calculate certificate fingerprint for "
-            << rl.canonical_name () << ": " << e.what ();
+            << rl.canonical_name () << ": " << e;
 
       // Fall through.
     }
@@ -420,8 +420,7 @@ namespace bpkg
         // parsing diagnostics since we were probably parsing garbage.
         //
         if (pr.wait ())
-          fail << "invalid certificate for " << repo << ": " << e.what ()
-               << endf;
+          fail << "invalid certificate for " << repo << ": " << e << endf;
 
         // Fall through.
       }
@@ -432,7 +431,7 @@ namespace bpkg
     }
     catch (const process_error& e)
     {
-      error << "unable to parse certificate for " << repo << ": " << e.what ();
+      error << "unable to parse certificate for " << repo << ": " << e;
 
       // Fall through.
     }
@@ -555,7 +554,7 @@ namespace bpkg
       }
       catch (const io_error& e)
       {
-        fail << "unable to write certificate to " << f << ": " << e.what ();
+        fail << "unable to write certificate to " << f << ": " << e;
       }
     }
 
@@ -642,11 +641,11 @@ namespace bpkg
       catch (const io_error& e)
       {
         fail << "unable to save certificate to temporary file " << f
-             << ": "  << e.what ();
+             << ": " << e;
       }
       catch (const system_error& e)
       {
-        fail << "unable to obtain temporary file: " << e.what ();
+        fail << "unable to obtain temporary file: " << e;
       }
     }
     else
@@ -726,7 +725,7 @@ namespace bpkg
     catch (const process_error& e)
     {
       error << "unable to authenticate repository "
-            << rl.canonical_name () << ": " << e.what ();
+            << rl.canonical_name () << ": " << e;
 
       // Fall through.
     }
@@ -807,7 +806,7 @@ namespace bpkg
     }
     catch (const process_error& e)
     {
-      error << "unable to sign repository " << r << ": " << e.what ();
+      error << "unable to sign repository " << r << ": " << e;
 
       // Fall through.
     }

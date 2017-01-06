@@ -55,7 +55,7 @@ namespace bpkg
     //
     catch (const system_error& e)
     {
-      error << "pager failed: " << e.what ();
+      error << "pager failed: " << e;
 
       // Fall through.
     }
