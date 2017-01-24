@@ -11,7 +11,8 @@
 #include <cassert>  // assert()
 #include <iterator> // make_move_iterator()
 
-#include <butl/config>  // BUTL_CXXNN_*
+#include <butl/ft/lang>
+
 #include <butl/utility> // casecmp(), reverse_iterate(), etc
 
 #include <butl/filesystem>
