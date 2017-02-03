@@ -2,7 +2,9 @@
 // copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-#ifdef _WIN32
+#ifndef _WIN32
+#  include <signal.h> // signal()
+#else
 #  include <stdlib.h> // getenv(), _putenv()
 #endif
 
@@ -128,6 +130,17 @@ try
 
     _putenv (mp.c_str ());
   }
+#endif
+
+  // On POSIX ignore SIGPIPE which is signaled to a pipe-writing process if
+  // the pipe reading end is closed. Note that by default this signal
+  // terminates a process. Also note that there is no way to disable this
+  // behavior on a file descriptor basis or for the write() function call.
+  //
+#ifndef _WIN32
+  if (signal (SIGPIPE, SIG_IGN) == SIG_ERR)
+    fail << "unable to ignore broken pipe (SIGPIPE) signal: "
+         << system_error (errno, system_category ()); // Sanitize.
 #endif
 
   argv_file_scanner scan (argc, argv, "--options-file");
