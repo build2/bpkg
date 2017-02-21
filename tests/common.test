@@ -1,0 +1,41 @@
+# file      : tests/common.test
+# copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
+# license   : MIT; see accompanying LICENSE file
+
+# Commonly-used variables setup and driver command line.
+#
+
+# All testscripts are named after bpkg commands, for example pkg-verify.test.
+# So the testscript scope id is a name of the command being tested.
+#
+cmd = [string] $@
+test.arguments = $cmd
+
+# Each testscript has an associated repository source directory. Its
+# subdirectories are copied by tests to manipulate locally and throw away upon
+# completion.
+#
+src = [dir_path] "$src_base/$@"
+
+# Helper commands that can be used by tests to prepare the testing environment
+# or validate an outcome of the command being tested. They are likely to get
+# additional options and redirects appended prior to use. A common approach
+# will be to redirect output to the null device for commands that are used for
+# test setup, and to match it for commands being tested or performing teardown
+# (for example, to make sure that configuration post-test state is valid and is
+# as expected).
+#
+cfg_create    = $0 cfg-create
+pkg_build     = $0 pkg-build
+pkg_configure = $0 pkg-configure
+pkg_disfigure = $0 pkg-disfigure
+pkg_drop      = $0 pkg-drop
+pkg_fetch     = $0 pkg-fetch
+pkg_purge     = $0 pkg-purge
+pkg_status    = $0 pkg-status
+pkg_unpack    = $0 pkg-unpack
+pkg_update    = $0 pkg-update
+rep_add       = $0 rep-add
+rep_create    = $0 rep-create
+rep_fetch     = $0 rep-fetch
+rep_info      = $0 rep-info

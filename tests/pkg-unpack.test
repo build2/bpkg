@@ -1,0 +1,199 @@
+# file      : tests/pkg-unpack.test
+# copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
+# license   : MIT; see accompanying LICENSE file
+
+.include common.test auth.test config.test remote.test
+
+# Source repository:
+#
+# pkg-unpack
+# |-- hello
+# |   |-- libhello-1.0.0.tar.gz
+# |   `-- repositories
+# |-- libfoo-1.1.0
+# |   |-- build
+# |   |   `-- bootstrap.build
+# |   |-- buildfile
+# |   `-- manifest
+# `-- t1
+#     |-- libfoo-1.0.0.tar.gz
+#     |-- libfoo-1.1.0.tar.gz
+#     `-- repositories
+
+# Prepare repositories used by tests if running in the local mode.
+#
++if ($remote != true)
+  rep_create += 2>-
+
+  # Create the signed 'hello' repository.
+  #
+  cp -r $src/hello $out/hello
+  cat <<<$cert_manifest >+$out/hello/repositories
+  $rep_create --key $key $out/hello &$out/hello/packages &$out/hello/signature
+
+  # Create the 't1' repository.
+  #
+  cp -r $src/t1 $out/t1 && $rep_create $out/t1 &$out/t1/packages
+end
+
+pkg_fetch  += -d cfg 2>-
+pkg_purge  += -d cfg
+pkg_status += -d cfg
+rep_add    += -d cfg 2>-
+rep_fetch  += -d cfg --auth all 2>-
+
+: replace-with-existing
+:
+$clone_cfg;
+$* -r 2>>EOE != 0
+  error: --replace|-r can only be specified with --existing|-e
+  EOE
+
+: no-dir
+:
+$clone_cfg;
+$* -e 2>>EOE != 0
+  error: package directory argument expected
+    info: run 'bpkg help pkg-unpack' for more information
+  EOE
+
+: not-package-dir
+:
+$clone_cfg;
+$* -e ./ 2>>/EOE != 0
+  error: no manifest file in package directory ./
+  EOE
+
+: dir-not-exist
+:
+$clone_cfg;
+$* -e ./no-such-dir 2>>/EOE != 0
+  error: package directory ./no-such-dir/ does not exist
+  EOE
+
+: no-name
+:
+$clone_cfg;
+$* 2>>EOE != 0
+  error: package name argument expected
+    info: run 'bpkg help pkg-unpack' for more information
+  EOE
+
+: fetched-rep
+:
+{
+  +$clone_cfg && $rep_add $rep/t1 && $rep_fetch --trust-yes
+
+  : package-exists
+  :
+  {
+    $clone_cfg && $pkg_fetch libfoo/1.0.0;
+
+    $* -e $src/libfoo-1.1.0 2>>/EOE != 0;
+      error: package libfoo already exists in configuration cfg/
+        info: version: 1.0.0, state: fetched, substate: none
+        info: use 'pkg-unpack --replace|-r' to replace
+      EOE
+
+    $pkg_purge  libfoo       2>'purged libfoo/1.0.0';
+    $*  -e $src/libfoo-1.1.0 2>'unpacked libfoo/1.1.0';
+    $pkg_status libfoo/1.1.0 1>'unpacked; available';
+
+    $pkg_purge libfoo 2>'purged libfoo/1.1.0'
+  }
+
+  : replace-fetched
+  :
+  {
+    $clone_cfg && $pkg_fetch libfoo/1.0.0;
+
+    $* -e $src/libfoo-1.1.0 2>>/EOE != 0;
+      error: package libfoo already exists in configuration cfg/
+        info: version: 1.0.0, state: fetched, substate: none
+        info: use 'pkg-unpack --replace|-r' to replace
+      EOE
+
+    $* -r -e $src/libfoo-1.1.0 2>'unpacked libfoo/1.1.0';
+    $pkg_status   libfoo/1.1.0 1>'unpacked; available';
+
+    $pkg_purge libfoo 2>'purged libfoo/1.1.0'
+  }
+
+  : replace-unpacked
+  :
+  {
+    $clone_cfg && $pkg_fetch libfoo/1.0.0;
+
+    $* libfoo 2>'unpacked libfoo/1.0.0';
+
+    $* -e $src/libfoo-1.1.0 2>>/EOE != 0;
+      error: package libfoo already exists in configuration cfg/
+        info: version: 1.0.0, state: unpacked, substate: none
+        info: use 'pkg-unpack --replace|-r' to replace
+      EOE
+
+    $* -r -e $src/libfoo-1.1.0 2>'unpacked libfoo/1.1.0';
+    $pkg_status   libfoo/1.1.0 1>'unpacked; available';
+
+    $pkg_purge libfoo 2>'purged libfoo/1.1.0'
+  }
+
+  : wrong-state
+  :
+  {
+    $clone_cfg;
+
+    $* libfoo 2>>/EOE != 0;
+      error: package libfoo does not exist in configuration cfg/
+      EOE
+
+    $* -e $src/libfoo-1.1.0 2>'unpacked libfoo/1.1.0';
+
+    $* libfoo 2>>EOE != 0;
+      error: package libfoo is unpacked
+        info: expected it to be fetched
+      EOE
+
+    $pkg_purge libfoo 2>'purged libfoo/1.1.0'
+  }
+
+  : right-state
+  :
+  {
+    $clone_cfg && $pkg_fetch libfoo/1.0.0;
+
+    $pkg_status libfoo/1.0.0 1>'fetched; available';
+    $*          libfoo       2>'unpacked libfoo/1.0.0';
+    $pkg_status libfoo/1.0.0 1>'unpacked; available';
+
+    $pkg_purge libfoo 2>'purged libfoo/1.0.0'
+  }
+
+  : purge-existing
+  :
+  {
+    $clone_cfg;
+
+    # @@ Use --no-cleanup for cp builtin when implemented.
+    #
+    d = &!libfoo-1.1.0/;
+    c = $d/ $d/build/ $d/build/bootstrap.build $d/buildfile $d/manifest;
+    cp -r $src/libfoo-1.1.0 ./ $c;
+
+    $* -p -e libfoo-1.1.0 2>'unpacked libfoo/1.1.0';
+
+    $pkg_purge libfoo 2>'purged libfoo/1.1.0'
+  }
+}
+
+: hello
+:
+{
+  $clone_cfg;
+  $rep_add $rep/hello && $rep_fetch --trust $cert_fp &cfg/.bpkg/certs/***;
+  $pkg_fetch libhello/1.0.0;
+
+  $* libhello 2>'unpacked libhello/1.0.0';
+
+  $pkg_purge libhello 2>'purged libhello/1.0.0'
+}

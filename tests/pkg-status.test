@@ -1,0 +1,160 @@
+# file      : tests/pkg-status.test
+# copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
+# license   : MIT; see accompanying LICENSE file
+
+.include common.test config.test remote.test
+
+# Source repository:
+#
+# pkg-status
+# |-- extra                     -> stable (prerequisite)
+# |   |-- libbar-1.1.0+1.tar.gz
+# |   `-- repositories
+# |-- stable
+# |   |-- libbar-1.0.0.tar.gz
+# |   |-- libfoo-1.0.0.tar.gz
+# |   `-- repositories
+# |-- testing                   -> stable (complement), extra (prerequisite)
+# |   |-- libbar-1.0.0+1.tar.gz
+# |   |-- libbar-1.1.0.tar.gz
+# |   `-- repositories
+# `-- unstable                  -> testing (complement)
+#     |-- libbar-2.0.0.tar.gz
+#     `-- repositories
+
+# Prepare repositories used by tests if running in the local mode.
+#
++if ($remote != true)
+  c = $rep_create 2>-
+
+  cp -r $src/extra    $out/extra    && $c $out/extra    &$out/extra/packages
+  cp -r $src/stable   $out/stable   && $c $out/stable   &$out/stable/packages
+  cp -r $src/testing  $out/testing  && $c $out/testing  &$out/testing/packages
+  cp -r $src/unstable $out/unstable && $c $out/unstable &$out/unstable/packages
+end
+
+pkg_fetch  += 2>-
+pkg_purge  += -d cfg 2>-
+rep_add    += -d cfg 2>-
+rep_fetch  += -d cfg --auth all --trust-yes 2>-
+
+: basics
+:
+{
+  +$clone_cfg
+
+  : not-fetched
+  :
+  {
+    +$clone_cfg
+
+    : libfoo-1.0.0
+    :
+    $clone_cfg;
+    $* libfoo/1.0.0 >'unknown'
+
+    : libfoo
+    :
+    $clone_cfg;
+    $* libfoo >'unknown'
+  }
+
+  : rep-fetched
+  :
+  {
+    +$clone_cfg && $rep_add $rep/stable && $rep_fetch
+
+    +cp -r cfg ./fetched
+    +$pkg_fetch libfoo/1.0.0 -d fetched &fetched/libfoo-1.0.0.tar.gz
+
+    : libfoo-1.0.0
+    :
+    $clone_cfg;
+    $* libfoo/1.0.0 >'available'
+
+    : libfoo
+    :
+    $clone_cfg;
+    $* libfoo >'available 1.0.0 sys:?'
+
+    : pkg-fetched
+    :
+    {
+      clone_cfg = cp -r ../../fetched cfg
+
+      : libfoo-1.0.0
+      :
+      $clone_cfg;
+      $* libfoo/1.0.0 >'fetched; available'
+
+      : libfoo
+      :
+      $clone_cfg;
+      $* libfoo >'fetched 1.0.0; available sys:?'
+    }
+  }
+}
+
+: multiple-versions
+{
+  # Prepare the nested tests to copy the root configuration. Note that they
+  # must provide the destination directory name as an argument.
+  #
+  clone_cfg = cp -r $~/../cfg
+
+  : extra
+  :
+  {
+    # Here we, first, prepare 2 configurations that derive from each other, and
+    # then spawn 2 tests on them.
+    #
+    +$clone_cfg extra && $rep_add -d extra $rep/extra && $rep_fetch -d extra
+
+    +cp -r extra extra-stable
+    +$rep_add -d extra-stable $rep/stable && $rep_fetch -d extra-stable
+
+    : libbar
+    :
+    $* -d ../extra libbar >'available 1.1.0+1 sys:?'
+
+    : libbar-stable
+    :
+    $* -d ../extra-stable libbar >'available 1.1.0+1 1.0.0 sys:?'
+  }
+
+  : testing
+  :
+  {
+    $clone_cfg ./ && $rep_add $rep/testing && $rep_fetch;
+
+    $* libbar >'available 1.1.0 1.0.0+1 1.0.0 sys:?'
+  }
+
+  : unstable
+  :
+  {
+    # Here we, first, prepare 3 configurations that derive from each other, and
+    # then spawn 3 tests on them.
+    #
+    +$clone_cfg ./ && $rep_add $rep/unstable && $rep_fetch
+
+    +cp -r cfg fetched1
+    +$pkg_fetch libbar/1.0.0+1 -d fetched1 &fetched1/libbar-1.0.0+1.tar.gz
+
+    +cp -r fetched1 fetched2
+    +$pkg_purge -d fetched2 libbar &!fetched2/libbar-1.0.0+1.tar.gz
+    +$pkg_fetch libbar/2.0.0 -d fetched2 &fetched2/libbar-2.0.0.tar.gz
+
+    : not-fetched
+    :
+    $* -d ../cfg libbar >'available 2.0.0 1.1.0 1.0.0+1 1.0.0 sys:?'
+
+    : fetched-1
+    :
+    $* -d ../fetched1 libbar >'fetched 1.0.0+1; available 2.0.0 1.1.0 sys:?'
+
+    : fetched-2
+    :
+    $* -d ../fetched2 libbar >'fetched 2.0.0; available sys:?'
+  }
+}

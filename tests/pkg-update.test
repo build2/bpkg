@@ -1,0 +1,148 @@
+# file      : tests/pkg-update.test
+# copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
+# license   : MIT; see accompanying LICENSE file
+
+.include common.test auth.test config.test remote.test
+
+# Source repository:
+#
+# pkg-update
+# |-- hello
+# |   |-- libhello-1.0.0.tar.gz
+# |   `-- repositories
+# `-- libhello-1.0.0
+#     |-- build
+#     |   |-- bootstrap.build
+#     |   |-- export.build
+#     |   `-- root.build
+#     |-- buildfile
+#     |-- hello
+#     |   |-- buildfile
+#     |   |-- export
+#     |   |-- hello
+#     |   `-- hello.cxx
+#     |-- INSTALL
+#     |-- manifest
+#     |-- tests
+#     |   |-- build
+#     |   |   |-- bootstrap.build
+#     |   |   `-- root.build
+#     |   |-- buildfile
+#     |   `-- test
+#     |       |-- buildfile
+#     |       |-- driver.cxx
+#     |       `-- test.out
+#     `-- version
+
+# Prepare repositories used by tests if running in the local mode.
+#
++if ($remote != true)
+  rep_create += 2>-
+
+  # Create the signed 'hello' repository.
+  #
+  cp -r $src/hello $out/hello
+  cat <<<$cert_manifest >+$out/hello/repositories
+  $rep_create --key $key $out/hello &$out/hello/packages &$out/hello/signature
+end
+
+pkg_configure += -d cfg "config.cxx=$config.cxx" 2>-
+pkg_disfigure += -d cfg
+pkg_fetch     += -d cfg 2>-
+pkg_purge     += -d cfg
+pkg_unpack    += -d cfg 2>-
+rep_add       += -d cfg 2>-
+rep_fetch     += -d cfg --auth all 2>-
+
+# Sometimes we need to run underlying build update operation with -j 1 options
+# to have an output that we can match reliably.
+#
+j1 = --build-option -j --build-option 1
+
+: no-name
+:
+$clone_cfg;
+$* 2>>EOE != 0
+  error: package name argument expected
+    info: run 'bpkg help pkg-update' for more information
+  EOE
+
+: fetched
+:
+{
+  +$clone_cfg
+  +$rep_add $rep/hello && $rep_fetch --trust $cert_fp &cfg/.bpkg/certs/***
+
+  : no-such-package
+  :
+  $clone_cfg;
+  $* libhello 2>>/EOE != 0
+    error: package libhello does not exist in configuration cfg/
+    EOE
+
+  : wrong-state
+  :
+  {
+    $clone_cfg && $pkg_fetch libhello/1.0.0;
+
+    $* libhello 2>>EOE != 0;
+      error: package libhello is fetched
+        info: expected it to be configured
+      EOE
+
+    $pkg_purge libhello 2>'purged libhello/1.0.0'
+  }
+
+  : src-eq-out
+  :
+  {
+    $clone_cfg;
+    $pkg_fetch libhello/1.0.0 && $pkg_unpack libhello;
+    $pkg_configure libhello;
+
+    $* $j1 libhello 2>>~%EOE%;
+      %c\+\+ .+%
+      %ld .+%
+      %c\+\+ .+%
+      %ld .+%
+      %c\+\+ .+%
+      %ld .+%
+      updated libhello/1.0.0
+      EOE
+
+    $* libhello 2>>~%EOE%;
+      %info: .+ is up to date%
+      updated libhello/1.0.0
+      EOE
+
+    $pkg_disfigure libhello 2>'disfigured libhello/1.0.0';
+    $pkg_purge     libhello 2>'purged libhello/1.0.0'
+  }
+}
+
+: src-ne-out
+:
+{
+  $clone_cfg;
+  $pkg_unpack -e $src/libhello-1.0.0 && $pkg_configure libhello;
+
+  $* $j1 libhello 2>>~%EOE%;
+    %mkdir .+%
+    %mkdir .+%
+    %c\+\+ .+%
+    %ld .+%
+    %c\+\+ .+%
+    %ld .+%
+    %c\+\+ .+%
+    %ld .+%
+    updated libhello/1.0.0
+    EOE
+
+  $* libhello 2>>~%EOE%;
+    %info: .+ is up to date%
+    updated libhello/1.0.0
+    EOE
+
+  $pkg_disfigure libhello 2>'disfigured libhello/1.0.0';
+  $pkg_purge     libhello 2>'purged libhello/1.0.0'
+}

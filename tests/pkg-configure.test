@@ -1,0 +1,389 @@
+# file      : tests/pkg-configure.test
+# copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
+# license   : MIT; see accompanying LICENSE file
+
+# Here we test both pkg-configure and pkg-disfigure commands.
+#
+
+.include common.test auth.test config.test remote.test
+
+# Source repository:
+#
+# pkg-configure
+# |-- hello
+# |   |-- libhello-1.0.0.tar.gz
+# |   `-- repositories
+# |-- libhello-1.0.0
+# |   |-- build
+# |   |   |-- bootstrap.build
+# |   |   |-- export.build
+# |   |   `-- root.build
+# |   |-- buildfile
+# |   |-- hello
+# |   |   |-- buildfile
+# |   |   |-- export
+# |   |   |-- hello
+# |   |   `-- hello.cxx
+# |   |-- INSTALL
+# |   |-- manifest
+# |   |-- tests
+# |   |   |-- build
+# |   |   |   |-- bootstrap.build
+# |   |   |   `-- root.build
+# |   |   |-- buildfile
+# |   |   `-- test
+# |   |       |-- buildfile
+# |   |       |-- driver.cxx
+# |   |       `-- test.out
+# |   `-- version
+# `-- stable
+#     |-- libbar-1.0.0.tar.gz -> libfoo
+#     |-- libbar-1.1.0.tar.gz -> libfoo >= 1.1.0
+#     |-- libbar-1.2.0.tar.gz -> libfoo >= 1.1.0, libfox | libfoo >= 1.2.0
+#     |-- libbar-1.3.0.tar.gz -> libfox | libfoo <= 1.1.0,
+#     |                          libfix | libfoo >= 1.1.0
+#     |-- libfoo-1.0.0.tar.gz
+#     |-- libfoo-1.1.0.tar.gz
+#     |-- libfoo-1.2.0.tar.gz
+#     `-- repositories
+
+# Prepare repositories used by tests if running in the local mode.
+#
++if ($remote != true)
+  rep_create += 2>-
+
+  # Create the signed 'hello' repository.
+  #
+  cp -r $src/hello $out/hello
+  cat <<<$cert_manifest >+$out/hello/repositories
+  $rep_create --key $key $out/hello &$out/hello/packages &$out/hello/signature
+
+  # Create the 'stable' repository.
+  #
+  cp -r $src/stable $out/stable
+  $rep_create $out/stable &$out/stable/packages
+end
+
+test.arguments += "config.cxx=$config.cxx"
+
+pkg_disfigure += -d cfg
+pkg_fetch     += -d cfg 2>-
+pkg_purge     += -d cfg
+pkg_status    += -d cfg
+pkg_unpack    += -d cfg 2>-
+rep_add       += -d cfg 2>-
+rep_fetch     += -d cfg --auth all 2>-
+
+: no-name
+:
+$clone_cfg;
+$* 2>>EOE != 0
+  error: package name argument expected
+    info: run 'bpkg help pkg-configure' for more information
+  EOE
+
+: var-no-name
+:
+$clone_cfg;
+$* "config.dist.root=$~/opt" 2>>EOE != 0
+  error: package name argument expected
+    info: run 'bpkg help pkg-configure' for more information
+  EOE
+
+: unexpected-arg
+:
+$clone_cfg;
+$* libhello libhello 2>>EOE != 0
+  error: unexpected argument 'libhello'
+  EOE
+
+: fetched
+:
+{
+  +$clone_cfg
+  +$rep_add $rep/hello && $rep_fetch --trust $cert_fp &cfg/.bpkg/certs/***
+
+  : no-such-package
+  :
+  $clone_cfg;
+  $* libhello1 2>>/EOE != 0
+    error: package libhello1 does not exist in configuration cfg/
+    EOE
+
+  : disfigure
+  {
+    : no-name
+    :
+    $clone_root_cfg;
+    $pkg_disfigure 2>>EOE != 0
+      error: package name argument expected
+        info: run 'bpkg help pkg-disfigure' for more information
+      EOE
+
+    : no-such-package
+    :
+    $clone_root_cfg;
+    $pkg_disfigure libhello1 2>>/EOE != 0
+      error: package libhello1 does not exist in configuration cfg/
+      EOE
+  }
+
+  : wrong-state
+  :
+  {
+    $clone_cfg && $pkg_fetch libhello/1.0.0;
+
+    $* libhello 2>>EOE != 0;
+      error: package libhello is fetched
+        info: expected it to be unpacked
+      EOE
+
+    $pkg_disfigure libhello 2>>EOE != 0;
+      error: package libhello is fetched
+        info: expected it to be configured
+      EOE
+
+    $pkg_purge libhello 2>'purged libhello/1.0.0'
+  }
+
+  : src-eq-out
+  :
+  {
+    $clone_cfg;
+    $pkg_fetch libhello/1.0.0 && $pkg_unpack libhello;
+
+    $*             libhello 2>'configured libhello/1.0.0';
+    $pkg_status    libhello 1>'configured 1.0.0; available sys:?';
+    $pkg_disfigure libhello 2>'disfigured libhello/1.0.0';
+    $pkg_status    libhello 1>'unpacked 1.0.0; available sys:?';
+
+    $pkg_purge     libhello       2>'purged libhello/1.0.0';
+    $pkg_status    libhello/1.0.0 1>'available'
+  }
+}
+
+: src-ne-out
+:
+{
+  $clone_cfg && $pkg_unpack -e $src/libhello-1.0.0;
+
+  $*             libhello 2>'configured libhello/1.0.0';
+  $pkg_status    libhello 1>'configured 1.0.0';
+  $pkg_disfigure libhello 2>'disfigured libhello/1.0.0';
+  $pkg_status    libhello 1>'unpacked 1.0.0';
+
+  $pkg_purge  libhello       2>'purged libhello/1.0.0';
+  $pkg_status libhello       1>'unknown';
+  test -d cfg/libhello-1.0.0 == 1
+}
+
+: out-exists-disfigure
+:
+{
+  $clone_cfg && $pkg_unpack -e $src/libhello-1.0.0;
+
+  $* libhello 2>'configured libhello/1.0.0';
+  touch cfg/libhello-1.0.0/stray &!cfg/libhello-1.0.0/stray;
+
+  $pkg_disfigure libhello 2>>/EOE != 0;
+    warning: directory cfg/libhello-1.0.0/ is not empty, not removing
+    error: package output directory cfg/libhello-1.0.0/ still exists
+    info: package libhello is now broken; use 'pkg-purge' to remove
+    EOE
+
+  $pkg_status libhello/1.0.0 >'broken';
+  rm -r cfg/libhello-1.0.0;
+
+  $pkg_purge -f libhello       2>'purged libhello/1.0.0';
+  $pkg_status   libhello/1.0.0 1>'unknown'
+}
+
+: broken
+:
+if ($cxx.target.class != 'windows')
+{
+  : disfigure-failed
+  :
+  {
+    $clone_root_cfg && $pkg_unpack -e $src/libhello-1.0.0;
+
+    $* libhello 2>'configured libhello/1.0.0';
+    chmod 555 cfg/libhello-1.0.0;
+
+    $pkg_disfigure libhello 2>>/~%EOE% != 0;
+      %error: unable to remove directory cfg/libhello-1.0.0/.+%
+      info: package libhello is now broken; use 'pkg-purge' to remove
+      EOE
+
+    $pkg_status libhello >'broken 1.0.0';
+
+    chmod 755 cfg/libhello-1.0.0;
+    rm -r cfg/libhello-1.0.0;
+    $pkg_purge -f libhello 2>'purged libhello/1.0.0';
+    $pkg_status libhello >'unknown'
+  }
+
+  : configure-failed
+  :
+  : Note that pkg-configure in case of build2 process failure implicitly
+  : performs pkg-disfigure, that succeeds.
+  :
+  {
+    $clone_root_cfg && $pkg_unpack -e $src/libhello-1.0.0;
+    c = &!cfg/libhello-1.0.0/ &!cfg/libhello-1.0.0/build/;
+    mkdir -p cfg/libhello-1.0.0/build $c;
+    chmod 555 cfg/libhello-1.0.0/build;
+
+    $* libhello 2>>/~%EOE% != 0;
+      %error: unable to create directory cfg/libhello-1.0.0/build/.+%
+      EOE
+
+    $pkg_status libhello >'unpacked 1.0.0'
+  }
+
+  : configure-disfigure-failed
+  :
+  : Note that pkg-configure in case of build2 process failure implicitly
+  : performs pkg-disfigure, that also fails.
+  :
+  {
+    $clone_root_cfg && $pkg_unpack -e $src/libhello-1.0.0;
+    c = &!cfg/libhello-1.0.0/ &!cfg/libhello-1.0.0/build/;
+    mkdir -p cfg/libhello-1.0.0/build $c;
+    chmod 555 cfg/libhello-1.0.0 cfg/libhello-1.0.0/build;
+
+    $* libhello 2>>/~%EOE% != 0;
+      %error: unable to create directory cfg/libhello-1.0.0/build/.+%
+      %error: unable to remove directory cfg/libhello-1.0.0/build/.+%
+      info: package libhello is now broken; use 'pkg-purge' to remove
+      EOE
+
+    $pkg_status libhello >'broken 1.0.0';
+
+    chmod 755 cfg/libhello-1.0.0 cfg/libhello-1.0.0/build;
+    rm -r cfg/libhello-1.0.0;
+    $pkg_purge -f libhello 2>'purged libhello/1.0.0';
+    $pkg_status libhello >'unknown'
+  }
+}
+
+: dependency-management
+:
+{
+  +$clone_cfg && $rep_add $rep/stable && $rep_fetch --trust-yes
+
+  : still-has-deps
+  :
+  {
+    $clone_cfg;
+    $pkg_fetch libbar/1.0.0 && $pkg_unpack libbar;
+
+    $* libbar 2>>EOE != 0;
+      error: no configured package satisfies dependency on libfoo
+      EOE
+
+    $pkg_status libbar/1.0.0  1>'unpacked; available';
+    $pkg_fetch  libfoo/1.0.0;
+    $pkg_unpack libfoo;
+
+    $* libbar 2>>EOE != 0;
+      error: no configured package satisfies dependency on libfoo
+      EOE
+
+    $* libfoo 2>'configured libfoo/1.0.0';
+    $* libbar 2>'configured libbar/1.0.0';
+
+    $pkg_disfigure libfoo 2>>EOE != 0;
+      error: package libfoo still has dependencies:
+        info: package libbar
+      EOE
+
+    $pkg_disfigure libbar 2>'disfigured libbar/1.0.0';
+    $pkg_disfigure libfoo 2>'disfigured libfoo/1.0.0';
+
+    $pkg_purge libbar 2>'purged libbar/1.0.0';
+    $pkg_purge libfoo 2>'purged libfoo/1.0.0'
+  }
+
+  : no-package-satisfy
+  :
+  {
+    $clone_cfg;
+    $pkg_fetch libfoo/1.0.0 && $pkg_unpack libfoo;
+
+    $*          libfoo        2>'configured libfoo/1.0.0';
+    $pkg_fetch  libbar/1.1.0;
+    $pkg_unpack libbar;
+
+    $* libbar 2>>EOE != 0;
+      error: no configured package satisfies dependency on libfoo >= 1.1.0
+      EOE
+
+    $pkg_disfigure libfoo        2>'disfigured libfoo/1.0.0';
+    $pkg_purge     libfoo        2>'purged libfoo/1.0.0';
+    $pkg_fetch     libfoo/1.1.0;
+    $pkg_unpack    libfoo;
+    $*             libfoo        2>'configured libfoo/1.1.0';
+    $*             libbar        2>'configured libbar/1.1.0';
+    $pkg_disfigure libbar        2>'disfigured libbar/1.1.0';
+    $pkg_disfigure libfoo        2>'disfigured libfoo/1.1.0';
+
+    $pkg_purge libfoo 2>'purged libfoo/1.1.0';
+    $pkg_purge libbar 2>'purged libbar/1.1.0'
+  }
+
+  : no-package-satisfy-alt
+  :
+  {
+    $clone_cfg;
+    $pkg_fetch libfoo/1.1.0 && $pkg_unpack libfoo;
+
+    $*          libfoo        2>'configured libfoo/1.1.0';
+    $pkg_fetch  libbar/1.2.0;
+    $pkg_unpack libbar;
+
+    $* libbar 2>>EOE != 0;
+      error: no configured package satisfies dependency on libfox | libfoo >= 1.2.0
+      EOE
+
+    $pkg_disfigure libfoo        2>'disfigured libfoo/1.1.0';
+    $pkg_purge     libfoo        2>'purged libfoo/1.1.0';
+    $pkg_fetch     libfoo/1.2.0;
+    $pkg_unpack    libfoo;
+    $*             libfoo        2>'configured libfoo/1.2.0';
+    $*             libbar        2>'configured libbar/1.2.0';
+
+    $pkg_disfigure libfoo 2>>EOE != 0;
+      error: package libfoo still has dependencies:
+        info: package libbar on libfoo >= 1.2.0
+      EOE
+
+    $pkg_disfigure libbar 2>'disfigured libbar/1.2.0';
+    $pkg_disfigure libfoo 2>'disfigured libfoo/1.2.0';
+
+    $pkg_purge libfoo 2>'purged libfoo/1.2.0';
+    $pkg_purge libbar 2>'purged libbar/1.2.0'
+  }
+
+  : incompatible-constraints
+  :
+  {
+    $clone_cfg;
+    $pkg_fetch libfoo/1.1.0 && $pkg_unpack libfoo;
+
+    $*          libfoo        2>'configured libfoo/1.1.0';
+    $pkg_fetch  libbar/1.3.0;
+    $pkg_unpack libbar;
+
+    $* libbar 2>>EOE != 0;
+      error: multiple dependencies on package libfoo
+        info: libfoo <= 1.1.0
+        info: libfoo >= 1.1.0
+      EOE
+
+    $pkg_disfigure libfoo 2>'disfigured libfoo/1.1.0';
+
+    $pkg_purge libfoo 2>'purged libfoo/1.1.0';
+    $pkg_purge libbar 2>'purged libbar/1.3.0'
+  }
+}

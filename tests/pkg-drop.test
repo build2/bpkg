@@ -1,0 +1,448 @@
+# file      : tests/pkg-drop.test
+# copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
+# license   : MIT; see accompanying LICENSE file
+
+.include common.test config.test remote.test
+
+# Source repository:
+#
+# pkg-drop
+# |-- t4a
+# |   |-- libfoo-1.1.0.tar.gz
+# |   `-- repositories
+# |-- t4b                     -> t4a (prerequisite)
+# |   |-- libbar-1.1.0.tar.gz -> libfoo == 1.1.0
+# |   `-- repositories
+# |-- t4c                     -> t4b (prerequisite)
+# |   |-- libbaz-1.1.0.tar.gz -> libfoo, libbar
+# |   |-- libfoo-1.0.0.tar.gz
+# |   `-- repositories
+# `-- t4d                     -> t4c (prerequisite)
+#     |-- libbiz-1.0.0.tar.gz -> libfox, libfoo, libbaz
+#     |-- libfox-1.0.0.tar.gz
+#     `-- repositories
+
+# Prepare repositories used by tests if running in the local mode.
+#
++if ($remote != true)
+  rep_create += 2>-
+
+  cp -r $src/t4a $out/t4a && $rep_create $out/t4a &$out/t4a/packages
+  cp -r $src/t4b $out/t4b && $rep_create $out/t4b &$out/t4b/packages
+  cp -r $src/t4c $out/t4c && $rep_create $out/t4c &$out/t4c/packages
+  cp -r $src/t4d $out/t4d && $rep_create $out/t4d &$out/t4d/packages
+end
+
+pkg_build  += -d cfg --yes 2>-
+pkg_status += -d cfg
+rep_add    += -d cfg 2>-
+rep_fetch  += -d cfg --auth all --trust-yes 2>-
+
+: no-name
+:
+$clone_cfg;
+$* 2>>EOE != 0
+  error: package name argument expected
+    info: run 'bpkg help pkg-drop' for more information
+  EOE
+
+: unknown-package
+:
+$clone_cfg;
+$* libfoo 2>>/EOE != 0
+  error: package libfoo does not exist in configuration cfg/
+  EOE
+
+: unknown-package-ver
+:
+$clone_cfg;
+$* libfoo/1.0.0 2>>~%EOE% != 0
+  %error: package libfoo/1.0.0 does not exist in configuration cfg[/\\]%
+  EOE
+
+: prerequisites-or-dependents
+:
+{
+  +$clone_cfg && $rep_add $rep/t4c && $rep_fetch
+  +$pkg_build libbaz
+
+  test.arguments += --print-only
+
+  : foo-baz-bar
+  :
+  $clone_cfg;
+  $* -y libfoo libbaz libbar >>EOO
+    drop libbaz
+    drop libbar
+    drop libfoo
+    EOO
+
+  : dependents
+  :
+  {
+    # Prepare the nested tests to use configuration from the enclosing
+    # 'prerequisites-or-dependents' group scope.
+    #
+    clone_cfg = cp -r $~/../cfg ./
+
+    : unconfirmed
+    :
+    {
+      test.arguments += --yes
+
+      : libfoo
+      :
+      $clone_cfg;
+      $* libfoo 2>>EOE != 0
+        following dependent packages will have to be dropped as well:
+          libbar (requires libfoo)
+          libbaz (requires libbar)
+        error: refusing to drop dependent packages with just --yes
+          info: specify --drop-dependent to confirm
+        EOE
+
+      : libfoo-libbar
+      :
+      $clone_cfg;
+      $* libfoo libbar 2>>EOE != 0
+        following dependent packages will have to be dropped as well:
+          libbaz (requires libbar)
+        error: refusing to drop dependent packages with just --yes
+          info: specify --drop-dependent to confirm
+        EOE
+
+      : libfoo-libbaz
+      :
+      $clone_cfg;
+      $* libfoo libbaz 2>>EOE != 0
+        following dependent packages will have to be dropped as well:
+          libbar (requires libfoo)
+        error: refusing to drop dependent packages with just --yes
+          info: specify --drop-dependent to confirm
+        EOE
+    }
+
+    : confirmed
+    :
+    {
+      test.arguments += --drop-dependent
+
+      : libfoo
+      :
+      $clone_cfg;
+      $* libfoo >>EOO
+        drop libbaz
+        drop libbar
+        drop libfoo
+        EOO
+
+      : libfoo-libbaz
+      :
+      $clone_cfg;
+      $* libfoo libbaz >>EOO
+        drop libbaz
+        drop libbar
+        drop libfoo
+        EOO
+
+      : libbaz-libfoo
+      :
+      $clone_cfg;
+      $* libbaz libfoo >>EOO
+        drop libbaz
+        drop libbar
+        drop libfoo
+        EOO
+    }
+  }
+
+  : prerequisites
+  :
+  {
+    # Prepare the nested tests to use configuration from the enclosing
+    # 'prerequisites-or-dependents' group scope.
+    #
+    clone_cfg = cp -r $~/../cfg ./
+
+    : libbaz
+    :
+    $clone_cfg;
+    $* -y libbaz >>EOO
+      drop libbaz
+      drop libbar
+      drop libfoo
+      EOO
+
+    : libbaz-only
+    :
+    $clone_cfg;
+    $* -n libbaz >>EOO
+      drop libbaz
+      EOO
+
+    : libbar-libbaz
+    :
+    $clone_cfg;
+    $* -n libbar libbaz >>EOO
+      drop libbaz
+      drop libbar
+      EOO
+
+    : libbaz-libbar
+    :
+    $clone_cfg;
+    $* -n libbaz libbar >>EOO
+      drop libbaz
+      drop libbar
+      EOO
+
+    : dependencies
+    :
+    : Note that we don't move this test to the prerequisites-and-dependents
+    : group as the configuration repository set would be different.
+    :
+    $clone_cfg;
+    $* -y --drop-dependent libbar >>EOO
+      drop libbaz
+      drop libbar
+      drop libfoo
+      EOO
+  }
+
+  # Here we combine the test group teardown and the "actual drop" test.
+  #
+  -$pkg_drop -d cfg --yes libbaz 2>>EOE
+     disfigured libbaz
+     disfigured libbar
+     disfigured libfoo
+     purged libbaz
+     purged libbar
+     purged libfoo
+     EOE
+
+   -$pkg_status libbar/1.1.0 >'unknown'
+   -$pkg_status libbaz/1.1.0 >'available'
+   -$pkg_status libfoo/1.1.0 >'available'
+}
+
+: prerequisites-and-dependents
+:
+{
+  +$clone_cfg && $rep_add $rep/t4d && $rep_fetch
+  +$pkg_build libbiz
+
+  clone_cfg = cp -r ../../cfg ./
+  test.arguments += --print-only
+
+  : drop-prerequisites-no-dependents
+  :
+  {
+    test.arguments += --yes
+
+    : libbiz
+    :
+    $clone_cfg;
+    $* libbiz >>EOO
+      drop libbiz
+      drop libbaz
+      drop libbar
+      drop libfoo
+      drop libfox
+      EOO
+
+    : libfox-libbiz
+    :
+    $clone_cfg;
+    $* libfox libbiz >>EOO
+      drop libbiz
+      drop libfox
+      drop libbaz
+      drop libbar
+      drop libfoo
+      EOO
+  }
+
+  : drop-prerequisites
+  :
+  {
+    test.arguments += --yes --drop-dependent
+
+    : libfox
+    :
+    $clone_cfg;
+    $* libfox >>EOO
+      drop libbiz
+      drop libfox
+      drop libbaz
+      drop libbar
+      drop libfoo
+      EOO
+
+    : libbaz
+    :
+    $clone_cfg;
+    $* libbaz >>EOO
+      drop libbiz
+      drop libbaz
+      drop libbar
+      drop libfoo
+      drop libfox
+      EOO
+
+    : libbar
+    :
+    $clone_cfg;
+    $* libbar >>EOO
+      drop libbiz
+      drop libbaz
+      drop libbar
+      drop libfoo
+      drop libfox
+      EOO
+
+    : libfoo
+    :
+    $clone_cfg;
+    $* libfoo >>EOO
+      drop libbiz
+      drop libbaz
+      drop libbar
+      drop libfoo
+      drop libfox
+      EOO
+  }
+
+  : keep-prerequisites
+  {
+    test.arguments += --no --drop-dependent
+
+    : fox-baz
+    :
+    $clone_cfg;
+    $* libfox libbaz >>EOO
+      drop libbiz
+      drop libfox
+      drop libbaz
+      EOO
+
+    : libbaz-libfox
+    :
+    $clone_cfg;
+    $* libbaz libfox >>EOO
+      drop libbiz
+      drop libbaz
+      drop libfox
+      EOO
+
+    : libfox-libbar
+    :
+    $clone_cfg;
+    $* libfox libbar >>EOO
+      drop libbiz
+      drop libfox
+      drop libbaz
+      drop libbar
+      EOO
+
+    : libbar-libfox
+    :
+    $clone_cfg;
+    $* libbar libfox >>EOO
+      drop libbiz
+      drop libbaz
+      drop libbar
+      drop libfox
+      EOO
+  }
+
+  -$pkg_drop -d cfg --yes --drop-dependent libbar 2>>EOE
+     disfigured libbiz
+     disfigured libbaz
+     disfigured libbar
+     disfigured libfoo
+     disfigured libfox
+     purged libbiz
+     purged libbaz
+     purged libbar
+     purged libfoo
+     purged libfox
+     EOE
+
+   -$pkg_status libfox/1.0.0 >'available'
+   -$pkg_status libfoo/1.1.0 >'unknown'
+   -$pkg_status libbar/1.1.0 >'unknown'
+   -$pkg_status libbaz/1.1.0 >'unknown'
+   -$pkg_status libbiz/1.0.0 >'available'
+}
+
+: keep-drop-options
+:
+: Test --drop-dependent, --keep-dependent, --drop-prerequisite,
+: --keep-prerequisite  option.
+:
+{
+  +$clone_cfg && $rep_add $rep/t4b && $rep_fetch
+
+  : keep-drop-dependent
+  :
+  {
+    $clone_cfg && $pkg_build libbar;
+
+    $* --keep-dependent libfoo 2>>EOE != 0;
+      error: following dependent packages will have to be dropped as well:
+        libbar (requires libfoo)
+      EOE
+
+    $* --drop-dependent libfoo 2>>EOE
+      disfigured libbar
+      disfigured libfoo
+      purged libbar
+      purged libfoo
+      EOE
+  }
+
+  : drop-prerequisite
+  :
+  {
+    $clone_cfg && $pkg_build libbar;
+
+    $* --drop-prerequisite libbar 2>>EOE
+      disfigured libbar
+      disfigured libfoo
+      purged libbar
+      purged libfoo
+      EOE
+  }
+
+  : keep-prerequisite
+  :
+  {
+    $clone_cfg && $pkg_build libbar;
+
+    $* --keep-prerequisite libbar 2>>EOE;
+      disfigured libbar
+      purged libbar
+      EOE
+
+    $pkg_status libfoo >'configured 1.1.0';
+
+    $* libfoo 2>>EOE
+      disfigured libfoo
+      purged libfoo
+      EOE
+  }
+}
+
+: disfigure-only
+:
+: Test --disfigure-only option.
+:
+{
+  $clone_cfg && $rep_add $rep/t4a && $rep_fetch;
+  $pkg_build libfoo;
+
+  $* --disfigure-only libfoo 2>'disfigured libfoo';
+  $pkg_status libfoo >'unpacked 1.1.0 hold_package; available sys:?';
+
+  $* libfoo 2>'purged libfoo'
+}

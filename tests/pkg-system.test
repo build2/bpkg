@@ -1,0 +1,873 @@
+# file      : tests/pkg-system.test
+# copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
+# license   : MIT; see accompanying LICENSE file
+
+.include common.test auth.test config.test remote.test
+
+# There is no pkg-system command, and this testscript contains tests for
+# various building scenarios that involves system packages. Note that by that
+# reason usage of $* is meaningless.
+#
+
+# Source repository:
+#
+# pkg-system
+# |-- foo-2.tar.gz           -> libbar >= 2
+# |-- libbar-0+1.tar.gz
+# |-- libbar-1.tar.gz        -> libbaz == 2
+# |-- libbar-2.tar.gz        -> libbaz == 2
+# |-- libbaz-2.tar.gz
+# |-- t1
+# |   |-- foo-2.tar.gz       -> libbar >= 2
+# |   |-- libbar-1.tar.gz    -> libbaz == 2
+# |   |-- libbar-2.tar.gz    -> libbaz == 2
+# |   |-- libbaz-2.tar.gz
+# |   `-- repositories
+# |-- t2
+# |   |-- foo-2.tar.gz       -> libbar >= 2
+# |   |-- libbar-0+1.tar.gz
+# |   `-- repositories
+# `-- t3                     -> t2 (prerequisite)
+#     |-- foo-2.tar.gz       -> libbar >= 2
+#     `-- repositories
+
+# Prepare repositories used by tests if running in the local mode.
+#
++if ($remote != true)
+  rep_create += 2>-
+
+  cp -r $src/t1 $out/t1 && $rep_create $out/t1 &$out/t1/packages
+  cp -r $src/t2 $out/t2 && $rep_create $out/t2 &$out/t2/packages
+  cp -r $src/t3 $out/t3 && $rep_create $out/t3 &$out/t3/packages
+end
+
+pkg_build  += -d cfg --yes
+pkg_drop   += -d cfg --yes 2>-
+pkg_status += -d cfg
+rep_add    += -d cfg 2>-
+rep_fetch  += -d cfg --auth all --trust-yes 2>-
+
+# Note that when we fetch a package from remote repository the bpkg stderr
+# contains fetch program progress output, that comes prior the informational
+# message.
+#
+
+: t1
+:
+{
+  +$clone_cfg && $rep_add $rep/t1 && $rep_fetch
+
+  : dup
+  :
+  : Test that passing package duplicates on the command line expectedly fails.
+  : Note that we unite all such tests into a single one for the sake of code
+  : (and not to think of too many ids for almost identical tests :-)).
+  :
+  {
+    $clone_cfg;
+
+    $pkg_build 'sys:libbar' '?sys:libbar' 2>>EOE != 0;
+      error: duplicate package libbar
+        info: first mentioned as ?sys:libbar
+        info: second mentioned as sys:libbar
+      EOE
+
+    $pkg_build '?sys:libbar' 'sys:libbar' 2>>EOE != 0;
+      error: duplicate package libbar
+        info: first mentioned as ?sys:libbar
+        info: second mentioned as sys:libbar
+      EOE
+
+    $pkg_build '?sys:libbar' libbar 2>>EOE != 0;
+      error: duplicate package libbar
+        info: first mentioned as ?sys:libbar
+        info: second mentioned as libbar
+      EOE
+
+    $pkg_build libbar '?sys:libbar' 2>>EOE != 0;
+      error: duplicate package libbar
+        info: first mentioned as ?sys:libbar
+        info: second mentioned as libbar
+      EOE
+
+    $pkg_build 'sys:libbar' libbar 2>>EOE != 0;
+      error: duplicate package libbar
+        info: first mentioned as sys:libbar
+        info: second mentioned as libbar
+      EOE
+
+    $pkg_build libbar 'sys:libbar' 2>>EOE != 0
+      error: duplicate package libbar
+        info: first mentioned as libbar
+        info: second mentioned as sys:libbar
+      EOE
+  }
+
+  : syslibbar-foo-syslibbar2-libbar2
+  :
+  : The overall plan is to build sys:libbar/*, foo, then reconfigure
+  : sys:libbar/* to sys:libbar/2 and afterwards to libbar/2.
+  :
+  {
+    $clone_cfg;
+
+    # Build sys:libbar/*.
+    #
+    $pkg_build 'sys:libbar' 2>'configured sys:libbar/*';
+    $pkg_status libbar      1>'configured,system * hold_package hold_version; available 2 1 sys:?';
+    $pkg_status libbaz      1>'available 2 sys:?';
+
+    # Build foo with preconfigured sys:libbar/*.
+    #
+    $pkg_build foo 2>>~%EOE%;
+      %.*
+      %.*fetched foo/2%
+      unpacked foo/2
+      configured foo/2
+      %info: .+ is up to date%
+      updated foo/2
+      EOE
+
+    $pkg_status foo    >'configured 2 hold_package; available sys:?';
+    $pkg_status libbar >'configured,system * hold_package hold_version; available 2 1 sys:?';
+    $pkg_status libbaz >'available 2 sys:?';
+
+    # Reconfigure sys:libbar/* to 2.
+    #
+    $pkg_build 'sys:libbar/2' 2>>~%EOE%;
+      disfigured foo/2
+      purged libbar/*
+      configured sys:libbar/2
+      configured foo/2
+      %info: .+ is up to date%
+      updated foo/2
+      EOE
+
+    $pkg_status foo    >'configured 2 hold_package; available sys:?';
+    $pkg_status libbar >'configured,system 2 hold_package hold_version; available sys:?';
+    $pkg_status libbaz >'available 2 sys:?';
+
+    # Reconfigure sys:libbar/2 to libbar/2.
+    #
+    $pkg_build libbar/2 2>>~%EOE%;
+      disfigured foo/2
+      purged libbar/2
+      %.*
+      %.*fetched libbaz/2%
+      unpacked libbaz/2
+      %.*
+      %.*fetched libbar/2%
+      unpacked libbar/2
+      configured libbaz/2
+      configured libbar/2
+      configured foo/2
+      %info: .+ is up to date%
+      %info: .+ is up to date%
+      updated libbar/2
+      updated foo/2
+      EOE
+
+    $pkg_status foo    >'configured 2 hold_package; available sys:?';
+    $pkg_status libbar >'configured 2 hold_package hold_version; available sys:?';
+    $pkg_status libbaz >'configured 2; available sys:?';
+
+    $pkg_drop foo libbar
+  }
+
+  : foo-syslibbar2
+  :
+  : Build foo and sys:libbar/2.
+  :
+  {
+    $clone_cfg;
+
+    $pkg_build foo 'sys:libbar/2' 2>>~%EOE%;
+      %.*
+      %.*fetched foo/2%
+      unpacked foo/2
+      configured sys:libbar/2
+      configured foo/2
+      %info: .+ is up to date%
+      updated foo/2
+      EOE
+
+    $pkg_status foo    >'configured 2 hold_package; available sys:?';
+    $pkg_status libbar >'configured,system 2 hold_package hold_version; available sys:?';
+    $pkg_status libbaz >'available 2 sys:?';
+
+    $pkg_drop foo libbar
+  }
+
+  : syslibbar2-foo
+  :
+  : Build sys:libbar/2 and foo.
+  :
+  {
+    $clone_cfg;
+
+    $pkg_build 'sys:libbar/2' foo 2>>~%EOE%;
+      %.*
+      %.*fetched foo/2%
+      unpacked foo/2
+      configured sys:libbar/2
+      configured foo/2
+      %info: .+ is up to date%
+      updated foo/2
+      EOE
+
+    $pkg_status foo    >'configured 2 hold_package; available sys:?';
+    $pkg_status libbar >'configured,system 2 hold_package hold_version; available sys:?';
+    $pkg_status libbaz >'available 2 sys:?';
+
+    $pkg_drop foo libbar
+  }
+
+  : libbar2-foo-syslibbar2
+  :
+  : The overall plan is to build libbar/2, then foo and sys:libbar/2.
+  :
+  {
+    $clone_cfg;
+
+    # Build libbar/2.
+    #
+    $pkg_build libbar/2 2>>~%EOE%;
+      %.*
+      %.*fetched libbaz/2%
+      unpacked libbaz/2
+      %.*
+      %.*fetched libbar/2%
+      unpacked libbar/2
+      configured libbaz/2
+      configured libbar/2
+      %info: .+ is up to date%
+      updated libbar/2
+      EOE
+
+    $pkg_status libbar >'configured 2 hold_package hold_version; available sys:?';
+    $pkg_status libbaz >'configured 2; available sys:?';
+
+    # Build foo and sys:libbar/2.
+    #
+    $pkg_build foo 'sys:libbar/2' 2>>~%EOE%;
+      disfigured libbar/2
+      purged libbar/2
+      %.*
+      %.*fetched foo/2%
+      unpacked foo/2
+      configured sys:libbar/2
+      configured foo/2
+      disfigured libbaz
+      purged libbaz
+      %info: .+ is up to date%
+      updated foo/2
+      EOE
+
+    $pkg_status foo    >'configured 2 hold_package; available sys:?';
+    $pkg_status libbar >'configured,system 2 hold_package hold_version; available sys:?';
+    $pkg_status libbaz >'available 2 sys:?';
+
+    $pkg_drop foo libbar
+  }
+
+  : libbar2-foo-syslibbar
+  :
+  : The overall plan is to build libbar/2, then foo and sys:libbar.
+  :
+  {
+    $clone_cfg;
+
+    # Build libbar/2.
+    #
+    $pkg_build libbar/2 2>>~%EOE%;
+      %.*
+      %.*fetched libbaz/2%
+      unpacked libbaz/2
+      %.*
+      %.*fetched libbar/2%
+      unpacked libbar/2
+      configured libbaz/2
+      configured libbar/2
+      %info: .+ is up to date%
+      updated libbar/2
+      EOE
+
+    $pkg_status libbar >'configured 2 hold_package hold_version; available sys:?';
+    $pkg_status libbaz >'configured 2; available sys:?';
+
+    # Build foo and sys:libbar.
+    #
+    $pkg_build foo 'sys:libbar' 2>>~%EOE%;
+      disfigured libbar/2
+      purged libbar/2
+      %.*
+      %.*fetched foo/2%
+      unpacked foo/2
+      configured sys:libbar/*
+      configured foo/2
+      disfigured libbaz
+      purged libbaz
+      %info: .+ is up to date%
+      updated foo/2
+      EOE
+
+    $pkg_status foo    >'configured 2 hold_package; available sys:?';
+    $pkg_status libbar >'configured,system * hold_package hold_version; available 2 1 sys:?';
+    $pkg_status libbaz >'available 2 sys:?';
+
+    $pkg_drop foo libbar
+  }
+
+  : syslibbar2-foo-libbar2-syslibbar2-libbar2
+  :
+  : The overall plan is to build sys:libbar/2, then foo and libbar/2, then
+  : reconfigure to sys:libbar/2 and afterwards to libbar/2.
+  :
+  {
+    $clone_cfg;
+
+    # Build sys:libbar/2.
+    #
+    $pkg_build 'sys:libbar/2' 2>'configured sys:libbar/2';
+    $pkg_status libbar       >'configured,system 2 hold_package hold_version; available sys:?';
+
+    # Build foo and libbar/2.
+    #
+    $pkg_build foo libbar/2 2>>~%EOE%;
+      purged libbar/2
+      %.*
+      %.*fetched libbaz/2%
+      unpacked libbaz/2
+      %.*
+      %.*fetched libbar/2%
+      unpacked libbar/2
+      %.*
+      %.*fetched foo/2%
+      unpacked foo/2
+      configured libbaz/2
+      configured libbar/2
+      configured foo/2
+      %info: .+ is up to date%
+      %info: .+ is up to date%
+      updated libbar/2
+      updated foo/2
+      EOE
+
+    $pkg_status foo    >'configured 2 hold_package; available sys:?';
+    $pkg_status libbar >'configured 2 hold_package hold_version; available sys:?';
+    $pkg_status libbaz >'configured 2; available sys:?';
+
+    # Build sys:libbar/2.
+    #
+    $pkg_build 'sys:libbar/2' 2>>~%EOE%;
+      disfigured foo/2
+      disfigured libbar/2
+      purged libbar/2
+      configured sys:libbar/2
+      configured foo/2
+      disfigured libbaz
+      purged libbaz
+      %info: .+ is up to date%
+      updated foo/2
+      EOE
+
+    $pkg_status foo    >'configured 2 hold_package; available sys:?';
+    $pkg_status libbar >'configured,system 2 hold_package hold_version; available sys:?';
+    $pkg_status libbaz >'available 2 sys:?';
+
+    # Build libbar/2.
+    #
+    $pkg_build libbar/2 2>>~%EOE%;
+      disfigured foo/2
+      purged libbar/2
+      %.*
+      %.*fetched libbaz/2%
+      unpacked libbaz/2
+      %.*
+      %.*fetched libbar/2%
+      unpacked libbar/2
+      configured libbaz/2
+      configured libbar/2
+      configured foo/2
+      %info: .+ is up to date%
+      %info: .+ is up to date%
+      updated libbar/2
+      updated foo/2
+      EOE
+
+    $pkg_status foo    >'configured 2 hold_package; available sys:?';
+    $pkg_status libbar >'configured 2 hold_package hold_version; available sys:?';
+    $pkg_status libbaz >'configured 2; available sys:?';
+
+    $pkg_drop foo libbar
+  }
+
+  : syslibbar1-foo-libbar
+  :
+  : The overall plan is to configure sys:libbar/1, then fail to build foo but
+  : succeed to build foo libbar.
+  :
+  {
+    $clone_cfg;
+
+    # Build sys:libbar/1.
+    #
+    $pkg_build 'sys:libbar/1' 2>'configured sys:libbar/1';
+    $pkg_status libbar        1>'configured,system 1 hold_package hold_version; available 2 sys:?';
+    $pkg_status libbaz        1>'available 2 sys:?';
+
+    # Fail to build foo.
+    #
+    $pkg_build foo 2>>EOE != 0;
+      error: package foo dependency on (libbar >= 2) is forcing upgrade of sys:libbar/1 to libbar/2
+        info: package version sys:libbar/1 is held
+        info: explicitly request version upgrade to continue
+      info: while satisfying foo/2
+      EOE
+
+    # Build foo and libbar.
+    #
+    $pkg_build foo libbar 2>>~%EOE%;
+      purged libbar/1
+      %.*
+      %.*fetched libbaz/2%
+      unpacked libbaz/2
+      %.*
+      %.*fetched libbar/2%
+      unpacked libbar/2
+      %.*
+      %.*fetched foo/2%
+      unpacked foo/2
+      configured libbaz/2
+      configured libbar/2
+      configured foo/2
+      %info: .+ is up to date%
+      %info: .+ is up to date%
+      updated libbar/2
+      updated foo/2
+      EOE
+
+    $pkg_status foo    >'configured 2 hold_package; available sys:?';
+    $pkg_status libbar >'configured 2 hold_package; available sys:?';
+    $pkg_status libbaz >'configured 2; available sys:?';
+
+    $pkg_drop foo libbar
+  }
+
+  : foo-syslibbar
+  :
+  : Build foo and ?sys:libbar.
+  :
+  {
+    $clone_cfg;
+
+    $pkg_build foo '?sys:libbar' 2>>~%EOE%;
+      %.*
+      %.*fetched foo/2%
+      unpacked foo/2
+      configured sys:libbar/*
+      configured foo/2
+      %info: .+ is up to date%
+      updated foo/2
+      EOE
+
+    $pkg_status foo    >'configured 2 hold_package; available sys:?';
+    $pkg_status libbar >'configured,system *; available 2 1 sys:?';
+    $pkg_status libbaz >'available 2 sys:?';
+
+    $pkg_drop foo libbar
+  }
+
+  : libbar1-foo-syslibbar2
+  :
+  : The overall plan is to configure libbar/1, then fail to build foo but
+  : succeed to build foo ?sys:libbar/2, and then foo sys:libbar/2.
+  :
+  {
+    $clone_cfg;
+
+    # Build libbar/1.
+    #
+    $pkg_build libbar/1 2>>~%EOE%;
+      %.*
+      %.*fetched libbaz/2%
+      unpacked libbaz/2
+      %.*
+      %.*fetched libbar/1%
+      unpacked libbar/1
+      configured libbaz/2
+      configured libbar/1
+      %info: .+ is up to date%
+      updated libbar/1
+      EOE
+
+    $pkg_status libbar >'configured 1 hold_package hold_version; available 2 sys:?';
+    $pkg_status libbaz >'configured 2; available sys:?';
+
+    # Fail to build foo.
+    #
+    $pkg_build foo 2>>EOE != 0;
+      error: package foo dependency on (libbar >= 2) is forcing upgrade of libbar/1 to 2
+        info: package version libbar/1 is held
+        info: explicitly request version upgrade to continue
+      info: while satisfying foo/2
+      EOE
+
+    # Build foo and ?sys:libbar/2.
+    #
+    $pkg_build foo '?sys:libbar/2' 2>>~%EOE%;
+      disfigured libbar/1
+      purged libbar/1
+      %.*
+      %.*fetched foo/2%
+      unpacked foo/2
+      configured sys:libbar/2
+      configured foo/2
+      disfigured libbaz
+      purged libbaz
+      %info: .+ is up to date%
+      updated foo/2
+      EOE
+
+    $pkg_status foo    >'configured 2 hold_package; available sys:?';
+    $pkg_status libbar >'configured,system 2 hold_package hold_version; available sys:?';
+    $pkg_status libbaz >'available 2 sys:?';
+
+    # Build foo and sys:libbar/2.
+    #
+    $pkg_build foo 'sys:libbar/2' 2>>~%EOE%;
+      %info: .+ is up to date%
+      updated foo/2
+      EOE
+
+    $pkg_status foo    >'configured 2 hold_package; available sys:?';
+    $pkg_status libbar >'configured,system 2 hold_package hold_version; available sys:?';
+    $pkg_status libbaz >'available 2 sys:?';
+
+    $pkg_drop foo libbar
+  }
+}
+
+: t2
+:
+{
+  +$clone_cfg && $rep_add $rep/t2 && $rep_fetch
+
+  : no-libbar
+  :
+  : Test that the following builds expectedly fails having no libbar available
+  : in source.
+  :
+  {
+    $clone_cfg;
+
+    $pkg_build foo 2>>EOE != 0;
+      error: prerequisite libbar >= 2 of package foo is not available in source
+        info: specify ?sys:libbar if it is available from the system
+      info: while satisfying foo/2
+      EOE
+
+    $pkg_build foo libbar 2>>EOE != 0;
+      error: libbar is not available in source
+        info: specify sys:libbar if it is available from the system
+      EOE
+
+    $pkg_status foo    >'available 2 sys:?';
+    $pkg_status libbar >'available sys:?'
+  }
+
+  : foo-syslibbar
+  :
+  : Build foo configuring sys:libbar.
+  :
+  {
+    $clone_cfg;
+
+    $pkg_build foo 'sys:libbar' 2>>~%EOE%;
+      %.*
+      %.*fetched foo/2%
+      unpacked foo/2
+      configured sys:libbar/*
+      configured foo/2
+      %info: .+ is up to date%
+      updated foo/2
+      EOE
+
+    $pkg_status foo    >'configured 2 hold_package; available sys:?';
+    $pkg_status libbar >'configured,system * hold_package hold_version; available sys:?';
+
+    $pkg_drop foo libbar
+  }
+
+  : libbar1-foo-syslibbar2
+  :
+  : The overall plan is to configure sys:libbar/1, then fail to build foo, but
+  : succeed to build foo sys:libbar/2.
+  :
+  {
+    $clone_cfg;
+
+    # Build sys:libbar/1.
+    #
+    $pkg_build 'sys:libbar/1' 2>'configured sys:libbar/1';
+    $pkg_status libbar        1>'configured,system 1 hold_package hold_version; available sys:?';
+
+    # Fail to build foo.
+    #
+    $pkg_build foo 2>>EOE != 0;
+      error: prerequisite libbar >= 2 of package foo is not available in source
+        info: sys:libbar/1 does not satisfy the constrains
+      info: while satisfying foo/2
+      EOE
+
+    # Build foo and sys:libbar/2.
+    #
+    $pkg_build foo 'sys:libbar/2' 2>>~%EOE%;
+      purged libbar/1
+      %.*
+      %.*fetched foo/2%
+      unpacked foo/2
+      configured sys:libbar/2
+      configured foo/2
+      %info: .+ is up to date%
+      updated foo/2
+      EOE
+
+    $pkg_status foo    >'configured 2 hold_package; available sys:?';
+    $pkg_status libbar >'configured,system 2 hold_package hold_version; available sys:?';
+
+    $pkg_drop foo libbar
+  }
+
+  : syslibbar2
+  :
+  : The overall plan is to fail to build foo sys:libbar/1, then configure
+  : sys:libbar/2 but still fail to build foo sys:libbar/1.
+  :
+  {
+    $clone_cfg;
+
+    # Fail to build foo and sys:libbar/1.
+    #
+    $pkg_build foo 'sys:libbar/1' 2>>EOE != 0;
+      error: prerequisite libbar >= 2 of package foo is not available in source
+        info: sys:libbar/1 does not satisfy the constrains
+      info: while satisfying foo/2
+      EOE
+
+    # Build sys:libbar/2.
+    #
+    $pkg_build 'sys:libbar/2' 2>'configured sys:libbar/2';
+    $pkg_status libbar        1>'configured,system 2 hold_package hold_version; available sys:?';
+
+    # Still fail to build foo and sys:libbar/1.
+    #
+    $pkg_build foo 'sys:libbar/1' 2>>EOE != 0;
+      error: prerequisite libbar >= 2 of package foo is not available in source
+        info: sys:libbar/1 does not satisfy the constrains
+      info: while satisfying foo/2
+      EOE
+
+    $pkg_drop libbar
+  }
+
+  : syslibbar1
+  :
+  : The overall plan is to configure sys:libbar/1, then fail to build
+  : sys:libbar/1.1 foo.
+  :
+  {
+    $clone_cfg;
+
+    # Build sys:libbar/2.
+    #
+    $pkg_build 'sys:libbar/1' 2>'configured sys:libbar/1';
+    $pkg_status libbar        1>'configured,system 1 hold_package hold_version; available sys:?';
+
+    # Fail to build sys:libbar/1.1 and foo.
+    #
+    $pkg_build 'sys:libbar/1.1' foo 2>>EOE != 0;
+      error: prerequisite libbar >= 2 of package foo is not available in source
+        info: sys:libbar/1.1 does not satisfy the constrains
+      info: while satisfying foo/2
+      EOE
+
+    $pkg_drop libbar
+  }
+
+  : foo-syslibbar-drop-foo
+  :
+  : The overall plan is to build foo ?sys:libbar, then drop foo and make sure
+  : libbar is purged as well.
+  :
+  {
+    $clone_cfg;
+
+    # Build foo and ?sys:libbar.
+    #
+    $pkg_build foo '?sys:libbar' 2>>~%EOE%;
+      %.*
+      %.*fetched foo/2%
+      unpacked foo/2
+      configured sys:libbar/*
+      configured foo/2
+      %info: .+ is up to date%
+      updated foo/2
+      EOE
+
+    $pkg_status foo    >'configured 2 hold_package; available sys:?';
+    $pkg_status libbar >'configured,system *; available sys:?';
+
+    # Drop foo.
+    #
+    $pkg_drop foo 2>>EOE;
+      disfigured foo
+      purged libbar
+      purged foo
+      EOE
+
+    $pkg_status foo    >'available 2 sys:?';
+    $pkg_status libbar >'available sys:?'
+  }
+
+  : syslibbar1-foo-syslibbar-drop-foo
+  :
+  : The overall plan is to build sys:libbar/1, then fail to build foo but
+  : succeed to build foo ?sys:libbar, then drop foo and make sure libbar stays.
+  :
+  {
+    $clone_cfg;
+
+    # Build sys:libbar/1.
+    #
+    $pkg_build 'sys:libbar/1' 2>'configured sys:libbar/1';
+    $pkg_status libbar        1>'configured,system 1 hold_package hold_version; available sys:?';
+
+    # Fail to build foo.
+    #
+    $pkg_build foo 2>>EOE != 0;
+      error: prerequisite libbar >= 2 of package foo is not available in source
+        info: sys:libbar/1 does not satisfy the constrains
+      info: while satisfying foo/2
+      EOE
+
+    # Build foo and '?sys:libbar/2'.
+    #
+    $pkg_build foo '?sys:libbar/2' 2>>~%EOE%;
+      purged libbar/1
+      %.*
+      %.*fetched foo/2%
+      unpacked foo/2
+      configured sys:libbar/2
+      configured foo/2
+      %info: .+ is up to date%
+      updated foo/2
+      EOE
+
+    $pkg_status foo    >'configured 2 hold_package; available sys:?';
+    $pkg_status libbar >'configured,system 2 hold_package hold_version; available sys:?';
+
+    # Drop foo.
+    #
+    $pkg_drop foo 2>>EOE;
+      disfigured foo
+      purged foo
+      EOE
+
+    $pkg_status foo    >'available 2 sys:?';
+    $pkg_status libbar >'configured,system 2 hold_package hold_version; available sys:?'
+  }
+}
+
+: t3
+:
+{
+  +$clone_cfg && $rep_add $rep/t3 && $rep_fetch
+
+  : no-libbar
+  :
+  : Test that the following builds expectedly fails  having no libbar available
+  : in source.
+  :
+  {
+    $clone_cfg;
+
+    $pkg_build foo 2>>EOE != 0;
+      error: prerequisite libbar >= 2 of package foo is not available in source
+        info: specify ?sys:libbar if it is available from the system
+      info: while satisfying foo/2
+      EOE
+
+    $pkg_build 'sys:libbar/1' 2>>EOE != 0;
+      error: unknown package libbar
+      EOE
+
+    $pkg_build foo 'sys:libbar/1' 2>>EOE != 0;
+      error: unknown package libbar
+      EOE
+
+    $pkg_build foo '?sys:libbar/1' 2>>EOE != 0;
+      error: prerequisite libbar >= 2 of package foo is not available in source
+        info: sys:libbar/1 does not satisfy the constrains
+      info: while satisfying foo/2
+      EOE
+
+    $pkg_status foo    >'available 2 sys:?';
+    $pkg_status libbar >'unknown'
+  }
+
+  : syslibbar1-foo-syslibbar-drop-foo
+  :
+  : The overall plan is to build foo ?sys:libbar/2, fail to build sys:libbar
+  : and foo 'sys:libbar', but succeed to build foo ?sys:libbar/3 and foo
+  : ?sys:libbar.
+  :
+  {
+    $clone_cfg;
+
+    # Build foo '?sys:libbar/2'.
+    #
+    $pkg_build foo '?sys:libbar/2' 2>>~%EOE%;
+      %.*
+      %.*fetched foo/2%
+      unpacked foo/2
+      configured sys:libbar/2
+      configured foo/2
+      %info: .+ is up to date%
+      updated foo/2
+      EOE
+
+    $pkg_status foo    >'configured 2 hold_package; available sys:?';
+    $pkg_status libbar >'configured,system 2';
+
+    # Fail as libbar while being selected is still unknown (not present in t3
+    # repo).
+    #
+    $pkg_build 'sys:libbar'     2>'error: unknown package libbar' != 0;
+    $pkg_build foo 'sys:libbar' 2>'error: unknown package libbar' != 0;
+    $pkg_status foo             1>'configured 2 hold_package; available sys:?';
+    $pkg_status libbar          1>'configured,system 2';
+
+    # Build foo and ?sys:libbar/3. Note that libbar stays as system version 2.
+    #
+    $pkg_build foo '?sys:libbar/3' 2>>~%EOE%;
+      %info: .+ is up to date%
+      updated foo/2
+      EOE
+
+    $pkg_status foo    >'configured 2 hold_package; available sys:?';
+    $pkg_status libbar >'configured,system 2';
+
+    # Build foo and ?sys:libbar.
+    #
+    $pkg_build foo '?sys:libbar' 2>>~%EOE%;
+      %info: .+ is up to date%
+      updated foo/2
+      EOE
+
+    $pkg_status foo    >'configured 2 hold_package; available sys:?';
+    $pkg_status libbar >'configured,system 2';
+
+    $pkg_drop foo
+  }
+}

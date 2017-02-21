@@ -1,0 +1,184 @@
+# file      : tests/rep-create.test
+# copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
+# license   : MIT; see accompanying LICENSE file
+
+.include common.test auth.test
+
+# Source repository:
+#
+# rep-create
+# |-- stable
+# |   |-- foo-1.tar.gz
+# |   `-- repositories
+# `-- testing          -> stable (complement)
+#     |-- foo-2.tar.gz (manifest with unknown name)
+#     `-- repositories
+
+: unsigned
+:
+{
+  # Make sure the cloned repository has a valid location, so we can use
+  # rep-info command to validate the repository info.
+  #
+  clone_rep = mkdir 1/ && cp -r $src/stable 1/
+
+  : without-key
+  :
+  {
+    $clone_rep;
+
+    $* 1/stable/ 2>>/~%EOE% &1/stable/packages;
+      adding foo 1
+      %1 package\(s\) in .+/stable/%
+      EOE
+
+    $rep_info -p -m 1/stable/ >>EOO
+      : 1
+      sha256sum: 6cac7ffa1f02f90776fc89bcacf38604ba0eddf176f2314c75dc9bf1b10a8b32
+      :
+      name: foo
+      version: 1
+      summary: The "Foo" utility
+      license: MIT
+      url: http://www.example.org/foo
+      email: foo-users@example.org
+      location: foo-1.tar.gz
+      sha256sum: fee330a362a4f87ff42a954aa305b6446d541b7b60000ebcd2fbf68f2b1ae58e
+      EOO
+  }
+
+  : with-key
+  :
+  {
+    $clone_rep;
+
+    $* --key $key 1/stable/ 2>>/~%EOE% &1/stable/packages;
+      adding foo 1
+      warning: --key option ignored
+        info: repository manifest contains no certificate
+        info: run 'bpkg help rep-create' for more information
+      %1 package\(s\) in .+/stable/%
+      EOE
+
+    $rep_info -p -m 1/stable/ >>EOO
+      : 1
+      sha256sum: 6cac7ffa1f02f90776fc89bcacf38604ba0eddf176f2314c75dc9bf1b10a8b32
+      :
+      name: foo
+      version: 1
+      summary: The "Foo" utility
+      license: MIT
+      url: http://www.example.org/foo
+      email: foo-users@example.org
+      location: foo-1.tar.gz
+      sha256sum: fee330a362a4f87ff42a954aa305b6446d541b7b60000ebcd2fbf68f2b1ae58e
+      EOO
+  }
+}
+
+: signed
+:
+: Here we sign the 'stable' repository with the certificate prior to running
+: tests.
+:
+{
+  +cp -r $src/stable ./ && cat <<<$cert_manifest >+stable/repositories
+
+  # Make sure the cloned repository has a valid location, so we can use
+  # rep-info command to validate the repository info.
+  #
+  clone_rep = mkdir 1/ && cp -r ../stable 1/
+
+  : with-key
+  :
+  : Note that as we re-create the repositories file on the fly (see above) its
+  : sha256sum can vary due to CRs mix-in on Windows. That explains why we do
+  : not match it exactly.
+  :
+  {
+    $clone_rep;
+
+    $* --key $key 1/stable/ 2>>/~%EOE% &1/stable/packages &1/stable/signature;
+      adding foo 1
+      %1 package\(s\) in .+/stable/%
+      EOE
+
+    $rep_info --cert-fingerprint -p -m 1/stable/ >>~"%EOO%"
+      $cert_fp
+      : 1
+      %sha256sum: .+%
+      :
+      name: foo
+      version: 1
+      summary: The "Foo" utility
+      license: MIT
+      url: http://www.example.org/foo
+      email: foo-users@example.org
+      location: foo-1.tar.gz
+      sha256sum: fee330a362a4f87ff42a954aa305b6446d541b7b60000ebcd2fbf68f2b1ae58e
+      EOO
+  }
+
+  : without-key
+  :
+  $clone_rep;
+  $* 1/stable/ 2>>EOE &1/stable/packages != 0
+    adding foo 1
+    error: --key option required
+      info: repository manifest contains a certificate
+      info: run 'bpkg help rep-create' for more information
+    EOE
+}
+
+: unknown-name
+:
+: Test that package manifest that contains an unknown name is properly handled.
+:
+{
+  clone_rep = cp -r $src/testing ./
+
+  : fail
+  :
+  $clone_rep;
+  $* testing/ 2>>/EOE != 0
+    foo-2/manifest:8:1: error: unknown name 'color' in package manifest
+      info: package archive testing/foo-2.tar.gz
+    EOE
+
+  : ignore
+  :
+  $clone_rep;
+  $* --ignore-unknown testing/ 2>>/~%EOE% &testing/packages
+    adding foo 2
+    %1 package\(s\) in .+/testing/%
+    EOE
+}
+
+: broken-repo
+:
+: Here we break the 'stable' repository prior to running a test.
+:
+{
+  clone_rep = cp -r $src/stable ./
+
+  : no-repositories-file
+  :
+  {
+    $clone_rep &!stable/repositories;
+    rm stable/repositories;
+
+    $* stable/ 2>/'error: file stable/repositories does not exist' != 0
+  }
+
+  : unexpected-file
+  :
+  {
+    $clone_rep;
+    touch stable/foo;
+
+    $* stable/ 2>>/~%EOE% != 0
+      %.+
+      error: stable/foo does not appear to be a bpkg package
+      EOE
+  }
+}

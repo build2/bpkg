@@ -1,0 +1,469 @@
+# file      : tests/rep-auth.test
+# copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
+# license   : MIT; see accompanying LICENSE file
+
+.include common.test auth.test config.test remote.test
+
+# There is no rep-auth command, and this testscript contains tests for various
+# authentication scenarios throughout different stages of repositories
+# preparation and consumption. Note that by that reason usage of $* is
+# meaningless.
+#
+
+# Source repository:
+#
+# rep-auth
+# |-- expired
+# |   |-- foo-1.tar.gz
+# |   |-- packages
+# |   |-- repositories
+# |   `-- signature
+# `-- unsigned
+#     |-- foo-1.tar.gz
+#     `-- repositories
+
+# Prepare repositories used by tests if running in the local mode.
+#
++if ($remote != true)
+  rc = $rep_create 2>-
+
+  # Create the 'unsigned1' repository.
+  #
+  cp -r $src/unsigned $out/unsigned1
+  $rc $out/unsigned1 &$out/unsigned1/packages
+
+  # Create the 'unsigned2' repository. This is a copy of the just created
+  # 'unsigned1' repository.
+  #
+  cp -r $out/unsigned1 $out/unsigned2
+
+  # Create the 'signed' repository.
+  #
+  cp -r $src/unsigned $out/signed
+  cat <<<$cert_manifest >+$out/signed/repositories
+  $rc --key $key $out/signed &$out/signed/packages &$out/signed/signature
+
+  # Create the 'name-mismatch' repository. Note that its certificate name
+  # mismatches the repository location.
+  #
+  cp -r $src/unsigned $out/name-mismatch
+
+  echo 'certificate: \'                    >+$out/name-mismatch/repositories
+  cat  <<<$src_base/auth/mismatch-cert.pem >+$out/name-mismatch/repositories
+  echo '\'                                 >+$out/name-mismatch/repositories
+
+  $rc --key $key $out/name-mismatch &$out/name-mismatch/packages  \
+                                    &$out/name-mismatch/signature
+
+  # Create the 'expired' repository. This repository is "pre-created" and its
+  # certificate is expired by now. So we just copy it from the source
+  # directory.
+  #
+  cp -r $src/expired $out/expired
+
+  # Create the 'sha256sum-mismatch' repository. This is a copy of the just
+  # created 'signed' repository that has the sha256sum manifest value tampered.
+  #
+  cp -r $out/signed $out/sha256sum-mismatch
+
+  v = 'd374c59b36fdbdbd0d4468665061d94fda9c6c687863dfe72b0bcc34ff9d5fb4'
+  sed -i -e "s/^\(sha256sum: \).*\$/\\1$v/" $out/sha256sum-mismatch/signature
+
+  # Create the 'signature-mismatch' repository. This is a copy of the just
+  # created 'signed' repository that has the signature manifest value tampered.
+  #
+  cp -r $out/signed $out/signature-mismatch
+
+  # Here we tamper the last signature line (the one of 76 chars length, without
+  # spaces and terminated with '=').
+  #
+  v = 'mnBAsS529NUdNIQy8EB4si/UK26ICaMywbLeHDVvWOB+AsqZ5rj8VjGDamLbmUrDr3ru7BU1gJU='
+  sed -i -e "s%^[^ ]{75}=\$%$v%" $out/signature-mismatch/signature
+end
+
+pkg_status += -d cfg
+rep_add    += -d cfg 2>-
+rep_fetch  += -d cfg
+
+# Check if rep-fetch command was successfull or not.
+#
+fetched     = $pkg_status foo >'available 1 sys:?'
+not_fetched = $pkg_status foo >'unknown'
+
+sc = " " # Space character to append to here-document line when required.
+
+: no-auth
+:
+: Test that local repositories do not require authentication by default.
+:
+{
+  r = 1/signed
+  +mkdir 1/
+  +cp -r $src/unsigned $r
+  +cat <<<$cert_manifest >+$r/repositories
+  +$rep_create --key $key $r &$r/packages &$r/signature 2>-
+
+  : rep-fetch
+  :
+  {
+    $clone_root_cfg && $rep_add ../$r;
+
+    $rep_fetch 2>>/~%EOE%
+      %fetching .+/no-auth/signed%
+      1 package(s) in 1 repository(s)
+      EOE
+  }
+
+  : rep-info
+  :
+  $clone_root_cfg;
+  $rep_info --cert-name ../$r >'name:build2.org'
+}
+
+: signed
+:
+{
+  : rep-fetch
+  :
+  {
+    +$clone_root_cfg && $rep_add $rep/signed
+    rep_fetch += --auth all &?cfg/.bpkg/certs/***
+
+    : no-auth
+    :
+    {
+      $clone_cfg;
+
+      $rep_fetch 2>>"EOE" != 0;
+        fetching build2.org/rep-auth/signed
+        warning: authenticity of the certificate for repository build2.org/rep-auth/signed cannot be established
+        certificate is for build2.org, "Code Synthesis" <info@build2.org>
+        certificate SHA256 fingerprint:
+        $cert_fp
+        trust this certificate? [y/n]$sc
+        error: unable to read y/n answer from STDOUT
+        EOE
+
+      $not_fetched
+    }
+
+    : trust-fp
+    :
+    {
+      $clone_cfg;
+
+      $rep_fetch --trust $cert_fp 2>>EOE;
+        fetching build2.org/rep-auth/signed
+        1 package(s) in 1 repository(s)
+        EOE
+
+      $fetched
+    }
+
+    : trust-fp-no
+    :
+    {
+      $clone_cfg;
+
+      $rep_fetch --trust-no --trust $cert_fp 2>>EOE;
+        fetching build2.org/rep-auth/signed
+        1 package(s) in 1 repository(s)
+        EOE
+
+      $fetched
+    }
+
+    : trust-yes
+    :
+    {
+      $clone_cfg;
+
+      $rep_fetch --trust-yes 2>>EOE;
+        fetching build2.org/rep-auth/signed
+        1 package(s) in 1 repository(s)
+        EOE
+
+      $fetched
+    }
+
+    : trust-no
+    :
+    {
+      $clone_cfg;
+
+      $rep_fetch --trust-no 2>>EOE != 0;
+        fetching build2.org/rep-auth/signed
+        error: authenticity of the certificate for repository build2.org/rep-auth/signed cannot be established
+        EOE
+
+      $not_fetched
+    }
+
+    : trust-yes-no
+    :
+    {
+      $clone_cfg;
+
+      $rep_fetch --trust-yes --trust-no 2>>EOE != 0;
+        fetching build2.org/rep-auth/signed
+        error: --trust-yes and --trust-no are mutually exclusive
+        EOE
+
+      $not_fetched
+    }
+
+    : already-trusted
+    :
+    {
+      $clone_cfg;
+
+      $rep_fetch --trust-yes 2>>EOE;
+        fetching build2.org/rep-auth/signed
+        1 package(s) in 1 repository(s)
+        EOE
+
+      $rep_fetch 2>>EOE;
+        fetching build2.org/rep-auth/signed
+        1 package(s) in 1 repository(s)
+        EOE
+
+      $fetched;
+
+      $rep_fetch --trust-no 2>>EOE;
+        fetching build2.org/rep-auth/signed
+        1 package(s) in 1 repository(s)
+        EOE
+
+      $fetched
+    }
+  }
+
+  : rep-info
+  :
+  {
+    rep_info += --cert-name --auth all $rep/signed
+
+    : no-auth
+    :
+    $rep_info 2>>"EOE" != 0
+      warning: authenticity of the certificate for repository build2.org/rep-auth/signed cannot be established
+      certificate is for build2.org, "Code Synthesis" <info@build2.org>
+      certificate SHA256 fingerprint:
+      $cert_fp
+      trust this certificate? [y/n]$sc
+      error: unable to read y/n answer from STDOUT
+      EOE
+
+    : trust-fp
+    :
+    $rep_info --trust $cert_fp >'name:build2.org'
+
+    : trust-yes
+    :
+    $rep_info --trust-yes >'name:build2.org'
+
+    : trust-no
+    :
+    $rep_info --trust-no 2>>EOE != 0
+      error: authenticity of the certificate for repository build2.org/rep-auth/signed cannot be established
+      EOE
+
+    : already-trusted
+    :
+    {
+      $clone_root_cfg;
+      rep_info += -d cfg;
+
+      $rep_info --trust "$cert_fp" &cfg/.bpkg/certs/*** >'name:build2.org';
+      $rep_info                                         >'name:build2.org'
+    }
+  }
+}
+
+: unsigned
+:
+{
+  : rep-fetch
+  :
+  {
+    +$clone_root_cfg && $rep_add $rep/unsigned1
+    rep_fetch += --auth all
+
+    : no-auth
+    :
+    {
+      $clone_cfg;
+
+      $rep_fetch 2>>~%EOE% != 0;
+        fetching build2.org/rep-auth/unsigned1
+        warning: repository build2.org/rep-auth/unsigned1 is unsigned
+        %continue without authenticating repositories at .+\? \[y/n\] %
+        error: unable to read y/n answer from STDOUT
+        EOE
+
+      $not_fetched
+    }
+
+    : trust-yes
+    :
+    {
+      $clone_cfg;
+
+      $rep_fetch --trust-yes 2>>EOE;
+        fetching build2.org/rep-auth/unsigned1
+        1 package(s) in 1 repository(s)
+        EOE
+
+      $fetched
+    }
+
+    : trust-no
+    :
+    {
+      $clone_cfg;
+
+      $rep_fetch --trust-no 2>>EOE != 0;
+        fetching build2.org/rep-auth/unsigned1
+        error: repository build2.org/rep-auth/unsigned1 is unsigned
+        EOE
+
+      $not_fetched
+    }
+
+    : already-trusted
+    :
+    {
+      $clone_cfg;
+
+      $rep_fetch --trust-yes 2>>EOE;
+        fetching build2.org/rep-auth/unsigned1
+        1 package(s) in 1 repository(s)
+        EOE
+
+      $rep_fetch 2>>EOE;
+        fetching build2.org/rep-auth/unsigned1
+        1 package(s) in 1 repository(s)
+        EOE
+
+      $fetched;
+
+      $rep_fetch --trust-no 2>>EOE;
+        fetching build2.org/rep-auth/unsigned1
+        1 package(s) in 1 repository(s)
+        EOE
+
+      $fetched;
+
+      $rep_add $rep/unsigned2;
+
+      $rep_fetch 2>>EOE;
+        fetching build2.org/rep-auth/unsigned1
+        fetching build2.org/rep-auth/unsigned2
+        1 package(s) in 2 repository(s)
+        EOE
+
+      $fetched
+    }
+  }
+
+  : rep-info
+  :
+  {
+    rep_info += --name --auth all $rep/unsigned1
+
+    : no-auth
+    :
+    $rep_info 2>>~%EOE% != 0
+      warning: repository build2.org/rep-auth/unsigned1 is unsigned
+      %continue without authenticating repositories at .+\? \[y/n\] %
+      error: unable to read y/n answer from STDOUT
+      EOE
+
+    : trust-yes
+    :
+    $rep_info --trust-yes >"build2.org/rep-auth/unsigned1 ($rep/unsigned1)"
+
+    : trust-no
+    :
+    $rep_info --trust-no 2>>EOE != 0
+      error: repository build2.org/rep-auth/unsigned1 is unsigned
+      EOE
+
+    : already-trusted
+    :
+    {
+      $clone_root_cfg;
+      rep_info += -d cfg;
+
+      $rep_info --trust-yes >"build2.org/rep-auth/unsigned1 ($rep/unsigned1)";
+      $rep_info             >"build2.org/rep-auth/unsigned1 ($rep/unsigned1)"
+    }
+  }
+}
+
+: faulty
+:
+{
+  rep_info += --auth all --trust-yes
+
+  : name-mismatch
+  :
+  $rep_info $rep/name-mismatch 2>>EOE != 0
+    error: certificate name mismatch for repository build2.org/rep-auth/name-mismatch
+      info: certificate name is build2.org/mismatched/name
+    EOE
+
+  : expired
+  :
+  $rep_info $rep/expired 2>>EOE != 0
+    error: certificate for repository build2.org/rep-auth/expired has expired
+    EOE
+
+  : sha256sum-mismatch
+  :
+  $rep_info $rep/sha256sum-mismatch 2>>EOE != 0
+    error: packages manifest file checksum mismatch for build2.org/rep-auth/sha256sum-mismatch
+      info: try again
+    EOE
+
+  : signature-mismatch
+  :
+  $rep_info $rep/signature-mismatch 2>>~%EOE% != 0
+    %.*
+    %error: unable to authenticate repository build2.org/rep-auth/signature-mismatch%
+    EOE
+
+  : create-rep
+  :
+  {
+    : no-email
+    :
+    {
+      cp -r $src/unsigned rep;
+
+      echo 'certificate: \'                   >+rep/repositories;
+      cat  <<<$src_base/auth/noemail-cert.pem >+rep/repositories;
+      echo '\'                                >+rep/repositories;
+
+      $rep_create --key $key rep &rep/packages 2>>/EOE != 0
+        adding foo 1
+        error: invalid certificate for rep/: no email
+        EOE
+    }
+
+    : expired
+    :
+    {
+      cp -r $src/unsigned rep;
+
+      echo 'certificate: \'                   >+rep/repositories;
+      cat  <<<$src_base/auth/expired-cert.pem >+rep/repositories;
+      echo '\'                                >+rep/repositories;
+
+      $rep_create --key $key rep &rep/packages 2>>/EOE != 0
+        adding foo 1
+        error: certificate for repository rep/ has expired
+        EOE
+    }
+  }
+}

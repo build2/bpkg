@@ -1,0 +1,6 @@
+: 1
+location: ../../foo/testing
+:
+location: ../stable
+role: complement
+:

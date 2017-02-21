@@ -1,0 +1,70 @@
+# file      : tests/rep-add.test
+# copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
+# license   : MIT; see accompanying LICENSE file
+
+.include common.test config.test
+
+: location
+:
+{
+  : none
+  :
+  $* 2>>EOE != 0
+  error: repository location argument expected
+    info: run 'bpkg help rep-add' for more information
+  EOE
+
+  : no-version
+  :
+  $* 'stable' 2>>EOE != 0
+  error: invalid repository location 'stable': missing repository version
+  EOE
+
+  : invalid-host
+  :
+  $* 'http://' 2>>EOE != 0
+  error: invalid repository location 'http://': invalid host
+  EOE
+}
+
+: relative-path
+:
+{
+  $clone_cfg;
+
+  $* ./1/bar/stable 2>>/~%EOE%;
+    %added repository .+/relative-path/bar/stable%
+    EOE
+
+  $* ./1/../1/bar/stable 2>>/~%EOE% != 0
+    %error: .+/relative-path/bar/stable is already a repository of this configuration%
+    EOE
+}
+
+: absolute-path
+:
+{
+  $clone_cfg;
+
+  $* $~/1/foo/stable 2>>/~%EOE%;
+    %added repository .+/absolute-path/foo/stable%
+    EOE
+
+  $* $~/1/../1/foo/stable 2>>/~%EOE% != 0
+    %error: .+/absolute-path/foo/stable is already a repository of this configuration%
+    EOE
+}
+
+: remote-url
+:
+{
+  $clone_cfg;
+
+  $* 'http://pkg.example.org/1/testing' 2>>~%EOE%;
+    %added repository example.org/testing%
+    EOE
+
+  $* 'https://www.example.org/1/testing' 2>>~%EOE% != 0
+    %error: example.org/testing is already a repository of this configuration%
+    EOE
+}

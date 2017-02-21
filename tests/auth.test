@@ -1,0 +1,23 @@
+# file      : tests/auth.test
+# copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
+# license   : MIT; see accompanying LICENSE file
+
+# OpenSSL passwordless private key.
+#
+key = $src_base/auth/key.pem
+
+# Repository certificate generated with the above private key.
+#
+cert = $src_base/auth/default-cert.pem
+
+# Repository certificate fingerprint.
+#
++set cert_fp <<<$src_base/auth/default-cert-fp
+
+# Manifest certificate name/value. Can be appended to the repositories file to
+# sign the repository.
+#
+cert_manifest = $~/cert-manifest
++echo 'certificate: \' >=$cert_manifest
++cat  <<<$cert         >+$cert_manifest
++echo '\'              >+$cert_manifest

@@ -1,0 +1,22 @@
+repository = build2.org/mismatched/name
+company    = Code Synthesis
+email      = info@build2.org
+
+
+[ req ]
+
+distinguished_name = req_distinguished_name
+x509_extensions    = v3_req
+prompt             = no
+utf8               = yes
+
+[ req_distinguished_name ]
+
+O  = $company
+CN = name:$repository
+
+[ v3_req ]
+
+keyUsage         = critical,digitalSignature
+extendedKeyUsage = critical,codeSigning
+subjectAltName   = email:$email

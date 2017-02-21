@@ -1,0 +1,37 @@
+# file      : tests/remote.test
+# copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
+# license   : MIT; see accompanying LICENSE file
+
+# Tests for commands that accept repository location must be able to run
+# regardless whether the repository is local or remote. They also must be able
+# to create the repository used for testing at the specified path, so being
+# published to build2.org it can be used for the remote testing. Note that
+# prior to publishing repositories tests must be performed with the
+# config.test.output=keep variable override, so their working directories (that
+# contain repositories produced) are not cleaned up.
+#
+
+# Output directory path that testscripts must use to prepare repositories
+# required by tests they contains.
+#
+# Note that the local path is carefully crafted so that we end up with the
+# same repository names in both (local and remote) cases. This is necessary
+# for the authentication to work properly in both cases.
+#
+out = $canonicalize([dir_path] $~/pkg/1/build2.org/)
+
+# If $remote is true then remote repositories locations must be used for
+# tests. Variables rep_root and rep refer to the root and the command-
+# specific repositories respectively. Note that the variables type is dir_path
+# for local repositories (rather than string for the remote ones), that allows
+# to portably obtain sub-repositories locations representations.
+#
+remote   = $config.bpkg.test.remote
+rep_root = ($remote == true ? [string] "https://build2.org/bpkg/1" : $out)
+
+out += [dir_path] $cmd
+rep  = ($remote == true ? [string] "$rep_root/$cmd" : $out)
+
++if ($remote != true)
+  mkdir -p $out
+end

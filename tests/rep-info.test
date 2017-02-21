@@ -1,0 +1,128 @@
+# file      : tests/rep-info.test
+# copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
+# license   : MIT; see accompanying LICENSE file
+
+.include common.test auth.test remote.test
+
+# Source repository:
+#
+# rep-info
+# `-- testing          -> stable (complement), ../foo/testing (prerequisite)
+#     |-- foo-1.tar.gz
+#     `-- repositories
+
+# Prepare repositories used by tests if running in the local mode.
+#
++if ($remote != true)
+  rc = $rep_create 2>-
+
+  # Create the unsigned 'testing' repository.
+  #
+  cp -r $src/testing $out/testing
+  $rc $out/testing &$out/testing/packages
+
+  # Create the signed 'testing' repository.
+  #
+  cp -r $src/testing $out/signed
+  cat <<<$cert_manifest >+$out/signed/repositories
+  $rc --key $key $out/signed &$out/signed/packages &$out/signed/signature
+end
+
+test.options = --auth all --trust-yes
+
+: no-location
+:
+$* 2>>EOE != 0
+error: repository location argument expected
+  info: run 'bpkg help rep-info' for more information
+EOE
+
+: default
+:
+{
+  : unsigned
+  :
+  $* $rep/testing >>"EOO"
+  build2.org/rep-info/testing ($rep/testing)
+  prerequisite build2.org/foo/testing ($rep_root/foo/testing)
+  complement build2.org/rep-info/stable ($rep/stable)
+
+  foo/1
+  EOO
+
+  : signed
+  :
+  $* $rep/signed >>"EOO"
+  build2.org/rep-info/signed ($rep/signed)
+  CN=build2.org/O=Code Synthesis/info@build2.org
+  $cert_fp
+  prerequisite build2.org/foo/testing ($rep_root/foo/testing)
+  complement build2.org/rep-info/stable ($rep/stable)
+
+  foo/1
+  EOO
+}
+
+: name
+:
+$* --name $rep/testing >"build2.org/rep-info/testing ($rep/testing)"
+
+: packages
+:
+{
+  : list
+  :
+  $* --packages $rep/testing >>EOO
+
+  foo/1
+  EOO
+
+  : manifest
+  :
+  $* --packages --manifest $rep/testing >>EOO
+  : 1
+  sha256sum: 7cdc5965cf41742a7feb1c4b73f1438f35e6a6ed7e4e6b30d9fba36c26baca04
+  :
+  name: foo
+  version: 1
+  summary: The "Foo" utility
+  license: MIT
+  url: http://www.example.org/foo
+  email: foo-users@example.org
+  location: foo-1.tar.gz
+  sha256sum: fee330a362a4f87ff42a954aa305b6446d541b7b60000ebcd2fbf68f2b1ae58e
+  EOO
+}
+
+: repositories
+:
+{
+  : list
+  :
+  $* --repositories $rep/testing >>"EOO"
+  prerequisite build2.org/foo/testing ($rep_root/foo/testing)
+  complement build2.org/rep-info/stable ($rep/stable)
+  EOO
+
+  : manifest
+  :
+  $* --repositories --manifest $rep/testing >>EOO
+  : 1
+  location: ../../foo/testing
+  :
+  location: ../stable
+  role: complement
+  :
+  EOO
+}
+
+: cert
+:
+{
+  test.arguments += $rep/signed
+
+  $* --cert-fingerprint  >"$cert_fp"        : fingerprint
+  $* --cert-name         >'name:build2.org' : name
+  $* --cert-organization >'Code Synthesis'  : organization
+  $* --cert-email        >'info@build2.org' : email
+}

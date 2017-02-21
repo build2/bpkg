@@ -1,0 +1,75 @@
+# file      : tests/cfg-create.test
+# copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
+# license   : MIT; see accompanying LICENSE file
+
+.include common.test
+
+pkg_status += -d cfg
+
+: non-empty
+:
+$* 2>>/~%EOE% != 0
+error: directory ./ is not empty
+  info: use --wipe to clean it up but be careful
+EOE
+
+: dir
+:
+{
+  test.arguments += -d cfg
+  test.cleanups  += &cfg/***
+
+  : no-vars-mods
+  :
+  {
+    $* 2>>/~%EOE%;
+      %created new configuration in .+/cfg/%
+      EOE
+
+    $pkg_status libfoo >'unknown'
+  }
+
+  : conf-var
+  :
+  {
+    $* "config.install.root=$~/opt" 2>>/~%EOE%;
+      %created new configuration in .+/cfg/%
+      EOE
+
+    $pkg_status libfoo >'unknown';
+
+    cat cfg/build/config.build >>/~"%EOO%"
+      %.+
+      %config.install.root = '?.+/opt/'?%
+      %.+
+      EOO
+  }
+
+  : module
+  :
+  {
+    $* cxx "config.cxx=$config.cxx" 2>>/~%EOE%;
+      %created new configuration in .+/cfg/%
+      EOE
+
+    $pkg_status libfoo >'unknown';
+
+    cat cfg/build/config.build >>/~"%EOO%"
+      %.+
+      %config.cxx = .+%
+      %.+
+      EOO
+  }
+
+  : wipe
+  :
+  {
+    mkdir -p cfg/foo/bar &!cfg/ &!cfg/foo/ &!cfg/foo/bar/;
+
+    $* --wipe 2>>/~%EOE%;
+      %created new configuration in .+/cfg/%
+      EOE
+
+    $pkg_status libfoo >'unknown'
+  }
+}

@@ -1,0 +1,12 @@
+# file      : tests/buildfile
+# copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
+# license   : MIT; see accompanying LICENSE file
+
+define common: file
+common{*}: extension = test
+
+# The common/ directory contains repositories that are reused, being symlinked
+# in source repositories specific for testscripts.
+#
+./: test{* -common -config -auth -remote} common{common config auth remote} \
+    {*/ -build/ -test/}{**} $bpkg

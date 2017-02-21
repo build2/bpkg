@@ -1,0 +1,182 @@
+# file      : tests/pkg-purge.test
+# copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
+# license   : MIT; see accompanying LICENSE file
+
+.include common.test config.test
+
+# Source repository:
+#
+# pkg-purge
+# |-- libfoo-1.0.0.tar.gz
+# `-- libfoo-1.1.0 ->
+#     |-- build
+#     |   `-- bootstrap.build
+#     |-- buildfile
+#     `-- manifest
+
+pkg_fetch  += -d cfg 2>-
+pkg_unpack += -d cfg 2>-
+pkg_status += -d cfg
+
+: no-name
+:
+$clone_cfg;
+$* 2>>EOE != 0
+  error: package name argument expected
+    info: run 'bpkg help pkg-purge' for more information
+  EOE
+
+: no-package
+:
+$clone_cfg;
+$* libfoo 2>>/EOE != 0
+  error: package libfoo does not exist in configuration cfg/
+  EOE
+
+: fetched
+:
+{
+  $clone_cfg && $pkg_fetch -e $src/libfoo-1.0.0.tar.gz;
+
+  $*          libfoo 2>'purged libfoo/1.0.0';
+  $pkg_status libfoo 1>'unknown'
+}
+
+: keep
+:
+{
+  $clone_cfg && $pkg_fetch -e $src/libfoo-1.0.0.tar.gz;
+
+  $*       -k libfoo 2>'keeping archive libfoo/1.0.0';
+  $pkg_status libfoo 1>'fetched 1.0.0';
+  $*          libfoo 2>'purged libfoo/1.0.0'
+}
+
+: purge-archive
+:
+{
+  $clone_cfg;
+  cp $src/libfoo-1.0.0.tar.gz cfg/ &!cfg/libfoo-1.0.0.tar.gz;
+  $pkg_fetch -e -p cfg/libfoo-1.0.0.tar.gz;
+
+  $*          libfoo              2>'purged libfoo/1.0.0';
+  $pkg_status libfoo              1>'unknown';
+  test -f cfg/libfoo-1.0.0.tar.gz == 1
+}
+
+: no-archive-keep
+:
+{
+  $clone_cfg && $pkg_unpack -e $src/libfoo-1.1.0;
+
+  $* --keep libfoo 2>>EOE != 0;
+    error: package libfoo has no archive to keep
+    EOE
+
+  $pkg_status libfoo 1>'unpacked 1.1.0';
+  $*          libfoo 2>'purged libfoo/1.1.0'
+}
+
+: unpacked-dir
+:
+{
+  $clone_cfg && $pkg_unpack -e $src/libfoo-1.1.0;
+
+  $*          libfoo 2>'purged libfoo/1.1.0';
+  $pkg_status libfoo 1>'unknown'
+}
+
+: unpacked-archive
+:
+{
+  $clone_cfg;
+  $pkg_fetch -e $src/libfoo-1.0.0.tar.gz && $pkg_unpack libfoo;
+
+  $*          libfoo       2>'purged libfoo/1.0.0';
+  $pkg_status libfoo       1>'unknown';
+  test -d cfg/libfoo-1.0.0 == 1
+}
+
+: keep-unpacked-archive
+:
+{
+  $clone_cfg;
+  $pkg_fetch -e $src/libfoo-1.0.0.tar.gz && $pkg_unpack libfoo;
+
+  $*          --keep libfoo       2>'keeping archive libfoo/1.0.0';
+  $pkg_status        libfoo       1>'fetched 1.0.0';
+  test        -d cfg/libfoo-1.0.0 == 1;
+  $*                 libfoo       2>'purged libfoo/1.0.0';
+  $pkg_status        libfoo       1>'unknown'
+}
+
+: purge-dir
+:
+{
+  $clone_cfg;
+
+  # @@ Use --no-cleanup for cp builtin when implemented.
+  #
+  d = &!cfg/libfoo-1.1.0/;
+  c = $d/ $d/build/ $d/build/bootstrap.build $d/buildfile $d/manifest;
+  cp -r $src/libfoo-1.1.0 cfg/ $c;
+
+  $pkg_unpack -e -p cfg/libfoo-1.1.0;
+
+  $*          libfoo       2>'purged libfoo/1.1.0';
+  $pkg_status libfoo       1>'unknown';
+  test -d cfg/libfoo-1.1.0 == 1
+}
+
+: purge-unpacked-archive
+:
+{
+  $clone_cfg;
+  cp $src/libfoo-1.0.0.tar.gz cfg/ &!cfg/libfoo-1.0.0.tar.gz;
+  $pkg_fetch -e -p cfg/libfoo-1.0.0.tar.gz && $pkg_unpack libfoo;
+
+  $*          libfoo              2>'purged libfoo/1.0.0';
+  $pkg_status libfoo              1>'unknown';
+  test -d cfg/libfoo-1.0.0        == 1;
+  test -f cfg/libfoo-1.0.0.tar.gz == 1
+}
+
+: broken
+:
+if ($cxx.target.class != 'windows')
+{
+  $clone_cfg;
+  cp $src/libfoo-1.0.0.tar.gz cfg/ &!cfg/libfoo-1.0.0.tar.gz;
+  $pkg_fetch -e -p cfg/libfoo-1.0.0.tar.gz;
+  $pkg_unpack libfoo;
+  chmod 000 cfg/libfoo-1.0.0;
+
+  $* libfoo 2>>/~%EOE% != 0;
+    %error: unable to remove directory cfg/libfoo-1.0.0/.+%
+    info: package libfoo is now broken; use 'pkg-purge --force' to remove
+    EOE
+
+  $pkg_status libfoo/1.0.0 >'broken';
+
+  $* -f -k libfoo 2>'error: cannot keep broken package libfoo' != 0;
+  $pkg_status libfoo/1.0.0 >'broken';
+
+  $* -f libfoo 2>>/EOE != 0;
+    error: source directory of broken package libfoo still exists
+      info: remove cfg/libfoo-1.0.0/ manually then re-run pkg-purge
+    EOE
+
+  $pkg_status libfoo/1.0.0 >'broken';
+
+  chmod 755 cfg/libfoo-1.0.0;
+  rm -r cfg/libfoo-1.0.0;
+
+  $* -f libfoo 2>>/EOE != 0;
+    error: archive file of broken package libfoo still exists
+      info: remove cfg/libfoo-1.0.0.tar.gz manually then re-run pkg-purge
+    EOE
+
+  rm cfg/libfoo-1.0.0.tar.gz;
+  $* -f libfoo 2>'purged libfoo/1.0.0';
+  $pkg_status libfoo >'unknown'
+}

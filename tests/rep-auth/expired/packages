@@ -1,0 +1,11 @@
+: 1
+sha256sum: dbeea68d374f6ca66b5f65652e26a0d8324d3fe118341ac470c07214ceb34b60
+:
+name: foo
+version: 1
+summary: The "Foo" utility
+license: MIT
+url: http://www.example.org/foo
+email: foo-users@example.org
+location: foo-1.tar.gz
+sha256sum: fee330a362a4f87ff42a954aa305b6446d541b7b60000ebcd2fbf68f2b1ae58e

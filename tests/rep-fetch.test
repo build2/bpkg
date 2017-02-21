@@ -1,0 +1,134 @@
+# file      : tests/rep-fetch.test
+# copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
+# license   : MIT; see accompanying LICENSE file
+
+.include common.test auth.test config.test remote.test
+
+# Source repository:
+#
+# rep-fetch
+# |-- bar
+# |   |-- stable                  -> ../foo/stable (prerequisite)
+# |   |   |-- libbar-1.0.0.tar.gz -> libfoo >= 1.0.0
+# |   |   `-- repositories
+# |   |-- testing                 -> stable (complement),
+# |   |   |                          ../foo/testing (prerequisite)
+# |   |   |-- libbar-1.1.0.tar.gz -> libfoo >= 1.1.0
+# |   |   `-- repositories
+# |   `-- unstable                -> testing (complement),
+# |       |                          ../foo/testing (prerequisite)
+# |       |-- libbar-1.1.1.tar.gz  -> libfoo >= 1.1.0
+# |       `-- repositories
+# |-- foo
+# |   |-- stable
+# |   |   |-- libfoo-1.0.0.tar.gz
+# |   |   `-- repositories
+# |   `-- testing                 -> stable (complement)
+# |       |-- libfoo-1.1.0.tar.gz
+# |       `-- repositories
+# `-- hello
+#     |-- libhello-1.0.0.tar.gz
+#     `-- repositories
+
+# Prepare repositories used by tests if running in the local mode.
+#
++if ($remote != true)
+  rep_create += 2>-
+
+  # Create the signed 'hello' repository.
+  #
+  cp -r $src/hello $out/hello
+  cat <<<$cert_manifest >+$out/hello/repositories
+  $rep_create --key $key $out/hello &$out/hello/packages &$out/hello/signature
+
+  # Create 'foo/*' repositories.
+  #
+  cp -r $src/foo $out/foo
+  $rep_create $out/foo/stable  &$out/foo/stable/packages
+  $rep_create $out/foo/testing &$out/foo/testing/packages
+
+  # Create 'bar/*' repositories.
+  #
+  cp -r $src/bar $out/bar
+  $rep_create $out/bar/stable   &$out/bar/stable/packages
+  $rep_create $out/bar/testing  &$out/bar/testing/packages
+  $rep_create $out/bar/unstable &$out/bar/unstable/packages
+end
+
+test.options += --auth all
+
+rep_add += -d cfg 2>-
+
+: no-repositories
+:
+$clone_cfg;
+$* 2>>/EOE != 0
+  error: configuration cfg/ has no repositories
+    info: use 'bpkg rep-add' to add a repository
+  EOE
+
+: hello
+:
+{
+  $clone_cfg && $rep_add $rep/hello;
+
+  $* --trust $cert_fp 2>>EOE &cfg/.bpkg/certs/***;
+    fetching build2.org/rep-fetch/hello
+    1 package(s) in 1 repository(s)
+    EOE
+
+  $* 2>>EOE
+    fetching build2.org/rep-fetch/hello
+    1 package(s) in 1 repository(s)
+    EOE
+}
+
+: bar-unstable
+:
+{
+  $clone_cfg && $rep_add $rep/bar/unstable;
+
+  $* --trust-yes 2>>EOE;
+    fetching build2.org/rep-fetch/bar/unstable
+    fetching build2.org/rep-fetch/foo/testing (prerequisite of build2.org/rep-fetch/bar/unstable)
+    fetching build2.org/rep-fetch/foo/stable (complements build2.org/rep-fetch/foo/testing)
+    fetching build2.org/rep-fetch/bar/testing (complements build2.org/rep-fetch/bar/unstable)
+    fetching build2.org/rep-fetch/bar/stable (complements build2.org/rep-fetch/bar/testing)
+    5 package(s) in 5 repository(s)
+    EOE
+
+  $* 2>>EOE
+    fetching build2.org/rep-fetch/bar/unstable
+    fetching build2.org/rep-fetch/foo/testing (prerequisite of build2.org/rep-fetch/bar/unstable)
+    fetching build2.org/rep-fetch/foo/stable (complements build2.org/rep-fetch/foo/testing)
+    fetching build2.org/rep-fetch/bar/testing (complements build2.org/rep-fetch/bar/unstable)
+    fetching build2.org/rep-fetch/bar/stable (complements build2.org/rep-fetch/bar/testing)
+    5 package(s) in 5 repository(s)
+    EOE
+}
+
+: both
+:
+{
+  $clone_cfg && $rep_add $rep/hello && $rep_add $rep/bar/unstable;
+
+  $* --trust-yes 2>>EOE &cfg/.bpkg/certs/***;
+    fetching build2.org/rep-fetch/bar/unstable
+    fetching build2.org/rep-fetch/foo/testing (prerequisite of build2.org/rep-fetch/bar/unstable)
+    fetching build2.org/rep-fetch/foo/stable (complements build2.org/rep-fetch/foo/testing)
+    fetching build2.org/rep-fetch/bar/testing (complements build2.org/rep-fetch/bar/unstable)
+    fetching build2.org/rep-fetch/bar/stable (complements build2.org/rep-fetch/bar/testing)
+    fetching build2.org/rep-fetch/hello
+    6 package(s) in 6 repository(s)
+    EOE
+
+  $* 2>>EOE
+    fetching build2.org/rep-fetch/bar/unstable
+    fetching build2.org/rep-fetch/foo/testing (prerequisite of build2.org/rep-fetch/bar/unstable)
+    fetching build2.org/rep-fetch/foo/stable (complements build2.org/rep-fetch/foo/testing)
+    fetching build2.org/rep-fetch/bar/testing (complements build2.org/rep-fetch/bar/unstable)
+    fetching build2.org/rep-fetch/bar/stable (complements build2.org/rep-fetch/bar/testing)
+    fetching build2.org/rep-fetch/hello
+    6 package(s) in 6 repository(s)
+    EOE
+}

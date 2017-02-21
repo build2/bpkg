@@ -1,0 +1,59 @@
+# file      : tests/pkg-verify.test
+# copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
+# license   : MIT; see accompanying LICENSE file
+
+.include common.test
+
+# Source repository:
+#
+# pkg-verify
+# |-- foo-1.tar.gz
+# |-- foo-2.tar.gz         (manifest with unknown name)
+# `-- not-a-package.tar.gz
+
+: valid-package
+:
+$* $src/foo-1.tar.gz 2>'valid package foo 1'
+
+: no-package
+:
+$* 2>>EOE != 0
+error: archive path argument expected
+  info: run 'bpkg help pkg-verify' for more information
+EOE
+
+: not-a-package
+:
+{
+  : verbose
+  :
+  $* $src/not-a-package.tar.gz 2>>/~%EOE% != 0
+  %.+
+  %error: .+/not-a-package.tar.gz does not appear to be a bpkg package%
+  EOE
+
+  : silent
+  :
+  $* --silent $src/not-a-package.tar.gz != 0
+}
+
+: unknown-name
+:
+: Test that package manifest that contains an unknown name is properly handled.
+:
+{
+  : verbose
+  :
+  $* $src/foo-2.tar.gz 2>>/~%EOE% != 0
+  foo-2/manifest:8:1: error: unknown name 'color' in package manifest
+  %  info: package archive .+/foo-2.tar.gz%
+  EOE
+
+  : silent
+  :
+  $* --silent $src/foo-2.tar.gz != 0
+
+  : ignore
+  :
+  $* --ignore-unknown $src/foo-2.tar.gz 2>'valid package foo 2'
+}

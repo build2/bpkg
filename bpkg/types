@@ -90,12 +90,14 @@ namespace bpkg
 //
 namespace std
 {
-  // Custom path printing (with trailing slash for directories).
+  // Custom path printing (canonicalized, with trailing slash for directories).
   //
   inline ostream&
   operator<< (ostream& os, const ::butl::path& p)
   {
-    return os << p.representation ();
+    string r (p.representation ());
+    ::butl::path::traits::canonicalize (r);
+    return os << r;
   }
 }
 

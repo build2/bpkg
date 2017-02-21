@@ -1,0 +1,27 @@
+# file      : tests/config.test
+# copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
+# license   : MIT; see accompanying LICENSE file
+
+# Create an empty configuration that will be copied by subsequent tests and
+# scopes setup commands. The common approach will be that group scopes copy and
+# modify the parent scope configuration as required by the nested tests and
+# scopes. Tests will also clone the parent scope configuration to optionally
+# modify it, use and cleanup at the end. Note that configuration can not be
+# shared between multiple bpkg processes. Also we need to make sure that
+# configurations are not cloned while being used by bpkg.
+#
++$cfg_create -d cfg 2>- &cfg/***
+
+# The most commonly used configuration cloning command that copies it from the
+# parent scope working directory.
+#
+clone_cfg = cp -r ../cfg ./
+
+# Clones the original (presumably empty) configuration from the root scope
+# working directory.
+#
+clone_root_cfg = cp -r $~/cfg ./
+
+# Setup a test command to use a cloned configuration directory by default.
+#
+test.arguments += -d cfg

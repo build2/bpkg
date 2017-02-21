@@ -1,0 +1,200 @@
+# file      : tests/pkg-fetch.test
+# copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
+# license   : MIT; see accompanying LICENSE file
+
+.include common.test auth.test config.test remote.test
+
+# Source repository:
+#
+# pkg-fetch
+# |-- hello
+# |   |-- libhello-1.0.0.tar.gz
+# |   `-- repositories
+# `-- t1
+#     |-- libfoo-1.0.0.tar.gz
+#     |-- libfoo-1.1.0.tar.gz
+#     `-- repositories
+
+# Prepare repositories used by tests if running in the local mode.
+#
++if ($remote != true)
+  rep_create += 2>-
+
+  # Create the signed 'hello' repository.
+  #
+  cp -r $src/hello $out/hello
+  cat <<<$cert_manifest >+$out/hello/repositories
+  $rep_create --key $key $out/hello &$out/hello/packages &$out/hello/signature
+
+  # Create the 't1' repository.
+  #
+  cp -r $src/t1 $out/t1 && $rep_create $out/t1 &$out/t1/packages
+end
+
+pkg_purge  += -d cfg
+pkg_status += -d cfg
+pkg_unpack += -d cfg
+rep_add    += -d cfg 2>-
+rep_fetch  += -d cfg --auth all 2>-
+
+: no-archive
+:
+$clone_cfg;
+$* -e 2>>EOE != 0
+  error: archive path argument expected
+    info: run 'bpkg help pkg-fetch' for more information
+  EOE
+
+: archive-not-exist
+:
+$clone_cfg;
+$* -e ./no-such-file 2>>/EOE != 0
+  error: archive file './no-such-file' does not exist
+  EOE
+
+: no-name
+:
+$clone_cfg;
+$* 2>>EOE != 0
+  error: package name/version argument expected
+    info: run 'bpkg help pkg-fetch' for more information
+  EOE
+
+: no-version
+:
+$clone_cfg;
+$* libfoo 2>>EOE != 0
+  error: package version expected
+    info: run 'bpkg help pkg-fetch' for more information
+  EOE
+
+: invalid-version
+:
+$clone_cfg;
+$* libfoo/1/2/3 2>>EOE != 0
+  error: invalid package version '1/2/3': alpha-numeric characters expected in a component
+  EOE
+
+: no-repositories
+:
+$clone_cfg;
+$* libfoo/1.0.0 2>>/EOE != 0
+  error: configuration cfg/ has no repositories
+    info: use 'bpkg rep-add' to add a repository
+  EOE
+
+: no-packages
+:
+{
+  $clone_cfg && $rep_add $rep/t1;
+
+  $* libfoo/1.0.0 2>>/EOE != 0
+    error: configuration cfg/ has no available packages
+      info: use 'bpkg rep-fetch' to fetch available packages list
+    EOE
+}
+
+# Note that when we fetch a package from remote repository the bpkg stderr
+# contains fetch program progress output, that comes prior the informational
+# message.
+#
+
+: fetched-rep
+:
+{
+  +$clone_cfg && $rep_add $rep/t1 && $rep_fetch --trust-yes
+
+  : package-not-available
+  :
+  $clone_cfg;
+  $* libfoo/2.0.0+1 2>>/EOE != 0
+    error: package libfoo 2.0.0+1 is not available
+    EOE
+
+  : package-available
+  :
+  {
+    $clone_cfg;
+
+    $* libfoo/1.0.0 2>>~%EOE%;
+      %.*
+      %.*fetched libfoo/1.0.0%
+      EOE
+
+    $pkg_status libfoo/1.0.0 1>'fetched; available';
+
+    $* libfoo/1.0.0 2>>/EOE != 0;
+      error: package libfoo already exists in configuration cfg/
+        info: version: 1.0.0, state: fetched, substate: none
+        info: use 'pkg-fetch --replace|-r' to replace
+      EOE
+
+    $* -e $src/t1/libfoo-1.0.0.tar.gz 2>>/EOE != 0;
+      error: package libfoo already exists in configuration cfg/
+        info: version: 1.0.0, state: fetched, substate: none
+        info: use 'pkg-fetch --replace|-r' to replace
+      EOE
+
+    $pkg_purge libfoo 2>'purged libfoo/1.0.0'
+  }
+
+  : package-replace
+  :
+  {
+    $clone_cfg;
+
+    $* -e $src/t1/libfoo-1.0.0.tar.gz 2>'fetched libfoo/1.0.0';
+    $pkg_status   libfoo/1.0.0        1>'fetched; available';
+    $pkg_unpack   libfoo              2>'unpacked libfoo/1.0.0';
+
+    test.arguments += --replace; # Replace existing package.
+
+    $* libfoo/1.1.0 2>>~%EOE%;
+      %.*
+      %.*fetched libfoo/1.1.0%
+      EOE
+
+    $pkg_status   libfoo/1.1.0        1>'fetched; available';
+    $pkg_unpack   libfoo              2>'unpacked libfoo/1.1.0';
+    $* -e $src/t1/libfoo-1.0.0.tar.gz 2>'fetched libfoo/1.0.0';
+    $pkg_status   libfoo/1.0.0        1>'fetched; available';
+
+    $* libfoo/1.1.0 2>>~%EOE%;
+      %.*
+      %.*fetched libfoo/1.1.0%
+      EOE
+
+    $pkg_status   libfoo/1.1.0        1>'fetched; available';
+    $* -e $src/t1/libfoo-1.0.0.tar.gz 2>'fetched libfoo/1.0.0';
+    $pkg_status   libfoo/1.0.0        1>'fetched; available';
+
+    $pkg_purge libfoo 2>'purged libfoo/1.0.0'
+  }
+
+  : purge-existing
+  :
+  {
+    $clone_cfg;
+    cp $src/t1/libfoo-1.0.0.tar.gz ./ &!libfoo-1.0.0.tar.gz;
+
+    $* -p -e libfoo-1.0.0.tar.gz 2>'fetched libfoo/1.0.0';
+
+    $pkg_purge libfoo 2>'purged libfoo/1.0.0'
+  }
+}
+
+: hello
+:
+{
+  $clone_cfg;
+  $rep_add $rep/hello && $rep_fetch --trust $cert_fp &cfg/.bpkg/certs/***;
+
+  $* libhello/1.0.0 2>>~%EOE%;
+    %.*
+    %.*fetched libhello/1.0.0%
+    EOE
+
+  $pkg_status libhello/1.0.0 1>'fetched; available';
+
+  $pkg_purge libhello 2>'purged libhello/1.0.0'
+}
