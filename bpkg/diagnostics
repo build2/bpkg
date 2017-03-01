@@ -210,7 +210,11 @@ namespace bpkg
         : basic_mark_base (type,
                            nullptr,
                            data,
-                           [](const diag_record&) {throw failed ();}) {}
+                           [](const diag_record& r)
+                           {
+                             r.flush ();
+                             throw failed ();
+                           }) {}
   };
 
   using fail_mark = butl::diag_mark<fail_mark_base>;
