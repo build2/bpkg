@@ -63,51 +63,51 @@ elif ($cxx.id == "icc")
 
 obj{utility}: cxx.poptions += -DBPKG_EXE_SUFFIX='"'$bin.exe.suffix'"'
 
-# General topics and common options.
-#
-{hxx ixx cxx}{common-options}:        cli{common}
-{hxx ixx cxx}{configuration-options}: cli{configuration}
-{hxx ixx cxx}{bpkg-options}:          cli{bpkg}
-
-# Help command.
-#
-{hxx ixx cxx}{help-options}: cli{help}
-
-# pkg-* command.
-#
-{hxx ixx cxx}{pkg-build-options}:     cli{pkg-build}
-{hxx ixx cxx}{pkg-clean-options}:     cli{pkg-clean}
-{hxx ixx cxx}{pkg-configure-options}: cli{pkg-configure}
-{hxx ixx cxx}{pkg-disfigure-options}: cli{pkg-disfigure}
-{hxx ixx cxx}{pkg-drop-options}:      cli{pkg-drop}
-{hxx ixx cxx}{pkg-fetch-options}:     cli{pkg-fetch}
-{hxx ixx cxx}{pkg-install-options}:   cli{pkg-install}
-{hxx ixx cxx}{pkg-purge-options}:     cli{pkg-purge}
-{hxx ixx cxx}{pkg-test-options}:      cli{pkg-test}
-{hxx ixx cxx}{pkg-status-options}:    cli{pkg-status}
-{hxx ixx cxx}{pkg-uninstall-options}: cli{pkg-uninstall}
-{hxx ixx cxx}{pkg-unpack-options}:    cli{pkg-unpack}
-{hxx ixx cxx}{pkg-update-options}:    cli{pkg-update}
-{hxx ixx cxx}{pkg-verify-options}:    cli{pkg-verify}
-
-# cfg-* command.
-#
-{hxx ixx cxx}{cfg-create-options}: cli{cfg-create}
-
-# rep-* command.
-#
-{hxx ixx cxx}{rep-add-options}:    cli{rep-add}
-{hxx ixx cxx}{rep-fetch-options}:  cli{rep-fetch}
-{hxx ixx cxx}{rep-info-options}:   cli{rep-info}
-{hxx ixx cxx}{rep-create-options}: cli{rep-create}
-
-# Help topics.
-#
-{hxx cxx}{repository-signing}: cli{repository-signing}
-{hxx cxx}{repository-signing}: dist = true
-
 if $cli.configured
 {
+  # General topics and common options.
+  #
+  cli.cxx{common-options}:        cli{common}
+  cli.cxx{configuration-options}: cli{configuration}
+  cli.cxx{bpkg-options}:          cli{bpkg}
+
+  # Help command.
+  #
+  cli.cxx{help-options}: cli{help}
+
+  # pkg-* command.
+  #
+  cli.cxx{pkg-build-options}:     cli{pkg-build}
+  cli.cxx{pkg-clean-options}:     cli{pkg-clean}
+  cli.cxx{pkg-configure-options}: cli{pkg-configure}
+  cli.cxx{pkg-disfigure-options}: cli{pkg-disfigure}
+  cli.cxx{pkg-drop-options}:      cli{pkg-drop}
+  cli.cxx{pkg-fetch-options}:     cli{pkg-fetch}
+  cli.cxx{pkg-install-options}:   cli{pkg-install}
+  cli.cxx{pkg-purge-options}:     cli{pkg-purge}
+  cli.cxx{pkg-test-options}:      cli{pkg-test}
+  cli.cxx{pkg-status-options}:    cli{pkg-status}
+  cli.cxx{pkg-uninstall-options}: cli{pkg-uninstall}
+  cli.cxx{pkg-unpack-options}:    cli{pkg-unpack}
+  cli.cxx{pkg-update-options}:    cli{pkg-update}
+  cli.cxx{pkg-verify-options}:    cli{pkg-verify}
+
+  # cfg-* command.
+  #
+  cli.cxx{cfg-create-options}: cli{cfg-create}
+
+  # rep-* command.
+  #
+  cli.cxx{rep-add-options}:    cli{rep-add}
+  cli.cxx{rep-fetch-options}:  cli{rep-fetch}
+  cli.cxx{rep-info-options}:   cli{rep-info}
+  cli.cxx{rep-create-options}: cli{rep-create}
+
+  # Help topics.
+  #
+  {hxx cxx}{repository-signing}: cli{repository-signing}
+  {hxx cxx}{repository-signing}: dist = true
+
   # Option length must be the same to get commands/topics/options aligned.
   #
   cli.options += -I $src_root --include-with-brackets --include-prefix bpkg \
@@ -124,10 +124,8 @@ if $cli.configured
   # Avoid generating CLI runtime and empty inline file for help topics.
   #
   cli.cxx{repository-signing}: cli.options += --suppress-cli --suppress-inline
-}
 
-# Include generated cli files into the distribution.
-#
-hxx{*-options}: dist = true
-ixx{*-options}: dist = true
-cxx{*-options}: dist = true
+  # Include generated cli files into the distribution.
+  #
+  cli.cxx{*}: dist = true
+}
