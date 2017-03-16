@@ -18,7 +18,7 @@
 # Prepare repositories used by tests if running in the local mode.
 #
 +if ($remote != true)
-  rep_create += 2>-
+  rep_create += 2>!
 
   # Create the signed 'hello' repository.
   #
@@ -34,8 +34,8 @@ end
 pkg_purge  += -d cfg
 pkg_status += -d cfg
 pkg_unpack += -d cfg
-rep_add    += -d cfg 2>-
-rep_fetch  += -d cfg --auth all 2>-
+rep_add    += -d cfg 2>!
+rep_fetch  += -d cfg --auth all 2>!
 
 : no-archive
 :

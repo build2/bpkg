@@ -33,7 +33,7 @@
 # Prepare repositories used by tests if running in the local mode.
 #
 +if ($remote != true)
-  rep_create += 2>-
+  rep_create += 2>!
 
   # Create the signed 'hello' repository.
   #
@@ -57,7 +57,7 @@ end
 
 test.options += --auth all
 
-rep_add += -d cfg 2>-
+rep_add += -d cfg 2>!
 
 : no-repositories
 :

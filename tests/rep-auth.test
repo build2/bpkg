@@ -25,7 +25,7 @@
 # Prepare repositories used by tests if running in the local mode.
 #
 +if ($remote != true)
-  rc = $rep_create 2>-
+  rc = $rep_create 2>!
 
   # Create the 'unsigned1' repository.
   #
@@ -82,7 +82,7 @@
 end
 
 pkg_status += -d cfg
-rep_add    += -d cfg 2>-
+rep_add    += -d cfg 2>!
 rep_fetch  += -d cfg
 
 # Check if rep-fetch command was successfull or not.
@@ -101,7 +101,7 @@ sc = " " # Space character to append to here-document line when required.
   +mkdir 1/
   +cp -r $src/unsigned $r
   +cat <<<$cert_manifest >+$r/repositories
-  +$rep_create --key $key $r &$r/packages &$r/signature 2>-
+  +$rep_create --key $key $r &$r/packages &$r/signature 2>!
 
   : rep-fetch
   :

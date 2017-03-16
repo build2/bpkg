@@ -25,7 +25,7 @@
 # Prepare repositories used by tests if running in the local mode.
 #
 +if ($remote != true)
-  c = $rep_create 2>-
+  c = $rep_create 2>!
 
   cp -r $src/extra    $out/extra    && $c $out/extra    &$out/extra/packages
   cp -r $src/stable   $out/stable   && $c $out/stable   &$out/stable/packages
@@ -33,10 +33,10 @@
   cp -r $src/unstable $out/unstable && $c $out/unstable &$out/unstable/packages
 end
 
-pkg_fetch  += 2>-
-pkg_purge  += -d cfg 2>-
-rep_add    += -d cfg 2>-
-rep_fetch  += -d cfg --auth all --trust-yes 2>-
+pkg_fetch  += 2>!
+pkg_purge  += -d cfg 2>!
+rep_add    += -d cfg 2>!
+rep_fetch  += -d cfg --auth all --trust-yes 2>!
 
 : basics
 :

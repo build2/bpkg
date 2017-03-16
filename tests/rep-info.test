@@ -14,7 +14,7 @@
 # Prepare repositories used by tests if running in the local mode.
 #
 +if ($remote != true)
-  rc = $rep_create 2>-
+  rc = $rep_create 2>!
 
   # Create the unsigned 'testing' repository.
   #

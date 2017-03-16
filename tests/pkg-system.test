@@ -34,7 +34,7 @@
 # Prepare repositories used by tests if running in the local mode.
 #
 +if ($remote != true)
-  rep_create += 2>-
+  rep_create += 2>!
 
   cp -r $src/t1 $out/t1 && $rep_create $out/t1 &$out/t1/packages
   cp -r $src/t2 $out/t2 && $rep_create $out/t2 &$out/t2/packages
@@ -42,10 +42,10 @@
 end
 
 pkg_build  += -d cfg --yes
-pkg_drop   += -d cfg --yes 2>-
+pkg_drop   += -d cfg --yes 2>!
 pkg_status += -d cfg
-rep_add    += -d cfg 2>-
-rep_fetch  += -d cfg --auth all --trust-yes 2>-
+rep_add    += -d cfg 2>!
+rep_fetch  += -d cfg --auth all --trust-yes 2>!
 
 # Note that when we fetch a package from remote repository the bpkg stderr
 # contains fetch program progress output, that comes prior the informational

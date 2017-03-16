@@ -25,7 +25,7 @@
 # Prepare repositories used by tests if running in the local mode.
 #
 +if ($remote != true)
-  rep_create += 2>-
+  rep_create += 2>!
 
   cp -r $src/t4a $out/t4a && $rep_create $out/t4a &$out/t4a/packages
   cp -r $src/t4b $out/t4b && $rep_create $out/t4b &$out/t4b/packages
@@ -33,10 +33,10 @@
   cp -r $src/t4d $out/t4d && $rep_create $out/t4d &$out/t4d/packages
 end
 
-pkg_build  += -d cfg --yes 2>-
+pkg_build  += -d cfg --yes 2>!
 pkg_status += -d cfg
-rep_add    += -d cfg 2>-
-rep_fetch  += -d cfg --auth all --trust-yes 2>-
+rep_add    += -d cfg 2>!
+rep_fetch  += -d cfg --auth all --trust-yes 2>!
 
 : no-name
 :

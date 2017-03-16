@@ -37,7 +37,7 @@
 # Prepare repositories used by tests if running in the local mode.
 #
 +if ($remote != true)
-  rep_create += 2>-
+  rep_create += 2>!
 
   # Create the signed 'hello' repository.
   #
@@ -46,13 +46,13 @@
   $rep_create --key $key $out/hello &$out/hello/packages &$out/hello/signature
 end
 
-pkg_configure += -d cfg "config.cxx=$config.cxx" 2>-
+pkg_configure += -d cfg "config.cxx=$config.cxx" 2>!
 pkg_disfigure += -d cfg
-pkg_fetch     += -d cfg 2>-
+pkg_fetch     += -d cfg 2>!
 pkg_purge     += -d cfg
-pkg_unpack    += -d cfg 2>-
-rep_add       += -d cfg 2>-
-rep_fetch     += -d cfg --auth all 2>-
+pkg_unpack    += -d cfg 2>!
+rep_add       += -d cfg 2>!
+rep_fetch     += -d cfg --auth all 2>!
 
 # Sometimes we need to run underlying build update operation with -j 1 options
 # to have an output that we can match reliably.
