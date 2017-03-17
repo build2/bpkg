@@ -27,8 +27,8 @@ namespace bpkg
     dir_path c (o.directory ());
     l4 ([&]{trace << "creating configuration in " << c;});
 
-    // If the directory already exists, make sure it is empty.
-    // Otherwise, create it.
+    // If the directory already exists, make sure it is empty. Otherwise
+    // create it.
     //
     if (exists (c))
     {
@@ -53,7 +53,7 @@ namespace bpkg
 
     // Sort arguments into modules and configuration variables.
     //
-    strings mods;
+    string mods;  // build2 create meta-operation parameters.
     strings vars;
 
     while (args.more ())
@@ -66,104 +66,22 @@ namespace bpkg
       }
       else if (!a.empty ())
       {
-        // Append .config unless the module name ends with '.', in which case
-        // strip it.
-        //
-        if (a.back () != '.')
-          a += ".config";
-        else
-          a.pop_back ();
-
-        mods.push_back (move (a));
+        mods += mods.empty () ? ", " : " ";
+        mods += a;
       }
       else
         fail << "empty string as argument";
     }
 
-    // Create build/.
-    //
-    dir_path b (c / dir_path ("build"));
-    mk (b);
-
-    // Write build/bootstrap.build.
-    //
-    path f (b / path ("bootstrap.build"));
-    try
-    {
-      ofdstream ofs (f);
-
-      ofs << "# Maintained automatically by bpkg. Edit if you know what " <<
-        "you are doing." << endl
-          << "#" << endl
-          << "project =" << endl
-          << "amalgamation =" << endl
-          << endl
-          << "using config" << endl
-          << "using test" << endl
-          << "using install" << endl;
-
-      ofs.close ();
-    }
-    catch (const io_error& e)
-    {
-      fail << "unable to write to " << f << ": " << e;
-    }
-
-    // Write build/root.build.
-    //
-    f = b / path ("root.build");
-    try
-    {
-      ofdstream ofs (f);
-
-      ofs << "# Maintained automatically by bpkg. Edit if you know what " <<
-        "you are doing." << endl
-          << "#" << endl;
-
-      // Load user-supplied modules. We don't really know whether they must
-      // be loaded in bootstrap.
-      //
-      for (const string& m: mods)
-      {
-        // If the module name start with '?', then use optional load.
-        //
-        if (m.front () != '?')
-          ofs << "using " << m << endl;
-        else
-          ofs << "using? " << m.c_str () + 1 << endl;
-      }
-
-      ofs.close ();
-    }
-    catch (const io_error& e)
-    {
-      fail << "unable to write to " << f << ": " << e;
-    }
-
-    // Write root buildfile.
-    //
-    f = c / path ("buildfile");
-    try
-    {
-      ofdstream ofs (f);
-
-      ofs << "# Maintained automatically by bpkg. Edit if you know what " <<
-        "you are doing." << endl
-          << "#" << endl
-          << "./:" << endl;
-
-      ofs.close ();
-    }
-    catch (const io_error& e)
-    {
-      fail << "unable to write to " << f << ": " << e;
-    }
-
-    // Configure.
+    // Create and configure.
     //
     // Run quiet. Use path representation to get canonical trailing slash.
     //
-    run_b (o, c, "configure('" + c.representation () + "')", true, vars);
+    run_b (o,
+           c,
+           "create('" + c.representation () + "'" + mods + ")",
+           true,
+           vars);
 
     // Create .bpkg/.
     //
