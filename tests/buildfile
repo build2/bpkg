@@ -5,8 +5,9 @@
 define common: file
 common{*}: extension = test
 
+commons = common config auth remote
+
 # The common/ directory contains repositories that are reused, being symlinked
 # in source repositories specific for testscripts.
 #
-./: test{* -common -config -auth -remote} common{common config auth remote} \
-    {*/ -build/ -test/}{**} $bpkg
+./: test{* -{$commons}} common{$commons} {*/ -build/ -test/}{**} $bpkg
