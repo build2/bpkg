@@ -36,7 +36,7 @@ namespace bpkg
 
      By default, \cb{bpkg} appends \cb{.config} to the names of the modules
      that you specify so that only their configurations are loaded. You can
-     override this behavior by appending the period (\cb{.})  after the module
+     override this behavior by specifying the period (\cb{.}) after the module
      name. You can also instruct \cb{bpkg} to use the optional module load by
      prefixing the module name with the question mark (\cb{?}). For example:
 
