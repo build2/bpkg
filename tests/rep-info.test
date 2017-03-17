@@ -28,7 +28,7 @@
   $rc --key $key $out/signed &$out/signed/packages &$out/signed/signature
 end
 
-test.options = --auth all --trust-yes
+test.options += --auth all --trust-yes
 
 : no-location
 :

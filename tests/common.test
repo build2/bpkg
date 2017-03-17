@@ -5,6 +5,34 @@
 # Commonly-used variables setup and driver command line.
 #
 
+# Use the same build system driver as the one running the tests (as opposed
+# to one that may or may not be found via PATH).
+#
+test.options += --build $recall($build.path)
+
+# Helper commands that can be used by tests to prepare the testing environment
+# or validate an outcome of the command being tested. They are likely to get
+# additional options and redirects appended prior to use. A common approach
+# will be to redirect output to the null device for commands that are used for
+# test setup, and to match it for commands being tested or performing teardown
+# (for example, to make sure that configuration post-test state is valid and is
+# as expected).
+#
+cfg_create    = $* cfg-create
+pkg_build     = $* pkg-build
+pkg_configure = $* pkg-configure
+pkg_disfigure = $* pkg-disfigure
+pkg_drop      = $* pkg-drop
+pkg_fetch     = $* pkg-fetch
+pkg_purge     = $* pkg-purge
+pkg_status    = $* pkg-status
+pkg_unpack    = $* pkg-unpack
+pkg_update    = $* pkg-update
+rep_add       = $* rep-add
+rep_create    = $* rep-create
+rep_fetch     = $* rep-fetch
+rep_info      = $* rep-info
+
 # All testscripts are named after bpkg commands, for example pkg-verify.test.
 # So the testscript scope id is a name of the command being tested.
 #
@@ -16,26 +44,3 @@ test.arguments = $cmd
 # completion.
 #
 src = [dir_path] "$src_base/$@"
-
-# Helper commands that can be used by tests to prepare the testing environment
-# or validate an outcome of the command being tested. They are likely to get
-# additional options and redirects appended prior to use. A common approach
-# will be to redirect output to the null device for commands that are used for
-# test setup, and to match it for commands being tested or performing teardown
-# (for example, to make sure that configuration post-test state is valid and is
-# as expected).
-#
-cfg_create    = $0 cfg-create
-pkg_build     = $0 pkg-build
-pkg_configure = $0 pkg-configure
-pkg_disfigure = $0 pkg-disfigure
-pkg_drop      = $0 pkg-drop
-pkg_fetch     = $0 pkg-fetch
-pkg_purge     = $0 pkg-purge
-pkg_status    = $0 pkg-status
-pkg_unpack    = $0 pkg-unpack
-pkg_update    = $0 pkg-update
-rep_add       = $0 rep-add
-rep_create    = $0 rep-create
-rep_fetch     = $0 rep-fetch
-rep_info      = $0 rep-info
