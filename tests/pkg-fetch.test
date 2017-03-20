@@ -175,7 +175,7 @@ $* libfoo/1.0.0 2>>/EOE != 0
   :
   {
     $clone_cfg;
-    cp $src/t1/libfoo-1.0.0.tar.gz ./ &!libfoo-1.0.0.tar.gz;
+    cp --no-cleanup $src/t1/libfoo-1.0.0.tar.gz ./;
 
     $* -p -e libfoo-1.0.0.tar.gz 2>'fetched libfoo/1.0.0';
 

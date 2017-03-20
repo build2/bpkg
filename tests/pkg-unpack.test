@@ -173,12 +173,7 @@ $* 2>>EOE != 0
   :
   {
     $clone_cfg;
-
-    # @@ Use --no-cleanup for cp builtin when implemented.
-    #
-    d = &!libfoo-1.1.0/;
-    c = $d/ $d/build/ $d/build/bootstrap.build $d/buildfile $d/manifest;
-    cp -r $src/libfoo-1.1.0 ./ $c;
+    cp --no-cleanup -r $src/libfoo-1.1.0 ./;
 
     $* -p -e libfoo-1.1.0 2>'unpacked libfoo/1.1.0';
 
