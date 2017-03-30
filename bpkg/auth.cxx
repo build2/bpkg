@@ -292,7 +292,7 @@ namespace bpkg
         };
 
         string s;
-        if (!get (s) || s != "subject= ")
+        if (!get (s) || s.compare (0, 8, "subject=") != 0)
           bad_cert ("no subject");
 
         // Parse RDN (relative distinguished name).
