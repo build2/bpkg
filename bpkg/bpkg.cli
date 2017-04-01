@@ -6,7 +6,7 @@ include <bpkg/common.cli>;
 
 "\section=1"
 "\name=bpkg"
-"\summary=build2 package manager"
+"\summary=package manager"
 
 namespace bpkg
 {
