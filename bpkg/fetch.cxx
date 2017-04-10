@@ -88,7 +88,7 @@ namespace bpkg
     }
     catch (const process_error& e)
     {
-      if (e.child ())
+      if (e.child)
         exit (1);
 
       return false;
@@ -207,7 +207,7 @@ namespace bpkg
     }
     catch (const process_error& e)
     {
-      if (e.child ())
+      if (e.child)
         exit (1);
 
       // Fall through.
@@ -322,7 +322,7 @@ namespace bpkg
     }
     catch (const process_error& e)
     {
-      if (e.child ())
+      if (e.child)
         exit (1);
 
       // Fall through.
@@ -500,7 +500,7 @@ namespace bpkg
     {
       error << "unable to execute " << fetch_path << ": " << e;
 
-      if (e.child ())
+      if (e.child)
         exit (1);
 
       throw failed ();
