@@ -78,7 +78,7 @@ namespace bpkg
 
     process_path pp (process::path_search (args[0]));
 
-    if (verb >= 2)
+    if (verb >= 3)
       print_process (args);
 
     // Pipe both STDIN and STDOUT. Process exceptions must be handled by
@@ -144,7 +144,7 @@ namespace bpkg
 
     process_path pp (process::path_search (args[0]));
 
-    if (verb >= 2)
+    if (verb >= 3)
       print_process (args);
 
     // Pipe both STDIN and STDOUT. Process exceptions must be handled by
@@ -210,7 +210,7 @@ namespace bpkg
 
     process_path pp (process::path_search (args[0]));
 
-    if (verb >= 2)
+    if (verb >= 3)
       print_process (args);
 
     // Pipe both STDIN and STDOUT. Process exceptions must be handled by
@@ -292,7 +292,7 @@ namespace bpkg
         fail << "unable to find 'sha256', 'sha256sum', or 'shasum'" <<
           info << "use --sha256 to specify the sha256 program location";
 
-      if (verb > 1)
+      if (verb >= 3)
         info << "using '" << sha256_path << "' as the sha256 program, "
              << "use --sha256 to override";
     }

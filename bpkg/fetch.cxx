@@ -468,7 +468,7 @@ namespace bpkg
         fail << "unable to find 'wget', 'curl', or 'fetch'" <<
           info << "use --fetch to specify the fetch program location";
 
-      if (verb > 1)
+      if (verb >= 3)
         info << "using '" << fetch_path << "' as the fetch program, "
              << "use --fetch to override";
     }
