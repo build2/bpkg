@@ -13,7 +13,6 @@
 
 #include <bpkg/checksum>
 #include <bpkg/diagnostics>
-#include <bpkg/bpkg-version>
 
 using namespace std;
 using namespace butl;

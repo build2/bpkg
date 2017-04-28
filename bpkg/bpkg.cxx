@@ -16,7 +16,6 @@
 
 #include <bpkg/diagnostics>
 #include <bpkg/bpkg-options>
-#include <bpkg/bpkg-version>
 
 // Commands.
 //

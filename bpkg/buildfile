@@ -10,7 +10,6 @@ import libs += libodb-sqlite%lib{odb-sqlite}
 exe{bpkg}:                                                                    \
 {hxx         cxx}{ archive           }                                        \
 {hxx         cxx}{ auth              }                                        \
-{hxx            }{ bpkg-version      }                                        \
 {            cxx}{ bpkg              } {hxx ixx cxx}{ bpkg-options          } \
 {hxx         cxx}{ cfg-create        } {hxx ixx cxx}{ cfg-create-options    } \
 {hxx         cxx}{ checksum          }                                        \
@@ -51,8 +50,12 @@ exe{bpkg}:                                                                    \
 {hxx            }{ types             }                                        \
 {hxx         cxx}{ types-parsers     }                                        \
 {hxx         cxx}{ utility           }                                        \
+{hxx            }{ version-impl      }                                        \
 {hxx            }{ wrapper-traits    }                                        \
                    $libs
+
+hxx{version-impl}: in{version-impl} $src_root/file{manifest}
+hxx{version-impl}: dist = true
 
 # Disable "unknown pragma" warnings.
 #

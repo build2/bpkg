@@ -10,7 +10,6 @@
 #include <bpkg/utility>
 #include <bpkg/package-odb>
 #include <bpkg/diagnostics>
-#include <bpkg/bpkg-version>
 
 using namespace std;
 using namespace butl;

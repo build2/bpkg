@@ -11,3 +11,7 @@
 *.exe
 *.exe.dlls/
 *.exe.manifest
+
+# Generated version.
+#
+version
