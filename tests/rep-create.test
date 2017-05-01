@@ -176,9 +176,8 @@
     $clone_rep;
     touch stable/foo;
 
-    $* stable/ 2>>/~%EOE% != 0
-      %.+
-      error: stable/foo does not appear to be a bpkg package
+    $* stable/ 2>>/EOE != 0
+      error: unknown compression method in stable/foo
       EOE
   }
 }

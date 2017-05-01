@@ -23,26 +23,27 @@ namespace bpkg
     dir_path pd (package_dir (af));
     path mf (pd / path ("manifest"));
 
-    // If diag is false, we need to make tar not print any diagnostics.
-    // There doesn't seem to be an option to suppress this and the only
-    // way is to redirect STDERR to something like /dev/null. To keep
-    // things simple, we are going to redirect it to STDOUT, which we
-    // in turn redirect to a pipe and use to parse the manifest data.
-    // If things go badly for tar and it starts spitting errors instead
-    // of the manifest, the manifest parser will fail. But that's ok
-    // since we assume that the child error is always the reason for
-    // the manifest parsing failure.
+    // If diag is false, we need to make tar not print any diagnostics. There
+    // doesn't seem to be an option to suppress this and the only way is to
+    // redirect STDERR to something like /dev/null.
     //
-    process pr (start_extract (co, af, mf, diag));
+    // If things go badly for tar and it starts spitting errors instead of the
+    // manifest, the manifest parser will fail. But that's ok since we assume
+    // that the child error is always the reason for the manifest parsing
+    // failure.
+    //
+    pair<process, process> pr (start_extract (co, af, mf, diag));
+
+    auto wait = [&pr] () {return pr.second.wait () && pr.first.wait ();};
 
     try
     {
-      ifdstream is (move (pr.in_ofd), fdstream_mode::skip);
+      ifdstream is (move (pr.second.in_ofd), fdstream_mode::skip);
       manifest_parser mp (is, mf.string ());
       package_manifest m (mp, iu);
       is.close ();
 
-      if (pr.wait ())
+      if (wait ())
       {
         // Verify package archive/directory is <name>-<version>.
         //
@@ -68,7 +69,7 @@ namespace bpkg
     //
     catch (const manifest_parsing& e)
     {
-      if (pr.wait ())
+      if (wait ())
       {
         if (diag)
           error (e.name, e.line, e.column) << e.description <<
@@ -79,7 +80,7 @@ namespace bpkg
     }
     catch (const io_error&)
     {
-      if (pr.wait ())
+      if (wait ())
       {
         if (diag)
           error << "unable to extract " << mf << " from " << af;
@@ -91,7 +92,7 @@ namespace bpkg
     // We should only get here if the child exited with an error
     // status.
     //
-    assert (!pr.wait ());
+    assert (!wait ());
 
     // While it is reasonable to assuming the child process issued
     // diagnostics, tar, specifically, doesn't mention the archive

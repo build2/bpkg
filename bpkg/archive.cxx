@@ -26,7 +26,7 @@ namespace bpkg
     return path_cast<dir_path> (d);
   }
 
-  process
+  pair<process, process>
   start_extract (const common_options& co,
                  const path& a,
                  const path& f,
@@ -34,7 +34,30 @@ namespace bpkg
   {
     assert (!f.empty () && f.relative ());
 
-    cstrings args {co.tar ().string ().c_str ()};
+    cstrings args;
+
+    // See if we need to decompress.
+    //
+    {
+      string e (a.extension ());
+
+      if      (e == "gz")    args.push_back ("gzip");
+      else if (e == "bzip2") args.push_back ("bzip2");
+      else if (e == "xz")    args.push_back ("xz");
+      else if (e != "tar")
+        fail << "unknown compression method in " << a;
+    }
+
+    size_t i (0); // The tar command line start.
+    if (!args.empty ())
+    {
+      args.push_back ("-dc");
+      args.push_back (a.string ().c_str ());
+      args.push_back (nullptr);
+      i = args.size ();
+    }
+
+    args.push_back (co.tar ().string ().c_str ());
 
     // Add extra options.
     //
@@ -55,7 +78,7 @@ namespace bpkg
 #endif
 
     args.push_back ("-xf");
-    args.push_back (a.string ().c_str ());
+    args.push_back (i == 0 ? a.string ().c_str () : "-");
 
     // MSYS tar doesn't find archived file if it's path is provided in Windows
     // notation.
@@ -64,21 +87,42 @@ namespace bpkg
     args.push_back (fs.c_str ());
 
     args.push_back (nullptr);
+    args.push_back (nullptr); // Pipe end.
 
+    size_t what;
     try
     {
-      process_path pp (process::path_search (args[0]));
+      process_path dpp;
+      process_path tpp;
+
+      process dpr;
+      process tpr;
+
+      if (i != 0)
+        dpp = process::path_search (args[what = 0]);
+
+      tpp = process::path_search (args[what = i]);
 
       if (verb >= 2)
         print_process (args);
 
       // If err is false, then redirect STDERR to STDOUT.
       //
-      return process (pp, args.data (), 0, -1, (err ? 2 : 1));
+      auto_fd nfd (err ? nullfd : fdnull ());
+
+      if (i != 0)
+      {
+        dpr = process (dpp, &args[what = 0], 0,   -1, (err ? 2 : nfd.get ()));
+        tpr = process (tpp, &args[what = i], dpr, -1, (err ? 2 : nfd.get ()));
+      }
+      else
+        tpr = process (tpp, &args[what = 0], 0, -1, (err ? 2 : nfd.get ()));
+
+      return make_pair (move (dpr), move (tpr));
     }
     catch (const process_error& e)
     {
-      error << "unable to execute " << args[0] << ": " << e;
+      error << "unable to execute " << args[what] << ": " << e;
 
       if (e.child)
         exit (1);
@@ -91,20 +135,20 @@ namespace bpkg
   extract (const common_options& o, const path& a, const path& f)
   try
   {
-    process pr (start_extract (o, a, f));
+    pair<process, process> pr (start_extract (o, a, f));
 
     try
     {
       // Do not throw when eofbit is set (end of stream reached), and
       // when failbit is set (getline() failed to extract any character).
       //
-      ifdstream is (move (pr.in_ofd), ifdstream::badbit);
+      ifdstream is (move (pr.second.in_ofd), ifdstream::badbit);
 
       string s;
       getline (is, s, '\0');
       is.close ();
 
-      if (pr.wait ())
+      if (pr.second.wait () && pr.first.wait ())
         return s;
 
       // Fall through.
@@ -114,7 +158,7 @@ namespace bpkg
       // Child exit status doesn't matter. Just wait for the process
       // completion and fall through.
       //
-      pr.wait (); // Check throw.
+      pr.second.wait (); pr.first.wait (); // Check throw.
     }
 
     // While it is reasonable to assuming the child process issued diagnostics

@@ -163,7 +163,30 @@ namespace bpkg
     //
     auto_rm_r arm (d);
 
-    cstrings args {co.tar ().string ().c_str ()};
+    cstrings args;
+
+    // See if we need to decompress.
+    //
+    {
+      string e (a.extension ());
+
+      if      (e == "gz")    args.push_back ("gzip");
+      else if (e == "bzip2") args.push_back ("bzip2");
+      else if (e == "xz")    args.push_back ("xz");
+      else if (e != "tar")
+        fail << "unknown compression method in package " << a;
+    }
+
+    size_t i (0); // The tar command line start.
+    if (!args.empty ())
+    {
+      args.push_back ("-dc");
+      args.push_back (a.string ().c_str ());
+      args.push_back (nullptr);
+      i = args.size ();
+    }
+
+    args.push_back (co.tar ().string ().c_str ());
 
     // Add extra options.
     //
@@ -185,28 +208,45 @@ namespace bpkg
 #endif
 
     args.push_back ("-xf");
-    args.push_back (a.string ().c_str ());
+    args.push_back (i == 0 ? a.string ().c_str () : "-");
     args.push_back (nullptr);
+    args.push_back (nullptr); // Pipe end.
 
+    size_t what;
     try
     {
-      process_path pp (process::path_search (args[0]));
+      process_path dpp;
+      process_path tpp;
+
+      process dpr;
+      process tpr;
+
+      if (i != 0)
+        dpp = process::path_search (args[what = 0]);
+
+      tpp = process::path_search (args[what = i]);
 
       if (verb >= 2)
         print_process (args);
 
-      process pr (pp, args.data ());
+      if (i != 0)
+      {
+        dpr = process (dpp, &args[what = 0], 0, -1);
+        tpr = process (tpp, &args[what = i], dpr);
+      }
+      else
+        tpr = process (tpp, &args[what = 0]);
 
       // While it is reasonable to assuming the child process issued
-      // diagnostics, tar, specifically, doesn't mention the archive
-      // name.
+      // diagnostics, tar, specifically, doesn't mention the archive name.
       //
-      if (!pr.wait ())
+      if (!(what = i, tpr.wait ()) ||
+          !(what = 0, dpr.wait ()))
         fail << "unable to extract package archive " << a;
     }
     catch (const process_error& e)
     {
-      error << "unable to execute " << args[0] << ": " << e;
+      error << "unable to execute " << args[what] << ": " << e;
 
       if (e.child)
         exit (1);
