@@ -2,14 +2,14 @@
 // copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-#include <bpkg/satisfaction>
+#include <bpkg/satisfaction.hxx>
 
 #include <butl/process>
 #include <butl/fdstream>
 
-#include <bpkg/utility>
-#include <bpkg/package-odb>
-#include <bpkg/diagnostics>
+#include <bpkg/utility.hxx>
+#include <bpkg/package-odb.hxx>
+#include <bpkg/diagnostics.hxx>
 
 using namespace std;
 using namespace butl;

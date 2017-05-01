@@ -2,20 +2,20 @@
 // copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-#include <bpkg/rep-info>
+#include <bpkg/rep-info.hxx>
 
 #include <iostream>  // cout
 
 #include <butl/sha256>              // sha256_to_fingerprint()
 #include <butl/manifest-serializer>
 
-#include <bpkg/manifest>
+#include <libbpkg/manifest.hxx>
 
-#include <bpkg/auth>
-#include <bpkg/fetch>
-#include <bpkg/package>
-#include <bpkg/diagnostics>
-#include <bpkg/manifest-utility>
+#include <bpkg/auth.hxx>
+#include <bpkg/fetch.hxx>
+#include <bpkg/package.hxx>
+#include <bpkg/diagnostics.hxx>
+#include <bpkg/manifest-utility.hxx>
 
 using namespace std;
 using namespace butl;

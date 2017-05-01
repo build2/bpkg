@@ -2,7 +2,7 @@ cxx.std = 11
 
 using cxx
 
-hxx{*}: extension =
+hxx{*}: extension = hxx
 cxx{*}: extension = cxx
 
 # Every exe{} in this subproject is by default a test.

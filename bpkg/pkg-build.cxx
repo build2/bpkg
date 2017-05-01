@@ -2,7 +2,7 @@
 // copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-#include <bpkg/pkg-build>
+#include <bpkg/pkg-build.hxx>
 
 #include <map>
 #include <set>
@@ -11,24 +11,24 @@
 #include <iostream>   // cout
 #include <algorithm>  // find()
 
-#include <bpkg/package>
-#include <bpkg/package-odb>
-#include <bpkg/database>
-#include <bpkg/diagnostics>
-#include <bpkg/satisfaction>
-#include <bpkg/manifest-utility>
+#include <bpkg/package.hxx>
+#include <bpkg/package-odb.hxx>
+#include <bpkg/database.hxx>
+#include <bpkg/diagnostics.hxx>
+#include <bpkg/satisfaction.hxx>
+#include <bpkg/manifest-utility.hxx>
 
-#include <bpkg/common-options>
+#include <bpkg/common-options.hxx>
 
-#include <bpkg/pkg-drop>
-#include <bpkg/pkg-purge>
-#include <bpkg/pkg-fetch>
-#include <bpkg/pkg-unpack>
-#include <bpkg/pkg-update>
-#include <bpkg/pkg-verify>
-#include <bpkg/pkg-configure>
-#include <bpkg/pkg-disfigure>
-#include <bpkg/system-repository>
+#include <bpkg/pkg-drop.hxx>
+#include <bpkg/pkg-purge.hxx>
+#include <bpkg/pkg-fetch.hxx>
+#include <bpkg/pkg-unpack.hxx>
+#include <bpkg/pkg-update.hxx>
+#include <bpkg/pkg-verify.hxx>
+#include <bpkg/pkg-configure.hxx>
+#include <bpkg/pkg-disfigure.hxx>
+#include <bpkg/system-repository.hxx>
 
 using namespace std;
 using namespace butl;

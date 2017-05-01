@@ -2,20 +2,20 @@
 // copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-#include <bpkg/pkg-fetch>
+#include <bpkg/pkg-fetch.hxx>
 
-#include <bpkg/manifest>
+#include <libbpkg/manifest.hxx>
 
-#include <bpkg/fetch>
-#include <bpkg/package>
-#include <bpkg/package-odb>
-#include <bpkg/checksum>
-#include <bpkg/database>
-#include <bpkg/diagnostics>
-#include <bpkg/manifest-utility>
+#include <bpkg/fetch.hxx>
+#include <bpkg/package.hxx>
+#include <bpkg/package-odb.hxx>
+#include <bpkg/checksum.hxx>
+#include <bpkg/database.hxx>
+#include <bpkg/diagnostics.hxx>
+#include <bpkg/manifest-utility.hxx>
 
-#include <bpkg/pkg-purge>
-#include <bpkg/pkg-verify>
+#include <bpkg/pkg-purge.hxx>
+#include <bpkg/pkg-verify.hxx>
 
 using namespace std;
 using namespace butl;

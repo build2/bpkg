@@ -2,10 +2,10 @@
 // copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-#include <bpkg/package>
-#include <bpkg/package-odb>
+#include <bpkg/package.hxx>
+#include <bpkg/package-odb.hxx>
 
-#include <bpkg/database>
+#include <bpkg/database.hxx>
 
 using namespace std;
 

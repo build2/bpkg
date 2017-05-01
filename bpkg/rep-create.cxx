@@ -2,7 +2,7 @@
 // copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-#include <bpkg/rep-create>
+#include <bpkg/rep-create.hxx>
 
 #include <map>
 
@@ -10,15 +10,15 @@
 #include <butl/filesystem> // dir_iterator
 #include <butl/manifest-serializer>
 
-#include <bpkg/manifest>
+#include <libbpkg/manifest.hxx>
 
-#include <bpkg/auth>
-#include <bpkg/fetch>
-#include <bpkg/archive>
-#include <bpkg/checksum>
-#include <bpkg/diagnostics>
+#include <bpkg/auth.hxx>
+#include <bpkg/fetch.hxx>
+#include <bpkg/archive.hxx>
+#include <bpkg/checksum.hxx>
+#include <bpkg/diagnostics.hxx>
 
-#include <bpkg/pkg-verify>
+#include <bpkg/pkg-verify.hxx>
 
 using namespace std;
 using namespace butl;

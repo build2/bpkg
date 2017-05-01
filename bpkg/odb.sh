@@ -9,9 +9,10 @@ lib="\
 -I$HOME/work/odb/libodb-default \
 -I$HOME/work/odb/libodb"
 
-$odb $lib -I.. -I../../libbpkg -I../../libbutl \
-  -d sqlite --std c++11 --hxx-suffix "" --generate-query --generate-schema \
-  --odb-epilogue '#include <bpkg/wrapper-traits>' \
-  --hxx-prologue '#include <bpkg/wrapper-traits>' \
-  --include-with-brackets --include-prefix bpkg --guard-prefix BPKG \
-  --sqlite-override-null package
+$odb $lib -I.. -I../../libbpkg -I../../libbutl                        \
+    -DLIBODB_BUILD2 -DLIBODB_SQLITE_BUILD2 --generate-schema          \
+    -d sqlite --std c++11 --hxx-suffix ".hxx" --generate-query        \
+    --odb-epilogue '#include <bpkg/wrapper-traits.hxx>'               \
+    --hxx-prologue '#include <bpkg/wrapper-traits.hxx>'               \
+    --include-with-brackets --include-prefix bpkg --guard-prefix BPKG \
+    --sqlite-override-null package.hxx

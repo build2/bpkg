@@ -2,15 +2,15 @@
 // copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-#include <bpkg/database>
+#include <bpkg/database.hxx>
 
 #include <odb/schema-catalog.hxx>
 #include <odb/sqlite/exceptions.hxx>
 
-#include <bpkg/package>
-#include <bpkg/package-odb>
-#include <bpkg/diagnostics>
-#include <bpkg/system-repository>
+#include <bpkg/package.hxx>
+#include <bpkg/package-odb.hxx>
+#include <bpkg/diagnostics.hxx>
+#include <bpkg/system-repository.hxx>
 
 using namespace std;
 

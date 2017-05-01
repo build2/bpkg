@@ -11,37 +11,37 @@
 #include <cstring>   // strcmp()
 #include <iostream>
 
-#include <bpkg/types>
-#include <bpkg/utility>
+#include <bpkg/types.hxx>
+#include <bpkg/utility.hxx>
 
-#include <bpkg/diagnostics>
-#include <bpkg/bpkg-options>
+#include <bpkg/diagnostics.hxx>
+#include <bpkg/bpkg-options.hxx>
 
 // Commands.
 //
-#include <bpkg/help>
+#include <bpkg/help.hxx>
 
-#include <bpkg/cfg-create>
+#include <bpkg/cfg-create.hxx>
 
-#include <bpkg/pkg-build>
-#include <bpkg/pkg-clean>
-#include <bpkg/pkg-configure>
-#include <bpkg/pkg-disfigure>
-#include <bpkg/pkg-drop>
-#include <bpkg/pkg-fetch>
-#include <bpkg/pkg-install>
-#include <bpkg/pkg-purge>
-#include <bpkg/pkg-status>
-#include <bpkg/pkg-test>
-#include <bpkg/pkg-uninstall>
-#include <bpkg/pkg-unpack>
-#include <bpkg/pkg-update>
-#include <bpkg/pkg-verify>
+#include <bpkg/pkg-build.hxx>
+#include <bpkg/pkg-clean.hxx>
+#include <bpkg/pkg-configure.hxx>
+#include <bpkg/pkg-disfigure.hxx>
+#include <bpkg/pkg-drop.hxx>
+#include <bpkg/pkg-fetch.hxx>
+#include <bpkg/pkg-install.hxx>
+#include <bpkg/pkg-purge.hxx>
+#include <bpkg/pkg-status.hxx>
+#include <bpkg/pkg-test.hxx>
+#include <bpkg/pkg-uninstall.hxx>
+#include <bpkg/pkg-unpack.hxx>
+#include <bpkg/pkg-update.hxx>
+#include <bpkg/pkg-verify.hxx>
 
-#include <bpkg/rep-add>
-#include <bpkg/rep-create>
-#include <bpkg/rep-fetch>
-#include <bpkg/rep-info>
+#include <bpkg/rep-add.hxx>
+#include <bpkg/rep-create.hxx>
+#include <bpkg/rep-fetch.hxx>
+#include <bpkg/rep-info.hxx>
 
 using namespace std;
 using namespace bpkg;

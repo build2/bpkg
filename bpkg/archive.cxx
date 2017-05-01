@@ -2,12 +2,12 @@
 // copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-#include <bpkg/archive>
+#include <bpkg/archive.hxx>
 
 #include <butl/process>
 #include <butl/fdstream>
 
-#include <bpkg/diagnostics>
+#include <bpkg/diagnostics.hxx>
 
 using namespace std;
 using namespace butl;

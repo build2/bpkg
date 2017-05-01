@@ -2,7 +2,7 @@
 // copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-#include <bpkg/diagnostics>
+#include <bpkg/diagnostics.hxx>
 
 #include <cstring>  // strchr()
 #include <iostream>

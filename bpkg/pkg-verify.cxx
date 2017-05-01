@@ -2,14 +2,14 @@
 // copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-#include <bpkg/pkg-verify>
+#include <bpkg/pkg-verify.hxx>
 
 #include <butl/process>
 #include <butl/fdstream>
 #include <butl/manifest-parser>
 
-#include <bpkg/archive>
-#include <bpkg/diagnostics>
+#include <bpkg/archive.hxx>
+#include <bpkg/diagnostics.hxx>
 
 using namespace std;
 using namespace butl;

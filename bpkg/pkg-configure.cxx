@@ -2,17 +2,17 @@
 // copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-#include <bpkg/pkg-configure>
+#include <bpkg/pkg-configure.hxx>
 
-#include <bpkg/package>
-#include <bpkg/package-odb>
-#include <bpkg/database>
-#include <bpkg/diagnostics>
-#include <bpkg/satisfaction>
-#include <bpkg/manifest-utility>
+#include <bpkg/package.hxx>
+#include <bpkg/package-odb.hxx>
+#include <bpkg/database.hxx>
+#include <bpkg/diagnostics.hxx>
+#include <bpkg/satisfaction.hxx>
+#include <bpkg/manifest-utility.hxx>
 
-#include <bpkg/pkg-verify>
-#include <bpkg/pkg-disfigure>
+#include <bpkg/pkg-verify.hxx>
+#include <bpkg/pkg-disfigure.hxx>
 
 using namespace std;
 using namespace butl;

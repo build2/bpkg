@@ -4,8 +4,8 @@
 
 include <set>;
 
-include <bpkg/types>;
-include <bpkg/options-types>;
+include <bpkg/types.hxx>;
+include <bpkg/options-types.hxx>;
 
 "\section=1"
 "\name=bpkg-common-options"

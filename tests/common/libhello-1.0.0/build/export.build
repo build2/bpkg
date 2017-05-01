@@ -1,6 +1,6 @@
 $out_root/:
 {
-  include hello/
+  include libhello/
 }
 
-export $out_root/hello/lib{hello}
+export $out_root/libhello/lib{hello}

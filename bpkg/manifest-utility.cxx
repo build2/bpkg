@@ -2,9 +2,9 @@
 // copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-#include <bpkg/manifest-utility>
+#include <bpkg/manifest-utility.hxx>
 
-#include <bpkg/diagnostics>
+#include <bpkg/diagnostics.hxx>
 
 using namespace std;
 

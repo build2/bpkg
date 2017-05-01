@@ -2,12 +2,12 @@
 // copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-#include <bpkg/pkg-command>
+#include <bpkg/pkg-command.hxx>
 
-#include <bpkg/package>
-#include <bpkg/package-odb>
-#include <bpkg/database>
-#include <bpkg/diagnostics>
+#include <bpkg/package.hxx>
+#include <bpkg/package-odb.hxx>
+#include <bpkg/database.hxx>
+#include <bpkg/diagnostics.hxx>
 
 using namespace std;
 using namespace butl;

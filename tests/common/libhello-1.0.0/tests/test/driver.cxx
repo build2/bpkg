@@ -1,6 +1,6 @@
 // file: tests/test/driver.cxx -*- C++ -*-
 
-#include <hello/hello>
+#include <libhello/hello.hxx>
 
 int
 main ()

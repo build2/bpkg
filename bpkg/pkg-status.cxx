@@ -2,15 +2,15 @@
 // copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-#include <bpkg/pkg-status>
+#include <bpkg/pkg-status.hxx>
 
 #include <iostream>   // cout
 
-#include <bpkg/package>
-#include <bpkg/package-odb>
-#include <bpkg/database>
-#include <bpkg/diagnostics>
-#include <bpkg/manifest-utility>
+#include <bpkg/package.hxx>
+#include <bpkg/package-odb.hxx>
+#include <bpkg/database.hxx>
+#include <bpkg/diagnostics.hxx>
+#include <bpkg/manifest-utility.hxx>
 
 using namespace std;
 using namespace butl;

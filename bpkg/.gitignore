@@ -1,8 +1,6 @@
 bpkg
-*-options
 *-options.?xx
-*-odb
 *-odb.?xx
-repository-signing
+repository-signing.hxx
 repository-signing.cxx
-version-impl
+version.hxx

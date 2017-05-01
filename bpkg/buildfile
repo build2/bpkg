@@ -50,12 +50,12 @@ exe{bpkg}:                                                                    \
 {hxx            }{ types             }                                        \
 {hxx         cxx}{ types-parsers     }                                        \
 {hxx         cxx}{ utility           }                                        \
-{hxx            }{ version-impl      }                                        \
+{hxx            }{ version           }                                        \
 {hxx            }{ wrapper-traits    }                                        \
                    $libs
 
-hxx{version-impl}: in{version-impl} $src_root/file{manifest}
-hxx{version-impl}: dist = true
+hxx{version}: in{version} $src_root/file{manifest}
+hxx{version}: dist = true
 
 # Disable "unknown pragma" warnings.
 #
@@ -114,7 +114,7 @@ if $cli.configured
   # Option length must be the same to get commands/topics/options aligned.
   #
   cli.options += -I $src_root --include-with-brackets --include-prefix bpkg \
---guard-prefix BPKG --cxx-prologue "#include <bpkg/types-parsers>" \
+--guard-prefix BPKG --cxx-prologue "#include <bpkg/types-parsers.hxx>" \
 --cli-namespace bpkg::cli --generate-vector-scanner --generate-file-scanner \
 --generate-specifier --generate-parse --page-usage 'bpkg::print_$name$_' \
 --ansi-color --include-base-last --option-length 23

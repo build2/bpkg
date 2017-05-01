@@ -2,9 +2,9 @@
 // copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-#include <bpkg/types-parsers>
+#include <bpkg/types-parsers.hxx>
 
-#include <bpkg/common-options> // bpkg::cli namespace
+#include <bpkg/common-options.hxx> // bpkg::cli namespace
 
 namespace bpkg
 {

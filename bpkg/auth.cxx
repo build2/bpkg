@@ -2,7 +2,7 @@
 // copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-#include <bpkg/auth>
+#include <bpkg/auth.hxx>
 
 #include <ratio>
 #include <limits>    // numeric_limits
@@ -15,11 +15,11 @@
 #include <butl/fdstream>
 #include <butl/filesystem>
 
-#include <bpkg/openssl>
-#include <bpkg/package>
-#include <bpkg/package-odb>
-#include <bpkg/database>
-#include <bpkg/diagnostics>
+#include <bpkg/openssl.hxx>
+#include <bpkg/package.hxx>
+#include <bpkg/package-odb.hxx>
+#include <bpkg/database.hxx>
+#include <bpkg/diagnostics.hxx>
 
 using namespace std;
 using namespace butl;

@@ -2,16 +2,16 @@
 // copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-#include <bpkg/help>
+#include <bpkg/help.hxx>
 
 #include <butl/pager>
 
-#include <bpkg/diagnostics>
-#include <bpkg/bpkg-options>
+#include <bpkg/diagnostics.hxx>
+#include <bpkg/bpkg-options.hxx>
 
 // Help topics.
 //
-#include <bpkg/repository-signing>
+#include <bpkg/repository-signing.hxx>
 
 using namespace std;
 using namespace butl;

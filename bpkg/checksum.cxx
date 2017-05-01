@@ -2,7 +2,7 @@
 // copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-#include <bpkg/checksum>
+#include <bpkg/checksum.hxx>
 
 #include <streambuf>
 
@@ -10,7 +10,7 @@
 #include <butl/fdstream>
 #include <butl/filesystem>
 
-#include <bpkg/diagnostics>
+#include <bpkg/diagnostics.hxx>
 
 using namespace std;
 using namespace butl;

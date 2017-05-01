@@ -2,15 +2,15 @@
 // copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-#include <bpkg/utility>
+#include <bpkg/utility.hxx>
 
 #include <iostream>     // cout, cin
 
 #include <butl/process>
 #include <butl/fdstream>
 
-#include <bpkg/diagnostics>
-#include <bpkg/common-options>
+#include <bpkg/diagnostics.hxx>
+#include <bpkg/common-options.hxx>
 
 using namespace std;
 using namespace butl;

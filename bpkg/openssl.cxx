@@ -2,11 +2,11 @@
 // copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-#include <bpkg/openssl>
+#include <bpkg/openssl.hxx>
 
 #include <butl/process>
 
-#include <bpkg/diagnostics>
+#include <bpkg/diagnostics.hxx>
 
 using namespace std;
 using namespace butl;
