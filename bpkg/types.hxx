@@ -22,8 +22,8 @@
 
 #include <odb/lazy-ptr.hxx>
 
-#include <butl/path>
-#include <butl/optional>
+#include <libbutl/path.hxx>
+#include <libbutl/optional.hxx>
 
 namespace bpkg
 {
@@ -63,7 +63,7 @@ namespace bpkg
   using std::system_error;
   using io_error = std::ios_base::failure;
 
-  // <butl/optional>
+  // <libbutl/optional.hxx>
   //
   using butl::optional;
   using butl::nullopt;
@@ -73,7 +73,7 @@ namespace bpkg
   using odb::lazy_shared_ptr;
   using odb::lazy_weak_ptr;
 
-  // <butl/path>
+  // <libbutl/path.hxx>
   //
   using butl::path;
   using butl::dir_path;

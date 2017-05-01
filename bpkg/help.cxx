@@ -4,7 +4,7 @@
 
 #include <bpkg/help.hxx>
 
-#include <butl/pager>
+#include <libbutl/pager.hxx>
 
 #include <bpkg/diagnostics.hxx>
 #include <bpkg/bpkg-options.hxx>

@@ -6,8 +6,8 @@
 
 #include <iostream>  // cout
 
-#include <butl/sha256>              // sha256_to_fingerprint()
-#include <butl/manifest-serializer>
+#include <libbutl/sha256.hxx>              // sha256_to_fingerprint()
+#include <libbutl/manifest-serializer.hxx>
 
 #include <libbpkg/manifest.hxx>
 

@@ -6,10 +6,10 @@
 
 #include <sstream>
 
-#include <butl/process>
-#include <butl/fdstream>
-#include <butl/filesystem>
-#include <butl/manifest-parser>
+#include <libbutl/process.hxx>
+#include <libbutl/fdstream.hxx>
+#include <libbutl/filesystem.hxx>
+#include <libbutl/manifest-parser.hxx>
 
 #include <bpkg/checksum.hxx>
 #include <bpkg/diagnostics.hxx>

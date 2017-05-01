@@ -4,7 +4,7 @@
 
 #include <bpkg/cfg-create.hxx>
 
-#include <butl/fdstream>
+#include <libbutl/fdstream.hxx>
 
 #include <bpkg/package.hxx>
 #include <bpkg/package-odb.hxx>

@@ -5,7 +5,7 @@
 #ifndef BPKG_WRAPPER_TRAITS_HXX
 #define BPKG_WRAPPER_TRAITS_HXX
 
-#include <butl/optional>
+#include <libbutl/optional.hxx>
 
 #include <odb/wrapper-traits.hxx>
 

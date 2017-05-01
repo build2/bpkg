@@ -4,7 +4,7 @@
 
 #include <bpkg/openssl.hxx>
 
-#include <butl/process>
+#include <libbutl/process.hxx>
 
 #include <bpkg/diagnostics.hxx>
 

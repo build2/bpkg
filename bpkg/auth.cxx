@@ -9,11 +9,11 @@
 #include <cstring>   // strlen(), strcmp()
 #include <iterator>  // ostreambuf_iterator, istreambuf_iterator
 
-#include <butl/sha256>
-#include <butl/base64>
-#include <butl/process>
-#include <butl/fdstream>
-#include <butl/filesystem>
+#include <libbutl/sha256.hxx>
+#include <libbutl/base64.hxx>
+#include <libbutl/process.hxx>
+#include <libbutl/fdstream.hxx>
+#include <libbutl/filesystem.hxx>
 
 #include <bpkg/openssl.hxx>
 #include <bpkg/package.hxx>

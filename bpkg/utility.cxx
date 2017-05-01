@@ -6,8 +6,8 @@
 
 #include <iostream>     // cout, cin
 
-#include <butl/process>
-#include <butl/fdstream>
+#include <libbutl/process.hxx>
+#include <libbutl/fdstream.hxx>
 
 #include <bpkg/diagnostics.hxx>
 #include <bpkg/common-options.hxx>

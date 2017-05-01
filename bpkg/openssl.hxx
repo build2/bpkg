@@ -5,7 +5,7 @@
 #ifndef BPKG_OPENSSL_HXX
 #define BPKG_OPENSSL_HXX
 
-#include <butl/process>
+#include <libbutl/process.hxx>
 
 #include <bpkg/types.hxx>
 #include <bpkg/utility.hxx>

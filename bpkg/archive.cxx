@@ -4,8 +4,8 @@
 
 #include <bpkg/archive.hxx>
 
-#include <butl/process>
-#include <butl/fdstream>
+#include <libbutl/process.hxx>
+#include <libbutl/fdstream.hxx>
 
 #include <bpkg/diagnostics.hxx>
 

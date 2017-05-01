@@ -37,7 +37,7 @@
 #define BPKG_SNAPSHOT      $bpkg.version.snapshot_sn$ULL
 #define BPKG_SNAPSHOT_ID   "$bpkg.version.snapshot_id$"
 
-#include <butl/version>
+#include <libbutl/version.hxx>
 
 $libbutl.check(LIBBUTL_VERSION, LIBBUTL_SNAPSHOT)$
 

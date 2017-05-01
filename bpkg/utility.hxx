@@ -11,11 +11,11 @@
 #include <cassert>  // assert()
 #include <iterator> // make_move_iterator()
 
-#include <butl/ft/lang>
+#include <libbutl/ft/lang.hxx>
 
-#include <butl/utility> // casecmp(), reverse_iterate(), etc
+#include <libbutl/utility.hxx> // casecmp(), reverse_iterate(), etc
 
-#include <butl/filesystem>
+#include <libbutl/filesystem.hxx>
 
 #include <bpkg/types.hxx>
 #include <bpkg/version.hxx>
@@ -31,7 +31,7 @@ namespace bpkg
   using std::make_move_iterator;
   using std::to_string;
 
-  // <butl/utility>
+  // <libbutl/utility.hxx>
   //
   using butl::casecmp;
   using butl::reverse_iterate;

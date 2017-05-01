@@ -4,8 +4,8 @@
 
 #include <bpkg/satisfaction.hxx>
 
-#include <butl/process>
-#include <butl/fdstream>
+#include <libbutl/process.hxx>
+#include <libbutl/fdstream.hxx>
 
 #include <bpkg/utility.hxx>
 #include <bpkg/package-odb.hxx>
