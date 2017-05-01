@@ -103,7 +103,7 @@ namespace bpkg
 // appear after all #include directives since the assert() macro is
 // redefined in each <assert.h> inclusion.
 //
-#ifdef ODB_COMPILER_HXX
+#ifdef ODB_COMPILER
 #  undef assert
 #  define assert assert
 void assert (int);

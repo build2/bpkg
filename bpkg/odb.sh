@@ -11,7 +11,7 @@ lib="\
 
 $odb $lib -I.. -I../../libbpkg -I../../libbutl                        \
     -DLIBODB_BUILD2 -DLIBODB_SQLITE_BUILD2 --generate-schema          \
-    -d sqlite --std c++11 --hxx-suffix ".hxx" --generate-query        \
+    -d sqlite --std c++11 --generate-query                            \
     --odb-epilogue '#include <bpkg/wrapper-traits.hxx>'               \
     --hxx-prologue '#include <bpkg/wrapper-traits.hxx>'               \
     --include-with-brackets --include-prefix bpkg --guard-prefix BPKG \
