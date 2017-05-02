@@ -61,7 +61,7 @@ hxx{version}: dist = true
 #
 if ($cxx.id == "msvc")
   cxx.coptions += /wd4068
-elif ($cxx.id == "icc")
+else
   cxx.coptions += -Wno-unknown-pragmas
 
 obj{utility}: cxx.poptions += -DBPKG_EXE_SUFFIX='"'$bin.exe.suffix'"'
