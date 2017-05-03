@@ -1,3 +1,10 @@
+Version 0.5.0
+
+  * Multiple usability fixes and improvements.
+
+  * The test suite has been rewritten in Testscript and can now be used on all
+    supported platforms.
+
 Version 0.4.0
 
   * Support for repository signing and authentication.
