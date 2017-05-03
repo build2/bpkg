@@ -1,6 +1,6 @@
 : 1
 name: bpkg
-version: 0.5.0-b.0.z
+version: 0.5.0
 summary: build2 package manager
 license: MIT
 tags: build2, c++, package, manager
@@ -14,7 +14,7 @@ depends: * build2 >= 0.5.0-
 depends: * bpkg >= 0.5.0-
 # @@ Should probably become conditional dependency.
 requires: ? cli ; Only required if changing .cli files.
-depends: libodb [2.5.0-b.1.1 2.5.0-b.2)
-depends: libodb-sqlite [2.5.0-b.1.1 2.5.0-b.2)
-depends: libbutl [0.5.0-b.0.1 0.5.0-b.1)
-depends: libbpkg [0.5.0-b.0.1 0.5.0-b.1)
+depends: libodb == 2.5.0-b.1
+depends: libodb-sqlite == 2.5.0-b.1
+depends: libbutl [0.5.0 0.6.0-); 0.5.X
+depends: libbpkg [0.5.0 0.6.0-); 0.5.X
