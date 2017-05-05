@@ -87,9 +87,9 @@ $libodb-sqlite.check(LIBODB_SQLITE_VERSION, LIBODB_SQLITE_SNAPSHOT)$
 #  define BPKG_OS "Other"
 #endif
 
-#define BPKG_USER_AGENT                                              \
-  "bpkg/" BPKG_VERSION_STR " (" BPKG_OS "; +https://build2.org)"     \
-  " libbpkg/" LIBBPKG_VERSION_STR                                    \
-  " libbutl/" LIBBUTL_VERSION_STR
+#define BPKG_USER_AGENT                                             \
+  "bpkg/" BPKG_VERSION_ID " (" BPKG_OS "; +https://build2.org)"     \
+  " libbpkg/" LIBBPKG_VERSION_ID                                    \
+  " libbutl/" LIBBUTL_VERSION_ID
 
 #endif // BPKG_VERSION
