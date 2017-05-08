@@ -43,6 +43,44 @@
   cat <<<$cert_manifest >+$out/signed/repositories
   $rc --key $key $out/signed &$out/signed/packages &$out/signed/signature
 
+  # Create the 'self-match' repository. Note that its certificate name is
+  # the '*build2.org' wildcard (matches build2.org and any single-level
+  # subdomain).
+  #
+  cp -r $src/unsigned $out/self-match
+
+  echo 'certificate: \'                >+$out/self-match/repositories
+  cat  <<<$src_base/auth/self-cert.pem >+$out/self-match/repositories
+  echo '\'                             >+$out/self-match/repositories
+
+  $rc --key $key $out/self-match &$out/self-match/packages \
+                                 &$out/self-match/signature
+
+  # Create the 'self-any-match' repository. Note that its certificate name is
+  # the '**build2.org' wildcard (matches build2.org and any subdomain).
+  #
+  cp -r $src/unsigned $out/self-any-match
+
+  echo 'certificate: \'                    >+$out/self-any-match/repositories
+  cat  <<<$src_base/auth/self-any-cert.pem >+$out/self-any-match/repositories
+  echo '\'                                 >+$out/self-any-match/repositories
+
+  $rc --key $key $out/self-any-match &$out/self-any-match/packages \
+                                     &$out/self-any-match/signature
+
+  # Create the 'subdomain-match' repository. Note that its certificate name is
+  # the '*.build2.org' wildcard (matches any single-level subdomain of
+  # build2.org).
+  #
+  cp -r $src/unsigned $out/subdomain-match
+
+  echo 'certificate: \'                     >+$out/subdomain-match/repositories
+  cat  <<<$src_base/auth/subdomain-cert.pem >+$out/subdomain-match/repositories
+  echo '\'                                  >+$out/subdomain-match/repositories
+
+  $rc --key $key $out/subdomain-match &$out/subdomain-match/packages \
+                                      &$out/subdomain-match/signature
+
   # Create the 'name-mismatch' repository. Note that its certificate name
   # mismatches the repository location.
   #
@@ -276,6 +314,120 @@ sc = " " # Space character to append to here-document line when required.
 
       $rep_info --trust "$cert_fp" &cfg/.bpkg/certs/*** >'name:build2.org';
       $rep_info                                         >'name:build2.org'
+    }
+  }
+
+  : subdomain-wildcard
+  :
+  {
+    rep_info += --auth all --trust-yes --cert-name
+
+    : self
+    :
+    {
+      : exact
+      :
+      $rep_info $rep/self-match >'name:*build2.org'
+
+      : subdomain
+      :
+      if ($remote != true)
+      {
+        : first-level
+        :
+        {
+          r = $canonicalize([dir_path] $~/pkg/1/a.build2.org/);
+          mkdir -p $r;
+          cp -r $rep/self-match $r;
+
+          $rep_info $r/self-match >'name:*build2.org'
+        }
+
+        : second-level
+        :
+        {
+          r = $canonicalize([dir_path] $~/pkg/1/b.a.build2.org/);
+	  mkdir -p $r;
+          cp -r $rep/self-match $r;
+
+          $rep_info $r/self-match 2>>EOE != 0
+            error: certificate name mismatch for repository b.a.build2.org/self-match
+              info: certificate name is *build2.org
+            EOE
+        }
+      }
+    }
+
+    : self-any
+    :
+    {
+      : exact
+      :
+      $rep_info $rep/self-any-match >'name:**build2.org'
+
+      : subdomain
+      :
+      if ($remote != true)
+      {
+        : first-level
+        :
+        {
+          r = $canonicalize([dir_path] $~/pkg/1/a.build2.org/);
+          mkdir -p $r;
+          cp -r $rep/self-any-match $r;
+
+          $rep_info $r/self-any-match >'name:**build2.org'
+        }
+
+        : second-level
+        :
+        {
+          r = $canonicalize([dir_path] $~/pkg/1/b.a.build2.org/);
+          mkdir -p $r;
+          cp -r $rep/self-any-match $r;
+
+          $rep_info $r/self-any-match >'name:**build2.org'
+        }
+      }
+    }
+
+    : subdomain
+    :
+    {
+      : exact
+      :
+      $rep_info $rep/subdomain-match 2>>EOE != 0
+        error: certificate name mismatch for repository build2.org/rep-auth/subdomain-match
+          info: certificate name is *.build2.org
+        EOE
+
+      : subdomain
+      :
+      if ($remote != true)
+      {
+        : first-level
+        :
+        {
+          r = $canonicalize([dir_path] $~/pkg/1/a.build2.org/);
+          mkdir -p $r;
+          cp -r $rep/subdomain-match $r;
+
+          $rep_info $r/subdomain-match >'name:*.build2.org'
+        }
+
+        : second-level
+        :
+        {
+          r = $canonicalize([dir_path] $~/pkg/1/b.a.build2.org/);
+	  mkdir -p $r;
+          cp -r $rep/subdomain-match $r;
+
+          $rep_info $r/subdomain-match 2>>EOE != 0
+            error: certificate name mismatch for repository b.a.build2.org/subdomain-match
+              info: certificate name is *.build2.org
+            EOE
+        }
+      }
     }
   }
 }

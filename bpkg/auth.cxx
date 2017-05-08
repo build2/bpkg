@@ -653,18 +653,83 @@ namespace bpkg
       f = *conf / certs_dir / path (cert.fingerprint + ".pem");
     }
 
-    const string& c (cert.name);
-    const string& r (rl.canonical_name ());
-    const size_t cn (c.size ());
-    const size_t rn (r.size ());
-
-    // Make sure the names are either equal or the certificate name is a
-    // prefix (at /-boundary) of the repository name.
+    // Make sure that the repository canonical name hostname matches the
+    // certificate hostname (that can contain a subdomain wildcard), and its
+    // optional /prefix/path (will call it just path down the road) part is a
+    // subpath of the certificate name path.
     //
-    if (!(r.compare (0, cn, c) == 0 &&
-          (rn == cn || (rn > cn && r[cn] == '/'))))
-      fail << "certificate name mismatch for repository " << r <<
-        info << "certificate name is " << c;
+    // Split a name into the host and path parts.
+    //
+    auto split = [] (const string& name) -> pair<string, path>
+    {
+      size_t p (name.find ('/'));
+      return make_pair (name.substr (0, p),
+                        p != string::npos ? path (name.substr (p)) : path ());
+    };
+
+    pair<string, path> c (split (cert.name));
+    pair<string, path> r (split (rl.canonical_name ()));
+
+    // Match host names.
+    //
+    // The certificate hostname, that contains a subdomain wildcards, can have
+    // one of the following forms:
+    //
+    // *.example.com  - matches any single-level subdomain of example.com
+    // **.example.com - matches any subdomain of example.com
+    // *example.com   - matches example.com and any its single-level subdomain
+    // **example.com  - matches example.com and any its subdomain
+    //
+    bool match (false);
+    {
+      string& ch (c.first);
+      const string& rh (r.first);
+
+      if (ch[0] == '*') // Subdomain wildcard.
+      {
+        size_t p (1);
+
+        bool any (ch[p] == '*');
+        if (any)
+          ++p;
+
+        bool self (ch[p] != '.');
+        if (!self)
+          ++p;
+
+        ch = ch.substr (p); // Strip wildcard prefix.
+
+        const size_t cn (ch.size ());
+        const size_t rn (rh.size ());
+
+        // If hostnames are equal, then the repository hostname matches the
+        // certificate hostname if self-matching is allowed. Otherwise, it
+        // matches being a subdomain of the first level, or any level if
+        // allowed.
+        //
+        if (rh == ch)
+          match = self;
+        else if (rn > cn && rh.compare (p = rn - cn, cn, ch) == 0 &&
+                 rh[p - 1] == '.')
+          match = any || rh.find ('.') == p - 1;
+      }
+      else
+        // If the certificate hostname doesn't contain a subdomain wildcard,
+        // then the repository hostname must match it exactly.
+        //
+        match = rh == ch;
+    }
+
+    // Match the repository canonical name path part (must be a subpath of the
+    // certificate name path).
+    //
+    if (match)
+      match = r.second.sub (c.second);
+
+    if (!match)
+      fail << "certificate name mismatch for repository "
+           << rl.canonical_name () <<
+        info << "certificate name is " << cert.name;
 
     try
     {

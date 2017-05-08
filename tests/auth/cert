@@ -16,6 +16,15 @@ openssl req -x509 -new -key key.pem -days 1825 -config mismatch-openssl.cnf > \
 openssl req -x509 -new -key key.pem -days 1825 -config noemail-openssl.cnf > \
         noemail-cert.pem
 
+openssl req -x509 -new -key key.pem -days 1825 \
+	-config subdomain-openssl.cnf > subdomain-cert.pem
+
+openssl req -x509 -new -key key.pem -days 1825 -config self-openssl.cnf > \
+        self-cert.pem
+
+openssl req -x509 -new -key key.pem -days 1825 -config self-any-openssl.cnf > \
+        self-any-cert.pem
+
 # Normally, you have no reason to regenerate expired-cert.pem, as need to keep
 # it expired for the testing purposes. But if you do, copy expired-cert.pem
 # content to the certificate value of the following manifest files:
