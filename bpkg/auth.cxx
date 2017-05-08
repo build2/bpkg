@@ -655,7 +655,7 @@ namespace bpkg
 
     // Make sure that the repository canonical name hostname matches the
     // certificate hostname (that can contain a subdomain wildcard), and its
-    // optional /prefix/path (will call it just path down the road) part is a
+    // optional prefix/path (will call it just path down the road) part is a
     // subpath of the certificate name path.
     //
     // Split a name into the host and path parts.
@@ -664,7 +664,9 @@ namespace bpkg
     {
       size_t p (name.find ('/'));
       return make_pair (name.substr (0, p),
-                        p != string::npos ? path (name.substr (p)) : path ());
+                        p != string::npos
+                        ? path (name.substr (p + 1))
+                        : path ());
     };
 
     pair<string, path> c (split (cert.name));
