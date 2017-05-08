@@ -89,16 +89,27 @@ aliases or nicknames is a bad idea (except, again, for testing). Remember,
 users of your repository will be presented with this information and if they
 see it was signed by someone named SmellySnook, they will unlikely trust
 it. Also use a working email address in case users need to contact you about
-issues with your certificate.
+issues with your certificate. Note that the \cb{name:} prefix in the \cb{CN}
+value is not a typo.
 
 The \cb{name} field is a canonical repository name prefix. Any repository with
 a canonical name that starts with this prefix can be authenticated by this
-certificate. For example, name \cb{example.com} will match any repository
-hosted on \cb{{,www.,pkg.,bpkg.\}example.com}. While name
+certificate (see the repository manifest documentation for more information on
+canonical names). For example, name \cb{example.com} will match any
+repository hosted on \cb{{,www.,pkg.,bpkg.\}example.com}. While name
 \cb{example.com/math} will match \cb{{...\}example.com/pkg/1/math} but not
-\cb{{...\}example.com/pkg/1/misc}. See the repository manifest documentation
-for more information on canonical names. Note also that the \cb{name:} prefix
-in the \cb{CN} value is not a typo.
+\cb{{...\}example.com/pkg/1/misc}.
+
+A certificate name can also contain a subdomain wildcard. A wildcard name in
+the \cb{*.example.com} form matches any single-level subdomain, for example
+\cb{foo.example.com} but not \cb{foo.bar.example.com} while a wildcard name in
+the \cb{**.example.com} form matches any subdomain, including multi-level.
+The above two forms do not match the domain itself (\cb{example.com} in the
+above example). If this is desired, the \cb{*example.com} and
+\cb{**example.com} forms should be used instead. Note that these forms still
+only match subdomains. In other words, they won't match
+\cb{fooexample.com}. Wildcard names are less secure and therefore are normally
+only used for testing and/or internal repositories.
 
 Once the configuration file is ready, generate the certificate:
 
