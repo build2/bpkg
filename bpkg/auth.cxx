@@ -653,80 +653,96 @@ namespace bpkg
       f = *conf / certs_dir / path (cert.fingerprint + ".pem");
     }
 
-    // Make sure that the repository canonical name hostname matches the
-    // certificate hostname (that can contain a subdomain wildcard), and its
-    // optional prefix/path (will call it just path down the road) part is a
-    // subpath of the certificate name path.
-    //
-    // Split a name into the host and path parts.
-    //
-    auto split = [] (const string& name) -> pair<string, path>
-    {
-      size_t p (name.find ('/'));
-      return make_pair (name.substr (0, p),
-                        p != string::npos
-                        ? path (name.substr (p + 1))
-                        : path ());
-    };
-
-    pair<string, path> c (split (cert.name));
-    pair<string, path> r (split (rl.canonical_name ()));
-
-    // Match host names.
-    //
-    // The certificate hostname, that contains a subdomain wildcards, can have
-    // one of the following forms:
+    // Make sure the names are either equal or the certificate name is a
+    // prefix (at /-boundary) of the repository name. Note that the certificate
+    // name can start with a hostname containing a subdomain wildcard, and
+    // having one of the following forms/meanings:
     //
     // *.example.com  - matches any single-level subdomain of example.com
     // **.example.com - matches any subdomain of example.com
-    // *example.com   - matches example.com and any its single-level subdomain
-    // **example.com  - matches example.com and any its subdomain
+    // *example.com   - matches example.com and its any single-level subdomain
+    // **example.com  - matches example.com and its any subdomain
+    //
+    // We will compare the leading name parts (the first components) separately
+    // from the trailing parts. Note that the leading part will be empty for
+    // the name being an absolute POSIX path. Also note that we currently
+    // don't support certificate names that are absolute Windows paths.
+    //
+    // @@ Supporting Windows absolute paths, in particular, will require to
+    //    exclude esc_ctrl specifier from the printing certificate info command
+    //    (see above) to keep the backslash unescaped. In the openssl
+    //    configuration file the repository path backslashes should, on the
+    //    contrary, be escaped.
+    //
+    // Split a name into the leading and trailing parts.
+    //
+    auto split = [] (const string& name) -> pair<string, string>
+    {
+      size_t p (name.find ('/'));
+      return make_pair (name.substr (0, p),
+                        p != string::npos ? name.substr (p + 1) : string ());
+    };
+
+    pair<string, string> c (split (cert.name));
+    pair<string, string> r (split (rl.canonical_name ()));
+
+    // Match the repository canonical name leading part.
     //
     bool match (false);
     {
-      string& ch (c.first);
-      const string& rh (r.first);
+      string& cp (c.first);
+      const string& rp (r.first);
 
-      if (ch[0] == '*') // Subdomain wildcard.
+      if (cp[0] == '*') // Subdomain wildcard.
       {
         size_t p (1);
 
-        bool any (ch[p] == '*');
+        bool any (cp[p] == '*');
         if (any)
           ++p;
 
-        bool self (ch[p] != '.');
+        bool self (cp[p] != '.');
         if (!self)
           ++p;
 
-        ch = ch.substr (p); // Strip wildcard prefix.
+        cp = cp.substr (p); // Strip wildcard prefix.
 
-        const size_t cn (ch.size ());
-        const size_t rn (rh.size ());
+        const size_t cn (cp.size ());
+        const size_t rn (rp.size ());
 
         // If hostnames are equal, then the repository hostname matches the
         // certificate hostname if self-matching is allowed. Otherwise, it
         // matches being a subdomain of the first level, or any level if
         // allowed.
         //
-        if (rh == ch)
+        if (rp == cp)
           match = self;
-        else if (rn > cn && rh.compare (p = rn - cn, cn, ch) == 0 &&
-                 rh[p - 1] == '.')
-          match = any || rh.find ('.') == p - 1;
+        else if (rn > cn && rp.compare (p = rn - cn, cn, cp) == 0 &&
+                 rp[p - 1] == '.')
+          match = any || rp.find ('.') == p - 1;
       }
       else
-        // If the certificate hostname doesn't contain a subdomain wildcard,
-        // then the repository hostname must match it exactly.
+        // If the certificate leading part doesn't contain a subdomain
+        // wildcard, then the repository leading part must match it exactly.
         //
-        match = rh == ch;
+        match = rp == cp;
     }
 
-    // Match the repository canonical name path part (must be a subpath of the
-    // certificate name path).
+    // Match the repository canonical name trailing part. The certificate name
+    // trailing part must be equal to it or be its prefix (at /-boundary).
     //
     if (match)
-      match = r.second.sub (c.second);
+    {
+      const string& cp (c.second);
+      const string& rp (r.second);
+      const size_t cn (cp.size ());
+      const size_t rn (rp.size ());
+
+      // Empty path is considered a prefix of any path.
+      //
+      match = cn == 0 || (rp.compare (0, cn, cp) == 0 &&
+                          (rn == cn || (rn > cn && rp[cn] == '/')));
+    }
 
     if (!match)
       fail << "certificate name mismatch for repository "
