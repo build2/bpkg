@@ -21,7 +21,6 @@ exe{bpkg}:                                                                    \
 {hxx            }{ forward           }                                        \
 {hxx         cxx}{ help              } {hxx ixx cxx}{ help-options          } \
 {hxx         cxx}{ manifest-utility  }                                        \
-{hxx         cxx}{ openssl           }                                        \
 {hxx            }{ options-types     }                                        \
 {hxx ixx     cxx}{ package           }                                        \
 {hxx ixx     cxx}{ package-odb       }          file{ package.xml           } \

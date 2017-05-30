@@ -198,7 +198,17 @@ namespace bpkg
     deallocate (odb::connection&, const odb::statement&);
   };
   using trace_mark = butl::diag_mark<trace_mark_base>;
-  using tracer = trace_mark;
+
+  class tracer: public trace_mark
+  {
+  public:
+    using trace_mark::trace_mark;
+
+    // process_run() command tracer interface.
+    //
+    void
+    operator() (const char* const [], std::size_t) const;
+  };
 
   // fail
   //

@@ -144,8 +144,7 @@ namespace bpkg
       //
       ifdstream is (move (pr.second.in_ofd), ifdstream::badbit);
 
-      string s;
-      getline (is, s, '\0');
+      string s (is.read_text ());
       is.close ();
 
       if (pr.second.wait () && pr.first.wait ())

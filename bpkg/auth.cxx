@@ -7,15 +7,15 @@
 #include <ratio>
 #include <limits>    // numeric_limits
 #include <cstring>   // strlen(), strcmp()
-#include <iterator>  // ostreambuf_iterator, istreambuf_iterator
+#include <iterator>  // ostreambuf_iterator
 
 #include <libbutl/sha256.hxx>
 #include <libbutl/base64.hxx>
 #include <libbutl/process.hxx>
+#include <libbutl/openssl.hxx>
 #include <libbutl/fdstream.hxx>
 #include <libbutl/filesystem.hxx>
 
-#include <bpkg/openssl.hxx>
 #include <bpkg/package.hxx>
 #include <bpkg/package-odb.hxx>
 #include <bpkg/database.hxx>
@@ -26,6 +26,15 @@ using namespace butl;
 
 namespace bpkg
 {
+  // Print process command line.
+  //
+  static void
+  print_command (const char* const args[], size_t n)
+  {
+    if (verb >= 2)
+      print_process (args, n);
+  }
+
   // Find the repository location prefix that ends with the version component.
   // We consider all repositories under this location to be related.
   //
@@ -112,60 +121,58 @@ namespace bpkg
   {
     tracer trace ("real_fingerprint");
 
+    auto calc_failed = [&rl] (const exception* e = nullptr)
+    {
+      diag_record dr (error);
+      dr << "unable to calculate certificate fingerprint for "
+         << rl.canonical_name ();
+
+      if (e != nullptr)
+        dr << ": " << *e;
+    };
+
     try
     {
-      process pr (start_openssl (
-        co, "x509", {"-sha256", "-noout", "-fingerprint"}, true, true));
+      openssl os (print_command,
+                  fdstream_mode::text, fdstream_mode::text, 2,
+                  co.openssl (), "x509",
+                  co.openssl_option (), "-sha256", "-noout", "-fingerprint");
+
+      os.out << pem;
+      os.out.close ();
+
+      string s;
+      getline (os.in, s);
+      os.in.close ();
 
       try
       {
-        ifdstream is (move (pr.in_ofd), fdstream_mode::skip);
-        ofdstream os (move (pr.out_fd));
-        os << pem;
-        os.close ();
-
-        string s;
-        getline (is, s);
-        is.close ();
-
         const size_t n (19);
-        if (!(s.size () > n && s.compare (0, n, "SHA256 Fingerprint=") == 0))
-          throw io_error ("");
 
-        string fp;
-
-        try
-        {
-          fp = fingerprint_to_sha256 (string (s, n));
-        }
-        catch (const invalid_argument&)
-        {
-          throw io_error ("");
-        }
-
-        if (pr.wait ())
-          return fp;
-
-        // Fall through.
-        //
+        if (os.wait () &&
+            s.size () > n && s.compare (0, n, "SHA256 Fingerprint=") == 0)
+          return fingerprint_to_sha256 (string (s, n));
       }
-      catch (const io_error&)
+      catch (const invalid_argument&)
       {
-        // Child exit status doesn't matter. Just wait for the process
-        // completion and fall through.
-        //
-        pr.wait (); // Check throw.
       }
 
-      error << "unable to calculate certificate fingerprint for "
-            << rl.canonical_name ();
+      calc_failed ();
 
       // Fall through.
     }
-    catch (const process_error& e)
+    // For old versions of g++ (as of 4.9) ios_base::failure is not derived
+    // from system_error.
+    //
+    catch (const io_error& e)
     {
-      error << "unable to calculate certificate fingerprint for "
-            << rl.canonical_name () << ": " << e;
+      calc_failed (&e);
+
+      // Fall through.
+    }
+    catch (const system_error& e)
+    {
+      calc_failed (&e);
 
       // Fall through.
     }
@@ -196,6 +203,15 @@ namespace bpkg
   {
     tracer trace ("parse_cert");
 
+    auto parse_failed = [&repo] (const exception* e = nullptr)
+    {
+      diag_record dr (error);
+      dr << "unable to parse certificate for " << repo;
+
+      if (e != nullptr)
+        dr << ": " << *e;
+    };
+
     try
     {
       // The order of the options we pass to openssl determines the order in
@@ -217,76 +233,72 @@ namespace bpkg
       // The final line should be the email but will be silently missing if
       // the cert has no email.
       //
-      process pr (start_openssl (
-        co,
-        "x509",
-        {
-          "-noout",
-          "-subject",
-          "-dates",
-          "-email",
+      openssl os (
+        print_command,
+        fdstream_mode::text, fdstream_mode::text, 2,
+        co.openssl (), "x509",
+        co.openssl_option (),
+        "-noout",
+        "-subject",
+        "-dates",
+        "-email",
 
-          // Previously we have used "RFC2253,sep_multiline" format to display
-          // the requested fields, but that resulted in some undesirable
-          // behavior like escaping commas (\,) while dispaying only one field
-          // per line. The reason for that is RFC2253 specifier which get
-          // expanded into:
-          //
-          // esc_2253,esc_ctrl,esc_msb,utf8,dump_nostr,dump_unknown,dump_der,
-          // sep_comma_plus,dn_rev,sname.
-          //
-          // Now we filtered them and leave just those specifiers that we
-          // really need:
-          //
-          // utf8          - use UTF8 encoding for strings;
-          //
-          // esc_ctrl      - display control characters in \XX notation (we
-          //                 don't expect them in properly created
-          //                 certificates, but it's better to print this way if
-          //                 they appear);
-          //
-          // sname         - use short form for field names (like
-          //                 "O=Code Synthesis" vs
-          //                 "organizationName=Code Synthesis");
-          //
-          // dump_nostr    - do not print any binary data in the binary form;
-          // dump_der
-          //
-          // sep_multiline - display field per line.
-          //
-          "-nameopt", "utf8,esc_ctrl,dump_nostr,dump_der,sname,sep_multiline"
-        },
-        true,
-        true));
+        // Previously we have used "RFC2253,sep_multiline" format to display
+        // the requested fields, but that resulted in some undesirable
+        // behavior like escaping commas (\,) while dispaying only one field
+        // per line. The reason for that is RFC2253 specifier which get
+        // expanded into:
+        //
+        // esc_2253,esc_ctrl,esc_msb,utf8,dump_nostr,dump_unknown,dump_der,
+        // sep_comma_plus,dn_rev,sname.
+        //
+        // Now we filtered them and leave just those specifiers that we
+        // really need:
+        //
+        // utf8          - use UTF8 encoding for strings;
+        //
+        // esc_ctrl      - display control characters in \XX notation (we
+        //                 don't expect them in properly created
+        //                 certificates, but it's better to print this way if
+        //                 they appear);
+        //
+        // sname         - use short form for field names (like
+        //                 "O=Code Synthesis" vs
+        //                 "organizationName=Code Synthesis");
+        //
+        // dump_nostr    - do not print any binary data in the binary form;
+        // dump_der
+        //
+        // sep_multiline - display field per line.
+        //
+        "-nameopt", "utf8,esc_ctrl,dump_nostr,dump_der,sname,sep_multiline"
+      );
+
+      // We unset failbit to provide the detailed error description (which
+      // certificate field is missed) on failure.
+      //
+      os.in.exceptions (ifdstream::badbit);
+
+      // Reading from and writing to the child process standard streams from
+      // the same thread is generally a bad idea. Depending on the program
+      // implementation we can block on writing if the process input pipe
+      // buffer get filled. That can happen if the process do not read
+      // anymore, being blocked on writing to the filled output pipe, which
+      // get filled not being read on the other end.
+      //
+      // Fortunatelly openssl reads the certificate before performing any
+      // output.
+      //
+      os.out << pem;
+      os.out.close ();
 
       try
       {
-        // We unset failbit to provide the detailed error description (which
-        // certificate field is missed) on failure.
-        //
-        ifdstream is (
-          move (pr.in_ofd), fdstream_mode::skip, ifdstream::badbit);
-
-        ofdstream os (move (pr.out_fd));
-
-        // Reading from and writing to the child process standard streams from
-        // the same thread is generally a bad idea. Depending on the program
-        // implementation we can block on writing if the process input pipe
-        // buffer get filled. That can happen if the process do not read
-        // anymore, being blocked on writing to the filled output pipe, which
-        // get filled not being read on the other end.
-        //
-        // Fortunatelly openssl reads the certificate before performing any
-        // output.
-        //
-        os << pem;
-        os.close ();
-
         auto bad_cert ([](const string& d) {throw invalid_argument (d);});
 
-        auto get = [&is, &trace] (string& s) -> bool
+        auto get = [&os, &trace] (string& s) -> bool
         {
-          bool r (getline (is, s));
+          bool r (getline (os.in, s));
           l6 ([&]{trace << s;});
           return r;
         };
@@ -307,41 +319,41 @@ namespace bpkg
         };
 
         auto parse_date = [&s](size_t o, const char* name) -> timestamp
+        {
+          // Certificate validity dates are internally represented as ASN.1
+          // GeneralizedTime and UTCTime
+          // (https://www.ietf.org/rfc/rfc4517.txt). While GeneralizedTime
+          // format allows fraction of a second to be specified, the x.509
+          // Certificate specification (https://www.ietf.org/rfc/rfc5280.txt)
+          // do not permit them to be included into the validity dates. These
+          // dates are printed by openssl in the 'MON DD HH:MM:SS[ GMT]'
+          // format. MON is a month abbreviated name (C locale), timezone is
+          // either GMT or absent (means local time). Examples:
+          //
+          // Apr 11 10:20:02 2016 GMT
+          // Apr 11 10:20:02 2016
+          //
+          // We will require the date to be in GMT, as generally can not
+          // interpret the certificate origin local time. Note:
+          // openssl-generated certificate dates are always in GMT.
+          //
+          try
           {
-            // Certificate validity dates are internally represented as ASN.1
-            // GeneralizedTime and UTCTime
-            // (https://www.ietf.org/rfc/rfc4517.txt). While GeneralizedTime
-            // format allows fraction of a second to be specified, the x.509
-            // Certificate specification (https://www.ietf.org/rfc/rfc5280.txt)
-            // do not permit them to be included into the validity dates. These
-            // dates are printed by openssl in the 'MON DD HH:MM:SS[ GMT]'
-            // format. MON is a month abbreviated name (C locale), timezone is
-            // either GMT or absent (means local time). Examples:
+            // Assume the global locale is not changed, and still "C".
             //
-            // Apr 11 10:20:02 2016 GMT
-            // Apr 11 10:20:02 2016
-            //
-            // We will require the date to be in GMT, as generally can not
-            // interpret the certificate origin local time. Note:
-            // openssl-generated certificate dates are always in GMT.
-            //
-            try
-            {
-              // Assume the global locale is not changed, and still "C".
-              //
-              const char* end;
-              timestamp t (from_string (
-                s.c_str () + o, "%b %d %H:%M:%S %Y", false, &end));
+            const char* end;
+            timestamp t (from_string (
+                           s.c_str () + o, "%b %d %H:%M:%S %Y", false, &end));
 
-              if (strcmp (end, " GMT") == 0)
-                return t;
-            }
-            catch (const system_error&)
-            {
-            }
+            if (strcmp (end, " GMT") == 0)
+              return t;
+          }
+          catch (const system_error&)
+          {
+          }
 
-            throw invalid_argument ("invalid " + string (name) + " date");
-          };
+          throw invalid_argument ("invalid " + string (name) + " date");
+        };
 
         string name;
         string org;
@@ -368,7 +380,7 @@ namespace bpkg
         if (org.empty ())
           bad_cert ("no organization name (O)");
 
-        if (!is || s.compare (0, 10, "notBefore=") != 0)
+        if (!os.in || s.compare (0, 10, "notBefore=") != 0)
           bad_cert ("no start date");
 
         timestamp not_before (parse_date (10, "start"));
@@ -387,10 +399,10 @@ namespace bpkg
 
         // Ensure no data left in the stream.
         //
-        if (is.peek () != ifdstream::traits_type::eof ())
+        if (os.in.peek () != ifdstream::traits_type::eof ())
           bad_cert ("unexpected data");
 
-        is.close ();
+        os.in.close ();
 
         shared_ptr<certificate> cert (
           make_shared<certificate> (
@@ -401,37 +413,39 @@ namespace bpkg
             move (not_before),
             move (not_after)));
 
-        if (pr.wait ())
+        if (os.wait ())
           return cert;
 
         // Fall through.
         //
-      }
-      catch (const io_error&)
-      {
-        // Child exit status doesn't matter. Just wait for the process
-        // completion and fall through.
-        //
-        pr.wait (); // Check throw.
       }
       catch (const invalid_argument& e)
       {
         // If the child exited with an error status, then omit any output
         // parsing diagnostics since we were probably parsing garbage.
         //
-        if (pr.wait ())
+        if (os.wait ())
           fail << "invalid certificate for " << repo << ": " << e << endf;
 
         // Fall through.
       }
 
-      error << "unable to parse certificate for " << repo;
+      parse_failed ();
 
       // Fall through.
     }
-    catch (const process_error& e)
+    // For old versions of g++ (as of 4.9) ios_base::failure is not derived
+    // from system_error.
+    //
+    catch (const io_error& e)
     {
-      error << "unable to parse certificate for " << repo << ": " << e;
+      parse_failed (&e);
+
+      // Fall through.
+    }
+    catch (const system_error& e)
+    {
+      parse_failed (&e);
 
       // Fall through.
     }
@@ -749,66 +763,58 @@ namespace bpkg
            << rl.canonical_name () <<
         info << "certificate name is " << cert.name;
 
+    auto auth_failed = [&rl] (const exception* e = nullptr)
+    {
+      diag_record dr (error);
+      dr << "unable to authenticate repository " << rl.canonical_name ();
+
+      if (e != nullptr)
+        dr << ": " << *e;
+    };
+
     try
     {
-      process pr (start_openssl (
-        co, "rsautl",
-        {
-          "-verify",
-          "-certin",
-          "-inkey",
-          f.string ().c_str ()
-        },
-        true,
-        true));
+      openssl os (print_command,
+                  path ("-"), fdstream_mode::text, 2,
+                  co.openssl (), "rsautl",
+                  co.openssl_option (), "-verify", "-certin", "-inkey", f);
 
-      try
+      for (const auto& c: sm.signature)
+        os.out.put (c); // Sets badbit on failure.
+
+      os.out.close ();
+
+      string s;
+      getline (os.in, s);
+
+      bool v (os.in.eof ());
+      os.in.close ();
+
+      if (os.wait () && v)
       {
-        ifdstream is (move (pr.in_ofd), fdstream_mode::skip);
+        if (s != sm.sha256sum)
+          fail << "packages manifest file signature mismatch for "
+               << rl.canonical_name ();
 
-        // Write the signature to the openssl process input in the binary mode.
-        //
-        ofdstream os (move (pr.out_fd), fdstream_mode::binary);
-
-        for (const auto& c: sm.signature)
-          os.put (c); // Sets badbit on failure.
-
-        os.close ();
-
-        string s;
-        getline (is, s);
-
-        bool v (is.eof ());
-        is.close ();
-
-        if (pr.wait () && v)
-        {
-          if (s != sm.sha256sum)
-            fail << "packages manifest file signature mismatch for "
-                 << rl.canonical_name ();
-
-          return; // All good.
-        }
-
-        // Fall through.
-        //
-      }
-      catch (const io_error&)
-      {
-        // Child exit status doesn't matter. Just wait for the process
-        // completion and fall through.
-        //
-        pr.wait (); // Check throw.
+        return; // All good.
       }
 
-      error << "unable to authenticate repository " << rl.canonical_name ();
+      auth_failed ();
 
       // Fall through.
     }
-    catch (const process_error& e)
+    // For old versions of g++ (as of 4.9) ios_base::failure is not derived
+    // from system_error.
+    //
+    catch (const io_error& e)
     {
-      error << "unable to authenticate repository "
-            << rl.canonical_name () << ": " << e;
+      auth_failed (&e);
+
+      // Fall through.
+    }
+    catch (const system_error& e)
+    {
+      auth_failed (&e);
 
       // Fall through.
     }
@@ -844,52 +850,47 @@ namespace bpkg
       warn << "certificate for repository " << r
            << " expires in less than " << left.count () + 1 << " day(s)";
 
+    auto sign_failed = [&r] (const exception* e = nullptr)
+    {
+      diag_record dr (error);
+      dr << "unable to sign repository " << r;
+
+      if (e != nullptr)
+        dr << ": " << *e;
+    };
+
     try
     {
-      process pr (start_openssl (
-        co, "rsautl", {"-sign", "-inkey", key_name.c_str ()}, true, true));
+      openssl os (print_command,
+                  fdstream_mode::text, path ("-"), 2,
+                  co.openssl (), "rsautl",
+                  co.openssl_option (), "-sign", "-inkey", key_name);
 
-      try
-      {
-        // Read the signature from the openssl process output in the binary
-        // mode.
-        //
-        ifdstream is (
-          move (pr.in_ofd), fdstream_mode::binary | fdstream_mode::skip);
+      os.out << sha256sum;
+      os.out.close ();
 
-        ofdstream os (move (pr.out_fd));
-        os << sha256sum;
-        os.close ();
+      vector<char> signature (os.in.read_binary ());
+      os.in.close ();
 
-        // Additional parentheses required to make compiler to distinguish
-        // the variable definition from a function declaration.
-        //
-        vector<char> signature
-          ((istreambuf_iterator<char> (is)), istreambuf_iterator<char> ());
+      if (os.wait ())
+        return signature;
 
-        is.close ();
-
-        if (pr.wait ())
-          return signature;
-
-        // Fall through.
-        //
-      }
-      catch (const io_error&)
-      {
-        // Child exit status doesn't matter. Just wait for the process
-        // completion and fall through.
-        //
-        pr.wait (); // Check throw.
-      }
-
-      error << "unable to sign repository " << r;
+      sign_failed ();
 
       // Fall through.
     }
-    catch (const process_error& e)
+    // For old versions of g++ (as of 4.9) ios_base::failure is not derived
+    // from system_error.
+    //
+    catch (const io_error& e)
     {
-      error << "unable to sign repository " << r << ": " << e;
+      sign_failed (&e);
+
+      // Fall through.
+    }
+    catch (const system_error& e)
+    {
+      sign_failed (&e);
 
       // Fall through.
     }

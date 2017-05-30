@@ -96,6 +96,18 @@ namespace bpkg
       static_cast<trace_mark&> (*this) << "DEALLOCATE " << s.text ();
   }
 
+  // tracer
+  //
+  void tracer::
+  operator() (const char* const args[], size_t n) const
+  {
+    if (verb >= 3)
+    {
+      diag_record dr (*this);
+      process::print (dr.os, args, n);
+    }
+  }
+
   const basic_mark error ("error");
   const basic_mark warn  ("warning");
   const basic_mark info  ("info");

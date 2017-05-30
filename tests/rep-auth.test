@@ -582,7 +582,7 @@ sc = " " # Space character to append to here-document line when required.
   :
   $rep_info $rep/signature-mismatch 2>>~%EOE% != 0
     %.*
-    %error: unable to authenticate repository build2.org/rep-auth/signature-mismatch%
+    %error: unable to authenticate repository build2.org/rep-auth/signature-mismatch: .*%
     EOE
 
   : create-rep
