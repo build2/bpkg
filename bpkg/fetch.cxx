@@ -166,7 +166,9 @@ namespace bpkg
     // report. Process exceptions must be handled by the caller.
     //
     return fo
-      ? process (out.directory ().string ().c_str (), pp, args.data ())
+      ? process (pp, args.data (),
+                 0, 1, 2,
+                 out.directory ().string ().c_str ())
       : process (pp, args.data (), 0, -1);
   }
 
@@ -382,7 +384,9 @@ namespace bpkg
     // report. Process exceptions must be handled by the caller.
     //
     return fo
-      ? process (out.directory ().string ().c_str (), pp, args.data ())
+      ? process (pp, args.data (),
+                 0, 1, 2,
+                 out.directory ().string ().c_str ())
       : process (pp, args.data (), 0, -1);
   }
 
