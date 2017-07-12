@@ -32,17 +32,10 @@ xhtml{*}: extension = xhtml
 
 ./: {man1 xhtml}{bpkg bpkg-common-options bpkg-repository-signing $cmds} \
     css{common pre-box man} 	                                         \
-    file{man-prologue.1 man-epilogue.1                                   \
-         man-prologue.xhtml man-epilogue.xhtml}
+    file{man-*}
 
-./: doc{build2-package-manager-manual.xhtml        \
-        build2-package-manager-manual-a4.pdf       \
-	build2-package-manager-manual-a4.ps        \
-        build2-package-manager-manual-letter.pdf   \
-	build2-package-manager-manual-letter.ps}   \
-    css{code-box common doc pre-box toc} 	   \
-    file{a4.html2ps letter.html2ps doc.html2ps}    \
-    file{doc-prologue.xhtml doc-epilogue.xhtml     \
-         manual.cli}
+./: doc{build2-package-manager-manual*}  \
+    css{code-box common doc pre-box toc} \
+    file{manual.cli doc-* *.html2ps}
 
 ./: file{cli.sh}

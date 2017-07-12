@@ -2,56 +2,50 @@
 # copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
 # license   : MIT; see accompanying LICENSE file
 
+# @@ ODB: these are ODB changelogs that are both generated and stored in the
+#         repository (what if src != out?). Will need to think how to handle
+#         them properly (always generate in src_base?).
+#
+define xml: file
+xml{*}: extension = xml
+
 import libs  = libbpkg%lib{bpkg}
 import libs += libbutl%lib{butl}
 import libs += libodb%lib{odb}
 import libs += libodb-sqlite%lib{odb-sqlite}
 
-exe{bpkg}:                                                                    \
-{hxx         cxx}{ archive           }                                        \
-{hxx         cxx}{ auth              }                                        \
-{            cxx}{ bpkg              } {hxx ixx cxx}{ bpkg-options          } \
-{hxx         cxx}{ cfg-create        } {hxx ixx cxx}{ cfg-create-options    } \
-{hxx         cxx}{ checksum          }                                        \
-                                       {hxx ixx cxx}{ common-options        } \
-                                       {hxx ixx cxx}{ configuration-options } \
-{hxx         cxx}{ database          }                                        \
-{hxx         cxx}{ diagnostics       }                                        \
-{hxx         cxx}{ fetch             }                                        \
-{hxx            }{ forward           }                                        \
-{hxx         cxx}{ help              } {hxx ixx cxx}{ help-options          } \
-{hxx         cxx}{ manifest-utility  }                                        \
-{hxx            }{ options-types     }                                        \
-{hxx ixx     cxx}{ package           }                                        \
-{hxx ixx     cxx}{ package-odb       }          file{ package.xml           } \
-{hxx         cxx}{ pkg-build         } {hxx ixx cxx}{ pkg-build-options     } \
-{hxx            }{ pkg-clean         } {hxx ixx cxx}{ pkg-clean-options     } \
-{hxx         cxx}{ pkg-drop          } {hxx ixx cxx}{ pkg-drop-options      } \
-{hxx         cxx}{ pkg-command       }                                        \
-{hxx         cxx}{ pkg-configure     } {hxx ixx cxx}{ pkg-configure-options } \
-{hxx         cxx}{ pkg-disfigure     } {hxx ixx cxx}{ pkg-disfigure-options } \
-{hxx         cxx}{ pkg-fetch         } {hxx ixx cxx}{ pkg-fetch-options     } \
-{hxx            }{ pkg-install       } {hxx ixx cxx}{ pkg-install-options   } \
-{hxx         cxx}{ pkg-purge         } {hxx ixx cxx}{ pkg-purge-options     } \
-{hxx         cxx}{ pkg-status        } {hxx ixx cxx}{ pkg-status-options    } \
-{hxx            }{ pkg-test          } {hxx ixx cxx}{ pkg-test-options      } \
-{hxx            }{ pkg-uninstall     } {hxx ixx cxx}{ pkg-uninstall-options } \
-{hxx         cxx}{ pkg-unpack        } {hxx ixx cxx}{ pkg-unpack-options    } \
-{hxx            }{ pkg-update        } {hxx ixx cxx}{ pkg-update-options    } \
-{hxx         cxx}{ pkg-verify        } {hxx ixx cxx}{ pkg-verify-options    } \
-{hxx         cxx}{ rep-add           } {hxx ixx cxx}{ rep-add-options       } \
-{hxx         cxx}{ rep-create        } {hxx ixx cxx}{ rep-create-options    } \
-{hxx         cxx}{ rep-fetch         } {hxx ixx cxx}{ rep-fetch-options     } \
-{hxx         cxx}{ rep-info          } {hxx ixx cxx}{ rep-info-options      } \
-                                       {hxx     cxx}{ repository-signing    } \
-{hxx         cxx}{ satisfaction      }                                        \
-{hxx         cxx}{ system-repository }                                        \
-{hxx            }{ types             }                                        \
-{hxx         cxx}{ types-parsers     }                                        \
-{hxx         cxx}{ utility           }                                        \
-{hxx            }{ version           }                                        \
-{hxx            }{ wrapper-traits    }                                        \
-                   $libs
+options_topics =           \
+bpkg-options               \
+cfg-create-options         \
+common-options             \
+configuration-options      \
+help-options               \
+pkg-build-options          \
+pkg-clean-options          \
+pkg-configure-options      \
+pkg-disfigure-options      \
+pkg-drop-options           \
+pkg-fetch-options          \
+pkg-install-options        \
+pkg-purge-options          \
+pkg-test-options           \
+pkg-status-options         \
+pkg-uninstall-options      \
+pkg-unpack-options         \
+pkg-update-options         \
+pkg-verify-options         \
+rep-add-options            \
+rep-create-options         \
+rep-fetch-options          \
+rep-info-options
+
+help_topics = repository-signing
+
+exe{bpkg}:                                                                 \
+  {hxx ixx txx cxx}{** -{$options_topics} -{$help_topics} -*-odb -version} \
+  {hxx ixx cxx}{$options_topics} {hxx cxx}{$help_topics}                   \
+  {hxx ixx cxx}{package-odb} {hxx}{version}                                \
+  $libs xml{*}
 
 hxx{version}: in{version} $src_root/file{manifest}
 hxx{version}: dist = true
