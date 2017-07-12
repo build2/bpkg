@@ -20,7 +20,3 @@ cxx.poptions =+ "-I$out_root" "-I$src_root"
 # be there unless the module is configured).
 #
 using? cli
-
-# All exe{} in tests/ are, well, tests.
-#
-tests/exe{*}: test = true
