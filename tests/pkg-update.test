@@ -101,7 +101,12 @@ $* 2>>EOE != 0
     $pkg_configure libhello;
 
     $* $j1 libhello 2>>~%EOE%;
-      %.{6,9}
+      %c\+\+ .+%
+      %ld .+%
+      %c\+\+ .+%
+      %ld .+%
+      %c\+\+ .+%
+      %ld .+%
       updated libhello/1.0.0
       EOE
 
@@ -124,7 +129,12 @@ $* 2>>EOE != 0
   $* $j1 libhello 2>>~%EOE%;
     %mkdir .+%
     %mkdir .+%
-    %.{6,9}
+    %c\+\+ .+%
+    %ld .+%
+    %c\+\+ .+%
+    %ld .+%
+    %c\+\+ .+%
+    %ld .+%
     updated libhello/1.0.0
     EOE
 
