@@ -204,7 +204,7 @@ namespace bpkg
   public:
     using trace_mark::trace_mark;
 
-    // process_run() command tracer interface.
+    // process_run_callback() command tracer interface.
     //
     void
     operator() (const char* const [], std::size_t) const;
