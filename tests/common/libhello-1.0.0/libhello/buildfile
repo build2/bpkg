@@ -18,4 +18,4 @@ libs{hello}: cxx.export.poptions += -DLIBHELLO_SHARED
 
 # Install into the libhello/ subdirectory of, say, /usr/include/.
 #
-install.include = $install.include/libhello/
+{hxx ixx txx}{*}: install = include/libhello/
