@@ -4,9 +4,9 @@ trap 'exit 1' ERR
 
 odb=odb
 lib="\
--I$HOME/work/odb/libodb-sqlite-default \
+-I$HOME/work/odb/builds/default/libodb-sqlite-default \
 -I$HOME/work/odb/libodb-sqlite \
--I$HOME/work/odb/libodb-default \
+-I$HOME/work/odb/builds/default/libodb-default \
 -I$HOME/work/odb/libodb"
 
 $odb $lib -I.. -I../../libbpkg -I../../libbutl                        \
