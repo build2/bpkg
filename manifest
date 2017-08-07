@@ -1,6 +1,6 @@
 : 1
 name: bpkg
-version: 0.6.0-a.0.z
+version: 0.6.0
 summary: build2 package manager
 license: MIT
 tags: build2, c++, package, manager
@@ -12,11 +12,11 @@ src-url: https://git.build2.org/cgit/bpkg/tree/
 email: users@build2.org
 build-email: builds@build2.org
 requires: c++14
-depends: * build2 >= 0.5.0-
-depends: * bpkg >= 0.5.0-
+depends: * build2 >= 0.6.0-
+depends: * bpkg >= 0.6.0-
 # @@ Should probably become conditional dependency.
 requires: ? cli ; Only required if changing .cli files.
-depends: libodb [2.5.0-b.4.1 2.5.0-b.5)
-depends: libodb-sqlite [2.5.0-b.4.1 2.5.0-b.5)
-depends: libbutl [0.6.0-a.0.1 0.6.0-a.1)
-depends: libbpkg [0.6.0-a.0.1 0.6.0-a.1)
+depends: libodb == 2.5.0-b.5
+depends: libodb-sqlite == 2.5.0-b.5
+depends: libbutl [0.6.0 0.7.0-); 0.6.X
+depends: libbpkg [0.6.0 0.7.0-); 0.6.X
