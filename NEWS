@@ -1,3 +1,13 @@
+Version 0.6.0
+
+  * Add doc-url and src-url manifest values.
+
+  * Support for repository certificate wildcards.
+
+    A wildcard in the *.example.com form matches any single-level subdomain
+    while **.example.com -- any subdomains. See the bpkg-repository-signing(1)
+    help topic for details.
+
 Version 0.5.0
 
   * Multiple usability fixes and improvements.
