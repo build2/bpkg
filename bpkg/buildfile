@@ -48,7 +48,6 @@ exe{bpkg}:                                                                 \
   $libs xml{*}
 
 hxx{version}: in{version} $src_root/file{manifest}
-hxx{version}: dist = true
 
 # Disable "unknown pragma" warnings.
 #
