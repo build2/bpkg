@@ -178,8 +178,22 @@ namespace bpkg
 
       process pr (pp, args);
 
-      if (!pr.wait ())
+      if (pr.wait ())
+        return;
+
+      assert (pr.exit);
+      const process_exit& pe (*pr.exit);
+
+      if (pe.normal ())
         throw failed (); // Assume the child issued diagnostics.
+
+      diag_record dr (fail);
+      print_process (dr, args);
+
+      dr << " terminated abnormally: " << pe.description ();
+
+      if (pe.core ())
+        dr << " (core dumped)";
     }
     catch (const process_error& e)
     {
