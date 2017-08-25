@@ -15,11 +15,148 @@
 \h0#preface|Preface|
 
 This is the preface.
-"
 
-/*
+\h1#package-version|Package Version|
+
+The \c{bpkg} package version format tries to balance the need of accommodating
+existing software versions on one hand and providing a reasonably
+straightforward comparison semantics on another. For some background on this
+problem see \cb{deb-version(1)} and the \l{http://semver.org Semantic
+Versioning} specification.
+
+Note also that if you are strating a new project that will use the \c{build2}
+toolchain, then it is strongly recommended that you use the \i{standard
+versioning} scheme which is a more strictly defined subset of semanic
+versioning and that allows automation of many version management tasks. See
+\l{https://build2.org/build2/doc/build2-build-system-manual.xhtml#module-version
+Version Module} for details.
+
+The \c{bpkg} package version has the following form:
+
+\
+[<epoch>~]<upstream>[-<prerel>][+<revision>]
+\
+
+The \i{epoch} part should be an integer. It can be used to change to a new
+versioning scheme that would be incompatible with the old one. If not
+specified, then \i{epoch} defaults to \c{0}.
+
+The \i{upstream} part is the upstream software version that this package
+is based on. It can only contain alpha-numeric characters and \c{'.'}. The
+\c{'.'} character is used to separate the version into \i{components}.
+
+The \i{prerel} part is the upstream software pre-release marker, for example,
+alpha, beta, candidate, etc. Its format is the same as for \i{upstream} except
+for two special values: the absent \i{prerel} (for example, \c{1.2.3})
+signifies the maximum or final release while the empty \i{prerel} (for
+example, \c{1.2.3-}) signifies the minimum or earliest possible
+release. [Note: the minimum release is intended to be used for version
+constraints (for example, \c{libfoo < 1.2.3-}) rather than actual releases.]
+
+The \i{revision} part should be an integer. It is used to version package
+releases that are based on the same upstream versions. If not specified, then
+\i{revision} defaults to \c{0}.
+
+Version \c{0-} (least possible version) is reserved and specifying it
+explicitly is illegal. [Note: explicitly specifying this version does not make
+much sense since \c{libfoo < 0-} is always false and \c{libfoo > 0-} is always
+true. In the implementation this value is used as a special empty version.]
+
+Version \c{0} (with a potential revision, for example, \c{0+1}, \c{0+2}) is
+used to signify a \i{stub package}. A stub is a package that does not contain
+source code and can only be \"obtained\" from other sources, for example, a
+system package manager. Note that at some point a stub may be converted into a
+full-fledged package at which point it will be assigned a \"real\" version.
+It is assumed that this version will always be greater than the stub version.
+
+When displaying the package version or when using the version to derive the
+file name, zero \i{epoch} and \i{revision} are omitted (even if they were
+explicitly specified, for instance, in the package manifest). For example,
+\c{0~1.2.3+0} will be used as \c{libfoo-1.2.3}.
+
+[Note: this versioning scheme and the choice of delimiter characters (\c{~-+})
+is meant to align with semantic versioning.]
+
+Some examples of versions:
+
+\
+1.2.3
+1.2.3-a1
+1.2.3-b2
+1.2.3-rc1
+1.2.3-alpha1
+1.2.3-alpha.1
+1.2.3-beta.1
+1.2.3+1
+1~1.2.3
+1~1.2.3-alpha.1+3
+\
+
+The version sorting order is \i{epoch}, \i{upstream}, \i{prerel}, and,
+finally, \i{revision}. The \i{upstream} and \i{prerel} parts are compared from
+left to right, one component at a time, as described next.
+
+To compare two components, first the component types are determined.  A
+component that only consists of digits is an integer. Otherwise, it is a
+string. If both components are integers, then they are compared as
+integers. Otherwise, they are compared lexicographically and case-
+insensitively. [Note: the reason for case-insensitive comparsion is Windows
+file names.]
+
+A non-existent component is considered 0 if the other component is an integer
+and an empty string if the other component is a string.  For example, in
+\c{1.2} vs \c{1.2.0}, the third component in the first version is 0 and the
+two versions are therefore equal. As a special exception to this rule, an
+absent \i{prerel} part is always greater than any non-absent part. [Note: and
+thus making the final release always older than any pre-release.]
+
+This algorithm gives correct results for most commonly-used versioning
+schemes, for example:
+
+\
+1.2.3 < 12.2
+1.alpha < 1.beta
+20151128 < 20151228
+2015.11.28 < 2015.12.28
+\
+
+One notable versioning scheme where this approach gives an incorrect result is
+hex numbers (consider \c{A} vs \c{1A}). The simplest work around is to convert
+such numbers to decimal. Alternatively, one can fix the width of the hex
+number and pad all the values with leading zeros, for example: \c{00A} vs
+\c{01A}.
+
+It is also possible to convert the \i{upstream} and \i{prerel} parts into a
+\i{canonical representation} that will produce the correct comparison result
+when always compared lexicographically and as a whole. [Note: this can be
+useful, for example, when storing versions in the database which would
+otherwise require a custom collation implementation to obtain the correct sort
+order.]
+
+To convert one of these parts to its canonical representation, all its string
+components are converted to the lower case while all its integer components
+are padded with leading zeros to the fixed length of \c{8} characters, with
+all trailing zero-only components removed. Note that this places an
+implementation limit on the length of integer components which should be
+checked by the implementation when converting to the canonical
+representation. [Note: the \c{8} characters limit was chosen to still be able
+to represent components in the \c{20151128} (date) form while not (visually)
+bloating the database too much.] As a special case, the absent \i{prerel} part
+is represented as \c{'~'}. [Note: since the ASCII code for \c{'~'} is greater
+than any other character that could appear in \i{prerel}, such a string will
+always be greater than any other representation.] The empty \i{prerel} part is
+represented as an empty string.
+
+Note that because it is no possible to perform a reverse conversion without
+the possibility of loss (consider \c{01.AA.BB}), the original parts may also
+have to be stored, for example, for display, to derive package archive names,
+etc.
+
+[Note: in quite a few contexts the implementation needs to ignore the
+\i{revision} part. For example, this is needed to implement the semantics of
+newer revisions of packages replacing their old ones since we do not keep
+multiple revisions of the same upstream version in the same respository. As a
+result, in the package object model, we have a version key as just {\i{epoch},
+\i{upstream}, \i{prerel}} but also store the package revision so that it can
+be shown it to the user, etc.]
 "
-\h Installation
-"
-source "../INSTALL.cli";
-*/
