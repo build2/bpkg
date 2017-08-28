@@ -650,7 +650,7 @@ namespace bpkg
     expired () const
     {
       assert (!dummy ());
-      return timestamp::clock::now () > end_date;
+      return butl::system_clock::now () > end_date;
     }
 
   public:

@@ -14,6 +14,7 @@
 #include <libbutl/process.hxx>
 #include <libbutl/openssl.hxx>
 #include <libbutl/fdstream.hxx>
+#include <libbutl/timestamp.hxx>
 #include <libbutl/filesystem.hxx>
 
 #include <bpkg/package.hxx>
@@ -838,7 +839,7 @@ namespace bpkg
     //
     shared_ptr<certificate> cert (parse_cert (co, "", cert_pem, r));
 
-    timestamp now (timestamp::clock::now ());
+    timestamp now (system_clock::now ());
 
     if (cert->end_date < now)
       fail << "certificate for repository " << r << " has expired";
