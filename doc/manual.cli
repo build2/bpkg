@@ -159,4 +159,1023 @@ multiple revisions of the same upstream version in the same respository. As a
 result, in the package object model, we have a version key as just {\i{epoch},
 \i{upstream}, \i{prerel}} but also store the package revision so that it can
 be shown it to the user, etc.]
+
+\h1#manifests|Manifests|
+
+This chapter describes the general manifest file format as well as the
+concrete manifests used by \c{bpkg}.
+
+Currently, three manifests are defined: package manifest, repository manifest,
+and signature manifest. The former two manifests can also be combined into a
+list of manifests to form the list of available packages and the description
+of a repository, respectively.
+
+\h#manifest-format|Manifest Format|
+
+The manifest file is a UTF-8 encoded text file containing a list of name-value
+pairs in the form:
+
+\
+<name>: <value>
+\
+
+For example:
+
+\
+name: libfoo
+version: 1.2.3
+\
+
+The name can contain any characters except \c{':'} and whitespaces. Newline
+terminates the pair unless escaped with \c{'\'} (see below). Leading and
+trailing whitespaces before and after name and value are ignored except in the
+multi-line mode (see below).
+
+If, the first non-whitespace character on the line is \c{'#'}, then the rest
+of the line is treated as a comment and ignored except if the preceding
+newline was escaped or in the multi-line mode (see below). For example:
+
+\
+# This is a comment.
+short: This is #not a comment
+long: Also \
+#not a comment
+\
+
+The first name-value pair in the manifest file should always have an empty
+name. The value of this special pair is the manifest format version. The
+version value shall use the default (that is, non-multi-line) mode and shall
+not use any escape sequences. Currently it should be \c{1}, for example:
+
+\
+: 1
+name: libfoo
+version: 1.2.3
+\
+
+Any new name that is added without incrementing the version must be optional
+so that it can be safely ignored by older implementations.
+
+The special empty name pair can also be used to separate multiple
+manifests. In this case the version may be omitted in the subsequent
+manifests, for example:
+
+\
+: 1
+name: libfoo
+version: 1.2.3
+:
+name: libbar
+version: 2.3.4
+\
+
+To disable treating of a newline as a name-value pair terminator we can escape
+it with \c{'\'}. Note that \c{'\'} is only treated as an escape sequence when
+followed by a newline and both are simply removed from the stream (as opposed
+to being replaced which a space). To enter a literal \c{'\'} at the end of the
+value, use the \c{'\\'} sequence. For example:
+
+\
+description: Long text that doesn't fit into one line \
+so it is continued on the next line.
+\
+
+\
+windows-path: C:\foo\bar\\
+\
+
+Notice that in the final example only the last \c{'\'} needs special handling
+since it is the only one that is followed by a newline.
+
+One may notice that in this newline escaping scheme a line consisting of just
+\c{'\'} followed by a newline has no use, except, perhaps, for visual
+presentation of, arguably, dubious value. For example, this representation:
+
+\
+description: First line. \
+\\
+Second line.
+\
+
+Is semantically equivalent to:
+
+\
+description: First line. Second line.
+\
+
+As a result, such a sequence is \"overloaded\" to provide more useful
+functionality in two ways: Firstly, if \c{':'} after the name is immediately
+followed (ignoring whitespaces) by \c{'\'} and a newline, then it signals the
+start of the multi-line mode. In this mode all subsequent newlines and \c{'#'}
+are treated as ordinary characters rather than value terminators or comments
+until a line consisting of just '\' and a newline (the multi-line mode
+terminator). For example:
+
+\
+description:\
+First paragraph.
+#
+Second paragraph.
+\\
+\
+
+Expressed as a C-string, the value in the above example is:
+
+\
+\"First paragraph.\n#\nSecond paragraph.\"
+\
+
+
+[Note: if we didn't expect to ever need to specify a name with an empty value,
+then an empty value could have turned on the multi-line mode, for example:
+
+\
+description:
+First paragraph.
+#
+Second paragraph.
+\\
+\
+
+There are two reasons we don't do this: we don't want to close the door on
+empty values and we want a more explicit \"introductor\" for the multi-line
+mode since it is quite different compared to the simple mode.]
+
+Note that in the multi-line mode we can still use newline escaping to split
+long lines, for example:
+
+\
+description:\
+First paragraph that doesn't fit into one line \
+so it is continued on the next line.
+Second paragraph.
+\\
+\
+
+In the simple (that is, non-multi-line) mode, the sole \c{'\'} and newline
+sequence is overloaded to mean a newline. So the previous example can also be
+represented like this:
+
+\
+description: First paragraph that doesn't fit into one \
+line so it is continued on the next line.\
+\\
+Second paragraph.
+\
+
+Note that the multi-line mode can be used to capture a value with leading
+and/or trailing whitespaces, for example:
+
+\
+description:\
+  test
+
+\\
+\
+
+The C-string representing this value is:
+
+\
+\"  test\n\"
+\
+
+EOF can be used instead of a newline to terminate both simple and multi-line
+values. For example the following representation results in the same value as
+in the previous example.
+
+\
+description:\
+  test
+
+<EOF>
+\
+
+By convention, names are all in lower case and multi-word names are separated
+with \c{'-'}. Note that names are case-sensitive.
+
+Also by convention, the following name suffixes are used to denote common
+types of values:
+
+\
+-file
+-url
+-email
+\
+
+For example:
+
+\
+description: Inline description
+description-file: README
+package-url: http://www.example.com
+package-email: john@example.com
+\
+
+Other common name suffixes (such as -feed) could be added later.
+
+[Note: generally, unless there is a good reason not to, we keep values
+lower-case (for example, \c{requires} values such as \c{c++11} or
+\c{linux}). An example where we use upper/mixed case would be \c{license}; it
+seems unlikely \c{gplv2} would be better than \c{GPLv2}.]
+
+A number of name-value pairs described below allow for the value proper to be
+optionally followed by ';' and a comment. Such comments serve as additional
+documentation for the user and should be full sentence(s), that is start with
+a capital letter and end with a period. Note that unlike \c{#}-style comments
+which are ignored, these comments are considered to be part of the value. For
+example:
+
+\
+email: foo-users@example.com; Public mailing list.
+\
+
+It is recommended that you keep comments short, single-sentence. Note that
+non-comment semicolons in such values have to be escape with a backslash, for
+example:
+
+\
+url: http://git.example.com/?p=foo\;a=tree
+\
+
+In the manifest specifications described below optional components are
+enclosed in square brackets (\c{[]}). If the name is enclosed in \c{[]} then
+the name-value pair is optional, otherwise \- required. For example:
+
+\
+name: <name>
+license: <licenses> [; <comment>]
+[description]: <text>
+\
+
+In the above example \c{name} is required, \c{license} has an optional
+component (comment), and \c{description} is optional.
+
+
+\h#manifest-package|Package Manifest|
+
+The package manifest (the \c{manifest} file found in the package's root
+directory) describes a \c{bpkg} package. The manifest synopsis is presented
+next followed by the detailed description of each value in subsequent
+sections.
+
+\
+name: <name>
+version: <version>
+[priority]: <priority> [; <comment>]
+summary: <text>
+license: <licenses> [; <comment>]
+[tags]: <tags>
+[description]: <text>
+[description-file]: <path> [; <comment>]
+[changes]: <text>
+[changes-file]: <path> [; <comment>]
+
+url: <url> [; <comment>]
+[doc-url]: <url> [; <comment>]
+[src-url]: <url> [; <comment>]
+[package-url]: <url> [; <comment>]
+
+email: <email> [; <comment>]
+[package-email]: <email> [; <comment>]
+[build-email]: <email> [; <comment>]
+
+[depends]: [?][*] <alternatives> [; <comment>]
+[requires]: [?] [<alternatives>] [; <comment>]
+
+[build-include]: <config>[/<target>] [; <comment>]
+[build-exclude]: <config>[/<target>] [; <comment>]
+\
+
+\h2#manifest-package-name|\c{name}|
+
+\
+name: <name>
+\
+
+The package name. Note that the package name comparison is case-insensitive
+but the case is preserved for display, in file names, etc. [Note: the reason
+for not using case-sensitive comparison is Windows file names.]
+
+Package naming guidelines:
+
+\ol|
+
+  \li|Use lower-case letters.|
+
+  \li|Use \c{'-'} to separate words, for example, \c{foo-bar}.|
+
+  \li|Use \c{lib} prefix for libraries, for example, \c{libfoo-bar}.||
+
+
+\h2#manifest-package-version|\c{version}|
+
+\
+version: <version>
+\
+
+The package version. See \l{#package-version Package Version} for the version
+format description. Note that the version case is preserved for display, in
+file names, etc.
+
+\h2#manifest-package-|\c{priority}|
+
+\
+[priority]: <priority> [; <comment>]
+
+<priority> = security | high | medium | low
+\
+
+The release priority (optional). As a guideline, use \c{security} for security
+fixes, \c{high} for critical bug fixes, \c{medium} for important bug fixes,
+and \c{low} for minor fixes and/or feature releases. If not specified, \c{low}
+is assumed.
+
+
+\h2#manifest-package-summary|\c{summary}|
+
+\
+summary: <text>
+\
+
+The short description of the package.
+
+
+\h2#manifest-package-license|\c{license}|
+
+\
+license: <licenses> [; <comment>]
+
+<licenses> = <license> [, <license>]*
+\
+
+The package lincense. The format is a comma-separated list of license names
+under which this package is distributed. This list has the \i{AND} semantics,
+that is, the user must comply with all the licenses listed. To capture
+alternative licensing options use multiple \c{license} values, for example:
+
+\
+license: LGPLv2, MIT
+license: BSD
+\
+
+In the above example, the package can be used either under the BSD license or
+both LGPLv2 and MIT.
+
+For complex licensing schemes it is recommended to add comments as an aid to
+the user, for example:
+
+\
+license: LGPLv2, MIT; If linking with GNU TLS.
+license: BSD;         If linking with OpenSSL.
+\
+
+To assist automated processing, the following pre-defined values should be
+used for the common licenses:
+
+\
+MIT
+GPLv2
+GPLv3
+LGPLv2
+LGPLv3
+ASLv1         ; Apache License 1.0.
+ASLv1.1       ; Apache License 1.1.
+ASLv2         ; Apache License 2.0.
+BSD           ; BSD 3-clause.
+BSD-Original  ; BSD original.
+
+public domain
+available source ; Not free software/open source.
+proprietary
+\
+
+[Note: an example of automated processing could be filtering for non-copyleft
+licensed packages.]
+
+\h2#manifest-package-tags|\c{tags}|
+
+\
+[tags]: <tags>
+
+<tags> = <tag> [, <tag>]*
+\
+
+The package tags (optional). The format is a comma-separated list of words
+that describe this package.
+
+[Note: originally, support for multi-word tags were considered, however this
+quickly degenerated into quite a complex functionality. In particular, in such
+a case we should probably treat multi-word tags as if the single word as well
+as shorter, multi-word derivations were also mentioned. That is, \"xml pull
+parser\" should be equivalent to \"xml pull parser, xml pull, xml parser,
+pull parser, xml, pull, parser\".
+
+On the user side, if exact phrase matches are favored, then this serves as an
+encouragement to come up with ever more elaborate multi-word tags to \"cover\"
+as much ground as possible. For example, \"streaming c++ xml pull parser\".
+
+As a result, we will start simple and only allow single-word tags.]
+
+
+\h2#manifest-package-description|\c{description}|
+
+\
+[description]: <text>
+[description-file]: <path> [; <comment>]
+\
+
+The detailed description of the package. It can be provided either inline as a
+text fragment or by referring to a file within a package (e.g., \c{README}),
+but not both.
+
+In the web interface (\c{brep}) the description is formatted into one or more
+paragraphs using blank lines as paragraph separators. Specifically, it is not
+represented as \c{<pre>} so any kind of additional plain text formatting (for
+example, lists) will be lost and should not be used in the description.
+
+
+\h2#manifest-package-changes|\c{changes}|
+
+\
+[changes]: <text>
+[changes-file]: <path> [; <comment>]
+\
+
+The description of changes in the release.
+
+[Note: the tricky aspect is what happens if the upstream release stays the
+same (and has, say, a \c{NEWS} file to which we point) but we need to make
+another package release, for example, to apply a critical patch.]
+
+Multiple \c{changes} values can be present which are all concatenated in the
+order specified, that is, the first value is considered to be the most recent
+[Note: similar to \c{ChangeLog} and \c{NEWS} files]. For example:
+
+\
+changes: 1.2.3-2: applied upstream patch for critical bug bar
+changes: 1.2.3-1: applied upstream patch for critical bug foo
+changes-file: NEWS
+\
+
+Or:
+
+\
+changes:\
+1.2.3-2
+  - applied upstream patch for critical bug bar
+  - regenerated documentation
+
+1.2.3-1
+  - applied upstream patch for critical bug foo
+\\
+changes-file: NEWS
+\
+
+In the web interface (\c{brep}) the changes are displayed as pre-formatted
+plain text.  [Note: we could use the comment to \"hint\" at the file format.]
+
+
+\h2#manifest-package-url|\c{url}|
+
+\
+url: <url> [; <comment>]
+\
+
+The project home page URL.
+
+
+\h2#manifest-package-doc-url|\c{doc-url}|
+
+\
+[doc-url]: <url> [; <comment>]
+\
+
+The project documentation URL.
+
+
+\h2#manifest-package-src-url|\c{src-url}|
+
+\
+[src-url]: <url> [; <comment>]
+\
+
+The project source repository URL.
+
+
+\h2#manifest-package-package-url|\c{package-url}|
+
+\
+[package-url]: <url> [; <comment>]
+\
+
+The package home page URL. If not specified, then assumed to be the same as
+\c{url}. It only makes sense to specify this value if the project and
+packaged are maintained separately.
+
+
+\h2#manifest-package-email|\c{email}|
+
+\
+email: <email> [; <comment>]
+\
+
+The project email address. For example, a support mailing list.
+
+
+\h2#manifest-package-package-email|\c{package-email}|
+
+\
+[package-email]: <email> [; <comment>]
+\
+
+The package email address. If not specified, then assumed to be the same as
+\c{email}. It only makes sense to specify this value if the project and
+packaged are maintained separately.
+
+
+\h2#manifest-package-build-email|\c{build-email}|
+
+\
+[build-email]: <email> [; <comment>]
+\
+
+The build notification email address. It is used to send build result
+notifications by automated build bots. If not specified, then assumed to be
+the same as \c{package-email}. If specified but empty, then no build result
+notifications for this package are sent by email.
+
+\h2#manifest-package-depends|\c{depends}|
+
+\
+[depends]: [?][*] <alternatives> [; <comment>]
+
+<alternatives> := <dependency> [ '|' <dependency>]*
+<dependency>   := <name> [<constraint>]
+<constraint>   := <comparison> | <range>
+<comparison>   := ('==' | '>' | '<' | '>=' | '<=') <version>
+<range>        := ('(' | '[') <version> <version> (')' | ']')
+\
+
+The prerequisite packages. If the \c{depends} value start with \c{'*'}, then
+it is a \i{build-time} prerequisite. Otherwise it is \i{run-time}. [Note: most
+of the build-time prerequisites are expected to be tools such as code
+generator, so you can think of \c{'*'} as the executable mark printed by
+\c{ls}. An important difference between the two kind of dependencies is that
+in case of cross-compilation a build-time dependency must be built for the
+build machine, not the target.]
+
+Two special build-time dependency names are recognized and checked in an ad
+hoc manner: \c{build2} (the \c{build2} build system) and \c{bpkg} (the
+\c{build2} package manager). This allows us to specify the required build
+system and package manager versions, for example:
+
+\
+depends: * build2 >= 0.6.0
+depends: * bpkg >= 0.6.0
+\
+
+Each \c{depends} value can specify multiple packages with the \i{OR}
+semantics. While multiple \c{depends} values are used to specify multiple
+packages with the \i{AND} semantics. A value that starts with \c{'?'} is a
+conditional prerequisite. Whether such a prerequisite will be in effect can
+only be determined at the package configuration time. It is recommended that
+you provide a comment for each conditional prerequisite as an aid to the user.
+For example:
+
+\
+depends: libz
+depends: libfoo [1.2.0 1.3.0-); Need libfoo 1.2.X.
+depends: libgnutls >= 1.2.3 | libopenssl >= 2.3.4
+depends: ? libboost-regex >= 1.52.0; Only if no C++11 <regex>.
+depends: ? libqtcore >= 5.0.0; Only if GUI is enabled.
+\
+
+It is recommended that you specify unconditional dependencies first with
+simple (no alternatives) dependencies leading each set.
+
+Note that internally comparisons can be represented as ranges (that is, \c{[v,
+v]} for \c{==}, \c{(v, inf)} for \c{>}, etc). However, for display and
+serialization such representations should be converted back to simple
+comparisons. While it is possible that the original manifest specified
+equality as \c{[v, v]}, it is acceptable to display/serialize it as
+simpler \c{==}.
+
+\h2#manifest-package-requires|\c{requires}|
+
+\
+[requires]: [?] [<alternatives>] [; <comment>]
+
+<alternatives> := <requirement> [ '|' <requirement>]*
+<requirement>  := <id> | <dependency>
+\
+
+The package requirements (other than other packages). Such requirements are
+normally checked during package configuration by the build system and the only
+purpose of capturing them in the manifest is for documentation. Similar to
+\c{depends}, a value that starts with \c{'?'} is a conditional
+requirement. For example:
+
+\
+requires: linux | windows | macosx
+requires: c++11
+requires: ? ; VC 15 or later if targeting Windows.
+requires: ? ; libc++ if using Clang on Mac OS.
+\
+
+Note that \c{requires} should also be used to specify dependencies on external
+libraries, that is, then ones not packaged or not in the repository. In this
+case it may make sense to also specify the version constraint. For example:
+
+\
+requires: zlib >= 1.2.0; Most systems already have it or get from zlib.net.
+\
+
+It is recommended that you specify unconditional requirements first with
+simple (no alternatives) requirements leading each set.
+
+To assist automated processing, the following pre-defined ids should be used
+for the common requirements:
+
+\
+c++98
+c++03
+c++11
+c++14
+c++17
+c++21
+\
+
+\
+posix
+linux
+macos
+freebsd
+windows
+\
+
+\
+gcc[_X.Y.Z]  ; For example: gcc_6, gcc_4.9, gcc_5.0.0
+clang[_X.Y]  ; For example: clang_6, clang_3.4, clang_3.4.1
+msvc[_NU]    ; For example: msvc_14, msvc_15u3
+\
+
+\h2#manifest-package-include-exclude|\c{build-{include,exclude\}}|
+
+\
+[build-include]: <config>[/<target>] [; <comment>]
+[build-exclude]: <config>[/<target>] [; <comment>]
+\
+
+The package build inclusions and exclusions. The \c{build-include} and
+\c{build-exclude} values specify the build configurations and, optionally,
+targets the package should or should not be built for by automated build
+bots. The \i{config} and \i{target} values are filesystem wildcard patterns
+which are matched against the build configuration names and target names (see
+the \c{bbot} documentation for details).
+
+The exclusion and inclusion patterns are applied in the order specified with
+the first match determining whether the package will be built for this
+configuration and target. If none of the patterns match (or none we
+specified), then the package is built.
+
+As an example, the following value will exclude 32-bit builds for the VC14
+compiler:
+
+\
+build-exclude: *-msvc_14*/i?86-* ; Linker crash.
+\
+
+As another example, the following pair of values will make sure that a package
+is only built on Linux:
+
+\
+build-include: linux*
+build-exclude: * ; Only supported on Linux.
+\
+
+Note that the comment of the matching exclusion is used by the web interface
+(\c{brep}) to display the reason for the build exclusion.
+
+
+\h#manifest-package-list|Package List Manifest|
+
+The package list manifest (the \c{packages} file found in the repository root
+directory) describes the list of packages available in the repository. First
+comes a manifest that describes the list itself (referred to as the list
+manifest). The list manifest synopsis is presented next:
+
+\
+sha256sum: <sum>
+\
+
+After the list manifest comes a (potentially empty) sequence of package
+manifests. These manifests shall not contain any \c{*-file} values (such
+values should be converted to their inline versions) but must contain the
+following additional (to package manifest) values:
+
+\
+location: <path>
+sha256sum: <sum>
+\
+
+The detailed description of each value follows in the subsequent sections.
+
+\h2#manifest-package-list-sha256sum|\c{sha256sum} (list manifest)|
+
+\
+sha256sum: <sum>
+\
+
+The SHA256 checksum of the \c{repositories} file (described below) that
+corresponds to this repository. The \i{sum} value should be 64 characters long
+(that is, just the SHA256 value, no file name or any other markers), be
+calculated in the binary mode, and use lower-case letters.
+
+[Note: this checksum is used to make sure that the \c{repositories} file that
+was fetched is the same as the one that was used to create the \c{packages}
+file. This also means that if \c{repositories} is modified in any way, then
+\c{packages} must be regenerated as well.]
+
+\h2#manifest-package-list-package-location|\c{location} (package manifest)|
+
+\
+location: <path>
+\
+
+The path to the package archive file relative to the repository root. It
+should be in the POSIX representation.
+
+[Note: if the repository keeps multiple versions of the package and places
+them all into the repository root directory, it can get untidy. With
+\c{location} we allow for sub-directories.]
+
+
+\h2#manifest-package-list-package-sha256sum|\c{sha256sum} (package manifest)|
+
+\
+sha256sum: <sum>
+\
+
+The SHA256 checksum of the package archive file. The \i{sum} value should be
+64 characters long (that is, just the SHA256 value, no file name or any other
+markers), be calculated in the binary mode, and use lower-case letters.
+
+\h#manifest-repository|Repository Manifest|
+
+The repository manifest (only used as part of the repository manifest list
+described below) describes a \c{bpkg} repository. The manifest synopsis is
+presented next followed by the detailed description of each value in
+subsequent sections.
+
+\
+[location]: <uri>
+[role]: base|prerequisite|complement
+[url]: <url>
+[email]: <email> [; <comment>]
+[summary]: <text>
+[description]: <text>
+[certificate]: <pem>
+\
+
+See also the Repository Chaining documentation for further information @@ TODO.
+
+\h2#manifest-repository-location|\c{location}|
+
+\
+[location]: <uri>
+\
+
+The location of the repository root. It can be an HTTP(S) URL or a filesystem
+path. The location can only and must be omitted for the base repository. If
+the path is relative, then it is treated as relative to the base repository
+location.
+
+While POSIX systems normally only support POSIX paths (that is, forward
+slashes only), Windows is generally able to handle both slash types. As a
+result, it is recommended that POSIX paths are always used in the \c{location}
+values, except, perhaps, if the repository is explicitly Windows-only by, for
+example, having a location that is an absolute Windows path with the drive
+letter. [Note: the bpkg package manager will always try to represent the
+location as a POSIX path and only fallback to the native representation if
+that is not possible (for example, there is a drive letter in the path).]
+
+
+\h2#manifest-repository-role|\c{role}|
+
+\
+[role]: base|prerequisite|complement
+\
+
+The repository role. If the \c{location} value is omitted, then the role can
+be omitted or it must be \c{base}. If the \c{location} value is present, then
+the role can be omitted (in which case it is assume to be \c{prerequisite}) or
+it must be either \c{prerequisite} or \c{complement}.
+
+
+\h2#manifest-repository-url|\c{url}|
+
+\
+[url]: <url>
+\
+
+The repository's web interface (\c{brep}) URL. It can only be specified for
+the base repository (the web interface URLs for prerequisite/complement
+repositories can be extracted from their respective manifests).
+
+For example, given the following \c{url} value:
+
+\
+url: https://example.org/hello/
+\
+
+The package details page for \c{libfoo} located in this repository will be
+\c{https://example.org/hello/libfoo}.
+
+The web interface URL can also be specified as relative to the repository
+location (the \c{location} value). In this case \i{url} should start with two
+path components each being either \c{.} or \c{..}. If the first component is
+\c{..}, then the \c{www}, \c{pkg} or \c{bpkg} domain component, if any, is
+removed from the \c{location} URL host, just like when deriving the repository
+name.
+
+Similarly, if the second component is \c{..}, then the \c{pkg} or \c{bpkg}
+path component, if any, is removed from the \c{location} URL path, again, just
+like when deriving the repository name.
+
+Finally, the version component is removed from the \c{location} URL path, the
+rest (after the two \c{.}/\c{..} components) of the \c{url} value is appended
+to it, and the resulting path is normalized with all remaining \c{..}  and
+\c{.} applied normally.
+
+For examples, assuming repository location is:
+
+\
+https://pkg.example.org/test/pkg/1/hello/stable
+\
+
+The following listing shows some of the possible combinations (the \c{<>}
+marker is used to highlight the changes):
+
+\
+./.          ->  https://pkg.example.org/test/pkg/hello/stable
+../.         ->  https://<  >example.org/test/pkg/hello/stable
+./..         ->  https://pkg.example.org/test/<  >hello/stable
+../..        ->  https://<  >example.org/test/<  >hello/stable
+././..       ->  https://pkg.example.org/test/pkg/hello<     >
+../../../..  ->  https://<  >example.org/test<               >
+\
+
+[Note: the rationale for the relative web interface URLs is to allow
+deployment of the same repository to slightly different configuration, for
+example, during development, testing, and public use. For instance, for
+development we may use the \c{https://example.org/pkg/} setup while in
+production it becomes \c{https://pkg.example.org/}. By specifying the web
+interface location as, say, \c{../.}, we can run the web interface at
+these respective locations using a single repository manifest.]
+
+
+\h2#manifest-repository-email|\c{email}|
+
+\
+[email]: <email> [; <comment>]
+\
+
+The repository email address. It must and can only be specified for the base
+repository. The email address is displayed by the web interface (\c{brep}) in
+the repository about page and could be used to contact the maintainers about
+issues with the repository.
+
+
+\h2#manifest-repository-summary|\c{summary}|
+
+\
+[summary]: <text>
+\
+
+The short description of the repository. It must and can only be specified for
+the base repository.
+
+
+\h2#manifest-repository-description|\c{description}|
+
+\
+[description]: <text>
+\
+
+The detailed description of the repository. It can only be specified for the
+base repository.
+
+In the web interface (\c{brep}) the description is formatted into one or more
+paragraphs using blank lines as paragraph separators, similar to the package
+description.
+
+
+\h2#manifest-repository-certificate|\c{certificate}|
+
+\
+[certificate]: <pem>
+\
+
+The X.509 certificate for the repository. It should be in the PEM format and
+can only be specified for the base repository.
+
+The certificate should contain the \c{CN} and \c{O} components in the subject
+as well as the \c{email:} component in the subject alternative names. The
+\c{CN} component should start with \c{name:} and continue with the repository
+name prefix/wildcard (without trailing slash) that will be used to verify the
+repository name(s) that are authenticated with this certificate. See
+\l{bpkg-repository-signing(1)} for details.
+
+If this value is present then the \c{packages} file must be signed with the
+corresponding private key and the signature saved in the \c{signature} file.
+See \l{#manifest-signature Signature Manifest} for details.
+
+
+\h#manifest-repository-list|Repository List Manifest|
+
+@@ TODO See the Repository Chaining document for more information on the
+terminology and semantics.
+
+The repository list manifest (the \c{repositories} file found in the
+repository root directory) describes the repository. First comes a
+(potentially empty) sequence of repository manifests that describe the
+prerequisite and complement repositories. After this sequence must come the
+manifest for the base repository, that is, the repository that this manifest
+list is describing. The location value in this last manifest must be
+omitted. [Note: since we got hold of the manifest list, then we presumably
+already know the location of the base repository.]
+
+As an example, a repository manifest list for the \c{math/testing}
+repository could look like this:
+
+\
+# math/testing
+#
+: 1
+location: https://pkg.example.org/1/misc/testing
+:
+role: complement
+location: ../stable
+:
+email: math-pkg@example.org
+summary: Math package repository
+\
+
+Here the first manifest describes a prerequisite repository, the second
+manifest \- a complement repository, and the third manifest \- the base
+repository itself. Note that the complement repository's location is specified
+as a relative path. For example, if the base repository location were:
+
+\
+https://pkg.example.org/1/math/testing
+\
+
+Then the completement's location would be:
+
+\
+https://pkg.example.org/1/math/stable
+\
+
+
+\h#manifest-signature|Signature Manifest|
+
+The signature manifest (the \c{signature} file found in the repository root
+directory) contains the signature of the repository's \c{packages} file. In
+order to detect the situation where the downloaded \c{signature} and
+\c{packages} files belong to different updates, the manifest contains both the
+checksum and the signature (which is the encrypted checksum). [Note: we cannot
+rely on just the signature since a mismatch could mean either a split update
+or tampering.] The manifest synopsis is presented next followed by the
+detailed description of each value in subsequent sections.
+
+\
+sha256sum: <sum>
+signature: <sig>
+\
+
+\h2#manifest-signature-sha256sum|\c{sha256sum}|
+
+\
+sha256sum: <sum>
+\
+
+The SHA256 checksum of the \c{packages} file. The \i{sum} value should be 64
+characters long (that is, just the SHA256 value, no file name or any other
+markers), be calculated in the binary mode, and use lower-case letters.
+
+
+\h2#manifest-signature-signature|\c{signature}|
+
+\
+signature: <sig>
+\
+
+The signature of the \c{packages} file. It should be calculated by encrypting
+the above \c{sha256sum} value with the repository certificate's private key
+and then \c{base64}-encoding the result.
 "
+
+//@@ TODO items (grep).
+//@@ TODO: repository chaining, fix link in #manifest-repostiory.
+//@@ TODO: complete license list (MPL, ...)
+//@@ Are there any restrictions on requires ids? Is this valid: msvc >= 15u3?
