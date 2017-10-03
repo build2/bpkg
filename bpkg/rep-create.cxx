@@ -6,9 +6,9 @@
 
 #include <map>
 
-#include <libbutl/fdstream.hxx>
-#include <libbutl/filesystem.hxx>          // dir_iterator
-#include <libbutl/manifest-serializer.hxx>
+#include <libbutl/fdstream.mxx>
+#include <libbutl/filesystem.mxx>          // dir_iterator
+#include <libbutl/manifest-serializer.mxx>
 
 #include <libbpkg/manifest.hxx>
 

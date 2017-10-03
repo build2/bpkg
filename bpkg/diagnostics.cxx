@@ -9,7 +9,7 @@
 
 #include <odb/statement.hxx>
 
-#include <libbutl/process.hxx>
+#include <libbutl/process.mxx>
 
 using namespace std;
 using namespace butl;

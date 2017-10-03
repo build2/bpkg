@@ -14,7 +14,7 @@
 #include <odb/core.hxx>
 #include <odb/nested-container.hxx>
 
-#include <libbutl/timestamp.hxx>
+#include <libbutl/timestamp.mxx>
 
 #include <bpkg/types.hxx>
 #include <bpkg/utility.hxx>
@@ -68,7 +68,7 @@ namespace bpkg
                              std::chrono::nanoseconds::period>::value,
     "The following timestamp ODB mapping is invalid");
 
-  // As pointed out in libbutl/timestamp.hxx we will overflow in year 2262, but
+  // As pointed out in libbutl/timestamp.mxx we will overflow in year 2262, but
   // by that time some larger basic type will be available for mapping.
   //
   #pragma db map type(timestamp) as(uint64_t)                 \

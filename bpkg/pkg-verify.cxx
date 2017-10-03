@@ -4,9 +4,9 @@
 
 #include <bpkg/pkg-verify.hxx>
 
-#include <libbutl/process.hxx>
-#include <libbutl/fdstream.hxx>
-#include <libbutl/manifest-parser.hxx>
+#include <libbutl/process.mxx>
+#include <libbutl/fdstream.mxx>
+#include <libbutl/manifest-parser.mxx>
 
 #include <bpkg/archive.hxx>
 #include <bpkg/diagnostics.hxx>

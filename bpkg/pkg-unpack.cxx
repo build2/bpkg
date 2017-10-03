@@ -4,7 +4,7 @@
 
 #include <bpkg/pkg-unpack.hxx>
 
-#include <libbutl/process.hxx>
+#include <libbutl/process.mxx>
 
 #include <libbpkg/manifest.hxx>
 

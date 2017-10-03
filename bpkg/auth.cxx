@@ -9,13 +9,13 @@
 #include <cstring>   // strlen(), strcmp()
 #include <iterator>  // ostreambuf_iterator
 
-#include <libbutl/sha256.hxx>
-#include <libbutl/base64.hxx>
-#include <libbutl/process.hxx>
-#include <libbutl/openssl.hxx>
-#include <libbutl/fdstream.hxx>
-#include <libbutl/timestamp.hxx>
-#include <libbutl/filesystem.hxx>
+#include <libbutl/sha256.mxx>
+#include <libbutl/base64.mxx>
+#include <libbutl/process.mxx>
+#include <libbutl/openssl.mxx>
+#include <libbutl/fdstream.mxx>
+#include <libbutl/timestamp.mxx>
+#include <libbutl/filesystem.mxx>
 
 #include <bpkg/package.hxx>
 #include <bpkg/package-odb.hxx>

@@ -13,9 +13,9 @@
 
 #include <libbutl/ft/lang.hxx>
 
-#include <libbutl/utility.hxx> // casecmp(), reverse_iterate(), etc
+#include <libbutl/utility.mxx> // casecmp(), reverse_iterate(), etc
 
-#include <libbutl/filesystem.hxx>
+#include <libbutl/filesystem.mxx>
 
 #include <bpkg/types.hxx>
 #include <bpkg/version.hxx>
@@ -31,7 +31,7 @@ namespace bpkg
   using std::make_move_iterator;
   using std::to_string;
 
-  // <libbutl/utility.hxx>
+  // <libbutl/utility.mxx>
   //
   using butl::casecmp;
   using butl::reverse_iterate;

@@ -6,9 +6,9 @@
 
 #include <streambuf>
 
-#include <libbutl/process.hxx>
-#include <libbutl/fdstream.hxx>
-#include <libbutl/filesystem.hxx>
+#include <libbutl/process.mxx>
+#include <libbutl/fdstream.mxx>
+#include <libbutl/filesystem.mxx>
 
 #include <bpkg/diagnostics.hxx>
 
