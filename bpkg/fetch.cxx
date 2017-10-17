@@ -96,6 +96,7 @@ namespace bpkg
 
   static process
   start_wget (const path& prog,
+              const optional<size_t>& timeout,
               const strings& ops,
               const string& url,
               const path& out)
@@ -139,6 +140,15 @@ namespace bpkg
     }
     else if (verb > 3)
       args.push_back ("-d");
+
+    // Set download timeout if requested.
+    //
+    string tm;
+    if (timeout)
+    {
+      tm = "--timeout=" + to_string (*timeout);
+      args.push_back (tm.c_str ());
+    }
 
     // Add extra options. The idea if that they may override what
     // we have set before this point but not after (like -O below).
@@ -219,6 +229,7 @@ namespace bpkg
 
   static process
   start_curl (const path& prog,
+              const optional<size_t>& timeout,
               const strings& ops,
               const string& url,
               const path& out)
@@ -248,6 +259,16 @@ namespace bpkg
       args.push_back ("--progress-bar");
     else if (verb > 3)
       args.push_back ("-v");
+
+    // Set download timeout if requested.
+    //
+    string tm;
+    if (timeout)
+    {
+      tm = to_string (*timeout);
+      args.push_back ("--max-time");
+      args.push_back (tm.c_str ());
+    }
 
     // Add extra options. The idea is that they may override what
     // we have set before this point but not after.
@@ -334,6 +355,7 @@ namespace bpkg
 
   static process
   start_fetch (const path& prog,
+               const optional<size_t>& timeout,
                const strings& ops,
                const string& url,
                const path& out)
@@ -357,6 +379,15 @@ namespace bpkg
       args.push_back ("-q");
     else if (verb > 3)
       args.push_back ("-v");
+
+    // Set download timeout if requested.
+    //
+    string tm;
+    if (timeout)
+    {
+      tm = "--timeout=" + to_string (*timeout);
+      args.push_back (tm.c_str ());
+    }
 
     // Add extra options. The idea is that they may override what
     // we have set before this point but not after (like -o below).
@@ -485,8 +516,11 @@ namespace bpkg
   static process
   start (const common_options& o, const string& url, const path& out = path ())
   {
-    process (*f) (
-      const path&, const strings&, const string&, const path&) = nullptr;
+    process (*f) (const path&,
+                  const optional<size_t>&,
+                  const strings&,
+                  const string&,
+                  const path&) = nullptr;
 
     switch (check (o))
     {
@@ -495,9 +529,13 @@ namespace bpkg
     case fetch: f = &start_fetch; break;
     }
 
+    optional<size_t> timeout;
+    if (o.fetch_timeout_specified ())
+      timeout = o.fetch_timeout ();
+
     try
     {
-      return f (fetch_path, o.fetch_option (), url, out);
+      return f (fetch_path, timeout, o.fetch_option (), url, out);
     }
     catch (const process_error& e)
     {

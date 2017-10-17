@@ -119,6 +119,18 @@ namespace bpkg
        \cb{wget}, and \cb{fetch}."
     }
 
+    size_t --fetch-timeout
+    {
+      "<sec>",
+      "The fetch program timeout. While the exact semantics of the value
+       depends on the fetch program used, at a minimum it specifies in
+       seconds the maximum time that can be spent without any network
+       activity. Specifically, it is translated to the \cb{--max-time}
+       option for \cb{curl} and to the \cb{--timeout} option for \cb{wget}
+       and \cb{fetch}. See \cb{--fetch} for more information on the fetch
+       program."
+    }
+
     strings --fetch-option
     {
       "<opt>",
