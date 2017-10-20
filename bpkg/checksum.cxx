@@ -4,8 +4,10 @@
 
 #include <bpkg/checksum.hxx>
 
+#include <ios>       // streamsize
 #include <streambuf>
 
+#include <libbutl/sha256.mxx>
 #include <libbutl/process.mxx>
 #include <libbutl/fdstream.mxx>
 #include <libbutl/filesystem.mxx>
@@ -67,13 +69,14 @@ namespace bpkg
   }
 
   static process
-  start_sha256 (const path& prog, const strings& ops)
+  start_sha256 (const path& prog, const strings& ops, const path& file)
   {
     cstrings args {prog.string ().c_str (), "-q"};
 
     for (const string& o: ops)
       args.push_back (o.c_str ());
 
+    args.push_back (file.string ().c_str ());
     args.push_back (nullptr);
 
     process_path pp (process::path_search (args[0]));
@@ -81,10 +84,9 @@ namespace bpkg
     if (verb >= 3)
       print_process (args);
 
-    // Pipe both STDIN and STDOUT. Process exceptions must be handled by
-    // the caller.
+    // Pipe STDOUT. Process exceptions must be handled by the caller.
     //
-    return process (pp, args.data (), -1, -1);
+    return process (pp, args.data (), 0, -1);
   }
 
   // sha256sum
@@ -133,13 +135,14 @@ namespace bpkg
   }
 
   static process
-  start_sha256sum (const path& prog, const strings& ops)
+  start_sha256sum (const path& prog, const strings& ops, const path& file)
   {
     cstrings args {prog.string ().c_str (), "-b"};
 
     for (const string& o: ops)
       args.push_back (o.c_str ());
 
+    args.push_back (file.string ().c_str ());
     args.push_back (nullptr);
 
     process_path pp (process::path_search (args[0]));
@@ -147,10 +150,9 @@ namespace bpkg
     if (verb >= 3)
       print_process (args);
 
-    // Pipe both STDIN and STDOUT. Process exceptions must be handled by
-    // the caller.
+    // Pipe STDOUT. Process exceptions must be handled by the caller.
     //
-    return process (pp, args.data (), -1, -1);
+    return process (pp, args.data (), 0, -1);
   }
 
   // shasum
@@ -199,13 +201,14 @@ namespace bpkg
   }
 
   static process
-  start_shasum (const path& prog, const strings& ops)
+  start_shasum (const path& prog, const strings& ops, const path& file)
   {
     cstrings args {prog.string ().c_str (), "-a", "256", "-b"};
 
     for (const string& o: ops)
       args.push_back (o.c_str ());
 
+    args.push_back (file.string ().c_str ());
     args.push_back (nullptr);
 
     process_path pp (process::path_search (args[0]));
@@ -213,10 +216,9 @@ namespace bpkg
     if (verb >= 3)
       print_process (args);
 
-    // Pipe both STDIN and STDOUT. Process exceptions must be handled by
-    // the caller.
+    // Pipe STDOUT. Process exceptions must be handled by the caller.
     //
-    return process (pp, args.data (), -1, -1);
+    return process (pp, args.data (), 0, -1);
   }
 
   // The dispatcher.
@@ -301,25 +303,20 @@ namespace bpkg
   }
 
   static process
-  start (const common_options& o)
+  start (const common_options& o, const path& f)
   {
-    process (*f) (const path&, const strings&) = nullptr;
+    process (*sf) (const path&, const strings&, const path&) = nullptr;
 
     switch (check (o))
     {
-    case kind::sha256:    f = &start_sha256;    break;
-    case kind::sha256sum: f = &start_sha256sum; break;
-    case kind::shasum:    f = &start_shasum;    break;
+    case kind::sha256:    sf = &start_sha256;    break;
+    case kind::sha256sum: sf = &start_sha256sum; break;
+    case kind::shasum:    sf = &start_shasum;    break;
     }
 
     try
     {
-      process pr (f (sha256_path, o.sha256_option ()));
-
-      // Prevent any data modifications on the way to the hashing program.
-      //
-      fdmode (pr.out_fd.get (), fdstream_mode::binary);
-      return pr;
+      return sf (sha256_path, o.sha256_option (), f);
     }
     catch (const process_error& e)
     {
@@ -332,23 +329,30 @@ namespace bpkg
     }
   }
 
-  static string
-  sha256 (const common_options& o, streambuf& sb)
+  string
+  sha256 (istream& is)
   {
-    process pr (start (o));
+    butl::sha256 r;
+
+    char buf[8192];
+    streambuf& sb (*is.rdbuf ());
+    for (streamsize n; (n = sb.sgetn (buf, sizeof (buf))) != 0;)
+      r.append (buf, n);
+
+    return r.string ();
+  }
+
+  string
+  sha256 (const common_options& o, const path& f)
+  {
+    if (!exists (f))
+      fail << "file " << f << " does not exist";
+
+    process pr (start (o, f));
 
     try
     {
       ifdstream is (move (pr.in_ofd), fdstream_mode::skip);
-      ofdstream os (move (pr.out_fd));
-
-      // Note that the eof check is important: if the stream is at eof, write
-      // will fail.
-      //
-      if (sb.sgetc () != ifdstream::traits_type::eof ())
-        os << &sb;
-
-      os.close ();
 
       // All three tools output the sum as the first word.
       //
@@ -374,7 +378,7 @@ namespace bpkg
     catch (const io_error&)
     {
       if (pr.wait ())
-        fail << "unable to read/write '" << sha256_path << "' output/input";
+        fail << "unable to read '" << sha256_path << "' output";
     }
 
     // We should only get here if the child exited with an error status.
@@ -386,44 +390,5 @@ namespace bpkg
     //
     fail << "unable to calculate SHA256 sum using '" << sha256_path << "'" <<
       info << "re-run with -v for more information" << endf;
-  }
-
-  struct memstreambuf: streambuf
-  {
-    memstreambuf (const char* buf, size_t n)
-    {
-      char* b (const_cast<char*> (buf));
-      setg (b, b, b + n);
-    }
-  };
-
-  string
-  sha256 (const common_options& o, const char* buf, size_t n)
-  {
-    memstreambuf msb (buf, n);
-    return sha256 (o, msb);
-  }
-
-  string
-  sha256 (const common_options& o, istream& is)
-  {
-    return sha256 (o, *is.rdbuf ());
-  }
-
-  string
-  sha256 (const common_options& o, const path& f)
-  {
-    if (!exists (f))
-      fail << "file " << f << " does not exist";
-
-    try
-    {
-      ifdstream ifs (f, ios::binary);
-      return sha256 (o, ifs);
-    }
-    catch (const io_error& e)
-    {
-      fail << "unable read " << f << ": " << e << endf;
-    }
   }
 }

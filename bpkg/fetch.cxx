@@ -640,9 +640,10 @@ namespace bpkg
 
       is.close ();
 
-      string sha256sum (sha256 (o, bs));
+      string s (bs.str ());
+      string sha256sum (sha256 (s.c_str (), s.size ()));
 
-      istringstream ts (bs.str ()); // Text mode.
+      istringstream ts (s); // Text mode.
 
       manifest_parser mp (ts, url);
       M m (mp, ignore_unknown);
