@@ -7,6 +7,10 @@
 #include <ios>       // streamsize
 #include <streambuf>
 
+#ifndef _WIN32
+#  include <algorithm> // replace()
+#endif
+
 #include <libbutl/sha256.mxx>
 #include <libbutl/process.mxx>
 #include <libbutl/fdstream.mxx>
@@ -142,7 +146,19 @@ namespace bpkg
     for (const string& o: ops)
       args.push_back (o.c_str ());
 
-    args.push_back (file.string ().c_str ());
+    // By some reason, MSYS2-based sha256sum utility prints the redundant
+    // backslash character at the beginning of the sum. This somehow depends on
+    // the presence of backslashes in the file path, so we just get rid of
+    // them.
+    //
+#ifndef _WIN32
+    const string& f (file.string ());
+#else
+    string f (file.string ());
+    replace (f.begin (), f.end (), '\\', '/');
+#endif
+
+    args.push_back (f.c_str ());
     args.push_back (nullptr);
 
     process_path pp (process::path_search (args[0]));
