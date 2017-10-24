@@ -7,7 +7,7 @@
 #include <ios>       // streamsize
 #include <streambuf>
 
-#ifndef _WIN32
+#ifdef _WIN32
 #  include <algorithm> // replace()
 #endif
 
@@ -146,10 +146,9 @@ namespace bpkg
     for (const string& o: ops)
       args.push_back (o.c_str ());
 
-    // By some reason, MSYS2-based sha256sum utility prints the redundant
-    // backslash character at the beginning of the sum. This somehow depends on
-    // the presence of backslashes in the file path, so we just get rid of
-    // them.
+    // For some reason, MSYS2-based sha256sum utility prints stray backslash
+    // character at the beginning of the sum if the path contains a
+    // backslash. So we get rid of them.
     //
 #ifndef _WIN32
     const string& f (file.string ());
