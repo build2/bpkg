@@ -51,9 +51,9 @@ hxx{version}: in{version} $src_root/file{manifest}
 
 # Disable "unknown pragma" warnings.
 #
-if ($cxx.id == "msvc")
+if ($cxx.class == 'msvc')
   cxx.coptions += /wd4068
-else
+elif ($cxx.class == 'gcc')
   cxx.coptions += -Wno-unknown-pragmas
 
 obj{utility}: cxx.poptions += -DBPKG_EXE_SUFFIX='"'$bin.exe.suffix'"'
