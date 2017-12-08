@@ -1268,11 +1268,11 @@ namespace bpkg
         bool sys_advise (false);
 
         // If the package is not available from the repository we can try to
-        // create it from the orphaned selected package. Meanwhile that doesn't
-        // make sense for a system package. The only purpose to configure a
-        // system package is to build it's dependent. But if the package is
-        // not in the repository then there is no dependent for it, otherwise
-        // the repository is broken.
+        // create it from the orphaned selected package. Meanwhile that
+        // doesn't make sense for a system package. The only purpose to
+        // configure a system package is to build its dependent. But if the
+        // package is not in the repository then there is no dependent for it
+        // (otherwise the repository would be broken).
         //
         if (!sys)
         {
