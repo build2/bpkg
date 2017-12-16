@@ -720,7 +720,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       configured libfoo/1.1.0
       configured libbar/1.1.0
       configured libbaz/1.1.0
-      %info: dir.+libbaz-1.1.0.+ is up to date%
+      %info: .+dir\{libbaz-1.1.0.\} is up to date%
       updated libbaz/1.1.0
       EOE
 
@@ -750,7 +750,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
         fetched libfoo/1.0.0
         unpacked libfoo/1.0.0
         configured libfoo/1.0.0
-        %info: dir.+libfoo-1.0.0.+ is up to date%
+        %info: .+dir\{libfoo-1.0.0.\} is up to date%
         updated libfoo/1.0.0
         EOE
 
@@ -760,7 +760,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
         disfigured libfoo/1.0.0
         unpacked libfoo/1.1.0
         configured libfoo/1.1.0
-        %info: dir.+libfoo-1.1.0.+ is up to date%
+        %info: .+dir\{libfoo-1.1.0.\} is up to date%
         updated libfoo/1.1.0
         EOE
 
@@ -780,7 +780,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       $pkg_status libfoo >'configured 1.0.0';
 
       $* libfoo 2>>~%EOE%;
-        %info: dir.+libfoo-1.0.0.+ is up to date%
+        %info: .+dir\{libfoo-1.0.0.\} is up to date%
         updated libfoo/1.0.0
         EOE
 
@@ -806,14 +806,14 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
         %.*fetched libfoo/1.0.0%
         unpacked libfoo/1.0.0
         configured libfoo/1.0.0
-        %info: dir.+libfoo-1.0.0.+ is up to date%
+        %info: .+dir\{libfoo-1.0.0.\} is up to date%
         updated libfoo/1.0.0
         EOE
 
       $pkg_status libfoo >'configured 1.0.0 hold_package; available sys:?';
 
       $* libfoo/1.0.0 2>>~%EOE%;
-        %info: dir.+libfoo-1.0.0.+ is up to date%
+        %info: .+dir\{libfoo-1.0.0.\} is up to date%
         updated libfoo/1.0.0
         EOE
 
@@ -833,7 +833,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
         %.*fetched libfoo/1.0.0%
         unpacked libfoo/1.0.0
         configured libfoo/1.0.0
-        %info: dir.+libfoo-1.0.0.+ is up to date%
+        %info: .+dir\{libfoo-1.0.0.\} is up to date%
         updated libfoo/1.0.0
         EOE
 
@@ -861,7 +861,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
         configured libfoo/1.1.0
         configured libbar/1.1.0
         configured libbaz/1.1.0
-        %info: dir.+libbaz-1.1.0.+ is up to date%
+        %info: .+dir\{libbaz-1.1.0.\} is up to date%
         updated libbaz/1.1.0
         EOE
 
@@ -887,7 +887,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
         %.*fetched libfoo/1.0.0%
         unpacked libfoo/1.0.0
         configured libfoo/1.0.0
-        %info: dir.+libfoo-1.0.0.+ is up to date%
+        %info: .+dir\{libfoo-1.0.0.\} is up to date%
         updated libfoo/1.0.0
         EOE
 
@@ -908,7 +908,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
         configured libfoo/1.1.0
         configured libbar/1.1.0
         configured libbaz/1.1.0
-        %info: dir.+libbaz-1.1.0.+ is up to date%
+        %info: .+dir\{libbaz-1.1.0.\} is up to date%
         updated libbaz/1.1.0
         EOE
 
@@ -934,7 +934,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
         %.*fetched libfoo/1.0.0%
         unpacked libfoo/1.0.0
         configured libfoo/1.0.0
-        %info: dir.+libfoo-1.0.0.+ is up to date%
+        %info: .+dir\{libfoo-1.0.0.\} is up to date%
         updated libfoo/1.0.0
         EOE
 
@@ -967,7 +967,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       unpacked libbar/1.0.0
       configured libfoo/1.0.0
       configured libbar/1.0.0
-      %info: dir.+libbar-1.0.0.+ is up to date%
+      %info: .+dir\{libbar-1.0.0.\} is up to date%
       updated libbar/1.0.0
       EOE
 
@@ -984,7 +984,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       configured libbar/1.2.0
       disfigured libfoo
       purged libfoo
-      %info: dir.+libbar-1.2.0.+ is up to date%
+      %info: .+dir\{libbar-1.2.0.\} is up to date%
       updated libbar/1.2.0
       EOE
 
@@ -1001,8 +1001,8 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       unpacked libbar/1.0.0
       configured libfoo/1.0.0
       configured libbar/1.0.0
-      %info: dir.+libfoo-1.0.0.+ is up to date%
-      %info: dir.+libbar-1.0.0.+ is up to date%
+      %info: .+dir\{libfoo-1.0.0.\} is up to date%
+      %info: .+dir\{libbar-1.0.0.\} is up to date%
       updated libfoo/1.0.0
       updated libbar/1.0.0
       EOE
@@ -1016,7 +1016,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       %.*fetched libbar/1.2.0%
       unpacked libbar/1.2.0
       configured libbar/1.2.0
-      %info: dir.+libbar-1.2.0.+ is up to date%
+      %info: .+dir\{libbar-1.2.0.\} is up to date%
       updated libbar/1.2.0
       EOE
 
@@ -1053,7 +1053,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       unpacked libbar/1.0.0
       configured libfoo/1.0.0
       configured libbar/1.0.0
-      %info: dir.+ is up to date%
+      %info: .+dir.+ is up to date%
       updated libbar/1.0.0
       EOE
 
@@ -1092,7 +1092,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       unpacked libbar/1.0.0
       configured libfoo/1.0.0
       configured libbar/1.0.0
-      %info: dir.+ is up to date%
+      %info: .+dir.+ is up to date%
       updated libbar/1.0.0
       EOE
 
