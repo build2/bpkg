@@ -189,11 +189,7 @@ namespace bpkg
 
       diag_record dr (fail);
       print_process (dr, args);
-
-      dr << " terminated abnormally: " << pe.description ();
-
-      if (pe.core ())
-        dr << " (core dumped)";
+      dr << " " << pe;
     }
     catch (const process_error& e)
     {
