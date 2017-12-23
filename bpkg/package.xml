@@ -1,8 +1,9 @@
 <changelog xmlns="http://www.codesynthesis.com/xmlns/odb/changelog" database="sqlite" version="1">
-  <model version="3">
+  <model version="4">
     <table name="repository" kind="object">
       <column name="name" type="TEXT" null="true"/>
-      <column name="location" type="TEXT" null="true"/>
+      <column name="url" type="TEXT" null="true"/>
+      <column name="type" type="TEXT" null="true"/>
       <primary-key>
         <column name="name"/>
       </primary-key>
@@ -190,7 +191,8 @@
       <column name="substate" type="TEXT" null="true"/>
       <column name="hold_package" type="INTEGER" null="true"/>
       <column name="hold_version" type="INTEGER" null="true"/>
-      <column name="repository" type="TEXT" null="true"/>
+      <column name="repository_url" type="TEXT" null="true"/>
+      <column name="repository_type" type="TEXT" null="true"/>
       <column name="archive" type="TEXT" null="true"/>
       <column name="purge_archive" type="INTEGER" null="true"/>
       <column name="src_root" type="TEXT" null="true"/>

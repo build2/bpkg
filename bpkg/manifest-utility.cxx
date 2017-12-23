@@ -7,6 +7,7 @@
 #include <bpkg/diagnostics.hxx>
 
 using namespace std;
+using namespace butl;
 
 namespace bpkg
 {
@@ -65,19 +66,93 @@ namespace bpkg
   }
 
   repository_location
-  parse_location (const char* s)
+  parse_location (const char* s, optional<repository_type> ot)
   try
   {
-    repository_location rl (s, repository_location ());
+    repository_url u (s);
 
-    if (rl.relative ()) // Throws if the location is empty.
-      rl = repository_location (
-        dir_path (s).complete ().normalize ().string ());
+    if (u.empty ())
+      fail << "empty repository location";
 
-    return rl;
+    assert (u.path);
+
+    // Make the relative path absolute using the current directory.
+    //
+    if (u.scheme == repository_protocol::file && u.path->relative ())
+      u.path->complete ().normalize ();
+
+    // Guess the repository type to construct the repository location:
+    //
+    // 1. If type is specified as an option use that (but validate
+    //    incompatible scheme/type e.g., git/bpkg).
+    //
+    // 2. If scheme is git then git.
+    //
+    // 3. If scheme is http(s), then check if path has the .git extension,
+    //    then git, otherwise bpkg.
+    //
+    // 4. If local (which will normally be without the .git extension), check
+    //    if directory contains the .git/ subdirectory then git, otherwise
+    //    bpkg.
+    //
+    repository_type t;
+
+    if (ot)
+      t = *ot;
+    else
+    {
+      switch (u.scheme)
+      {
+      case repository_protocol::git:
+        {
+          t = repository_type::git;
+          break;
+        }
+      case repository_protocol::http:
+      case repository_protocol::https:
+        {
+          t = u.path->extension () == "git"
+            ? repository_type::git
+            : repository_type::bpkg;
+          break;
+        }
+      case repository_protocol::file:
+        {
+          t = exists (path_cast<dir_path> (*u.path) / dir_path (".git"))
+            ? repository_type::git
+            : repository_type::bpkg;
+          break;
+        }
+      }
+    }
+
+    try
+    {
+      // Don't move the URL since it may still be needed for diagnostics.
+      //
+      return repository_location (u, t);
+    }
+    catch (const invalid_argument& e)
+    {
+      diag_record dr;
+      dr << fail << "invalid " << t << " repository location '" << u << "': "
+         << e;
+
+      // If the bpkg repository type was guessed, then suggest the user to
+      // specify the type explicitly.
+      //
+      if (!ot && t == repository_type::bpkg)
+        dr << info << "consider using --type to specify repository type";
+
+      dr << endf;
+    }
   }
   catch (const invalid_argument& e)
   {
     fail << "invalid repository location '" << s << "': " << e << endf;
+  }
+  catch (const invalid_path& e)
+  {
+    fail << "invalid repository path '" << s << "': " << e << endf;
   }
 }

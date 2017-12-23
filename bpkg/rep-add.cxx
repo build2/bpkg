@@ -27,7 +27,12 @@ namespace bpkg
       fail << "repository location argument expected" <<
         info << "run 'bpkg help rep-add' for more information";
 
-    repository_location rl (parse_location (args.next ()));
+    repository_location rl (
+      parse_location (args.next (),
+                      o.type_specified ()
+                      ? optional<repository_type> (o.type ())
+                      : nullopt));
+
     const string& rn (rl.canonical_name ());
 
     // Create the new repository and add is as a complement to the root.

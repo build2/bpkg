@@ -548,58 +548,25 @@ namespace bpkg
     }
   }
 
-  using protocol = repository_location::protocol;
-
-  static string
-  to_url (protocol proto, const string& host, uint16_t port, const path& file)
-  {
-    assert (file.relative ());
-
-    if (*file.begin () == "..")
-      fail << "invalid URL path " << file;
-
-    string url;
-
-    switch (proto)
-    {
-    case protocol::http: url = "http://"; break;
-    case protocol::https: url = "https://"; break;
-    }
-
-    url += host;
-
-    if (port != 0)
-      url += ":" + to_string (port);
-
-    url += "/" + file.posix_string ();
-
-    return url;
-  }
-
   static path
   fetch_file (const common_options& o,
-              protocol proto,
-              const string& host,
-              uint16_t port,
-              const path& f,
+              const repository_url& u,
               const dir_path& d)
   {
-    path r (d / f.leaf ());
+    path r (d / u.path->leaf ());
 
     if (exists (r))
       fail << "file " << r << " already exists";
 
-    string url (to_url (proto, host, port, f));
-
     auto_rm arm (r);
-    process pr (start (o, url, r));
+    process pr (start (o, u.string (), r));
 
     if (!pr.wait ())
     {
       // While it is reasonable to assuming the child process issued
       // diagnostics, some may not mention the URL.
       //
-      fail << "unable to fetch " << url <<
+      fail << "unable to fetch " << u <<
         info << "re-run with -v for more information";
     }
 
@@ -610,13 +577,10 @@ namespace bpkg
   template <typename M>
   static pair<M, string/*checksum*/>
   fetch_manifest (const common_options& o,
-                  protocol proto,
-                  const string& host,
-                  uint16_t port,
-                  const path& f,
+                  const repository_url& u,
                   bool ignore_unknown)
   {
-    string url (to_url (proto, host, port, f));
+    string url (u.string ());
     process pr (start (o, url));
 
     try
@@ -747,11 +711,13 @@ namespace bpkg
   {
     assert (rl.remote () || rl.absolute ());
 
-    path f (rl.path () / repositories);
+    repository_url u (rl.url ());
+
+    path& f (*u.path);
+    f /= repositories;
 
     return rl.remote ()
-      ? fetch_manifest<repository_manifests> (
-          o, rl.proto (), rl.host (), rl.port (), f, iu)
+      ? fetch_manifest<repository_manifests> (o, u, iu)
       : fetch_manifest<repository_manifests> (&o, f, iu);
   }
 
@@ -770,11 +736,13 @@ namespace bpkg
   {
     assert (rl.remote () || rl.absolute ());
 
-    path f (rl.path () / packages);
+    repository_url u (rl.url ());
+
+    path& f (*u.path);
+    f /= packages;
 
     return rl.remote ()
-      ? fetch_manifest<package_manifests> (
-          o, rl.proto (), rl.host (), rl.port (), f, iu)
+      ? fetch_manifest<package_manifests> (o, u, iu)
       : fetch_manifest<package_manifests> (&o, f, iu);
   }
 
@@ -787,11 +755,13 @@ namespace bpkg
   {
     assert (rl.remote () || rl.absolute ());
 
-    path f (rl.path () / signature);
+    repository_url u (rl.url ());
+
+    path& f (*u.path);
+    f /= signature;
 
     return rl.remote ()
-      ? fetch_manifest<signature_manifest> (
-          o, rl.proto (), rl.host (), rl.port (), f, iu).first
+      ? fetch_manifest<signature_manifest> (o, u, iu).first
       : fetch_manifest<signature_manifest> (nullptr, f, iu).first;
   }
 
@@ -804,19 +774,27 @@ namespace bpkg
     assert (!a.empty () && a.relative ());
     assert (rl.remote () || rl.absolute ());
 
-    path f (rl.path () / a);
+    repository_url u (rl.url ());
+
+    path& f (*u.path);
+    f /= a;
+
+    auto bad_loc = [&u] () {fail << "invalid archive location " << u;};
 
     try
     {
       f.normalize ();
+
+      if (*f.begin () == "..") // Can be the case for the remote location.
+        bad_loc ();
     }
     catch (const invalid_path&)
     {
-      fail << "invalid archive location " << rl << "/" << f;
+      bad_loc ();
     }
 
     return rl.remote ()
-      ? fetch_file (o, rl.proto (), rl.host (), rl.port (), f, d)
+      ? fetch_file (o, u, d)
       : fetch_file (f, d);
   }
 }

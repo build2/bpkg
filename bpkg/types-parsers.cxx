@@ -67,5 +67,26 @@ namespace bpkg
       else
         throw invalid_value (o, v);
     }
+
+    void parser<repository_type>::
+    parse (repository_type& x, bool& xs, scanner& s)
+    {
+      xs = true;
+      const char* o (s.next ());
+
+      if (!s.more ())
+        throw missing_value (o);
+
+      const string v (s.next ());
+
+      try
+      {
+        x = to_repository_type(v);
+      }
+      catch (const invalid_argument&)
+      {
+        throw invalid_value (o, v);
+      }
+    }
   }
 }

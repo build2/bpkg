@@ -34,12 +34,12 @@ namespace bpkg
   version
   parse_package_version (const char*);
 
-  // First use the passed location as is. If the result is relative,
-  // then assume this is a relative path to the repository directory
-  // and complete it based on the current working directory.
+  // If the passed location is a relative local path, then assume this is a
+  // relative path to the repository directory and complete it based on the
+  // current working directory. Diagnose invalid locations and throw failed.
   //
   repository_location
-  parse_location (const char*);
+  parse_location (const char*, optional<repository_type>);
 }
 
 #endif // BPKG_MANIFEST_UTILITY_HXX

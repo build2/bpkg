@@ -19,7 +19,7 @@
 #include <bpkg/types.hxx>
 #include <bpkg/utility.hxx>
 
-#pragma db model version(3, 3, closed)
+#pragma db model version(4, 4, open)
 
 namespace bpkg
 {
@@ -200,9 +200,24 @@ namespace bpkg
 
   // repository_location
   //
-  #pragma db map type(repository_location) as(string)     \
-    to((?).string ()) from(bpkg::repository_location (?))
 
+  #pragma db value
+  struct _repository_location
+  {
+    string url;
+    repository_type type;
+  };
+
+  // Note that the type() call fails for an empty repository location.
+  //
+  #pragma db map type(repository_location) as(_repository_location) \
+    to({(?).string (),                                              \
+        (?).empty () ? bpkg::repository_type::bpkg : (?).type ()})  \
+    from(bpkg::repository_location ((?).url, (?).type))
+
+  #pragma db map type(repository_type) as(string) \
+    to(to_string (?))                             \
+    from(bpkg::to_repository_type (?))
 
   // repository
   //
@@ -240,7 +255,7 @@ namespace bpkg
     //
     #pragma db member(name) id
 
-    #pragma db member(location)                                  \
+    #pragma db member(location) column("")                       \
       set(this.location = std::move (?);                         \
           assert (this.name == this.location.canonical_name ()))
 

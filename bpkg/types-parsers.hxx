@@ -8,6 +8,8 @@
 #ifndef BPKG_TYPES_PARSERS_HXX
 #define BPKG_TYPES_PARSERS_HXX
 
+#include <libbpkg/manifest.hxx>
+
 #include <bpkg/types.hxx>
 #include <bpkg/options-types.hxx>
 
@@ -39,6 +41,13 @@ namespace bpkg
     {
       static void
       parse (auth&, bool&, scanner&);
+    };
+
+    template <>
+    struct parser<repository_type>
+    {
+      static void
+      parse (repository_type&, bool&, scanner&);
     };
   }
 }

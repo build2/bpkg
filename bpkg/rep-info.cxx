@@ -31,7 +31,11 @@ namespace bpkg
       fail << "repository location argument expected" <<
         info << "run 'bpkg help rep-info' for more information";
 
-    repository_location rl (parse_location (args.next ()));
+    repository_location rl (
+      parse_location (args.next (),
+                      o.type_specified ()
+                      ? optional<repository_type> (o.type ())
+                      : nullopt));
 
     // Fetch everything we will need before printing anything. Ignore
     // unknown manifest entries unless we are dumping them. First fetch

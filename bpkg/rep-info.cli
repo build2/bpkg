@@ -2,6 +2,8 @@
 // copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
+include <libbpkg/manifest.hxx>;
+
 include <bpkg/common.cli>;
 
 "\section=1"
@@ -89,6 +91,16 @@ namespace bpkg
        as manifest(s). Normally you would use this option in combination with
        \cb{--packages|-p} or \cb{--repositories|-r} to only dump one of the
        manifests."
+    }
+
+    repository_type --type
+    {
+      "<type>",
+      "Specify the repository type with valid values being \cb{bpkg} and
+       \cb{git}. Normally the repository type can be automatically guessed by
+       examining its URL (for example, the presence of the \cb{.git}
+       extension) or, in case of a local repository, its content (for example,
+       the presence of the \cb{.git} subdirectory)."
     }
 
     string --directory|-d // String to allow empty value.

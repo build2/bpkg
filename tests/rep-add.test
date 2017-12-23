@@ -7,6 +7,8 @@
 : location
 :
 {
+  +$clone_cfg
+
   : none
   :
   $* 2>>EOE != 0
@@ -14,17 +16,89 @@
     info: run 'bpkg help rep-add' for more information
   EOE
 
-  : no-version
+  : empty
   :
-  $* 'stable' 2>>EOE != 0
-  error: invalid repository location 'stable': missing repository version
+  $* '' 2>>EOE != 0
+  error: empty repository location
   EOE
 
-  : invalid-host
+  : unknown-type
   :
-  $* 'http://' 2>>EOE != 0
-  error: invalid repository location 'http://': invalid host
+  $* 'repo' --type unknown 2>>EOE != 0
+  error: invalid value 'unknown' for option '--type'
   EOE
+
+  : no-version
+  :
+  $* 'stable' 2>>/~%EOE% != 0
+  %error: invalid bpkg repository location '.+/no-version/stable': missing repository version%
+    info: consider using --type to specify repository type
+  EOE
+
+  : git-no-branch
+  :
+  $* 'git://example.org/repo' 2>>EOE != 0
+  error: invalid git repository location 'git://example.org/repo': missing branch/tag for git repository
+  EOE
+
+  : bpkg-git-scheme
+  :
+  $* 'git://example.org/repo' --type bpkg 2>>EOE != 0
+  error: invalid bpkg repository location 'git://example.org/repo': unsupported scheme for bpkg repository
+  EOE
+
+  : invalid-path
+  :
+  {
+    s="../../../../../../../../../../../../../../../../../../../../../../../"
+    s="$s$s$s$s$s$s$s$s$s$s$s$s$s$s$s$s$s$s$s$s$s$s$s$s$s$s$s$s$s$s$s$s$s$s$s"
+    $* "$s" 2>>~%EOE% != 0
+    %error: invalid repository path '.+/': invalid filesystem path%
+    EOE
+  }
+
+  : type-detection
+  :
+  {
+    +$clone_cfg
+
+    : git-scheme
+    :
+    $clone_cfg;
+    $* 'git://example.org/repo#master' 2>>EOE
+      added repository example.org/repo
+      EOE
+
+    : http-git
+    :
+    $clone_cfg;
+    $* 'http://example.org/repo.git#master' 2>>EOE
+      added repository example.org/repo
+      EOE
+
+    : http-bpkg
+    :
+    $clone_cfg;
+    $* 'http://example.org/1/repo' 2>>EOE
+      added repository example.org/repo
+      EOE
+
+    : file-git
+    :
+    $clone_cfg && mkdir -p repo/.git;
+
+    $* 'repo' 2>>~%EOE% != 0
+      %error: invalid git repository location '.+repo': missing branch/tag for git repository%
+      EOE
+
+    : file-bpkg
+    :
+    $clone_cfg;
+
+    $* '1/repo' 2>>/~%EOE%
+      %added repository .+/repo%
+      EOE
+  }
 }
 
 : relative-path

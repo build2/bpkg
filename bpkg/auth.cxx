@@ -70,7 +70,7 @@ namespace bpkg
     if (rl.remote ())
       return repository_location (p.posix_string (), rl).canonical_name ();
     else
-      return (rl.path () / p).normalize ().string ();
+      return (path_cast<dir_path> (rl.path ()) / p).normalize ().string ();
   }
 
   // Authenticate a dummy certificate. If trusted, it will authenticate all
