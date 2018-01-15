@@ -699,7 +699,10 @@ namespace bpkg
     };
 
     pair<string, string> c (split (cert.name));
-    pair<string, string> r (split (rl.canonical_name ()));
+
+    // Strip 'bpkg:' prefix.
+    //
+    pair<string, string> r (split (rl.canonical_name ().substr (5)));
 
     // Match the repository canonical name leading part.
     //

@@ -92,12 +92,13 @@ it. Also use a working email address in case users need to contact you about
 issues with your certificate. Note that the \cb{name:} prefix in the \cb{CN}
 value is not a typo.
 
-The \cb{name} field is a canonical repository name prefix. Any repository with
-a canonical name that starts with this prefix can be authenticated by this
-certificate (see the repository manifest documentation for more information on
-canonical names). For example, name \cb{example.com} will match any
-repository hosted on \cb{{,www.,pkg.,bpkg.\}example.com}. While name
-\cb{example.com/math} will match \cb{{...\}example.com/pkg/1/math} but not
+The \cb{name} field is a canonical repository name prefix with the \cb{bpkg:}
+type part stripped. Any repository with a canonical name that starts with this
+prefix can be authenticated by this certificate (see the repository manifest
+documentation for more information on canonical names). For example, name
+\cb{example.com} will match any repository hosted on
+\cb{{,www.,pkg.,bpkg.\}example.com}. While name \cb{example.com/math} will
+match \cb{{...\}example.com/pkg/1/math} but not
 \cb{{...\}example.com/pkg/1/misc}.
 
 A certificate name can also contain a subdomain wildcard. A wildcard name in

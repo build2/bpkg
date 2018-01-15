@@ -56,9 +56,7 @@ namespace bpkg
     shared_ptr<repository> root (db.load<repository> (""));
 
     if (!root->complements.insert (lazy_shared_ptr<repository> (db, r)).second)
-    {
       fail << rn << " is already a repository of this configuration";
-    }
 
     db.update (root);
     t.commit ();

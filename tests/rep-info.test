@@ -43,9 +43,9 @@ EOE
   : unsigned
   :
   $* $rep/testing >>"EOO"
-  build2.org/rep-info/testing ($rep/testing)
-  prerequisite build2.org/foo/testing ($rep_root/foo/testing)
-  complement build2.org/rep-info/stable ($rep/stable)
+  bpkg:build2.org/rep-info/testing ($rep/testing)
+  prerequisite bpkg:build2.org/foo/testing ($rep_root/foo/testing)
+  complement bpkg:build2.org/rep-info/stable ($rep/stable)
 
   foo/1
   EOO
@@ -53,11 +53,11 @@ EOE
   : signed
   :
   $* $rep/signed >>"EOO"
-  build2.org/rep-info/signed ($rep/signed)
+  bpkg:build2.org/rep-info/signed ($rep/signed)
   CN=build2.org/O=Code Synthesis/info@build2.org
   $cert_fp
-  prerequisite build2.org/foo/testing ($rep_root/foo/testing)
-  complement build2.org/rep-info/stable ($rep/stable)
+  prerequisite bpkg:build2.org/foo/testing ($rep_root/foo/testing)
+  complement bpkg:build2.org/rep-info/stable ($rep/stable)
 
   foo/1
   EOO
@@ -65,7 +65,7 @@ EOE
 
 : name
 :
-$* --name $rep/testing >"build2.org/rep-info/testing ($rep/testing)"
+$* --name $rep/testing >"bpkg:build2.org/rep-info/testing ($rep/testing)"
 
 : packages
 :
@@ -100,8 +100,8 @@ $* --name $rep/testing >"build2.org/rep-info/testing ($rep/testing)"
   : list
   :
   $* --repositories $rep/testing >>"EOO"
-  prerequisite build2.org/foo/testing ($rep_root/foo/testing)
-  complement build2.org/rep-info/stable ($rep/stable)
+  prerequisite bpkg:build2.org/foo/testing ($rep_root/foo/testing)
+  complement bpkg:build2.org/rep-info/stable ($rep/stable)
   EOO
 
   : manifest
