@@ -646,10 +646,10 @@ namespace bpkg
 
       try
       {
-        f = path::temp_path ("bpkg");
+        rm = tmp_file ("cert");
+        f = rm.path;
 
         ofdstream ofs (f);
-        rm = auto_rmfile (f);
         ofs << *cert_pem;
         ofs.close ();
       }

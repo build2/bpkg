@@ -161,7 +161,7 @@ namespace bpkg
     // What should we do if tar or something after it fails? Cleaning
     // up the package directory sounds like the right thing to do.
     //
-    auto_rm_r arm (d);
+    auto_rmdir arm (d);
 
     cstrings args;
 

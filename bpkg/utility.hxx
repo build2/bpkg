@@ -39,6 +39,11 @@ namespace bpkg
   using butl::exception_guard;
   using butl::make_exception_guard;
 
+  // <libbutl/filesystem.mxx>
+  //
+  using butl::auto_rmfile;
+  using butl::auto_rmdir;
+
   // Empty string and path.
   //
   extern const string empty_string;
@@ -50,7 +55,7 @@ namespace bpkg
   extern const dir_path bpkg_dir;  // .bpkg/
   extern const dir_path certs_dir; // .bpkg/certs/
 
-  // Temporary directory.
+  // Temporary directory facility.
   //
   // This is normally .bpkg/tmp/ but can also be some system-wide directory
   // (e.g., /tmp/bpkg-XXX/) if there is no bpkg configuration. This directory
@@ -58,7 +63,11 @@ namespace bpkg
   // you don't need to call init_tmp() explicitly except for certain special
   // commands (like cfg-create).
   //
-  extern dir_path tmp_dir;
+  auto_rmfile
+  tmp_file (const string& prefix);
+
+  auto_rmdir
+  tmp_dir (const string& prefix);
 
   void
   init_tmp (const dir_path& cfg);
@@ -99,9 +108,6 @@ namespace bpkg
         bool dir_itself = true,
         uint16_t verbosity = 3,
         bool ignore_error = false);
-
-  using auto_rm = butl::auto_rmfile;
-  using auto_rm_r = butl::auto_rmdir;
 
   // Process.
   //

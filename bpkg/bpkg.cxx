@@ -309,8 +309,7 @@ try
     break;
   }
 
-  if (!tmp_dir.empty ())
-    clean_tmp (true /* ignore_error */);
+  clean_tmp (true /* ignore_error */);
 
   if (r != 0)
     return r;

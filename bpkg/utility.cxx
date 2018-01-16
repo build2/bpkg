@@ -24,7 +24,21 @@ namespace bpkg
   const dir_path bpkg_dir (".bpkg");
   const dir_path certs_dir (dir_path (bpkg_dir) /= "certs");
 
-  dir_path tmp_dir;
+  static dir_path tmp_dir_;
+
+  auto_rmfile
+  tmp_file (const string& p)
+  {
+    assert (!tmp_dir_.empty ());
+    return auto_rmfile (tmp_dir_ / path::traits::temp_name (p));
+  }
+
+  auto_rmdir
+  tmp_dir (const string& p)
+  {
+    assert (!tmp_dir_.empty ());
+    return auto_rmdir (tmp_dir_ / dir_path (path::traits::temp_name (p)));
+  }
 
   void
   init_tmp (const dir_path& cfg)
@@ -42,15 +56,17 @@ namespace bpkg
 
     mk (d); // We shouldn't need mk_p().
 
-    tmp_dir = move (d);
+    tmp_dir_ = move (d);
   }
 
   void
   clean_tmp (bool ignore_error)
   {
-    assert (!tmp_dir.empty ());
-    rm_r (tmp_dir, true /* dir_itself */, 3, ignore_error);
-    tmp_dir.clear ();
+    if (!tmp_dir_.empty ())
+    {
+      rm_r (tmp_dir_, true /* dir_itself */, 3, ignore_error);
+      tmp_dir_.clear ();
+    }
   }
 
   bool
