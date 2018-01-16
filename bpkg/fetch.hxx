@@ -17,7 +17,7 @@ namespace bpkg
   repository_manifests
   fetch_repositories (const dir_path&, bool ignore_unknown);
 
-  pair<repository_manifests, string/*checksum*/>
+  pair<repository_manifests, string /* checksum */>
   fetch_repositories (const common_options&,
                       const repository_location&,
                       bool ignore_unknown);
@@ -25,7 +25,7 @@ namespace bpkg
   package_manifests
   fetch_packages (const dir_path&, bool ignore_unknown);
 
-  pair<package_manifests, string/*checksum*/>
+  pair<package_manifests, string /* checksum */>
   fetch_packages (const common_options&,
                   const repository_location&,
                   bool ignore_unknown);

@@ -4,8 +4,6 @@
 
 #include <bpkg/rep-fetch.hxx>
 
-#include <libbpkg/manifest.hxx>
-
 #include <bpkg/auth.hxx>
 #include <bpkg/fetch.hxx>
 #include <bpkg/package.hxx>
@@ -18,6 +16,86 @@ using namespace butl;
 
 namespace bpkg
 {
+  static rep_fetch_data
+  rep_fetch_bpkg (const common_options& co,
+                  const dir_path* conf,
+                  const repository_location& rl,
+                  bool ignore_unknown)
+  {
+    // First fetch the repositories list and authenticate the base's
+    // certificate.
+    //
+    pair<repository_manifests, string /* checksum */> rmc (
+      fetch_repositories (co, rl, ignore_unknown));
+
+    repository_manifests& rms (rmc.first);
+
+    bool a (co.auth () != auth::none &&
+            (co.auth () == auth::all || rl.remote ()));
+
+    shared_ptr<const certificate> cert;
+    const optional<string>& cert_pem (rms.back ().certificate);
+
+    if (a)
+    {
+      cert = authenticate_certificate (co, conf, cert_pem, rl);
+      a = !cert->dummy ();
+    }
+
+    // Now fetch the packages list and make sure it matches the repositories
+    // we just fetched.
+    //
+    pair<package_manifests, string /* checksum */> pmc (
+      fetch_packages (co, rl, ignore_unknown));
+
+    package_manifests& pms (pmc.first);
+
+    if (rmc.second != pms.sha256sum)
+      fail << "repositories manifest file checksum mismatch for "
+           << rl.canonical_name () <<
+        info << "try again";
+
+    if (a)
+    {
+      signature_manifest sm (
+        fetch_signature (co, rl, true /* ignore_unknown */));
+
+      if (sm.sha256sum != pmc.second)
+        fail << "packages manifest file checksum mismatch for "
+             << rl.canonical_name () <<
+          info << "try again";
+
+      assert (cert != nullptr);
+      authenticate_repository (co, conf, cert_pem, *cert, sm, rl);
+    }
+
+    return rep_fetch_data {move (rms), move (pms), move (cert)};
+  }
+
+  static rep_fetch_data
+  rep_fetch_git (const common_options&,
+                 const dir_path*,
+                 const repository_location&,
+                 bool)
+  {
+    fail << "not implemented" << endf;
+  }
+
+  rep_fetch_data
+  rep_fetch (const common_options& co,
+             const dir_path* conf,
+             const repository_location& rl,
+             bool iu)
+  {
+    switch (rl.type ())
+    {
+    case repository_type::bpkg: return rep_fetch_bpkg (co, conf, rl, iu);
+    case repository_type::git:  return rep_fetch_git  (co, conf, rl, iu);
+    }
+
+    return rep_fetch_data ();
+  }
+
   static void
   rep_fetch (const configuration_options& co,
              transaction& t,
@@ -54,53 +132,14 @@ namespace bpkg
 
     r->fetched = true; // Mark as being fetched.
 
-    // Load the 'repositories' file and use it to populate the prerequisite
-    // and complement repository sets.
+    // Load the repositories and packages and use it to populate the
+    // prerequisite and complement repository sets as well as available
+    // packages.
     //
-    pair<repository_manifests, string/*checksum*/> rmc (
-      fetch_repositories (co, rl, true));
+    rep_fetch_data rfd (
+      rep_fetch (co, &co.directory (), rl, true /* ignore_unknow */));
 
-    repository_manifests& rms (rmc.first);
-
-    bool a (co.auth () != auth::none &&
-            (co.auth () == auth::all || rl.remote ()));
-
-    shared_ptr<const certificate> cert;
-
-    if (a)
-    {
-      cert = authenticate_certificate (
-        co, &co.directory (), rms.back ().certificate, rl);
-
-      a = !cert->dummy ();
-    }
-
-    // Load the 'packages' file.
-    //
-    pair<package_manifests, string/*checksum*/> pmc (
-      fetch_packages (co, rl, true));
-
-    package_manifests& pms (pmc.first);
-
-    if (rmc.second != pms.sha256sum)
-      fail << "repositories manifest file checksum mismatch for "
-           << rl.canonical_name () <<
-        info << "try again";
-
-    if (a)
-    {
-      signature_manifest sm (fetch_signature (co, rl, true));
-
-      if (sm.sha256sum != pmc.second)
-        fail << "packages manifest file checksum mismatch for "
-             << rl.canonical_name () <<
-          info << "try again";
-
-      assert (cert != nullptr);
-      authenticate_repository (co, &co.directory (), nullopt, *cert, sm, rl);
-    }
-
-    for (repository_manifest& rm: rms)
+    for (repository_manifest& rm: rfd.repositories)
     {
       repository_role rr (rm.effective_role ());
 
@@ -193,7 +232,7 @@ namespace bpkg
     session& s (session::current ());
     session::reset_current ();
 
-    for (package_manifest& pm: pms)
+    for (package_manifest& pm: rfd.packages)
     {
       // We might already have this package in the database.
       //

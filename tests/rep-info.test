@@ -81,8 +81,6 @@ $* --name $rep/testing >"bpkg:build2.org/rep-info/testing ($rep/testing)"
   :
   $* --packages --manifest $rep/testing >>EOO
   : 1
-  sha256sum: 7cdc5965cf41742a7feb1c4b73f1438f35e6a6ed7e4e6b30d9fba36c26baca04
-  :
   name: foo
   version: 1
   summary: The "Foo" utility

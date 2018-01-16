@@ -12,10 +12,11 @@
 #include <libbpkg/manifest.hxx>
 
 #include <bpkg/auth.hxx>
-#include <bpkg/fetch.hxx>
 #include <bpkg/package.hxx>
 #include <bpkg/diagnostics.hxx>
 #include <bpkg/manifest-utility.hxx>
+
+#include <bpkg/rep-fetch.hxx>
 
 using namespace std;
 using namespace butl;
@@ -38,65 +39,14 @@ namespace bpkg
                       : nullopt));
 
     // Fetch everything we will need before printing anything. Ignore
-    // unknown manifest entries unless we are dumping them. First fetch
-    // the repositories list and authenticate the base's certificate.
+    // unknown manifest entries unless we are dumping them.
     //
-    pair<repository_manifests, string/*checksum*/> rmc (
-      fetch_repositories (o, rl, !o.manifest ()));
-
-    repository_manifests& rms (rmc.first);
-
-    bool a (o.auth () != auth::none &&
-            (o.auth () == auth::all || rl.remote ()));
-
-    const optional<string> cert_pem (rms.back ().certificate);
-    shared_ptr<const certificate> cert;
-
-    if (a)
-    {
-      dir_path d (o.directory ());
-      cert = authenticate_certificate (
-        o,
-        o.directory_specified () && d.empty () ? nullptr : &d,
-        cert_pem,
-        rl);
-
-      a = !cert->dummy ();
-    }
-
-    // Now fetch the packages list and make sure it matches the repositories
-    // we just fetched.
-    //
-    pair<package_manifests, string/*checksum*/> pmc (
-      fetch_packages (o, rl, !o.manifest ()));
-
-    package_manifests& pms (pmc.first);
-
-    if (rmc.second != pms.sha256sum)
-      fail << "repositories manifest file checksum mismatch for "
-           << rl.canonical_name () <<
-        info << "try again";
-
-    if (a)
-    {
-      signature_manifest sm (fetch_signature (o, rl, true));
-
-      if (sm.sha256sum != pmc.second)
-        fail << "packages manifest file checksum mismatch for "
-             << rl.canonical_name () <<
-          info << "try again";
-
-      dir_path d (o.directory ());
-      assert (cert != nullptr);
-
-      authenticate_repository (
-        o,
-        o.directory_specified () && d.empty () ? nullptr : &d,
-        cert_pem,
-        *cert,
-        sm,
-        rl);
-    }
+    dir_path d (o.directory ());
+    rep_fetch_data rfd (
+      rep_fetch (o,
+                 o.directory_specified () && d.empty () ? nullptr : &d,
+                 rl,
+                 !o.manifest () /* ignore_unknow */));
 
     // Now print.
     //
@@ -121,6 +71,9 @@ namespace bpkg
       //
       if (all || cert_info)
       {
+        shared_ptr<const certificate>& cert (rfd.certificate);
+        const optional<string>& cert_pem (rfd.repositories.back ().certificate);
+
         if (cert_pem)
         {
           // Repository is signed. If we got the repository certificate as the
@@ -192,12 +145,16 @@ namespace bpkg
       {
         if (o.manifest ())
         {
+          // Note: serializing without any extra repository_manifests info.
+          //
           manifest_serializer s (cout, "STDOUT");
-          rms.serialize (s);
+          for (const repository_manifest& rm: rfd.repositories)
+            rm.serialize (s);
+          s.next ("", ""); // End of stream.
         }
         else
         {
-          for (const repository_manifest& rm: rms)
+          for (const repository_manifest& rm: rfd.repositories)
           {
             repository_role rr (rm.effective_role ());
 
@@ -228,8 +185,12 @@ namespace bpkg
       {
         if (o.manifest ())
         {
+          // Note: serializing without any extra package_manifests info.
+          //
           manifest_serializer s (cout, "STDOUT");
-          pms.serialize (s);
+          for (const package_manifest& pm: rfd.packages)
+            pm.serialize (s);
+          s.next ("", ""); // End of stream.
         }
         else
         {
@@ -237,7 +198,7 @@ namespace bpkg
           //
           cout << endl;
 
-          for (const package_manifest& pm: pms)
+          for (const package_manifest& pm: rfd.packages)
             cout << pm.name << "/" << pm.version << endl;
         }
       }

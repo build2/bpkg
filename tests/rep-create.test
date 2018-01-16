@@ -34,8 +34,6 @@
 
     $rep_info -p -m 1/stable/ >>EOO
       : 1
-      sha256sum: 6cac7ffa1f02f90776fc89bcacf38604ba0eddf176f2314c75dc9bf1b10a8b32
-      :
       name: foo
       version: 1
       summary: The "Foo" utility
@@ -62,8 +60,6 @@
 
     $rep_info -p -m 1/stable/ >>EOO
       : 1
-      sha256sum: 6cac7ffa1f02f90776fc89bcacf38604ba0eddf176f2314c75dc9bf1b10a8b32
-      :
       name: foo
       version: 1
       summary: The "Foo" utility
@@ -106,8 +102,6 @@
     $rep_info --cert-fingerprint -p -m 1/stable/ >>~"%EOO%"
       $cert_fp
       : 1
-      %sha256sum: .+%
-      :
       name: foo
       version: 1
       summary: The "Foo" utility
