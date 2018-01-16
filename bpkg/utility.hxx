@@ -39,10 +39,32 @@ namespace bpkg
   using butl::exception_guard;
   using butl::make_exception_guard;
 
+  // Empty string and path.
+  //
+  extern const string empty_string;
+  extern const path empty_path;
+  extern const dir_path empty_dir_path;
+
   // Widely-used paths.
   //
   extern const dir_path bpkg_dir;  // .bpkg/
   extern const dir_path certs_dir; // .bpkg/certs/
+
+  // Temporary directory.
+  //
+  // This is normally .bpkg/tmp/ but can also be some system-wide directory
+  // (e.g., /tmp/bpkg-XXX/) if there is no bpkg configuration. This directory
+  // is automatically created and cleaned up for most commands in main() so
+  // you don't need to call init_tmp() explicitly except for certain special
+  // commands (like cfg-create).
+  //
+  extern dir_path tmp_dir;
+
+  void
+  init_tmp (const dir_path& cfg);
+
+  void
+  clean_tmp (bool ignore_errors);
 
   // Y/N prompt. The def argument, if specified, should be either 'y'
   // or 'n'. It is used as the default answer, in case the user just
@@ -55,10 +77,10 @@ namespace bpkg
   // Filesystem.
   //
   bool
-  exists (const path&);
+  exists (const path&, bool ignore_error = false);
 
   bool
-  exists (const dir_path&);
+  exists (const dir_path&, bool ignore_error = false);
 
   bool
   empty (const dir_path&);
@@ -70,10 +92,13 @@ namespace bpkg
   mk_p (const dir_path&);
 
   void
-  rm (const path&);
+  rm (const path&, uint16_t verbosity = 3);
 
   void
-  rm_r (const dir_path&, bool dir = true);
+  rm_r (const dir_path&,
+        bool dir_itself = true,
+        uint16_t verbosity = 3,
+        bool ignore_error = false);
 
   using auto_rm = butl::auto_rmfile;
   using auto_rm_r = butl::auto_rmdir;

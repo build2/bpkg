@@ -17,8 +17,41 @@ using namespace butl;
 
 namespace bpkg
 {
+  const string empty_string;
+  const path empty_path;
+  const dir_path empty_dir_path;
+
   const dir_path bpkg_dir (".bpkg");
   const dir_path certs_dir (dir_path (bpkg_dir) /= "certs");
+
+  dir_path tmp_dir;
+
+  void
+  init_tmp (const dir_path& cfg)
+  {
+    // Whether the configuration is required or optional depends on the
+    // command so if the configuration directory does not exist, we simply
+    // create tmp in a system one and let the command complain if necessary.
+    //
+    dir_path d (cfg.empty () || !exists (cfg, true /* ignore_error */)
+                ? dir_path::temp_path ("bpkg")
+                : cfg / bpkg_dir / dir_path ("tmp"));
+
+    if (exists (d))
+      rm_r (d, true /* dir_itself */, 1); // Verbose to avoid surprises.
+
+    mk (d); // We shouldn't need mk_p().
+
+    tmp_dir = move (d);
+  }
+
+  void
+  clean_tmp (bool ignore_error)
+  {
+    assert (!tmp_dir.empty ());
+    rm_r (tmp_dir, true /* dir_itself */, 3, ignore_error);
+    tmp_dir.clear ();
+  }
 
   bool
   yn_prompt (const char* prompt, char def)
@@ -60,11 +93,11 @@ namespace bpkg
   }
 
   bool
-  exists (const path& f)
+  exists (const path& f, bool ignore_error)
   {
     try
     {
-      return file_exists (f);
+      return file_exists (f, true /* follow_symlinks */, ignore_error);
     }
     catch (const system_error& e)
     {
@@ -73,11 +106,11 @@ namespace bpkg
   }
 
   bool
-  exists (const dir_path& d)
+  exists (const dir_path& d, bool ignore_error)
   {
     try
     {
-      return dir_exists (d);
+      return dir_exists (d, ignore_error);
     }
     catch (const system_error& e)
     {
@@ -131,9 +164,9 @@ namespace bpkg
   }
 
   void
-  rm (const path& f)
+  rm (const path& f, uint16_t v)
   {
-    if (verb >= 3)
+    if (verb >= v)
       text << "rm " << f;
 
     try
@@ -148,14 +181,14 @@ namespace bpkg
   }
 
   void
-  rm_r (const dir_path& d, bool dir)
+  rm_r (const dir_path& d, bool dir, uint16_t v, bool ignore_error)
   {
-    if (verb >= 3)
-      text << "rmdir -r " << d << (dir ? "" : "*");
+    if (verb >= v)
+      text << (dir ? "rmdir -r " : "rm -r ") << (dir ? d : d / dir_path ("*"));
 
     try
     {
-      rmdir_r (d, dir);
+      rmdir_r (d, dir, ignore_error);
     }
     catch (const system_error& e)
     {

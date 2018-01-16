@@ -87,6 +87,10 @@ namespace bpkg
     //
     mk (c / bpkg_dir);
 
+    // Initialize tmp directory.
+    //
+    init_tmp (c);
+
     // Create the database.
     //
     database db (open (c, trace, true));

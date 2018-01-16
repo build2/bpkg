@@ -46,6 +46,17 @@
 using namespace std;
 using namespace bpkg;
 
+// Get -d|--directory value if the option class O has it and empty path
+// otherwise. Note that for some commands (like rep-info) that allow
+// specifying empty path, the returned value is a string, not a dir_path.
+//
+template <typename O>
+static inline auto
+cfg_dir (const O* o) -> decltype(o->directory ()) {return o->directory ();}
+
+static inline auto
+cfg_dir (...) -> const dir_path& {return empty_dir_path;}
+
 // Initialize the command option class O with the common options and then
 // parse the rest of the command line placing non-option arguments to args.
 // Once this is done, use the "final" values of the common options to do
@@ -53,7 +64,7 @@ using namespace bpkg;
 //
 template <typename O>
 static O
-parse (const common_options& co, cli::scanner& scan, strings& args)
+init (const common_options& co, cli::scanner& scan, strings& args, bool tmp)
 {
   O o;
   static_cast<common_options&> (o) = co;
@@ -95,6 +106,11 @@ parse (const common_options& co, cli::scanner& scan, strings& args)
   verb = o.verbose_specified ()
     ? o.verbose ()
     : o.V () ? 3 : o.v () ? 2 : o.quiet () ? 0 : 1;
+
+  // Temporary directory.
+  //
+  if (tmp)
+    init_tmp (dir_path (cfg_dir (&o)));
 
   return o;
 }
@@ -165,7 +181,7 @@ try
   const common_options& co (o);
 
   if (o.help ())
-    return help (parse<help_options> (co, scan, argsv), "", nullptr);
+    return help (init<help_options> (co, scan, argsv, false), "", nullptr);
 
   // The next argument should be a command.
   //
@@ -191,7 +207,7 @@ try
 
   if (h)
   {
-    ho = parse<help_options> (co, scan, argsv);
+    ho = init<help_options> (co, scan, argsv, false);
 
     if (args.more ())
     {
@@ -215,7 +231,8 @@ try
   // Handle commands.
   //
   int r (1);
-  for (;;)
+  for (;;) // Breakout loop.
+  try
   {
     // help
     //
@@ -233,31 +250,31 @@ try
     //  if (h)
     //    r = help (ho, "pkg-verify", print_bpkg_pkg_verify_usage);
     //  else
-    //    r = pkg_verify (parse<pkg_verify_options> (co, scan, argsv), args);
+    //    r = pkg_verify (init<pkg_verify_options> (co, scan, argsv, TMP), args);
     //
     //  break;
     // }
     //
-#define COMMAND_IMPL(NP, SP, CMD)                                       \
-    if (cmd.NP##CMD ())                                                 \
-    {                                                                   \
-      if (h)                                                            \
-        r = help (ho, SP#CMD, print_bpkg_##NP##CMD##_usage);            \
-      else                                                              \
-        r = NP##CMD (parse<NP##CMD##_options> (co, scan, argsv), args); \
-                                                                        \
-      break;                                                            \
+#define COMMAND_IMPL(NP, SP, CMD, TMP)                                      \
+    if (cmd.NP##CMD ())                                                     \
+    {                                                                       \
+      if (h)                                                                \
+        r = help (ho, SP#CMD, print_bpkg_##NP##CMD##_usage);                \
+      else                                                                  \
+        r = NP##CMD (init<NP##CMD##_options> (co, scan, argsv, TMP), args); \
+                                                                            \
+      break;                                                                \
     }
 
     // cfg-* commands
     //
-#define CFG_COMMAND(CMD) COMMAND_IMPL(cfg_, "cfg-", CMD)
+#define CFG_COMMAND(CMD, TMP) COMMAND_IMPL(cfg_, "cfg-", CMD, TMP)
 
-    CFG_COMMAND (create);
+    CFG_COMMAND (create, false); // Temp dir initialized manually.
 
     // pkg-* commands
     //
-#define PKG_COMMAND(CMD) COMMAND_IMPL(pkg_, "pkg-", CMD)
+#define PKG_COMMAND(CMD) COMMAND_IMPL(pkg_, "pkg-", CMD, true)
 
     PKG_COMMAND (build);
     PKG_COMMAND (clean);
@@ -276,7 +293,7 @@ try
 
     // rep-* commands
     //
-#define REP_COMMAND(CMD) COMMAND_IMPL(rep_, "rep-", CMD)
+#define REP_COMMAND(CMD) COMMAND_IMPL(rep_, "rep-", CMD, true)
 
     REP_COMMAND (add);
     REP_COMMAND (create);
@@ -286,6 +303,14 @@ try
     assert (false);
     fail << "unhandled command";
   }
+  catch (const failed&)
+  {
+    r = 1;
+    break;
+  }
+
+  if (!tmp_dir.empty ())
+    clean_tmp (true /* ignore_error */);
 
   if (r != 0)
     return r;
