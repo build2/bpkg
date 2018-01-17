@@ -663,8 +663,12 @@ rep_fetch  += -d cfg --auth all --trust-yes 2>!
     # Still fail to build foo and sys:libbar/1.
     #
     $pkg_build foo 'sys:libbar/1' 2>>EOE != 0;
-      error: prerequisite libbar >= 2 of package foo is not available in source
-        info: sys:libbar/1 does not satisfy the constrains
+      error: unable to satisfy constraints on package libbar
+        info: foo depends on (libbar >= 2)
+        info: command line depends on (libbar == 1)
+        info: available sys:libbar/2
+        info: available sys:libbar/1
+        info: explicitly specify libbar version to manually satisfy both constraints
       info: while satisfying foo/2
       EOE
 

@@ -126,10 +126,15 @@ namespace bpkg
     return filter_one (r, db.query<available_package> (q));
   }
 
-  // Create a transient (or fake, if you prefer) available_package
-  // object corresponding to the specified selected object. Note
-  // that the package locations list is left empty and that the
-  // returned repository could be NULL if the package is an orphan.
+  // Create a transient (or fake, if you prefer) available_package object
+  // corresponding to the specified selected object. Note that the package
+  // locations list is left empty and that the returned repository could be
+  // NULL if the package is an orphan.
+  //
+  // Note also that in our model we assume that make_available() is only
+  // called if there is no real available_package. This makes sure that if
+  // the package moves (e.g., from testing to stable), then we will be using
+  // stable to resolve its dependencies.
   //
   static pair<shared_ptr<available_package>, shared_ptr<repository>>
   make_available (const common_options& options,
@@ -144,6 +149,11 @@ namespace bpkg
                         nullptr);
 
     // First see if we can find its repository.
+    //
+    // Note that this is package's "old" repository and there is no guarantee
+    // that its dependencies are still resolvable from it. But this is our
+    // best chance (we could go nuclear and point all orphans to the root
+    // repository but that feels a bit too drastic at the moment).
     //
     shared_ptr<repository> ar (
       db.find<repository> (
@@ -525,86 +535,19 @@ namespace bpkg
           // build and target machines are the same. See also pkg-configure.
         }
 
-        // The first step is to always find the available package even
-        // if, in the end, it won't be the one we select. If we cannot
-        // find the package then that means the repository is broken.
-        // And if we have no repository to look in, then that means the
-        // package is an orphan (we delay this check until we actually
-        // need the repository to allow orphans without prerequisites).
+        // First see if this package is already selected. If we already have
+        // it in the configuraion and it satisfies our dependency constraint,
+        // then we don't want to be forcing its upgrade (or, worse,
+        // downgrade).
         //
-        if (ar == nullptr)
-          fail << "package " << pkg.available_name () << " is orphaned" <<
-            info << "explicitly upgrade it to a new version";
+        shared_ptr<selected_package> dsp (db.find<selected_package> (dn));
 
-        // We look for prerequisites only in the repositories of this package
-        // (and not in all the repositories of this configuration). At first
-        // this might look strange, but it also kind of makes sense: we only
-        // use repositories "approved" for this package version. Consider this
-        // scenario as an example: hello/1.0.0 and libhello/1.0.0 in stable
-        // and libhello/2.0.0 in testing. As a prerequisite of hello, which
-        // version should libhello resolve to? While one can probably argue
-        // either way, resolving it to 1.0.0 is the conservative choice and
-        // the user can always override it by explicitly building libhello.
-        //
-        auto rp (find_available (db, dn, ar, d.constraint));
+        pair<shared_ptr<available_package>, shared_ptr<repository>> rp;
         shared_ptr<available_package>& dap (rp.first);
 
-        if (dap == nullptr)
-        {
-          diag_record dr;
-          dr << fail << "unknown prerequisite " << d << " of package " << name;
-
-          if (!ar->location.empty ())
-            dr << info << "repository " << ar->location << " appears to "
-                       << "be broken";
-        }
-
-        // If all that's available is a stub then we need to make sure the
-        // package is present in the system repository and it's version
-        // satisfies the constraint. If a source package is available but there
-        // is an optional system package specified on the command line and it's
-        // version satisfies the constraint then the system package should be
-        // preferred. To recognize such a case we just need to check if the
-        // authoritative system version is set and it satisfies the constraint.
-        // If the corresponding system package is non-optional it will be
-        // preferred anyway.
-        //
-        bool system (false);
-        if (dap->stub ())
-        {
-          if (dap->system_version () == nullptr)
-            fail << "prerequisite " << d << " of package " << name << " is "
-                 << "not available in source" <<
-              info << "specify ?sys:" << dn << " if it is available from the "
-                 << "system";
-
-          if (!satisfies (*dap->system_version (), d.constraint))
-          {
-            fail << "prerequisite " << d << " of package " << name << " is "
-                 << "not available in source" <<
-              info << "sys:" << dn << "/" << *dap->system_version ()
-                 << " does not satisfy the constrains";
-          }
-
-          system = true;
-        }
-        else
-        {
-          auto p (dap->system_version_authoritative ());
-
-          if (p.first != nullptr &&
-              p.second && // Authoritative.
-              satisfies (*p.first, d.constraint))
-            system = true;
-        }
-
-        // Next see if this package is already selected. If we already
-        // have it in the configuraion and it satisfies our dependency
-        // constraint, then we don't want to be forcing its upgrade (or,
-        // worse, downgrade).
-        //
         bool force (false);
-        shared_ptr<selected_package> dsp (db.find<selected_package> (dn));
+        bool system (false);
+
         if (dsp != nullptr)
         {
           if (dsp->state == package_state::broken)
@@ -613,14 +556,107 @@ namespace bpkg
 
           if (satisfies (dsp->version, d.constraint))
           {
-            rp = make_available (options, cd, db, dsp);
+            // First try to find an available package for this exact version.
+            // In particular, this handles the case where a package moves from
+            // one repository to another (e.g., from testing to stable).
+            //
+            shared_ptr<repository> root (db.load<repository> (""));
+            rp = find_available (
+              db, dn, root, dependency_constraint (dsp->version));
+
+            // A stub satisfies any dependency constraint so we weed them out
+            // by comparing versions (returning stub as an available package
+            // feels wrong).
+            //
+            if (dap == nullptr || dap->version != dsp->version)
+              rp = make_available (options, cd, db, dsp);
+
             system = dsp->system ();
           }
           else
-            // Remember that we may be forcing up/downgrade; we will deal
-            // with it below.
+            // Remember that we may be forcing up/downgrade; we will deal with
+            // it below.
             //
             force = true;
+        }
+
+        // If we didn't get the available package corresponding to the
+        // selected package, look for any that satisfies the constraint.
+        //
+        if (dap == nullptr)
+        {
+          // And if we have no repository to look in, then that means the
+          // package is an orphan (we delay this check until we actually
+          // need the repository to allow orphans without prerequisites).
+          //
+          if (ar == nullptr)
+            fail << "package " << pkg.available_name () << " is orphaned" <<
+              info << "explicitly upgrade it to a new version";
+
+          // We look for prerequisites only in the repositories of this
+          // package (and not in all the repositories of this configuration).
+          // At first this might look strange, but it also kind of makes
+          // sense: we only use repositories "approved" for this package
+          // version. Consider this scenario as an example: hello/1.0.0 and
+          // libhello/1.0.0 in stable and libhello/2.0.0 in testing. As a
+          // prerequisite of hello, which version should libhello resolve to?
+          // While one can probably argue either way, resolving it to 1.0.0 is
+          // the conservative choice and the user can always override it by
+          // explicitly building libhello.
+          //
+          // Note that this logic (naturally) does not apply if the package is
+          // already selected by the user (see above).
+          //
+          rp = find_available (db, dn, ar, d.constraint);
+
+          if (dap == nullptr)
+          {
+            diag_record dr;
+            dr << fail << "unknown prerequisite " << d << " of package "
+               << name;
+
+            if (!ar->location.empty ())
+              dr << info << "repository " << ar->location << " appears to "
+                 << "be broken";
+          }
+
+          // If all that's available is a stub then we need to make sure the
+          // package is present in the system repository and it's version
+          // satisfies the constraint. If a source package is available but
+          // there is an optional system package specified on the command line
+          // and it's version satisfies the constraint then the system package
+          // should be preferred. To recognize such a case we just need to
+          // check if the authoritative system version is set and it satisfies
+          // the constraint. If the corresponding system package is
+          // non-optional it will be preferred anyway.
+          //
+          if (dap->stub ())
+          {
+            if (dap->system_version () == nullptr)
+              fail << "prerequisite " << d << " of package " << name << " is "
+                   << "not available in source" <<
+                info << "specify ?sys:" << dn << " if it is available from "
+                   << "the system";
+
+            if (!satisfies (*dap->system_version (), d.constraint))
+            {
+              fail << "prerequisite " << d << " of package " << name << " is "
+                   << "not available in source" <<
+                info << "sys:" << dn << "/" << *dap->system_version ()
+                   << " does not satisfy the constrains";
+            }
+
+            system = true;
+          }
+          else
+          {
+            auto p (dap->system_version_authoritative ());
+
+            if (p.first != nullptr &&
+                p.second && // Authoritative.
+                satisfies (*p.first, d.constraint))
+              system = true;
+          }
         }
 
         build_package dp {
