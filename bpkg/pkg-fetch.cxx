@@ -217,7 +217,7 @@ namespace bpkg
            << "from " << pl->repository->name;
 
     path a (fetch_archive (co, pl->repository->location, pl->location, c));
-    auto_rm arm (a);
+    auto_rmfile arm (a);
 
     // We can't be fetching an archive for a transient object.
     //

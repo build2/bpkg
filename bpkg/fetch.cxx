@@ -558,7 +558,7 @@ namespace bpkg
     if (exists (r))
       fail << "file " << r << " already exists";
 
-    auto_rm arm (r);
+    auto_rmfile arm (r);
     process pr (start (o, u.string (), r));
 
     if (!pr.wait ())
