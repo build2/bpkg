@@ -4,6 +4,10 @@
 
 #include <bpkg/pkg-unpack.hxx>
 
+#ifdef _WIN32
+#  include <algorithm> // replace()
+#endif
+
 #include <libbutl/process.mxx>
 
 #include <libbpkg/manifest.hxx>
@@ -196,14 +200,27 @@ namespace bpkg
     // -C/--directory -- change to directory.
     //
     args.push_back ("-C");
+
+#ifndef _WIN32
     args.push_back (c.string ().c_str ());
+#else
+    // Note that tar misinterprets -C option's absolute paths on Windows,
+    // unless only forward slashes are used as directory separators:
+    //
+    // tar -C c:\a\cfg --force-local -xf c:\a\cfg\libbutl-0.7.0.tar.gz
+    // tar: c\:\a\\cfg: Cannot open: No such file or directory
+    // tar: Error is not recoverable: exiting now
+    //
+    string cwd (c.string ());
+    replace (cwd.begin (), cwd.end (), '\\', '/');
+
+    args.push_back (cwd.c_str ());
 
     // An archive name that has a colon in it specifies a file or device on a
     // remote machine. That makes it impossible to use absolute Windows paths
     // unless we add the --force-local option. Note that BSD tar doesn't
     // support this option.
     //
-#ifdef _WIN32
     args.push_back ("--force-local");
 #endif
 
