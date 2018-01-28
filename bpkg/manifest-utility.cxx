@@ -95,7 +95,7 @@ namespace bpkg
     //    if directory contains the .git/ subdirectory then git, otherwise
     //    bpkg.
     //
-    repository_type t;
+    repository_type t (repository_type::bpkg);
 
     if (ot)
       t = *ot;

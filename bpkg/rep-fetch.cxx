@@ -348,7 +348,7 @@ namespace bpkg
         rep_fetch (o, t, r, root, ""); // No reason (user-added).
     }
 
-    size_t rcount, pcount;
+    size_t rcount (0), pcount (0);
     if (verb)
     {
       rcount = db.query_value<repository_count> ();
