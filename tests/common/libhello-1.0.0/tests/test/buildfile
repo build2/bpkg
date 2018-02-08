@@ -1,4 +1,4 @@
 import libs = libhello%lib{hello}
 
 exe{driver}: cxx{driver} $libs
-exe{driver}: test.output = test.out
+exe{driver}: file{test.out}: test.stdout = true
