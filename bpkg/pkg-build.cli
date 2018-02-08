@@ -69,6 +69,14 @@ namespace bpkg
       "Assume the answer to all prompts is \cb{yes}."
     }
 
+    string --for|-f
+    {
+      "<operation>",
+      "Instead of the default \cb{update} build system operation, perform the
+       \cb{update-for-}<operation> variant where <operation> is normally
+       \cb{install} or \cb{test}."
+    }
+
     bool --drop-prerequisite|-D
     {
       "Drop without confirmation prerequsite packages that were automatically
@@ -93,15 +101,15 @@ namespace bpkg
        their prerequisites being upgraded or downgraded."
     }
 
+    bool --configure-only|-c
+    {
+      "Configure all the packages but don't update."
+    }
+
     bool --print-only|-p
     {
       "Print to \cb{STDOUT} what would be done without actually doing
        anything."
-    }
-
-    bool --configure-only|-c
-    {
-      "Configure all the packages but don't update."
     }
   };
 }

@@ -15,9 +15,13 @@ namespace bpkg
 {
   // Common pkg-{update,clean,test,install,...} implementation.
   //
+  // If cmd_variant is not empty, then the <cmd>-for-<variant> is performed
+  // instead.
+  //
   int
   pkg_command (const string& cmd, // Without the 'pkg-' prefix.
                const configuration_options&,
+               const string& cmd_variant,
                cli::scanner& args);
 
   struct pkg_command_vars
@@ -30,6 +34,7 @@ namespace bpkg
   pkg_command (const string& cmd,
                const dir_path& configuration,
                const common_options&,
+               const string& cmd_variant,
                const strings& common_vars,
                const vector<pkg_command_vars>&);
 }

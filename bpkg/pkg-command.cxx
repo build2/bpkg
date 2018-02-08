@@ -18,6 +18,7 @@ namespace bpkg
   pkg_command (const string& cmd,
                const dir_path& c,
                const common_options& o,
+               const string& cmd_v,
                const strings& cvars,
                const vector<pkg_command_vars>& ps)
   {
@@ -49,7 +50,17 @@ namespace bpkg
         run (); // Run previously collected packages.
 
       if (bspec.empty ())
-        bspec = cmd + '(';
+      {
+        bspec = cmd;
+
+        if (!cmd_v.empty ())
+        {
+          bspec += "-for-";
+          bspec += cmd_v;
+        }
+
+        bspec += '(';
+      }
 
       const shared_ptr<selected_package>& p (pv.pkg);
 
@@ -78,6 +89,7 @@ namespace bpkg
   int
   pkg_command (const string& cmd,
                const configuration_options& o,
+               const string& cmd_v,
                cli::scanner& args)
   {
     tracer trace ("pkg_command");
@@ -140,7 +152,7 @@ namespace bpkg
       t.commit ();
     }
 
-    pkg_command (cmd, c, o, cvars, ps);
+    pkg_command (cmd, c, o, cmd_v, cvars, ps);
 
     if (verb)
     {

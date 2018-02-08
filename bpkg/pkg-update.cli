@@ -21,7 +21,8 @@ namespace bpkg
 
      The \cb{pkg-update} command updates the previously configured (via
      \l{bpkg-pkg-build(1)} or \l{bpkg-pkg-configure(1)}) package. Underneath,
-     this command doesn't do much more than run \cb{b update}.
+     this command doesn't do much more than run \cb{b update} (or one of its
+     \c{update-for-*} variants; see \cb{--for|-f}).
 
      Additional command line variables (<vars>, normally \cb{config.*}) can be
      passed to the build system by either specifying them before the packages,
@@ -32,5 +33,13 @@ namespace bpkg
   class pkg_update_options: configuration_options
   {
     "\h|PKG-UPDATE OPTIONS|"
+
+    string --for|-f
+    {
+      "<operation>",
+      "Instead of the default \cb{update} build system operation, perform the
+       \cb{update-for-}<operation> variant where <operation> is normally
+       \cb{install} or \cb{test}."
+    }
   };
 }

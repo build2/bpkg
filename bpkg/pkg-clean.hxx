@@ -16,7 +16,7 @@ namespace bpkg
   inline int
   pkg_clean (const pkg_clean_options& o, cli::scanner& args)
   {
-    return pkg_command ("clean", o, args);
+    return pkg_command ("clean", o, "", args);
   }
 }
 

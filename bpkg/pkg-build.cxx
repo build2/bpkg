@@ -1932,7 +1932,7 @@ namespace bpkg
       }
     }
 
-    pkg_update (c, o, strings (), upkgs);
+    pkg_update (c, o, o.for_ (), strings (), upkgs);
 
     if (verb)
     {
