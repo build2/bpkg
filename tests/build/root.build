@@ -10,7 +10,7 @@ using cxx
 # Setup the bpkg that we are testing.
 #
 import bpkg = bpkg%exe{bpkg}
-dir{*}: test = $bpkg
+test{*}: test = $bpkg
 
 # Specify the test target for cross-testing.
 #
