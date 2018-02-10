@@ -24,7 +24,7 @@ namespace bpkg
      The \cb{rep-info} command prints various information about the specified
      repository. By default it print the repository's name and location as the
      first line. If the repository is signed, the certificate information
-     (name/organization/email) is printed as the next line following by the
+     (name/organization/email) is printed as the next line followed by the
      certificate fingerprint. Then comes the list of complement and
      prerequisite repositories followed by the list of available packages.
 
@@ -97,10 +97,7 @@ namespace bpkg
     {
       "<type>",
       "Specify the repository type with valid values being \cb{bpkg} and
-       \cb{git}. Normally the repository type can be automatically guessed by
-       examining its URL (for example, the presence of the \cb{.git}
-       extension) or, in case of a local repository, its content (for example,
-       the presence of the \cb{.git} subdirectory)."
+       \cb{git}. Refer to \l{bpkg-rep-add(1)} for details."
     }
 
     string --directory|-d // String to allow empty value.

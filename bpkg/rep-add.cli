@@ -13,7 +13,7 @@ include <bpkg/configuration.cli>;
 namespace bpkg
 {
   {
-    "<options> <rep>",
+    "<options> <rep> <tag> <branch> <commit-id>",
 
     "\h|SYNOPSIS|
 
@@ -22,9 +22,106 @@ namespace bpkg
      \h|DESCRIPTION|
 
      The \cb{rep-add} command adds the specified package repository to the
-     configuration. Note that it doesn't fetch the list of available packages
-     for the newly added repository. For that, use the \l{bpkg-rep-fetch(1)}
-     command, normally, after adding all the repositories you wish to use."
+     configuration. The repository location <rep> is a URL or a directory
+     path.
+
+     Note that this command doesn't fetch the list of available packages for
+     the newly added repository. For that, use the \l{bpkg-rep-fetch(1)}
+     command, normally, after adding all the repositories you wish to use.
+
+     Currently two types of repositories are supported: \i{bpkg} and \i{git}.
+     Normally the repository type can be automatically guessed by examining
+     its URL (for example, the presence of the \cb{.git} extension) or, in
+     case of a local repository, its content (for example, the presence of the
+     \cb{.git/} subdirectory). Without any identifying information the bpkg
+     type is assumed unless explicitly specified with the \cb{--type} option.
+
+     A bpkg repository is \i{archive}-based. That is, it contains a collection
+     of various packages/versions as archive files. For more information on
+     the structure of bpkg repositories refer to the \cb{bpkg} manual.
+
+     A git repository is \i{version control}-based. That is, it normally
+     contains multiple versions of the same package (but can also contain
+     several packages in the same repository).
+
+     Theoretically, a git repository may contain as many package versions as
+     there are commits. Practically, however, we are normally only interested
+     in a small subset of them while fetching and processing the necessary
+     information for all of them could be prohibitively expensive. As a
+     result, a git repository URL must include the fragment component that
+     restricts the set of versions to consider as available. While in the
+     future it will be possible to specify multiple available versions,
+     currently the fragment must identify a single version using one of the
+     following forms:
+
+     \
+     #<tag>
+     #<branch>
+     #[<branch>]@<commit-id>
+     \
+
+     In the last form <branch> is optional and is only used to minimize the
+     amount of data to fetch. If specified, then the commit must belong to its
+     history. Note also that no abbreviated commit ids are supported and
+     <commit-id> must be the complete, 40-character SHA1 string. Below are
+     some examples of git repository URLs:
+
+     \
+     https://example.com/foo.git#v1.2.3
+     https://example.com/foo.git#master
+     https://example.com/foo.git#@48fba3625d65941bb85a39061bcf795d4949c778
+     https://example.com/foo.git#bar@48fba3625d65941bb85a39061bcf795d4949c778
+     \
+
+     A git repository is expected to contain either the \cb{manifest} or
+     \cb{packages} file in the root directory of the repository. If it only
+     contains \cb{manifest}, then it is assumed to be a single-package
+     repository with the \cb{manifest} file being its package manifest.
+     Otherwise the \cb{packages} file should list the available packages as
+     directory paths relative to the repository root (which in turn should
+     contain the \cb{manifest} files). The \cb{packages} file is a manifest
+     (see the \cb{bpkg} manual for details on the manifest file format) that
+     should contain one or more \cb{location} values in the POSIX path
+     representation. For example:
+
+     \
+     : 1
+     location: src/libfoo/
+     location: src/foo/
+     \
+
+     Supported git protocols are \cb{git://}, \cb{http://}, and \cb{https://}
+     for remote repositories and \cb{file://} for local repositories. While
+     \cb{bpkg} tries to minimize the amount of information (history) fetched,
+     it is not always possible for some protocols and/or server
+     configurations, as discussed next.
+
+     A git repository accessible via \cb{http(s)://} can use either \i{dumb}
+     or \i{smart} protocol (refer to the \cb{git} documentation for details).
+     The dumb protocol provides only limited support for fetch minimization
+     and if this protocol is used, then \cb{bpkg} has no choice but to
+     download a substantial amount of history.
+
+     The smart protocol allows fetching of minimal history for tags and
+     branches. Whether this is also possible for (all) commit ids depends on
+     whether the server is configured to allow fetching unadvertised commits.
+     For details, refer to the \cb{uploadpack.allowReachableSHA1InWant} and
+     \cb{uploadpack.allowAnySHA1InWant} \cb{git} configuration values.
+
+     The \cb{git://} protocol is similar to smart \cb{http://} in that it
+     supports fetching minimal history for tags and branches and may or may
+     not support this for commit ids depending on the server configuration.
+     Note, however, that unlike for \cb{http(s)://}, for this protocol
+     \cb{bpkg} does not try to sense if fetching unadvertised commits is
+     allowed and always assumes that it is not.
+
+     Based on this information, to achieve optimal results the recommended
+     protocol for remote repositories is smart \cb{https://}. Additionally, if
+     you are planning to refer to commit ids, then also consider configuring
+     the server to allow fetching unadvertised commits.
+
+     The \cb{file://} protocol has the same fetch minimization support as
+     \cb{git://} and is therefore treated the same."
   }
 
   class rep_add_options: configuration_options
@@ -35,10 +132,7 @@ namespace bpkg
     {
       "<type>",
       "Specify the repository type with valid values being \cb{bpkg} and
-       \cb{git}. Normally the repository type can be automatically guessed by
-       examining its URL (for example, the presence of the \cb{.git}
-       extension) or, in case of a local repository, its content (for example,
-       the presence of the \cb{.git} subdirectory)."
+       \cb{git}."
     }
   };
 }

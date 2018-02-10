@@ -51,13 +51,14 @@ namespace bpkg
      amalgamation that contains packages as subprojects.
 
      A \i{bpkg package} is an archive or directory that contains a \cb{build2}
-     project plus a package \cb{manifest} file. \cb{bpkg} can either use
+     project plus the package \cb{manifest} file. \cb{bpkg} can either use
      package archives/directories directly from the filesystem or it can fetch
      archives from repositories.
 
      A \i{bpkg repository} is a collection of packages as well as prerequisite
-     and complement repositories. A repository is identified by its location,
-     which can be a local filesystem path or a remote HTTP or HTTPS URL.
+     and complement repositories. Both \i{archive} and \i{version
+     control}-based repository types are supported. A repository is identified
+     by its location which can be a local filesystem path or a URL.
 
      A typical \cb{bpkg} workflow would consist of the following steps.
 
@@ -76,6 +77,7 @@ namespace bpkg
 
          \
          bpkg add https://pkg.cppget.org/1/stable
+         bpkg add https://git.build2.org/hello/libhello.git#master
          \
 
          Repeat this command to add more repositories.
