@@ -632,9 +632,8 @@ namespace bpkg
   // certificate
   //
   // Information extracted from a repository X.509 certificate. The actual
-  // certificate is stored on disk as .bpkg/certificates/<fingerprint>.pem (we
-  // have to store it as a file because that's the only way to pass it to
-  // openssl).
+  // certificate is stored on disk as .bpkg/certificates/<id>.pem (we have to
+  // store it as a file because that's the only way to pass it to openssl).
   //
   // If a repository is not authenticated (has no certificate/signature,
   // called unauth from now on), then we ask for the user's confirmation and
@@ -645,15 +644,16 @@ namespace bpkg
   // certificate not for this specific repository location but for a
   // repository location only up to the version, so the name member will
   // contain the name prefix rather than the full name (just like a normal
-  // certificate would). The fingerprint member for such a dummy certificate
-  // contains the SHA256 checksum of this name. Members other then name and
-  // fingerprint are meaningless for the dummy certificate.
+  // certificate would). The id member for such a dummy certificate contains
+  // the truncated to 16 chars SHA256 checksum of this name. Members other then
+  // name and id are meaningless for the dummy certificate.
   //
   #pragma db object pointer(shared_ptr) session
   class certificate
   {
   public:
-    string fingerprint;  // Object id (note: SHA256 fingerprint).
+    string id;          // SHA256 fingerprint truncated to 16 characters.
+    string fingerprint; // Fingerprint canonical representation.
 
     string name;         // CN component of Subject.
     string organization; // O component of Subject.
@@ -673,13 +673,15 @@ namespace bpkg
     }
 
   public:
-    certificate (string f,
+    certificate (string i,
+                 string f,
                  string n,
                  string o,
                  string e,
                  timestamp sd,
                  timestamp ed)
-        : fingerprint (move (f)),
+        : id (move (i)),
+          fingerprint (move (f)),
           name (move (n)),
           organization (move (o)),
           email (move (e)),
@@ -690,8 +692,8 @@ namespace bpkg
 
     // Create dummy certificate.
     //
-    certificate (string f, string n)
-        : fingerprint (move (f)),
+    certificate (string i, string n)
+        : id (move (i)),
           name (move (n)),
           start_date (timestamp_unknown),
           end_date (timestamp_unknown)
@@ -700,7 +702,7 @@ namespace bpkg
 
     // Database mapping.
     //
-    #pragma db member(fingerprint) id
+    #pragma db member(id) id
 
   private:
     friend class odb::access;

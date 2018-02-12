@@ -99,32 +99,6 @@ namespace bpkg
     //
     // 6. Return repository and package manifest (certificate is NULL).
     //
-    // Notes:
-    //
-    // - Should we truncate sha256 hash? Maybe to 16 chars (this is what we
-    //   use for abbreviated git commit id in the version module). Also in
-    //   auth? Add abbreviated_string(size_t) to sha1 and sha256 classes?
-    //
-    // @@ If to truncate hash for auth, we would still need to store the full
-    //    fingerprint in the certificate object as rep-info needs it to print.
-    //    Leaving the certificate unchanged and truncating fingerprint on the
-    //    fly for the file naming seems wrong (good to have the certificate
-    //    file name to match the id). Probably it makes sense to make the
-    //    certificate as follows:
-    //
-    //    class certificate
-    //    {
-    //    public:
-    //      string id; // SHA256 fingerprint truncated to 16 characters.
-    //
-    //      string fingerprint; // Fingerprint canonical representation.
-    //    ...
-    //    };
-    //
-    //    Yes, sounds good.
-    //
-    //
-    //
 
     if (conf != nullptr && conf->empty ())
       conf = dir_exists (bpkg_dir) ? &current_dir : nullptr;

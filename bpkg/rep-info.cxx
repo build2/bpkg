@@ -102,7 +102,7 @@ namespace bpkg
           if (cert != nullptr)
             cout << "CN=" << cert->name << "/O=" << cert->organization <<
               "/" << cert->email << endl
-                 << sha256_to_fingerprint (cert->fingerprint) << endl;
+                 << cert->fingerprint << endl;
         }
         else
         {
@@ -112,7 +112,7 @@ namespace bpkg
           if (o.cert_fingerprint ())
           {
             if (cert != nullptr)
-              cout << sha256_to_fingerprint (cert->fingerprint);
+              cout << cert->fingerprint;
             cout << endl;
           }
 

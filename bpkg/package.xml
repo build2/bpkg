@@ -236,6 +236,7 @@
       </foreign-key>
     </table>
     <table name="certificate" kind="object">
+      <column name="id" type="TEXT" null="true"/>
       <column name="fingerprint" type="TEXT" null="true"/>
       <column name="name" type="TEXT" null="true"/>
       <column name="organization" type="TEXT" null="true"/>
@@ -243,7 +244,7 @@
       <column name="start_date" type="INTEGER" null="true"/>
       <column name="end_date" type="INTEGER" null="true"/>
       <primary-key>
-        <column name="fingerprint"/>
+        <column name="id"/>
       </primary-key>
     </table>
   </model>

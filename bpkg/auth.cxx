@@ -113,10 +113,15 @@ namespace bpkg
     return cert;
   }
 
-  // Calculate the real repository certificate fingerprint. Return the compact
-  // form (no colons, lower case).
+  // Calculate the real repository certificate fingerprint.
   //
-  static string
+  struct fingerprint
+  {
+    string canonical;   // Canonical representation.
+    string abbreviated; // No colons, lower case, first 16 chars only.
+  };
+
+  static fingerprint
   real_fingerprint (const common_options& co,
                     const string& pem,
                     const repository_location& rl)
@@ -153,7 +158,11 @@ namespace bpkg
 
         if (os.wait () &&
             s.size () > n && s.compare (0, n, "SHA256 Fingerprint=") == 0)
-          return fingerprint_to_sha256 (string (s, n));
+        {
+          string fp (s, n);
+          string ab (fingerprint_to_sha256 (fp, 16));
+          return {move (fp), move (ab)};
+        }
       }
       catch (const invalid_argument&)
       {
@@ -182,24 +191,26 @@ namespace bpkg
     throw failed ();
   }
 
-  // Calculate the repository certificate fingerprint. Return the compact form
-  // (no colons, lower case).
+  // Calculate the repository certificate fingerprint. For dummy certificate
+  // only the abbreviated form is meaningful (see certificate class definition
+  // for details).
   //
-  static string
+  static fingerprint
   cert_fingerprint (const common_options& co,
                     const optional<string>& pem,
                     const repository_location& rl)
   {
     return pem
       ? real_fingerprint (co, *pem, rl)
-      : sha256 (name_prefix (rl)).string ();
+      : fingerprint {string (),
+                     sha256 (name_prefix (rl)).abbreviated_string (16)};
   }
 
   // Parse the PEM-encoded certificate representation.
   //
   static shared_ptr<certificate>
   parse_cert (const common_options& co,
-              const string& fp,
+              const fingerprint& fp,
               const string& pem,
               const string& repo)
   {
@@ -408,7 +419,8 @@ namespace bpkg
 
         shared_ptr<certificate> cert (
           make_shared<certificate> (
-            fp,
+            fp.abbreviated,
+            fp.canonical,
             move (name),
             move (org),
             move (email),
@@ -472,7 +484,7 @@ namespace bpkg
   //
   static shared_ptr<certificate>
   auth_real (const common_options& co,
-             const string& fp,
+             const fingerprint& fp,
              const string& pem,
              const repository_location& rl)
   {
@@ -485,8 +497,6 @@ namespace bpkg
 
     verify_cert (*cert, rl);
 
-    string cert_fp (sha256_to_fingerprint (cert->fingerprint));
-
     // @@ Is there a way to intercept CLI parsing for the specific option of
     // the standard type to validate/convert the value? If there were, we could
     // validate the option value converting fp to sha (internal representation
@@ -496,7 +506,7 @@ namespace bpkg
     //    will probably be an overkill here.
     //
     bool trust (co.trust_yes () ||
-                co.trust ().find (cert_fp) != co.trust ().end ());
+                co.trust ().find (cert->fingerprint) != co.trust ().end ());
 
     if (trust)
     {
@@ -517,7 +527,7 @@ namespace bpkg
            << cert->organization << "\" <" << cert->email << ">";
 
       text << "certificate SHA256 fingerprint:";
-      text << cert_fp;
+      text << cert->fingerprint;
     }
 
     if (co.trust_no () || !yn_prompt ("trust this certificate? [y/n]"))
@@ -539,8 +549,8 @@ namespace bpkg
     tracer trace ("auth_cert");
     tracer_guard tg (db, trace);
 
-    string fp (cert_fingerprint (co, pem, rl));
-    shared_ptr<certificate> cert (db.find<certificate> (fp));
+    fingerprint fp (cert_fingerprint (co, pem, rl));
+    shared_ptr<certificate> cert (db.find<certificate> (fp.abbreviated));
 
     if (cert != nullptr)
     {
@@ -549,14 +559,17 @@ namespace bpkg
       return cert;
     }
 
-    cert = pem ? auth_real (co, fp, *pem, rl) : auth_dummy (co, fp, rl);
+    cert = pem
+      ? auth_real  (co, fp, *pem, rl)
+      : auth_dummy (co, fp.abbreviated, rl);
+
     db.persist (cert);
 
     // Save the certificate file.
     //
     if (pem)
     {
-      path f (conf / certs_dir / path (fp + ".pem"));
+      path f (conf / certs_dir / path (cert->id + ".pem"));
 
       try
       {
@@ -596,8 +609,10 @@ namespace bpkg
       // If we have no configuration, go straight to authenticating a new
       // certificate.
       //
-      string fp (cert_fingerprint (co, pem, rl));
-      r = pem ? auth_real (co, fp, *pem, rl) : auth_dummy (co, fp, rl);
+      fingerprint fp (cert_fingerprint (co, pem, rl));
+      r = pem
+        ? auth_real  (co, fp, *pem, rl)
+        : auth_dummy (co, fp.abbreviated, rl);
     }
     else if (transaction::has_current ())
     {
@@ -660,7 +675,7 @@ namespace bpkg
     }
     else
     {
-      f = *conf / certs_dir / path (cert.fingerprint + ".pem");
+      f = *conf / certs_dir / path (cert.id + ".pem");
     }
 
     // Make sure the names are either equal or the certificate name is a
@@ -835,7 +850,8 @@ namespace bpkg
     // No sense to calculate the fingerprint for the certificate being used
     // just to check the expiration date.
     //
-    shared_ptr<certificate> cert (parse_cert (co, "", cert_pem, r));
+    shared_ptr<certificate> cert (
+      parse_cert (co, fingerprint (), cert_pem, r));
 
     timestamp now (system_clock::now ());
 
