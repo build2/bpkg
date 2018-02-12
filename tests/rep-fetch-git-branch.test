@@ -1,0 +1,152 @@
+# file      : tests/rep-fetch-git-branch.test
+# copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
+# license   : MIT; see accompanying LICENSE file
+
+reason_dumb  = ' (dumb HTTP)'
+reason_unadv = ' (unadvertised commit)'
+
+warn_dumb='
+warning: fetching over dumb HTTP, no progress will be displayed'
+
+: clone
+:
+{
+  $clone_root_cfg && $rep_add "$rep/state0/libfoo.git#$branch";
+
+  # Note that the commit for doc/style/basic submodule is not at the branch tip
+  # and so is not advertised.
+  #
+  if ($git_protocol == 'local' || \
+      $git_protocol == 'https-smart' || \
+      $git_protocol == 'git')
+    warn1 = '%.{0}'
+    warn2 = '%.{0}'
+    warn3 = "warning: fetching whole repository history for submodule 'doc/style/basic'$reason_unadv"
+    fetch = '%.{0}'
+    warn4 = '%.{0}'
+  elif ($git_protocol == 'https-dumb')
+    warn1 = "warning: fetching whole branch history$reason_dumb$warn_dumb"
+    warn2 = "warning: fetching whole repository history for submodule 'doc/style'$reason_dumb$warn_dumb"
+    warn3 = "warning: fetching whole repository history for submodule 'doc/style/basic'$reason_dumb$warn_dumb"
+    fetch = '%.{0}'
+    warn4 = "warning: fetching whole repository history for submodule 'libbar'$reason_dumb$warn_dumb"
+  elif ($git_protocol == 'https-smart-unadv')
+    warn1 = '%.{0}'
+    warn2 = '%.{0}'
+    warn3 = '%.{0}'
+    fetch = "%Fetching in '.+style/basic'.+%"
+    warn4 = '%.{0}'
+  end;
+
+  $* 2>>~"%EOE%"
+    %fetching git:.+libfoo%
+    $warn1
+    %Cloning into '.+$branch'.+%
+    %Submodule 'doc/style' .+ registered for path 'doc/style'%
+    %Submodule 'libbar' .+ registered for path 'libbar'%
+    $warn2
+    %Cloning into '.+doc/style'.+%
+    %Submodule path 'doc/style': checked out .+%
+    %Submodule 'basic' .+ registered for path 'doc/style/basic'%
+    $warn3
+    %Cloning into '.+doc/style/basic'.+%
+    $fetch
+    %Submodule path 'doc/style/basic': checked out .+%
+    $warn4
+    %Cloning into '.+libbar'.+%
+    %Submodule path 'libbar': checked out .+%
+    0 package\(s\) in 1 repository\(s\)
+    EOE
+}
+
+: fetch
+:
+{
+  : unchanged
+  :
+  {
+    $clone_root_cfg && $rep_add "$rep/state0/libfoo.git#$branch";
+    $* >! 2>!;
+
+    if ($git_protocol == 'https-dumb')
+      warn = "warning: fetching whole branch history$reason_dumb$warn_dumb"
+    else
+      warn = '%.{0}'
+    end;
+
+    $* 2>>~"%EOE%"
+      %fetching git:.+libfoo%
+      $warn
+      %Fetching in '.+$branch'.+%
+      0 package\(s\) in 1 repository\(s\)
+      EOE
+  }
+
+  : changed
+  :
+  {
+    g = git -C
+    u = "$rep_git/state1"
+
+    $clone_root_cfg && $rep_add "$rep/state0/libfoo.git#$branch";
+
+    # Extract the repository path from the output line like this:
+    #
+    # Cloning into 'cfg\.bpkg\tmp\f9be881264703b5d\master'...
+    #
+    $* 2>&1 | sed -n -e "s/Cloning into '\(.+$branch\)'\.{3}/\$1/p"  | \
+              sed -n -e 's%(.+[\\/])tmp([\\/].+)%$1repositories$2%p' | \
+              set r;
+
+    $g "$r" config remote.origin.url       "$u/libfoo.git";
+
+    $g "$r" config submodule.libbar.url    "$u/libbar.git";
+    $g "$r" config submodule.doc/style.url "$u/style.git";
+
+    $g "$r/libbar" config remote.origin.url "$u/libbar.git";
+
+    $g "$r/doc/style" config remote.origin.url   "$u/style.git";
+    $g "$r/doc/style" config submodule.basic.url "$u/style-basic.git";
+
+    $g "$r/doc/style/basic" config remote.origin.url "$u/style-basic.git";
+
+    # Preconditions.
+    #
+    test -f $r/tests/TODO;
+    test -f $r/libbar/manifest;
+    test -f $r/doc/style/README != 0;
+    test -d $r/libbaz != 0;
+
+    if ($git_protocol == 'https-dumb')
+      warn1 = "warning: fetching whole branch history$reason_dumb$warn_dumb"
+      warn2 = "warning: fetching whole repository history for submodule 'doc/style'$reason_dumb$warn_dumb"
+      warn3 = "warning: fetching whole repository history for submodule 'libbaz'$reason_dumb$warn_dumb"
+    else
+      warn1 = '%.{0}'
+      warn2 = '%.{0}'
+      warn3 = '%.{0}'
+    end;
+
+    $* 2>>~"%EOE%" 1>&2;
+      %fetching git:.+libfoo%
+      $warn1
+      %Fetching in '.+$branch'.+%
+      %warning: unable to rmdir '?libbar'?:.+%
+      %Submodule 'libbaz' .+ registered for path 'libbaz'%
+      $warn2
+      %Fetching in '.+doc/style'.+%
+      %Submodule path 'doc/style': checked out .+%
+      $warn3
+      %Cloning into '.+libbaz'.+%
+      %Submodule path 'libbaz': checked out .+%
+      0 package\(s\) in 1 repository\(s\)
+      EOE
+
+    # Postconditions.
+    #
+    test -d $r/tests != 0;
+    test -d $r/libbar != 0;
+    test -f $r/doc/style/README;
+    test -f $r/libbaz/manifest
+  }
+}

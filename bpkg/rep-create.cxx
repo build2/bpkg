@@ -185,7 +185,9 @@ namespace bpkg
     // Load the 'repositories' file to make sure it is there and
     // is valid.
     //
-    repository_manifests rms (fetch_repositories (d, o.ignore_unknown ()));
+    repository_manifests rms (
+      bpkg_fetch_repositories (d, o.ignore_unknown ()));
+
     l4 ([&]{trace << rms.size () - 1 << " prerequisite repository(s)";});
 
     // While we could have serialized as we go along, the order of

@@ -165,7 +165,7 @@ sc = " " # Space character to append to here-document line when required.
   :
   {
     +$clone_root_cfg && $rep_add $rep/signed
-    rep_fetch += --auth all &?cfg/.bpkg/certs/***
+    rep_fetch += --auth all &?cfg/.bpkg/certificates/**
 
     : no-auth
     :
@@ -312,8 +312,11 @@ sc = " " # Space character to append to here-document line when required.
       $clone_root_cfg;
       rep_info += -d cfg;
 
-      $rep_info --trust "$cert_fp" &cfg/.bpkg/certs/*** >'name:build2.org';
-      $rep_info                                         >'name:build2.org'
+      $rep_info --trust "$cert_fp" &cfg/.bpkg/certificates/** >>EOO;
+        name:build2.org
+        EOO
+
+      $rep_info >'name:build2.org'
     }
   }
 

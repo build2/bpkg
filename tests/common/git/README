@@ -1,0 +1,104 @@
+1. Local repositories.
+
+To modify the repositories that are used for git repository tests run
+
+$ ./init --unpack
+
+before modification, and
+
+$ ./pack
+
+afterwrds.
+
+Also note that config files under .git/ subdirectory refer to the submodule
+repositories using absolute paths. So prior to pulling in subproject directory
+(say in state0/libfoo.git/doc/style) you need to run the following commands,
+to make sure that the repository references match their current locations:
+
+$ git -C style.git  submodule sync --recursive
+$ git -C libfoo.git submodule sync --recursive
+
+
+2. Remote repositories.
+
+To bootstrap the remote repositories run the following commands on build2.org
+host.
+
+$ cd /var/scm
+
+Create repositories, providing the proper project description:
+
+# bpkg test repository with doc basic style library (initial state)
+#
+$ ./mkrepo testing/bpkg/unadv/rep-fetch/state0/style-basic.git
+
+# bpkg test repository with doc style library (initial state)
+#
+$ ./mkrepo testing/bpkg/unadv/rep-fetch/state0/style.git
+
+# bpkg test repository with libbar library (initial state)
+#
+$ ./mkrepo testing/bpkg/unadv/rep-fetch/state0/libbar.git
+
+# bpkg test repository with libfoo library (initial state)
+#
+$ ./mkrepo testing/bpkg/unadv/rep-fetch/state0/libfoo.git
+
+# bpkg test repository with doc basic style library (final state)
+#
+$ ./mkrepo testing/bpkg/unadv/rep-fetch/state1/style-basic.git
+
+# bpkg test repository with doc style library (final state)
+#
+$ ./mkrepo testing/bpkg/unadv/rep-fetch/state1/style.git
+
+# bpkg test repository with libbaz library (final state)
+#
+$ ./mkrepo testing/bpkg/unadv/rep-fetch/state1/libbaz.git
+
+# bpkg test repository with libfoo library (final state)
+#
+$ ./mkrepo testing/bpkg/unadv/rep-fetch/state1/libfoo.git
+
+
+# bpkg test repository with doc basic style library (advonly, initial state)
+#
+$ ./mkrepo testing/bpkg/advonly/rep-fetch/state0/style-basic.git
+
+# bpkg test repository with doc style library (advonly, initial state)
+#
+$ ./mkrepo testing/bpkg/advonly/rep-fetch/state0/style.git
+
+# bpkg test repository with libbar library (advonly, initial state)
+#
+$ ./mkrepo testing/bpkg/advonly/rep-fetch/state0/libbar.git
+
+# bpkg test repository with libfoo library (advonly, initial state)
+#
+$ ./mkrepo testing/bpkg/advonly/rep-fetch/state0/libfoo.git
+
+# bpkg test repository with doc basic style library (advonly, final state)
+#
+$ ./mkrepo testing/bpkg/advonly/rep-fetch/state1/style-basic.git
+
+# bpkg test repository with doc style library (advonly, final state)
+#
+$ ./mkrepo testing/bpkg/advonly/rep-fetch/state1/style.git
+
+# bpkg test repository with libbaz library (advonly, final state)
+#
+$ ./mkrepo testing/bpkg/advonly/rep-fetch/state1/libbaz.git
+
+# bpkg test repository with libfoo library (advonly, final state)
+#
+$ ./mkrepo testing/bpkg/advonly/rep-fetch/state1/libfoo.git
+
+Add configuration options:
+
+$ for d in $(find . -type d -regex '\./testing/bpkg/.*/[^/]+\.git'); do \
+  git -C $d config receive.denyDeleteCurrent ignore \
+done
+
+$ for d in $(find . -type d -regex '\./testing/bpkg/advonly/.*/[^/]+\.git'); do \
+  git -C $d config uploadpack.allowAnySHA1InWant false \
+done

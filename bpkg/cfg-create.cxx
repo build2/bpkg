@@ -83,9 +83,13 @@ namespace bpkg
            true,
            vars);
 
-    // Create .bpkg/.
+    // Create .bpkg/ and its subdirectories.
     //
-    mk (c / bpkg_dir);
+    {
+      mk (c / bpkg_dir);
+      mk (c / certs_dir);
+      mk (c / repos_dir);
+    }
 
     // Initialize tmp directory.
     //

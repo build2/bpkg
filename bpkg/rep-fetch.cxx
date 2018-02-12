@@ -4,6 +4,8 @@
 
 #include <bpkg/rep-fetch.hxx>
 
+#include <libbutl/sha256.mxx>
+
 #include <bpkg/auth.hxx>
 #include <bpkg/fetch.hxx>
 #include <bpkg/package.hxx>
@@ -26,7 +28,7 @@ namespace bpkg
     // certificate.
     //
     pair<repository_manifests, string /* checksum */> rmc (
-      fetch_repositories (co, rl, ignore_unknown));
+      bpkg_fetch_repositories (co, rl, ignore_unknown));
 
     repository_manifests& rms (rmc.first);
 
@@ -46,7 +48,7 @@ namespace bpkg
     // we just fetched.
     //
     pair<package_manifests, string /* checksum */> pmc (
-      fetch_packages (co, rl, ignore_unknown));
+      bpkg_fetch_packages (co, rl, ignore_unknown));
 
     package_manifests& pms (pmc.first);
 
@@ -58,7 +60,7 @@ namespace bpkg
     if (a)
     {
       signature_manifest sm (
-        fetch_signature (co, rl, true /* ignore_unknown */));
+        bpkg_fetch_signature (co, rl, true /* ignore_unknown */));
 
       if (sm.sha256sum != pmc.second)
         fail << "packages manifest file checksum mismatch for "
@@ -73,12 +75,104 @@ namespace bpkg
   }
 
   static rep_fetch_data
-  rep_fetch_git (const common_options&,
-                 const dir_path*,
-                 const repository_location&,
-                 bool)
+  rep_fetch_git (const common_options& co,
+                 const dir_path* conf,
+                 const repository_location& rl,
+                 bool /* ignore_unknown */)
   {
-    fail << "not implemented" << endf;
+    // Plan:
+    //
+    // 1. Check repos_dir/<hash>/:
+    //
+    // 1.a If does not exist, git-clone into temp_dir/<hash>/.
+    //
+    // 1.a Otherwise, move as temp_dir/<hash>/ and git-fetch.
+    //
+    // 2. Move from temp_dir/<hash>/ to repos_dir/<hash>/
+    //
+    // 3. Load manifest from repos_dir/<hash>/<fragment>/
+    //
+    // 4. Run 'b info' in repos_dir/<hash>/<fragment>/ and fix-up
+    //    package version.
+    //
+    // 5. Synthesize repository manifest.
+    //
+    // 6. Return repository and package manifest (certificate is NULL).
+    //
+    // Notes:
+    //
+    // - Should we truncate sha256 hash? Maybe to 16 chars (this is what we
+    //   use for abbreviated git commit id in the version module). Also in
+    //   auth? Add abbreviated_string(size_t) to sha1 and sha256 classes?
+    //
+    // @@ If to truncate hash for auth, we would still need to store the full
+    //    fingerprint in the certificate object as rep-info needs it to print.
+    //    Leaving the certificate unchanged and truncating fingerprint on the
+    //    fly for the file naming seems wrong (good to have the certificate
+    //    file name to match the id). Probably it makes sense to make the
+    //    certificate as follows:
+    //
+    //    class certificate
+    //    {
+    //    public:
+    //      string id; // SHA256 fingerprint truncated to 16 characters.
+    //
+    //      string fingerprint; // Fingerprint canonical representation.
+    //    ...
+    //    };
+    //
+    //    Yes, sounds good.
+    //
+    //
+    //
+
+    if (conf != nullptr && conf->empty ())
+      conf = dir_exists (bpkg_dir) ? &current_dir : nullptr;
+
+    assert (conf == nullptr || !conf->empty ());
+
+    dir_path h (sha256 (rl.canonical_name ()).abbreviated_string (16));
+
+    auto_rmdir rm (temp_dir / h);
+    dir_path& td (rm.path);
+
+    if (exists (td))
+      rm_r (td);
+
+    // If the git repository directory already exists, then we are fetching
+    // an already cloned repository. Move it to the temporary directory.
+    //
+    dir_path rd;
+    bool fetch (false);
+    if (conf != nullptr)
+    {
+      rd = *conf / repos_dir / h;
+
+      if (exists (rd))
+      {
+        mv (rd, td);
+        fetch = true;
+      }
+    }
+
+    if (fetch)
+      git_fetch (co, rl, td);
+    else
+      git_clone (co, rl, td);
+
+    if (!rd.empty ())
+      mv (td, rd);
+    else
+      // If there is no configuration directory then we leave the repository
+      // in the temporary directory.
+      //
+      rd = move (td);
+
+    rm.cancel ();
+
+    // @@ TODO
+    //
+    return rep_fetch_data ();
   }
 
   rep_fetch_data

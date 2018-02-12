@@ -52,8 +52,10 @@ namespace bpkg
 
   // Widely-used paths.
   //
-  extern const dir_path bpkg_dir;  // .bpkg/
-  extern const dir_path certs_dir; // .bpkg/certs/
+  extern const dir_path bpkg_dir;    // .bpkg/
+  extern const dir_path certs_dir;   // .bpkg/certificates/
+  extern const dir_path repos_dir;   // .bpkg/repositories/
+  extern const dir_path current_dir; // ./
 
   // Temporary directory facility.
   //
@@ -63,6 +65,8 @@ namespace bpkg
   // you don't need to call init_tmp() explicitly except for certain special
   // commands (like cfg-create).
   //
+  extern dir_path temp_dir;
+
   auto_rmfile
   tmp_file (const string& prefix);
 
@@ -108,6 +112,9 @@ namespace bpkg
         bool dir_itself = true,
         uint16_t verbosity = 3,
         bool ignore_error = false);
+
+  void
+  mv (const dir_path& from, const dir_path& to);
 
   // Process.
   //

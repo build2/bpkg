@@ -5,6 +5,8 @@
 #ifndef BPKG_FETCH_HXX
 #define BPKG_FETCH_HXX
 
+#include <libbutl/process.mxx>
+
 #include <libbpkg/manifest.hxx>
 
 #include <bpkg/types.hxx>
@@ -14,32 +16,64 @@
 
 namespace bpkg
 {
+  // Repository type bpkg (fetch-bpkg.cxx).
+  //
+
   repository_manifests
-  fetch_repositories (const dir_path&, bool ignore_unknown);
+  bpkg_fetch_repositories (const dir_path&, bool ignore_unknown);
 
   pair<repository_manifests, string /* checksum */>
-  fetch_repositories (const common_options&,
-                      const repository_location&,
-                      bool ignore_unknown);
+  bpkg_fetch_repositories (const common_options&,
+                           const repository_location&,
+                           bool ignore_unknown);
 
   package_manifests
-  fetch_packages (const dir_path&, bool ignore_unknown);
+  bpkg_fetch_packages (const dir_path&, bool ignore_unknown);
 
   pair<package_manifests, string /* checksum */>
-  fetch_packages (const common_options&,
-                  const repository_location&,
-                  bool ignore_unknown);
+  bpkg_fetch_packages (const common_options&,
+                       const repository_location&,
+                       bool ignore_unknown);
 
   signature_manifest
-  fetch_signature (const common_options&,
-                   const repository_location&,
-                   bool ignore_unknown);
+  bpkg_fetch_signature (const common_options&,
+                        const repository_location&,
+                        bool ignore_unknown);
 
   path
-  fetch_archive (const common_options&,
-                 const repository_location&,
-                 const path& archive,
-                 const dir_path& destdir);
+  bpkg_fetch_archive (const common_options&,
+                      const repository_location&,
+                      const path& archive,
+                      const dir_path& destdir);
+
+  // Repository type git (fetch-git.cxx).
+  //
+
+  // Clone git repository into destdir/<fragment>/.
+  //
+  void
+  git_clone (const common_options&,
+             const repository_location&,
+             const dir_path& destdir);
+
+  // Fetch git repository in destdir/<fragment>/.
+  //
+  void
+  git_fetch (const common_options&,
+             const repository_location&,
+             const dir_path& destdir);
+
+  // Low-level fetch API (fetch.cxx).
+  //
+
+  // Start the process of fetching the specified URL. If out is empty, then
+  // fetch to STDOUT. In this case also don't show any progress unless we are
+  // running verbose.
+  //
+  butl::process
+  start_fetch (const common_options& o,
+               const string& url,
+               const path& out = path ());
 }
 
 #endif // BPKG_FETCH_HXX

@@ -68,7 +68,8 @@ namespace bpkg
     // use the location rather than the name prefix.
     //
     if (rl.remote ())
-      return repository_location (p.posix_string (), rl).canonical_name ();
+      return repository_location (
+        repository_url (p.posix_string ()), rl).canonical_name ();
     else
       return (path_cast<dir_path> (rl.path ()) / p).normalize ().string ();
   }
@@ -555,11 +556,7 @@ namespace bpkg
     //
     if (pem)
     {
-      dir_path d (conf / certs_dir);
-      if (!dir_exists (d))
-        mk (d);
-
-      path f (d / path (fp + ".pem"));
+      path f (conf / certs_dir / path (fp + ".pem"));
 
       try
       {
@@ -575,8 +572,6 @@ namespace bpkg
 
     return cert;
   }
-
-  static const dir_path current_dir (".");
 
   shared_ptr<const certificate>
   authenticate_certificate (const common_options& co,

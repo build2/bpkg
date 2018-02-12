@@ -2,7 +2,7 @@
 # copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
 # license   : MIT; see accompanying LICENSE file
 
-.include common.test auth.test config.test remote.test
+.include common.test auth.test config.test remote.test remote-git.test
 
 # Source repository:
 #
@@ -19,6 +19,7 @@
 # |       |                          ../foo/testing (prerequisite)
 # |       |-- libbar-1.1.1.tar.gz  -> libfoo >= 1.1.0
 # |       `-- repositories
+# |
 # |-- foo
 # |   |-- stable
 # |   |   |-- libfoo-1.0.0.tar.gz
@@ -26,9 +27,12 @@
 # |   `-- testing                 -> stable (complement)
 # |       |-- libfoo-1.1.0.tar.gz
 # |       `-- repositories
+# |
 # `-- hello
-#     |-- libhello-1.0.0.tar.gz
-#     `-- repositories
+# |   |-- libhello-1.0.0.tar.gz
+# |   `-- repositories
+# |
+# `-- git/* (see rep-fetch-git.test)
 
 # Prepare repositories used by tests if running in the local mode.
 #
@@ -53,11 +57,27 @@
   $rep_create $out/bar/stable   &$out/bar/stable/packages
   $rep_create $out/bar/testing  &$out/bar/testing/packages
   $rep_create $out/bar/unstable &$out/bar/unstable/packages
+
+  # Create git repositories.
+  #
+  # Note that we can expect that the tar program is present on the platform. We
+  # will use the same options as we do for unpacking of bpkg packages (see
+  # pkg-unpack.cxx).
+  #
+  x = ($cxx.target.class != 'windows' \
+       ? tar -C $out_git -xf \
+       : tar -C $regex.replace($out_git, '\\', '/') --force-local -xf)
+
+  $x $src/git/state0/libfoo.tar
+  $x $src/git/state0/libbar.tar
+  $x $src/git/state0/style.tar
+  $x $src/git/state0/style-basic.tar &$out_git/state0/***
+
+  $x $src/git/state1/libfoo.tar
+  $x $src/git/state1/libbaz.tar
+  $x $src/git/state1/style.tar
+  $x $src/git/state1/style-basic.tar &$out_git/state1/***
 end
-
-test.options += --auth all
-
-rep_add += -d cfg 2>!
 
 : no-repositories
 :
@@ -67,68 +87,114 @@ $* 2>>/EOE != 0
     info: use 'bpkg rep-add' to add a repository
   EOE
 
-: hello
+: bpkg-repositories
 :
 {
-  $clone_cfg && $rep_add $rep/hello;
+  test.options += --auth all
 
-  $* --trust $cert_fp 2>>EOE &cfg/.bpkg/certs/***;
-    fetching bpkg:build2.org/rep-fetch/hello
-    1 package(s) in 1 repository(s)
-    EOE
+  rep_add += -d cfg 2>!
 
-  $* 2>>EOE
-    fetching bpkg:build2.org/rep-fetch/hello
-    1 package(s) in 1 repository(s)
-    EOE
+  : hello
+  :
+  {
+    $clone_root_cfg && $rep_add $rep/hello;
+
+    $* --trust $cert_fp 2>>EOE &cfg/.bpkg/certificates/**;
+      fetching bpkg:build2.org/rep-fetch/hello
+      1 package(s) in 1 repository(s)
+      EOE
+
+    $* 2>>EOE
+      fetching bpkg:build2.org/rep-fetch/hello
+      1 package(s) in 1 repository(s)
+      EOE
+  }
+
+  : bar-unstable
+  :
+  {
+    $clone_root_cfg && $rep_add $rep/bar/unstable;
+
+    $* --trust-yes 2>>EOE;
+      fetching bpkg:build2.org/rep-fetch/bar/unstable
+      fetching bpkg:build2.org/rep-fetch/foo/testing (prerequisite of bpkg:build2.org/rep-fetch/bar/unstable)
+      fetching bpkg:build2.org/rep-fetch/foo/stable (complements bpkg:build2.org/rep-fetch/foo/testing)
+      fetching bpkg:build2.org/rep-fetch/bar/testing (complements bpkg:build2.org/rep-fetch/bar/unstable)
+      fetching bpkg:build2.org/rep-fetch/bar/stable (complements bpkg:build2.org/rep-fetch/bar/testing)
+      5 package(s) in 5 repository(s)
+      EOE
+
+    $* 2>>EOE
+      fetching bpkg:build2.org/rep-fetch/bar/unstable
+      fetching bpkg:build2.org/rep-fetch/foo/testing (prerequisite of bpkg:build2.org/rep-fetch/bar/unstable)
+      fetching bpkg:build2.org/rep-fetch/foo/stable (complements bpkg:build2.org/rep-fetch/foo/testing)
+      fetching bpkg:build2.org/rep-fetch/bar/testing (complements bpkg:build2.org/rep-fetch/bar/unstable)
+      fetching bpkg:build2.org/rep-fetch/bar/stable (complements bpkg:build2.org/rep-fetch/bar/testing)
+      5 package(s) in 5 repository(s)
+      EOE
+  }
+
+  : both
+  :
+  {
+    $clone_root_cfg && $rep_add $rep/hello && $rep_add $rep/bar/unstable;
+
+    $* --trust-yes 2>>EOE &cfg/.bpkg/certificates/**;
+      fetching bpkg:build2.org/rep-fetch/bar/unstable
+      fetching bpkg:build2.org/rep-fetch/foo/testing (prerequisite of bpkg:build2.org/rep-fetch/bar/unstable)
+      fetching bpkg:build2.org/rep-fetch/foo/stable (complements bpkg:build2.org/rep-fetch/foo/testing)
+      fetching bpkg:build2.org/rep-fetch/bar/testing (complements bpkg:build2.org/rep-fetch/bar/unstable)
+      fetching bpkg:build2.org/rep-fetch/bar/stable (complements bpkg:build2.org/rep-fetch/bar/testing)
+      fetching bpkg:build2.org/rep-fetch/hello
+      6 package(s) in 6 repository(s)
+      EOE
+
+    $* 2>>EOE
+      fetching bpkg:build2.org/rep-fetch/bar/unstable
+      fetching bpkg:build2.org/rep-fetch/foo/testing (prerequisite of bpkg:build2.org/rep-fetch/bar/unstable)
+      fetching bpkg:build2.org/rep-fetch/foo/stable (complements bpkg:build2.org/rep-fetch/foo/testing)
+      fetching bpkg:build2.org/rep-fetch/bar/testing (complements bpkg:build2.org/rep-fetch/bar/unstable)
+      fetching bpkg:build2.org/rep-fetch/bar/stable (complements bpkg:build2.org/rep-fetch/bar/testing)
+      fetching bpkg:build2.org/rep-fetch/hello
+      6 package(s) in 6 repository(s)
+      EOE
+  }
 }
 
-: bar-unstable
+: git-repositories
 :
+if ($remote != true)
 {
-  $clone_cfg && $rep_add $rep/bar/unstable;
-
-  $* --trust-yes 2>>EOE;
-    fetching bpkg:build2.org/rep-fetch/bar/unstable
-    fetching bpkg:build2.org/rep-fetch/foo/testing (prerequisite of bpkg:build2.org/rep-fetch/bar/unstable)
-    fetching bpkg:build2.org/rep-fetch/foo/stable (complements bpkg:build2.org/rep-fetch/foo/testing)
-    fetching bpkg:build2.org/rep-fetch/bar/testing (complements bpkg:build2.org/rep-fetch/bar/unstable)
-    fetching bpkg:build2.org/rep-fetch/bar/stable (complements bpkg:build2.org/rep-fetch/bar/testing)
-    5 package(s) in 5 repository(s)
-    EOE
-
-  $* 2>>EOE
-    fetching bpkg:build2.org/rep-fetch/bar/unstable
-    fetching bpkg:build2.org/rep-fetch/foo/testing (prerequisite of bpkg:build2.org/rep-fetch/bar/unstable)
-    fetching bpkg:build2.org/rep-fetch/foo/stable (complements bpkg:build2.org/rep-fetch/foo/testing)
-    fetching bpkg:build2.org/rep-fetch/bar/testing (complements bpkg:build2.org/rep-fetch/bar/unstable)
-    fetching bpkg:build2.org/rep-fetch/bar/stable (complements bpkg:build2.org/rep-fetch/bar/testing)
-    5 package(s) in 5 repository(s)
-    EOE
+  git_protocol = 'local'
+  .include rep-fetch-git.test
 }
-
-: both
-:
+else
 {
-  $clone_cfg && $rep_add $rep/hello && $rep_add $rep/bar/unstable;
+  : https-dumb
+  :
+  {
+    git_protocol = 'https-dumb'
+    .include rep-fetch-git.test
+  }
 
-  $* --trust-yes 2>>EOE &cfg/.bpkg/certs/***;
-    fetching bpkg:build2.org/rep-fetch/bar/unstable
-    fetching bpkg:build2.org/rep-fetch/foo/testing (prerequisite of bpkg:build2.org/rep-fetch/bar/unstable)
-    fetching bpkg:build2.org/rep-fetch/foo/stable (complements bpkg:build2.org/rep-fetch/foo/testing)
-    fetching bpkg:build2.org/rep-fetch/bar/testing (complements bpkg:build2.org/rep-fetch/bar/unstable)
-    fetching bpkg:build2.org/rep-fetch/bar/stable (complements bpkg:build2.org/rep-fetch/bar/testing)
-    fetching bpkg:build2.org/rep-fetch/hello
-    6 package(s) in 6 repository(s)
-    EOE
+  : https-smart
+  :
+  {
+    git_protocol = 'https-smart'
+    .include rep-fetch-git.test
+  }
 
-  $* 2>>EOE
-    fetching bpkg:build2.org/rep-fetch/bar/unstable
-    fetching bpkg:build2.org/rep-fetch/foo/testing (prerequisite of bpkg:build2.org/rep-fetch/bar/unstable)
-    fetching bpkg:build2.org/rep-fetch/foo/stable (complements bpkg:build2.org/rep-fetch/foo/testing)
-    fetching bpkg:build2.org/rep-fetch/bar/testing (complements bpkg:build2.org/rep-fetch/bar/unstable)
-    fetching bpkg:build2.org/rep-fetch/bar/stable (complements bpkg:build2.org/rep-fetch/bar/testing)
-    fetching bpkg:build2.org/rep-fetch/hello
-    6 package(s) in 6 repository(s)
-    EOE
+  : https-smart-unadv
+  :
+  {
+    git_protocol = 'https-smart-unadv'
+    .include rep-fetch-git.test
+  }
+
+  : git
+  :
+  {
+    git_protocol = 'git'
+    .include rep-fetch-git.test
+  }
 }

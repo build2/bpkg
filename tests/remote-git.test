@@ -1,0 +1,35 @@
+# file      : tests/remote-git.test
+# copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
+# license   : MIT; see accompanying LICENSE file
+
+# Tests for commands that accept git repository location must be able to run
+# regardless whether the repository is local or remote. They also must be able
+# to create the repository used for testing at the specified path, so being
+# published to build2.org it can be used for the remote testing. Note that
+# prior to publishing repositories tests must be performed with the
+# config.test.output=keep variable override, so their working directories (that
+# contain repositories produced) are not cleaned up.
+#
+
+# Output directory path that testscripts must use to prepare repositories
+# required by tests they contains.
+#
+out_git = $canonicalize([dir_path] $~/git/$cmd)
+
+# If $remote is true then remote repositories locations must be used for
+# tests.
+#
+remote = $config.bpkg.test.remote
+
++if ($remote != true)
+  rep_git_local = ($cxx.target.class != 'windows' \
+                   ? "file://$out_git" \
+                   : "file:/$regex.replace($out_git, '\\', '/')")
+
+  mkdir -p $out_git
+else
+  rep_git_https_dumb        = "https://build2.org/bpkg/git/$cmd"
+  rep_git_https_smart       = "https://git.build2.org/testing/bpkg/advonly/$cmd"
+  rep_git_https_smart_unadv = "https://git.build2.org/testing/bpkg/unadv/$cmd"
+  rep_git_git               = "git://git.build2.org/testing/bpkg/unadv/$cmd"
+end

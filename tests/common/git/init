@@ -1,0 +1,171 @@
+#! /bin/sh
+
+# Create git repositories from project directories/tarballs.
+#
+# Usage example:
+#
+# ./init [--unpack]
+#
+owd=`pwd`
+trap "{ cd $owd; exit 1; }" ERR
+set -o errtrace # Trap in functions.
+
+function info  () { echo "$*" 1>&2; }
+function error () { info "error: $*"; exit 1; }
+function trace () { if [ "$verbose" == 'y' ]; then info "trace: $*"; fi }
+
+unpack=
+
+while [ $# -gt 0 ]; do
+  case $1 in
+    --unpack)
+      unpack='y'
+      shift
+      ;;
+    *)
+      error "invalid option $1"
+      ;;
+  esac
+done
+
+# Unpack repositories if requested.
+#
+if [ -n "$unpack" ]; then
+  for f in */*.tar; do
+    rm -r -f ${f%.tar}.git
+    tar xf $f;
+  done
+fi
+
+# Create the initial state of the repositories libfoo.git, libbar.git,
+# style.git, and style-basic.git.
+#
+cd state0
+
+rm -f -r libfoo.git/.git
+rm -f    libfoo.git/.gitmodules
+rm -f    libfoo.git/README
+rm -f -r libfoo.git/libbar
+rm -f -r libfoo.git/doc/style
+
+rm -f -r libbar.git/.git
+
+rm -f -r style.git/.git
+rm -f -r style.git/basic
+
+rm -f -r style-basic.git/.git
+rm -f    style-basic.git/README
+rm -f    style-basic.git/INSTALL
+
+# Create master branch for style-basic.git.
+#
+git -C style-basic.git init
+git -C style-basic.git add '*'
+git -C style-basic.git commit -am 'Create'
+
+# Create stable branch for style-basic.
+#
+git -C style-basic.git branch stable
+git -C style-basic.git checkout stable
+touch  style-basic.git/README
+git -C style-basic.git add README
+git -C style-basic.git commit -am 'README'
+
+# Create master branch for style.git, adding style-basic.git as a submodule.
+#
+git -C style.git init
+git -C style.git add '*'
+git -C style.git submodule add ../style-basic.git basic # The stable branch.
+git -C style.git commit -am 'Create'
+
+# Make style.git to refer an unadvertised reference, commiting into the stable
+# branch of style-basic.git.
+#
+touch style-basic.git/INSTALL
+git -C style-basic.git add INSTALL
+git -C style-basic.git commit -am 'INSTALL'
+git -C style-basic.git checkout master
+
+# Create master branch for libbar.git.
+#
+git -C libbar.git init
+git -C libbar.git add '*'
+git -C libbar.git commit -am 'Create'
+
+# Create master branch for libfoo.git, adding style.git and libbar.git as
+# submodules.
+#
+git -C libfoo.git init
+git -C libfoo.git add '*'
+git -C libfoo.git submodule add ../style.git doc/style
+git -C libfoo.git submodule add ../libbar.git libbar
+git -C libfoo.git submodule update --init --recursive # Updates doc/style/basic.
+git -C libfoo.git commit -am 'Create'
+
+# Add tags for libfoo.git.
+#
+git -C libfoo.git tag 'lightweight_tag'
+git -C libfoo.git tag -a 'annotated_tag' -m 'annotated_tag'
+
+# Advance the master branch to make tags not to mark a branch tip.
+#
+touch  libfoo.git/README
+git -C libfoo.git add README
+git -C libfoo.git commit -am 'README'
+
+# Create the modified state of the repositories, replacing libbar.git submodule
+# of libfoo with the newly created libbaz.git repository. Also advance master
+# branches and tags for libfoo.git and it's submodule style.git.
+#
+cd ../state1
+
+# Copy repositories initial state.
+#
+for d in ../state0/*.git; do
+  rm -f -r $(basename $d)
+  cp -r $d .
+done
+
+# Create libbaz.git repository.
+#
+rm -f -r libbaz.git/.git
+
+git -C libbaz.git init
+git -C libbaz.git add '*'
+git -C libbaz.git commit -am 'Create'
+
+# Sync submodule references with their new locations.
+#
+for d in *.git; do
+  git -C $d  submodule sync --recursive
+done
+
+# Advance style.git master branch.
+#
+touch  style.git/README
+git -C style.git add README
+git -C style.git commit -am 'README'
+
+# Advance libfoo.git master branch.
+#
+git -C libfoo.git submodule update --init --remote # Pull style only.
+git -C libfoo.git commit -am 'Update style'
+
+git -C libfoo.git rm -r tests
+git -C libfoo.git commit -am 'Remove tests'
+
+git -C libfoo.git submodule deinit libbar
+git -C libfoo.git rm libbar
+git -C libfoo.git commit -am 'Remove libbar'
+rm -f -r libbar.git
+
+git -C libfoo.git submodule add ../libbaz.git libbaz
+git -C libfoo.git submodule update --init libbaz
+git -C libfoo.git commit -am 'Add libbaz'
+
+git -C libfoo.git tag -f 'lightweight_tag'
+git -C libfoo.git tag -f -a 'annotated_tag' -m 'annotated_tag'
+
+touch  libfoo.git/INSTALL
+git -C libfoo.git add INSTALL
+git -C libfoo.git commit -am 'INSTALL'

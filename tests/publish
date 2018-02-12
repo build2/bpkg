@@ -1,10 +1,28 @@
-#!/bin/sh
+#! /usr/bin/env bash
 
 # Some commonly useful addtional options that can be specified via the
 # command line:
 #
 # --dry-run
 # --progress
+#
+owd=`pwd`
+trap "{ cd $owd; exit 1; }" ERR
+set -o errtrace # Trap in functions.
+
+echo_git=
+
+# Keep arguments intact for the future use with rsync.
+#
+for o in "$@"; do
+  case $o in
+    --dry-run)
+      echo_git=echo
+      ;;
+  esac
+done
+
+# Publish bpkg test repositories.
 #
 rsync -v -rlpt --copy-unsafe-links \
 --prune-empty-dirs --delete-after --delete-excluded $* \
@@ -15,3 +33,53 @@ rsync -v -rlpt --copy-unsafe-links \
 --include 'signature'     \
 --exclude '*'             \
 test/*/pkg/1/build2.org/ build2.org:/var/pkg/1/
+
+# Publish git test repositories.
+#
+urls=('git.build2.org:/var/scm/testing/bpkg/unadv' \
+      'git.build2.org:/var/scm/testing/bpkg/advonly')
+
+# Find git repository directories to publish.
+#
+for r in $(find test -type d -regex '.*/git/.*/[^/]+\.git'); do
+  br="${r/\/git\//\/git-bare\/}" # Bare repository directory.
+
+  # Make base repositories from the test ones.
+  #
+  rm -r -f $br
+  mkdir -p $(dirname $br)
+
+  git clone --bare $r $br
+
+  # Subdirectory that is relative to git-bare/.
+  #
+  d=$(echo $br | sed -n -e 's%.*/git-bare/\(.*\)%\1%p')
+
+  for u in "${urls[@]}"; do
+
+    # Point the bare repository origin to the remote repository.
+    #
+    git -C $br config remote.origin.url "$u/$d"
+
+    # Delete all remote branches and tags.
+    #
+    while read commit ref; do
+      $echo_git git -C $br push origin ":$ref"
+    done < <(git -C $br ls-remote --refs origin)
+
+    # Push local branches.
+    #
+    while read branch; do
+      $echo_git git -C $br push --tags origin "$branch:$branch"
+    done < <(git -C $br for-each-ref --format='%(refname:short)' 'refs/heads/')
+  done
+
+  # Prepare the bare repository for serving via the HTTPS dumb protocol.
+  #
+  git -C $br update-server-info --force
+done
+
+# Publish git repositories that are served via the HTTPS dumb protocol.
+#
+rsync -v -rlpt --copy-unsafe-links --delete-after $* \
+test/*/git-bare/ build2.org:/var/pkg/git/

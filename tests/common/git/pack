@@ -1,0 +1,29 @@
+#! /bin/sh
+
+# Move git projects to tar archives.
+#
+# Usage example:
+#
+# ./pack
+#
+owd=`pwd`
+trap "{ cd $owd; exit 1; }" ERR
+set -o errtrace # Trap in functions.
+
+function info () { echo "$*" 1>&2; }
+function error () { info "$*"; exit 1; }
+
+projects=('state0/libfoo' 'state0/libbar' 'state0/style' 'state0/style-basic' \
+	  'state1/libfoo' 'state1/libbaz' 'state1/style' 'state1/style-basic')
+
+for p in "${projects[@]}"; do
+  d=$p.git
+  if [ ! -d $d ]; then
+    error "$d directory not found"
+  fi
+
+  git -C $d submodule sync --recursive
+
+  tar cf $p.tar $d
+  rm -r -f $d
+done

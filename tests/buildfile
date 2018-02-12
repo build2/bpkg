@@ -5,7 +5,8 @@
 define common: file
 common{*}: extension = test
 
-commons = common config auth remote
+commons = common config auth remote \
+          remote-git rep-fetch-git rep-fetch-git-branch rep-fetch-git-commit
 
 # The common/ directory contains repositories that are reused, being symlinked
 # in source repositories specific for testscripts.

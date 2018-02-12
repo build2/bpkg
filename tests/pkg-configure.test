@@ -101,7 +101,8 @@ $* libhello libhello 2>>EOE != 0
 :
 {
   +$clone_cfg
-  +$rep_add $rep/hello && $rep_fetch --trust $cert_fp &cfg/.bpkg/certs/***
+  +$rep_add $rep/hello
+  +$rep_fetch --trust $cert_fp &cfg/.bpkg/certificates/**
 
   : no-such-package
   :

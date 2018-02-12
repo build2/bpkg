@@ -2,7 +2,7 @@
 # copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
 # license   : MIT; see accompanying LICENSE file
 
-# Tests for commands that accept repository location must be able to run
+# Tests for commands that accept bpkg repository location must be able to run
 # regardless whether the repository is local or remote. They also must be able
 # to create the repository used for testing at the specified path, so being
 # published to build2.org it can be used for the remote testing. Note that

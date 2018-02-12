@@ -22,22 +22,25 @@ namespace bpkg
   const dir_path empty_dir_path;
 
   const dir_path bpkg_dir (".bpkg");
-  const dir_path certs_dir (dir_path (bpkg_dir) /= "certs");
+  const dir_path certs_dir (dir_path (bpkg_dir) /= "certificates");
+  const dir_path repos_dir (dir_path (bpkg_dir) /= "repositories");
 
-  static dir_path tmp_dir_;
+  const dir_path current_dir (".");
+
+  dir_path temp_dir;
 
   auto_rmfile
   tmp_file (const string& p)
   {
-    assert (!tmp_dir_.empty ());
-    return auto_rmfile (tmp_dir_ / path::traits::temp_name (p));
+    assert (!temp_dir.empty ());
+    return auto_rmfile (temp_dir / path::traits::temp_name (p));
   }
 
   auto_rmdir
   tmp_dir (const string& p)
   {
-    assert (!tmp_dir_.empty ());
-    return auto_rmdir (tmp_dir_ / dir_path (path::traits::temp_name (p)));
+    assert (!temp_dir.empty ());
+    return auto_rmdir (temp_dir / dir_path (path::traits::temp_name (p)));
   }
 
   void
@@ -56,16 +59,16 @@ namespace bpkg
 
     mk (d); // We shouldn't need mk_p().
 
-    tmp_dir_ = move (d);
+    temp_dir = move (d);
   }
 
   void
   clean_tmp (bool ignore_error)
   {
-    if (!tmp_dir_.empty ())
+    if (!temp_dir.empty ())
     {
-      rm_r (tmp_dir_, true /* dir_itself */, 3, ignore_error);
-      tmp_dir_.clear ();
+      rm_r (temp_dir, true /* dir_itself */, 3, ignore_error);
+      temp_dir.clear ();
     }
   }
 
@@ -210,6 +213,22 @@ namespace bpkg
     {
       fail << "unable to remove " << (dir ? "" : "contents of ")
            << "directory " << d << ": " << e;
+    }
+  }
+
+  void
+  mv (const dir_path& from, const dir_path& to)
+  {
+    if (verb >= 3)
+      text << "mv " << from << " to " << to; // Prints trailing slashes.
+
+    try
+    {
+      mvdir (from, to);
+    }
+    catch (const system_error& e)
+    {
+      fail << "unable to move directory " << from << " to " << to << ": " << e;
     }
   }
 

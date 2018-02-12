@@ -200,24 +200,27 @@ namespace bpkg
 
   // repository_location
   //
-
   #pragma db value
   struct _repository_location
   {
-    string url;
+    repository_url  url;
     repository_type type;
   };
 
-  // Note that the type() call fails for an empty repository location.
-  //
-  #pragma db map type(repository_location) as(_repository_location) \
-    to({(?).string (),                                              \
-        (?).empty () ? bpkg::repository_type::bpkg : (?).type ()})  \
-    from(bpkg::repository_location ((?).url, (?).type))
+  #pragma db map type(repository_url) as(string) \
+    to((?).string ())                            \
+    from(bpkg::repository_url (?))
 
   #pragma db map type(repository_type) as(string) \
     to(to_string (?))                             \
     from(bpkg::to_repository_type (?))
+
+  // Note that the type() call fails for an empty repository location.
+  //
+  #pragma db map type(repository_location) as(_repository_location) \
+    to({(?).url (),                                                 \
+        (?).empty () ? bpkg::repository_type::bpkg : (?).type ()})  \
+    from(bpkg::repository_location (std::move ((?).url), (?).type))
 
   // repository
   //
@@ -629,8 +632,9 @@ namespace bpkg
   // certificate
   //
   // Information extracted from a repository X.509 certificate. The actual
-  // certificate is stored on disk as .bpkg/certs/<fingerprint>.pem (we have
-  // to store it as a file because that's the only way to pass it to openssl).
+  // certificate is stored on disk as .bpkg/certificates/<fingerprint>.pem (we
+  // have to store it as a file because that's the only way to pass it to
+  // openssl).
   //
   // If a repository is not authenticated (has no certificate/signature,
   // called unauth from now on), then we ask for the user's confirmation and

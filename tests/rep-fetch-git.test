@@ -1,0 +1,62 @@
+# file      : tests/rep-fetch-git.test
+# copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
+# license   : MIT; see accompanying LICENSE file
+
+# All tests use the same repository infrastructure present in the initial and
+# the final states. See tests/common/git/init script for more details.
+#
+
+rep_add += --type git -d cfg 2>!
+test.cleanups += &cfg/.bpkg/repositories/*/***
+
++if ($git_protocol == 'local')
+  rep = "$rep_git_local"
+elif ($git_protocol == 'https-dumb')
+  rep = "$rep_git_https_dumb"
+elif ($git_protocol == 'https-smart')
+  rep = "$rep_git_https_smart"
+elif ($git_protocol == 'https-smart-unadv')
+  rep = "$rep_git_https_smart_unadv"
+elif ($git_protocol == 'git')
+  rep = "$rep_git_git"
+else
+  exit "unexpected git protocol '$git_protocol'"
+end
+
+# Repository URL prefix for use with git commands.
+#
+# Note that git supports none of the standard 'file:' URL notations on Windows,
+# so we produce one that is acceptable for git.
+#
++if ($git_protocol == 'local' && $cxx.target.class == 'windows')
+  rep_git = "$regex.replace($rep, '^file:/', 'file://')"
+else
+  rep_git = "$rep"
+end
+
+: branch
+:
+{
+  branch = 'master'
+  .include rep-fetch-git-branch.test
+}
+
+: lightweight-tag
+:
+{
+  branch = 'lightweight_tag'
+  .include rep-fetch-git-branch.test
+}
+
+: annotated-tag
+:
+{
+  branch = 'annotated_tag'
+  .include rep-fetch-git-branch.test
+}
+
+: commit
+:
+{
+  .include rep-fetch-git-commit.test
+}
