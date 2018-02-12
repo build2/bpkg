@@ -47,10 +47,12 @@ namespace bpkg
   init_tmp (const dir_path& cfg)
   {
     // Whether the configuration is required or optional depends on the
-    // command so if the configuration directory does not exist, we simply
-    // create tmp in a system one and let the command complain if necessary.
+    // command so if the configuration directory does not exist or it is not a
+    // bpkg configuration directory, we simply create tmp in a system one and
+    // let the command complain if necessary.
     //
-    dir_path d (cfg.empty () || !exists (cfg, true /* ignore_error */)
+    dir_path d (cfg.empty () ||
+                !exists (cfg / bpkg_dir, true /* ignore_error */)
                 ? dir_path::temp_path ("bpkg")
                 : cfg / bpkg_dir / dir_path ("tmp"));
 
