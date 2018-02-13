@@ -57,19 +57,25 @@ namespace bpkg
      \
      #<tag>
      #<branch>
-     #[<branch>]@<commit-id>
+     #<commit-id>
+     #<branch>@<commit-id>
      \
 
-     In the last form <branch> is optional and is only used to minimize the
-     amount of data to fetch. If specified, then the commit must belong to its
-     history. Note also that no abbreviated commit ids are supported and
-     <commit-id> must be the complete, 40-character SHA1 string. Below are
-     some examples of git repository URLs:
+     In the last form <branch> is only used to minimize the amount of data to
+     fetch. If specified, then the commit must belong to its history.
+
+     No abbreviated commit ids are supported and <commit-id> must be the
+     complete, 40-characters SHA1 string. A 40-characters fragment that
+     consists of only hexadecimal digits is assumed to be a commit id and a
+     branch/tag otherwise. In an unlikely case this produces an incorrect
+     result, the last form with omitted <commit-id> can be used.
+
+     Below are some examples of git repository URLs:
 
      \
      https://example.com/foo.git#v1.2.3
      https://example.com/foo.git#master
-     https://example.com/foo.git#@48fba3625d65941bb85a39061bcf795d4949c778
+     https://example.com/foo.git#48fba3625d65941bb85a39061bcf795d4949c778
      https://example.com/foo.git#bar@48fba3625d65941bb85a39061bcf795d4949c778
      \
 
