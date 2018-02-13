@@ -6,7 +6,7 @@ reason_dumb  = ' (dumb HTTP)'
 reason_unadv = ' (unadvertised commit)'
 
 warn_dumb='
-warning: fetching over dumb HTTP, no progress will be displayed'
+warning: fetching over dumb HTTP, no progress will be shown'
 
  +git clone "$rep_git/state0/style-basic.git" 2>! &style-basic/***
 

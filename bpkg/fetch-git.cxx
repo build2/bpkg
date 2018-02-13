@@ -586,7 +586,7 @@ namespace bpkg
     }
 
     if (cap == capabilities::dumb)
-      warn << "fetching over dumb HTTP, no progress will be displayed";
+      warn << "fetching over dumb HTTP, no progress will be shown";
   }
 
   // Update git index and working tree to match the reference. Fetch if
