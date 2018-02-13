@@ -919,7 +919,13 @@ namespace bpkg
       fetch_warn (cap, single_branch ? "branch" : "repository");
 
     dir_path d (destdir);
-    d /= dir_path (ref.branch ? *ref.branch : *ref.commit);
+
+    // Truncate commit id-based directory names to shorten the absolute
+    // directory path to lower probability of hitting the limit on Windows.
+    // Note that we can't do the same for branch/tag names as chances to clash
+    // would be way higher. Though such names are normally short anyway.
+    //
+    d /= dir_path (ref.branch ? *ref.branch : ref.commit->substr (0, 16));
 
     strings to (timeout_opts (co, url.scheme));
 

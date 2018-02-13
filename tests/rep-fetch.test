@@ -79,7 +79,7 @@
   $x $src/git/state1/style-basic.tar &$out_git/state1/***
 end
 
-: no-repositories
+: no-repos
 :
 $clone_cfg;
 $* 2>>/EOE != 0
@@ -87,7 +87,7 @@ $* 2>>/EOE != 0
     info: use 'bpkg rep-add' to add a repository
   EOE
 
-: bpkg-repositories
+: bpkg-repos
 :
 {
   test.options += --auth all
@@ -161,7 +161,7 @@ $* 2>>/EOE != 0
   }
 }
 
-: git-repositories
+: git-repos
 :
 if ($remote != true)
 {
