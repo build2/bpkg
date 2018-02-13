@@ -27,10 +27,10 @@ namespace bpkg
     // First fetch the repositories list and authenticate the base's
     // certificate.
     //
-    pair<repository_manifests, string /* checksum */> rmc (
+    pair<bpkg_repository_manifests, string /* checksum */> rmc (
       bpkg_fetch_repositories (co, rl, ignore_unknown));
 
-    repository_manifests& rms (rmc.first);
+    bpkg_repository_manifests& rms (rmc.first);
 
     bool a (co.auth () != auth::none &&
             (co.auth () == auth::all || rl.remote ()));
@@ -47,10 +47,10 @@ namespace bpkg
     // Now fetch the packages list and make sure it matches the repositories
     // we just fetched.
     //
-    pair<package_manifests, string /* checksum */> pmc (
+    pair<bpkg_package_manifests, string /* checksum */> pmc (
       bpkg_fetch_packages (co, rl, ignore_unknown));
 
-    package_manifests& pms (pmc.first);
+    bpkg_package_manifests& pms (pmc.first);
 
     if (rmc.second != pms.sha256sum)
       fail << "repositories manifest file checksum mismatch for "

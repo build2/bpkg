@@ -107,8 +107,10 @@ $* --name $rep/testing >"bpkg:build2.org/rep-info/testing ($rep/testing)"
   $* --repositories --manifest $rep/testing >>EOO
   : 1
   location: ../../foo/testing
+  type: bpkg
   :
   location: ../stable
+  type: bpkg
   role: complement
   :
   EOO

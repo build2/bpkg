@@ -185,7 +185,7 @@ namespace bpkg
     // Load the 'repositories' file to make sure it is there and
     // is valid.
     //
-    repository_manifests rms (
+    bpkg_repository_manifests rms (
       bpkg_fetch_repositories (d, o.ignore_unknown ()));
 
     l4 ([&]{trace << rms.size () - 1 << " prerequisite repository(s)";});
@@ -197,7 +197,7 @@ namespace bpkg
     package_map pm;
     collect (o, pm, d, d);
 
-    package_manifests manifests;
+    bpkg_package_manifests manifests;
     manifests.sha256sum = sha256 (o, path (d / repositories));
 
     for (auto& p: pm)

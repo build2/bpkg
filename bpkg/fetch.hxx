@@ -19,18 +19,18 @@ namespace bpkg
   // Repository type bpkg (fetch-bpkg.cxx).
   //
 
-  repository_manifests
+  bpkg_repository_manifests
   bpkg_fetch_repositories (const dir_path&, bool ignore_unknown);
 
-  pair<repository_manifests, string /* checksum */>
+  pair<bpkg_repository_manifests, string /* checksum */>
   bpkg_fetch_repositories (const common_options&,
                            const repository_location&,
                            bool ignore_unknown);
 
-  package_manifests
+  bpkg_package_manifests
   bpkg_fetch_packages (const dir_path&, bool ignore_unknown);
 
-  pair<package_manifests, string /* checksum */>
+  pair<bpkg_package_manifests, string /* checksum */>
   bpkg_fetch_packages (const common_options&,
                        const repository_location&,
                        bool ignore_unknown);

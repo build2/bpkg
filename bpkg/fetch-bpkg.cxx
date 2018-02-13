@@ -167,14 +167,14 @@ namespace bpkg
 
   static const path repositories ("repositories");
 
-  repository_manifests
+  bpkg_repository_manifests
   bpkg_fetch_repositories (const dir_path& d, bool iu)
   {
-    return fetch_manifest<repository_manifests> (
+    return fetch_manifest<bpkg_repository_manifests> (
       nullptr, d / repositories, iu).first;
   }
 
-  pair<repository_manifests, string/*checksum*/>
+  pair<bpkg_repository_manifests, string/*checksum*/>
   bpkg_fetch_repositories (const common_options& o,
                            const repository_location& rl,
                            bool iu)
@@ -187,19 +187,20 @@ namespace bpkg
     f /= repositories;
 
     return rl.remote ()
-      ? fetch_manifest<repository_manifests> (o, u, iu)
-      : fetch_manifest<repository_manifests> (&o, f, iu);
+      ? fetch_manifest<bpkg_repository_manifests> (o, u, iu)
+      : fetch_manifest<bpkg_repository_manifests> (&o, f, iu);
   }
 
   static const path packages ("packages");
 
-  package_manifests
+  bpkg_package_manifests
   bpkg_fetch_packages (const dir_path& d, bool iu)
   {
-    return fetch_manifest<package_manifests> (nullptr, d / packages, iu).first;
+    return fetch_manifest<bpkg_package_manifests> (
+      nullptr, d / packages, iu).first;
   }
 
-  pair<package_manifests, string/*checksum*/>
+  pair<bpkg_package_manifests, string/*checksum*/>
   bpkg_fetch_packages (const common_options& o,
                        const repository_location& rl,
                        bool iu)
@@ -212,8 +213,8 @@ namespace bpkg
     f /= packages;
 
     return rl.remote ()
-      ? fetch_manifest<package_manifests> (o, u, iu)
-      : fetch_manifest<package_manifests> (&o, f, iu);
+      ? fetch_manifest<bpkg_package_manifests> (o, u, iu)
+      : fetch_manifest<bpkg_package_manifests> (&o, f, iu);
   }
 
   static const path signature ("signature");

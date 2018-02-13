@@ -86,45 +86,10 @@ namespace bpkg
     // 1. If type is specified as an option use that (but validate
     //    incompatible scheme/type e.g., git/bpkg).
     //
-    // 2. If scheme is git then git.
+    // 2. See guess_type() function description in libbpkg/manifest.hxx for
+    //    the algorithm details.
     //
-    // 3. If scheme is http(s), then check if path has the .git extension,
-    //    then git, otherwise bpkg.
-    //
-    // 4. If local (which will normally be without the .git extension), check
-    //    if directory contains the .git/ subdirectory then git, otherwise
-    //    bpkg.
-    //
-    repository_type t (repository_type::bpkg);
-
-    if (ot)
-      t = *ot;
-    else
-    {
-      switch (u.scheme)
-      {
-      case repository_protocol::git:
-        {
-          t = repository_type::git;
-          break;
-        }
-      case repository_protocol::http:
-      case repository_protocol::https:
-        {
-          t = u.path->extension () == "git"
-            ? repository_type::git
-            : repository_type::bpkg;
-          break;
-        }
-      case repository_protocol::file:
-        {
-          t = exists (path_cast<dir_path> (*u.path) / dir_path (".git"))
-            ? repository_type::git
-            : repository_type::bpkg;
-          break;
-        }
-      }
-    }
+    repository_type t (ot ? *ot : guess_type (u, true));
 
     try
     {
@@ -154,5 +119,9 @@ namespace bpkg
   catch (const invalid_path& e)
   {
     fail << "invalid repository path '" << s << "': " << e << endf;
+  }
+  catch (const system_error& e)
+  {
+    fail << "failed to guess repository type for '" << s << "': " << e << endf;
   }
 }

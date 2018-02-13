@@ -40,7 +40,7 @@ namespace bpkg
     {
       ifdstream is (move (pr.second.in_ofd), fdstream_mode::skip);
       manifest_parser mp (is, mf.string ());
-      package_manifest m (mp, iu);
+      package_manifest m (bpkg_package_manifest (mp, iu));
       is.close ();
 
       if (wait ())
@@ -130,7 +130,7 @@ namespace bpkg
     {
       ifdstream ifs (mf);
       manifest_parser mp (ifs, mf.string ());
-      package_manifest m (mp, iu);
+      package_manifest m (bpkg_package_manifest (mp, iu));
 
       // We used to verify package directory is <name>-<version> but it is
       // not clear why we should enforce it in this case (i.e., the user
