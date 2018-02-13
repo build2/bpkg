@@ -38,12 +38,14 @@ function compile ()
 
   cli -I .. -v project="bpkg" -v version="$version" -v date="$date" \
 --include-base-last "${o[@]}" --generate-html --html-prologue-file \
-man-prologue.xhtml --html-epilogue-file man-epilogue.xhtml --html-suffix \
-.xhtml ../bpkg/$n.cli
+man-prologue.xhtml --html-epilogue-file man-epilogue.xhtml --html-suffix .xhtml \
+--link-regex '%bpkg(#.+)?%build2-package-manager-manual.xhtml$1%' \
+../bpkg/$n.cli
 
   cli -I .. -v project="bpkg" -v version="$version" -v date="$date" \
 --include-base-last "${o[@]}" --generate-man --man-prologue-file \
 man-prologue.1 --man-epilogue-file man-epilogue.1 --man-suffix .1 \
+--link-regex '%bpkg(#.+)?%$1%' \
 ../bpkg/$n.cli
 }
 
@@ -72,6 +74,7 @@ cli -I .. \
 --html-prologue-file doc-prologue.xhtml \
 --html-epilogue-file doc-epilogue.xhtml \
 --link-regex '%b([-.].+)%../../build2/doc/b$1%' \
+--link-regex '%build2(#.+)?%../../build2/doc/build2-build-system-manual.xhtml$1%' \
 --output-prefix build2-package-manager- manual.cli
 
 html2ps -f doc.html2ps:a4.html2ps -o build2-package-manager-manual-a4.ps build2-package-manager-manual.xhtml

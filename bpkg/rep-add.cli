@@ -38,7 +38,8 @@ namespace bpkg
 
      A bpkg repository is \i{archive}-based. That is, it contains a collection
      of various packages/versions as archive files. For more information on
-     the structure of bpkg repositories refer to the \cb{bpkg} manual.
+     the structure of bpkg repositories refer to the \l{bpkg \cb{bpkg}
+     manual}.
 
      A git repository is \i{version control}-based. That is, it normally
      contains multiple versions of the same package (but can also contain
@@ -85,17 +86,14 @@ namespace bpkg
      contains \cb{manifest}, then it is assumed to be a single-package
      repository with the \cb{manifest} file being its package manifest.
      Otherwise the \cb{packages} file should list the available packages as
-     directory paths relative to the repository root (which in turn should
-     contain the \cb{manifest} files). The \cb{packages} file is a manifest
-     (see the \cb{bpkg} manual for details on the manifest file format) that
-     should contain one or more \cb{location} values in the POSIX path
-     representation. For example:
+     described in \l{bpkg#manifest-package-list-git Package List Manifest for
+     \c{git} Repositories}.
 
-     \
-     : 1
-     location: src/libfoo/
-     location: src/foo/
-     \
+     A git repository may also contain the \cb{repositories} file in the root
+     directory of the repository. This file can be used to describe the
+     repository itself as well as specify its prerequisite and complement
+     repositories. See \l{bpkg#manifest-repository-list Repository List
+     Manifest} for details on the format and semantics of this file.
 
      Supported git protocols are \cb{git://}, \cb{http://}, and \cb{https://}
      for remote repositories and \cb{file://} for local repositories. While

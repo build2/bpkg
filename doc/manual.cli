@@ -28,8 +28,7 @@ Note also that if you are strating a new project that will use the \c{build2}
 toolchain, then it is strongly recommended that you use the \i{standard
 versioning} scheme which is a more strictly defined subset of semanic
 versioning and that allows automation of many version management tasks. See
-\l{https://build2.org/build2/doc/build2-build-system-manual.xhtml#module-version
-Version Module} for details.
+\l{build2#module-version Version Module} for details.
 
 The \c{bpkg} package version has the following form:
 
@@ -857,12 +856,12 @@ Note that the comment of the matching exclusion is used by the web interface
 (\c{brep}) to display the reason for the build exclusion.
 
 
-\h#manifest-package-list|Package List Manifest|
+\h#manifest-package-list-bpkg|Package List Manifest for \c{bpkg} Repositories|
 
-The package list manifest (the \c{packages} file found in the repository root
-directory) describes the list of packages available in the repository. First
-comes a manifest that describes the list itself (referred to as the list
-manifest). The list manifest synopsis is presented next:
+The package list manifest (the \c{packages} file found in the \c{bpkg}
+repository root directory) describes the list of packages available in the
+repository. First comes a manifest that describes the list itself (referred to
+as the list manifest). The list manifest synopsis is presented next:
 
 \
 sha256sum: <sum>
@@ -880,7 +879,7 @@ sha256sum: <sum>
 
 The detailed description of each value follows in the subsequent sections.
 
-\h2#manifest-package-list-sha256sum|\c{sha256sum} (list manifest)|
+\h2#manifest-package-list-bpkg-sha256sum|\c{sha256sum} (list manifest)|
 
 \
 sha256sum: <sum>
@@ -896,7 +895,7 @@ was fetched is the same as the one that was used to create the \c{packages}
 file. This also means that if \c{repositories} is modified in any way, then
 \c{packages} must be regenerated as well.]
 
-\h2#manifest-package-list-package-location|\c{location} (package manifest)|
+\h2#manifest-package-list-bpkg-package-location|\c{location} (package manifest)|
 
 \
 location: <path>
@@ -910,7 +909,7 @@ them all into the repository root directory, it can get untidy. With
 \c{location} we allow for sub-directories.]
 
 
-\h2#manifest-package-list-package-sha256sum|\c{sha256sum} (package manifest)|
+\h2#manifest-package-list-bpkg-package-sha256sum|\c{sha256sum} (package manifest)|
 
 \
 sha256sum: <sum>
@@ -920,12 +919,47 @@ The SHA256 checksum of the package archive file. The \i{sum} value should be
 64 characters long (that is, just the SHA256 value, no file name or any other
 markers), be calculated in the binary mode, and use lower-case letters.
 
+
+\h#manifest-package-list-git|Package List Manifest for \c{git} Repositories|
+
+The package list manifest (the \c{packages} file found in the \c{git}
+repository root directory) describes the list of packages available in the
+repository. It is a (potentially empty) sequence of manifests with the
+following synopsis:
+
+\
+location: <path>
+\
+
+The detailed description of each value follows in the subsequent sections.
+
+As an example, if our repository contained the \c{src/} subdirectory that in
+turn contained the \c{libfoo} and \c{foo} packages, then the corresponding
+\c{packages} file could look like this:
+
+\
+: 1
+location: src/libfoo/
+:
+location: src/foo/
+\
+
+\h2#manifest-package-list-git-location|\c{location}|
+
+\
+location: <path>
+\
+
+The path to the package directory relative to the repository root. It should
+be in the POSIX representation.
+
+
 \h#manifest-repository|Repository Manifest|
 
 The repository manifest (only used as part of the repository manifest list
-described below) describes a \c{bpkg} repository. The manifest synopsis is
-presented next followed by the detailed description of each value in
-subsequent sections.
+described below) describes a \c{bpkg} or \c{git} repository. The manifest
+synopsis is presented next followed by the detailed description of each value
+in subsequent sections.
 
 \
 [location]: <uri>
@@ -1089,7 +1123,8 @@ description.
 \
 
 The X.509 certificate for the repository. It should be in the PEM format and
-can only be specified for the base repository.
+can only be specified for the base repository. Currently only used for the
+\c{bpkg} repository type.
 
 The certificate should contain the \c{CN} and \c{O} components in the subject
 as well as the \c{email:} component in the subject alternative names. The
@@ -1100,7 +1135,7 @@ repository name(s) that are authenticated with this certificate. See
 
 If this value is present then the \c{packages} file must be signed with the
 corresponding private key and the signature saved in the \c{signature} file.
-See \l{#manifest-signature Signature Manifest} for details.
+See \l{#manifest-signature-bpkg Signature Manifest} for details.
 
 
 \h#manifest-repository-list|Repository List Manifest|
@@ -1149,23 +1184,24 @@ https://pkg.example.org/1/math/stable
 \
 
 
-\h#manifest-signature|Signature Manifest|
+\h#manifest-signature-bpkg|Signature Manifest for \c{bpkg} Repositories|
 
-The signature manifest (the \c{signature} file found in the repository root
-directory) contains the signature of the repository's \c{packages} file. In
-order to detect the situation where the downloaded \c{signature} and
-\c{packages} files belong to different updates, the manifest contains both the
-checksum and the signature (which is the encrypted checksum). [Note: we cannot
-rely on just the signature since a mismatch could mean either a split update
-or tampering.] The manifest synopsis is presented next followed by the
-detailed description of each value in subsequent sections.
+The signature manifest (the \c{signature} file found in the \c{bpkg}
+repository root directory) contains the signature of the repository's
+\c{packages} file. In order to detect the situation where the downloaded
+\c{signature} and \c{packages} files belong to different updates, the manifest
+contains both the checksum and the signature (which is the encrypted
+checksum). [Note: we cannot rely on just the signature since a mismatch could
+mean either a split update or tampering.] The manifest synopsis is presented
+next followed by the detailed description of each value in subsequent
+sections.
 
 \
 sha256sum: <sum>
 signature: <sig>
 \
 
-\h2#manifest-signature-sha256sum|\c{sha256sum}|
+\h2#manifest-signature-bpkg-sha256sum|\c{sha256sum}|
 
 \
 sha256sum: <sum>
@@ -1176,7 +1212,7 @@ characters long (that is, just the SHA256 value, no file name or any other
 markers), be calculated in the binary mode, and use lower-case letters.
 
 
-\h2#manifest-signature-signature|\c{signature}|
+\h2#manifest-signature-bpkg-signature|\c{signature}|
 
 \
 signature: <sig>
