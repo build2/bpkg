@@ -929,6 +929,7 @@ subsequent sections.
 
 \
 [location]: <uri>
+[type]: bpkg|git
 [role]: base|prerequisite|complement
 [url]: <url>
 [email]: <email> [; <comment>]
@@ -958,6 +959,17 @@ example, having a location that is an absolute Windows path with the drive
 letter. [Note: the bpkg package manager will always try to represent the
 location as a POSIX path and only fallback to the native representation if
 that is not possible (for example, there is a drive letter in the path).]
+
+
+\h2#manifest-repository-type|\c{type}|
+
+\
+[type]: bpkg|git
+\
+
+The repository type. The type must be omitted for the base repository. If the
+type is omitted for a prerequisite/complement repository, then it is guessed
+from its \c{location} value as described in \l{bpkg-rep-add(1)}.
 
 
 \h2#manifest-repository-role|\c{role}|
