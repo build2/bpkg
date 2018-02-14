@@ -66,7 +66,11 @@ warning: fetching over dumb HTTP, no progress will be shown'
   :
   {
     $clone_root_cfg && $rep_add "$rep/state0/libfoo.git#$branch";
-    $* >! 2>!;
+
+    # Convert specific warnings to infos as we expect them to appear. This, in
+    # particular, prevents bbot workers to set task result status to warning.
+    #
+    $* 2>&1 | sed -e 's/warning: (fetching (over|whole) .*)/info: \1/' >&2 2>!;
 
     if ($git_protocol == 'https-dumb')
       warn = "warning: fetching whole branch history$reason_dumb$warn_dumb"
