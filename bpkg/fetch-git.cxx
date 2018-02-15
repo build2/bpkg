@@ -99,7 +99,7 @@ namespace bpkg
   static string
   git_string (const common_options&, const char* what, A&&... args);
 
-  // Start git process. On the first call check that git version is 2.11.0 or
+  // Start git process. On the first call check that git version is 2.12.0 or
   // above, and fail if that's not the case.
   //
   // Note that git is executed in the "sanitized" environment, having the
@@ -169,9 +169,9 @@ namespace bpkg
           if (v.empty ())
             fail << "unable to obtain git version from '" << s << "'" << endg;
 
-          if (v.version < 20110000000)
+          if (v.version < 20120000000)
             fail << "unsupported git version " << v.string () <<
-              info << "minimum supported version is 2.11.0" << endf;
+              info << "minimum supported version is 2.12.0" << endf;
 
           // Sanitize the environment.
           //
