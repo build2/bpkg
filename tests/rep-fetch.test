@@ -163,7 +163,12 @@ $* 2>>/EOE != 0
 
 : git-repos
 :
-if ($remote != true)
+if ($git_supported != true)
+{
+  # Skip git repository fetch tests.
+  #
+}
+elif ($remote != true)
 {
   git_protocol = 'local'
   .include rep-fetch-git.test

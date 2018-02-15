@@ -11,13 +11,29 @@
 # contain repositories produced) are not cleaned up.
 #
 
+# Check that git version is the minimum supported one (2.11.0) or above.
+#
++git --version | set git_version_out
+
++echo "$git_version_out" | sed -n -e 's/git version (\d+\.\d+\.\d+).*/\1/p' | \
+ set git_version
+
++if ("$git_version" == "")
+  exit "unable to obtain git version from '$git_version_out'"
+end
+
++echo "$git_version" | sed -e 's/(\d+).*/\1/'      | set git_version_major
++echo "$git_version" | sed -e 's/\d+\.(\d+).*/\1/' | set git_version_minor
+
+git_supported = ($git_version_major >  2 || \
+		 $git_version_major == 2 && $git_version_minor >= 11)
+
 # Output directory path that testscripts must use to prepare repositories
 # required by tests they contains.
 #
 out_git = $canonicalize([dir_path] $~/git/$cmd)
 
-# If $remote is true then remote repositories locations must be used for
-# tests.
+# If $remote is true then remote repository locations must be used for tests.
 #
 remote = $config.bpkg.test.remote
 

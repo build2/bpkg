@@ -99,7 +99,7 @@ namespace bpkg
   static string
   git_string (const common_options&, const char* what, A&&... args);
 
-  // Start git process. On the first call check that git version is 2.1.4 or
+  // Start git process. On the first call check that git version is 2.11.0 or
   // above, and fail if that's not the case.
   //
   // Note that git is executed in the "sanitized" environment, having the
@@ -169,34 +169,12 @@ namespace bpkg
           if (v.empty ())
             fail << "unable to obtain git version from '" << s << "'" << endg;
 
-          if (v.version < 20010040000)
+          if (v.version < 20110000000)
             fail << "unsupported git version " << v.string () <<
-              info << "minimum supported version is 2.1.4" << endf;
+              info << "minimum supported version is 2.11.0" << endf;
 
           // Sanitize the environment.
           //
-          // Prio to 2.8.2 git required to run the rev-parse command in a
-          // repository directory and failed otherwise. For these versions we
-          // will use a precomputed (with 2.8.1) list of variables.
-          //
-          if (v.version < 20080020000)
-          {
-            unset_vars = strings ({"GIT_ALTERNATE_OBJECT_DIRECTORIES",
-                                   "GIT_CONFIG",
-                                   "GIT_OBJECT_DIRECTORY",
-                                   "GIT_DIR",
-                                   "GIT_WORK_TREE",
-                                   "GIT_IMPLICIT_WORK_TREE",
-                                   "GIT_GRAFT_FILE",
-                                   "GIT_INDEX_FILE",
-                                   "GIT_NO_REPLACE_OBJECTS",
-                                   "GIT_REPLACE_REF_BASE",
-                                   "GIT_PREFIX",
-                                   "GIT_SHALLOW_FILE",
-                                   "GIT_COMMON_DIR"});
-            break;
-          }
-
           fdpipe pipe (open_pipe ());
 
           // We assume that non-sanitized git environment can't harm this call.
