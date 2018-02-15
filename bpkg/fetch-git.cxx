@@ -8,8 +8,10 @@
 #  include <algorithm> // replace()
 #endif
 
+#include <libbutl/utility.mxx>          // digit(), xdigit()
 #include <libbutl/process.mxx>
 #include <libbutl/fdstream.mxx>
+#include <libbutl/standard-version.mxx>
 
 #include <bpkg/diagnostics.hxx>
 
@@ -93,7 +95,12 @@ namespace bpkg
     return strings ();
   }
 
-  // Start git process.
+  template <typename... A>
+  static string
+  git_string (const common_options&, const char* what, A&&... args);
+
+  // Start git process. On the first call check that git version is 2.1.4 or
+  // above, and fail if that's not the case.
   //
   // Note that git is executed in the "sanitized" environment, having the
   // environment variables that are local to the repository being unset (all
@@ -112,12 +119,84 @@ namespace bpkg
   {
     try
     {
+      // Prior the first git run check that its version is fresh enough and
+      // setup the sanitized environment.
+      //
       if (!unset_vars)
       {
         unset_vars = strings ();
 
         for (;;) // Breakout loop.
         {
+          // Check git version.
+          //
+          // We assume that non-sanitized git environment can't harm this call.
+          //
+          string s (git_string (co, "git version",
+                                co.git_option (),
+                                "--version"));
+
+          standard_version v;
+
+          // There is some variety across platforms in the version
+          // representation.
+          //
+          // Linux:  git version 2.14.3
+          // MacOS:  git version 2.10.1 (Apple Git-78)
+          // MinGit: git version 2.16.1.windows.1
+          //
+          // We will consider the first 3 version components that follows the
+          // common 'git version ' prefix.
+          //
+          const size_t b (12);
+          if (s.compare (0, b, "git version ") == 0)
+          {
+            size_t i (b);
+            size_t n (0);
+            for (char c; i != s.size () && (digit (c = s[i]) || c == '.'); ++i)
+            {
+              if (c == '.' && ++n == 3)
+                break;
+            }
+
+            try
+            {
+              v = standard_version (string (s, b, i - b));
+            }
+            catch (const invalid_argument&) {}
+          }
+
+          if (v.empty ())
+            fail << "unable to obtain git version from '" << s << "'" << endg;
+
+          if (v.version < 20010040000)
+            fail << "unsupported git version " << v.string () <<
+              info << "minimum supported version is 2.1.4" << endf;
+
+          // Sanitize the environment.
+          //
+          // Prio to 2.8.2 git required to run the rev-parse command in a
+          // repository directory and failed otherwise. For these versions we
+          // will use a precomputed (with 2.8.1) list of variables.
+          //
+          if (v.version < 20080020000)
+          {
+            unset_vars = strings ({"GIT_ALTERNATE_OBJECT_DIRECTORIES",
+                                   "GIT_CONFIG",
+                                   "GIT_OBJECT_DIRECTORY",
+                                   "GIT_DIR",
+                                   "GIT_WORK_TREE",
+                                   "GIT_IMPLICIT_WORK_TREE",
+                                   "GIT_GRAFT_FILE",
+                                   "GIT_INDEX_FILE",
+                                   "GIT_NO_REPLACE_OBJECTS",
+                                   "GIT_REPLACE_REF_BASE",
+                                   "GIT_PREFIX",
+                                   "GIT_SHALLOW_FILE",
+                                   "GIT_COMMON_DIR"});
+            break;
+          }
+
           fdpipe pipe (open_pipe ());
 
           // We assume that non-sanitized git environment can't harm this call.
