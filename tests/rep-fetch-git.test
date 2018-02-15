@@ -41,17 +41,17 @@ end
   .include rep-fetch-git-branch.test
 }
 
-: lightweight-tag
+: ltag
 :
 {
-  branch = 'lightweight_tag'
+  branch = 'ltag'
   .include rep-fetch-git-branch.test
 }
 
-: annotated-tag
+: atag
 :
 {
-  branch = 'annotated_tag'
+  branch = 'atag'
   .include rep-fetch-git-branch.test
 }
 

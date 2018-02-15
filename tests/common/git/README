@@ -26,7 +26,7 @@ host.
 
 $ cd /var/scm
 
-Create repositories, providing the proper project description:
+Create repositories, providing proper project descriptions:
 
 # bpkg test repository with doc basic style library (initial state)
 #
@@ -102,3 +102,13 @@ done
 $ for d in $(find . -type d -regex '\./testing/bpkg/advonly/.*/[^/]+\.git'); do \
   git -C $d config uploadpack.allowAnySHA1InWant false \
 done
+
+To publish changed local repositories run the following commands in the tests/
+subdirectory:
+
+$ b test config.test.output=keep
+$ b ./publish
+
+Test the published repositories:
+
+$ b test config.bpkg.test.remote=true
