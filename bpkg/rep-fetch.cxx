@@ -367,6 +367,7 @@ namespace bpkg
     case repository_type::git:  return rep_fetch_git  (co, conf, rl, iu);
     }
 
+    assert (false); // Can't be here.
     return rep_fetch_data ();
   }
 
@@ -499,6 +500,19 @@ namespace bpkg
         assert (false);
       }
     }
+
+    // For git repositories that have neither prerequisites nor complements
+    // we use the root repository as the default complement.
+    //
+    // This supports the common use case where the user has a single-package
+    // git repository and doesn't want to bother with the repositories file.
+    // This way their package will still pick up its dependencies from the
+    // configuration, without regards from which repositories they came from.
+    //
+    if (rl.type () == repository_type::git &&
+        r->complements.empty ()            &&
+        r->prerequisites.empty ())
+      r->complements.insert (lazy_shared_ptr<repository> (db, root));
 
     // "Suspend" session while persisting packages to reduce memory
     // consumption.

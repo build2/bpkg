@@ -24,16 +24,35 @@ namespace bpkg
 
   // available_package
   //
-  // Check if the package is available from the specified repository,
-  // its prerequisite repositories, or one of their complements,
-  // recursively. Return the first repository that contains the
-  // package or NULL if none are.
+  // Check if the package is available from the specified repository, its
+  // prerequisite repositories, or one of their complements, recursively.
+  // Return the first repository that contains the package or NULL if none
+  // are.
   //
+  // Note that we can end up with a repository dependency cycle since the
+  // root repository can be the default complement for git repositories (see
+  // rep_fetch() implementation for details). Thus we need to make sure that
+  // the repository is not in the dependency chain yet.
+  //
+  using repositories = vector<reference_wrapper<const shared_ptr<repository>>>;
+
   static shared_ptr<repository>
   find (const shared_ptr<repository>& r,
         const shared_ptr<available_package>& ap,
-        bool prereq = true)
+        repositories& chain)
   {
+    auto pr = [&r] (const shared_ptr<repository>& i) -> bool {return i == r;};
+    auto i (find_if (chain.begin (), chain.end (), pr));
+
+    if (i != chain.end ())
+      return nullptr;
+
+    bool prereq (chain.empty ()); // Check prerequisites in top-level only.
+    chain.emplace_back (r);
+
+    unique_ptr<repositories, void (*)(repositories*)> deleter (
+      &chain, [] (repositories* r) {r->pop_back ();});
+
     const auto& ps (r->prerequisites);
     const auto& cs (r->complements);
 
@@ -60,7 +79,7 @@ namespace bpkg
         // Should we consider prerequisites of our complements as our
         // prerequisites? I'd say not.
         //
-        if (shared_ptr<repository> r = find (cr.load (), ap, false))
+        if (shared_ptr<repository> r = find (cr.load (), ap, chain))
           return r;
       }
 
@@ -68,13 +87,21 @@ namespace bpkg
       {
         for (const lazy_weak_ptr<repository>& pr: ps)
         {
-          if (shared_ptr<repository> r = find (pr.load (), ap, false))
+          if (shared_ptr<repository> r = find (pr.load (), ap, chain))
             return r;
         }
       }
     }
 
     return nullptr;
+  }
+
+  static inline shared_ptr<repository>
+  find (const shared_ptr<repository>& r,
+        const shared_ptr<available_package>& ap)
+  {
+    repositories chain;
+    return find (r, ap, chain);
   }
 
   vector<shared_ptr<available_package>>

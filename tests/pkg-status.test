@@ -2,7 +2,7 @@
 # copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
 # license   : MIT; see accompanying LICENSE file
 
-.include common.test config.test remote.test
+.include common.test config.test remote.test remote-git.test
 
 # Source repository:
 #
@@ -10,17 +10,25 @@
 # |-- extra                     -> stable (prerequisite)
 # |   |-- libbar-1.1.0+1.tar.gz
 # |   `-- repositories
+# |
 # |-- stable
 # |   |-- libbar-1.0.0.tar.gz
 # |   |-- libfoo-1.0.0.tar.gz
 # |   `-- repositories
+# |
 # |-- testing                   -> stable (complement), extra (prerequisite)
 # |   |-- libbar-1.0.0+1.tar.gz
 # |   |-- libbar-1.1.0.tar.gz
 # |   `-- repositories
-# `-- unstable                  -> testing (complement)
-#     |-- libbar-2.0.0.tar.gz
-#     `-- repositories
+# |
+# |-- unstable                  -> testing (complement)
+# |   |-- libbar-2.0.0.tar.gz
+# |   `-- repositories
+# |
+# `-- git
+#     |-- libbar.git            -> style-basic.git (prerequisite)
+#     |-- style-basic.git
+#     `-- style.git
 
 # Prepare repositories used by tests if running in the local mode.
 #
@@ -31,6 +39,12 @@
   cp -r $src/stable   $out/stable   && $c $out/stable   &$out/stable/packages
   cp -r $src/testing  $out/testing  && $c $out/testing  &$out/testing/packages
   cp -r $src/unstable $out/unstable && $c $out/unstable &$out/unstable/packages
+
+  # Create git repositories.
+  #
+  $git_extract $src/git/style.tar
+  $git_extract $src/git/libbar.tar
+  $git_extract $src/git/style-basic.tar &$out_git/state0/***
 end
 
 pkg_fetch  += 2>!
@@ -157,4 +171,33 @@ rep_fetch  += -d cfg --auth all --trust-yes 2>!
     :
     $* -d ../fetched2 libbar >'fetched 2.0.0; available sys:?'
   }
+}
+
+: git-repos
+:
+if ($git_supported != true)
+{
+  # Skip git repository tests.
+  #
+}
+else
+{
+  rep = "$rep_git/state0"
+  rep_add += -d cfg 2>!
+  test.cleanups += &cfg/.bpkg/repositories/*/***
+
+  : complement-cycle
+  :
+  : Make sure that we properly handle the root<->style repository dependency
+  : cycle while searching for the style-basic package, that is an available
+  : package but not from the user-added repository (or its complement), and so
+  : is not visible for the status command. Note that the root repository is the
+  : default complement for git repositories (see rep_fetch() implementation for
+  : the reasoning).
+  :
+  $clone_root_cfg;
+  $rep_add "$rep/libbar.git#master" && $rep_add "$rep/style.git#master";
+  $rep_fetch;
+
+  $* style-basic >'unknown'
 }
