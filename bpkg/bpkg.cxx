@@ -24,6 +24,7 @@
 #include <bpkg/cfg-create.hxx>
 
 #include <bpkg/pkg-build.hxx>
+#include <bpkg/pkg-checkout.hxx>
 #include <bpkg/pkg-clean.hxx>
 #include <bpkg/pkg-configure.hxx>
 #include <bpkg/pkg-disfigure.hxx>
@@ -277,6 +278,7 @@ try
 #define PKG_COMMAND(CMD) COMMAND_IMPL(pkg_, "pkg-", CMD, true)
 
     PKG_COMMAND (build);
+    PKG_COMMAND (checkout);
     PKG_COMMAND (clean);
     PKG_COMMAND (configure);
     PKG_COMMAND (disfigure);

@@ -20,11 +20,14 @@ namespace bpkg
      \h|DESCRIPTION|
 
      The \cb{pkg-fetch} command fetches the archive for the specified package
-     name and version from one of the repositories (\l{bpkg-rep-add(1)}). If
-     the \cb{--replace|-r} option is specified, then \cb{pkg-fetch} will
+     name and version from one of the archive-based repositories
+     (\l{bpkg-rep-add(1)}). The resulting package state is \cb{fetched}
+     (\l{bpkg-pkg-status(1)}).
+
+     If the \cb{--replace|-r} option is specified, then \cb{pkg-fetch} will
      replace the archive of a package that is already in the \cb{fetched} or
-     \cb{unpacked} state (\l{bpkg-pkg-status(1)}). Otherwise, \cb{pkg-fetch}
-     expects the package to not exist in the configuration.
+     \cb{unpacked} state. Otherwise, \cb{pkg-fetch} expects the package to not
+     exist in the configuration.
 
      If the \cb{--existing|-e} option is used, then instead of the name and
      version arguments, \cb{pkg-fetch} expects a local path to an existing

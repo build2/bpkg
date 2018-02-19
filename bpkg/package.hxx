@@ -41,8 +41,11 @@ namespace bpkg
   using optional_path = optional<path>;
   using optional_dir_path = optional<dir_path>;
 
+  // In some contexts it may denote directory, so lets preserve the trailing
+  // slash, if present.
+  //
   #pragma db map type(path) as(string)  \
-    to((?).string ()) from(bpkg::path (?))
+    to((?).representation ()) from(bpkg::path (?))
 
   #pragma db map type(optional_path) as(bpkg::optional_string) \
     to((?) ? (?)->string () : bpkg::optional_string ())        \
@@ -290,8 +293,15 @@ namespace bpkg
   {
     using repository_type = bpkg::repository;
 
+    // State is the repository type-specific information that can be used
+    // to identify the repository state this package came from. For example,
+    // for a version control-based repository this could be a commit id.
+    //
+    // The localtion is the package location within this repository state.
+    //
     lazy_shared_ptr<repository_type> repository;
-    path location; // Relative to the repository.
+    string state;
+    path location;
   };
 
   // dependencies
@@ -526,6 +536,17 @@ namespace bpkg
 
   // package
   //
+  // A map of "effective" prerequisites (i.e., pointers to other selected
+  // packages) to optional dependency constraint. Note that because it is a
+  // single constraint, we don't support multiple dependencies on the same
+  // package (e.g., two ranges of versions). See pkg_configure().
+  //
+  class selected_package;
+
+  using package_prerequisites = std::map<lazy_shared_ptr<selected_package>,
+                                         optional<dependency_constraint>,
+                                         compare_lazy_ptr>;
+
   #pragma db object pointer(shared_ptr) session
   class selected_package
   {
@@ -585,15 +606,7 @@ namespace bpkg
     //
     optional<dir_path> out_root;
 
-    // A map of "effective" prerequisites (i.e., pointers to other selected
-    // packages) to optional dependency constraint. Note that because it is a
-    // single constraint, we don't support multiple dependencies on the same
-    // package (e.g., two ranges of versions). See pkg_configure().
-    //
-    using prerequisites_type = std::map<lazy_shared_ptr<selected_package>,
-                                        optional<dependency_constraint>,
-                                        compare_lazy_ptr>;
-    prerequisites_type prerequisites;
+    package_prerequisites prerequisites;
 
     bool
     system () const

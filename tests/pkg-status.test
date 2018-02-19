@@ -183,7 +183,6 @@ if ($git_supported != true)
 else
 {
   rep = "$rep_git/state0"
-  rep_add += -d cfg 2>!
   test.cleanups += &cfg/.bpkg/repositories/*/***
 
   : complement-cycle

@@ -1,0 +1,41 @@
+// file      : bpkg/pkg-checkout.cli
+// copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
+// license   : MIT; see accompanying LICENSE file
+
+include <bpkg/configuration.cli>;
+
+"\section=1"
+"\name=bpkg-pkg-checkout"
+"\summary=check out package version"
+
+namespace bpkg
+{
+  {
+    "<options> <pkg> <ver>",
+
+    "\h|SYNOPSIS|
+
+     \c{\b{bpkg pkg-checkout} [<options>] <pkg>/<ver>}
+
+     \h|DESCRIPTION|
+
+     The \cb{pkg-checkout} command checks out the specified package version
+     from one of the version control-based repositories (\l{bpkg-rep-add(1)}).
+     The resulting package state is \cb{unpacked} (\l{bpkg-pkg-status(1)}).
+
+     If the \cb{--replace|-r} option is specified, then \cb{pkg-checkout} will
+     replace the archive and/or source directory of a package that is already
+     in the \cb{unpacked} or \cb{fetched} state."
+  }
+
+  class pkg_checkout_options: configuration_options
+  {
+    "\h|PKG-CHECKOUT OPTIONS|"
+
+    bool --replace|-r
+    {
+      "Replace the source directory if the package is already fetched or
+       unpacked."
+    }
+  };
+}

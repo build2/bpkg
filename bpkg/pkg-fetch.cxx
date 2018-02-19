@@ -198,19 +198,27 @@ namespace bpkg
     if (ap == nullptr)
       fail << "package " << n << " " << v << " is not available";
 
-    // Pick a repository. Preferring a local one over the remotes seems
-    // like a sensible thing to do.
+    // Pick an archive-based repository. Preferring a local one over the
+    // remotes seems like a sensible thing to do.
     //
-    const package_location* pl (&ap->locations.front ());
+    const package_location* pl (nullptr);
 
     for (const package_location& l: ap->locations)
     {
-      if (!l.repository.load ()->location.remote ())
+      const repository_location& rl (l.repository.load ()->location);
+
+      if (rl.archive_based () && (pl == nullptr || rl.local ()))
       {
         pl = &l;
-        break;
+
+        if (rl.local ())
+          break;
       }
     }
+
+    if (pl == nullptr)
+      fail << "package " << n << " " << v
+           << " is not available from an archive-based repository";
 
     if (verb > 1)
       text << "fetching " << pl->location.leaf () << " "

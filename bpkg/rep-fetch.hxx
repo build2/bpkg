@@ -27,9 +27,20 @@ namespace bpkg
 
   struct rep_fetch_data
   {
-    std::vector<repository_manifest>    repositories;
-    std::vector<package_manifest>       packages;
-    shared_ptr<const bpkg::certificate> certificate; // Can be NULL.
+    using repository = repository_manifest;
+
+    struct package
+    {
+      package_manifest manifest;
+      string repository_state; // See package_location::state.
+    };
+
+    std::vector<repository>       repositories;
+    std::vector<package>          packages;
+
+    // For base repo (can be NULL).
+    //
+    shared_ptr<const bpkg::certificate> certificate;
   };
 
   rep_fetch_data

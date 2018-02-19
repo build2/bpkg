@@ -20,8 +20,8 @@ namespace bpkg
      \h|DESCRIPTION|
 
      The \cb{pkg-configure} command configures either the previously unpacked
-     (\l{bpkg-pkg-unpack(1)}) source code package or a package that is present
-     in the system.
+     (\l{bpkg-pkg-unpack(1)}, \l{bpkg-pkg-checkout(1)}) source code package or
+     a package that is present in the system.
 
      A source code package inherits the common \cb{build2} configuration
      values that were specified when creating the configuration

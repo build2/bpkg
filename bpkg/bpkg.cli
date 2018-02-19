@@ -236,6 +236,11 @@ namespace bpkg
       "\l{bpkg-pkg-unpack(1)} \- unpack package archive"
     }
 
+    bool pkg-checkout
+    {
+      "\l{bpkg-pkg-checkout(1)} \- check out package version"
+    }
+
     bool pkg-configure
     {
       "\l{bpkg-pkg-configure(1)} \- configure package"

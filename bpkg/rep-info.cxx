@@ -188,8 +188,8 @@ namespace bpkg
           // Note: serializing without any extra package_manifests info.
           //
           manifest_serializer s (cout, "STDOUT");
-          for (const package_manifest& pm: rfd.packages)
-            pm.serialize (s);
+          for (const rep_fetch_data::package& p: rfd.packages)
+            p.manifest.serialize (s);
           s.next ("", ""); // End of stream.
         }
         else
@@ -198,8 +198,8 @@ namespace bpkg
           //
           cout << endl;
 
-          for (const package_manifest& pm: rfd.packages)
-            cout << pm.name << "/" << pm.version << endl;
+          for (const rep_fetch_data::package& p: rfd.packages)
+            cout << p.manifest.name << "/" << p.manifest.version << endl;
         }
       }
     }

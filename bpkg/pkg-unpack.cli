@@ -19,19 +19,22 @@ namespace bpkg
 
      \h|DESCRIPTION|
 
-     The \cb{pkg-unpack} command unpacks the archive for the previously fetched
-     (\l{bpkg-pkg-fetch(1)}) package. If the \cb{--existing|-e} option is used,
-     then instead of the package name, \cb{pkg-unpack} expects a local path to
-     an existing package directory. In this case, \cb{bpkg} will use the
-     directory in place, without copying it to the configuration or package
-     cache directories. Also, unless the \cb{--purge|-p} option is specified,
-     \cb{bpkg} will not attempt to remove this directory when the package is
-     later purged with the \l{bpkg-pkg-purge(1)} command.
+     The \cb{pkg-unpack} command unpacks the archive for the previously
+     fetched (\l{bpkg-pkg-fetch(1)}) package. The resulting package state is
+     \cb{unpacked} (\l{bpkg-pkg-status(1)}).
+
+     If the \cb{--existing|-e} option is used, then instead of the package
+     name, \cb{pkg-unpack} expects a local path to an existing package
+     directory. In this case, \cb{bpkg} will use the directory in place,
+     without copying it to the configuration or package cache directories.
+     Also, unless the \cb{--purge|-p} option is specified, \cb{bpkg} will not
+     attempt to remove this directory when the package is later purged with
+     the \l{bpkg-pkg-purge(1)} command.
 
      If \cb{--existing|-e} is specified together with the \cb{--replace|-r}
      option, then \cb{pkg-unpack} will replace the archive and/or source
      directory of a package that is already in the \cb{unpacked} or
-     \cb{fetched} state (\l{bpkg-pkg-status(1)})."
+     \cb{fetched} state."
   }
 
   class pkg_unpack_options: configuration_options

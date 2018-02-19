@@ -21,6 +21,7 @@ common-options             \
 configuration-options      \
 help-options               \
 pkg-build-options          \
+pkg-checkout-options       \
 pkg-clean-options          \
 pkg-configure-options      \
 pkg-disfigure-options      \
@@ -73,6 +74,7 @@ if $cli.configured
   # pkg-* command.
   #
   cli.cxx{pkg-build-options}:     cli{pkg-build}
+  cli.cxx{pkg-checkout-options}:  cli{pkg-checkout}
   cli.cxx{pkg-clean-options}:     cli{pkg-clean}
   cli.cxx{pkg-configure-options}: cli{pkg-configure}
   cli.cxx{pkg-disfigure-options}: cli{pkg-disfigure}

@@ -19,6 +19,93 @@ using namespace butl;
 
 namespace bpkg
 {
+  package_prerequisites
+  pkg_configure_prerequisites (const common_options& o,
+                               transaction& t,
+                               const dir_path& source)
+  {
+    package_prerequisites r;
+    package_manifest m (pkg_verify (source, true));
+
+    database& db (t.database ());
+
+    for (const dependency_alternatives& da: m.dependencies)
+    {
+      assert (!da.conditional); //@@ TODO
+
+      bool satisfied (false);
+      for (const dependency& d: da)
+      {
+        const string& n (d.name);
+
+        if (da.buildtime)
+        {
+          // Handle special names.
+          //
+          if (n == "build2")
+          {
+            if (d.constraint)
+              satisfy_build2 (o, m.name, d);
+
+            satisfied = true;
+            break;
+          }
+          else if (n == "bpkg")
+          {
+            if (d.constraint)
+              satisfy_bpkg (o, m.name, d);
+
+            satisfied = true;
+            break;
+          }
+          // else
+          //
+          // @@ TODO: in the future we would need to at least make sure the
+          // build and target machines are the same. See also pkg-build.
+        }
+
+        if (shared_ptr<selected_package> dp = db.find<selected_package> (n))
+        {
+          if (dp->state != package_state::configured)
+            continue;
+
+          if (!satisfies (dp->version, d.constraint))
+            continue;
+
+          auto p (r.emplace (dp, d.constraint));
+
+          // Currently we can only capture a single constraint, so if we
+          // already have a dependency on this package and one constraint is
+          // not a subset of the other, complain.
+          //
+          if (!p.second)
+          {
+            auto& c (p.first->second);
+
+            bool s1 (satisfies (c, d.constraint));
+            bool s2 (satisfies (d.constraint, c));
+
+            if (!s1 && !s2)
+              fail << "multiple dependencies on package " << n <<
+                info << n << " " << *c <<
+                info << n << " " << *d.constraint;
+
+            if (s2 && !s1)
+              c = d.constraint;
+          }
+
+          satisfied = true;
+          break;
+        }
+      }
+
+      if (!satisfied)
+        fail << "no configured package satisfies dependency on " << da;
+    }
+
+    return r;
+  }
+
   void
   pkg_configure (const dir_path& c,
                  const common_options& o,
@@ -47,85 +134,8 @@ namespace bpkg
     // Verify all our prerequisites are configured and populate the
     // prerequisites list.
     //
-    {
-      assert (p->prerequisites.empty ());
-
-      package_manifest m (pkg_verify (src_root, true));
-
-      for (const dependency_alternatives& da: m.dependencies)
-      {
-        assert (!da.conditional); //@@ TODO
-
-        bool satisfied (false);
-        for (const dependency& d: da)
-        {
-          const string& n (d.name);
-
-          if (da.buildtime)
-          {
-            // Handle special names.
-            //
-            if (n == "build2")
-            {
-              if (d.constraint)
-                satisfy_build2 (o, m.name, d);
-
-              satisfied = true;
-              break;
-            }
-            else if (n == "bpkg")
-            {
-              if (d.constraint)
-                satisfy_bpkg (o, m.name, d);
-
-              satisfied = true;
-              break;
-            }
-            // else
-            //
-            // @@ TODO: in the future we would need to at least make sure the
-            // build and target machines are the same. See also pkg-build.
-          }
-
-          if (shared_ptr<selected_package> dp = db.find<selected_package> (n))
-          {
-            if (dp->state != package_state::configured)
-              continue;
-
-            if (!satisfies (dp->version, d.constraint))
-              continue;
-
-            auto r (p->prerequisites.emplace (dp, d.constraint));
-
-            // Currently we can only capture a single constraint, so if we
-            // already have a dependency on this package and one constraint is
-            // not a subset of the other, complain.
-            //
-            if (!r.second)
-            {
-              auto& c (r.first->second);
-
-              bool s1 (satisfies (c, d.constraint));
-              bool s2 (satisfies (d.constraint, c));
-
-              if (!s1 && !s2)
-                fail << "multiple dependencies on package " << n <<
-                  info << n << " " << *c <<
-                  info << n << " " << *d.constraint;
-
-              if (s2 && !s1)
-                c = d.constraint;
-            }
-
-            satisfied = true;
-            break;
-          }
-        }
-
-        if (!satisfied)
-          fail << "no configured package satisfies dependency on " << da;
-      }
-    }
+    assert (p->prerequisites.empty ());
+    p->prerequisites = pkg_configure_prerequisites (o, t, src_root);
 
     // Form the buildspec.
     //

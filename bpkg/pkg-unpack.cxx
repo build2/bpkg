@@ -150,9 +150,7 @@ namespace bpkg
 
     l4 ([&]{trace << "archive: " << a;});
 
-    // Extract the package directory. Currently we always extract it
-    // into the configuration directory. But once we support package
-    // cache, this will need to change.
+    // Extract the package directory.
     //
     // Also, since we must have verified the archive during fetch,
     // here we can just assume what the resulting directory will be.

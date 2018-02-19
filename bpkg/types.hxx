@@ -81,6 +81,8 @@ namespace bpkg
   using butl::basic_path;
   using butl::invalid_path;
 
+  using butl::path_cast;
+
   using paths = std::vector<path>;
   using dir_paths = std::vector<dir_path>;
 

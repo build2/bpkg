@@ -70,6 +70,7 @@
       <column name="version_canonical_release" type="TEXT" null="true" options="COLLATE BINARY"/>
       <column name="version_revision" type="INTEGER" null="true"/>
       <column name="repository" type="TEXT" null="true"/>
+      <column name="state" type="TEXT" null="true"/>
       <column name="location" type="TEXT" null="true"/>
       <foreign-key name="object_id_fk" on-delete="CASCADE">
         <column name="name"/>

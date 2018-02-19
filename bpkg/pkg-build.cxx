@@ -1191,7 +1191,9 @@ namespace bpkg
               v = m.version;
               ar = root;
               ap = make_shared<available_package> (move (m));
-              ap->locations.push_back (package_location {root, move (a)});
+              ap->locations.push_back (package_location {root,
+                                                         string () /* state */,
+                                                         move (a)});
             }
           }
           catch (const invalid_path&)
@@ -1233,7 +1235,10 @@ namespace bpkg
                 v = m.version;
                 ap = make_shared<available_package> (move (m));
                 ar = root;
-                ap->locations.push_back (package_location {root, move (d)});
+                ap->locations.push_back (
+                  package_location {root,
+                                    string () /* state */,
+                                    move (d)});
               }
             }
             catch (const invalid_path&)

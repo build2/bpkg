@@ -1,0 +1,96 @@
+# file      : tests/pkg-checkout.test
+# copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
+# license   : MIT; see accompanying LICENSE file
+
+.include common.test config.test remote-git.test
+
+# Source repository:
+#
+# pkg-checkout
+# `-- git
+#     |-- libbar.git      -> style-basic.git (prerequisite)
+#     `-- style-basic.git
+
+# Prepare repositories used by tests if running in the local mode.
+#
++if ($remote != true)
+  # Create git repositories.
+  #
+  $git_extract $src/git/libbar.tar
+  $git_extract $src/git/style-basic0.tar &$out_git/state0/***
+  $git_extract $src/git/style-basic1.tar &$out_git/state1/***
+end
+
+: git-repos
+:
+if ($git_supported != true)
+{
+  # Skip git repository tests.
+  #
+}
+else
+{
+  rep = "$rep_git/state0"
+
+  rep_add       += -d cfg 2>!
+  rep_fetch     += -d cfg 2>!
+  pkg_configure += -d cfg 2>!
+  pkg_status    += -d cfg
+
+  test.cleanups += &cfg/.bpkg/repositories/*/***
+
+  : unconfigured-dependency
+  :
+  $clone_root_cfg;
+  $rep_add "$rep/libbar.git#master";
+  $rep_fetch;
+
+  $* libmbar/1.0.0 2>>EOE != 0
+  error: no configured package satisfies dependency on style-basic >= 1.0.0
+  EOE
+
+  : configured-dependency
+  :
+  $clone_root_cfg;
+  $rep_add "$rep/libbar.git#master" && $rep_add "$rep/style-basic.git#master";
+  $rep_fetch;
+
+  $pkg_status style-basic | sed -n -e 's/available ([^ ]+).+/\1/p' | set v;
+
+  $* "style-basic/$v" 2>>"EOE" &cfg/style-basic-$v/***;
+  dist style-basic-$v
+  checked out style-basic/$v
+  EOE
+
+  $pkg_configure style-basic;
+
+  $* libmbar/1.0.0 2>>EOE &cfg/libmbar-1.0.0/***
+  dist libmbar-1.0.0
+  checked out libmbar/1.0.0
+  EOE
+
+  : replacement
+  :
+  # @@ Reduce to a single repository when multiple revisions can be specified
+  #    in the repository URL fragment.
+  #
+  rep0 = "$rep_git/state0";
+  rep1 = "$rep_git/state1";
+
+  $clone_root_cfg;
+  $rep_add "$rep0/style-basic.git#master";
+  $rep_add "$rep1/style-basic.git#stable";
+  $rep_fetch;
+
+  $pkg_status style-basic | \
+    sed -n -e 's/available ([^ ]+) +([^ ]+).+/\1 \2/p' | set vs;
+
+  echo "$vs" | sed -e 's/([^ ]+).+/\1/'        | set v0;
+  echo "$vs" | sed -e 's/([^ ]+) +([^ ]+)/\2/' | set v1;
+
+  $* "style-basic/$v0" 2>!;
+  $pkg_status style-basic >~"/unpacked $v0;.+/";
+
+  $* --replace "style-basic/$v1" 2>! &cfg/style-basic-$v1/***;
+  $pkg_status style-basic >~"/unpacked $v1;.+/"
+}

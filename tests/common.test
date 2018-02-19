@@ -20,6 +20,7 @@ test.options += --build $recall($build.path)
 #
 cfg_create    = $* cfg-create
 pkg_build     = $* pkg-build
+pkg_checkout  = $* pkg-checkout
 pkg_configure = $* pkg-configure
 pkg_disfigure = $* pkg-disfigure
 pkg_drop      = $* pkg-drop

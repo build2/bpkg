@@ -74,7 +74,15 @@ namespace bpkg
       authenticate_repository (co, conf, cert_pem, *cert, sm, rl);
     }
 
-    return rep_fetch_data {move (rms), move (pms), move (cert)};
+    vector<rep_fetch_data::package> fps;
+    fps.reserve (pms.size ());
+
+    for (package_manifest& m: pms)
+      fps.emplace_back (
+        rep_fetch_data::package {move (m),
+                                 string () /* repository_state */});
+
+    return rep_fetch_data {move (rms), move (fps), move (cert)};
   }
 
   template <typename M>
@@ -144,6 +152,9 @@ namespace bpkg
 
     // Clone or fetch the repository.
     //
+    // If changing the repository directory naming scheme, then don't forget
+    // to also update pkg_checkout().
+    //
     dir_path h (sha256 (rl.canonical_name ()).abbreviated_string (16));
 
     auto_rmdir rm (temp_dir / h);
@@ -209,7 +220,10 @@ namespace bpkg
       }
     }
 
-    // Fill "skeleton" package manifests.
+    vector<rep_fetch_data::package> fps;
+    fps.reserve (pms.size ());
+
+    // Parse package manifests.
     //
     for (package_manifest& sm: pms)
     {
@@ -246,7 +260,7 @@ namespace bpkg
 
         // Save the package manifest, preserving its location.
         //
-        m.location = move (sm.location);
+        m.location = move (*sm.location);
         sm = move (m);
       }
       catch (const manifest_parsing& e)
@@ -327,8 +341,15 @@ namespace bpkg
 
           is.close ();
 
+          // If succeess then save the package manifest together with the
+          // repository state it belongs to and go to the next package.
+          //
           if (pr.wait ())
-            continue; // Go to the next package.
+          {
+            fps.emplace_back (rep_fetch_data::package {move (sm),
+                                                       nm.string ()});
+            continue;
+          }
 
           // Fall through.
         }
@@ -352,7 +373,7 @@ namespace bpkg
       }
     }
 
-    return rep_fetch_data {move (rms), move (pms), nullptr};
+    return rep_fetch_data {move (rms), move (fps), nullptr};
   }
 
   rep_fetch_data
@@ -520,8 +541,10 @@ namespace bpkg
     session& s (session::current ());
     session::reset_current ();
 
-    for (package_manifest& pm: rfd.packages)
+    for (rep_fetch_data::package& fp: rfd.packages)
     {
+      package_manifest& pm (fp.manifest);
+
       // We might already have this package in the database.
       //
       bool persist (false);
@@ -570,6 +593,7 @@ namespace bpkg
       //
       p->locations.push_back (
         package_location {lazy_shared_ptr<repository> (db, r),
+                          move (fp.repository_state),
                           move (*pm.location)});
 
       if (persist)
