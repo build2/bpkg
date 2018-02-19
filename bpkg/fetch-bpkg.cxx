@@ -6,7 +6,6 @@
 
 #include <sstream>
 
-#include <libbutl/fdstream.mxx>
 #include <libbutl/filesystem.mxx>      // cpfile ()
 #include <libbutl/manifest-parser.mxx>
 

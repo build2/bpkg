@@ -4,15 +4,12 @@
 
 #include <bpkg/cfg-create.hxx>
 
-#include <libbutl/fdstream.mxx>
-
 #include <bpkg/package.hxx>
 #include <bpkg/package-odb.hxx>
 #include <bpkg/database.hxx>
 #include <bpkg/diagnostics.hxx>
 
 using namespace std;
-using namespace butl;
 
 namespace bpkg
 {

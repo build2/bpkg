@@ -116,6 +116,14 @@ namespace bpkg
   void
   mv (const dir_path& from, const dir_path& to);
 
+  // File descriptor streams.
+  //
+  fdpipe
+  open_pipe ();
+
+  auto_fd
+  open_dev_null ();
+
   // Process.
   //
   // By default the process command line is printed for verbosity >= 2

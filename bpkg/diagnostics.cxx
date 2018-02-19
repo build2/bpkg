@@ -10,6 +10,7 @@
 #include <odb/statement.hxx>
 
 #include <libbutl/process.mxx>
+#include <libbutl/process-io.mxx> // operator<<(ostream, process_arg)
 
 using namespace std;
 using namespace butl;
@@ -23,19 +24,6 @@ namespace bpkg
   {
     diag_record r (text);
     print_process (r, args, n);
-  }
-
-  struct process_args
-  {
-    const char* const* a;
-    size_t n;
-  };
-
-  inline static ostream&
-  operator<< (ostream& o, const process_args& p)
-  {
-    process::print (o, p.a, p.n);
-    return o;
   }
 
   void
@@ -104,7 +92,7 @@ namespace bpkg
     if (verb >= 3)
     {
       diag_record dr (*this);
-      process::print (dr.os, args, n);
+      print_process (dr, args, n);
     }
   }
 

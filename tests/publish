@@ -56,22 +56,28 @@ for r in $(find test -type d -regex '.*/git/.*/[^/]+\.git'); do
   d=$(echo $br | sed -n -e 's%.*/git-bare/\(.*\)%\1%p')
 
   for u in "${urls[@]}"; do
+    url="$u/$d"
 
-    # Point the bare repository origin to the remote repository.
+    # Push local branches and tags to the remote repository, if it exists.
     #
-    git -C $br config remote.origin.url "$u/$d"
+    if git ls-remote "$url" 2>/dev/null >&2; then
+      # Point the bare repository origin to the remote repository.
+      #
+      git -C $br config remote.origin.url "$url"
 
-    # Delete all remote branches and tags.
-    #
-    while read commit ref; do
-      $echo_git git -C $br push origin ":$ref"
-    done < <(git -C $br ls-remote --refs origin)
+      # Delete all remote branches and tags.
+      #
+      while read commit ref; do
+        $echo_git git -C $br push origin ":$ref"
+      done < <(git -C $br ls-remote --refs origin)
 
-    # Push local branches.
-    #
-    while read branch; do
-      $echo_git git -C $br push --tags origin "$branch:$branch"
-    done < <(git -C $br for-each-ref --format='%(refname:short)' 'refs/heads/')
+      # Push local branches.
+      #
+      while read branch; do
+        $echo_git git -C $br push --tags origin "$branch:$branch"
+      done < <(git -C $br for-each-ref --format='%(refname:short)' \
+		   'refs/heads/')
+    fi
   done
 
   # Prepare the bare repository for serving via the HTTPS dumb protocol.

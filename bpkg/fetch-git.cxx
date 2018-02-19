@@ -10,7 +10,6 @@
 
 #include <libbutl/utility.mxx>          // digit(), xdigit()
 #include <libbutl/process.mxx>
-#include <libbutl/fdstream.mxx>
 #include <libbutl/standard-version.mxx>
 
 #include <bpkg/diagnostics.hxx>
@@ -33,32 +32,6 @@ namespace bpkg
   };
 
   static const diag_noreturn_end<fail_git> endg;
-
-  static fdpipe
-  open_pipe ()
-  {
-    try
-    {
-      return fdopen_pipe ();
-    }
-    catch (const io_error& e)
-    {
-      fail << "unable to open pipe: " << e << endf;
-    }
-  }
-
-  static auto_fd
-  open_dev_null ()
-  {
-    try
-    {
-      return fdnull ();
-    }
-    catch (const io_error& e)
-    {
-      fail << "unable to open null device: " << e << endf;
-    }
-  }
 
   using opt = optional<const char*>; // Program option.
 
@@ -167,7 +140,9 @@ namespace bpkg
           }
 
           if (v.empty ())
-            fail << "unable to obtain git version from '" << s << "'" << endg;
+            fail << "'" << s << "' doesn't appear to contain a git version" <<
+              info << "produced by '" << co.git () << "'; "
+                 << "use --git to override" << endg;
 
           if (v.version < 20120000000)
             fail << "unsupported git version " << v.string () <<
@@ -191,15 +166,14 @@ namespace bpkg
 
           try
           {
-            ifdstream is (move (pipe.in), fdstream_mode::skip);
+            ifdstream is (move (pipe.in),
+                          fdstream_mode::skip,
+                          ifdstream::badbit);
 
-            while (is.peek () != ifdstream::traits_type::eof ())
+            for (string l; !eof (getline (is, l)); )
             {
-              string v;
-              getline (is, v);
-
-              if (v != "GIT_CONFIG_PARAMETERS")
-                unset_vars->push_back (move (v));
+              if (l != "GIT_CONFIG_PARAMETERS")
+                unset_vars->push_back (move (l));
             }
 
             is.close ();
@@ -246,7 +220,9 @@ namespace bpkg
   static process_exit
   run_git (const common_options& co, A&&... args)
   {
-    process pr (start_git (co, 1, 2, forward<A> (args)...));
+    process pr (start_git (co,
+                           1 /* stdout */, 2 /* stderr */,
+                           forward<A> (args)...));
     pr.wait ();
     return *pr.exit;
   }
@@ -508,16 +484,13 @@ namespace bpkg
     try
     {
       bool r (false);
-      ifdstream is (move (pipe.in), fdstream_mode::skip);
+      ifdstream is (move (pipe.in), fdstream_mode::skip, ifdstream::badbit);
 
-      while (is.peek () != ifdstream::traits_type::eof ())
+      for (string l; !eof (getline (is, l)); )
       {
-        string s;
-        getline (is, s);
+        l4 ([&]{trace << "ref: " << l;});
 
-        l4 ([&]{trace << "ref: " << s;});
-
-        if (s.compare (0, commit.size (), commit) == 0)
+        if (l.compare (0, commit.size (), commit) == 0)
         {
           r = true;
           break;
@@ -787,9 +760,9 @@ namespace bpkg
 
     try
     {
-      ifdstream is (move (pipe.in), fdstream_mode::skip);
+      ifdstream is (move (pipe.in), fdstream_mode::skip, ifdstream::badbit);
 
-      while (is.peek () != ifdstream::traits_type::eof ())
+      for (string l; !eof (getline (is, l)); )
       {
         // The line describing a submodule has the following form:
         //
@@ -799,19 +772,16 @@ namespace bpkg
         //
         // 160000 658436a9522b5a0d016c3da0253708093607f95d 0	doc/style
         //
-        string s;
-        getline (is, s);
+        l4 ([&]{trace << "submodule: " << l;});
 
-        l4 ([&]{trace << "submodule: " << s;});
-
-        if (!(s.size () > 50 && s[48] == '0' && s[49] == '\t'))
+        if (!(l.size () > 50 && l[48] == '0' && l[49] == '\t'))
           failure ("invalid submodule description");
 
-        string commit (s.substr (7, 40));
+        string commit (l.substr (7, 40));
 
         // Submodule directory path, relative to the containing project.
         //
-        dir_path sdir  (s.substr (50));
+        dir_path sdir  (l.substr (50));
 
         // Submodule directory path, relative to the top project.
         //
@@ -955,7 +925,22 @@ namespace bpkg
     }
   }
 
-  void
+  // Produce a repository directory name for the specified git reference.
+  //
+  // Truncate commit id-based directory names to shorten absolute directory
+  // paths, lowering the probability of hitting the limit on Windows.
+  //
+  // Note that we can't truncate them for branches/tags as chances to clash
+  // would be way higher than for commit ids. Though such names are normally
+  // short anyway.
+  //
+  static inline dir_path
+  repository_dir (const git_reference& ref)
+  {
+    return dir_path (ref.commit ? ref.commit->substr (0, 16) : *ref.branch);
+  }
+
+  dir_path
   git_clone (const common_options& co,
              const repository_location& rl,
              const dir_path& destdir)
@@ -975,14 +960,8 @@ namespace bpkg
     else
       fetch_warn (cap, single_branch ? "branch" : "repository");
 
-    dir_path d (destdir);
-
-    // Truncate commit id-based directory names to shorten the absolute
-    // directory path to lower probability of hitting the limit on Windows.
-    // Note that we can't do the same for branch/tag names as chances to clash
-    // would be way higher. Though such names are normally short anyway.
-    //
-    d /= dir_path (ref.branch ? *ref.branch : ref.commit->substr (0, 16));
+    dir_path r (repository_dir (ref));
+    dir_path d (destdir / r);
 
     strings to (timeout_opts (co, url.scheme));
 
@@ -1007,15 +986,18 @@ namespace bpkg
       update_tree (co, d, dir_path (), ref, cap, shallow, to);
 
     update_submodules (co, d, dir_path ());
+    return r;
   }
 
-  void
+  dir_path
   git_fetch (const common_options& co,
              const repository_location& rl,
              const dir_path& destdir)
   {
     repository_url url (rl.url ());
     git_reference  ref (parse_reference (url, "fetch"));
+
+    dir_path r (repository_dir (ref));
 
     // Fetch is noop if the specific commit is checked out.
     //
@@ -1026,7 +1008,7 @@ namespace bpkg
     // this should work correctly automatically.
     //
     if (ref.commit)
-      return;
+      return r;
 
     assert (ref.branch);
 
@@ -1045,5 +1027,6 @@ namespace bpkg
                  timeout_opts (co, url.scheme));
 
     update_submodules (co, d, dir_path ());
+    return r;
   }
 }

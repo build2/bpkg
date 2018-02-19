@@ -5,6 +5,9 @@
 #include <bpkg/rep-fetch.hxx>
 
 #include <libbutl/sha256.mxx>
+#include <libbutl/process.mxx>
+#include <libbutl/process-io.mxx>      // operator<<(ostream, process_path)
+#include <libbutl/manifest-parser.mxx>
 
 #include <bpkg/auth.hxx>
 #include <bpkg/fetch.hxx>
@@ -74,30 +77,64 @@ namespace bpkg
     return rep_fetch_data {move (rms), move (pms), move (cert)};
   }
 
+  template <typename M>
+  static M
+  parse_manifest (const path& f, bool iu, const repository_location& rl)
+  {
+    try
+    {
+      ifdstream ifs (f);
+      manifest_parser mp (ifs, f.string ());
+      return M (mp, iu);
+    }
+    catch (const manifest_parsing& e)
+    {
+      fail (e.name, e.line, e.column) << e.description <<
+        info << "repository " << rl << endf;
+    }
+    catch (const io_error& e)
+    {
+      fail << "unable to read from " << f << ": " << e <<
+        info << "repository " << rl << endf;
+    }
+  }
+
   static rep_fetch_data
   rep_fetch_git (const common_options& co,
                  const dir_path* conf,
                  const repository_location& rl,
-                 bool /* ignore_unknown */)
+                 bool ignore_unknown)
   {
     // Plan:
     //
     // 1. Check repos_dir/<hash>/:
     //
-    // 1.a If does not exist, git-clone into temp_dir/<hash>/.
+    // 1.a If does not exist, git-clone into temp_dir/<hash>/<fragment>/.
     //
     // 1.a Otherwise, move as temp_dir/<hash>/ and git-fetch.
     //
-    // 2. Move from temp_dir/<hash>/ to repos_dir/<hash>/
+    // 2. Move from temp_dir/<hash>/ to repos_dir/<hash>/<fragment>/
     //
-    // 3. Load manifest from repos_dir/<hash>/<fragment>/
+    // 3. Check if repos_dir/<hash>/<fragment>/repositories exists:
     //
-    // 4. Run 'b info' in repos_dir/<hash>/<fragment>/ and fix-up
-    //    package version.
+    // 3.a If exists, load.
     //
-    // 5. Synthesize repository manifest.
+    // 3.b Otherwise, synthesize repository list with base repository.
     //
-    // 6. Return repository and package manifest (certificate is NULL).
+    // 4. Check if repos_dir/<hash>/<fragment>/packages exists:
+    //
+    // 4.a If exists, load. (into "skeleton" packages list to be filled?)
+    //
+    // 4.b Otherwise, synthesize as if single 'location: ./'.
+    //
+    // 5. For each package location obtained on step 4:
+    //
+    // 5.a Load repos_dir/<hash>/<fragment>/<location>/manifest.
+    //
+    // 5.b Run 'b info: repos_dir/<hash>/<fragment>/<location>/' and fix-up
+    //     package version.
+    //
+    // 6. Return repository and package manifests (certificate is NULL).
     //
 
     if (conf != nullptr && conf->empty ())
@@ -105,6 +142,8 @@ namespace bpkg
 
     assert (conf == nullptr || !conf->empty ());
 
+    // Clone or fetch the repository.
+    //
     dir_path h (sha256 (rl.canonical_name ()).abbreviated_string (16));
 
     auto_rmdir rm (temp_dir / h);
@@ -129,10 +168,7 @@ namespace bpkg
       }
     }
 
-    if (fetch)
-      git_fetch (co, rl, td);
-    else
-      git_clone (co, rl, td);
+    dir_path nm (fetch ? git_fetch (co, rl, td) : git_clone (co, rl, td));
 
     if (!rd.empty ())
       mv (td, rd);
@@ -144,9 +180,179 @@ namespace bpkg
 
     rm.cancel ();
 
-    // @@ TODO
+    rd /= nm;
+
+    // Produce repository manifest list.
     //
-    return rep_fetch_data ();
+    git_repository_manifests rms;
+    {
+      path f (rd / path ("repositories"));
+
+      if (exists (f))
+        rms = parse_manifest<git_repository_manifests> (f, ignore_unknown, rl);
+      else
+        rms.emplace_back (repository_manifest ()); // Add the base repository.
+    }
+
+    // Produce the "skeleton" package manifest list.
+    //
+    git_package_manifests pms;
+    {
+      path f (rd / path ("packages"));
+
+      if (exists (f))
+        pms = parse_manifest<git_package_manifests> (f, ignore_unknown, rl);
+      else
+      {
+        pms.push_back (package_manifest ());
+        pms.back ().location = current_dir;
+      }
+    }
+
+    // Fill "skeleton" package manifests.
+    //
+    for (package_manifest& sm: pms)
+    {
+      assert (sm.location);
+
+      auto package_info = [&sm, &rl] (diag_record& dr)
+      {
+        dr << "package ";
+
+        if (!sm.location->current ())
+          dr << "'" << sm.location->string () << "' "; // Strip trailing '/'.
+
+        dr << "in repository " << rl;
+      };
+
+      auto failure = [&package_info] (const char* desc)
+      {
+        diag_record dr (fail);
+        dr << desc << " for ";
+        package_info (dr);
+      };
+
+      dir_path d (rd / path_cast<dir_path> (*sm.location));
+      path f (d / path ("manifest"));
+
+      if (!exists (f))
+        failure ("no manifest file");
+
+      try
+      {
+        ifdstream ifs (f);
+        manifest_parser mp (ifs, f.string ());
+        package_manifest m (bpkg_package_manifest (mp, ignore_unknown));
+
+        // Save the package manifest, preserving its location.
+        //
+        m.location = move (sm.location);
+        sm = move (m);
+      }
+      catch (const manifest_parsing& e)
+      {
+        diag_record dr (fail (e.name, e.line, e.column));
+        dr << e.description << info;
+        package_info (dr);
+      }
+      catch (const io_error& e)
+      {
+        diag_record dr (fail);
+        dr << "unable to read from " << f << ": " << e << info;
+        package_info (dr);
+      }
+
+      // Fix-up the package version.
+      //
+      const char* b (name_b (co));
+
+      try
+      {
+        process_path pp (process::path_search (b, exec_dir));
+
+        fdpipe pipe (open_pipe ());
+
+        process pr (
+          process_start_callback (
+            [] (const char* const args[], size_t n)
+            {
+              if (verb >= 2)
+                print_process (args, n);
+            },
+            0 /* stdin */, pipe /* stdout */, 2 /* stderr */,
+            pp,
+
+            verb < 2
+            ? strings ({"-q"})
+            : verb == 2
+              ? strings ({"-v"})
+              : strings ({"--verbose", to_string (verb)}),
+
+            co.build_option (),
+            "info:",
+            d.representation ()));
+
+        // Shouldn't throw, unless something is severely damaged.
+        //
+        pipe.out.close ();
+
+        try
+        {
+          ifdstream is (move (pipe.in),
+                        fdstream_mode::skip,
+                        ifdstream::badbit);
+
+          for (string l; !eof (getline (is, l)); )
+          {
+            if (l.compare (0, 9, "version: ") == 0)
+            try
+            {
+              string v (l, 9);
+
+              // An empty version indicates that the version module is not
+              // enabled for the project, and so we don't amend the package
+              // version.
+              //
+              if (!v.empty ())
+                sm.version = version (v);
+
+              break;
+            }
+            catch (const invalid_argument&)
+            {
+              fail << "no package version in '" << l << "'" <<
+                info << "produced by '" << pp << "'; use --build to override";
+            }
+          }
+
+          is.close ();
+
+          if (pr.wait ())
+            continue; // Go to the next package.
+
+          // Fall through.
+        }
+        catch (const io_error&)
+        {
+          if (pr.wait ())
+            failure ("unable to read information");
+
+          // Fall through.
+        }
+
+        // We should only get here if the child exited with an error status.
+        //
+        assert (!pr.wait ());
+
+        failure ("unable to obtain information");
+      }
+      catch (const process_error& e)
+      {
+        fail << "unable to execute " << b << ": " << e;
+      }
+    }
+
+    return rep_fetch_data {move (rms), move (pms), nullptr};
   }
 
   rep_fetch_data
@@ -319,21 +525,28 @@ namespace bpkg
       {
         // Make sure this is the same package.
         //
-        assert (p->sha256sum && !p->locations.empty ()); // Can't be transient.
+        assert (!p->locations.empty ()); // Can't be transient.
 
-        if (*pm.sha256sum != *p->sha256sum)
+        // Note that sha256sum may not present for some repository types.
+        //
+        if (pm.sha256sum)
         {
-          // All the previous repositories that contain this package have the
-          // same checksum (since they passed this test), so we can pick any
-          // to show to the user.
-          //
-          const string& r1 (rl.canonical_name ());
-          const string& r2 (p->locations[0].repository.object_id ());
+          if (!p->sha256sum)
+            p->sha256sum = move (pm.sha256sum);
+          else if (*pm.sha256sum != *p->sha256sum)
+          {
+            // All the previous repositories that have checksum for this
+            // package have it the same (since they passed this test), so we
+            // can pick any to show to the user.
+            //
+            const string& r1 (rl.canonical_name ());
+            const string& r2 (p->locations[0].repository.object_id ());
 
-          fail << "checksum mismatch for " << pm.name << " " << pm.version <<
-            info << r1 << " has " << *pm.sha256sum <<
-            info << r2 << " has " << *p->sha256sum <<
-            info << "consider reporting this to the repository maintainers";
+            fail << "checksum mismatch for " << pm.name << " " << pm.version <<
+              info << r1 << " has " << *pm.sha256sum <<
+              info << r2 << " has " << *p->sha256sum <<
+              info << "consider reporting this to the repository maintainers";
+          }
         }
       }
 

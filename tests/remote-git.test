@@ -25,11 +25,14 @@ end
 +echo "$git_version" | sed -e 's/(\d+).*/\1/'      | set git_version_major
 +echo "$git_version" | sed -e 's/\d+\.(\d+).*/\1/' | set git_version_minor
 
+# This flag must be used by testscripts to decide if they should skip git
+# repository-related tests.
+#
 git_supported = ($git_version_major >  2 || \
 		 $git_version_major == 2 && $git_version_minor >= 12)
 
 # Output directory path that testscripts must use to prepare repositories
-# required by tests they contains.
+# required by tests they contain.
 #
 out_git = $canonicalize([dir_path] $~/git/$cmd)
 
@@ -42,10 +45,25 @@ remote = $config.bpkg.test.remote
                    ? "file://$out_git" \
                    : "file:/$regex.replace($out_git, '\\', '/')")
 
+  rep_git = $rep_git_local # Default local repository URL.
+
   mkdir -p $out_git
 else
   rep_git_https_dumb        = "https://build2.org/bpkg/git/$cmd"
   rep_git_https_smart       = "https://git.build2.org/testing/bpkg/advonly/$cmd"
   rep_git_https_smart_unadv = "https://git.build2.org/testing/bpkg/unadv/$cmd"
   rep_git_git               = "git://git.build2.org/testing/bpkg/unadv/$cmd"
+
+  rep_git = $rep_git_https_dumb # Default remote repository URL.
 end
+
+# Command for extracting the git repository from a tarball into the output
+# directory (see above).
+#
+# Note that we can expect that the tar program is present on the platform. We
+# will use the same options as we do for unpacking of bpkg packages (see
+# pkg-unpack.cxx).
+#
+git_extract = ($cxx.target.class != 'windows' \
+               ? tar -C $out_git -xf \
+               : tar -C $regex.replace($out_git, '\\', '/') --force-local -xf)

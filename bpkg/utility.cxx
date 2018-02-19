@@ -234,6 +234,32 @@ namespace bpkg
     }
   }
 
+  fdpipe
+  open_pipe ()
+  {
+    try
+    {
+      return fdopen_pipe ();
+    }
+    catch (const io_error& e)
+    {
+      fail << "unable to open pipe: " << e << endf;
+    }
+  }
+
+  auto_fd
+  open_dev_null ()
+  {
+    try
+    {
+      return fdnull ();
+    }
+    catch (const io_error& e)
+    {
+      fail << "unable to open null device: " << e << endf;
+    }
+  }
+
   dir_path exec_dir;
 
   void

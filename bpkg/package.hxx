@@ -354,7 +354,8 @@ namespace bpkg
 
     dependencies_type dependencies;
 
-    // Present for non-transient objects only.
+    // Present for non-transient objects only (and only for certain repository
+    // types).
     //
     optional<string> sha256sum;
 

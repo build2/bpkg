@@ -13,7 +13,6 @@
 #include <libbutl/base64.mxx>
 #include <libbutl/process.mxx>
 #include <libbutl/openssl.mxx>
-#include <libbutl/fdstream.mxx>
 #include <libbutl/timestamp.mxx>
 #include <libbutl/filesystem.mxx>
 

@@ -2,14 +2,18 @@
 # copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
 # license   : MIT; see accompanying LICENSE file
 
-.include common.test auth.test remote.test
+.include common.test auth.test remote.test remote-git.test
 
 # Source repository:
 #
 # rep-info
-# `-- testing          -> stable (complement), ../foo/testing (prerequisite)
-#     |-- foo-1.tar.gz
-#     `-- repositories
+# |-- testing             -> stable (complement), ../foo/testing (prerequisite)
+# |   |-- foo-1.tar.gz
+# |   `-- repositories
+# |
+# `-- git
+#     |-- libbar.git      -> style-basic.git (prerequisite)
+#     `-- style-basic.git
 
 # Prepare repositories used by tests if running in the local mode.
 #
@@ -26,6 +30,11 @@
   cp -r $src/testing $out/signed
   cat <<<$cert_manifest >+$out/signed/repositories
   $rc --key $key $out/signed &$out/signed/packages &$out/signed/signature
+
+  # Create git repositories.
+  #
+  $git_extract $src/git/libbar.tar
+  $git_extract $src/git/style-basic.tar &$out_git/state0/***
 end
 
 test.options += --auth all --trust-yes
@@ -125,4 +134,39 @@ $* --name $rep/testing >"bpkg:build2.org/rep-info/testing ($rep/testing)"
   $* --cert-name         >'name:build2.org' : name
   $* --cert-organization >'Code Synthesis'  : organization
   $* --cert-email        >'info@build2.org' : email
+}
+
+: git-repos
+:
+if ($git_supported != true)
+{
+  # Skip git repository tests.
+  #
+}
+else
+{
+  rep = "$rep_git/state0"
+  test.redirects += 2>!
+
+  : version-module
+  :
+  : Version module is enabled for the project.
+  :
+  $* "$rep/style-basic.git#master" >>~%EOO%
+  %git:.+style-basic .+style-basic.git#master%
+
+  %style-basic/1\.1\.0-a\.0\..+%
+  EOO
+
+  : manifest-lists
+  :
+  : The packages and repositories files are present in the repository root.
+  :
+  $* "$rep/libbar.git#master" >>~%EOO%
+  %git:.+libbar .+libbar.git#master%
+  %prerequisite git:.+style-basic .+style-basic.git#stable%
+
+  libbar/1.0.0
+  libmbar/1.0.0
+  EOO
 }

@@ -60,23 +60,15 @@
 
   # Create git repositories.
   #
-  # Note that we can expect that the tar program is present on the platform. We
-  # will use the same options as we do for unpacking of bpkg packages (see
-  # pkg-unpack.cxx).
-  #
-  x = ($cxx.target.class != 'windows' \
-       ? tar -C $out_git -xf \
-       : tar -C $regex.replace($out_git, '\\', '/') --force-local -xf)
+  $git_extract $src/git/state0/libfoo.tar
+  $git_extract $src/git/state0/libbar.tar
+  $git_extract $src/git/state0/style.tar
+  $git_extract $src/git/state0/style-basic.tar &$out_git/state0/***
 
-  $x $src/git/state0/libfoo.tar
-  $x $src/git/state0/libbar.tar
-  $x $src/git/state0/style.tar
-  $x $src/git/state0/style-basic.tar &$out_git/state0/***
-
-  $x $src/git/state1/libfoo.tar
-  $x $src/git/state1/libbaz.tar
-  $x $src/git/state1/style.tar
-  $x $src/git/state1/style-basic.tar &$out_git/state1/***
+  $git_extract $src/git/state1/libfoo.tar
+  $git_extract $src/git/state1/libbaz.tar
+  $git_extract $src/git/state1/style.tar
+  $git_extract $src/git/state1/style-basic.tar &$out_git/state1/***
 end
 
 : no-repos
@@ -165,7 +157,7 @@ $* 2>>/EOE != 0
 :
 if ($git_supported != true)
 {
-  # Skip git repository fetch tests.
+  # Skip git repository tests.
   #
 }
 elif ($remote != true)

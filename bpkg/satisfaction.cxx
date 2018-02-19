@@ -5,7 +5,6 @@
 #include <bpkg/satisfaction.hxx>
 
 #include <libbutl/process.mxx>
-#include <libbutl/fdstream.mxx>
 
 #include <bpkg/utility.hxx>
 #include <bpkg/package-odb.hxx>

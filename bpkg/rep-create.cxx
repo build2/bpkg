@@ -6,7 +6,6 @@
 
 #include <map>
 
-#include <libbutl/fdstream.mxx>
 #include <libbutl/filesystem.mxx>          // dir_iterator
 #include <libbutl/manifest-serializer.mxx>
 

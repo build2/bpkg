@@ -45,7 +45,7 @@ warning: fetching over dumb HTTP, no progress will be shown'
       $warn
       %Cloning into '.+$abbr_commit'.+%
       $fetch
-      0 package\(s\) in 1 repository\(s\)
+      1 package\(s\) in 1 repository\(s\)
       EOE
   }
 
@@ -56,7 +56,7 @@ warning: fetching over dumb HTTP, no progress will be shown'
 
     if ($git_protocol == 'https-smart-unadv')
       warn  = '%.{0}'
-      fetch = "%Fetching in '.+stable'.+%"
+      fetch = "%Fetching in '.+$abbr_commit'.+%"
     else
       warn  = "warning: fetching whole branch history"
 
@@ -72,9 +72,9 @@ warning: fetching over dumb HTTP, no progress will be shown'
     $* 2>>~"%EOE%"
       %fetching git:.+style-basic%
       $warn
-      %Cloning into '.+stable'.+%
+      %Cloning into '.+$abbr_commit'.+%
       $fetch
-      0 package\(s\) in 1 repository\(s\)
+      1 package\(s\) in 1 repository\(s\)
       EOE
   }
 }
@@ -103,7 +103,7 @@ warning: fetching over dumb HTTP, no progress will be shown'
       $warn
       %Cloning into '.+$abbr_commit'.+%
       $fetch
-      0 package\(s\) in 1 repository\(s\)
+      1 package\(s\) in 1 repository\(s\)
       EOE
   }
 
@@ -121,8 +121,8 @@ warning: fetching over dumb HTTP, no progress will be shown'
     $* 2>>~"%EOE%"
       %fetching git:.+style-basic%
       $warn
-      %Cloning into '.+stable'.+%
-      0 package\(s\) in 1 repository\(s\)
+      %Cloning into '.+$abbr_commit'.+%
+      1 package\(s\) in 1 repository\(s\)
       EOE
   }
 }

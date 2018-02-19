@@ -24,6 +24,7 @@
 
 #include <libbutl/path.mxx>
 #include <libbutl/optional.mxx>
+#include <libbutl/fdstream.mxx>
 
 namespace bpkg
 {
@@ -82,6 +83,14 @@ namespace bpkg
 
   using paths = std::vector<path>;
   using dir_paths = std::vector<dir_path>;
+
+  // <libbutl/fdstream.mxx>
+  //
+  using butl::auto_fd;
+  using butl::fdpipe;
+  using butl::ifdstream;
+  using butl::ofdstream;
+  using butl::fdstream_mode;
 }
 
 // In order to be found (via ADL) these have to be either in std:: or in

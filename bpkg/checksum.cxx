@@ -13,7 +13,6 @@
 
 #include <libbutl/sha256.mxx>
 #include <libbutl/process.mxx>
-#include <libbutl/fdstream.mxx>
 #include <libbutl/filesystem.mxx>
 
 #include <bpkg/diagnostics.hxx>

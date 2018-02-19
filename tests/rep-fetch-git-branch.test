@@ -55,7 +55,7 @@ warning: fetching over dumb HTTP, no progress will be shown'
     $warn4
     %Cloning into '.+libbar'.+%
     %Submodule path 'libbar': checked out .+%
-    0 package\(s\) in 1 repository\(s\)
+    1 package\(s\) in 1 repository\(s\)
     EOE
 }
 
@@ -82,7 +82,7 @@ warning: fetching over dumb HTTP, no progress will be shown'
       %fetching git:.+libfoo%
       $warn
       %Fetching in '.+$branch'.+%
-      0 package\(s\) in 1 repository\(s\)
+      1 package\(s\) in 1 repository\(s\)
       EOE
   }
 
@@ -117,7 +117,7 @@ warning: fetching over dumb HTTP, no progress will be shown'
     # Preconditions.
     #
     test -f $r/tests/TODO;
-    test -f $r/libbar/manifest;
+    test -f $r/libbar/libbar/manifest;
     test -f $r/doc/style/README != 0;
     test -d $r/libbaz != 0;
 
@@ -143,7 +143,7 @@ warning: fetching over dumb HTTP, no progress will be shown'
       $warn3
       %Cloning into '.+libbaz'.+%
       %Submodule path 'libbaz': checked out .+%
-      0 package\(s\) in 1 repository\(s\)
+      1 package\(s\) in 1 repository\(s\)
       EOE
 
     # Postconditions.

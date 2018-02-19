@@ -12,7 +12,7 @@
 #
 
 # Output directory path that testscripts must use to prepare repositories
-# required by tests they contains.
+# required by tests they contain.
 #
 # Note that the local path is carefully crafted so that we end up with the
 # same repository names in both (local and remote) cases. This is necessary

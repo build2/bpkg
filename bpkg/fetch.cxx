@@ -4,7 +4,7 @@
 
 #include <bpkg/fetch.hxx>
 
-#include <libbutl/fdstream.mxx>
+#include <libbutl/process.mxx>
 
 #include <bpkg/diagnostics.hxx>
 

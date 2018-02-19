@@ -49,16 +49,18 @@ namespace bpkg
   // Repository type git (fetch-git.cxx).
   //
 
-  // Clone git repository into destdir/<fragment>/.
+  // Clone git repository into destdir/<name>/. Return the cloned repository
+  // directory name that was deduced from the repository URL fragment.
   //
-  void
+  dir_path
   git_clone (const common_options&,
              const repository_location&,
              const dir_path& destdir);
 
-  // Fetch git repository in destdir/<fragment>/.
+  // Fetch git repository in destdir/<name>/. Return the fetched repository
+  // directory name that was deduced from the repository URL fragment.
   //
-  void
+  dir_path
   git_fetch (const common_options&,
              const repository_location&,
              const dir_path& destdir);

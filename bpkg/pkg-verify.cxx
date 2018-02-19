@@ -5,7 +5,6 @@
 #include <bpkg/pkg-verify.hxx>
 
 #include <libbutl/process.mxx>
-#include <libbutl/fdstream.mxx>
 #include <libbutl/manifest-parser.mxx>
 
 #include <bpkg/archive.hxx>
