@@ -5,6 +5,8 @@
 #include <bpkg/package.hxx>
 #include <bpkg/package-odb.hxx>
 
+#include <algorithm> // find_if()
+
 #include <bpkg/database.hxx>
 
 using namespace std;
