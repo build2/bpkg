@@ -26,6 +26,7 @@
 #include <bpkg/pkg-unpack.hxx>
 #include <bpkg/pkg-update.hxx>
 #include <bpkg/pkg-verify.hxx>
+#include <bpkg/pkg-checkout.hxx>
 #include <bpkg/pkg-configure.hxx>
 #include <bpkg/pkg-disfigure.hxx>
 #include <bpkg/system-repository.hxx>
@@ -1613,19 +1614,23 @@ namespace bpkg
 
     // Ok, we have "all systems go". The overall action plan is as follows.
     //
-    // 1. disfigure  up/down-graded, reconfigured [left to right]
-    // 2. purge      up/down-graded
-    // 3. fetch      new, up/down-graded
-    // 4. unpack     new, up/down-graded
-    // 5. configure  all                          [right to left]
-    // 6. build      user selection               [right to left]
+    // 1.  disfigure       up/down-graded, reconfigured [left to right]
+    // 2.  purge           up/down-graded               [right to left]
+    // 3.a fetch/unpack    new, up/down-graded
+    // 3.b checkout        new, up/down-graded
+    // 4.  configure       all
+    // 5.  build           user selection               [right to left]
     //
     // Note that for some actions, e.g., purge or fetch, the order is not
     // really important. We will, however, do it right to left since that
     // is the order closest to that of the user selection.
     //
-    // We are also going to combine purge/fetch/unpack into a single step
-    // and use the replace mode so it will become just fetch/unpack.
+    // We are also going to combine purge and fetch/unpack|checkout into a
+    // single step and use the replace mode so it will become just
+    // fetch/unpack|checkout. Configure will also be combined with the above
+    // operations to guarantee that prerequisite packages are configured by
+    // the time its dependents need to be checked out (see the pkg_checkout()
+    // function implementation for details).
     //
     // Almost forgot, there is one more thing: when we upgrade or downgrade a
     // package, it may change the list of its prerequisites. Which means we
@@ -1704,120 +1709,159 @@ namespace bpkg
       }
     }
 
-    // purge/fetch/unpack
+    // purge, fetch/unpack|checkout, configure
     //
     for (build_package& p: reverse_iterate (pkgs))
     {
       shared_ptr<selected_package>& sp (p.selected);
       const shared_ptr<available_package>& ap (p.available);
 
-      if (ap == nullptr) // Skip dependents.
-        continue;
-
-      // System package should not be fetched, it should only be configured on
-      // the next stage. Here we need to purge selected non-system package if
-      // present. Before we drop the object we need to make sure the hold
-      // state is preserved for the package being reconfigured.
+      // Purge the system package, fetch/unpack or checkout the source one.
       //
-      if (p.system)
+      for (;;) // Breakout loop.
       {
-        if (sp != nullptr && !sp->system ())
-        {
-          transaction t (db.begin ());
-          pkg_purge (c, t, sp); // Commits the transaction.
+        if (ap == nullptr) // Skip dependents.
+          break;
 
-          if (verb)
-            text << "purged " << *sp;
-
-          if (!p.hold_package)
-            p.hold_package = sp->hold_package;
-
-          if (!p.hold_version)
-            p.hold_version = sp->hold_version;
-
-          sp.reset ();
-        }
-
-        continue;
-      }
-
-      // Fetch if this is a new package or if we are up/down-grading.
-      //
-      if (sp == nullptr || sp->version != p.available_version ())
-      {
-        sp.reset (); // For the directory case below.
-
-        // Distinguish between the package and archive/directory cases.
+        // System package should not be fetched, it should only be configured
+        // on the next stage. Here we need to purge selected non-system package
+        // if present. Before we drop the object we need to make sure the hold
+        // state is preserved for the package being reconfigured.
         //
-        const package_location& pl (ap->locations[0]); // Got to have one.
+        if (p.system)
+        {
+          if (sp != nullptr && !sp->system ())
+          {
+            transaction t (db.begin ());
+            pkg_purge (c, t, sp); // Commits the transaction.
 
-        if (pl.repository.object_id () != "") // Special root?
-        {
-          transaction t (db.begin ());
-          sp = pkg_fetch (o,
-                          c,
-                          t,
-                          ap->id.name,
-                          p.available_version (),
-                          true); // Replace; commits the transaction.
-        }
-        else if (exists (pl.location)) // Directory case is handled by unpack.
-        {
-          transaction t (db.begin ());
-          sp = pkg_fetch (o,
-                          c,
-                          t,
-                          pl.location, // Archive path.
-                          true,        // Replace
-                          false);      // Don't purge; commits the transaction.
+            if (verb)
+              text << "purged " << *sp;
+
+            if (!p.hold_package)
+              p.hold_package = sp->hold_package;
+
+            if (!p.hold_version)
+              p.hold_version = sp->hold_version;
+
+            sp.reset ();
+          }
+
+          break;
         }
 
-        if (sp != nullptr) // Actually unpacked something?
+        // Fetch or checkout if this is a new package or if we are
+        // up/down-grading.
+        //
+        if (sp == nullptr || sp->version != p.available_version ())
         {
-          assert (sp->state == package_state::fetched);
+          sp.reset (); // For the directory case below.
+
+          // Distinguish between the package and archive/directory cases.
+          //
+          const package_location& pl (ap->locations[0]); // Got to have one.
+
+          if (pl.repository.object_id () != "") // Special root?
+          {
+            // Go through package repositories to decide if we should fetch or
+            // checkout. Preferring a local one over the remotes seems like a
+            // sensible thing to do.
+            //
+            optional<bool> fetch;
+
+            for (const package_location& l: ap->locations)
+            {
+              const repository_location& rl (l.repository.load ()->location);
+
+              if (!fetch || rl.local ()) // First or local?
+              {
+                fetch = rl.archive_based ();
+
+                if (rl.local ())
+                  break;
+              }
+            }
+
+            assert (fetch);
+
+            transaction t (db.begin ());
+
+            // Both calls commit the transaction.
+            //
+            sp = *fetch
+              ? pkg_fetch (o,
+                           c,
+                           t,
+                           ap->id.name,
+                           p.available_version (),
+                           true /* replace */)
+              : pkg_checkout (o,
+                              c,
+                              t,
+                              ap->id.name,
+                              p.available_version (),
+                              true /* replace */);
+          }
+          // Directory case is handled by unpack.
+          //
+          else if (exists (pl.location))
+          {
+            transaction t (db.begin ());
+            sp = pkg_fetch (
+              o,
+              c,
+              t,
+              pl.location, // Archive path.
+              true,        // Replace
+              false);      // Don't purge; commits the transaction.
+          }
+
+          if (sp != nullptr) // Actually fetched or checked out something?
+          {
+            assert (sp->state == package_state::fetched ||
+                    sp->state == package_state::unpacked); // Checked out.
+
+            if (verb)
+              text << (sp->state == package_state::fetched
+                       ? "fetched "
+                       : "checked out ") << *sp;
+          }
+        }
+
+        // Unpack if required. Note that the package can still be NULL if this
+        // is the directory case (see the fetch code above).
+        //
+        if (sp == nullptr || sp->state == package_state::fetched)
+        {
+          if (sp != nullptr)
+          {
+            transaction t (db.begin ());
+            sp = pkg_unpack (o, c, t, ap->id.name); // Commits the transaction.
+          }
+          else
+          {
+            const package_location& pl (ap->locations[0]);
+            assert (pl.repository.object_id () == ""); // Special root.
+
+            transaction t (db.begin ());
+            sp = pkg_unpack (c,
+                             t,
+                             path_cast<dir_path> (pl.location),
+                             true,   // Replace.
+                             false); // Don't purge; commits the transaction.
+          }
+
+          assert (sp->state == package_state::unpacked);
 
           if (verb)
-            text << "fetched " << *sp;
+            text << "unpacked " << *sp;
         }
+
+        break; // Get out from the breakout loop.
       }
 
-      // Unpack. Note that the package can still be NULL if this is the
-      // directory case (see the fetch code above).
+      // Configure the package.
       //
-      if (sp == nullptr || sp->state == package_state::fetched)
-      {
-        if (sp != nullptr)
-        {
-          transaction t (db.begin ());
-          sp = pkg_unpack (o, c, t, ap->id.name); // Commits the transaction.
-        }
-        else
-        {
-          const package_location& pl (ap->locations[0]);
-          assert (pl.repository.object_id () == ""); // Special root.
-
-          transaction t (db.begin ());
-          sp = pkg_unpack (c,
-                           t,
-                           path_cast<dir_path> (pl.location),
-                           true,   // Replace.
-                           false); // Don't purge; commits the transaction.
-        }
-
-        assert (sp->state == package_state::unpacked);
-
-        if (verb)
-          text << "unpacked " << *sp;
-      }
-    }
-
-    // configure
-    //
-    for (build_package& p: reverse_iterate (pkgs))
-    {
-      shared_ptr<selected_package>& sp (p.selected);
-      const shared_ptr<available_package>& ap (p.available);
-
       // At this stage the package is either selected, in which case it's a
       // source code one, or just available, in which case it is a system
       // one. Note that a system package gets selected as being configured.

@@ -2,7 +2,7 @@
 # copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
 # license   : MIT; see accompanying LICENSE file
 
-.include common.test config.test remote.test
+.include common.test config.test remote.test remote-git.test
 
 # Source repository:
 #
@@ -11,41 +11,56 @@
 # |-- libbaz-1.1.0.tar.gz
 # |-- libfoo-0.0.1.tar.gz
 # |-- libfoo-1.0.0.tar.gz
+# |
 # |-- libfoo-1.1.0
 # |   |-- build
 # |   |   `-- bootstrap.build
 # |   |-- buildfile
 # |   `-- manifest
+# |
 # |-- libfoo-1.1.0.tar.gz
 # |-- libfoo-1.2.0.tar.gz
+# |
 # |-- t1
 # |   |-- libfoo-1.0.0.tar.gz
 # |   `-- repositories
+# |
 # |-- t2
 # |   |-- libbar-1.0.0.tar.gz -> libfoo
 # |   |-- libfoo-1.0.0.tar.gz
 # |   `-- repositories
+# |
 # |-- t3                      -> t2 (prerequisite)
 # |   |-- libbaz-1.0.0.tar.gz -> libbar
 # |   |-- libfox-1.0.0.tar.gz
 # |   `-- repositories
+# |
 # |-- t4a
 # |   |-- libfoo-1.1.0.tar.gz
 # |   `-- repositories
+# |
 # |-- t4b                     -> t4a (prerequisite)
 # |   |-- libbar-1.1.0.tar.gz -> libfoo == 1.1.0
 # |   `-- repositories
+# |
 # |-- t4c                     -> t4b (prerequisite)
 # |   |-- libbaz-1.1.0.tar.gz -> libfoo, libbar
 # |   |-- libfoo-1.0.0.tar.gz
 # |   `-- repositories
+# |
 # |-- t4d                     -> t4c (prerequisite)
 # |   |-- libbiz-1.0.0.tar.gz -> libfox, libfoo, libbaz
 # |   |-- libfox-1.0.0.tar.gz
 # |   `-- repositories
-# `-- t5
-#     |-- libbar-1.2.0.tar.gz
-#     `-- repositories
+# |
+# |-- t5
+# |   |-- libbar-1.2.0.tar.gz
+# |   `-- repositories
+# |
+# `-- git
+#     |-- libbar.git          -> style-basic.git (prerequisite)
+#     |-- libbaz.git
+#     `-- style-basic.git
 
 # Prepare repositories used by tests if running in the local mode.
 #
@@ -60,6 +75,12 @@
   cp -r $src/t4c $out/t4c && $rep_create $out/t4c &$out/t4c/packages
   cp -r $src/t4d $out/t4d && $rep_create $out/t4d &$out/t4d/packages
   cp -r $src/t5  $out/t5  && $rep_create $out/t5  &$out/t5/packages
+
+  # Create git repositories.
+  #
+  $git_extract $src/git/style-basic.tar
+  $git_extract $src/git/libbar.tar &$out_git/state0/***
+  $git_extract $src/git/libbaz.tar &$out_git/state1/***
 end
 
 pkg_configure += -d cfg "config.cxx=$config.cxx" 2>!
@@ -711,14 +732,14 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       %.*
       %.*fetched libfoo/1.1.0%
       unpacked libfoo/1.1.0
+      configured libfoo/1.1.0
       %.*
       %.*fetched libbar/1.1.0%
       unpacked libbar/1.1.0
+      configured libbar/1.1.0
       %.*
       %.*fetched libbaz/1.1.0%
       unpacked libbaz/1.1.0
-      configured libfoo/1.1.0
-      configured libbar/1.1.0
       configured libbaz/1.1.0
       %info: .+dir\{libbaz-1.1.0.\} is up to date%
       updated libbaz/1.1.0
@@ -852,14 +873,14 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
         %.*
         %.*fetched libfoo/1.1.0%
         unpacked libfoo/1.1.0
+        configured libfoo/1.1.0
         %.*
         %.*fetched libbar/1.1.0%
         unpacked libbar/1.1.0
+        configured libbar/1.1.0
         %.*
         %.*fetched libbaz/1.1.0%
         unpacked libbaz/1.1.0
-        configured libfoo/1.1.0
-        configured libbar/1.1.0
         configured libbaz/1.1.0
         %info: .+dir\{libbaz-1.1.0.\} is up to date%
         updated libbaz/1.1.0
@@ -899,14 +920,14 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
         %.*
         %.*fetched libfoo/1.1.0%
         unpacked libfoo/1.1.0
+        configured libfoo/1.1.0
         %.*
         %.*fetched libbar/1.1.0%
         unpacked libbar/1.1.0
+        configured libbar/1.1.0
         %.*
         %.*fetched libbaz/1.1.0%
         unpacked libbaz/1.1.0
-        configured libfoo/1.1.0
-        configured libbar/1.1.0
         configured libbaz/1.1.0
         %info: .+dir\{libbaz-1.1.0.\} is up to date%
         updated libbaz/1.1.0
@@ -962,10 +983,10 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       %.*
       %.*fetched libfoo/1.0.0%
       unpacked libfoo/1.0.0
+      configured libfoo/1.0.0
       %.*
       %.*fetched libbar/1.0.0%
       unpacked libbar/1.0.0
-      configured libfoo/1.0.0
       configured libbar/1.0.0
       %info: .+dir\{libbar-1.0.0.\} is up to date%
       updated libbar/1.0.0
@@ -996,10 +1017,10 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       %.*
       %.*fetched libfoo/1.0.0%
       unpacked libfoo/1.0.0
+      configured libfoo/1.0.0
       %.*
       %.*fetched libbar/1.0.0%
       unpacked libbar/1.0.0
-      configured libfoo/1.0.0
       configured libbar/1.0.0
       %info: .+dir\{libfoo-1.0.0.\} is up to date%
       %info: .+dir\{libbar-1.0.0.\} is up to date%
@@ -1052,8 +1073,8 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       %.*
       %.*fetched libfoo/1.1.0%
       unpacked libfoo/1.1.0
-      unpacked libbar/1.1.0
       configured libfoo/1.1.0
+      unpacked libbar/1.1.0
       configured libbar/1.1.0
       %info: .+dir\{libbar-1.1.0.\} is up to date%
       updated libbar/1.1.0
@@ -1094,10 +1115,10 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       %.*
       %.*fetched libfoo/1.0.0%
       unpacked libfoo/1.0.0
+      configured libfoo/1.0.0
       %.*
       %.*fetched libbar/1.0.0%
       unpacked libbar/1.0.0
-      configured libfoo/1.0.0
       configured libbar/1.0.0
       %info: .+dir.+ is up to date%
       updated libbar/1.0.0
@@ -1133,10 +1154,10 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       %.*
       %.*fetched libfoo/1.0.0%
       unpacked libfoo/1.0.0
+      configured libfoo/1.0.0
       %.*
       %.*fetched libbar/1.0.0%
       unpacked libbar/1.0.0
-      configured libfoo/1.0.0
       configured libbar/1.0.0
       %info: .+dir.+ is up to date%
       updated libbar/1.0.0
@@ -1180,10 +1201,10 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       %.*
       %.*fetched libfoo/1.0.0%
       unpacked libfoo/1.0.0
+      configured libfoo/1.0.0
       %.*
       %.*fetched libbar/1.0.0%
       unpacked libbar/1.0.0
-      configured libfoo/1.0.0
       configured libbar/1.0.0
       %info: .+ is up to date%
       updated libbar/1.0.0
@@ -1225,10 +1246,10 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       %.*
       %.*fetched libfoo/1.0.0%
       unpacked libfoo/1.0.0
+      configured libfoo/1.0.0
       %.*
       %.*fetched libbar/1.0.0%
       unpacked libbar/1.0.0
-      configured libfoo/1.0.0
       configured libbar/1.0.0
       %info: .+ is up to date%
       updated libbar/1.0.0
@@ -1270,10 +1291,10 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
     %.*
     %.*fetched libfoo/1.0.0%
     unpacked libfoo/1.0.0
+    configured libfoo/1.0.0
     %.*
     %.*fetched libbar/1.0.0%
     unpacked libbar/1.0.0
-    configured libfoo/1.0.0
     configured libbar/1.0.0
     EOE
 
@@ -1282,4 +1303,77 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
 
   $pkg_disfigure libfoo 2>'disfigured libfoo/1.0.0';
   $pkg_purge     libfoo 2>'purged libfoo/1.0.0'
+}
+
+: git-repos
+:
+if ($git_supported != true)
+{
+  # Skip git repository tests.
+  #
+}
+else
+{
+  rep0 = "$rep_git/state0"
+  rep1 = "$rep_git/state1"
+
+  test.arguments += --yes
+
+  pkg_disfigure += 2>!
+  pkg_purge     += 2>!
+
+  : prerequisite-repo
+  :
+  : Prerequisite package of the dependent being built is in the prerequisite
+  : repository.
+  :
+  $clone_root_cfg;
+  $rep_add "$rep0/libbar.git#master";
+  $rep_add "$rep0/style-basic.git#master";
+  $rep_fetch &cfg/.bpkg/repositories/*/***;
+
+  $* libmbar 2>>~%EOE%;
+  %dist style-basic-.+%
+  %checked out style-basic/.+%
+  %configured style-basic/.+%
+  dist libmbar-1.0.0
+  checked out libmbar/1.0.0
+  configured libmbar/1.0.0
+  %info: .+dir\{libmbar-.+\} is up to date%
+  updated libmbar/1.0.0
+  EOE
+
+  $pkg_disfigure libmbar;
+  $pkg_disfigure style-basic;
+
+  $pkg_purge libmbar;
+  $pkg_purge style-basic
+
+  : no-prerequisite-repos
+  :
+  : Dependent package repository has no prerequisites nor complements. Its
+  : dependency is picked up via the root repository that complements its
+  : repository (see rep_fetch() function implementation for details).
+  :
+  $clone_root_cfg;
+  $rep_add "$rep1/libbaz.git#master";
+  $rep_add "$rep0/style-basic.git#master";
+  $rep_fetch &cfg/.bpkg/repositories/*/***;
+
+  $* libbaz 2>>~%EOE%;
+  %dist style-basic-.+%
+  %checked out style-basic/.+%
+  %configured style-basic/.+%
+  dist libbaz-1.0.0
+  checked out libbaz/1.0.0
+  configured libbaz/1.0.0
+  %info: .+dir\{libbaz-.+\} is up to date%
+  updated libbaz/1.0.0
+  EOE
+
+  $pkg_disfigure libbaz;
+  $pkg_disfigure style-basic;
+
+  $pkg_purge libbaz;
+  $pkg_purge style-basic
 }

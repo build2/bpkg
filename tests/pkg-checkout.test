@@ -35,6 +35,8 @@ else
   rep_add       += -d cfg 2>!
   rep_fetch     += -d cfg 2>!
   pkg_configure += -d cfg 2>!
+  pkg_disfigure += -d cfg 2>!
+  pkg_purge     += -d cfg 2>!
   pkg_status    += -d cfg
 
   test.cleanups += &cfg/.bpkg/repositories/*/***
@@ -57,17 +59,22 @@ else
 
   $pkg_status style-basic | sed -n -e 's/available ([^ ]+).+/\1/p' | set v;
 
-  $* "style-basic/$v" 2>>"EOE" &cfg/style-basic-$v/***;
+  $* "style-basic/$v" 2>>"EOE";
   dist style-basic-$v
   checked out style-basic/$v
   EOE
 
   $pkg_configure style-basic;
 
-  $* libmbar/1.0.0 2>>EOE &cfg/libmbar-1.0.0/***
+  $* libmbar/1.0.0 2>>EOE;
   dist libmbar-1.0.0
   checked out libmbar/1.0.0
   EOE
+
+  $pkg_disfigure style-basic;
+
+  $pkg_purge libmbar;
+  $pkg_purge style-basic
 
   : replacement
   :
@@ -91,6 +98,8 @@ else
   $* "style-basic/$v0" 2>!;
   $pkg_status style-basic >~"/unpacked $v0;.+/";
 
-  $* --replace "style-basic/$v1" 2>! &cfg/style-basic-$v1/***;
-  $pkg_status style-basic >~"/unpacked $v1;.+/"
+  $* --replace "style-basic/$v1" 2>!;
+  $pkg_status style-basic >~"/unpacked $v1;.+/";
+
+  $pkg_purge style-basic
 }
