@@ -32,7 +32,7 @@ namespace bpkg
     struct package
     {
       package_manifest manifest;
-      string repository_state; // See package_location::state.
+      string repository_fragment; // See package_location::fragment.
     };
 
     std::vector<repository>       repositories;

@@ -293,14 +293,15 @@ namespace bpkg
   {
     using repository_type = bpkg::repository;
 
-    // State is the repository type-specific information that can be used
-    // to identify the repository state this package came from. For example,
-    // for a version control-based repository this could be a commit id.
+    // Fragment is optional, repository type-specific information that can be
+    // used to identify the repository fragment/partition/view/etc that this
+    // package came from. For example, for a version control-based repository
+    // this could be a commit id.
     //
-    // The localtion is the package location within this repository state.
+    // The location is the package location within this repository fragment.
     //
     lazy_shared_ptr<repository_type> repository;
-    string state;
+    string fragment;
     path location;
   };
 

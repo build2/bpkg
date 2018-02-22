@@ -593,7 +593,7 @@ namespace bpkg
       //
       p->locations.push_back (
         package_location {lazy_shared_ptr<repository> (db, r),
-                          move (fp.repository_state),
+                          move (fp.repository_fragment),
                           move (*pm.location)});
 
       if (persist)

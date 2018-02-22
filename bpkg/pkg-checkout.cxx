@@ -119,7 +119,7 @@ namespace bpkg
     dir_path sd (c / repos_dir);
 
     sd /= dir_path (sha256 (rl.canonical_name ()).abbreviated_string (16));
-    sd /= dir_path (pl->state);
+    sd /= dir_path (pl->fragment);
     sd /= path_cast<dir_path> (pl->location);
 
     // Verify the package prerequisites are all configured since the dist
