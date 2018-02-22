@@ -40,6 +40,19 @@ namespace bpkg
   //
   repository_location
   parse_location (const char*, optional<repository_type>);
+
+  // Return the repository state subdirectory for the specified location as it
+  // appears under .bpkg/repositories/ in the bpkg configuration. Return empty
+  // directory if the repository type doesn't have any state.
+  //
+  // Note that the semantics used to produce this name is repository type-
+  // specific and can base on the repository canonical name or (potentially a
+  // subset of) the location URL. In particular, a state directory could be
+  // shared by multiple repository locations of the same type (@@ TODO: if we
+  // ever do this, then we will need to complicate the removal logic).
+  //
+  dir_path
+  repository_state (const repository_location&);
 }
 
 #endif // BPKG_MANIFEST_UTILITY_HXX

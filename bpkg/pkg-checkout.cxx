@@ -4,8 +4,6 @@
 
 #include <bpkg/pkg-checkout.hxx>
 
-#include <libbutl/sha256.mxx>
-
 #include <libbpkg/manifest.hxx>
 
 #include <bpkg/package.hxx>
@@ -118,7 +116,7 @@ namespace bpkg
     //
     dir_path sd (c / repos_dir);
 
-    sd /= dir_path (sha256 (rl.canonical_name ()).abbreviated_string (16));
+    sd /= repository_state (rl);
     sd /= dir_path (pl->fragment);
     sd /= path_cast<dir_path> (pl->location);
 

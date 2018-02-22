@@ -153,7 +153,7 @@ else
   : Version module is enabled for the project.
   :
   $* "$rep/style-basic.git#master" >>~%EOO%
-  %git:.+style-basic .+style-basic.git#master%
+  %git:.+style-basic#master .+style-basic.git#master%
 
   %style-basic/1\.1\.0-a\.0\..+%
   EOO
@@ -163,8 +163,8 @@ else
   : The packages and repositories files are present in the repository root.
   :
   $* "$rep/libbar.git#master" >>~%EOO%
-  %git:.+libbar .+libbar.git#master%
-  %prerequisite git:.+style-basic .+style-basic.git#stable%
+  %git:.+libbar#master .+libbar.git#master%
+  %prerequisite git:.+style-basic#stable .+style-basic.git#stable%
 
   libbar/1.0.0
   libmbar/1.0.0

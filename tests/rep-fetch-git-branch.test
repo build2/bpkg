@@ -39,7 +39,7 @@ warning: fetching over dumb HTTP, no progress will be shown'
   end;
 
   $* 2>>~"%EOE%"
-    %fetching git:.+libfoo%
+    %fetching git:.+libfoo#$branch%
     $warn1
     %Cloning into '.+$branch'.+%
     %Submodule 'doc/style' .+ registered for path 'doc/style'%
@@ -79,7 +79,7 @@ warning: fetching over dumb HTTP, no progress will be shown'
     end;
 
     $* 2>>~"%EOE%"
-      %fetching git:.+libfoo%
+      %fetching git:.+libfoo#$branch%
       $warn
       %Fetching in '.+$branch'.+%
       1 package\(s\) in 1 repository\(s\)
@@ -132,7 +132,7 @@ warning: fetching over dumb HTTP, no progress will be shown'
     end;
 
     $* 2>>~"%EOE%" 1>&2;
-      %fetching git:.+libfoo%
+      %fetching git:.+libfoo#$branch%
       $warn1
       %Fetching in '.+$branch'.+%
       %warning: unable to rmdir '?libbar'?:.+%

@@ -66,14 +66,14 @@
     :
     $clone_cfg;
     $* 'git://example.org/repo#master' 2>>EOE
-      added repository git:example.org/repo
+      added repository git:example.org/repo#master
       EOE
 
     : http-git
     :
     $clone_cfg;
     $* 'http://example.org/repo.git#master' 2>>EOE
-      added repository git:example.org/repo
+      added repository git:example.org/repo#master
       EOE
 
     : http-bpkg
@@ -151,10 +151,10 @@
   $clone_cfg;
 
   $* 'git://example.org/testing#master' 2>>~%EOE%;
-    %added repository git:example.org/testing%
+    %added repository git:example.org/testing#master%
     EOE
 
   $* 'git://www.example.org/testing#master' 2>>~%EOE% != 0
-    %error: git:example.org/testing is already a repository of this configuration%
+    %error: git:example.org/testing#master is already a repository of this configuration%
     EOE
 }

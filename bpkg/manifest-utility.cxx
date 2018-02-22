@@ -4,6 +4,8 @@
 
 #include <bpkg/manifest-utility.hxx>
 
+#include <libbutl/sha256.mxx>
+
 #include <bpkg/diagnostics.hxx>
 
 using namespace std;
@@ -123,5 +125,21 @@ namespace bpkg
   catch (const system_error& e)
   {
     fail << "failed to guess repository type for '" << s << "': " << e << endf;
+  }
+
+  dir_path
+  repository_state (const repository_location& l)
+  {
+    switch (l.type ())
+    {
+    case repository_type::bpkg: return dir_path (); // No state.
+    case repository_type::git:
+      {
+        return dir_path (sha256 (l.canonical_name ()).abbreviated_string (16));
+      }
+    }
+
+    assert (false); // Can't be here.
+    return dir_path ();
   }
 }

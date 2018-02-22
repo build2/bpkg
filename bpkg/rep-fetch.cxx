@@ -4,7 +4,6 @@
 
 #include <bpkg/rep-fetch.hxx>
 
-#include <libbutl/sha256.mxx>
 #include <libbutl/process.mxx>
 #include <libbutl/process-io.mxx>      // operator<<(ostream, process_path)
 #include <libbutl/manifest-parser.mxx>
@@ -15,6 +14,7 @@
 #include <bpkg/package-odb.hxx>
 #include <bpkg/database.hxx>
 #include <bpkg/diagnostics.hxx>
+#include <bpkg/manifest-utility.hxx>
 
 using namespace std;
 using namespace butl;
@@ -152,12 +152,9 @@ namespace bpkg
 
     // Clone or fetch the repository.
     //
-    // If changing the repository directory naming scheme, then don't forget
-    // to also update pkg_checkout().
-    //
-    dir_path h (sha256 (rl.canonical_name ()).abbreviated_string (16));
+    dir_path sd (repository_state (rl));
 
-    auto_rmdir rm (temp_dir / h);
+    auto_rmdir rm (temp_dir / sd);
     dir_path& td (rm.path);
 
     if (exists (td))
@@ -170,7 +167,7 @@ namespace bpkg
     bool fetch (false);
     if (conf != nullptr)
     {
-      rd = *conf / repos_dir / h;
+      rd = *conf / repos_dir / sd;
 
       if (exists (rd))
       {
