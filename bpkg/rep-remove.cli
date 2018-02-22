@@ -1,0 +1,44 @@
+// file      : bpkg/rep-remove.cli
+// copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
+// license   : MIT; see accompanying LICENSE file
+
+include <libbpkg/manifest.hxx>;
+
+include <bpkg/configuration.cli>;
+
+"\section=1"
+"\name=bpkg-rep-remove"
+"\summary=remove repository from configuration"
+
+namespace bpkg
+{
+  {
+    "<options> <name> <location>",
+
+    "\h|SYNOPSIS|
+
+     \c{\b{bpkg rep-remove}|\b{remove} [<options>] (<name>|<location>)... |
+        (--all|-a)}
+
+     \h|DESCRIPTION|
+
+     The \cb{rep-remove} command removes the specified package repositories
+     from the configuration. The repository to remove can be specified either
+     as a repository name or as a repository location (URL or a directory
+     path).
+
+     Alternatively, the \cb{--all|-a} option can be used to remove all the
+     repositories that were previously added (\l{bpkg-rep-add(1)}) to the
+     configuration."
+  }
+
+  class rep_remove_options: configuration_options
+  {
+    "\h|REP-REMOVE OPTIONS|"
+
+    bool --all|-a
+    {
+      "Remove all the repositories."
+    }
+  };
+}

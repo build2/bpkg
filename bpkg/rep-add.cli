@@ -13,17 +13,18 @@ include <bpkg/configuration.cli>;
 namespace bpkg
 {
   {
-    "<options> <rep> <tag> <branch> <commit-id>",
+    "<options> <location> <tag> <branch> <commit-id>",
 
     "\h|SYNOPSIS|
 
-     \c{\b{bpkg rep-add}|\b{add} [<options>] <rep>}
+     \c{\b{bpkg rep-add}|\b{add} [<options>] <location>...}
 
      \h|DESCRIPTION|
 
-     The \cb{rep-add} command adds the specified package repository to the
-     configuration. The repository location <rep> is a URL or a directory
-     path.
+     The \cb{rep-add} command adds the specified package repositories to the
+     configuration. The repository location is a URL or a directory path. If a
+     repository with the same name already exists in the configuration, then
+     its location is replaced with the specified.
 
      Note that this command doesn't fetch the list of available packages for
      the newly added repository. For that, use the \l{bpkg-rep-fetch(1)}

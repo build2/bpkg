@@ -1,0 +1,46 @@
+// file      : bpkg/rep-list.cli
+// copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
+// license   : MIT; see accompanying LICENSE file
+
+include <libbpkg/manifest.hxx>;
+
+include <bpkg/configuration.cli>;
+
+"\section=1"
+"\name=bpkg-rep-list"
+"\summary=list repositories in configuration"
+
+namespace bpkg
+{
+  {
+    "<options>",
+
+    "\h|SYNOPSIS|
+
+     \c{\b{bpkg rep-list}|\b{list} [<options>]}
+
+     \h|DESCRIPTION|
+
+     The \cb{rep-list} command lists the repositories in the configuration.
+
+     For each repository a line containing the repository name and location is
+     printed to \cb{STDOUT}. If the \cb{--complements|-c} and/or
+     \cb{--prerequisites|-p} options are specified, then it is followed by
+     the list of complement and/or prerequisite repositories, recursively."
+  }
+
+  class rep_list_options: configuration_options
+  {
+    "\h|REP-LIST OPTIONS|"
+
+    bool --complements|-c
+    {
+      "List complement repositories."
+    }
+
+    bool --prerequisites|-p
+    {
+      "List prerequisite repositories."
+    }
+  };
+}

@@ -11,18 +11,25 @@ include <bpkg/configuration.cli>;
 namespace bpkg
 {
   {
-    "<options>",
+    "<options> <name> <location>",
 
     "\h|SYNOPSIS|
 
-     \c{\b{bpkg rep-fetch}|\b{fetch} [<options>]}
+     \c{\b{bpkg rep-fetch}|\b{fetch} [<options>] [(<name>|<location>)...]}
 
      \h|DESCRIPTION|
 
-     The \cb{rep-fetch} command fetches the list of available packages for all
-     the repositories that were previously added with the \l{bpkg-rep-add(1)}
-     command as well as all their complement and prerequisite repositories,
-     recursively."
+     The \cb{rep-fetch} command fetches the list of available packages for the
+     specified repositories as well as all their complement and prerequisite
+     repositories, recursively. If no repositories were specified, then all
+     the repositories previously added (\l{bpkg-rep-add(1)}) to the
+     configuration are fetched.
+
+     The repository to fetch can be specified either as a repository name or
+     as a repository location (URL or a directory path; see
+     \l{bpkg-rep-add(1)} for details). In the latter case, the repository
+     location is added/replaced as if by first executing the \cb{rep-add}
+     command."
   }
 
   class rep_fetch_options: configuration_options

@@ -167,6 +167,16 @@ namespace bpkg
       "\l{bpkg-rep-add(1)} \- add repository to configuration"
     }
 
+    bool rep-remove|remove
+    {
+      "\l{bpkg-rep-remove(1)} \- remove repository from configuration"
+    }
+
+    bool rep-list|list
+    {
+      "\l{bpkg-rep-list(1)} \- list repositories in configuration"
+    }
+
     bool rep-fetch|fetch
     {
       "\l{bpkg-rep-fetch(1)} \- fetch list of available packages"
@@ -174,9 +184,7 @@ namespace bpkg
 
     bool rep-create
     {
-      "[<dir>]",
-      "\l{bpkg-rep-create(1)} \- create repository",
-      ""
+      "\l{bpkg-rep-create(1)} \- create repository"
     }
 
     bool pkg-status|status
@@ -221,9 +229,7 @@ namespace bpkg
 
     bool pkg-verify
     {
-      "<archive>",
-      "\l{bpkg-pkg-verify(1)} \- verify package archive",
-      ""
+      "\l{bpkg-pkg-verify(1)} \- verify package archive"
     }
 
     bool pkg-fetch
