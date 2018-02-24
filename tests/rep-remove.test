@@ -1,0 +1,139 @@
+# file      : tests/rep-remove.test
+# copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
+# license   : MIT; see accompanying LICENSE file
+
+.include common.test config.test remote.test remote-git.test
+
+# Source repository:
+#
+# rep-remove
+# |-- extra                     -> stable (prerequisite)
+# |   |-- libbar-1.1.0+1.tar.gz
+# |   `-- repositories
+# |
+# |-- math                      -> extra (prerequisite)
+# |   |-- libbar-1.0.0.tar.gz
+# |   `-- repositories
+# |
+# |-- stable                    -> math (prerequisite)
+# |   |-- libfoo-1.0.0.tar.gz
+# |   `-- repositories
+# |
+# `-- testing                   -> stable (complement), extra (prerequisite)
+# |   |-- libbar-2.0.0.tar.gz
+# |   `-- repositories
+# |
+# `-- alpha
+# |   |-- libbar-2.0.0.tar.gz
+# |   `-- repositories
+# |
+# `-- git
+#     `-- style-basic.git
+
+# Prepare repositories used by tests if running in the local mode.
+#
++if ($remote != true)
+  c = $rep_create 2>!
+
+  cp -r $src/extra   $out/extra   && $c $out/extra   &$out/extra/packages
+  cp -r $src/math    $out/math    && $c $out/math    &$out/math/packages
+  cp -r $src/stable  $out/stable  && $c $out/stable  &$out/stable/packages
+  cp -r $src/testing $out/testing && $c $out/testing &$out/testing/packages
+  cp -r $src/alpha   $out/alpha   && $c $out/alpha   &$out/alpha/packages
+
+  # Create git repositories.
+  #
+  $git_extract $src/git/style-basic.tar &$out_git/state0/***
+end
+
+rep_add    += -d cfg 2>!
+rep_fetch  += -d cfg --auth all --trust-yes 2>!
+rep_list   += -d cfg
+pkg_status += -d cfg
+
+: by-name
+:
+{
+  $clone_cfg;
+  $rep_add $rep/extra && $rep_fetch;
+
+  $* 'bpkg:build2.org/rep-remove/extra' 2>>"EOE";
+    removed bpkg:build2.org/rep-remove/extra
+    EOE
+
+  $rep_list >:""
+}
+
+: prerequisites-cycle
+:
+{
+  $clone_cfg;
+  $rep_add $rep/testing && $rep_fetch;
+
+  $* $rep/testing 2>>"EOE";
+    removed bpkg:build2.org/rep-remove/testing
+    EOE
+
+  $rep_list >:"";
+  $pkg_status libbar >'unknown';
+  $pkg_status libfoo >'unknown'
+}
+
+: reacheable
+:
+{
+  $clone_cfg;
+  $rep_add $rep/testing && $rep_add $rep/math && $rep_fetch;
+
+  $* $rep/testing 2>>"EOE";
+    removed bpkg:build2.org/rep-remove/testing
+    EOE
+
+  $rep_list --prerequisites --complements >>"EOO";
+    bpkg:build2.org/rep-remove/math ($rep/math)
+      prerequisite bpkg:build2.org/rep-remove/extra ($rep/extra)
+        prerequisite bpkg:build2.org/rep-remove/stable ($rep/stable)
+          prerequisite bpkg:build2.org/rep-remove/math ($rep/math)
+    EOO
+
+  $pkg_status libbar >'available 1.0.0 sys:?';
+  $pkg_status libfoo >'unknown'
+}
+
+: package-locations
+:
+{
+  $clone_cfg;
+  $rep_add $rep/testing && $rep_add $rep/alpha && $rep_fetch;
+
+  $* $rep/testing 2>!;
+  $pkg_status libbar >'available 2.0.0 sys:?';
+
+  $* $rep/alpha 2>!;
+  $pkg_status libbar >'unknown'
+}
+
+: git-repos
+:
+if ($git_supported != true)
+{
+  # Skip git repository tests.
+  #
+}
+else
+{
+  rep = "$rep_git/state0"
+
+  : root-complement
+  :
+  : Test that git repository root complement is handled properly. Note that
+  : we also test that the repository state directory is removed. Otherwise
+  : the testscript would fail to cleanup the working directory.
+  :
+  $clone_root_cfg;
+  $rep_add "$rep/style-basic.git#master" && $rep_fetch;
+
+  $* "$rep/style-basic.git#master" 2>>~%EOO%
+    %removed git:.+style-basic#master%
+    EOO
+}

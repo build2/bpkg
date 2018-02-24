@@ -33,6 +33,8 @@ rep_add       = $* rep-add
 rep_create    = $* rep-create
 rep_fetch     = $* rep-fetch
 rep_info      = $* rep-info
+rep_list      = $* rep-list
+rep_remove    = $* rep-remove
 
 # All testscripts are named after bpkg commands, for example pkg-verify.test.
 # So the testscript scope id is a name of the command being tested.

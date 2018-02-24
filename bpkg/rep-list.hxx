@@ -1,0 +1,19 @@
+// file      : bpkg/rep-list.hxx -*- C++ -*-
+// copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
+// license   : MIT; see accompanying LICENSE file
+
+#ifndef BPKG_REP_LIST_HXX
+#define BPKG_REP_LIST_HXX
+
+#include <bpkg/types.hxx>
+#include <bpkg/utility.hxx>
+
+#include <bpkg/rep-list-options.hxx>
+
+namespace bpkg
+{
+  int
+  rep_list (const rep_list_options&, cli::scanner& args);
+}
+
+#endif // BPKG_REP_LIST_HXX

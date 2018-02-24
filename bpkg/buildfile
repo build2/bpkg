@@ -38,7 +38,9 @@ pkg-verify-options         \
 rep-add-options            \
 rep-create-options         \
 rep-fetch-options          \
-rep-info-options
+rep-info-options           \
+rep-list-options           \
+rep-remove-options
 
 help_topics = repository-signing
 
@@ -96,9 +98,11 @@ if $cli.configured
   # rep-* command.
   #
   cli.cxx{rep-add-options}:    cli{rep-add}
+  cli.cxx{rep-create-options}: cli{rep-create}
   cli.cxx{rep-fetch-options}:  cli{rep-fetch}
   cli.cxx{rep-info-options}:   cli{rep-info}
-  cli.cxx{rep-create-options}: cli{rep-create}
+  cli.cxx{rep-list-options}:   cli{rep-list}
+  cli.cxx{rep-remove-options}: cli{rep-remove}
 
   # Help topics.
   #

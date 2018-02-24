@@ -761,6 +761,61 @@ namespace bpkg
     optional<dependency_constraint> constraint;
   };
 
+  // Return a list of repositories that depend on this repository as a
+  // complement.
+  //
+  // Note that the last db object pragma is required to produce an object
+  // loading view.
+  //
+  #pragma db view object(repository = complement)                   \
+    table("repository_complements" = "rc" inner:                    \
+          "rc.complement = " + complement::name)                    \
+    object(repository inner: "rc.repository = " + repository::name)
+  struct repository_complement_dependent
+  {
+    shared_ptr<repository> object;
+
+    operator const shared_ptr<repository> () const {return object;}
+  };
+
+  // Return a list of repositories that depend on this repository as a
+  // prerequisite.
+  //
+  // Note that the last db object pragma is required to produce an object
+  // loading view.
+  //
+  #pragma db view object(repository = prerequisite)                 \
+    table("repository_prerequisites" = "rp" inner:                  \
+          "rp.prerequisite = " + prerequisite::name)                \
+    object(repository inner: "rp.repository = " + repository::name)
+  struct repository_prerequisite_dependent
+  {
+    shared_ptr<repository> object;
+
+    operator const shared_ptr<repository> () const {return object;}
+  };
+
+  // Return a list of packages available from this repository.
+  //
+  #pragma db view object(repository)                                    \
+    table("available_package_locations" = "pl" inner:                   \
+          "pl.repository = " + repository::name)                        \
+    object(available_package inner:                                     \
+           "pl.name = " + available_package::id.name + "AND" +          \
+           "pl.version_epoch = " +                                      \
+             available_package::id.version.epoch + "AND" +              \
+           "pl.version_canonical_upstream = " +                         \
+             available_package::id.version.canonical_upstream + "AND" + \
+           "pl.version_canonical_release = " +                          \
+             available_package::id.version.canonical_release + "AND" +  \
+           "pl.version_revision = " +                                   \
+             available_package::id.version.revision)
+  struct repository_package
+  {
+    shared_ptr<available_package> object;
+
+    operator const shared_ptr<available_package> () const {return object;}
+  };
 
   // Version comparison operators.
   //

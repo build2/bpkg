@@ -4,6 +4,8 @@
 
 .include common.test config.test
 
+rep_list += -d cfg
+
 : location
 :
 {
@@ -18,9 +20,13 @@
 
   : empty
   :
-  $* '' 2>>EOE != 0
-  error: empty repository location
-  EOE
+  {
+    $clone_cfg;
+
+    $* '' 2>>EOE != 0
+    error: empty repository location
+    EOE
+  }
 
   : unknown-type
   :
@@ -30,28 +36,43 @@
 
   : no-version
   :
-  $* 'stable' 2>>/~%EOE% != 0
-  %error: invalid bpkg repository location '.+/no-version/stable': missing repository version%
-    info: consider using --type to specify repository type
-  EOE
+  {
+    $clone_cfg;
+
+    $* 'stable' 2>>/~%EOE% != 0
+    %error: invalid bpkg repository location '.+/no-version/stable': missing repository version%
+      info: consider using --type to specify repository type
+    EOE
+  }
 
   : git-no-branch
   :
-  $* 'git://example.org/repo' 2>>EOE != 0
-  error: invalid git repository location 'git://example.org/repo': missing branch/tag or commit id for git repository
-  EOE
+  {
+    $clone_cfg;
+
+    $* 'git://example.org/repo' 2>>EOE != 0
+    error: invalid git repository location 'git://example.org/repo': missing branch/tag or commit id for git repository
+    EOE
+  }
 
   : bpkg-git-scheme
   :
-  $* 'git://example.org/repo' --type bpkg 2>>EOE != 0
-  error: invalid bpkg repository location 'git://example.org/repo': unsupported scheme for bpkg repository
-  EOE
+  {
+    $clone_cfg;
+
+    $* 'git://example.org/repo' --type bpkg 2>>EOE != 0
+    error: invalid bpkg repository location 'git://example.org/repo': unsupported scheme for bpkg repository
+    EOE
+  }
 
   : invalid-path
   :
   {
     s="../../../../../../../../../../../../../../../../../../../../../../../"
     s="$s$s$s$s$s$s$s$s$s$s$s$s$s$s$s$s$s$s$s$s$s$s$s$s$s$s$s$s$s$s$s$s$s$s$s"
+
+    $clone_cfg;
+
     $* "$s" 2>>~%EOE% != 0
     %error: invalid repository path '.+/': invalid filesystem path%
     EOE
@@ -66,21 +87,21 @@
     :
     $clone_cfg;
     $* 'git://example.org/repo#master' 2>>EOE
-      added repository git:example.org/repo#master
+      added git:example.org/repo#master
       EOE
 
     : http-git
     :
     $clone_cfg;
     $* 'http://example.org/repo.git#master' 2>>EOE
-      added repository git:example.org/repo#master
+      added git:example.org/repo#master
       EOE
 
     : http-bpkg
     :
     $clone_cfg;
     $* 'http://example.org/1/repo' 2>>EOE
-      added repository bpkg:example.org/repo
+      added bpkg:example.org/repo
       EOE
 
     : file-git
@@ -96,7 +117,7 @@
     $clone_cfg;
 
     $* '1/repo' 2>>/~%EOE%
-      %added repository .+/repo%
+      %added .+/repo%
       EOE
   }
 }
@@ -107,11 +128,11 @@
   $clone_cfg;
 
   $* ./1/bar/stable 2>>/~%EOE%;
-    %added repository bpkg:.+/relative-path/bar/stable%
+    %added bpkg:.+/relative-path/bar/stable%
     EOE
 
-  $* ./1/../1/bar/stable 2>>/~%EOE% != 0
-    %error: bpkg:.+/relative-path/bar/stable is already a repository of this configuration%
+  $* ./1/../1/bar/stable 2>>/~%EOE%
+    %unchanged bpkg:.+/relative-path/bar/stable%
     EOE
 }
 
@@ -121,11 +142,11 @@
   $clone_cfg;
 
   $* $~/1/foo/stable 2>>/~%EOE%;
-    %added repository bpkg:.+/absolute-path/foo/stable%
+    %added bpkg:.+/absolute-path/foo/stable%
     EOE
 
-  $* $~/1/../1/foo/stable 2>>/~%EOE% != 0
-    %error: bpkg:.+/absolute-path/foo/stable is already a repository of this configuration%
+  $* $~/1/../1/foo/stable 2>>/~%EOE%
+    %unchanged bpkg:.+/absolute-path/foo/stable%
     EOE
 }
 
@@ -138,23 +159,47 @@
   :
   $clone_cfg;
 
-  $* 'http://pkg.example.org/1/testing' 2>>~%EOE%;
-    %added repository bpkg:example.org/testing%
+  $* 'http://pkg.example.org/1/testing' 2>>EOE;
+    added bpkg:example.org/testing
     EOE
 
-  $* 'https://www.example.org/1/testing' 2>>~%EOE% != 0
-    %error: bpkg:example.org/testing is already a repository of this configuration%
+  $* 'https://www.example.org/1/testing' 2>>EOE;
+    updated bpkg:example.org/testing
     EOE
+
+  $rep_list >>EOO
+    bpkg:example.org/testing https://www.example.org/1/testing
+    EOO
 
   : git
   :
   $clone_cfg;
 
-  $* 'git://example.org/testing#master' 2>>~%EOE%;
-    %added repository git:example.org/testing#master%
+  $* 'git://example.org/testing.git#master' 2>>~%EOE%;
+    %added git:example.org/testing#master%
     EOE
 
-  $* 'git://www.example.org/testing#master' 2>>~%EOE% != 0
-    %error: git:example.org/testing#master is already a repository of this configuration%
+  $* 'https://www.example.org/testing.git#master' 2>>EOE;
+    updated git:example.org/testing#master
     EOE
+
+  $rep_list >>EOO
+    git:example.org/testing#master https://www.example.org/testing.git#master
+    EOO
+}
+
+: multiple-locations
+:
+{
+  $clone_cfg;
+
+  $* 'http://pkg.example.org/1/alpha' 'http://pkg.example.org/1/beta' 2>>EOE;
+    added bpkg:example.org/alpha
+    added bpkg:example.org/beta
+    EOE
+
+  $rep_list >>EOO
+    bpkg:example.org/alpha http://pkg.example.org/1/alpha
+    bpkg:example.org/beta http://pkg.example.org/1/beta
+    EOO
 }

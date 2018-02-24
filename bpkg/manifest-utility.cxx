@@ -142,4 +142,30 @@ namespace bpkg
     assert (false); // Can't be here.
     return dir_path ();
   }
+
+  bool
+  repository_name (const string& s)
+  {
+    size_t n (s.size ());
+    size_t p (s.find (':'));
+
+    // If it has no scheme or starts with the URL scheme (followed by ://) then
+    // this is not a canonical name.
+    //
+    if (p == string::npos || (p + 2 < n && s[p + 1] == '/' && s[p + 2] == '/'))
+      return false;
+
+    // This is a canonical name if the scheme is convertible to the repository
+    // type.
+    //
+    try
+    {
+      to_repository_type (string (s, 0, p));
+      return true;
+    }
+    catch (const invalid_argument&)
+    {
+      return false;
+    }
+  }
 }

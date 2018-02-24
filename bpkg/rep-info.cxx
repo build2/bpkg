@@ -4,7 +4,7 @@
 
 #include <bpkg/rep-info.hxx>
 
-#include <iostream>  // cout
+#include <iostream> // cout
 
 #include <libbutl/sha256.mxx>              // sha256_to_fingerprint()
 #include <libbutl/manifest-serializer.mxx>

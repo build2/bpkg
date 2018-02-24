@@ -53,6 +53,11 @@ namespace bpkg
   //
   dir_path
   repository_state (const repository_location&);
+
+  // Return true if the argument is a valid repository canonical name.
+  //
+  bool
+  repository_name (const string&);
 }
 
 #endif // BPKG_MANIFEST_UTILITY_HXX

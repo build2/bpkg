@@ -43,6 +43,8 @@
 #include <bpkg/rep-create.hxx>
 #include <bpkg/rep-fetch.hxx>
 #include <bpkg/rep-info.hxx>
+#include <bpkg/rep-list.hxx>
+#include <bpkg/rep-remove.hxx>
 
 using namespace std;
 using namespace bpkg;
@@ -301,6 +303,8 @@ try
     REP_COMMAND (create);
     REP_COMMAND (fetch);
     REP_COMMAND (info);
+    REP_COMMAND (list);
+    REP_COMMAND (remove);
 
     assert (false);
     fail << "unhandled command";

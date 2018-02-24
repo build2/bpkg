@@ -23,6 +23,7 @@
 #include <odb/lazy-ptr.hxx>
 
 #include <libbutl/path.mxx>
+#include <libbutl/utility.mxx>  // compare_reference_target
 #include <libbutl/optional.mxx>
 #include <libbutl/fdstream.mxx>
 
@@ -63,6 +64,10 @@ namespace bpkg
   using std::runtime_error;
   using std::system_error;
   using io_error = std::ios_base::failure;
+
+  // <libbutl/utility.mxx>
+  //
+  using butl::compare_reference_target;
 
   // <libbutl/optional.mxx>
   //
