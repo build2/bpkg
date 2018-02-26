@@ -48,8 +48,71 @@ end
 
 rep_add    += -d cfg 2>!
 rep_fetch  += -d cfg --auth all --trust-yes 2>!
-rep_list   += -d cfg
+rep_list   += -d cfg --prerequisites --complements
 pkg_status += -d cfg
+
+: invalid-args
+:
+{
+  : clean-all
+  :
+  $* --clean --all 2>>EOE != 0
+  error: both --clean and --all|-a specified
+    info: run 'bpkg help rep-remove' for more information
+  EOE
+
+  : clean-repos
+  :
+  $* --clean $rep/extra 2>>EOE != 0
+  error: both --clean and repository argument specified
+    info: run 'bpkg help rep-remove' for more information
+  EOE
+
+  : all-repos
+  :
+  $* --all $rep/extra 2>>EOE != 0
+  error: both --all|-a and repository argument specified
+    info: run 'bpkg help rep-remove' for more information
+  EOE
+
+  : none
+  :
+  $* 2>>EOE != 0
+  error: repository name or location argument expected
+    info: run 'bpkg help rep-remove' for more information
+  EOE
+}
+
+: clean
+:
+{
+  $clone_cfg;
+  $rep_add $rep/extra && $rep_fetch;
+
+  $* --clean 2>>"EOE";
+    cleaned bpkg:build2.org/rep-remove/extra
+    EOE
+
+  $rep_list >>"EOE";
+    bpkg:build2.org/rep-remove/extra ($rep/extra)
+    EOE
+
+  $pkg_status libbar >'unknown'
+}
+
+: all
+:
+{
+  $clone_cfg;
+  $rep_add $rep/extra && $rep_fetch;
+
+  $* --all 2>>"EOE";
+    removed bpkg:build2.org/rep-remove/extra
+    EOE
+
+  $rep_list >:"";
+  $pkg_status libbar >'unknown'
+}
 
 : by-name
 :
@@ -61,7 +124,8 @@ pkg_status += -d cfg
     removed bpkg:build2.org/rep-remove/extra
     EOE
 
-  $rep_list >:""
+  $rep_list >:"";
+  $pkg_status libbar >'unknown'
 }
 
 : prerequisites-cycle
@@ -89,7 +153,7 @@ pkg_status += -d cfg
     removed bpkg:build2.org/rep-remove/testing
     EOE
 
-  $rep_list --prerequisites --complements >>"EOO";
+  $rep_list >>"EOO";
     bpkg:build2.org/rep-remove/math ($rep/math)
       prerequisite bpkg:build2.org/rep-remove/extra ($rep/extra)
         prerequisite bpkg:build2.org/rep-remove/stable ($rep/stable)

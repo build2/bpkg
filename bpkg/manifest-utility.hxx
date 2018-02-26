@@ -39,7 +39,7 @@ namespace bpkg
   // current working directory. Diagnose invalid locations and throw failed.
   //
   repository_location
-  parse_location (const char*, optional<repository_type>);
+  parse_location (const string&, optional<repository_type>);
 
   // Return the repository state subdirectory for the specified location as it
   // appears under .bpkg/repositories/ in the bpkg configuration. Return empty

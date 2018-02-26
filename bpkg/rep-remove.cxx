@@ -7,6 +7,8 @@
 #include <set>
 #include <algorithm> // find()
 
+#include <libbutl/filesystem.mxx> // dir_iterator
+
 #include <bpkg/package.hxx>
 #include <bpkg/package-odb.hxx>
 #include <bpkg/database.hxx>
@@ -14,6 +16,7 @@
 #include <bpkg/manifest-utility.hxx>
 
 using namespace std;
+using namespace butl;
 
 namespace bpkg
 {
@@ -68,30 +71,18 @@ namespace bpkg
     return reachable (db, r, traversed);
   }
 
-  // Remove a repository if it is not reachable from the root (and thus is not
-  // required by any user-added repository).
-  //
-  static void
-  rep_remove (const dir_path& c, database& db, const shared_ptr<repository>& r)
+  void
+  rep_remove_package_locations (database& db, const string& name)
   {
-    const string& nm (r->name);
-    assert (!nm.empty ());      // Can't be the root repository.
-
-    if (reachable (db, r))
-      return;
-
-    // Remove this repository from locations of the available packages it
-    // contains. Remove packages that come from only this repository.
-    //
     for (const auto& rp: db.query<repository_package> (
-           query<repository_package>::repository::name == nm))
+           query<repository_package>::repository::name == name))
     {
       const shared_ptr<available_package>& p (rp);
       vector<package_location>& ls (p->locations);
 
       for (auto i (ls.cbegin ()), e (ls.cend ()); i != e; ++i)
       {
-        if (i->repository.object_id () == nm)
+        if (i->repository.object_id () == name)
         {
           ls.erase (i);
           break;
@@ -103,6 +94,33 @@ namespace bpkg
       else
         db.update (p);
     }
+  }
+
+  // Remove a directory moving it to the temporary directory first, increasing
+  // the chances for the operation to succeed.
+  //
+  static void
+  rmdir (const dir_path& d)
+  {
+    dir_path td (temp_dir / d.leaf ());
+
+    if (exists (td))
+      rm_r (td);
+
+    mv (d, td);
+    rm_r (td, true /* dir_itself */, 3, rm_error_mode::warn);
+  }
+
+  void
+  rep_remove (const dir_path& c, database& db, const shared_ptr<repository>& r)
+  {
+    const string& nm (r->name);
+    assert (!nm.empty ());      // Can't be the root repository.
+
+    if (reachable (db, r))
+      return;
+
+    rep_remove_package_locations (db, nm);
 
     // Cleanup the repository state if present.
     //
@@ -122,7 +140,7 @@ namespace bpkg
       dir_path sd (c / repos_dir / d);
 
       if (exists (sd))
-        rm_r (sd);
+        rmdir (sd);
     }
 
     // Note that it is essential to erase the repository object from the
@@ -157,6 +175,72 @@ namespace bpkg
       remove (lazy_shared_ptr<repository> (pr));
   }
 
+  void
+  rep_remove_clean (const dir_path& c,
+                    database& db,
+                    bool quiet)
+  {
+    tracer trace ("rep_remove_clean");
+
+    assert (!transaction::has_current ());
+
+    // Clean repositories and available packages. At the end only repositories
+    // that were explicitly added by the user and the special root repository
+    // should remain.
+    //
+    {
+      // Note that we don't rely on being in session nor create one.
+      //
+      transaction t (db.begin ());
+
+      db.erase_query<available_package> ();
+
+      shared_ptr<repository> root (db.load<repository> (""));
+      repository::complements_type& ua (root->complements);
+
+      for (shared_ptr<repository> r: pointer_result (db.query<repository> ()))
+      {
+        if (r->name == "")
+        {
+          l5 ([&]{trace << "skipping root";});
+        }
+        else if (ua.find (lazy_shared_ptr<repository> (db, r)) != ua.end ())
+        {
+          r->complements.clear ();
+          r->prerequisites.clear ();
+          db.update (r);
+
+          if (verb >= (quiet ? 2 : 1))
+            text << "cleaned " << r->name;
+        }
+        else
+        {
+          l4 ([&]{trace << "erasing " << r->name;});
+          db.erase (r);
+        }
+      }
+
+      t.commit ();
+    }
+
+    // Remove repository state subdirectories.
+    //
+    dir_path rd (c / repos_dir);
+
+    try
+    {
+      for (const dir_entry& de: dir_iterator (rd)) // system_error
+      {
+        if (de.ltype () == entry_type::directory)
+          rmdir (rd / path_cast<dir_path> (de.path ()));
+      }
+    }
+    catch (const system_error& e)
+    {
+      fail << "unable to scan directory " << rd << ": " << e;
+    }
+  }
+
   int
   rep_remove (const rep_remove_options& o, cli::scanner& args)
   {
@@ -167,21 +251,44 @@ namespace bpkg
 
     // Check that options and arguments are consistent.
     //
-    if (o.all ())
     {
-      if (args.more ())
-        fail << "both --all|-a and repository name specified" <<
-          info << "run 'bpkg help rep-remove' for more information";
-    }
-    else if (!args.more ())
-      fail << "repository name or location argument expected" <<
-        info << "run 'bpkg help rep-remove' for more information";
+      diag_record dr;
 
+      if (o.clean ())
+      {
+        if (o.all ())
+          dr << fail << "both --clean and --all|-a specified";
+        else if (args.more ())
+          dr << fail << "both --clean and repository argument specified";
+      }
+      else if (o.all ())
+      {
+        if (args.more ())
+          dr << fail << "both --all|-a and repository argument specified";
+      }
+      else if (!args.more ())
+        dr << fail << "repository name or location argument expected";
+
+      if (!dr.empty ())
+        dr << info << "run 'bpkg help rep-remove' for more information";
+    }
+
+    database db (open (c, trace));
+
+    // Clean the configuration if requested.
+    //
+    if (o.clean ())
+    {
+      rep_remove_clean (c, db, false /* quiet */);
+      return 0;
+    }
+
+    // Remove the specified repositories.
+    //
     // Build the list of repositories the user wants removed.
     //
     vector<lazy_shared_ptr<repository>> repos;
 
-    database db (open (c, trace));
     transaction t (db.begin ());
     session s; // Repository dependencies can have cycles.
 
@@ -259,20 +366,25 @@ namespace bpkg
     // Note that for efficiency we un-reference all the top-level repositories
     // before starting to delete them.
     //
-    for (lazy_shared_ptr<repository>& r: repos)
+    for (const lazy_shared_ptr<repository>& r: repos)
       ua.erase (r);
 
     db.update (root);
 
     // Remove the dangling repositories from the database, recursively.
     //
-    for (lazy_shared_ptr<repository>& r: repos)
+    for (const lazy_shared_ptr<repository>& r: repos)
     {
       rep_remove (c, db, r.load ());
 
       if (verb)
         text << "removed " << r.object_id ();
     }
+
+    // If the --all option is specified then no user-added repositories should
+    // remain.
+    //
+    assert (!o.all () || ua.empty ());
 
     // If we removed all the user-added repositories then no repositories nor
     // packages should stay in the database.

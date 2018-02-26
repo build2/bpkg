@@ -32,6 +32,28 @@
 # |   |-- libhello-1.0.0.tar.gz
 # |   `-- repositories
 # |
+# |-- circle
+# |   |-- extra                     -> stable (prerequisite)
+# |   |   |-- libbar-1.1.0+1.tar.gz
+# |   |   `-- repositories
+# |   |-- math                      -> extra (prerequisite)
+# |   |   |-- libbar-1.0.0.tar.gz
+# |   |   `-- repositories
+# |   `-- stable                    -> math (prerequisite)
+# |       |-- libfoo-1.0.0.tar.gz
+# |       `-- repositories
+# |
+# |-- no-circle
+# |   |-- extra
+# |   |   |-- libbar-1.1.0+1.tar.gz
+# |   |   `-- repositories
+# |   |-- math
+# |   |   |-- libbar-1.0.0.tar.gz
+# |   |   `-- repositories
+# |   `-- stable                    -> extra (prerequisite)
+# |       |-- libfoo-1.0.0.tar.gz
+# |       `-- repositories
+# |
 # `-- git/* (see rep-fetch-git.test)
 
 # Prepare repositories used by tests if running in the local mode.
@@ -58,6 +80,13 @@
   $rep_create $out/bar/testing  &$out/bar/testing/packages
   $rep_create $out/bar/unstable &$out/bar/unstable/packages
 
+  # Create 'cycle/*' repositories.
+  #
+  cp -r $src/cycle $out/cycle
+  $rep_create $out/cycle/extra  &$out/cycle/extra/packages
+  $rep_create $out/cycle/math   &$out/cycle/math/packages
+  $rep_create $out/cycle/stable &$out/cycle/stable/packages
+
   # Create git repositories.
   #
   $git_extract $src/git/state0/libfoo.tar
@@ -71,6 +100,10 @@
   $git_extract $src/git/state1/style-basic.tar &$out_git/state1/***
 end
 
+rep_add    += -d cfg 2>!
+rep_list   += -d cfg --prerequisites --complements
+pkg_status += -d cfg
+
 : no-repos
 :
 $clone_cfg;
@@ -83,8 +116,6 @@ $* 2>>/EOE != 0
 :
 {
   test.options += --auth all
-
-  rep_add += -d cfg 2>!
 
   : hello
   :
@@ -129,7 +160,7 @@ $* 2>>/EOE != 0
   : both
   :
   {
-    $clone_root_cfg && $rep_add $rep/hello && $rep_add $rep/bar/unstable;
+    $clone_root_cfg && $rep_add $rep/hello $rep/bar/unstable;
 
     $* --trust-yes 2>>EOE &cfg/.bpkg/certificates/**;
       fetching bpkg:build2.org/rep-fetch/bar/unstable
@@ -151,6 +182,139 @@ $* 2>>/EOE != 0
       6 package(s) in 6 repository(s)
       EOE
   }
+
+  : location-args
+  :
+  {
+    $clone_root_cfg;
+
+    $* --trust-yes $rep/bar/unstable 2>>EOE;
+      added bpkg:build2.org/rep-fetch/bar/unstable
+      fetching bpkg:build2.org/rep-fetch/bar/unstable
+      fetching bpkg:build2.org/rep-fetch/foo/testing (prerequisite of bpkg:build2.org/rep-fetch/bar/unstable)
+      fetching bpkg:build2.org/rep-fetch/foo/stable (complements bpkg:build2.org/rep-fetch/foo/testing)
+      fetching bpkg:build2.org/rep-fetch/bar/testing (complements bpkg:build2.org/rep-fetch/bar/unstable)
+      fetching bpkg:build2.org/rep-fetch/bar/stable (complements bpkg:build2.org/rep-fetch/bar/testing)
+      5 package(s) in 5 repository(s)
+      EOE
+
+    $* 'bpkg:build2.org/rep-fetch/bar/unstable' 2>>EOE;
+      fetching bpkg:build2.org/rep-fetch/bar/unstable
+      fetching bpkg:build2.org/rep-fetch/foo/testing (prerequisite of bpkg:build2.org/rep-fetch/bar/unstable)
+      fetching bpkg:build2.org/rep-fetch/foo/stable (complements bpkg:build2.org/rep-fetch/foo/testing)
+      fetching bpkg:build2.org/rep-fetch/bar/testing (complements bpkg:build2.org/rep-fetch/bar/unstable)
+      fetching bpkg:build2.org/rep-fetch/bar/stable (complements bpkg:build2.org/rep-fetch/bar/testing)
+      5 package(s) in 5 repository(s)
+      EOE
+
+    $rep_list >>"EOO"
+      bpkg:build2.org/rep-fetch/bar/unstable ($rep/bar/unstable)
+        complement bpkg:build2.org/rep-fetch/bar/testing ($rep/bar/testing)
+          complement bpkg:build2.org/rep-fetch/bar/stable ($rep/bar/stable)
+            prerequisite bpkg:build2.org/rep-fetch/foo/stable ($rep/foo/stable)
+          prerequisite bpkg:build2.org/rep-fetch/foo/testing ($rep/foo/testing)
+            complement bpkg:build2.org/rep-fetch/foo/stable ($rep/foo/stable)
+        prerequisite bpkg:build2.org/rep-fetch/foo/testing ($rep/foo/testing)
+          complement bpkg:build2.org/rep-fetch/foo/stable ($rep/foo/stable)
+      EOO
+  }
+
+  : prerequisites-cycle
+  :
+  {
+    $clone_root_cfg;
+
+    $* --trust-yes $rep/cycle/stable 2>>EOE;
+      added bpkg:build2.org/rep-fetch/cycle/stable
+      fetching bpkg:build2.org/rep-fetch/cycle/stable
+      fetching bpkg:build2.org/rep-fetch/cycle/math (prerequisite of bpkg:build2.org/rep-fetch/cycle/stable)
+      fetching bpkg:build2.org/rep-fetch/cycle/extra (prerequisite of bpkg:build2.org/rep-fetch/cycle/math)
+      3 package(s) in 3 repository(s)
+      EOE
+
+    $rep_list >>"EOO"
+      bpkg:build2.org/rep-fetch/cycle/stable ($rep/cycle/stable)
+        prerequisite bpkg:build2.org/rep-fetch/cycle/math ($rep/cycle/math)
+          prerequisite bpkg:build2.org/rep-fetch/cycle/extra ($rep/cycle/extra)
+            prerequisite bpkg:build2.org/rep-fetch/cycle/stable ($rep/cycle/stable)
+      EOO
+  }
+
+  : unreferenced-prerequisite
+  :
+  {
+    +$clone_root_cfg
+
+    # Create the no-cycle repository as the new state of the cycle repository.
+    # The cycle dependency is now broken (extra/ doesn't depend on stable/
+    # anymore) and the extra/ prerequisite is moved from math/ to stable/.
+    #
+    nc_rep = [dir_path] $~/pkg/1/build2.org/rep-fetch/cycle/
+    +mkdir -p $path.directory($nc_rep)
+    +cp -r $src/no-cycle "$nc_rep"     # Strip trailing slash.
+
+    +$rep_create $nc_rep/extra  2>! &$nc_rep/extra/packages
+    +$rep_create $nc_rep/math   2>! &$nc_rep/math/packages
+    +$rep_create $nc_rep/stable 2>! &$nc_rep/stable/packages
+
+    math_rep   = $nc_rep/math
+    stable_rep = $nc_rep/stable
+
+    : remove
+    :
+    {
+      $clone_cfg;
+
+      $* --trust-yes $rep/cycle/stable 2>>EOE;
+        added bpkg:build2.org/rep-fetch/cycle/stable
+        fetching bpkg:build2.org/rep-fetch/cycle/stable
+        fetching bpkg:build2.org/rep-fetch/cycle/math (prerequisite of bpkg:build2.org/rep-fetch/cycle/stable)
+        fetching bpkg:build2.org/rep-fetch/cycle/extra (prerequisite of bpkg:build2.org/rep-fetch/cycle/math)
+        3 package(s) in 3 repository(s)
+        EOE
+
+      $* --trust-yes $stable_rep 2>>EOE;
+        updated bpkg:build2.org/rep-fetch/cycle/stable
+        fetching bpkg:build2.org/rep-fetch/cycle/stable
+        fetching bpkg:build2.org/rep-fetch/cycle/extra (prerequisite of bpkg:build2.org/rep-fetch/cycle/stable)
+        2 package(s) in 2 repository(s)
+        EOE
+
+      $rep_list >>"EOO"
+        bpkg:build2.org/rep-fetch/cycle/stable ($nc_rep/stable)
+          prerequisite bpkg:build2.org/rep-fetch/cycle/extra ($nc_rep/extra)
+        EOO
+    }
+
+    : no-remove
+    :
+    {
+      $clone_cfg;
+
+      $* --trust-yes $rep/cycle/stable 2>>EOE;
+        added bpkg:build2.org/rep-fetch/cycle/stable
+        fetching bpkg:build2.org/rep-fetch/cycle/stable
+        fetching bpkg:build2.org/rep-fetch/cycle/math (prerequisite of bpkg:build2.org/rep-fetch/cycle/stable)
+        fetching bpkg:build2.org/rep-fetch/cycle/extra (prerequisite of bpkg:build2.org/rep-fetch/cycle/math)
+        3 package(s) in 3 repository(s)
+        EOE
+
+      $* --trust-yes $math_rep $stable_rep 2>>EOE;
+        added bpkg:build2.org/rep-fetch/cycle/math
+        updated bpkg:build2.org/rep-fetch/cycle/stable
+        fetching bpkg:build2.org/rep-fetch/cycle/math
+        fetching bpkg:build2.org/rep-fetch/cycle/stable
+        fetching bpkg:build2.org/rep-fetch/cycle/extra (prerequisite of bpkg:build2.org/rep-fetch/cycle/stable)
+        3 package(s) in 3 repository(s)
+        EOE
+
+      $rep_list >>"EOO"
+        bpkg:build2.org/rep-fetch/cycle/math ($nc_rep/math)
+        bpkg:build2.org/rep-fetch/cycle/stable ($nc_rep/stable)
+          prerequisite bpkg:build2.org/rep-fetch/cycle/extra ($nc_rep/extra)
+        EOO
+    }
+  }
 }
 
 : git-repos
@@ -160,38 +324,94 @@ if ($git_supported != true)
   # Skip git repository tests.
   #
 }
-elif ($remote != true)
-{
-  git_protocol = 'local'
-  .include rep-fetch-git.test
-}
 else
 {
-  : https-dumb
+  : proto
   :
+  if ($remote != true)
   {
-    git_protocol = 'https-dumb'
+    git_protocol = 'local'
     .include rep-fetch-git.test
   }
-
-  : https-smart
-  :
+  else
   {
-    git_protocol = 'https-smart'
-    .include rep-fetch-git.test
+    : https-dumb
+    :
+    {
+      git_protocol = 'https-dumb'
+      .include rep-fetch-git.test
+    }
+
+    : https-smart
+    :
+    {
+      git_protocol = 'https-smart'
+      .include rep-fetch-git.test
+    }
+
+    : https-smart-unadv
+    :
+    {
+      git_protocol = 'https-smart-unadv'
+      .include rep-fetch-git.test
+    }
+
+    : git
+    :
+    {
+      git_protocol = 'git'
+      .include rep-fetch-git.test
+    }
   }
 
-  : https-smart-unadv
+  : re-clone
   :
+  : Test that repository is re-cloned on the location change. Here this happens
+  : due to the scheme change.
+  :
+  if ($remote == true)
   {
-    git_protocol = 'https-smart-unadv'
-    .include rep-fetch-git.test
+    $clone_root_cfg && $rep_add "$rep_git_git/state0/libfoo.git#master";
+    $* 2>! &cfg/.bpkg/repositories/*/***;
+    $rep_add "$rep_git_https_smart_unadv/state0/libfoo.git#master";
+
+    $* 2>>~"%EOE%"
+      %fetching git:.+libfoo#master%
+      %info: re-cloning git:.+libfoo#master due to location change%
+      %  info: new location https://.+libfoo.git#master%
+      %  info: old location git://.+libfoo.git#master%
+      %.+
+      %Submodule 'libbar' .+https://.+libbar.+%
+      %.+
+      EOE
   }
 
-  : git
+  : cleanup-failed
+  :
+  : Test that configuration is cleaned up if fetch fails after the repository
+  : filesystem state is changed.
   :
   {
-    git_protocol = 'git'
-    .include rep-fetch-git.test
+    $clone_root_cfg && $rep_add "$rep_git/state0/libfoo.git#master";
+
+    # Extract the repository path from the output line like this:
+    #
+    # Cloning into 'cfg\.bpkg\tmp\f9be881264703b5d\master'...
+    #
+    $* 2>&1 | sed -n -e "s/Cloning into '\(.+master\)'\.{3}/\$1/p"   | \
+              sed -n -e 's%(.+[\\/])tmp([\\/].+)%$1repositories$2%p' | \
+              set r;
+
+    # Break the repo (drop the remote repository URL) and try to re-fetch.
+    #
+    rm "$r/.git/config";
+
+    $* 2>>~%EOE% != 0;
+      %.+
+      warning: repository state is now broken and will be cleaned up
+        info: run 'bpkg rep-fetch' to update
+      EOE
+
+    $pkg_status libfoo >'unknown'
   }
 }

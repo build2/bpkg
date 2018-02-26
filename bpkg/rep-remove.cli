@@ -17,8 +17,9 @@ namespace bpkg
 
     "\h|SYNOPSIS|
 
-     \c{\b{bpkg rep-remove}|\b{remove} [<options>] (<name>|<location>)... |
-        (--all|-a)}
+     \c{\b{bpkg rep-remove}|\b{remove} [<options>] (<name>|<location>)...}\n
+     \c{\b{bpkg rep-remove}|\b{remove} [<options>] (--all|-a)}\n
+     \c{\b{bpkg rep-remove}|\b{remove} [<options>] --clean}
 
      \h|DESCRIPTION|
 
@@ -29,7 +30,10 @@ namespace bpkg
 
      Alternatively, the \cb{--all|-a} option can be used to remove all the
      repositories that were previously added (\l{bpkg-rep-add(1)}) to the
-     configuration."
+     configuration.
+
+     Finally, the \cb{--clean} option can be used to revert the repositories
+     to the clean state, as if they were added but never fetched."
   }
 
   class rep_remove_options: configuration_options
@@ -39,6 +43,11 @@ namespace bpkg
     bool --all|-a
     {
       "Remove all the repositories."
+    }
+
+    bool --clean
+    {
+      "Clean the repository state."
     }
   };
 }

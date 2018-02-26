@@ -292,7 +292,7 @@ namespace bpkg
   // histories we will use the file URL notation for local repositories.
   //
   static string
-  git_url (const repository_url& url)
+  to_git_url (const repository_url& url)
   {
     if (url.scheme != repository_protocol::file)
       return url.string ();
@@ -324,6 +324,23 @@ namespace bpkg
     replace (p.begin (), p.end (), '\\', '/');
     return "file://" + p;
 #endif
+  }
+
+  // Create the URL object from a string representation printed by git
+  // commands.
+  //
+  static repository_url
+  from_git_url (string&& u)
+  {
+    // Fix-up the broken Windows file URL notation (see to_git_url() for
+    // details).
+    //
+#ifdef _WIN32
+    if (casecmp (u, "file://", 7) == 0 && u[7] != '/')
+      u.insert (7, 1, '/');
+#endif
+
+    return repository_url (u);
   }
 
   // Sense the git protocol capabilities for a specified URL.
@@ -477,7 +494,7 @@ namespace bpkg
                            co.git_option (),
                            "ls-remote",
                            "--refs",
-                           git_url (url)));
+                           to_git_url (url)));
 
     pipe.out.close (); // Shouldn't throw, unless something is severely damaged.
 
@@ -798,21 +815,12 @@ namespace bpkg
 
         try
         {
-          string u (git_string (co, "submodule URL",
-                                co.git_option (),
-                                "-C", dir,
-                                "config",
-                                "--get",
-                                "submodule." + name + ".url"));
-
-          // Fix-up the broken Windows file URL notation (see the git_url()
-          // function for details).
-          //
-#ifdef _WIN32
-          if (casecmp (u, "file://", 7) == 0 && u[7] != '/')
-            u.insert (7, 1, '/');
-#endif
-          url = repository_url (u);
+          url = from_git_url (git_string (co, "submodule URL",
+                                          co.git_option (),
+                                          "-C", dir,
+                                          "config",
+                                          "--get",
+                                          "submodule." + name + ".url"));
         }
         catch (const invalid_argument& e)
         {
@@ -859,7 +867,7 @@ namespace bpkg
 
                         "--name", name,
                         "--path", sdir,
-                        "--url", git_url (url),
+                        "--url", to_git_url (url),
                         shallow
                         ? cstrings ({"--depth", "1"})
                         : cstrings (),
@@ -978,7 +986,7 @@ namespace bpkg
           ref.commit    ? opt      ("--no-checkout")          : nullopt,
 
           verb < 1 ? opt ("-q") : verb > 3 ? opt ("-v") : nullopt,
-          git_url (url),
+          to_git_url (url),
           d))
       fail << "unable to clone " << url << endg;
 
@@ -1012,11 +1020,54 @@ namespace bpkg
 
     assert (ref.branch);
 
-    capabilities cap (sense_capabilities (co, url));
-    bool shallow (shallow_fetch (co, url, cap, ref));
-
     dir_path d (destdir);
     d /= dir_path (*ref.branch);
+
+    // If the repository location differs from the one that was used to clone
+    // the repository then we re-clone it from the new location.
+    //
+    // Another (more hairy) way of doing this would be fixing up the remote
+    // origin URLs recursively prior to fetching.
+    //
+    try
+    {
+      repository_url u (from_git_url (git_string (co, "remote repository URL",
+                                                  co.git_option (),
+                                                  "-C", d,
+                                                  "config",
+                                                  "--get",
+                                                  "remote.origin.url")));
+      if (u != url)
+      {
+        // Note that the repository canonical name can not change under the
+        // legal scenarios that lead to the location change. Changed canonical
+        // name means that the repository was manually amended. We could
+        // re-clone such repositories as well but want to leave the backdoor
+        // for tests.
+        //
+        u.fragment = rl.url ().fragment;       // Restore the fragment.
+        repository_location l (u, rl.type ());
+
+        if (rl.canonical_name () == l.canonical_name ())
+        {
+          if (verb)
+            info << "re-cloning " << rl.canonical_name ()
+                 << " due to location change" <<
+              info << "new location " << rl.url () <<
+              info << "old location " << u;
+
+          rm_r (d);
+          return git_clone (co, rl, destdir);
+        }
+      }
+    }
+    catch (const invalid_argument& e)
+    {
+      fail << "invalid remote.origin.url configuration value: " << e << endg;
+    }
+
+    capabilities cap (sense_capabilities (co, url));
+    bool shallow (shallow_fetch (co, url, cap, ref));
 
     update_tree (co,
                  d,

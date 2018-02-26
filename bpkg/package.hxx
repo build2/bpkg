@@ -244,12 +244,6 @@ namespace bpkg
     complements_type complements;
     prerequisites_type prerequisites;
 
-    // Used to detect recursive fetching. Will probably be replaced
-    // by the 'repositories' file timestamp or hashsum later.
-    //
-    #pragma db transient
-    bool fetched = false;
-
   public:
     explicit
     repository (repository_location l): location (move (l))

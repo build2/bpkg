@@ -618,7 +618,9 @@ namespace bpkg
 
             if (!ar->location.empty ())
               dr << info << "repository " << ar->location << " appears to "
-                 << "be broken";
+                 << "be broken" <<
+                info << "or the repository state could be stale" <<
+                info << "run 'bpkg rep-fetch' to update";
           }
 
           // If all that's available is a stub then we need to make sure the

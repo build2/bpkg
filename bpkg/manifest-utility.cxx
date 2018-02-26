@@ -68,7 +68,7 @@ namespace bpkg
   }
 
   repository_location
-  parse_location (const char* s, optional<repository_type> ot)
+  parse_location (const string& s, optional<repository_type> ot)
   try
   {
     repository_url u (s);

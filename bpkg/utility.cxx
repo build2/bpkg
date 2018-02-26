@@ -69,7 +69,11 @@ namespace bpkg
   {
     if (!temp_dir.empty ())
     {
-      rm_r (temp_dir, true /* dir_itself */, 3, ignore_error);
+      rm_r (temp_dir,
+            true /* dir_itself */,
+            3,
+            ignore_error ? rm_error_mode::ignore : rm_error_mode::fail);
+
       temp_dir.clear ();
     }
   }
@@ -202,19 +206,24 @@ namespace bpkg
   }
 
   void
-  rm_r (const dir_path& d, bool dir, uint16_t v, bool ignore_error)
+  rm_r (const dir_path& d, bool dir, uint16_t v, rm_error_mode m)
   {
     if (verb >= v)
       text << (dir ? "rmdir -r " : "rm -r ") << (dir ? d : d / dir_path ("*"));
 
     try
     {
-      rmdir_r (d, dir, ignore_error);
+      rmdir_r (d, dir, m == rm_error_mode::ignore);
     }
     catch (const system_error& e)
     {
-      fail << "unable to remove " << (dir ? "" : "contents of ")
-           << "directory " << d << ": " << e;
+      bool w (m == rm_error_mode::warn);
+
+      (w ? warn : error) << "unable to remove " << (dir ? "" : "contents of ")
+                         << "directory " << d << ": " << e;
+
+      if (!w)
+        throw failed ();
     }
   }
 

@@ -4,15 +4,19 @@
 
 #include <bpkg/rep-fetch.hxx>
 
+#include <set>
+
 #include <libbutl/process.mxx>
 #include <libbutl/process-io.mxx>      // operator<<(ostream, process_path)
 #include <libbutl/manifest-parser.mxx>
 
 #include <bpkg/auth.hxx>
 #include <bpkg/fetch.hxx>
+#include <bpkg/rep-add.hxx>
 #include <bpkg/package.hxx>
 #include <bpkg/package-odb.hxx>
 #include <bpkg/database.hxx>
+#include <bpkg/rep-remove.hxx>
 #include <bpkg/diagnostics.hxx>
 #include <bpkg/manifest-utility.hxx>
 
@@ -21,6 +25,22 @@ using namespace butl;
 
 namespace bpkg
 {
+  // The fetch operation failure may result in mismatch of the (rolled back)
+  // repository database state and the repository filesystem state. Restoring
+  // the filesystem state on failure would require making copies which seems
+  // unnecessarily pessimistic. So instead, we will revert the repository
+  // state to the clean state as if repositories were added but never fetched
+  // (see rep_remove_clean() for more details).
+  //
+  // The following flag is set by the rep_fetch_*() functions when they are
+  // about to change the repository filesystem state. That, in particular,
+  // means that the flag will be set even if the subsequent fetch operation
+  // fails, and so the caller can rely on it while handling the thrown
+  // exception. The flag must be reset by such a caller prior to the
+  // rep_fetch_*() call.
+  //
+  static bool filesystem_state_changed;
+
   static rep_fetch_data
   rep_fetch_bpkg (const common_options& co,
                   const dir_path* conf,
@@ -156,6 +176,14 @@ namespace bpkg
 
     auto_rmdir rm (temp_dir / sd);
     dir_path& td (rm.path);
+
+    // We are about to modify the repository filesystem state.
+    //
+    // In the future we can probably do something smarter about the flag,
+    // keeping it unset unless the repository state directory is really
+    // changed.
+    //
+    filesystem_state_changed = true;
 
     if (exists (td))
       rm_r (td);
@@ -389,21 +417,40 @@ namespace bpkg
     return rep_fetch_data ();
   }
 
+  using repositories = set<shared_ptr<repository>>;
+
   static void
-  rep_fetch (const configuration_options& co,
-             transaction& t,
+  rep_fetch (const common_options& co,
+             const dir_path& conf,
+             database& db,
              const shared_ptr<repository>& r,
-             const shared_ptr<repository>& root,
-             const string& reason)
+             repositories& fetched,
+             repositories& removed,
+             const string& reason = string ())
   {
     tracer trace ("rep_fetch(rep)");
 
-    database& db (t.database ());
     tracer_guard tg (db, trace);
+
+    // Check that the repository is not fetched yet and register it as fetched
+    // otherwise.
+    //
+    // Note that we can end up with a repository dependency cycle via
+    // prerequisites. Thus we register the repository before recursing into its
+    // dependencies.
+    //
+    if (!fetched.insert (r).second) // Is already fetched.
+      return;
 
     const repository_location& rl (r->location);
     l4 ([&]{trace << r->name << " " << rl;});
-    assert (rl.absolute () || rl.remote ());
+
+    // Cancel the repository removal.
+    //
+    // Note that this is an optimization as the rep_remove() function checks
+    // for reachability of the repository being removed.
+    //
+    removed.erase (r);
 
     // The fetch_*() functions below will be quiet at level 1, which
     // can be quite confusing if the download hangs.
@@ -414,23 +461,45 @@ namespace bpkg
 
       dr << "fetching " << r->name;
 
-      const auto& ua (root->complements);
-
-      if (ua.find (lazy_shared_ptr<repository> (db, r)) == ua.end ())
-      {
-        assert (!reason.empty ());
+      if (!reason.empty ())
         dr << " (" << reason << ")";
-      }
     }
 
-    r->fetched = true; // Mark as being fetched.
+    // Register complements and prerequisites for potential removal unless
+    // they are fetched. Clear repository dependency sets afterwards.
+    //
+    auto remove = [&fetched, &removed] (const lazy_shared_ptr<repository>& rp)
+    {
+      shared_ptr<repository> r (rp.load ());
+      if (fetched.find (r) == fetched.end ())
+        removed.insert (move (r));
+    };
 
-    // Load the repositories and packages and use it to populate the
+    for (const lazy_shared_ptr<repository>& cr: r->complements)
+    {
+      // Remove the complement unless it is the root repository (see
+      // rep_fetch() for details).
+      //
+      if (cr.object_id () != "")
+        remove (cr);
+    }
+
+    for (const lazy_weak_ptr<repository>& pr: r->prerequisites)
+      remove (lazy_shared_ptr<repository> (pr));
+
+    r->complements.clear ();
+    r->prerequisites.clear ();
+
+    // Remove this repository from locations of the available packages it
+    // contains.
+    //
+    rep_remove_package_locations (db, r->name);
+
+    // Load the repository and package manifests and use them to populate the
     // prerequisite and complement repository sets as well as available
     // packages.
     //
-    rep_fetch_data rfd (
-      rep_fetch (co, &co.directory (), rl, true /* ignore_unknow */));
+    rep_fetch_data rfd (rep_fetch (co, &conf, rl, true /* ignore_unknow */));
 
     for (repository_manifest& rm: rfd.repositories)
     {
@@ -439,51 +508,53 @@ namespace bpkg
       if (rr == repository_role::base)
         continue; // Entry for this repository.
 
+      repository_location& l (rm.location);
+
       // If the location is relative, complete it using this repository
       // as a base.
       //
-      if (rm.location.relative ())
+      if (l.relative ())
       {
         try
         {
-          rm.location = repository_location (rm.location, rl);
+          l = repository_location (l, rl);
         }
         catch (const invalid_argument& e)
         {
-          fail << "invalid relative repository location '" << rm.location
+          fail << "invalid relative repository location '" << l
                << "': " << e <<
             info << "base repository location is " << rl;
         }
       }
 
-      // We might already have this repository in the database.
+      // Create the new repository if it is not in the database yet. Otherwise
+      // update its location.
       //
-      shared_ptr<repository> pr (
-        db.find<repository> (
-          rm.location.canonical_name ()));
+      shared_ptr<repository> pr (db.find<repository> (l.canonical_name ()));
 
       if (pr == nullptr)
       {
-        pr = make_shared<repository> (move (rm.location));
+        pr = make_shared<repository> (move (l));
         db.persist (pr); // Enter into session, important if recursive.
       }
-
-      // Load the prerequisite repository unless it has already been
-      // (or is already being) fetched.
-      //
-      if (!pr->fetched)
+      else if (pr->location.url () != l.url ())
       {
-        string reason;
-        switch (rr)
-        {
-        case repository_role::complement:   reason = "complements ";     break;
-        case repository_role::prerequisite: reason = "prerequisite of "; break;
-        case repository_role::base: assert (false);
-        }
-        reason += r->name;
-
-        rep_fetch (co, t, pr, root, reason);
+        pr->location = move (l);
+        db.update (r);
       }
+
+      // Load the prerequisite repository.
+      //
+      string reason;
+      switch (rr)
+      {
+      case repository_role::complement:   reason = "complements ";     break;
+      case repository_role::prerequisite: reason = "prerequisite of "; break;
+      case repository_role::base: assert (false);
+      }
+      reason += r->name;
+
+      rep_fetch (co, conf, db, pr, fetched, removed, reason);
 
       // @@ What if we have duplicated? Ideally, we would like to check
       //    this once and as early as possible. The original idea was to
@@ -530,7 +601,11 @@ namespace bpkg
     if (rl.type () == repository_type::git &&
         r->complements.empty ()            &&
         r->prerequisites.empty ())
-      r->complements.insert (lazy_shared_ptr<repository> (db, root));
+      r->complements.insert (lazy_shared_ptr<repository> (db, string ()));
+
+    // Save the changes to the repository object.
+    //
+    db.update (r);
 
     // "Suspend" session while persisting packages to reduce memory
     // consumption.
@@ -600,69 +675,155 @@ namespace bpkg
     }
 
     session::current (s); // "Resume".
+  }
 
-    // Save the changes to the repository object.
+  static void
+  rep_fetch (const common_options& o,
+             const dir_path& conf,
+             transaction& t,
+             const vector<lazy_shared_ptr<repository>>& repos)
+  {
+    database& db (t.database ());
+
+    // As a fist step we fetch repositories recursively building the list of
+    // the former prerequisites and complements to be considered for removal.
     //
-    db.update (r);
+    // We delay the actual removal until we fetch all the required repositories
+    // as a dependency dropped by one repository can appear for another one.
+    //
+    try
+    {
+      // If fetch fails and the repository filesystem state is changed, then
+      // the configuration is broken, and we have to take some drastic
+      // measures (see below).
+      //
+      filesystem_state_changed = false;
+
+      repositories fetched;
+      repositories removed;
+
+      for (const lazy_shared_ptr<repository>& r: repos)
+        rep_fetch (o, conf, db, r.load (), fetched, removed);
+
+      // Finally, remove dangling repositories.
+      //
+      for (const shared_ptr<repository>& r: removed)
+        rep_remove (conf, db, r);
+    }
+    catch (const failed&)
+    {
+      t.rollback ();
+
+      if (filesystem_state_changed)
+      {
+        // Warn prior to the cleanup operation that potentially can also fail.
+        // Note that we assume that the diagnostics has already been issued.
+        //
+        warn << "repository state is now broken and will be cleaned up" <<
+          info << "run 'bpkg rep-fetch' to update";
+
+        rep_remove_clean (conf, db);
+      }
+
+      throw;
+    }
+  }
+
+  void
+  rep_fetch (const common_options& o,
+             const dir_path& conf,
+             database& db,
+             const vector<repository_location>& rls)
+  {
+    vector<lazy_shared_ptr<repository>> repos;
+    repos.reserve (rls.size ());
+
+    transaction t (db.begin ());
+
+    shared_ptr<repository> root (db.load<repository> (""));
+    repository::complements_type& ua (root->complements); // User-added repos.
+
+    for (const repository_location& rl: rls)
+    {
+      lazy_shared_ptr<repository> r (db, rl.canonical_name ());
+
+      // Add the repository, unless it is already a top-level one and has the
+      // same location.
+      //
+      if (ua.find (r) == ua.end () || r.load ()->location.url () != rl.url ())
+        rep_add (db, rl);
+
+      repos.emplace_back (r);
+    }
+
+    rep_fetch (o, conf, t, repos);
+
+    t.commit ();
   }
 
   int
-  rep_fetch (const rep_fetch_options& o, cli::scanner&)
+  rep_fetch (const rep_fetch_options& o, cli::scanner& args)
   {
     tracer trace ("rep_fetch");
 
     dir_path c (o.directory ());
     l4 ([&]{trace << "configuration: " << c;});
 
+    // Build the list of repositories the user wants to fetch.
+    //
+    vector<lazy_shared_ptr<repository>> repos;
+
     database db (open (c, trace));
     transaction t (db.begin ());
     session s; // Repository dependencies can have cycles.
 
     shared_ptr<repository> root (db.load<repository> (""));
-    const auto& ua (root->complements); // User-added repositories.
+    repository::complements_type& ua (root->complements); // User-added repos.
 
-    if (ua.empty ())
-      fail << "configuration " << c << " has no repositories" <<
-        info << "use 'bpkg rep-add' to add a repository";
-
-    // Clean repositories and available packages. At the end only
-    // repositories that were explicitly added by the user and the
-    // special root repository should remain.
-    //
-    db.erase_query<available_package> ();
-
-    for (shared_ptr<repository> r: pointer_result (db.query<repository> ()))
+    if (!args.more ())
     {
-      if (r == root)
-      {
-        l5 ([&]{trace << "skipping root";});
-      }
-      else if (ua.find (lazy_shared_ptr<repository> (db, r)) != ua.end ())
-      {
-        l4 ([&]{trace << "cleaning " << r->name;});
+      if (ua.empty ())
+        fail << "configuration " << c << " has no repositories" <<
+          info << "use 'bpkg rep-add' to add a repository";
 
-        r->complements.clear ();
-        r->prerequisites.clear ();
-        r->fetched = false;
-        db.update (r);
-      }
-      else
+      for (const lazy_shared_ptr<repository>& r: ua)
+        repos.push_back (r);
+    }
+    else
+    {
+      while (args.more ())
       {
-        l4 ([&]{trace << "erasing " << r->name;});
-        db.erase (r);
+        // Try to map the argument to a user-added repository.
+        //
+        // If this is a repository name then it must be present in the
+        // configuration. If this is a repository location then we add it to
+        // the configuration.
+        //
+        lazy_shared_ptr<repository> r;
+        string a (args.next ());
+
+        if (repository_name (a))
+        {
+          lazy_shared_ptr<repository> rp (db, a);
+
+          if (ua.find (rp) != ua.end ())
+            r = move (rp);
+          else
+            fail << "repository '" << a << "' does not exist in this "
+                 << "configuration";
+        }
+        else
+          //@@ TODO: check if exists in root & same location and avoid
+          // calling rep_add. Get rid of quiet mode.
+          //
+          r = lazy_shared_ptr<repository> (
+            db, rep_add (db, parse_location (a, nullopt /* type */)));
+
+        repos.emplace_back (move (r));
       }
     }
 
-    // Now recursively fetch prerequisite/complement repositories and
-    // their packages.
-    //
-    for (const lazy_shared_ptr<repository>& lp: ua)
-    {
-      shared_ptr<repository> r (lp.load ());
-
-      if (!r->fetched) // Can already be loaded as a prerequisite/complement.
-        rep_fetch (o, t, r, root, ""); // No reason (user-added).
-    }
+    rep_fetch (o, c, t, repos);
 
     size_t rcount (0), pcount (0);
     if (verb)

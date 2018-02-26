@@ -15,6 +15,42 @@ using namespace butl;
 
 namespace bpkg
 {
+  shared_ptr<repository>
+  rep_add (database& db, const repository_location& rl)
+  {
+    const string& rn (rl.canonical_name ());
+
+    shared_ptr<repository> r (db.find<repository> (rn));
+
+    bool updated (false);
+
+    if (r == nullptr)
+    {
+      r.reset (new repository (rl));
+      db.persist (r);
+    }
+    else if (r->location.url () != rl.url ())
+    {
+      r->location = rl;
+      db.update (r);
+
+      updated = true;
+    }
+
+    shared_ptr<repository> root (db.load<repository> (""));
+
+    bool added (
+      root->complements.insert (lazy_shared_ptr<repository> (db, r)).second);
+
+    if (added)
+      db.update (root);
+
+    if (verb)
+      text << (added ? "added " : updated ? "updated " : "unchanged ") << rn;
+
+    return r;
+  }
+
   int
   rep_add (const rep_add_options& o, cli::scanner& args)
   {
@@ -31,8 +67,6 @@ namespace bpkg
     transaction t (db.begin ());
     session s; // Repository dependencies can have cycles.
 
-    shared_ptr<repository> root (db.load<repository> (""));
-
     while (args.more ())
     {
       repository_location rl (
@@ -41,37 +75,9 @@ namespace bpkg
                         ? optional<repository_type> (o.type ())
                         : nullopt));
 
-      const string& rn (rl.canonical_name ());
-
-      // Create the new repository if it is not in the database yet. Otherwise
-      // update its location. Add it as a complement to the root repository (if
-      // it is not there yet).
-      //
-      shared_ptr<repository> r (db.find<repository> (rn));
-
-      bool updated (false);
-
-      if (r == nullptr)
-      {
-        r.reset (new repository (rl));
-        db.persist (r);
-      }
-      else if (r->location.url () != rl.url ())
-      {
-        r->location = rl;
-        db.update (r);
-
-        updated = true;
-      }
-
-      bool added (
-        root->complements.insert (lazy_shared_ptr<repository> (db, r)).second);
-
-      if (verb)
-        text << (added ? "added " : updated ? "updated " : "unchanged ") << rn;
+      rep_add (db, rl);
     }
 
-    db.update (root);
     t.commit ();
 
     return 0;

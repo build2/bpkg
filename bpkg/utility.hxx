@@ -107,11 +107,13 @@ namespace bpkg
   void
   rm (const path&, uint16_t verbosity = 3);
 
+  enum class rm_error_mode {ignore, warn, fail};
+
   void
   rm_r (const dir_path&,
         bool dir_itself = true,
         uint16_t verbosity = 3,
-        bool ignore_error = false);
+        rm_error_mode = rm_error_mode::fail);
 
   void
   mv (const dir_path& from, const dir_path& to);

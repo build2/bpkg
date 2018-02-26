@@ -8,6 +8,7 @@
 #include <libbpkg/manifest.hxx>
 
 #include <bpkg/types.hxx>
+#include <bpkg/forward.hxx> // database
 #include <bpkg/utility.hxx>
 
 #include <bpkg/rep-fetch-options.hxx>
@@ -44,10 +45,21 @@ namespace bpkg
   };
 
   rep_fetch_data
-  rep_fetch (const common_options& co,
+  rep_fetch (const common_options&,
              const dir_path* conf,
-             const repository_location& rl,
+             const repository_location&,
              bool ignore_unknown);
+
+  // Add (or update) repository locations to the configuration and fetch
+  // them. On failure clean up the configuration (see rep_remove_clean() for
+  // details). Note that it starts a new transaction and should be called in
+  // session.
+  //
+  void
+  rep_fetch (const common_options&,
+             const dir_path& conf,
+             database&,
+             const vector<repository_location>&);
 }
 
 #endif // BPKG_REP_FETCH_HXX
