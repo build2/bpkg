@@ -9,7 +9,7 @@
 #include <list>
 #include <cstring>    // strlen()
 #include <iostream>   // cout
-#include <algorithm>  // find()
+#include <algorithm>  // find(), find_if()
 
 #include <bpkg/package.hxx>
 #include <bpkg/package-odb.hxx>
@@ -23,6 +23,7 @@
 #include <bpkg/pkg-drop.hxx>
 #include <bpkg/pkg-purge.hxx>
 #include <bpkg/pkg-fetch.hxx>
+#include <bpkg/rep-fetch.hxx>
 #include <bpkg/pkg-unpack.hxx>
 #include <bpkg/pkg-update.hxx>
 #include <bpkg/pkg-verify.hxx>
@@ -54,7 +55,8 @@ namespace bpkg
   find_available (database& db,
                   const string& name,
                   const shared_ptr<repository>& r,
-                  const optional<dependency_constraint>& c)
+                  const optional<dependency_constraint>& c,
+                  bool prereq = true)
   {
     using query = query<available_package>;
 
@@ -124,7 +126,7 @@ namespace bpkg
     // Filter the result based on the repository to which each version
     // belongs.
     //
-    return filter_one (r, db.query<available_package> (q));
+    return filter_one (r, db.query<available_package> (q), prereq);
   }
 
   // Create a transient (or fake, if you prefer) available_package object
@@ -1071,35 +1073,188 @@ namespace bpkg
       fail << "package name argument expected" <<
         info << "run 'bpkg help pkg-build' for more information";
 
+    // Check if the argument has the <packages>@<location> form. Return the
+    // delimiter position if that's the case. Otherwise return string::npos.
+    //
+    // We consider '@' to be such a delimiter if it comes before ':' (e.g., a
+    // URL which could contain its own '@').
+    //
+    auto location = [] (const string& arg) -> size_t
+    {
+      size_t p (arg.find_first_of ("@:"));
+      return p != string::npos && arg[p] == '@' ? p : string::npos;
+    };
+
+    // Collect repository locations from <packages>@<location> arguments,
+    // suppressing duplicates.
+    //
+    // Note that the last repository location overrides the previous ones with
+    // the same canonical name.
+    //
+    strings args;
+    vector<repository_location> locations;
+
+    while (a.more ())
+    {
+      string arg (a.next ());
+      size_t p (location (arg));
+
+      if (p != string::npos)
+      {
+        repository_location l (
+          parse_location (string (arg, p + 1), nullopt /* type */));
+
+        auto pr = [&l] (const repository_location& i) -> bool
+        {
+          return i.canonical_name () == l.canonical_name ();
+        };
+
+        auto i (find_if (locations.begin (), locations.end (), pr));
+
+        if (i != locations.end ())
+          *i = move (l);
+        else
+          locations.push_back (move (l));
+      }
+
+      args.push_back (move (arg));
+    }
+
+    database db (open (c, trace)); // Also populates the system repository.
+
+    // Note that the session spans all our transactions. The idea here is
+    // that selected_package objects in the build_packages list below will
+    // be cached in this session. When subsequent transactions modify any
+    // of these objects, they will modify the cached instance, which means
+    // our list will always "see" their updated state.
+    //
+    // Also note that rep_fetch() must be called in session.
+    //
+    session s;
+
+    if (!locations.empty ())
+      rep_fetch (o, c, db, locations);
+
+    // Expand <packages>@<location> arguments.
+    //
+    strings eargs;
+    {
+      transaction t (db.begin ());
+
+      for (string& arg: args)
+      {
+        size_t p (location (arg));
+
+        if (p == string::npos)
+        {
+          eargs.push_back (move (arg));
+          continue;
+        }
+
+        repository_location l (
+          parse_location (string (arg, p + 1), nullopt /* type */));
+
+        shared_ptr<repository> r (db.load<repository> (l.canonical_name ()));
+
+        // If no packages are specified explicitly (the argument starts with
+        // '@') then we select latest versions of all the packages from this
+        // repository. Otherwise, we search for the specified packages and
+        // versions (if specified) or latest versions (if unspecified) in the
+        // repository and its complements (recursively), failing if any of
+        // them are not found.
+        //
+        if (p == 0) // No packages are specified explicitly.
+        {
+          // Collect the latest package version.
+          //
+          map<string, version> pvs;
+
+          using query = query<repository_package>;
+
+          for (const auto& rp: db.query<repository_package> (
+                 (query::repository::name == r->name) +
+                 order_by_version_desc (query::package::id.version)))
+          {
+            const shared_ptr<available_package>& p (rp);
+            pvs.insert (make_pair (p->id.name, p->version));
+          }
+
+          // Populate the argument list with the latest package versions.
+          //
+          for (const auto& pv: pvs)
+            eargs.push_back (pv.first + '/' + pv.second.string ());
+        }
+        else // Packages with optional versions in the coma-separated list.
+        {
+          string ps (arg, 0, p);
+          for (size_t b (0); b != string::npos;)
+          {
+            // Extract the package.
+            //
+            p = ps.find (',', b);
+
+            string  s (ps, b, p != string::npos ? p - b : p);
+            string  n (parse_package_name (s));
+            version v (parse_package_version (s));
+
+            optional<dependency_constraint> c (
+              !v.empty () ? optional<dependency_constraint> (v) : nullopt);
+
+            // Check if the package is present in the repository and its
+            // complements, recursively.
+            //
+            shared_ptr<available_package> ap (
+              find_available (db, n, r, c, false /* prereq */).first);
+
+            if (ap == nullptr)
+            {
+              diag_record dr (fail);
+              dr << "package " << s << " is not found in " << r->name;
+
+              if (!r->complements.empty ())
+                dr << " nor its complements";
+            }
+
+            // Add the package/version to the argument list.
+            //
+            eargs.push_back (ap->id.name + '/' + ap->version.string ());
+
+            b = p != string::npos ? p + 1 : p;
+          }
+        }
+      }
+
+      t.commit ();
+    }
+
     map<string, string> package_arg;
 
     // Check if the package is a duplicate. Return true if it is but harmless.
     //
-    auto check_dup = [&package_arg] (const string& n, const char* arg) -> bool
+    auto check_dup = [&package_arg] (const string& n, const string& a) -> bool
     {
-      auto r (package_arg.emplace (n, arg));
+      auto r (package_arg.emplace (n, a));
 
-      if (!r.second && r.first->second != arg)
+      if (!r.second && r.first->second != a)
         fail << "duplicate package " << n <<
           info << "first mentioned as " << r.first->second <<
-          info << "second mentioned as " << arg;
+          info << "second mentioned as " << a;
 
       return !r.second;
     };
 
     // Pre-scan the arguments and sort them out into optional and mandatory.
     //
-    strings args;
-    while (a.more ())
+    strings pargs;
+    for (const string& arg: eargs)
     {
-      const char* arg (a.next ());
-      const char* s (arg);
+      const char* s (arg.c_str ());
 
       bool opt (s[0] == '?');
       if (opt)
         ++s;
       else
-        args.push_back (s);
+        pargs.emplace_back (s);
 
       if (parse_package_scheme (s) == package_scheme::sys)
       {
@@ -1113,7 +1268,10 @@ namespace bpkg
           v = wildcard_version;
 
         const system_package* sp (system_repository.find (n));
-        if (sp == nullptr) // Will deal with all the duplicates later.
+
+        // Will deal with all the duplicates later.
+        //
+        if (sp == nullptr || !sp->authoritative)
           system_repository.insert (n, v, true);
       }
       else if (opt)
@@ -1121,21 +1279,11 @@ namespace bpkg
           info << "package is ignored";
     }
 
-    if (args.empty ())
+    if (pargs.empty ())
     {
       warn << "nothing to build";
       return 0;
     }
-
-    database db (open (c, trace));
-
-    // Note that the session spans all our transactions. The idea here is
-    // that selected_package objects in the build_packages list below will
-    // be cached in this session. When subsequent transactions modify any
-    // of these objects, they will modify the cached instance, which means
-    // our list will always "see" their updated state.
-    //
-    session s;
 
     // Assemble the list of packages we will need to build.
     //
@@ -1156,7 +1304,7 @@ namespace bpkg
       // diagnostics if the name/version guess doesn't pan out.
       //
       bool diag (false);
-      for (auto i (args.cbegin ()); i != args.cend (); )
+      for (auto i (pargs.cbegin ()); i != pargs.cend (); )
       {
         const char* package (i->c_str ());
 

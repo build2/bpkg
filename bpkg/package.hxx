@@ -473,16 +473,20 @@ namespace bpkg
     operator size_t () const {return result;}
   };
 
-  // Only return packages that are in the specified repository or its
-  // complements, recursively. While you could maybe come up with a
-  // (barely comprehensible) view/query to achieve this, doing it on
-  // the "client side" is definitely more straightforward.
+  // Only return packages that are in the specified repository, its
+  // complements or prerequisites (if prereq is true), recursively. While you
+  // could maybe come up with a (barely comprehensible) view/query to achieve
+  // this, doing it on the "client side" is definitely more straightforward.
   //
   vector<shared_ptr<available_package>>
-  filter (const shared_ptr<repository>&, odb::result<available_package>&&);
+  filter (const shared_ptr<repository>&,
+          odb::result<available_package>&&,
+          bool prereq = true);
 
   pair<shared_ptr<available_package>, shared_ptr<repository>>
-  filter_one (const shared_ptr<repository>&, odb::result<available_package>&&);
+  filter_one (const shared_ptr<repository>&,
+              odb::result<available_package>&&,
+              bool prereq = true);
 
   // package_state
   //
@@ -791,24 +795,22 @@ namespace bpkg
 
   // Return a list of packages available from this repository.
   //
-  #pragma db view object(repository)                                    \
-    table("available_package_locations" = "pl" inner:                   \
-          "pl.repository = " + repository::name)                        \
-    object(available_package inner:                                     \
-           "pl.name = " + available_package::id.name + "AND" +          \
-           "pl.version_epoch = " +                                      \
-             available_package::id.version.epoch + "AND" +              \
-           "pl.version_canonical_upstream = " +                         \
-             available_package::id.version.canonical_upstream + "AND" + \
-           "pl.version_canonical_release = " +                          \
-             available_package::id.version.canonical_release + "AND" +  \
-           "pl.version_revision = " +                                   \
-             available_package::id.version.revision)
+  #pragma db view object(repository)                                   \
+    table("available_package_locations" = "pl" inner:                  \
+          "pl.repository = " + repository::name)                       \
+    object(available_package = package inner:                          \
+           "pl.name = " + package::id.name + "AND" +                   \
+           "pl.version_epoch = " + package::id.version.epoch + "AND" + \
+           "pl.version_canonical_upstream = " +                        \
+             package::id.version.canonical_upstream + "AND" +          \
+           "pl.version_canonical_release = " +                         \
+             package::id.version.canonical_release + "AND" +           \
+           "pl.version_revision = " +  package::id.version.revision)
   struct repository_package
   {
-    shared_ptr<available_package> object;
+    shared_ptr<available_package> package; // Must match the alias (see above).
 
-    operator const shared_ptr<available_package> () const {return object;}
+    operator const shared_ptr<available_package> () const {return package;}
   };
 
   // Version comparison operators.

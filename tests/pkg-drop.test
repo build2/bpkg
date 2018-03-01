@@ -17,7 +17,7 @@
 # |   |-- libbaz-1.1.0.tar.gz -> libfoo, libbar
 # |   |-- libfoo-1.0.0.tar.gz
 # |   `-- repositories
-# `-- t4d                     -> t4c (prerequisite)
+# `-- t4d                     -> t4c (complement)
 #     |-- libbiz-1.0.0.tar.gz -> libfox, libfoo, libbaz
 #     |-- libfox-1.0.0.tar.gz
 #     `-- repositories
@@ -369,9 +369,9 @@ $* libfoo/1.0.0 2>>~%EOE% != 0
      EOE
 
    -$pkg_status libfox/1.0.0 >'available'
-   -$pkg_status libfoo/1.1.0 >'unknown'
+   -$pkg_status libfoo/1.1.0 >'available'
    -$pkg_status libbar/1.1.0 >'unknown'
-   -$pkg_status libbaz/1.1.0 >'unknown'
+   -$pkg_status libbaz/1.1.0 >'available'
    -$pkg_status libbiz/1.0.0 >'available'
 }
 

@@ -31,8 +31,20 @@ namespace bpkg
   string
   parse_package_name (const char*);
 
+  inline string
+  parse_package_name (const string& s)
+  {
+    return parse_package_name (s.c_str ());
+  }
+
   version
   parse_package_version (const char*);
+
+  inline version
+  parse_package_version (const string& s)
+  {
+    return parse_package_version (s.c_str ());
+  }
 
   // If the passed location is a relative local path, then assume this is a
   // relative path to the repository directory and complete it based on the

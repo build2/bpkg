@@ -41,15 +41,19 @@ namespace bpkg
   static shared_ptr<repository>
   find (const shared_ptr<repository>& r,
         const shared_ptr<available_package>& ap,
-        repositories& chain)
+        repositories& chain,
+        bool prereq)
   {
+    // Prerequisites are not searched through recursively.
+    //
+    assert (!prereq || chain.empty ());
+
     auto pr = [&r] (const shared_ptr<repository>& i) -> bool {return i == r;};
     auto i (find_if (chain.begin (), chain.end (), pr));
 
     if (i != chain.end ())
       return nullptr;
 
-    bool prereq (chain.empty ()); // Check prerequisites in top-level only.
     chain.emplace_back (r);
 
     unique_ptr<repositories, void (*)(repositories*)> deleter (
@@ -81,7 +85,7 @@ namespace bpkg
         // Should we consider prerequisites of our complements as our
         // prerequisites? I'd say not.
         //
-        if (shared_ptr<repository> r = find (cr.load (), ap, chain))
+        if (shared_ptr<repository> r = find (cr.load (), ap, chain, false))
           return r;
       }
 
@@ -89,7 +93,7 @@ namespace bpkg
       {
         for (const lazy_weak_ptr<repository>& pr: ps)
         {
-          if (shared_ptr<repository> r = find (pr.load (), ap, chain))
+          if (shared_ptr<repository> r = find (pr.load (), ap, chain, false))
             return r;
         }
       }
@@ -100,20 +104,23 @@ namespace bpkg
 
   static inline shared_ptr<repository>
   find (const shared_ptr<repository>& r,
-        const shared_ptr<available_package>& ap)
+        const shared_ptr<available_package>& ap,
+        bool prereq)
   {
     repositories chain;
-    return find (r, ap, chain);
+    return find (r, ap, chain, prereq);
   }
 
   vector<shared_ptr<available_package>>
-  filter (const shared_ptr<repository>& r, result<available_package>&& apr)
+  filter (const shared_ptr<repository>& r,
+          result<available_package>&& apr,
+          bool prereq)
   {
     vector<shared_ptr<available_package>> aps;
 
     for (shared_ptr<available_package> ap: pointer_result (apr))
     {
-      if (find (r, ap) != nullptr)
+      if (find (r, ap, prereq) != nullptr)
         aps.push_back (move (ap));
     }
 
@@ -121,13 +128,15 @@ namespace bpkg
   }
 
   pair<shared_ptr<available_package>, shared_ptr<repository>>
-  filter_one (const shared_ptr<repository>& r, result<available_package>&& apr)
+  filter_one (const shared_ptr<repository>& r,
+              result<available_package>&& apr,
+              bool prereq)
   {
     using result = pair<shared_ptr<available_package>, shared_ptr<repository>>;
 
     for (shared_ptr<available_package> ap: pointer_result (apr))
     {
-      if (shared_ptr<repository> pr = find (r, ap))
+      if (shared_ptr<repository> pr = find (r, ap, prereq))
         return result (move (ap), move (pr));
     }
 

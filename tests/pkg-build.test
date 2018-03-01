@@ -48,7 +48,7 @@
 # |   |-- libfoo-1.0.0.tar.gz
 # |   `-- repositories
 # |
-# |-- t4d                     -> t4c (prerequisite)
+# |-- t4d                     -> t4c (complement)
 # |   |-- libbiz-1.0.0.tar.gz -> libfox, libfoo, libbaz
 # |   |-- libfox-1.0.0.tar.gz
 # |   `-- repositories
@@ -1303,6 +1303,96 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
 
   $pkg_disfigure libfoo 2>'disfigured libfoo/1.0.0';
   $pkg_purge     libfoo 2>'purged libfoo/1.0.0'
+}
+
+: repository-location
+:
+{
+  test.arguments += --yes --auth all --trust-yes
+
+  : all-packages
+  :
+  {
+    $clone_root_cfg;
+
+    $* "@$rep/t4d" 2>>~%EOE%;
+      %.+
+      %info: .+libfox-1.0.0.+ is up to date%
+      %info: .+libbiz-1.0.0.+ is up to date%
+      updated libfox/1.0.0
+      updated libbiz/1.0.0
+      EOE
+
+    $pkg_disfigure libbiz 2>'disfigured libbiz/1.0.0';
+    $pkg_purge     libbiz 2>'purged libbiz/1.0.0';
+
+    $pkg_disfigure libfox 2>'disfigured libfox/1.0.0';
+    $pkg_purge     libfox 2>'purged libfox/1.0.0';
+
+    $pkg_disfigure libbaz 2>'disfigured libbaz/1.1.0';
+    $pkg_purge     libbaz 2>'purged libbaz/1.1.0';
+
+    $pkg_disfigure libbar 2>'disfigured libbar/1.1.0';
+    $pkg_purge     libbar 2>'purged libbar/1.1.0';
+
+    $pkg_disfigure libfoo 2>'disfigured libfoo/1.1.0';
+    $pkg_purge     libfoo 2>'purged libfoo/1.1.0'
+  }
+
+  : multiple-packages
+  :
+  {
+    $clone_root_cfg;
+
+    $* "libfox,libbiz/1.0.0@$rep/t4d" 2>>~%EOE%;
+      %.+
+      %info: .+libfox-1.0.0.+ is up to date%
+      %info: .+libbiz-1.0.0.+ is up to date%
+      updated libfox/1.0.0
+      updated libbiz/1.0.0
+      EOE
+
+    $pkg_disfigure libbiz 2>'disfigured libbiz/1.0.0';
+    $pkg_purge     libbiz 2>'purged libbiz/1.0.0';
+
+    $pkg_disfigure libfox 2>'disfigured libfox/1.0.0';
+    $pkg_purge     libfox 2>'purged libfox/1.0.0';
+
+    $pkg_disfigure libbaz 2>'disfigured libbaz/1.1.0';
+    $pkg_purge     libbaz 2>'purged libbaz/1.1.0';
+
+    $pkg_disfigure libbar 2>'disfigured libbar/1.1.0';
+    $pkg_purge     libbar 2>'purged libbar/1.1.0';
+
+    $pkg_disfigure libfoo 2>'disfigured libfoo/1.1.0';
+    $pkg_purge     libfoo 2>'purged libfoo/1.1.0'
+  }
+
+  : package-in-complement
+  :
+  {
+    $clone_root_cfg;
+
+    $* "libfoo@$rep/t4d" 2>>~%EOE%;
+      %.+
+      %info: .+libfoo-1.0.0.+ is up to date%
+      updated libfoo/1.0.0
+      EOE
+
+    $pkg_disfigure libfoo 2>'disfigured libfoo/1.0.0';
+    $pkg_purge     libfoo 2>'purged libfoo/1.0.0'
+  }
+
+  : non-existent-package
+  :
+  {
+    $clone_root_cfg;
+
+    $* "libbar@$rep/t4d" 2>>~%EOE% != 0
+      %.+
+      error: package libbar is not found in bpkg:build2.org/pkg-build/t4d nor its complements
+      EOE
+  }
 }
 
 : git-repos
