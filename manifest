@@ -1,9 +1,9 @@
 : 1
 name: bpkg
 version: 0.7.0-a.0.z
-summary: build2 package manager
+summary: build2 package dependency manager
 license: MIT
-tags: build2, c++, package, manager
+tags: build2, c++, package, dependency, manager
 description-file: README
 changes-file: NEWS
 url: https://build2.org

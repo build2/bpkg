@@ -6,7 +6,7 @@ include <bpkg/common.cli>;
 
 "\section=1"
 "\name=bpkg"
-"\summary=package manager"
+"\summary=package dependency manager"
 
 namespace bpkg
 {
@@ -22,9 +22,9 @@ namespace bpkg
 
      \h|DESCRIPTION|
 
-     The \cb{build2} package manager is used to manipulate configurations,
-     packages, and repositories using a set of commands that are summarized
-     below.
+     The \cb{build2} package dependency manager is used to manipulate build
+     configurations, packages, and repositories using a set of commands that
+     are summarized below.
 
      For a detailed description of any command or help topic, use the
      \cb{help} command or see the corresponding man page (the man pages have
@@ -40,15 +40,15 @@ namespace bpkg
     "",
     "",
 
-    "A \i{bpkg configuration} is a directory that will contain packages built
-     with similar settings. For example, a configuration can be for a specific
-     target (\cb{i686}, \cb{x86_64}), compiler (\cb{clang}, \cb{gcc}) compile
-     options (\cb{-O3}, \cb{-g}), and so on. Configurations are relatively
-     cheap and can be created and thrown away as needed. Configurations can be
-     moved and copied by simply moving and copying the directories. Note,
-     however, that a move or copy may render some packages out-of-date. In the
-     \cb{build2} build system terms a \cb{bpkg} configuration is an
-     amalgamation that contains packages as subprojects.
+    "A \cb{bpkg} \i{build configuration} is a directory that will contain
+     packages built with similar settings. For example, a configuration can be
+     for a specific target (\cb{i686}, \cb{x86_64}), compiler (\cb{clang},
+     \cb{gcc}) compile options (\cb{-O3}, \cb{-g}), and so on. Configurations
+     are relatively cheap and can be created and thrown away as needed.
+     Configurations can be moved and copied by simply moving and copying the
+     directories. Note, however, that a move or copy may render some packages
+     out-of-date. In the \cb{build2} build system terms a \cb{bpkg} build
+     configuration is an amalgamation that contains packages as subprojects.
 
      A \i{bpkg package} is an archive or directory that contains a \cb{build2}
      project plus the package \cb{manifest} file. \cb{bpkg} can either use
