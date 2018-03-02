@@ -177,19 +177,18 @@ namespace bpkg
     auto_rmdir rm (temp_dir / sd);
     dir_path& td (rm.path);
 
-    // We are about to modify the repository filesystem state.
-    //
-    // In the future we can probably do something smarter about the flag,
-    // keeping it unset unless the repository state directory is really
-    // changed.
-    //
-    filesystem_state_changed = true;
-
     if (exists (td))
       rm_r (td);
 
     // If the git repository directory already exists, then we are fetching
     // an already cloned repository. Move it to the temporary directory.
+    //
+    // In this case also set the filesystem_state_changed flag since we are
+    // modifying the repository filesystem state.
+    //
+    // In the future we can probably do something smarter about the flag,
+    // keeping it unset unless the repository state directory is really
+    // changed.
     //
     dir_path rd;
     bool fetch (false);
@@ -200,29 +199,19 @@ namespace bpkg
       if (exists (rd))
       {
         mv (rd, td);
+        filesystem_state_changed = true;
         fetch = true;
       }
     }
 
     dir_path nm (fetch ? git_fetch (co, rl, td) : git_clone (co, rl, td));
-
-    if (!rd.empty ())
-      mv (td, rd);
-    else
-      // If there is no configuration directory then we leave the repository
-      // in the temporary directory.
-      //
-      rd = move (td);
-
-    rm.cancel ();
-
-    rd /= nm;
+    dir_path fd (td / nm); // Full directory path.
 
     // Produce repository manifest list.
     //
     git_repository_manifests rms;
     {
-      path f (rd / path ("repositories"));
+      path f (fd / path ("repositories"));
 
       if (exists (f))
         rms = parse_manifest<git_repository_manifests> (f, ignore_unknown, rl);
@@ -234,7 +223,7 @@ namespace bpkg
     //
     git_package_manifests pms;
     {
-      path f (rd / path ("packages"));
+      path f (fd / path ("packages"));
 
       if (exists (f))
         pms = parse_manifest<git_package_manifests> (f, ignore_unknown, rl);
@@ -271,7 +260,7 @@ namespace bpkg
         package_info (dr);
       };
 
-      dir_path d (rd / path_cast<dir_path> (*sm.location));
+      dir_path d (fd / path_cast<dir_path> (*sm.location));
       path f (d / path ("manifest"));
 
       if (!exists (f))
@@ -396,6 +385,18 @@ namespace bpkg
       {
         fail << "unable to execute " << b << ": " << e;
       }
+    }
+
+    // Move the state directory to its proper place.
+    //
+    // If there is no configuration directory then we let auto_rmdir clean it
+    // up from the the temporary directory.
+    //
+    if (!rd.empty ())
+    {
+      mv (td, rd);
+      rm.cancel ();
+      filesystem_state_changed = true;
     }
 
     return rep_fetch_data {move (rms), move (fps), nullptr};
