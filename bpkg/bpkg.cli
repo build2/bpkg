@@ -48,7 +48,8 @@ namespace bpkg
      Configurations can be moved and copied by simply moving and copying the
      directories. Note, however, that a move or copy may render some packages
      out-of-date. In the \cb{build2} build system terms a \cb{bpkg} build
-     configuration is an amalgamation that contains packages as subprojects.
+     configuration is an amalgamation that contains packages as subprojects
+     (see \l{bpkg-cfg-create(1)} for details).
 
      A \i{bpkg package} is an archive or directory that contains a \cb{build2}
      project plus the package \cb{manifest} file. \cb{bpkg} can either use

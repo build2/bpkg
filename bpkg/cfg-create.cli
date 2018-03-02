@@ -11,11 +11,11 @@ include <bpkg/common.cli>;
 namespace bpkg
 {
   {
-    "<options> <module> <conf-var>",
+    "<options> <module> <cfg-var>",
 
     "\h|SYNOPSIS|
 
-     \c{\b{bpkg cfg-create}|\b{create} [<options>] [(<module> | <conf-var>)...]}
+     \c{\b{bpkg cfg-create}|\b{create} [<options>] [(<module> | <cfg-var>)...]}
 
      \h|DESCRIPTION|
 

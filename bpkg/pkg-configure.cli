@@ -11,11 +11,11 @@ include <bpkg/configuration.cli>;
 namespace bpkg
 {
   {
-    "<options> <pkg> <ver> <conf-var>",
+    "<options> <pkg> <ver> <cfg-var>",
 
     "\h|SYNOPSIS|
 
-     \c{\b{bpkg pkg-configure} [<options>] <pkg> [<conf-var>...]}
+     \c{\b{bpkg pkg-configure} [<options>] <pkg> [<cfg-var>...]}
 
      \h|DESCRIPTION|
 
