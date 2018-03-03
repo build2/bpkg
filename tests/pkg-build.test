@@ -1442,7 +1442,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
 
     $* "libbar@$rep/t4d" 2>>~%EOE% != 0
       %.+
-      error: package libbar is not found in bpkg:build2.org/pkg-build/t4d or its complements
+      error: package libbar is not found in pkg:build2.org/pkg-build/t4d or its complements
       EOE
   }
 }

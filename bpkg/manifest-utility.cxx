@@ -87,7 +87,7 @@ namespace bpkg
     // Guess the repository type to construct the repository location:
     //
     // 1. If type is specified as an option use that (but validate
-    //    incompatible scheme/type e.g., git/bpkg).
+    //    incompatible scheme/type e.g., git/pkg).
     //
     // 2. See guess_type() function description in libbpkg/manifest.hxx for
     //    the algorithm details.
@@ -106,10 +106,10 @@ namespace bpkg
       dr << fail << "invalid " << t << " repository location '" << u << "': "
          << e;
 
-      // If the bpkg repository type was guessed, then suggest the user to
+      // If the pkg repository type was guessed, then suggest the user to
       // specify the type explicitly.
       //
-      if (!ot && t == repository_type::bpkg)
+      if (!ot && t == repository_type::pkg)
         dr << info << "consider using --type to specify repository type";
 
       dr << endf;
@@ -133,7 +133,7 @@ namespace bpkg
   {
     switch (l.type ())
     {
-    case repository_type::bpkg: return dir_path (); // No state.
+    case repository_type::pkg: return dir_path (); // No state.
     case repository_type::git:
       {
         return dir_path (sha256 (l.canonical_name ()).abbreviated_string (16));

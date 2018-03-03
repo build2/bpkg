@@ -222,7 +222,7 @@ namespace bpkg
   //
   #pragma db map type(repository_location) as(_repository_location) \
     to({(?).url (),                                                 \
-        (?).empty () ? bpkg::repository_type::bpkg : (?).type ()})  \
+        (?).empty () ? bpkg::repository_type::pkg : (?).type ()})  \
     from(bpkg::repository_location (std::move ((?).url), (?).type))
 
   // repository

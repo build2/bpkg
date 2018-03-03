@@ -1,4 +1,4 @@
-// file      : bpkg/fetch-bpkg.cxx -*- C++ -*-
+// file      : bpkg/fetch-pkg.cxx -*- C++ -*-
 // copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
@@ -166,17 +166,17 @@ namespace bpkg
 
   static const path repositories ("repositories");
 
-  bpkg_repository_manifests
-  bpkg_fetch_repositories (const dir_path& d, bool iu)
+  pkg_repository_manifests
+  pkg_fetch_repositories (const dir_path& d, bool iu)
   {
-    return fetch_manifest<bpkg_repository_manifests> (
+    return fetch_manifest<pkg_repository_manifests> (
       nullptr, d / repositories, iu).first;
   }
 
-  pair<bpkg_repository_manifests, string/*checksum*/>
-  bpkg_fetch_repositories (const common_options& o,
-                           const repository_location& rl,
-                           bool iu)
+  pair<pkg_repository_manifests, string/*checksum*/>
+  pkg_fetch_repositories (const common_options& o,
+                          const repository_location& rl,
+                          bool iu)
   {
     assert (rl.remote () || rl.absolute ());
 
@@ -186,23 +186,23 @@ namespace bpkg
     f /= repositories;
 
     return rl.remote ()
-      ? fetch_manifest<bpkg_repository_manifests> (o, u, iu)
-      : fetch_manifest<bpkg_repository_manifests> (&o, f, iu);
+      ? fetch_manifest<pkg_repository_manifests> (o, u, iu)
+      : fetch_manifest<pkg_repository_manifests> (&o, f, iu);
   }
 
   static const path packages ("packages");
 
-  bpkg_package_manifests
-  bpkg_fetch_packages (const dir_path& d, bool iu)
+  pkg_package_manifests
+  pkg_fetch_packages (const dir_path& d, bool iu)
   {
-    return fetch_manifest<bpkg_package_manifests> (
+    return fetch_manifest<pkg_package_manifests> (
       nullptr, d / packages, iu).first;
   }
 
-  pair<bpkg_package_manifests, string/*checksum*/>
-  bpkg_fetch_packages (const common_options& o,
-                       const repository_location& rl,
-                       bool iu)
+  pair<pkg_package_manifests, string/*checksum*/>
+  pkg_fetch_packages (const common_options& o,
+                      const repository_location& rl,
+                      bool iu)
   {
     assert (rl.remote () || rl.absolute ());
 
@@ -212,16 +212,16 @@ namespace bpkg
     f /= packages;
 
     return rl.remote ()
-      ? fetch_manifest<bpkg_package_manifests> (o, u, iu)
-      : fetch_manifest<bpkg_package_manifests> (&o, f, iu);
+      ? fetch_manifest<pkg_package_manifests> (o, u, iu)
+      : fetch_manifest<pkg_package_manifests> (&o, f, iu);
   }
 
   static const path signature ("signature");
 
   signature_manifest
-  bpkg_fetch_signature (const common_options& o,
-                        const repository_location& rl,
-                        bool iu)
+  pkg_fetch_signature (const common_options& o,
+                       const repository_location& rl,
+                       bool iu)
   {
     assert (rl.remote () || rl.absolute ());
 
@@ -236,10 +236,10 @@ namespace bpkg
   }
 
   path
-  bpkg_fetch_archive (const common_options& o,
-                      const repository_location& rl,
-                      const path& a,
-                      const dir_path& d)
+  pkg_fetch_archive (const common_options& o,
+                     const repository_location& rl,
+                     const path& a,
+                     const dir_path& d)
   {
     assert (!a.empty () && a.relative ());
     assert (rl.remote () || rl.absolute ());

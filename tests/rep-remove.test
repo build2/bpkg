@@ -90,11 +90,11 @@ pkg_status += -d cfg
   $rep_add $rep/extra && $rep_fetch;
 
   $* --clean 2>>"EOE";
-    cleaned bpkg:build2.org/rep-remove/extra
+    cleaned pkg:build2.org/rep-remove/extra
     EOE
 
   $rep_list >>"EOE";
-    bpkg:build2.org/rep-remove/extra ($rep/extra)
+    pkg:build2.org/rep-remove/extra ($rep/extra)
     EOE
 
   $pkg_status libbar >'unknown'
@@ -107,7 +107,7 @@ pkg_status += -d cfg
   $rep_add $rep/extra && $rep_fetch;
 
   $* --all 2>>"EOE";
-    removed bpkg:build2.org/rep-remove/extra
+    removed pkg:build2.org/rep-remove/extra
     EOE
 
   $rep_list >:"";
@@ -120,8 +120,8 @@ pkg_status += -d cfg
   $clone_cfg;
   $rep_add $rep/extra && $rep_fetch;
 
-  $* 'bpkg:build2.org/rep-remove/extra' 2>>"EOE";
-    removed bpkg:build2.org/rep-remove/extra
+  $* 'pkg:build2.org/rep-remove/extra' 2>>"EOE";
+    removed pkg:build2.org/rep-remove/extra
     EOE
 
   $rep_list >:"";
@@ -135,7 +135,7 @@ pkg_status += -d cfg
   $rep_add $rep/testing && $rep_fetch;
 
   $* $rep/testing 2>>"EOE";
-    removed bpkg:build2.org/rep-remove/testing
+    removed pkg:build2.org/rep-remove/testing
     EOE
 
   $rep_list >:"";
@@ -150,14 +150,14 @@ pkg_status += -d cfg
   $rep_add $rep/testing && $rep_add $rep/math && $rep_fetch;
 
   $* $rep/testing 2>>"EOE";
-    removed bpkg:build2.org/rep-remove/testing
+    removed pkg:build2.org/rep-remove/testing
     EOE
 
   $rep_list >>"EOO";
-    bpkg:build2.org/rep-remove/math ($rep/math)
-      prerequisite bpkg:build2.org/rep-remove/extra ($rep/extra)
-        prerequisite bpkg:build2.org/rep-remove/stable ($rep/stable)
-          prerequisite bpkg:build2.org/rep-remove/math ($rep/math)
+    pkg:build2.org/rep-remove/math ($rep/math)
+      prerequisite pkg:build2.org/rep-remove/extra ($rep/extra)
+        prerequisite pkg:build2.org/rep-remove/stable ($rep/stable)
+          prerequisite pkg:build2.org/rep-remove/math ($rep/math)
     EOO
 
   $pkg_status libbar >'available 1.0.0 sys:?';

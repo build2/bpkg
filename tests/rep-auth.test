@@ -173,8 +173,8 @@ sc = " " # Space character to append to here-document line when required.
       $clone_cfg;
 
       $rep_fetch 2>>"EOE" != 0;
-        fetching bpkg:build2.org/rep-auth/signed
-        warning: authenticity of the certificate for repository bpkg:build2.org/rep-auth/signed cannot be established
+        fetching pkg:build2.org/rep-auth/signed
+        warning: authenticity of the certificate for repository pkg:build2.org/rep-auth/signed cannot be established
         certificate is for build2.org, "Code Synthesis" <info@build2.org>
         certificate SHA256 fingerprint:
         $cert_fp
@@ -191,7 +191,7 @@ sc = " " # Space character to append to here-document line when required.
       $clone_cfg;
 
       $rep_fetch --trust $cert_fp 2>>EOE;
-        fetching bpkg:build2.org/rep-auth/signed
+        fetching pkg:build2.org/rep-auth/signed
         1 package(s) in 1 repository(s)
         EOE
 
@@ -204,7 +204,7 @@ sc = " " # Space character to append to here-document line when required.
       $clone_cfg;
 
       $rep_fetch --trust-no --trust $cert_fp 2>>EOE;
-        fetching bpkg:build2.org/rep-auth/signed
+        fetching pkg:build2.org/rep-auth/signed
         1 package(s) in 1 repository(s)
         EOE
 
@@ -217,7 +217,7 @@ sc = " " # Space character to append to here-document line when required.
       $clone_cfg;
 
       $rep_fetch --trust-yes 2>>EOE;
-        fetching bpkg:build2.org/rep-auth/signed
+        fetching pkg:build2.org/rep-auth/signed
         1 package(s) in 1 repository(s)
         EOE
 
@@ -230,8 +230,8 @@ sc = " " # Space character to append to here-document line when required.
       $clone_cfg;
 
       $rep_fetch --trust-no 2>>EOE != 0;
-        fetching bpkg:build2.org/rep-auth/signed
-        error: authenticity of the certificate for repository bpkg:build2.org/rep-auth/signed cannot be established
+        fetching pkg:build2.org/rep-auth/signed
+        error: authenticity of the certificate for repository pkg:build2.org/rep-auth/signed cannot be established
         EOE
 
       $not_fetched
@@ -243,7 +243,7 @@ sc = " " # Space character to append to here-document line when required.
       $clone_cfg;
 
       $rep_fetch --trust-yes --trust-no 2>>EOE != 0;
-        fetching bpkg:build2.org/rep-auth/signed
+        fetching pkg:build2.org/rep-auth/signed
         error: --trust-yes and --trust-no are mutually exclusive
         EOE
 
@@ -256,19 +256,19 @@ sc = " " # Space character to append to here-document line when required.
       $clone_cfg;
 
       $rep_fetch --trust-yes 2>>EOE;
-        fetching bpkg:build2.org/rep-auth/signed
+        fetching pkg:build2.org/rep-auth/signed
         1 package(s) in 1 repository(s)
         EOE
 
       $rep_fetch 2>>EOE;
-        fetching bpkg:build2.org/rep-auth/signed
+        fetching pkg:build2.org/rep-auth/signed
         1 package(s) in 1 repository(s)
         EOE
 
       $fetched;
 
       $rep_fetch --trust-no 2>>EOE;
-        fetching bpkg:build2.org/rep-auth/signed
+        fetching pkg:build2.org/rep-auth/signed
         1 package(s) in 1 repository(s)
         EOE
 
@@ -284,7 +284,7 @@ sc = " " # Space character to append to here-document line when required.
     : no-auth
     :
     $rep_info 2>>"EOE" != 0
-      warning: authenticity of the certificate for repository bpkg:build2.org/rep-auth/signed cannot be established
+      warning: authenticity of the certificate for repository pkg:build2.org/rep-auth/signed cannot be established
       certificate is for build2.org, "Code Synthesis" <info@build2.org>
       certificate SHA256 fingerprint:
       $cert_fp
@@ -303,7 +303,7 @@ sc = " " # Space character to append to here-document line when required.
     : trust-no
     :
     $rep_info --trust-no 2>>EOE != 0
-      error: authenticity of the certificate for repository bpkg:build2.org/rep-auth/signed cannot be established
+      error: authenticity of the certificate for repository pkg:build2.org/rep-auth/signed cannot be established
       EOE
 
     : already-trusted
@@ -354,7 +354,7 @@ sc = " " # Space character to append to here-document line when required.
           cp -r $rep/self-match $r;
 
           $rep_info $r/self-match 2>>EOE != 0
-            error: certificate name mismatch for repository bpkg:b.a.build2.org/self-match
+            error: certificate name mismatch for repository pkg:b.a.build2.org/self-match
               info: certificate name is *build2.org
             EOE
         }
@@ -400,7 +400,7 @@ sc = " " # Space character to append to here-document line when required.
       : exact
       :
       $rep_info $rep/subdomain-match 2>>EOE != 0
-        error: certificate name mismatch for repository bpkg:build2.org/rep-auth/subdomain-match
+        error: certificate name mismatch for repository pkg:build2.org/rep-auth/subdomain-match
           info: certificate name is *.build2.org
         EOE
 
@@ -426,7 +426,7 @@ sc = " " # Space character to append to here-document line when required.
           cp -r $rep/subdomain-match $r;
 
           $rep_info $r/subdomain-match 2>>EOE != 0
-            error: certificate name mismatch for repository bpkg:b.a.build2.org/subdomain-match
+            error: certificate name mismatch for repository pkg:b.a.build2.org/subdomain-match
               info: certificate name is *.build2.org
             EOE
         }
@@ -450,8 +450,8 @@ sc = " " # Space character to append to here-document line when required.
       $clone_cfg;
 
       $rep_fetch 2>>~%EOE% != 0;
-        fetching bpkg:build2.org/rep-auth/unsigned1
-        warning: repository bpkg:build2.org/rep-auth/unsigned1 is unsigned
+        fetching pkg:build2.org/rep-auth/unsigned1
+        warning: repository pkg:build2.org/rep-auth/unsigned1 is unsigned
         %continue without authenticating repositories at .+\? \[y/n\] %
         error: unable to read y/n answer from STDOUT
         EOE
@@ -465,7 +465,7 @@ sc = " " # Space character to append to here-document line when required.
       $clone_cfg;
 
       $rep_fetch --trust-yes 2>>EOE;
-        fetching bpkg:build2.org/rep-auth/unsigned1
+        fetching pkg:build2.org/rep-auth/unsigned1
         1 package(s) in 1 repository(s)
         EOE
 
@@ -478,8 +478,8 @@ sc = " " # Space character to append to here-document line when required.
       $clone_cfg;
 
       $rep_fetch --trust-no 2>>EOE != 0;
-        fetching bpkg:build2.org/rep-auth/unsigned1
-        error: repository bpkg:build2.org/rep-auth/unsigned1 is unsigned
+        fetching pkg:build2.org/rep-auth/unsigned1
+        error: repository pkg:build2.org/rep-auth/unsigned1 is unsigned
         EOE
 
       $not_fetched
@@ -491,19 +491,19 @@ sc = " " # Space character to append to here-document line when required.
       $clone_cfg;
 
       $rep_fetch --trust-yes 2>>EOE;
-        fetching bpkg:build2.org/rep-auth/unsigned1
+        fetching pkg:build2.org/rep-auth/unsigned1
         1 package(s) in 1 repository(s)
         EOE
 
       $rep_fetch 2>>EOE;
-        fetching bpkg:build2.org/rep-auth/unsigned1
+        fetching pkg:build2.org/rep-auth/unsigned1
         1 package(s) in 1 repository(s)
         EOE
 
       $fetched;
 
       $rep_fetch --trust-no 2>>EOE;
-        fetching bpkg:build2.org/rep-auth/unsigned1
+        fetching pkg:build2.org/rep-auth/unsigned1
         1 package(s) in 1 repository(s)
         EOE
 
@@ -512,8 +512,8 @@ sc = " " # Space character to append to here-document line when required.
       $rep_add $rep/unsigned2;
 
       $rep_fetch 2>>EOE;
-        fetching bpkg:build2.org/rep-auth/unsigned1
-        fetching bpkg:build2.org/rep-auth/unsigned2
+        fetching pkg:build2.org/rep-auth/unsigned1
+        fetching pkg:build2.org/rep-auth/unsigned2
         1 package(s) in 2 repository(s)
         EOE
 
@@ -529,7 +529,7 @@ sc = " " # Space character to append to here-document line when required.
     : no-auth
     :
     $rep_info 2>>~%EOE% != 0
-      warning: repository bpkg:build2.org/rep-auth/unsigned1 is unsigned
+      warning: repository pkg:build2.org/rep-auth/unsigned1 is unsigned
       %continue without authenticating repositories at .+\? \[y/n\] %
       error: unable to read y/n answer from STDOUT
       EOE
@@ -537,13 +537,13 @@ sc = " " # Space character to append to here-document line when required.
     : trust-yes
     :
     $rep_info --trust-yes >>"EOO"
-      bpkg:build2.org/rep-auth/unsigned1 ($rep/unsigned1)
+      pkg:build2.org/rep-auth/unsigned1 ($rep/unsigned1)
       EOO
 
     : trust-no
     :
     $rep_info --trust-no 2>>EOE != 0
-      error: repository bpkg:build2.org/rep-auth/unsigned1 is unsigned
+      error: repository pkg:build2.org/rep-auth/unsigned1 is unsigned
       EOE
 
     : already-trusted
@@ -553,10 +553,10 @@ sc = " " # Space character to append to here-document line when required.
       rep_info += -d cfg;
 
       $rep_info --trust-yes >>"EOO";
-        bpkg:build2.org/rep-auth/unsigned1 ($rep/unsigned1)
+        pkg:build2.org/rep-auth/unsigned1 ($rep/unsigned1)
         EOO
       $rep_info >>"EOO"
-        bpkg:build2.org/rep-auth/unsigned1 ($rep/unsigned1)
+        pkg:build2.org/rep-auth/unsigned1 ($rep/unsigned1)
         EOO
     }
   }
@@ -570,20 +570,20 @@ sc = " " # Space character to append to here-document line when required.
   : name-mismatch
   :
   $rep_info $rep/name-mismatch 2>>EOE != 0
-    error: certificate name mismatch for repository bpkg:build2.org/rep-auth/name-mismatch
+    error: certificate name mismatch for repository pkg:build2.org/rep-auth/name-mismatch
       info: certificate name is build2.org/mismatched/name
     EOE
 
   : expired
   :
   $rep_info $rep/expired 2>>EOE != 0
-    error: certificate for repository bpkg:build2.org/rep-auth/expired has expired
+    error: certificate for repository pkg:build2.org/rep-auth/expired has expired
     EOE
 
   : sha256sum-mismatch
   :
   $rep_info $rep/sha256sum-mismatch 2>>EOE != 0
-    error: packages manifest file checksum mismatch for bpkg:build2.org/rep-auth/sha256sum-mismatch
+    error: packages manifest file checksum mismatch for pkg:build2.org/rep-auth/sha256sum-mismatch
       info: try again
     EOE
 
@@ -591,7 +591,7 @@ sc = " " # Space character to append to here-document line when required.
   :
   $rep_info $rep/signature-mismatch 2>>~%EOE% != 0
     %.*
-    %error: unable to authenticate repository bpkg:build2.org/rep-auth/signature-mismatch: .*%
+    %error: unable to authenticate repository pkg:build2.org/rep-auth/signature-mismatch: .*%
     EOE
 
   : create-rep

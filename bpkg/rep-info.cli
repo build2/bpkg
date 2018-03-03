@@ -96,7 +96,7 @@ namespace bpkg
     repository_type --type
     {
       "<type>",
-      "Specify the repository type with valid values being \cb{bpkg} and
+      "Specify the repository type with valid values being \cb{pkg} and
        \cb{git}. Refer to \l{bpkg-rep-add(1)} for details."
     }
 

@@ -40,7 +40,7 @@ rep_list += -d cfg
     $clone_cfg;
 
     $* 'stable' 2>>/~%EOE% != 0
-    %error: invalid bpkg repository location '.+/no-version/stable': missing repository version%
+    %error: invalid pkg repository location '.+/no-version/stable': missing repository version%
       info: consider using --type to specify repository type
     EOE
   }
@@ -55,13 +55,13 @@ rep_list += -d cfg
     EOE
   }
 
-  : bpkg-git-scheme
+  : pkg-git-scheme
   :
   {
     $clone_cfg;
 
-    $* 'git://example.org/repo' --type bpkg 2>>EOE != 0
-    error: invalid bpkg repository location 'git://example.org/repo': unsupported scheme for bpkg repository
+    $* 'git://example.org/repo' --type pkg 2>>EOE != 0
+    error: invalid pkg repository location 'git://example.org/repo': unsupported scheme for pkg repository
     EOE
   }
 
@@ -97,11 +97,11 @@ rep_list += -d cfg
       added git:example.org/repo#master
       EOE
 
-    : http-bpkg
+    : http-pkg
     :
     $clone_cfg;
     $* 'http://example.org/1/repo' 2>>EOE
-      added bpkg:example.org/repo
+      added pkg:example.org/repo
       EOE
 
     : file-git
@@ -112,7 +112,7 @@ rep_list += -d cfg
       %error: invalid git repository location '.+repo': missing branch/tag or commit id for git repository%
       EOE
 
-    : file-bpkg
+    : file-pkg
     :
     $clone_cfg;
 
@@ -128,11 +128,11 @@ rep_list += -d cfg
   $clone_cfg;
 
   $* ./1/bar/stable 2>>/~%EOE%;
-    %added bpkg:.+/relative-path/bar/stable%
+    %added pkg:.+/relative-path/bar/stable%
     EOE
 
   $* ./1/../1/bar/stable 2>>/~%EOE%
-    %unchanged bpkg:.+/relative-path/bar/stable%
+    %unchanged pkg:.+/relative-path/bar/stable%
     EOE
 }
 
@@ -142,11 +142,11 @@ rep_list += -d cfg
   $clone_cfg;
 
   $* $~/1/foo/stable 2>>/~%EOE%;
-    %added bpkg:.+/absolute-path/foo/stable%
+    %added pkg:.+/absolute-path/foo/stable%
     EOE
 
   $* $~/1/../1/foo/stable 2>>/~%EOE%
-    %unchanged bpkg:.+/absolute-path/foo/stable%
+    %unchanged pkg:.+/absolute-path/foo/stable%
     EOE
 }
 
@@ -155,20 +155,20 @@ rep_list += -d cfg
 {
   +$clone_cfg
 
-  : bpkg
+  : pkg
   :
   $clone_cfg;
 
   $* 'http://pkg.example.org/1/testing' 2>>EOE;
-    added bpkg:example.org/testing
+    added pkg:example.org/testing
     EOE
 
   $* 'https://www.example.org/1/testing' 2>>EOE;
-    updated bpkg:example.org/testing
+    updated pkg:example.org/testing
     EOE
 
   $rep_list >>EOO
-    bpkg:example.org/testing https://www.example.org/1/testing
+    pkg:example.org/testing https://www.example.org/1/testing
     EOO
 
   : git
@@ -194,12 +194,12 @@ rep_list += -d cfg
   $clone_cfg;
 
   $* 'http://pkg.example.org/1/alpha' 'http://pkg.example.org/1/beta' 2>>EOE;
-    added bpkg:example.org/alpha
-    added bpkg:example.org/beta
+    added pkg:example.org/alpha
+    added pkg:example.org/beta
     EOE
 
   $rep_list >>EOO
-    bpkg:example.org/alpha http://pkg.example.org/1/alpha
-    bpkg:example.org/beta http://pkg.example.org/1/beta
+    pkg:example.org/alpha http://pkg.example.org/1/alpha
+    pkg:example.org/beta http://pkg.example.org/1/beta
     EOO
 }

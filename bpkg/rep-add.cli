@@ -30,31 +30,32 @@ namespace bpkg
      the newly added repository. For that, use the \l{bpkg-rep-fetch(1)}
      command, normally, after adding all the repositories you wish to use.
 
-     Currently two types of repositories are supported: \i{bpkg} and \i{git}.
+     Currently two types of repositories are supported: \cb{pkg} and \cb{git}.
      Normally the repository type can be automatically guessed by examining
      its URL (for example, the presence of the \cb{.git} extension) or, in
      case of a local repository, its content (for example, the presence of the
-     \cb{.git/} subdirectory). Without any identifying information the bpkg
-     type is assumed unless explicitly specified with the \cb{--type} option.
+     \cb{.git/} subdirectory). Without any identifying information the
+     \cb{pkg} type is assumed unless explicitly specified with the \cb{--type}
+     option.
 
-     A bpkg repository is \i{archive}-based. That is, it contains a collection
-     of various packages/versions as archive files. For more information on
-     the structure of bpkg repositories refer to the \l{bpkg \cb{bpkg}
-     manual}.
+     A \cb{pkg} repository is \i{archive}-based. That is, it contains a
+     collection of various packages/versions as archive files. For more
+     information on the structure of \cb{pkg} repositories refer to the
+     \l{bpkg \cb{bpkg} manual}.
 
-     A git repository is \i{version control}-based. That is, it normally
+     A \cb{git} repository is \i{version control}-based. That is, it normally
      contains multiple versions of the same package (but can also contain
      several packages in the same repository).
 
-     Theoretically, a git repository may contain as many package versions as
-     there are commits. Practically, however, we are normally only interested
-     in a small subset of them while fetching and processing the necessary
-     information for all of them could be prohibitively expensive. As a
-     result, a git repository URL must include the fragment component that
-     restricts the set of versions to consider as available. While in the
-     future it will be possible to specify multiple available versions,
-     currently the fragment must identify a single version using one of the
-     following forms:
+     Theoretically, a \cb{git} repository may contain as many package versions
+     as there are commits. Practically, however, we are normally only
+     interested in a small subset of them while fetching and processing the
+     necessary information for all of them could be prohibitively expensive.
+     As a result, a \cb{git} repository URL must include the fragment
+     component that restricts the set of versions to consider as available.
+     While in the future it will be possible to specify multiple available
+     versions, currently the fragment must identify a single version using one
+     of the following forms:
 
      \
      #<tag>
@@ -72,7 +73,7 @@ namespace bpkg
      branch/tag otherwise. In an unlikely case this produces an incorrect
      result, the last form with omitted <commit-id> can be used.
 
-     Below are some examples of git repository URLs:
+     Below are some examples of \cb{git} repository URLs:
 
      \
      https://example.com/foo.git#v1.2.3
@@ -82,16 +83,16 @@ namespace bpkg
      https://example.com/foo.git#deadbeefdeadbeefdeadbeefdeadbeefdeadbeef@
      \
 
-     A git repository is expected to contain either the \cb{manifest} or
+     A \cb{git} repository is expected to contain either the \cb{manifest} or
      \cb{packages} file in the root directory of the repository. If it only
      contains \cb{manifest}, then it is assumed to be a single-package
      repository with the \cb{manifest} file being its package manifest.
      Otherwise the \cb{packages} file should list the available packages as
      described in \l{bpkg#manifest-package-list-git Package List Manifest for
-     \c{git} Repositories}.
+     \cb{git} Repositories}.
 
-     A git repository may also contain the \cb{repositories} file in the root
-     directory of the repository. This file can be used to describe the
+     A \cb{git} repository may also contain the \cb{repositories} file in the
+     root directory of the repository. This file can be used to describe the
      repository itself as well as specify its prerequisite and complement
      repositories. See \l{bpkg#manifest-repository-list Repository List
      Manifest} for details on the format and semantics of this file.
@@ -102,11 +103,11 @@ namespace bpkg
      it is not always possible for some protocols and/or server
      configurations, as discussed next.
 
-     A git repository accessible via \cb{http(s)://} can use either \i{dumb}
-     or \i{smart} protocol (refer to the \cb{git} documentation for details).
-     The dumb protocol provides only limited support for fetch minimization
-     and if this protocol is used, then \cb{bpkg} has no choice but to
-     download a substantial amount of history.
+     A \cb{git} repository accessible via \cb{http(s)://} can use either
+     \i{dumb} or \i{smart} protocol (refer to the \cb{git} documentation for
+     details). The dumb protocol provides only limited support for fetch
+     minimization and if this protocol is used, then \cb{bpkg} has no choice
+     but to download a substantial amount of history.
 
      The smart protocol allows fetching of minimal history for tags and
      branches. Whether this is also possible for (all) commit ids depends on
@@ -137,7 +138,7 @@ namespace bpkg
     repository_type --type
     {
       "<type>",
-      "Specify the repository type with valid values being \cb{bpkg} and
+      "Specify the repository type with valid values being \cb{pkg} and
        \cb{git}."
     }
   };

@@ -16,35 +16,35 @@
 
 namespace bpkg
 {
-  // Repository type bpkg (fetch-bpkg.cxx).
+  // Repository type pkg (fetch-pkg.cxx).
   //
 
-  bpkg_repository_manifests
-  bpkg_fetch_repositories (const dir_path&, bool ignore_unknown);
+  pkg_repository_manifests
+  pkg_fetch_repositories (const dir_path&, bool ignore_unknown);
 
-  pair<bpkg_repository_manifests, string /* checksum */>
-  bpkg_fetch_repositories (const common_options&,
-                           const repository_location&,
-                           bool ignore_unknown);
+  pair<pkg_repository_manifests, string /* checksum */>
+  pkg_fetch_repositories (const common_options&,
+                          const repository_location&,
+                          bool ignore_unknown);
 
-  bpkg_package_manifests
-  bpkg_fetch_packages (const dir_path&, bool ignore_unknown);
+  pkg_package_manifests
+  pkg_fetch_packages (const dir_path&, bool ignore_unknown);
 
-  pair<bpkg_package_manifests, string /* checksum */>
-  bpkg_fetch_packages (const common_options&,
+  pair<pkg_package_manifests, string /* checksum */>
+  pkg_fetch_packages (const common_options&,
+                      const repository_location&,
+                      bool ignore_unknown);
+
+  signature_manifest
+  pkg_fetch_signature (const common_options&,
                        const repository_location&,
                        bool ignore_unknown);
 
-  signature_manifest
-  bpkg_fetch_signature (const common_options&,
-                        const repository_location&,
-                        bool ignore_unknown);
-
   path
-  bpkg_fetch_archive (const common_options&,
-                      const repository_location&,
-                      const path& archive,
-                      const dir_path& destdir);
+  pkg_fetch_archive (const common_options&,
+                     const repository_location&,
+                     const path& archive,
+                     const dir_path& destdir);
 
   // Repository type git (fetch-git.cxx).
   //

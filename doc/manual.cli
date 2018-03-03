@@ -856,9 +856,9 @@ Note that the comment of the matching exclusion is used by the web interface
 (\c{brep}) to display the reason for the build exclusion.
 
 
-\h#manifest-package-list-bpkg|Package List Manifest for \c{bpkg} Repositories|
+\h#manifest-package-list-pkg|Package List Manifest for \cb{pkg} Repositories|
 
-The package list manifest (the \c{packages} file found in the \c{bpkg}
+The package list manifest (the \c{packages} file found in the \cb{pkg}
 repository root directory) describes the list of packages available in the
 repository. First comes a manifest that describes the list itself (referred to
 as the list manifest). The list manifest synopsis is presented next:
@@ -879,7 +879,7 @@ sha256sum: <sum>
 
 The detailed description of each value follows in the subsequent sections.
 
-\h2#manifest-package-list-bpkg-sha256sum|\c{sha256sum} (list manifest)|
+\h2#manifest-package-list-pkg-sha256sum|\c{sha256sum} (list manifest)|
 
 \
 sha256sum: <sum>
@@ -895,7 +895,7 @@ was fetched is the same as the one that was used to create the \c{packages}
 file. This also means that if \c{repositories} is modified in any way, then
 \c{packages} must be regenerated as well.]
 
-\h2#manifest-package-list-bpkg-package-location|\c{location} (package manifest)|
+\h2#manifest-package-list-pkg-package-location|\c{location} (package manifest)|
 
 \
 location: <path>
@@ -909,7 +909,7 @@ them all into the repository root directory, it can get untidy. With
 \c{location} we allow for sub-directories.]
 
 
-\h2#manifest-package-list-bpkg-package-sha256sum|\c{sha256sum} (package manifest)|
+\h2#manifest-package-list-pkg-package-sha256sum|\c{sha256sum} (package manifest)|
 
 \
 sha256sum: <sum>
@@ -920,9 +920,9 @@ The SHA256 checksum of the package archive file. The \i{sum} value should be
 markers), be calculated in the binary mode, and use lower-case letters.
 
 
-\h#manifest-package-list-git|Package List Manifest for \c{git} Repositories|
+\h#manifest-package-list-git|Package List Manifest for \cb{git} Repositories|
 
-The package list manifest (the \c{packages} file found in the \c{git}
+The package list manifest (the \c{packages} file found in the \cb{git}
 repository root directory) describes the list of packages available in the
 repository. It is a (potentially empty) sequence of manifests with the
 following synopsis:
@@ -957,13 +957,13 @@ be in the POSIX representation.
 \h#manifest-repository|Repository Manifest|
 
 The repository manifest (only used as part of the repository manifest list
-described below) describes a \c{bpkg} or \c{git} repository. The manifest
+described below) describes a \cb{pkg} or \cb{git} repository. The manifest
 synopsis is presented next followed by the detailed description of each value
 in subsequent sections.
 
 \
 [location]: <uri>
-[type]: bpkg|git
+[type]: pkg|git
 [role]: base|prerequisite|complement
 [url]: <url>
 [email]: <email> [; <comment>]
@@ -998,7 +998,7 @@ that is not possible (for example, there is a drive letter in the path).]
 \h2#manifest-repository-type|\c{type}|
 
 \
-[type]: bpkg|git
+[type]: pkg|git
 \
 
 The repository type. The type must be omitted for the base repository. If the
@@ -1124,7 +1124,7 @@ description.
 
 The X.509 certificate for the repository. It should be in the PEM format and
 can only be specified for the base repository. Currently only used for the
-\c{bpkg} repository type.
+\cb{pkg} repository type.
 
 The certificate should contain the \c{CN} and \c{O} components in the subject
 as well as the \c{email:} component in the subject alternative names. The
@@ -1135,7 +1135,7 @@ repository name(s) that are authenticated with this certificate. See
 
 If this value is present then the \c{packages} file must be signed with the
 corresponding private key and the signature saved in the \c{signature} file.
-See \l{#manifest-signature-bpkg Signature Manifest} for details.
+See \l{#manifest-signature-pkg Signature Manifest} for details.
 
 
 \h#manifest-repository-list|Repository List Manifest|
@@ -1184,9 +1184,9 @@ https://pkg.example.org/1/math/stable
 \
 
 
-\h#manifest-signature-bpkg|Signature Manifest for \c{bpkg} Repositories|
+\h#manifest-signature-pkg|Signature Manifest for \cb{pkg} Repositories|
 
-The signature manifest (the \c{signature} file found in the \c{bpkg}
+The signature manifest (the \c{signature} file found in the \cb{pkg}
 repository root directory) contains the signature of the repository's
 \c{packages} file. In order to detect the situation where the downloaded
 \c{signature} and \c{packages} files belong to different updates, the manifest
@@ -1201,7 +1201,7 @@ sha256sum: <sum>
 signature: <sig>
 \
 
-\h2#manifest-signature-bpkg-sha256sum|\c{sha256sum}|
+\h2#manifest-signature-pkg-sha256sum|\c{sha256sum}|
 
 \
 sha256sum: <sum>
@@ -1212,7 +1212,7 @@ characters long (that is, just the SHA256 value, no file name or any other
 markers), be calculated in the binary mode, and use lower-case letters.
 
 
-\h2#manifest-signature-bpkg-signature|\c{signature}|
+\h2#manifest-signature-pkg-signature|\c{signature}|
 
 \
 signature: <sig>

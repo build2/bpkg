@@ -64,8 +64,8 @@ rep_fetch += -d cfg --auth all --trust-yes 2>!
   $rep_add $rep/stable && $rep_add $rep/testing && $rep_fetch;
 
   $* >>"EOO"
-    bpkg:build2.org/rep-list/stable ($rep/stable)
-    bpkg:build2.org/rep-list/testing ($rep/testing)
+    pkg:build2.org/rep-list/stable ($rep/stable)
+    pkg:build2.org/rep-list/testing ($rep/testing)
     EOO
 }
 
@@ -78,10 +78,10 @@ rep_fetch += -d cfg --auth all --trust-yes 2>!
   $rep_add $rep/stable && $rep_fetch;
 
   $* --prerequisites >>"EOO"
-    bpkg:build2.org/rep-list/stable ($rep/stable)
-      prerequisite bpkg:build2.org/rep-list/math ($rep/math)
-        prerequisite bpkg:build2.org/rep-list/extra ($rep/extra)
-          prerequisite bpkg:build2.org/rep-list/stable ($rep/stable)
+    pkg:build2.org/rep-list/stable ($rep/stable)
+      prerequisite pkg:build2.org/rep-list/math ($rep/math)
+        prerequisite pkg:build2.org/rep-list/extra ($rep/extra)
+          prerequisite pkg:build2.org/rep-list/stable ($rep/stable)
     EOO
 }
 
@@ -92,8 +92,8 @@ rep_fetch += -d cfg --auth all --trust-yes 2>!
   $rep_add $rep/testing && $rep_fetch;
 
   $* --complements >>"EOO"
-    bpkg:build2.org/rep-list/testing ($rep/testing)
-      complement bpkg:build2.org/rep-list/stable ($rep/stable)
+    pkg:build2.org/rep-list/testing ($rep/testing)
+      complement pkg:build2.org/rep-list/stable ($rep/stable)
     EOO
 }
 
@@ -104,15 +104,15 @@ rep_fetch += -d cfg --auth all --trust-yes 2>!
   $rep_add $rep/testing && $rep_fetch;
 
   $* --prerequisites --complements >>"EOO"
-    bpkg:build2.org/rep-list/testing ($rep/testing)
-      complement bpkg:build2.org/rep-list/stable ($rep/stable)
-        prerequisite bpkg:build2.org/rep-list/math ($rep/math)
-          prerequisite bpkg:build2.org/rep-list/extra ($rep/extra)
-            prerequisite bpkg:build2.org/rep-list/stable ($rep/stable)
-      prerequisite bpkg:build2.org/rep-list/extra ($rep/extra)
-        prerequisite bpkg:build2.org/rep-list/stable ($rep/stable)
-          prerequisite bpkg:build2.org/rep-list/math ($rep/math)
-            prerequisite bpkg:build2.org/rep-list/extra ($rep/extra)
+    pkg:build2.org/rep-list/testing ($rep/testing)
+      complement pkg:build2.org/rep-list/stable ($rep/stable)
+        prerequisite pkg:build2.org/rep-list/math ($rep/math)
+          prerequisite pkg:build2.org/rep-list/extra ($rep/extra)
+            prerequisite pkg:build2.org/rep-list/stable ($rep/stable)
+      prerequisite pkg:build2.org/rep-list/extra ($rep/extra)
+        prerequisite pkg:build2.org/rep-list/stable ($rep/stable)
+          prerequisite pkg:build2.org/rep-list/math ($rep/math)
+            prerequisite pkg:build2.org/rep-list/extra ($rep/extra)
     EOO
 }
 

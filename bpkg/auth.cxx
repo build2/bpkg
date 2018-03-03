@@ -69,7 +69,7 @@ namespace bpkg
     if (rl.remote ())
       return repository_location (
         repository_url (p.posix_string ()),
-        repository_type::bpkg,
+        repository_type::pkg,
         rl).canonical_name ();
     else
       return (path_cast<dir_path> (rl.path ()) / p).normalize ().string ();
@@ -711,9 +711,9 @@ namespace bpkg
 
     pair<string, string> c (split (cert.name));
 
-    // Strip 'bpkg:' prefix.
+    // Strip 'pkg:' prefix.
     //
-    pair<string, string> r (split (rl.canonical_name ().substr (5)));
+    pair<string, string> r (split (rl.canonical_name ().substr (4)));
 
     // Match the repository canonical name leading part.
     //

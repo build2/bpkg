@@ -42,18 +42,18 @@ namespace bpkg
   static bool filesystem_state_changed;
 
   static rep_fetch_data
-  rep_fetch_bpkg (const common_options& co,
-                  const dir_path* conf,
-                  const repository_location& rl,
-                  bool ignore_unknown)
+  rep_fetch_pkg (const common_options& co,
+                 const dir_path* conf,
+                 const repository_location& rl,
+                 bool ignore_unknown)
   {
     // First fetch the repositories list and authenticate the base's
     // certificate.
     //
-    pair<bpkg_repository_manifests, string /* checksum */> rmc (
-      bpkg_fetch_repositories (co, rl, ignore_unknown));
+    pair<pkg_repository_manifests, string /* checksum */> rmc (
+      pkg_fetch_repositories (co, rl, ignore_unknown));
 
-    bpkg_repository_manifests& rms (rmc.first);
+    pkg_repository_manifests& rms (rmc.first);
 
     bool a (co.auth () != auth::none &&
             (co.auth () == auth::all || rl.remote ()));
@@ -70,10 +70,10 @@ namespace bpkg
     // Now fetch the packages list and make sure it matches the repositories
     // we just fetched.
     //
-    pair<bpkg_package_manifests, string /* checksum */> pmc (
-      bpkg_fetch_packages (co, rl, ignore_unknown));
+    pair<pkg_package_manifests, string /* checksum */> pmc (
+      pkg_fetch_packages (co, rl, ignore_unknown));
 
-    bpkg_package_manifests& pms (pmc.first);
+    pkg_package_manifests& pms (pmc.first);
 
     if (rmc.second != pms.sha256sum)
       fail << "repositories manifest file checksum mismatch for "
@@ -83,7 +83,7 @@ namespace bpkg
     if (a)
     {
       signature_manifest sm (
-        bpkg_fetch_signature (co, rl, true /* ignore_unknown */));
+        pkg_fetch_signature (co, rl, true /* ignore_unknown */));
 
       if (sm.sha256sum != pmc.second)
         fail << "packages manifest file checksum mismatch for "
@@ -270,7 +270,7 @@ namespace bpkg
       {
         ifdstream ifs (f);
         manifest_parser mp (ifs, f.string ());
-        package_manifest m (bpkg_package_manifest (mp, ignore_unknown));
+        package_manifest m (pkg_package_manifest (mp, ignore_unknown));
 
         // Save the package manifest, preserving its location.
         //
@@ -410,8 +410,8 @@ namespace bpkg
   {
     switch (rl.type ())
     {
-    case repository_type::bpkg: return rep_fetch_bpkg (co, conf, rl, iu);
-    case repository_type::git:  return rep_fetch_git  (co, conf, rl, iu);
+    case repository_type::pkg: return rep_fetch_pkg (co, conf, rl, iu);
+    case repository_type::git: return rep_fetch_git (co, conf, rl, iu);
     }
 
     assert (false); // Can't be here.

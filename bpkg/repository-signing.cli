@@ -36,7 +36,7 @@ matches the certificate's subject (see below). In the future a certificate
 authority (CA)-based model may be added.
 
 The rest of this guide shows how to create a key/certificate pair for
-\cb{bpkg} repository signing and use it to sign a repository. At the end it
+\cb{pkg} repository signing and use it to sign a repository. At the end it
 also briefly explains how to store the private key on a PIV/PKCS#11 device
 using Yubikey 4 as an example.
 
@@ -92,7 +92,7 @@ it. Also use a working email address in case users need to contact you about
 issues with your certificate. Note that the \cb{name:} prefix in the \cb{CN}
 value is not a typo.
 
-The \cb{name} field is a canonical repository name prefix with the \cb{bpkg:}
+The \cb{name} field is a canonical repository name prefix with the \cb{pkg:}
 type part stripped. Any repository with a canonical name that starts with this
 prefix can be authenticated by this certificate (see the repository manifest
 documentation for more information on canonical names). For example, name

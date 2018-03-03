@@ -22,7 +22,7 @@ for o in "$@"; do
   esac
 done
 
-# Publish bpkg test repositories.
+# Publish test pkg repositories.
 #
 rsync -v -rlpt --copy-unsafe-links \
 --prune-empty-dirs --delete-after --delete-excluded $* \
@@ -34,7 +34,7 @@ rsync -v -rlpt --copy-unsafe-links \
 --exclude '*'             \
 test/*/pkg/1/build2.org/ build2.org:/var/pkg/1/
 
-# Publish git test repositories.
+# Publish test git repositories.
 #
 urls=('git.build2.org:/var/scm/testing/bpkg/unadv' \
       'git.build2.org:/var/scm/testing/bpkg/advonly')
