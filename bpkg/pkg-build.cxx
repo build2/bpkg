@@ -1084,20 +1084,29 @@ namespace bpkg
     {
       size_t p (0);
 
-      // Skip leading ':' that are not part of "://".
+      // Check that the scheme belongs to a URL: is not one character long and
+      // is followed by :/.
+      //
+      auto url_scheme = [&arg, &p] () -> bool
+      {
+        assert (arg[p] == ':');
+        return p > 1 &&           // Is not a Windows drive letter.
+               arg[p + 1] == '/';
+      };
+
+      // Skip leading ':' that are not part of a URL.
       //
       while ((p = arg.find_first_of ("@:", p)) != string::npos &&
-             arg[p] == ':'                                     &&
-             arg.compare (p + 1, 2, "//") != 0)
+             arg[p] == ':' && !url_scheme ())
         ++p;
 
       if (p != string::npos)
       {
         if (arg[p] == ':')
         {
-          p = arg.compare (p + 1, 2, "//") != 0
-            ? string::npos
-            : 0; // The whole thing is the location.
+          p = url_scheme ()
+            ? 0             // The whole thing is the location.
+            : string::npos;
         }
         else
           p += 1; // Skip '@'.
@@ -1217,18 +1226,23 @@ namespace bpkg
             string pkg (ps, b, p != string::npos ? p - b : p);
             const char* s (pkg.c_str ());
 
-            // @@ Shouldn't we skip version selection for sys packages?
-            //
-            parse_package_scheme (s);
+            bool  sys (parse_package_scheme (s) == package_scheme::sys);
             string  n (parse_package_name (s));
             version v (parse_package_version (s));
-
-            optional<dependency_constraint> c (
-              !v.empty () ? optional<dependency_constraint> (v) : nullopt);
 
             // Check if the package is present in the repository and its
             // complements, recursively.
             //
+            // Note that for the system package we don't care about its exact
+            // version available from the repository (which may well be a
+            // stub). All we need is to make sure that it is present in the
+            // repository.
+            //
+            optional<dependency_constraint> c (
+              v.empty () || sys
+              ? nullopt
+              : optional<dependency_constraint> (v));
+
             shared_ptr<available_package> ap (
               find_available (db, n, r, c, false /* prereq */).first);
 
@@ -1243,7 +1257,10 @@ namespace bpkg
 
             // Add the [scheme:]package/version to the argument list.
             //
-            eargs.push_back (pkg + '/' + ap->version.string ());
+            // Note that the system package is added to the argument list as
+            // it appears originally (see above).
+            //
+            eargs.push_back (sys ? pkg : n + '/' + ap->version.string ());
 
             b = p != string::npos ? p + 1 : p;
           }

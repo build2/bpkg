@@ -1313,30 +1313,69 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
   : all-packages
   :
   {
-    $clone_root_cfg;
+    : explicit
+    :
+    {
+      $clone_root_cfg;
 
-    $* "@$rep/t4d" 2>>~%EOE%;
-      %.+
-      %info: .+libfox-1.0.0.+ is up to date%
-      %info: .+libbiz-1.0.0.+ is up to date%
-      updated libfox/1.0.0
-      updated libbiz/1.0.0
-      EOE
+      $* "@$rep/t4d" 2>>~%EOE%;
+        %.+
+        %info: .+libfox-1.0.0.+ is up to date%
+        %info: .+libbiz-1.0.0.+ is up to date%
+        updated libfox/1.0.0
+        updated libbiz/1.0.0
+        EOE
 
-    $pkg_disfigure libbiz 2>'disfigured libbiz/1.0.0';
-    $pkg_purge     libbiz 2>'purged libbiz/1.0.0';
+      $pkg_disfigure libbiz 2>'disfigured libbiz/1.0.0';
+      $pkg_purge     libbiz 2>'purged libbiz/1.0.0';
 
-    $pkg_disfigure libfox 2>'disfigured libfox/1.0.0';
-    $pkg_purge     libfox 2>'purged libfox/1.0.0';
+      $pkg_disfigure libfox 2>'disfigured libfox/1.0.0';
+      $pkg_purge     libfox 2>'purged libfox/1.0.0';
 
-    $pkg_disfigure libbaz 2>'disfigured libbaz/1.1.0';
-    $pkg_purge     libbaz 2>'purged libbaz/1.1.0';
+      $pkg_disfigure libbaz 2>'disfigured libbaz/1.1.0';
+      $pkg_purge     libbaz 2>'purged libbaz/1.1.0';
 
-    $pkg_disfigure libbar 2>'disfigured libbar/1.1.0';
-    $pkg_purge     libbar 2>'purged libbar/1.1.0';
+      $pkg_disfigure libbar 2>'disfigured libbar/1.1.0';
+      $pkg_purge     libbar 2>'purged libbar/1.1.0';
 
-    $pkg_disfigure libfoo 2>'disfigured libfoo/1.1.0';
-    $pkg_purge     libfoo 2>'purged libfoo/1.1.0'
+      $pkg_disfigure libfoo 2>'disfigured libfoo/1.1.0';
+      $pkg_purge     libfoo 2>'purged libfoo/1.1.0'
+    }
+
+    : url-detection
+    :
+    {
+      $clone_root_cfg;
+
+      if ($remote != true)
+        rep = ($cxx.target.class != 'windows' \
+               ? "file:$rep" \
+               : "file:/$regex.replace($rep, '\\', '/')")
+      end;
+
+      $* "$rep/t4d" 2>>~%EOE%;
+        %.+
+        %info: .+libfox-1.0.0.+ is up to date%
+        %info: .+libbiz-1.0.0.+ is up to date%
+        updated libfox/1.0.0
+        updated libbiz/1.0.0
+        EOE
+
+      $pkg_disfigure libbiz 2>'disfigured libbiz/1.0.0';
+      $pkg_purge     libbiz 2>'purged libbiz/1.0.0';
+
+      $pkg_disfigure libfox 2>'disfigured libfox/1.0.0';
+      $pkg_purge     libfox 2>'purged libfox/1.0.0';
+
+      $pkg_disfigure libbaz 2>'disfigured libbaz/1.1.0';
+      $pkg_purge     libbaz 2>'purged libbaz/1.1.0';
+
+      $pkg_disfigure libbar 2>'disfigured libbar/1.1.0';
+      $pkg_purge     libbar 2>'purged libbar/1.1.0';
+
+      $pkg_disfigure libfoo 2>'disfigured libfoo/1.1.0';
+      $pkg_purge     libfoo 2>'purged libfoo/1.1.0'
+    }
   }
 
   : multiple-packages
@@ -1383,6 +1422,19 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
     $pkg_purge     libfoo 2>'purged libfoo/1.0.0'
   }
 
+  : system
+  :
+  {
+    $clone_root_cfg;
+
+    $* "sys:libbiz/2.0.0@$rep/t4d" 2>>~%EOE%;
+      %.+
+      configured sys:libbiz/2.0.0
+      EOE
+
+    $pkg_disfigure libbiz 2>'purged libbiz/2.0.0'
+  }
+
   : non-existent-package
   :
   {
@@ -1390,7 +1442,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
 
     $* "libbar@$rep/t4d" 2>>~%EOE% != 0
       %.+
-      error: package libbar is not found in bpkg:build2.org/pkg-build/t4d nor its complements
+      error: package libbar is not found in bpkg:build2.org/pkg-build/t4d or its complements
       EOE
   }
 }
