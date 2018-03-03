@@ -1073,16 +1073,30 @@ namespace bpkg
       fail << "package name argument expected" <<
         info << "run 'bpkg help pkg-build' for more information";
 
-    // Check if the argument has the <packages>@<location> form. Return the
-    // delimiter position if that's the case. Otherwise return string::npos.
+    // Check if the argument has the [<packages>]@<location> form or looks
+    // like a URL (the first colon is followed by "//"). Return the position
+    // of <location> if that's the case and string::npos otherwise.
     //
-    // We consider '@' to be such a delimiter if it comes before ':' (e.g., a
-    // URL which could contain its own '@').
+    // Note that we consider '@' to be such a delimiter only if it comes
+    // before ':' (think a URL which could contain its own '@').
     //
     auto location = [] (const string& arg) -> size_t
     {
       size_t p (arg.find_first_of ("@:"));
-      return p != string::npos && arg[p] == '@' ? p : string::npos;
+
+      if (p != string::npos)
+      {
+        if (arg[p] == ':')
+        {
+          p = arg.compare (p + 1, 2, "//") != 0
+            ? string::npos
+            : 0; // The whole thing is the location.
+        }
+        else
+          p += 1; // Skip '@'.
+      }
+
+      return p;
     };
 
     // Collect repository locations from <packages>@<location> arguments,
@@ -1102,7 +1116,7 @@ namespace bpkg
       if (p != string::npos)
       {
         repository_location l (
-          parse_location (string (arg, p + 1), nullopt /* type */));
+          parse_location (string (arg, p), nullopt /* type */));
 
         auto pr = [&l] (const repository_location& i) -> bool
         {
@@ -1152,18 +1166,18 @@ namespace bpkg
         }
 
         repository_location l (
-          parse_location (string (arg, p + 1), nullopt /* type */));
+          parse_location (string (arg, p), nullopt /* type */));
 
         shared_ptr<repository> r (db.load<repository> (l.canonical_name ()));
 
         // If no packages are specified explicitly (the argument starts with
-        // '@') then we select latest versions of all the packages from this
-        // repository. Otherwise, we search for the specified packages and
-        // versions (if specified) or latest versions (if unspecified) in the
-        // repository and its complements (recursively), failing if any of
-        // them are not found.
+        // '@' or is a URL) then we select latest versions of all the packages
+        // from this repository. Otherwise, we search for the specified
+        // packages and versions (if specified) or latest versions (if
+        // unspecified) in the repository and its complements (recursively),
+        // failing if any of them are not found.
         //
-        if (p == 0) // No packages are specified explicitly.
+        if (p == 0 || p == 1) // No packages are specified explicitly.
         {
           // Collect the latest package version.
           //
@@ -1186,7 +1200,7 @@ namespace bpkg
         }
         else // Packages with optional versions in the coma-separated list.
         {
-          string ps (arg, 0, p);
+          string ps (arg, 0, p - 1);
           for (size_t b (0); b != string::npos;)
           {
             // Extract the package.
@@ -1212,7 +1226,7 @@ namespace bpkg
               dr << "package " << s << " is not found in " << r->name;
 
               if (!r->complements.empty ())
-                dr << " nor its complements";
+                dr << " or its complements";
             }
 
             // Add the package/version to the argument list.
