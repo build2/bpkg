@@ -6,7 +6,7 @@
 # the final states. See tests/common/git/init script for more details.
 #
 
-test.cleanups += &cfg/.bpkg/repositories/*/***
+test.cleanups += &cfg/.bpkg/repos/*/***
 
 +if ($git_protocol == 'local')
   rep = "$rep_git_local"

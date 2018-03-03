@@ -126,7 +126,7 @@ if ($git_supported != true)
 else
 {
   rep = "$rep_git/state0"
-  test.cleanups += &cfg/.bpkg/repositories/*/***
+  test.cleanups += &cfg/.bpkg/repos/*/***
 
   : root-complement
   :

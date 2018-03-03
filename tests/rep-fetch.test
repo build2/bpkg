@@ -122,7 +122,7 @@ $* 2>>/EOE != 0
   {
     $clone_root_cfg && $rep_add $rep/hello;
 
-    $* --trust $cert_fp 2>>EOE &cfg/.bpkg/certificates/**;
+    $* --trust $cert_fp 2>>EOE &cfg/.bpkg/certs/**;
       fetching bpkg:build2.org/rep-fetch/hello
       1 package(s) in 1 repository(s)
       EOE
@@ -162,7 +162,7 @@ $* 2>>/EOE != 0
   {
     $clone_root_cfg && $rep_add $rep/hello $rep/bar/unstable;
 
-    $* --trust-yes 2>>EOE &cfg/.bpkg/certificates/**;
+    $* --trust-yes 2>>EOE &cfg/.bpkg/certs/**;
       fetching bpkg:build2.org/rep-fetch/bar/unstable
       fetching bpkg:build2.org/rep-fetch/foo/testing (prerequisite of bpkg:build2.org/rep-fetch/bar/unstable)
       fetching bpkg:build2.org/rep-fetch/foo/stable (complements bpkg:build2.org/rep-fetch/foo/testing)
@@ -372,7 +372,7 @@ else
   if ($remote == true)
   {
     $clone_root_cfg && $rep_add "$rep_git_git/state0/libfoo.git#master";
-    $* 2>! &cfg/.bpkg/repositories/*/***;
+    $* 2>! &cfg/.bpkg/repos/*/***;
     $rep_add "$rep_git_https_smart_unadv/state0/libfoo.git#master";
 
     $* 2>>~"%EOE%"
@@ -399,7 +399,7 @@ else
     # Cloning into 'cfg\.bpkg\tmp\f9be881264703b5d\master'...
     #
     $* 2>&1 | sed -n -e "s/Cloning into '\(.+master\)'\.{3}/\$1/p"   | \
-              sed -n -e 's%(.+[\\/])tmp([\\/].+)%$1repositories$2%p' | \
+              sed -n -e 's%(.+[\\/])tmp([\\/].+)%$1repos$2%p' | \
               set r;
 
     # Break the repo (drop the remote repository URL) and try to re-fetch.

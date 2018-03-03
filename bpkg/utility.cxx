@@ -22,8 +22,12 @@ namespace bpkg
   const dir_path empty_dir_path;
 
   const dir_path bpkg_dir (".bpkg");
-  const dir_path certs_dir (dir_path (bpkg_dir) /= "certificates");
-  const dir_path repos_dir (dir_path (bpkg_dir) /= "repositories");
+
+  // Keep these directory names short, lowering the probability of hitting the
+  // path length limit on Windows.
+  //
+  const dir_path certs_dir (dir_path (bpkg_dir) /= "certs");
+  const dir_path repos_dir (dir_path (bpkg_dir) /= "repos");
 
   const dir_path current_dir (".");
 

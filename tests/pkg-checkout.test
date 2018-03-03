@@ -39,7 +39,7 @@ else
   pkg_purge     += -d cfg 2>!
   pkg_status    += -d cfg
 
-  test.cleanups += &cfg/.bpkg/repositories/*/***
+  test.cleanups += &cfg/.bpkg/repos/*/***
 
   : unconfigured-dependency
   :

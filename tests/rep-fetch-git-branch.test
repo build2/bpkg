@@ -62,7 +62,7 @@ warning: fetching over dumb HTTP, no progress will be shown'
 : fetch
 :
 {
-  : unchanged
+  : same
   :
   {
     $clone_root_cfg && $rep_add "$rep/state0/libfoo.git#$branch";
@@ -99,7 +99,7 @@ warning: fetching over dumb HTTP, no progress will be shown'
     # Cloning into 'cfg\.bpkg\tmp\f9be881264703b5d\master'...
     #
     $* 2>&1 | sed -n -e "s/Cloning into '\(.+$branch\)'\.{3}/\$1/p"  | \
-              sed -n -e 's%(.+[\\/])tmp([\\/].+)%$1repositories$2%p' | \
+              sed -n -e 's%(.+[\\/])tmp([\\/].+)%$1repos$2%p' | \
               set r;
 
     $g "$r" config remote.origin.url       "$u/libfoo.git";

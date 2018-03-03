@@ -1472,7 +1472,7 @@ else
   $clone_root_cfg;
   $rep_add "$rep0/libbar.git#master";
   $rep_add "$rep0/style-basic.git#master";
-  $rep_fetch &cfg/.bpkg/repositories/*/***;
+  $rep_fetch &cfg/.bpkg/repos/*/***;
 
   $* libmbar 2>>~%EOE%;
   %dist style-basic-.+%
@@ -1500,7 +1500,7 @@ else
   $clone_root_cfg;
   $rep_add "$rep1/libbaz.git#master";
   $rep_add "$rep0/style-basic.git#master";
-  $rep_fetch &cfg/.bpkg/repositories/*/***;
+  $rep_fetch &cfg/.bpkg/repos/*/***;
 
   $* libbaz 2>>~%EOE%;
   %dist style-basic-.+%
