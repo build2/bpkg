@@ -54,7 +54,7 @@ namespace bpkg
   parse_location (const string&, optional<repository_type>);
 
   // Return the repository state subdirectory for the specified location as it
-  // appears under .bpkg/repositories/ in the bpkg configuration. Return empty
+  // appears under .bpkg/repos/ in the bpkg configuration. Return empty
   // directory if the repository type doesn't have any state.
   //
   // Note that the semantics used to produce this name is repository type-

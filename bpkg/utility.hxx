@@ -53,8 +53,8 @@ namespace bpkg
   // Widely-used paths.
   //
   extern const dir_path bpkg_dir;    // .bpkg/
-  extern const dir_path certs_dir;   // .bpkg/certificates/
-  extern const dir_path repos_dir;   // .bpkg/repositories/
+  extern const dir_path certs_dir;   // .bpkg/certs/
+  extern const dir_path repos_dir;   // .bpkg/repos/
   extern const dir_path current_dir; // ./
 
   // Temporary directory facility.
