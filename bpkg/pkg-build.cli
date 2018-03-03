@@ -11,12 +11,14 @@ include <bpkg/configuration.cli>;
 namespace bpkg
 {
   {
-    "<options> <scheme> <pkg> <ver> <file> <dir>",
+    "<options> <scheme> <pkg> <ver> <file> <dir> <pkgs> <location>",
 
     "\h|SYNOPSIS|
 
-     \c{\b{bpkg pkg-build}|\b{build} [<options>] ([<scheme>:]<pkg>[/<ver>] |
-        <file> | <dir>/)...}
+     \c{\b{bpkg pkg-build}|\b{build} [<options>] (<pkgs> | [\b{@}]<location> | <file> | <dir>/)...}
+
+     \c{<pkgs> = [<scheme>\b{:}]<pkg>[\b{/}<ver>][\b{,}...\b{@}<location>]}\n
+     \c{<scheme> = [\b{?}]\b{sys}}
 
      \h|DESCRIPTION|
 
@@ -26,11 +28,35 @@ namespace bpkg
 
      Each package can be specified as just the name (<pkg>) with optional
      package version (<ver>) in which case the source code for the package
-     will be automatically fetched from one of the repositories. See the
-     \l{bpkg-rep-add(1)} and \l{bpkg-rep-fetch(1)} commands for more
-     information on package repositories. If <ver> is not specified, then the
-     latest available version will be fetched. To downgrade, the desired
-     version must be specified explicitly.
+     will be automatically fetched from one of the configured
+     repositories. See the \l{bpkg-rep-add(1)} and \l{bpkg-rep-fetch(1)}
+     commands for more information on package repositories. If <ver> is not
+     specified, then the latest available version will be built. To downgrade,
+     the desired version must be specified explicitly. For example:
+
+     \
+     bpkg build foo libfoo/1.2.3
+     \
+
+     Alternatively, the package repository (<location>) can be specified as
+     part of the build command. In this case, if <ver> is not specified, then
+     the latest available from this repository version will be built. For
+     example:
+
+     \
+     bpkg build foo,libfoo/1.2.3@https://git.example.org/foo.git#master
+     \
+
+     If only the location is specified, then the latest versions of all the
+     packages available directly from this repository will be built (note that
+     this does not include packages available from complement repositories).
+     The \cb{@} delimiter can be omitted if the location is a URL. For
+     example:
+
+     \
+     bpkg build https://git.example.org/foo.git#master
+     bpkg build @/path/to/repository/
+     \
 
      A package name (<pkg>) can also be prefixed with a package scheme
      (<scheme>:). Currently the only recognized scheme is \cb{sys:} which
@@ -43,11 +69,11 @@ namespace bpkg
      is required by other packages being built. In this case you can use the
      \cb{?sys:} system scheme variant.
 
-     Alternatively, a package can be specified as either the path to the
-     package archive (<file>) or to the package directory (<dir>/; note that
-     it must end with a directory separator). See the \l{bpkg-pkg-fetch(1)}
-     and \l{bpkg-pkg-unpack(1)} commands for more information on the semantics
-     of specifying the package as an archive or a directory.
+     Finally, a package can be specified as either the path to the package
+     archive (<file>) or to the package directory (<dir>\cb{/}; note that it
+     must end with a directory separator). See the \l{bpkg-pkg-fetch(1)} and
+     \l{bpkg-pkg-unpack(1)} commands for more information on the semantics of
+     specifying the package as an archive or a directory.
 
      Packages that are specified explicitly on the command line will be
      \i{held}, that is, they will not be considered for automatic removal if
