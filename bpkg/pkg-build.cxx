@@ -1078,11 +1078,18 @@ namespace bpkg
     // of <location> if that's the case and string::npos otherwise.
     //
     // Note that we consider '@' to be such a delimiter only if it comes
-    // before ':' (think a URL which could contain its own '@').
+    // before "://" (think a URL which could contain its own '@').
     //
     auto location = [] (const string& arg) -> size_t
     {
-      size_t p (arg.find_first_of ("@:"));
+      size_t p (0);
+
+      // Skip leading ':' that are not part of "://".
+      //
+      while ((p = arg.find_first_of ("@:", p)) != string::npos &&
+             arg[p] == ':'                                     &&
+             arg.compare (p + 1, 2, "//") != 0)
+        ++p;
 
       if (p != string::npos)
       {
@@ -1207,7 +1214,12 @@ namespace bpkg
             //
             p = ps.find (',', b);
 
-            string  s (ps, b, p != string::npos ? p - b : p);
+            string pkg (ps, b, p != string::npos ? p - b : p);
+            const char* s (pkg.c_str ());
+
+            // @@ Shouldn't we skip version selection for sys packages?
+            //
+            parse_package_scheme (s);
             string  n (parse_package_name (s));
             version v (parse_package_version (s));
 
@@ -1223,15 +1235,15 @@ namespace bpkg
             if (ap == nullptr)
             {
               diag_record dr (fail);
-              dr << "package " << s << " is not found in " << r->name;
+              dr << "package " << pkg << " is not found in " << r->name;
 
               if (!r->complements.empty ())
                 dr << " or its complements";
             }
 
-            // Add the package/version to the argument list.
+            // Add the [scheme:]package/version to the argument list.
             //
-            eargs.push_back (ap->id.name + '/' + ap->version.string ());
+            eargs.push_back (pkg + '/' + ap->version.string ());
 
             b = p != string::npos ? p + 1 : p;
           }
