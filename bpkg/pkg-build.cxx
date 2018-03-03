@@ -11,6 +11,8 @@
 #include <iostream>   // cout
 #include <algorithm>  // find(), find_if()
 
+#include <libbutl/url.mxx>
+
 #include <bpkg/package.hxx>
 #include <bpkg/package-odb.hxx>
 #include <bpkg/database.hxx>
@@ -1074,39 +1076,32 @@ namespace bpkg
         info << "run 'bpkg help pkg-build' for more information";
 
     // Check if the argument has the [<packages>]@<location> form or looks
-    // like a URL (the first colon is followed by "//"). Return the position
-    // of <location> if that's the case and string::npos otherwise.
+    // like a URL. Return the position of <location> if that's the case and
+    // string::npos otherwise.
     //
     // Note that we consider '@' to be such a delimiter only if it comes
-    // before "://" (think a URL which could contain its own '@').
+    // before ":/" (think a URL which could contain its own '@').
     //
     auto location = [] (const string& arg) -> size_t
     {
-      size_t p (0);
+      using url_traits = butl::url::traits;
 
-      // Check that the scheme belongs to a URL: is not one character long and
-      // is followed by :/.
-      //
-      auto url_scheme = [&arg, &p] () -> bool
-      {
-        assert (arg[p] == ':');
-        return p > 1 &&           // Is not a Windows drive letter.
-               arg[p + 1] == '/';
-      };
+      size_t p (0);
 
       // Skip leading ':' that are not part of a URL.
       //
       while ((p = arg.find_first_of ("@:", p)) != string::npos &&
-             arg[p] == ':' && !url_scheme ())
+             arg[p] == ':'                                     &&
+             url_traits::find (arg, p) == string::npos)
         ++p;
 
       if (p != string::npos)
       {
         if (arg[p] == ':')
         {
-          p = url_scheme ()
-            ? 0             // The whole thing is the location.
-            : string::npos;
+          // The whole thing must be the location.
+          //
+          p = url_traits::find (arg, p) == 0 ? 0 : string::npos;
         }
         else
           p += 1; // Skip '@'.

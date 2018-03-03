@@ -4,6 +4,7 @@
 
 #include <bpkg/manifest-utility.hxx>
 
+#include <libbutl/url.mxx>
 #include <libbutl/sha256.mxx>
 
 #include <bpkg/diagnostics.hxx>
@@ -148,10 +149,10 @@ namespace bpkg
   {
     size_t p (s.find (':'));
 
-    // If it has no scheme or starts with the URL scheme (followed by :/) then
-    // this is not a canonical name.
+    // If it has no scheme or the scheme looks like that of a URL, then this
+    // is not a canonical name.
     //
-    if (p == string::npos || s[p + 1] == '/')
+    if (p == string::npos || butl::url::traits::find (s, p) != string::npos)
       return false;
 
     // This is a canonical name if the scheme is convertible to the repository
