@@ -11,14 +11,14 @@ include <bpkg/configuration.cli>;
 namespace bpkg
 {
   {
-    "<options> <scheme> <pkg> <ver> <file> <dir> <pkgs> <location>",
+    "<options> <scheme> <pkg> <ver> <file> <dir> <pkgs> <location> <packages>",
 
     "\h|SYNOPSIS|
 
-     \c{\b{bpkg pkg-build}|\b{build} [<options>] (<pkgs> | [\b{@}]<location> | <file> | <dir>/)...}
+     \c{\b{bpkg pkg-build}|\b{build} [<options>] (<packages> | [\b{@}]<location> | <file> | <dir>/)...}
 
-     \c{<pkgs> = [<scheme>\b{:}]<pkg>[\b{/}<ver>][\b{,}...\b{@}<location>]}\n
-     \c{<scheme> = [\b{?}]\b{sys}}
+     \c{<packages> = [<scheme>\b{:}]<pkg>[\b{/}<ver>][\b{,}...\b{@}<location>]}\n
+     \c{<scheme> \ \ = [\b{?}]\b{sys}}
 
      \h|DESCRIPTION|
 
