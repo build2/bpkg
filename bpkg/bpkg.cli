@@ -15,10 +15,10 @@ namespace bpkg
 
     "\h|SYNOPSIS|
 
-     \cb{bpkg --help}\n
-     \cb{bpkg --version}\n
-     \c{\b{bpkg help} [<command> | <topic>]}\n
-     \c{\b{bpkg} [<common-options>] <command> [<command-options>] <command-args>}
+     \c{\b{bpkg --help}\n
+        \b{bpkg --version}\n
+        \b{bpkg help} [<command> | <topic>]\n
+        \b{bpkg} [<common-options>] <command> [<command-options>] <command-args>}
 
      \h|DESCRIPTION|
 

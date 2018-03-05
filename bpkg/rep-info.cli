@@ -13,11 +13,11 @@ include <bpkg/common.cli>;
 namespace bpkg
 {
   {
-    "<options> <rep>",
+    "<options> <rep-loc>",
 
     "\h|SYNOPSIS|
 
-     \c{\b{bpkg rep-info} [<options>] <rep>}
+     \c{\b{bpkg rep-info} [<options>] <rep-loc>}
 
      \h|DESCRIPTION|
 

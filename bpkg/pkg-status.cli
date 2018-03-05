@@ -15,7 +15,7 @@ namespace bpkg
 
     "\h|SYNOPSIS|
 
-     \c{\b{bpkg pkg-status}|\b{status} [<options>] <pkg>[/<ver>]...}
+     \c{\b{bpkg pkg-status}|\b{status} [<options>] <pkg>[\b{/}<ver>]...}
 
      \h|DESCRIPTION|
 

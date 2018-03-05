@@ -11,14 +11,18 @@ include <bpkg/configuration.cli>;
 namespace bpkg
 {
   {
-    "<options> <scheme> <pkg> <ver> <file> <dir> <pkgs> <location> <packages>",
+    "<options>
+     <pkg-spec> <scheme> <pkg> <ver>
+     <file>
+     <dir>
+     <rep-loc>",
 
     "\h|SYNOPSIS|
 
-     \c{\b{bpkg pkg-build}|\b{build} [<options>] (<packages> | [\b{@}]<location> | <file> | <dir>/)...}
+     \c{\b{bpkg pkg-build}|\b{build} [<options>] (<pkg-spec> | [\b{@}]<rep-loc> | <file> | <dir>/)...}
 
-     \c{<packages> = [<scheme>\b{:}]<pkg>[\b{/}<ver>][\b{,}...\b{@}<location>]}\n
-     \c{<scheme> \ \ = [\b{?}]\b{sys}}
+     \c{<pkg-spec> = [<scheme>\b{:}]<pkg>[\b{/}<ver>][\b{,}...\b{@}<rep-loc>]\n
+        <scheme> \ \ = [\b{?}]\b{sys}}
 
      \h|DESCRIPTION|
 
@@ -38,10 +42,10 @@ namespace bpkg
      bpkg build foo libfoo/1.2.3
      \
 
-     Alternatively, the package repository (<location>) can be specified as
-     part of the build command. In this case, if <ver> is not specified, then
-     the latest available from this repository version will be built. For
-     example:
+     Alternatively, the package repository location (<rep-loc>) can be
+     specified as part of the build command. In this case, if <ver> is not
+     specified, then the latest available from this repository version will be
+     built. For example:
 
      \
      bpkg build foo,libfoo/1.2.3@https://git.example.org/foo.git#master

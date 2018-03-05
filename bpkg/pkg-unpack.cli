@@ -15,7 +15,7 @@ namespace bpkg
 
     "\h|SYNOPSIS|
 
-     \c{\b{bpkg pkg-unpack} [<options>] <pkg> | (-e <dir>)}
+     \c{\b{bpkg pkg-unpack} [<options>] (<pkg> | \b{-e} <dir>)}
 
      \h|DESCRIPTION|
 

@@ -11,11 +11,11 @@ include <bpkg/configuration.cli>;
 namespace bpkg
 {
   {
-    "<options> <name> <location>",
+    "<options> <rep-name> <rep-loc>",
 
     "\h|SYNOPSIS|
 
-     \c{\b{bpkg rep-fetch}|\b{fetch} [<options>] [(<name>|<location>)...]}
+     \c{\b{bpkg rep-fetch}|\b{fetch} [<options>] [(<rep-name> | <rep-loc>)...]}
 
      \h|DESCRIPTION|
 

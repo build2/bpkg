@@ -13,13 +13,15 @@ include <bpkg/configuration.cli>;
 namespace bpkg
 {
   {
-    "<options> <name> <location>",
+    "<options> <rep-name> <rep-loc>",
+
 
     "\h|SYNOPSIS|
 
-     \c{\b{bpkg rep-remove}|\b{remove} [<options>] (<name>|<location>)...}\n
-     \c{\b{bpkg rep-remove}|\b{remove} [<options>] (--all|-a)}\n
-     \c{\b{bpkg rep-remove}|\b{remove} [<options>] --clean}
+     \c{\b{bpkg rep-remove}|\b{remove} [<options>] (<rep-name>|<rep-loc>)...\n
+        \b{bpkg rep-remove}|\b{remove} [<options>] \b{--all}|\b{-a}\n
+        \b{bpkg rep-remove}|\b{remove} [<options>] \b{--clean}}
+
 
      \h|DESCRIPTION|
 

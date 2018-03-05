@@ -11,18 +11,18 @@ include <bpkg/common.cli>;
 namespace bpkg
 {
   {
-    "<options> <archive>",
+    "<options> <file>",
 
     "\h|SYNOPSIS|
 
-     \c{\b{bpkg pkg-verify} [<options>] <archive>}
+     \c{\b{bpkg pkg-verify} [<options>] <file>}
 
      \h|DESCRIPTION|
 
-     The \cb{pkg-verify} command verifies that the specified archive is a
-     valid \cb{bpkg} package. Specifically, it checks that the archive's name
-     and the top-level directory inside the archive match the canonical
-     '\c{\i{name}\b{-}\i{version}}' form and that there is a valid manifest
+     The \cb{pkg-verify} command verifies that the specified archive file is a
+     valid \cb{bpkg} package. Specifically, it checks that the file's name and
+     the top-level directory inside the archive match the canonical
+     \c{\i{name}\b{-}\i{version}} form and that there is a valid manifest
      file in that top-level directory."
   }
 

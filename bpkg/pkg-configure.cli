@@ -11,7 +11,7 @@ include <bpkg/configuration.cli>;
 namespace bpkg
 {
   {
-    "<options> <pkg> <ver> <cfg-var>",
+    "<options> <pkg> <cfg-var>",
 
     "\h|SYNOPSIS|
 
