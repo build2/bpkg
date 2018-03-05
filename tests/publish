@@ -24,14 +24,14 @@ done
 
 # Publish test pkg repositories.
 #
-rsync -v -rlpt --copy-unsafe-links \
+rsync -v -rlpt --copy-unsafe-links                     \
 --prune-empty-dirs --delete-after --delete-excluded $* \
---include '*/'            \
---include '*.tar.gz'      \
---include 'packages'      \
---include 'repositories'  \
---include 'signature'     \
---exclude '*'             \
+--include '*/'                                         \
+--include '*.tar.gz'                                   \
+--include 'packages.manifest'                          \
+--include 'repositories.manifest'                      \
+--include 'signature.manifest'                         \
+--exclude '*'                                          \
 test/*/pkg/1/build2.org/ build2.org:/var/pkg/1/
 
 # Publish test git repositories.

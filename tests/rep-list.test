@@ -9,19 +9,19 @@
 # rep-list
 # |-- extra                     -> stable (prerequisite)
 # |   |-- libbar-1.1.0+1.tar.gz
-# |   `-- repositories
+# |   `-- repositories.manifest
 # |
 # |-- math                      -> extra (prerequisite)
 # |   |-- libbar-1.0.0.tar.gz
-# |   `-- repositories
+# |   `-- repositories.manifest
 # |
 # |-- stable                    -> math (prerequisite)
 # |   |-- libfoo-1.0.0.tar.gz
-# |   `-- repositories
+# |   `-- repositories.manifest
 # |
 # `-- testing                   -> stable (complement), extra (prerequisite)
 # |   |-- libbar-2.0.0.tar.gz
-# |   `-- repositories
+# |   `-- repositories.manifest
 # |
 # `-- git
 #     |-- libbar.git            -> style-basic.git (prerequisite)
@@ -30,12 +30,17 @@
 # Prepare repositories used by tests if running in the local mode.
 #
 +if ($remote != true)
+  cp -r $src/extra   $out/extra
+  cp -r $src/math    $out/math
+  cp -r $src/stable  $out/stable
+  cp -r $src/testing $out/testing
+
   c = $rep_create 2>!
 
-  cp -r $src/extra   $out/extra   && $c $out/extra   &$out/extra/packages
-  cp -r $src/math    $out/math    && $c $out/math    &$out/math/packages
-  cp -r $src/stable  $out/stable  && $c $out/stable  &$out/stable/packages
-  cp -r $src/testing $out/testing && $c $out/testing &$out/testing/packages
+  $c $out/extra   &$out/extra/packages.manifest
+  $c $out/math    &$out/math/packages.manifest
+  $c $out/stable  &$out/stable/packages.manifest
+  $c $out/testing &$out/testing/packages.manifest
 
   # Create git repositories.
   #

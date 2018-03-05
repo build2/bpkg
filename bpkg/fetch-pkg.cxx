@@ -11,6 +11,7 @@
 
 #include <bpkg/checksum.hxx>
 #include <bpkg/diagnostics.hxx>
+#include <bpkg/manifest-utility.hxx>
 
 using namespace std;
 using namespace butl;
@@ -164,13 +165,11 @@ namespace bpkg
     }
   }
 
-  static const path repositories ("repositories");
-
   pkg_repository_manifests
   pkg_fetch_repositories (const dir_path& d, bool iu)
   {
     return fetch_manifest<pkg_repository_manifests> (
-      nullptr, d / repositories, iu).first;
+      nullptr, d / repositories_file, iu).first;
   }
 
   pair<pkg_repository_manifests, string/*checksum*/>
@@ -183,20 +182,18 @@ namespace bpkg
     repository_url u (rl.url ());
 
     path& f (*u.path);
-    f /= repositories;
+    f /= repositories_file;
 
     return rl.remote ()
       ? fetch_manifest<pkg_repository_manifests> (o, u, iu)
       : fetch_manifest<pkg_repository_manifests> (&o, f, iu);
   }
 
-  static const path packages ("packages");
-
   pkg_package_manifests
   pkg_fetch_packages (const dir_path& d, bool iu)
   {
     return fetch_manifest<pkg_package_manifests> (
-      nullptr, d / packages, iu).first;
+      nullptr, d / packages_file, iu).first;
   }
 
   pair<pkg_package_manifests, string/*checksum*/>
@@ -209,14 +206,12 @@ namespace bpkg
     repository_url u (rl.url ());
 
     path& f (*u.path);
-    f /= packages;
+    f /= packages_file;
 
     return rl.remote ()
       ? fetch_manifest<pkg_package_manifests> (o, u, iu)
       : fetch_manifest<pkg_package_manifests> (&o, f, iu);
   }
-
-  static const path signature ("signature");
 
   signature_manifest
   pkg_fetch_signature (const common_options& o,
@@ -228,7 +223,7 @@ namespace bpkg
     repository_url u (rl.url ());
 
     path& f (*u.path);
-    f /= signature;
+    f /= signature_file;
 
     return rl.remote ()
       ? fetch_manifest<signature_manifest> (o, u, iu).first

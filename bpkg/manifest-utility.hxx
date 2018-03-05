@@ -12,6 +12,10 @@
 
 namespace bpkg
 {
+  extern const path repositories_file; // repositories.manifest
+  extern const path packages_file;     // packages.manifest
+  extern const path signature_file;    // signature.manifest
+
   // Package naming schemes.
   //
   enum class package_scheme

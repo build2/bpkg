@@ -9,10 +9,10 @@
 # rep-create
 # |-- stable
 # |   |-- foo-1.tar.gz
-# |   `-- repositories
+# |   `-- repositories.manifest
 # `-- testing          -> stable (complement)
 #     |-- foo-2.tar.gz (manifest with unknown name)
-#     `-- repositories
+#     `-- repositories.manifest
 
 : unsigned
 :
@@ -27,7 +27,7 @@
   {
     $clone_rep;
 
-    $* 1/stable/ 2>>/~%EOE% &1/stable/packages;
+    $* 1/stable/ 2>>/~%EOE% &1/stable/packages.manifest;
       adding foo 1
       %1 package\(s\) in .+/stable/%
       EOE
@@ -50,7 +50,7 @@
   {
     $clone_rep;
 
-    $* --key $key 1/stable/ 2>>/~%EOE% &1/stable/packages;
+    $* --key $key 1/stable/ 2>>/~%EOE% &1/stable/packages.manifest;
       adding foo 1
       warning: --key option ignored
         info: repository manifest contains no certificate
@@ -78,7 +78,7 @@
 : tests.
 :
 {
-  +cp -r $src/stable ./ && cat <<<$cert_manifest >+stable/repositories
+  +cp -r $src/stable ./ && cat <<<$cert_manifest >+stable/repositories.manifest
 
   # Make sure the cloned repository has a valid location, so we can use
   # rep-info command to validate the repository info.
@@ -87,14 +87,15 @@
 
   : with-key
   :
-  : Note that as we re-create the repositories file on the fly (see above) its
-  : sha256sum can vary due to CRs mix-in on Windows. That explains why we do
-  : not match it exactly.
+  : Note that as we re-create the repositories.manifest file on the fly (see
+  : above) its sha256sum can vary due to CRs mix-in on Windows. That explains
+  : why we do not match it exactly.
   :
   {
     $clone_rep;
 
-    $* --key $key 1/stable/ 2>>/~%EOE% &1/stable/packages &1/stable/signature;
+    $* --key $key 1/stable/ 2>>/~%EOE% &1/stable/packages.manifest \
+                                       &1/stable/signature.manifest;
       adding foo 1
       %1 package\(s\) in .+/stable/%
       EOE
@@ -116,7 +117,7 @@
   : without-key
   :
   $clone_rep;
-  $* 1/stable/ 2>>EOE &1/stable/packages != 0
+  $* 1/stable/ 2>>EOE &1/stable/packages.manifest != 0
     adding foo 1
     error: --key option required
       info: repository manifest contains a certificate
@@ -142,7 +143,7 @@
   : ignore
   :
   $clone_rep;
-  $* --ignore-unknown testing/ 2>>/~%EOE% &testing/packages
+  $* --ignore-unknown testing/ 2>>/~%EOE% &testing/packages.manifest
     adding foo 2
     %1 package\(s\) in .+/testing/%
     EOE
@@ -155,13 +156,13 @@
 {
   clone_rep = cp -r $src/stable ./
 
-  : no-repositories-file
+  : no-repositories-manifest
   :
   {
-    $clone_rep &!stable/repositories;
-    rm stable/repositories;
+    $clone_rep &!stable/repositories.manifest;
+    rm stable/repositories.manifest;
 
-    $* stable/ 2>/'error: file stable/repositories does not exist' != 0
+    $* stable/ 2>/'error: file stable/repositories.manifest does not exist' != 0
   }
 
   : unexpected-file

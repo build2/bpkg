@@ -143,13 +143,13 @@ namespace bpkg
     //
     // 2. Move from temp_dir/<hash>/ to repos_dir/<hash>/<fragment>/
     //
-    // 3. Check if repos_dir/<hash>/<fragment>/repositories exists:
+    // 3. Check if repos_dir/<hash>/<fragment>/repositories.manifest exists:
     //
     // 3.a If exists, load.
     //
     // 3.b Otherwise, synthesize repository list with base repository.
     //
-    // 4. Check if repos_dir/<hash>/<fragment>/packages exists:
+    // 4. Check if repos_dir/<hash>/<fragment>/packages.manifest exists:
     //
     // 4.a If exists, load. (into "skeleton" packages list to be filled?)
     //
@@ -211,7 +211,7 @@ namespace bpkg
     //
     git_repository_manifests rms;
     {
-      path f (fd / path ("repositories"));
+      path f (fd / repositories_file);
 
       if (exists (f))
         rms = parse_manifest<git_repository_manifests> (f, ignore_unknown, rl);
@@ -223,7 +223,7 @@ namespace bpkg
     //
     git_package_manifests pms;
     {
-      path f (fd / path ("packages"));
+      path f (fd / packages_file);
 
       if (exists (f))
         pms = parse_manifest<git_package_manifests> (f, ignore_unknown, rl);
@@ -595,9 +595,10 @@ namespace bpkg
     // we use the root repository as the default complement.
     //
     // This supports the common use case where the user has a single-package
-    // git repository and doesn't want to bother with the repositories file.
-    // This way their package will still pick up its dependencies from the
-    // configuration, without regards from which repositories they came from.
+    // git repository and doesn't want to bother with the
+    // repositories.manifest file. This way their package will still pick up
+    // its dependencies from the configuration, without regards from which
+    // repositories they came from.
     //
     if (rl.type () == repository_type::git &&
         r->complements.empty ()            &&

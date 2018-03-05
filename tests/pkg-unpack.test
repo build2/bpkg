@@ -9,7 +9,7 @@
 # pkg-unpack
 # |-- hello
 # |   |-- libhello-1.0.0.tar.gz
-# |   `-- repositories
+# |   `-- repositories.manifest
 # |-- libfoo-1.1.0
 # |   |-- build
 # |   |   `-- bootstrap.build
@@ -18,7 +18,7 @@
 # `-- t1
 #     |-- libfoo-1.0.0.tar.gz
 #     |-- libfoo-1.1.0.tar.gz
-#     `-- repositories
+#     `-- repositories.manifest
 
 # Prepare repositories used by tests if running in the local mode.
 #
@@ -28,12 +28,14 @@
   # Create the signed 'hello' repository.
   #
   cp -r $src/hello $out/hello
-  cat <<<$cert_manifest >+$out/hello/repositories
-  $rep_create --key $key $out/hello &$out/hello/packages &$out/hello/signature
+  cat <<<$cert_manifest >+$out/hello/repositories.manifest
+
+  $rep_create --key $key $out/hello &$out/hello/packages.manifest \
+                                    &$out/hello/signature.manifest
 
   # Create the 't1' repository.
   #
-  cp -r $src/t1 $out/t1 && $rep_create $out/t1 &$out/t1/packages
+  cp -r $src/t1 $out/t1 && $rep_create $out/t1 &$out/t1/packages.manifest
 end
 
 pkg_fetch  += -d cfg 2>!

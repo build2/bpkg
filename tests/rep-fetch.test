@@ -10,49 +10,49 @@
 # |-- bar
 # |   |-- stable                  -> ../foo/stable (prerequisite)
 # |   |   |-- libbar-1.0.0.tar.gz -> libfoo >= 1.0.0
-# |   |   `-- repositories
+# |   |   `-- repositories.manifest
 # |   |-- testing                 -> stable (complement),
 # |   |   |                          ../foo/testing (prerequisite)
 # |   |   |-- libbar-1.1.0.tar.gz -> libfoo >= 1.1.0
-# |   |   `-- repositories
+# |   |   `-- repositories.manifest
 # |   `-- unstable                -> testing (complement),
 # |       |                          ../foo/testing (prerequisite)
 # |       |-- libbar-1.1.1.tar.gz  -> libfoo >= 1.1.0
-# |       `-- repositories
+# |       `-- repositories.manifest
 # |
 # |-- foo
 # |   |-- stable
 # |   |   |-- libfoo-1.0.0.tar.gz
-# |   |   `-- repositories
+# |   |   `-- repositories.manifest
 # |   `-- testing                 -> stable (complement)
 # |       |-- libfoo-1.1.0.tar.gz
-# |       `-- repositories
+# |       `-- repositories.manifest
 # |
 # `-- hello
 # |   |-- libhello-1.0.0.tar.gz
-# |   `-- repositories
+# |   `-- repositories.manifest
 # |
 # |-- circle
 # |   |-- extra                     -> stable (prerequisite)
 # |   |   |-- libbar-1.1.0+1.tar.gz
-# |   |   `-- repositories
+# |   |   `-- repositories.manifest
 # |   |-- math                      -> extra (prerequisite)
 # |   |   |-- libbar-1.0.0.tar.gz
-# |   |   `-- repositories
+# |   |   `-- repositories.manifest
 # |   `-- stable                    -> math (prerequisite)
 # |       |-- libfoo-1.0.0.tar.gz
-# |       `-- repositories
+# |       `-- repositories.manifest
 # |
 # |-- no-circle
 # |   |-- extra
 # |   |   |-- libbar-1.1.0+1.tar.gz
-# |   |   `-- repositories
+# |   |   `-- repositories.manifest
 # |   |-- math
 # |   |   |-- libbar-1.0.0.tar.gz
-# |   |   `-- repositories
+# |   |   `-- repositories.manifest
 # |   `-- stable                    -> extra (prerequisite)
 # |       |-- libfoo-1.0.0.tar.gz
-# |       `-- repositories
+# |       `-- repositories.manifest
 # |
 # `-- git/* (see rep-fetch-git.test)
 
@@ -64,28 +64,30 @@
   # Create the signed 'hello' repository.
   #
   cp -r $src/hello $out/hello
-  cat <<<$cert_manifest >+$out/hello/repositories
-  $rep_create --key $key $out/hello &$out/hello/packages &$out/hello/signature
+  cat <<<$cert_manifest >+$out/hello/repositories.manifest
+
+  $rep_create --key $key $out/hello &$out/hello/packages.manifest \
+                                    &$out/hello/signature.manifest
 
   # Create 'foo/*' repositories.
   #
   cp -r $src/foo $out/foo
-  $rep_create $out/foo/stable  &$out/foo/stable/packages
-  $rep_create $out/foo/testing &$out/foo/testing/packages
+  $rep_create $out/foo/stable  &$out/foo/stable/packages.manifest
+  $rep_create $out/foo/testing &$out/foo/testing/packages.manifest
 
   # Create 'bar/*' repositories.
   #
   cp -r $src/bar $out/bar
-  $rep_create $out/bar/stable   &$out/bar/stable/packages
-  $rep_create $out/bar/testing  &$out/bar/testing/packages
-  $rep_create $out/bar/unstable &$out/bar/unstable/packages
+  $rep_create $out/bar/stable   &$out/bar/stable/packages.manifest
+  $rep_create $out/bar/testing  &$out/bar/testing/packages.manifest
+  $rep_create $out/bar/unstable &$out/bar/unstable/packages.manifest
 
   # Create 'cycle/*' repositories.
   #
   cp -r $src/cycle $out/cycle
-  $rep_create $out/cycle/extra  &$out/cycle/extra/packages
-  $rep_create $out/cycle/math   &$out/cycle/math/packages
-  $rep_create $out/cycle/stable &$out/cycle/stable/packages
+  $rep_create $out/cycle/extra  &$out/cycle/extra/packages.manifest
+  $rep_create $out/cycle/math   &$out/cycle/math/packages.manifest
+  $rep_create $out/cycle/stable &$out/cycle/stable/packages.manifest
 
   # Create git repositories.
   #
@@ -253,9 +255,9 @@ $* 2>>/EOE != 0
     +mkdir -p $path.directory($nc_rep)
     +cp -r $src/no-cycle "$nc_rep"     # Strip trailing slash.
 
-    +$rep_create $nc_rep/extra  2>! &$nc_rep/extra/packages
-    +$rep_create $nc_rep/math   2>! &$nc_rep/math/packages
-    +$rep_create $nc_rep/stable 2>! &$nc_rep/stable/packages
+    +$rep_create $nc_rep/extra  2>! &$nc_rep/extra/packages.manifest
+    +$rep_create $nc_rep/math   2>! &$nc_rep/math/packages.manifest
+    +$rep_create $nc_rep/stable 2>! &$nc_rep/stable/packages.manifest
 
     math_rep   = $nc_rep/math
     stable_rep = $nc_rep/stable

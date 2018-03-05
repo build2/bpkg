@@ -9,7 +9,7 @@
 # rep-info
 # |-- testing             -> stable (complement), ../foo/testing (prerequisite)
 # |   |-- foo-1.tar.gz
-# |   `-- repositories
+# |   `-- repositories.manifest
 # |
 # `-- git
 #     |-- libbar.git      -> style-basic.git (prerequisite)
@@ -23,13 +23,15 @@
   # Create the unsigned 'testing' repository.
   #
   cp -r $src/testing $out/testing
-  $rc $out/testing &$out/testing/packages
+  $rc $out/testing &$out/testing/packages.manifest
 
   # Create the signed 'testing' repository.
   #
   cp -r $src/testing $out/signed
-  cat <<<$cert_manifest >+$out/signed/repositories
-  $rc --key $key $out/signed &$out/signed/packages &$out/signed/signature
+  cat <<<$cert_manifest >+$out/signed/repositories.manifest
+
+  $rc --key $key $out/signed &$out/signed/packages.manifest \
+                             &$out/signed/signature.manifest
 
   # Create git repositories.
   #
@@ -160,7 +162,8 @@ else
 
   : manifest-lists
   :
-  : The packages and repositories files are present in the repository root.
+  : The packages.manifest and repositories.manifest files are present in the
+  : repository root.
   :
   $* "$rep/libbar.git#master" >>~%EOO%
   %git:.+libbar#master .+libbar.git#master%

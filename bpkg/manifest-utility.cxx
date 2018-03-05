@@ -14,6 +14,10 @@ using namespace butl;
 
 namespace bpkg
 {
+  const path repositories_file ("repositories.manifest");
+  const path packages_file     ("packages.manifest");
+  const path signature_file    ("signature.manifest");
+
   package_scheme
   parse_package_scheme (const char*& s)
   {

@@ -12,7 +12,7 @@
 # pkg-configure
 # |-- hello
 # |   |-- libhello-1.0.0.tar.gz
-# |   `-- repositories
+# |   `-- repositories.manifest
 # |-- libhello-1.0.0
 # |   |-- build
 # |   |   |-- bootstrap.build
@@ -45,7 +45,7 @@
 #     |-- libfoo-1.0.0.tar.gz
 #     |-- libfoo-1.1.0.tar.gz
 #     |-- libfoo-1.2.0.tar.gz
-#     `-- repositories
+#     `-- repositories.manifest
 
 # Prepare repositories used by tests if running in the local mode.
 #
@@ -55,13 +55,15 @@
   # Create the signed 'hello' repository.
   #
   cp -r $src/hello $out/hello
-  cat <<<$cert_manifest >+$out/hello/repositories
-  $rep_create --key $key $out/hello &$out/hello/packages &$out/hello/signature
+  cat <<<$cert_manifest >+$out/hello/repositories.manifest
+
+  $rep_create --key $key $out/hello &$out/hello/packages.manifest \
+                                    &$out/hello/signature.manifest
 
   # Create the 'stable' repository.
   #
   cp -r $src/stable $out/stable
-  $rep_create $out/stable &$out/stable/packages
+  $rep_create $out/stable &$out/stable/packages.manifest
 end
 
 test.arguments += "config.cxx=$config.cxx"

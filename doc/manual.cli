@@ -858,10 +858,11 @@ Note that the comment of the matching exclusion is used by the web interface
 
 \h#manifest-package-list-pkg|Package List Manifest for \cb{pkg} Repositories|
 
-The package list manifest (the \c{packages} file found in the \cb{pkg}
-repository root directory) describes the list of packages available in the
-repository. First comes a manifest that describes the list itself (referred to
-as the list manifest). The list manifest synopsis is presented next:
+The package list manifest (the \c{packages.manifest} file found in the
+\cb{pkg} repository root directory) describes the list of packages available
+in the repository. First comes a manifest that describes the list itself
+(referred to as the list manifest). The list manifest synopsis is presented
+next:
 
 \
 sha256sum: <sum>
@@ -885,15 +886,16 @@ The detailed description of each value follows in the subsequent sections.
 sha256sum: <sum>
 \
 
-The SHA256 checksum of the \c{repositories} file (described below) that
-corresponds to this repository. The \i{sum} value should be 64 characters long
-(that is, just the SHA256 value, no file name or any other markers), be
-calculated in the binary mode, and use lower-case letters.
+The SHA256 checksum of the \c{repositories.manifest} file (described below)
+that corresponds to this repository. The \i{sum} value should be 64
+characters long (that is, just the SHA256 value, no file name or any other
+markers), be calculated in the binary mode, and use lower-case letters.
 
-[Note: this checksum is used to make sure that the \c{repositories} file that
-was fetched is the same as the one that was used to create the \c{packages}
-file. This also means that if \c{repositories} is modified in any way, then
-\c{packages} must be regenerated as well.]
+[Note: this checksum is used to make sure that the \c{repositories.manifest}
+file that was fetched is the same as the one that was used to create the
+\c{packages.manifest} file. This also means that if \c{repositories.manifest}
+is modified in any way, then \c{packages.manifest} must be regenerated as
+well.]
 
 \h2#manifest-package-list-pkg-package-location|\c{location} (package manifest)|
 
@@ -922,9 +924,9 @@ markers), be calculated in the binary mode, and use lower-case letters.
 
 \h#manifest-package-list-git|Package List Manifest for \cb{git} Repositories|
 
-The package list manifest (the \c{packages} file found in the \cb{git}
-repository root directory) describes the list of packages available in the
-repository. It is a (potentially empty) sequence of manifests with the
+The package list manifest (the \c{packages.manifest} file found in the
+\cb{git} repository root directory) describes the list of packages available
+in the repository. It is a (potentially empty) sequence of manifests with the
 following synopsis:
 
 \
@@ -935,7 +937,7 @@ The detailed description of each value follows in the subsequent sections.
 
 As an example, if our repository contained the \c{src/} subdirectory that in
 turn contained the \c{libfoo} and \c{foo} packages, then the corresponding
-\c{packages} file could look like this:
+\c{packages.manifest} file could look like this:
 
 \
 : 1
@@ -1133,9 +1135,10 @@ name prefix/wildcard (without trailing slash) that will be used to verify the
 repository name(s) that are authenticated with this certificate. See
 \l{bpkg-repository-signing(1)} for details.
 
-If this value is present then the \c{packages} file must be signed with the
-corresponding private key and the signature saved in the \c{signature} file.
-See \l{#manifest-signature-pkg Signature Manifest} for details.
+If this value is present then the \c{packages.manifest} file must be signed
+with the corresponding private key and the signature saved in the
+\c{signature.manifest} file. See \l{#manifest-signature-pkg Signature
+Manifest} for details.
 
 
 \h#manifest-repository-list|Repository List Manifest|
@@ -1143,7 +1146,7 @@ See \l{#manifest-signature-pkg Signature Manifest} for details.
 @@ TODO See the Repository Chaining document for more information on the
 terminology and semantics.
 
-The repository list manifest (the \c{repositories} file found in the
+The repository list manifest (the \c{repositories.manifest} file found in the
 repository root directory) describes the repository. First comes a
 (potentially empty) sequence of repository manifests that describe the
 prerequisite and complement repositories. After this sequence must come the
@@ -1186,15 +1189,15 @@ https://pkg.example.org/1/math/stable
 
 \h#manifest-signature-pkg|Signature Manifest for \cb{pkg} Repositories|
 
-The signature manifest (the \c{signature} file found in the \cb{pkg}
+The signature manifest (the \c{signature.manifest} file found in the \cb{pkg}
 repository root directory) contains the signature of the repository's
-\c{packages} file. In order to detect the situation where the downloaded
-\c{signature} and \c{packages} files belong to different updates, the manifest
-contains both the checksum and the signature (which is the encrypted
-checksum). [Note: we cannot rely on just the signature since a mismatch could
-mean either a split update or tampering.] The manifest synopsis is presented
-next followed by the detailed description of each value in subsequent
-sections.
+\c{packages.manifest} file. In order to detect the situation where the
+downloaded \c{signature.manifest} and \c{packages.manifest} files belong to
+different updates, the manifest contains both the checksum and the signature
+(which is the encrypted checksum). [Note: we cannot rely on just the signature
+since a mismatch could mean either a split update or tampering.] The manifest
+synopsis is presented next followed by the detailed description of each value
+in subsequent sections.
 
 \
 sha256sum: <sum>
@@ -1207,9 +1210,10 @@ signature: <sig>
 sha256sum: <sum>
 \
 
-The SHA256 checksum of the \c{packages} file. The \i{sum} value should be 64
-characters long (that is, just the SHA256 value, no file name or any other
-markers), be calculated in the binary mode, and use lower-case letters.
+The SHA256 checksum of the \c{packages.manifest} file. The \i{sum} value
+should be 64 characters long (that is, just the SHA256 value, no file name or
+any other markers), be calculated in the binary mode, and use lower-case
+letters.
 
 
 \h2#manifest-signature-pkg-signature|\c{signature}|
@@ -1218,9 +1222,9 @@ markers), be calculated in the binary mode, and use lower-case letters.
 signature: <sig>
 \
 
-The signature of the \c{packages} file. It should be calculated by encrypting
-the above \c{sha256sum} value with the repository certificate's private key
-and then \c{base64}-encoding the result.
+The signature of the \c{packages.manifest} file. It should be calculated by
+encrypting the above \c{sha256sum} value with the repository certificate's
+private key and then \c{base64}-encoding the result.
 "
 
 //@@ TODO items (grep).

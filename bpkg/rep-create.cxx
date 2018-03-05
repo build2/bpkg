@@ -16,6 +16,7 @@
 #include <bpkg/archive.hxx>
 #include <bpkg/checksum.hxx>
 #include <bpkg/diagnostics.hxx>
+#include <bpkg/manifest-utility.hxx>
 
 #include <bpkg/pkg-verify.hxx>
 
@@ -48,10 +49,6 @@ namespace bpkg
   };
 
   using package_map = map<package_key, package_data>;
-
-  static const path repositories ("repositories");
-  static const path packages ("packages");
-  static const path signature ("signature");
 
   static void
   collect (const rep_create_options& o,
@@ -91,7 +88,9 @@ namespace bpkg
       //
       if (d == root)
       {
-        if (p == repositories || p == packages || p == signature)
+        if (p == repositories_file ||
+            p == packages_file ||
+            p == signature_file)
           continue;
       }
 
@@ -181,8 +180,8 @@ namespace bpkg
 
     l4 ([&]{trace << "creating repository in " << d;});
 
-    // Load the 'repositories' file to make sure it is there and
-    // is valid.
+    // Load the repositories.manifest file to make sure it is there and is
+    // valid.
     //
     pkg_repository_manifests rms (
       pkg_fetch_repositories (d, o.ignore_unknown ()));
@@ -197,7 +196,7 @@ namespace bpkg
     collect (o, pm, d, d);
 
     pkg_package_manifests manifests;
-    manifests.sha256sum = sha256 (o, path (d / repositories));
+    manifests.sha256sum = sha256 (o, path (d / repositories_file));
 
     for (auto& p: pm)
     {
@@ -211,14 +210,15 @@ namespace bpkg
 
     // Serialize packages manifest, optionally generate the signature manifest.
     //
-    path p (d / packages);
+    path p (d / packages_file);
 
     try
     {
       {
-        // While we can do nothing about repositories files edited on Windows
-        // and littered with the carriage return characters, there is no
-        // reason to litter the auto-generated packages and signature files.
+        // While we can do nothing about repositories manifest files edited on
+        // Windows and littered with the carriage return characters, there is
+        // no reason to litter the auto-generated packages and signature
+        // manifest files.
         //
         ofdstream ofs (p, ios::binary);
 
@@ -240,7 +240,7 @@ namespace bpkg
         m.sha256sum = sha256 (o, p);
         m.signature = sign_repository (o, m.sha256sum, key, *cert, d);
 
-        p = path (d / signature);
+        p = path (d / signature_file);
 
         ofdstream ofs (p, ios::binary);
 
@@ -255,7 +255,7 @@ namespace bpkg
             info << "repository manifest contains no certificate" <<
             info << "run 'bpkg help rep-create' for more information";
 
-        try_rmfile (path (d / signature), true);
+        try_rmfile (path (d / signature_file), true);
       }
     }
     catch (const manifest_serialization& e)

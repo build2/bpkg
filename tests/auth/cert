@@ -28,7 +28,7 @@ openssl req -x509 -new -key key.pem -days 1825 -config self-any-openssl.cnf > \
 # Normally, you have no reason to regenerate expired-cert.pem, as need to keep
 # it expired for the testing purposes. But if you do, copy expired-cert.pem
 # content to the certificate value of the following manifest files:
-#   ../rep-auth/expired/repositories
+#   ../rep-auth/expired/repositories.manifest
 #
 # To regenerate the packages and signature manifest files run bpkg rep-create
 # command, for example:

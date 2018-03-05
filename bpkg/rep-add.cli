@@ -84,18 +84,18 @@ namespace bpkg
      \
 
      A \cb{git} repository is expected to contain either the \cb{manifest} or
-     \cb{packages} file in the root directory of the repository. If it only
-     contains \cb{manifest}, then it is assumed to be a single-package
+     \cb{packages.manifest} file in the root directory of the repository. If
+     it only contains \cb{manifest}, then it is assumed to be a single-package
      repository with the \cb{manifest} file being its package manifest.
-     Otherwise the \cb{packages} file should list the available packages as
-     described in \l{bpkg#manifest-package-list-git Package List Manifest for
-     \cb{git} Repositories}.
+     Otherwise the \cb{packages.manifest} file should list the available
+     packages as described in \l{bpkg#manifest-package-list-git Package List
+     Manifest for \cb{git} Repositories}.
 
-     A \cb{git} repository may also contain the \cb{repositories} file in the
-     root directory of the repository. This file can be used to describe the
-     repository itself as well as specify its prerequisite and complement
-     repositories. See \l{bpkg#manifest-repository-list Repository List
-     Manifest} for details on the format and semantics of this file.
+     A \cb{git} repository may also contain the \cb{repositories.manifest}
+     file in the root directory of the repository. This file can be used to
+     describe the repository itself as well as specify its prerequisite and
+     complement repositories. See \l{bpkg#manifest-repository-list Repository
+     List Manifest} for details on the format and semantics of this file.
 
      Supported git protocols are \cb{git://}, \cb{http://}, and \cb{https://}
      for remote repositories and \cb{file://} for local repositories. While

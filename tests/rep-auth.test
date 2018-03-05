@@ -15,12 +15,12 @@
 # rep-auth
 # |-- expired
 # |   |-- foo-1.tar.gz
-# |   |-- packages
-# |   |-- repositories
-# |   `-- signature
+# |   |-- packages.manifest
+# |   |-- repositories.manifest
+# |   `-- signature.manifest
 # `-- unsigned
 #     |-- foo-1.tar.gz
-#     `-- repositories
+#     `-- repositories.manifest
 
 # Prepare repositories used by tests if running in the local mode.
 #
@@ -30,7 +30,7 @@
   # Create the 'unsigned1' repository.
   #
   cp -r $src/unsigned $out/unsigned1
-  $rc $out/unsigned1 &$out/unsigned1/packages
+  $rc $out/unsigned1 &$out/unsigned1/packages.manifest
 
   # Create the 'unsigned2' repository. This is a copy of the just created
   # 'unsigned1' repository.
@@ -40,8 +40,10 @@
   # Create the 'signed' repository.
   #
   cp -r $src/unsigned $out/signed
-  cat <<<$cert_manifest >+$out/signed/repositories
-  $rc --key $key $out/signed &$out/signed/packages &$out/signed/signature
+  cat <<<$cert_manifest >+$out/signed/repositories.manifest
+
+  $rc --key $key $out/signed &$out/signed/packages.manifest \
+                             &$out/signed/signature.manifest
 
   # Create the 'self-match' repository. Note that its certificate name is
   # the '*build2.org' wildcard (matches build2.org and any single-level
@@ -49,24 +51,24 @@
   #
   cp -r $src/unsigned $out/self-match
 
-  echo 'certificate: \'                >+$out/self-match/repositories
-  cat  <<<$src_base/auth/self-cert.pem >+$out/self-match/repositories
-  echo '\'                             >+$out/self-match/repositories
+  echo 'certificate: \'                >+$out/self-match/repositories.manifest
+  cat  <<<$src_base/auth/self-cert.pem >+$out/self-match/repositories.manifest
+  echo '\'                             >+$out/self-match/repositories.manifest
 
-  $rc --key $key $out/self-match &$out/self-match/packages \
-                                 &$out/self-match/signature
+  $rc --key $key $out/self-match &$out/self-match/packages.manifest \
+                                 &$out/self-match/signature.manifest
 
   # Create the 'self-any-match' repository. Note that its certificate name is
   # the '**build2.org' wildcard (matches build2.org and any subdomain).
   #
   cp -r $src/unsigned $out/self-any-match
 
-  echo 'certificate: \'                    >+$out/self-any-match/repositories
-  cat  <<<$src_base/auth/self-any-cert.pem >+$out/self-any-match/repositories
-  echo '\'                                 >+$out/self-any-match/repositories
+  echo 'certificate: \'                    >+$out/self-any-match/repositories.manifest
+  cat  <<<$src_base/auth/self-any-cert.pem >+$out/self-any-match/repositories.manifest
+  echo '\'                                 >+$out/self-any-match/repositories.manifest
 
-  $rc --key $key $out/self-any-match &$out/self-any-match/packages \
-                                     &$out/self-any-match/signature
+  $rc --key $key $out/self-any-match &$out/self-any-match/packages.manifest \
+                                     &$out/self-any-match/signature.manifest
 
   # Create the 'subdomain-match' repository. Note that its certificate name is
   # the '*.build2.org' wildcard (matches any single-level subdomain of
@@ -74,24 +76,24 @@
   #
   cp -r $src/unsigned $out/subdomain-match
 
-  echo 'certificate: \'                     >+$out/subdomain-match/repositories
-  cat  <<<$src_base/auth/subdomain-cert.pem >+$out/subdomain-match/repositories
-  echo '\'                                  >+$out/subdomain-match/repositories
+  echo 'certificate: \'                     >+$out/subdomain-match/repositories.manifest
+  cat  <<<$src_base/auth/subdomain-cert.pem >+$out/subdomain-match/repositories.manifest
+  echo '\'                                  >+$out/subdomain-match/repositories.manifest
 
-  $rc --key $key $out/subdomain-match &$out/subdomain-match/packages \
-                                      &$out/subdomain-match/signature
+  $rc --key $key $out/subdomain-match &$out/subdomain-match/packages.manifest \
+                                      &$out/subdomain-match/signature.manifest
 
   # Create the 'name-mismatch' repository. Note that its certificate name
   # mismatches the repository location.
   #
   cp -r $src/unsigned $out/name-mismatch
 
-  echo 'certificate: \'                    >+$out/name-mismatch/repositories
-  cat  <<<$src_base/auth/mismatch-cert.pem >+$out/name-mismatch/repositories
-  echo '\'                                 >+$out/name-mismatch/repositories
+  echo 'certificate: \'                    >+$out/name-mismatch/repositories.manifest
+  cat  <<<$src_base/auth/mismatch-cert.pem >+$out/name-mismatch/repositories.manifest
+  echo '\'                                 >+$out/name-mismatch/repositories.manifest
 
-  $rc --key $key $out/name-mismatch &$out/name-mismatch/packages  \
-                                    &$out/name-mismatch/signature
+  $rc --key $key $out/name-mismatch &$out/name-mismatch/packages.manifest \
+                                    &$out/name-mismatch/signature.manifest
 
   # Create the 'expired' repository. This repository is "pre-created" and its
   # certificate is expired by now. So we just copy it from the source
@@ -105,7 +107,9 @@
   cp -r $out/signed $out/sha256sum-mismatch
 
   v = 'd374c59b36fdbdbd0d4468665061d94fda9c6c687863dfe72b0bcc34ff9d5fb4'
-  sed -i -e "s/^\(sha256sum: \).*\$/\\1$v/" $out/sha256sum-mismatch/signature
+
+  sed -i -e "s/^\(sha256sum: \).*\$/\\1$v/" \
+      $out/sha256sum-mismatch/signature.manifest
 
   # Create the 'signature-mismatch' repository. This is a copy of the just
   # created 'signed' repository that has the signature manifest value tampered.
@@ -116,7 +120,7 @@
   # spaces and terminated with '=').
   #
   v = 'mnBAsS529NUdNIQy8EB4si/UK26ICaMywbLeHDVvWOB+AsqZ5rj8VjGDamLbmUrDr3ru7BU1gJU='
-  sed -i -e "s%^[^ ]{75}=\$%$v%" $out/signature-mismatch/signature
+  sed -i -e "s%^[^ ]{75}=\$%$v%" $out/signature-mismatch/signature.manifest
 end
 
 pkg_status += -d cfg
@@ -138,8 +142,8 @@ sc = " " # Space character to append to here-document line when required.
   r = 1/signed
   +mkdir 1/
   +cp -r $src/unsigned $r
-  +cat <<<$cert_manifest >+$r/repositories
-  +$rep_create --key $key $r &$r/packages &$r/signature 2>!
+  +cat <<<$cert_manifest >+$r/repositories.manifest
+  +$rep_create --key $key $r &$r/packages.manifest &$r/signature.manifest 2>!
 
   : rep-fetch
   :
@@ -602,11 +606,11 @@ sc = " " # Space character to append to here-document line when required.
     {
       cp -r $src/unsigned rep;
 
-      echo 'certificate: \'                   >+rep/repositories;
-      cat  <<<$src_base/auth/noemail-cert.pem >+rep/repositories;
-      echo '\'                                >+rep/repositories;
+      echo 'certificate: \'                   >+rep/repositories.manifest;
+      cat  <<<$src_base/auth/noemail-cert.pem >+rep/repositories.manifest;
+      echo '\'                                >+rep/repositories.manifest;
 
-      $rep_create --key $key rep &rep/packages 2>>/EOE != 0
+      $rep_create --key $key rep &rep/packages.manifest 2>>/EOE != 0
         adding foo 1
         error: invalid certificate for rep/: no email
         EOE
@@ -617,11 +621,11 @@ sc = " " # Space character to append to here-document line when required.
     {
       cp -r $src/unsigned rep;
 
-      echo 'certificate: \'                   >+rep/repositories;
-      cat  <<<$src_base/auth/expired-cert.pem >+rep/repositories;
-      echo '\'                                >+rep/repositories;
+      echo 'certificate: \'                   >+rep/repositories.manifest;
+      cat  <<<$src_base/auth/expired-cert.pem >+rep/repositories.manifest;
+      echo '\'                                >+rep/repositories.manifest;
 
-      $rep_create --key $key rep &rep/packages 2>>/EOE != 0
+      $rep_create --key $key rep &rep/packages.manifest 2>>/EOE != 0
         adding foo 1
         error: certificate for repository rep/ has expired
         EOE

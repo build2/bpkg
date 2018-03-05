@@ -9,7 +9,7 @@
 # pkg-update
 # |-- hello
 # |   |-- libhello-1.0.0.tar.gz
-# |   `-- repositories
+# |   `-- repositories.manifest
 # `-- libhello-1.0.0
 #     |-- build
 #     |   |-- bootstrap.build
@@ -42,8 +42,10 @@
   # Create the signed 'hello' repository.
   #
   cp -r $src/hello $out/hello
-  cat <<<$cert_manifest >+$out/hello/repositories
-  $rep_create --key $key $out/hello &$out/hello/packages &$out/hello/signature
+  cat <<<$cert_manifest >+$out/hello/repositories.manifest
+
+  $rep_create --key $key $out/hello &$out/hello/packages.manifest \
+                                    &$out/hello/signature.manifest
 end
 
 pkg_configure += -d cfg "config.cxx=$config.cxx" 2>!

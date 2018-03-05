@@ -23,39 +23,39 @@
 # |
 # |-- t1
 # |   |-- libfoo-1.0.0.tar.gz
-# |   `-- repositories
+# |   `-- repositories.manifest
 # |
 # |-- t2
 # |   |-- libbar-1.0.0.tar.gz -> libfoo
 # |   |-- libfoo-1.0.0.tar.gz
-# |   `-- repositories
+# |   `-- repositories.manifest
 # |
 # |-- t3                      -> t2 (prerequisite)
 # |   |-- libbaz-1.0.0.tar.gz -> libbar
 # |   |-- libfox-1.0.0.tar.gz
-# |   `-- repositories
+# |   `-- repositories.manifest
 # |
 # |-- t4a
 # |   |-- libfoo-1.1.0.tar.gz
-# |   `-- repositories
+# |   `-- repositories.manifest
 # |
 # |-- t4b                     -> t4a (prerequisite)
 # |   |-- libbar-1.1.0.tar.gz -> libfoo == 1.1.0
-# |   `-- repositories
+# |   `-- repositories.manifest
 # |
 # |-- t4c                     -> t4b (prerequisite)
 # |   |-- libbaz-1.1.0.tar.gz -> libfoo, libbar
 # |   |-- libfoo-1.0.0.tar.gz
-# |   `-- repositories
+# |   `-- repositories.manifest
 # |
 # |-- t4d                     -> t4c (complement)
 # |   |-- libbiz-1.0.0.tar.gz -> libfox, libfoo, libbaz
 # |   |-- libfox-1.0.0.tar.gz
-# |   `-- repositories
+# |   `-- repositories.manifest
 # |
 # |-- t5
 # |   |-- libbar-1.2.0.tar.gz
-# |   `-- repositories
+# |   `-- repositories.manifest
 # |
 # `-- git
 #     |-- libbar.git          -> style-basic.git (prerequisite)
@@ -67,14 +67,14 @@
 +if ($remote != true)
   rep_create += 2>!
 
-  cp -r $src/t1  $out/t1  && $rep_create $out/t1  &$out/t1/packages
-  cp -r $src/t2  $out/t2  && $rep_create $out/t2  &$out/t2/packages
-  cp -r $src/t3  $out/t3  && $rep_create $out/t3  &$out/t3/packages
-  cp -r $src/t4a $out/t4a && $rep_create $out/t4a &$out/t4a/packages
-  cp -r $src/t4b $out/t4b && $rep_create $out/t4b &$out/t4b/packages
-  cp -r $src/t4c $out/t4c && $rep_create $out/t4c &$out/t4c/packages
-  cp -r $src/t4d $out/t4d && $rep_create $out/t4d &$out/t4d/packages
-  cp -r $src/t5  $out/t5  && $rep_create $out/t5  &$out/t5/packages
+  cp -r $src/t1  $out/t1  && $rep_create $out/t1  &$out/t1/packages.manifest
+  cp -r $src/t2  $out/t2  && $rep_create $out/t2  &$out/t2/packages.manifest
+  cp -r $src/t3  $out/t3  && $rep_create $out/t3  &$out/t3/packages.manifest
+  cp -r $src/t4a $out/t4a && $rep_create $out/t4a &$out/t4a/packages.manifest
+  cp -r $src/t4b $out/t4b && $rep_create $out/t4b &$out/t4b/packages.manifest
+  cp -r $src/t4c $out/t4c && $rep_create $out/t4c &$out/t4c/packages.manifest
+  cp -r $src/t4d $out/t4d && $rep_create $out/t4d &$out/t4d/packages.manifest
+  cp -r $src/t5  $out/t5  && $rep_create $out/t5  &$out/t5/packages.manifest
 
   # Create git repositories.
   #

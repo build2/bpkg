@@ -9,21 +9,21 @@
 # pkg-status
 # |-- extra                     -> stable (prerequisite)
 # |   |-- libbar-1.1.0+1.tar.gz
-# |   `-- repositories
+# |   `-- repositories.manifest
 # |
 # |-- stable
 # |   |-- libbar-1.0.0.tar.gz
 # |   |-- libfoo-1.0.0.tar.gz
-# |   `-- repositories
+# |   `-- repositories.manifest
 # |
 # |-- testing                   -> stable (complement), extra (prerequisite)
 # |   |-- libbar-1.0.0+1.tar.gz
 # |   |-- libbar-1.1.0.tar.gz
-# |   `-- repositories
+# |   `-- repositories.manifest
 # |
 # |-- unstable                  -> testing (complement)
 # |   |-- libbar-2.0.0.tar.gz
-# |   `-- repositories
+# |   `-- repositories.manifest
 # |
 # `-- git
 #     |-- libbar.git            -> style-basic.git (prerequisite)
@@ -33,12 +33,17 @@
 # Prepare repositories used by tests if running in the local mode.
 #
 +if ($remote != true)
+  cp -r $src/extra    $out/extra
+  cp -r $src/stable   $out/stable
+  cp -r $src/testing  $out/testing
+  cp -r $src/unstable $out/unstable
+
   c = $rep_create 2>!
 
-  cp -r $src/extra    $out/extra    && $c $out/extra    &$out/extra/packages
-  cp -r $src/stable   $out/stable   && $c $out/stable   &$out/stable/packages
-  cp -r $src/testing  $out/testing  && $c $out/testing  &$out/testing/packages
-  cp -r $src/unstable $out/unstable && $c $out/unstable &$out/unstable/packages
+  $c $out/extra    &$out/extra/packages.manifest
+  $c $out/stable   &$out/stable/packages.manifest
+  $c $out/testing  &$out/testing/packages.manifest
+  $c $out/unstable &$out/unstable/packages.manifest
 
   # Create git repositories.
   #

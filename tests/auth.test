@@ -14,8 +14,8 @@ cert = $src_base/auth/default-cert.pem
 #
 +set cert_fp <<<$src_base/auth/default-cert-fp
 
-# Manifest certificate name/value. Can be appended to the repositories file to
-# sign the repository.
+# Manifest certificate name/value. Can be appended to the repositories.manifest
+# file to sign the repository.
 #
 cert_manifest = $~/cert-manifest
 +echo 'certificate: \' >=$cert_manifest
