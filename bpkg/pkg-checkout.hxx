@@ -18,7 +18,8 @@ namespace bpkg
   int
   pkg_checkout (const pkg_checkout_options&, cli::scanner& args);
 
-  // Check out the package from a repository and commit the transaction.
+  // Check out the package from a version control-based repository and commit
+  // the transaction.
   //
   shared_ptr<selected_package>
   pkg_checkout (const common_options&,

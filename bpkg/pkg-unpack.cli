@@ -11,25 +11,31 @@ include <bpkg/configuration.cli>;
 namespace bpkg
 {
   {
-    "<options> <pkg> <dir> <ver>",
+    "<options> <pkg> <ver> <dir>",
 
     "\h|SYNOPSIS|
 
-     \c{\b{bpkg pkg-unpack} [<options>] (<pkg> | \b{--existing|-e} <dir>)}
+     \c{\b{bpkg pkg-unpack} [<options>] (<pkg>[\b{/}<ver>] | \b{--existing|-e} <dir>)}
 
      \h|DESCRIPTION|
 
-     The \cb{pkg-unpack} command unpacks the archive for the previously
-     fetched (\l{bpkg-pkg-fetch(1)}) package. The resulting package state is
-     \cb{unpacked} (\l{bpkg-pkg-status(1)}).
+     If only the package name is specified, then the \cb{pkg-unpack} command
+     unpacks the archive for the previously fetched (\l{bpkg-pkg-fetch(1)})
+     package. The resulting package state is \cb{unpacked}
+     (\l{bpkg-pkg-status(1)}).
+
+     If the package version is also specified, then the (source) directory
+     from one of the directory-based repositories (\l{bpkg-rep-add(1)}) is
+     used in place, without copying it into the configuration directory. Such
+     a package is called \i{external}.
 
      If the \cb{--existing|-e} option is used, then instead of the package
      name, \cb{pkg-unpack} expects a local path to an existing package
      directory. In this case, \cb{bpkg} will use the (source) directory in
-     place, without copying it into the configuration directory. Also, unless
-     the \cb{--purge|-p} option is specified, \cb{bpkg} will not attempt to
-     remove this directory when the package is later purged with the
-     \l{bpkg-pkg-purge(1)} command. Such a package is called \i{external}.
+     place, the same as for packages from directory-based repositories. Also,
+     unless the \cb{--purge|-p} option is specified, \cb{bpkg} will not
+     attempt to remove this directory when the package is later purged with
+     the \l{bpkg-pkg-purge(1)} command. Such a package is also \i{external}.
 
      If \cb{--existing|-e} is specified together with the \cb{--replace|-r}
      option, then \cb{pkg-unpack} will replace the archive and/or source
@@ -67,7 +73,7 @@ namespace bpkg
     bool --replace|-r
     {
       "Replace the source directory if the package is already unpacked or
-       fetched. Can only be specified together with \cb{--existing|-e}."
+       fetched. Can only be specified with an external package."
     }
   };
 }

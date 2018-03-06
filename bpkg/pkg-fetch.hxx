@@ -28,7 +28,8 @@ namespace bpkg
              bool replace,
              bool purge);
 
-  // Fetch the package from a repository and commit the transaction.
+  // Fetch the package from an archive-based repository and commit the
+  // transaction.
   //
   shared_ptr<selected_package>
   pkg_fetch (const common_options&,

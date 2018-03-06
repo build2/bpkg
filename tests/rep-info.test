@@ -138,7 +138,7 @@ $* --name $rep/testing >"pkg:build2.org/rep-info/testing ($rep/testing)"
   $* --cert-email        >'info@build2.org' : email
 }
 
-: git-repos
+: git-rep
 :
 if ($git_supported != true)
 {

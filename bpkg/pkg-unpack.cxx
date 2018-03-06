@@ -16,6 +16,7 @@
 #include <bpkg/package-odb.hxx>
 #include <bpkg/database.hxx>
 #include <bpkg/diagnostics.hxx>
+#include <bpkg/manifest-utility.hxx>
 
 #include <bpkg/pkg-purge.hxx>
 #include <bpkg/pkg-verify.hxx>
@@ -25,43 +26,21 @@ using namespace butl;
 
 namespace bpkg
 {
-  shared_ptr<selected_package>
-  pkg_unpack (const dir_path& c,
-              transaction& t,
-              const dir_path& d,
-              bool replace,
-              bool purge)
+  // Check if the package already exists in this configuration and
+  // diagnose all the illegal cases.
+  //
+  static void
+  pkg_unpack_check (const dir_path& c,
+                    transaction& t,
+                    const string& n,
+                    bool replace)
   {
-    tracer trace ("pkg_unpack");
+    tracer trace ("pkg_update_check");
 
     database& db (t.database ());
     tracer_guard tg (db, trace);
 
-    if (!exists (d))
-      fail << "package directory " << d << " does not exist";
-
-    // Verify the directory is a package and get its manifest.
-    //
-    package_manifest m (pkg_verify (d, true));
-    l4 ([&]{trace << d << ": " << m.name << " " << m.version;});
-
-    // Make the package and configuration paths absolute and normalized.
-    // If the package is inside the configuration, use the relative path.
-    // This way we can move the configuration around.
-    //
-    dir_path ac (c), ad (d);
-    ac.complete ().normalize ();
-    ad.complete ().normalize ();
-
-    if (ad.sub (ac))
-      ad = ad.leaf (ac);
-
-    // See if this package already exists in this configuration.
-    //
-    const string& n (m.name);
-    shared_ptr<selected_package> p (db.find<selected_package> (n));
-
-    if (p != nullptr)
+    if (shared_ptr<selected_package> p = db.find<selected_package> (n))
     {
       bool s (p->state == package_state::fetched ||
               p->state == package_state::unpacked);
@@ -78,19 +57,47 @@ namespace bpkg
         if (s) // Suitable state for replace?
           dr << info << "use 'pkg-unpack --replace|-r' to replace";
       }
+    }
+  }
 
+  static shared_ptr<selected_package>
+  pkg_unpack (dir_path c,
+              transaction& t,
+              string n,
+              version v,
+              dir_path d,
+              repository_location rl,
+              bool purge)
+  {
+    tracer trace ("pkg_unpack");
+
+    database& db (t.database ());
+    tracer_guard tg (db, trace);
+
+    // Make the package and configuration paths absolute and normalized.
+    // If the package is inside the configuration, use the relative path.
+    // This way we can move the configuration around.
+    //
+    c.complete ().normalize ();
+    d.complete ().normalize ();
+
+    if (d.sub (c))
+      d = d.leaf (c);
+
+    shared_ptr<selected_package> p (db.find<selected_package> (n));
+
+    if (p != nullptr)
+    {
       // Clean up the source directory and archive of the package we are
       // replacing. Once this is done, there is no going back. If things
       // go badly, we can't simply abort the transaction.
       //
       pkg_purge_fs (c, t, p);
 
-      // Use the special root repository as the repository of this package.
-      //
-      p->version = move (m.version);
+      p->version = move (v);
       p->state = package_state::unpacked;
-      p->repository = repository_location ();
-      p->src_root = move (ad);
+      p->repository = move (rl);
+      p->src_root = move (d);
       p->purge_src = purge;
 
       db.update (p);
@@ -98,16 +105,16 @@ namespace bpkg
     else
     {
       p.reset (new selected_package {
-        move (m.name),
-        move (m.version),
+        move (n),
+        move (v),
         package_state::unpacked,
         package_substate::none,
-        false,   // hold package
-        false,   // hold version
-        repository_location (), // Root repository.
+        false,      // hold package
+        false,      // hold version
+        move (rl),
         nullopt,    // No archive
         false,      // Don't purge archive.
-        move (ad),
+        move (d),
         purge,
         nullopt,    // No output directory yet.
         {}});       // No prerequisites captured yet.
@@ -117,6 +124,109 @@ namespace bpkg
 
     t.commit ();
     return p;
+  }
+
+  shared_ptr<selected_package>
+  pkg_unpack (const dir_path& c,
+              transaction& t,
+              const dir_path& d,
+              bool replace,
+              bool purge)
+  {
+    tracer trace ("pkg_unpack");
+
+    if (!exists (d))
+      fail << "package directory " << d << " does not exist";
+
+    // Verify the directory is a package and get its manifest.
+    //
+    package_manifest m (pkg_verify (d, true));
+    l4 ([&]{trace << d << ": " << m.name << " " << m.version;});
+
+    // Check/diagnose an already existing package.
+    //
+    pkg_unpack_check (c, t, m.name, replace);
+
+    // Use the special root repository as the repository of this
+    // package.
+    //
+    return pkg_unpack (c,
+                       t,
+                       move (m.name),
+                       move (m.version),
+                       d,
+                       repository_location (),
+                       purge);
+  }
+
+  shared_ptr<selected_package>
+  pkg_unpack (const dir_path& c,
+              transaction& t,
+              string n,
+              version v,
+              bool replace)
+  {
+    tracer trace ("pkg_unpack");
+
+    database& db (t.database ());
+    tracer_guard tg (db, trace);
+
+    // Check/diagnose an already existing package.
+    //
+    pkg_unpack_check (c, t, n, replace);
+
+    if (db.query_value<repository_count> () == 0)
+      fail << "configuration " << c << " has no repositories" <<
+        info << "use 'bpkg rep-add' to add a repository";
+
+    if (db.query_value<available_package_count> () == 0)
+      fail << "configuration " << c << " has no available packages" <<
+        info << "use 'bpkg rep-fetch' to fetch available packages list";
+
+    // Note that here we compare including the revision (see pkg-fetch()
+    // implementation for more details).
+    //
+    shared_ptr<available_package> ap (
+      db.find<available_package> (available_package_id (n, v)));
+
+    if (ap == nullptr)
+      fail << "package " << n << " " << v << " is not available";
+
+    // Pick a directory-based repository. Preferring a local one over the
+    // remotes seems like a sensible thing to do.
+    //
+    const package_location* pl (nullptr);
+
+    for (const package_location& l: ap->locations)
+    {
+      const repository_location& rl (l.repository.load ()->location);
+
+      if (rl.directory_based () && (pl == nullptr || rl.local ()))
+      {
+        pl = &l;
+
+        if (rl.local ())
+          break;
+      }
+    }
+
+    if (pl == nullptr)
+      fail << "package " << n << " " << v
+           << " is not available from a directory-based repository";
+
+    if (verb > 1)
+      text << "unpacking " << pl->location.leaf () << " "
+           << "from " << pl->repository->name;
+
+    const repository_location& rl (pl->repository->location);
+
+    return pkg_unpack (c,
+                       t,
+                       move (n),
+                       move (v),
+                       path_cast<dir_path> (rl.path () / pl->location),
+                       rl,
+                       false); // Purge.
   }
 
   shared_ptr<selected_package>
@@ -287,9 +397,6 @@ namespace bpkg
   {
     tracer trace ("pkg_unpack");
 
-    if (o.replace () && !o.existing ())
-      fail << "--replace|-r can only be specified with --existing|-e";
-
     const dir_path& c (o.directory ());
     l4 ([&]{trace << "configuration: " << c;});
 
@@ -297,6 +404,7 @@ namespace bpkg
     transaction t (db.begin ());
 
     shared_ptr<selected_package> p;
+    bool external (o.existing ());
 
     if (o.existing ())
     {
@@ -311,17 +419,37 @@ namespace bpkg
     }
     else
     {
-      // The package name case.
+      // The package name[/version] case.
       //
       if (!args.more ())
         fail << "package name argument expected" <<
           info << "run 'bpkg help pkg-unpack' for more information";
 
-      p = pkg_unpack (o, c, t, args.next ());
+      const char* arg (args.next ());
+      string n (parse_package_name (arg));
+      version v (parse_package_version (arg));
+
+      external = !v.empty ();
+
+      if (o.replace () && !external)
+        fail << "--replace|-r can only be specified with external package";
+
+      // If the package version is not specified then we expect the package to
+      // already be fetched and so unpack it from the archive. Otherwise, we
+      // "unpack" it from the directory-based repository.
+      //
+      p = v.empty ()
+        ? pkg_unpack (o, c, t, n)
+        : pkg_unpack (c, t, move (n), move (v), o.replace ());
     }
 
     if (verb)
-      text << "unpacked " << *p;
+    {
+      if (!external)
+        text << "unpacked " << *p;
+      else
+        text << "using " << *p << " (external)";
+    }
 
     return 0;
   }

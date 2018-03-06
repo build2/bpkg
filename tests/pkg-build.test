@@ -1447,7 +1447,23 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
   }
 }
 
-: git-repos
+: dir-rep
+:
+{
+  $clone_root_cfg && $rep_add $src/libfoo-1.1.0 --type dir && $rep_fetch;
+
+  $* libfoo 2>>~%EOE%;
+    using libfoo/1.1.0 (external)
+    configured libfoo/1.1.0
+    %info: .+dir\{libfoo-1.1.0.\} is up to date%
+    updated libfoo/1.1.0
+    EOE
+
+  $pkg_disfigure libfoo 2>'disfigured libfoo/1.1.0';
+  $pkg_purge     libfoo 2>'purged libfoo/1.1.0'
+}
+
+: git-rep
 :
 if ($git_supported != true)
 {

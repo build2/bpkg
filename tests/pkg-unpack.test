@@ -47,8 +47,8 @@ rep_fetch  += -d cfg --auth all 2>!
 : replace-with-existing
 :
 $clone_cfg;
-$* -r 2>>EOE != 0
-  error: --replace|-r can only be specified with --existing|-e
+$* foo -r 2>>EOE != 0
+  error: --replace|-r can only be specified with external package
   EOE
 
 : no-dir
@@ -98,7 +98,7 @@ $* 2>>EOE != 0
       EOE
 
     $pkg_purge  libfoo       2>'purged libfoo/1.0.0';
-    $*  -e $src/libfoo-1.1.0 2>'unpacked libfoo/1.1.0';
+    $*  -e $src/libfoo-1.1.0 2>'using libfoo/1.1.0 (external)';
     $pkg_status libfoo/1.1.0 1>'unpacked; available';
 
     $pkg_purge libfoo 2>'purged libfoo/1.1.0'
@@ -115,7 +115,7 @@ $* 2>>EOE != 0
         info: use 'pkg-unpack --replace|-r' to replace
       EOE
 
-    $* -r -e $src/libfoo-1.1.0 2>'unpacked libfoo/1.1.0';
+    $* -r -e $src/libfoo-1.1.0 2>'using libfoo/1.1.0 (external)';
     $pkg_status   libfoo/1.1.0 1>'unpacked; available';
 
     $pkg_purge libfoo 2>'purged libfoo/1.1.0'
@@ -134,7 +134,7 @@ $* 2>>EOE != 0
         info: use 'pkg-unpack --replace|-r' to replace
       EOE
 
-    $* -r -e $src/libfoo-1.1.0 2>'unpacked libfoo/1.1.0';
+    $* -r -e $src/libfoo-1.1.0 2>'using libfoo/1.1.0 (external)';
     $pkg_status   libfoo/1.1.0 1>'unpacked; available';
 
     $pkg_purge libfoo 2>'purged libfoo/1.1.0'
@@ -149,7 +149,7 @@ $* 2>>EOE != 0
       error: package libfoo does not exist in configuration cfg/
       EOE
 
-    $* -e $src/libfoo-1.1.0 2>'unpacked libfoo/1.1.0';
+    $* -e $src/libfoo-1.1.0 2>'using libfoo/1.1.0 (external)';
 
     $* libfoo 2>>EOE != 0;
       error: package libfoo is unpacked
@@ -177,7 +177,7 @@ $* 2>>EOE != 0
     $clone_cfg;
     cp --no-cleanup -r $src/libfoo-1.1.0 ./;
 
-    $* -p -e libfoo-1.1.0 2>'unpacked libfoo/1.1.0';
+    $* -p -e libfoo-1.1.0 2>'using libfoo/1.1.0 (external)';
 
     $pkg_purge libfoo 2>'purged libfoo/1.1.0'
   }
@@ -193,4 +193,64 @@ $* 2>>EOE != 0
   $* libhello 2>'unpacked libhello/1.0.0';
 
   $pkg_purge libhello 2>'purged libhello/1.0.0'
+}
+
+: dir-rep
+:
+{
+  rep_add += --type dir
+
+  : no-repos
+  :
+  {
+    $clone_root_cfg;
+
+    $* libfoo/1.1.0 2>>/EOE != 0
+      error: configuration cfg/ has no repositories
+        info: use 'bpkg rep-add' to add a repository
+      EOE
+  }
+
+  : unfetched
+  :
+  {
+    $clone_root_cfg && $rep_add $src/libfoo-1.1.0;
+
+    $* libfoo/1.1.0 2>>/EOE != 0
+      error: configuration cfg/ has no available packages
+        info: use 'bpkg rep-fetch' to fetch available packages list
+      EOE
+  }
+
+  : unavailable
+  :
+  {
+    $clone_root_cfg && $rep_add $src/libfoo-1.1.0 && $rep_fetch;
+
+    $* libfoo/1.0.0 2>>EOE != 0
+      error: package libfoo 1.0.0 is not available
+      EOE
+  }
+
+  : unavailable-dir-based
+  :
+  {
+    $clone_root_cfg && $rep_add $rep/t1 --type pkg && $rep_fetch --trust-yes;
+
+    $* libfoo/1.0.0 2>>EOE != 0
+      error: package libfoo 1.0.0 is not available from a directory-based repository
+      EOE
+  }
+
+  : available
+  :
+  {
+    $clone_root_cfg && $rep_add $src/libfoo-1.1.0 && $rep_fetch;
+
+    $* libfoo/1.1.0 2>>EOE;
+      using libfoo/1.1.0 (external)
+      EOE
+
+    $pkg_status libfoo 1>'unpacked 1.1.0; available sys:?'
+  }
 }

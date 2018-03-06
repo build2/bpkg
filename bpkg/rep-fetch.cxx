@@ -127,6 +127,258 @@ namespace bpkg
     }
   }
 
+  // Parse the repositories manifest file if exists. Otherwise return the
+  // repository manifest list containing the only (trivial) base repository.
+  //
+  template <typename M>
+  static M
+  parse_repository_manifests (const path& f,
+                              bool iu,
+                              const repository_location& rl)
+  {
+    M r;
+    if (exists (f))
+      r = parse_manifest<M> (f, iu, rl);
+    else
+      r.emplace_back (repository_manifest ()); // Add the base repository.
+
+    return r;
+  }
+
+  // Parse the package directories manifest file if exists. Otherwise treat
+  // the current directory as a package and return the manifest list with the
+  // single entry referencing this package.
+  //
+  template <typename M>
+  static M
+  parse_directory_manifests (const path& f,
+                             bool iu,
+                             const repository_location& rl)
+  {
+    M r;
+    if (exists (f))
+      r = parse_manifest<M> (f, iu, rl);
+    else
+    {
+      r.push_back (package_manifest ());
+      r.back ().location = current_dir;
+    }
+
+    return r;
+  }
+
+  // Parse package manifests referenced by the package directory manifests.
+  //
+  static vector<rep_fetch_data::package>
+  parse_package_manifests (const common_options& co,
+                           const dir_path& repo_dir,
+                           const string& repo_fragment,
+                           vector<package_manifest>&& sms,
+                           bool iu,
+                           const repository_location& rl)
+  {
+    vector<rep_fetch_data::package> fps;
+    fps.reserve (sms.size ());
+
+    for (package_manifest& sm: sms)
+    {
+      assert (sm.location);
+
+      auto package_info = [&sm, &rl] (diag_record& dr)
+      {
+        dr << "package ";
+
+        if (!sm.location->current ())
+          dr << "'" << sm.location->string () << "' "; // Strip trailing '/'.
+
+        dr << "in repository " << rl;
+      };
+
+      auto failure = [&package_info] (const char* desc)
+      {
+        diag_record dr (fail);
+        dr << desc << " for ";
+        package_info (dr);
+      };
+
+      dir_path d (repo_dir / path_cast<dir_path> (*sm.location));
+      path f (d / path ("manifest"));
+
+      if (!exists (f))
+        failure ("no manifest file");
+
+      try
+      {
+        ifdstream ifs (f);
+        manifest_parser mp (ifs, f.string ());
+        package_manifest m (pkg_package_manifest (mp, iu));
+
+        // Save the package manifest, preserving its location.
+        //
+        m.location = move (*sm.location);
+        sm = move (m);
+      }
+      catch (const manifest_parsing& e)
+      {
+        diag_record dr (fail (e.name, e.line, e.column));
+        dr << e.description << info;
+        package_info (dr);
+      }
+      catch (const io_error& e)
+      {
+        diag_record dr (fail);
+        dr << "unable to read from " << f << ": " << e << info;
+        package_info (dr);
+      }
+
+      // Fix-up the package version. Note that the package may have the
+      // version module enable and the directory repository may well be a git
+      // repository.
+      //
+      const char* b (name_b (co));
+
+      try
+      {
+        process_path pp (process::path_search (b, exec_dir));
+
+        fdpipe pipe (open_pipe ());
+
+        process pr (
+          process_start_callback (
+            [] (const char* const args[], size_t n)
+            {
+              if (verb >= 2)
+                print_process (args, n);
+            },
+            0 /* stdin */, pipe /* stdout */, 2 /* stderr */,
+            pp,
+
+            verb < 2
+            ? strings ({"-q"})
+            : verb == 2
+              ? strings ({"-v"})
+              : strings ({"--verbose", to_string (verb)}),
+
+            co.build_option (),
+            "info:",
+            d.representation ()));
+
+        // Shouldn't throw, unless something is severely damaged.
+        //
+        pipe.out.close ();
+
+        try
+        {
+          ifdstream is (move (pipe.in),
+                        fdstream_mode::skip,
+                        ifdstream::badbit);
+
+          for (string l; !eof (getline (is, l)); )
+          {
+            if (l.compare (0, 9, "version: ") == 0)
+            try
+            {
+              string v (l, 9);
+
+              // An empty version indicates that the version module is not
+              // enabled for the project, and so we don't amend the package
+              // version.
+              //
+              if (!v.empty ())
+                sm.version = version (v);
+
+              break;
+            }
+            catch (const invalid_argument&)
+            {
+              fail << "no package version in '" << l << "'" <<
+                info << "produced by '" << pp << "'; use --build to override";
+            }
+          }
+
+          is.close ();
+
+          // If succeess then save the package manifest together with the
+          // repository state it belongs to and go to the next package.
+          //
+          if (pr.wait ())
+          {
+            fps.emplace_back (rep_fetch_data::package {move (sm),
+                                                       repo_fragment});
+            continue;
+          }
+
+          // Fall through.
+        }
+        catch (const io_error&)
+        {
+          if (pr.wait ())
+            failure ("unable to read information");
+
+          // Fall through.
+        }
+
+        // We should only get here if the child exited with an error status.
+        //
+        assert (!pr.wait ());
+
+        failure ("unable to obtain information");
+      }
+      catch (const process_error& e)
+      {
+        fail << "unable to execute " << b << ": " << e;
+      }
+    }
+
+    return fps;
+  }
+
+  static rep_fetch_data
+  rep_fetch_dir (const common_options& co,
+                 const repository_location& rl,
+                 bool ignore_unknown)
+  {
+    assert (rl.absolute ());
+
+    dir_path rd (path_cast<dir_path> (rl.path ()));
+
+    dir_repository_manifests rms (
+      parse_repository_manifests<dir_repository_manifests> (
+        rd / repositories_file,
+        ignore_unknown,
+        rl));
+
+    dir_package_manifests pms (
+      parse_directory_manifests<dir_package_manifests> (
+        rd / packages_file,
+        ignore_unknown,
+        rl));
+
+    vector<rep_fetch_data::package> fps (
+      parse_package_manifests (co,
+                               rd,
+                               string () /* repo_fragment */,
+                               move (pms),
+                               ignore_unknown,
+                               rl));
+
+    // @@ Here we will need to go through packages and check if there is the
+    //    selected package of the same version (without regards to the
+    //    iteration component), and having the different package manifest
+    //    hash. If that's the case then set the manifest version iteration
+    //    component as the selected package version iteation + 1.
+    //
+    // @@ It also seems that the manifest hash should be stored in the (new)
+    //    member of the package_location struct. Later this value will be
+    //    transmitted into the selected package objects by pkg_unpack().
+    //
+    // @@ Should we later check and fail if any available package contains
+    //    several package locations with different non-zero (for those that
+    //    come from the directory repo) manifest hashes?
+    //
+    return rep_fetch_data {move (rms), move (fps), nullptr};
+  }
+
   static rep_fetch_data
   rep_fetch_git (const common_options& co,
                  const dir_path* conf,
@@ -207,185 +459,27 @@ namespace bpkg
     dir_path nm (fetch ? git_fetch (co, rl, td) : git_clone (co, rl, td));
     dir_path fd (td / nm); // Full directory path.
 
-    // Produce repository manifest list.
+    // Parse manifests.
     //
-    git_repository_manifests rms;
-    {
-      path f (fd / repositories_file);
+    git_repository_manifests rms (
+      parse_repository_manifests<git_repository_manifests> (
+        fd / repositories_file,
+        ignore_unknown,
+        rl));
 
-      if (exists (f))
-        rms = parse_manifest<git_repository_manifests> (f, ignore_unknown, rl);
-      else
-        rms.emplace_back (repository_manifest ()); // Add the base repository.
-    }
+    git_package_manifests pms (
+      parse_directory_manifests<git_package_manifests> (
+        fd / packages_file,
+        ignore_unknown,
+        rl));
 
-    // Produce the "skeleton" package manifest list.
-    //
-    git_package_manifests pms;
-    {
-      path f (fd / packages_file);
-
-      if (exists (f))
-        pms = parse_manifest<git_package_manifests> (f, ignore_unknown, rl);
-      else
-      {
-        pms.push_back (package_manifest ());
-        pms.back ().location = current_dir;
-      }
-    }
-
-    vector<rep_fetch_data::package> fps;
-    fps.reserve (pms.size ());
-
-    // Parse package manifests.
-    //
-    for (package_manifest& sm: pms)
-    {
-      assert (sm.location);
-
-      auto package_info = [&sm, &rl] (diag_record& dr)
-      {
-        dr << "package ";
-
-        if (!sm.location->current ())
-          dr << "'" << sm.location->string () << "' "; // Strip trailing '/'.
-
-        dr << "in repository " << rl;
-      };
-
-      auto failure = [&package_info] (const char* desc)
-      {
-        diag_record dr (fail);
-        dr << desc << " for ";
-        package_info (dr);
-      };
-
-      dir_path d (fd / path_cast<dir_path> (*sm.location));
-      path f (d / path ("manifest"));
-
-      if (!exists (f))
-        failure ("no manifest file");
-
-      try
-      {
-        ifdstream ifs (f);
-        manifest_parser mp (ifs, f.string ());
-        package_manifest m (pkg_package_manifest (mp, ignore_unknown));
-
-        // Save the package manifest, preserving its location.
-        //
-        m.location = move (*sm.location);
-        sm = move (m);
-      }
-      catch (const manifest_parsing& e)
-      {
-        diag_record dr (fail (e.name, e.line, e.column));
-        dr << e.description << info;
-        package_info (dr);
-      }
-      catch (const io_error& e)
-      {
-        diag_record dr (fail);
-        dr << "unable to read from " << f << ": " << e << info;
-        package_info (dr);
-      }
-
-      // Fix-up the package version.
-      //
-      const char* b (name_b (co));
-
-      try
-      {
-        process_path pp (process::path_search (b, exec_dir));
-
-        fdpipe pipe (open_pipe ());
-
-        process pr (
-          process_start_callback (
-            [] (const char* const args[], size_t n)
-            {
-              if (verb >= 2)
-                print_process (args, n);
-            },
-            0 /* stdin */, pipe /* stdout */, 2 /* stderr */,
-            pp,
-
-            verb < 2
-            ? strings ({"-q"})
-            : verb == 2
-              ? strings ({"-v"})
-              : strings ({"--verbose", to_string (verb)}),
-
-            co.build_option (),
-            "info:",
-            d.representation ()));
-
-        // Shouldn't throw, unless something is severely damaged.
-        //
-        pipe.out.close ();
-
-        try
-        {
-          ifdstream is (move (pipe.in),
-                        fdstream_mode::skip,
-                        ifdstream::badbit);
-
-          for (string l; !eof (getline (is, l)); )
-          {
-            if (l.compare (0, 9, "version: ") == 0)
-            try
-            {
-              string v (l, 9);
-
-              // An empty version indicates that the version module is not
-              // enabled for the project, and so we don't amend the package
-              // version.
-              //
-              if (!v.empty ())
-                sm.version = version (v);
-
-              break;
-            }
-            catch (const invalid_argument&)
-            {
-              fail << "no package version in '" << l << "'" <<
-                info << "produced by '" << pp << "'; use --build to override";
-            }
-          }
-
-          is.close ();
-
-          // If succeess then save the package manifest together with the
-          // repository state it belongs to and go to the next package.
-          //
-          if (pr.wait ())
-          {
-            fps.emplace_back (rep_fetch_data::package {move (sm),
-                                                       nm.string ()});
-            continue;
-          }
-
-          // Fall through.
-        }
-        catch (const io_error&)
-        {
-          if (pr.wait ())
-            failure ("unable to read information");
-
-          // Fall through.
-        }
-
-        // We should only get here if the child exited with an error status.
-        //
-        assert (!pr.wait ());
-
-        failure ("unable to obtain information");
-      }
-      catch (const process_error& e)
-      {
-        fail << "unable to execute " << b << ": " << e;
-      }
-    }
+    vector<rep_fetch_data::package> fps (
+      parse_package_manifests (co,
+                               fd,
+                               nm.string (),
+                               move (pms),
+                               ignore_unknown,
+                               rl));
 
     // Move the state directory to its proper place.
     //
@@ -411,6 +505,7 @@ namespace bpkg
     switch (rl.type ())
     {
     case repository_type::pkg: return rep_fetch_pkg (co, conf, rl, iu);
+    case repository_type::dir: return rep_fetch_dir (co, rl, iu);
     case repository_type::git: return rep_fetch_git (co, conf, rl, iu);
     }
 
@@ -592,19 +687,33 @@ namespace bpkg
       }
     }
 
-    // For git repositories that have neither prerequisites nor complements
-    // we use the root repository as the default complement.
+    // For dir and git repositories that have neither prerequisites nor
+    // complements we use the root repository as the default complement.
     //
     // This supports the common use case where the user has a single-package
-    // git repository and doesn't want to bother with the
-    // repositories.manifest file. This way their package will still pick up
-    // its dependencies from the configuration, without regards from which
-    // repositories they came from.
+    // repository and doesn't want to bother with the repositories.manifest
+    // file. This way their package will still pick up its dependencies from
+    // the configuration, without regards from which repositories they came
+    // from.
     //
-    if (rl.type () == repository_type::git &&
-        r->complements.empty ()            &&
-        r->prerequisites.empty ())
-      r->complements.insert (lazy_shared_ptr<repository> (db, string ()));
+    switch (rl.type ())
+    {
+    case repository_type::git:
+    case repository_type::dir:
+      {
+        if (r->complements.empty () && r->prerequisites.empty ())
+          r->complements.insert (lazy_shared_ptr<repository> (db, string ()));
+
+        break;
+      }
+    case repository_type::pkg:
+      {
+        // Pkg repository is a "strict" one, that requires all the
+        // prerequisites and complements to be listed.
+        //
+        break;
+      }
+    }
 
     // Save the changes to the repository object.
     //
@@ -805,20 +914,24 @@ namespace bpkg
 
         if (repository_name (a))
         {
-          lazy_shared_ptr<repository> rp (db, a);
+          r = lazy_shared_ptr<repository> (db, a);
 
-          if (ua.find (rp) != ua.end ())
-            r = move (rp);
-          else
+          if (ua.find (r) == ua.end ())
             fail << "repository '" << a << "' does not exist in this "
                  << "configuration";
         }
         else
-          //@@ TODO: check if exists in root & same location and avoid
-          // calling rep_add. Get rid of quiet mode.
+        {
+          repository_location rl (parse_location (a, nullopt /* type */));
+          r = lazy_shared_ptr<repository> (db, rl.canonical_name ());
+
+          // If the repository is not the root complement yet or has
+          // a different location then we add it to the configuration.
           //
-          r = lazy_shared_ptr<repository> (
-            db, rep_add (t, parse_location (a, nullopt /* type */)));
+          auto i (ua.find (r));
+          if (i == ua.end () || i->load ()->location.url () != rl.url ())
+            r = lazy_shared_ptr<repository> (db, rep_add (t, rl));
+        }
 
         repos.emplace_back (move (r));
       }

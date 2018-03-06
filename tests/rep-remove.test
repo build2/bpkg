@@ -183,7 +183,7 @@ pkg_status += -d cfg
   $pkg_status libbar >'unknown'
 }
 
-: git-repos
+: git-rep
 :
 if ($git_supported != true)
 {

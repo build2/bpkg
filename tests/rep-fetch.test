@@ -114,7 +114,7 @@ $* 2>>/EOE != 0
     info: use 'bpkg rep-add' to add a repository
   EOE
 
-: pkg-repos
+: pkg-rep
 :
 {
   test.options += --auth all
@@ -319,7 +319,36 @@ $* 2>>/EOE != 0
   }
 }
 
-: git-repos
+: dir-rep
+:
+{
+  rep_add += --type dir
+
+  : prerequisites
+  :
+  if ($remote != true)
+  {
+    # Let's reuse local git repositories that have the same repository
+    # structure as for dir type.
+    #
+    rep = $canonicalize([dir_path] $out_git/state0)
+
+    $clone_root_cfg && $rep_add $rep/libbar.git;
+
+    $* 2>>"EOE";
+      fetching dir:($rep/libbar.git)
+      fetching dir:($rep/style-basic.git) \(prerequisite of dir:($rep/libbar.git)\)
+      3 package\(s\) in 2 repository\(s\)
+      EOE
+
+    $rep_list >>"EOO"
+      dir:($rep/libbar.git) ($rep/libbar.git)
+        prerequisite dir:($rep/style-basic.git) ($rep/style-basic.git)
+      EOO
+  }
+}
+
+: git-rep
 :
 if ($git_supported != true)
 {

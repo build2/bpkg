@@ -5,6 +5,8 @@
 #ifndef BPKG_PKG_UNPACK_HXX
 #define BPKG_PKG_UNPACK_HXX
 
+#include <libbpkg/manifest.hxx> // version
+
 #include <bpkg/types.hxx>
 #include <bpkg/forward.hxx> // transaction, selected_package
 #include <bpkg/utility.hxx>
@@ -32,6 +34,16 @@ namespace bpkg
               const dir_path& configuration,
               transaction&,
               const string& name);
+
+  // Unpack the package as a source directory from a directory-based
+  // repository and commit the transaction.
+  //
+  shared_ptr<selected_package>
+  pkg_unpack (const dir_path& configuration,
+              transaction&,
+              string name,
+              version,
+              bool replace);
 }
 
 #endif // BPKG_PKG_UNPACK_HXX

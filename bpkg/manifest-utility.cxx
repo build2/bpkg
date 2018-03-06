@@ -137,7 +137,9 @@ namespace bpkg
   {
     switch (l.type ())
     {
-    case repository_type::pkg: return dir_path (); // No state.
+    case repository_type::pkg:
+    case repository_type::dir: return dir_path (); // No state.
+
     case repository_type::git:
       {
         return dir_path (sha256 (l.canonical_name ()).abbreviated_string (16));

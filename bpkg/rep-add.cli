@@ -30,18 +30,39 @@ namespace bpkg
      the newly added repository. For that, use the \l{bpkg-rep-fetch(1)}
      command, normally, after adding all the repositories you wish to use.
 
-     Currently two types of repositories are supported: \cb{pkg} and \cb{git}.
-     Normally the repository type can be automatically guessed by examining
-     its URL (for example, the presence of the \cb{.git} extension) or, in
-     case of a local repository, its content (for example, the presence of the
-     \cb{.git/} subdirectory). Without any identifying information the
-     \cb{pkg} type is assumed unless explicitly specified with the \cb{--type}
-     option.
+     Currently three types of repositories are supported: \cb{pkg}, \cb{dir},
+     and \cb{git}. Normally the repository type can be automatically guessed
+     by examining its URL (for example, the presence of the \cb{.git}
+     extension) or, in case of a local repository, its content (for example,
+     the presence of the \cb{.git/} subdirectory). Without any identifying
+     information the \cb{pkg} type is assumed unless explicitly specified with
+     the \cb{--type} option. Note, however, that the \cb{dir} repository type
+     is never guessed since it is not easily distinguishable from local
+     \cb{pkg} and \cb{git} repositories.
 
      A \cb{pkg} repository is \i{archive}-based. That is, it contains a
      collection of various packages/versions as archive files. For more
      information on the structure of \cb{pkg} repositories refer to the
      \l{bpkg \cb{bpkg} manual}.
+
+     A \cb{dir} repository is \i{directory}-based. That is, it contains a
+     collection of various packages as directories (but only a single version
+     per package can be present is such a repository). The \cb{dir} repository
+     location can be a local directory path or a \cb{file://} URL.
+
+     A \cb{dir} repository is expected to contain either the \cb{manifest} or
+     \cb{packages.manifest} file in the root directory of the repository. If
+     it only contains \cb{manifest}, then it is assumed to be a single-package
+     repository with the \cb{manifest} file being its package manifest.
+     Otherwise, the \cb{packages.manifest} file should list the available
+     packages as described in \l{bpkg#manifest-package-list-dir Package List
+     Manifest for \cb{dir} Repositories}.
+
+     A \cb{dir} repository may also contain the \cb{repositories.manifest}
+     file in the root directory of the repository. This file can be used to
+     describe the repository itself as well as specify its prerequisite and
+     complement repositories. See \l{bpkg#manifest-repository-list Repository
+     List Manifest} for details on the format and semantics of this file.
 
      A \cb{git} repository is \i{version control}-based. That is, it normally
      contains multiple versions of the same package (but can also contain
@@ -83,19 +104,11 @@ namespace bpkg
      https://example.com/foo.git#deadbeefdeadbeefdeadbeefdeadbeefdeadbeef@
      \
 
-     A \cb{git} repository is expected to contain either the \cb{manifest} or
-     \cb{packages.manifest} file in the root directory of the repository. If
-     it only contains \cb{manifest}, then it is assumed to be a single-package
-     repository with the \cb{manifest} file being its package manifest.
-     Otherwise the \cb{packages.manifest} file should list the available
-     packages as described in \l{bpkg#manifest-package-list-git Package List
-     Manifest for \cb{git} Repositories}.
-
-     A \cb{git} repository may also contain the \cb{repositories.manifest}
-     file in the root directory of the repository. This file can be used to
-     describe the repository itself as well as specify its prerequisite and
-     complement repositories. See \l{bpkg#manifest-repository-list Repository
-     List Manifest} for details on the format and semantics of this file.
+     A \cb{git} repository has the same structure and manifest files as the
+     \cb{dir} repository. See \l{bpkg#manifest-package-list-dir Package List
+     Manifest for \cb{dir} Repositories} and \l{bpkg#manifest-repository-list
+     Repository List Manifest} for details on the format and semantics of the
+     manifest files.
 
      Supported git protocols are \cb{git://}, \cb{http://}, and \cb{https://}
      for remote repositories and \cb{file://} for local repositories. While
@@ -138,8 +151,8 @@ namespace bpkg
     repository_type --type
     {
       "<type>",
-      "Specify the repository type with valid values being \cb{pkg} and
-       \cb{git}."
+      "Specify the repository type with valid values being \cb{pkg}, \cb{dir},
+       and \cb{git}."
     }
   };
 }

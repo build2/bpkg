@@ -145,7 +145,7 @@ $* libfoo/1.0.0 2>>/EOE != 0
   {
     $clone_cfg;
 
-    $* -e $src/t1/libfoo-1.0.0.tar.gz 2>'fetched libfoo/1.0.0';
+    $* -e $src/t1/libfoo-1.0.0.tar.gz 2>'using libfoo/1.0.0 (external)';
     $pkg_status   libfoo/1.0.0        1>'fetched; available';
     $pkg_unpack   libfoo              2>'unpacked libfoo/1.0.0';
 
@@ -158,7 +158,7 @@ $* libfoo/1.0.0 2>>/EOE != 0
 
     $pkg_status   libfoo/1.1.0        1>'fetched; available';
     $pkg_unpack   libfoo              2>'unpacked libfoo/1.1.0';
-    $* -e $src/t1/libfoo-1.0.0.tar.gz 2>'fetched libfoo/1.0.0';
+    $* -e $src/t1/libfoo-1.0.0.tar.gz 2>'using libfoo/1.0.0 (external)';
     $pkg_status   libfoo/1.0.0        1>'fetched; available';
 
     $* libfoo/1.1.0 2>>~%EOE%;
@@ -167,7 +167,7 @@ $* libfoo/1.0.0 2>>/EOE != 0
       EOE
 
     $pkg_status   libfoo/1.1.0        1>'fetched; available';
-    $* -e $src/t1/libfoo-1.0.0.tar.gz 2>'fetched libfoo/1.0.0';
+    $* -e $src/t1/libfoo-1.0.0.tar.gz 2>'using libfoo/1.0.0 (external)';
     $pkg_status   libfoo/1.0.0        1>'fetched; available';
 
     $pkg_purge libfoo 2>'purged libfoo/1.0.0'
@@ -179,7 +179,7 @@ $* libfoo/1.0.0 2>>/EOE != 0
     $clone_cfg;
     cp --no-cleanup $src/t1/libfoo-1.0.0.tar.gz ./;
 
-    $* -p -e libfoo-1.0.0.tar.gz 2>'fetched libfoo/1.0.0';
+    $* -p -e libfoo-1.0.0.tar.gz 2>'using libfoo/1.0.0 (external)';
 
     $pkg_purge libfoo 2>'purged libfoo/1.0.0'
   }

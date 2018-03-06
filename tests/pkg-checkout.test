@@ -21,7 +21,7 @@
   $git_extract $src/git/style-basic1.tar &$out_git/state1/***
 end
 
-: git-repos
+: git-rep
 :
 if ($git_supported != true)
 {

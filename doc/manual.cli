@@ -944,10 +944,10 @@ The SHA256 checksum of the package archive file. The \i{sum} value should be
 markers), be calculated in the binary mode, and use lower-case letters.
 
 
-\h#manifest-package-list-git|Package List Manifest for \cb{git} Repositories|
+\h#manifest-package-list-dir|Package List Manifest for \cb{dir} Repositories|
 
 The package list manifest (the \c{packages.manifest} file found in the
-\cb{git} repository root directory) describes the list of packages available
+\cb{dir} repository root directory) describes the list of packages available
 in the repository. It is a (potentially empty) sequence of manifests with the
 following synopsis:
 
@@ -968,7 +968,7 @@ location: src/libfoo/
 location: src/foo/
 \
 
-\h2#manifest-package-list-git-location|\c{location}|
+\h2#manifest-package-list-dir-location|\c{location}|
 
 \
 location: <path>
@@ -981,13 +981,13 @@ be in the POSIX representation.
 \h#manifest-repository|Repository Manifest|
 
 The repository manifest (only used as part of the repository manifest list
-described below) describes a \cb{pkg} or \cb{git} repository. The manifest
-synopsis is presented next followed by the detailed description of each value
-in subsequent sections.
+described below) describes a \cb{pkg}, \cb{dir}, or \cb{git} repository. The
+manifest synopsis is presented next followed by the detailed description of
+each value in subsequent sections.
 
 \
 [location]: <uri>
-[type]: pkg|git
+[type]: pkg|dir|git
 [role]: base|prerequisite|complement
 [url]: <url>
 [email]: <email> [; <comment>]
@@ -1004,10 +1004,17 @@ See also the Repository Chaining documentation for further information @@ TODO.
 [location]: <uri>
 \
 
-The location of the repository root. It can be an HTTP(S) URL or a filesystem
-path. The location can only and must be omitted for the base repository. If
-the path is relative, then it is treated as relative to the base repository
-location.
+The repository location. The location can only and must be omitted for the
+base repository. If the location is a relative path, then it is treated as
+relative to the base repository location.
+
+For the \cb{git} repository type the relative location does not inherit the
+URL fragment from the base repository.
+
+For the \cb{dir} repository type the relative location may also contain the
+URL fragment to make the same repository information usable in case the base
+and prerequisites are also exposed as \cb{git} repositories. For the \cb{dir}
+repository type such a fragment is ignored.
 
 While POSIX systems normally only support POSIX paths (that is, forward
 slashes only), Windows is generally able to handle both slash types. As a
@@ -1022,7 +1029,7 @@ that is not possible (for example, there is a drive letter in the path).]
 \h2#manifest-repository-type|\c{type}|
 
 \
-[type]: pkg|git
+[type]: pkg|dir|git
 \
 
 The repository type. The type must be omitted for the base repository. If the

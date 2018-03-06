@@ -616,9 +616,8 @@ namespace bpkg
 
           if (dap == nullptr)
           {
-            diag_record dr;
-            dr << fail << "unknown prerequisite " << d << " of package "
-               << name;
+            diag_record dr (fail);
+            dr << "unknown prerequisite " << d << " of package " << name;
 
             if (!ar->location.empty ())
               dr << info << "repository " << ar->location << " appears to "
@@ -947,9 +946,9 @@ namespace bpkg
 
           if (!satisfies (av, c))
           {
-            diag_record dr;
+            diag_record dr (fail);
 
-            dr << fail << "unable to " << (ud < 0 ? "up" : "down") << "grade "
+            dr << "unable to " << (ud < 0 ? "up" : "down") << "grade "
                << "package " << *sp << " to ";
 
             // Print both (old and new) package names in full if the system
@@ -1580,8 +1579,7 @@ namespace bpkg
 
         if (!found)
         {
-          diag_record dr;
-          dr << fail;
+          diag_record dr (fail);
 
           if (!sys_advise)
           {
@@ -1952,44 +1950,64 @@ namespace bpkg
 
           if (pl.repository.object_id () != "") // Special root?
           {
-            // Go through package repositories to decide if we should fetch or
-            // checkout. Preferring a local one over the remotes seems like a
-            // sensible thing to do.
+            // Go through package repositories to decide if we should fetch,
+            // checkout or unpack depending on the available repository basis.
+            // Preferring a local one over the remotes seems like a sensible
+            // thing to do.
             //
-            optional<bool> fetch;
+            optional<repository_basis> basis;
 
             for (const package_location& l: ap->locations)
             {
               const repository_location& rl (l.repository.load ()->location);
 
-              if (!fetch || rl.local ()) // First or local?
+              if (!basis || rl.local ()) // First or local?
               {
-                fetch = rl.archive_based ();
+                basis = rl.basis ();
 
                 if (rl.local ())
                   break;
               }
             }
 
-            assert (fetch);
+            assert (basis);
 
             transaction t (db.begin ());
 
-            // Both calls commit the transaction.
+            // All calls commit the transaction.
             //
-            sp = *fetch
-              ? pkg_fetch (o,
-                           c,
-                           t,
-                           ap->id.name,
-                           p.available_version (),
-                           true /* replace */)
-              : pkg_checkout (o,
-                              c,
-                              t,
-                              ap->id.name,
-                              p.available_version (),
-                              true /* replace */);
+            switch (*basis)
+            {
+            case repository_basis::archive:
+              {
+                sp = pkg_fetch (o,
+                                c,
+                                t,
+                                ap->id.name,
+                                p.available_version (),
+                                true /* replace */);
+                break;
+              }
+            case repository_basis::version_control:
+              {
+                sp = pkg_checkout (o,
+                                   c,
+                                   t,
+                                   ap->id.name,
+                                   p.available_version (),
+                                   true /* replace */);
+                break;
+              }
+            case repository_basis::directory:
+              {
+                sp = pkg_unpack (c,
+                                 t,
+                                 ap->id.name,
+                                 p.available_version (),
+                                 true /* replace */);
+                break;
+              }
+            }
           }
           // Directory case is handled by unpack.
           //
@@ -2008,12 +2026,41 @@ namespace bpkg
           if (sp != nullptr) // Actually fetched or checked out something?
           {
             assert (sp->state == package_state::fetched ||
-                    sp->state == package_state::unpacked); // Checked out.
+                    sp->state == package_state::unpacked);
 
             if (verb)
-              text << (sp->state == package_state::fetched
-                       ? "fetched "
-                       : "checked out ") << *sp;
+            {
+              const repository_location& rl (sp->repository);
+
+              repository_basis basis (
+                !rl.empty ()
+                ? rl.basis ()
+                : repository_basis::archive); // Archive path case.
+
+              diag_record dr (text);
+
+              switch (basis)
+              {
+              case repository_basis::archive:
+                {
+                  assert (sp->state == package_state::fetched);
+                  dr << "fetched " << *sp;
+                  break;
+                }
+              case repository_basis::directory:
+                {
+                  assert (sp->state == package_state::unpacked);
+                  dr << "using " << *sp << " (external)";
+                  break;
+                }
+              case repository_basis::version_control:
+                {
+                  assert (sp->state == package_state::unpacked);
+                  dr << "checked out " << *sp;
+                  break;
+                }
+              }
+            }
           }
         }
 

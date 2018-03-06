@@ -297,7 +297,12 @@ namespace bpkg
     }
 
     if (verb)
-      text << "fetched " << *p;
+    {
+      if (!o.existing ())
+        text << "fetched " << *p;
+      else
+        text << "using " << *p << " (external)";
+    }
 
     return 0;
   }

@@ -57,9 +57,9 @@ namespace bpkg
      archives from repositories.
 
      A \i{bpkg repository} is a collection of packages as well as prerequisite
-     and complement repositories. Both \i{archive} and \i{version
-     control}-based repository types are supported. A repository is identified
-     by its location which can be a local filesystem path or a URL.
+     and complement repositories. \i{Archive}, \i{directory} and \i{version
+     control}-based repositories are supported. A repository is identified by
+     its location which can be a local filesystem path or a URL.
 
      A typical \cb{bpkg} workflow would consist of the following steps.
 

@@ -178,7 +178,7 @@ rep_fetch  += -d cfg --auth all --trust-yes 2>!
   }
 }
 
-: git-repos
+: git-rep
 :
 if ($git_supported != true)
 {
