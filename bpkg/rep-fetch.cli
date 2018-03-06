@@ -29,7 +29,11 @@ namespace bpkg
      as a repository location (URL or a directory path; see
      \l{bpkg-rep-add(1)} for details). In the latter case, the repository
      location is added/replaced as if by first executing the \cb{rep-add}
-     command."
+     command.
+
+     Note that fetching only a specific repository that happens to be a
+     prerequisite or complete of another repository not being fetched may
+     result in an inconsistent repository state."
   }
 
   class rep_fetch_options: configuration_options
