@@ -423,7 +423,7 @@ namespace bpkg
   static void
   rep_fetch (const common_options& co,
              const dir_path& conf,
-             database& db,
+             transaction& t,
              const shared_ptr<repository>& r,
              repositories& fetched,
              repositories& removed,
@@ -431,6 +431,7 @@ namespace bpkg
   {
     tracer trace ("rep_fetch(rep)");
 
+    database& db (t.database ());
     tracer_guard tg (db, trace);
 
     // Check that the repository is not fetched yet and register it as fetched
@@ -494,7 +495,7 @@ namespace bpkg
     // Remove this repository from locations of the available packages it
     // contains.
     //
-    rep_remove_package_locations (db, r->name);
+    rep_remove_package_locations (t, r->name);
 
     // Load the repository and package manifests and use them to populate the
     // prerequisite and complement repository sets as well as available
@@ -555,7 +556,7 @@ namespace bpkg
       }
       reason += r->name;
 
-      rep_fetch (co, conf, db, pr, fetched, removed, reason);
+      rep_fetch (co, conf, t, pr, fetched, removed, reason);
 
       // @@ What if we have duplicated? Ideally, we would like to check
       //    this once and as early as possible. The original idea was to
@@ -685,8 +686,6 @@ namespace bpkg
              transaction& t,
              const vector<lazy_shared_ptr<repository>>& repos)
   {
-    database& db (t.database ());
-
     // As a fist step we fetch repositories recursively building the list of
     // the former prerequisites and complements to be considered for removal.
     //
@@ -705,12 +704,12 @@ namespace bpkg
       repositories removed;
 
       for (const lazy_shared_ptr<repository>& r: repos)
-        rep_fetch (o, conf, db, r.load (), fetched, removed);
+        rep_fetch (o, conf, t, r.load (), fetched, removed);
 
       // Finally, remove dangling repositories.
       //
       for (const shared_ptr<repository>& r: removed)
-        rep_remove (conf, db, r);
+        rep_remove (conf, t, r);
     }
     catch (const failed&)
     {
@@ -724,7 +723,7 @@ namespace bpkg
         warn << "repository state is now broken and will be cleaned up" <<
           info << "run 'bpkg rep-fetch' to update";
 
-        rep_remove_clean (conf, db);
+        rep_remove_clean (conf, t.database ());
       }
 
       throw;
@@ -753,7 +752,7 @@ namespace bpkg
       // same location.
       //
       if (ua.find (r) == ua.end () || r.load ()->location.url () != rl.url ())
-        rep_add (db, rl);
+        rep_add (t, rl);
 
       repos.emplace_back (r);
     }
@@ -819,7 +818,7 @@ namespace bpkg
           // calling rep_add. Get rid of quiet mode.
           //
           r = lazy_shared_ptr<repository> (
-            db, rep_add (db, parse_location (a, nullopt /* type */)));
+            db, rep_add (t, parse_location (a, nullopt /* type */)));
 
         repos.emplace_back (move (r));
       }

@@ -16,10 +16,11 @@ using namespace butl;
 namespace bpkg
 {
   shared_ptr<repository>
-  rep_add (database& db, const repository_location& rl)
+  rep_add (transaction& t, const repository_location& rl)
   {
     const string& rn (rl.canonical_name ());
 
+    database& db (t.database ());
     shared_ptr<repository> r (db.find<repository> (rn));
 
     bool updated (false);
@@ -75,7 +76,7 @@ namespace bpkg
                         ? optional<repository_type> (o.type ())
                         : nullopt));
 
-      rep_add (db, rl);
+      rep_add (t, rl);
     }
 
     t.commit ();

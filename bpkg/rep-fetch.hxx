@@ -52,8 +52,7 @@ namespace bpkg
 
   // Add (or update) repository locations to the configuration and fetch
   // them. On failure clean up the configuration (see rep_remove_clean() for
-  // details). Note that it starts a new transaction and should be called in
-  // session.
+  // details). Note that it should be called in session.
   //
   void
   rep_fetch (const common_options&,

@@ -8,7 +8,7 @@
 #include <libbpkg/manifest.hxx>
 
 #include <bpkg/types.hxx>
-#include <bpkg/forward.hxx> // database, repository
+#include <bpkg/forward.hxx> // transaction, repository
 #include <bpkg/utility.hxx>
 
 #include <bpkg/rep-add-options.hxx>
@@ -23,7 +23,7 @@ namespace bpkg
   // repository if it is not already.
   //
   shared_ptr<repository>
-  rep_add (database&, const repository_location&);
+  rep_add (transaction&, const repository_location&);
 }
 
 #endif // BPKG_REP_ADD_HXX

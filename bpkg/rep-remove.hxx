@@ -6,7 +6,7 @@
 #define BPKG_REP_REMOVE_HXX
 
 #include <bpkg/types.hxx>
-#include <bpkg/forward.hxx> // database, repository
+#include <bpkg/forward.hxx> // database, transaction, repository
 #include <bpkg/utility.hxx>
 
 #include <bpkg/rep-remove-options.hxx>
@@ -20,11 +20,12 @@ namespace bpkg
   // required by any user-added repository).
   //
   void
-  rep_remove (const dir_path& conf, database&, const shared_ptr<repository>&);
+  rep_remove (const dir_path& conf,
+              transaction&,
+              const shared_ptr<repository>&);
 
   // Bring the configuration to the clean state as if repositories were added
-  // but never fetched. Leave selected packages intact. Note that it should be
-  // called out of the database transaction.
+  // but never fetched. Leave selected packages intact.
   //
   // Specifically:
   //
@@ -45,7 +46,7 @@ namespace bpkg
   // contains. Remove packages that come from only this repository.
   //
   void
-  rep_remove_package_locations (database&, const string& repository_name);
+  rep_remove_package_locations (transaction&, const string& repository_name);
 }
 
 #endif // BPKG_REP_REMOVE_HXX

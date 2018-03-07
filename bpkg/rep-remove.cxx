@@ -72,8 +72,10 @@ namespace bpkg
   }
 
   void
-  rep_remove_package_locations (database& db, const string& name)
+  rep_remove_package_locations (transaction& t, const string& name)
   {
+    database& db (t.database ());
+
     for (const auto& rp: db.query<repository_package> (
            query<repository_package>::repository::name == name))
     {
@@ -112,15 +114,19 @@ namespace bpkg
   }
 
   void
-  rep_remove (const dir_path& c, database& db, const shared_ptr<repository>& r)
+  rep_remove (const dir_path& c,
+              transaction& t,
+              const shared_ptr<repository>& r)
   {
     const string& nm (r->name);
     assert (!nm.empty ());      // Can't be the root repository.
 
+    database& db (t.database ());
+
     if (reachable (db, r))
       return;
 
-    rep_remove_package_locations (db, nm);
+    rep_remove_package_locations (t, nm);
 
     // Cleanup the repository state if present.
     //
@@ -154,12 +160,12 @@ namespace bpkg
     // Prior to removing a prerequisite/complement we need to make sure it
     // still exists, which may not be the case due to the dependency cycle.
     //
-    auto remove = [&c, &db] (const lazy_shared_ptr<repository>& rp)
+    auto remove = [&c, &db, &t] (const lazy_shared_ptr<repository>& rp)
     {
       shared_ptr<repository> r (db.find<repository> (rp.object_id ()));
 
       if (r)
-        rep_remove (c, db, r);
+        rep_remove (c, t, r);
     };
 
     for (const lazy_shared_ptr<repository>& cr: r->complements)
@@ -375,7 +381,7 @@ namespace bpkg
     //
     for (const lazy_shared_ptr<repository>& r: repos)
     {
-      rep_remove (c, db, r.load ());
+      rep_remove (c, t, r.load ());
 
       if (verb)
         text << "removed " << r.object_id ();
