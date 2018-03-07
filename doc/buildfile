@@ -6,6 +6,7 @@ cmds =             \
 bpkg-cfg-create    \
 bpkg-help          \
 bpkg-pkg-build     \
+bpkg-pkg-checkout  \
 bpkg-pkg-clean     \
 bpkg-pkg-configure \
 bpkg-pkg-disfigure \
@@ -22,7 +23,9 @@ bpkg-pkg-verify    \
 bpkg-rep-add 	   \
 bpkg-rep-create    \
 bpkg-rep-fetch     \
-bpkg-rep-info
+bpkg-rep-info      \
+bpkg-rep-list      \
+bpkg-rep-remove
 
 define css: file
 css{*}: extension = css
