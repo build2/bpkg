@@ -126,7 +126,7 @@ try
 
   exec_dir = path (argv[0]).directory ();
 
-  // This is a little hack to make out baseutils for Windows work when called
+  // This is a little hack to make our baseutils for Windows work when called
   // with absolute path. In a nutshell, MSYS2's exec*p() doesn't search in the
   // parent's executable directory, only in PATH. And since we are running
   // without a shell (that would read /etc/profile which sets PATH to some
