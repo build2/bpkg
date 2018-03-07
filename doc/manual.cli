@@ -33,7 +33,7 @@ versioning and that allows automation of many version management tasks. See
 The \c{bpkg} package version has the following form:
 
 \
-[<epoch>~]<upstream>[-<prerel>][+<revision>]
+[<epoch>~]<upstream>[-<prerel>][+<revision>][#<iteration>]
 \
 
 The \i{epoch} part should be an integer. It can be used to change to a new
@@ -56,6 +56,23 @@ The \i{revision} part should be an integer. It is used to version package
 releases that are based on the same upstream versions. If not specified, then
 \i{revision} defaults to \c{0}.
 
+The \i{iteration} part is an integer. It is used internally by \c{bpkg} to
+automatically version modifications to the packaging information
+(specifically, to package manifest and lockfile) in \i{external packages} that
+have the same upstream version and revision. As a result, the \i{iteration}
+cannot not be specified by the user and is only shown in the \c{bpkg} output
+(for example, by \c{pkg-status} command) in order to distinguish between
+package iterations with otherwise identical versions. Note also that
+\i{iteration} is relative to the \c{bpkg} configuration. Or, in other words,
+it is an iteration number of a package as observed by a specific
+configuration. As a result, two configuration can \"see\" the same package
+state as two different iterations.  [Note: package iterations are used to
+support package development during which requiring the developer to manually
+increment the version or revision after each modification would be
+impractical. This mechanism is similar to the automatic commit versioning
+provided by the \i{standard version} except that it is limited to the
+packaging information but works for uncommitted changes.]
+
 Version \c{0-} (least possible version) is reserved and specifying it
 explicitly is illegal. [Note: explicitly specifying this version does not make
 much sense since \c{libfoo < 0-} is always false and \c{libfoo > 0-} is always
@@ -69,9 +86,9 @@ full-fledged package at which point it will be assigned a \"real\" version.
 It is assumed that this version will always be greater than the stub version.
 
 When displaying the package version or when using the version to derive the
-file name, zero \i{epoch} and \i{revision} are omitted (even if they were
-explicitly specified, for instance, in the package manifest). For example,
-\c{0~1.2.3+0} will be used as \c{libfoo-1.2.3}.
+file name, zero \i{epoch}, \i{revision}, and \i{iteration} are omitted (even
+if they were explicitly specified, for instance, in the package manifest). For
+example, \c{0~1.2.3+0} will be used as \c{libfoo-1.2.3}.
 
 [Note: this versioning scheme and the choice of delimiter characters (\c{~-+})
 is meant to align with semantic versioning.]
@@ -89,11 +106,15 @@ Some examples of versions:
 1.2.3+1
 1~1.2.3
 1~1.2.3-alpha.1+3
+1.2.3#1
+1.2.3+1#1
+1~1.2.3+1#2
 \
 
-The version sorting order is \i{epoch}, \i{upstream}, \i{prerel}, and,
-finally, \i{revision}. The \i{upstream} and \i{prerel} parts are compared from
-left to right, one component at a time, as described next.
+The version sorting order is \i{epoch}, \i{upstream}, \i{prerel},
+\i{revision}, and finally, \i{iteration}. The \i{upstream} and \i{prerel}
+parts are compared from left to right, one component at a time, as described
+next.
 
 To compare two components, first the component types are determined.  A
 component that only consists of digits is an integer. Otherwise, it is a
@@ -152,12 +173,13 @@ have to be stored, for example, for display, to derive package archive names,
 etc.
 
 [Note: in quite a few contexts the implementation needs to ignore the
-\i{revision} part. For example, this is needed to implement the semantics of
-newer revisions of packages replacing their old ones since we do not keep
-multiple revisions of the same upstream version in the same respository. As a
-result, in the package object model, we have a version key as just {\i{epoch},
-\i{upstream}, \i{prerel}} but also store the package revision so that it can
-be shown it to the user, etc.]
+\i{revision} and/or \i{iteration} parts. For example, this is needed to
+implement the semantics of newer revisions/iterations of packages replacing
+their old ones since we do not keep multiple revisions/iterations of the same
+upstream version in the same respository. As a result, in the package object
+model, we have a version key as just {\i{epoch}, \i{upstream}, \i{prerel}} but
+also store the package revision and iteration so that it can be shown it to
+the user, etc.]
 
 \h1#manifests|Manifests|
 

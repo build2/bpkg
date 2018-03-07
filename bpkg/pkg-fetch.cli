@@ -15,7 +15,7 @@ namespace bpkg
 
     "\h|SYNOPSIS|
 
-     \c{\b{bpkg pkg-fetch} [<options>] (<pkg>\b{/}<ver> | \b{-e} <file>)}
+     \c{\b{bpkg pkg-fetch} [<options>] (<pkg>\b{/}<ver> | \b{--existing|-e} <file>)}
 
      \h|DESCRIPTION|
 
@@ -32,9 +32,9 @@ namespace bpkg
      If the \cb{--existing|-e} option is used, then instead of the name and
      version arguments, \cb{pkg-fetch} expects a local path to an existing
      package archive. In this case, \cb{bpkg} will use the archive in place,
-     without copying it to the configuration or package cache directories.
-     Also, unless the \cb{--purge|-p} option is specified, \cb{bpkg} will not
-     attempt to remove this archive when the package is later purged with the
+     without copying it into the configuration directory. Also, unless the
+     \cb{--purge|-p} option is specified, \cb{bpkg} will not attempt to remove
+     this archive when the package is later purged with the
      \l{bpkg-pkg-purge(1)} command."
   }
 

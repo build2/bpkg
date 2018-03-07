@@ -11,11 +11,11 @@ include <bpkg/configuration.cli>;
 namespace bpkg
 {
   {
-    "<options> <pkg> <dir>",
+    "<options> <pkg> <dir> <ver>",
 
     "\h|SYNOPSIS|
 
-     \c{\b{bpkg pkg-unpack} [<options>] (<pkg> | \b{-e} <dir>)}
+     \c{\b{bpkg pkg-unpack} [<options>] (<pkg> | \b{--existing|-e} <dir>)}
 
      \h|DESCRIPTION|
 
@@ -25,16 +25,28 @@ namespace bpkg
 
      If the \cb{--existing|-e} option is used, then instead of the package
      name, \cb{pkg-unpack} expects a local path to an existing package
-     directory. In this case, \cb{bpkg} will use the directory in place,
-     without copying it to the configuration or package cache directories.
-     Also, unless the \cb{--purge|-p} option is specified, \cb{bpkg} will not
-     attempt to remove this directory when the package is later purged with
-     the \l{bpkg-pkg-purge(1)} command.
+     directory. In this case, \cb{bpkg} will use the (source) directory in
+     place, without copying it into the configuration directory. Also, unless
+     the \cb{--purge|-p} option is specified, \cb{bpkg} will not attempt to
+     remove this directory when the package is later purged with the
+     \l{bpkg-pkg-purge(1)} command. Such a package is called \i{external}.
 
      If \cb{--existing|-e} is specified together with the \cb{--replace|-r}
      option, then \cb{pkg-unpack} will replace the archive and/or source
      directory of a package that is already in the \cb{unpacked} or
-     \cb{fetched} state."
+     \cb{fetched} state.
+
+     An external package triggers several changes in semantics compared to a
+     normal package: The package (output) directory inside the configuration
+     is called just <pkg> rather than <pkg>\cb{-}<ver>. It is also assumed
+     that the packaging information (package manifest and lockfile) for such
+     packages may change without incrementing the package version (for
+     example, during development). To support this, \cb{bpkg} implements the
+     \i{package iteration} mechanism which may result in iteration numbers to
+     be shown as part of the package version, for example, \cb{1.2.3#1} (see
+     \l{bpkg#package-version Package Version}). Finally, it is possible to
+     replace one external package version with another while preserving its
+     output directory by specifying the \cb{--keep-out} option."
   }
 
   class pkg_unpack_options: configuration_options
