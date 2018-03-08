@@ -192,21 +192,17 @@ namespace bpkg
     if (ap == nullptr)
       fail << "package " << n << " " << v << " is not available";
 
-    // Pick a directory-based repository. Preferring a local one over the
-    // remotes seems like a sensible thing to do.
+    // Pick a directory-based repository. They are always local, so we pick
+    // the first one.
     //
     const package_location* pl (nullptr);
 
     for (const package_location& l: ap->locations)
     {
-      const repository_location& rl (l.repository.load ()->location);
-
-      if (rl.directory_based () && (pl == nullptr || rl.local ()))
+      if (l.repository.load ()->location.directory_based ())
       {
         pl = &l;
-
-        if (rl.local ())
-          break;
+        break;
       }
     }
 

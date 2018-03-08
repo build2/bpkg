@@ -1950,10 +1950,12 @@ namespace bpkg
 
           if (pl.repository.object_id () != "") // Special root?
           {
+            transaction t (db.begin ());
+
             // Go through package repositories to decide if we should fetch,
             // checkout or unpack depending on the available repository basis.
-            // Preferring a local one over the remotes seems like a sensible
-            // thing to do.
+            // Preferring a local one over the remotes and the dir repository
+            // type over the others seems like a sensible thing to do.
             //
             optional<repository_basis> basis;
 
@@ -1965,14 +1967,12 @@ namespace bpkg
               {
                 basis = rl.basis ();
 
-                if (rl.local ())
+                if (rl.directory_based ())
                   break;
               }
             }
 
             assert (basis);
-
-            transaction t (db.begin ());
 
             // All calls commit the transaction.
             //
