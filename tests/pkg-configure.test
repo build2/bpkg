@@ -186,16 +186,16 @@ $* libhello libhello 2>>EOE != 0
   $clone_cfg && $pkg_unpack -e $src/libhello-1.0.0;
 
   $* libhello 2>'configured libhello/1.0.0';
-  touch cfg/libhello-1.0.0/stray &!cfg/libhello-1.0.0/stray;
+  touch cfg/libhello/stray &!cfg/libhello/stray;
 
   $pkg_disfigure libhello 2>>/EOE != 0;
-    warning: directory cfg/libhello-1.0.0/ is not empty, not removing
-    error: package output directory cfg/libhello-1.0.0/ still exists
+    warning: directory cfg/libhello/ is not empty, not removing
+    error: package output directory cfg/libhello/ still exists
     info: package libhello is now broken; use 'pkg-purge' to remove
     EOE
 
   $pkg_status libhello/1.0.0 >'broken';
-  rm -r cfg/libhello-1.0.0;
+  rm -r cfg/libhello;
 
   $pkg_purge -f libhello       2>'purged libhello/1.0.0';
   $pkg_status   libhello/1.0.0 1>'unknown'
@@ -211,17 +211,17 @@ if ($cxx.target.class != 'windows')
     $clone_root_cfg && $pkg_unpack -e $src/libhello-1.0.0;
 
     $* libhello 2>'configured libhello/1.0.0';
-    chmod 555 cfg/libhello-1.0.0;
+    chmod 555 cfg/libhello;
 
     $pkg_disfigure libhello 2>>/~%EOE% != 0;
-      %error: unable to remove directory cfg/libhello-1.0.0/.+%
+      %error: unable to remove directory cfg/libhello/.+%
       info: package libhello is now broken; use 'pkg-purge' to remove
       EOE
 
     $pkg_status libhello >'broken 1.0.0';
 
-    chmod 755 cfg/libhello-1.0.0;
-    rm -r cfg/libhello-1.0.0;
+    chmod 755 cfg/libhello;
+    rm -r cfg/libhello;
     $pkg_purge -f libhello 2>'purged libhello/1.0.0';
     $pkg_status libhello >'unknown'
   }
@@ -233,12 +233,11 @@ if ($cxx.target.class != 'windows')
   :
   {
     $clone_root_cfg && $pkg_unpack -e $src/libhello-1.0.0;
-    c = &!cfg/libhello-1.0.0/ &!cfg/libhello-1.0.0/build/;
-    mkdir -p cfg/libhello-1.0.0/build $c;
-    chmod 555 cfg/libhello-1.0.0/build;
+    mkdir -p cfg/libhello/build &!cfg/libhello/ &!cfg/libhello/build/;
+    chmod 555 cfg/libhello/build;
 
     $* libhello 2>>/~%EOE% != 0;
-      %error: unable to create directory cfg/libhello-1.0.0/build/.+%
+      %error: unable to create directory cfg/libhello/build/.+%
       EOE
 
     $pkg_status libhello >'unpacked 1.0.0'
@@ -251,20 +250,19 @@ if ($cxx.target.class != 'windows')
   :
   {
     $clone_root_cfg && $pkg_unpack -e $src/libhello-1.0.0;
-    c = &!cfg/libhello-1.0.0/ &!cfg/libhello-1.0.0/build/;
-    mkdir -p cfg/libhello-1.0.0/build $c;
-    chmod 555 cfg/libhello-1.0.0 cfg/libhello-1.0.0/build;
+    mkdir -p cfg/libhello/build &!cfg/libhello/ &!cfg/libhello/build/;
+    chmod 555 cfg/libhello cfg/libhello/build;
 
     $* libhello 2>>/~%EOE% != 0;
-      %error: unable to create directory cfg/libhello-1.0.0/build/.+%
-      %error: unable to remove directory cfg/libhello-1.0.0/build/.+%
+      %error: unable to create directory cfg/libhello/build/.+%
+      %error: unable to remove directory cfg/libhello/build/.+%
       info: package libhello is now broken; use 'pkg-purge' to remove
       EOE
 
     $pkg_status libhello >'broken 1.0.0';
 
-    chmod 755 cfg/libhello-1.0.0 cfg/libhello-1.0.0/build;
-    rm -r cfg/libhello-1.0.0;
+    chmod 755 cfg/libhello cfg/libhello/build;
+    rm -r cfg/libhello;
     $pkg_purge -f libhello 2>'purged libhello/1.0.0';
     $pkg_status libhello >'unknown'
   }

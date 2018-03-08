@@ -1076,14 +1076,14 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       configured libfoo/1.1.0
       unpacked libbar/1.1.0
       configured libbar/1.1.0
-      %info: .+dir\{libbar-1.1.0.\} is up to date%
+      %info: .+dir\{libbar.\} is up to date%
       updated libbar/1.1.0
       EOE
 
     $* ./libbaz/ 2>>~%EOE%;
       unpacked libbaz/1.1.0
       configured libbaz/1.1.0
-      %info: .+dir\{libbaz-1.1.0.\} is up to date%
+      %info: .+dir\{libbaz.\} is up to date%
       updated libbaz/1.1.0
       EOE
 
@@ -1461,7 +1461,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       fetching dir:$d
       using libfoo/1.1.0 \(external\)
       configured libfoo/1.1.0
-      %info: .+dir\\{libfoo-1.1.0.\\} is up to date%
+      %info: .+dir\\{libfoo.\\} is up to date%
       updated libfoo/1.1.0
       EOE
 
@@ -1487,7 +1487,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
     $* libfoo 2>>~%EOE%;
       using libfoo/1.1.0 (external)
       configured libfoo/1.1.0
-      %info: .+dir\{libfoo-1.1.0.\} is up to date%
+      %info: .+dir\{libfoo.\} is up to date%
       updated libfoo/1.1.0
       EOE
 

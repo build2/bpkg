@@ -198,7 +198,7 @@ $* libfoo/1.0.0 2>>~%EOE% != 0
 
     : dependencies
     :
-    : Note that we don't move this test to the prerequisites-and-dependents
+    : Note that we do not move this test to the prerequisites-and-dependents
     : group as the configuration repository set would be different.
     :
     $clone_cfg;

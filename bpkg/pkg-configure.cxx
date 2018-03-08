@@ -126,7 +126,17 @@ namespace bpkg
     dir_path src_root (p->src_root->absolute ()
                        ? *p->src_root
                        : c / *p->src_root);
-    dir_path out_root (c / dir_path (p->name + "-" + p->version.string ()));
+
+    const repository_location& rl (p->repository);
+
+    // For external packages call the output directory <pkg>, rather than
+    // <pkg>-<ver>.
+    //
+    dir_path out_root (
+      (!rl.empty () && rl.directory_based ()) || // pkg-unpack <name>/<version>
+      ( rl.empty () && !p->archive)              // pkg-unpack --existing <dir>
+      ? c / dir_path (p->name)
+      : c / dir_path (p->name + "-" + p->version.string ()));
 
     l4 ([&]{trace << "src_root: " << src_root << ", "
                   << "out_root: " << out_root;});

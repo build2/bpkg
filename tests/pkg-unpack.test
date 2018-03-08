@@ -38,11 +38,13 @@
   cp -r $src/t1 $out/t1 && $rep_create $out/t1 &$out/t1/packages.manifest
 end
 
-pkg_fetch  += -d cfg 2>!
-pkg_purge  += -d cfg
-pkg_status += -d cfg
-rep_add    += -d cfg 2>!
-rep_fetch  += -d cfg --auth all 2>!
+pkg_fetch     += -d cfg 2>!
+pkg_purge     += -d cfg
+pkg_status    += -d cfg
+rep_add       += -d cfg 2>!
+rep_fetch     += -d cfg --auth all 2>!
+pkg_configure += -d cfg
+pkg_disfigure += -d cfg
 
 : replace-with-existing
 :
@@ -100,6 +102,10 @@ $* 2>>EOE != 0
     $pkg_purge  libfoo       2>'purged libfoo/1.0.0';
     $*  -e $src/libfoo-1.1.0 2>'using libfoo/1.1.0 (external)';
     $pkg_status libfoo/1.1.0 1>'unpacked; available';
+
+    $pkg_configure libfoo  2>'configured libfoo/1.1.0';
+    test    -d cfg/libfoo;
+    $pkg_disfigure libfoo  2>'disfigured libfoo/1.1.0';
 
     $pkg_purge libfoo 2>'purged libfoo/1.1.0'
   }
@@ -167,6 +173,10 @@ $* 2>>EOE != 0
     $pkg_status libfoo/1.0.0 1>'fetched; available';
     $*          libfoo       2>'unpacked libfoo/1.0.0';
     $pkg_status libfoo/1.0.0 1>'unpacked; available';
+
+    $pkg_configure libfoo        2>'configured libfoo/1.0.0';
+    test    -d cfg/libfoo-1.0.0;
+    $pkg_disfigure libfoo        2>'disfigured libfoo/1.0.0';
 
     $pkg_purge libfoo 2>'purged libfoo/1.0.0'
   }
@@ -251,6 +261,10 @@ $* 2>>EOE != 0
       using libfoo/1.1.0 (external)
       EOE
 
-    $pkg_status libfoo 1>'unpacked 1.1.0; available sys:?'
+    $pkg_status libfoo 1>'unpacked 1.1.0; available sys:?';
+
+    $pkg_configure libfoo  2>'configured libfoo/1.1.0';
+    test    -d cfg/libfoo;
+    $pkg_disfigure libfoo  2>'disfigured libfoo/1.1.0'
   }
 }
