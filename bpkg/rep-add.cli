@@ -52,11 +52,11 @@ namespace bpkg
 
      A \cb{dir} repository is expected to contain either the \cb{manifest} or
      \cb{packages.manifest} file in the root directory of the repository. If
-     it only contains \cb{manifest}, then it is assumed to be a single-package
-     repository with the \cb{manifest} file being its package manifest.
-     Otherwise, the \cb{packages.manifest} file should list the available
-     packages as described in \l{bpkg#manifest-package-list-dir Package List
-     Manifest for \cb{dir} Repositories}.
+     it only contains \cb{manifest}, then it is assumed to be a simple,
+     single-package repository with the \cb{manifest} file being its package
+     manifest. Otherwise, the \cb{packages.manifest} file should list the
+     available packages as described in \l{bpkg#manifest-package-list-dir
+     Package List Manifest for \cb{dir} Repositories}.
 
      A \cb{dir} repository may also contain the \cb{repositories.manifest}
      file in the root directory of the repository. This file can be used to
