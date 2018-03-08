@@ -321,21 +321,44 @@ $* 2>>/EOE != 0
 
 : dir-rep
 :
+: For dir repository tests we will reuse local git repositories, that have the
+: same repository structure.
+:
+if ($remote != true)
 {
   rep_add += --type dir
 
+  rep = $canonicalize([dir_path] $out_git/state0)
+
+  +$clone_cfg && $rep_add $rep/libbar.git
+
   : prerequisites
   :
-  if ($remote != true)
   {
-    # Let's reuse local git repositories that have the same repository
-    # structure as for dir type.
-    #
-    rep = $canonicalize([dir_path] $out_git/state0)
-
-    $clone_root_cfg && $rep_add $rep/libbar.git;
+    $clone_cfg;
 
     $* 2>>"EOE";
+      fetching dir:($rep/libbar.git)
+      fetching dir:($rep/style-basic.git) \(prerequisite of dir:($rep/libbar.git)\)
+      3 package\(s\) in 2 repository\(s\)
+      EOE
+
+    $rep_list >>"EOO"
+      dir:($rep/libbar.git) ($rep/libbar.git)
+        prerequisite dir:($rep/style-basic.git) ($rep/style-basic.git)
+      EOO
+  }
+
+  : by-name
+  :
+  : Here we, in particular, test that the local repository canonical name
+  : (dir:/...) is not confused with the repository URL.
+  :
+  {
+    $clone_cfg;
+    $* 2>!;
+
+    $* "dir:($rep/libbar.git)" 2>>"EOE";
       fetching dir:($rep/libbar.git)
       fetching dir:($rep/style-basic.git) \(prerequisite of dir:($rep/libbar.git)\)
       3 package\(s\) in 2 repository\(s\)

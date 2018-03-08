@@ -155,19 +155,25 @@ namespace bpkg
   {
     size_t p (s.find (':'));
 
-    // If it has no scheme or the scheme looks like that of a URL, then this
-    // is not a canonical name.
+    // If it has no scheme, then this is not a canonical name.
     //
-    if (p == string::npos || butl::url::traits::find (s, p) != string::npos)
+    if (p == string::npos)
       return false;
 
     // This is a canonical name if the scheme is convertible to the repository
-    // type.
+    // type and is followed by the colon and no more than one slash.
+    //
+    // Note that the approach is valid unless we invent the file scheme for the
+    // canonical name.
     //
     try
     {
-      to_repository_type (string (s, 0, p));
-      return true;
+      string scheme (s, 0, p);
+      to_repository_type (scheme);
+      bool r (!(p + 2 < s.size () && s[p + 1] == '/' && s[p + 2] == '/'));
+
+      assert (!r || scheme != "file");
+      return r;
     }
     catch (const invalid_argument&)
     {
