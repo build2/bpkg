@@ -1445,6 +1445,29 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       error: package libbar is not found in pkg:build2.org/pkg-build/t4d or its complements
       EOE
   }
+
+  : location-search
+  :
+  : Test that the repository location is searched in the database before being
+  : parsed. The latest would fail as the repository type would be misguessed.
+  :
+  {
+    $clone_root_cfg;
+    $rep_add $src/libfoo-1.1.0 --type dir && $rep_fetch;
+
+    d = $canonicalize([dir_path] $src/libfoo-1.1.0);
+
+    $* "libfoo@$d" 2>>~"%EOE%";
+      fetching dir:$d
+      using libfoo/1.1.0 \(external\)
+      configured libfoo/1.1.0
+      %info: .+dir\\{libfoo-1.1.0.\\} is up to date%
+      updated libfoo/1.1.0
+      EOE
+
+    $pkg_disfigure libfoo 2>'disfigured libfoo/1.1.0';
+    $pkg_purge     libfoo 2>'purged libfoo/1.1.0'
+  }
 }
 
 : dir-rep
@@ -1455,19 +1478,22 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
   : Test that dir (local) repository is preferred over non-dir local repository
   : that comes first.
   :
-  $clone_root_cfg;
-  $rep_fetch $rep/t4a;
-  $rep_add $src/libfoo-1.1.0 --type dir && $rep_fetch "dir:$src/libfoo-1.1.0";
+  {
+    $clone_root_cfg;
+    $rep_fetch $rep/t4a;
+    $rep_add $src/libfoo-1.1.0 --type dir;
+    $rep_fetch "dir:$canonicalize([dir_path] $src/libfoo-1.1.0)";
 
-  $* libfoo 2>>~%EOE%;
-    using libfoo/1.1.0 (external)
-    configured libfoo/1.1.0
-    %info: .+dir\{libfoo-1.1.0.\} is up to date%
-    updated libfoo/1.1.0
-    EOE
+    $* libfoo 2>>~%EOE%;
+      using libfoo/1.1.0 (external)
+      configured libfoo/1.1.0
+      %info: .+dir\{libfoo-1.1.0.\} is up to date%
+      updated libfoo/1.1.0
+      EOE
 
-  $pkg_disfigure libfoo 2>'disfigured libfoo/1.1.0';
-  $pkg_purge     libfoo 2>'purged libfoo/1.1.0'
+    $pkg_disfigure libfoo 2>'disfigured libfoo/1.1.0';
+    $pkg_purge     libfoo 2>'purged libfoo/1.1.0'
+  }
 }
 
 : git-rep

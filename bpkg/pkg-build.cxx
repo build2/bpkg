@@ -1081,7 +1081,7 @@ namespace bpkg
     // Note that we consider '@' to be such a delimiter only if it comes
     // before ":/" (think a URL which could contain its own '@').
     //
-    auto location = [] (const string& arg) -> size_t
+    auto find_location = [] (const string& arg) -> size_t
     {
       using url_traits = butl::url::traits;
 
@@ -1109,42 +1109,24 @@ namespace bpkg
       return p;
     };
 
-    // Collect repository locations from <packages>@<location> arguments,
-    // suppressing duplicates.
-    //
-    // Note that the last repository location overrides the previous ones with
-    // the same canonical name.
-    //
-    strings args;
-    vector<repository_location> locations;
-
-    while (a.more ())
-    {
-      string arg (a.next ());
-      size_t p (location (arg));
-
-      if (p != string::npos)
-      {
-        repository_location l (
-          parse_location (string (arg, p), nullopt /* type */));
-
-        auto pr = [&l] (const repository_location& i) -> bool
-        {
-          return i.canonical_name () == l.canonical_name ();
-        };
-
-        auto i (find_if (locations.begin (), locations.end (), pr));
-
-        if (i != locations.end ())
-          *i = move (l);
-        else
-          locations.push_back (move (l));
-      }
-
-      args.push_back (move (arg));
-    }
-
     database db (open (c, trace)); // Also populates the system repository.
+
+    // Search for the repository location in the database before trying to
+    // parse it. Note that the straight parsing could otherwise fail, being
+    // unable to properly guess the repository type.
+    //
+    auto location = [&db] (const string& l) -> repository_location
+    {
+      using query = query<repository>;
+
+      shared_ptr<repository> r (
+        db.query_one<repository> (query::location.url == l));
+
+      if (r != nullptr)
+        return r->location;
+
+      return parse_location (l, nullopt /* type */);
+    };
 
     // Note that the session spans all our transactions. The idea here is
     // that selected_package objects in the build_packages list below will
@@ -1155,6 +1137,45 @@ namespace bpkg
     // Also note that rep_fetch() must be called in session.
     //
     session s;
+
+    // Collect repository locations from <packages>@<location> arguments,
+    // suppressing duplicates.
+    //
+    // Note that the last repository location overrides the previous ones with
+    // the same canonical name.
+    //
+    strings args;
+    vector<repository_location> locations;
+    {
+      transaction t (db.begin ());
+
+      while (a.more ())
+      {
+        string arg (a.next ());
+        size_t p (find_location (arg));
+
+        if (p != string::npos)
+        {
+          repository_location l (location (string (arg, p)));
+
+          auto pr = [&l] (const repository_location& i) -> bool
+          {
+            return i.canonical_name () == l.canonical_name ();
+          };
+
+          auto i (find_if (locations.begin (), locations.end (), pr));
+
+          if (i != locations.end ())
+            *i = move (l);
+          else
+            locations.push_back (move (l));
+        }
+
+        args.push_back (move (arg));
+      }
+
+      t.commit ();
+    }
 
     if (!locations.empty ())
       rep_fetch (o, c, db, locations);
@@ -1167,7 +1188,7 @@ namespace bpkg
 
       for (string& arg: args)
       {
-        size_t p (location (arg));
+        size_t p (find_location (arg));
 
         if (p == string::npos)
         {
@@ -1175,9 +1196,7 @@ namespace bpkg
           continue;
         }
 
-        repository_location l (
-          parse_location (string (arg, p), nullopt /* type */));
-
+        repository_location l (location (string (arg, p)));
         shared_ptr<repository> r (db.load<repository> (l.canonical_name ()));
 
         // If no packages are specified explicitly (the argument starts with
