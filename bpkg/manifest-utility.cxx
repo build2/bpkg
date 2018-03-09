@@ -6,8 +6,11 @@
 
 #include <libbutl/url.mxx>
 #include <libbutl/sha256.mxx>
+#include <libbutl/process.mxx>
+#include <libbutl/process-io.mxx> // operator<<(ostream, process_path)
 
 #include <bpkg/diagnostics.hxx>
+#include <bpkg/common-options.hxx>
 
 using namespace std;
 using namespace butl;
@@ -178,6 +181,98 @@ namespace bpkg
     catch (const invalid_argument&)
     {
       return false;
+    }
+  }
+
+  optional<version>
+  package_version (const common_options& o, const dir_path& d)
+  {
+    const char* b (name_b (o));
+
+    try
+    {
+      process_path pp (process::path_search (b, exec_dir));
+
+      fdpipe pipe (open_pipe ());
+
+      process pr (
+        process_start_callback (
+          [] (const char* const args[], size_t n)
+          {
+            if (verb >= 2)
+              print_process (args, n);
+          },
+          0 /* stdin */, pipe /* stdout */, 2 /* stderr */,
+          pp,
+
+          verb < 2
+          ? strings ({"-q"})
+          : verb == 2
+          ? strings ({"-v"})
+          : strings ({"--verbose", to_string (verb)}),
+
+          o.build_option (),
+          "info:",
+          d.representation ()));
+
+      // Shouldn't throw, unless something is severely damaged.
+      //
+      pipe.out.close ();
+
+      try
+      {
+        optional<version> r;
+
+        ifdstream is (move (pipe.in),
+                      fdstream_mode::skip,
+                      ifdstream::badbit);
+
+        for (string l; !eof (getline (is, l)); )
+        {
+          if (l.compare (0, 9, "version: ") == 0)
+          try
+          {
+            string v (l, 9);
+
+            // An empty version indicates that the version module is not
+            // enabled for the project.
+            //
+            if (!v.empty ())
+              r = version (v);
+
+            break;
+          }
+          catch (const invalid_argument&)
+          {
+            fail << "no package version in '" << l << "'" <<
+              info << "produced by '" << pp << "'; use --build to override";
+          }
+        }
+
+        is.close ();
+
+        if (pr.wait ())
+          return r;
+
+        // Fall through.
+      }
+      catch (const io_error&)
+      {
+        if (pr.wait ())
+          fail << "unable to read '" << b << "' output";
+
+        // Fall through.
+      }
+
+      // We should only get here if the child exited with an error status.
+      //
+      assert (!pr.wait ());
+
+      fail << "unable to obtain version using '" << b << "'" << endf;
+    }
+    catch (const process_error& e)
+    {
+      fail << "unable to execute '" << b << "': " << e << endf;
     }
   }
 }

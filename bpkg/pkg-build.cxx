@@ -2099,7 +2099,8 @@ namespace bpkg
             assert (pl.repository.object_id () == ""); // Special root.
 
             transaction t (db.begin ());
-            sp = pkg_unpack (c,
+            sp = pkg_unpack (o,
+                             c,
                              t,
                              path_cast<dir_path> (pl.location),
                              true,   // Replace.

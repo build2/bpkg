@@ -2,7 +2,7 @@
 # copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
 # license   : MIT; see accompanying LICENSE file
 
-.include common.test auth.test config.test remote.test
+.include common.test auth.test config.test remote.test remote-git.test
 
 # Source repository:
 #
@@ -15,10 +15,13 @@
 # |   |   `-- bootstrap.build
 # |   |-- buildfile
 # |   `-- manifest
-# `-- t1
-#     |-- libfoo-1.0.0.tar.gz
-#     |-- libfoo-1.1.0.tar.gz
-#     `-- repositories.manifest
+# |-- t1
+# |   |-- libfoo-1.0.0.tar.gz
+# |   |-- libfoo-1.1.0.tar.gz
+# |   `-- repositories.manifest
+# |
+# `-- git
+#     `-- style-basic.git
 
 # Prepare repositories used by tests if running in the local mode.
 #
@@ -36,6 +39,10 @@
   # Create the 't1' repository.
   #
   cp -r $src/t1 $out/t1 && $rep_create $out/t1 &$out/t1/packages.manifest
+
+  # Create git repositories.
+  #
+  $git_extract $src/git/style-basic.tar &$out_git/state0/***
 end
 
 pkg_fetch     += -d cfg 2>!
@@ -193,18 +200,6 @@ $* 2>>EOE != 0
   }
 }
 
-: hello
-:
-{
-  $clone_cfg;
-  $rep_add $rep/hello && $rep_fetch --trust $cert_fp &cfg/.bpkg/certs/**;
-  $pkg_fetch libhello/1.0.0;
-
-  $* libhello 2>'unpacked libhello/1.0.0';
-
-  $pkg_purge libhello 2>'purged libhello/1.0.0'
-}
-
 : dir-rep
 :
 {
@@ -267,4 +262,36 @@ $* 2>>EOE != 0
     test    -d cfg/libfoo;
     $pkg_disfigure libfoo  2>'disfigured libfoo/1.1.0'
   }
+}
+
+: existing
+:
+{
+  : version-fixup
+  :
+  : Test that the version is populated with the snapshot information for the
+  : package directory that is under the version control.
+  :
+  if ($remote != true)
+  {
+    $clone_root_cfg;
+
+    rep = $canonicalize([dir_path] $out_git/state0);
+
+    $* -e $rep/style-basic.git 2>>~%EOE%
+      %using style-basic/1\.1\.0-a\.0\.\d+\..+ \(external\)%
+      EOE
+  }
+}
+
+: hello
+:
+{
+  $clone_cfg;
+  $rep_add $rep/hello && $rep_fetch --trust $cert_fp &cfg/.bpkg/certs/**;
+  $pkg_fetch libhello/1.0.0;
+
+  $* libhello 2>'unpacked libhello/1.0.0';
+
+  $pkg_purge libhello 2>'purged libhello/1.0.0'
 }

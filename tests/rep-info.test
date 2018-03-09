@@ -157,7 +157,7 @@ else
   $* "$rep/style-basic.git#master" >>~%EOO%
   %git:.+style-basic#master .+style-basic.git#master%
 
-  %style-basic/1\.1\.0-a\.0\..+%
+  %style-basic/1\.1\.0-a\.0\.\d+\..+%
   EOO
 
   : manifest-lists

@@ -127,7 +127,8 @@ namespace bpkg
   }
 
   shared_ptr<selected_package>
-  pkg_unpack (const dir_path& c,
+  pkg_unpack (const common_options& o,
+              const dir_path& c,
               transaction& t,
               const dir_path& d,
               bool replace,
@@ -146,6 +147,13 @@ namespace bpkg
     // Check/diagnose an already existing package.
     //
     pkg_unpack_check (c, t, m.name, replace);
+
+    // Fix-up the package version.
+    //
+    optional<version> v (package_version (o, d));
+
+    if (v)
+      m.version = move (*v);
 
     // Use the special root repository as the repository of this
     // package.
@@ -411,7 +419,7 @@ namespace bpkg
           info << "run 'bpkg help pkg-unpack' for more information";
 
       p = pkg_unpack (
-        c, t, dir_path (args.next ()), o.replace (), o.purge ());
+        o, c, t, dir_path (args.next ()), o.replace (), o.purge ());
     }
     else
     {

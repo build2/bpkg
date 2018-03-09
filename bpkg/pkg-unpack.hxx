@@ -21,7 +21,8 @@ namespace bpkg
   // Unpack the package as a source directory and commit the transaction.
   //
   shared_ptr<selected_package>
-  pkg_unpack (const dir_path& configuration,
+  pkg_unpack (const common_options&,
+              const dir_path& configuration,
               transaction&,
               const dir_path&,
               bool replace,

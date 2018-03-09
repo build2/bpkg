@@ -6,8 +6,6 @@
 
 #include <set>
 
-#include <libbutl/process.mxx>
-#include <libbutl/process-io.mxx>      // operator<<(ostream, process_path)
 #include <libbutl/manifest-parser.mxx>
 
 #include <bpkg/auth.hxx>
@@ -231,103 +229,14 @@ namespace bpkg
         package_info (dr);
       }
 
-      // Fix-up the package version. Note that the package may have the
-      // version module enable and the directory repository may well be a git
-      // repository.
+      // Fix-up the package version.
       //
-      const char* b (name_b (co));
+      optional<version> v (package_version (co, d));
 
-      try
-      {
-        process_path pp (process::path_search (b, exec_dir));
+      if (v)
+        sm.version = move (*v);
 
-        fdpipe pipe (open_pipe ());
-
-        process pr (
-          process_start_callback (
-            [] (const char* const args[], size_t n)
-            {
-              if (verb >= 2)
-                print_process (args, n);
-            },
-            0 /* stdin */, pipe /* stdout */, 2 /* stderr */,
-            pp,
-
-            verb < 2
-            ? strings ({"-q"})
-            : verb == 2
-              ? strings ({"-v"})
-              : strings ({"--verbose", to_string (verb)}),
-
-            co.build_option (),
-            "info:",
-            d.representation ()));
-
-        // Shouldn't throw, unless something is severely damaged.
-        //
-        pipe.out.close ();
-
-        try
-        {
-          ifdstream is (move (pipe.in),
-                        fdstream_mode::skip,
-                        ifdstream::badbit);
-
-          for (string l; !eof (getline (is, l)); )
-          {
-            if (l.compare (0, 9, "version: ") == 0)
-            try
-            {
-              string v (l, 9);
-
-              // An empty version indicates that the version module is not
-              // enabled for the project, and so we don't amend the package
-              // version.
-              //
-              if (!v.empty ())
-                sm.version = version (v);
-
-              break;
-            }
-            catch (const invalid_argument&)
-            {
-              fail << "no package version in '" << l << "'" <<
-                info << "produced by '" << pp << "'; use --build to override";
-            }
-          }
-
-          is.close ();
-
-          // If succeess then save the package manifest together with the
-          // repository state it belongs to and go to the next package.
-          //
-          if (pr.wait ())
-          {
-            fps.emplace_back (rep_fetch_data::package {move (sm),
-                                                       repo_fragment});
-            continue;
-          }
-
-          // Fall through.
-        }
-        catch (const io_error&)
-        {
-          if (pr.wait ())
-            failure ("unable to read information");
-
-          // Fall through.
-        }
-
-        // We should only get here if the child exited with an error status.
-        //
-        assert (!pr.wait ());
-
-        failure ("unable to obtain information");
-      }
-      catch (const process_error& e)
-      {
-        fail << "unable to execute " << b << ": " << e;
-      }
+      fps.emplace_back (rep_fetch_data::package {move (sm), repo_fragment});
     }
 
     return fps;
