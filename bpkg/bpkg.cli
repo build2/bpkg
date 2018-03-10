@@ -61,6 +61,12 @@ namespace bpkg
      control}-based repositories are supported. A repository is identified by
      its location which can be a local filesystem path or a URL.
 
+     If the same version of a package is available from multiple repositories,
+     then they are assumed to contain identical package content. In such cases
+     \cb{bpkg} prefers local repositories over remote and among local
+     repositories it prefers the ones with external packages (see
+     \l{bpkg-pkg-unpack(1)} for details on external packages).
+
      A typical \cb{bpkg} workflow would consist of the following steps.
 
      \dl|
