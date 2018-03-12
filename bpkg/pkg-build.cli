@@ -141,5 +141,11 @@ namespace bpkg
       "Print to \cb{STDOUT} what would be done without actually doing
        anything."
     }
+
+    bool --fetch-shallow
+    {
+      "Do not re-fetch complement and prerequisite repositories. Refer to
+       the \cb{--shallow} option in \l{bpkg-rep-fetch(1)} for details."
+    }
   };
 }

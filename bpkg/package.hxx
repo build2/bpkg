@@ -597,11 +597,12 @@ namespace bpkg
     bool purge_src;
 
     // Path to the output directory of this package, if any. It is
-    // always relative to the configuration directory and currently
-    // is always <name>-<version>. It is only set once the package
-    // is configured and its main purse is to keep track of what
-    // needs to be cleaned by the user before a broken package can
-    // be purged. Note that it could be the same as out_root.
+    // always relative to the configuration directory, and is <name>
+    // for external packages and <name>-<version> for others. It is
+    // only set once the package is configured and its main purse is
+    // to keep track of what needs to be cleaned by the user before
+    // a broken package can be purged. Note that it could be the
+    // same as src_root.
     //
     optional<dir_path> out_root;
 
@@ -616,6 +617,19 @@ namespace bpkg
               state == package_state::configured);
 
       return substate == package_substate::system;
+    }
+
+    bool
+    external () const
+    {
+      return
+        // pkg-unpack <name>/<version>
+        //
+        (!repository.empty () && repository.directory_based ()) ||
+
+        // pkg-unpack --existing <dir>
+        //
+        (repository.empty () && !archive);
     }
 
     // Represent the wildcard version with the "*" string. Represent naturally

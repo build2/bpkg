@@ -1178,7 +1178,7 @@ namespace bpkg
     }
 
     if (!locations.empty ())
-      rep_fetch (o, c, db, locations);
+      rep_fetch (o, c, db, locations, o.fetch_shallow ());
 
     // Expand <packages>@<location> arguments.
     //

@@ -5,6 +5,7 @@
 #include <bpkg/rep-fetch.hxx>
 
 #include <set>
+#include <algorithm> // equal()
 
 #include <libbutl/manifest-parser.mxx>
 
@@ -431,6 +432,7 @@ namespace bpkg
              const shared_ptr<repository>& r,
              repositories& fetched,
              repositories& removed,
+             bool shallow,
              const string& reason = string ())
   {
     tracer trace ("rep_fetch(rep)");
@@ -471,41 +473,18 @@ namespace bpkg
         dr << " (" << reason << ")";
     }
 
-    // Register complements and prerequisites for potential removal unless
-    // they are fetched. Clear repository dependency sets afterwards.
-    //
-    auto remove = [&fetched, &removed] (const lazy_shared_ptr<repository>& rp)
-    {
-      shared_ptr<repository> r (rp.load ());
-      if (fetched.find (r) == fetched.end ())
-        removed.insert (move (r));
-    };
-
-    for (const lazy_shared_ptr<repository>& cr: r->complements)
-    {
-      // Remove the complement unless it is the root repository (see
-      // rep_fetch() for details).
-      //
-      if (cr.object_id () != "")
-        remove (cr);
-    }
-
-    for (const lazy_weak_ptr<repository>& pr: r->prerequisites)
-      remove (lazy_shared_ptr<repository> (pr));
-
-    r->complements.clear ();
-    r->prerequisites.clear ();
-
-    // Remove this repository from locations of the available packages it
-    // contains.
-    //
-    rep_remove_package_locations (t, r->name);
-
     // Load the repository and package manifests and use them to populate the
     // prerequisite and complement repository sets as well as available
     // packages.
     //
     rep_fetch_data rfd (rep_fetch (co, &conf, rl, true /* ignore_unknow */));
+
+    // Create the new prerequisite and complement repository sets. While doing
+    // this we may also reset the shallow flag if discover that any of these
+    // sets have changed.
+    //
+    repository::complements_type complements;
+    repository::prerequisites_type prerequisites;
 
     for (repository_manifest& rm: rfd.repositories)
     {
@@ -542,25 +521,16 @@ namespace bpkg
       {
         pr = make_shared<repository> (move (l));
         db.persist (pr); // Enter into session, important if recursive.
+
+        shallow = false;
       }
       else if (pr->location.url () != l.url ())
       {
         pr->location = move (l);
         db.update (r);
-      }
 
-      // Load the prerequisite repository.
-      //
-      string reason;
-      switch (rr)
-      {
-      case repository_role::complement:   reason = "complements ";     break;
-      case repository_role::prerequisite: reason = "prerequisite of "; break;
-      case repository_role::base: assert (false);
+        shallow = false;
       }
-      reason += r->name;
-
-      rep_fetch (co, conf, t, pr, fetched, removed, reason);
 
       // @@ What if we have duplicated? Ideally, we would like to check
       //    this once and as early as possible. The original idea was to
@@ -582,13 +552,13 @@ namespace bpkg
       case repository_role::complement:
         {
           l4 ([&]{trace << pr->name << " complement of " << r->name;});
-          r->complements.insert (lazy_shared_ptr<repository> (db, pr));
+          complements.insert (lazy_shared_ptr<repository> (db, pr));
           break;
         }
       case repository_role::prerequisite:
         {
           l4 ([&]{trace << pr->name << " prerequisite of " << r->name;});
-          r->prerequisites.insert (lazy_weak_ptr<repository> (db, pr));
+          prerequisites.insert (lazy_weak_ptr<repository> (db, pr));
           break;
         }
       case repository_role::base:
@@ -610,8 +580,8 @@ namespace bpkg
     case repository_type::git:
     case repository_type::dir:
       {
-        if (r->complements.empty () && r->prerequisites.empty ())
-          r->complements.insert (lazy_shared_ptr<repository> (db, string ()));
+        if (complements.empty () && prerequisites.empty ())
+          complements.insert (lazy_shared_ptr<repository> (db, string ()));
 
         break;
       }
@@ -624,15 +594,94 @@ namespace bpkg
       }
     }
 
-    // Save the changes to the repository object.
+    // Reset the shallow flag if the set of complements and/or prerequisites
+    // has changed.
     //
-    db.update (r);
+    // Note that weak pointers are generally incomparable (as can point to
+    // expired objects), and thus we can't compare the prerequisite sets
+    // directly.
+    //
+    if (shallow)
+      shallow = r->complements == complements &&
+                equal (r->prerequisites.begin (), r->prerequisites.end (),
+                       prerequisites.begin (), prerequisites.end (),
+                       [] (const lazy_weak_ptr<repository>& x,
+                           const lazy_weak_ptr<repository>& y)
+                       {
+                         return x.object_id () == y.object_id ();
+                       });
+
+    // Fetch prerequisites and complements, unless this is a shallow fetch.
+    //
+    if (!shallow)
+    {
+      // Register complements and prerequisites for potential removal unless
+      // they are fetched. Clear repository dependency sets afterwards.
+      //
+      auto rm = [&fetched, &removed] (const lazy_shared_ptr<repository>& rp)
+      {
+        shared_ptr<repository> r (rp.load ());
+         if (fetched.find (r) == fetched.end ())
+          removed.insert (move (r));
+      };
+
+      for (const lazy_shared_ptr<repository>& cr: r->complements)
+      {
+        // Remove the complement unless it is the root repository (see
+        // rep_fetch() for details).
+        //
+        if (cr.object_id () != "")
+          rm (cr);
+      }
+
+      for (const lazy_weak_ptr<repository>& pr: r->prerequisites)
+        rm (lazy_shared_ptr<repository> (pr));
+
+      r->complements   = move (complements);
+      r->prerequisites = move (prerequisites);
+
+      // Fetch complements.
+      //
+      for (const auto& cr: r->complements)
+      {
+        if (cr.object_id () != "")
+          rep_fetch (co,
+                     conf,
+                     t,
+                     cr.load (),
+                     fetched,
+                     removed,
+                     false /* shallow */,
+                     "complements " + r->name);
+      }
+
+      // Fetch prerequisites.
+      //
+      for (const auto& pr: r->prerequisites)
+        rep_fetch (co,
+                   conf,
+                   t,
+                   pr.load (),
+                   fetched,
+                   removed,
+                   false /* shallow */,
+                   "prerequisite of " + r->name);
+
+      // Save the changes to the repository object.
+      //
+      db.update (r);
+    }
 
     // "Suspend" session while persisting packages to reduce memory
     // consumption.
     //
     session& s (session::current ());
     session::reset_current ();
+
+    // Remove this repository from locations of the available packages it
+    // contains.
+    //
+    rep_remove_package_locations (t, r->name);
 
     for (rep_fetch_data::package& fp: rfd.packages)
     {
@@ -702,7 +751,8 @@ namespace bpkg
   rep_fetch (const common_options& o,
              const dir_path& conf,
              transaction& t,
-             const vector<lazy_shared_ptr<repository>>& repos)
+             const vector<lazy_shared_ptr<repository>>& repos,
+             bool shallow)
   {
     // As a fist step we fetch repositories recursively building the list of
     // the former prerequisites and complements to be considered for removal.
@@ -722,7 +772,7 @@ namespace bpkg
       repositories removed;
 
       for (const lazy_shared_ptr<repository>& r: repos)
-        rep_fetch (o, conf, t, r.load (), fetched, removed);
+        rep_fetch (o, conf, t, r.load (), fetched, removed, shallow);
 
       // Finally, remove dangling repositories.
       //
@@ -752,8 +802,11 @@ namespace bpkg
   rep_fetch (const common_options& o,
              const dir_path& conf,
              database& db,
-             const vector<repository_location>& rls)
+             const vector<repository_location>& rls,
+             bool shallow)
   {
+    assert (session::has_current ());
+
     vector<lazy_shared_ptr<repository>> repos;
     repos.reserve (rls.size ());
 
@@ -775,7 +828,7 @@ namespace bpkg
       repos.emplace_back (r);
     }
 
-    rep_fetch (o, conf, t, repos);
+    rep_fetch (o, conf, t, repos, shallow);
 
     t.commit ();
   }
@@ -846,7 +899,7 @@ namespace bpkg
       }
     }
 
-    rep_fetch (o, c, t, repos);
+    rep_fetch (o, c, t, repos, o.shallow ());
 
     size_t rcount (0), pcount (0);
     if (verb)

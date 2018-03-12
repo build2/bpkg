@@ -39,5 +39,12 @@ namespace bpkg
   class rep_fetch_options: configuration_options
   {
     "\h|REP-FETCH OPTIONS|"
+
+    bool --shallow
+    {
+      "Do not re-fetch complement and prerequisite repositories of the
+       specified repositories unless the set of complements and/or
+       prerequisites has changed."
+    }
   };
 }

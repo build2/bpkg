@@ -51,14 +51,17 @@ namespace bpkg
              bool ignore_unknown);
 
   // Add (or update) repository locations to the configuration and fetch
-  // them. On failure clean up the configuration (see rep_remove_clean() for
-  // details). Note that it should be called in session.
+  // them. If shallow is true, then don't fetch their prerequisite and/or
+  // complements unless the respective sets have changed. On failure clean up
+  // the configuration (see rep_remove_clean() for details). Note that it
+  // should be called in session.
   //
   void
   rep_fetch (const common_options&,
              const dir_path& conf,
              database&,
-             const vector<repository_location>&);
+             const vector<repository_location>&,
+             bool shallow);
 }
 
 #endif // BPKG_REP_FETCH_HXX

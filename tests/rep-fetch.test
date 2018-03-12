@@ -142,19 +142,19 @@ $* 2>>/EOE != 0
 
     $* --trust-yes 2>>EOE;
       fetching pkg:build2.org/rep-fetch/bar/unstable
-      fetching pkg:build2.org/rep-fetch/foo/testing (prerequisite of pkg:build2.org/rep-fetch/bar/unstable)
-      fetching pkg:build2.org/rep-fetch/foo/stable (complements pkg:build2.org/rep-fetch/foo/testing)
       fetching pkg:build2.org/rep-fetch/bar/testing (complements pkg:build2.org/rep-fetch/bar/unstable)
       fetching pkg:build2.org/rep-fetch/bar/stable (complements pkg:build2.org/rep-fetch/bar/testing)
+      fetching pkg:build2.org/rep-fetch/foo/stable (prerequisite of pkg:build2.org/rep-fetch/bar/stable)
+      fetching pkg:build2.org/rep-fetch/foo/testing (prerequisite of pkg:build2.org/rep-fetch/bar/testing)
       5 package(s) in 5 repository(s)
       EOE
 
     $* 2>>EOE
       fetching pkg:build2.org/rep-fetch/bar/unstable
-      fetching pkg:build2.org/rep-fetch/foo/testing (prerequisite of pkg:build2.org/rep-fetch/bar/unstable)
-      fetching pkg:build2.org/rep-fetch/foo/stable (complements pkg:build2.org/rep-fetch/foo/testing)
       fetching pkg:build2.org/rep-fetch/bar/testing (complements pkg:build2.org/rep-fetch/bar/unstable)
       fetching pkg:build2.org/rep-fetch/bar/stable (complements pkg:build2.org/rep-fetch/bar/testing)
+      fetching pkg:build2.org/rep-fetch/foo/stable (prerequisite of pkg:build2.org/rep-fetch/bar/stable)
+      fetching pkg:build2.org/rep-fetch/foo/testing (prerequisite of pkg:build2.org/rep-fetch/bar/testing)
       5 package(s) in 5 repository(s)
       EOE
   }
@@ -166,20 +166,20 @@ $* 2>>/EOE != 0
 
     $* --trust-yes 2>>EOE &cfg/.bpkg/certs/**;
       fetching pkg:build2.org/rep-fetch/bar/unstable
-      fetching pkg:build2.org/rep-fetch/foo/testing (prerequisite of pkg:build2.org/rep-fetch/bar/unstable)
-      fetching pkg:build2.org/rep-fetch/foo/stable (complements pkg:build2.org/rep-fetch/foo/testing)
       fetching pkg:build2.org/rep-fetch/bar/testing (complements pkg:build2.org/rep-fetch/bar/unstable)
       fetching pkg:build2.org/rep-fetch/bar/stable (complements pkg:build2.org/rep-fetch/bar/testing)
+      fetching pkg:build2.org/rep-fetch/foo/stable (prerequisite of pkg:build2.org/rep-fetch/bar/stable)
+      fetching pkg:build2.org/rep-fetch/foo/testing (prerequisite of pkg:build2.org/rep-fetch/bar/testing)
       fetching pkg:build2.org/rep-fetch/hello
       6 package(s) in 6 repository(s)
       EOE
 
     $* 2>>EOE
       fetching pkg:build2.org/rep-fetch/bar/unstable
-      fetching pkg:build2.org/rep-fetch/foo/testing (prerequisite of pkg:build2.org/rep-fetch/bar/unstable)
-      fetching pkg:build2.org/rep-fetch/foo/stable (complements pkg:build2.org/rep-fetch/foo/testing)
       fetching pkg:build2.org/rep-fetch/bar/testing (complements pkg:build2.org/rep-fetch/bar/unstable)
       fetching pkg:build2.org/rep-fetch/bar/stable (complements pkg:build2.org/rep-fetch/bar/testing)
+      fetching pkg:build2.org/rep-fetch/foo/stable (prerequisite of pkg:build2.org/rep-fetch/bar/stable)
+      fetching pkg:build2.org/rep-fetch/foo/testing (prerequisite of pkg:build2.org/rep-fetch/bar/testing)
       fetching pkg:build2.org/rep-fetch/hello
       6 package(s) in 6 repository(s)
       EOE
@@ -193,19 +193,19 @@ $* 2>>/EOE != 0
     $* --trust-yes $rep/bar/unstable 2>>EOE;
       added pkg:build2.org/rep-fetch/bar/unstable
       fetching pkg:build2.org/rep-fetch/bar/unstable
-      fetching pkg:build2.org/rep-fetch/foo/testing (prerequisite of pkg:build2.org/rep-fetch/bar/unstable)
-      fetching pkg:build2.org/rep-fetch/foo/stable (complements pkg:build2.org/rep-fetch/foo/testing)
       fetching pkg:build2.org/rep-fetch/bar/testing (complements pkg:build2.org/rep-fetch/bar/unstable)
       fetching pkg:build2.org/rep-fetch/bar/stable (complements pkg:build2.org/rep-fetch/bar/testing)
+      fetching pkg:build2.org/rep-fetch/foo/stable (prerequisite of pkg:build2.org/rep-fetch/bar/stable)
+      fetching pkg:build2.org/rep-fetch/foo/testing (prerequisite of pkg:build2.org/rep-fetch/bar/testing)
       5 package(s) in 5 repository(s)
       EOE
 
     $* 'pkg:build2.org/rep-fetch/bar/unstable' 2>>EOE;
       fetching pkg:build2.org/rep-fetch/bar/unstable
-      fetching pkg:build2.org/rep-fetch/foo/testing (prerequisite of pkg:build2.org/rep-fetch/bar/unstable)
-      fetching pkg:build2.org/rep-fetch/foo/stable (complements pkg:build2.org/rep-fetch/foo/testing)
       fetching pkg:build2.org/rep-fetch/bar/testing (complements pkg:build2.org/rep-fetch/bar/unstable)
       fetching pkg:build2.org/rep-fetch/bar/stable (complements pkg:build2.org/rep-fetch/bar/testing)
+      fetching pkg:build2.org/rep-fetch/foo/stable (prerequisite of pkg:build2.org/rep-fetch/bar/stable)
+      fetching pkg:build2.org/rep-fetch/foo/testing (prerequisite of pkg:build2.org/rep-fetch/bar/testing)
       5 package(s) in 5 repository(s)
       EOE
 
@@ -368,6 +368,46 @@ if ($remote != true)
       dir:($rep/libbar.git) ($rep/libbar.git)
         prerequisite dir:($rep/style-basic.git) ($rep/style-basic.git)
       EOO
+  }
+
+  : shallow
+  :
+  {
+    +$clone_cfg
+
+    : respected
+    :
+    {
+      $clone_cfg;
+      $* 2>!;
+
+      $* --shallow "dir:($rep/libbar.git)" 2>>"EOE";
+        fetching dir:($rep/libbar.git)
+        3 package\(s\) in 2 repository\(s\)
+        EOE
+
+      $rep_list >>"EOO"
+        dir:($rep/libbar.git) ($rep/libbar.git)
+          prerequisite dir:($rep/style-basic.git) ($rep/style-basic.git)
+        EOO
+    }
+
+    : ignored
+    :
+    {
+      $clone_cfg;
+
+      $* --shallow 2>>"EOE";
+        fetching dir:($rep/libbar.git)
+        fetching dir:($rep/style-basic.git) \(prerequisite of dir:($rep/libbar.git)\)
+        3 package\(s\) in 2 repository\(s\)
+        EOE
+
+      $rep_list >>"EOO"
+        dir:($rep/libbar.git) ($rep/libbar.git)
+          prerequisite dir:($rep/style-basic.git) ($rep/style-basic.git)
+        EOO
+    }
   }
 }
 
