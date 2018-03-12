@@ -142,6 +142,12 @@ namespace bpkg
        anything."
     }
 
+    bool --keep-out
+    {
+      "Keep output directories of external packages between upgrades and
+       downgrades. Refer to \l{bpkg-pkg-disfigure(1)} for details."
+    }
+
     bool --fetch-shallow
     {
       "Do not re-fetch complement and prerequisite repositories. Refer to

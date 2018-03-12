@@ -354,7 +354,10 @@ namespace bpkg
       // leave the configuration in a valid state.
       //
       transaction t (db.begin ());
-      pkg_disfigure (c, o, t, p); // Commits the transaction.
+
+      // Commits the transaction.
+      //
+      pkg_disfigure (c, o, t, p, true /* clean */);
 
       assert (p->state == package_state::unpacked ||
               p->state == package_state::transient);

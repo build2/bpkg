@@ -50,9 +50,7 @@ namespace bpkg
      example, during development). To support this, \cb{bpkg} implements the
      \i{package iteration} mechanism which may result in iteration numbers to
      be shown as part of the package version, for example, \cb{1.2.3#1} (see
-     \l{bpkg#package-version Package Version}). Finally, it is possible to
-     replace one external package version with another while preserving its
-     output directory by specifying the \cb{--keep-out} option."
+     \l{bpkg#package-version Package Version})."
   }
 
   class pkg_unpack_options: configuration_options

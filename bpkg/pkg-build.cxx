@@ -175,6 +175,11 @@ namespace bpkg
       ? pkg_verify (options, a->absolute () ? *a : cd / *a, true)
       : pkg_verify (d->absolute () ? *d : cd / *d, true));
 
+    // Copy the possibly fixed up version from the selected package.
+    //
+    if (sp->external ())
+      m.version = sp->version;
+
     return make_pair (make_shared<available_package> (move (m)), move (ar));
   }
 
@@ -242,6 +247,12 @@ namespace bpkg
     // merging code.
     //
     bool system;
+
+    // If the flag is set and the external package is being replaced with an
+    // external one, then keep its output directory between upgrades and
+    // downgrades.
+    //
+    bool keep_out;
 
     const version&
     available_version () const
@@ -437,6 +448,11 @@ namespace bpkg
         if (!p1->hold_version ||
             (p2->hold_version && *p2->hold_version > *p1->hold_version))
           p1->hold_version = p2->hold_version;
+
+        // Save the 'keep output directory' flag if specified by the user.
+        //
+        if (p2->user_selection () && p2->keep_out)
+          p1->keep_out = true;
 
         // Note that we don't copy the build_package::system flag. If it was
         // set from the command line ("strong system") then we will also have
@@ -673,6 +689,7 @@ namespace bpkg
           nullopt,      // Hold version.
           {},           // Constraints.
           system,       // System.
+          false,        // Keep output directory.
           {name},       // Required by.
           false};       // Reconfigure.
 
@@ -1029,6 +1046,7 @@ namespace bpkg
                 nullopt,        // Hold version.
                 {},             // Constraints.
                 system,
+                false,          // Keep output directory.
                 {n},            // Required by.
                 true}           // Reconfigure.
             }).first;
@@ -1435,6 +1453,14 @@ namespace bpkg
 
                 package_manifest m (pkg_verify (d, true, diag));
 
+                // Fix-up the package version to properly decide if we need to
+                // upgrade/downgrade the package.
+                //
+                optional<version> pv (package_version (o, d));
+
+                if (pv)
+                  m.version = move (*pv);
+
                 // This is a package directory (note that we shouldn't throw
                 // failed from here on).
                 //
@@ -1638,18 +1664,27 @@ namespace bpkg
         if (v.empty () && sys)
           v = wildcard_version;
 
+        // We will keep the output directory only if the external package is
+        // replaced with an external one. Note, however, that at this stage
+        // the available package is not settled down yet, as we still need to
+        // satisfy all the constraints. Thus the available package check is
+        // postponed until the package disfiguring.
+        //
+        bool keep_out (o.keep_out () && sp->external ());
+
         // Finally add this package to the list.
         //
         build_package p {
           move (sp),
           move (ap),
           move (ar),
-          true,        // Hold package.
-          !v.empty (), // Hold version.
-          {},          // Constraints.
+          true,          // Hold package.
+          !v.empty (),   // Hold version.
+          {},            // Constraints.
           sys,
-          {""},        // Required by (command line).
-          false};      // Reconfigure.
+          keep_out,
+          {""},          // Required by (command line).
+          false};        // Reconfigure.
 
         l4 ([&]{trace << "collect " << p.available_name ();});
 
@@ -1890,7 +1925,37 @@ namespace bpkg
         }
       }
 
-      pkg_disfigure (c, o, t, sp); // Commits the transaction.
+      // Reset the flag if the package being unpacked is not an external one.
+      //
+      if (p.keep_out)
+      {
+        const shared_ptr<available_package>& ap (p.available);
+        const package_location& pl (ap->locations[0]);
+
+        if (pl.repository.object_id () == "") // Special root.
+          p.keep_out = !exists (pl.location); // Directory case.
+        else
+        {
+          p.keep_out = false;
+
+          // See if the package comes from the directory-based repository, and
+          // so is external.
+          //
+          // Note that such repositories are always preferred over others (see
+          // below).
+          //
+          for (const package_location& l: ap->locations)
+          {
+            if (l.repository.load ()->location.directory_based ())
+            {
+              p.keep_out = true;
+              break;
+            }
+          }
+        }
+      }
+
+      pkg_disfigure (c, o, t, sp, !p.keep_out); // Commits the transaction.
       assert (sp->state == package_state::unpacked ||
               sp->state == package_state::transient);
 
@@ -2092,6 +2157,9 @@ namespace bpkg
           {
             transaction t (db.begin ());
             sp = pkg_unpack (o, c, t, ap->id.name); // Commits the transaction.
+
+            if (verb)
+              text << "unpacked " << *sp;
           }
           else
           {
@@ -2105,12 +2173,12 @@ namespace bpkg
                              path_cast<dir_path> (pl.location),
                              true,   // Replace.
                              false); // Don't purge; commits the transaction.
+
+            if (verb)
+              text << "using " << *sp << " (external)";
           }
 
           assert (sp->state == package_state::unpacked);
-
-          if (verb)
-            text << "unpacked " << *sp;
         }
 
         break; // Get out from the breakout loop.

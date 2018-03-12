@@ -22,11 +22,20 @@ namespace bpkg
      The \cb{pkg-disfigure} command disfigures the previously configured
      (via \l{bpkg-pkg-build(1)} or \l{bpkg-pkg-configure(1)}) package. A
      source code package is returned to the \cb{unpacked} state. A system
-     package is removed from the configuration."
+     package is removed from the configuration.
+
+     By default \cb{pkg-disfigure} will also clean the package's output
+     directory. This behavior can be suppressed with the \cb{--keep-out}
+     option, for example, if the package is to be reconfigured."
   }
 
   class pkg_disfigure_options: configuration_options
   {
     "\h|PKG-DISFIGURE OPTIONS|"
+
+    bool --keep-out
+    {
+      "Don't clean the package's output directory."
+    }
   };
 }

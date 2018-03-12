@@ -175,7 +175,9 @@ namespace bpkg
       p->out_root = out_root.leaf ();
       p->state = package_state::broken;
 
-      pkg_disfigure (c, o, t, p); // Commits the transaction.
+      // Commits the transaction.
+      //
+      pkg_disfigure (c, o, t, p, true /* clean */);
       throw;
     }
 

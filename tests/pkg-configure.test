@@ -188,14 +188,9 @@ $* libhello libhello 2>>EOE != 0
   $* libhello 2>'configured libhello/1.0.0';
   touch cfg/libhello/stray &!cfg/libhello/stray;
 
-  $pkg_disfigure libhello 2>>/EOE != 0;
-    warning: directory cfg/libhello/ is not empty, not removing
-    error: package output directory cfg/libhello/ still exists
-    info: package libhello is now broken; use 'pkg-purge' to remove
-    EOE
+  $pkg_disfigure libhello 2>'disfigured libhello/1.0.0';
 
-  $pkg_status libhello/1.0.0 >'broken';
-  rm -r cfg/libhello;
+  $pkg_status libhello/1.0.0 >'unpacked';
 
   $pkg_purge -f libhello       2>'purged libhello/1.0.0';
   $pkg_status   libhello/1.0.0 1>'unknown'
@@ -255,7 +250,7 @@ if ($cxx.target.class != 'windows')
 
     $* libhello 2>>/~%EOE% != 0;
       %error: unable to create directory cfg/libhello/build/.+%
-      %error: unable to remove directory cfg/libhello/build/.+%
+      %error: unable to remove directory cfg/libhello/.+%
       info: package libhello is now broken; use 'pkg-purge' to remove
       EOE
 

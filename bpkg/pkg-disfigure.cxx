@@ -18,7 +18,8 @@ namespace bpkg
   pkg_disfigure (const dir_path& c,
                  const common_options& o,
                  transaction& t,
-                 const shared_ptr<selected_package>& p)
+                 const shared_ptr<selected_package>& p,
+                 bool clean)
   {
     assert (p->state == package_state::configured ||
             p->state == package_state::broken);
@@ -91,7 +92,10 @@ namespace bpkg
 
     if (p->state == package_state::configured)
     {
-      bspec = "clean('" + rep + "') " "disfigure('" + rep + "')";
+      if (clean)
+        bspec = "clean('" + rep + "') ";
+
+      bspec += "disfigure('" + rep + "')";
     }
     else
     {
@@ -113,11 +117,23 @@ namespace bpkg
     try
     {
       if (exists (out_root))
-        run_b (o, c, bspec, true); // Run quiet.
+      {
+        // Note that for external packages this is just the output directory.
+        // It is also possible that the buildfiles in the source directory
+        // have changed in a way that they don't clean everything. So in this
+        // case we just remove the output directory manually rather then
+        // running 'b clean disfigure'.
+        //
+        if (clean && p->external ())
+          rm_r (out_root);
+        else
+          run_b (o, c, bspec, true); // Run quiet.
+      }
 
-      // Make sure the out directory is gone unless it is the same as src.
+      // Make sure the out directory is gone unless it is the same as src, or
+      // we didn't clean it.
       //
-      if (out_root != src_root && exists (out_root))
+      if (out_root != src_root && clean && exists (out_root))
         fail << "package output directory " << out_root << " still exists";
     }
     catch (const failed&)
@@ -167,7 +183,7 @@ namespace bpkg
       fail << "package " << n << " is " << p->state <<
         info << "expected it to be configured";
 
-    pkg_disfigure (c, o, t, p); // Commits the transaction.
+    pkg_disfigure (c, o, t, p, !o.keep_out ()); // Commits the transaction.
 
     assert (p->state == package_state::unpacked ||
             p->state == package_state::transient);

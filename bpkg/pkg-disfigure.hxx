@@ -26,7 +26,8 @@ namespace bpkg
   pkg_disfigure (const dir_path& configuration,
                  const common_options&,
                  transaction&,
-                 const shared_ptr<selected_package>&);
+                 const shared_ptr<selected_package>&,
+                 bool clean);
 }
 
 #endif // BPKG_PKG_DISFIGURE_HXX

@@ -26,12 +26,12 @@
 # |   `-- repositories.manifest
 # |
 # |-- t2
-# |   |-- libbar-1.0.0.tar.gz -> libfoo
+# |   |-- libbar-1.0.0.tar.gz   -> libfoo
 # |   |-- libfoo-1.0.0.tar.gz
 # |   `-- repositories.manifest
 # |
-# |-- t3                      -> t2 (prerequisite)
-# |   |-- libbaz-1.0.0.tar.gz -> libbar
+# |-- t3                        -> t2 (prerequisite)
+# |   |-- libbaz-1.0.0.tar.gz   -> libbar
 # |   |-- libfox-1.0.0.tar.gz
 # |   `-- repositories.manifest
 # |
@@ -39,17 +39,17 @@
 # |   |-- libfoo-1.1.0.tar.gz
 # |   `-- repositories.manifest
 # |
-# |-- t4b                     -> t4a (prerequisite)
-# |   |-- libbar-1.1.0.tar.gz -> libfoo == 1.1.0
+# |-- t4b                       -> t4a (prerequisite)
+# |   |-- libbar-1.1.0.tar.gz   -> libfoo == 1.1.0
 # |   `-- repositories.manifest
 # |
-# |-- t4c                     -> t4b (prerequisite)
-# |   |-- libbaz-1.1.0.tar.gz -> libfoo, libbar
+# |-- t4c                       -> t4b (prerequisite)
+# |   |-- libbaz-1.1.0.tar.gz   -> libfoo, libbar
 # |   |-- libfoo-1.0.0.tar.gz
 # |   `-- repositories.manifest
 # |
-# |-- t4d                     -> t4c (complement)
-# |   |-- libbiz-1.0.0.tar.gz -> libfox, libfoo, libbaz
+# |-- t4d                       -> t4c (complement)
+# |   |-- libbiz-1.0.0.tar.gz   -> libfox, libfoo, libbaz
 # |   |-- libfox-1.0.0.tar.gz
 # |   `-- repositories.manifest
 # |
@@ -58,9 +58,33 @@
 # |   `-- repositories.manifest
 # |
 # `-- git
-#     |-- libbar.git          -> style-basic.git (prerequisite)
-#     |-- libbaz.git
-#     `-- style-basic.git
+# |   |-- libbar.git            -> style-basic.git (prerequisite)
+# |   |-- libbaz.git
+# |   `-- style-basic.git
+# |
+# `-- libhello-1.0.0
+#     |-- build
+#     |   |-- bootstrap.build
+#     |   |-- export.build
+#     |   `-- root.build
+#     |-- buildfile
+#     |-- hello
+#     |   |-- buildfile
+#     |   |-- export
+#     |   |-- hello
+#     |   `-- hello.cxx
+#     |-- INSTALL
+#     |-- manifest
+#     |-- tests
+#     |   |-- build
+#     |   |   |-- bootstrap.build
+#     |   |   `-- root.build
+#     |   |-- buildfile
+#     |   `-- test
+#     |       |-- buildfile
+#     |       |-- driver.cxx
+#     |       `-- test.out
+#     `-- version
 
 # Prepare repositories used by tests if running in the local mode.
 #
@@ -779,7 +803,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
 
       $* $src/libfoo-1.1.0/ 2>>~%EOE%;
         disfigured libfoo/1.0.0
-        unpacked libfoo/1.1.0
+        using libfoo/1.1.0 (external)
         configured libfoo/1.1.0
         %info: .+dir\{libfoo-1.1.0.\} is up to date%
         updated libfoo/1.1.0
@@ -1074,14 +1098,14 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       %.*fetched libfoo/1.1.0%
       unpacked libfoo/1.1.0
       configured libfoo/1.1.0
-      unpacked libbar/1.1.0
+      using libbar/1.1.0 (external)
       configured libbar/1.1.0
       %info: .+dir\{libbar.\} is up to date%
       updated libbar/1.1.0
       EOE
 
     $* ./libbaz/ 2>>~%EOE%;
-      unpacked libbaz/1.1.0
+      using libbaz/1.1.0 (external)
       configured libbaz/1.1.0
       %info: .+dir\{libbaz.\} is up to date%
       updated libbaz/1.1.0
@@ -1496,6 +1520,186 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
   }
 }
 
+: keep-out
+:
+{
+  +$cfg_create cxx "config.cxx=$config.cxx" -d cfg 2>- &cfg/***
+
+  # Build libhello as an external package.
+  #
+  +cp -r $src/libhello-1.0.0 ./libhello
+  +$rep_add libhello --type dir
+  +$rep_fetch
+  +$* libhello 2>!
+
+  # Move libhello version ahead.
+  #
+  +sed -i -e 's/(version: 1.0).0/\1.1/' libhello/manifest
+  +$rep_fetch
+
+  test.arguments += --yes # Is a command-specific option.
+
+  : unspecified
+  :
+  : Test that libhello is fully rebuilt.
+  :
+  {
+    $clone_cfg;
+    $rep_fetch;
+
+    $* libhello 2>>~%EOE%
+      disfigured libhello/1.0.0
+      using libhello/1.0.1 (external)
+      configured libhello/1.0.1
+      %mkdir .+%+
+      %c\+\+ .+%+
+      %ld .+%+
+      updated libhello/1.0.1
+      EOE
+  }
+
+  : specified
+  :
+  {
+    test.arguments += --keep-out
+
+    +$clone_cfg
+
+    : dir-repo
+    :
+    : Test that libhello is built incrementally. May re-link due to the
+    : configuration copying.
+    :
+    {
+      $clone_cfg;
+
+      $* libhello 2>>~%EOE%;
+        disfigured libhello/1.0.0
+        using libhello/1.0.1 (external)
+        configured libhello/1.0.1
+        %ld .+%*
+        updated libhello/1.0.1
+        EOE
+
+      test -d cfg/libhello/;
+      test -d cfg/libhello-1.0.1/ == 1
+    }
+
+    : directory
+    :
+    : Test that libhello is built incrementally. May re-link due to the
+    : configuration copying.
+    :
+    {
+      +$clone_cfg
+
+      : arg
+      :
+      {
+        $clone_cfg;
+
+        $* ../../../libhello/ 2>>~%EOE%;
+          disfigured libhello/1.0.0
+          using libhello/1.0.1 (external)
+          configured libhello/1.0.1
+          %ld .+%*
+          updated libhello/1.0.1
+          EOE
+
+        test -d cfg/libhello/;
+        test -d cfg/libhello-1.0.1/ == 1
+      }
+
+      : unpacked
+      :
+      {
+        $clone_cfg;
+        $pkg_disfigure libhello --keep-out 2>!;
+        $pkg_unpack -r -e ../../../libhello;
+
+        $* libhello 2>>~%EOE%;
+          configured libhello/1.0.1
+          %ld .+%*
+          updated libhello/1.0.1
+          EOE
+
+        test -d cfg/libhello/;
+        test -d cfg/libhello-1.0.1/ == 1
+      }
+    }
+
+    : archive
+    :
+    : Test that libhello is fully rebuilt, as the resulted package is not
+    : external.
+    :
+    : @@ On Windows the dist operation fails as tar can not find gzip for some
+    :    reason. We will disable the test for Windows until the issue is fixed.
+    :
+    if ($cxx.target.class != 'windows')
+    {
+      clone_cfg = cp --no-cleanup -r ../../cfg ./
+
+      +$build 'dist(../../libhello/@./out/)' \
+              "config.cxx=$config.cxx" config.dist.root=./ \
+              config.dist.archives=tar.gz 2>! \
+              &out/*** &libhello-1.0.1/*** &libhello-1.0.1.tar.gz
+
+      : arg
+      :
+      {
+        $clone_cfg;
+
+        $* ../libhello-1.0.1.tar.gz 2>>~%EOE%;
+          disfigured libhello/1.0.0
+          fetched libhello/1.0.1
+          unpacked libhello/1.0.1
+          configured libhello/1.0.1
+          %c\+\+ .+%+
+          %ld .+%+
+          updated libhello/1.0.1
+          EOE
+
+        test -d cfg/libhello-1.0.1/;
+        test -d cfg/libhello/ == 1;
+
+        $pkg_disfigure libhello 2>'disfigured libhello/1.0.1';
+        $pkg_purge     libhello 2>'purged libhello/1.0.1';
+
+	rm -r cfg/
+      }
+
+      : unpacked
+      :
+      {
+        $clone_cfg;
+
+        $pkg_disfigure libhello 2>!;
+        $pkg_fetch -r -e ../libhello-1.0.1.tar.gz;
+        $pkg_unpack libhello;
+
+        $* libhello 2>>~%EOE%;
+          configured libhello/1.0.1
+          %c\+\+ .+%+
+          %ld .+%+
+          updated libhello/1.0.1
+          EOE
+
+        test -d cfg/libhello-1.0.1/;
+        test -d cfg/libhello/ == 1;
+
+        $pkg_disfigure libhello 2>'disfigured libhello/1.0.1';
+        $pkg_purge     libhello 2>'purged libhello/1.0.1';
+
+	rm -r cfg/
+      }
+    }
+  }
+
+  -$pkg_disfigure libhello 2>'disfigured libhello/1.0.0'
+  -$pkg_purge     libhello 2>'purged libhello/1.0.0'
+}
+
 : git-rep
 :
 if ($git_supported != true)
@@ -1518,27 +1722,29 @@ else
   : Prerequisite package of the dependent being built is in the prerequisite
   : repository.
   :
-  $clone_root_cfg;
-  $rep_add "$rep0/libbar.git#master";
-  $rep_add "$rep0/style-basic.git#master";
-  $rep_fetch &cfg/.bpkg/repos/*/***;
+  {
+    $clone_root_cfg;
+    $rep_add "$rep0/libbar.git#master";
+    $rep_add "$rep0/style-basic.git#master";
+    $rep_fetch &cfg/.bpkg/repos/*/***;
 
-  $* libmbar 2>>~%EOE%;
-  %dist style-basic-.+%
-  %checked out style-basic/.+%
-  %configured style-basic/.+%
-  dist libmbar-1.0.0
-  checked out libmbar/1.0.0
-  configured libmbar/1.0.0
-  %info: .+dir\{libmbar-.+\} is up to date%
-  updated libmbar/1.0.0
-  EOE
+    $* libmbar 2>>~%EOE%;
+      %dist style-basic-.+%
+      %checked out style-basic/.+%
+      %configured style-basic/.+%
+      dist libmbar-1.0.0
+      checked out libmbar/1.0.0
+      configured libmbar/1.0.0
+      %info: .+dir\{libmbar-.+\} is up to date%
+      updated libmbar/1.0.0
+      EOE
 
-  $pkg_disfigure libmbar;
-  $pkg_disfigure style-basic;
+    $pkg_disfigure libmbar;
+    $pkg_disfigure style-basic;
 
-  $pkg_purge libmbar;
-  $pkg_purge style-basic
+    $pkg_purge libmbar;
+    $pkg_purge style-basic
+  }
 
   : no-prerequisite-repos
   :
@@ -1546,25 +1752,53 @@ else
   : dependency is picked up via the root repository that complements its
   : repository (see rep_fetch() function implementation for details).
   :
-  $clone_root_cfg;
-  $rep_add "$rep1/libbaz.git#master";
-  $rep_add "$rep0/style-basic.git#master";
-  $rep_fetch &cfg/.bpkg/repos/*/***;
+  {
+    $clone_root_cfg;
+    $rep_add "$rep1/libbaz.git#master";
+    $rep_add "$rep0/style-basic.git#master";
+    $rep_fetch &cfg/.bpkg/repos/*/***;
 
-  $* libbaz 2>>~%EOE%;
-  %dist style-basic-.+%
-  %checked out style-basic/.+%
-  %configured style-basic/.+%
-  dist libbaz-1.0.0
-  checked out libbaz/1.0.0
-  configured libbaz/1.0.0
-  %info: .+dir\{libbaz-.+\} is up to date%
-  updated libbaz/1.0.0
-  EOE
+    $* libbaz 2>>~%EOE%;
+      %dist style-basic-.+%
+      %checked out style-basic/.+%
+      %configured style-basic/.+%
+      dist libbaz-1.0.0
+      checked out libbaz/1.0.0
+      configured libbaz/1.0.0
+      %info: .+dir\{libbaz-.+\} is up to date%
+      updated libbaz/1.0.0
+      EOE
 
-  $pkg_disfigure libbaz;
-  $pkg_disfigure style-basic;
+    $pkg_disfigure libbaz;
+    $pkg_disfigure style-basic;
 
-  $pkg_purge libbaz;
-  $pkg_purge style-basic
+    $pkg_purge libbaz;
+    $pkg_purge style-basic
+  }
+
+  : build-unpacked
+  :
+  : Test that the unpacked external package is properly built for the first
+  : time and is not rebuilt afterwards via the directory argument.
+  :
+  if ($remote != true)
+  {
+    $clone_root_cfg;
+
+    d = $canonicalize([dir_path] $out_git/state0/style-basic.git);
+    $pkg_unpack -e $d;
+
+    $* style-basic 2>>~%EOE%;
+      %configured style-basic/1\.1\.0-a\.0\.\d+\..+%
+      %info: .+style-basic.+ is up to date%
+      %updated style-basic/1\.1\.0-a\.0\.\d+\..+%
+      EOE
+
+    $* $d 2>>~%EOE%;
+      %info: .+style-basic.+ is up to date%
+      %updated style-basic/1\.1\.0-a\.0\.\d+\..+%
+      EOE
+
+    $pkg_disfigure style-basic
+  }
 }
