@@ -8,12 +8,14 @@
 #include <algorithm> // find_if()
 
 #include <bpkg/database.hxx>
+#include <bpkg/checksum.hxx>
+#include <bpkg/manifest-utility.hxx>
 
 using namespace std;
 
 namespace bpkg
 {
-  const version wildcard_version (0, "0", nullopt, 0);
+  const version wildcard_version (0, "0", nullopt, 0, 0);
 
   // available_package_id
   //
@@ -156,6 +158,79 @@ namespace bpkg
   {
     os << (p.system () ? "sys:" : "") << p.name << "/" << p.version_string ();
     return os;
+  }
+
+  optional<version>
+  package_iteration (const common_options& o,
+                     const dir_path& c,
+                     transaction& t,
+                     const dir_path& d,
+                     const string& n,
+                     const version& v,
+                     bool check_external)
+  {
+    tracer trace ("package_iteration");
+
+    database& db (t.database ());
+    tracer_guard tg (db, trace);
+
+    if (check_external)
+    {
+      using query = query<package_repository>;
+
+      query q (
+        query::package::id.name == n &&
+        compare_version_eq (query::package::id.version, v, true, false));
+
+      for (const auto& pr: db.query<package_repository> (q))
+      {
+        const shared_ptr<repository>& r (pr.repository);
+
+        if (r->location.directory_based ())
+          fail << "external package " << n << '/' << v
+               << " is already available from "
+               << r->location.canonical_name ();
+      }
+    }
+
+    shared_ptr<selected_package> p (db.find<selected_package> (n));
+
+    if (p == nullptr || !p->src_root ||
+        compare_version_ne (v, p->version, true, false))
+      return nullopt;
+
+    string mc (sha256 (o, d / manifest_file));
+
+    assert (p->manifest_checksum);
+
+    bool changed (mc != *p->manifest_checksum);
+
+    // If the manifest didn't changed but the selected package points to an
+    // external source directory, then we also check if the directory have
+    // moved.
+    //
+    if (!changed && p->external ())
+    {
+      dir_path src_root (p->src_root->absolute ()
+                         ? *p->src_root
+                         : c / *p->src_root);
+
+      // We need to complete and normalize the source directory as it may
+      // generally be completed against the configuration directory (unlikely
+      // but possible), that can be relative and/or not normalized.
+      //
+      src_root.complete ().normalize ();
+
+      changed = src_root != dir_path (d).complete ().normalize ();
+    }
+
+    return !changed
+      ? p->version
+      : version (v.epoch,
+                 v.upstream,
+                 v.release,
+                 v.revision,
+                 p->version.iteration + 1);
   }
 
   // state

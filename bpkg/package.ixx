@@ -9,7 +9,11 @@ namespace bpkg
   inline available_package_id::
   available_package_id (string n, const bpkg::version& v)
       : name (move (n)),
-        version {v.epoch, v.canonical_upstream, v.canonical_release, v.revision}
+        version {v.epoch,
+                 v.canonical_upstream,
+                 v.canonical_release,
+                 v.revision,
+                 v.iteration}
   {
   }
 }

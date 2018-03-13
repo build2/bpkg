@@ -37,19 +37,30 @@ namespace bpkg
         if (exists (d)) // Don't complain if someone did our job for us.
           rm_r (d);
 
-        p->src_root = nullopt;
         p->purge_src = false;
       }
 
-      if (p->purge_archive && archive)
+      // Let's forget about the possibly non-purged source directory, as the
+      // selected package may now be reused for unrelated package version.
+      //
+      p->src_root = nullopt;
+      p->manifest_checksum = nullopt;
+
+      if (archive)
       {
-        path a (p->archive->absolute () ? *p->archive : c / *p->archive);
+        if (p->purge_archive)
+        {
+          path a (p->archive->absolute () ? *p->archive : c / *p->archive);
 
-        if (exists (a))
-          rm (a);
+          if (exists (a))
+            rm (a);
 
+          p->purge_archive = false;
+        }
+
+        // Let's forget about the possibly non-purged archive (see above).
+        //
         p->archive = nullopt;
-        p->purge_archive = false;
       }
     }
     catch (const failed&)

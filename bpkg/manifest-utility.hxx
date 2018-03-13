@@ -15,6 +15,7 @@ namespace bpkg
   extern const path repositories_file; // repositories.manifest
   extern const path packages_file;     // packages.manifest
   extern const path signature_file;    // signature.manifest
+  extern const path manifest_file;     // manifest
 
   // Package naming schemes.
   //

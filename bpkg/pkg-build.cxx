@@ -85,7 +85,11 @@ namespace bpkg
       // subsequent revision of a package version are just as (un)satisfactory
       // as the first one.
       //
-      query qs (compare_version_eq (vm, wildcard_version, false));
+      // Also note that we always compare ignoring the iteration, as it can
+      // not be specified in the manifest/command line. This way the latest
+      // iteration will always be picked up.
+      //
+      query qs (compare_version_eq (vm, wildcard_version, false, false));
 
       if (c->min_version &&
           c->max_version &&
@@ -93,7 +97,7 @@ namespace bpkg
       {
         const version& v (*c->min_version);
 
-        q = q && (compare_version_eq (vm, v, v.revision != 0) || qs);
+        q = q && (compare_version_eq (vm, v, v.revision != 0, false) || qs);
       }
       else
       {
@@ -104,9 +108,9 @@ namespace bpkg
           const version& v (*c->min_version);
 
           if (c->min_open)
-            qr = compare_version_gt (vm, v, v.revision != 0);
+            qr = compare_version_gt (vm, v, v.revision != 0, false);
           else
-            qr = compare_version_ge (vm, v, v.revision != 0);
+            qr = compare_version_ge (vm, v, v.revision != 0, false);
         }
 
         if (c->max_version)
@@ -114,9 +118,9 @@ namespace bpkg
           const version& v (*c->max_version);
 
           if (c->max_open)
-            qr = qr && compare_version_lt (vm, v, v.revision != 0);
+            qr = qr && compare_version_lt (vm, v, v.revision != 0, false);
           else
-            qr = qr && compare_version_le (vm, v, v.revision != 0);
+            qr = qr && compare_version_le (vm, v, v.revision != 0, false);
         }
 
         q = q && (qr || qs);
@@ -177,8 +181,7 @@ namespace bpkg
 
     // Copy the possibly fixed up version from the selected package.
     //
-    if (sp->external ())
-      m.version = sp->version;
+    m.version = sp->version;
 
     return make_pair (make_shared<available_package> (move (m)), move (ar));
   }
@@ -1463,19 +1466,22 @@ namespace bpkg
 
                 package_manifest m (pkg_verify (d, true, diag));
 
-                // Fix-up the package version to properly decide if we need to
-                // upgrade/downgrade the package.
-                //
-                optional<version> pv (package_version (o, d));
-
-                if (pv)
-                  m.version = move (*pv);
-
-                // This is a package directory (note that we shouldn't throw
-                // failed from here on).
+                // This is a package directory.
                 //
                 l4 ([&]{trace << "directory " << d;});
                 n = m.name;
+
+                // Fix-up the package version to properly decide if we need to
+                // upgrade/downgrade the package. Note that throwing failed
+                // from here on will be fatal.
+                //
+                if (optional<version> v = package_version (o, d))
+                  m.version = move (*v);
+
+                if (optional<version> v = package_iteration (
+                      o, c, t, d, n, m.version, true /* check_external */))
+                  m.version = move (*v);
+
                 v = m.version;
                 ap = make_shared<available_package> (move (m));
                 ar = root;
@@ -1491,7 +1497,12 @@ namespace bpkg
             }
             catch (const failed&)
             {
-              // Not a valid package directory.
+              // If the package name is detected then this is a valid package
+              // directory, but something went wrong afterwards, and we are
+              // done in this case.
+              //
+              if (!n.empty ())
+                throw;
             }
           }
         }
@@ -2094,7 +2105,8 @@ namespace bpkg
               }
             case repository_basis::directory:
               {
-                sp = pkg_unpack (c,
+                sp = pkg_unpack (o,
+                                 c,
                                  t,
                                  ap->id.name,
                                  p.available_version (),

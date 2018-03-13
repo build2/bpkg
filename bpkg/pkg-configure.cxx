@@ -209,6 +209,7 @@ namespace bpkg
         false,                     // No auto-purge (does not get there).
         nullopt,                   // No source directory.
         false,
+        nullopt,                   // No manifest checksum.
         nullopt,                   // No output directory.
         {}});                      // No prerequisites.
 

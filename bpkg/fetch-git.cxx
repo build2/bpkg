@@ -1056,8 +1056,8 @@ namespace bpkg
           if (verb)
             info << "re-cloning " << rl.canonical_name ()
                  << " due to location change" <<
-              info << "new location " << rl.url () <<
-              info << "old location " << u;
+              info << "new location " << rl <<
+              info << "old location " << l;
 
           rm_r (d);
           return git_clone (co, rl, destdir);

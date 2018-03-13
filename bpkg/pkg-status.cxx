@@ -65,7 +65,8 @@ namespace bpkg
           if (!p.version.empty ())
             q = q && compare_version_eq (query::id.version,
                                          p.version,
-                                         p.version.revision != 0);
+                                         p.version.revision != 0,
+                                         false);
 
           // And if we found an existing package, then only look for versions
           // greater than what already exists. Note that for a system wildcard
@@ -233,7 +234,8 @@ namespace bpkg
             if (!p.version.empty ())
               q = q && compare_version_eq (query::version,
                                            p.version,
-                                           p.version.revision != 0);
+                                           p.version.revision != 0,
+                                           false);
 
             p.selected = db.query_one<selected_package> (q);
           }

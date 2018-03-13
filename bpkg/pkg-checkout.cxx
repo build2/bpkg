@@ -9,6 +9,7 @@
 #include <bpkg/package.hxx>
 #include <bpkg/package-odb.hxx>
 #include <bpkg/database.hxx>
+#include <bpkg/checksum.hxx>
 #include <bpkg/diagnostics.hxx>
 #include <bpkg/manifest-utility.hxx>
 
@@ -162,6 +163,8 @@ namespace bpkg
            false /* quiet */,
            strings ({"config.dist.root=" + c.representation ()}));
 
+    string mc (sha256 (o, d / manifest_file));
+
     if (p != nullptr)
     {
       // Clean up the source directory and archive of the package we are
@@ -175,6 +178,7 @@ namespace bpkg
       p->repository = rl;
       p->src_root = d.leaf ();
       p->purge_src = true;
+      p->manifest_checksum = move (mc);
 
       db.update (p);
     }
@@ -194,6 +198,7 @@ namespace bpkg
         false,
         d.leaf (), // Source root.
         true,      // Purge directory.
+        move (mc),
         nullopt,   // No output directory yet.
         {}});      // No prerequisites captured yet.
 

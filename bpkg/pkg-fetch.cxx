@@ -79,6 +79,7 @@ namespace bpkg
         purge,
         nullopt, // No source directory yet.
         false,
+        nullopt, // No manifest checksum.
         nullopt, // No output directory yet.
         {}});    // No prerequisites captured yet.
 

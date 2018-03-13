@@ -15,6 +15,7 @@
 #include <bpkg/package.hxx>
 #include <bpkg/package-odb.hxx>
 #include <bpkg/database.hxx>
+#include <bpkg/checksum.hxx>
 #include <bpkg/diagnostics.hxx>
 #include <bpkg/manifest-utility.hxx>
 
@@ -60,8 +61,11 @@ namespace bpkg
     }
   }
 
+  // Select the external package in this configuration.
+  //
   static shared_ptr<selected_package>
-  pkg_unpack (dir_path c,
+  pkg_unpack (const common_options& o,
+              dir_path c,
               transaction& t,
               string n,
               version v,
@@ -73,6 +77,8 @@ namespace bpkg
 
     database& db (t.database ());
     tracer_guard tg (db, trace);
+
+    string mc (sha256 (o, d / manifest_file));
 
     // Make the package and configuration paths absolute and normalized.
     // If the package is inside the configuration, use the relative path.
@@ -99,6 +105,7 @@ namespace bpkg
       p->repository = move (rl);
       p->src_root = move (d);
       p->purge_src = purge;
+      p->manifest_checksum = move (mc);
 
       db.update (p);
     }
@@ -116,11 +123,14 @@ namespace bpkg
         false,      // Don't purge archive.
         move (d),
         purge,
+        move (mc),
         nullopt,    // No output directory yet.
         {}});       // No prerequisites captured yet.
 
       db.persist (p);
     }
+
+    assert (p->external ());
 
     t.commit ();
     return p;
@@ -150,15 +160,18 @@ namespace bpkg
 
     // Fix-up the package version.
     //
-    optional<version> v (package_version (o, d));
+    if (optional<version> v = package_version (o, d))
+      m.version = move (*v);
 
-    if (v)
+    if (optional<version> v = package_iteration (
+          o, c, t, d, m.name, m.version, true /* check_external */))
       m.version = move (*v);
 
     // Use the special root repository as the repository of this
     // package.
     //
-    return pkg_unpack (c,
+    return pkg_unpack (o,
+                       c,
                        t,
                        move (m.name),
                        move (m.version),
@@ -168,7 +181,8 @@ namespace bpkg
   }
 
   shared_ptr<selected_package>
-  pkg_unpack (const dir_path& c,
+  pkg_unpack (const common_options& o,
+              const dir_path& c,
               transaction& t,
               string n,
               version v,
@@ -224,7 +238,8 @@ namespace bpkg
 
     const repository_location& rl (pl->repository->location);
 
-    return pkg_unpack (c,
+    return pkg_unpack (o,
+                       c,
                        t,
                        move (n),
                        move (v),
@@ -386,6 +401,8 @@ namespace bpkg
     p->src_root = d.leaf (); // For now assuming to be in configuration.
     p->purge_src = true;
 
+    p->manifest_checksum = sha256 (co, d / manifest_file);
+
     p->state = package_state::unpacked;
 
     db.update (p);
@@ -444,7 +461,7 @@ namespace bpkg
       //
       p = v.empty ()
         ? pkg_unpack (o, c, t, n)
-        : pkg_unpack (c, t, move (n), move (v), o.replace ());
+        : pkg_unpack (o, c, t, move (n), move (v), o.replace ());
     }
 
     if (verb && !o.no_result ())

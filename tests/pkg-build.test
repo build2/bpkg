@@ -57,34 +57,17 @@
 # |   |-- libbar-1.2.0.tar.gz
 # |   `-- repositories.manifest
 # |
-# `-- git
-# |   |-- libbar.git            -> style-basic.git (prerequisite)
-# |   |-- libbaz.git
-# |   `-- style-basic.git
+# |-- libhello-1.0.0
+# |   |-- build
+# |   |   |-- bootstrap.build
+# |   |   |-- export.build
+# |   |   `-- root.build
+# |   `-- *
 # |
-# `-- libhello-1.0.0
-#     |-- build
-#     |   |-- bootstrap.build
-#     |   |-- export.build
-#     |   `-- root.build
-#     |-- buildfile
-#     |-- hello
-#     |   |-- buildfile
-#     |   |-- export
-#     |   |-- hello
-#     |   `-- hello.cxx
-#     |-- INSTALL
-#     |-- manifest
-#     |-- tests
-#     |   |-- build
-#     |   |   |-- bootstrap.build
-#     |   |   `-- root.build
-#     |   |-- buildfile
-#     |   `-- test
-#     |       |-- buildfile
-#     |       |-- driver.cxx
-#     |       `-- test.out
-#     `-- version
+# `-- git
+#     |-- libbar.git            -> style-basic.git (prerequisite)
+#     |-- libbaz.git
+#     `-- style-basic.git
 
 # Prepare repositories used by tests if running in the local mode.
 #
@@ -114,6 +97,7 @@ pkg_purge     += -d cfg
 pkg_status    += -d cfg
 pkg_unpack    += -d cfg 2>!
 rep_add       += -d cfg 2>!
+rep_remove    += -d cfg 2>!
 rep_fetch     += -d cfg --auth all --trust-yes 2>!
 
 : libfoo
@@ -805,7 +789,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
         disfigured libfoo/1.0.0
         using libfoo/1.1.0 (external)
         configured libfoo/1.1.0
-        %info: .+dir\{libfoo-1.1.0.\} is up to date%
+        %info: .+dir\{libfoo.\} is up to date%
         updated libfoo/1.1.0
         EOE
 
@@ -1565,6 +1549,9 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
 
     +$clone_cfg
 
+    # @@ Uncomment the following tests when -p option is supported for the cp
+    # builtin.
+    #\
     : dir-repo
     :
     : Test that libhello is built incrementally. May re-link due to the
@@ -1592,6 +1579,11 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
     :
     {
       +$clone_cfg
+
+      # To avoid 'external package is already available' failure for the
+      # nested tests.
+      #
+      +$rep_remove --all
 
       : arg
       :
@@ -1627,6 +1619,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
         test -d cfg/libhello-1.0.1/ == 1
       }
     }
+    #\
 
     : archive
     :
@@ -1698,6 +1691,58 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
 
   -$pkg_disfigure libhello 2>'disfigured libhello/1.0.0'
   -$pkg_purge     libhello 2>'purged libhello/1.0.0'
+}
+
+: iter
+:
+{
+  test.arguments += --yes # Is a command-specific option.
+
+  : already-available
+  :
+  {
+    $clone_root_cfg;
+    $rep_add $src/libfoo-1.1.0 --type dir && $rep_fetch;
+
+    $* $src/libfoo-1.1.0/ 2>>~%EOE% != 0
+      %error: external package libfoo/1.1.0 is already available from dir:.+libfoo-1.1.0%
+      EOE
+  }
+
+  : upgrade
+  :
+  {
+    $clone_root_cfg;
+
+    $* $src/libfoo-1.1.0/ 2>>~%EOE%;
+      using libfoo/1.1.0 (external)
+      configured libfoo/1.1.0
+      %info: .+dir\{libfoo.\} is up to date%
+      updated libfoo/1.1.0
+      EOE
+
+    cp -r $src/libfoo-1.1.0 libfoo;
+
+    $* libfoo/ 2>>~%EOE%;
+      disfigured libfoo/1.1.0
+      using libfoo/1.1.0#1 (external)
+      configured libfoo/1.1.0#1
+      %info: .+dir\{libfoo.\} is up to date%
+      updated libfoo/1.1.0#1
+      EOE
+
+    $rep_add $src/libfoo-1.1.0 --type dir && $rep_fetch;
+
+    $* libfoo 2>>~%EOE%;
+      disfigured libfoo/1.1.0#1
+      using libfoo/1.1.0#2 (external)
+      configured libfoo/1.1.0#2
+      %info: .+dir\{libfoo.\} is up to date%
+      updated libfoo/1.1.0#2
+      EOE
+
+    $pkg_disfigure libfoo 2>'disfigured libfoo/1.1.0#2'
+  }
 }
 
 : git-rep

@@ -32,6 +32,13 @@
 # |   |-- libhello-1.0.0.tar.gz
 # |   `-- repositories.manifest
 # |
+# |-- libhello-1.0.0
+# |   |-- build
+# |   |   |-- bootstrap.build
+# |   |   |-- export.build
+# |   |   `-- root.build
+# |   `-- *
+# |
 # |-- circle
 # |   |-- extra                     -> stable (prerequisite)
 # |   |   |-- libbar-1.1.0+1.tar.gz
@@ -102,9 +109,14 @@
   $git_extract $src/git/state1/style-basic.tar &$out_git/state1/***
 end
 
-rep_add    += -d cfg 2>!
-rep_list   += -d cfg --prerequisites --complements
-pkg_status += -d cfg
+rep_add      += -d cfg 2>!
+rep_list     += -d cfg --prerequisites --complements
+rep_remove   += -d cfg 2>!
+pkg_status   += -d cfg
+pkg_fetch    += -d cfg 2>!
+pkg_unpack   += -d cfg 2>!
+pkg_checkout += -d cfg 2>!
+pkg_purge    += -d cfg
 
 : no-repos
 :
@@ -400,6 +412,135 @@ if ($remote != true)
           prerequisite dir:($rep/style-basic.git) ($rep/style-basic.git)
         EOO
     }
+  }
+}
+
+: iter
+:
+{
+  rep_add += --type dir
+
+  : multiple-repos
+  :
+  {
+    cp -r $src/libhello-1.0.0 libhello1;
+    cp -r $src/libhello-1.0.0 libhello2;
+
+    $clone_root_cfg && $rep_add libhello1 libhello2;
+
+    $* 2>>~%EOE% != 0
+      %fetching dir:.+libhello1%
+      %fetching dir:.+libhello2%
+      error: external package libhello/1.0.0 is available from two repositories
+      %  info: repository .+libhello1%
+      %  info: repository .+libhello2%
+      EOE
+  }
+
+  : inc
+  :
+  {
+    : path-changed
+    :
+    {
+      $clone_root_cfg && $rep_add $src/libhello-1.0.0;
+
+      $* 2>!;
+      $pkg_unpack libhello/1.0.0;
+
+      $rep_remove --all;
+
+      cp -r $src/libhello-1.0.0 libhello;
+      $rep_add libhello;
+
+      $* 2>!;
+
+      $pkg_status libhello >'unpacked 1.0.0; available 1.0.0#1 sys:?'
+    }
+
+    : manifest-changed
+    :
+    {
+      cp -r $src/libhello-1.0.0 libhello;
+
+      $clone_root_cfg && $rep_add libhello;
+
+      $* 2>!;
+      $pkg_unpack libhello/1.0.0;
+
+      echo "" >+ libhello/manifest;
+      $* 2>!;
+
+      $pkg_status libhello >'unpacked 1.0.0; available 1.0.0#1 sys:?'
+    }
+
+    : pkg-rep
+    {
+      +$clone_root_cfg
+
+      +$* --auth all --trust-yes $rep/hello &cfg/.bpkg/certs/** 2>!
+      +$pkg_fetch  libhello/1.0.0
+      +$pkg_unpack libhello
+
+      : unchanged-external
+      :
+      {
+	$clone_cfg && $rep_add $src/libhello-1.0.0;
+        $* 2>!;
+
+        $pkg_status libhello >'unpacked 1.0.0; available sys:?'
+      }
+
+      : changed-external
+      :
+      {
+        cp -r $src/libhello-1.0.0 libhello;
+        echo "" >+ libhello/manifest;
+
+	$clone_cfg && $rep_add libhello;
+        $* 2>!;
+
+        $pkg_status libhello >'unpacked 1.0.0; available 1.0.0#1 sys:?'
+      }
+
+      -$pkg_purge libhello 2>'purged libhello/1.0.0'
+    }
+
+    : git-rep
+    :
+    if ($remote != true)
+    {
+      rep = $canonicalize([dir_path] $out_git/state0);
+
+      $clone_root_cfg;
+
+      $* "$rep/style.git#master" 2>! &cfg/.bpkg/repos/*/***;
+      $pkg_checkout "style/1.0.0" 2>!;
+
+      $rep_add $rep/style.git;
+      $* 2>!;
+
+      $pkg_status style >"unpacked 1.0.0; available sys:?";
+
+      $pkg_purge style 2>"purged style/1.0.0"
+    }
+  }
+
+  : no-inc
+  :
+  {
+    $clone_root_cfg;
+
+    $pkg_unpack -e $src/libhello-1.0.0;
+
+    $rep_add $src/libhello-1.0.0;
+
+    $* 2>>~%EOE%;
+      %fetching dir:.+libhello-1.0.0%
+      1 package(s) in 1 repository(s)
+      EOE
+
+    $pkg_status libhello >'unpacked 1.0.0; available sys:?'
   }
 }
 

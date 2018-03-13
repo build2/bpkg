@@ -201,7 +201,7 @@ namespace bpkg
       };
 
       dir_path d (repo_dir / path_cast<dir_path> (*sm.location));
-      path f (d / path ("manifest"));
+      path f (d / manifest_file);
 
       if (!exists (f))
         failure ("no manifest file");
@@ -272,20 +272,6 @@ namespace bpkg
                                ignore_unknown,
                                rl));
 
-    // @@ Here we will need to go through packages and check if there is the
-    //    selected package of the same version (without regards to the
-    //    iteration component), and having the different package manifest
-    //    hash. If that's the case then set the manifest version iteration
-    //    component as the selected package version iteation + 1.
-    //
-    // @@ It also seems that the manifest hash should be stored in the (new)
-    //    member of the package_location struct. Later this value will be
-    //    transmitted into the selected package objects by pkg_unpack().
-    //
-    // @@ Should we later check and fail if any available package contains
-    //    several package locations with different non-zero (for those that
-    //    come from the directory repo) manifest hashes?
-    //
     return rep_fetch_data {move (rms), move (fps), nullptr};
   }
 
@@ -689,6 +675,29 @@ namespace bpkg
     {
       package_manifest& pm (fp.manifest);
 
+      // Fix-up the external package version iteration number.
+      //
+      if (rl.directory_based ())
+      {
+        // Note that we can't check if the external package of this upstream
+        // version and revision is already available in the configuration
+        // until we fetch all the repositories, as some of the available
+        // packages are still due to be removed.
+        //
+        optional<version> v (
+          package_iteration (
+            co,
+            conf,
+            t,
+            path_cast<dir_path> (rl.path () / *fp.manifest.location),
+            pm.name,
+            pm.version,
+            false /* check_external */));
+
+        if (v)
+          pm.version = move (*v);
+      }
+
       // We might already have this package in the database.
       //
       bool persist (false);
@@ -757,6 +766,11 @@ namespace bpkg
              bool shallow,
              const optional<string>& reason)
   {
+    tracer trace ("rep_fetch(repos)");
+
+    database& db (t.database ());
+    tracer_guard tg (db, trace);
+
     // As a fist step we fetch repositories recursively building the list of
     // the former prerequisites and complements to be considered for removal.
     //
@@ -774,13 +788,62 @@ namespace bpkg
       repositories fetched;
       repositories removed;
 
+      // Fetch the requested repositories, recursively.
+      //
       for (const lazy_shared_ptr<repository>& r: repos)
         rep_fetch (o, conf, t, r.load (), fetched, removed, shallow, reason);
 
-      // Finally, remove dangling repositories.
+      // Remove dangling repositories.
       //
       for (const shared_ptr<repository>& r: removed)
         rep_remove (conf, t, r);
+
+      // Finally, make sure that the external packages are available from a
+      // single repository.
+      //
+      // Sort the packages by name and version. This way the external packages
+      // with the same upstream version and revision will be adjacent.
+      //
+      using query = query<package_repository>;
+      const auto& qv (query::package::id.version);
+
+      query q ("ORDER BY" + query::package::id.name + "," +
+               qv.epoch + "," +
+               qv.canonical_upstream + "," +
+               qv.canonical_release + "," +
+               qv.revision + "," +
+               qv.iteration);
+
+      available_package_id ap;
+      shared_ptr<repository> rp;
+
+      for (const auto& pr: db.query<package_repository> (q))
+      {
+        const shared_ptr<repository>& r (pr.repository);
+        if (!r->location.directory_based ())
+          continue;
+
+        // Fail if the external package is of the same upstream version and
+        // revision as the previous one.
+        //
+        const available_package_id& id (pr.package_id);
+
+        if (id.name == ap.name &&
+            compare_version_eq (id.version, ap.version, true, false))
+        {
+          shared_ptr<available_package> p (db.load<available_package> (id));
+          const version& v (p->version);
+
+          fail << "external package " << id.name << '/'
+               << version (v.epoch, v.upstream, v.release, v.revision, 0)
+               << " is available from two repositories" <<
+            info << "repository " << rp->location <<
+            info << "repository " << r->location;
+        }
+
+        ap = id;
+        rp = r;
+      }
     }
     catch (const failed&)
     {

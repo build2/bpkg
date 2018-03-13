@@ -17,6 +17,7 @@
 #include <libbutl/timestamp.mxx>
 
 #include <bpkg/types.hxx>
+#include <bpkg/forward.hxx> // transaction
 #include <bpkg/utility.hxx>
 
 #pragma db model version(4, 4, open)
@@ -93,6 +94,7 @@ namespace bpkg
     string canonical_upstream;
     string canonical_release;
     uint16_t revision;
+    uint32_t iteration;
     string upstream;
     optional<string> release;
   };
@@ -134,6 +136,7 @@ namespace bpkg
     string   canonical_upstream;
     string   canonical_release;
     uint16_t revision;
+    uint32_t iteration;
 
     // By default SQLite3 uses BINARY collation for TEXT columns. So while this
     // means we don't need to do anything special to make "absent" (~) and
@@ -147,14 +150,14 @@ namespace bpkg
   #pragma db value transient
   struct upstream_version: version
   {
-    #pragma db member(upstream_) virtual(string)                      \
-      get(this.upstream)                                              \
-      set(this = bpkg::version (0, std::move (?), std::string (), 0))
+    #pragma db member(upstream_) virtual(string)                         \
+      get(this.upstream)                                                 \
+      set(this = bpkg::version (0, std::move (?), std::string (), 0, 0))
 
     #pragma db member(release_) virtual(optional_string)              \
       get(this.release)                                               \
       set(this = bpkg::version (                                      \
-            0, std::move (this.upstream), std::move (?), 0))
+            0, std::move (this.upstream), std::move (?), 0, 0))
 
     upstream_version () = default;
     upstream_version (version v): version (move (v)) {}
@@ -164,7 +167,12 @@ namespace bpkg
     void
     init (const canonical_version& cv, const upstream_version& uv)
     {
-      *this = version (cv.epoch, uv.upstream, uv.release, cv.revision);
+      *this = version (cv.epoch,
+                       uv.upstream,
+                       uv.release,
+                       cv.revision,
+                       cv.iteration);
+
       assert (cv.canonical_upstream == canonical_upstream &&
               cv.canonical_release == canonical_release);
     }
@@ -175,12 +183,14 @@ namespace bpkg
                       (?).canonical_upstream,     \
                       (?).canonical_release,      \
                       (?).revision,               \
+                      (?).iteration,              \
                       (?).upstream,               \
                       (?).release})               \
     from(bpkg::version ((?).epoch,                \
                         std::move ((?).upstream), \
                         std::move ((?).release),  \
-                        (?).revision))
+                        (?).revision,             \
+                        (?).iteration))
 
   using optional_version = optional<version>;
   using _optional_version = optional<_version>;
@@ -191,6 +201,7 @@ namespace bpkg
                         (?)->canonical_upstream,              \
                         (?)->canonical_release,               \
                         (?)->revision,                        \
+                        (?)->iteration,                       \
                         (?)->upstream,                        \
                         (?)->release}                         \
        : bpkg::_optional_version ())                          \
@@ -198,7 +209,8 @@ namespace bpkg
          ? bpkg::version ((?)->epoch,                         \
                           std::move ((?)->upstream),          \
                           std::move ((?)->release),           \
-                          (?)->revision)                      \
+                          (?)->revision,                      \
+                          (?)->iteration)                     \
          : bpkg::optional_version ())
 
   // repository_location
@@ -278,7 +290,6 @@ namespace bpkg
 
     operator size_t () const {return result;}
   };
-
 
   // package_location
   //
@@ -596,6 +607,11 @@ namespace bpkg
     optional<dir_path> src_root;
     bool purge_src;
 
+    // The checksum of the manifest file located in the source directory.
+    // Must be present if the source directory is present.
+    //
+    optional<string> manifest_checksum;
+
     // Path to the output directory of this package, if any. It is
     // always relative to the configuration directory, and is <name>
     // for external packages and <name>-<version> for others. It is
@@ -655,6 +671,47 @@ namespace bpkg
   //
   ostream&
   operator<< (ostream&, const selected_package&);
+
+  // Check if the directory containing the specified package version should be
+  // considered its iteration. Return the version of this iteration if that's
+  // the case and nullopt otherwise.
+  //
+  // Notes:
+  //
+  // - The package directory is considered an iteration of the package if this
+  //   upstream version and revision is already present (selected) in the
+  //   configuration and has a source directory. If that's the case, then the
+  //   specified directory path and the checksum of the manifest file it
+  //   contains are compared to the ones of the package present in the
+  //   configuration. If both match, then the present package version
+  //   (including its iteration, if any) is returned. Otherwise (the package
+  //   has moved and/or the packaging information has changed), the present
+  //   package version with the incremented iteration number is returned. Note
+  //   that the directory path is matched only for the external selected
+  //   packages.
+  //
+  // - Only a single package iteration is valid per version in the
+  //   configuration. This, in particular, means that a package of the
+  //   specific upstream version and revision shouldn't come from multiple
+  //   external (source) directories.
+  //
+  //   If requested, the function checks if an external package of this
+  //   upstream version and revision is already available in the configuration
+  //   and fails if that's the case.
+  //
+  // - The manifest file located in the specified directory is not parsed, and
+  //   so is not checked to match the specified package name and version.
+  //
+  class common_options;
+
+  optional<version>
+  package_iteration (const common_options&,
+                     const dir_path& configuration,
+                     transaction&,
+                     const dir_path&,
+                     const string& name,
+                     const version&,
+                     bool check_external);
 
   // certificate
   //
@@ -809,17 +866,18 @@ namespace bpkg
 
   // Return a list of packages available from this repository.
   //
-  #pragma db view object(repository)                                   \
-    table("available_package_locations" = "pl" inner:                  \
-          "pl.repository = " + repository::name)                       \
-    object(available_package = package inner:                          \
-           "pl.name = " + package::id.name + "AND" +                   \
-           "pl.version_epoch = " + package::id.version.epoch + "AND" + \
-           "pl.version_canonical_upstream = " +                        \
-             package::id.version.canonical_upstream + "AND" +          \
-           "pl.version_canonical_release = " +                         \
-             package::id.version.canonical_release + "AND" +           \
-           "pl.version_revision = " +  package::id.version.revision)
+  #pragma db view object(repository)                                         \
+    table("available_package_locations" = "pl" inner:                        \
+          "pl.repository = " + repository::name)                             \
+    object(available_package = package inner:                                \
+           "pl.name = " + package::id.name + "AND" +                         \
+           "pl.version_epoch = " + package::id.version.epoch + "AND" +       \
+           "pl.version_canonical_upstream = " +                              \
+             package::id.version.canonical_upstream + "AND" +                \
+           "pl.version_canonical_release = " +                               \
+             package::id.version.canonical_release + "AND" +                 \
+           "pl.version_revision = " + package::id.version.revision + "AND" + \
+           "pl.version_iteration = " + package::id.version.iteration)
   struct repository_package
   {
     shared_ptr<available_package> package; // Must match the alias (see above).
@@ -827,18 +885,47 @@ namespace bpkg
     operator const shared_ptr<available_package> () const {return package;}
   };
 
+  // Return a list of repositories the packages come from.
+  //
+  #pragma db view object(repository)                                         \
+    table("available_package_locations" = "pl" inner:                        \
+          "pl.repository = " + repository::name)                             \
+    object(available_package = package inner:                                \
+           "pl.name = " + package::id.name + "AND" +                         \
+           "pl.version_epoch = " + package::id.version.epoch + "AND" +       \
+           "pl.version_canonical_upstream = " +                              \
+             package::id.version.canonical_upstream + "AND" +                \
+           "pl.version_canonical_release = " +                               \
+             package::id.version.canonical_release + "AND" +                 \
+           "pl.version_revision = " + package::id.version.revision + "AND" + \
+           "pl.version_iteration = " + package::id.version.iteration)
+  struct package_repository
+  {
+    #pragma db column(package::id)
+    available_package_id package_id;
+
+    using repository_type = bpkg::repository;
+    shared_ptr<repository_type> repository;
+  };
+
   // Version comparison operators.
   //
   // They allow comparing objects that have epoch, canonical_upstream,
-  // canonical_release, and revision data members. The idea is that this
-  // works for both query members of types version and canonical_version
+  // canonical_release, revision, and iteration data members. The idea is that
+  // this works for both query members of types version and canonical_version
   // as well as for comparing canonical_version to version.
+  //
+  // Note that if the comparison operation ignores the revision, then it also
+  // unconditionally ignores the iteration (that semantically extends the
+  // revision).
   //
   template <typename T1, typename T2>
   inline auto
-  compare_version_eq (const T1& x, const T2& y, bool revision)
+  compare_version_eq (const T1& x, const T2& y, bool revision, bool iteration)
     -> decltype (x.epoch == y.epoch)
   {
+    assert (revision || !iteration); // !revision && iteration is meaningless.
+
     // Since we don't quite know what T1 and T2 are (and where the resulting
     // expression will run), let's not push our luck with something like
     // (!revision || x.revision == y.revision).
@@ -847,9 +934,11 @@ namespace bpkg
             x.canonical_upstream == y.canonical_upstream &&
             x.canonical_release == y.canonical_release);
 
-    return revision
-      ? r && x.revision == y.revision
-      : r;
+    return !revision
+      ? r
+      : !iteration
+        ? r && x.revision == y.revision
+        : r && x.revision == y.revision && x.iteration == y.iteration;
   }
 
   /*
@@ -865,68 +954,111 @@ namespace bpkg
 
   template <typename T1, typename T2>
   inline auto
-  compare_version_ne (const T1& x, const T2& y, bool revision)
+  compare_version_ne (const T1& x, const T2& y, bool revision, bool iteration)
     -> decltype (x.epoch == y.epoch)
   {
+    assert (revision || !iteration); // !revision && iteration is meaningless.
+
     auto r (x.epoch != y.epoch ||
             x.canonical_upstream != y.canonical_upstream ||
             x.canonical_release != y.canonical_release);
 
-    return revision
-      ? r || x.revision != y.revision
-      : r;
+    return !revision
+      ? r
+      : !iteration
+        ? r || x.revision != y.revision
+        : r || x.revision != y.revision || x.iteration != y.iteration;
   }
 
   template <typename T1, typename T2>
   inline auto
   operator!= (const T1& x, const T2& y) -> decltype (x.epoch != y.epoch)
   {
-    return compare_version_ne (x, y, true);
+    return compare_version_ne (x, y, true, true);
   }
 
   template <typename T1, typename T2>
   inline auto
-  compare_version_lt (const T1& x, const T2& y, bool revision)
+  compare_version_lt (const T1& x, const T2& y, bool revision, bool iteration)
     -> decltype (x.epoch == y.epoch)
   {
+    assert (revision || !iteration); // !revision && iteration is meaningless.
+
     auto r (
       x.epoch < y.epoch ||
       (x.epoch == y.epoch && x.canonical_upstream < y.canonical_upstream) ||
       (x.epoch == y.epoch && x.canonical_upstream == y.canonical_upstream &&
        x.canonical_release < y.canonical_release));
 
-    return revision
-      ? r ||
-      (x.epoch == y.epoch && x.canonical_upstream == y.canonical_upstream &&
-       x.canonical_release == y.canonical_release && x.revision < y.revision)
-      : r;
+    if (revision)
+    {
+      r = r || (x.epoch == y.epoch &&
+                x.canonical_upstream == y.canonical_upstream &&
+                x.canonical_release == y.canonical_release &&
+                x.revision < y.revision);
+
+      if (iteration)
+        r = r || (x.epoch == y.epoch &&
+                  x.canonical_upstream == y.canonical_upstream &&
+                  x.canonical_release == y.canonical_release &&
+                  x.revision == y.revision &&
+                  x.iteration < y.iteration);
+    }
+
+    return r;
   }
 
   template <typename T1, typename T2>
   inline auto
   operator< (const T1& x, const T2& y) -> decltype (x.epoch < y.epoch)
   {
-    return compare_version_lt (x, y, true);
+    return compare_version_lt (x, y, true, true);
   }
 
   template <typename T1, typename T2>
   inline auto
-  compare_version_le (const T1& x, const T2& y, bool revision)
+  compare_version_le (const T1& x, const T2& y, bool revision, bool iteration)
     -> decltype (x.epoch == y.epoch)
   {
+    assert (revision || !iteration); // !revision && iteration is meaningless.
+
     auto r (
       x.epoch < y.epoch ||
       (x.epoch == y.epoch && x.canonical_upstream < y.canonical_upstream));
 
-    return revision
-      ? r ||
-      (x.epoch == y.epoch && x.canonical_upstream == y.canonical_upstream &&
-       x.canonical_release < y.canonical_release) ||
-      (x.epoch == y.epoch && x.canonical_upstream == y.canonical_upstream &&
-       x.canonical_release == y.canonical_release && x.revision <= y.revision)
-      : r ||
-      (x.epoch == y.epoch && x.canonical_upstream == y.canonical_upstream &&
-       x.canonical_release <= y.canonical_release);
+    if (!revision)
+    {
+      r = r || (x.epoch == y.epoch &&
+                x.canonical_upstream == y.canonical_upstream &&
+                x.canonical_release <= y.canonical_release);
+    }
+    else
+    {
+      r = r || (x.epoch == y.epoch &&
+                x.canonical_upstream == y.canonical_upstream &&
+                x.canonical_release < y.canonical_release);
+
+      if (!iteration)
+        r = r || (x.epoch == y.epoch &&
+                  x.canonical_upstream == y.canonical_upstream &&
+                  x.canonical_release == y.canonical_release &&
+                  x.revision <= y.revision);
+      else
+        r =  r ||
+
+          (x.epoch == y.epoch &&
+           x.canonical_upstream == y.canonical_upstream &&
+           x.canonical_release == y.canonical_release &&
+           x.revision < y.revision) ||
+
+          (x.epoch == y.epoch &&
+           x.canonical_upstream == y.canonical_upstream &&
+           x.canonical_release == y.canonical_release &&
+           x.revision == y.revision &&
+           x.iteration <= y.iteration);
+    }
+
+    return r;
   }
 
   /*
@@ -942,54 +1074,93 @@ namespace bpkg
 
   template <typename T1, typename T2>
   inline auto
-  compare_version_gt (const T1& x, const T2& y, bool revision)
+  compare_version_gt (const T1& x, const T2& y, bool revision, bool iteration)
     -> decltype (x.epoch == y.epoch)
   {
+    assert (revision || !iteration); // !revision && iteration is meaningless.
+
     auto r (
       x.epoch > y.epoch ||
       (x.epoch == y.epoch && x.canonical_upstream > y.canonical_upstream) ||
       (x.epoch == y.epoch && x.canonical_upstream == y.canonical_upstream &&
        x.canonical_release > y.canonical_release));
 
-    return revision
-      ? r ||
-      (x.epoch == y.epoch && x.canonical_upstream == y.canonical_upstream &&
-       x.canonical_release == y.canonical_release && x.revision > y.revision)
-      : r;
+    if (revision)
+    {
+      r = r || (x.epoch == y.epoch &&
+                x.canonical_upstream == y.canonical_upstream &&
+                x.canonical_release == y.canonical_release &&
+                x.revision > y.revision);
+
+      if (iteration)
+        r = r || (x.epoch == y.epoch &&
+                  x.canonical_upstream == y.canonical_upstream &&
+                  x.canonical_release == y.canonical_release &&
+                  x.revision == y.revision &&
+                  x.iteration > y.iteration);
+    }
+
+    return r;
   }
 
   template <typename T1, typename T2>
   inline auto
   operator> (const T1& x, const T2& y) -> decltype (x.epoch > y.epoch)
   {
-    return compare_version_gt (x, y, true);
+    return compare_version_gt (x, y, true, true);
   }
 
   template <typename T1, typename T2>
   inline auto
-  compare_version_ge (const T1& x, const T2& y, bool revision)
+  compare_version_ge (const T1& x, const T2& y, bool revision, bool iteration)
     -> decltype (x.epoch == y.epoch)
   {
+    assert (revision || !iteration); // !revision && iteration is meaningless.
+
     auto r (
       x.epoch > y.epoch ||
       (x.epoch == y.epoch && x.canonical_upstream > y.canonical_upstream));
 
-    return revision
-      ? r ||
-      (x.epoch == y.epoch && x.canonical_upstream == y.canonical_upstream &&
-       x.canonical_release > y.canonical_release) ||
-      (x.epoch == y.epoch && x.canonical_upstream == y.canonical_upstream &&
-       x.canonical_release == y.canonical_release && x.revision >= y.revision)
-      : r ||
-      (x.epoch == y.epoch && x.canonical_upstream == y.canonical_upstream &&
-       x.canonical_release >= y.canonical_release);
+    if (!revision)
+    {
+      r = r || (x.epoch == y.epoch &&
+                x.canonical_upstream == y.canonical_upstream &&
+                x.canonical_release >= y.canonical_release);
+    }
+    else
+    {
+      r = r || (x.epoch == y.epoch &&
+                x.canonical_upstream == y.canonical_upstream &&
+                x.canonical_release > y.canonical_release);
+
+      if (!iteration)
+        r = r || (x.epoch == y.epoch &&
+                  x.canonical_upstream == y.canonical_upstream &&
+                  x.canonical_release == y.canonical_release &&
+                  x.revision >= y.revision);
+      else
+        r =  r ||
+
+          (x.epoch == y.epoch &&
+           x.canonical_upstream == y.canonical_upstream &&
+           x.canonical_release == y.canonical_release &&
+           x.revision > y.revision) ||
+
+          (x.epoch == y.epoch &&
+           x.canonical_upstream == y.canonical_upstream &&
+           x.canonical_release == y.canonical_release &&
+           x.revision == y.revision &&
+           x.iteration >= y.iteration);
+    }
+
+    return r;
   }
 
   template <typename T1, typename T2>
   inline auto
   operator>= (const T1& x, const T2& y) -> decltype (x.epoch >= y.epoch)
   {
-    return compare_version_ge (x, y, true);
+    return compare_version_ge (x, y, true, true);
   }
 
   template <typename T>
@@ -1001,16 +1172,20 @@ namespace bpkg
       + x.epoch + "DESC,"
       + x.canonical_upstream + "DESC,"
       + x.canonical_release + "DESC,"
-      + x.revision + "DESC";
+      + x.revision + "DESC,"
+      + x.iteration + "DESC";
   }
+/*
+  Currently unused (and probably should stay that way).
 
   template <typename T>
   inline auto
   order_by_revision_desc (const T& x) -> //decltype ("ORDER BY" + x.epoch)
                                          decltype (x.revision == 0)
   {
-    return "ORDER BY" + x.revision + "DESC";
+    return "ORDER BY" + x.revision + "DESC," + x.iteration + "DESC";
   }
+*/
 }
 
 #include <bpkg/package.ixx>

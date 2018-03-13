@@ -9,6 +9,7 @@
 
 #include <bpkg/archive.hxx>
 #include <bpkg/diagnostics.hxx>
+#include <bpkg/manifest-utility.hxx>
 
 using namespace std;
 using namespace butl;
@@ -20,7 +21,7 @@ namespace bpkg
   try
   {
     dir_path pd (package_dir (af));
-    path mf (pd / path ("manifest"));
+    path mf (pd / manifest_file);
 
     // If diag is false, we need to make tar not print any diagnostics. There
     // doesn't seem to be an option to suppress this and the only way is to
@@ -115,7 +116,7 @@ namespace bpkg
   {
     // Parse the manifest.
     //
-    path mf (d / path ("manifest"));
+    path mf (d / manifest_file);
 
     if (!exists (mf))
     {
