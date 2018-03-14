@@ -301,7 +301,7 @@ namespace bpkg
       pkg_configure (c, o, t, p, vars);
     }
 
-    if (verb)
+    if (verb && !o.no_result ())
       text << "configured " << *p;
 
     return 0;

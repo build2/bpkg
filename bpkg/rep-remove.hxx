@@ -40,7 +40,10 @@ namespace bpkg
   // - Remove all available packages.
   //
   void
-  rep_remove_clean (const dir_path& conf, database&, bool quiet = true);
+  rep_remove_clean (const common_options&,
+                    const dir_path& conf,
+                    database&,
+                    bool quiet = true);
 
   // Remove a repository from locations of the available packages it
   // contains. Remove packages that come from only this repository.

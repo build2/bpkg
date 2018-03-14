@@ -1964,7 +1964,7 @@ namespace bpkg
       assert (sp->state == package_state::unpacked ||
               sp->state == package_state::transient);
 
-      if (verb)
+      if (verb && !o.no_result ())
         text << (sp->state == package_state::transient
                  ? "purged "
                  : "disfigured ") << *sp;
@@ -2011,7 +2011,7 @@ namespace bpkg
             transaction t (db.begin ());
             pkg_purge (c, t, sp); // Commits the transaction.
 
-            if (verb)
+            if (verb && !o.no_result ())
               text << "purged " << *sp;
 
             if (!p.hold_package)
@@ -2117,7 +2117,7 @@ namespace bpkg
             assert (sp->state == package_state::fetched ||
                     sp->state == package_state::unpacked);
 
-            if (verb)
+            if (verb && !o.no_result ())
             {
               const repository_location& rl (sp->repository);
 
@@ -2163,7 +2163,7 @@ namespace bpkg
             transaction t (db.begin ());
             sp = pkg_unpack (o, c, t, ap->id.name); // Commits the transaction.
 
-            if (verb)
+            if (verb && !o.no_result ())
               text << "unpacked " << *sp;
           }
           else
@@ -2179,7 +2179,7 @@ namespace bpkg
                              true,   // Replace.
                              false); // Don't purge; commits the transaction.
 
-            if (verb)
+            if (verb && !o.no_result ())
               text << "using " << *sp << " (external)";
           }
 
@@ -2213,7 +2213,7 @@ namespace bpkg
 
       assert (sp->state == package_state::configured);
 
-      if (verb)
+      if (verb && !o.no_result ())
         text << "configured " << *sp;
     }
 
@@ -2254,10 +2254,10 @@ namespace bpkg
         if (verb > 1)
         {
           if (hp)
-            text << "hold package " << sp->name;
+            text << "holding package " << sp->name;
 
           if (hv)
-            text << "hold version " << *sp;
+            text << "holding version " << *sp;
         }
       }
     }
@@ -2312,7 +2312,7 @@ namespace bpkg
 
     pkg_update (c, o, o.for_ (), strings (), upkgs);
 
-    if (verb)
+    if (verb && !o.no_result ())
     {
       for (const pkg_command_vars& pv: upkgs)
         text << "updated " << *pv.pkg;

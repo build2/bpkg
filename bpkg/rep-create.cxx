@@ -202,8 +202,8 @@ namespace bpkg
     {
       package_manifest& m (p.second.manifest);
 
-      if (verb)
-        text << "adding " << m.name << " " << m.version;
+      if (verb && !o.no_result ())
+        text << "added " << m.name << " " << m.version;
 
       manifests.emplace_back (move (m));
     }
@@ -267,7 +267,7 @@ namespace bpkg
       fail << "unable to write to " << p << ": " << e;
     }
 
-    if (verb)
+    if (verb && !o.no_result ())
     {
       d.complete ();
       d.normalize ();

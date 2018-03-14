@@ -296,7 +296,7 @@ namespace bpkg
       p = pkg_fetch (o, c, t, move (n), move (v), o.replace ());
     }
 
-    if (verb)
+    if (verb && !o.no_result ())
     {
       if (!o.existing ())
         text << "fetched " << *p;

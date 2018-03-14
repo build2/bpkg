@@ -182,7 +182,8 @@ namespace bpkg
   }
 
   void
-  rep_remove_clean (const dir_path& c,
+  rep_remove_clean (const common_options& o,
+                    const dir_path& c,
                     database& db,
                     bool quiet)
   {
@@ -216,7 +217,7 @@ namespace bpkg
           r->prerequisites.clear ();
           db.update (r);
 
-          if (verb >= (quiet ? 2 : 1))
+          if (verb >= (quiet ? 2 : 1) && !o.no_result ())
             text << "cleaned " << r->name;
         }
         else
@@ -285,7 +286,7 @@ namespace bpkg
     //
     if (o.clean ())
     {
-      rep_remove_clean (c, db, false /* quiet */);
+      rep_remove_clean (o, c, db, false /* quiet */);
       return 0;
     }
 
@@ -383,7 +384,7 @@ namespace bpkg
     {
       rep_remove (c, t, r.load ());
 
-      if (verb)
+      if (verb && !o.no_result ())
         text << "removed " << r.object_id ();
     }
 

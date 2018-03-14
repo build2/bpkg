@@ -27,7 +27,7 @@ warning: fetching over dumb HTTP, no progress will be shown'
 
     if ($git_protocol == 'https-smart-unadv')
       warn  = '%.{0}'
-      fetch = "%Fetching in '.+$abbr_commit'.+%"
+      fetch = "%fetching in '.+$abbr_commit'.+%"
     else
       warn  = "warning: fetching whole repository history"
 
@@ -56,7 +56,7 @@ warning: fetching over dumb HTTP, no progress will be shown'
 
     if ($git_protocol == 'https-smart-unadv')
       warn  = '%.{0}'
-      fetch = "%Fetching in '.+$abbr_commit'.+%"
+      fetch = "%fetching in '.+$abbr_commit'.+%"
     else
       warn  = "warning: fetching whole branch history"
 
@@ -95,7 +95,7 @@ warning: fetching over dumb HTTP, no progress will be shown'
       fetch = '%.{0}'
     else
       warn  = '%.{0}'
-      fetch = "%Fetching in '.+$abbr_commit'.+%"
+      fetch = "%fetching in '.+$abbr_commit'.+%"
     end;
 
     $* 2>>~"%EOE%"

@@ -81,6 +81,15 @@ namespace bpkg
        \li|Even more detailed information.||"
     }
 
+    // In the future we may also have --structured-result, similar to the
+    // build system.
+    //
+    bool --no-result
+    {
+      "Don't print informational messages about the outcome of performing
+       a command."
+    }
+
     path --build
     {
       "<path>",

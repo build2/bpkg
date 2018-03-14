@@ -154,7 +154,7 @@ namespace bpkg
 
     pkg_command (cmd, c, o, cmd_v, cvars, ps);
 
-    if (verb)
+    if (verb && !o.no_result ())
     {
       for (const pkg_command_vars& pv: ps)
         text << cmd << (cmd.back () != 'e' ? "ed " : "d ") << *pv.pkg;

@@ -102,7 +102,7 @@ namespace bpkg
     db.persist (repository (repository_location ()));
     t.commit ();
 
-    if (verb)
+    if (verb && !o.no_result ())
     {
       c.complete ().normalize ();
       text << "created new configuration in " << c;

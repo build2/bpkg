@@ -447,7 +447,7 @@ namespace bpkg
         : pkg_unpack (c, t, move (n), move (v), o.replace ());
     }
 
-    if (verb)
+    if (verb && !o.no_result ())
     {
       if (!external)
         text << "unpacked " << *p;

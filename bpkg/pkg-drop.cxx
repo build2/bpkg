@@ -362,7 +362,7 @@ namespace bpkg
       assert (p->state == package_state::unpacked ||
               p->state == package_state::transient);
 
-      if (verb)
+      if (verb && !o.no_result ())
         text << (p->state == package_state::transient
                  ? "purged "
                  : "disfigured ") << p->name;
@@ -391,7 +391,7 @@ namespace bpkg
       transaction t (db.begin ());
       pkg_purge (c, t, p); // Commits the transaction, p is now transient.
 
-      if (verb)
+      if (verb && !o.no_result ())
         text << "purged " << p->name;
     }
 

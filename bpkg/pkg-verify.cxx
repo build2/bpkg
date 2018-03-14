@@ -188,7 +188,7 @@ namespace bpkg
       package_manifest m (
         pkg_verify (o, a, o.ignore_unknown (), !o.silent ()));
 
-      if (verb && !o.silent ())
+      if (verb && !o.silent () && !o.no_result ())
         text << "valid package " << m.name << " " << m.version;
 
       return 0;

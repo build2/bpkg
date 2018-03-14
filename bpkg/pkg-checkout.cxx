@@ -236,7 +236,7 @@ namespace bpkg
     //
     p = pkg_checkout (o, c, t, move (n), move (v), o.replace ());
 
-    if (verb)
+    if (verb && !o.no_result ())
       text << "checked out " << *p;
 
     return 0;

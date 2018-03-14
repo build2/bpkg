@@ -188,7 +188,7 @@ namespace bpkg
     assert (p->state == package_state::unpacked ||
             p->state == package_state::transient);
 
-    if (verb)
+    if (verb && !o.no_result ())
       text << (p->state == package_state::transient
                ? "purged "
                : "disfigured ") << *p;

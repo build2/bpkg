@@ -611,7 +611,7 @@ sc = " " # Space character to append to here-document line when required.
       echo '\'                                >+rep/repositories.manifest;
 
       $rep_create --key $key rep &rep/packages.manifest 2>>/EOE != 0
-        adding foo 1
+        added foo 1
         error: invalid certificate for rep/: no email
         EOE
     }
@@ -626,7 +626,7 @@ sc = " " # Space character to append to here-document line when required.
       echo '\'                                >+rep/repositories.manifest;
 
       $rep_create --key $key rep &rep/packages.manifest 2>>/EOE != 0
-        adding foo 1
+        added foo 1
         error: certificate for repository rep/ has expired
         EOE
     }

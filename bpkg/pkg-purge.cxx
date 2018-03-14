@@ -202,8 +202,8 @@ namespace bpkg
       p->state = package_state::transient;
     }
 
-    if (verb)
-        text << (o.keep () ? "keeping archive " : "purged ") << *p;
+    if (verb && !o.no_result ())
+      text << (o.keep () ? "keeping archive " : "purged ") << *p;
 
     return 0;
   }

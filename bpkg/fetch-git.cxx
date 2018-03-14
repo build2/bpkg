@@ -665,8 +665,11 @@ namespace bpkg
       // This makes it hard to understand which superproject/submodule is
       // currently being fetched. Let's fix that.
       //
+      // Note that we have "fixed" that capital letter nonsense (hoping that
+      // git-clone will do the same at some point).
+      //
       if (verb != 0)
-        text << "Fetching in '" << dir.posix_string () << "'...";
+        text << "fetching in '" << dir.posix_string () << "'...";
 
       // Note that we suppress the (too detailed) fetch command output if the
       // verbosity level is 1. However, we still want to see the progress in
@@ -878,10 +881,10 @@ namespace bpkg
         update_tree (co, fsdir, psdir, ref, cap, shallow, to);
 
         // Not quite a checkout, but let's make the message match the
-        // git-submodule script output.
+        // git-submodule script output (again, except for capitalization).
         //
         if (verb > 0)
-          text << "Submodule path '" << psd << "': checked out '" << commit
+          text << "submodule path '" << psd << "': checked out '" << commit
                << "'";
 
         // Recurse.

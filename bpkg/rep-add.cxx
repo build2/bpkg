@@ -16,7 +16,9 @@ using namespace butl;
 namespace bpkg
 {
   shared_ptr<repository>
-  rep_add (transaction& t, const repository_location& rl)
+  rep_add (const common_options& o,
+           transaction& t,
+           const repository_location& rl)
   {
     const string& rn (rl.canonical_name ());
 
@@ -46,7 +48,7 @@ namespace bpkg
     if (added)
       db.update (root);
 
-    if (verb)
+    if (verb && !o.no_result ())
       text << (added ? "added " : updated ? "updated " : "unchanged ") << rn;
 
     return r;
@@ -76,7 +78,7 @@ namespace bpkg
                         ? optional<repository_type> (o.type ())
                         : nullopt));
 
-      rep_add (t, rl);
+      rep_add (o, t, rl);
     }
 
     t.commit ();

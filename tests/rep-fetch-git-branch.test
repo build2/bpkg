@@ -34,7 +34,7 @@ warning: fetching over dumb HTTP, no progress will be shown'
     warn1 = '%.{0}'
     warn2 = '%.{0}'
     warn3 = '%.{0}'
-    fetch = "%Fetching in '.+style/basic'.+%"
+    fetch = "%fetching in '.+style/basic'.+%"
     warn4 = '%.{0}'
   end;
 
@@ -46,15 +46,15 @@ warning: fetching over dumb HTTP, no progress will be shown'
     %Submodule 'libbar' .+ registered for path 'libbar'%
     $warn2
     %Cloning into '.+doc/style'.+%
-    %Submodule path 'doc/style': checked out .+%
+    %submodule path 'doc/style': checked out .+%
     %Submodule 'basic' .+ registered for path 'doc/style/basic'%
     $warn3
     %Cloning into '.+doc/style/basic'.+%
     $fetch
-    %Submodule path 'doc/style/basic': checked out .+%
+    %submodule path 'doc/style/basic': checked out .+%
     $warn4
     %Cloning into '.+libbar'.+%
-    %Submodule path 'libbar': checked out .+%
+    %submodule path 'libbar': checked out .+%
     1 package\(s\) in 1 repository\(s\)
     EOE
 }
@@ -81,7 +81,7 @@ warning: fetching over dumb HTTP, no progress will be shown'
     $* 2>>~"%EOE%"
       %fetching git:.+libfoo#$branch%
       $warn
-      %Fetching in '.+$branch'.+%
+      %fetching in '.+$branch'.+%
       1 package\(s\) in 1 repository\(s\)
       EOE
   }
@@ -134,15 +134,15 @@ warning: fetching over dumb HTTP, no progress will be shown'
     $* 2>>~"%EOE%" 1>&2;
       %fetching git:.+libfoo#$branch%
       $warn1
-      %Fetching in '.+$branch'.+%
+      %fetching in '.+$branch'.+%
       %warning: unable to rmdir '?libbar'?:.+%
       %Submodule 'libbaz' .+ registered for path 'libbaz'%
       $warn2
-      %Fetching in '.+doc/style'.+%
-      %Submodule path 'doc/style': checked out .+%
+      %fetching in '.+doc/style'.+%
+      %submodule path 'doc/style': checked out .+%
       $warn3
       %Cloning into '.+libbaz'.+%
-      %Submodule path 'libbaz': checked out .+%
+      %submodule path 'libbaz': checked out .+%
       1 package\(s\) in 1 repository\(s\)
       EOE
 

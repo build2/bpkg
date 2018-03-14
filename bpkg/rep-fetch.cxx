@@ -794,7 +794,7 @@ namespace bpkg
         warn << "repository state is now broken and will be cleaned up" <<
           info << "run 'bpkg rep-fetch' to update";
 
-        rep_remove_clean (conf, t.database ());
+        rep_remove_clean (o, conf, t.database ());
       }
 
       throw;
@@ -827,7 +827,7 @@ namespace bpkg
       // same location.
       //
       if (ua.find (r) == ua.end () || r.load ()->location.url () != rl.url ())
-        rep_add (t, rl);
+        rep_add (o, t, rl);
 
       repos.emplace_back (r);
     }
@@ -903,7 +903,7 @@ namespace bpkg
           //
           auto i (ua.find (r));
           if (i == ua.end () || i->load ()->location.url () != rl.url ())
-            r = lazy_shared_ptr<repository> (db, rep_add (t, rl));
+            r = lazy_shared_ptr<repository> (db, rep_add (o, t, rl));
         }
 
         repos.emplace_back (move (r));
@@ -927,7 +927,7 @@ namespace bpkg
 
     t.commit ();
 
-    if (verb)
+    if (verb && !o.no_result ())
       text << pcount << " package(s) in " << rcount << " repository(s)";
 
     return 0;

@@ -28,7 +28,7 @@
     $clone_rep;
 
     $* 1/stable/ 2>>/~%EOE% &1/stable/packages.manifest;
-      adding foo 1
+      added foo 1
       %1 package\(s\) in .+/stable/%
       EOE
 
@@ -51,7 +51,7 @@
     $clone_rep;
 
     $* --key $key 1/stable/ 2>>/~%EOE% &1/stable/packages.manifest;
-      adding foo 1
+      added foo 1
       warning: --key option ignored
         info: repository manifest contains no certificate
         info: run 'bpkg help rep-create' for more information
@@ -96,7 +96,7 @@
 
     $* --key $key 1/stable/ 2>>/~%EOE% &1/stable/packages.manifest \
                                        &1/stable/signature.manifest;
-      adding foo 1
+      added foo 1
       %1 package\(s\) in .+/stable/%
       EOE
 
@@ -118,7 +118,7 @@
   :
   $clone_rep;
   $* 1/stable/ 2>>EOE &1/stable/packages.manifest != 0
-    adding foo 1
+    added foo 1
     error: --key option required
       info: repository manifest contains a certificate
       info: run 'bpkg help rep-create' for more information
@@ -144,7 +144,7 @@
   :
   $clone_rep;
   $* --ignore-unknown testing/ 2>>/~%EOE% &testing/packages.manifest
-    adding foo 2
+    added foo 2
     %1 package\(s\) in .+/testing/%
     EOE
 }
