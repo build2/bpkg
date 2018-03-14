@@ -56,12 +56,15 @@ namespace bpkg
   // the configuration (see rep_remove_clean() for details). Note that it
   // should be called in session.
   //
+  // If reason is absent, then don't print the "fetching ..." progress line.
+  //
   void
   rep_fetch (const common_options&,
              const dir_path& conf,
              database&,
              const vector<repository_location>&,
-             bool shallow);
+             bool shallow,
+             const optional<string>& reason);
 }
 
 #endif // BPKG_REP_FETCH_HXX

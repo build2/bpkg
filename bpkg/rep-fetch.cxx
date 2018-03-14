@@ -425,6 +425,8 @@ namespace bpkg
 
   using repositories = set<shared_ptr<repository>>;
 
+  // If reason is absent, then don't print the "fetching ..." progress line.
+  //
   static void
   rep_fetch (const common_options& co,
              const dir_path& conf,
@@ -433,7 +435,7 @@ namespace bpkg
              repositories& fetched,
              repositories& removed,
              bool shallow,
-             const string& reason = string ())
+             const optional<string>& reason)
   {
     tracer trace ("rep_fetch(rep)");
 
@@ -460,17 +462,17 @@ namespace bpkg
     //
     removed.erase (r);
 
-    // The fetch_*() functions below will be quiet at level 1, which
-    // can be quite confusing if the download hangs.
+    // The fetch_*() functions below will be quiet at level 1, which can be
+    // quite confusing if the download hangs.
     //
-    if (verb)
+    if (verb && reason)
     {
       diag_record dr (text);
 
       dr << "fetching " << r->name;
 
-      if (!reason.empty ())
-        dr << " (" << reason << ")";
+      if (!reason->empty ())
+        dr << " (" << *reason << ")";
     }
 
     // Load the repository and package manifests and use them to populate the
@@ -752,7 +754,8 @@ namespace bpkg
              const dir_path& conf,
              transaction& t,
              const vector<lazy_shared_ptr<repository>>& repos,
-             bool shallow)
+             bool shallow,
+             const optional<string>& reason)
   {
     // As a fist step we fetch repositories recursively building the list of
     // the former prerequisites and complements to be considered for removal.
@@ -772,7 +775,7 @@ namespace bpkg
       repositories removed;
 
       for (const lazy_shared_ptr<repository>& r: repos)
-        rep_fetch (o, conf, t, r.load (), fetched, removed, shallow);
+        rep_fetch (o, conf, t, r.load (), fetched, removed, shallow, reason);
 
       // Finally, remove dangling repositories.
       //
@@ -803,7 +806,8 @@ namespace bpkg
              const dir_path& conf,
              database& db,
              const vector<repository_location>& rls,
-             bool shallow)
+             bool shallow,
+             const optional<string>& reason)
   {
     assert (session::has_current ());
 
@@ -828,7 +832,7 @@ namespace bpkg
       repos.emplace_back (r);
     }
 
-    rep_fetch (o, conf, t, repos, shallow);
+    rep_fetch (o, conf, t, repos, shallow, reason);
 
     t.commit ();
   }
@@ -852,11 +856,18 @@ namespace bpkg
     shared_ptr<repository> root (db.load<repository> (""));
     repository::complements_type& ua (root->complements); // User-added repos.
 
+    optional<string> reason;
+
     if (!args.more ())
     {
       if (ua.empty ())
         fail << "configuration " << c << " has no repositories" <<
           info << "use 'bpkg rep-add' to add a repository";
+
+      // Always print "fetching ..." for complements of the root, even if
+      // there is only one.
+      //
+      reason = "";
 
       for (const lazy_shared_ptr<repository>& r: ua)
         repos.push_back (r);
@@ -897,9 +908,15 @@ namespace bpkg
 
         repos.emplace_back (move (r));
       }
+
+      // If the user specified a single repository, then don't insult them
+      // with a pointless "fetching ..." line for this repository.
+      //
+      if (repos.size () > 1)
+        reason = "";
     }
 
-    rep_fetch (o, c, t, repos, o.shallow ());
+    rep_fetch (o, c, t, repos, o.shallow (), reason);
 
     size_t rcount (0), pcount (0);
     if (verb)
