@@ -148,10 +148,16 @@ namespace bpkg
        downgrades. Refer to \l{bpkg-pkg-disfigure(1)} for details."
     }
 
+    bool --no-fetch
+    {
+      "Don't fetch repositories specified as part of the build command."
+    }
+
     bool --fetch-shallow
     {
-      "Do not re-fetch complement and prerequisite repositories. Refer to
-       the \cb{--shallow} option in \l{bpkg-rep-fetch(1)} for details."
+      "Don't re-fetch complement and prerequisite repositories of repositories
+       specified as part of the build command. Refer to the \cb{--shallow}
+       option in \l{bpkg-rep-fetch(1)} for details."
     }
   };
 }

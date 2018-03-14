@@ -1163,45 +1163,50 @@ namespace bpkg
     // the same canonical name.
     //
     strings args;
-    vector<repository_location> locations;
     {
+      vector<repository_location> locations;
+
       transaction t (db.begin ());
 
       while (a.more ())
       {
         string arg (a.next ());
-        size_t p (find_location (arg));
 
-        if (p != string::npos)
+        if (!o.no_fetch ())
         {
-          repository_location l (location (string (arg, p)));
+          size_t p (find_location (arg));
 
-          auto pr = [&l] (const repository_location& i) -> bool
+          if (p != string::npos)
           {
-            return i.canonical_name () == l.canonical_name ();
-          };
+            repository_location l (location (string (arg, p)));
 
-          auto i (find_if (locations.begin (), locations.end (), pr));
+            auto pr = [&l] (const repository_location& i) -> bool
+            {
+              return i.canonical_name () == l.canonical_name ();
+            };
 
-          if (i != locations.end ())
-            *i = move (l);
-          else
-            locations.push_back (move (l));
+            auto i (find_if (locations.begin (), locations.end (), pr));
+
+            if (i != locations.end ())
+              *i = move (l);
+            else
+              locations.push_back (move (l));
+          }
         }
 
         args.push_back (move (arg));
       }
 
       t.commit ();
-    }
 
-    if (!locations.empty ())
-      rep_fetch (o,
-                 c,
-                 db,
-                 locations,
-                 o.fetch_shallow (),
-                 string () /* reason for "fetching ..." */);
+      if (!locations.empty ())
+        rep_fetch (o,
+                   c,
+                   db,
+                   locations,
+                   o.fetch_shallow (),
+                   string () /* reason for "fetching ..." */);
+    }
 
     // Expand <packages>@<location> arguments.
     //
