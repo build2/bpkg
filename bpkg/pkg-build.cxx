@@ -1675,7 +1675,7 @@ namespace bpkg
         // satisfy all the constraints. Thus the available package check is
         // postponed until the package disfiguring.
         //
-        bool keep_out (o.keep_out () && sp->external ());
+        bool keep_out (o.keep_out () && sp != nullptr && sp->external ());
 
         // Finally add this package to the list.
         //
