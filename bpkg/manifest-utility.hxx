@@ -41,6 +41,8 @@ namespace bpkg
     return parse_package_name (s.c_str ());
   }
 
+  // Return empty version if none is specified.
+  //
   version
   parse_package_version (const char*);
 

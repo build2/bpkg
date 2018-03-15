@@ -17,6 +17,14 @@ using namespace butl;
 
 namespace bpkg
 {
+  struct package
+  {
+    string                       name;
+    bpkg::version                version;  // Empty if unspecified.
+    shared_ptr<selected_package> selected; // NULL if none selected.
+  };
+  using packages = vector<package>;
+
   int
   pkg_status (const pkg_status_options& o, cli::scanner& args)
   {
@@ -25,47 +33,75 @@ namespace bpkg
     const dir_path& c (o.directory ());
     l4 ([&]{trace << "configuration: " << c;});
 
-    if (!args.more ())
-      fail << "package name argument expected" <<
-        info << "run 'bpkg help pkg-status' for more information";
-
     database db (open (c, trace));
     transaction t (db.begin ());
     session s;
 
-    for (bool multi (false); args.more (); )
+    packages pkgs;
+    bool single (false); // True if single package specified by the user.
     {
-      const char* arg (args.next ());
-      multi = multi || args.more ();
+      using query = query<selected_package>;
 
-      string n (parse_package_name (arg));
-      version v (parse_package_version (arg));
-
-      l4 ([&]{trace << "package " << n << "; version " << v;});
-
-      // First search in the packages that already exist in this configuration.
-      //
-      shared_ptr<selected_package> p;
+      if (args.more ())
       {
-        using query = query<selected_package>;
-        query q (query::name == n);
+        while (args.more ())
+        {
+          const char* arg (args.next ());
+          package p {parse_package_name (arg),
+                     parse_package_version (arg),
+                     nullptr};
 
-        if (!v.empty ())
-          q = q && compare_version_eq (query::version, v, v.revision != 0);
+          // Search in the packages that already exist in this configuration.
+          //
+          {
+            query q (query::name == p.name);
 
-        p = db.query_one<selected_package> (q);
+            if (!p.version.empty ())
+              q = q && compare_version_eq (query::version,
+                                           p.version,
+                                           p.version.revision != 0);
+
+            p.selected = db.query_one<selected_package> (q);
+          }
+
+          pkgs.push_back (move (p));
+        }
+
+        single = (pkgs.size () == 1);
       }
+      else
+      {
+        // Find all held packages.
+        //
+        for (shared_ptr<selected_package> s:
+               pointer_result (
+                 db.query<selected_package> (query::hold_package)))
+        {
+          pkgs.push_back (package {s->name, version (), move (s)});
+        }
 
-      // Now look for available packages.
+        if (pkgs.empty ())
+        {
+          info << "no held packages in the configuration";
+          return 0;
+        }
+      }
+    }
+
+    for (const package& p: pkgs)
+    {
+      l4 ([&]{trace << "package " << p.name << "; version " << p.version;});
+
+      // Look for available packages.
       //
       bool available; // At least one vailable package (stub or not).
-      vector<shared_ptr<available_package>> aps;
+      vector<shared_ptr<available_package>> apkgs;
       {
         shared_ptr<repository> rep (db.load<repository> ("")); // Root.
 
         using query = query<available_package>;
 
-        query q (query::id.name == n);
+        query q (query::id.name == p.name);
 
         available =
           filter_one (rep, db.query<available_package> (q)).first != nullptr;
@@ -76,17 +112,18 @@ namespace bpkg
           // specific version (we still do it since there might be other
           // revisions).
           //
-          if (!v.empty ())
-            q = q &&
-              compare_version_eq (query::id.version, v, v.revision != 0);
+          if (!p.version.empty ())
+            q = q && compare_version_eq (query::id.version,
+                                         p.version,
+                                         p.version.revision != 0);
 
           // And if we found an existing package, then only look for versions
           // greater than what already exists. Note that for a system wildcard
           // version we will always show all available versions (since it's
           // 0).
           //
-          if (p != nullptr)
-            q = q && query::id.version > p->version;
+          if (p.selected != nullptr)
+            q = q && query::id.version > p.selected->version;
 
           q += order_by_version_desc (query::id.version);
 
@@ -94,38 +131,41 @@ namespace bpkg
           // explicitly added to the configuration and their complements,
           // recursively.
           //
-          aps = filter (rep, db.query<available_package> (q));
+          apkgs = filter (rep, db.query<available_package> (q));
         }
       }
 
-      if (multi)
+      // Suppress printing the package name if there is only one and it was
+      // specified by the user.
+      //
+      if (!single)
       {
-        cout << n;
+        cout << p.name;
 
-        if (!v.empty ())
-          cout << '/' << v;
+        if (!p.version.empty ())
+          cout << '/' << p.version;
 
         cout << ": ";
       }
 
       bool found (false);
 
-      if (p != nullptr)
+      if (const shared_ptr<selected_package>& s = p.selected)
       {
-        cout << p->state;
+        cout << s->state;
 
-        if (p->substate != package_substate::none)
-          cout << ',' << p->substate;
+        if (s->substate != package_substate::none)
+          cout << ',' << s->substate;
 
         // Also print the version of the package unless the user specified it.
         //
-        if (v != p->version)
-          cout << ' ' << p->version_string ();
+        if (p.version != s->version)
+          cout << ' ' << s->version_string ();
 
-        if (p->hold_package)
+        if (s->hold_package)
           cout << " hold_package";
 
-        if (p->hold_version)
+        if (s->hold_version)
           cout << " hold_version";
 
         found = true;
@@ -141,22 +181,25 @@ namespace bpkg
         // the user. We will later compare it if the user did specify the
         // version.
         //
-        bool sys (v.empty ());
+        bool sys (p.version.empty ());
 
-        if (!aps.empty ())
+        if (!apkgs.empty ())
         {
           // If the user specified the version, then there might only be one
           // entry in which case it is useless to repeat it. But we do want
           // to print it if there is also a system one.
           //
-          if (sys || v.empty () || aps.size () > 1 || aps[0]->version != v)
+          if (sys                          ||
+              p.version.empty ()           ||
+              apkgs.size () > 1            ||
+              p.version != apkgs[0]->version)
           {
-            for (shared_ptr<available_package> ap: aps)
+            for (const shared_ptr<available_package>& a: apkgs)
             {
-              if (ap->stub ())
+              if (a->stub ())
                 break; // All the rest are stubs so bail out.
 
-              cout << ' ' << ap->version;
+              cout << ' ' << a->version;
             }
           }
         }

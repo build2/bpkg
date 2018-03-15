@@ -15,13 +15,16 @@ namespace bpkg
 
     "\h|SYNOPSIS|
 
-     \c{\b{bpkg pkg-status}|\b{status} [<options>] <pkg>[\b{/}<ver>]...}
+     \c{\b{bpkg pkg-status}|\b{status} [<options>] [<pkg>[\b{/}<ver>]...]}
 
      \h|DESCRIPTION|
 
      The \cb{pkg-status} command prints the status of the specified packages
-     or, if <ver> is specified, package versions. Note that the status is
-     written to \cb{STDOUT}, not \cb{STDERR}.
+     or, if <ver> is specified, package versions. If no packages were
+     specified, then \cb{pkg-status} prints the status of all the held
+     packages (which are the packages that were explicitly built; see
+     \l{bpkg-pkg-build(1)}). Note that the status is written to \cb{STDOUT},
+     not \cb{STDERR}.
 
      The status output format is regular. If several packages were specified,
      then each line starts with the package name (and version, if specified)
