@@ -25,68 +25,18 @@ namespace bpkg
   };
   using packages = vector<package>;
 
-  int
-  pkg_status (const pkg_status_options& o, cli::scanner& args)
+  // If single is true, then omit the package name. If recursive or immediate
+  // is true, then print status for dependencies indented by two spaces.
+  //
+  static void
+  pkg_status (database& db,
+              const packages& pkgs,
+              bool single,
+              string& indent,
+              bool recursive,
+              bool immediate)
   {
     tracer trace ("pkg_status");
-
-    const dir_path& c (o.directory ());
-    l4 ([&]{trace << "configuration: " << c;});
-
-    database db (open (c, trace));
-    transaction t (db.begin ());
-    session s;
-
-    packages pkgs;
-    bool single (false); // True if single package specified by the user.
-    {
-      using query = query<selected_package>;
-
-      if (args.more ())
-      {
-        while (args.more ())
-        {
-          const char* arg (args.next ());
-          package p {parse_package_name (arg),
-                     parse_package_version (arg),
-                     nullptr};
-
-          // Search in the packages that already exist in this configuration.
-          //
-          {
-            query q (query::name == p.name);
-
-            if (!p.version.empty ())
-              q = q && compare_version_eq (query::version,
-                                           p.version,
-                                           p.version.revision != 0);
-
-            p.selected = db.query_one<selected_package> (q);
-          }
-
-          pkgs.push_back (move (p));
-        }
-
-        single = (pkgs.size () == 1);
-      }
-      else
-      {
-        // Find all held packages.
-        //
-        for (shared_ptr<selected_package> s:
-               pointer_result (
-                 db.query<selected_package> (query::hold_package)))
-        {
-          pkgs.push_back (package {s->name, version (), move (s)});
-        }
-
-        if (pkgs.empty ())
-        {
-          info << "no held packages in the configuration";
-          return 0;
-        }
-      }
-    }
 
     for (const package& p: pkgs)
     {
@@ -135,10 +85,12 @@ namespace bpkg
         }
       }
 
+      cout << indent;
+
       // Suppress printing the package name if there is only one and it was
       // specified by the user.
       //
-      if (!single)
+      if (!single || immediate || recursive)
       {
         cout << p.name;
 
@@ -214,7 +166,104 @@ namespace bpkg
         cout << "unknown";
 
       cout << endl;
+
+      if (recursive || immediate)
+      {
+        // Collect and recurse.
+        //
+        packages dpkgs;
+        if (p.selected != nullptr)
+        {
+          for (const auto& pair: p.selected->prerequisites)
+          {
+            shared_ptr<selected_package> d (pair.first.load ());
+            dpkgs.push_back (package {d->name, version (), move (d)});
+          }
+        }
+
+        if (!dpkgs.empty ())
+        {
+          indent += "  ";
+          pkg_status (db,
+                      dpkgs,
+                      false /* single */,
+                      indent,
+                      recursive,
+                      false /* immediate */);
+          indent.resize (indent.size () - 2);
+        }
+      }
     }
+  }
+
+  int
+  pkg_status (const pkg_status_options& o, cli::scanner& args)
+  {
+    tracer trace ("pkg_status");
+
+    if (o.immediate () && o.recursive ())
+      fail << "both --immediate|-i and --recursive|-r specified";
+
+    const dir_path& c (o.directory ());
+    l4 ([&]{trace << "configuration: " << c;});
+
+    database db (open (c, trace));
+    transaction t (db.begin ());
+    session s;
+
+    packages pkgs;
+    bool single (false); // True if single package specified by the user.
+    {
+      using query = query<selected_package>;
+
+      if (args.more ())
+      {
+        while (args.more ())
+        {
+          const char* arg (args.next ());
+          package p {parse_package_name (arg),
+                     parse_package_version (arg),
+                     nullptr};
+
+          // Search in the packages that already exist in this configuration.
+          //
+          {
+            query q (query::name == p.name);
+
+            if (!p.version.empty ())
+              q = q && compare_version_eq (query::version,
+                                           p.version,
+                                           p.version.revision != 0);
+
+            p.selected = db.query_one<selected_package> (q);
+          }
+
+          pkgs.push_back (move (p));
+        }
+
+        single = (pkgs.size () == 1);
+      }
+      else
+      {
+        // Find all held packages.
+        //
+        for (shared_ptr<selected_package> s:
+               pointer_result (
+                 db.query<selected_package> (query::hold_package)))
+        {
+          pkgs.push_back (package {s->name, version (), move (s)});
+        }
+
+        if (pkgs.empty ())
+        {
+          info << "no held packages in the configuration";
+          return 0;
+        }
+      }
+    }
+
+    string indent;
+    pkg_status (db, pkgs, single, indent, o.recursive (), o.immediate ());
 
     t.commit ();
     return 0;

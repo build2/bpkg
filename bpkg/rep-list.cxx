@@ -75,9 +75,7 @@ namespace bpkg
       }
     }
 
-    indent.pop_back ();
-    indent.pop_back ();
-
+    indent.resize (indent.size () - 2);
     chain.erase (r);
   }
 

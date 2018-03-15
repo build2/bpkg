@@ -13,6 +13,9 @@ namespace bpkg
   {
     "<options> <pkg> <ver>",
 
+    // NOTE: remember to update <dep-spec> in bdep-status if changing the
+    //       argument format.
+    //
     "\h|SYNOPSIS|
 
      \c{\b{bpkg pkg-status}|\b{status} [<options>] [<pkg>[\b{/}<ver>]...]}
@@ -23,8 +26,11 @@ namespace bpkg
      or, if <ver> is specified, package versions. If no packages were
      specified, then \cb{pkg-status} prints the status of all the held
      packages (which are the packages that were explicitly built; see
-     \l{bpkg-pkg-build(1)}). Note that the status is written to \cb{STDOUT},
-     not \cb{STDERR}.
+     \l{bpkg-pkg-build(1)}). Additionally, the status of immediate or all
+     dependencies of the above packages can be printed by specifying the
+     \c{\b{--immediate}|\b{-i}} or \c{\b{--recursive}|\b{-r}} options,
+     respectively. Note that the status is written to \cb{STDOUT}, not
+     \cb{STDERR}.
 
      The status output format is regular. If several packages were specified,
      then each line starts with the package name (and version, if specified)
@@ -136,5 +142,15 @@ namespace bpkg
   class pkg_status_options: configuration_options
   {
     "\h|PKG-STATUS OPTIONS|"
+
+    bool --immediate|-i
+    {
+      "Also print the status of immediate dependencies."
+    }
+
+    bool --recursive|-r
+    {
+      "Also print the status of all dependencies, recursively."
+    }
   };
 }
