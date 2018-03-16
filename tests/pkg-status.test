@@ -70,12 +70,12 @@ rep_fetch  += -d cfg --auth all --trust-yes 2>!
     : libfoo-1.0.0
     :
     $clone_cfg;
-    $* libfoo/1.0.0 >'unknown'
+    $* libfoo/1.0.0 >'libfoo unknown 1.0.0'
 
     : libfoo
     :
     $clone_cfg;
-    $* libfoo >'unknown'
+    $* libfoo >'libfoo unknown'
   }
 
   : rep-fetched
@@ -89,12 +89,12 @@ rep_fetch  += -d cfg --auth all --trust-yes 2>!
     : libfoo-1.0.0
     :
     $clone_cfg;
-    $* libfoo/1.0.0 >'available'
+    $* libfoo/1.0.0 >'libfoo available 1.0.0'
 
     : libfoo
     :
     $clone_cfg;
-    $* libfoo >'available 1.0.0 sys:?'
+    $* libfoo >'libfoo available 1.0.0'
 
     : pkg-fetched
     :
@@ -104,12 +104,12 @@ rep_fetch  += -d cfg --auth all --trust-yes 2>!
       : libfoo-1.0.0
       :
       $clone_cfg;
-      $* libfoo/1.0.0 >'fetched; available'
+      $* libfoo/1.0.0 >'libfoo fetched 1.0.0'
 
       : libfoo
       :
       $clone_cfg;
-      $* libfoo >'fetched 1.0.0; available sys:?'
+      $* libfoo >'libfoo fetched 1.0.0'
     }
   }
 }
@@ -134,11 +134,11 @@ rep_fetch  += -d cfg --auth all --trust-yes 2>!
 
     : libbar
     :
-    $* -d ../extra libbar >'available 1.1.0+1 sys:?'
+    $* -d ../extra libbar >'libbar available 1.1.0+1 [1.0.0]'
 
     : libbar-stable
     :
-    $* -d ../extra-stable libbar >'available 1.1.0+1 1.0.0 sys:?'
+    $* -d ../extra-stable libbar >'libbar available 1.1.0+1 1.0.0'
   }
 
   : testing
@@ -146,7 +146,7 @@ rep_fetch  += -d cfg --auth all --trust-yes 2>!
   {
     $clone_cfg ./ && $rep_add $rep/testing && $rep_fetch;
 
-    $* libbar >'available 1.1.0 1.0.0+1 1.0.0 sys:?'
+    $* libbar >'libbar available [1.1.0+1] 1.1.0 1.0.0+1 1.0.0'
   }
 
   : unstable
@@ -166,15 +166,15 @@ rep_fetch  += -d cfg --auth all --trust-yes 2>!
 
     : not-fetched
     :
-    $* -d ../cfg libbar >'available 2.0.0 1.1.0 1.0.0+1 1.0.0 sys:?'
+    $* -d ../cfg libbar >'libbar available 2.0.0 [1.1.0+1] 1.1.0 1.0.0+1 1.0.0'
 
     : fetched-1
     :
-    $* -d ../fetched1 libbar >'fetched 1.0.0+1; available 2.0.0 1.1.0 sys:?'
+    $* -d ../fetched1 libbar >'libbar fetched 1.0.0+1 available 2.0.0 [1.1.0+1] 1.1.0'
 
     : fetched-2
     :
-    $* -d ../fetched2 libbar >'fetched 2.0.0; available sys:?'
+    $* -d ../fetched2 libbar >'libbar fetched 2.0.0'
   }
 }
 
@@ -195,9 +195,9 @@ else
   : Make sure that we properly handle the root<->style repository dependency
   : cycle while searching for the style-basic package, that is an available
   : package but not from the user-added repository (or its complement), and so
-  : is not visible for the status command. Note that the root repository is the
-  : default complement for git repositories (see rep_fetch() implementation for
-  : the reasoning).
+  : is not detected as buildable by the status command. Note that the root
+  : repository is the default complement for git repositories (see rep_fetch()
+  : implementation for the reasoning).
   :
   $clone_root_cfg;
   $rep_add "$rep/libbar.git#master" && $rep_add "$rep/style.git#master";
@@ -208,5 +208,5 @@ else
   $rep_fetch 2>&1 | \
   sed -e 's/warning: (fetching (over|whole) .*)/info: \1/' >&2 2>!;
 
-  $* style-basic >'unknown'
+  $* style-basic >~'%style-basic available \[1\.1\.0-a\.0\..+\]%'
 }

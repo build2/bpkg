@@ -104,10 +104,10 @@ namespace bpkg
     return nullptr;
   }
 
-  static inline shared_ptr<repository>
-  find (const shared_ptr<repository>& r,
-        const shared_ptr<available_package>& ap,
-        bool prereq)
+  shared_ptr<repository>
+  filter (const shared_ptr<repository>& r,
+          const shared_ptr<available_package>& ap,
+          bool prereq)
   {
     repositories chain;
     return find (r, ap, chain, prereq);
@@ -122,7 +122,7 @@ namespace bpkg
 
     for (shared_ptr<available_package> ap: pointer_result (apr))
     {
-      if (find (r, ap, prereq) != nullptr)
+      if (filter (r, ap, prereq) != nullptr)
         aps.push_back (move (ap));
     }
 
@@ -138,7 +138,7 @@ namespace bpkg
 
     for (shared_ptr<available_package> ap: pointer_result (apr))
     {
-      if (shared_ptr<repository> pr = find (r, ap, prereq))
+      if (shared_ptr<repository> pr = filter (r, ap, prereq))
         return result (move (ap), move (pr));
     }
 

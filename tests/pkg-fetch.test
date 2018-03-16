@@ -123,7 +123,7 @@ $* libfoo/1.0.0 2>>/EOE != 0
       %.*fetched libfoo/1.0.0%
       EOE
 
-    $pkg_status libfoo/1.0.0 1>'fetched; available';
+    $pkg_status libfoo/1.0.0 1>'libfoo fetched 1.0.0';
 
     $* libfoo/1.0.0 2>>/EOE != 0;
       error: package libfoo already exists in configuration cfg/
@@ -146,7 +146,7 @@ $* libfoo/1.0.0 2>>/EOE != 0
     $clone_cfg;
 
     $* -e $src/t1/libfoo-1.0.0.tar.gz 2>'using libfoo/1.0.0 (external)';
-    $pkg_status   libfoo/1.0.0        1>'fetched; available';
+    $pkg_status   libfoo/1.0.0        1>'libfoo fetched 1.0.0';
     $pkg_unpack   libfoo              2>'unpacked libfoo/1.0.0';
 
     test.arguments += --replace; # Replace existing package.
@@ -156,19 +156,19 @@ $* libfoo/1.0.0 2>>/EOE != 0
       %.*fetched libfoo/1.1.0%
       EOE
 
-    $pkg_status   libfoo/1.1.0        1>'fetched; available';
+    $pkg_status   libfoo/1.1.0        1>'libfoo fetched 1.1.0';
     $pkg_unpack   libfoo              2>'unpacked libfoo/1.1.0';
     $* -e $src/t1/libfoo-1.0.0.tar.gz 2>'using libfoo/1.0.0 (external)';
-    $pkg_status   libfoo/1.0.0        1>'fetched; available';
+    $pkg_status   libfoo/1.0.0        1>'libfoo fetched 1.0.0';
 
     $* libfoo/1.1.0 2>>~%EOE%;
       %.*
       %.*fetched libfoo/1.1.0%
       EOE
 
-    $pkg_status   libfoo/1.1.0        1>'fetched; available';
+    $pkg_status   libfoo/1.1.0        1>'libfoo fetched 1.1.0';
     $* -e $src/t1/libfoo-1.0.0.tar.gz 2>'using libfoo/1.0.0 (external)';
-    $pkg_status   libfoo/1.0.0        1>'fetched; available';
+    $pkg_status   libfoo/1.0.0        1>'libfoo fetched 1.0.0';
 
     $pkg_purge libfoo 2>'purged libfoo/1.0.0'
   }
@@ -197,7 +197,7 @@ $* libfoo/1.0.0 2>>/EOE != 0
     %.*fetched libhello/1.0.0%
     EOE
 
-  $pkg_status libhello/1.0.0 1>'fetched; available';
+  $pkg_status libhello/1.0.0 1>'libhello fetched 1.0.0';
 
   $pkg_purge libhello 2>'purged libhello/1.0.0'
 }

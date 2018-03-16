@@ -220,9 +220,9 @@ $* libfoo/1.0.0 2>>~%EOE% != 0
      purged libfoo
      EOE
 
-   -$pkg_status libbar/1.1.0 >'unknown'
-   -$pkg_status libbaz/1.1.0 >'available'
-   -$pkg_status libfoo/1.1.0 >'available'
+   -$pkg_status libbar/1.1.0 >'libbar available [1.1.0]'
+   -$pkg_status libbaz/1.1.0 >'libbaz available 1.1.0'
+   -$pkg_status libfoo/1.1.0 >'libfoo available [1.1.0]'
 }
 
 : prerequisites-and-dependents
@@ -368,11 +368,11 @@ $* libfoo/1.0.0 2>>~%EOE% != 0
      purged libfox
      EOE
 
-   -$pkg_status libfox/1.0.0 >'available'
-   -$pkg_status libfoo/1.1.0 >'available'
-   -$pkg_status libbar/1.1.0 >'unknown'
-   -$pkg_status libbaz/1.1.0 >'available'
-   -$pkg_status libbiz/1.0.0 >'available'
+   -$pkg_status libfox/1.0.0 >'libfox available 1.0.0'
+   -$pkg_status libfoo/1.1.0 >'libfoo available [1.1.0]'
+   -$pkg_status libbar/1.1.0 >'libbar available [1.1.0]'
+   -$pkg_status libbaz/1.1.0 >'libbaz available 1.1.0'
+   -$pkg_status libbiz/1.0.0 >'libbiz available 1.0.0'
 }
 
 : keep-drop-options
@@ -424,7 +424,7 @@ $* libfoo/1.0.0 2>>~%EOE% != 0
       purged libbar
       EOE
 
-    $pkg_status libfoo >'configured 1.1.0';
+    $pkg_status libfoo >'libfoo configured 1.1.0';
 
     $* libfoo 2>>EOE
       disfigured libfoo
@@ -442,7 +442,7 @@ $* libfoo/1.0.0 2>>~%EOE% != 0
   $pkg_build libfoo;
 
   $* --disfigure-only libfoo 2>'disfigured libfoo';
-  $pkg_status libfoo >'unpacked 1.1.0 hold_package; available sys:?';
+  $pkg_status libfoo >'!libfoo unpacked 1.1.0';
 
   $* libfoo 2>'purged libfoo'
 }

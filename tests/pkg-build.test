@@ -753,9 +753,9 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       updated libbaz/1.1.0
       EOE
 
-    $pkg_status libfoo/1.1.0 >'configured; available';
-    $pkg_status libbar/1.1.0 >'configured';
-    $pkg_status libbaz/1.1.0 >'configured hold_package; available';
+    $pkg_status libfoo/1.1.0 >'libfoo configured 1.1.0';
+    $pkg_status libbar/1.1.0 >'libbar configured 1.1.0';
+    $pkg_status libbaz/1.1.0 >'!libbaz configured 1.1.0';
 
     $pkg_disfigure libbaz 2>'disfigured libbaz/1.1.0';
     $pkg_purge     libbaz 2>'purged libbaz/1.1.0';
@@ -783,7 +783,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
         updated libfoo/1.0.0
         EOE
 
-      $pkg_status libfoo >'configured 1.0.0 hold_package hold_version';
+      $pkg_status libfoo >'!libfoo configured !1.0.0';
 
       $* $src/libfoo-1.1.0/ 2>>~%EOE%;
         disfigured libfoo/1.0.0
@@ -793,7 +793,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
         updated libfoo/1.1.0
         EOE
 
-      $pkg_status libfoo >'configured 1.1.0 hold_package hold_version';
+      $pkg_status libfoo >'!libfoo configured !1.1.0';
 
       $pkg_disfigure libfoo 2>'disfigured libfoo/1.1.0';
       $pkg_purge     libfoo 2>'purged libfoo/1.1.0'
@@ -806,14 +806,14 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       $pkg_fetch -e $src/libfoo-1.0.0.tar.gz && $pkg_unpack libfoo;
       $pkg_configure libfoo;
 
-      $pkg_status libfoo >'configured 1.0.0';
+      $pkg_status libfoo >'libfoo configured 1.0.0';
 
       $* libfoo 2>>~%EOE%;
         %info: .+dir\{libfoo-1.0.0.\} is up to date%
         updated libfoo/1.0.0
         EOE
 
-      $pkg_status libfoo >'configured 1.0.0 hold_package';
+      $pkg_status libfoo >'!libfoo configured 1.0.0';
 
       $pkg_disfigure libfoo 2>'disfigured libfoo/1.0.0';
       $pkg_purge     libfoo 2>'purged libfoo/1.0.0'
@@ -839,14 +839,14 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
         updated libfoo/1.0.0
         EOE
 
-      $pkg_status libfoo >'configured 1.0.0 hold_package; available sys:?';
+      $pkg_status libfoo >'!libfoo configured 1.0.0 available [1.1.0]';
 
       $* libfoo/1.0.0 2>>~%EOE%;
         %info: .+dir\{libfoo-1.0.0.\} is up to date%
         updated libfoo/1.0.0
         EOE
 
-      $pkg_status libfoo >'configured 1.0.0 hold_package hold_version; available sys:?';
+      $pkg_status libfoo >'!libfoo configured !1.0.0 available [1.1.0]';
 
       $pkg_disfigure libfoo 2>'disfigured libfoo/1.0.0';
       $pkg_purge     libfoo 2>'purged libfoo/1.0.0'
@@ -866,7 +866,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
         updated libfoo/1.0.0
         EOE
 
-      $pkg_status libfoo >'configured 1.0.0 hold_package hold_version; available sys:?';
+      $pkg_status libfoo >'!libfoo configured !1.0.0 available [1.1.0]';
 
       $pkg_disfigure libfoo 2>'disfigured libfoo/1.0.0';
       $pkg_purge     libfoo 2>'purged libfoo/1.0.0'
@@ -894,7 +894,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
         updated libbaz/1.1.0
         EOE
 
-      $pkg_status libfoo >'configured 1.1.0; available sys:?';
+      $pkg_status libfoo >'libfoo configured 1.1.0';
 
       $pkg_disfigure libbaz 2>'disfigured libbaz/1.1.0';
       $pkg_purge     libbaz 2>'purged libbaz/1.1.0';
@@ -920,7 +920,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
         updated libfoo/1.0.0
         EOE
 
-      $pkg_status libfoo >'configured 1.0.0 hold_package; available sys:?';
+      $pkg_status libfoo >'!libfoo configured 1.0.0 available [1.1.0]';
 
       $* libbaz 2>>~%EOE%;
         warning: package libbar dependency on (libfoo == 1.1.0) is forcing upgrade of libfoo/1.0.0 to 1.1.0
@@ -941,7 +941,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
         updated libbaz/1.1.0
         EOE
 
-      $pkg_status libfoo >'configured 1.1.0 hold_package; available sys:?';
+      $pkg_status libfoo >'!libfoo configured 1.1.0';
 
       $pkg_disfigure libbaz 2>'disfigured libbaz/1.1.0';
       $pkg_purge     libbaz 2>'purged libbaz/1.1.0';
@@ -967,7 +967,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
         updated libfoo/1.0.0
         EOE
 
-      $pkg_status libfoo >'configured 1.0.0 hold_package hold_version; available sys:?';
+      $pkg_status libfoo >'!libfoo configured !1.0.0 available [1.1.0]';
 
       $* libbaz 2>>EOE != 0;
         error: package libbar dependency on (libfoo == 1.1.0) is forcing upgrade of libfoo/1.0.0 to 1.1.0
@@ -1000,8 +1000,8 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       updated libbar/1.0.0
       EOE
 
-    $pkg_status libfoo >'configured 1.0.0; available sys:?';
-    $pkg_status libbar >'configured 1.0.0 hold_package; available sys:?';
+    $pkg_status libfoo >'libfoo configured 1.0.0';
+    $pkg_status libbar >'!libbar configured 1.0.0';
 
     $rep_add $rep/t5 && $rep_fetch;
 
@@ -1017,8 +1017,8 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       updated libbar/1.2.0
       EOE
 
-    $pkg_status libfoo >'available 1.0.0 sys:?';
-    $pkg_status libbar >'configured 1.2.0 hold_package; available sys:?';
+    $pkg_status libfoo >'libfoo available 1.0.0';
+    $pkg_status libbar >'!libbar configured 1.2.0';
 
     $* libbar/1.0.0 libfoo 2>>~%EOE%;
       disfigured libbar/1.2.0
@@ -1036,8 +1036,8 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       updated libbar/1.0.0
       EOE
 
-    $pkg_status libfoo >'configured 1.0.0 hold_package; available sys:?';
-    $pkg_status libbar >'configured 1.0.0 hold_package hold_version; available 1.2.0 sys:?';
+    $pkg_status libfoo >'!libfoo configured 1.0.0';
+    $pkg_status libbar >'!libbar configured !1.0.0 available 1.2.0';
 
     $* libbar 2>>~%EOE%;
       disfigured libbar/1.0.0
@@ -1049,8 +1049,8 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       updated libbar/1.2.0
       EOE
 
-    $pkg_status libfoo >'configured 1.0.0 hold_package; available sys:?';
-    $pkg_status libbar >'configured 1.2.0 hold_package; available sys:?';
+    $pkg_status libfoo >'!libfoo configured 1.0.0';
+    $pkg_status libbar >'!libbar configured 1.2.0';
 
     $pkg_disfigure libbar 2>'disfigured libbar/1.2.0';
     $pkg_purge     libbar 2>'purged libbar/1.2.0';
@@ -1145,7 +1145,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       updated libbar/1.2.0
       EOE
 
-    $pkg_status libfoo >'available 1.0.0 sys:?';
+    $pkg_status libfoo >'libfoo available 1.0.0';
 
     $pkg_disfigure libbar 2>'disfigured libbar/1.2.0';
     $pkg_purge     libbar 2>'purged libbar/1.2.0'
@@ -1182,7 +1182,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       updated libbar/1.2.0
       EOE
 
-    $pkg_status libfoo >'configured 1.0.0; available sys:?';
+    $pkg_status libfoo >'libfoo configured 1.0.0';
 
     $pkg_disfigure libbar 2>'disfigured libbar/1.2.0';
     $pkg_purge     libbar 2>'purged libbar/1.2.0';

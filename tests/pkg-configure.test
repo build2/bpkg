@@ -156,12 +156,12 @@ $* libhello libhello 2>>EOE != 0
     $pkg_fetch libhello/1.0.0 && $pkg_unpack libhello;
 
     $*             libhello 2>'configured libhello/1.0.0';
-    $pkg_status    libhello 1>'configured 1.0.0; available sys:?';
+    $pkg_status    libhello 1>'libhello configured 1.0.0';
     $pkg_disfigure libhello 2>'disfigured libhello/1.0.0';
-    $pkg_status    libhello 1>'unpacked 1.0.0; available sys:?';
+    $pkg_status    libhello 1>'libhello unpacked 1.0.0';
 
     $pkg_purge     libhello       2>'purged libhello/1.0.0';
-    $pkg_status    libhello/1.0.0 1>'available'
+    $pkg_status    libhello/1.0.0 1>'libhello available 1.0.0'
   }
 }
 
@@ -171,12 +171,12 @@ $* libhello libhello 2>>EOE != 0
   $clone_cfg && $pkg_unpack -e $src/libhello-1.0.0;
 
   $*             libhello 2>'configured libhello/1.0.0';
-  $pkg_status    libhello 1>'configured 1.0.0';
+  $pkg_status    libhello 1>'libhello configured 1.0.0';
   $pkg_disfigure libhello 2>'disfigured libhello/1.0.0';
-  $pkg_status    libhello 1>'unpacked 1.0.0';
+  $pkg_status    libhello 1>'libhello unpacked 1.0.0';
 
   $pkg_purge  libhello       2>'purged libhello/1.0.0';
-  $pkg_status libhello       1>'unknown';
+  $pkg_status libhello       1>'libhello unknown';
   test -d cfg/libhello-1.0.0 == 1
 }
 
@@ -190,10 +190,10 @@ $* libhello libhello 2>>EOE != 0
 
   $pkg_disfigure libhello 2>'disfigured libhello/1.0.0';
 
-  $pkg_status libhello/1.0.0 >'unpacked';
+  $pkg_status libhello/1.0.0 >'libhello unpacked 1.0.0';
 
   $pkg_purge -f libhello       2>'purged libhello/1.0.0';
-  $pkg_status   libhello/1.0.0 1>'unknown'
+  $pkg_status   libhello/1.0.0 1>'libhello unknown 1.0.0'
 }
 
 : broken
@@ -213,12 +213,12 @@ if ($cxx.target.class != 'windows')
       info: package libhello is now broken; use 'pkg-purge' to remove
       EOE
 
-    $pkg_status libhello >'broken 1.0.0';
+    $pkg_status libhello >'libhello broken 1.0.0';
 
     chmod 755 cfg/libhello;
     rm -r cfg/libhello;
     $pkg_purge -f libhello 2>'purged libhello/1.0.0';
-    $pkg_status libhello >'unknown'
+    $pkg_status libhello >'libhello unknown'
   }
 
   : configure-failed
@@ -235,7 +235,7 @@ if ($cxx.target.class != 'windows')
       %error: unable to create directory cfg/libhello/build/.+%
       EOE
 
-    $pkg_status libhello >'unpacked 1.0.0'
+    $pkg_status libhello >'libhello unpacked 1.0.0'
   }
 
   : configure-disfigure-failed
@@ -254,12 +254,12 @@ if ($cxx.target.class != 'windows')
       info: package libhello is now broken; use 'pkg-purge' to remove
       EOE
 
-    $pkg_status libhello >'broken 1.0.0';
+    $pkg_status libhello >'libhello broken 1.0.0';
 
     chmod 755 cfg/libhello cfg/libhello/build;
     rm -r cfg/libhello;
     $pkg_purge -f libhello 2>'purged libhello/1.0.0';
-    $pkg_status libhello >'unknown'
+    $pkg_status libhello >'libhello unknown'
   }
 }
 
@@ -278,7 +278,7 @@ if ($cxx.target.class != 'windows')
       error: no configured package satisfies dependency on libfoo
       EOE
 
-    $pkg_status libbar/1.0.0  1>'unpacked; available';
+    $pkg_status libbar/1.0.0  1>'libbar unpacked 1.0.0';
     $pkg_fetch  libfoo/1.0.0;
     $pkg_unpack libfoo;
 

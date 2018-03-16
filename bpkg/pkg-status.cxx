@@ -19,19 +19,20 @@ namespace bpkg
 {
   struct package
   {
-    string                       name;
-    bpkg::version                version;  // Empty if unspecified.
-    shared_ptr<selected_package> selected; // NULL if none selected.
+    string                          name;
+    bpkg::version                   version;    // Empty if unspecified.
+    shared_ptr<selected_package>    selected;   // NULL if none selected.
+    optional<dependency_constraint> constraint; // Version constraint, if any.
   };
   using packages = vector<package>;
 
-  // If single is true, then omit the package name. If recursive or immediate
-  // is true, then print status for dependencies indented by two spaces.
+  // If recursive or immediate is true, then print status for dependencies
+  // indented by two spaces.
   //
   static void
-  pkg_status (database& db,
+  pkg_status (const pkg_status_options& o,
+              database& db,
               const packages& pkgs,
-              bool single,
               string& indent,
               bool recursive,
               bool immediate)
@@ -42,21 +43,41 @@ namespace bpkg
     {
       l4 ([&]{trace << "package " << p.name << "; version " << p.version;});
 
+      // Can't be both.
+      //
+      assert (p.version.empty () || !p.constraint);
+
+      const shared_ptr<selected_package>& s (p.selected);
+
       // Look for available packages.
       //
-      bool available; // At least one vailable package (stub or not).
-      vector<shared_ptr<available_package>> apkgs;
+      // Some of them are only available to upgrade/downgrade as dependencies.
+      //
+      struct apkg
+      {
+        shared_ptr<available_package> package;
+        bool build;
+      };
+      vector<apkg> apkgs;
+
+      // A package with this name is known in available packages potentially
+      // for build.
+      //
+      bool known (false);
+      bool build (false);
       {
         shared_ptr<repository> rep (db.load<repository> ("")); // Root.
 
         using query = query<available_package>;
 
         query q (query::id.name == p.name);
+        {
+          auto r (db.query<available_package> (q));
+          known = !r.empty ();
+          build = filter_one (rep, move (r)).first != nullptr;
+        }
 
-        available =
-          filter_one (rep, db.query<available_package> (q)).first != nullptr;
-
-        if (available)
+        if (known)
         {
           // If the user specified the version, then only look for that
           // specific version (we still do it since there might be other
@@ -69,102 +90,126 @@ namespace bpkg
                                          false);
 
           // And if we found an existing package, then only look for versions
-          // greater than what already exists. Note that for a system wildcard
-          // version we will always show all available versions (since it's
-          // 0).
+          // greater than to what already exists. Note that for a system
+          // wildcard version we will always show all available versions
+          // (since it's 0).
           //
-          if (p.selected != nullptr)
-            q = q && query::id.version > p.selected->version;
+          if (s != nullptr)
+            q = q && query::id.version > s->version;
 
           q += order_by_version_desc (query::id.version);
 
-          // Only consider packages that are in repositories that were
-          // explicitly added to the configuration and their complements,
-          // recursively.
+          // Packages that are in repositories that were explicitly added to
+          // the configuration and their complements, recursively, are also
+          // available to build.
           //
-          apkgs = filter (rep, db.query<available_package> (q));
+          for (shared_ptr<available_package> ap:
+                 pointer_result (
+                   db.query<available_package> (q)))
+          {
+            bool build (filter (rep, ap));
+            apkgs.push_back (apkg {move (ap), build});
+          }
         }
       }
 
       cout << indent;
 
-      // Suppress printing the package name if there is only one and it was
-      // specified by the user.
+      // Selected.
       //
-      if (!single || immediate || recursive)
+
+      // Hold package status.
+      //
+      if (s != nullptr)
       {
-        cout << p.name;
-
-        if (!p.version.empty ())
-          cout << '/' << p.version;
-
-        cout << ": ";
+        if (s->hold_package && !o.no_hold () && !o.no_hold_package ())
+          cout << '!';
       }
 
-      bool found (false);
+      cout << p.name;
 
-      if (const shared_ptr<selected_package>& s = p.selected)
+      if (o.constraint () && p.constraint)
+        cout << ' ' << *p.constraint;
+
+      cout << ' ';
+
+      if (s != nullptr)
       {
         cout << s->state;
 
         if (s->substate != package_substate::none)
           cout << ',' << s->substate;
 
-        // Also print the version of the package unless the user specified it.
-        //
-        if (p.version != s->version)
-          cout << ' ' << s->version_string ();
+        cout << ' ';
 
-        if (s->hold_package)
-          cout << " hold_package";
+        if (s->hold_version && !o.no_hold () && !o.no_hold_version ())
+          cout << '!';
 
-        if (s->hold_version)
-          cout << " hold_version";
-
-        found = true;
+        cout << s->version_string ();
       }
 
-      if (available)
+      // Available.
+      //
+      bool available (false);
+      if (known)
       {
-        cout << (found ? "; " : "") << "available";
-
+        // Available from the system.
+        //
         // The idea is that in the future we will try to auto-discover a
         // system version and then print that. For now we just say "maybe
-        // available from the system" but only if no version was specified by
+        // available from the system" even if the version was specified by
         // the user. We will later compare it if the user did specify the
         // version.
         //
-        bool sys (p.version.empty ());
-
-        if (!apkgs.empty ())
+        string sys;
+        if (o.system ())
         {
-          // If the user specified the version, then there might only be one
-          // entry in which case it is useless to repeat it. But we do want
-          // to print it if there is also a system one.
-          //
-          if (sys                          ||
-              p.version.empty ()           ||
-              apkgs.size () > 1            ||
-              p.version != apkgs[0]->version)
-          {
-            for (const shared_ptr<available_package>& a: apkgs)
-            {
-              if (a->stub ())
-                break; // All the rest are stubs so bail out.
-
-              cout << ' ' << a->version;
-            }
-          }
+          sys = "?";
+          available = true;
         }
 
-        if (sys)
-          cout << " sys:?";
+        // Get rid of stubs.
+        //
+        for (auto i (apkgs.begin ()); i != apkgs.end (); ++i)
+        {
+          if (i->package->stub ())
+          {
+            // All the rest are stubs so bail out.
+            //
+            apkgs.erase (i, apkgs.end ());
+            break;
+          }
 
-        found = true;
+          available = true;
+        }
+
+        if (available)
+        {
+          cout << (s != nullptr ? " " : "") << "available";
+
+          for (const apkg& a: apkgs)
+            cout << ' '
+                 << (a.build ? "" : "[")
+                 << a.package->version
+                 << (a.build ? "" : "]");
+
+          if (!sys.empty ())
+            cout << ' '
+                 << (build ? "" : "[")
+                 << "sys:" << sys
+                 << (build ? "" : "]");
+        }
       }
 
-      if (!found)
+      if (s == nullptr && !available)
+      {
         cout << "unknown";
+
+        // Print the user's version if specified.
+        //
+        if (!p.version.empty ())
+          cout << ' ' << p.version;
+      }
 
       cout << endl;
 
@@ -173,21 +218,22 @@ namespace bpkg
         // Collect and recurse.
         //
         packages dpkgs;
-        if (p.selected != nullptr)
+        if (s != nullptr)
         {
-          for (const auto& pair: p.selected->prerequisites)
+          for (const auto& pair: s->prerequisites)
           {
             shared_ptr<selected_package> d (pair.first.load ());
-            dpkgs.push_back (package {d->name, version (), move (d)});
+            const optional<dependency_constraint>& c (pair.second);
+            dpkgs.push_back (package {d->name, version (), move (d), c});
           }
         }
 
         if (!dpkgs.empty ())
         {
           indent += "  ";
-          pkg_status (db,
+          pkg_status (o,
+                      db,
                       dpkgs,
-                      false /* single */,
                       indent,
                       recursive,
                       false /* immediate */);
@@ -213,7 +259,6 @@ namespace bpkg
     session s;
 
     packages pkgs;
-    bool single (false); // True if single package specified by the user.
     {
       using query = query<selected_package>;
 
@@ -224,7 +269,8 @@ namespace bpkg
           const char* arg (args.next ());
           package p {parse_package_name (arg),
                      parse_package_version (arg),
-                     nullptr};
+                     nullptr  /* selected */,
+                     nullopt  /* constraint */};
 
           // Search in the packages that already exist in this configuration.
           //
@@ -242,8 +288,6 @@ namespace bpkg
 
           pkgs.push_back (move (p));
         }
-
-        single = (pkgs.size () == 1);
       }
       else
       {
@@ -253,7 +297,7 @@ namespace bpkg
                pointer_result (
                  db.query<selected_package> (query::hold_package)))
         {
-          pkgs.push_back (package {s->name, version (), move (s)});
+          pkgs.push_back (package {s->name, version (), move (s), nullopt});
         }
 
         if (pkgs.empty ())
@@ -265,7 +309,7 @@ namespace bpkg
     }
 
     string indent;
-    pkg_status (db, pkgs, single, indent, o.recursive (), o.immediate ());
+    pkg_status (o, db, pkgs, indent, o.recursive (), o.immediate ());
 
     t.commit ();
     return 0;

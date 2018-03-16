@@ -455,7 +455,7 @@ if ($remote != true)
 
       $* 2>!;
 
-      $pkg_status libhello >'unpacked 1.0.0; available 1.0.0#1 sys:?'
+      $pkg_status libhello >'libhello unpacked 1.0.0 available 1.0.0#1'
     }
 
     : manifest-changed
@@ -471,7 +471,7 @@ if ($remote != true)
       echo "" >+ libhello/manifest;
       $* 2>!;
 
-      $pkg_status libhello >'unpacked 1.0.0; available 1.0.0#1 sys:?'
+      $pkg_status libhello >'libhello unpacked 1.0.0 available 1.0.0#1'
     }
 
     : pkg-rep
@@ -488,7 +488,7 @@ if ($remote != true)
 	$clone_cfg && $rep_add $src/libhello-1.0.0;
         $* 2>!;
 
-        $pkg_status libhello >'unpacked 1.0.0; available sys:?'
+        $pkg_status libhello >'libhello unpacked 1.0.0'
       }
 
       : changed-external
@@ -500,7 +500,7 @@ if ($remote != true)
 	$clone_cfg && $rep_add libhello;
         $* 2>!;
 
-        $pkg_status libhello >'unpacked 1.0.0; available 1.0.0#1 sys:?'
+        $pkg_status libhello >'libhello unpacked 1.0.0 available 1.0.0#1'
       }
 
       -$pkg_purge libhello 2>'purged libhello/1.0.0'
@@ -520,7 +520,7 @@ if ($remote != true)
       $rep_add $rep/style.git;
       $* 2>!;
 
-      $pkg_status style >"unpacked 1.0.0; available sys:?";
+      $pkg_status style >"style unpacked 1.0.0";
 
       $pkg_purge style 2>"purged style/1.0.0"
     }
@@ -540,7 +540,7 @@ if ($remote != true)
       1 package(s) in 1 repository(s)
       EOE
 
-    $pkg_status libhello >'unpacked 1.0.0; available sys:?'
+    $pkg_status libhello >'libhello unpacked 1.0.0'
   }
 }
 
@@ -639,6 +639,6 @@ else
         info: run 'bpkg rep-fetch' to update
       EOE
 
-    $pkg_status libfoo >'unknown'
+    $pkg_status libfoo >'libfoo unknown'
   }
 }

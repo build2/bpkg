@@ -129,8 +129,8 @@ rep_fetch  += -d cfg
 
 # Check if rep-fetch command was successfull or not.
 #
-fetched     = $pkg_status foo >'available 1 sys:?'
-not_fetched = $pkg_status foo >'unknown'
+fetched     = $pkg_status foo >'foo available 1'
+not_fetched = $pkg_status foo >'foo unknown'
 
 sc = " " # Space character to append to here-document line when required.
 

@@ -103,7 +103,7 @@ pkg_status += -d cfg
     pkg:build2.org/rep-remove/extra ($rep/extra)
     EOE
 
-  $pkg_status libbar >'unknown'
+  $pkg_status libbar >'libbar unknown'
 }
 
 : all
@@ -117,7 +117,7 @@ pkg_status += -d cfg
     EOE
 
   $rep_list >:"";
-  $pkg_status libbar >'unknown'
+  $pkg_status libbar >'libbar unknown'
 }
 
 : by-name
@@ -131,7 +131,7 @@ pkg_status += -d cfg
     EOE
 
   $rep_list >:"";
-  $pkg_status libbar >'unknown'
+  $pkg_status libbar >'libbar unknown'
 }
 
 : prerequisites-cycle
@@ -145,8 +145,8 @@ pkg_status += -d cfg
     EOE
 
   $rep_list >:"";
-  $pkg_status libbar >'unknown';
-  $pkg_status libfoo >'unknown'
+  $pkg_status libbar >'libbar unknown';
+  $pkg_status libfoo >'libfoo unknown'
 }
 
 : reacheable
@@ -166,8 +166,8 @@ pkg_status += -d cfg
           prerequisite pkg:build2.org/rep-remove/math ($rep/math)
     EOO
 
-  $pkg_status libbar >'available 1.0.0 sys:?';
-  $pkg_status libfoo >'unknown'
+  $pkg_status libbar >'libbar available [1.1.0+1] 1.0.0';
+  $pkg_status libfoo >'libfoo available [1.0.0]'
 }
 
 : package-locations
@@ -177,10 +177,10 @@ pkg_status += -d cfg
   $rep_add $rep/testing && $rep_add $rep/alpha && $rep_fetch;
 
   $* $rep/testing 2>!;
-  $pkg_status libbar >'available 2.0.0 sys:?';
+  $pkg_status libbar >'libbar available 2.0.0';
 
   $* $rep/alpha 2>!;
-  $pkg_status libbar >'unknown'
+  $pkg_status libbar >'libbar unknown'
 }
 
 : git-rep

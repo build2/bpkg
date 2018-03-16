@@ -26,7 +26,7 @@ EOE
       %created new configuration in .+/cfg/%
       EOE
 
-    $pkg_status libfoo >'unknown'
+    $pkg_status libfoo >'libfoo unknown'
   }
 
   : conf-var
@@ -36,7 +36,7 @@ EOE
       %created new configuration in .+/cfg/%
       EOE
 
-    $pkg_status libfoo >'unknown';
+    $pkg_status libfoo >'libfoo unknown';
 
     cat cfg/build/config.build >>/~"%EOO%"
       %.+
@@ -52,7 +52,7 @@ EOE
       %created new configuration in .+/cfg/%
       EOE
 
-    $pkg_status libfoo >'unknown';
+    $pkg_status libfoo >'libfoo unknown';
 
     cat cfg/build/config.build >>/~"%EOO%"
       %.+
@@ -70,6 +70,6 @@ EOE
       %created new configuration in .+/cfg/%
       EOE
 
-    $pkg_status libfoo >'unknown'
+    $pkg_status libfoo >'libfoo unknown'
   }
 }

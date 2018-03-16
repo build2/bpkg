@@ -57,7 +57,7 @@ else
   $rep_add "$rep/libbar.git#master" && $rep_add "$rep/style-basic.git#master";
   $rep_fetch;
 
-  $pkg_status style-basic | sed -n -e 's/available ([^ ]+).+/\1/p' | set v;
+  $pkg_status style-basic | sed -n -e 's/style-basic available \[.+\] ([^ ]+)/\1/p' | set v;
 
   $* "style-basic/$v" 2>>"EOE";
   dist style-basic-$v
@@ -90,16 +90,16 @@ else
   $rep_fetch;
 
   $pkg_status style-basic | \
-    sed -n -e 's/available ([^ ]+) +([^ ]+).+/\1 \2/p' | set vs;
+    sed -n -e 's/style-basic available ([^ ]+) +([^ ]+)/\1 \2/p' | set vs;
 
   echo "$vs" | sed -e 's/([^ ]+).+/\1/'        | set v0;
   echo "$vs" | sed -e 's/([^ ]+) +([^ ]+)/\2/' | set v1;
 
   $* "style-basic/$v0" 2>!;
-  $pkg_status style-basic >~"/unpacked $v0;.+/";
+  $pkg_status style-basic >~"/style-basic unpacked $v0/";
 
   $* --replace "style-basic/$v1" 2>!;
-  $pkg_status style-basic >~"/unpacked $v1;.+/";
+  $pkg_status style-basic >~"/style-basic unpacked $v1 .+/";
 
   $pkg_purge style-basic
 }

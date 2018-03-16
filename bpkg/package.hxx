@@ -499,6 +499,11 @@ namespace bpkg
               odb::result<available_package>&&,
               bool prereq = true);
 
+  shared_ptr<repository>
+  filter (const shared_ptr<repository>&,
+          const shared_ptr<available_package>&,
+          bool prereq = true);
+
   // package_state
   //
   enum class package_state

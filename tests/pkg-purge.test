@@ -39,7 +39,7 @@ $* libfoo 2>>/EOE != 0
   $clone_cfg && $pkg_fetch -e $src/libfoo-1.0.0.tar.gz;
 
   $*          libfoo 2>'purged libfoo/1.0.0';
-  $pkg_status libfoo 1>'unknown'
+  $pkg_status libfoo 1>'libfoo unknown'
 }
 
 : keep
@@ -48,7 +48,7 @@ $* libfoo 2>>/EOE != 0
   $clone_cfg && $pkg_fetch -e $src/libfoo-1.0.0.tar.gz;
 
   $*       -k libfoo 2>'keeping archive libfoo/1.0.0';
-  $pkg_status libfoo 1>'fetched 1.0.0';
+  $pkg_status libfoo 1>'libfoo fetched 1.0.0';
   $*          libfoo 2>'purged libfoo/1.0.0'
 }
 
@@ -60,7 +60,7 @@ $* libfoo 2>>/EOE != 0
   $pkg_fetch -e -p cfg/libfoo-1.0.0.tar.gz;
 
   $*          libfoo              2>'purged libfoo/1.0.0';
-  $pkg_status libfoo              1>'unknown';
+  $pkg_status libfoo              1>'libfoo unknown';
   test -f cfg/libfoo-1.0.0.tar.gz == 1
 }
 
@@ -73,7 +73,7 @@ $* libfoo 2>>/EOE != 0
     error: package libfoo has no archive to keep
     EOE
 
-  $pkg_status libfoo 1>'unpacked 1.1.0';
+  $pkg_status libfoo 1>'libfoo unpacked 1.1.0';
   $*          libfoo 2>'purged libfoo/1.1.0'
 }
 
@@ -83,7 +83,7 @@ $* libfoo 2>>/EOE != 0
   $clone_cfg && $pkg_unpack -e $src/libfoo-1.1.0;
 
   $*          libfoo 2>'purged libfoo/1.1.0';
-  $pkg_status libfoo 1>'unknown'
+  $pkg_status libfoo 1>'libfoo unknown'
 }
 
 : unpacked-archive
@@ -93,7 +93,7 @@ $* libfoo 2>>/EOE != 0
   $pkg_fetch -e $src/libfoo-1.0.0.tar.gz && $pkg_unpack libfoo;
 
   $*          libfoo       2>'purged libfoo/1.0.0';
-  $pkg_status libfoo       1>'unknown';
+  $pkg_status libfoo       1>'libfoo unknown';
   test -d cfg/libfoo-1.0.0 == 1
 }
 
@@ -104,10 +104,10 @@ $* libfoo 2>>/EOE != 0
   $pkg_fetch -e $src/libfoo-1.0.0.tar.gz && $pkg_unpack libfoo;
 
   $*          --keep libfoo       2>'keeping archive libfoo/1.0.0';
-  $pkg_status        libfoo       1>'fetched 1.0.0';
+  $pkg_status        libfoo       1>'libfoo fetched 1.0.0';
   test        -d cfg/libfoo-1.0.0 == 1;
   $*                 libfoo       2>'purged libfoo/1.0.0';
-  $pkg_status        libfoo       1>'unknown'
+  $pkg_status        libfoo       1>'libfoo unknown'
 }
 
 : purge-dir
@@ -119,7 +119,7 @@ $* libfoo 2>>/EOE != 0
   $pkg_unpack -e -p cfg/libfoo-1.1.0;
 
   $*          libfoo       2>'purged libfoo/1.1.0';
-  $pkg_status libfoo       1>'unknown';
+  $pkg_status libfoo       1>'libfoo unknown';
   test -d cfg/libfoo-1.1.0 == 1
 }
 
@@ -131,7 +131,7 @@ $* libfoo 2>>/EOE != 0
   $pkg_fetch -e -p cfg/libfoo-1.0.0.tar.gz && $pkg_unpack libfoo;
 
   $*          libfoo              2>'purged libfoo/1.0.0';
-  $pkg_status libfoo              1>'unknown';
+  $pkg_status libfoo              1>'libfoo unknown';
   test -d cfg/libfoo-1.0.0        == 1;
   test -f cfg/libfoo-1.0.0.tar.gz == 1
 }
@@ -151,17 +151,17 @@ if ($cxx.target.class != 'windows')
     info: package libfoo is now broken; use 'pkg-purge --force' to remove
     EOE
 
-  $pkg_status libfoo/1.0.0 >'broken';
+  $pkg_status libfoo/1.0.0 >'libfoo broken 1.0.0';
 
   $* -f -k libfoo 2>'error: cannot keep broken package libfoo' != 0;
-  $pkg_status libfoo/1.0.0 >'broken';
+  $pkg_status libfoo/1.0.0 >'libfoo broken 1.0.0';
 
   $* -f libfoo 2>>/EOE != 0;
     error: source directory of broken package libfoo still exists
       info: remove cfg/libfoo-1.0.0/ manually then re-run pkg-purge
     EOE
 
-  $pkg_status libfoo/1.0.0 >'broken';
+  $pkg_status libfoo/1.0.0 >'libfoo broken 1.0.0';
 
   chmod 755 cfg/libfoo-1.0.0;
   rm -r cfg/libfoo-1.0.0;
@@ -173,5 +173,5 @@ if ($cxx.target.class != 'windows')
 
   rm cfg/libfoo-1.0.0.tar.gz;
   $* -f libfoo 2>'purged libfoo/1.0.0';
-  $pkg_status libfoo >'unknown'
+  $pkg_status libfoo >'libfoo unknown'
 }
