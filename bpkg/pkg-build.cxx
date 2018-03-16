@@ -1256,7 +1256,11 @@ namespace bpkg
           // Populate the argument list with the latest package versions.
           //
           for (const auto& pv: pvs)
-            eargs.push_back (pv.first + '/' + pv.second.string ());
+          {
+            eargs.push_back (
+              pv.first + '/' + pv.second.string (false /* ignore_revision */,
+                                                 true  /* ignore_iteration */));
+          }
         }
         else // Packages with optional versions in the coma-separated list.
         {
@@ -1304,7 +1308,11 @@ namespace bpkg
             // Note that the system package is added to the argument list as
             // it appears originally (see above).
             //
-            eargs.push_back (sys ? pkg : n + '/' + ap->version.string ());
+            eargs.push_back (
+              sys
+              ? pkg
+              : n + '/' + ap->version.string (false /* ignore_revision */,
+                                              true  /* ignore_iteration */));
 
             b = p != string::npos ? p + 1 : p;
           }
