@@ -1875,7 +1875,7 @@ namespace bpkg
 
     // Figure out if we also should update dependents.
     //
-    if (o.leave_dependent ())
+    if (o.leave_dependent () || o.configure_only ())
       update_dependents = false;
     else if (o.yes () || o.update_dependent ())
       update_dependents = true;
