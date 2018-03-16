@@ -90,11 +90,13 @@ namespace bpkg
                                          false);
 
           // And if we found an existing package, then only look for versions
-          // greater than to what already exists. Note that for a system
-          // wildcard version we will always show all available versions
-          // (since it's 0).
+          // greater than to what already exists unless we were asked to show
+          // old versions.
           //
-          if (s != nullptr)
+          // Note that for a system wildcard version we will always show all
+          // available versions (since it is 0).
+          //
+          if (s != nullptr && !o.old_available ())
             q = q && query::id.version > s->version;
 
           q += order_by_version_desc (query::id.version);
@@ -188,10 +190,18 @@ namespace bpkg
           cout << (s != nullptr ? " " : "") << "available";
 
           for (const apkg& a: apkgs)
+          {
+            const version& v (a.package->version);
+
+            // Show the currently selected version in parenthesis.
+            //
+            bool cur (s != nullptr &&  v == s->version);
+
             cout << ' '
-                 << (a.build ? "" : "[")
-                 << a.package->version
-                 << (a.build ? "" : "]");
+                 << (cur ? "(" : a.build ? "" : "[")
+                 << v
+                 << (cur ? ")" : a.build ? "" : "]");
+          }
 
           if (!sys.empty ())
             cout << ' '

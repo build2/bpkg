@@ -73,21 +73,26 @@ namespace bpkg
 
      If only the package name was specified without the package version, then
      the \cb{available} status word is followed by the list of available
-     versions. If the \cb{--system} option is specified, then the last version
-     in this list may have the \cb{sys:} prefix indicating an available system
-     version. Such a system version may be the special '\cb{?}' value
-     indicating that a package may or may not be available from the system and
-     that its version is unknown.
+     versions. Versions that are only available for up/down-grading are
+     printed in '\cb{[]}' (such version are only available as dependencies
+     from prerequisite repositories of other repositories). If the
+     \cb{--system} option is specified, then the last version in this list may
+     have the \cb{sys:} prefix indicating an available system version. Such a
+     system version may be the special '\cb{?}' value indicating that a
+     package may or may not be available from the system and that its version
+     is unknown.
 
      Similarly, if only the package name was specified, then the \cb{fetched},
      \cb{unpacked}, \cb{configured}, and \cb{broken} status words are followed
      by the version of the package. If newer versions are available, then the
      package version is followed by the \cb{available} status word and the
-     list of newer versions.
+     list of newer versions. To instead see a list of all versions, including
+     the older ones, specify the \c{\b{--old-available}|\b{-o}} option. In
+     this case the currently selected version is printed in '\cb{()}'.
 
      If the package name was specified with the version, then only the status
      (such as, \cb{configured}, \cb{available}, etc.) of this version is
-     printed.
+     considered.
 
      If a package is being held, then its name is printed prefixed with
      '\cb{!}'. Similarly, if a package version is being held, then the version
@@ -157,6 +162,11 @@ namespace bpkg
     bool --recursive|-r
     {
       "Also print the status of all dependencies, recursively."
+    }
+
+    bool --old-available|-o
+    {
+      "Print old available versions."
     }
 
     bool --constraint
