@@ -210,7 +210,7 @@ namespace bpkg
       {
         ifdstream ifs (f);
         manifest_parser mp (ifs, f.string ());
-        package_manifest m (pkg_package_manifest (mp, iu));
+        package_manifest m (mp, iu);
 
         // Save the package manifest, preserving its location.
         //
