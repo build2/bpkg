@@ -67,7 +67,10 @@ cfg_dir (...) -> const dir_path& {return empty_dir_path;}
 //
 template <typename O>
 static O
-init (const common_options& co, cli::scanner& scan, strings& args, bool tmp)
+init (const common_options& co,
+      cli::group_scanner& scan,
+      strings& args,
+      bool tmp)
 {
   O o;
   static_cast<common_options&> (o) = co;
@@ -90,15 +93,27 @@ init (const common_options& co, cli::scanner& scan, strings& args, bool tmp)
 
       // Parse the next chunk of options until we reach an argument (or eos).
       //
-      o.parse (scan);
-
-      if (!scan.more ())
-        break;
+      if (o.parse (scan))
+        continue;
 
       // Fall through.
     }
 
-    args.push_back (scan.next ());
+    // Copy over the argument including the group.
+    //
+    using scanner = cli::scanner;
+    using group_scanner = cli::group_scanner;
+
+    args.push_back (group_scanner::escape (scan.next ()));
+
+    scanner& gscan (scan.group ());
+    if (gscan.more ())
+    {
+      args.push_back ("+{");
+      while (gscan.more ())
+        args.push_back (group_scanner::escape (gscan.next ()));
+      args.push_back ("}");
+    }
   }
 
   // Global initializations.
@@ -161,7 +176,8 @@ try
          << system_error (errno, generic_category ()); // Sanitize.
 #endif
 
-  argv_file_scanner scan (argc, argv, "--options-file");
+  argv_file_scanner argv_scan (argc, argv, "--options-file");
+  group_scanner scan (argv_scan);
 
   // First parse common options and --version/--help.
   //
@@ -179,7 +195,8 @@ try
   }
 
   strings argsv; // To be filled by parse() above.
-  vector_scanner args (argsv);
+  vector_scanner vect_args (argsv);
+  group_scanner args (vect_args);
 
   const common_options& co (o);
 

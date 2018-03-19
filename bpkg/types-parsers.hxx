@@ -11,17 +11,14 @@
 #include <libbpkg/manifest.hxx>
 
 #include <bpkg/types.hxx>
+
+#include <bpkg/common-options.hxx> // bpkg::cli namespace
 #include <bpkg/options-types.hxx>
 
 namespace bpkg
 {
   namespace cli
   {
-    class scanner;
-
-    template <typename T>
-    struct parser;
-
     template <>
     struct parser<path>
     {

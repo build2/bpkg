@@ -4,8 +4,6 @@
 
 #include <bpkg/types-parsers.hxx>
 
-#include <bpkg/common-options.hxx> // bpkg::cli namespace
-
 namespace bpkg
 {
   namespace cli
