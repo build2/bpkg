@@ -508,13 +508,20 @@ if ($remote != true)
 
     : git-rep
     :
-    if ($remote != true)
+    if ($git_supported == true && $remote != true)
     {
       rep = $canonicalize([dir_path] $out_git/state0);
 
       $clone_root_cfg;
 
-      $* "$rep/style.git#master" 2>! &cfg/.bpkg/repos/*/***;
+      # Convert specific warnings to infos as we expect them to appear. This,
+      # in particular, prevents bbot workers to set task result status to
+      # warning.
+      #
+      $* "$rep/style.git#master" 2>&1 | \
+	sed -e 's/warning: (fetching (over|whole) .*)/info: \1/' >&2 2>! \
+	&cfg/.bpkg/repos/*/***;
+
       $pkg_checkout "style/1.0.0" 2>!;
 
       $rep_add $rep/style.git;
