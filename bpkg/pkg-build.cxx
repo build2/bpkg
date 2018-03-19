@@ -1073,8 +1073,113 @@ namespace bpkg
     map<string, data_type> map_;
   };
 
+  using pkg_options = pkg_build_pkg_options;
+
+  struct pkg_arg
+  {
+    package_scheme scheme;
+    string name;
+    bpkg::version version;
+    string value;
+    pkg_options options;
+
+    // Create the fully parsed package argument.
+    //
+    pkg_arg (package_scheme h, string n, bpkg::version v, pkg_options o)
+        : scheme (h),
+          name (move (n)),
+          version (move (v)),
+          options (move (o))
+    {
+      switch (scheme)
+      {
+      case package_scheme::sys:
+        {
+          if (version.empty ())
+            version = wildcard_version;
+
+          const system_package* sp (system_repository.find (name));
+
+          // Will deal with all the duplicates later.
+          //
+          if (sp == nullptr || !sp->authoritative)
+            system_repository.insert (name, version, true);
+
+          break;
+        }
+      case package_scheme::none: break; // Nothing to do.
+      }
+    }
+
+    // Create the unparsed package argument.
+    //
+    pkg_arg (string v, pkg_options o): value (move (v)), options (move (o)) {}
+
+    string
+    package () const
+    {
+      string r;
+
+      switch (scheme)
+      {
+      case package_scheme::sys:  r = "sys:"; break;
+      case package_scheme::none: break;
+      }
+
+      r += name;
+
+      if (!version.empty () && version != wildcard_version)
+        r += "/" + version.string ();
+
+      return r;
+    }
+
+    // Predicates.
+    //
+    bool
+    parsed () const {return !name.empty ();}
+
+    bool
+    system () const
+    {
+      assert (parsed ());
+      return scheme == package_scheme::sys;
+    }
+  };
+
+  static inline bool
+  operator== (const pkg_arg& x, const pkg_arg& y)
+  {
+    assert (x.parsed () && y.parsed ());
+    return x.scheme == y.scheme &&
+      x.name == y.name &&
+      x.version == y.version &&
+
+      // @@ Is it too restrictive?
+      //
+      x.options.keep_out () == y.options.keep_out () &&
+      x.options.dependency () == y.options.dependency ();
+  }
+
+  static inline bool
+  operator!= (const pkg_arg& x, const pkg_arg& y) {return !(x == y);}
+
+  static ostream&
+  operator<< (ostream& os, const pkg_arg& a)
+  {
+    if (a.options.dependency ())
+      os << '?';
+
+    os << a.package ();
+
+    if (a.options.keep_out ())
+      os << " +{--keep-out}";
+
+    return os;
+  }
+
   int
-  pkg_build (const pkg_build_options& o, cli::scanner& a)
+  pkg_build (const pkg_build_options& o, cli::group_scanner& args)
   {
     tracer trace ("pkg_build");
 
@@ -1091,63 +1196,11 @@ namespace bpkg
            << "specified" <<
         info << "run 'bpkg help pkg-build' for more information";
 
-    if (!a.more ())
+    if (!args.more ())
       fail << "package name argument expected" <<
         info << "run 'bpkg help pkg-build' for more information";
 
-    // Check if the argument has the [<packages>]@<location> form or looks
-    // like a URL. Return the position of <location> if that's the case and
-    // string::npos otherwise.
-    //
-    // Note that we consider '@' to be such a delimiter only if it comes
-    // before ":/" (think a URL which could contain its own '@').
-    //
-    auto find_location = [] (const string& arg) -> size_t
-    {
-      using url_traits = butl::url::traits;
-
-      size_t p (0);
-
-      // Skip leading ':' that are not part of a URL.
-      //
-      while ((p = arg.find_first_of ("@:", p)) != string::npos &&
-             arg[p] == ':'                                     &&
-             url_traits::find (arg, p) == string::npos)
-        ++p;
-
-      if (p != string::npos)
-      {
-        if (arg[p] == ':')
-        {
-          // The whole thing must be the location.
-          //
-          p = url_traits::find (arg, p) == 0 ? 0 : string::npos;
-        }
-        else
-          p += 1; // Skip '@'.
-      }
-
-      return p;
-    };
-
     database db (open (c, trace)); // Also populates the system repository.
-
-    // Search for the repository location in the database before trying to
-    // parse it. Note that the straight parsing could otherwise fail, being
-    // unable to properly guess the repository type.
-    //
-    auto location = [&db] (const string& l) -> repository_location
-    {
-      using query = query<repository>;
-
-      shared_ptr<repository> r (
-        db.query_one<repository> (query::location.url == l));
-
-      if (r != nullptr)
-        return r->location;
-
-      return parse_location (l, nullopt /* type */);
-    };
 
     // Note that the session spans all our transactions. The idea here is
     // that selected_package objects in the build_packages list below will
@@ -1159,45 +1212,122 @@ namespace bpkg
     //
     session s;
 
-    // Collect repository locations from <packages>@<location> arguments,
-    // suppressing duplicates.
+    // Preparse the (possibly grouped) package specs splitting them into the
+    // packages and location parts, and also parsing their options.
     //
-    // Note that the last repository location overrides the previous ones with
-    // the same canonical name.
+    // Also collect repository locations for the subsequent fetch, suppressing
+    // duplicates. Note that the last repository location overrides the
+    // previous ones with the same canonical name.
     //
-    strings args;
+    struct pkg_spec
+    {
+      string packages;
+      repository_location location;
+      pkg_options options;
+    };
+
+    vector<pkg_spec> specs;
     {
       vector<repository_location> locations;
 
       transaction t (db.begin ());
 
-      while (a.more ())
+      while (args.more ())
       {
-        string arg (a.next ());
+        string a (args.next ());
 
-        if (!o.no_fetch ())
+        specs.emplace_back ();
+        pkg_spec& ps (specs.back ());
+
+        ps.options = o; // Initialize with global values.
+
+        try
         {
-          size_t p (find_location (arg));
+          ps.options.parse (args.group (),
+                            cli::unknown_mode::fail,
+                            cli::unknown_mode::fail);
+        }
+        catch (const cli::exception& e)
+        {
+          fail << e << " grouped for argument '" << a << "'";
+        }
 
-          if (p != string::npos)
+        if (!a.empty () && a[0] == '?')
+        {
+          ps.options.dependency (true);
+          a.erase (0, 1);
+        }
+
+        // Check if the argument has the [<packages>]@<location> form or looks
+        // like a URL. Find the position of <location> if that's the case and
+        // set it to string::npos otherwise.
+        //
+        // Note that we consider '@' to be such a delimiter only if it comes
+        // before ":/" (think a URL which could contain its own '@').
+        //
+        size_t p (0);
+
+        using url_traits = butl::url::traits;
+
+        // Skip leading ':' that are not part of a URL.
+        //
+        while ((p = a.find_first_of ("@:", p)) != string::npos &&
+               a[p] == ':'                                     &&
+               url_traits::find (a, p) == string::npos)
+          ++p;
+
+        if (p != string::npos)
+        {
+          if (a[p] == ':')
           {
-            repository_location l (location (string (arg, p)));
+            // The whole thing must be the location.
+            //
+            p = url_traits::find (a, p) == 0 ? 0 : string::npos;
+          }
+          else
+            p += 1; // Skip '@'.
+        }
 
-            auto pr = [&l] (const repository_location& i) -> bool
+        // Split the spec into the packages and location parts. Also save the
+        // location for the subsequent fetch operation.
+        //
+        if (p != string::npos)
+        {
+          string l (a, p);
+
+          // Search for the repository location in the database before trying
+          // to parse it. Note that the straight parsing could otherwise fail,
+          // being unable to properly guess the repository type.
+          //
+          using query = query<repository>;
+
+          shared_ptr<repository> r (
+            db.query_one<repository> (query::location.url == l));
+
+          ps.location = r != nullptr
+            ? r->location
+            : parse_location (l, nullopt /* type */);
+
+          if (p > 1)
+            ps.packages = string (a, 0, p - 1);
+
+          if (!o.no_fetch ())
+          {
+            auto pr = [&ps] (const repository_location& i) -> bool
             {
-              return i.canonical_name () == l.canonical_name ();
+              return i.canonical_name () == ps.location.canonical_name ();
             };
 
             auto i (find_if (locations.begin (), locations.end (), pr));
 
             if (i != locations.end ())
-              *i = move (l);
+              *i = ps.location;
             else
-              locations.push_back (move (l));
+              locations.push_back (ps.location);
           }
         }
-
-        args.push_back (move (arg));
+        else
+          ps.packages = move (a);
       }
 
       t.commit ();
@@ -1211,24 +1341,44 @@ namespace bpkg
                    string () /* reason for "fetching ..." */);
     }
 
-    // Expand <packages>@<location> arguments.
+    // Expand the package specs into the package args, parsing them into the
+    // package scheme, name and version components.
     //
-    strings eargs;
+    // Note that the package specs that have no scheme and location can not be
+    // unambiguously distinguished from the package archive and directory
+    // paths. We will leave such package arguments unparsed and will handle
+    // them later.
+    //
+    vector<pkg_arg> pkg_args;
     {
       transaction t (db.begin ());
 
-      for (string& arg: args)
+      for (pkg_spec& ps: specs)
       {
-        size_t p (find_location (arg));
-
-        if (p == string::npos)
+        if (ps.location.empty ())
         {
-          eargs.push_back (move (arg));
+          // Parse if it is clear that this is the package name/version,
+          // otherwise unparsed add unparsed.
+          //
+          const char* s (ps.packages.c_str ());
+          package_scheme h (parse_package_scheme (s));
+
+          if (h != package_scheme::none) // Add parsed.
+          {
+            string  n (parse_package_name (s));
+            version v (parse_package_version (s));
+            pkg_args.emplace_back (h, move (n), move (v), move (ps.options));
+          }
+          else // Add unparsed.
+            pkg_args.emplace_back (move (ps.packages), move (ps.options));
+
           continue;
         }
 
-        repository_location l (location (string (arg, p)));
-        shared_ptr<repository> r (db.load<repository> (l.canonical_name ()));
+        // Expand the [[<packages>]@]<location> spec.
+        //
+        shared_ptr<repository> r (
+          db.load<repository> (ps.location.canonical_name ()));
 
         // If no packages are specified explicitly (the argument starts with
         // '@' or is a URL) then we select latest versions of all the packages
@@ -1237,9 +1387,9 @@ namespace bpkg
         // unspecified) in the repository and its complements (recursively),
         // failing if any of them are not found.
         //
-        if (p == 0 || p == 1) // No packages are specified explicitly.
+        if (ps.packages.empty ()) // No packages are specified explicitly.
         {
-          // Collect the latest package version.
+          // Collect the latest package versions.
           //
           map<string, version> pvs;
 
@@ -1255,26 +1405,24 @@ namespace bpkg
 
           // Populate the argument list with the latest package versions.
           //
-          for (const auto& pv: pvs)
-          {
-            eargs.push_back (
-              pv.first + '/' + pv.second.string (false /* ignore_revision */,
-                                                 true  /* ignore_iteration */));
-          }
+          for (auto& pv: pvs)
+            pkg_args.emplace_back (package_scheme::none,
+                                   pv.first,
+                                   move (pv.second),
+                                   ps.options);      // May be reused.
         }
         else // Packages with optional versions in the coma-separated list.
         {
-          string ps (arg, 0, p - 1);
           for (size_t b (0); b != string::npos;)
           {
             // Extract the package.
             //
-            p = ps.find (',', b);
+            size_t p (ps.packages.find (',', b));
 
-            string pkg (ps, b, p != string::npos ? p - b : p);
+            string pkg (ps.packages, b, p != string::npos ? p - b : p);
             const char* s (pkg.c_str ());
 
-            bool  sys (parse_package_scheme (s) == package_scheme::sys);
+            package_scheme h (parse_package_scheme (s));
             string  n (parse_package_name (s));
             version v (parse_package_version (s));
 
@@ -1287,7 +1435,7 @@ namespace bpkg
             // repository.
             //
             optional<dependency_constraint> c (
-              v.empty () || sys
+              v.empty () || h == package_scheme::sys
               ? nullopt
               : optional<dependency_constraint> (v));
 
@@ -1303,16 +1451,10 @@ namespace bpkg
                 dr << " or its complements";
             }
 
-            // Add the [scheme:]package/version to the argument list.
-            //
-            // Note that the system package is added to the argument list as
-            // it appears originally (see above).
-            //
-            eargs.push_back (
-              sys
-              ? pkg
-              : n + '/' + ap->version.string (false /* ignore_revision */,
-                                              true  /* ignore_iteration */));
+            pkg_args.emplace_back (h,
+                                   move (n),
+                                   move (v),
+                                   ps.options); // May be reused.
 
             b = p != string::npos ? p + 1 : p;
           }
@@ -1322,59 +1464,7 @@ namespace bpkg
       t.commit ();
     }
 
-    map<string, string> package_arg;
-
-    // Check if the package is a duplicate. Return true if it is but harmless.
-    //
-    auto check_dup = [&package_arg] (const string& n, const string& a) -> bool
-    {
-      auto r (package_arg.emplace (n, a));
-
-      if (!r.second && r.first->second != a)
-        fail << "duplicate package " << n <<
-          info << "first mentioned as " << r.first->second <<
-          info << "second mentioned as " << a;
-
-      return !r.second;
-    };
-
-    // Pre-scan the arguments and sort them out into optional and mandatory.
-    //
-    strings pargs;
-    for (const string& arg: eargs)
-    {
-      const char* s (arg.c_str ());
-
-      bool opt (s[0] == '?');
-      if (opt)
-        ++s;
-      else
-        pargs.emplace_back (s);
-
-      if (parse_package_scheme (s) == package_scheme::sys)
-      {
-        string n (parse_package_name (s));
-        version v (parse_package_version (s));
-
-        if (opt && check_dup (n, arg))
-          continue;
-
-        if (v.empty ())
-          v = wildcard_version;
-
-        const system_package* sp (system_repository.find (n));
-
-        // Will deal with all the duplicates later.
-        //
-        if (sp == nullptr || !sp->authoritative)
-          system_repository.insert (n, v, true);
-      }
-      else if (opt)
-        warn << "no information can be extracted from ?" << s <<
-          info << "package is ignored";
-    }
-
-    if (pargs.empty ())
+    if (pkg_args.empty ())
     {
       warn << "nothing to build";
       return 0;
@@ -1385,37 +1475,53 @@ namespace bpkg
     build_packages pkgs;
     strings names;
     {
+      // Check if the package is a duplicate. Return true if it is but
+      // harmless.
+      //
+      map<string, const pkg_arg&> package_map;
+
+      auto check_dup = [&package_map] (const pkg_arg& pa) -> bool
+      {
+        assert (pa.parsed ());
+
+        auto r (package_map.emplace (pa.name, pa));
+
+        if (!r.second && r.first->second != pa)
+          fail << "duplicate package " << pa.name <<
+            info << "first mentioned as " << r.first->second <<
+            info << "second mentioned as " << pa;
+
+        return !r.second;
+      };
+
       transaction t (db.begin ());
 
       shared_ptr<repository> root (db.load<repository> (""));
 
-      // Here is what happens here: are are going to try and guess whether we
-      // are dealing with a package archive, package directory, or package
-      // name/version by first trying it as an archive, then as a directory,
-      // and then assume it is name/version. Sometimes, however, it is really
-      // one of the first two but just broken. In this case things are really
-      // confusing since we suppress all diagnostics for the first two
-      // "guesses". So what we are going to do here is re-run them with full
-      // diagnostics if the name/version guess doesn't pan out.
+      // Here is what happens here: for unparsed package args we are going to
+      // try and guess whether we are dealing with a package archive, package
+      // directory, or package name/version by first trying it as an archive,
+      // then as a directory, and then assume it is name/version. Sometimes,
+      // however, it is really one of the first two but just broken. In this
+      // case things are really confusing since we suppress all diagnostics
+      // for the first two "guesses". So what we are going to do here is re-run
+      // them with full diagnostics if the name/version guess doesn't pan out.
       //
       bool diag (false);
-      for (auto i (pargs.cbegin ()); i != pargs.cend (); )
+      for (auto i (pkg_args.begin ()); i != pkg_args.end (); )
       {
-        const char* package (i->c_str ());
+        pkg_arg& pa (*i);
 
         // Reduce all the potential variations (archive, directory, package
         // name, package name/version) to a single available_package object.
         //
-        string n;
-        version v;
-
         shared_ptr<repository> ar;
         shared_ptr<available_package> ap;
 
-        bool sys (parse_package_scheme (package) == package_scheme::sys);
-
-        if (!sys)
+        if (!pa.parsed ())
         {
+          const char* package (pa.value.c_str ());
+
           // Is this a package archive?
           //
           try
@@ -1433,8 +1539,12 @@ namespace bpkg
               // failed from here on).
               //
               l4 ([&]{trace << "archive " << a;});
-              n = m.name;
-              v = m.version;
+
+              pa = pkg_arg (package_scheme::none,
+                            m.name,
+                            m.version,
+                            move (pa.options));
+
               ar = root;
               ap = make_shared<available_package> (move (m));
               ap->locations.push_back (
@@ -1463,6 +1573,8 @@ namespace bpkg
           size_t pn (strlen (package));
           if (pn != 0 && path::traits::is_separator (package[pn - 1]))
           {
+            bool package_dir (false);
+
             try
             {
               dir_path d (package);
@@ -1476,8 +1588,9 @@ namespace bpkg
 
                 // This is a package directory.
                 //
+                package_dir = true;
+
                 l4 ([&]{trace << "directory " << d;});
-                n = m.name;
 
                 // Fix-up the package version to properly decide if we need to
                 // upgrade/downgrade the package. Note that throwing failed
@@ -1486,11 +1599,21 @@ namespace bpkg
                 if (optional<version> v = package_version (o, d))
                   m.version = move (*v);
 
-                if (optional<version> v = package_iteration (
-                      o, c, t, d, n, m.version, true /* check_external */))
+                if (optional<version> v =
+                    package_iteration (o,
+                                       c,
+                                       t,
+                                       d,
+                                       m.name,
+                                       m.version,
+                                       true /* check_external */))
                   m.version = move (*v);
 
-                v = m.version;
+                pa = pkg_arg (package_scheme::none,
+                              m.name,
+                              m.version,
+                              move (pa.options));
+
                 ap = make_shared<available_package> (move (m));
                 ar = root;
                 ap->locations.push_back (
@@ -1505,11 +1628,10 @@ namespace bpkg
             }
             catch (const failed&)
             {
-              // If the package name is detected then this is a valid package
-              // directory, but something went wrong afterwards, and we are
-              // done in this case.
+              // If this is a valid package directory but something went wrong
+              // afterwards, then we are done.
               //
-              if (!n.empty ())
+              if (package_dir)
                 throw;
             }
           }
@@ -1526,21 +1648,37 @@ namespace bpkg
         {
           try
           {
-            n = parse_package_name (package);
-            v = parse_package_version (package);
+            if (!pa.parsed ())
+            {
+              const char* package (pa.value.c_str ());
 
-            l4 ([&]{trace << (sys ? "system " : "") << "package " << n
-                          << "; version " << v;});
+              // Make sure that we can parse both package name and version,
+              // prior to saving them into the package arg.
+              //
+              string  n (parse_package_name (package));
+              version v (parse_package_version (package));
+
+              pa = pkg_arg (package_scheme::none,
+                            move (n),
+                            move (v),
+                            move (pa.options));
+            }
+
+            l4 ([&]{trace << (pa.system () ? "system " : "")
+                          << "package " << pa.name << "; "
+                          << "version " << pa.version;});
 
             // Either get the user-specified version or the latest for a
             // source code package. For a system package we peek the latest
             // one just to ensure the package is recognized.
             //
             auto rp (
-              v.empty () || sys
-              ? find_available (db, n, root, nullopt)
-              : find_available (db, n, root, dependency_constraint (v)));
-
+              pa.version.empty () || pa.system ()
+              ? find_available (db, pa.name, root, nullopt)
+              : find_available (db,
+                                pa.name,
+                                root,
+                                dependency_constraint (pa.version)));
             ap = rp.first;
             ar = rp.second;
           }
@@ -1553,7 +1691,7 @@ namespace bpkg
 
         // We are handling this argument.
         //
-        if (check_dup (n, i++->c_str ()))
+        if (check_dup (*i++) || pa.options.dependency ())
           continue;
 
         // Load the package that may have already been selected and
@@ -1562,10 +1700,10 @@ namespace bpkg
         // package that we will be building (which may or may not be
         // the same as the selected package).
         //
-        shared_ptr<selected_package> sp (db.find<selected_package> (n));
+        shared_ptr<selected_package> sp (db.find<selected_package> (pa.name));
 
         if (sp != nullptr && sp->state == package_state::broken)
-          fail << "unable to build broken package " << n <<
+          fail << "unable to build broken package " << pa.name <<
             info << "use 'pkg-purge --force' to remove";
 
         bool found (true);
@@ -1578,7 +1716,7 @@ namespace bpkg
         // package is not in the repository then there is no dependent for it
         // (otherwise the repository would be broken).
         //
-        if (!sys)
+        if (!pa.system ())
         {
           // If we failed to find the requested package we can still check if
           // the package name is present in the repositories and if that's the
@@ -1588,8 +1726,8 @@ namespace bpkg
           //
           if (ap == nullptr)
           {
-            if (!v.empty () &&
-                find_available (db, n, root, nullopt).first != nullptr)
+            if (!pa.version.empty () &&
+                find_available (db, pa.name, root, nullopt).first != nullptr)
               sys_advise = true;
           }
           else if (ap->stub ())
@@ -1601,7 +1739,7 @@ namespace bpkg
           // If the user asked for a specific version, then that's what we
           // ought to be building.
           //
-          if (!v.empty ())
+          if (!pa.version.empty ())
           {
             for (;;)
             {
@@ -1611,7 +1749,7 @@ namespace bpkg
               // Otherwise, our only chance is that the already selected object
               // is that exact version.
               //
-              if (sp != nullptr && !sp->system () && sp->version == v)
+              if (sp != nullptr && !sp->system () && sp->version == pa.version)
                 break; // Derive ap from sp below.
 
               found = false;
@@ -1624,7 +1762,7 @@ namespace bpkg
           //
           else
           {
-            assert (!sys);
+            assert (!pa.system ());
 
             if (ap != nullptr)
             {
@@ -1657,7 +1795,7 @@ namespace bpkg
 
           if (!sys_advise)
           {
-            dr << "unknown package " << n;
+            dr << "unknown package " << pa.name;
 
             // Let's help the new user out here a bit.
             //
@@ -1672,9 +1810,11 @@ namespace bpkg
           }
           else
           {
-            dr << package << " is not available in source" <<
-              info << "specify sys:" << package << " if it is available from "
-               << "the system";
+            assert (!pa.system ());
+
+            dr << pa.package () << " is not available in source" <<
+              info << "specify sys:" << pa.package () << " "
+                   << "if it is available from the system";
           }
         }
 
@@ -1683,15 +1823,12 @@ namespace bpkg
         //
         if (ap == nullptr)
         {
-          assert (sp != nullptr && sp->system () == sys);
+          assert (sp != nullptr && sp->system () == pa.system ());
 
           auto rp (make_available (o, c, db, sp));
           ap = rp.first;
           ar = rp.second; // Could be NULL (orphan).
         }
-
-        if (v.empty () && sys)
-          v = wildcard_version;
 
         // We will keep the output directory only if the external package is
         // replaced with an external one. Note, however, that at this stage
@@ -1699,7 +1836,8 @@ namespace bpkg
         // satisfy all the constraints. Thus the available package check is
         // postponed until the package disfiguring.
         //
-        bool keep_out (o.keep_out () && sp != nullptr && sp->external ());
+        bool keep_out (pa.options.keep_out () &&
+                       sp != nullptr && sp->external ());
 
         // Finally add this package to the list.
         //
@@ -1707,13 +1845,13 @@ namespace bpkg
           move (sp),
           move (ap),
           move (ar),
-          true,          // Hold package.
-          !v.empty (),   // Hold version.
-          {},            // Constraints.
-          sys,
+          true,                 // Hold package.
+          !pa.version.empty (), // Hold version.
+          {},                   // Constraints.
+          pa.system (),
           keep_out,
-          {""},          // Required by (command line).
-          false};        // Reconfigure.
+          {""},                 // Required by (command line).
+          false};               // Reconfigure.
 
         l4 ([&]{trace << "collect " << p.available_name ();});
 
@@ -1722,17 +1860,17 @@ namespace bpkg
         // Note: for a system package this must always be present (so that
         // this build_package instance is never replaced).
         //
-        if (!v.empty ())
+        if (!pa.version.empty ())
           p.constraints.emplace_back (
             "command line",
-            dependency_constraint (v));
+            dependency_constraint (pa.version));
 
         // Pre-collect user selection to make sure dependency-forced
         // up/down-grades are handled properly (i.e., the order in which we
         // specify packages on the command line does not matter).
         //
         pkgs.collect (o, c, db, move (p), false);
-        names.push_back (n);
+        names.push_back (pa.name);
       }
 
       // Collect all the packages prerequisites.

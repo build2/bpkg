@@ -13,7 +13,7 @@
 namespace bpkg
 {
   int
-  pkg_build (const pkg_build_options&, cli::scanner& args);
+  pkg_build (const pkg_build_options&, cli::group_scanner& args);
 }
 
 #endif // BPKG_PKG_BUILD_HXX

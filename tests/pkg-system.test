@@ -68,8 +68,8 @@ rep_fetch  += -d cfg --auth all --trust-yes 2>!
 
     $pkg_build 'sys:libbar' '?sys:libbar' 2>>EOE != 0;
       error: duplicate package libbar
-        info: first mentioned as ?sys:libbar
-        info: second mentioned as sys:libbar
+        info: first mentioned as sys:libbar
+        info: second mentioned as ?sys:libbar
       EOE
 
     $pkg_build '?sys:libbar' 'sys:libbar' 2>>EOE != 0;
@@ -86,8 +86,8 @@ rep_fetch  += -d cfg --auth all --trust-yes 2>!
 
     $pkg_build libbar '?sys:libbar' 2>>EOE != 0;
       error: duplicate package libbar
-        info: first mentioned as ?sys:libbar
-        info: second mentioned as libbar
+        info: first mentioned as libbar
+        info: second mentioned as ?sys:libbar
       EOE
 
     $pkg_build 'sys:libbar' libbar 2>>EOE != 0;

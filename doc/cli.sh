@@ -56,7 +56,9 @@ o="--output-prefix bpkg- --class-doc bpkg::common_options=short"
 compile "common" $o --output-suffix "-options" --class-doc bpkg::common_options=long
 compile "bpkg" $o --output-prefix "" --suppress-undocumented --class-doc bpkg::commands=short --class-doc bpkg::topics=short
 
-pages="cfg-create help pkg-build pkg-clean pkg-configure pkg-disfigure \
+compile "pkg-build" $o --class-doc  bpkg::pkg_build_pkg_options=exclude-base
+
+pages="cfg-create help pkg-clean pkg-configure pkg-disfigure \
 pkg-drop pkg-fetch pkg-checkout pkg-install pkg-purge pkg-status pkg-test \
 pkg-uninstall pkg-unpack pkg-update pkg-verify rep-add rep-remove rep-list \
 rep-create rep-fetch rep-info repository-signing"

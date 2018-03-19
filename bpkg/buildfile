@@ -122,6 +122,9 @@ if $cli.configured
 
   cli.options += --long-usage # All other pages -- long usage.
 
+  cli.cxx{pkg-build-options}: cli.options += --class-doc \
+bpkg::pkg_build_pkg_options=exclude-base --generate-modifier
+
   # Avoid generating CLI runtime and empty inline file for help topics.
   #
   cli.cxx{repository-signing}: cli.options += --suppress-cli --suppress-inline

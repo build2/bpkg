@@ -90,9 +90,31 @@ namespace bpkg
      below) that allow you to control the amount of work that will be done."
   }
 
-  class pkg_build_options: configuration_options
+  class pkg_build_pkg_options
   {
-    "\h|PKG-BUILD OPTIONS|"
+    "\h|PKG-BUILD PACKAGE OPTIONS|
+
+    The following options can be grouped to apply to a specific package as
+    well as specified globally, in which case they apply to all the specified
+    packages."
+
+    bool --dependency
+    {
+      "Build, upgrade, or downgrade a package as a dependency rather than to
+       hold."
+    }
+
+    bool --keep-out
+    {
+      "Keep output directories of external packages between upgrades and
+       downgrades. Refer to \l{bpkg-pkg-disfigure(1)} for details."
+    }
+  };
+
+  class pkg_build_options: configuration_options,
+                           pkg_build_pkg_options
+  {
+    "\h|PKG-BUILD GLOBAL OPTIONS|"
 
     bool --yes|-y
     {
@@ -140,12 +162,6 @@ namespace bpkg
     {
       "Print to \cb{STDOUT} what would be done without actually doing
        anything."
-    }
-
-    bool --keep-out
-    {
-      "Keep output directories of external packages between upgrades and
-       downgrades. Refer to \l{bpkg-pkg-disfigure(1)} for details."
     }
 
     bool --no-fetch

@@ -79,7 +79,7 @@ namespace bpkg
 
       try
       {
-        x = to_repository_type(v);
+        x = to_repository_type (v);
       }
       catch (const invalid_argument&)
       {
