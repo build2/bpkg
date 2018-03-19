@@ -1549,9 +1549,6 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
 
     +$clone_cfg
 
-    # @@ Uncomment the following tests when -p option is supported for the cp
-    # builtin.
-    #\
     : dir-repo
     :
     : Test that libhello is built incrementally. May re-link due to the
@@ -1619,7 +1616,6 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
         test -d cfg/libhello-1.0.1/ == 1
       }
     }
-    #\
 
     : archive
     :
@@ -1631,7 +1627,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
     :
     if ($cxx.target.class != 'windows')
     {
-      clone_cfg = cp --no-cleanup -r ../../cfg ./
+      clone_cfg = cp -p --no-cleanup -r ../../cfg ./
 
       +$build 'dist(../../libhello/@./out/)' \
               "config.cxx=$config.cxx" config.dist.root=./ \
@@ -1721,7 +1717,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       updated libfoo/1.1.0
       EOE
 
-    cp -r $src/libfoo-1.1.0 libfoo;
+    cp -p -r $src/libfoo-1.1.0 libfoo;
 
     $* libfoo/ 2>>~%EOE%;
       disfigured libfoo/1.1.0
