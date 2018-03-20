@@ -1621,11 +1621,6 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
     :
     : Test that libhello is fully rebuilt, as the resulted package is not
     : external.
-    :
-    : @@ On Windows the dist operation fails as tar can not find gzip for some
-    :    reason. We will disable the test for Windows until the issue is fixed.
-    :
-    if ($cxx.target.class != 'windows')
     {
       clone_cfg = cp -p --no-cleanup -r ../../cfg ./
 
