@@ -146,7 +146,7 @@ namespace bpkg
 
     case repository_type::git:
       {
-        return dir_path (sha256 (l.canonical_name ()).abbreviated_string (16));
+        return dir_path (sha256 (l.canonical_name ()).abbreviated_string (12));
       }
     }
 
