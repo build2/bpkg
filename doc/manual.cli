@@ -155,17 +155,17 @@ order.]
 
 To convert one of these parts to its canonical representation, all its string
 components are converted to the lower case while all its integer components
-are padded with leading zeros to the fixed length of \c{8} characters, with
+are padded with leading zeros to the fixed length of \c{16} characters, with
 all trailing zero-only components removed. Note that this places an
 implementation limit on the length of integer components which should be
 checked by the implementation when converting to the canonical
-representation. [Note: the \c{8} characters limit was chosen to still be able
-to represent components in the \c{20151128} (date) form while not (visually)
-bloating the database too much.] As a special case, the absent \i{prerel} part
-is represented as \c{'~'}. [Note: since the ASCII code for \c{'~'} is greater
-than any other character that could appear in \i{prerel}, such a string will
-always be greater than any other representation.] The empty \i{prerel} part is
-represented as an empty string.
+representation. [Note: the \c{16} characters limit was chosen to still be able
+to represent (with some spare) components in the \i{YYYYMMDDhhmmss} form while
+not (visually) bloating the database too much.] As a special case, the absent
+\i{prerel} part is represented as \c{'~'}. [Note: since the ASCII code for
+\c{'~'} is greater than any other character that could appear in \i{prerel},
+such a string will always be greater than any other representation.] The empty
+\i{prerel} part is represented as an empty string.
 
 Note that because it is no possible to perform a reverse conversion without
 the possibility of loss (consider \c{01.AA.BB}), the original parts may also
