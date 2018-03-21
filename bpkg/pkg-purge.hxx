@@ -22,7 +22,8 @@ namespace bpkg
   void
   pkg_purge (const dir_path& configuration,
              transaction&,
-             const shared_ptr<selected_package>&);
+             const shared_ptr<selected_package>&,
+             bool simulate);
 
   // Remove package's filesystem objects (the source directory and, if
   // the archive argument is true, the package archive). If this fails,
@@ -32,6 +33,7 @@ namespace bpkg
   pkg_purge_fs (const dir_path& configuration,
                 transaction&,
                 const shared_ptr<selected_package>&,
+                bool simulate,
                 bool archive = true);
 }
 

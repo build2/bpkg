@@ -26,7 +26,8 @@ namespace bpkg
              transaction&,
              path archive,
              bool replace,
-             bool purge);
+             bool purge,
+             bool simulate);
 
   // Fetch the package from an archive-based repository and commit the
   // transaction.
@@ -37,7 +38,8 @@ namespace bpkg
              transaction&,
              string name,
              version,
-             bool replace);
+             bool replace,
+             bool simulate);
 }
 
 #endif // BPKG_PKG_FETCH_HXX

@@ -622,7 +622,7 @@ namespace bpkg
     else
     {
       database db (open (*conf, trace));
-      transaction t (db.begin ());
+      transaction t (db);
       r = auth_cert (co, *conf, db, pem, rl);
       t.commit ();
     }

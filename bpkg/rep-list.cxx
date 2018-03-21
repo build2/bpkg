@@ -101,7 +101,7 @@ namespace bpkg
         info << "run 'bpkg help rep-list' for more information";
 
     database db (open (c, trace));
-    transaction t (db.begin ());
+    transaction t (db);
     session s; // Repository dependencies can have cycles.
 
     shared_ptr<repository> root (db.load<repository> (""));

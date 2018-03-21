@@ -22,14 +22,14 @@ namespace bpkg
   package_prerequisites
   pkg_configure_prerequisites (const common_options& o,
                                transaction& t,
-                               const dir_path& source)
+                               const dependencies& deps,
+                               const string& package)
   {
     package_prerequisites r;
-    package_manifest m (pkg_verify (source, true));
 
     database& db (t.database ());
 
-    for (const dependency_alternatives& da: m.dependencies)
+    for (const dependency_alternatives& da: deps)
     {
       assert (!da.conditional); //@@ TODO
 
@@ -45,7 +45,7 @@ namespace bpkg
           if (n == "build2")
           {
             if (d.constraint)
-              satisfy_build2 (o, m.name, d);
+              satisfy_build2 (o, package, d);
 
             satisfied = true;
             break;
@@ -53,7 +53,7 @@ namespace bpkg
           else if (n == "bpkg")
           {
             if (d.constraint)
-              satisfy_bpkg (o, m.name, d);
+              satisfy_bpkg (o, package, d);
 
             satisfied = true;
             break;
@@ -111,7 +111,9 @@ namespace bpkg
                  const common_options& o,
                  transaction& t,
                  const shared_ptr<selected_package>& p,
-                 const strings& vars)
+                 const dependencies& deps,
+                 const strings& vars,
+                 bool simulate)
   {
     tracer trace ("pkg_configure");
 
@@ -121,12 +123,10 @@ namespace bpkg
     database& db (t.database ());
     tracer_guard tg (db, trace);
 
-    // Calculate package's src_root and out_root.
-    //
-    dir_path src_root (p->src_root->absolute ()
-                       ? *p->src_root
-                       : c / *p->src_root);
+    dir_path src_root (p->effective_src_root (c));
 
+    // Calculate package's out_root.
+    //
     dir_path out_root (p->external ()
                        ? c / dir_path (p->name)
                        : c / dir_path (p->name + "-" + p->version.string ()));
@@ -138,47 +138,51 @@ namespace bpkg
     // prerequisites list.
     //
     assert (p->prerequisites.empty ());
-    p->prerequisites = pkg_configure_prerequisites (o, t, src_root);
 
-    // Form the buildspec.
-    //
-    string bspec;
+    p->prerequisites = pkg_configure_prerequisites (o, t, deps, p->name);
 
-    // Use path representation to get canonical trailing slash.
-    //
-    if (src_root == out_root)
-      bspec = "configure('" + out_root.representation () + "')";
-    else
-      bspec = "configure('" +
-        src_root.representation () + "'@'" +
-        out_root.representation () + "')";
-
-    l4 ([&]{trace << "buildspec: " << bspec;});
-
-    // Configure.
-    //
-    try
+    if (!simulate)
     {
-      run_b (o, c, bspec, true, vars); // Run quiet.
-    }
-    catch (const failed&)
-    {
-      // If we failed to configure the package, make sure we revert
-      // it back to the unpacked state by running disfigure (it is
-      // valid to run disfigure on an un-configured build). And if
-      // disfigure fails as well, then the package will be set into
-      // the broken state.
+      // Form the buildspec.
       //
+      string bspec;
 
-      // Indicate to pkg_disfigure() we are partially configured.
+      // Use path representation to get canonical trailing slash.
       //
-      p->out_root = out_root.leaf ();
-      p->state = package_state::broken;
+      if (src_root == out_root)
+        bspec = "configure('" + out_root.representation () + "')";
+      else
+        bspec = "configure('" +
+          src_root.representation () + "'@'" +
+          out_root.representation () + "')";
 
-      // Commits the transaction.
+      l4 ([&]{trace << "buildspec: " << bspec;});
+
+      // Configure.
       //
-      pkg_disfigure (c, o, t, p, true /* clean */);
-      throw;
+      try
+      {
+        run_b (o, c, bspec, true, vars); // Run quiet.
+      }
+      catch (const failed&)
+      {
+        // If we failed to configure the package, make sure we revert
+        // it back to the unpacked state by running disfigure (it is
+        // valid to run disfigure on an un-configured build). And if
+        // disfigure fails as well, then the package will be set into
+        // the broken state.
+        //
+
+        // Indicate to pkg_disfigure() we are partially configured.
+        //
+        p->out_root = out_root.leaf ();
+        p->state = package_state::broken;
+
+        // Commits the transaction.
+        //
+        pkg_disfigure (c, o, t, p, true /* clean */, false /* simulate */);
+        throw;
+      }
     }
 
     p->out_root = out_root.leaf ();
@@ -255,7 +259,7 @@ namespace bpkg
       fail << "configuration variables specified for a system package";
 
     database db (open (c, trace));
-    transaction t (db.begin ());
+    transaction t (db);
     session s;
 
     shared_ptr<selected_package> p;
@@ -299,7 +303,8 @@ namespace bpkg
 
       l4 ([&]{trace << *p;});
 
-      pkg_configure (c, o, t, p, vars);
+      package_manifest m (pkg_verify (p->effective_src_root (c), true));
+      pkg_configure (c, o, t, p, m.dependencies, vars, false /* simulate */);
     }
 
     if (verb && !o.no_result ())

@@ -19,7 +19,8 @@ namespace bpkg
                  const common_options& o,
                  transaction& t,
                  const shared_ptr<selected_package>& p,
-                 bool clean)
+                 bool clean,
+                 bool simulate)
   {
     assert (p->state == package_state::configured ||
             p->state == package_state::broken);
@@ -69,85 +70,84 @@ namespace bpkg
     //
     p->prerequisites.clear ();
 
-    // Calculate package's src_root and out_root.
-    //
     assert (p->src_root); // Must be set since unpacked.
     assert (p->out_root); // Must be set since configured.
 
-    dir_path src_root (p->src_root->absolute ()
-                       ? *p->src_root
-                       : c / *p->src_root);
-    dir_path out_root (c / *p->out_root); // Always relative.
-
-    l4 ([&]{trace << "src_root: " << src_root << ", "
-                  << "out_root: " << out_root;});
-
-    // Form the buildspec.
-    //
-    string bspec;
-
-    // Use path representation to get canonical trailing slash.
-    //
-    const string& rep (out_root.representation ());
-
-    if (p->state == package_state::configured)
+    if (!simulate)
     {
-      if (clean)
-        bspec = "clean('" + rep + "') ";
+      dir_path src_root (p->effective_src_root (c));
+      dir_path out_root (p->effective_out_root (c));
 
-      bspec += "disfigure('" + rep + "')";
-    }
-    else
-    {
-      // Why do we need to specify src_root? While it's unnecessary
-      // for a completely configured package, here we disfigure a
-      // partially configured one.
+      l4 ([&]{trace << "src_root: " << src_root << ", "
+                    << "out_root: " << out_root;});
+
+      // Form the buildspec.
       //
-      if (src_root == out_root)
-        bspec = "disfigure('" + rep + "')";
-      else
-        bspec = "disfigure('" + src_root.representation () + "'@'" +
-          rep + "')";
-    }
+      string bspec;
 
-    l4 ([&]{trace << "buildspec: " << bspec;});
+      // Use path representation to get canonical trailing slash.
+      //
+      const string& rep (out_root.representation ());
 
-    // Disfigure.
-    //
-    try
-    {
-      if (exists (out_root))
+      if (p->state == package_state::configured)
       {
-        // Note that for external packages this is just the output directory.
-        // It is also possible that the buildfiles in the source directory
-        // have changed in a way that they don't clean everything. So in this
-        // case we just remove the output directory manually rather then
-        // running 'b clean disfigure'.
+        if (clean)
+          bspec = "clean('" + rep + "') ";
+
+        bspec += "disfigure('" + rep + "')";
+      }
+      else
+      {
+        // Why do we need to specify src_root? While it's unnecessary
+        // for a completely configured package, here we disfigure a
+        // partially configured one.
         //
-        if (clean && p->external ())
-          rm_r (out_root);
+        if (src_root == out_root)
+          bspec = "disfigure('" + rep + "')";
         else
-          run_b (o, c, bspec, true); // Run quiet.
+          bspec = "disfigure('" + src_root.representation () + "'@'" +
+            rep + "')";
       }
 
-      // Make sure the out directory is gone unless it is the same as src, or
-      // we didn't clean it.
-      //
-      if (out_root != src_root && clean && exists (out_root))
-        fail << "package output directory " << out_root << " still exists";
-    }
-    catch (const failed&)
-    {
-      // If we failed to disfigure the package, set it to the broken
-      // state. The user can then try to clean things up with pkg-purge.
-      //
-      p->state = package_state::broken;
-      db.update (p);
-      t.commit ();
+      l4 ([&]{trace << "buildspec: " << bspec;});
 
-      info << "package " << p->name << " is now broken; "
-           << "use 'pkg-purge' to remove";
-      throw;
+      // Disfigure.
+      //
+      try
+      {
+        if (exists (out_root))
+        {
+          // Note that for external packages this is just the output
+          // directory. It is also possible that the buildfiles in the source
+          // directory have changed in a way that they don't clean everything.
+          // So in this case we just remove the output directory manually
+          // rather then running 'b clean disfigure'.
+          //
+          if (clean && p->external ())
+            rm_r (out_root);
+          else
+            run_b (o, c, bspec, true); // Run quiet.
+        }
+
+        // Make sure the out directory is gone unless it is the same as src,
+        // or we didn't clean it.
+        //
+        if (out_root != src_root && clean && exists (out_root))
+          fail << "package output directory " << out_root << " still exists";
+      }
+      catch (const failed&)
+      {
+        // If we failed to disfigure the package, set it to the broken
+        // state. The user can then try to clean things up with pkg-purge.
+        //
+        p->state = package_state::broken;
+        db.update (p);
+        t.commit ();
+
+        info << "package " << p->name << " is now broken; "
+             << "use 'pkg-purge' to remove";
+        throw;
+      }
     }
 
     p->out_root = nullopt;
@@ -172,7 +172,7 @@ namespace bpkg
     string n (args.next ());
 
     database db (open (c, trace));
-    transaction t (db.begin ());
+    transaction t (db);
 
     shared_ptr<selected_package> p (db.find<selected_package> (n));
 
@@ -183,7 +183,9 @@ namespace bpkg
       fail << "package " << n << " is " << p->state <<
         info << "expected it to be configured";
 
-    pkg_disfigure (c, o, t, p, !o.keep_out ()); // Commits the transaction.
+    // Commits the transaction.
+    //
+    pkg_disfigure (c, o, t, p, !o.keep_out (), false /* simulate */);
 
     assert (p->state == package_state::unpacked ||
             p->state == package_state::transient);

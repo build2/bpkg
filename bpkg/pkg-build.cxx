@@ -39,26 +39,14 @@ using namespace butl;
 
 namespace bpkg
 {
-  // @@ TODO
+  // Query the available packages that optionally satisfy the specified version
+  // version constraint and return them in the version descending order. Note
+  // that a stub satisfies any constraint.
   //
-  //    - Detect and complain about dependency cycles.
-  //    - Configuration vars (both passed and preserved)
-  //
-
-  // Try to find a package that optionally satisfies the specified
-  // version constraint. Look in the specified repository, its
-  // prerequisite repositories, and their complements, recursively
-  // (note: recursivity applies to complements, not prerequisites).
-  // Return the package and the repository in which it was found or
-  // NULL for both if not found. Note that a stub satisfies any
-  // constraint.
-  //
-  static pair<shared_ptr<available_package>, shared_ptr<repository>>
-  find_available (database& db,
-                  const string& name,
-                  const shared_ptr<repository>& r,
-                  const optional<dependency_constraint>& c,
-                  bool prereq = true)
+  odb::result<available_package>
+  query_available (database& db,
+                   const string& name,
+                   const optional<dependency_constraint>& c)
   {
     using query = query<available_package>;
 
@@ -128,11 +116,34 @@ namespace bpkg
     }
 
     q += order_by_version_desc (vm);
+    return db.query<available_package> (q);
+  }
 
+  // @@ TODO
+  //
+  //    - Detect and complain about dependency cycles.
+  //    - Configuration vars (both passed and preserved)
+  //
+
+  // Try to find a package that optionally satisfies the specified
+  // version constraint. Look in the specified repository, its
+  // prerequisite repositories, and their complements, recursively
+  // (note: recursivity applies to complements, not prerequisites).
+  // Return the package and the repository in which it was found or
+  // NULL for both if not found. Note that a stub satisfies any
+  // constraint.
+  //
+  static pair<shared_ptr<available_package>, shared_ptr<repository>>
+  find_available (database& db,
+                  const string& name,
+                  const shared_ptr<repository>& r,
+                  const optional<dependency_constraint>& c,
+                  bool prereq = true)
+  {
     // Filter the result based on the repository to which each version
     // belongs.
     //
-    return filter_one (r, db.query<available_package> (q), prereq);
+    return filter_one (r, query_available (db, name, c), prereq);
   }
 
   // Create a transient (or fake, if you prefer) available_package object
@@ -147,7 +158,7 @@ namespace bpkg
   //
   static pair<shared_ptr<available_package>, shared_ptr<repository>>
   make_available (const common_options& options,
-                  const dir_path& cd,
+                  const dir_path& c,
                   database& db,
                   const shared_ptr<selected_package>& sp)
   {
@@ -172,12 +183,11 @@ namespace bpkg
     // be able to get its manifest.
     //
     const optional<path>& a (sp->archive);
-    const optional<dir_path>& d (sp->src_root);
 
     package_manifest m (
       sp->state == package_state::fetched
-      ? pkg_verify (options, a->absolute () ? *a : cd / *a, true)
-      : pkg_verify (d->absolute () ? *d : cd / *d, true));
+      ? pkg_verify (options, a->absolute () ? *a : c / *a, true)
+      : pkg_verify (sp->effective_src_root (c), true));
 
     // Copy the possibly fixed up version from the selected package.
     //
@@ -222,6 +232,12 @@ namespace bpkg
     shared_ptr<selected_package>  selected;   // NULL if not selected.
     shared_ptr<available_package> available;  // Can be NULL, fake/transient.
     shared_ptr<bpkg::repository>  repository; // Can be NULL (orphan) or root.
+
+    const string&
+    name () const
+    {
+      return selected != nullptr ? selected->name : available->id.name;
+    }
 
     // Hold flags. Note that we only "increase" the hold_package value that is
     // already in the selected package.
@@ -313,7 +329,7 @@ namespace bpkg
     }
 
     string
-    available_name () const
+    available_name_version () const
     {
       assert (available != nullptr);
 
@@ -326,7 +342,9 @@ namespace bpkg
     }
   };
 
-  struct build_packages: list<reference_wrapper<build_package>>
+  using build_packages = list<reference_wrapper<build_package>>;
+
+  struct build_package_map: build_packages
   {
     // Collect the package. Return its pointer if this package version was, in
     // fact, added to the map and NULL if it was already there or the existing
@@ -336,7 +354,7 @@ namespace bpkg
     collect (const common_options& options,
              const dir_path& cd,
              database& db,
-             build_package&& pkg,
+             build_package pkg,
              bool recursively)
     {
       using std::swap; // ...and not list::swap().
@@ -399,8 +417,8 @@ namespace bpkg
               fail << "unable to satisfy constraints on package " << n <<
                 info << d1 << " depends on (" << n << " " << c1->value << ")" <<
                 info << d2 << " depends on (" << n << " " << c2->value << ")" <<
-                info << "available " << p1->available_name () <<
-                info << "available " << p2->available_name () <<
+                info << "available " << p1->available_name_version () <<
+                info << "available " << p2->available_name_version () <<
                 info << "explicitly specify " << n << " version to manually "
                    << "satisfy both constraints";
             }
@@ -408,8 +426,8 @@ namespace bpkg
               swap (p1, p2);
           }
 
-          l4 ([&]{trace << "pick " << p1->available_name ()
-                        << " over " << p2->available_name ();});
+          l4 ([&]{trace << "pick " << p1->available_name_version ()
+                        << " over " << p2->available_name_version ();});
         }
         // If versions are the same, then we still need to pick the entry as
         // one of them can build a package from source while another configure
@@ -472,7 +490,7 @@ namespace bpkg
       {
         // This is the first time we are adding this package name to the map.
         //
-        l4 ([&]{trace << "add " << pkg.available_name ();});
+        l4 ([&]{trace << "add " << pkg.available_name_version ();});
 
         string n (pkg.available->id.name); // Note: copy; see emplace() below.
         i = map_.emplace (move (n), data_type {end (), move (pkg)}).first;
@@ -517,7 +535,7 @@ namespace bpkg
         make_exception_guard (
           [&pkg] ()
           {
-            info << "while satisfying " << pkg.available_name ();
+            info << "while satisfying " << pkg.available_name_version ();
           }));
 
       const shared_ptr<available_package>& ap (pkg.available);
@@ -614,7 +632,8 @@ namespace bpkg
           // need the repository to allow orphans without prerequisites).
           //
           if (ar == nullptr)
-            fail << "package " << pkg.available_name () << " is orphaned" <<
+            fail << "package " << pkg.available_name_version ()
+                 << " is orphaned" <<
               info << "explicitly upgrade it to a new version";
 
           // We look for prerequisites only in the repositories of this
@@ -747,7 +766,7 @@ namespace bpkg
             // attribution changes.
             //
             if (dsp->system ())
-              dr << p->available_name ();
+              dr << p->available_name_version ();
             else
               dr << av; // Can't be a system version so is never wildcard.
 
@@ -975,7 +994,7 @@ namespace bpkg
             // attribution changes.
             //
             if (p.system != sp->system ())
-              dr << p.available_name ();
+              dr << p.available_name_version ();
             else
               dr << av; // Can't be the wildcard otherwise would satisfy.
 
@@ -990,7 +1009,7 @@ namespace bpkg
             }
 
             if (!rb.empty ())
-              dr << info << "package " << p.available_name ()
+              dr << info << "package " << p.available_name_version ()
                  << " required by" << rb;
 
             dr << info << "explicitly request up/downgrade of package " << dn;
@@ -1178,6 +1197,161 @@ namespace bpkg
     return os;
   }
 
+  // If an upgrade/downgrade of the selected dependency is possible to the
+  // specified version (empty means the highest possible one), then return the
+  // version upgrade/downgrade to. Otherwise return the empty version with the
+  // reason of the impossibility to upgrade/downgrade. The empty reason means
+  // that the dependency is unused. Note that it should be called in session.
+  //
+  static pair<version, string>
+  evaluate_dependency (transaction& t, const string& n, const version& v)
+  {
+    tracer trace ("evaluate_dependency");
+
+    database& db (t.database ());
+    tracer_guard tg (db, trace);
+
+    shared_ptr<selected_package> sp (db.find<selected_package> (n));
+
+    if (sp == nullptr)
+    {
+      l5 ([&]{trace << n << "/" << v << ": unselected";});
+      return make_pair (version (), string ());
+    }
+
+    const version& sv (sp->version);
+
+    l6 ([&]{trace << n << "/" << v << ": current: " << sv;});
+
+    // Build the set of repositories the dependent packages now come from.
+    // Also cash the dependents and the constraints they apply to the
+    // dependency package.
+    //
+    vector<shared_ptr<repository>> repos;
+
+    vector<pair<shared_ptr<selected_package>,
+                optional<dependency_constraint>>> dependents;
+    {
+      set<shared_ptr<repository>> rps;
+
+      auto pds (db.query<package_dependent> (
+                  query<package_dependent>::name == n));
+
+      if (pds.empty ())
+      {
+        l5 ([&]{trace << n << "/" << v << ": unused";});
+        return make_pair (version (), string ());
+      }
+
+      for (auto& pd: pds)
+      {
+        shared_ptr<selected_package> dsp (db.load<selected_package> (pd.name));
+
+        l6 ([&]{trace << n << "/" << v << ": dependent: "
+                      << dsp->name << "/" << dsp->version;});
+
+        shared_ptr<available_package> dap (
+          db.find<available_package> (
+            available_package_id (dsp->name, dsp->version)));
+
+        if (dap != nullptr)
+        {
+          assert (!dap->locations.empty ());
+
+          for (const auto& pl: dap->locations)
+          {
+            shared_ptr<repository> r (pl.repository.load ());
+
+            if (rps.insert (r).second)
+              l6 ([&]{trace << n << "/" << v << ":   " << r->location;});
+          }
+        }
+        else
+          l6 ([&]{trace << n << "/" << v << ":   dependent unavailable";});
+
+        dependents.emplace_back (move (dsp), move (pd.constraint));
+      }
+
+      repos = vector<shared_ptr<repository>> (rps.begin (), rps.end ());
+    }
+
+    // Build the list of available packages for the potential upgrade/downgrade
+    // to, in the version-descending order.
+    //
+    auto apr (v.empty ()
+              ? query_available (db, n, nullopt)
+              : query_available (db, n, dependency_constraint (v)));
+
+    vector<shared_ptr<available_package>> aps (filter (repos, move (apr)));
+
+    if (aps.empty ())
+    {
+      l5 ([&]{trace << n << "/" << v << ": unavailable";});
+      return make_pair (version (), "unavailable");
+    }
+
+    // Go through upgrade/downgrade to candidates and pick the first one that
+    // satisfies all the dependents.
+    //
+    bool highest (v.empty () || v == wildcard_version);
+
+    for (const shared_ptr<available_package>& ap: aps)
+    {
+      const version& av (ap->version);
+
+      // If we are aim to upgrade to the highest possible version and it tends
+      // to be not higher then the selected one, then just return the selected
+      // one to indicate that what we currently have is best what we can get.
+      //
+      if (highest && av <= sv)
+      {
+        l5 ([&]{trace << n << "/" << v << ": " << av
+                      << " not better than current";});
+
+        return make_pair (sv, string ());
+      }
+
+      bool satisfy (true);
+
+      for (const auto& dp: dependents)
+      {
+        if (!satisfies (av, dp.second))
+        {
+          satisfy = false;
+
+          l6 ([&]{trace << n << "/" << v << ": " << av
+                        << " unsatisfy selected "
+                        << dp.first->name << "/" << dp.first->version;});
+
+          break;
+        }
+      }
+
+      if (satisfy)
+      {
+        l5 ([&]{trace << n << "/" << v << ": "
+                      << (av > sv
+                          ? "upgrade to "
+                          : av < sv
+                            ? "downgrade to "
+                            : "leave ") << av;});
+
+        return make_pair (av, string ());
+      }
+    }
+
+    l5 ([&]{trace << n << "/" << v << ": unsatisfied";});
+    return make_pair (version (), "unsatisfied");
+  }
+
+  static void
+  execute_plan (const pkg_build_options&,
+                const dir_path&,
+                database&,
+                build_packages&,
+                bool,
+                set<shared_ptr<selected_package>>& drop_pkgs);
+
   int
   pkg_build (const pkg_build_options& o, cli::group_scanner& args)
   {
@@ -1212,15 +1386,15 @@ namespace bpkg
 
     database db (open (c, trace)); // Also populates the system repository.
 
-    // Note that the session spans all our transactions. The idea here is
-    // that selected_package objects in the build_packages list below will
-    // be cached in this session. When subsequent transactions modify any
-    // of these objects, they will modify the cached instance, which means
-    // our list will always "see" their updated state.
+    // Note that the session spans all our transactions. The idea here is that
+    // selected_package objects in the build_package_map below will be cached
+    // in this session. When subsequent transactions modify any of these
+    // objects, they will modify the cached instance, which means our list
+    // will always "see" their updated state.
     //
     // Also note that rep_fetch() must be called in session.
     //
-    session s;
+    session ses;
 
     // Preparse the (possibly grouped) package specs splitting them into the
     // packages and location parts, and also parsing their options.
@@ -1240,7 +1414,7 @@ namespace bpkg
     {
       vector<repository_location> locations;
 
-      transaction t (db.begin ());
+      transaction t (db);
 
       while (args.more ())
       {
@@ -1361,7 +1535,7 @@ namespace bpkg
     //
     vector<pkg_arg> pkg_args;
     {
-      transaction t (db.begin ());
+      transaction t (db);
 
       for (pkg_spec& ps: specs)
       {
@@ -1480,10 +1654,10 @@ namespace bpkg
       return 0;
     }
 
-    // Assemble the list of packages we will need to build.
+    // Separate the packages specified on the command line into to hold and to
+    // up/down-grade as dependencies.
     //
-    build_packages pkgs;
-    strings names;
+    vector<build_package> hold_pkgs;
     {
       // Check if the package is a duplicate. Return true if it is but
       // harmless.
@@ -1504,7 +1678,7 @@ namespace bpkg
         return !r.second;
       };
 
-      transaction t (db.begin ());
+      transaction t (db);
 
       shared_ptr<repository> root (db.load<repository> (""));
 
@@ -1521,6 +1695,20 @@ namespace bpkg
       for (auto i (pkg_args.begin ()); i != pkg_args.end (); )
       {
         pkg_arg& pa (*i);
+
+        if (pa.options.dependency ())
+        {
+          assert (false); // @@ TODO: we want stash <pkg>/[ver] somewhere
+                          //          to be used during the refinment phase.
+                          //          It should probably be passes to
+                          //          evaluate_dependency().
+
+          //@@ TODO: we also need to handle "unhold"
+          //@@ TODO: we probably also need to pre-enter version somehow if
+          //         specified so that constraint resolution does not fail
+          //         (i.e., this could be a manual resulution of the
+          //         previouly failed constraint).
+        }
 
         // Reduce all the potential variations (archive, directory, package
         // name, package name/version) to a single available_package object.
@@ -1548,7 +1736,7 @@ namespace bpkg
               // This is a package archive (note that we shouldn't throw
               // failed from here on).
               //
-              l4 ([&]{trace << "archive " << a;});
+              l4 ([&]{trace << "archive '" << a << "': " << pa;});
 
               pa = pkg_arg (package_scheme::none,
                             m.name,
@@ -1600,7 +1788,7 @@ namespace bpkg
                 //
                 package_dir = true;
 
-                l4 ([&]{trace << "directory " << d;});
+                l4 ([&]{trace << "directory '" << d << "': " << pa;});
 
                 // Fix-up the package version to properly decide if we need to
                 // upgrade/downgrade the package. Note that throwing failed
@@ -1674,13 +1862,11 @@ namespace bpkg
                             move (pa.options));
             }
 
-            l4 ([&]{trace << (pa.system () ? "system " : "")
-                          << "package " << pa.name << "; "
-                          << "version " << pa.version;});
+            l4 ([&]{trace << "package: " << pa;});
 
             // Either get the user-specified version or the latest for a
             // source code package. For a system package we peek the latest
-            // one just to ensure the package is recognized.
+            // one just to make sure the package is recognized.
             //
             auto rp (
               pa.version.empty () || pa.system ()
@@ -1691,6 +1877,11 @@ namespace bpkg
                                 dependency_constraint (pa.version)));
             ap = rp.first;
             ar = rp.second;
+
+            // @@ TMP
+            //
+            if (pa.options.dependency ())
+              evaluate_dependency (t, pa.name, pa.version);
           }
           catch (const failed&)
           {
@@ -1701,7 +1892,7 @@ namespace bpkg
 
         // We are handling this argument.
         //
-        if (check_dup (*i++) || pa.options.dependency ())
+        if (check_dup (*i++))
           continue;
 
         // Load the package that may have already been selected and
@@ -1863,7 +2054,7 @@ namespace bpkg
           {""},                 // Required by (command line).
           false};               // Reconfigure.
 
-        l4 ([&]{trace << "collect " << p.available_name ();});
+        l4 ([&]{trace << "collect " << p.available_name_version ();});
 
         // "Fix" the version the user asked for by adding the '==' constraint.
         //
@@ -1875,38 +2066,211 @@ namespace bpkg
             "command line",
             dependency_constraint (pa.version));
 
-        // Pre-collect user selection to make sure dependency-forced
-        // up/down-grades are handled properly (i.e., the order in which we
-        // specify packages on the command line does not matter).
-        //
-        pkgs.collect (o, c, db, move (p), false);
-        names.push_back (pa.name);
+        hold_pkgs.push_back (move (p));
       }
 
-      // Collect all the packages prerequisites.
-      //
-      for (const string& n: names)
-        pkgs.collect_prerequisites (o, c, db, n);
-
-      // Now that we have collected all the package versions that we need
-      // to build, arrange them in the "dependency order", that is, with
-      // every package on the list only possibly depending on the ones
-      // after it. Iterate over the names we have collected on the previous
-      // step in reverse so that when we iterate over the packages (also in
-      // reverse), things will be built as close as possible to the order
-      // specified by the user (it may still get altered if there are
-      // dependencies between the specified packages).
-      //
-      for (const string& n: reverse_iterate (names))
-        pkgs.order (n);
-
-      // Finally, collect and order all the dependents that we will need
-      // to reconfigure because of the up/down-grades of packages that
-      // are now on the list.
-      //
-      pkgs.collect_order_dependents (db);
-
       t.commit ();
+    }
+
+    // Assemble the list of packages we will need to build.
+    //
+    build_package_map pkgs;
+    {
+      // Iteratively refine the plan with dependency up/down-grades/drops.
+      //
+      // @@ TODO: maybe not build_package, maybe just name & version so that
+      //    we don't end up with selected_package object that has been rolled
+      //    back?
+      //
+      vector<build_package> dep_pkgs;
+
+      for (bool refine (true), scratch (true); refine; )
+      {
+        transaction t (db);
+
+        if (scratch)
+        {
+          // Pre-collect user selection to make sure dependency-forced
+          // up/down-grades are handled properly (i.e., the order in which we
+          // specify packages on the command line does not matter).
+          //
+          for (const build_package& p: hold_pkgs)
+            pkgs.collect (o, c, db, p, false /* recursively */);
+
+          // Collect all the prerequisites.
+          //
+          for (const build_package& p: hold_pkgs)
+            pkgs.collect_prerequisites (o, c, db, p.name ());
+
+          scratch = false;
+        }
+
+        // Add dependencies to upgrade/downgrade/drop that were discovered on
+        // the previous iterations.
+        //
+        //         Looks like keeping them as build_package objects would
+        //         be natural? BUT: what if the selected_package is from
+        //         the temporary changes/session?! So maybe not...
+        //
+        //@@ TODO: use empty version in build_package to indicate drop?
+        //@@ TODO: always put drops at the back of dep_pkgs so that they
+        //         appear in the plan last (could also do it as a post-
+        //         collection step if less hairy).
+        //
+        for (const build_package& p: dep_pkgs)
+          pkgs.collect (o, c, db, p, true /* recursively */);
+
+        // Now that we have collected all the package versions that we need to
+        // build, arrange them in the "dependency order", that is, with every
+        // package on the list only possibly depending on the ones after
+        // it. Iterate over the names we have collected on the previous step
+        // in reverse so that when we iterate over the packages (also in
+        // reverse), things will be built as close as possible to the order
+        // specified by the user (it may still get altered if there are
+        // dependencies between the specified packages).
+        //
+        // The order of dependency upgrades/downgrades/drops is not really
+        // deterministic. We, however, do them before hold_pkgs so that they
+        // appear (e.g., on the plan) last.
+        //
+
+        //@@ TODO: need to clear the list on subsequent iterations.
+
+        for (const build_package& p: dep_pkgs)
+          pkgs.order (p.name ());
+
+        for (const build_package& p: reverse_iterate (hold_pkgs))
+          pkgs.order (p.name ());
+
+        // Once we have the final plan, collect and order all the dependents
+        // that we will need to reconfigure because of the up/down-grades of
+        // packages that are now on the list.
+        //
+        pkgs.collect_order_dependents (db);
+
+        // We are about to execute the plan on the database (but not on the
+        // filesystem / actual packages). Save the session state for the
+        // selected_package objects so that we can restore it later (see
+        // below)
+        //
+        using selected_packages = session::object_map<selected_package>;
+
+        auto selected_packages_session = [&db, &ses] () -> selected_packages*
+        {
+          auto& m (ses.map ()[&db]);
+          auto i = m.find (&typeid (selected_package));
+          return (i != m.end ()
+                  ? &static_cast<selected_packages&> (*i->second)
+                  : nullptr);
+        };
+
+        selected_packages old_sp;
+
+        if (const selected_packages* sp = selected_packages_session ())
+          old_sp = *sp;
+
+        // We also need to perform the execution on the copy of the
+        // build_package objects to preserve their original ones. Note that
+        // the selected package objects will still be changed so we will
+        // reload them afterwards (see below).
+        //
+        {
+          vector<build_package> tmp_pkgs (pkgs.begin (), pkgs.end ());
+          build_packages ref_pkgs (tmp_pkgs.begin (), tmp_pkgs.end ());
+
+          set<shared_ptr<selected_package>> dummy;
+          execute_plan (o, c, db, ref_pkgs, true /* simulate */, dummy);
+        }
+
+        // Verify that none of the previously-made upgrade/downgrade/drop
+        // decisions have changed.
+        //
+        /*
+        for (auto i (dep_pkgs.begin ()); i != dep_pkgs.end (); )
+        {
+          shared_ptr<selected_package> p = db.find (...);
+
+          if (upgrade_sependency (p) != p->version)
+          {
+            dep_pkgs.erase (i);
+            scratch = true; // Start from scratch.
+          }
+          else
+            ++i;
+        }
+        */
+
+        if (!scratch)
+        {
+          // Examine the new dependency set for any upgrade/downgrade/drops.
+          //
+          refine = false; // Presumably no more refinments necessary.
+
+          /*
+          for (shared_ptr<selected_package> p = ...
+            <query all dependency (non-held) packages in the database>)
+          {
+            version v (evaluate_dependency (p));
+
+            if (v != p->version)
+            {
+              dep_pkgs.push_back (p->name, v);
+              refine = true;
+            }
+          }
+          */
+        }
+
+        // Rollback the changes to the database and reload the changed
+        // objects.
+        //
+        t.rollback ();
+        {
+          transaction t (db);
+
+          // First reload all the selected_package object that could have been
+          // modified (conceptually, we should only modify what's on the
+          // plan).
+          //
+          // Note: we use the original pkgs list since the executed one may
+          // contain newly created (but now gone) selected_package objects.
+          //
+          for (build_package& p: pkgs)
+          {
+            if (p.selected != nullptr)
+              db.reload (*p.selected);
+          }
+
+          // Now drop all the newly created selected_package objects. The
+          // tricky part is to distinguish newly created ones from newly
+          // loaded (and potentially cached).
+          //
+          if (selected_packages* sp = selected_packages_session ())
+          {
+            for (bool rescan (true); rescan; )
+            {
+              rescan = false;
+
+              for (auto i (sp->begin ()); i != sp->end (); ++i)
+              {
+                if (old_sp.find (i->first) == old_sp.end ())
+                {
+                  if (i->second.use_count () == 1)
+                  {
+                    sp->erase (i);
+
+                    // This might cause another object's use count to drop.
+                    //
+                    rescan = true;
+                  }
+                }
+              }
+            }
+          }
+
+          t.commit ();
+        }
+      }
     }
 
     // Print what we are going to do, then ask for the user's confirmation.
@@ -1980,7 +2344,7 @@ namespace bpkg
             print_plan = true;
           }
 
-          act += p.available_name ();
+          act += p.available_name_version ();
           cause = "required by";
         }
 
@@ -2070,370 +2434,9 @@ namespace bpkg
     // the user may want to in addition update (that update_dependents flag
     // above). This case we handle in house.
     //
+
     set<shared_ptr<selected_package>> drop_pkgs;
-
-    // disfigure
-    //
-    for (build_package& p: pkgs)
-    {
-      // We are only interested in configured packages that are either
-      // up/down-graded or need reconfiguration (e.g., dependents).
-      //
-      if (!p.reconfigure ())
-        continue;
-
-      shared_ptr<selected_package>& sp (p.selected);
-
-      // Each package is disfigured in its own transaction, so that we
-      // always leave the configuration in a valid state.
-      //
-      transaction t (db.begin ());
-
-      // Collect prerequisites to be potentially dropped.
-      //
-      if (!o.keep_prerequisite ())
-      {
-        for (const auto& pair: sp->prerequisites)
-        {
-          shared_ptr<selected_package> pp (pair.first.load ());
-
-          if (!pp->hold_package)
-            drop_pkgs.insert (move (pp));
-        }
-      }
-
-      // Reset the flag if the package being unpacked is not an external one.
-      //
-      if (p.keep_out)
-      {
-        const shared_ptr<available_package>& ap (p.available);
-        const package_location& pl (ap->locations[0]);
-
-        if (pl.repository.object_id () == "") // Special root.
-          p.keep_out = !exists (pl.location); // Directory case.
-        else
-        {
-          p.keep_out = false;
-
-          // See if the package comes from the directory-based repository, and
-          // so is external.
-          //
-          // Note that such repositories are always preferred over others (see
-          // below).
-          //
-          for (const package_location& l: ap->locations)
-          {
-            if (l.repository.load ()->location.directory_based ())
-            {
-              p.keep_out = true;
-              break;
-            }
-          }
-        }
-      }
-
-      pkg_disfigure (c, o, t, sp, !p.keep_out); // Commits the transaction.
-      assert (sp->state == package_state::unpacked ||
-              sp->state == package_state::transient);
-
-      if (verb && !o.no_result ())
-        text << (sp->state == package_state::transient
-                 ? "purged "
-                 : "disfigured ") << *sp;
-
-      // Selected system package is now gone from the database. Before we drop
-      // the object we need to make sure the hold state is preserved in the
-      // package being reconfigured.
-      //
-      if (sp->state == package_state::transient)
-      {
-        if (!p.hold_package)
-          p.hold_package = sp->hold_package;
-
-        if (!p.hold_version)
-          p.hold_version = sp->hold_version;
-
-        sp.reset ();
-      }
-    }
-
-    // purge, fetch/unpack|checkout, configure
-    //
-    for (build_package& p: reverse_iterate (pkgs))
-    {
-      shared_ptr<selected_package>& sp (p.selected);
-      const shared_ptr<available_package>& ap (p.available);
-
-      // Purge the system package, fetch/unpack or checkout the source one.
-      //
-      for (;;) // Breakout loop.
-      {
-        if (ap == nullptr) // Skip dependents.
-          break;
-
-        // System package should not be fetched, it should only be configured
-        // on the next stage. Here we need to purge selected non-system package
-        // if present. Before we drop the object we need to make sure the hold
-        // state is preserved for the package being reconfigured.
-        //
-        if (p.system)
-        {
-          if (sp != nullptr && !sp->system ())
-          {
-            transaction t (db.begin ());
-            pkg_purge (c, t, sp); // Commits the transaction.
-
-            if (verb && !o.no_result ())
-              text << "purged " << *sp;
-
-            if (!p.hold_package)
-              p.hold_package = sp->hold_package;
-
-            if (!p.hold_version)
-              p.hold_version = sp->hold_version;
-
-            sp.reset ();
-          }
-
-          break;
-        }
-
-        // Fetch or checkout if this is a new package or if we are
-        // up/down-grading.
-        //
-        if (sp == nullptr || sp->version != p.available_version ())
-        {
-          sp.reset (); // For the directory case below.
-
-          // Distinguish between the package and archive/directory cases.
-          //
-          const package_location& pl (ap->locations[0]); // Got to have one.
-
-          if (pl.repository.object_id () != "") // Special root?
-          {
-            transaction t (db.begin ());
-
-            // Go through package repositories to decide if we should fetch,
-            // checkout or unpack depending on the available repository basis.
-            // Preferring a local one over the remotes and the dir repository
-            // type over the others seems like a sensible thing to do.
-            //
-            optional<repository_basis> basis;
-
-            for (const package_location& l: ap->locations)
-            {
-              const repository_location& rl (l.repository.load ()->location);
-
-              if (!basis || rl.local ()) // First or local?
-              {
-                basis = rl.basis ();
-
-                if (rl.directory_based ())
-                  break;
-              }
-            }
-
-            assert (basis);
-
-            // All calls commit the transaction.
-            //
-            switch (*basis)
-            {
-            case repository_basis::archive:
-              {
-                sp = pkg_fetch (o,
-                                c,
-                                t,
-                                ap->id.name,
-                                p.available_version (),
-                                true /* replace */);
-                break;
-              }
-            case repository_basis::version_control:
-              {
-                sp = pkg_checkout (o,
-                                   c,
-                                   t,
-                                   ap->id.name,
-                                   p.available_version (),
-                                   true /* replace */);
-                break;
-              }
-            case repository_basis::directory:
-              {
-                sp = pkg_unpack (o,
-                                 c,
-                                 t,
-                                 ap->id.name,
-                                 p.available_version (),
-                                 true /* replace */);
-                break;
-              }
-            }
-          }
-          // Directory case is handled by unpack.
-          //
-          else if (exists (pl.location))
-          {
-            transaction t (db.begin ());
-            sp = pkg_fetch (
-              o,
-              c,
-              t,
-              pl.location, // Archive path.
-              true,        // Replace
-              false);      // Don't purge; commits the transaction.
-          }
-
-          if (sp != nullptr) // Actually fetched or checked out something?
-          {
-            assert (sp->state == package_state::fetched ||
-                    sp->state == package_state::unpacked);
-
-            if (verb && !o.no_result ())
-            {
-              const repository_location& rl (sp->repository);
-
-              repository_basis basis (
-                !rl.empty ()
-                ? rl.basis ()
-                : repository_basis::archive); // Archive path case.
-
-              diag_record dr (text);
-
-              switch (basis)
-              {
-              case repository_basis::archive:
-                {
-                  assert (sp->state == package_state::fetched);
-                  dr << "fetched " << *sp;
-                  break;
-                }
-              case repository_basis::directory:
-                {
-                  assert (sp->state == package_state::unpacked);
-                  dr << "using " << *sp << " (external)";
-                  break;
-                }
-              case repository_basis::version_control:
-                {
-                  assert (sp->state == package_state::unpacked);
-                  dr << "checked out " << *sp;
-                  break;
-                }
-              }
-            }
-          }
-        }
-
-        // Unpack if required. Note that the package can still be NULL if this
-        // is the directory case (see the fetch code above).
-        //
-        if (sp == nullptr || sp->state == package_state::fetched)
-        {
-          if (sp != nullptr)
-          {
-            transaction t (db.begin ());
-            sp = pkg_unpack (o, c, t, ap->id.name); // Commits the transaction.
-
-            if (verb && !o.no_result ())
-              text << "unpacked " << *sp;
-          }
-          else
-          {
-            const package_location& pl (ap->locations[0]);
-            assert (pl.repository.object_id () == ""); // Special root.
-
-            transaction t (db.begin ());
-            sp = pkg_unpack (o,
-                             c,
-                             t,
-                             path_cast<dir_path> (pl.location),
-                             true,   // Replace.
-                             false); // Don't purge; commits the transaction.
-
-            if (verb && !o.no_result ())
-              text << "using " << *sp << " (external)";
-          }
-
-          assert (sp->state == package_state::unpacked);
-        }
-
-        break; // Get out from the breakout loop.
-      }
-
-      // Configure the package.
-      //
-      // At this stage the package is either selected, in which case it's a
-      // source code one, or just available, in which case it is a system
-      // one. Note that a system package gets selected as being configured.
-      //
-      assert (sp != nullptr || p.system);
-
-      // We configure everything that isn't already configured.
-      //
-      if (sp != nullptr && sp->state == package_state::configured)
-        continue;
-
-      transaction t (db.begin ());
-
-      // Note that pkg_configure() commits the transaction.
-      //
-      if (p.system)
-        sp = pkg_configure_system (ap->id.name, p.available_version (), t);
-      else
-        pkg_configure (c, o, t, sp, strings ());
-
-      assert (sp->state == package_state::configured);
-
-      if (verb && !o.no_result ())
-        text << "configured " << *sp;
-    }
-
-    // Small detour: update the hold state. While we could have tried
-    // to "weave" it into one of the previous actions, things there
-    // are already convoluted enough.
-    //
-    for (const build_package& p: reverse_iterate (pkgs))
-    {
-      const shared_ptr<selected_package>& sp (p.selected);
-      assert (sp != nullptr);
-
-      // Note that we should only "increase" the hold_package state. For
-      // version, if the user requested upgrade to the (unspecified) latest,
-      // then we want to reset it.
-      //
-      bool hp (p.hold_package ? *p.hold_package : sp->hold_package);
-      bool hv (p.hold_version ? *p.hold_version : sp->hold_version);
-
-      if (hp != sp->hold_package || hv != sp->hold_version)
-      {
-        sp->hold_package = hp;
-        sp->hold_version = hv;
-
-        transaction t (db.begin ());
-        db.update (sp);
-        t.commit ();
-
-        // Clean up if this package ended up in the potention drop set.
-        //
-        if (hp)
-        {
-          auto i (drop_pkgs.find (sp));
-          if (i != drop_pkgs.end ())
-            drop_pkgs.erase (i);
-        }
-
-        if (verb > 1)
-        {
-          if (hp)
-            text << "holding package " << sp->name;
-
-          if (hv)
-            text << "holding version " << *sp;
-        }
-      }
-    }
+    execute_plan (o, c, db, pkgs, false /* simulate */, drop_pkgs);
 
     // Now that we have the final dependency state, see if we need to drop
     // packages that are no longer necessary.
@@ -2492,5 +2495,401 @@ namespace bpkg
     }
 
     return 0;
+  }
+
+  static void
+  execute_plan (const pkg_build_options& o,
+                const dir_path& c,
+                database& db,
+                build_packages& pkgs,
+                bool simulate,
+                set<shared_ptr<selected_package>>& drop_pkgs)
+  {
+    uint16_t verbose (!simulate ? verb : 0);
+
+    // disfigure
+    //
+    for (build_package& p: pkgs)
+    {
+      // We are only interested in configured packages that are either
+      // up/down-graded or need reconfiguration (e.g., dependents).
+      //
+      if (!p.reconfigure ())
+        continue;
+
+      shared_ptr<selected_package>& sp (p.selected);
+
+      // Each package is disfigured in its own transaction, so that we
+      // always leave the configuration in a valid state.
+      //
+      transaction t (db, !simulate /* start */);
+
+      // Collect prerequisites to be potentially dropped.
+      //
+      if (!o.keep_prerequisite ())
+      {
+        for (const auto& pair: sp->prerequisites)
+        {
+          shared_ptr<selected_package> pp (pair.first.load ());
+
+          if (!pp->hold_package)
+            drop_pkgs.insert (move (pp));
+        }
+      }
+
+      // Reset the flag if the package being unpacked is not an external one.
+      //
+      if (p.keep_out)
+      {
+        const shared_ptr<available_package>& ap (p.available);
+        const package_location& pl (ap->locations[0]);
+
+        if (pl.repository.object_id () == "") // Special root.
+          p.keep_out = !exists (pl.location); // Directory case.
+        else
+        {
+          p.keep_out = false;
+
+          // See if the package comes from the directory-based repository, and
+          // so is external.
+          //
+          // Note that such repositories are always preferred over others (see
+          // below).
+          //
+          for (const package_location& l: ap->locations)
+          {
+            if (l.repository.load ()->location.directory_based ())
+            {
+              p.keep_out = true;
+              break;
+            }
+          }
+        }
+      }
+
+      // Commits the transaction.
+      //
+      pkg_disfigure (c, o, t, sp, !p.keep_out, simulate);
+
+      assert (sp->state == package_state::unpacked ||
+              sp->state == package_state::transient);
+
+      if (verbose && !o.no_result ())
+        text << (sp->state == package_state::transient
+                 ? "purged "
+                 : "disfigured ") << *sp;
+
+      // Selected system package is now gone from the database. Before we drop
+      // the object we need to make sure the hold state is preserved in the
+      // package being reconfigured.
+      //
+      if (sp->state == package_state::transient)
+      {
+        if (!p.hold_package)
+          p.hold_package = sp->hold_package;
+
+        if (!p.hold_version)
+          p.hold_version = sp->hold_version;
+
+        sp.reset ();
+      }
+    }
+
+    // purge, fetch/unpack|checkout, configure
+    //
+    for (build_package& p: reverse_iterate (pkgs))
+    {
+      shared_ptr<selected_package>& sp (p.selected);
+      const shared_ptr<available_package>& ap (p.available);
+
+      // Purge the system package, fetch/unpack or checkout the source one.
+      //
+      for (;;) // Breakout loop.
+      {
+        if (ap == nullptr) // Skip dependents.
+          break;
+
+        // System package should not be fetched, it should only be configured
+        // on the next stage. Here we need to purge selected non-system package
+        // if present. Before we drop the object we need to make sure the hold
+        // state is preserved for the package being reconfigured.
+        //
+        if (p.system)
+        {
+          if (sp != nullptr && !sp->system ())
+          {
+            transaction t (db, !simulate /* start */);
+            pkg_purge (c, t, sp, simulate); // Commits the transaction.
+
+            if (verbose && !o.no_result ())
+              text << "purged " << *sp;
+
+            if (!p.hold_package)
+              p.hold_package = sp->hold_package;
+
+            if (!p.hold_version)
+              p.hold_version = sp->hold_version;
+
+            sp.reset ();
+          }
+
+          break;
+        }
+
+        // Fetch or checkout if this is a new package or if we are
+        // up/down-grading.
+        //
+        if (sp == nullptr || sp->version != p.available_version ())
+        {
+          sp.reset (); // For the directory case below.
+
+          // Distinguish between the package and archive/directory cases.
+          //
+          const package_location& pl (ap->locations[0]); // Got to have one.
+
+          if (pl.repository.object_id () != "") // Special root?
+          {
+            transaction t (db, !simulate /* start */);
+
+            // Go through package repositories to decide if we should fetch,
+            // checkout or unpack depending on the available repository basis.
+            // Preferring a local one over the remotes and the dir repository
+            // type over the others seems like a sensible thing to do.
+            //
+            optional<repository_basis> basis;
+
+            for (const package_location& l: ap->locations)
+            {
+              const repository_location& rl (l.repository.load ()->location);
+
+              if (!basis || rl.local ()) // First or local?
+              {
+                basis = rl.basis ();
+
+                if (rl.directory_based ())
+                  break;
+              }
+            }
+
+            assert (basis);
+
+            // All calls commit the transaction.
+            //
+            switch (*basis)
+            {
+            case repository_basis::archive:
+              {
+                sp = pkg_fetch (o,
+                                c,
+                                t,
+                                ap->id.name,
+                                p.available_version (),
+                                true /* replace */,
+                                simulate);
+                break;
+              }
+            case repository_basis::version_control:
+              {
+                sp = pkg_checkout (o,
+                                   c,
+                                   t,
+                                   ap->id.name,
+                                   p.available_version (),
+                                   true /* replace */,
+                                   simulate);
+                break;
+              }
+            case repository_basis::directory:
+              {
+                sp = pkg_unpack (o,
+                                 c,
+                                 t,
+                                 ap->id.name,
+                                 p.available_version (),
+                                 true /* replace */,
+                                 simulate);
+                break;
+              }
+            }
+          }
+          // Directory case is handled by unpack.
+          //
+          else if (exists (pl.location))
+          {
+            transaction t (db, !simulate /* start */);
+
+            sp = pkg_fetch (
+              o,
+              c,
+              t,
+              pl.location, // Archive path.
+              true,        // Replace
+              false,       // Don't purge; commits the transaction.
+              simulate);
+          }
+
+          if (sp != nullptr) // Actually fetched or checked out something?
+          {
+            assert (sp->state == package_state::fetched ||
+                    sp->state == package_state::unpacked);
+
+            if (verbose && !o.no_result ())
+            {
+              const repository_location& rl (sp->repository);
+
+              repository_basis basis (
+                !rl.empty ()
+                ? rl.basis ()
+                : repository_basis::archive); // Archive path case.
+
+              diag_record dr (text);
+
+              switch (basis)
+              {
+              case repository_basis::archive:
+                {
+                  assert (sp->state == package_state::fetched);
+                  dr << "fetched " << *sp;
+                  break;
+                }
+              case repository_basis::directory:
+                {
+                  assert (sp->state == package_state::unpacked);
+                  dr << "using " << *sp << " (external)";
+                  break;
+                }
+              case repository_basis::version_control:
+                {
+                  assert (sp->state == package_state::unpacked);
+                  dr << "checked out " << *sp;
+                  break;
+                }
+              }
+            }
+          }
+        }
+
+        // Unpack if required. Note that the package can still be NULL if this
+        // is the directory case (see the fetch code above).
+        //
+        if (sp == nullptr || sp->state == package_state::fetched)
+        {
+          if (sp != nullptr)
+          {
+            transaction t (db, !simulate /* start */);
+
+            // Commits the transaction.
+            //
+            sp = pkg_unpack (o, c, t, ap->id.name, simulate);
+
+            if (verbose && !o.no_result ())
+              text << "unpacked " << *sp;
+          }
+          else
+          {
+            const package_location& pl (ap->locations[0]);
+            assert (pl.repository.object_id () == ""); // Special root.
+
+            transaction t (db, !simulate /* start */);
+            sp = pkg_unpack (o,
+                             c,
+                             t,
+                             path_cast<dir_path> (pl.location),
+                             true,   // Replace.
+                             false,  // Don't purge; commits the transaction.
+                             simulate);
+
+            if (verbose && !o.no_result ())
+              text << "using " << *sp << " (external)";
+          }
+
+          assert (sp->state == package_state::unpacked);
+        }
+
+        break; // Get out from the breakout loop.
+      }
+
+      // Configure the package.
+      //
+      // At this stage the package is either selected, in which case it's a
+      // source code one, or just available, in which case it is a system
+      // one. Note that a system package gets selected as being configured.
+      //
+      assert (sp != nullptr || p.system);
+
+      // We configure everything that isn't already configured.
+      //
+      if (sp != nullptr && sp->state == package_state::configured)
+        continue;
+
+      transaction t (db, !simulate /* start */);
+
+      // Note that pkg_configure() commits the transaction.
+      //
+      if (p.system)
+        sp = pkg_configure_system (ap->id.name, p.available_version (), t);
+      else if (ap != nullptr)
+        pkg_configure (c, o, t, sp, ap->dependencies, strings (), simulate);
+      else // Dependent.
+      {
+        // Must be in the unpacked state since it was disfigured on the first
+        // pass (see above).
+        //
+        assert (sp->state == package_state::unpacked);
+
+        package_manifest m (pkg_verify (sp->effective_src_root (c), true));
+        pkg_configure (c, o, t, sp, m.dependencies, strings (), simulate);
+      }
+
+      assert (sp->state == package_state::configured);
+
+      if (verbose && !o.no_result ())
+        text << "configured " << *sp;
+    }
+
+    // Small detour: update the hold state. While we could have tried
+    // to "weave" it into one of the previous actions, things there
+    // are already convoluted enough.
+    //
+    for (const build_package& p: reverse_iterate (pkgs))
+    {
+      const shared_ptr<selected_package>& sp (p.selected);
+      assert (sp != nullptr);
+
+      // Note that we should only "increase" the hold_package state. For
+      // version, if the user requested upgrade to the (unspecified) latest,
+      // then we want to reset it.
+      //
+      bool hp (p.hold_package ? *p.hold_package : sp->hold_package);
+      bool hv (p.hold_version ? *p.hold_version : sp->hold_version);
+
+      if (hp != sp->hold_package || hv != sp->hold_version)
+      {
+        sp->hold_package = hp;
+        sp->hold_version = hv;
+
+        transaction t (db, !simulate /* start */);
+        db.update (sp);
+        t.commit ();
+
+        // Clean up if this package ended up in the potention drop set.
+        //
+        if (hp)
+        {
+          auto i (drop_pkgs.find (sp));
+          if (i != drop_pkgs.end ())
+            drop_pkgs.erase (i);
+        }
+
+        if (verbose > 1)
+        {
+          if (hp)
+            text << "holding package " << sp->name;
+
+          if (hv)
+            text << "holding version " << *sp;
+        }
+      }
+    }
   }
 }

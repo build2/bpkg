@@ -40,11 +40,11 @@ namespace bpkg
                        const repository_location&,
                        bool ignore_unknown);
 
-  path
+  void
   pkg_fetch_archive (const common_options&,
                      const repository_location&,
                      const path& archive,
-                     const dir_path& destdir);
+                     const path& dest);
 
   // Repository type git (fetch-git.cxx).
   //

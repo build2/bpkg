@@ -31,6 +31,7 @@ namespace bpkg
 
     try
     {
+
       // We don't need the thread pool.
       //
       unique_ptr<connection_factory> cf (new single_connection_factory);
@@ -51,6 +52,8 @@ namespace bpkg
       // also fail if the database is inaccessible (e.g., file does not
       // exist, already used by another process, etc).
       //
+      using odb::sqlite::transaction; // Skip the wrapper.
+
       try
       {
         db.connection ()->execute ("PRAGMA locking_mode = EXCLUSIVE");

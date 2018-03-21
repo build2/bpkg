@@ -353,11 +353,11 @@ namespace bpkg
       // Each package is disfigured in its own transaction, so that we always
       // leave the configuration in a valid state.
       //
-      transaction t (db.begin ());
+      transaction t (db);
 
       // Commits the transaction.
       //
-      pkg_disfigure (c, o, t, p, true /* clean */);
+      pkg_disfigure (c, o, t, p, true /* clean */, false /* simulate */);
 
       assert (p->state == package_state::unpacked ||
               p->state == package_state::transient);
@@ -388,8 +388,11 @@ namespace bpkg
       assert (p->state == package_state::fetched ||
               p->state == package_state::unpacked);
 
-      transaction t (db.begin ());
-      pkg_purge (c, t, p); // Commits the transaction, p is now transient.
+      transaction t (db);
+
+      // Commits the transaction, p is now transient.
+      //
+      pkg_purge (c, t, p, false /* simulate */);
 
       if (verb && !o.no_result ())
         text << "purged " << p->name;
@@ -444,7 +447,7 @@ namespace bpkg
     //
     bool print_plan (false);
     {
-      transaction t (db.begin ());
+      transaction t (db);
 
       // The first step is to load and collect all the packages specified
       // by the user.
@@ -586,7 +589,7 @@ namespace bpkg
     //
     drop_packages pkgs;
     {
-      transaction t (db.begin ());
+      transaction t (db);
 
       // First add all the "caller selection" of packages to the list and
       // collect their prerequisites (these will be the candidates to drop

@@ -71,14 +71,18 @@ namespace bpkg
               version v,
               dir_path d,
               repository_location rl,
-              bool purge)
+              bool purge,
+              bool simulate)
   {
     tracer trace ("pkg_unpack");
 
     database& db (t.database ());
     tracer_guard tg (db, trace);
 
-    string mc (sha256 (o, d / manifest_file));
+    optional<string> mc;
+
+    if (!simulate)
+      mc = sha256 (o, d / manifest_file);
 
     // Make the package and configuration paths absolute and normalized.
     // If the package is inside the configuration, use the relative path.
@@ -98,7 +102,7 @@ namespace bpkg
       // replacing. Once this is done, there is no going back. If things
       // go badly, we can't simply abort the transaction.
       //
-      pkg_purge_fs (c, t, p);
+      pkg_purge_fs (c, t, p, simulate);
 
       p->version = move (v);
       p->state = package_state::unpacked;
@@ -142,7 +146,8 @@ namespace bpkg
               transaction& t,
               const dir_path& d,
               bool replace,
-              bool purge)
+              bool purge,
+              bool simulate)
   {
     tracer trace ("pkg_unpack");
 
@@ -177,7 +182,8 @@ namespace bpkg
                        move (m.version),
                        d,
                        repository_location (),
-                       purge);
+                       purge,
+                       simulate);
   }
 
   shared_ptr<selected_package>
@@ -186,7 +192,8 @@ namespace bpkg
               transaction& t,
               string n,
               version v,
-              bool replace)
+              bool replace,
+              bool simulate)
   {
     tracer trace ("pkg_unpack");
 
@@ -245,14 +252,16 @@ namespace bpkg
                        move (v),
                        path_cast<dir_path> (rl.path () / pl->location),
                        rl,
-                       false); // Purge.
+                       false /* purge */,
+                       simulate);
   }
 
   shared_ptr<selected_package>
   pkg_unpack (const common_options& co,
               const dir_path& c,
               transaction& t,
-              const string& name)
+              const string& name,
+              bool simulate)
   {
     tracer trace ("pkg_unpack");
 
@@ -272,13 +281,6 @@ namespace bpkg
 
     assert (p->archive); // Should have archive in the fetched state.
 
-    // If the archive path is not absolute, then it must be relative
-    // to the configuration.
-    //
-    path a (p->archive->absolute () ? *p->archive : c / *p->archive);
-
-    l4 ([&]{trace << "archive: " << a;});
-
     // Extract the package directory.
     //
     // Also, since we must have verified the archive during fetch,
@@ -289,119 +291,134 @@ namespace bpkg
     if (exists (d))
       fail << "package directory " << d << " already exists";
 
-    // What should we do if tar or something after it fails? Cleaning
-    // up the package directory sounds like the right thing to do.
-    //
-    auto_rmdir arm (d);
+    auto_rmdir arm;
+    optional<string> mc;
 
-    cstrings args;
-
-    // See if we need to decompress.
-    //
+    if (!simulate)
     {
-      string e (a.extension ());
+      // If the archive path is not absolute, then it must be relative
+      // to the configuration.
+      //
+      path a (p->archive->absolute () ? *p->archive : c / *p->archive);
 
-      if      (e == "gz")    args.push_back ("gzip");
-      else if (e == "bzip2") args.push_back ("bzip2");
-      else if (e == "xz")    args.push_back ("xz");
-      else if (e != "tar")
-        fail << "unknown compression method in package " << a;
-    }
+      l4 ([&]{trace << "archive: " << a;});
 
-    size_t i (0); // The tar command line start.
-    if (!args.empty ())
-    {
-      args.push_back ("-dc");
-      args.push_back (a.string ().c_str ());
-      args.push_back (nullptr);
-      i = args.size ();
-    }
+      // What should we do if tar or something after it fails? Cleaning
+      // up the package directory sounds like the right thing to do.
+      //
+      arm = auto_rmdir (d);
 
-    args.push_back (co.tar ().string ().c_str ());
+      cstrings args;
 
-    // Add extra options.
-    //
-    for (const string& o: co.tar_option ())
-      args.push_back (o.c_str ());
+      // See if we need to decompress.
+      //
+      {
+        string e (a.extension ());
 
-    // -C/--directory -- change to directory.
-    //
-    args.push_back ("-C");
+        if      (e == "gz")    args.push_back ("gzip");
+        else if (e == "bzip2") args.push_back ("bzip2");
+        else if (e == "xz")    args.push_back ("xz");
+        else if (e != "tar")
+          fail << "unknown compression method in package " << a;
+      }
+
+      size_t i (0); // The tar command line start.
+      if (!args.empty ())
+      {
+        args.push_back ("-dc");
+        args.push_back (a.string ().c_str ());
+        args.push_back (nullptr);
+        i = args.size ();
+      }
+
+      args.push_back (co.tar ().string ().c_str ());
+
+      // Add extra options.
+      //
+      for (const string& o: co.tar_option ())
+        args.push_back (o.c_str ());
+
+      // -C/--directory -- change to directory.
+      //
+      args.push_back ("-C");
 
 #ifndef _WIN32
-    args.push_back (c.string ().c_str ());
+      args.push_back (c.string ().c_str ());
 #else
-    // Note that tar misinterprets -C option's absolute paths on Windows,
-    // unless only forward slashes are used as directory separators:
-    //
-    // tar -C c:\a\cfg --force-local -xf c:\a\cfg\libbutl-0.7.0.tar.gz
-    // tar: c\:\a\\cfg: Cannot open: No such file or directory
-    // tar: Error is not recoverable: exiting now
-    //
-    string cwd (c.string ());
-    replace (cwd.begin (), cwd.end (), '\\', '/');
+      // Note that tar misinterprets -C option's absolute paths on Windows,
+      // unless only forward slashes are used as directory separators:
+      //
+      // tar -C c:\a\cfg --force-local -xf c:\a\cfg\libbutl-0.7.0.tar.gz
+      // tar: c\:\a\\cfg: Cannot open: No such file or directory
+      // tar: Error is not recoverable: exiting now
+      //
+      string cwd (c.string ());
+      replace (cwd.begin (), cwd.end (), '\\', '/');
 
-    args.push_back (cwd.c_str ());
+      args.push_back (cwd.c_str ());
 
-    // An archive name that has a colon in it specifies a file or device on a
-    // remote machine. That makes it impossible to use absolute Windows paths
-    // unless we add the --force-local option. Note that BSD tar doesn't
-    // support this option.
-    //
-    args.push_back ("--force-local");
+      // An archive name that has a colon in it specifies a file or device on a
+      // remote machine. That makes it impossible to use absolute Windows paths
+      // unless we add the --force-local option. Note that BSD tar doesn't
+      // support this option.
+      //
+      args.push_back ("--force-local");
 #endif
 
-    args.push_back ("-xf");
-    args.push_back (i == 0 ? a.string ().c_str () : "-");
-    args.push_back (nullptr);
-    args.push_back (nullptr); // Pipe end.
+      args.push_back ("-xf");
+      args.push_back (i == 0 ? a.string ().c_str () : "-");
+      args.push_back (nullptr);
+      args.push_back (nullptr); // Pipe end.
 
-    size_t what;
-    try
-    {
-      process_path dpp;
-      process_path tpp;
-
-      process dpr;
-      process tpr;
-
-      if (i != 0)
-        dpp = process::path_search (args[what = 0]);
-
-      tpp = process::path_search (args[what = i]);
-
-      if (verb >= 2)
-        print_process (args);
-
-      if (i != 0)
+      size_t what;
+      try
       {
-        dpr = process (dpp, &args[what = 0], 0, -1);
-        tpr = process (tpp, &args[what = i], dpr);
+        process_path dpp;
+        process_path tpp;
+
+        process dpr;
+        process tpr;
+
+        if (i != 0)
+          dpp = process::path_search (args[what = 0]);
+
+        tpp = process::path_search (args[what = i]);
+
+        if (verb >= 2)
+          print_process (args);
+
+        if (i != 0)
+        {
+          dpr = process (dpp, &args[what = 0], 0, -1);
+          tpr = process (tpp, &args[what = i], dpr);
+        }
+        else
+          tpr = process (tpp, &args[what = 0]);
+
+        // While it is reasonable to assuming the child process issued
+        // diagnostics, tar, specifically, doesn't mention the archive name.
+        //
+        if (!(what = i, tpr.wait ()) ||
+            !(what = 0, dpr.wait ()))
+          fail << "unable to extract package archive " << a;
       }
-      else
-        tpr = process (tpp, &args[what = 0]);
+      catch (const process_error& e)
+      {
+        error << "unable to execute " << args[what] << ": " << e;
 
-      // While it is reasonable to assuming the child process issued
-      // diagnostics, tar, specifically, doesn't mention the archive name.
-      //
-      if (!(what = i, tpr.wait ()) ||
-          !(what = 0, dpr.wait ()))
-        fail << "unable to extract package archive " << a;
-    }
-    catch (const process_error& e)
-    {
-      error << "unable to execute " << args[what] << ": " << e;
+        if (e.child)
+          exit (1);
 
-      if (e.child)
-        exit (1);
+        throw failed ();
+      }
 
-      throw failed ();
+      mc = sha256 (co, d / manifest_file);
     }
 
     p->src_root = d.leaf (); // For now assuming to be in configuration.
     p->purge_src = true;
 
-    p->manifest_checksum = sha256 (co, d / manifest_file);
+    p->manifest_checksum = move (mc);
 
     p->state = package_state::unpacked;
 
@@ -422,7 +439,7 @@ namespace bpkg
     l4 ([&]{trace << "configuration: " << c;});
 
     database db (open (c, trace));
-    transaction t (db.begin ());
+    transaction t (db);
 
     shared_ptr<selected_package> p;
     bool external (o.existing ());
@@ -435,8 +452,13 @@ namespace bpkg
         fail << "package directory argument expected" <<
           info << "run 'bpkg help pkg-unpack' for more information";
 
-      p = pkg_unpack (
-        o, c, t, dir_path (args.next ()), o.replace (), o.purge ());
+      p = pkg_unpack (o,
+                      c,
+                      t,
+                      dir_path (args.next ()),
+                      o.replace (),
+                      o.purge (),
+                      false /* simulate */);
     }
     else
     {
@@ -460,8 +482,14 @@ namespace bpkg
       // "unpack" it from the directory-based repository.
       //
       p = v.empty ()
-        ? pkg_unpack (o, c, t, n)
-        : pkg_unpack (o, c, t, move (n), move (v), o.replace ());
+        ? pkg_unpack (o, c, t, n, false /* simulate */)
+        : pkg_unpack (o,
+                      c,
+                      t,
+                      move (n),
+                      move (v),
+                      o.replace (),
+                      false /* simulate */);
     }
 
     if (verb && !o.no_result ())

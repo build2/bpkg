@@ -24,21 +24,25 @@ namespace bpkg
                  const common_options&,
                  transaction&,
                  const shared_ptr<selected_package>&,
-                 const strings& config_vars);
+                 const dependencies&,
+                 const strings& config_vars,
+                 bool simulate);
 
   // Configure a system package and commit the transaction.
   //
   shared_ptr<selected_package>
   pkg_configure_system (const string& name, const version&, transaction&);
 
-  // Verify that a directory is a valid package and return its prerequisites.
-  // Fail if the directory is not a valid package or some of the prerequisites
-  // are not configured or don't satisfy the package's dependency constraints.
+  // Return package prerequisites given its dependencies. Fail if some of the
+  // prerequisites are not configured or don't satisfy the package's
+  // dependency constraints. Note that the package argument is used for
+  // diagnostics only.
   //
   package_prerequisites
   pkg_configure_prerequisites (const common_options&,
                                transaction&,
-                               const dir_path& package);
+                               const dependencies&,
+                               const string& package);
 }
 
 #endif // BPKG_PKG_CONFIGURE_HXX

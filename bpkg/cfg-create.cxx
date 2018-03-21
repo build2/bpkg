@@ -98,7 +98,7 @@ namespace bpkg
 
     // Add the special, root repository object with empty location.
     //
-    transaction t (db.begin ());
+    transaction t (db);
     db.persist (repository (repository_location ()));
     t.commit ();
 

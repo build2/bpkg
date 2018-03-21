@@ -25,7 +25,59 @@ namespace bpkg
   using odb::session;
 
   using odb::sqlite::database;
-  using odb::sqlite::transaction;
+
+  // Transaction wrapper that allow the creation of dummy transactions (start
+  // is false) that in reality use an existing transaction.
+  //
+  struct transaction
+  {
+    using database_type = bpkg::database;
+
+    explicit
+    transaction (database_type& db, bool start = true)
+        : db_ (db), start_ (start), t_ () // Finalized.
+    {
+      if (start)
+        t_.reset (db.begin ());
+    }
+
+    void
+    commit ()
+    {
+      if (start_)
+        t_.commit ();
+    }
+
+    void
+    rollback ()
+    {
+      if (start_)
+        t_.rollback ();
+    }
+
+    database_type&
+    database ()
+    {
+      return db_;
+    }
+
+    static bool
+    has_current ()
+    {
+      return odb::sqlite::transaction::has_current ();
+    }
+
+    static odb::sqlite::transaction&
+    current ()
+    {
+      return odb::sqlite::transaction::current ();
+    }
+
+  private:
+    database_type& db_;
+    bool start_;
+    odb::sqlite::transaction t_;
+  };
 
   database
   open (const dir_path& configuration, tracer&, bool create = false);

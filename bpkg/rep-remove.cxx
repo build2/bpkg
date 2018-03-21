@@ -198,7 +198,7 @@ namespace bpkg
     {
       // Note that we don't rely on being in session nor create one.
       //
-      transaction t (db.begin ());
+      transaction t (db);
 
       db.erase_query<available_package> ();
 
@@ -296,7 +296,7 @@ namespace bpkg
     //
     vector<lazy_shared_ptr<repository>> repos;
 
-    transaction t (db.begin ());
+    transaction t (db);
     session s; // Repository dependencies can have cycles.
 
     shared_ptr<repository> root (db.load<repository> (""));

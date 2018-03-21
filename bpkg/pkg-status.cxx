@@ -265,7 +265,7 @@ namespace bpkg
     l4 ([&]{trace << "configuration: " << c;});
 
     database db (open (c, trace));
-    transaction t (db.begin ());
+    transaction t (db);
     session s;
 
     packages pkgs;

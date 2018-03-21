@@ -27,7 +27,8 @@ namespace bpkg
                 transaction&,
                 string name,
                 version,
-                bool replace);
+                bool replace,
+                bool simulate);
 }
 
 #endif // BPKG_PKG_CHECKOUT_HXX

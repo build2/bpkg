@@ -877,7 +877,7 @@ namespace bpkg
     vector<lazy_shared_ptr<repository>> repos;
     repos.reserve (rls.size ());
 
-    transaction t (db.begin ());
+    transaction t (db);
 
     shared_ptr<repository> root (db.load<repository> (""));
     repository::complements_type& ua (root->complements); // User-added repos.
@@ -913,7 +913,7 @@ namespace bpkg
     vector<lazy_shared_ptr<repository>> repos;
 
     database db (open (c, trace));
-    transaction t (db.begin ());
+    transaction t (db);
     session s; // Repository dependencies can have cycles.
 
     shared_ptr<repository> root (db.load<repository> (""));

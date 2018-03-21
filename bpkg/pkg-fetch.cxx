@@ -29,7 +29,8 @@ namespace bpkg
              version v,
              path a,
              repository_location rl,
-             bool purge)
+             bool purge,
+             bool simulate)
   {
     tracer trace ("pkg_fetch");
 
@@ -53,7 +54,7 @@ namespace bpkg
       // replacing. Once this is done, there is no going back. If things
       // go badly, we can't simply abort the transaction.
       //
-      pkg_purge_fs (c, t, p);
+      pkg_purge_fs (c, t, p, simulate);
 
       p->version = move (v);
       p->state = package_state::fetched;
@@ -133,7 +134,8 @@ namespace bpkg
              transaction& t,
              path a,
              bool replace,
-             bool purge)
+             bool purge,
+             bool simulate)
   {
     tracer trace ("pkg_fetch");
 
@@ -160,7 +162,8 @@ namespace bpkg
                       move (m.version),
                       move (a),
                       repository_location (),
-                      purge);
+                      purge,
+                      simulate);
   }
 
   shared_ptr<selected_package>
@@ -169,7 +172,8 @@ namespace bpkg
              transaction& t,
              string n,
              version v,
-             bool replace)
+             bool replace,
+             bool simulate)
   {
     tracer trace ("pkg_fetch");
 
@@ -225,22 +229,28 @@ namespace bpkg
       text << "fetching " << pl->location.leaf () << " "
            << "from " << pl->repository->name;
 
-    path a (pkg_fetch_archive (co, pl->repository->location, pl->location, c));
-    auto_rmfile arm (a);
+    auto_rmfile arm;
+    path a (c / pl->location.leaf ());
 
-    // We can't be fetching an archive for a transient object.
-    //
-    assert (ap->sha256sum);
-
-    const string& sha256sum (sha256 (co, a));
-    if (sha256sum != *ap->sha256sum)
+    if (!simulate)
     {
-      fail << "checksum mismatch for " << n << " " << v <<
-        info << pl->repository->name << " has " << *ap->sha256sum <<
-        info << "fetched archive has " << sha256sum <<
-        info << "consider re-fetching package list and trying again" <<
-        info << "if problem persists, consider reporting this to "
-           << "the repository maintainer";
+      pkg_fetch_archive (co, pl->repository->location, pl->location, a);
+      arm = auto_rmfile (a);
+
+      // We can't be fetching an archive for a transient object.
+      //
+      assert (ap->sha256sum);
+
+      const string& sha256sum (sha256 (co, a));
+      if (sha256sum != *ap->sha256sum)
+      {
+        fail << "checksum mismatch for " << n << " " << v <<
+          info << pl->repository->name << " has " << *ap->sha256sum <<
+          info << "fetched archive has " << sha256sum <<
+          info << "consider re-fetching package list and trying again" <<
+          info << "if problem persists, consider reporting this to "
+             << "the repository maintainer";
+      }
     }
 
     shared_ptr<selected_package> p (
@@ -250,7 +260,8 @@ namespace bpkg
                  move (v),
                  move (a),
                  pl->repository->location,
-                 true)); // Purge.
+                 true /* purge */,
+                 simulate));
 
     arm.cancel ();
     return p;
@@ -265,7 +276,7 @@ namespace bpkg
     l4 ([&]{trace << "configuration: " << c;});
 
     database db (open (c, trace));
-    transaction t (db.begin ());
+    transaction t (db);
     session s;
 
     shared_ptr<selected_package> p;
@@ -278,7 +289,13 @@ namespace bpkg
         fail << "archive path argument expected" <<
           info << "run 'bpkg help pkg-fetch' for more information";
 
-      p = pkg_fetch (o, c, t, path (args.next ()), o.replace (), o.purge ());
+      p = pkg_fetch (o,
+                     c,
+                     t,
+                     path (args.next ()),
+                     o.replace (),
+                     o.purge (),
+                     false /* simulate */);
     }
     else
     {
@@ -294,7 +311,13 @@ namespace bpkg
         fail << "package version expected" <<
           info << "run 'bpkg help pkg-fetch' for more information";
 
-      p = pkg_fetch (o, c, t, move (n), move (v), o.replace ());
+      p = pkg_fetch (o,
+                     c,
+                     t,
+                     move (n),
+                     move (v),
+                     o.replace (),
+                     false /* simulate */);
     }
 
     if (verb && !o.no_result ())

@@ -10,7 +10,7 @@
 namespace bpkg
 {
   using odb::sqlite::database;
-  using odb::sqlite::transaction;
+  struct transaction;
 
   // <bpkg/package.hxx>
   //

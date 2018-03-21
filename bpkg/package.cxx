@@ -145,6 +145,28 @@ namespace bpkg
     return result ();
   }
 
+  vector<shared_ptr<available_package>>
+  filter (const vector<shared_ptr<repository>>& rps,
+          odb::result<available_package>&& apr,
+          bool prereq)
+  {
+    vector<shared_ptr<available_package>> aps;
+
+    for (shared_ptr<available_package> ap: pointer_result (apr))
+    {
+      for (const shared_ptr<repository> r: rps)
+      {
+        if (filter (r, ap, prereq) != nullptr)
+        {
+          aps.push_back (move (ap));
+          break;
+        }
+      }
+    }
+
+    return aps;
+  }
+
   // selected_package
   //
   string selected_package::
@@ -201,6 +223,9 @@ namespace bpkg
 
     string mc (sha256 (o, d / manifest_file));
 
+    // The selected package must not be "simulated" (see pkg-build for
+    // details).
+    //
     assert (p->manifest_checksum);
 
     bool changed (mc != *p->manifest_checksum);
@@ -211,9 +236,7 @@ namespace bpkg
     //
     if (!changed && p->external ())
     {
-      dir_path src_root (p->src_root->absolute ()
-                         ? *p->src_root
-                         : c / *p->src_root);
+      dir_path src_root (p->effective_src_root (c));
 
       // We need to complete and normalize the source directory as it may
       // generally be completed against the configuration directory (unlikely

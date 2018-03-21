@@ -18,6 +18,7 @@ namespace bpkg
   pkg_purge_fs (const dir_path& c,
                 transaction& t,
                 const shared_ptr<selected_package>& p,
+                bool simulate,
                 bool archive)
   {
     tracer trace ("pkg_purge_archive");
@@ -32,10 +33,13 @@ namespace bpkg
     {
       if (p->purge_src)
       {
-        dir_path d (p->src_root->absolute () ? *p->src_root : c / *p->src_root);
+        if (!simulate)
+        {
+          dir_path d (p->effective_src_root (c));
 
-        if (exists (d)) // Don't complain if someone did our job for us.
-          rm_r (d);
+          if (exists (d)) // Don't complain if someone did our job for us.
+            rm_r (d);
+        }
 
         p->purge_src = false;
       }
@@ -50,10 +54,13 @@ namespace bpkg
       {
         if (p->purge_archive)
         {
-          path a (p->archive->absolute () ? *p->archive : c / *p->archive);
+          if (!simulate)
+          {
+            path a (p->archive->absolute () ? *p->archive : c / *p->archive);
 
-          if (exists (a))
-            rm (a);
+            if (exists (a))
+              rm (a);
+          }
 
           p->purge_archive = false;
         }
@@ -78,7 +85,8 @@ namespace bpkg
   void
   pkg_purge (const dir_path& c,
              transaction& t,
-             const shared_ptr<selected_package>& p)
+             const shared_ptr<selected_package>& p,
+             bool simulate)
   {
     assert (p->state == package_state::fetched ||
             p->state == package_state::unpacked);
@@ -89,7 +97,7 @@ namespace bpkg
     tracer_guard tg (db, trace);
 
     assert (!p->out_root);
-    pkg_purge_fs (c, t, p, true);
+    pkg_purge_fs (c, t, p, simulate, true);
 
     db.erase (p);
     t.commit ();
@@ -112,7 +120,7 @@ namespace bpkg
     string n (args.next ());
 
     database db (open (c, trace));
-    transaction t (db.begin ());
+    transaction t (db);
 
     shared_ptr<selected_package> p (db.find<selected_package> (n));
 
@@ -162,7 +170,7 @@ namespace bpkg
     {
       if (p->out_root)
       {
-        dir_path d (c / *p->out_root); // Always relative.
+        dir_path d (p->effective_out_root (c));
 
         if (exists (d))
           fail << "output directory of broken package " << n
@@ -172,7 +180,7 @@ namespace bpkg
 
       if (p->purge_src)
       {
-        dir_path d (p->src_root->absolute () ? *p->src_root : c / *p->src_root);
+        dir_path d (p->effective_src_root (c));
 
         if (exists (d))
           fail << "source directory of broken package " << n
@@ -192,7 +200,7 @@ namespace bpkg
     else
     {
       assert (!p->out_root);
-      pkg_purge_fs (c, t, p, !o.keep ());
+      pkg_purge_fs (c, t, p, false /* simulate */, !o.keep ());
     }
 
     // Finally, update the database state.

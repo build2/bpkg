@@ -92,6 +92,7 @@ end
 
 pkg_configure += -d cfg "config.cxx=$config.cxx" 2>!
 pkg_disfigure += -d cfg
+pkg_drop      += -d cfg --drop-prerequisite 2>!
 pkg_fetch     += -d cfg 2>!
 pkg_purge     += -d cfg
 pkg_status    += -d cfg
@@ -1683,6 +1684,99 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
   -$pkg_disfigure libhello 2>'disfigured libhello/1.0.0'
   -$pkg_purge     libhello 2>'purged libhello/1.0.0'
 }
+
+# @@ Uncomment when support for dependency up/down-grade is added.
+#\
+: dependency
+:
+{
+  test.arguments += --yes
+
+  +$clone_cfg
+  +$rep_add $rep/t4d $rep/t5 && $rep_fetch
+
+  : unknown
+  :
+  {
+    +$clone_cfg
+
+    : name
+    :
+    {
+      $clone_cfg;
+
+      $* ?libbox 2>'error: unknown package libbox' != 0
+    }
+
+    : version
+    :
+    {
+      $clone_cfg;
+
+      $* ?libbar/3 2>>EOE != 0
+      error: libbar/3 is not available in source
+        info: specify sys:libbar/3 if it is available from the system
+      EOE
+    }
+  }
+
+  : available
+  :
+  {
+    +$clone_cfg
+
+    : no-dependent
+    :
+    {
+      $clone_cfg;
+
+      $* ?libbar;
+      $* ?libbar/1.2.0; # Buildable.
+      $* ?libbar/1.1.0  # Unbuildable.
+    }
+
+    : dependent
+    :
+    {
+      +$clone_cfg
+
+      : no-version
+      :
+      {
+        $clone_cfg;
+
+        $* ?libbar libbiz 2>>~%EOE%;
+          %.+
+          updated libbar/1.2.0
+          updated libbiz/1.0.0
+          EOE
+
+        $pkg_status libbar >'libbar configured 1.2.0';
+
+        $pkg_drop libbiz
+      }
+
+      : version
+      :
+      {
+        $clone_cfg;
+
+        $* ?libbar/1.1.0 libbiz 2>>~%EOE%;
+          %.+
+          configured libfoo/1.1.0
+          %.+
+          updated libbar/1.1.0
+          updated libbiz/1.0.0
+          EOE
+
+        $pkg_status libbar >'libbar configured !1.1.0 available 1.2.0';
+
+        $pkg_drop libbiz
+      }
+    }
+  }
+}
+#\
 
 : iter
 :

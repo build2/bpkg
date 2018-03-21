@@ -86,18 +86,16 @@ namespace bpkg
       info << "re-run with -v for more information" << endf;
   }
 
-  static path
+  static void
   fetch_file (const common_options& o,
               const repository_url& u,
-              const dir_path& d)
+              const path& df)
   {
-    path r (d / u.path->leaf ());
+    if (exists (df))
+      fail << "file " << df << " already exists";
 
-    if (exists (r))
-      fail << "file " << r << " already exists";
-
-    auto_rmfile arm (r);
-    process pr (start_fetch (o, u.string (), r));
+    auto_rmfile arm (df);
+    process pr (start_fetch (o, u.string (), df));
 
     if (!pr.wait ())
     {
@@ -109,24 +107,19 @@ namespace bpkg
     }
 
     arm.cancel ();
-    return r;
   }
 
-  static path
-  fetch_file (const path& f, const dir_path& d)
+  static void
+  fetch_file (const path& sf, const path& df)
   {
-    path r (d / f.leaf ());
-
     try
     {
-      cpfile (f, r);
+      cpfile (sf, df);
     }
     catch (const system_error& e)
     {
-      fail << "unable to copy " << f << " to " << r << ": " << e;
+      fail << "unable to copy " << sf << " to " << df << ": " << e;
     }
-
-    return r;
   }
 
   // If o is nullptr, then don't calculate the checksum.
@@ -230,27 +223,27 @@ namespace bpkg
       : fetch_manifest<signature_manifest> (nullptr, f, iu).first;
   }
 
-  path
+  void
   pkg_fetch_archive (const common_options& o,
                      const repository_location& rl,
                      const path& a,
-                     const dir_path& d)
+                     const path& df)
   {
     assert (!a.empty () && a.relative ());
     assert (rl.remote () || rl.absolute ());
 
     repository_url u (rl.url ());
 
-    path& f (*u.path);
-    f /= a;
+    path& sf (*u.path);
+    sf /= a;
 
     auto bad_loc = [&u] () {fail << "invalid archive location " << u;};
 
     try
     {
-      f.normalize ();
+      sf.normalize ();
 
-      if (*f.begin () == "..") // Can be the case for the remote location.
+      if (*sf.begin () == "..") // Can be the case for the remote location.
         bad_loc ();
     }
     catch (const invalid_path&)
@@ -258,8 +251,9 @@ namespace bpkg
       bad_loc ();
     }
 
-    return rl.remote ()
-      ? fetch_file (o, u, d)
-      : fetch_file (f, d);
+    if (rl.remote ())
+      fetch_file (o, u, df);
+    else
+      fetch_file (sf, df);
   }
 }

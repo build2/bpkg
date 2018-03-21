@@ -26,7 +26,8 @@ namespace bpkg
               transaction&,
               const dir_path&,
               bool replace,
-              bool purge);
+              bool purge,
+              bool simulate);
 
   // Unpack the fetched package and commit the transaction.
   //
@@ -34,7 +35,8 @@ namespace bpkg
   pkg_unpack (const common_options&,
               const dir_path& configuration,
               transaction&,
-              const string& name);
+              const string& name,
+              bool simulate);
 
   // Unpack the package as a source directory from a directory-based
   // repository and commit the transaction.
@@ -45,7 +47,8 @@ namespace bpkg
               transaction&,
               string name,
               version,
-              bool replace);
+              bool replace,
+              bool simulate);
 }
 
 #endif // BPKG_PKG_UNPACK_HXX

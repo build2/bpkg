@@ -14,6 +14,7 @@
 #include <bpkg/manifest-utility.hxx>
 
 #include <bpkg/pkg-purge.hxx>
+#include <bpkg/pkg-verify.hxx>
 #include <bpkg/pkg-configure.hxx>
 
 using namespace std;
@@ -27,14 +28,10 @@ namespace bpkg
                 transaction& t,
                 string n,
                 version v,
-                bool replace)
+                bool replace,
+                bool simulate)
   {
     tracer trace ("pkg_checkout");
-
-    dir_path d (c / dir_path (n + '-' + v.string ()));
-
-    if (exists (d))
-      fail << "package directory " << d << " already exists";
 
     database& db (t.database ());
     tracer_guard tg (db, trace);
@@ -124,46 +121,57 @@ namespace bpkg
     // Verify the package prerequisites are all configured since the dist
     // meta-operation generally requires all imports to be resolvable.
     //
-    pkg_configure_prerequisites (o, t, sd);
+    package_manifest m (pkg_verify (sd, true));
+    pkg_configure_prerequisites (o, t, m.dependencies, m.name);
 
-    // The temporary out of source directory that is required for the dist
-    // meta-operation.
-    //
-    auto_rmdir rmo (temp_dir / dir_path (n));
-    const dir_path& od (rmo.path);
+    auto_rmdir rmd;
+    optional<string> mc;
+    dir_path d (c / dir_path (n + '-' + v.string ()));
 
-    if (exists (od))
-      rm_r (od);
+    if (!simulate)
+    {
+      if (exists (d))
+        fail << "package directory " << d << " already exists";
 
-    // Form the buildspec.
-    //
-    string bspec ("dist(");
-    bspec += sd.representation ();
-    bspec += '@';
-    bspec += od.representation ();
-    bspec += ')';
+      // The temporary out of source directory that is required for the dist
+      // meta-operation.
+      //
+      auto_rmdir rmo (temp_dir / dir_path (n));
+      const dir_path& od (rmo.path);
 
-    // Remove the resulting package distribution directory on failure.
-    //
-    auto_rmdir rmd (d);
+      if (exists (od))
+        rm_r (od);
 
-    // Distribute.
-    //
-    // Note that on failure the package stays in the existing (working) state.
-    //
-    // At first it may seem we have a problem: an existing package with the
-    // same name will cause a conflict since we now have multiple package
-    // locations for the same package name. We are luck, however: subprojects
-    // are only loaded if used and since we don't support dependency cycles,
-    // the existing project should never be loaded by any of our dependencies.
-    //
-    run_b (o,
-           c,
-           bspec,
-           false /* quiet */,
-           strings ({"config.dist.root=" + c.representation ()}));
+      // Form the buildspec.
+      //
+      string bspec ("dist(");
+      bspec += sd.representation ();
+      bspec += '@';
+      bspec += od.representation ();
+      bspec += ')';
 
-    string mc (sha256 (o, d / manifest_file));
+      // Remove the resulting package distribution directory on failure.
+      //
+      rmd = auto_rmdir (d);
+
+      // Distribute.
+      //
+      // Note that on failure the package stays in the existing (working) state.
+      //
+      // At first it may seem we have a problem: an existing package with the
+      // same name will cause a conflict since we now have multiple package
+      // locations for the same package name. We are luck, however: subprojects
+      // are only loaded if used and since we don't support dependency cycles,
+      // the existing project should never be loaded by any of our dependencies.
+      //
+      run_b (o,
+             c,
+             bspec,
+             false /* quiet */,
+             strings ({"config.dist.root=" + c.representation ()}));
+
+      mc = sha256 (o, d / manifest_file);
+    }
 
     if (p != nullptr)
     {
@@ -171,7 +179,7 @@ namespace bpkg
       // replacing. Once this is done, there is no going back. If things go
       // badly, we can't simply abort the transaction.
       //
-      pkg_purge_fs (c, t, p);
+      pkg_purge_fs (c, t, p, simulate);
 
       p->version = move (v);
       p->state = package_state::unpacked;
@@ -220,7 +228,7 @@ namespace bpkg
     l4 ([&]{trace << "configuration: " << c;});
 
     database db (open (c, trace));
-    transaction t (db.begin ());
+    transaction t (db);
     session s;
 
     shared_ptr<selected_package> p;
@@ -239,7 +247,13 @@ namespace bpkg
 
     // Commits the transaction.
     //
-    p = pkg_checkout (o, c, t, move (n), move (v), o.replace ());
+    p = pkg_checkout (o,
+                      c,
+                      t,
+                      move (n),
+                      move (v),
+                      o.replace (),
+                      false /* simulate */);
 
     if (verb && !o.no_result ())
       text << "checked out " << *p;

@@ -27,7 +27,8 @@ namespace bpkg
                  const common_options&,
                  transaction&,
                  const shared_ptr<selected_package>&,
-                 bool clean);
+                 bool clean,
+                 bool simulate);
 }
 
 #endif // BPKG_PKG_DISFIGURE_HXX

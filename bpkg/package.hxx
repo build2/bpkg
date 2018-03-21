@@ -484,7 +484,7 @@ namespace bpkg
     operator size_t () const {return result;}
   };
 
-  // Only return packages that are in the specified repository, its
+  // Only return packages that are in the specified repositories, their
   // complements or prerequisites (if prereq is true), recursively. While you
   // could maybe come up with a (barely comprehensible) view/query to achieve
   // this, doing it on the "client side" is definitely more straightforward.
@@ -502,6 +502,11 @@ namespace bpkg
   shared_ptr<repository>
   filter (const shared_ptr<repository>&,
           const shared_ptr<available_package>&,
+          bool prereq = true);
+
+  vector<shared_ptr<available_package>>
+  filter (const vector<shared_ptr<repository>>&,
+          odb::result<available_package>&&,
           bool prereq = true);
 
   // package_state
@@ -613,7 +618,11 @@ namespace bpkg
     bool purge_src;
 
     // The checksum of the manifest file located in the source directory.
-    // Must be present if the source directory is present.
+    //
+    // Must be present if the source directory is present, unless the object
+    // is created/updated during the package build simulation (see pkg-build
+    // for details). Note that during the simulation the manifest may not be
+    // available.
     //
     optional<string> manifest_checksum;
 
@@ -658,6 +667,26 @@ namespace bpkg
     //
     string
     version_string () const;
+
+    // Return the relative source directory completed using the configuration
+    // directory. Return the absolute source directory as is.
+    //
+    dir_path
+    effective_src_root (const dir_path& configuration) const
+    {
+      assert (src_root);
+      return src_root->absolute () ? *src_root : configuration / *src_root;
+    }
+
+    // Return the output directory using the configuration directory. Note
+    // that the output directory is always relative.
+    //
+    dir_path
+    effective_out_root (const dir_path& configuration) const
+    {
+      assert (out_root);
+      return configuration / *out_root;
+    }
 
     // Database mapping.
     //

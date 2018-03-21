@@ -51,7 +51,8 @@ rep_fetch  += -d cfg --auth all --trust-yes 2>!
 # contains fetch program progress output, that comes prior the informational
 # message.
 #
-
+# @@ Uncomment when support for dependency up/down-grade is added.
+#\
 : t1
 :
 {
@@ -472,7 +473,7 @@ rep_fetch  += -d cfg --auth all --trust-yes 2>!
       EOE
 
     $pkg_status foo    >'!foo configured 2';
-    $pkg_status libbar >'libbar configured,system * available 2 1';
+    $pkg_status libbar >'libbar configured,system !* available 2 1';
     $pkg_status libbaz >'libbaz available 2';
 
     $pkg_drop foo libbar
@@ -530,7 +531,7 @@ rep_fetch  += -d cfg --auth all --trust-yes 2>!
       EOE
 
     $pkg_status foo    >'!foo configured 2';
-    $pkg_status libbar >'!libbar configured,system !2';
+    $pkg_status libbar >'libbar configured,system !2';
     $pkg_status libbaz >'libbaz available 2';
 
     # Build foo and sys:libbar/2.
@@ -720,7 +721,7 @@ rep_fetch  += -d cfg --auth all --trust-yes 2>!
       EOE
 
     $pkg_status foo    >'!foo configured 2';
-    $pkg_status libbar >'libbar configured,system *';
+    $pkg_status libbar >'libbar configured,system !*';
 
     # Drop foo.
     #
@@ -769,17 +770,18 @@ rep_fetch  += -d cfg --auth all --trust-yes 2>!
       EOE
 
     $pkg_status foo    >'!foo configured 2';
-    $pkg_status libbar >'!libbar configured,system !2';
+    $pkg_status libbar >'libbar configured,system !2';
 
     # Drop foo.
     #
     $pkg_drop foo 2>>EOE;
       disfigured foo
+      purged libbar
       purged foo
       EOE
 
-    $pkg_status foo    >'foo available 2';
-    $pkg_status libbar >'!libbar configured,system !2'
+    $pkg_status foo             >'foo available 2';
+    $pkg_status libbar --system >'libbar available sys:?'
   }
 }
 
@@ -790,7 +792,7 @@ rep_fetch  += -d cfg --auth all --trust-yes 2>!
 
   : no-libbar
   :
-  : Test that the following builds expectedly fails  having no libbar available
+  : Test that the following builds expectedly fails having no libbar available
   : in source.
   :
   {
@@ -842,7 +844,7 @@ rep_fetch  += -d cfg --auth all --trust-yes 2>!
       EOE
 
     $pkg_status foo    >'!foo configured 2';
-    $pkg_status libbar >'libbar configured,system 2';
+    $pkg_status libbar >'libbar configured,system !2';
 
     # Fail as libbar while being selected is still unknown (not present in t3
     # repo).
@@ -850,28 +852,37 @@ rep_fetch  += -d cfg --auth all --trust-yes 2>!
     $pkg_build 'sys:libbar'     2>'error: unknown package libbar' != 0;
     $pkg_build foo 'sys:libbar' 2>'error: unknown package libbar' != 0;
     $pkg_status foo             1>'!foo configured 2';
-    $pkg_status libbar          1>'libbar configured,system 2';
+    $pkg_status libbar          1>'libbar configured,system !2';
 
-    # Build foo and ?sys:libbar/3. Note that libbar stays as system version 2.
+    # Build foo and ?sys:libbar/3.
     #
     $pkg_build foo '?sys:libbar/3' 2>>~%EOE%;
+      disfigured foo/2
+      purged libbar/2
+      configured sys:libbar/3
+      configured foo/2
       %info: .+ is up to date%
       updated foo/2
       EOE
 
     $pkg_status foo    >'!foo configured 2';
-    $pkg_status libbar >'libbar configured,system 2';
+    $pkg_status libbar >'libbar configured,system !3';
 
     # Build foo and ?sys:libbar.
     #
     $pkg_build foo '?sys:libbar' 2>>~%EOE%;
+      disfigured foo/2
+      purged libbar/3
+      configured sys:libbar/*
+      configured foo/2
       %info: .+ is up to date%
       updated foo/2
       EOE
 
     $pkg_status foo    >'!foo configured 2';
-    $pkg_status libbar >'libbar configured,system 2';
+    $pkg_status libbar >'libbar configured,system !*';
 
     $pkg_drop foo
   }
 }
+#\

@@ -67,7 +67,7 @@ namespace bpkg
       assert (p->state == package_state::configured);
       assert (p->out_root); // Should be present since configured.
 
-      dir_path out_root (c / *p->out_root); // Always relative.
+      dir_path out_root (p->effective_out_root (c));
       l4 ([&]{trace << p->name << " out_root: " << out_root;});
 
       if (bspec.back () != '(')
@@ -122,7 +122,7 @@ namespace bpkg
     vector<pkg_command_vars> ps;
     {
       database db (open (c, trace));
-      transaction t (db.begin ());
+      transaction t (db);
 
       while (args.more ())
       {
