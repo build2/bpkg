@@ -1186,6 +1186,16 @@ namespace bpkg
     const dir_path& c (o.directory ());
     l4 ([&]{trace << "configuration: " << c;});
 
+    // The --immediate or --recursive option can only be specified with an
+    // explicit --upgrade or --patch.
+    //
+    if (const char* n = (o.immediate () ? "--immediate" :
+                         o.recursive () ? "--recursive" : nullptr))
+    {
+      if (!o.upgrade () && !o.patch ())
+        fail << n << " requires explicit --upgrade|-u or --patch|-p";
+    }
+
     if (o.drop_prerequisite () && o.keep_prerequisite ())
       fail << "both --drop-prerequisite|-D and --keep-prerequisite|-K "
            << "specified" <<
@@ -2043,7 +2053,7 @@ namespace bpkg
     // Almost forgot, there is one more thing: when we upgrade or downgrade a
     // package, it may change the list of its prerequisites. Which means we
     // may end up with packages that are no longer necessary and it would be
-    // nice to offer to drop those. This, howeve, is a tricky business and is
+    // nice to offer to drop those. This, however, is a tricky business and is
     // the domain of pkg_drop(). For example, a prerequisite may still have
     // other dependents (so it looks like we shouldn't be dropping it) but
     // they are all from the "drop set" (so we should offer to drop it after
