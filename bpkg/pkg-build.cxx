@@ -1362,8 +1362,8 @@ namespace bpkg
                 const dir_path&,
                 database&,
                 build_package_list&,
-                drop_package_list&
-                bool,
+                drop_package_list&,
+                bool simulate,
                 set<shared_ptr<selected_package>>& drop_pkgs);
 
   int
@@ -2096,8 +2096,8 @@ namespace bpkg
       //
       struct dep_pkg
       {
-        string         name;
-        build::version version; // Drop if empty, up/down-grade otherwise.
+        string           name;
+        bpkg::version version; // Drop if empty, up/down-grade otherwise.
       };
       vector<dep_pkg> dep_pkgs;
 
@@ -2115,12 +2115,12 @@ namespace bpkg
           // specify packages on the command line does not matter).
           //
           for (const build_package& p: hold_pkgs)
-            pkgs.collect (o, c, db, p, false /* recursively */);
+            build_pkgs.collect (o, c, db, p, false /* recursively */);
 
           // Collect all the prerequisites.
           //
           for (const build_package& p: hold_pkgs)
-            pkgs.collect_prerequisites (o, c, db, p.name ());
+            build_pkgs.collect_prerequisites (o, c, db, p.name ());
 
           scratch = false;
         }
@@ -2139,10 +2139,33 @@ namespace bpkg
         //
         for (const dep_pkg& p: dep_pkgs)
         {
+          shared_ptr<selected_package> sp (
+            db.load<selected_package> (p.name));
+
           if (p.version.empty ())
-            drop_pkgs.push_back (...);
+            drop_pkgs.push_back ({move (sp)});
           else
-            build_pkgs.collect (o, c, db, p, true /* recursively */);
+          {
+            shared_ptr<available_package> ap (
+              db.load<available_package> (
+                available_package_id (p.name, p.version)));
+
+            // @@ Fill properly.
+            //
+            build_package bp {
+              move (sp),
+              move (ap),
+              nullptr, //move (ar),
+              false,                 // Hold package.
+              false,   //!pa.version.empty (), // Hold version.
+              {},                   // Constraints.
+              false,   //pa.system (),
+              false,   //keep_out,
+              {""},                 // Required by (command line).
+              false};               // Reconfigure.
+
+            build_pkgs.collect (o, c, db, bp, true /* recursively */);
+          }
         }
 
         // Now that we have collected all the package versions that we need to
@@ -2161,17 +2184,17 @@ namespace bpkg
 
         //@@ TODO: need to clear the list on subsequent iterations.
 
-        for (const build_package& p: dep_pkgs)
-          pkgs.order (p.name ());
+        for (const dep_pkg& p: dep_pkgs)
+          build_pkgs.order (p.name);
 
         for (const build_package& p: reverse_iterate (hold_pkgs))
-          pkgs.order (p.name ());
+          build_pkgs.order (p.name ());
 
         // Once we have the final plan, collect and order all the dependents
         // that we will need to reconfigure because of the up/down-grades of
         // packages that are now on the list.
         //
-        pkgs.collect_order_dependents (db);
+        build_pkgs.collect_order_dependents (db);
 
         // We are about to execute the plan on the database (but not on the
         // filesystem / actual packages). Save the session state for the
@@ -2204,14 +2227,9 @@ namespace bpkg
           vector<drop_package>  ds (drop_pkgs.begin (),  drop_pkgs.end ());
 
           set<shared_ptr<selected_package>> dummy;
+          build_package_list pl (bs.begin (), bs.end ());
 
-          execute_plan (o,
-                        c,
-                        db,
-                        build_package_list (b_pkgs.begin (), b_pkgs.end ()),
-                        ds,
-                        true /* simulate */,
-                        dummy);
+          execute_plan (o, c, db, pl, ds, true /* simulate */, dummy);
         }
 
         // Verify that none of the previously-made upgrade/downgrade/drop
@@ -2279,7 +2297,9 @@ namespace bpkg
 
           for (drop_package& p: drop_pkgs)
           {
-            ses.cache_insert (db, p.selected->name, p.selected);
+            ses.cache_insert<selected_package> (
+              db, p.selected->name, p.selected);
+
             db.reload (*p.selected);
           }
 
@@ -2331,7 +2351,7 @@ namespace bpkg
 
     if (o.print_only () || !o.yes ())
     {
-      for (const build_package& p: reverse_iterate (pkgs))
+      for (const build_package& p: reverse_iterate (build_pkgs))
       {
         const shared_ptr<selected_package>& sp (p.selected);
 
@@ -2506,7 +2526,7 @@ namespace bpkg
 
     // First add the user selection.
     //
-    for (const build_package& p: reverse_iterate (pkgs))
+    for (const build_package& p: reverse_iterate (build_pkgs))
     {
       const shared_ptr<selected_package>& sp (p.selected);
 
@@ -2520,7 +2540,7 @@ namespace bpkg
     //
     if (update_dependents)
     {
-      for (const build_package& p: reverse_iterate (pkgs))
+      for (const build_package& p: reverse_iterate (build_pkgs))
       {
         const shared_ptr<selected_package>& sp (p.selected);
 
@@ -2551,7 +2571,7 @@ namespace bpkg
                 const dir_path& c,
                 database& db,
                 build_package_list& build_pkgs,
-                drop_package_list& drop_pkgs,
+                drop_package_list&,
                 bool simulate,
                 set<shared_ptr<selected_package>>& drop_pkgs)
   {
@@ -2559,7 +2579,7 @@ namespace bpkg
 
     // disfigure
     //
-    for (build_package& p: pkgs)
+    for (build_package& p: build_pkgs)
     {
       // We are only interested in configured packages that are either
       // up/down-graded or need reconfiguration (e.g., dependents).
@@ -2647,7 +2667,7 @@ namespace bpkg
 
     // purge, fetch/unpack|checkout, configure
     //
-    for (build_package& p: reverse_iterate (pkgs))
+    for (build_package& p: reverse_iterate (build_pkgs))
     {
       shared_ptr<selected_package>& sp (p.selected);
       const shared_ptr<available_package>& ap (p.available);
@@ -2901,7 +2921,7 @@ namespace bpkg
     // to "weave" it into one of the previous actions, things there
     // are already convoluted enough.
     //
-    for (const build_package& p: reverse_iterate (pkgs))
+    for (const build_package& p: reverse_iterate (build_pkgs))
     {
       const shared_ptr<selected_package>& sp (p.selected);
       assert (sp != nullptr);
