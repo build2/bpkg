@@ -342,9 +342,9 @@ namespace bpkg
     }
   };
 
-  using build_packages = list<reference_wrapper<build_package>>;
+  using build_package_list = list<reference_wrapper<build_package>>;
 
-  struct build_package_map: build_packages
+  struct build_packages: build_package_list
   {
     // Collect the package. Return its pointer if this package version was, in
     // fact, added to the map and NULL if it was already there or the existing
@@ -1082,6 +1082,13 @@ namespace bpkg
       }
     }
 
+    void
+    clear ()
+    {
+      build_package_list::clear ();
+      map_.clear ();
+    }
+
   private:
     struct data_type
     {
@@ -1091,6 +1098,12 @@ namespace bpkg
 
     map<string, data_type> map_;
   };
+
+  struct drop_package
+  {
+    shared_ptr<selected_package> selected;
+  };
+  using drop_package_list = vector<drop_package>;
 
   using pkg_options = pkg_build_pkg_options;
 
@@ -1348,7 +1361,8 @@ namespace bpkg
   execute_plan (const pkg_build_options&,
                 const dir_path&,
                 database&,
-                build_packages&,
+                build_package_list&,
+                drop_package_list&
                 bool,
                 set<shared_ptr<selected_package>>& drop_pkgs);
 
@@ -1387,10 +1401,10 @@ namespace bpkg
     database db (open (c, trace)); // Also populates the system repository.
 
     // Note that the session spans all our transactions. The idea here is that
-    // selected_package objects in the build_package_map below will be cached
-    // in this session. When subsequent transactions modify any of these
-    // objects, they will modify the cached instance, which means our list
-    // will always "see" their updated state.
+    // selected_package objects in build_packages below will be cached in this
+    // session. When subsequent transactions modify any of these objects, they
+    // will modify the cached instance, which means our list will always "see"
+    // their updated state.
     //
     // Also note that rep_fetch() must be called in session.
     //
@@ -2072,17 +2086,20 @@ namespace bpkg
       t.commit ();
     }
 
-    // Assemble the list of packages we will need to build.
+    // Assemble the list of packages we will need to build and drop.
     //
-    build_package_map pkgs;
+    build_packages    build_pkgs;
+    drop_package_list drop_pkgs;
+
     {
       // Iteratively refine the plan with dependency up/down-grades/drops.
       //
-      // @@ TODO: maybe not build_package, maybe just name & version so that
-      //    we don't end up with selected_package object that has been rolled
-      //    back?
-      //
-      vector<build_package> dep_pkgs;
+      struct dep_pkg
+      {
+        string         name;
+        build::version version; // Drop if empty, up/down-grade otherwise.
+      };
+      vector<dep_pkg> dep_pkgs;
 
       for (bool refine (true), scratch (true); refine; )
       {
@@ -2090,6 +2107,9 @@ namespace bpkg
 
         if (scratch)
         {
+          build_pkgs.clear ();
+          drop_pkgs.clear ();
+
           // Pre-collect user selection to make sure dependency-forced
           // up/down-grades are handled properly (i.e., the order in which we
           // specify packages on the command line does not matter).
@@ -2117,8 +2137,13 @@ namespace bpkg
         //         appear in the plan last (could also do it as a post-
         //         collection step if less hairy).
         //
-        for (const build_package& p: dep_pkgs)
-          pkgs.collect (o, c, db, p, true /* recursively */);
+        for (const dep_pkg& p: dep_pkgs)
+        {
+          if (p.version.empty ())
+            drop_pkgs.push_back (...);
+          else
+            build_pkgs.collect (o, c, db, p, true /* recursively */);
+        }
 
         // Now that we have collected all the package versions that we need to
         // build, arrange them in the "dependency order", that is, with every
@@ -2170,16 +2195,23 @@ namespace bpkg
           old_sp = *sp;
 
         // We also need to perform the execution on the copy of the
-        // build_package objects to preserve their original ones. Note that
+        // build/drop_package objects to preserve the original ones. Note that
         // the selected package objects will still be changed so we will
         // reload them afterwards (see below).
         //
         {
-          vector<build_package> tmp_pkgs (pkgs.begin (), pkgs.end ());
-          build_packages ref_pkgs (tmp_pkgs.begin (), tmp_pkgs.end ());
+          vector<build_package> bs (build_pkgs.begin (), build_pkgs.end ());
+          vector<drop_package>  ds (drop_pkgs.begin (),  drop_pkgs.end ());
 
           set<shared_ptr<selected_package>> dummy;
-          execute_plan (o, c, db, ref_pkgs, true /* simulate */, dummy);
+
+          execute_plan (o,
+                        c,
+                        db,
+                        build_package_list (b_pkgs.begin (), b_pkgs.end ()),
+                        ds,
+                        true /* simulate */,
+                        dummy);
         }
 
         // Verify that none of the previously-made upgrade/downgrade/drop
@@ -2212,6 +2244,9 @@ namespace bpkg
           {
             version v (evaluate_dependency (p));
 
+            // Note that the order of packages to drop is correct by
+            // construction.
+            //
             if (v != p->version)
             {
               dep_pkgs.push_back (p->name, v);
@@ -2230,15 +2265,22 @@ namespace bpkg
 
           // First reload all the selected_package object that could have been
           // modified (conceptually, we should only modify what's on the
-          // plan).
+          // plan). And in case of drop the object is removed from the session
+          // so we need to bring it back.
           //
-          // Note: we use the original pkgs list since the executed one may
+          // Note: we use the original pkgs lists since the executed one may
           // contain newly created (but now gone) selected_package objects.
           //
-          for (build_package& p: pkgs)
+          for (build_package& p: build_pkgs)
           {
             if (p.selected != nullptr)
               db.reload (*p.selected);
+          }
+
+          for (drop_package& p: drop_pkgs)
+          {
+            ses.cache_insert (db, p.selected->name, p.selected);
+            db.reload (*p.selected);
           }
 
           // Now drop all the newly created selected_package objects. The
@@ -2372,6 +2414,8 @@ namespace bpkg
           //
           plan += (plan.empty () ? "  " : "\n  ") + act;
       }
+
+      //@@ TODO: print drop_pkgs plan.
     }
 
     if (o.print_only ())
@@ -2435,15 +2479,20 @@ namespace bpkg
     // above). This case we handle in house.
     //
 
-    set<shared_ptr<selected_package>> drop_pkgs;
-    execute_plan (o, c, db, pkgs, false /* simulate */, drop_pkgs);
+    set<shared_ptr<selected_package>> drop_pkgs_dummy;
+    execute_plan (o,
+                  c,
+                  db,
+                  build_pkgs,
+                  drop_pkgs,
+                  false /* simulate */, drop_pkgs_dummy);
 
     // Now that we have the final dependency state, see if we need to drop
     // packages that are no longer necessary.
     //
     if (!drop_pkgs.empty ())
-      drop_pkgs = pkg_drop (
-        c, o, db, drop_pkgs, !(o.yes () || o.drop_prerequisite ()));
+      drop_pkgs_dummy = pkg_drop (
+        c, o, db, drop_pkgs_dummy, !(o.yes () || o.drop_prerequisite ()));
 
     if (o.configure_only ())
       return 0;
@@ -2480,7 +2529,7 @@ namespace bpkg
           // Note that it is entirely possible this package got dropped so
           // we need to check for that.
           //
-          if (drop_pkgs.find (sp) == drop_pkgs.end ())
+          if (drop_pkgs_dummy.find (sp) == drop_pkgs_dummy.end ())
             upkgs.push_back (pkg_command_vars {sp, strings ()});
         }
       }
@@ -2501,7 +2550,8 @@ namespace bpkg
   execute_plan (const pkg_build_options& o,
                 const dir_path& c,
                 database& db,
-                build_packages& pkgs,
+                build_package_list& build_pkgs,
+                drop_package_list& drop_pkgs,
                 bool simulate,
                 set<shared_ptr<selected_package>>& drop_pkgs)
   {
