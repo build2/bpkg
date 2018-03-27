@@ -39,6 +39,13 @@ using namespace butl;
 
 namespace bpkg
 {
+  // @@ Overall TODO:
+  //
+  //    - Detect and complain about dependency cycles.
+  //
+  //    - Configuration vars (both passed and preserved)
+  //
+
   // Query the available packages that optionally satisfy the specified version
   // version constraint and return them in the version descending order. Note
   // that a stub satisfies any constraint.
@@ -118,12 +125,6 @@ namespace bpkg
     q += order_by_version_desc (vm);
     return db.query<available_package> (q);
   }
-
-  // @@ TODO
-  //
-  //    - Detect and complain about dependency cycles.
-  //    - Configuration vars (both passed and preserved)
-  //
 
   // Try to find a package that optionally satisfies the specified
   // version constraint. Look in the specified repository, its
@@ -1089,6 +1090,12 @@ namespace bpkg
       map_.clear ();
     }
 
+    void
+    clear_order ()
+    {
+      build_package_list::clear ();
+    }
+
   private:
     struct data_type
     {
@@ -1099,12 +1106,19 @@ namespace bpkg
     map<string, data_type> map_;
   };
 
+  // Unused dependencies to drop. This list is ordered by construction during
+  // the plan simulation/refinment process below (i.e., we only add a package
+  // to this list if/when nothing else depends on it).
+  //
   struct drop_package
   {
     shared_ptr<selected_package> selected;
   };
   using drop_package_list = vector<drop_package>;
 
+  // @@ TODO: try to move back inside pkg_build() and get rid of functions. Or
+  //    need to change the name to something more appropriate for a scope.
+  //
   using pkg_options = pkg_build_pkg_options;
 
   struct pkg_arg
@@ -1539,8 +1553,8 @@ namespace bpkg
                    string () /* reason for "fetching ..." */);
     }
 
-    // Expand the package specs into the package args, parsing them into the
-    // package scheme, name and version components.
+    // Expand the package specs into individual package args, parsing them
+    // into the package scheme, name and version components.
     //
     // Note that the package specs that have no scheme and location can not be
     // unambiguously distinguished from the package archive and directory
@@ -1556,7 +1570,7 @@ namespace bpkg
         if (ps.location.empty ())
         {
           // Parse if it is clear that this is the package name/version,
-          // otherwise unparsed add unparsed.
+          // otherwise add unparsed.
           //
           const char* s (ps.packages.c_str ());
           package_scheme h (parse_package_scheme (s));
@@ -2086,14 +2100,53 @@ namespace bpkg
       t.commit ();
     }
 
-    // Assemble the list of packages we will need to build and drop.
+    // Assemble the list of packages we will need to build-to-hold, still used
+    // dependencies to up/down-grade, and unused dependencies to drop. We call
+    // this the plan.
+    //
+    // The way we do it is tricky: we first create the plan based on build-to-
+    // holds (i.e., the user selected). Next, to decide whether we need to
+    // up/down-grade or drop any dependecies we need to take into account an
+    // existing state of the package database plus the changes that would be
+    // made to it once we executed the plan (think about it: when the user
+    // says "I want to upgrade a package and all its dependencies", they want
+    // to upgrade dependencies that are still used after upgrading the
+    // package, not those that were used before by the old version).
+    //
+    // As you can probably imagine, figuring out the desired state of the
+    // dependencies based on the current package database and to-be-executed
+    // plan won't be an easy task. So instead what we are going to do is
+    // simulate the plan execution by only applying it to the package database
+    // (but not to the filesystem/packages themselves). We then use this
+    // simulated database as the sole (and convenient) source of the
+    // dependency information (i.e., which packages are still used and by
+    // whom) to decide which dependencies we need to upgrade, downgrade, or
+    // drop. Once this is done, we rollback the database (and reload any
+    // in-memory objects that might have changed during the simulation) and
+    // add the up/down-grades and drops to the plan.
+    //
+    // Of course, adding dependecy up/down-grades to the plan can change the
+    // plan. For example, a new version of a dependency we are upgrading may
+    // force an upgrade of one of the packages from the user selected. And
+    // that, in turn, can pretty much rewrite the plan entirely (including
+    // rendering our earlier decisions about up/down-grades/drops of other
+    // dependencies invalid).
+    //
+    // So what we have to do is refine the plan over several iterations.
+    // Specifically, if we added a new up/down-grade/drop, then we need to
+    // re-simulate this plan and (1) re-example if any new dependencies now
+    // need up/down-grade/drop and, this one is tricky, (2) that none of the
+    // already made decisions have changed. If we detect (2), then we need to
+    // cancel all such decisions and also rebuild the plan from scratch. The
+    // intuitive feeling here is that this process will discover an up/down-
+    // grade order where any subsequent entry does not affect the decision of
+    // the previous ones.
+    //
+    // Package managers are an easy, already solved problem, right?
     //
     build_packages    build_pkgs;
     drop_package_list drop_pkgs;
-
     {
-      // Iteratively refine the plan with dependency up/down-grades/drops.
-      //
       struct dep_pkg
       {
         string           name;
@@ -2101,6 +2154,8 @@ namespace bpkg
       };
       vector<dep_pkg> dep_pkgs;
 
+      // Iteratively refine the plan with dependency up/down-grades/drops.
+      //
       for (bool refine (true), scratch (true); refine; )
       {
         transaction t (db);
@@ -2124,18 +2179,16 @@ namespace bpkg
 
           scratch = false;
         }
+        else
+        {
+          // Only clear the ordered lists.
+          //
+          build_pkgs.clear_order ();
+          drop_pkgs.clear ();
+        }
 
-        // Add dependencies to upgrade/downgrade/drop that were discovered on
-        // the previous iterations.
-        //
-        //         Looks like keeping them as build_package objects would
-        //         be natural? BUT: what if the selected_package is from
-        //         the temporary changes/session?! So maybe not...
-        //
-        //@@ TODO: use empty version in build_package to indicate drop?
-        //@@ TODO: always put drops at the back of dep_pkgs so that they
-        //         appear in the plan last (could also do it as a post-
-        //         collection step if less hairy).
+        // Add to the plan dependencies to upgrade/downgrade/drop that were
+        // discovered on the previous iterations.
         //
         for (const dep_pkg& p: dep_pkgs)
         {
@@ -2143,7 +2196,7 @@ namespace bpkg
             db.load<selected_package> (p.name));
 
           if (p.version.empty ())
-            drop_pkgs.push_back ({move (sp)});
+            drop_pkgs.push_back (drop_package {move (sp)});
           else
           {
             shared_ptr<available_package> ap (
@@ -2181,9 +2234,6 @@ namespace bpkg
         // deterministic. We, however, do them before hold_pkgs so that they
         // appear (e.g., on the plan) last.
         //
-
-        //@@ TODO: need to clear the list on subsequent iterations.
-
         for (const dep_pkg& p: dep_pkgs)
           build_pkgs.order (p.name);
 
@@ -2199,10 +2249,9 @@ namespace bpkg
         // We are about to execute the plan on the database (but not on the
         // filesystem / actual packages). Save the session state for the
         // selected_package objects so that we can restore it later (see
-        // below)
+        // below for details).
         //
         using selected_packages = session::object_map<selected_package>;
-
         auto selected_packages_session = [&db, &ses] () -> selected_packages*
         {
           auto& m (ses.map ()[&db]);
@@ -2213,23 +2262,22 @@ namespace bpkg
         };
 
         selected_packages old_sp;
-
         if (const selected_packages* sp = selected_packages_session ())
           old_sp = *sp;
 
-        // We also need to perform the execution on the copy of the
-        // build/drop_package objects to preserve the original ones. Note that
-        // the selected package objects will still be changed so we will
-        // reload them afterwards (see below).
+        // Note that we need to perform the execution on the copies of the
+        // build/drop_package objects to preserve the original ones. The
+        // selected_package objects will still be changed so we will reload
+        // them afterwards (see below).
         //
         {
-          vector<build_package> bs (build_pkgs.begin (), build_pkgs.end ());
-          vector<drop_package>  ds (drop_pkgs.begin (),  drop_pkgs.end ());
+          vector<build_package> tmp (build_pkgs.begin (), build_pkgs.end ());
+
+          build_package_list bl (tmp.begin (), tmp.end ());
+          drop_package_list  dl (drop_pkgs.begin (), drop_pkgs.end ());
 
           set<shared_ptr<selected_package>> dummy;
-          build_package_list pl (bs.begin (), bs.end ());
-
-          execute_plan (o, c, db, pl, ds, true /* simulate */, dummy);
+          execute_plan (o, c, db, bl, dl, true /* simulate */, dummy);
         }
 
         // Verify that none of the previously-made upgrade/downgrade/drop
@@ -2275,7 +2323,7 @@ namespace bpkg
         }
 
         // Rollback the changes to the database and reload the changed
-        // objects.
+        // selected_package objects.
         //
         t.rollback ();
         {
@@ -2286,8 +2334,9 @@ namespace bpkg
           // plan). And in case of drop the object is removed from the session
           // so we need to bring it back.
           //
-          // Note: we use the original pkgs lists since the executed one may
-          // contain newly created (but now gone) selected_package objects.
+          // Note: we use the original *_pkgs lists since the executed ones
+          // may contain newly created (but now gone) selected_package
+          // objects.
           //
           for (build_package& p: build_pkgs)
           {
@@ -2303,9 +2352,9 @@ namespace bpkg
             db.reload (*p.selected);
           }
 
-          // Now drop all the newly created selected_package objects. The
-          // tricky part is to distinguish newly created ones from newly
-          // loaded (and potentially cached).
+          // Now remove all the newly created selected_package objects from
+          // the session. The tricky part is to distinguish newly created ones
+          // from newly loaded (and potentially cached).
           //
           if (selected_packages* sp = selected_packages_session ())
           {
@@ -2319,10 +2368,9 @@ namespace bpkg
                 {
                   if (i->second.use_count () == 1)
                   {
-                    sp->erase (i);
-
                     // This might cause another object's use count to drop.
                     //
+                    sp->erase (i);
                     rescan = true;
                   }
                 }
