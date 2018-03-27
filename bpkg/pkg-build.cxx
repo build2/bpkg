@@ -1224,6 +1224,48 @@ namespace bpkg
     return os;
   }
 
+  // Evaluate a dependency package and return a new desired version. If the
+  // result is an absent version, then no changes to the dependency are
+  // necessary. If the result is an empty version, then the dependency is no
+  // longer used and can be dropped. Otherwise, the result is the
+  // upgrade/downgrade version.
+  //
+  static optional<version>
+  evaluate_dependency (database& db,
+                       const shared_ptr<selected_package>& sp)
+  {
+    tracer trace ("evaluate_dependency");
+
+    assert (sp != nullptr);
+
+    const string& n (sp->name);
+    const version& v (sp->version);
+
+    // Build a set of repositories the dependent packages come from. Also cash
+    // the dependents and the constraints they apply to this dependency.
+    //
+    vector<shared_ptr<repository>> repos;
+
+    vector<pair<shared_ptr<selected_package>,
+                optional<dependency_constraint>>> dependents;
+    {
+      set<shared_ptr<repository>> rps;
+
+      auto pds (db.query<package_dependent> (
+                  query<package_dependent>::name == sp->name));
+
+      if (pds.empty ())
+      {
+        l5 ([&]{trace << n << "/" << v << " unused";});
+        return version ();
+      }
+
+      // Nothing to do for now.
+      //
+      return nullopt;
+    }
+  }
+
   // If an upgrade/downgrade of the selected dependency is possible to the
   // specified version (empty means the highest possible one), then return the
   // version upgrade/downgrade to. Otherwise return the empty version with the
@@ -1231,7 +1273,7 @@ namespace bpkg
   // that the dependency is unused. Note that it should be called in session.
   //
   static pair<version, string>
-  evaluate_dependency (transaction& t, const string& n, const version& v)
+  evaluate_dependency0 (transaction& t, const string& n, const version& v)
   {
     tracer trace ("evaluate_dependency");
 
@@ -1909,7 +1951,7 @@ namespace bpkg
             // @@ TMP
             //
             if (pa.options.dependency ())
-              evaluate_dependency (t, pa.name, pa.version);
+              evaluate_dependency0 (t, pa.name, pa.version);
           }
           catch (const failed&)
           {
@@ -2283,20 +2325,33 @@ namespace bpkg
         // Verify that none of the previously-made upgrade/downgrade/drop
         // decisions have changed.
         //
-        /*
         for (auto i (dep_pkgs.begin ()); i != dep_pkgs.end (); )
         {
-          shared_ptr<selected_package> p = db.find (...);
+          bool s (false);
 
-          if (upgrade_sependency (p) != p->version)
+          // Here we scratch if evaluate changed its mind or if the resulting
+          // version doesn't match what we expect it to be.
+          //
+          if (auto sp = db.find<selected_package> (i->name))
           {
+            if (optional<version> v = evaluate_dependency (db, sp))
+            {
+              s = (i->version != *v);
+            }
+            else
+              s = (i->version != sp->version);
+          }
+          else
+            s = !i->version.empty ();
+
+          if (s)
+          {
+            scratch = true; // Rebuild the plan from scratch.
             dep_pkgs.erase (i);
-            scratch = true; // Start from scratch.
           }
           else
             ++i;
         }
-        */
 
         if (!scratch)
         {
@@ -2305,17 +2360,12 @@ namespace bpkg
           refine = false; // Presumably no more refinments necessary.
 
           /*
-          for (shared_ptr<selected_package> p = ...
+          for (shared_ptr<selected_package> sp = ...
             <query all dependency (non-held) packages in the database>)
           {
-            version v (evaluate_dependency (p));
-
-            // Note that the order of packages to drop is correct by
-            // construction.
-            //
-            if (v != p->version)
+            if (optional<version> v = evaluate_dependency (db, sp))
             {
-              dep_pkgs.push_back (p->name, v);
+              dep_pkgs.push_back (dep_pkg {sp->name, *v});
               refine = true;
             }
           }
