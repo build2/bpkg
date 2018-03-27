@@ -573,7 +573,7 @@ namespace bpkg
   public:
     using version_type = bpkg::version;
 
-    string name; // Object id.
+    std::string name; // Object id.
     version_type version;
     package_state state;
     package_substate substate;
@@ -624,7 +624,7 @@ namespace bpkg
     // for details). Note that during the simulation the manifest may not be
     // available.
     //
-    optional<string> manifest_checksum;
+    optional<std::string> manifest_checksum;
 
     // Path to the output directory of this package, if any. It is
     // always relative to the configuration directory, and is <name>
@@ -665,8 +665,14 @@ namespace bpkg
     // Represent the wildcard version with the "*" string. Represent naturally
     // all other versions.
     //
-    string
+    std::string
     version_string () const;
+
+    std::string
+    string () const
+    {
+      return (system () ? "sys:" : "") + name + "/" + version_string ();
+    }
 
     // Return the relative source directory completed using the configuration
     // directory. Return the absolute source directory as is.
@@ -703,8 +709,11 @@ namespace bpkg
   // Print the package name, version and the 'sys:' prefix for the system
   // substate. The wildcard version is represented with the "*" string.
   //
-  ostream&
-  operator<< (ostream&, const selected_package&);
+  inline ostream&
+  operator<< (ostream& os, const selected_package& p)
+  {
+    return os << p.string ();
+  }
 
   // Check if the directory containing the specified package version should be
   // considered its iteration. Return the version of this iteration if that's

@@ -235,27 +235,7 @@ namespace bpkg
 
       // Selected package is not NULL, available package is NULL.
       //
-      drop,
-
-      // If available package is NULL and action is reconf, then this is a
-      // dependent that needs to be reconfigured because its prerequisite is
-      // being up/down-graded or reconfigured. Note that in some cases
-      // reconfigure is naturally implied. For example, if an already
-      // configured package is being up/down-graded. For such cases the action
-      // is not going to be reconfigure. We only make sure it is for cases
-      // that would otherwise miss the need for the reconfiguration. As a
-      // result, use the reconfigure() accessor which detects both explicit
-      // and implied cases.
-      //
-      // At first, it may seem that this action is redundant and having the
-      // available package set to NULL is sufficient. But consider the case
-      // where the user asked us to build a package that is already in the
-      // configured state (so all we have to do is pkg-update). Next, add to
-      // this a prerequisite package that is being upgraded. Now our original
-      // package has to be reconfigured. But without this action we won't know
-      // (available for our package won't be NULL).
-      //
-      reconf
+      drop
 
     } action;
 
@@ -308,6 +288,27 @@ namespace bpkg
     //
     set<string> required_by;
 
+    // True if we need to reconfigure this package. If available package
+    // is NULL, then reconfigure must be true (this is a dependent that
+    // needs to be reconfigured because its prerequisite is being up/down-
+    // graded or reconfigured). Note that in some cases reconfigure is
+    // naturally implied. For example, if an already configured package
+    // is being up/down-graded. For such cases we don't guarantee that
+    // the reconfigure flag is true. We only make sure to set it for
+    // cases that would otherwise miss the need for the reconfiguration.
+    // As a result, use the reconfigure() accessor which detects both
+    // explicit and implied cases.
+    //
+    // At first, it may seem that this flag is redundant and having the
+    // available package set to NULL is sufficient. But consider the case
+    // where the user asked us to build a package that is already in the
+    // configured state (so all we have to do is pkg-update). Next, add
+    // to this a prerequisite package that is being upgraded. Now our
+    // original package has to be reconfigured. But without this flag
+    // we won't know (available for our package won't be NULL).
+    //
+    bool reconf;
+
     bool
     user_selection () const
     {
@@ -317,9 +318,11 @@ namespace bpkg
     bool
     reconfigure () const
     {
+      assert (action == build);
+
       return selected != nullptr &&
         selected->state == package_state::configured &&
-        (reconfigure_ || // Must be checked first, available could be NULL.
+        (reconf || // Must be checked first, available could be NULL.
          selected->system () != system ||
          selected->version != available_version ());
     }
@@ -370,7 +373,10 @@ namespace bpkg
 
       tracer trace ("collect");
 
-      assert (pkg.available != nullptr); // No dependents allowed here.
+      // No dependents and drops allowed here.
+      //
+      assert (pkg.available != nullptr);
+
       auto i (map_.find (pkg.available->id.name));
 
       // If we already have an entry for this package name, then we
@@ -385,6 +391,10 @@ namespace bpkg
         //
         build_package* p1 (&i->second.package);
         build_package* p2 (&pkg);
+
+        // Can't think of the scenario when this happens.
+        //
+        assert (p1->action != build_package::drop);
 
         if (p1->available_version () != p2->available_version ())
         {
@@ -513,6 +523,32 @@ namespace bpkg
       return &p;
     }
 
+    void
+    collect_dropped (shared_ptr<selected_package> sp)
+    {
+      string pn (sp->name);
+
+      build_package p {
+        build_package::drop,
+        move (sp),
+        nullptr,
+        nullptr,
+        false,     // Hold package.
+        false,     // Hold version.
+        {},        // Constraints.
+        false,     // System package.
+        false,     // Keep output directory.
+        {},        // Required by.
+        false};    // Reconfigure.
+
+      auto i (map_.find (pn));
+
+      if (i != map_.end ())
+        i->second.package = move (p);
+      else
+        map_.emplace (move (pn), data_type {end (), move (p)});
+    }
+
     // Collect the package prerequisites recursively. But first "prune" this
     // process if the package we build is a system one or is already configured
     // since that would mean all its prerequisites are configured as well. Note
@@ -528,6 +564,8 @@ namespace bpkg
                            const build_package& pkg)
     {
       tracer trace ("collect_prerequisites");
+
+      assert (pkg.action == build_package::build);
 
       const shared_ptr<selected_package>& sp (pkg.selected);
 
@@ -713,6 +751,7 @@ namespace bpkg
         }
 
         build_package dp {
+          build_package::build,
           dsp,
           dap,
           rp.second,
@@ -858,7 +897,7 @@ namespace bpkg
       // map via another way. For example, some can be a part of the initial
       // selection. And in that case we must order things properly.
       //
-      if (!p.system)
+      if (p.action == build_package::build && !p.system)
       {
         // So here we are going to do things differently depending on
         // whether the package is already configured or not. If it is and
@@ -939,7 +978,7 @@ namespace bpkg
         // Prune if this is not a configured package being up/down-graded
         // or reconfigured.
         //
-        if (p.reconfigure ())
+        if (p.action == build_package::build && p.reconfigure ())
           collect_order_dependents (db, i);
       }
     }
@@ -1038,15 +1077,18 @@ namespace bpkg
         //
         if (i != map_.end ())
         {
-          // Now add to the list.
-          //
           build_package& dp (i->second.package);
 
+          if (dp.action == build_package::drop)
+            continue;
+
+          // Now add to the list.
+          //
           p.required_by.insert (dn);
 
           // Force reconfiguration in both cases.
           //
-          dp.reconfigure_ = true;
+          p.reconf = true;
 
           if (i->second.position == end ())
           {
@@ -1070,6 +1112,7 @@ namespace bpkg
             {
               end (),
               build_package {
+                build_package::build,
                 move (dsp),
                 nullptr,
                 nullptr,
@@ -1118,12 +1161,6 @@ namespace bpkg
   // the plan simulation/refinment process below (i.e., we only add a package
   // to this list if/when nothing else depends on it).
   //
-  struct drop_package
-  {
-    shared_ptr<selected_package> selected;
-  };
-  using drop_package_list = vector<drop_package>;
-
   // @@ TODO: try to move back inside pkg_build() and get rid of functions. Or
   //    need to change the name to something more appropriate for a scope.
   //
@@ -1426,9 +1463,7 @@ namespace bpkg
                 const dir_path&,
                 database&,
                 build_package_list&,
-                drop_package_list&,
-                bool simulate,
-                set<shared_ptr<selected_package>>& drop_pkgs);
+                bool simulate);
 
   int
   pkg_build (const pkg_build_options& o, cli::group_scanner& args)
@@ -2121,6 +2156,7 @@ namespace bpkg
         // Finally add this package to the list.
         //
         build_package p {
+          build_package::build,
           move (sp),
           move (ap),
           move (ar),
@@ -2194,8 +2230,7 @@ namespace bpkg
     //
     // Package managers are an easy, already solved problem, right?
     //
-    build_packages    build_pkgs;
-    drop_package_list drop_pkgs;
+    build_packages pkgs;
     {
       struct dep_pkg
       {
@@ -2212,30 +2247,24 @@ namespace bpkg
 
         if (scratch)
         {
-          build_pkgs.clear ();
-          drop_pkgs.clear ();
+          pkgs.clear ();
 
           // Pre-collect user selection to make sure dependency-forced
           // up/down-grades are handled properly (i.e., the order in which we
           // specify packages on the command line does not matter).
           //
           for (const build_package& p: hold_pkgs)
-            build_pkgs.collect (o, c, db, p, false /* recursively */);
+            pkgs.collect (o, c, db, p, false /* recursively */);
 
           // Collect all the prerequisites.
           //
           for (const build_package& p: hold_pkgs)
-            build_pkgs.collect_prerequisites (o, c, db, p.name ());
+            pkgs.collect_prerequisites (o, c, db, p.name ());
 
           scratch = false;
         }
         else
-        {
-          // Only clear the ordered lists.
-          //
-          build_pkgs.clear_order ();
-          drop_pkgs.clear ();
-        }
+          pkgs.clear_order (); // Only clear the ordered list.
 
         // Add to the plan dependencies to upgrade/downgrade/drop that were
         // discovered on the previous iterations.
@@ -2246,29 +2275,9 @@ namespace bpkg
             db.load<selected_package> (p.name));
 
           if (p.version.empty ())
-            drop_pkgs.push_back (drop_package {move (sp)});
+            pkgs.collect_dropped (sp);
           else
-          {
-            shared_ptr<available_package> ap (
-              db.load<available_package> (
-                available_package_id (p.name, p.version)));
-
-            // @@ Fill properly.
-            //
-            build_package bp {
-              move (sp),
-              move (ap),
-              nullptr, //move (ar),
-              false,                 // Hold package.
-              false,   //!pa.version.empty (), // Hold version.
-              {},                   // Constraints.
-              false,   //pa.system (),
-              false,   //keep_out,
-              {""},                 // Required by (command line).
-              false};               // Reconfigure.
-
-            build_pkgs.collect (o, c, db, bp, true /* recursively */);
-          }
+            assert (false); // @@ TMP
         }
 
         // Now that we have collected all the package versions that we need to
@@ -2285,18 +2294,16 @@ namespace bpkg
         // appear (e.g., on the plan) last.
         //
         for (const dep_pkg& p: dep_pkgs)
-          build_pkgs.order (p.name);
+          pkgs.order (p.name);
 
         for (const build_package& p: reverse_iterate (hold_pkgs))
-          build_pkgs.order (p.name ());
+          pkgs.order (p.name ());
 
         // Once we have the final plan, collect and order all the dependents
         // that we will need to reconfigure because of the up/down-grades of
         // packages that are now on the list.
         //
-        // @@ TODO: we need to exclude packages we are dropping!
-        //
-        build_pkgs.collect_order_dependents (db);
+        pkgs.collect_order_dependents (db);
 
         // We are about to execute the plan on the database (but not on the
         // filesystem / actual packages). Save the session state for the
@@ -2323,12 +2330,10 @@ namespace bpkg
         // them afterwards (see below).
         //
         {
-          vector<build_package> tmp (build_pkgs.begin (), build_pkgs.end ());
-
+          vector<build_package> tmp (pkgs.begin (), pkgs.end ());
           build_package_list bl (tmp.begin (), tmp.end ());
-          drop_package_list  dl (drop_pkgs.begin (), drop_pkgs.end ());
 
-          execute_plan (o, c, db, bl, dl, true /* simulate */);
+          execute_plan (o, c, db, bl, true /* simulate */);
         }
 
         // Verify that none of the previously-made upgrade/downgrade/drop
@@ -2393,22 +2398,21 @@ namespace bpkg
           // plan). And in case of drop the object is removed from the session
           // so we need to bring it back.
           //
-          // Note: we use the original *_pkgs lists since the executed ones
-          // may contain newly created (but now gone) selected_package
-          // objects.
+          // Note: we use the original pkgs list since the executed ones may
+          // contain newly created (but now gone) selected_package objects.
           //
-          for (build_package& p: build_pkgs)
+          for (build_package& p: pkgs)
           {
+            if (p.action == build_package::drop)
+            {
+              assert (p.selected != nullptr);
+
+              ses.cache_insert<selected_package> (
+                db, p.selected->name, p.selected);
+            }
+
             if (p.selected != nullptr)
               db.reload (*p.selected);
-          }
-
-          for (drop_package& p: drop_pkgs)
-          {
-            ses.cache_insert<selected_package> (
-              db, p.selected->name, p.selected);
-
-            db.reload (*p.selected);
           }
 
           // Now remove all the newly created selected_package objects from
@@ -2458,8 +2462,21 @@ namespace bpkg
 
     if (o.print_only () || !o.yes ())
     {
-      for (const build_package& p: reverse_iterate (build_pkgs))
+      auto add_action = [&o, &plan] (const string& act)
       {
+        if (o.print_only ())
+          cout << act << endl;
+        else if (verb)
+          // Print indented for better visual separation.
+          //
+          plan += (plan.empty () ? "  " : "\n  ") + act;
+      };
+
+      for (const build_package& p: reverse_iterate (pkgs))
+      {
+        if (p.action == build_package::drop)
+          continue;
+
         const shared_ptr<selected_package>& sp (p.selected);
 
         string act;
@@ -2534,15 +2551,14 @@ namespace bpkg
         if (!rb.empty ())
           act += " (" + cause + rb + ')';
 
-        if (o.print_only ())
-          cout << act << endl;
-        else if (verb)
-          // Print indented for better visual separation.
-          //
-          plan += (plan.empty () ? "  " : "\n  ") + act;
+        add_action (act);
       }
 
-      //@@ TODO: print drop_pkgs plan.
+      for (const build_package& p: reverse_iterate (pkgs))
+      {
+        if (p.action == build_package::drop)
+          add_action ("drop " + p.selected->string ());
+      }
     }
 
     if (o.print_only ())
@@ -2589,12 +2605,7 @@ namespace bpkg
     // prerequsites got upgraded/downgraded and that the user may want to in
     // addition update (that update_dependents flag above).
     //
-    execute_plan (o,
-                  c,
-                  db,
-                  build_pkgs,
-                  drop_pkgs,
-                  false /* simulate */);
+    execute_plan (o, c, db, pkgs, false /* simulate */);
 
     if (o.configure_only ())
       return 0;
@@ -2608,7 +2619,7 @@ namespace bpkg
 
     // First add the user selection.
     //
-    for (const build_package& p: reverse_iterate (build_pkgs))
+    for (const build_package& p: reverse_iterate (pkgs))
     {
       const shared_ptr<selected_package>& sp (p.selected);
 
@@ -2622,7 +2633,7 @@ namespace bpkg
     //
     if (update_dependents)
     {
-      for (const build_package& p: reverse_iterate (build_pkgs))
+      for (const build_package& p: reverse_iterate (pkgs))
       {
         const shared_ptr<selected_package>& sp (p.selected);
 
@@ -2649,29 +2660,18 @@ namespace bpkg
                 const dir_path& c,
                 database& db,
                 build_package_list& build_pkgs,
-                drop_package_list& drop_pkgs,
-                bool simulate,
-                set<shared_ptr<selected_package>>& drop_pkgs)
+                bool simulate)
   {
     uint16_t verbose (!simulate ? verb : 0);
 
     // disfigure
     //
-
-    // Disfigure packages to be dropped first since they may depened on
-    // packages in build_pkgs but not the other way around.
-    //
-    for (drop_package& p: drop_pkgs)
-    {
-      //@@ TODO disfigure
-    }
-
     for (build_package& p: build_pkgs)
     {
       // We are only interested in configured packages that are either
-      // up/down-graded or need reconfiguration (e.g., dependents).
+      // up/down-graded, need reconfiguration (e.g., dependents), or dropped.
       //
-      if (!p.reconfigure ())
+      if (p.action == build_package::build && !p.reconfigure ())
         continue;
 
       shared_ptr<selected_package>& sp (p.selected);
@@ -2680,19 +2680,6 @@ namespace bpkg
       // always leave the configuration in a valid state.
       //
       transaction t (db, !simulate /* start */);
-
-      // Collect prerequisites to be potentially dropped.
-      //
-      if (!o.keep_prerequisite ())
-      {
-        for (const auto& pair: sp->prerequisites)
-        {
-          shared_ptr<selected_package> pp (pair.first.load ());
-
-          if (!pp->hold_package)
-            drop_pkgs.insert (move (pp));
-        }
-      }
 
       // Reset the flag if the package being unpacked is not an external one.
       //
@@ -2754,21 +2741,28 @@ namespace bpkg
 
     // purge, fetch/unpack|checkout, configure
     //
-
-    for (drop_package& p: drop_pkgs)
-    {
-      //@@ TODO purge.
-    }
-
     for (build_package& p: reverse_iterate (build_pkgs))
     {
       shared_ptr<selected_package>& sp (p.selected);
       const shared_ptr<available_package>& ap (p.available);
 
-      // Purge the system package, fetch/unpack or checkout the source one.
+      // Purge the dropped or system package, fetch/unpack or checkout the
+      // other one.
       //
       for (;;) // Breakout loop.
       {
+        if (p.action == build_package::drop)
+        {
+          transaction t (db, !simulate /* start */);
+          pkg_purge (c, t, sp, simulate); // Commits the transaction.
+
+          if (verbose && !o.no_result ())
+            text << "purged " << *sp;
+
+          sp.reset ();
+          break;
+        }
+
         if (ap == nullptr) // Skip dependents.
           break;
 
@@ -2972,6 +2966,11 @@ namespace bpkg
         break; // Get out from the breakout loop.
       }
 
+      // We are done for the dropped package.
+      //
+      if (p.action == build_package::drop)
+        continue;
+
       // Configure the package.
       //
       // At this stage the package is either selected, in which case it's a
@@ -3034,15 +3033,6 @@ namespace bpkg
         transaction t (db, !simulate /* start */);
         db.update (sp);
         t.commit ();
-
-        // Clean up if this package ended up in the potention drop set.
-        //
-        if (hp)
-        {
-          auto i (drop_pkgs.find (sp));
-          if (i != drop_pkgs.end ())
-            drop_pkgs.erase (i);
-        }
 
         if (verbose > 1)
         {

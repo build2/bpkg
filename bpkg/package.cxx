@@ -175,13 +175,6 @@ namespace bpkg
     return version != wildcard_version ? version.string () : "*";
   }
 
-  ostream&
-  operator<< (ostream& os, const selected_package& p)
-  {
-    os << (p.system () ? "sys:" : "") << p.name << "/" << p.version_string ();
-    return os;
-  }
-
   optional<version>
   package_iteration (const common_options& o,
                      const dir_path& c,
