@@ -229,6 +229,36 @@ namespace bpkg
   //
   struct build_package
   {
+    enum
+    {
+      build,
+
+      // Selected package is not NULL, available package is NULL.
+      //
+      drop,
+
+      // If available package is NULL and action is reconf, then this is a
+      // dependent that needs to be reconfigured because its prerequisite is
+      // being up/down-graded or reconfigured. Note that in some cases
+      // reconfigure is naturally implied. For example, if an already
+      // configured package is being up/down-graded. For such cases the action
+      // is not going to be reconfigure. We only make sure it is for cases
+      // that would otherwise miss the need for the reconfiguration. As a
+      // result, use the reconfigure() accessor which detects both explicit
+      // and implied cases.
+      //
+      // At first, it may seem that this action is redundant and having the
+      // available package set to NULL is sufficient. But consider the case
+      // where the user asked us to build a package that is already in the
+      // configured state (so all we have to do is pkg-update). Next, add to
+      // this a prerequisite package that is being upgraded. Now our original
+      // package has to be reconfigured. But without this action we won't know
+      // (available for our package won't be NULL).
+      //
+      reconf
+
+    } action;
+
     shared_ptr<selected_package>  selected;   // NULL if not selected.
     shared_ptr<available_package> available;  // Can be NULL, fake/transient.
     shared_ptr<bpkg::repository>  repository; // Can be NULL (orphan) or root.
@@ -273,44 +303,16 @@ namespace bpkg
     //
     bool keep_out;
 
-    const version&
-    available_version () const
-    {
-      // This should have been diagnosed before creating build_package object.
-      //
-      assert (available != nullptr &&
-              (system
-               ? available->system_version () != nullptr
-               : !available->stub ()));
-
-      return system ? *available->system_version () : available->version;
-    }
-
     // Set of package names that caused this package to be built. Empty
     // name signifies user selection.
     //
     set<string> required_by;
 
-    // True if we need to reconfigure this package. If available package
-    // is NULL, then reconfigure must be true (this is a dependent that
-    // needs to be reconfigured because its prerequisite is being up/down-
-    // graded or reconfigured). Note that in some cases reconfigure is
-    // naturally implied. For example, if an already configured package
-    // is being up/down-graded. For such cases we don't guarantee that
-    // the reconfigure flag is true. We only make sure to set it for
-    // cases that would otherwise miss the need for the reconfiguration.
-    // As a result, use the reconfigure() accessor which detects both
-    // explicit and implied cases.
-    //
-    // At first, it may seem that this flag is redundant and having the
-    // available package set to NULL is sufficient. But consider the case
-    // where the user asked us to build a package that is already in the
-    // configured state (so all we have to do is pkg-update). Next, add
-    // to this a prerequisite package that is being upgraded. Now our
-    // original package has to be reconfigured. But without this flag
-    // we won't know (available for our package won't be NULL).
-    //
-    bool reconfigure_;
+    bool
+    user_selection () const
+    {
+      return required_by.find ("") != required_by.end ();
+    }
 
     bool
     reconfigure () const
@@ -322,10 +324,17 @@ namespace bpkg
          selected->version != available_version ());
     }
 
-    bool
-    user_selection () const
+    const version&
+    available_version () const
     {
-      return required_by.find ("") != required_by.end ();
+      // This should have been diagnosed before creating build_package object.
+      //
+      assert (available != nullptr &&
+              (system
+               ? available->system_version () != nullptr
+               : !available->stub ()));
+
+      return system ? *available->system_version () : available->version;
     }
 
     string
