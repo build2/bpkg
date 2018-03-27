@@ -22,7 +22,6 @@
 
 #include <bpkg/common-options.hxx>
 
-#include <bpkg/pkg-drop.hxx>
 #include <bpkg/pkg-purge.hxx>
 #include <bpkg/pkg-fetch.hxx>
 #include <bpkg/rep-fetch.hxx>
@@ -2286,6 +2285,8 @@ namespace bpkg
         // that we will need to reconfigure because of the up/down-grades of
         // packages that are now on the list.
         //
+        // @@ TODO: we need to exclude packages we are dropping!
+        //
         build_pkgs.collect_order_dependents (db);
 
         // We are about to execute the plan on the database (but not on the
@@ -2318,8 +2319,7 @@ namespace bpkg
           build_package_list bl (tmp.begin (), tmp.end ());
           drop_package_list  dl (drop_pkgs.begin (), drop_pkgs.end ());
 
-          set<shared_ptr<selected_package>> dummy;
-          execute_plan (o, c, db, bl, dl, true /* simulate */, dummy);
+          execute_plan (o, c, db, bl, dl, true /* simulate */);
         }
 
         // Verify that none of the previously-made upgrade/downgrade/drop
@@ -2576,41 +2576,16 @@ namespace bpkg
     // the time its dependents need to be checked out (see the pkg_checkout()
     // function implementation for details).
     //
-    // Almost forgot, there is one more thing: when we upgrade or downgrade a
-    // package, it may change the list of its prerequisites. Which means we
-    // may end up with packages that are no longer necessary and it would be
-    // nice to offer to drop those. This, however, is a tricky business and is
-    // the domain of pkg_drop(). For example, a prerequisite may still have
-    // other dependents (so it looks like we shouldn't be dropping it) but
-    // they are all from the "drop set" (so we should offer to drop it after
-    // all); pkg_drop() knows how to deal with all this.
+    // We also have the dependent packages that we reconfigure because their
+    // prerequsites got upgraded/downgraded and that the user may want to in
+    // addition update (that update_dependents flag above).
     //
-    // So what we are going to do is this: before disfiguring packages we will
-    // collect all their old prerequisites. This will be the "potentially to
-    // drop" list. Then, after configuration, when the new dependencies are
-    // established, we will pass them to pkg_drop() whose job will be to
-    // figure out which ones can be dropped, prompt the user, etc.
-    //
-    // We also have the other side of this logic: dependent packages that we
-    // reconfigure because their prerequsites got upgraded/downgraded and that
-    // the user may want to in addition update (that update_dependents flag
-    // above). This case we handle in house.
-    //
-
-    set<shared_ptr<selected_package>> drop_pkgs_dummy;
     execute_plan (o,
                   c,
                   db,
                   build_pkgs,
                   drop_pkgs,
-                  false /* simulate */, drop_pkgs_dummy);
-
-    // Now that we have the final dependency state, see if we need to drop
-    // packages that are no longer necessary.
-    //
-    if (!drop_pkgs.empty ())
-      drop_pkgs_dummy = pkg_drop (
-        c, o, db, drop_pkgs_dummy, !(o.yes () || o.drop_prerequisite ()));
+                  false /* simulate */);
 
     if (o.configure_only ())
       return 0;
@@ -2644,11 +2619,7 @@ namespace bpkg
 
         if (p.reconfigure () && p.available == nullptr)
         {
-          // Note that it is entirely possible this package got dropped so
-          // we need to check for that.
-          //
-          if (drop_pkgs_dummy.find (sp) == drop_pkgs_dummy.end ())
-            upkgs.push_back (pkg_command_vars {sp, strings ()});
+          upkgs.push_back (pkg_command_vars {sp, strings ()});
         }
       }
     }
@@ -2669,7 +2640,7 @@ namespace bpkg
                 const dir_path& c,
                 database& db,
                 build_package_list& build_pkgs,
-                drop_package_list&,
+                drop_package_list& drop_pkgs,
                 bool simulate,
                 set<shared_ptr<selected_package>>& drop_pkgs)
   {
@@ -2677,6 +2648,15 @@ namespace bpkg
 
     // disfigure
     //
+
+    // Disfigure packages to be dropped first since they may depened on
+    // packages in build_pkgs but not the other way around.
+    //
+    for (drop_package& p: drop_pkgs)
+    {
+      //@@ TODO disfigure
+    }
+
     for (build_package& p: build_pkgs)
     {
       // We are only interested in configured packages that are either
@@ -2765,6 +2745,12 @@ namespace bpkg
 
     // purge, fetch/unpack|checkout, configure
     //
+
+    for (drop_package& p: drop_pkgs)
+    {
+      //@@ TODO purge.
+    }
+
     for (build_package& p: reverse_iterate (build_pkgs))
     {
       shared_ptr<selected_package>& sp (p.selected);
