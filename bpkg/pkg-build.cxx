@@ -2564,10 +2564,12 @@ namespace bpkg
         add_action (act);
       }
 
+      //@@ Merge into previous loop.
+      //
       for (const build_package& p: reverse_iterate (pkgs))
       {
         if (p.action == build_package::drop)
-          add_action ("drop " + p.selected->string ());
+          add_action ("drop " + p.selected->string () + " (unused)");
       }
     }
 
@@ -2678,7 +2680,7 @@ namespace bpkg
     //
     for (build_package& p: build_pkgs)
     {
-      // We are only interested in configured packages that are either
+      // We are only interested in configured packages that are either being
       // up/down-graded, need reconfiguration (e.g., dependents), or dropped.
       //
       if (p.action == build_package::build && !p.reconfigure ())
@@ -2745,7 +2747,7 @@ namespace bpkg
         if (!p.hold_version)
           p.hold_version = sp->hold_version;
 
-        sp.reset ();
+        sp = nullptr;
       }
     }
 
@@ -2769,7 +2771,7 @@ namespace bpkg
           if (verbose && !o.no_result ())
             text << "purged " << *sp;
 
-          sp.reset ();
+          sp = nullptr;
           break;
         }
 
@@ -2797,7 +2799,7 @@ namespace bpkg
             if (!p.hold_version)
               p.hold_version = sp->hold_version;
 
-            sp.reset ();
+            sp = nullptr;
           }
 
           break;
@@ -2808,7 +2810,7 @@ namespace bpkg
         //
         if (sp == nullptr || sp->version != p.available_version ())
         {
-          sp.reset (); // For the directory case below.
+          sp = nullptr; // For the directory case below.
 
           // Distinguish between the package and archive/directory cases.
           //
