@@ -30,7 +30,7 @@
 # |   |-- libfoo-1.0.0.tar.gz
 # |   `-- repositories.manifest
 # |
-# |-- t3                        -> t2 (prerequisite)
+# |-- t3                        -> t2 (prerequisite repository)
 # |   |-- libbaz-1.0.0.tar.gz   -> libbar
 # |   |-- libfox-1.0.0.tar.gz
 # |   `-- repositories.manifest
@@ -39,16 +39,16 @@
 # |   |-- libfoo-1.1.0.tar.gz
 # |   `-- repositories.manifest
 # |
-# |-- t4b                       -> t4a (prerequisite)
+# |-- t4b                       -> t4a (prerequisite repository)
 # |   |-- libbar-1.1.0.tar.gz   -> libfoo == 1.1.0
 # |   `-- repositories.manifest
 # |
-# |-- t4c                       -> t4b (prerequisite)
+# |-- t4c                       -> t4b (prerequisite repository)
 # |   |-- libbaz-1.1.0.tar.gz   -> libfoo, libbar
 # |   |-- libfoo-1.0.0.tar.gz
 # |   `-- repositories.manifest
 # |
-# |-- t4d                       -> t4c (complement)
+# |-- t4d                       -> t4c (complement repository)
 # |   |-- libbiz-1.0.0.tar.gz   -> libfox, libfoo, libbaz
 # |   |-- libfox-1.0.0.tar.gz
 # |   `-- repositories.manifest
@@ -65,7 +65,7 @@
 # |   `-- *
 # |
 # `-- git
-#     |-- libbar.git            -> style-basic.git (prerequisite)
+#     |-- libbar.git            -> style-basic.git (prerequisite repository)
 #     |-- libbaz.git
 #     `-- style-basic.git
 
@@ -92,7 +92,7 @@ end
 
 pkg_configure += -d cfg "config.cxx=$config.cxx" 2>!
 pkg_disfigure += -d cfg
-pkg_drop      += -d cfg --drop-prerequisite 2>!
+pkg_drop      += -d cfg 2>!
 pkg_fetch     += -d cfg 2>!
 pkg_purge     += -d cfg
 pkg_status    += -d cfg
@@ -237,11 +237,11 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
 {
   test.arguments += --print-only
 
-  : unknown-prerequisite
+  : unknown-dependency
   :
   $clone_root_cfg;
   $* $src/libbar-1.0.0.tar.gz 2>>EOE != 0
-    error: unknown prerequisite libfoo of package libbar
+    error: unknown dependency libfoo of package libbar
     info: while satisfying libbar/1.0.0
     EOE
 
@@ -250,7 +250,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
   {
     +$clone_root_cfg && $rep_add $rep/t2 && $rep_fetch
 
-    : build-prerequisite
+    : build-dependency
     :
     {
       $clone_cfg;
@@ -282,7 +282,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
         EOE
     }
 
-    : upgrade-prerequisite
+    : upgrade-dependency
     :
     {
       $clone_cfg;
@@ -306,7 +306,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       $pkg_purge libfoo 2>'purged libfoo/0.0.1'
     }
 
-    : downgrade-prerequisite
+    : downgrade-dependency
     :
     {
       $clone_cfg && $pkg_unpack -e $src/libfoo-1.1.0;
@@ -732,7 +732,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
 {
   test.arguments += --yes
 
-  : wth-prerequisites
+  : with-dependencies
   :
   {
     $clone_root_cfg && $rep_add $rep/t4c && $rep_fetch;
@@ -983,7 +983,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
     }
   }
 
-  : drop-prerequisites
+  : drop-dependencies
   :
   {
     $clone_root_cfg && $rep_add $rep/t2 && $rep_fetch;
@@ -1060,9 +1060,9 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
     $pkg_purge     libfoo 2>'purged libfoo/1.0.0'
   }
 
-  : local-prerequisite
+  : local-dependency
   :
-  : Test that the local package can be built against the local prerequisite
+  : Test that the local package can be built against the local dependency
   : package.
   :
   {
@@ -1107,7 +1107,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
   }
 }
 
-: prerequisite
+: dependency
 :
 {
   +$clone_cfg
@@ -1115,7 +1115,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
 
   : drop
   :
-  : Test --drop-prerequisite option.
+  : Test dropping of unused dependencies (default behavior).
   :
   {
     $clone_cfg;
@@ -1133,7 +1133,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       updated libbar/1.0.0
       EOE
 
-    $* --drop-prerequisite libbar/1.2.0 <'y' 2>>~%EOE%;
+    $* libbar/1.2.0 <'y' 2>>~%EOE%;
         upgrade libbar/1.2.0
       continue? [Y/n] disfigured libbar/1.0.0
       %.*
@@ -1154,7 +1154,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
 
   : keep
   :
-  : Test --keep-prerequisite option.
+  : Test keeping of unused dependencies (--keep-unused option).
   :
   {
     $clone_cfg;
@@ -1172,7 +1172,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       updated libbar/1.0.0
       EOE
 
-    $* --keep-prerequisite libbar/1.2.0 <'y' 2>>~%EOE%;
+    $* --keep-unused libbar/1.2.0 <'y' 2>>~%EOE%;
         upgrade libbar/1.2.0
       continue? [Y/n] disfigured libbar/1.0.0
       %.*
@@ -1849,7 +1849,7 @@ else
 
   : prerequisite-repo
   :
-  : Prerequisite package of the dependent being built is in the prerequisite
+  : Dependency package of the dependent being built is in the prerequisite
   : repository.
   :
   {

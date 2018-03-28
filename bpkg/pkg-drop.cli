@@ -21,10 +21,11 @@ namespace bpkg
 
      The \cb{pkg-drop} command drops one or more packages from the
      configuration. If the packages being dropped still have dependent
-     packages, then those will have to be drop as well and you will be prompted
-     to confirm. Similarly, if the packages being dropped have prerequisite
-     packages that would otherwise no longer be needed, you will be offered to
-     drop those as well.
+     packages, then those will have to be drop as well and you will be
+     prompted to confirm. And if the packages being dropped have dependency
+     packages that would otherwise no longer be used, then they will be
+     dropped as well unless the \c{\b{--keep-unused}|\b{-K}} option is
+     specified.
 
      The \cb{pkg-drop} command also supports several options (described below)
      that allow you to control the amount of work that will be done."
@@ -47,27 +48,21 @@ namespace bpkg
        with \cb{--print-only|-p}."
     }
 
-    bool --drop-dependent
+    bool --keep-unused|-K
+    {
+      "Don't drop dependency packages that were automatically built but will no
+       longer be used."
+    }
+
+    bool --drop-dependent|-D
     {
       "Don't warn about or ask for confirmation if dropping dependent
        packages."
     }
 
-    bool --keep-dependent|-K
+    bool --keep-dependent
     {
       "Issue an error if attempting to drop dependent packages."
-    }
-
-    bool --drop-prerequisite|-D
-    {
-      "Drop without confirmation prerequsite packages that were automatically
-       built and will no longer be necessary."
-    }
-
-    bool --keep-prerequisite
-    {
-      "Don't offer to drop prerequsite packages that were automatically built
-       and will no longer be necessary."
     }
 
     bool --print-only|-p

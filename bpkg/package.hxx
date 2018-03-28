@@ -312,6 +312,14 @@ namespace bpkg
 
   // dependencies
   //
+  // Note on the terminology: we use the term "dependency" or "dependency
+  // package" to refer to a general concept of package dependency. This would
+  // include dependency alternatives, optional/conditional dependencies, etc.
+  //
+  // In contrast, below we use (mostly internally) the term "prerequisite
+  // package" to refer to the "effective" dependency that has been resolved to
+  // the actual package object.
+  //
   #pragma db value(dependency_constraint) definition
   #pragma db value(dependency) definition
   #pragma db member(dependency::constraint) column("")

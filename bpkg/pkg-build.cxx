@@ -702,7 +702,7 @@ namespace bpkg
           if (dap == nullptr)
           {
             diag_record dr (fail);
-            dr << "unknown prerequisite " << d << " of package " << name;
+            dr << "unknown dependency " << d << " of package " << name;
 
             if (!ar->location.empty ())
               dr << info << "repository " << ar->location << " appears to "
@@ -724,14 +724,14 @@ namespace bpkg
           if (dap->stub ())
           {
             if (dap->system_version () == nullptr)
-              fail << "prerequisite " << d << " of package " << name << " is "
+              fail << "dependency " << d << " of package " << name << " is "
                    << "not available in source" <<
                 info << "specify ?sys:" << dn << " if it is available from "
                    << "the system";
 
             if (!satisfies (*dap->system_version (), d.constraint))
             {
-              fail << "prerequisite " << d << " of package " << name << " is "
+              fail << "dependency " << d << " of package " << name << " is "
                    << "not available in source" <<
                 info << "sys:" << dn << "/" << *dap->system_version ()
                    << " does not satisfy the constrains";
@@ -1482,11 +1482,6 @@ namespace bpkg
       if (!o.upgrade () && !o.patch ())
         fail << n << " requires explicit --upgrade|-u or --patch|-p";
     }
-
-    if (o.drop_prerequisite () && o.keep_prerequisite ())
-      fail << "both --drop-prerequisite|-D and --keep-prerequisite|-K "
-           << "specified" <<
-        info << "run 'bpkg help pkg-build' for more information";
 
     if (o.update_dependent () && o.leave_dependent ())
       fail << "both --update-dependent|-U and --leave-dependent|-L "
@@ -2379,6 +2374,11 @@ namespace bpkg
           {
             if (optional<version> v = evaluate_dependency (db, sp))
             {
+              // Skip unused if we were instructed to keep them.
+              //
+              if (o.keep_unused () && v->empty ())
+                continue;
+
               dep_pkgs.push_back (dep_pkg {sp->name, *v});
               refine = true;
             }

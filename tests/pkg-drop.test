@@ -10,10 +10,10 @@
 # |-- t4a
 # |   |-- libfoo-1.1.0.tar.gz
 # |   `-- repositories.manifest
-# |-- t4b                     -> t4a (prerequisite)
+# |-- t4b                     -> t4a (prerequisite repository)
 # |   |-- libbar-1.1.0.tar.gz -> libfoo == 1.1.0
 # |   `-- repositories.manifest
-# |-- t4c                     -> t4b (prerequisite)
+# |-- t4c                     -> t4b (prerequisite repository)
 # |   |-- libbaz-1.1.0.tar.gz -> libfoo, libbar
 # |   |-- libfoo-1.0.0.tar.gz
 # |   `-- repositories.manifest
@@ -60,7 +60,7 @@ $* libfoo/1.0.0 2>>~%EOE% != 0
   %error: package libfoo/1.0.0 does not exist in configuration cfg[/\\]%
   EOE
 
-: prerequisites-or-dependents
+: dependencies-or-dependents
 :
 {
   +$clone_cfg && $rep_add $rep/t4c && $rep_fetch
@@ -81,7 +81,7 @@ $* libfoo/1.0.0 2>>~%EOE% != 0
   :
   {
     # Prepare the nested tests to use configuration from the enclosing
-    # 'prerequisites-or-dependents' group scope.
+    # 'dependencies-or-dependents' group scope.
     #
     clone_cfg = cp -r $~/../cfg ./
 
@@ -156,11 +156,11 @@ $* libfoo/1.0.0 2>>~%EOE% != 0
     }
   }
 
-  : prerequisites
+  : dependencies
   :
   {
     # Prepare the nested tests to use configuration from the enclosing
-    # 'prerequisites-or-dependents' group scope.
+    # 'dependencies-or-dependents' group scope.
     #
     clone_cfg = cp -r $~/../cfg ./
 
@@ -198,7 +198,7 @@ $* libfoo/1.0.0 2>>~%EOE% != 0
 
     : dependencies
     :
-    : Note that we do not move this test to the prerequisites-and-dependents
+    : Note that we do not move this test to the dependencies-and-dependents
     : group as the configuration repository set would be different.
     :
     $clone_cfg;
@@ -225,7 +225,7 @@ $* libfoo/1.0.0 2>>~%EOE% != 0
    -$pkg_status libfoo/1.1.0 >'libfoo available [1.1.0]'
 }
 
-: prerequisites-and-dependents
+: dependencies-and-dependents
 :
 {
   +$clone_cfg && $rep_add $rep/t4d && $rep_fetch
@@ -234,7 +234,7 @@ $* libfoo/1.0.0 2>>~%EOE% != 0
   clone_cfg = cp -r ../../cfg ./
   test.arguments += --print-only
 
-  : drop-prerequisites-no-dependents
+  : drop-dependencies-no-dependents
   :
   {
     test.arguments += --yes
@@ -262,7 +262,7 @@ $* libfoo/1.0.0 2>>~%EOE% != 0
       EOO
   }
 
-  : drop-prerequisites
+  : drop-dependencies
   :
   {
     test.arguments += --yes --drop-dependent
@@ -312,7 +312,7 @@ $* libfoo/1.0.0 2>>~%EOE% != 0
       EOO
   }
 
-  : keep-prerequisites
+  : keep-dependencies
   {
     test.arguments += --no --drop-dependent
 
@@ -377,8 +377,7 @@ $* libfoo/1.0.0 2>>~%EOE% != 0
 
 : keep-drop-options
 :
-: Test --drop-dependent, --keep-dependent, --drop-prerequisite,
-: --keep-prerequisite  option.
+: Test --drop-dependent, --keep-dependent, --keep-unused, option.
 :
 {
   +$clone_cfg && $rep_add $rep/t4b && $rep_fetch
@@ -401,12 +400,12 @@ $* libfoo/1.0.0 2>>~%EOE% != 0
       EOE
   }
 
-  : drop-prerequisite
+  : drop-dependency
   :
   {
     $clone_cfg && $pkg_build libbar;
 
-    $* --drop-prerequisite libbar 2>>EOE
+    $* libbar 2>>EOE
       disfigured libbar
       disfigured libfoo
       purged libbar
@@ -414,12 +413,12 @@ $* libfoo/1.0.0 2>>~%EOE% != 0
       EOE
   }
 
-  : keep-prerequisite
+  : keep-dependency
   :
   {
     $clone_cfg && $pkg_build libbar;
 
-    $* --keep-prerequisite libbar 2>>EOE;
+    $* --keep-unused libbar 2>>EOE;
       disfigured libbar
       purged libbar
       EOE

@@ -417,11 +417,6 @@ namespace bpkg
            << "specified" <<
         info << "run 'bpkg help pkg-drop' for more information";
 
-    if (o.drop_prerequisite () && o.keep_prerequisite ())
-      fail << "both --drop-prerequisite|-D and --keep-prerequisite "
-           << "specified" <<
-        info << "run 'bpkg help pkg-drop' for more information";
-
     if (!args.more ())
       fail << "package name argument expected" <<
         info << "run 'bpkg help pkg-drop' for more information";
@@ -537,15 +532,14 @@ namespace bpkg
       // some that we can drop, ask the user for confirmation.
       //
       if (pkgs.filter_prerequisites (db) &&
-          !o.keep_prerequisite () &&
-          !(drop_prq = o.drop_prerequisite ()) &&
+          !o.keep_unused ()              &&
           !(drop_prq = o.yes ()) && !o.no ())
       {
         {
           diag_record dr (text);
 
-          dr << "following prerequisite packages were automatically "
-             << "built and will no longer be necessary:";
+          dr << "following dependencies were automatically built but will "
+             << "no longer be used:";
 
           for (const drop_package& dp: pkgs)
           {
@@ -555,7 +549,7 @@ namespace bpkg
           }
         }
 
-        drop_prq = yn_prompt ("drop prerequisite packages? [Y/n]", 'y');
+        drop_prq = yn_prompt ("drop unused packages? [Y/n]", 'y');
 
         if (drop_prq)
           print_plan = true;
@@ -623,14 +617,14 @@ namespace bpkg
       {
         diag_record dr (text);
 
-        dr << "following prerequisite packages were automatically "
-           << "built and will no longer be necessary:";
+        dr << "following dependencies were automatically built but will "
+           << "no longer be used:";
 
         for (const drop_package& dp: pkgs)
           dr << text << dp.package->name;
       }
 
-      if (!yn_prompt ("drop prerequisite packages? [Y/n]", 'y'))
+      if (!yn_prompt ("drop unused packages? [Y/n]", 'y'))
         return {};
     }
 

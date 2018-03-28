@@ -32,9 +32,11 @@ namespace bpkg
      \h|DESCRIPTION|
 
      The \cb{pkg-build} command builds one or more packages including all
-     their prerequisites. Besides building new packages, this command is also
+     their dependencies. Besides building new packages, this command is also
      used to upgrade or downgrade packages that are already present in the
-     configuration.
+     configuration. And unless the \c{\b{--keep-unused}|\b{-K}} option is
+     specified, \cb{pkg-build} will also drop dependency packages that would
+     otherwise no longer be used.
 
      The first form (one or more packages are specified) builds new or
      upgrades (by default or if \cb{--upgrade} is specified) or patches (if
@@ -200,28 +202,22 @@ namespace bpkg
        \cb{install} or \cb{test}."
     }
 
-    bool --drop-prerequisite|-D
+    bool --keep-unused|-K
     {
-      "Drop without confirmation prerequsite packages that were automatically
-       built and will no longer be necessary."
-    }
-
-    bool --keep-prerequisite|-K
-    {
-      "Don't offer to drop prerequsite packages that were automatically built
-       and will no longer be necessary."
+      "Don't drop dependency packages that were automatically built but will no
+       longer be used."
     }
 
     bool --update-dependent|-U
     {
       "Update without confirmation dependent packages that are reconfigured
-       due to their prerequisites being upgraded or downgraded."
+       due to their dependencies being upgraded or downgraded."
     }
 
     bool --leave-dependent|-L
     {
       "Don't offer to update dependent packages that are reconfigured due to
-       their prerequisites being upgraded or downgraded."
+       their dependencies being upgraded or downgraded."
     }
 
     bool --configure-only|-c
