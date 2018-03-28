@@ -405,7 +405,7 @@ $* libfoo/1.0.0 2>>~%EOE% != 0
   {
     $clone_cfg && $pkg_build libbar;
 
-    $* libbar 2>>EOE
+    $* libbar --yes 2>>EOE
       disfigured libbar
       disfigured libfoo
       purged libbar

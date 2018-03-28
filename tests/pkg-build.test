@@ -630,7 +630,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
           info: or explicitly specify package libfoo version to manually satisfy these constraints
         EOE
 
-      $* libfoo/1.1.0 >'build libfoo/1.1.0';
+      $* libfoo/1.1.0 --keep-unused >'build libfoo/1.1.0';
 
       $pkg_disfigure libbar 2>'disfigured libbar/1.1.0';
       $pkg_purge     libbar 2>'purged libbar/1.1.0';
@@ -643,6 +643,8 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
   : dependent-reconfiguration
   :
   {
+    test.arguments += --keep-unused
+
     +$clone_root_cfg
 
     +$pkg_fetch -e $src/libfoo-1.0.0.tar.gz && $pkg_unpack libfoo
@@ -1008,12 +1010,12 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
 
     $* libbar 2>>~%EOE%;
       disfigured libbar/1.0.0
+      disfigured libfoo/1.0.0
+      purged libfoo/1.0.0
       %.*
       %.*fetched libbar/1.2.0%
       unpacked libbar/1.2.0
       configured libbar/1.2.0
-      disfigured libfoo
-      purged libfoo
       %info: .+dir\{libbar-1.2.0.\} is up to date%
       updated libbar/1.2.0
       EOE
@@ -1134,14 +1136,15 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       EOE
 
     $* libbar/1.2.0 <'y' 2>>~%EOE%;
+        drop libfoo/1.0.0 (unused)
         upgrade libbar/1.2.0
       continue? [Y/n] disfigured libbar/1.0.0
+      disfigured libfoo/1.0.0
+      purged libfoo/1.0.0
       %.*
       %.*fetched libbar/1.2.0%
       unpacked libbar/1.2.0
       configured libbar/1.2.0
-      disfigured libfoo
-      purged libfoo
       %info: .+ is up to date%
       updated libbar/1.2.0
       EOE

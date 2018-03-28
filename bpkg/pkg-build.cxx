@@ -394,126 +394,142 @@ namespace bpkg
       //
       if (i != map_.end ())
       {
-        const string& n (i->first);
-
-        // At the end we want p1 to point to the object that we keep
-        // and p2 to the object whose constraints we should copy.
-        //
-        build_package* p1 (&i->second.package);
-        build_package* p2 (&pkg);
+        build_package& bp (i->second.package);
 
         // Can't think of the scenario when this happens.
         //
-        assert (p1->action != build_package::drop);
+        assert (bp.action != build_package::drop);
 
-        if (p1->available_version () != p2->available_version ())
+        // If this is just a dependent reconfiguration then make it the
+        // package build, but propagate the need to reconfigure.
+        //
+        if (bp.action == build_package::reconf)
         {
-          using constraint_type = build_package::constraint_type;
+          bp = move (pkg);
+          bp.reconfigure_ = true;
+        }
+        else
+        {
+          const string& n (i->first);
 
-          // If the versions differ, we have to pick one. Start with the
-          // newest version since if both satisfy, then that's the one we
-          // should prefer. So get the first to try into p1 and the second
-          // to try -- into p2.
+          // At the end we want p1 to point to the object that we keep
+          // and p2 to the object whose constraints we should copy.
           //
-          if (p2->available_version () > p1->available_version ())
+          build_package* p1 (&bp);
+          build_package* p2 (&pkg);
+
+          if (p1->available_version () != p2->available_version ())
+          {
+            using constraint_type = build_package::constraint_type;
+
+            // If the versions differ, we have to pick one. Start with the
+            // newest version since if both satisfy, then that's the one we
+            // should prefer. So get the first to try into p1 and the second
+            // to try -- into p2.
+            //
+            if (p2->available_version () > p1->available_version ())
+              swap (p1, p2);
+
+            // See if pv's version satisfies pc's constraints. Return the
+            // pointer to the unsatisfied constraint or NULL if all are
+            // satisfied.
+            //
+            auto test = [] (build_package* pv, build_package* pc)
+              -> const constraint_type*
+              {
+                for (const constraint_type& c: pc->constraints)
+                  if (!satisfies (pv->available_version (), c.value))
+                    return &c;
+
+                return nullptr;
+              };
+
+            // First see if p1 satisfies p2's constraints.
+            //
+            if (auto c2 = test (p1, p2))
+            {
+              // If not, try the other way around.
+              //
+              if (auto c1 = test (p2, p1))
+              {
+                const string& d1 (c1->dependent);
+                const string& d2 (c2->dependent);
+
+                fail << "unable to satisfy constraints on package " << n <<
+                  info << d1 << " depends on (" << n << " " << c1->value
+                       << ")" <<
+                  info << d2 << " depends on (" << n << " " << c2->value
+                       << ")" <<
+                  info << "available " << p1->available_name_version () <<
+                  info << "available " << p2->available_name_version () <<
+                  info << "explicitly specify " << n << " version to manually "
+                       << "satisfy both constraints";
+              }
+              else
+                swap (p1, p2);
+            }
+
+            l4 ([&]{trace << "pick " << p1->available_name_version ()
+                          << " over " << p2->available_name_version ();});
+          }
+          // If versions are the same, then we still need to pick the entry as
+          // one of them can build a package from source while another
+          // configure a system package. We prefer a user-selected entry (if
+          // there is one). If none of them is user-selected we prefer a
+          // source package over a system one. Copy the constraints from the
+          // thrown aways entry to the selected one.
+          //
+          else if (p2->user_selection () ||
+                   (!p1->user_selection () && !p2->system))
             swap (p1, p2);
 
-          // See if pv's version satisfies pc's constraints. Return the
-          // pointer to the unsatisfied constraint or NULL if all are
-          // satisfied.
+          // See if we are replacing the object. If not, then we don't
+          // need to collect its prerequisites since that should have
+          // already been done. Remember, p1 points to the object we
+          // want to keep.
           //
-          auto test = [] (build_package* pv, build_package* pc)
-            -> const constraint_type*
+          bool replace (p1 != &i->second.package);
+
+          if (replace)
           {
-            for (const constraint_type& c: pc->constraints)
-              if (!satisfies (pv->available_version (), c.value))
-                return &c;
-
-            return nullptr;
-          };
-
-          // First see if p1 satisfies p2's constraints.
-          //
-          if (auto c2 = test (p1, p2))
-          {
-            // If not, try the other way around.
-            //
-            if (auto c1 = test (p2, p1))
-            {
-              const string& d1 (c1->dependent);
-              const string& d2 (c2->dependent);
-
-              fail << "unable to satisfy constraints on package " << n <<
-                info << d1 << " depends on (" << n << " " << c1->value << ")" <<
-                info << d2 << " depends on (" << n << " " << c2->value << ")" <<
-                info << "available " << p1->available_name_version () <<
-                info << "available " << p2->available_name_version () <<
-                info << "explicitly specify " << n << " version to manually "
-                   << "satisfy both constraints";
-            }
-            else
-              swap (p1, p2);
+            swap (*p1, *p2);
+            swap (p1, p2); // Setup for constraints copying below.
           }
 
-          l4 ([&]{trace << "pick " << p1->available_name_version ()
-                        << " over " << p2->available_name_version ();});
+          p1->constraints.insert (
+            p1->constraints.end (),
+            make_move_iterator (p2->constraints.begin ()),
+            make_move_iterator (p2->constraints.end ()));
+
+          p1->required_by.insert (p2->required_by.begin (),
+                                  p2->required_by.end ());
+
+          // Also copy hold_* flags if they are "stronger".
+          //
+          if (!p1->hold_package ||
+              (p2->hold_package && *p2->hold_package > *p1->hold_package))
+            p1->hold_package = p2->hold_package;
+
+          if (!p1->hold_version ||
+              (p2->hold_version && *p2->hold_version > *p1->hold_version))
+            p1->hold_version = p2->hold_version;
+
+          // Save the 'keep output directory' flag if specified by the user.
+          //
+          if (p2->user_selection () && p2->keep_out)
+            p1->keep_out = true;
+
+          // Note that we don't copy the build_package::system flag. If it was
+          // set from the command line ("strong system") then we will also
+          // have the '== 0' constraint which means that this build_package
+          // object will never be replaced.
+          //
+          // For other cases ("weak system") we don't want to copy system over
+          // in order not prevent, for example, system to non-system upgrade.
+
+          if (!replace)
+            return nullptr;
         }
-        // If versions are the same, then we still need to pick the entry as
-        // one of them can build a package from source while another configure
-        // a system package. We prefer a user-selected entry (if there is
-        // one). If none of them is user-selected we prefer a source package
-        // over a system one. Copy the constraints from the thrown aways entry
-        // to the selected one.
-        //
-        else if (p2->user_selection () ||
-                 (!p1->user_selection () && !p2->system))
-          swap (p1, p2);
-
-        // See if we are replacing the object. If not, then we don't
-        // need to collect its prerequisites since that should have
-        // already been done. Remember, p1 points to the object we
-        // want to keep.
-        //
-        bool replace (p1 != &i->second.package);
-
-        if (replace)
-        {
-          swap (*p1, *p2);
-          swap (p1, p2); // Setup for constraints copying below.
-        }
-
-        p1->constraints.insert (p1->constraints.end (),
-                                make_move_iterator (p2->constraints.begin ()),
-                                make_move_iterator (p2->constraints.end ()));
-
-        p1->required_by.insert (p2->required_by.begin (),
-                                p2->required_by.end ());
-
-        // Also copy hold_* flags if they are "stronger".
-        //
-        if (!p1->hold_package ||
-            (p2->hold_package && *p2->hold_package > *p1->hold_package))
-          p1->hold_package = p2->hold_package;
-
-        if (!p1->hold_version ||
-            (p2->hold_version && *p2->hold_version > *p1->hold_version))
-          p1->hold_version = p2->hold_version;
-
-        // Save the 'keep output directory' flag if specified by the user.
-        //
-        if (p2->user_selection () && p2->keep_out)
-          p1->keep_out = true;
-
-        // Note that we don't copy the build_package::system flag. If it was
-        // set from the command line ("strong system") then we will also have
-        // the '== 0' constraint which means that this build_package object
-        // will never be replaced.
-        //
-        // For other cases ("weak system") we don't want to copy system over
-        // in order not prevent, for example, system to non-system upgrade.
-
-        if (!replace)
-          return nullptr;
       }
       else
       {
@@ -536,7 +552,7 @@ namespace bpkg
     void
     collect_dropped (shared_ptr<selected_package> sp)
     {
-      string pn (sp->name);
+      string nm (sp->name);
 
       build_package p {
         build_package::drop,
@@ -551,12 +567,20 @@ namespace bpkg
         {},        // Required by.
         false};    // Reconfigure.
 
-      auto i (map_.find (pn));
+      auto i (map_.find (nm));
 
       if (i != map_.end ())
-        i->second.package = move (p);
+      {
+        build_package& bp (i->second.package);
+
+        // Can't think of the scenario when this happens.
+        //
+        assert (bp.action != build_package::build);
+
+        bp = move (p); // Overwrite the existing (possibly reconf) action.
+      }
       else
-        map_.emplace (move (pn), data_type {end (), move (p)});
+        map_.emplace (move (nm), data_type {end (), move (p)});
     }
 
     // Collect the package prerequisites recursively. But first "prune" this
@@ -883,7 +907,11 @@ namespace bpkg
       const shared_ptr<selected_package>& sp (p.selected);
       const shared_ptr<available_package>& ap (p.available);
 
-      assert (ap != nullptr); // No dependents allowed here.
+      bool build (p.action == build_package::build);
+
+      // Package build must always have the available package associated.
+      //
+      assert (!build || ap != nullptr);
 
       // Unless this package needs something to be before it, add it to
       // the end of the list.
@@ -907,17 +935,21 @@ namespace bpkg
       // map via another way. For example, some can be a part of the initial
       // selection. And in that case we must order things properly.
       //
-      if (p.action == build_package::build && !p.system)
+      // Note that we also need to order prerequisites of the dropped package,
+      // to disfigure it before its prerequisites.
+      //
+      if (!build || !p.system)
       {
         // So here we are going to do things differently depending on
         // whether the package is already configured or not. If it is and
         // not as a system package, then that means we can use its
         // prerequisites list. Otherwise, we use the manifest data.
         //
-        if (sp != nullptr &&
-            sp->state == package_state::configured &&
-            sp->substate != package_substate::system &&
-            sp->version == p.available_version ())
+        bool src_conf (sp != nullptr &&
+                       sp->state == package_state::configured &&
+                       sp->substate != package_substate::system);
+
+        if (src_conf && (!build || sp->version == p.available_version ()))
         {
           for (const auto& p: sp->prerequisites)
           {
@@ -949,6 +981,23 @@ namespace bpkg
               continue;
 
             update (order (d.name, false));
+          }
+
+          // If we end up ordering available package prerequisites, we still
+          // need to order the dropped prerequisites of the selected package
+          // to make sure that it is disfigured before these prerequisites.
+          //
+          if (src_conf)
+          {
+            for (const auto& p: sp->prerequisites)
+            {
+              const string& name (p.first.object_id ());
+              auto i (map_.find (name));
+
+              if (i != map_.end () &&
+                  i->second.package.action == build_package::drop)
+                update (order (name, false));
+            }
           }
         }
       }
@@ -988,7 +1037,7 @@ namespace bpkg
         // Prune if this is not a configured package being up/down-graded
         // or reconfigured.
         //
-        if (p.action == build_package::build && p.reconfigure ())
+        if (p.action != build_package::drop && p.reconfigure ())
           collect_order_dependents (db, i);
       }
     }
@@ -1089,6 +1138,8 @@ namespace bpkg
         {
           build_package& dp (i->second.package);
 
+          // Skip the droped package.
+          //
           if (dp.action == build_package::drop)
             continue;
 
@@ -1098,17 +1149,20 @@ namespace bpkg
 
           // Force reconfiguration in both cases.
           //
-          p.reconf = true;
-
-          if (i->second.position == end ())
+          if (dp.action == build_package::build)
           {
-            // Clean the build_package object up to make sure we don't
-            // inadvertently force up/down-grade.
-            //
-            dp.available = nullptr;
-            dp.repository = nullptr;
+            dp.reconfigure_ = true;
 
-            i->second.position = insert (pos, dp);
+            if (i->second.position == end ())
+            {
+              // Clean the build_package object up to make sure we don't
+              // inadvertently force up/down-grade.
+              //
+              dp.available = nullptr;
+              dp.repository = nullptr;
+
+              i->second.position = insert (pos, dp);
+            }
           }
         }
         else
@@ -1122,7 +1176,7 @@ namespace bpkg
             {
               end (),
               build_package {
-                build_package::build,
+                build_package::reconf,
                 move (dsp),
                 nullptr,
                 nullptr,
@@ -1132,7 +1186,7 @@ namespace bpkg
                 system,
                 false,          // Keep output directory.
                 {n},            // Required by.
-                true}           // Reconfigure.
+                false}          // Reconfigure.
             }).first;
 
           i->second.position = insert (pos, i->second.package);
@@ -1155,6 +1209,9 @@ namespace bpkg
     clear_order ()
     {
       build_package_list::clear ();
+
+      for (auto& p: map_)
+        p.second.position = end ();
     }
 
   private:
@@ -1307,7 +1364,7 @@ namespace bpkg
       set<shared_ptr<repository>> rps;
 
       auto pds (db.query<package_dependent> (
-                  query<package_dependent>::name == sp->name));
+                  query<package_dependent>::name == n));
 
       if (pds.empty ())
       {
@@ -2280,7 +2337,7 @@ namespace bpkg
             db.load<selected_package> (p.name));
 
           if (p.version.empty ())
-            pkgs.collect_dropped (sp);
+            pkgs.collect_dropped (move (sp));
           else
             assert (false); // @@ TMP
         }
@@ -2299,7 +2356,7 @@ namespace bpkg
         // appear (e.g., on the plan) last.
         //
         for (const dep_pkg& p: dep_pkgs)
-          pkgs.order (p.name);
+          pkgs.order (p.name, false);
 
         for (const build_package& p: reverse_iterate (hold_pkgs))
           pkgs.order (p.name ());
@@ -2354,9 +2411,7 @@ namespace bpkg
           if (auto sp = db.find<selected_package> (i->name))
           {
             if (optional<version> v = evaluate_dependency (db, sp))
-            {
               s = (i->version != *v);
-            }
             else
               s = (i->version != sp->version);
           }
@@ -2366,7 +2421,7 @@ namespace bpkg
           if (s)
           {
             scratch = true; // Rebuild the plan from scratch.
-            dep_pkgs.erase (i);
+            i = dep_pkgs.erase (i);
           }
           else
             ++i;
@@ -2378,9 +2433,12 @@ namespace bpkg
           //
           refine = false; // Presumably no more refinments necessary.
 
-          /*
-          for (shared_ptr<selected_package> sp = ...
-            <query all dependency (non-held) packages in the database>)
+          using query = query<selected_package>;
+
+          for (shared_ptr<selected_package> sp:
+                 pointer_result (
+                   db.query<selected_package> (query::state == "configured" &&
+                                               !query::hold_package)))
           {
             if (optional<version> v = evaluate_dependency (db, sp))
             {
@@ -2393,7 +2451,6 @@ namespace bpkg
               refine = true;
             }
           }
-          */
         }
 
         // Rollback the changes to the database and reload the changed
@@ -2472,104 +2529,97 @@ namespace bpkg
 
     if (o.print_only () || !o.yes ())
     {
-      auto add_action = [&o, &plan] (const string& act)
+      for (const build_package& p: reverse_iterate (pkgs))
       {
+        const shared_ptr<selected_package>& sp (p.selected);
+
+        string act;
+
+        if (p.action == build_package::drop)
+        {
+          act = "drop " + sp->string () + " (unused)";
+          print_plan = true;
+        }
+        else
+        {
+          string cause;
+          if (p.action == build_package::reconf)
+          {
+            // This is a dependent needing reconfiguration.
+            //
+            // This is an implicit reconfiguration which requires the plan to
+            // be printed. Will flag that later when composing the list of
+            // prerequisites.
+            //
+            assert (sp != nullptr && p.reconfigure ());
+            update_dependents = true;
+            act = "reconfigure " + sp->name;
+            cause = "dependent of";
+          }
+          else
+          {
+            // Even if we already have this package selected, we have to
+            // make sure it is configured and updated.
+            //
+            if (sp == nullptr)
+              act = p.system ? "configure " : "build ";
+            else if (sp->version == p.available_version ())
+            {
+              // If this package is already configured and is not part of the
+              // user selection, then there is nothing we will be explicitly
+              // doing with it (it might still get updated indirectly as part
+              // of the user selection update).
+              //
+              if (!p.reconfigure () &&
+                  sp->state == package_state::configured &&
+                  !p.user_selection ())
+                continue;
+
+              act = p.system
+                ? "reconfigure "
+                : p.reconfigure ()
+                ? "reconfigure/build "
+                : "build ";
+            }
+            else
+            {
+              act = p.system
+                ? "reconfigure "
+                : sp->version < p.available_version ()
+                                ? "upgrade "
+                                : "downgrade ";
+
+              print_plan = true;
+            }
+
+            act += p.available_name_version ();
+            cause = "required by";
+          }
+
+          string rb;
+          if (!p.user_selection ())
+          {
+            for (const string& n: p.required_by)
+              rb += ' ' + n;
+
+            // If not user-selected, then there should be another (implicit)
+            // reason for the action.
+            //
+            assert (!rb.empty ());
+
+            print_plan = true;
+          }
+
+          if (!rb.empty ())
+            act += " (" + cause + rb + ')';
+        }
+
         if (o.print_only ())
           cout << act << endl;
         else if (verb)
           // Print indented for better visual separation.
           //
           plan += (plan.empty () ? "  " : "\n  ") + act;
-      };
-
-      for (const build_package& p: reverse_iterate (pkgs))
-      {
-        if (p.action == build_package::drop)
-          continue;
-
-        const shared_ptr<selected_package>& sp (p.selected);
-
-        string act;
-        string cause;
-        if (p.available == nullptr)
-        {
-          // This is a dependent needing reconfiguration.
-          //
-          // This is an implicit reconfiguration which requires the plan to be
-          // printed. Will flag that later when composing the list of
-          // prerequisites.
-          //
-          assert (sp != nullptr && p.reconfigure ());
-          update_dependents = true;
-          act = "reconfigure " + sp->name;
-          cause = "dependent of";
-        }
-        else
-        {
-          // Even if we already have this package selected, we have to
-          // make sure it is configured and updated.
-          //
-          if (sp == nullptr)
-            act = p.system ? "configure " : "build ";
-          else if (sp->version == p.available_version ())
-          {
-            // If this package is already configured and is not part of the
-            // user selection, then there is nothing we will be explicitly
-            // doing with it (it might still get updated indirectly as part
-            // of the user selection update).
-            //
-            if (!p.reconfigure () &&
-                sp->state == package_state::configured &&
-                !p.user_selection ())
-              continue;
-
-            act = p.system
-              ? "reconfigure "
-              : p.reconfigure ()
-                ? "reconfigure/build "
-                : "build ";
-          }
-          else
-          {
-            act = p.system
-              ? "reconfigure "
-              : sp->version < p.available_version ()
-                ? "upgrade "
-                : "downgrade ";
-
-            print_plan = true;
-          }
-
-          act += p.available_name_version ();
-          cause = "required by";
-        }
-
-        string rb;
-        if (!p.user_selection ())
-        {
-          for (const string& n: p.required_by)
-            rb += ' ' + n;
-
-          // If not user-selected, then there should be another (implicit)
-          // reason for the action.
-          //
-          assert (!rb.empty ());
-
-          print_plan = true;
-        }
-
-        if (!rb.empty ())
-          act += " (" + cause + rb + ')';
-
-        add_action (act);
-      }
-
-      //@@ Merge into previous loop.
-      //
-      for (const build_package& p: reverse_iterate (pkgs))
-      {
-        if (p.action == build_package::drop)
-          add_action ("drop " + p.selected->string () + " (unused)");
       }
     }
 
@@ -2633,6 +2683,9 @@ namespace bpkg
     //
     for (const build_package& p: reverse_iterate (pkgs))
     {
+      if (p.action == build_package::drop)
+        continue;
+
       const shared_ptr<selected_package>& sp (p.selected);
 
       if (!sp->system () && // System package doesn't need update.
@@ -2647,12 +2700,13 @@ namespace bpkg
     {
       for (const build_package& p: reverse_iterate (pkgs))
       {
+        if (p.action == build_package::drop)
+          continue;
+
         const shared_ptr<selected_package>& sp (p.selected);
 
         if (p.reconfigure () && p.available == nullptr)
-        {
           upkgs.push_back (pkg_command_vars {sp, strings ()});
-        }
       }
     }
 
@@ -2683,7 +2737,7 @@ namespace bpkg
       // We are only interested in configured packages that are either being
       // up/down-graded, need reconfiguration (e.g., dependents), or dropped.
       //
-      if (p.action == build_package::build && !p.reconfigure ())
+      if (p.action != build_package::drop && !p.reconfigure ())
         continue;
 
       shared_ptr<selected_package>& sp (p.selected);
@@ -3027,6 +3081,9 @@ namespace bpkg
     //
     for (const build_package& p: reverse_iterate (build_pkgs))
     {
+      if (p.action == build_package::drop)
+        continue;
+
       const shared_ptr<selected_package>& sp (p.selected);
       assert (sp != nullptr);
 
