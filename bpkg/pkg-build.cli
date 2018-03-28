@@ -171,6 +171,29 @@ namespace bpkg
       "Also upgrade or patch all dependencies, recursively."
     }
 
+    // Sometimes we may want to upgrade/patch the package itself but to
+    // patch/upgrade its dependencies.
+    //
+    bool --upgrade-immediate
+    {
+      "Upgrade immediate dependencies."
+    }
+
+    bool --patch-immediate
+    {
+      "Patch immediate dependencies."
+    }
+
+    bool --upgrade-recursive
+    {
+      "Upgrade all dependencies, recursively."
+    }
+
+    bool --patch-recursive
+    {
+      "Patch all dependencies, recursively."
+    }
+
     bool --dependency
     {
       "Build, upgrade, or downgrade a package as a dependency rather than to
