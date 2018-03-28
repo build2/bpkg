@@ -235,7 +235,19 @@ namespace bpkg
 
       // Selected package is not NULL, available package is NULL.
       //
-      drop
+      drop,
+
+      // Selected package is not NULL, available package is NULL.
+      //
+      // This is "just reconfigure" action for a dependent package that needs
+      // to be reconfigured because its prerequisite is being up/down-graded
+      // or reconfigured.
+      //
+      // Note that this action is "replaceable" with either drop or build
+      // action but in the latter case the reconfigure_ flag must be set to
+      // true.
+      //
+      reconf
 
     } action;
 
@@ -288,41 +300,39 @@ namespace bpkg
     //
     set<string> required_by;
 
-    // True if we need to reconfigure this package. If available package
-    // is NULL, then reconfigure must be true (this is a dependent that
-    // needs to be reconfigured because its prerequisite is being up/down-
-    // graded or reconfigured). Note that in some cases reconfigure is
-    // naturally implied. For example, if an already configured package
-    // is being up/down-graded. For such cases we don't guarantee that
-    // the reconfigure flag is true. We only make sure to set it for
-    // cases that would otherwise miss the need for the reconfiguration.
-    // As a result, use the reconfigure() accessor which detects both
-    // explicit and implied cases.
-    //
-    // At first, it may seem that this flag is redundant and having the
-    // available package set to NULL is sufficient. But consider the case
-    // where the user asked us to build a package that is already in the
-    // configured state (so all we have to do is pkg-update). Next, add
-    // to this a prerequisite package that is being upgraded. Now our
-    // original package has to be reconfigured. But without this flag
-    // we won't know (available for our package won't be NULL).
-    //
-    bool reconf;
-
     bool
     user_selection () const
     {
       return required_by.find ("") != required_by.end ();
     }
 
+    // True if we also need to reconfigure this package. Note that in some
+    // cases reconfigure is naturally implied. For example, if an already
+    // configured package is being up/down-graded. For such cases we don't
+    // guarantee that the reconfigure flag is true. We only make sure to set
+    // it for cases that would otherwise miss the need for the
+    // reconfiguration. As a result, use the reconfigure() accessor which
+    // detects both explicit and implied cases.
+    //
+    // At first, it may seem that this flag is redundant and having the
+    // available package set to NULL is sufficient. But consider the case
+    // where the user asked us to build a package that is already in the
+    // configured state (so all we have to do is pkg-update). Next, add to
+    // this a prerequisite package that is being upgraded. Now our original
+    // package has to be reconfigured. But without this flag we won't know
+    // (available for our package won't be NULL).
+    //
+    bool reconfigure_;
+
     bool
     reconfigure () const
     {
-      assert (action == build);
+      assert (action != drop);
 
       return selected != nullptr &&
         selected->state == package_state::configured &&
-        (reconf || // Must be checked first, available could be NULL.
+        (action == reconf ||
+         reconfigure_     || // Must be checked first, available could be NULL.
          selected->system () != system ||
          selected->version != available_version ());
     }
