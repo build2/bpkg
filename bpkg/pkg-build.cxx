@@ -2519,16 +2519,19 @@ namespace bpkg
     //
     bool update_dependents (false);
 
-    // Print the plan and ask for the user's confirmation only if some implicit
-    // action (such as building prerequisite or reconfiguring dependent
-    // package) to be taken or there is a selected package which version must
-    // be changed.
+    // We need the plan and to ask for the user's confirmation only if some
+    // implicit action (such as building prerequisite or reconfiguring
+    // dependent package) to be taken or there is a selected package which
+    // version must be changed. But if the user explicitly requested it with
+    // --plan, then we print it as long as it is not empty.
     //
     string plan;
-    bool print_plan (false);
+    bool need_prompt (false);
 
-    if (o.print_only () || !o.yes ())
+    if (o.print_only () || !o.yes () || o.plan_specified ())
     {
+      bool first (true); // First entry in the plan.
+
       for (const build_package& p: reverse_iterate (pkgs))
       {
         const shared_ptr<selected_package>& sp (p.selected);
@@ -2538,7 +2541,7 @@ namespace bpkg
         if (p.action == build_package::drop)
         {
           act = "drop " + sp->string () + " (unused)";
-          print_plan = true;
+          need_prompt = true;
         }
         else
         {
@@ -2552,9 +2555,11 @@ namespace bpkg
             // prerequisites.
             //
             assert (sp != nullptr && p.reconfigure ());
-            update_dependents = true;
             act = "reconfigure " + sp->name;
             cause = "dependent of";
+
+            if (!o.configure_only ())
+              update_dependents = true;
           }
           else
           {
@@ -2566,13 +2571,13 @@ namespace bpkg
             else if (sp->version == p.available_version ())
             {
               // If this package is already configured and is not part of the
-              // user selection, then there is nothing we will be explicitly
-              // doing with it (it might still get updated indirectly as part
-              // of the user selection update).
+              // user selection (or we are only configuring), then there is
+              // nothing we will be explicitly doing with it (it might still
+              // get updated indirectly as part of the user selection update).
               //
               if (!p.reconfigure () &&
                   sp->state == package_state::configured &&
-                  !p.user_selection ())
+                  (!p.user_selection () || o.configure_only ()))
                 continue;
 
               act = p.system
@@ -2589,7 +2594,7 @@ namespace bpkg
                                 ? "upgrade "
                                 : "downgrade ";
 
-              print_plan = true;
+              need_prompt = true;
             }
 
             act += p.available_name_version ();
@@ -2607,16 +2612,31 @@ namespace bpkg
             //
             assert (!rb.empty ());
 
-            print_plan = true;
+            need_prompt = true;
           }
 
           if (!rb.empty ())
             act += " (" + cause + rb + ')';
         }
 
+        if (first)
+        {
+          // If the plan header is not empty, now is the time to print it.
+          //
+          if (!o.plan ().empty ())
+          {
+            if (o.print_only ())
+              cout << o.plan () << endl;
+            else
+              plan += o.plan ();
+          }
+
+          first = false;
+        }
+
         if (o.print_only ())
           cout << act << endl;
-        else if (verb)
+        else
           // Print indented for better visual separation.
           //
           plan += (plan.empty () ? "  " : "\n  ") + act;
@@ -2626,17 +2646,17 @@ namespace bpkg
     if (o.print_only ())
       return 0;
 
-    if (print_plan)
+    if (need_prompt || (o.plan_specified () && !plan.empty ()))
       text << plan;
 
     // Ask the user if we should continue.
     //
-    if (!(o.yes () || !print_plan || yn_prompt ("continue? [Y/n]", 'y')))
+    if (!(o.yes () || !need_prompt || yn_prompt ("continue? [Y/n]", 'y')))
       return 1;
 
     // Figure out if we also should update dependents.
     //
-    if (o.leave_dependent () || o.configure_only ())
+    if (o.leave_dependent ())
       update_dependents = false;
     else if (o.yes () || o.update_dependent ())
       update_dependents = true;

@@ -254,6 +254,13 @@ namespace bpkg
        anything."
     }
 
+    string --plan
+    {
+      "<header>",
+      "Print the plan (even if \cb{--yes} is specified) and start it with the
+       <header> line (unless it is empty)."
+    };
+
     bool --no-fetch
     {
       "Don't fetch repositories specified as part of the build command."
