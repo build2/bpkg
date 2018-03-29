@@ -60,14 +60,14 @@ else
   $pkg_status style-basic | sed -n -e 's/style-basic available \[.+\] ([^ ]+)/\1/p' | set v;
 
   $* "style-basic/$v" 2>>"EOE";
-  dist style-basic-$v
+  distributing style-basic/$v
   checked out style-basic/$v
   EOE
 
   $pkg_configure style-basic;
 
   $* libmbar/1.0.0 2>>EOE;
-  dist libmbar-1.0.0
+  distributing libmbar/1.0.0
   checked out libmbar/1.0.0
   EOE
 

@@ -79,6 +79,10 @@ namespace bpkg
   void
   clean_tmp (bool ignore_errors);
 
+  // Progress.
+  //
+  extern bool stderr_term; // True if stderr is a terminal.
+
   // Y/N prompt. The def argument, if specified, should be either 'y'
   // or 'n'. It is used as the default answer, in case the user just
   // hits enter. Issue diagnostics and throw failed if no answer could
@@ -157,11 +161,20 @@ namespace bpkg
   const char*
   name_b (const common_options&);
 
+  // Verbosity level 1 mapping.
+  //
+  enum class verb_b
+  {
+    quiet,    // Run quiet.
+    progress, // Run quiet but (potentially) with progress.
+    normal    // Run normally (at verbosity 1).
+  };
+
   void
   run_b (const common_options&,
          const dir_path& configuration,
          const string& buildspec,
-         bool quiet = false,
+         verb_b = verb_b::normal,
          const strings& pvars = strings (),
          const strings& cvars = strings ());
 }

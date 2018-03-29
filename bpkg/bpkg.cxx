@@ -47,6 +47,7 @@
 #include <bpkg/rep-remove.hxx>
 
 using namespace std;
+using namespace butl;
 using namespace bpkg;
 
 // Get -d|--directory value if the option class O has it and empty path
@@ -139,6 +140,7 @@ try
 {
   using namespace cli;
 
+  stderr_term = fdterm (stderr_fd ());
   exec_dir = path (argv[0]).directory ();
 
   // This is a little hack to make our baseutils for Windows work when called

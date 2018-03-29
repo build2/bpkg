@@ -82,6 +82,8 @@ namespace bpkg
     }
   }
 
+  bool stderr_term;
+
   bool
   yn_prompt (const char* prompt, char def)
   {
@@ -323,7 +325,7 @@ namespace bpkg
   run_b (const common_options& co,
          const dir_path& c,
          const string& bspec,
-         bool quiet,
+         verb_b v,
          const strings& pvars,
          const strings& cvars)
   {
@@ -334,11 +336,22 @@ namespace bpkg
     // as us.
     //
     string vl;
-    if (verb <= (quiet ? 1 : 0))
+
+    if (verb == 0)
       args.push_back ("-q");
+    else if (verb == 1)
+    {
+      if (v != verb_b::normal)
+      {
+        args.push_back ("-q");
+
+        if (v == verb_b::progress && stderr_term)
+          args.push_back ("--progress");
+      }
+    }
     else if (verb == 2)
       args.push_back ("-v");
-    else if (verb > 2)
+    else
     {
       vl = to_string (verb);
       args.push_back ("--verbose");

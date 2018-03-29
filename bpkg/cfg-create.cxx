@@ -77,7 +77,7 @@ namespace bpkg
     run_b (o,
            c,
            "create('" + c.representation () + "'" + mods + ")",
-           true,
+           verb_b::quiet,
            vars);
 
     // Create .bpkg/ and its subdirectories.

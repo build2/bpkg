@@ -1859,10 +1859,10 @@ else
     $rep_fetch &cfg/.bpkg/repos/*/***;
 
     $* libmbar 2>>~%EOE%;
-      %dist style-basic-.+%
+      %distributing style-basic/.+%
       %checked out style-basic/.+%
       %configured style-basic/.+%
-      dist libmbar-1.0.0
+      distributing libmbar/1.0.0
       checked out libmbar/1.0.0
       configured libmbar/1.0.0
       %info: .+dir\{libmbar-.+\} is up to date%
@@ -1889,10 +1889,10 @@ else
     $rep_fetch &cfg/.bpkg/repos/*/***;
 
     $* libbaz 2>>~%EOE%;
-      %dist style-basic-.+%
+      %distributing style-basic/.+%
       %checked out style-basic/.+%
       %configured style-basic/.+%
-      dist libbaz-1.0.0
+      distributing libbaz/1.0.0
       checked out libbaz/1.0.0
       configured libbaz/1.0.0
       %info: .+dir\{libbaz-.+\} is up to date%

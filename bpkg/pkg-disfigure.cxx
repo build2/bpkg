@@ -126,7 +126,7 @@ namespace bpkg
           if (clean && p->external ())
             rm_r (out_root);
           else
-            run_b (o, c, bspec, true); // Run quiet.
+            run_b (o, c, bspec, verb_b::quiet);
         }
 
         // Make sure the out directory is gone unless it is the same as src,

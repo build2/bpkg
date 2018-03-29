@@ -156,18 +156,27 @@ namespace bpkg
 
       // Distribute.
       //
-      // Note that on failure the package stays in the existing (working) state.
+      // Note that on failure the package stays in the existing (working)
+      // state.
       //
       // At first it may seem we have a problem: an existing package with the
       // same name will cause a conflict since we now have multiple package
-      // locations for the same package name. We are luck, however: subprojects
-      // are only loaded if used and since we don't support dependency cycles,
-      // the existing project should never be loaded by any of our dependencies.
+      // locations for the same package name. We are lucky, however:
+      // subprojects are only loaded if used and since we don't support
+      // dependency cycles, the existing project should never be loaded by any
+      // of our dependencies.
       //
+
+      // At verbosity level 1 we want our (nicer) progress header but the
+      // build system's actual progress.
+      //
+      if (verb == 1)
+        text << "distributing " << n << '/' << v;
+
       run_b (o,
              c,
              bspec,
-             false /* quiet */,
+             verb_b::progress,
              strings ({"config.dist.root=" + c.representation ()}));
 
       mc = sha256 (o, d / manifest_file);

@@ -162,7 +162,7 @@ namespace bpkg
       //
       try
       {
-        run_b (o, c, bspec, true, vars); // Run quiet.
+        run_b (o, c, bspec, verb_b::quiet, vars);
       }
       catch (const failed&)
       {

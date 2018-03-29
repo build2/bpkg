@@ -39,7 +39,7 @@ namespace bpkg
       {
         bspec += ')';
         l4 ([&]{trace << "buildspec: " << bspec;});
-        run_b (o, c, bspec, false, vars, cvars);
+        run_b (o, c, bspec, verb_b::normal, vars, cvars);
         bspec.clear ();
       }
     };
