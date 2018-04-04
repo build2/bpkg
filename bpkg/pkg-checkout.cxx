@@ -59,13 +59,7 @@ namespace bpkg
       }
     }
 
-    if (db.query_value<repository_count> () == 0)
-      fail << "configuration " << c << " has no repositories" <<
-        info << "use 'bpkg rep-add' to add a repository";
-
-    if (db.query_value<available_package_count> () == 0)
-      fail << "configuration " << c << " has no available packages" <<
-        info << "use 'bpkg rep-fetch' to fetch available packages list";
+    check_any_available (c, t);
 
     // Note that here we compare including the revision (see pkg-fetch()
     // implementation for more details).

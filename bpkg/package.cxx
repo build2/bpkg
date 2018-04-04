@@ -9,6 +9,7 @@
 
 #include <bpkg/database.hxx>
 #include <bpkg/checksum.hxx>
+#include <bpkg/diagnostics.hxx>
 #include <bpkg/manifest-utility.hxx>
 
 using namespace std;
@@ -145,26 +146,63 @@ namespace bpkg
     return result ();
   }
 
-  vector<shared_ptr<available_package>>
+  vector<pair<shared_ptr<available_package>, shared_ptr<repository>>>
   filter (const vector<shared_ptr<repository>>& rps,
           odb::result<available_package>&& apr,
           bool prereq)
   {
-    vector<shared_ptr<available_package>> aps;
+    vector<pair<shared_ptr<available_package>, shared_ptr<repository>>> aps;
 
     for (shared_ptr<available_package> ap: pointer_result (apr))
     {
       for (const shared_ptr<repository> r: rps)
       {
-        if (filter (r, ap, prereq) != nullptr)
+        shared_ptr<repository> ar (filter (r, ap, prereq));
+
+        if (ar != nullptr)
         {
-          aps.push_back (move (ap));
+          aps.emplace_back (move (ap), move (ar));
           break;
         }
       }
     }
 
     return aps;
+  }
+
+  void
+  check_any_available (const dir_path& c,
+                       transaction& t,
+                       const diag_record* dr)
+  {
+    database& db (t.database ());
+
+    if (db.query_value<repository_count> () == 0)
+    {
+      diag_record d;
+      (dr != nullptr ? *dr << info : d << fail)
+        << "configuration " << c << " has no repositories" <<
+        info << "use 'bpkg rep-add' to add a repository";
+    }
+    else if (db.query_value<available_package_count> () == 0)
+    {
+      diag_record d;
+      (dr != nullptr ? *dr << info : d << fail)
+        << "configuration " << c << " has no available packages" <<
+        info << "use 'bpkg rep-fetch' to fetch available packages list";
+    }
+  }
+
+  string
+  package_string (const string& n, const version& v, bool system)
+  {
+    string vs (v.empty ()
+               ? string ()
+               : v == wildcard_version
+                 ? "/*"
+                 : '/' + v.string ());
+
+    return system ? "sys:" + n + vs : n + vs;
   }
 
   // selected_package

@@ -20,6 +20,8 @@
 #include <bpkg/forward.hxx> // transaction
 #include <bpkg/utility.hxx>
 
+#include <bpkg/diagnostics.hxx>
+
 #pragma db model version(4, 4, open)
 
 namespace bpkg
@@ -233,8 +235,10 @@ namespace bpkg
   // Note that the type() call fails for an empty repository location.
   //
   #pragma db map type(repository_location) as(_repository_location) \
-    to({(?).url (),                                                 \
-        (?).empty () ? bpkg::repository_type::pkg : (?).type ()})  \
+    to(bpkg::_repository_location {(?).url (),                      \
+                                   (?).empty ()                     \
+                                   ? bpkg::repository_type::pkg     \
+                                   : (?).type ()})                  \
     from(bpkg::repository_location (std::move ((?).url), (?).type))
 
   // repository
@@ -512,10 +516,19 @@ namespace bpkg
           const shared_ptr<available_package>&,
           bool prereq = true);
 
-  vector<shared_ptr<available_package>>
+  vector<pair<shared_ptr<available_package>, shared_ptr<repository>>>
   filter (const vector<shared_ptr<repository>>&,
           odb::result<available_package>&&,
           bool prereq = true);
+
+  // Check if there are packages available in the configuration. If that's not
+  // the case then print the info message into the diag record or, if it is
+  // NULL, print the error message and fail.
+  //
+  void
+  check_any_available (const dir_path& configuration,
+                       transaction&,
+                       const diag_record* = nullptr);
 
   // package_state
   //
@@ -564,6 +577,13 @@ namespace bpkg
 
   // package
   //
+  // Return the package name in the [sys:]<name>[/<version>] form. The version
+  // component is represented with the "/*" string for the wildcard version and
+  // is omitted for the empty one.
+  //
+  string
+  package_string (const string& name, const version&, bool system = false);
+
   // A map of "effective" prerequisites (i.e., pointers to other selected
   // packages) to optional dependency constraint. Note that because it is a
   // single constraint, we don't support multiple dependencies on the same
@@ -677,10 +697,7 @@ namespace bpkg
     version_string () const;
 
     std::string
-    string () const
-    {
-      return (system () ? "sys:" : "") + name + "/" + version_string ();
-    }
+    string () const {return package_string (name, version, system ());}
 
     // Return the relative source directory completed using the configuration
     // directory. Return the absolute source directory as is.
@@ -688,7 +705,9 @@ namespace bpkg
     dir_path
     effective_src_root (const dir_path& configuration) const
     {
-      assert (src_root);
+      // Cast for compiling with ODB (see above).
+      //
+      assert (static_cast<bool> (src_root));
       return src_root->absolute () ? *src_root : configuration / *src_root;
     }
 
@@ -698,7 +717,9 @@ namespace bpkg
     dir_path
     effective_out_root (const dir_path& configuration) const
     {
-      assert (out_root);
+      // Cast for compiling with ODB (see above).
+      //
+      assert (static_cast<bool> (out_root));
       return configuration / *out_root;
     }
 
@@ -714,9 +735,6 @@ namespace bpkg
     selected_package () = default;
   };
 
-  // Print the package name, version and the 'sys:' prefix for the system
-  // substate. The wildcard version is represented with the "*" string.
-  //
   inline ostream&
   operator<< (ostream& os, const selected_package& p)
   {

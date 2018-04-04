@@ -207,7 +207,7 @@ namespace bpkg
   // initial selection.
   //
   // This process is split into two phases: satisfaction of all the
-  // dependencies (the collect() function) and ordering of the list
+  // dependencies (the collect_build() function) and ordering of the list
   // (the order() function).
   //
   // During the satisfaction phase, we collect all the packages, their
@@ -229,7 +229,7 @@ namespace bpkg
   //
   struct build_package
   {
-    enum
+    enum action_type
     {
       build,
 
@@ -239,17 +239,22 @@ namespace bpkg
 
       // Selected package is not NULL, available package is NULL.
       //
-      // This is "just reconfigure" action for a dependent package that needs
-      // to be reconfigured because its prerequisite is being up/down-graded
-      // or reconfigured.
+      // This is the "only adjustments" action for a selected package.
+      // Adjustment flags (see below) are unhold (the package should be
+      // treated as a dependency) and reconfigure (dependent package that
+      // needs to be reconfigured because its prerequisite is being
+      // up/down-graded or reconfigured).
       //
       // Note that this action is "replaceable" with either drop or build
-      // action but in the latter case the reconfigure_ flag must be set to
-      // true.
+      // action but in the latter case the adjustments must be copied over.
       //
-      reconf
+      adjust
+    };
 
-    } action;
+    // An object with an absent action is there to "pre-enter" information
+    // about a package (constraints and flags) in case it is used.
+    //
+    optional<action_type> action;
 
     shared_ptr<selected_package>  selected;   // NULL if not selected.
     shared_ptr<available_package> available;  // Can be NULL, fake/transient.
@@ -284,8 +289,7 @@ namespace bpkg
 
     vector<constraint_type> constraints;
 
-    // System package indicator. See also a note in collect()'s constraint
-    // merging code.
+    // System package indicator. See also a note in the merge() function.
     //
     bool system;
 
@@ -295,8 +299,8 @@ namespace bpkg
     //
     bool keep_out;
 
-    // Set of package names that caused this package to be built. Empty
-    // name signifies user selection.
+    // Set of package names that caused this package to be built or adjusted.
+    // Empty name signifies user selection.
     //
     set<string> required_by;
 
@@ -306,13 +310,27 @@ namespace bpkg
       return required_by.find ("") != required_by.end ();
     }
 
-    // True if we also need to reconfigure this package. Note that in some
+    // Adjustment flags.
+    //
+    uint16_t adjustments;
+
+    // Set if we also need to clear the hold package flag.
+    //
+    static const uint16_t adjust_unhold = 0x0001;
+
+    bool
+    unhold () const
+    {
+      return (adjustments & adjust_unhold) != 0;
+    }
+
+    // Set if we also need to reconfigure this package. Note that in some
     // cases reconfigure is naturally implied. For example, if an already
     // configured package is being up/down-graded. For such cases we don't
-    // guarantee that the reconfigure flag is true. We only make sure to set
-    // it for cases that would otherwise miss the need for the
-    // reconfiguration. As a result, use the reconfigure() accessor which
-    // detects both explicit and implied cases.
+    // guarantee that the reconfigure flag is set. We only make sure to set it
+    // for cases that would otherwise miss the need for reconfiguration. As a
+    // result, use the reconfigure() predicate which detects both explicit and
+    // implied cases.
     //
     // At first, it may seem that this flag is redundant and having the
     // available package set to NULL is sufficient. But consider the case
@@ -322,19 +340,19 @@ namespace bpkg
     // package has to be reconfigured. But without this flag we won't know
     // (available for our package won't be NULL).
     //
-    bool reconfigure_;
+    static const uint16_t adjust_reconfigure = 0x0002;
 
     bool
     reconfigure () const
     {
-      assert (action != drop);
+      assert (action && *action != drop);
 
       return selected != nullptr &&
         selected->state == package_state::configured &&
-        (action == reconf ||
-         reconfigure_     || // Must be checked first, available could be NULL.
-         selected->system () != system ||
-         selected->version != available_version ());
+        ((adjustments & adjust_reconfigure) != 0 ||
+         (*action == build &&
+          (selected->system () != system ||
+           selected->version != available_version ())));
     }
 
     const version&
@@ -354,13 +372,64 @@ namespace bpkg
     available_name_version () const
     {
       assert (available != nullptr);
+      return package_string (available->id.name, available_version (), system);
+    }
 
-      const version& v (available_version ());
-      string vs (v == wildcard_version ? "/*" : "/" + v.string ());
+    // Merge constraints, required-by package names, hold_* flags,
+    // adjustments, and user-specified options.
+    //
+    void
+    merge (build_package&& p)
+    {
+      // We don't merge into pre-entered objects, and from/into drops.
+      //
+      assert (action && *action != drop && (!p.action || *p.action != drop));
 
-      return system
-        ? "sys:" + available->id.name + vs
-        : available->id.name + vs;
+      // Copy the user-specified options.
+      //
+      if (p.user_selection ())
+      {
+        if (p.keep_out)
+          keep_out = p.keep_out;
+
+        required_by.insert (""); // Propagate the user-selection tag.
+      }
+
+      // Required-by package names have different semantics for different
+      // actions: dependent for builds and prerequisite for adjustment. Mixing
+      // them would break prompts/diagnostics, so we copy them only if actions
+      // match.
+      //
+      if (p.action && *p.action == *action)
+        required_by.insert (p.required_by.begin (), p.required_by.end ());
+
+      // Copy constraints.
+      //
+      // Note that we may duplicate them, but this is harmless.
+      //
+      constraints.insert (constraints.end (),
+                          make_move_iterator (p.constraints.begin ()),
+                          make_move_iterator (p.constraints.end ()));
+
+      // Copy hold_* flags if they are "stronger".
+      //
+      if (!hold_package || (p.hold_package && *p.hold_package > *hold_package))
+        hold_package = p.hold_package;
+
+      if (!hold_version || (p.hold_version && *p.hold_version > *hold_version))
+        hold_version = p.hold_version;
+
+      // Copy adjustments flags.
+      //
+      adjustments |= p.adjustments;
+
+      // Note that we don't copy the build_package::system flag. If it was
+      // set from the command line ("strong system") then we will also have
+      // the '==' constraint which means that this build_package object will
+      // never be replaced.
+      //
+      // For other cases ("weak system") we don't want to copy system over in
+      // order not prevent, for example, system to non-system upgrade.
     }
   };
 
@@ -368,52 +437,74 @@ namespace bpkg
 
   struct build_packages: build_package_list
   {
-    // Collect the package. Return its pointer if this package version was, in
-    // fact, added to the map and NULL if it was already there or the existing
-    // version was preferred. So can be used as bool.
+    // Packages collection of whose prerequisites has been postponed due the
+    // inability to find a version satisfying the pre-entered constraint from
+    // repositories available to this package. The idea is that this
+    // constraint could still be satisfied from a repository of some other
+    // package (that we haven't processed yet) that also depends on this
+    // prerequisite.
+    //
+    using postponed_packages = set<const build_package*>;
+
+    // Pre-enter a build_package without an action. No entry for this package
+    // may already exists.
+    //
+    void
+    enter (string name, build_package pkg)
+    {
+      assert (!pkg.action);
+
+      auto p (map_.emplace (move (name), data_type {end (), move (pkg)}));
+      assert (p.second);
+    }
+
+    // Collect the package being built. Return its pointer if this package
+    // version was, in fact, added to the map and NULL if it was already there
+    // or the existing version was preferred. So can be used as bool.
     //
     build_package*
-    collect (const common_options& options,
-             const dir_path& cd,
-             database& db,
-             build_package pkg,
-             bool recursively)
+    collect_build (const common_options& options,
+                   const dir_path& cd,
+                   database& db,
+                   build_package pkg,
+                   postponed_packages* recursively = nullptr)
     {
       using std::swap; // ...and not list::swap().
 
-      tracer trace ("collect");
+      tracer trace ("collect_build");
 
-      // No dependents and drops allowed here.
+      // Only builds are allowed here.
       //
-      assert (pkg.available != nullptr);
+      assert (pkg.action && *pkg.action == build_package::build &&
+              pkg.available != nullptr);
 
       auto i (map_.find (pkg.available->id.name));
 
       // If we already have an entry for this package name, then we
       // have to pick one over the other.
       //
+      // If the existing entry is a pre-entered or is non-build one, then we
+      // merge it into the new build entry. Otherwise (both are builds), we
+      // pick one and merge the other into it.
+      //
       if (i != map_.end ())
       {
         build_package& bp (i->second.package);
 
-        // Can't think of the scenario when this happens.
+        // Can't think of the scenario when this happens. We would start
+        // collecting from scratch (see below).
         //
-        assert (bp.action != build_package::drop);
+        assert (!bp.action || *bp.action != build_package::drop);
 
-        // If this is just a dependent reconfiguration then make it the
-        // package build, but propagate the need to reconfigure.
-        //
-        if (bp.action == build_package::reconf)
+        if (!bp.action || *bp.action != build_package::build) // Non-build.
         {
+          pkg.merge (move (bp));
           bp = move (pkg);
-          bp.reconfigure_ = true;
         }
-        else
+        else                                                  // Build.
         {
-          const string& n (i->first);
-
           // At the end we want p1 to point to the object that we keep
-          // and p2 to the object whose constraints we should copy.
+          // and p2 to the object that we merge from.
           //
           build_package* p1 (&bp);
           build_package* p2 (&pkg);
@@ -452,12 +543,13 @@ namespace bpkg
               //
               if (auto c1 = test (p2, p1))
               {
+                const string& n  (i->first);
                 const string& d1 (c1->dependent);
                 const string& d2 (c2->dependent);
 
                 fail << "unable to satisfy constraints on package " << n <<
                   info << d1 << " depends on (" << n << " " << c1->value
-                       << ")" <<
+                     << ")" <<
                   info << d2 << " depends on (" << n << " " << c2->value
                        << ")" <<
                   info << "available " << p1->available_name_version () <<
@@ -476,8 +568,7 @@ namespace bpkg
           // one of them can build a package from source while another
           // configure a system package. We prefer a user-selected entry (if
           // there is one). If none of them is user-selected we prefer a
-          // source package over a system one. Copy the constraints from the
-          // thrown aways entry to the selected one.
+          // source package over a system one.
           //
           else if (p2->user_selection () ||
                    (!p1->user_selection () && !p2->system))
@@ -493,39 +584,10 @@ namespace bpkg
           if (replace)
           {
             swap (*p1, *p2);
-            swap (p1, p2); // Setup for constraints copying below.
+            swap (p1, p2); // Setup for merge below.
           }
 
-          p1->constraints.insert (
-            p1->constraints.end (),
-            make_move_iterator (p2->constraints.begin ()),
-            make_move_iterator (p2->constraints.end ()));
-
-          p1->required_by.insert (p2->required_by.begin (),
-                                  p2->required_by.end ());
-
-          // Also copy hold_* flags if they are "stronger".
-          //
-          if (!p1->hold_package ||
-              (p2->hold_package && *p2->hold_package > *p1->hold_package))
-            p1->hold_package = p2->hold_package;
-
-          if (!p1->hold_version ||
-              (p2->hold_version && *p2->hold_version > *p1->hold_version))
-            p1->hold_version = p2->hold_version;
-
-          // Save the 'keep output directory' flag if specified by the user.
-          //
-          if (p2->user_selection () && p2->keep_out)
-            p1->keep_out = true;
-
-          // Note that we don't copy the build_package::system flag. If it was
-          // set from the command line ("strong system") then we will also
-          // have the '== 0' constraint which means that this build_package
-          // object will never be replaced.
-          //
-          // For other cases ("weak system") we don't want to copy system over
-          // in order not prevent, for example, system to non-system upgrade.
+          p1->merge (move (*p2));
 
           if (!replace)
             return nullptr;
@@ -543,63 +605,30 @@ namespace bpkg
 
       build_package& p (i->second.package);
 
-      if (recursively)
-        collect_prerequisites (options, cd, db, p);
+      if (recursively != nullptr)
+        collect_build_prerequisites (options, cd, db, p, recursively);
 
       return &p;
     }
 
-    void
-    collect_dropped (shared_ptr<selected_package> sp)
-    {
-      string nm (sp->name);
-
-      build_package p {
-        build_package::drop,
-        move (sp),
-        nullptr,
-        nullptr,
-        false,     // Hold package.
-        false,     // Hold version.
-        {},        // Constraints.
-        false,     // System package.
-        false,     // Keep output directory.
-        {},        // Required by.
-        false};    // Reconfigure.
-
-      auto i (map_.find (nm));
-
-      if (i != map_.end ())
-      {
-        build_package& bp (i->second.package);
-
-        // Can't think of the scenario when this happens.
-        //
-        assert (bp.action != build_package::build);
-
-        bp = move (p); // Overwrite the existing (possibly reconf) action.
-      }
-      else
-        map_.emplace (move (nm), data_type {end (), move (p)});
-    }
-
-    // Collect the package prerequisites recursively. But first "prune" this
-    // process if the package we build is a system one or is already configured
-    // since that would mean all its prerequisites are configured as well. Note
-    // that this is not merely an optimization: the package could be an orphan
-    // in which case the below logic will fail (no repository in which to
-    // search for prerequisites). By skipping the prerequisite check we are
-    // able to gracefully handle configured orphans.
+    // Collect prerequisites of the package being built recursively. But first
+    // "prune" this process if the package we build is a system one or is
+    // already configured since that would mean all its prerequisites are
+    // configured as well. Note that this is not merely an optimization: the
+    // package could be an orphan in which case the below logic will fail (no
+    // repository in which to search for prerequisites). By skipping the
+    // prerequisite check we are able to gracefully handle configured orphans.
     //
     void
-    collect_prerequisites (const common_options& options,
-                           const dir_path& cd,
-                           database& db,
-                           const build_package& pkg)
+    collect_build_prerequisites (const common_options& options,
+                                 const dir_path& cd,
+                                 database& db,
+                                 const build_package& pkg,
+                                 postponed_packages* postponed)
     {
-      tracer trace ("collect_prerequisites");
+      tracer trace ("collect_build_prerequisites");
 
-      assert (pkg.action == build_package::build);
+      assert (pkg.action && *pkg.action == build_package::build);
 
       const shared_ptr<selected_package>& sp (pkg.selected);
 
@@ -631,8 +660,8 @@ namespace bpkg
         if (da.size () != 1) // @@ TODO
           fail << "multiple dependency alternatives not yet supported";
 
-        const dependency& d (da.front ());
-        const string& dn (d.name);
+        const dependency& dp (da.front ());
+        const string& dn (dp.name);
 
         if (da.buildtime)
         {
@@ -640,15 +669,15 @@ namespace bpkg
           //
           if (dn == "build2")
           {
-            if (d.constraint)
-              satisfy_build2 (options, name, d);
+            if (dp.constraint)
+              satisfy_build2 (options, name, dp);
 
             continue;
           }
           else if (dn == "bpkg")
           {
-            if (d.constraint)
-              satisfy_bpkg (options, name, d);
+            if (dp.constraint)
+              satisfy_bpkg (options, name, dp);
 
             continue;
           }
@@ -657,6 +686,68 @@ namespace bpkg
           // @@ TODO: in the future we would need to at least make sure the
           // build and target machines are the same. See also pkg-configure.
         }
+
+        bool system (false);
+        bool dep_optional (false);
+
+        // If the user specified the desired dependency version, then we will
+        // use it to overwrite the constraint imposed by the dependent
+        // package, checking that it is still satisfied.
+        //
+        // Note that we can't just rely on the execution plan refinement that
+        // will pick up the proper dependency version at the end of the day.
+        // We may just not get to the plan execution simulation, failing due
+        // to inability for dependency versions collected by two dependents to
+        // satisfy each other constraints (for an example see the
+        // pkg-build/dependency/apply-constraints/resolve-conflict{1,2}
+        // tests).
+
+        // Points to the version constraint created from the desired
+        // dependency version, if specified. Is NULL otherwise. Can be used as
+        // boolean flag.
+        //
+        const dependency_constraint* dep_constr (nullptr);
+
+        auto dep_version = [&dep_constr] () -> const version&
+        {
+          assert (dep_constr && dep_constr->min_version);
+          return *dep_constr->min_version;
+        };
+
+        auto i (map_.find (dn));
+        if (i != map_.end ())
+        {
+          const build_package& bp (i->second.package);
+
+          dep_optional = !bp.action; // Is pre-entered.
+
+          if (dep_optional &&
+              bp.hold_version && *bp.hold_version) // The version is specified,
+          {
+            assert (bp.constraints.size () == 1);
+
+            const build_package::constraint_type& c (bp.constraints[0]);
+
+            dep_constr = &c.value; // Assign before dep_version() usage.
+            system = bp.system;
+
+            // If the user-specified dependency constraint is the wildcard
+            // version, then it satisfies any dependency constraint.
+            //
+            if (!satisfies (dep_version (), dp.constraint))
+              fail << "unable to satisfy constraints on package " << dn <<
+                info << name << " depends on (" << dn << " "
+                   << *dp.constraint << ")" <<
+                info << c.dependent << " depends on (" << dn << " "
+                     << c.value << ")" <<
+                info << "specify " << dn << " version to satisfy " << name
+                     << " constraint";
+          }
+        }
+
+        const dependency& d (!dep_constr
+                             ? dp
+                             : dependency {dn, *dep_constr});
 
         // First see if this package is already selected. If we already have
         // it in the configuraion and it satisfies our dependency constraint,
@@ -669,7 +760,6 @@ namespace bpkg
         shared_ptr<available_package>& dap (rp.first);
 
         bool force (false);
-        bool system (false);
 
         if (dsp != nullptr)
         {
@@ -677,24 +767,33 @@ namespace bpkg
             fail << "unable to build broken package " << dn <<
               info << "use 'pkg-purge --force' to remove";
 
-          if (satisfies (dsp->version, d.constraint))
+          // If the constraint is imposed by the user we also need to make sure
+          // that the system flags are the same.
+          //
+          if (satisfies (dsp->version, d.constraint) &&
+              (!dep_constr || dsp->system () == system))
           {
+            system = dsp->system ();
+
             // First try to find an available package for this exact version.
             // In particular, this handles the case where a package moves from
-            // one repository to another (e.g., from testing to stable).
+            // one repository to another (e.g., from testing to stable). For a
+            // system package we pick the latest one (its exact version
+            // doesn't really matter).
             //
             shared_ptr<repository> root (db.load<repository> (""));
-            rp = find_available (
-              db, dn, root, dependency_constraint (dsp->version));
+            rp = system
+              ? find_available (db, dn, root, nullopt)
+              : find_available (db,
+                                dn,
+                                root,
+                                dependency_constraint (dsp->version));
 
             // A stub satisfies any dependency constraint so we weed them out
-            // by comparing versions (returning stub as an available package
-            // feels wrong).
+            // (returning stub as an available package feels wrong).
             //
-            if (dap == nullptr || dap->version != dsp->version)
+            if (dap == nullptr || dap->stub ())
               rp = make_available (options, cd, db, dsp);
-
-            system = dsp->system ();
           }
           else
             // Remember that we may be forcing up/downgrade; we will deal with
@@ -731,14 +830,45 @@ namespace bpkg
           // Note that this logic (naturally) does not apply if the package is
           // already selected by the user (see above).
           //
-          rp = find_available (db, dn, ar, d.constraint);
+          // Also note that for the user-specified dependency version we rely
+          // on its presence in repositories of the first dependent met. As
+          // a result, we may fail too early if the version doesn't belong to
+          // its repository, but belongs to the one of some dependent that we
+          // haven't met yet. Can we just search all repositories for an
+          // available package of this version and just take it, if present?
+          // We could, but then which repository should we pick? The wrong
+          // choice can introduce some unwanted repositories and package
+          // versions into play. So instead, we will postpone collecting the
+          // problematic dependent, expecting that some other one will find
+          // the version in its repositories.
+          //
+          // For a system package we pick the latest version just to make sure
+          // the package is recognized. An unrecognized package means the
+          // broken/stale repository (see below).
+          //
+          rp = find_available (db, dn, ar, !system ? d.constraint : nullopt);
 
           if (dap == nullptr)
           {
-            diag_record dr (fail);
-            dr << "unknown dependency " << d << " of package " << name;
+            if (dep_constr && !system && postponed)
+            {
+              postponed->insert (&pkg);
+              return;
+            }
 
-            if (!ar->location.empty ())
+            diag_record dr (fail);
+            dr << "unknown dependency " << dn;
+
+            // We need to be careful not to print the wildcard-based
+            // constraint.
+            //
+            if (d.constraint &&
+                (!dep_constr || dep_version () != wildcard_version))
+              dr << ' ' << *d.constraint;
+
+            dr << " of package " << name;
+
+            if (!ar->location.empty () && (!dep_constr || system))
               dr << info << "repository " << ar->location << " appears to "
                  << "be broken" <<
                 info << "or the repository state could be stale" <<
@@ -748,15 +878,20 @@ namespace bpkg
           // If all that's available is a stub then we need to make sure the
           // package is present in the system repository and it's version
           // satisfies the constraint. If a source package is available but
-          // there is an optional system package specified on the command line
-          // and it's version satisfies the constraint then the system package
-          // should be preferred. To recognize such a case we just need to
-          // check if the authoritative system version is set and it satisfies
-          // the constraint. If the corresponding system package is
-          // non-optional it will be preferred anyway.
+          // there is a system package specified on the command line and it's
+          // version satisfies the constraint then the system package should
+          // be preferred. To recognize such a case we just need to check if
+          // the authoritative system version is set and it satisfies the
+          // constraint. If the corresponding system package is non-optional
+          // it will be preferred anyway.
           //
           if (dap->stub ())
           {
+            // Note that the constraint can safely be printed as it can't
+            // be a wildcard (produced from the user-specified dependency
+            // version). If it were, then the system version wouldn't be NULL
+            // and would satisfy itself.
+            //
             if (dap->system_version () == nullptr)
               fail << "dependency " << d << " of package " << name << " is "
                    << "not available in source" <<
@@ -764,12 +899,10 @@ namespace bpkg
                    << "the system";
 
             if (!satisfies (*dap->system_version (), d.constraint))
-            {
               fail << "dependency " << d << " of package " << name << " is "
                    << "not available in source" <<
-                info << "sys:" << dn << "/" << *dap->system_version ()
+                info << package_string (dn,  *dap->system_version (), true)
                    << " does not satisfy the constrains";
-            }
 
             system = true;
           }
@@ -784,23 +917,28 @@ namespace bpkg
           }
         }
 
-        build_package dp {
+        build_package bp {
           build_package::build,
           dsp,
           dap,
           rp.second,
-          nullopt,      // Hold package.
-          nullopt,      // Hold version.
-          {},           // Constraints.
-          system,       // System.
-          false,        // Keep output directory.
-          {name},       // Required by.
-          false};       // Reconfigure.
+          nullopt,   // Hold package.
+          nullopt,   // Hold version.
+          {},        // Constraints.
+          system,
+          false,     // Keep output directory.
+          {name},    // Required by (dependent).
+          0};        // Adjustments.
 
         // Add our constraint, if we have one.
         //
-        if (d.constraint)
-          dp.constraints.emplace_back (name, *d.constraint);
+        // Note that we always add the constraint implied by the dependent. The
+        // user-implied constraint, if present, will be added when merging from
+        // the pre-entered entry. So we will have both constraints for
+        // completeness.
+        //
+        if (dp.constraint)
+          bp.constraints.emplace_back (name, *dp.constraint);
 
         // Now collect this prerequisite. If it was actually collected
         // (i.e., it wasn't already there) and we are forcing an upgrade
@@ -808,15 +946,10 @@ namespace bpkg
         // quiet. Downgrade or upgrade of a held version -- refuse.
         //
         // Note though that while the prerequisite was collected it could have
-        // happen because it is an optional system package and so not being
+        // happen because it is an optional package and so not being
         // pre-collected earlier. Meanwhile the package version was specified
         // explicitly and we shouldn't consider that as a dependency-driven
-        // up/down-grade enforcement. To recognize such a case we just need to
-        // check for the system flag, so if it is true then the prerequisite
-        // is an optional system package. If it were non-optional it wouldn't
-        // be being collected now since it must have been pre-collected
-        // earlier. And if it were created from the selected package then
-        // the force flag wouldn't haven been true.
+        // up/down-grade enforcement.
         //
         // Here is an example of the situation we need to handle properly:
         //
@@ -824,8 +957,10 @@ namespace bpkg
         // build sys:bar/1
         // build foo ?sys:bar/2
         //
-        const build_package* p (collect (options, cd, db, move (dp), true));
-        if (p != nullptr && force && !p->system)
+        const build_package* p (
+          collect_build (options, cd, db, move (bp), postponed));
+
+        if (p != nullptr && force && !dep_optional)
         {
           const version& av (p->available_version ());
 
@@ -863,15 +998,112 @@ namespace bpkg
       }
     }
 
+    // Collect the package being dropped.
+    //
     void
-    collect_prerequisites (const common_options& options,
-                           const dir_path& cd,
-                           database& db,
-                           const string& name)
+    collect_drop (shared_ptr<selected_package> sp)
+    {
+      const string& nm (sp->name);
+
+      build_package p {
+        build_package::drop,
+        move (sp),
+        nullptr,
+        nullptr,
+        nullopt,   // Hold package.
+        nullopt,   // Hold version.
+        {},        // Constraints.
+        false,     // System package.
+        false,     // Keep output directory.
+        {},        // Required by.
+        0};        // Adjustments.
+
+      auto i (map_.find (nm));
+
+      if (i != map_.end ())
+      {
+        build_package& bp (i->second.package);
+
+        // Can't think of the scenario when this happens. We would start
+        // collecting from scratch (see below).
+        //
+        assert (!bp.action || *bp.action != build_package::build);
+
+        // Overwrite the existing (possibly pre-entered or adjustment) entry.
+        //
+        bp = move (p);
+      }
+      else
+        map_.emplace (nm, data_type {end (), move (p)});
+    }
+
+    // Collect the package being unheld.
+    //
+    void
+    collect_unhold (const shared_ptr<selected_package>& sp)
+    {
+      auto i (map_.find (sp->name));
+
+      // Currently, it must always be pre-entered.
+      //
+      assert (i != map_.end ());
+
+      build_package& bp (i->second.package);
+
+      if (!bp.action) // Pre-entered.
+      {
+        build_package p {
+          build_package::adjust,
+          sp,
+          nullptr,
+          nullptr,
+          nullopt,   // Hold package.
+          nullopt,   // Hold version.
+          {},        // Constraints.
+          false,     // System package.
+          false,     // Keep output directory.
+          {},        // Required by.
+          build_package::adjust_unhold};
+
+        p.merge (move (bp));
+        bp = move (p);
+      }
+      else
+        bp.adjustments |= build_package::adjust_unhold;
+    }
+
+    void
+    collect_build_prerequisites (const common_options& o,
+                                 const dir_path& cd,
+                                 database& db,
+                                 const string& name,
+                                 postponed_packages& postponed)
     {
       auto mi (map_.find (name));
       assert (mi != map_.end ());
-      collect_prerequisites (options, cd, db, mi->second.package);
+      collect_build_prerequisites (o, cd, db, mi->second.package, &postponed);
+    }
+
+    void
+    collect_build_postponed (const common_options& o,
+                             const dir_path& cd,
+                             database& db,
+                             postponed_packages& pkgs)
+    {
+      // Try collecting postponed packages for as long as we are making
+      // progress.
+      //
+      for (bool prog (true); !pkgs.empty (); )
+      {
+        postponed_packages npkgs;
+
+        for (const build_package* p: pkgs)
+          collect_build_prerequisites (o, cd, db, *p, prog ? &npkgs : nullptr);
+
+        assert (prog); // collect_build_prerequisites() should have failed.
+        prog = (npkgs != pkgs);
+        pkgs.swap (npkgs);
+      }
     }
 
     // Order the previously-collected package with the specified name
@@ -885,6 +1117,10 @@ namespace bpkg
       //
       auto mi (map_.find (name));
       assert (mi != map_.end ());
+
+      build_package& p (mi->second.package);
+
+      assert (p.action); // Can't order just a pre-entered package.
 
       // If this package is already in the list, then that would also
       // mean all its prerequisites are in the list and we can just
@@ -903,11 +1139,10 @@ namespace bpkg
       // position of its "earliest" prerequisite -- this is where it
       // will be inserted.
       //
-      build_package& p (mi->second.package);
       const shared_ptr<selected_package>& sp (p.selected);
       const shared_ptr<available_package>& ap (p.available);
 
-      bool build (p.action == build_package::build);
+      bool build (*p.action == build_package::build);
 
       // Package build must always have the available package associated.
       //
@@ -928,28 +1163,39 @@ namespace bpkg
             i = j;
       };
 
-      // Similar to collect(), we can prune if the package is already
-      // configured, right? Right for a system ones but not for others.
-      // While in collect() we didn't need to add prerequisites of such a
-      // package, it doesn't mean that they actually never ended up in the
-      // map via another way. For example, some can be a part of the initial
-      // selection. And in that case we must order things properly.
+      // Similar to collect_build(), we can prune if the package is already
+      // configured, right? While in collect_build() we didn't need to add
+      // prerequisites of such a package, it doesn't mean that they actually
+      // never ended up in the map via another dependency path. For example,
+      // some can be a part of the initial selection. And in that case we must
+      // order things properly.
       //
-      // Note that we also need to order prerequisites of the dropped package,
-      // to disfigure it before its prerequisites.
+      // Also, if the package we are ordering is not a system one and needs to
+      // be disfigured during the plan execution, then we must order its
+      // (current) dependencies that also need to be disfigured.
       //
-      if (!build || !p.system)
+      bool src_conf (sp != nullptr &&
+                     sp->state == package_state::configured &&
+                     sp->substate != package_substate::system);
+
+      auto disfigure = [] (const build_package& p)
+      {
+        return p.action && (*p.action == build_package::drop ||
+                            p.reconfigure ());
+      };
+
+      bool order_disfigured (src_conf && disfigure (p));
+
+      // Order the build dependencies.
+      //
+      if (build && !p.system)
       {
         // So here we are going to do things differently depending on
         // whether the package is already configured or not. If it is and
         // not as a system package, then that means we can use its
         // prerequisites list. Otherwise, we use the manifest data.
         //
-        bool src_conf (sp != nullptr &&
-                       sp->state == package_state::configured &&
-                       sp->substate != package_substate::system);
-
-        if (src_conf && (!build || sp->version == p.available_version ()))
+        if (src_conf && sp->version == p.available_version ())
         {
           for (const auto& p: sp->prerequisites)
           {
@@ -957,9 +1203,14 @@ namespace bpkg
 
             // The prerequisites may not necessarily be in the map.
             //
-            if (map_.find (name) != map_.end ())
+            auto i (map_.find (name));
+            if (i != map_.end () && i->second.package.action)
               update (order (name, false));
           }
+
+          // We just ordered them among other prerequisites.
+          //
+          order_disfigured = false;
         }
         else
         {
@@ -982,23 +1233,23 @@ namespace bpkg
 
             update (order (d.name, false));
           }
+        }
+      }
 
-          // If we end up ordering available package prerequisites, we still
-          // need to order the dropped prerequisites of the selected package
-          // to make sure that it is disfigured before these prerequisites.
+      // Order the dependencies being disfigured.
+      //
+      if (order_disfigured)
+      {
+        for (const auto& p: sp->prerequisites)
+        {
+          const string& name (p.first.object_id ());
+
+          // The prerequisites may not necessarily be in the map.
           //
-          if (src_conf)
-          {
-            for (const auto& p: sp->prerequisites)
-            {
-              const string& name (p.first.object_id ());
-              auto i (map_.find (name));
+          auto i (map_.find (name));
 
-              if (i != map_.end () &&
-                  i->second.package.action == build_package::drop)
-                update (order (name, false));
-            }
-          }
+          if (i != map_.end () && disfigure (i->second.package))
+            update (order (name, false));
         }
       }
 
@@ -1037,7 +1288,11 @@ namespace bpkg
         // Prune if this is not a configured package being up/down-graded
         // or reconfigured.
         //
-        if (p.action != build_package::drop && p.reconfigure ())
+        assert (p.action);
+
+        // Dropped package may have no dependents.
+        //
+        if (*p.action != build_package::drop && p.reconfigure ())
           collect_order_dependents (db, i);
       }
     }
@@ -1047,13 +1302,15 @@ namespace bpkg
     {
       tracer trace ("collect_order_dependents");
 
+      assert (pos != end ());
+
       build_package& p (*pos);
       const shared_ptr<selected_package>& sp (p.selected);
 
       const string& n (sp->name);
 
       // See if we are up/downgrading this package. In particular, the
-      // available package could be NULL meaning we are just reconfiguring.
+      // available package could be NULL meaning we are just adjusting.
       //
       int ud (p.available != nullptr
               ? sp->version.compare (p.available_version ())
@@ -1074,7 +1331,7 @@ namespace bpkg
         // There is one tricky aspect: the dependent could be in the process
         // of being up/downgraded as well. In this case all we need to do is
         // detect this situation and skip the test since all the (new)
-        // contraints of this package have been satisfied in collect().
+        // contraints of this package have been satisfied in collect_build().
         //
         if (check && i != map_.end () && i->second.position != end ())
         {
@@ -1130,64 +1387,81 @@ namespace bpkg
           p.constraints.emplace_back (dn, c);
         }
 
-        // We can have three cases here: the package is already on the
-        // list, the package is in the map (but not on the list) and it
-        // is in neither.
-        //
-        if (i != map_.end ())
-        {
-          build_package& dp (i->second.package);
-
-          // Skip the droped package.
-          //
-          if (dp.action == build_package::drop)
-            continue;
-
-          // Now add to the list.
-          //
-          p.required_by.insert (dn);
-
-          // Force reconfiguration in both cases.
-          //
-          if (dp.action == build_package::build)
-          {
-            dp.reconfigure_ = true;
-
-            if (i->second.position == end ())
-            {
-              // Clean the build_package object up to make sure we don't
-              // inadvertently force up/down-grade.
-              //
-              dp.available = nullptr;
-              dp.repository = nullptr;
-
-              i->second.position = insert (pos, dp);
-            }
-          }
-        }
-        else
+        auto adjustment = [&dn, &n, &db] () -> build_package
         {
           shared_ptr<selected_package> dsp (db.load<selected_package> (dn));
           bool system (dsp->system ()); // Save flag before the move(dsp) call.
 
-          i = map_.emplace (
-            move (dn),
-            data_type
+          return build_package {
+            build_package::adjust,
+            move (dsp),
+            nullptr,     // No available package/repository.
+            nullptr,
+            nullopt,     // Hold package.
+            nullopt,     // Hold version.
+            {},          // Constraints.
+            system,
+            false,       // Keep output directory.
+            {n},         // Required by (dependency).
+            build_package::adjust_reconfigure};
+        };
+
+        // We can have three cases here: the package is already on the
+        // list, the package is in the map (but not on the list) and it
+        // is in neither.
+        //
+        // If the existing entry is a drop, then we skip it. If it is
+        // pre-entered, is an adjustment, or is a build that is not supposed
+        // to be built (not in the list), then we merge it into the new
+        // adjustment entry. Otherwise (is a build in the list), we just add
+        // the reconfigure adjustment flag to it.
+        //
+        if (i != map_.end ())
+        {
+          build_package& dp (i->second.package);
+          iterator& dpos (i->second.position);
+
+          if (!dp.action ||                          // Pre-entered.
+              *dp.action != build_package::build ||  // Non-build.
+              dpos == end ())                        // Build not in the list.
+          {
+            // Skip the droped package.
+            //
+            if (dp.action && *dp.action == build_package::drop)
+              continue;
+
+            build_package bp (adjustment ());
+            bp.merge (move (dp));
+            dp = move (bp);
+          }
+          else                                       // Build in the list.
+            dp.adjustments |= build_package::adjust_reconfigure;
+
+          // It may happen that the dependent is already in the list but is
+          // not properly ordered against its dependencies that get into the
+          // list via another dependency path. Thus, we check if the dependent
+          // is to the right of its dependency and, if that's the case,
+          // reinsert it in front of the dependency.
+          //
+          if (dpos != end ())
+          {
+            for (auto i (pos); i != end (); ++i)
             {
-              end (),
-              build_package {
-                build_package::reconf,
-                move (dsp),
-                nullptr,
-                nullptr,
-                nullopt,        // Hold package.
-                nullopt,        // Hold version.
-                {},             // Constraints.
-                system,
-                false,          // Keep output directory.
-                {n},            // Required by.
-                false}          // Reconfigure.
-            }).first;
+              if (i == dpos)
+              {
+                erase (dpos);
+                dpos = insert (pos, dp);
+                break;
+              }
+            }
+          }
+          else
+            dpos = insert (pos, dp);
+        }
+        else
+        {
+          i = map_.emplace (
+            move (dn), data_type {end (), adjustment ()}).first;
 
           i->second.position = insert (pos, i->second.package);
         }
@@ -1217,312 +1491,470 @@ namespace bpkg
   private:
     struct data_type
     {
-      iterator position;         // Note: can be end(), see collect().
+      iterator position;         // Note: can be end(), see collect_build().
       build_package package;
     };
 
     map<string, data_type> map_;
   };
 
-  // Unused dependencies to drop. This list is ordered by construction during
-  // the plan simulation/refinment process below (i.e., we only add a package
-  // to this list if/when nothing else depends on it).
+  // List of dependency packages (specified with ? on the command line).
   //
-  // @@ TODO: try to move back inside pkg_build() and get rid of functions. Or
-  //    need to change the name to something more appropriate for a scope.
-  //
-  using pkg_options = pkg_build_pkg_options;
-
-  struct pkg_arg
+  struct dependency_package
   {
-    package_scheme scheme;
     string name;
-    bpkg::version version;
-    string value;
-    pkg_options options;
-
-    // Create the fully parsed package argument.
-    //
-    pkg_arg (package_scheme h, string n, bpkg::version v, pkg_options o)
-        : scheme (h),
-          name (move (n)),
-          version (move (v)),
-          options (move (o))
-    {
-      switch (scheme)
-      {
-      case package_scheme::sys:
-        {
-          if (version.empty ())
-            version = wildcard_version;
-
-          const system_package* sp (system_repository.find (name));
-
-          // Will deal with all the duplicates later.
-          //
-          if (sp == nullptr || !sp->authoritative)
-            system_repository.insert (name, version, true);
-
-          break;
-        }
-      case package_scheme::none: break; // Nothing to do.
-      }
-    }
-
-    // Create the unparsed package argument.
-    //
-    pkg_arg (string v, pkg_options o): value (move (v)), options (move (o)) {}
-
-    string
-    package () const
-    {
-      string r;
-
-      switch (scheme)
-      {
-      case package_scheme::sys:  r = "sys:"; break;
-      case package_scheme::none: break;
-      }
-
-      r += name;
-
-      if (!version.empty () && version != wildcard_version)
-        r += "/" + version.string ();
-
-      return r;
-    }
-
-    // Predicates.
-    //
-    bool
-    parsed () const {return !name.empty ();}
-
-    bool
-    system () const
-    {
-      assert (parsed ());
-      return scheme == package_scheme::sys;
-    }
+    bpkg::version version;                 // Empty if unspecified.
+    shared_ptr<selected_package> selected; // NULL if not present.
+    bool system;
+    bool keep_out;
   };
-
-  static inline bool
-  operator== (const pkg_arg& x, const pkg_arg& y)
-  {
-    assert (x.parsed () && y.parsed ());
-    return x.scheme == y.scheme &&
-      x.name == y.name &&
-      x.version == y.version &&
-
-      // @@ Is it too restrictive?
-      //
-      x.options.keep_out () == y.options.keep_out () &&
-      x.options.dependency () == y.options.dependency ();
-  }
-
-  static inline bool
-  operator!= (const pkg_arg& x, const pkg_arg& y) {return !(x == y);}
-
-  static ostream&
-  operator<< (ostream& os, const pkg_arg& a)
-  {
-    if (a.options.dependency ())
-      os << '?';
-
-    os << a.package ();
-
-    if (a.options.keep_out ())
-      os << " +{--keep-out}";
-
-    return os;
-  }
+  using dependency_packages = vector<dependency_package>;
 
   // Evaluate a dependency package and return a new desired version. If the
-  // result is an absent version, then no changes to the dependency are
-  // necessary. If the result is an empty version, then the dependency is no
-  // longer used and can be dropped. Otherwise, the result is the
-  // upgrade/downgrade version.
+  // result is absent (nullopt), then there are no user expectations regarding
+  // this dependency. If the result is a NULL available_package, then it is
+  // either no longer used and can be dropped, or no changes to the dependency
+  // are necessary. Otherwise, the result is available_package to
+  // upgrade/downgrade to as well as the repository it must come from, and the
+  // system flag.
   //
-  static optional<version>
+  // If the explicitly specified dependency version can not be found in the
+  // dependents repositories, then return the "no changes are necessary"
+  // result if ignore_unsatisfiable argument is true and fail otherwise. The
+  // common approach is to pass true for this argument until the execution
+  // plan is finalized, assuming that the problematic dependency might be
+  // dropped.
+  //
+  struct evaluate_result
+  {
+    shared_ptr<available_package> available;
+    shared_ptr<bpkg::repository> repository;
+    bool unused;
+    bool system; // Is meaningless if unused.
+  };
+
+  using package_dependents = vector<pair<shared_ptr<selected_package>,
+                                         optional<dependency_constraint>>>;
+
+  static optional<evaluate_result>
+  evaluate_dependency (database&,
+                       const shared_ptr<selected_package>&,
+                       const version& desired,
+                       bool desired_sys,
+                       const set<shared_ptr<repository>>&,
+                       const package_dependents&,
+                       bool ignore_unsatisfiable);
+
+  static optional<evaluate_result>
   evaluate_dependency (database& db,
-                       const shared_ptr<selected_package>& sp)
+                       const dependency_packages& deps,
+                       const shared_ptr<selected_package>& sp,
+                       bool ignore_unsatisfiable)
   {
     tracer trace ("evaluate_dependency");
 
-    assert (sp != nullptr);
+    assert (sp != nullptr && !sp->hold_package);
 
-    const string& n (sp->name);
-    const version& v (sp->version);
+    const string& nm (sp->name);
 
-    // Build a set of repositories the dependent packages come from. Also cash
-    // the dependents and the constraints they apply to this dependency.
+    // Query the dependents and bail out if the dependency is unused.
     //
-    vector<shared_ptr<repository>> repos;
+    auto pds (db.query<package_dependent> (
+                query<package_dependent>::name == nm));
 
-    vector<pair<shared_ptr<selected_package>,
-                optional<dependency_constraint>>> dependents;
+    if (pds.empty ())
     {
-      set<shared_ptr<repository>> rps;
+      l5 ([&]{trace << *sp << ": unused";});
 
-      auto pds (db.query<package_dependent> (
-                  query<package_dependent>::name == n));
+      return evaluate_result {nullptr /* available */,
+                              nullptr /* repository */,
+                              true    /* unused */,
+                              false   /* system */};
+    }
 
-      if (pds.empty ())
+    // If there are no user expectations regarding this dependency, then we
+    // give no up/down-grade recommendation.
+    //
+    auto i (find_if (
+              deps.begin (), deps.end (),
+              [&nm] (const dependency_package& i) {return i.name == nm;}));
+
+    if (i == deps.end ())
+      return nullopt;
+
+    // If the user expectation is exactly what the selected package is then
+    // no package change is required.
+    //
+    const version& sv (sp->version);
+    bool ssys (sp->system ());
+
+    // The requested dependency version and system flag.
+    //
+    const version& dv (i->version); // May be empty.
+    bool dsys (i->system);
+
+    if (dv == sv && ssys == dsys)
+    {
+      l5 ([&]{trace << *sp << ": unchanged";});
+
+      return evaluate_result {nullptr /* available */,
+                              nullptr /* repository */,
+                              false   /* unused */,
+                              false   /* system */};
+    }
+
+    // Build a set of repositories the dependent packages now come from. Also
+    // cache the dependents and the constraints they apply to this dependency.
+    //
+    set<shared_ptr<repository>> repos;
+    package_dependents dependents;
+
+    for (auto& pd: pds)
+    {
+      shared_ptr<selected_package> dsp (db.load<selected_package> (pd.name));
+
+      shared_ptr<available_package> dap (
+        db.find<available_package> (
+          available_package_id (dsp->name, dsp->version)));
+
+      if (dap != nullptr)
       {
-        l5 ([&]{trace << n << "/" << v << " unused";});
-        return version ();
+        assert (!dap->locations.empty ());
+
+        for (const auto& pl: dap->locations)
+          repos.insert (pl.repository.load ());
       }
 
-      // Nothing to do for now.
-      //
-      return nullopt;
+      dependents.emplace_back (move (dsp), move (pd.constraint));
     }
+
+    return evaluate_dependency (db,
+                                sp,
+                                dv,
+                                dsys,
+                                repos,
+                                dependents,
+                                ignore_unsatisfiable);
   }
 
-  // If an upgrade/downgrade of the selected dependency is possible to the
-  // specified version (empty means the highest possible one), then return the
-  // version upgrade/downgrade to. Otherwise return the empty version with the
-  // reason of the impossibility to upgrade/downgrade. The empty reason means
-  // that the dependency is unused. Note that it should be called in session.
-  //
-  static pair<version, string>
-  evaluate_dependency0 (transaction& t, const string& n, const version& v)
+  static optional<evaluate_result>
+  evaluate_dependency (database& db,
+                       const shared_ptr<selected_package>& sp,
+                       const version& dv,
+                       bool dsys,
+                       const set<shared_ptr<repository>>& repos,
+                       const package_dependents& dependents,
+                       bool ignore_unsatisfiable)
   {
     tracer trace ("evaluate_dependency");
 
-    database& db (t.database ());
-    tracer_guard tg (db, trace);
+    const string& nm (sp->name);
 
-    shared_ptr<selected_package> sp (db.find<selected_package> (n));
+    // Build the list of available packages for the potential up/down-grade
+    // to, in the version-descending order. For a system package we put no
+    // constraints just to make sure that the package is recognized.
+    //
+    auto apr (dv.empty () || dsys
+              ? query_available (db, nm, nullopt)
+              : query_available (db, nm, dependency_constraint (dv)));
 
-    if (sp == nullptr)
+    vector<pair<shared_ptr<available_package>, shared_ptr<repository>>> ars (
+      filter (vector<shared_ptr<repository>> (repos.begin (), repos.end ()),
+              move (apr)));
+
+    auto no_change = [] ()
     {
-      l5 ([&]{trace << n << "/" << v << ": unselected";});
-      return make_pair (version (), string ());
+      return evaluate_result {nullptr /* available */,
+                              nullptr /* repository */,
+                              false   /* unused */,
+                              false   /* system */};
+    };
+
+    if (ars.empty ())
+    {
+      if (ignore_unsatisfiable)
+      {
+        l5 ([&]{trace << *sp << ": no repos";});
+        return no_change ();
+      }
+
+      fail << package_string (nm, dv.empty () || dsys ? version () : dv)
+           << " is not present in its dependents repositories";
     }
+
+    // Go through up/down-grade candidates and pick the first one that
+    // satisfies all the dependents. Collect (and sort) unsatisfied dependents
+    // per the unsatisfiable version in case we need to print them.
+    //
+    struct compare_sp
+    {
+      bool
+      operator() (const shared_ptr<selected_package>& x,
+                  const shared_ptr<selected_package>& y) const
+      {
+        return x->name < y->name;
+      }
+    };
+
+    using sp_set = set<reference_wrapper<const shared_ptr<selected_package>>,
+                       compare_sp>;
+
+    vector<pair<version, sp_set>> unsatisfiable;
 
     const version& sv (sp->version);
+    bool ssys (sp->system ());
 
-    l6 ([&]{trace << n << "/" << v << ": current: " << sv;});
+    assert (!dsys || system_repository.find (nm) != nullptr);
 
-    // Build the set of repositories the dependent packages now come from.
-    // Also cash the dependents and the constraints they apply to the
-    // dependency package.
-    //
-    vector<shared_ptr<repository>> repos;
-
-    vector<pair<shared_ptr<selected_package>,
-                optional<dependency_constraint>>> dependents;
+    for (auto& ar: ars)
     {
-      set<shared_ptr<repository>> rps;
+      shared_ptr<available_package>& ap (ar.first);
+      const version& av (!dsys ? ap->version : *ap->system_version ());
 
-      auto pds (db.query<package_dependent> (
-                  query<package_dependent>::name == n));
-
-      if (pds.empty ())
-      {
-        l5 ([&]{trace << n << "/" << v << ": unused";});
-        return make_pair (version (), string ());
-      }
-
-      for (auto& pd: pds)
-      {
-        shared_ptr<selected_package> dsp (db.load<selected_package> (pd.name));
-
-        l6 ([&]{trace << n << "/" << v << ": dependent: "
-                      << dsp->name << "/" << dsp->version;});
-
-        shared_ptr<available_package> dap (
-          db.find<available_package> (
-            available_package_id (dsp->name, dsp->version)));
-
-        if (dap != nullptr)
-        {
-          assert (!dap->locations.empty ());
-
-          for (const auto& pl: dap->locations)
-          {
-            shared_ptr<repository> r (pl.repository.load ());
-
-            if (rps.insert (r).second)
-              l6 ([&]{trace << n << "/" << v << ":   " << r->location;});
-          }
-        }
-        else
-          l6 ([&]{trace << n << "/" << v << ":   dependent unavailable";});
-
-        dependents.emplace_back (move (dsp), move (pd.constraint));
-      }
-
-      repos = vector<shared_ptr<repository>> (rps.begin (), rps.end ());
-    }
-
-    // Build the list of available packages for the potential upgrade/downgrade
-    // to, in the version-descending order.
-    //
-    auto apr (v.empty ()
-              ? query_available (db, n, nullopt)
-              : query_available (db, n, dependency_constraint (v)));
-
-    vector<shared_ptr<available_package>> aps (filter (repos, move (apr)));
-
-    if (aps.empty ())
-    {
-      l5 ([&]{trace << n << "/" << v << ": unavailable";});
-      return make_pair (version (), "unavailable");
-    }
-
-    // Go through upgrade/downgrade to candidates and pick the first one that
-    // satisfies all the dependents.
-    //
-    bool highest (v.empty () || v == wildcard_version);
-
-    for (const shared_ptr<available_package>& ap: aps)
-    {
-      const version& av (ap->version);
-
-      // If we are aim to upgrade to the highest possible version and it tends
-      // to be not higher then the selected one, then just return the selected
-      // one to indicate that what we currently have is best what we can get.
+      // If we aim to upgrade to the highest possible version and it tends to
+      // be less then the selected one, then what we currently have is the
+      // best that we can get, and so we return the "no change" result.
       //
-      if (highest && av <= sv)
+      if (dv.empty () && av < sv && !ssys)
       {
-        l5 ([&]{trace << n << "/" << v << ": " << av
-                      << " not better than current";});
+        assert (!dsys); // Version can't be empty for the system package.
 
-        return make_pair (sv, string ());
+        l5 ([&]{trace << *sp << ": best";});
+        return no_change ();
       }
 
-      bool satisfy (true);
+      bool satisfactory (true);
+      sp_set unsatisfied_dependents;
 
       for (const auto& dp: dependents)
       {
         if (!satisfies (av, dp.second))
         {
-          satisfy = false;
+          satisfactory = false;
 
-          l6 ([&]{trace << n << "/" << v << ": " << av
-                        << " unsatisfy selected "
-                        << dp.first->name << "/" << dp.first->version;});
+          // Continue to collect dependents of the unsatisfiable version if
+          // we need to print them before failing.
+          //
+          if (ignore_unsatisfiable)
+            break;
 
-          break;
+          unsatisfied_dependents.insert (dp.first);
         }
       }
 
-      if (satisfy)
+      if (!satisfactory)
       {
-        l5 ([&]{trace << n << "/" << v << ": "
-                      << (av > sv
-                          ? "upgrade to "
-                          : av < sv
-                            ? "downgrade to "
-                            : "leave ") << av;});
+        if (!ignore_unsatisfiable)
+          unsatisfiable.emplace_back (av, move (unsatisfied_dependents));
 
-        return make_pair (av, string ());
+        // If the dependency is expected to be configured as system, then bail
+        // out, as an available package version will always resolve to the
+        // system one (see above).
+        //
+        if (dsys)
+          break;
+
+        continue;
+      }
+
+      // If the best satisfactory version and the desired system flag perfectly
+      // match the ones of the selected package, then no package change is
+      // required. Otherwise, recommend an up/down-grade.
+      //
+      if (av == sv && ssys == dsys)
+      {
+        l5 ([&]{trace << *sp << ": unchanged";});
+        return no_change ();
+      }
+
+      l5 ([&]{trace << *sp << ": update to "
+                    << package_string (nm, av, dsys);});
+
+      return evaluate_result {
+        move (ap), move (ar.second), false /* unused */, dsys};
+    }
+
+    // If we aim to upgrade to the highest possible version, then what we
+    // currently have is the only thing that we can get, and so returning the
+    // "no change" result.
+    //
+    if (dv.empty () && !ssys)
+    {
+      assert (!dsys); // Version cannot be empty for the system package.
+
+      l5 ([&]{trace << *sp << ": only";});
+      return no_change ();
+    }
+
+    // If the desired dependency version is unsatisfiable for some dependents
+    // then we fail, unless requested not to do so. In the later case we
+    // return the "no change" result.
+    //
+    if (ignore_unsatisfiable)
+    {
+      l5 ([&]{trace << package_string (nm, dv, dsys) << ": unsatisfiable";});
+      return no_change ();
+    }
+
+    // Issue the diagnostics and fail.
+    //
+    diag_record dr (fail);
+    dr << "package " << nm << " doesn't satisfy its dependents";
+
+    // Print the list of unsatisfiable versions together with dependents they
+    // don't satisfy: up to three latest versions with no more than five
+    // dependents each.
+    //
+    size_t nv (0);
+    for (const auto& u: unsatisfiable)
+    {
+      dr << info << package_string (nm, u.first) << " doesn't satisfy";
+
+      size_t n (0);
+      const sp_set& ps (u.second);
+      for (const shared_ptr<selected_package>& p: ps)
+      {
+        dr << ' ' << *p;
+
+        if (++n == 5 && ps.size () != 6) // Printing 'and 1 more' looks stupid.
+          break;
+      }
+
+      if (n != ps.size ())
+        dr << " and " << ps.size () - n << " more";
+
+      if (++nv == 3 && unsatisfiable.size () != 4)
+        break;
+    }
+
+    if (nv != unsatisfiable.size ())
+      dr << info << "and " << unsatisfiable.size () - nv << " more";
+
+    dr  << endf;
+  }
+
+  // List of dependent packages whose immediate/recursive dependencies must be
+  // upgraded (specified with -i/-r on the command line).
+  //
+  struct recursive_package
+  {
+    string name;
+    bool   upgrade;   // true -- upgrade,   false -- patch.
+    bool   recursive; // true -- recursive, false -- immediate.
+  };
+  using recursive_packages = vector<recursive_package>;
+
+  // Recursively check if immediate dependencies of this dependent must be
+  // upgraded.
+  //
+  static bool
+  upgrade_dependencies (database& db,
+                        const string& nm,
+                        const recursive_packages& recs,
+                        bool recursion = false)
+  {
+    auto i (find_if (recs.begin (), recs.end (),
+                     [&nm] (const recursive_package& i) -> bool
+                     {
+                       return i.name == nm;
+                     }));
+
+    if (i != recs.end () && i->recursive >= recursion)
+      return true;
+
+    for (const auto& pd: db.query<package_dependent> (
+           query<package_dependent>::name == nm))
+    {
+      if (upgrade_dependencies (db, pd.name, recs, true))
+        return true;
+    }
+
+    return false;
+  }
+
+  // Evaluate a package (not necessarily dependency) and return a new desired
+  // version. If the result is absent (nullopt), then no changes to the
+  // package are necessary. Otherwise, the result is available_package to
+  // upgrade/downgrade to as well as the repository it must come from.
+  //
+  // If the system package cannot be upgraded to the source one, not being
+  // found in the dependents repositories, then return nullopt if
+  // ignore_unsatisfiable argument is true and fail otherwise (see the
+  // evaluate_dependency() function description for details).
+  //
+  static optional<evaluate_result>
+  evaluate_recursive (database& db,
+                      const recursive_packages& recs,
+                      const shared_ptr<selected_package>& sp,
+                      bool ignore_unsatisfiable)
+  {
+    tracer trace ("evaluate_recursive");
+
+    assert (sp != nullptr);
+
+    // Build a set of repositories the dependent packages come from. Also
+    // cache the dependents and the constraints they apply to this dependency.
+    //
+    set<shared_ptr<repository>> repos;
+    package_dependents dependents;
+
+    auto pds (db.query<package_dependent> (
+                query<package_dependent>::name == sp->name));
+
+    // Only collect repositories (for best version selection) of (immediate)
+    // dependents that have a hit (direct or indirect) in recs. Note, however,
+    // that we collect constraints from all the dependents.
+    //
+    bool upgrade (false);
+
+    for (const auto& pd: pds)
+    {
+      shared_ptr<selected_package> dsp (db.load<selected_package> (pd.name));
+      dependents.emplace_back (dsp, move (pd.constraint));
+
+      if (!upgrade_dependencies (db, pd.name, recs))
+        continue;
+
+      // While we already know that the dependency upgrade is required, we
+      // continue to iterate over dependents, collecting the repositories and
+      // the constraints.
+      //
+      upgrade = true;
+
+      shared_ptr<available_package> dap (
+        db.find<available_package> (
+          available_package_id (dsp->name, dsp->version)));
+
+      if (dap != nullptr)
+      {
+        assert (!dap->locations.empty ());
+
+        for (const auto& pl: dap->locations)
+          repos.insert (pl.repository.load ());
       }
     }
 
-    l5 ([&]{trace << n << "/" << v << ": unsatisfied";});
-    return make_pair (version (), "unsatisfied");
+    if (!upgrade)
+    {
+      l5 ([&]{trace << *sp << ": no hit";});
+      return nullopt;
+    }
+
+    // Recommends the highest possible version.
+    //
+    optional<evaluate_result> r (
+      evaluate_dependency (db,
+                           sp,
+                           version () /* desired */,
+                           false /*desired_sys */,
+                           repos,
+                           dependents,
+                           ignore_unsatisfiable));
+
+    // Translate the "no change" result into nullopt.
+    //
+    assert (!r || !r->unused);
+    return r && r->available == nullptr ? nullopt : r;
   }
 
   static void
@@ -1532,13 +1964,18 @@ namespace bpkg
                 build_package_list&,
                 bool simulate);
 
-  int
-  pkg_build (const pkg_build_options& o, cli::group_scanner& args)
-  {
-    tracer trace ("pkg_build");
+  using pkg_options = pkg_build_pkg_options;
 
-    const dir_path& c (o.directory ());
-    l4 ([&]{trace << "configuration: " << c;});
+  static void
+  validate_options (const pkg_options& o, const string& pkg)
+  {
+    diag_record dr;
+
+    if (o.upgrade () && o.patch ())
+      dr << fail << "both --upgrade|-u and --patch|-p specified";
+
+    if (o.immediate () && o.recursive ())
+      dr << fail << "both --immediate|-i and --recursive|-r specified";
 
     // The --immediate or --recursive option can only be specified with an
     // explicit --upgrade or --patch.
@@ -1547,15 +1984,109 @@ namespace bpkg
                          o.recursive () ? "--recursive" : nullptr))
     {
       if (!o.upgrade () && !o.patch ())
-        fail << n << " requires explicit --upgrade|-u or --patch|-p";
+        dr << fail << n << " requires explicit --upgrade|-u or --patch|-p";
     }
+
+    if (((o.upgrade_immediate () ? 1 : 0) +
+         (o.upgrade_recursive () ? 1 : 0) +
+         (o.patch_immediate ()   ? 1 : 0) +
+         (o.patch_recursive ()   ? 1 : 0)) > 1)
+      fail << "multiple --(upgrade|patch)-(immediate|recursive) specified";
+
+    if (!dr.empty () && !pkg.empty ())
+      dr << info << "while validating options for " << pkg;
+  }
+
+  static void
+  merge_options (const pkg_options& src, pkg_options& dst)
+  {
+    if (!(dst.recursive () || dst.immediate ()))
+    {
+      dst.immediate (src.immediate ());
+      dst.recursive (src.recursive ());
+
+      // If -r|-i was specified at the package level, then so should
+      // -u|-p.
+      //
+      if (!(dst.upgrade () || dst.patch ()))
+      {
+        dst.upgrade (src.upgrade ());
+        dst.patch   (src.patch ());
+      }
+    }
+
+    if (!(dst.upgrade_immediate () || dst.upgrade_recursive () ||
+          dst.patch_immediate ()   || dst.patch_recursive ()))
+    {
+      dst.upgrade_immediate (src.upgrade_immediate ());
+      dst.upgrade_recursive (src.upgrade_recursive ());
+      dst.patch_immediate   (src.patch_immediate ());
+      dst.patch_recursive   (src.patch_recursive ());
+    }
+
+    dst.dependency (src.dependency () || dst.dependency ());
+    dst.keep_out   (src.keep_out ()   || dst.keep_out ());
+  }
+
+  static bool
+  compare_options (const pkg_options& x, const pkg_options& y)
+  {
+    return x.keep_out ()          == y.keep_out ()          &&
+           x.dependency ()        == y.dependency ()        &&
+           x.upgrade ()           == y.upgrade ()           &&
+           x.patch ()             == y.patch ()             &&
+           x.immediate ()         == y.immediate ()         &&
+           x.recursive ()         == y.recursive ()         &&
+           x.upgrade_immediate () == y.upgrade_immediate () &&
+           x.upgrade_recursive () == y.upgrade_recursive () &&
+           x.patch_immediate ()   == y.patch_immediate ()   &&
+           x.patch_recursive ()   == y.patch_recursive ();
+  }
+
+  static string
+  print_options (const pkg_options& o, bool dep = true)
+  {
+    string r (dep && o.dependency () ? "--dependency" : string ());
+
+    auto add = [&r] (bool v, const char* o)
+    {
+      if (v)
+      {
+        if (r.empty ())
+          r += ' ';
+        r += o;
+      }
+    };
+
+    add (o.keep_out (),          "--keep-out");
+    add (o.upgrade (),           "--upgrade");
+    add (o.patch (),             "--patch");
+    add (o.immediate (),         "--immediate");
+    add (o.recursive (),         "--recursive");
+    add (o.upgrade_immediate (), "--upgrade-immediate");
+    add (o.upgrade_recursive (), "--upgrade-recursive");
+    add (o.patch_immediate (),   "--patch-immediate");
+    add (o.patch_recursive (),   "--patch-recursive");
+
+    return r;
+  }
+
+  int
+  pkg_build (const pkg_build_options& o, cli::group_scanner& args)
+  {
+    tracer trace ("pkg_build");
+
+    const dir_path& c (o.directory ());
+    l4 ([&]{trace << "configuration: " << c;});
+
+    validate_options (o, ""); // Global package options.
 
     if (o.update_dependent () && o.leave_dependent ())
       fail << "both --update-dependent|-U and --leave-dependent|-L "
            << "specified" <<
         info << "run 'bpkg help pkg-build' for more information";
 
-    if (!args.more ())
+    if (!args.more () && !o.upgrade () && !o.patch ())
       fail << "package name argument expected" <<
         info << "run 'bpkg help pkg-build' for more information";
 
@@ -1598,13 +2129,21 @@ namespace bpkg
         specs.emplace_back ();
         pkg_spec& ps (specs.back ());
 
-        ps.options = o; // Initialize with global values.
-
         try
         {
-          ps.options.parse (args.group (),
-                            cli::unknown_mode::fail,
-                            cli::unknown_mode::fail);
+          auto& po (ps.options);
+
+          po.parse (args.group (),
+                    cli::unknown_mode::fail,
+                    cli::unknown_mode::fail);
+
+          // We have to manually merge global options into local since just
+          // initializing local with global and then parsing local may end up
+          // with an invalid set (say, both --immediate and --recursive true).
+          //
+          merge_options (o, po);
+
+          validate_options (po, a);
         }
         catch (const cli::exception& e)
         {
@@ -1701,13 +2240,93 @@ namespace bpkg
     }
 
     // Expand the package specs into individual package args, parsing them
-    // into the package scheme, name and version components.
+    // into the package scheme, name, and version components, and also saving
+    // associated options.
     //
-    // Note that the package specs that have no scheme and location can not be
+    // Note that the package specs that have no scheme and location cannot be
     // unambiguously distinguished from the package archive and directory
-    // paths. We will leave such package arguments unparsed and will handle
-    // them later.
+    // paths. We will save such package arguments unparsed (into the value
+    // data member) and will handle them later.
     //
+    struct pkg_arg
+    {
+      package_scheme scheme;
+      string         name;
+      bpkg::version  version;
+      string         value;
+      pkg_options    options;
+    };
+
+    // Create the parsed package argument.
+    //
+    auto arg_package = [] (package_scheme sc,
+                           string nm,
+                           version v,
+                           pkg_options o) -> pkg_arg
+    {
+      pkg_arg r {sc, move (nm), move (v), string (), move (o)};
+
+      switch (sc)
+      {
+      case package_scheme::sys:
+        {
+          if (r.version.empty ())
+            r.version = wildcard_version;
+
+          const system_package* sp (system_repository.find (r.name));
+
+          // Will deal with all the duplicates later.
+          //
+          if (sp == nullptr || !sp->authoritative)
+            system_repository.insert (r.name, r.version, true);
+
+          break;
+        }
+      case package_scheme::none: break; // Nothing to do.
+      }
+
+      return r;
+    };
+
+    // Create the unparsed package argument.
+    //
+    auto arg_raw = [] (string v, pkg_options o) -> pkg_arg
+    {
+      return pkg_arg {
+        package_scheme::none, string (), version (), move (v), move (o)};
+    };
+
+    auto arg_parsed = [] (const pkg_arg& a) {return !a.name.empty ();};
+
+    auto arg_sys = [&arg_parsed] (const pkg_arg& a)
+    {
+      assert (arg_parsed (a));
+      return a.scheme == package_scheme::sys;
+    };
+
+    auto arg_string = [&arg_parsed, &arg_sys] (const pkg_arg& a,
+                                               bool options = true) -> string
+    {
+      assert (arg_parsed (a));
+
+      string r (options && a.options.dependency () ? "?" : string ());
+
+      r += package_string (
+        a.name,
+        a.version != wildcard_version ? a.version : version (),
+        arg_sys (a));
+
+      if (options)
+      {
+        string s (print_options (a.options, false));
+
+        if (!s.empty ())
+          r += " +{ " + s + " }";
+      }
+
+      return r;
+    };
+
     vector<pkg_arg> pkg_args;
     {
       transaction t (db);
@@ -1726,10 +2345,13 @@ namespace bpkg
           {
             string  n (parse_package_name (s));
             version v (parse_package_version (s));
-            pkg_args.emplace_back (h, move (n), move (v), move (ps.options));
+
+            pkg_args.push_back (
+              arg_package (h, move (n), move (v), move (ps.options)));
           }
-          else // Add unparsed.
-            pkg_args.emplace_back (move (ps.packages), move (ps.options));
+          else                           // Add unparsed.
+            pkg_args.push_back (
+              arg_raw (move (ps.packages), move (ps.options)));
 
           continue;
         }
@@ -1764,11 +2386,13 @@ namespace bpkg
 
           // Populate the argument list with the latest package versions.
           //
+          // Don't move options as they may be reused.
+          //
           for (auto& pv: pvs)
-            pkg_args.emplace_back (package_scheme::none,
-                                   pv.first,
-                                   move (pv.second),
-                                   ps.options);      // May be reused.
+            pkg_args.push_back (arg_package (package_scheme::none,
+                                             pv.first,
+                                             move (pv.second),
+                                             ps.options));
         }
         else // Packages with optional versions in the coma-separated list.
         {
@@ -1781,7 +2405,7 @@ namespace bpkg
             string pkg (ps.packages, b, p != string::npos ? p - b : p);
             const char* s (pkg.c_str ());
 
-            package_scheme h (parse_package_scheme (s));
+            package_scheme sc (parse_package_scheme (s));
             string  n (parse_package_name (s));
             version v (parse_package_version (s));
 
@@ -1794,7 +2418,7 @@ namespace bpkg
             // repository.
             //
             optional<dependency_constraint> c (
-              v.empty () || h == package_scheme::sys
+              v.empty () || sc == package_scheme::sys
               ? nullopt
               : optional<dependency_constraint> (v));
 
@@ -1810,10 +2434,10 @@ namespace bpkg
                 dr << " or its complements";
             }
 
-            pkg_args.emplace_back (h,
-                                   move (n),
-                                   move (v),
-                                   ps.options); // May be reused.
+            // Don't move options as they may be reused.
+            //
+            pkg_args.push_back (
+              arg_package (sc, move (n), move (v), ps.options));
 
             b = p != string::npos ? p + 1 : p;
           }
@@ -1823,32 +2447,38 @@ namespace bpkg
       t.commit ();
     }
 
-    if (pkg_args.empty ())
-    {
-      warn << "nothing to build";
-      return 0;
-    }
-
     // Separate the packages specified on the command line into to hold and to
-    // up/down-grade as dependencies.
+    // up/down-grade as dependencies, and save dependents whose dependencies
+    // must be upgraded recursively.
     //
     vector<build_package> hold_pkgs;
+    dependency_packages   dep_pkgs;
+    recursive_packages    rec_pkgs;
+
     {
       // Check if the package is a duplicate. Return true if it is but
       // harmless.
       //
-      map<string, const pkg_arg&> package_map;
+      map<string, pkg_arg> package_map;
 
-      auto check_dup = [&package_map] (const pkg_arg& pa) -> bool
+      auto check_dup = [&package_map, &arg_string, arg_parsed] (
+        const pkg_arg& pa) -> bool
       {
-        assert (pa.parsed ());
+        assert (arg_parsed (pa));
 
         auto r (package_map.emplace (pa.name, pa));
 
-        if (!r.second && r.first->second != pa)
+        const pkg_arg& a (r.first->second);
+        assert (arg_parsed (a));
+
+        if (!r.second &&
+            (a.scheme  != pa.scheme                  ||
+             a.name    != pa.name                    ||
+             a.version != pa.version                 ||
+             !compare_options (a.options, pa.options)))
           fail << "duplicate package " << pa.name <<
-            info << "first mentioned as " << r.first->second <<
-            info << "second mentioned as " << pa;
+            info << "first mentioned as " << arg_string (r.first->second) <<
+            info << "second mentioned as " << arg_string (pa);
 
         return !r.second;
       };
@@ -1871,32 +2501,20 @@ namespace bpkg
       {
         pkg_arg& pa (*i);
 
-        if (pa.options.dependency ())
-        {
-          assert (false); // @@ TODO: we want stash <pkg>/[ver] somewhere
-                          //          to be used during the refinment phase.
-                          //          It should probably be passes to
-                          //          evaluate_dependency().
-
-          //@@ TODO: we also need to handle "unhold"
-          //@@ TODO: we probably also need to pre-enter version somehow if
-          //         specified so that constraint resolution does not fail
-          //         (i.e., this could be a manual resulution of the
-          //         previouly failed constraint).
-        }
-
         // Reduce all the potential variations (archive, directory, package
         // name, package name/version) to a single available_package object.
         //
         shared_ptr<repository> ar;
         shared_ptr<available_package> ap;
 
-        if (!pa.parsed ())
+        if (!arg_parsed (pa))
         {
           const char* package (pa.value.c_str ());
 
           // Is this a package archive?
           //
+          bool package_arc (false);
+
           try
           {
             path a (package);
@@ -1908,15 +2526,23 @@ namespace bpkg
 
               package_manifest m (pkg_verify (o, a, true, diag));
 
-              // This is a package archive (note that we shouldn't throw
-              // failed from here on).
+              // This is a package archive.
               //
-              l4 ([&]{trace << "archive '" << a << "': " << pa;});
+              package_arc = true;
 
-              pa = pkg_arg (package_scheme::none,
-                            m.name,
-                            m.version,
-                            move (pa.options));
+              l4 ([&]{trace << "archive '" << a << "': " << arg_string (pa);});
+
+              // Supporting this would complicate things a bit, but we may add
+              // support for it one day.
+              //
+              if (pa.options.dependency ())
+                fail << "package archive '" << a
+                     << "' may not be built as a dependency";
+
+              pa = arg_package (package_scheme::none,
+                                m.name,
+                                m.version,
+                                move (pa.options));
 
               ar = root;
               ap = make_shared<available_package> (move (m));
@@ -1932,7 +2558,11 @@ namespace bpkg
           }
           catch (const failed&)
           {
-            // Not a valid package archive.
+            // If this is a valid package archive but something went wrong
+            // afterwards, then we are done.
+            //
+            if (package_arc)
+              throw;
           }
 
           // Is this a package directory?
@@ -1963,7 +2593,15 @@ namespace bpkg
                 //
                 package_dir = true;
 
-                l4 ([&]{trace << "directory '" << d << "': " << pa;});
+                l4 ([&]{trace << "directory '" << d << "': "
+                              << arg_string (pa);});
+
+              // Supporting this would complicate things a bit, but we may add
+              // support for it one day.
+              //
+              if (pa.options.dependency ())
+                fail << "package directory '" << d
+                     << "' may not be built as a dependency";
 
                 // Fix-up the package version to properly decide if we need to
                 // upgrade/downgrade the package. Note that throwing failed
@@ -1982,10 +2620,10 @@ namespace bpkg
                                        true /* check_external */))
                   m.version = move (*v);
 
-                pa = pkg_arg (package_scheme::none,
-                              m.name,
-                              m.version,
-                              move (pa.options));
+                pa = arg_package (package_scheme::none,
+                                  m.name,
+                                  m.version,
+                                  move (pa.options));
 
                 ap = make_shared<available_package> (move (m));
                 ar = root;
@@ -2021,7 +2659,7 @@ namespace bpkg
         {
           try
           {
-            if (!pa.parsed ())
+            if (!arg_parsed (pa))
             {
               const char* package (pa.value.c_str ());
 
@@ -2031,32 +2669,30 @@ namespace bpkg
               string  n (parse_package_name (package));
               version v (parse_package_version (package));
 
-              pa = pkg_arg (package_scheme::none,
-                            move (n),
-                            move (v),
-                            move (pa.options));
+              pa = arg_package (package_scheme::none,
+                                move (n),
+                                move (v),
+                                move (pa.options));
             }
 
-            l4 ([&]{trace << "package: " << pa;});
+            l4 ([&]{trace << "package: " << arg_string (pa);});
 
-            // Either get the user-specified version or the latest for a
-            // source code package. For a system package we peek the latest
-            // one just to make sure the package is recognized.
-            //
-            auto rp (
-              pa.version.empty () || pa.system ()
-              ? find_available (db, pa.name, root, nullopt)
-              : find_available (db,
-                                pa.name,
-                                root,
-                                dependency_constraint (pa.version)));
-            ap = rp.first;
-            ar = rp.second;
-
-            // @@ TMP
-            //
-            if (pa.options.dependency ())
-              evaluate_dependency0 (t, pa.name, pa.version);
+            if (!pa.options.dependency ())
+            {
+              // Either get the user-specified version or the latest for a
+              // source code package. For a system package we pick the latest
+              // one just to make sure the package is recognized.
+              //
+              auto rp (
+                pa.version.empty () || arg_sys (pa)
+                ? find_available (db, pa.name, root, nullopt)
+                : find_available (db,
+                                  pa.name,
+                                  root,
+                                  dependency_constraint (pa.version)));
+              ap = move (rp.first);
+              ar = move (rp.second);
+            }
           }
           catch (const failed&)
           {
@@ -2070,6 +2706,68 @@ namespace bpkg
         if (check_dup (*i++))
           continue;
 
+        // Save (both packages to hold and dependencies) as dependents for
+        // recursive upgrade.
+        //
+        {
+          optional<bool> u;
+          optional<bool> r;
+
+          const auto& po (pa.options);
+
+          if      (po.upgrade_immediate ()) { u = true;          r = false; }
+          else if (po.upgrade_recursive ()) { u = true;          r = true;  }
+          else if (  po.patch_immediate ()) { u = false;         r = false; }
+          else if (  po.patch_recursive ()) { u = false;         r = true;  }
+          else if (        po.immediate ()) { u = po.upgrade (); r = false; }
+          else if (        po.recursive ()) { u = po.upgrade (); r = true;  }
+
+          if (r)
+          {
+            l4 ([&]{trace << "stashing recursive package "
+                          << arg_string (pa);});
+
+            rec_pkgs.push_back (recursive_package {pa.name, *u, *r});
+          }
+        }
+
+        // Add the dependency package to the list.
+        //
+        if (pa.options.dependency ())
+        {
+          l4 ([&]{trace << "stashing dependency package "
+                        << arg_string (pa);});
+
+          bool sys (arg_sys (pa));
+
+          // Make sure that the package is known.
+          //
+          auto apr (pa.version.empty () || sys
+                    ? query_available (db, pa.name, nullopt)
+                    : query_available (db,
+                                       pa.name,
+                                       dependency_constraint (pa.version)));
+          if (apr.empty ())
+          {
+            diag_record dr (fail);
+
+            dr << "unknown package " << arg_string (pa, false /* options */);
+            check_any_available (c, t, &dr);
+          }
+
+          shared_ptr<selected_package> sp (       // Save before the name move.
+            db.find<selected_package> (pa.name));
+
+          dep_pkgs.push_back (dependency_package {move (pa.name),
+                                                  move (pa.version),
+                                                  move (sp),
+                                                  sys,
+                                                  pa.options.keep_out ()});
+          continue;
+        }
+
+        // Add the held package to the list.
+        //
         // Load the package that may have already been selected and
         // figure out what exactly we need to do here. The end goal
         // is the available_package object corresponding to the actual
@@ -2092,7 +2790,7 @@ namespace bpkg
         // package is not in the repository then there is no dependent for it
         // (otherwise the repository would be broken).
         //
-        if (!pa.system ())
+        if (!arg_sys (pa))
         {
           // If we failed to find the requested package we can still check if
           // the package name is present in the repositories and if that's the
@@ -2138,7 +2836,7 @@ namespace bpkg
           //
           else
           {
-            assert (!pa.system ());
+            assert (!arg_sys (pa));
 
             if (ap != nullptr)
             {
@@ -2175,22 +2873,16 @@ namespace bpkg
 
             // Let's help the new user out here a bit.
             //
-            if (db.query_value<repository_count> () == 0)
-              dr << info << "configuration " << c << " has no repositories"
-                 << info << "use 'bpkg rep-add' to add a repository";
-            else if (db.query_value<available_package_count> () == 0)
-              dr << info << "configuration " << c << " has no available "
-                 << "packages"
-                 << info << "use 'bpkg rep-fetch' to fetch available packages "
-                 << "list";
+            check_any_available (c, t, &dr);
           }
           else
           {
-            assert (!pa.system ());
+            assert (!arg_sys (pa));
 
-            dr << pa.package () << " is not available in source" <<
-              info << "specify sys:" << pa.package () << " "
-                   << "if it is available from the system";
+            dr << arg_string (pa, false /* options */)
+               << " is not available in source" <<
+              info << "specify sys:" << arg_string (pa, false /* options */)
+                   << " if it is available from the system";
           }
         }
 
@@ -2199,7 +2891,7 @@ namespace bpkg
         //
         if (ap == nullptr)
         {
-          assert (sp != nullptr && sp->system () == pa.system ());
+          assert (sp != nullptr && sp->system () == arg_sys (pa));
 
           auto rp (make_available (o, c, db, sp));
           ap = rp.first;
@@ -2225,12 +2917,13 @@ namespace bpkg
           true,                 // Hold package.
           !pa.version.empty (), // Hold version.
           {},                   // Constraints.
-          pa.system (),
+          arg_sys (pa),
           keep_out,
           {""},                 // Required by (command line).
-          false};               // Reconfigure.
+          0};                   // Adjustments.
 
-        l4 ([&]{trace << "collect " << p.available_name_version ();});
+        l4 ([&]{trace << "stashing held package "
+                      << p.available_name_version ();});
 
         // "Fix" the version the user asked for by adding the '==' constraint.
         //
@@ -2245,7 +2938,86 @@ namespace bpkg
         hold_pkgs.push_back (move (p));
       }
 
+      // If this is just pkg-build -u|-p, then we are upgrading all held
+      // packages.
+      //
+      if (hold_pkgs.empty () && dep_pkgs.empty () &&
+          (o.upgrade () || o.patch ()))
+      {
+        using query = query<selected_package>;
+
+        for (shared_ptr<selected_package> sp:
+               pointer_result (
+                 db.query<selected_package> (query::state == "configured" &&
+                                             query::hold_package)))
+        {
+          // Let's skip upgrading system packages as they are, probably,
+          // configured as such for a reason.
+          //
+          if (sp->system ())
+            continue;
+
+          const string& name (sp->name);
+          auto apr (find_available (db, name, root, nullopt));
+
+          shared_ptr<available_package> ap (move (apr.first));
+          if (ap == nullptr || ap->stub ())
+          {
+            diag_record dr (fail);
+            dr << name << " is not available";
+
+            if (ap != nullptr)
+              dr << " in source" <<
+                info << "consider building it as "
+                     << package_string (name, version (), true /* system */)
+                     << " if it is available from the system";
+
+            // Let's help the new user out here a bit.
+            //
+            check_any_available (c, t, &dr);
+          }
+
+          // We will keep the output directory only if the external package is
+          // replaced with an external one (see above for details).
+          //
+          bool keep_out (o.keep_out () && sp->external ());
+
+          build_package p {
+            build_package::build,
+              move (sp),
+              move (ap),
+              move (apr.second),
+              true,              // Hold package.
+              false,             // Hold version.
+              {},                // Constraints.
+              false,             // System package.
+              keep_out,
+              {""},              // Required by (command line).
+              0};                // Adjustments.
+
+          l4 ([&]{trace << "stashing held package "
+                        << p.available_name_version ();});
+
+          hold_pkgs.push_back (move (p));
+
+          // If there are also -i|-r, then we are also upgrading dependencies
+          // of all held packages.
+          //
+          if (o.immediate () || o.recursive ())
+            rec_pkgs.push_back (
+              recursive_package {name, o.upgrade (), o.recursive ()});
+        }
+      }
+
       t.commit ();
+    }
+
+    if (hold_pkgs.empty () && dep_pkgs.empty ())
+    {
+      assert (rec_pkgs.empty ());
+
+      info << "nothing to build";
+      return 0;
     }
 
     // Assemble the list of packages we will need to build-to-hold, still used
@@ -2294,12 +3066,14 @@ namespace bpkg
     //
     build_packages pkgs;
     {
-      struct dep_pkg
+      struct dep
       {
-        string           name;
-        bpkg::version version; // Drop if empty, up/down-grade otherwise.
+        string name;                              // Empty if up/down-grade.
+        shared_ptr<available_package> available;  // NULL if drop.
+        shared_ptr<bpkg::repository>  repository; // NULL if drop.
+        bool system;
       };
-      vector<dep_pkg> dep_pkgs;
+      vector<dep> deps;
 
       // Iteratively refine the plan with dependency up/down-grades/drops.
       //
@@ -2307,40 +3081,117 @@ namespace bpkg
       {
         transaction t (db);
 
+        build_packages::postponed_packages postponed;
+
         if (scratch)
         {
           pkgs.clear ();
+          postponed.clear ();
+
+          // Pre-enter dependencies to keep track of the desired versions and
+          // options specified on the command line. In particular, if the
+          // version is specified and the dependency is used as part of the
+          // plan, then the desired version must be used. We also need it to
+          // distinguish user-driven dependency up/down-grades from the
+          // dependent-driven ones, not to warn/refuse.
+          //
+          // Also, if a dependency package already has selected package that
+          // is held, then we need to unhold it.
+          //
+          for (const dependency_package& p: dep_pkgs)
+          {
+            build_package bp {
+              nullopt,             // Action.
+              nullptr,             // Selected package.
+              nullptr,             // Available package.
+              nullptr,             // Available package repository.
+              false,               // Hold package.
+              !p.version.empty (), // Hold version.
+              {},                  // Constraints.
+              p.system,
+              p.keep_out,
+              {""},                // Required by (command line).
+              0};                  // Adjustments.
+
+            if (!p.version.empty ())
+              bp.constraints.emplace_back (
+                "command line",
+                dependency_constraint (p.version));
+
+            pkgs.enter (p.name, move (bp));
+          }
 
           // Pre-collect user selection to make sure dependency-forced
           // up/down-grades are handled properly (i.e., the order in which we
           // specify packages on the command line does not matter).
           //
           for (const build_package& p: hold_pkgs)
-            pkgs.collect (o, c, db, p, false /* recursively */);
+            pkgs.collect_build (o, c, db, p);
 
-          // Collect all the prerequisites.
+          // Collect all the prerequisites of the user selection.
           //
           for (const build_package& p: hold_pkgs)
-            pkgs.collect_prerequisites (o, c, db, p.name ());
+            pkgs.collect_build_prerequisites (o, c, db, p.name (), postponed);
+
+          // Note that we need to collect unheld after prerequisites, not to
+          // overwrite the pre-entered entries before they are used to provide
+          // additional constraints for the collected prerequisites.
+          //
+          for (const dependency_package& p: dep_pkgs)
+          {
+            if (p.selected != nullptr && p.selected->hold_package)
+              pkgs.collect_unhold (p.selected);
+          }
 
           scratch = false;
         }
         else
           pkgs.clear_order (); // Only clear the ordered list.
 
-        // Add to the plan dependencies to upgrade/downgrade/drop that were
+        // Add to the plan dependencies to up/down-grade/drop that were
         // discovered on the previous iterations.
         //
-        for (const dep_pkg& p: dep_pkgs)
+        for (const dep& d: deps)
         {
-          shared_ptr<selected_package> sp (
-            db.load<selected_package> (p.name));
-
-          if (p.version.empty ())
-            pkgs.collect_dropped (move (sp));
+          if (d.available == nullptr)
+            pkgs.collect_drop (db.load<selected_package> (d.name));
           else
-            assert (false); // @@ TMP
+          {
+            shared_ptr<selected_package> sp (
+              db.find<selected_package> (d.name));
+
+            // We will keep the output directory only if the external package
+            // is replaced with an external one (see above for details).
+            //
+            bool keep_out (o.keep_out () && sp->external ());
+
+            // Marking upgraded dependencies as "required by command line" may
+            // seem redundant as they should already be pre-entered as such
+            // (see above). But remember dependencies upgraded with -i|-r?
+            // Note that the required_by data member should never be empty, as
+            // it is used in prompts/diagnostics.
+            //
+            build_package p {
+              build_package::build,
+              move (sp),
+              d.available,
+              d.repository,
+              nullopt,      // Hold package.
+              nullopt,      // Hold version.
+              {},           // Constraints.
+              d.system,
+              keep_out,
+              {""},         // Required by (command line).
+              0};           // Adjustments.
+
+            pkgs.collect_build (o, c, db, p, &postponed /* recursively */);
+          }
         }
+
+        // Handle the (combined) postponed collection.
+        //
+        if (!postponed.empty ())
+          pkgs.collect_build_postponed (o, c, db, postponed);
 
         // Now that we have collected all the package versions that we need to
         // build, arrange them in the "dependency order", that is, with every
@@ -2355,17 +3206,26 @@ namespace bpkg
         // deterministic. We, however, do them before hold_pkgs so that they
         // appear (e.g., on the plan) last.
         //
-        for (const dep_pkg& p: dep_pkgs)
-          pkgs.order (p.name, false);
+        for (const dep& d: deps)
+          pkgs.order (d.name, false /* reorder */);
 
         for (const build_package& p: reverse_iterate (hold_pkgs))
           pkgs.order (p.name ());
 
-        // Once we have the final plan, collect and order all the dependents
-        // that we will need to reconfigure because of the up/down-grades of
-        // packages that are now on the list.
+        // Collect and order all the dependents that we will need to
+        // reconfigure because of the up/down-grades of packages that are now
+        // on the list.
         //
         pkgs.collect_order_dependents (db);
+
+        // And, finally, make sure all the packages that we need to unhold
+        // are on the list.
+        //
+        for (const dependency_package& p: dep_pkgs)
+        {
+          if (p.selected != nullptr && p.selected->hold_package)
+            pkgs.order (p.name, false);
+        }
 
         // We are about to execute the plan on the database (but not on the
         // filesystem / actual packages). Save the session state for the
@@ -2398,10 +3258,57 @@ namespace bpkg
           execute_plan (o, c, db, bl, true /* simulate */);
         }
 
+        // Return nullopt if no changes to the dependency are necessary. This
+        // value covers both the "no change is required" and the "no
+        // recommendation available" cases.
+        //
+        auto eval_dep = [&db, &dep_pkgs, &rec_pkgs]  (
+          const shared_ptr<selected_package>& sp,
+          bool ignore_unsatisfiable = true) -> optional<evaluate_result>
+        {
+          optional<evaluate_result> r;
+
+          // See if there is an optional dependency upgrade recommendation.
+          //
+          if (!sp->hold_package)
+            r = evaluate_dependency (db, dep_pkgs, sp, ignore_unsatisfiable);
+
+          // If none, then see for the recursive dependency upgrade
+          // recommendation.
+          //
+          // Let's skip upgrading system packages as they are, probably,
+          // configured as such for a reason.
+          //
+          if (!r && !sp->system () && !rec_pkgs.empty ())
+            r = evaluate_recursive (db, rec_pkgs, sp, ignore_unsatisfiable);
+
+          // Translate the "no change" result to nullopt.
+          //
+          return r && r->available == nullptr && !r->unused ? nullopt : r;
+        };
+
+        // The empty version means that the package must be dropped.
+        //
+        const version ev;
+        auto target_version = [&ev] (const shared_ptr<available_package>& ap,
+                                     bool sys) -> const version&
+        {
+          if (ap == nullptr)
+            return ev;
+
+          if (sys)
+          {
+            assert (ap->system_version () != nullptr);
+            return *ap->system_version ();
+          }
+
+          return ap->version;
+        };
+
         // Verify that none of the previously-made upgrade/downgrade/drop
         // decisions have changed.
         //
-        for (auto i (dep_pkgs.begin ()); i != dep_pkgs.end (); )
+        for (auto i (deps.begin ()); i != deps.end (); )
         {
           bool s (false);
 
@@ -2410,18 +3317,21 @@ namespace bpkg
           //
           if (auto sp = db.find<selected_package> (i->name))
           {
-            if (optional<version> v = evaluate_dependency (db, sp))
-              s = (i->version != *v);
+            const version& dv (target_version (i->available, i->system));
+
+            if (optional<evaluate_result> r = eval_dep (sp))
+              s = dv != target_version (r->available, r->system) ||
+                  i->system != r->system;
             else
-              s = (i->version != sp->version);
+              s = dv != sp->version || i->system != sp->system ();
           }
           else
-            s = !i->version.empty ();
+            s = i->available != nullptr;
 
           if (s)
           {
             scratch = true; // Rebuild the plan from scratch.
-            i = dep_pkgs.erase (i);
+            i = deps.erase (i);
           }
           else
             ++i;
@@ -2429,28 +3339,53 @@ namespace bpkg
 
         if (!scratch)
         {
-          // Examine the new dependency set for any upgrade/downgrade/drops.
+          // First, we check if the refinement is required, ignoring the
+          // unsatisfiable dependency versions. If we end up refining the
+          // execution plan, such dependencies might be dropped, and then there
+          // will be nothing to complain about. When no more refinements are
+          // necessary we will run the diagnostics check, to make sure that the
+          // unsatisfiable dependency, if left, is reported.
           //
-          refine = false; // Presumably no more refinments necessary.
-
-          using query = query<selected_package>;
-
-          for (shared_ptr<selected_package> sp:
-                 pointer_result (
-                   db.query<selected_package> (query::state == "configured" &&
-                                               !query::hold_package)))
+          auto need_refinement = [&eval_dep, &deps, rec_pkgs, &db, &o] (
+            bool diag = false) -> bool
           {
-            if (optional<version> v = evaluate_dependency (db, sp))
-            {
-              // Skip unused if we were instructed to keep them.
-              //
-              if (o.keep_unused () && v->empty ())
-                continue;
+            // Examine the new dependency set for any up/down-grade/drops.
+            //
+            bool r (false); // Presumably no more refinments are necessary.
 
-              dep_pkgs.push_back (dep_pkg {sp->name, *v});
-              refine = true;
+            using query = query<selected_package>;
+
+            query q (query::state == "configured");
+
+            if (rec_pkgs.empty ())
+              q = q && !query::hold_package;
+
+            for (shared_ptr<selected_package> sp:
+                   pointer_result (db.query<selected_package> (q)))
+            {
+              if (optional<evaluate_result> er = eval_dep (sp, !diag))
+              {
+                // Skip unused if we were instructed to keep them.
+                //
+                if (o.keep_unused () && er->available == nullptr)
+                  continue;
+
+                if (!diag)
+                  deps.push_back (dep {sp->name,
+                                       move (er->available),
+                                       move (er->repository),
+                                       er->system});
+                r = true;
+              }
             }
-          }
+
+            return r;
+          };
+
+          refine = need_refinement ();
+
+          if (!refine)
+            need_refinement (true /* diag */);
         }
 
         // Rollback the changes to the database and reload the changed
@@ -2470,7 +3405,9 @@ namespace bpkg
           //
           for (build_package& p: pkgs)
           {
-            if (p.action == build_package::drop)
+            assert (p.action);
+
+            if (*p.action == build_package::drop)
             {
               assert (p.selected != nullptr);
 
@@ -2492,18 +3429,36 @@ namespace bpkg
             {
               rescan = false;
 
-              for (auto i (sp->begin ()); i != sp->end (); ++i)
+              for (auto i (sp->begin ()); i != sp->end (); )
               {
-                if (old_sp.find (i->first) == old_sp.end ())
+                bool erased (false);
+                auto j (old_sp.find (i->first));
+
+                if (j == old_sp.end ())
                 {
                   if (i->second.use_count () == 1)
                   {
                     // This might cause another object's use count to drop.
                     //
-                    sp->erase (i);
+                    i = sp->erase (i);
+                    erased = true;
                     rescan = true;
                   }
                 }
+                // It may also happen that the object was erased from the
+                // database and then recreated. In this case we restore the
+                // pointer that is stored in the session.
+                //
+                else if (i->second != j->second)
+                {
+                  // This might cause another object's use count to drop.
+                  //
+                  i->second = j->second;
+                  rescan = true;
+                }
+
+                if (!erased)
+                  ++i;
               }
             }
           }
@@ -2521,7 +3476,7 @@ namespace bpkg
 
     // We need the plan and to ask for the user's confirmation only if some
     // implicit action (such as building prerequisite or reconfiguring
-    // dependent package) to be taken or there is a selected package which
+    // dependent package) is to be taken or there is a selected package which
     // version must be changed. But if the user explicitly requested it with
     // --plan, then we print it as long as it is not empty.
     //
@@ -2538,7 +3493,9 @@ namespace bpkg
 
         string act;
 
-        if (p.action == build_package::drop)
+        assert (p.action);
+
+        if (*p.action == build_package::drop)
         {
           act = "drop " + sp->string () + " (unused)";
           need_prompt = true;
@@ -2546,20 +3503,36 @@ namespace bpkg
         else
         {
           string cause;
-          if (p.action == build_package::reconf)
+          if (*p.action == build_package::adjust)
           {
+            assert (sp != nullptr && (p.reconfigure () || p.unhold ()));
+
             // This is a dependent needing reconfiguration.
             //
             // This is an implicit reconfiguration which requires the plan to
             // be printed. Will flag that later when composing the list of
             // prerequisites.
             //
-            assert (sp != nullptr && p.reconfigure ());
-            act = "reconfigure " + sp->name;
-            cause = "dependent of";
+            if (p.reconfigure ())
+            {
+              act = "reconfigure";
+              cause = "dependent of";
 
-            if (!o.configure_only ())
-              update_dependents = true;
+              if (!o.configure_only ())
+                update_dependents = true;
+            }
+
+            // This is a held package needing unhold.
+            //
+            if (p.unhold ())
+            {
+              if (act.empty ())
+                act = "unhold";
+              else
+                act += "/unhold";
+            }
+
+            act += ' ' + sp->name;
           }
           else
           {
@@ -2567,7 +3540,7 @@ namespace bpkg
             // make sure it is configured and updated.
             //
             if (sp == nullptr)
-              act = p.system ? "configure " : "build ";
+              act = p.system ? "configure" : "build";
             else if (sp->version == p.available_version ())
             {
               // If this package is already configured and is not part of the
@@ -2581,23 +3554,26 @@ namespace bpkg
                 continue;
 
               act = p.system
-                ? "reconfigure "
+                ? "reconfigure"
                 : p.reconfigure ()
-                ? "reconfigure/build "
-                : "build ";
+                  ? "reconfigure/build"
+                  : "build";
             }
             else
             {
               act = p.system
-                ? "reconfigure "
+                ? "reconfigure"
                 : sp->version < p.available_version ()
-                                ? "upgrade "
-                                : "downgrade ";
+                  ? "upgrade"
+                  : "downgrade";
 
               need_prompt = true;
             }
 
-            act += p.available_name_version ();
+            if (p.unhold ())
+              act += "/unhold";
+
+            act += ' ' + p.available_name_version ();
             cause = "required by";
           }
 
@@ -2670,7 +3646,8 @@ namespace bpkg
     // 3.a fetch/unpack    new, up/down-graded
     // 3.b checkout        new, up/down-graded
     // 4.  configure       all
-    // 5.  build           user selection               [right to left]
+    // 5.  unhold          unheld
+    // 6.  build           user selection               [right to left]
     //
     // Note that for some actions, e.g., purge or fetch, the order is not
     // really important. We will, however, do it right to left since that
@@ -2703,7 +3680,9 @@ namespace bpkg
     //
     for (const build_package& p: reverse_iterate (pkgs))
     {
-      if (p.action == build_package::drop)
+      assert (p.action);
+
+      if (*p.action != build_package::build)
         continue;
 
       const shared_ptr<selected_package>& sp (p.selected);
@@ -2720,13 +3699,10 @@ namespace bpkg
     {
       for (const build_package& p: reverse_iterate (pkgs))
       {
-        if (p.action == build_package::drop)
-          continue;
+        assert (p.action);
 
-        const shared_ptr<selected_package>& sp (p.selected);
-
-        if (p.reconfigure () && p.available == nullptr)
-          upkgs.push_back (pkg_command_vars {sp, strings ()});
+        if (*p.action == build_package::adjust && p.reconfigure ())
+          upkgs.push_back (pkg_command_vars {p.selected, strings ()});
       }
     }
 
@@ -2757,7 +3733,9 @@ namespace bpkg
       // We are only interested in configured packages that are either being
       // up/down-graded, need reconfiguration (e.g., dependents), or dropped.
       //
-      if (p.action != build_package::drop && !p.reconfigure ())
+      assert (p.action);
+
+      if (*p.action != build_package::drop && !p.reconfigure ())
         continue;
 
       shared_ptr<selected_package>& sp (p.selected);
@@ -2769,7 +3747,7 @@ namespace bpkg
 
       // Reset the flag if the package being unpacked is not an external one.
       //
-      if (p.keep_out)
+      if (p.keep_out && !simulate)
       {
         const shared_ptr<available_package>& ap (p.available);
         const package_location& pl (ap->locations[0]);
@@ -2829,6 +3807,8 @@ namespace bpkg
     //
     for (build_package& p: reverse_iterate (build_pkgs))
     {
+      assert (p.action);
+
       shared_ptr<selected_package>& sp (p.selected);
       const shared_ptr<available_package>& ap (p.available);
 
@@ -2837,7 +3817,7 @@ namespace bpkg
       //
       for (;;) // Breakout loop.
       {
-        if (p.action == build_package::drop)
+        if (*p.action == build_package::drop)
         {
           transaction t (db, !simulate /* start */);
           pkg_purge (c, t, sp, simulate); // Commits the transaction.
@@ -2849,8 +3829,13 @@ namespace bpkg
           break;
         }
 
-        if (ap == nullptr) // Skip dependents.
+        if (*p.action == build_package::adjust) // Skip adjustments.
+        {
+          assert (ap == nullptr);
           break;
+        }
+
+        assert (ap != nullptr);
 
         // System package should not be fetched, it should only be configured
         // on the next stage. Here we need to purge selected non-system package
@@ -3054,7 +4039,7 @@ namespace bpkg
 
       // We are done for the dropped package.
       //
-      if (p.action == build_package::drop)
+      if (*p.action == build_package::drop)
         continue;
 
       // Configure the package.
@@ -3095,23 +4080,31 @@ namespace bpkg
         text << "configured " << *sp;
     }
 
-    // Small detour: update the hold state. While we could have tried
-    // to "weave" it into one of the previous actions, things there
-    // are already convoluted enough.
+    // Update the hold state.
+    //
+    // While we could have tried to "weave" it into one of the previous
+    // actions, things there are already convoluted enough.
     //
     for (const build_package& p: reverse_iterate (build_pkgs))
     {
-      if (p.action == build_package::drop)
+      assert (p.action);
+
+      if (*p.action == build_package::drop)
         continue;
 
       const shared_ptr<selected_package>& sp (p.selected);
       assert (sp != nullptr);
 
-      // Note that we should only "increase" the hold_package state. For
-      // version, if the user requested upgrade to the (unspecified) latest,
-      // then we want to reset it.
+      // Note that if not explicitly requested to unhold, we should only
+      // "increase" the hold_package state. For version, if the user requested
+      // upgrade to the (unspecified) latest, then we want to reset it.
       //
-      bool hp (p.hold_package ? *p.hold_package : sp->hold_package);
+      bool hp (p.unhold ()
+               ? false
+               : p.hold_package
+                 ? *p.hold_package
+                 : sp->hold_package);
+
       bool hv (p.hold_version ? *p.hold_version : sp->hold_version);
 
       if (hp != sp->hold_package || hv != sp->hold_version)

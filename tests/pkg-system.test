@@ -46,13 +46,12 @@ pkg_drop   += -d cfg --yes 2>!
 pkg_status += -d cfg
 rep_add    += -d cfg 2>!
 rep_fetch  += -d cfg --auth all --trust-yes 2>!
+rep_remove += -d cfg 2>!
 
 # Note that when we fetch a package from remote repository the bpkg stderr
 # contains fetch program progress output, that comes prior the informational
 # message.
 #
-# @@ Uncomment when support for dependency up/down-grade is added.
-#\
 : t1
 :
 {
@@ -252,14 +251,14 @@ rep_fetch  += -d cfg --auth all --trust-yes 2>!
     #
     $pkg_build foo 'sys:libbar/2' 2>>~%EOE%;
       disfigured libbar/2
+      disfigured libbaz/2
+      purged libbaz/2
       purged libbar/2
       configured sys:libbar/2
       %.*
       %.*fetched foo/2%
       unpacked foo/2
       configured foo/2
-      disfigured libbaz
-      purged libbaz
       %info: .+ is up to date%
       updated foo/2
       EOE
@@ -300,14 +299,14 @@ rep_fetch  += -d cfg --auth all --trust-yes 2>!
     #
     $pkg_build foo 'sys:libbar' 2>>~%EOE%;
       disfigured libbar/2
+      disfigured libbaz/2
+      purged libbaz/2
       purged libbar/2
       configured sys:libbar/*
       %.*
       %.*fetched foo/2%
       unpacked foo/2
       configured foo/2
-      disfigured libbaz
-      purged libbaz
       %info: .+ is up to date%
       updated foo/2
       EOE
@@ -363,11 +362,11 @@ rep_fetch  += -d cfg --auth all --trust-yes 2>!
     $pkg_build 'sys:libbar/2' 2>>~%EOE%;
       disfigured foo/2
       disfigured libbar/2
+      disfigured libbaz/2
+      purged libbaz/2
       purged libbar/2
       configured sys:libbar/2
       configured foo/2
-      disfigured libbaz
-      purged libbaz
       %info: .+ is up to date%
       updated foo/2
       EOE
@@ -518,14 +517,14 @@ rep_fetch  += -d cfg --auth all --trust-yes 2>!
     #
     $pkg_build foo '?sys:libbar/2' 2>>~%EOE%;
       disfigured libbar/1
+      disfigured libbaz/2
+      purged libbaz/2
       purged libbar/1
       configured sys:libbar/2
       %.*
       %.*fetched foo/2%
       unpacked foo/2
       configured foo/2
-      disfigured libbaz
-      purged libbaz
       %info: .+ is up to date%
       updated foo/2
       EOE
@@ -546,6 +545,33 @@ rep_fetch  += -d cfg --auth all --trust-yes 2>!
     $pkg_status libbaz >'libbaz available 2';
 
     $pkg_drop foo libbar
+  }
+
+  : upgrade-held
+  :
+  {
+    $clone_cfg;
+
+    $pkg_build libbar 2>!;
+
+    $rep_remove $rep/t1 && $rep_fetch $rep/t2;
+
+    $pkg_build --upgrade 2>>EOE != 0;
+      error: libbar is not available in source
+        info: consider building it as sys:libbar if it is available from the system
+      EOE
+
+    $pkg_build 'sys:libbar' 2>>EOE;
+      disfigured libbar/2
+      disfigured libbaz/2
+      purged libbaz/2
+      purged libbar/2
+      configured sys:libbar/*
+      EOE
+
+    $pkg_build --upgrade 2>'info: nothing to build';
+
+    $pkg_drop libbar
   }
 }
 
@@ -813,8 +839,10 @@ rep_fetch  += -d cfg --auth all --trust-yes 2>!
       EOE
 
     $pkg_build foo '?sys:libbar/1' 2>>EOE != 0;
-      error: dependency libbar >= 2 of package foo is not available in source
-        info: sys:libbar/1 does not satisfy the constrains
+      error: unable to satisfy constraints on package libbar
+        info: foo depends on (libbar >= 2)
+        info: command line depends on (libbar == 1)
+        info: specify libbar version to satisfy foo constraint
       info: while satisfying foo/2
       EOE
 
@@ -885,4 +913,3 @@ rep_fetch  += -d cfg --auth all --trust-yes 2>!
     $pkg_drop foo
   }
 }
-#\

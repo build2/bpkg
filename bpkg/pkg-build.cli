@@ -149,6 +149,9 @@ namespace bpkg
      as well as specified globally, in which case they apply to all the
      specified packages."
 
+    // NOTE: if adding a new option here, don't forget to also update
+    //       {validate,merge,compare,print}_options() in pkg-build.cxx!
+
     bool --upgrade|-u
     {
       "Upgrade packages to the latest available version that satisfies all the
