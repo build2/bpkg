@@ -49,8 +49,8 @@ alpha, beta, candidate, etc. Its format is the same as for \i{upstream} except
 for two special values: the absent \i{prerel} (for example, \c{1.2.3})
 signifies the maximum or final release while the empty \i{prerel} (for
 example, \c{1.2.3-}) signifies the minimum or earliest possible
-release. [Note: the minimum release is intended to be used for version
-constraints (for example, \c{libfoo < 1.2.3-}) rather than actual releases.]
+release. \N{The minimum release is intended to be used for version
+constraints (for example, \c{libfoo < 1.2.3-}) rather than actual releases.}
 
 The \i{revision} part should be an integer. It is used to version package
 releases that are based on the same upstream versions. If not specified, then
@@ -66,17 +66,18 @@ package iterations with otherwise identical versions. Note also that
 \i{iteration} is relative to the \c{bpkg} configuration. Or, in other words,
 it is an iteration number of a package as observed by a specific
 configuration. As a result, two configuration can \"see\" the same package
-state as two different iterations.  [Note: package iterations are used to
-support package development during which requiring the developer to manually
-increment the version or revision after each modification would be
-impractical. This mechanism is similar to the automatic commit versioning
-provided by the \i{standard version} except that it is limited to the
-packaging information but works for uncommitted changes.]
+state as two different iterations.
+
+\N|Package iterations are used to support package development during which
+requiring the developer to manually increment the version or revision after
+each modification would be impractical. This mechanism is similar to the
+automatic commit versioning provided by the \i{standard version} except that
+it is limited to the packaging information but works for uncommitted changes.|
 
 Version \c{0-} (least possible version) is reserved and specifying it
-explicitly is illegal. [Note: explicitly specifying this version does not make
+explicitly is illegal. \N{Explicitly specifying this version does not make
 much sense since \c{libfoo < 0-} is always false and \c{libfoo > 0-} is always
-true. In the implementation this value is used as a special empty version.]
+true. In the implementation this value is used as a special empty version.}
 
 Version \c{0} (with a potential revision, for example, \c{0+1}, \c{0+2}) is
 used to signify a \i{stub package}. A stub is a package that does not contain
@@ -90,8 +91,8 @@ file name, zero \i{epoch}, \i{revision}, and \i{iteration} are omitted (even
 if they were explicitly specified, for instance, in the package manifest). For
 example, \c{0~1.2.3+0} will be used as \c{libfoo-1.2.3}.
 
-[Note: this versioning scheme and the choice of delimiter characters (\c{~-+})
-is meant to align with semantic versioning.]
+\N|This versioning scheme and the choice of delimiter characters (\c{~-+})
+is meant to align with semantic versioning.|
 
 Some examples of versions:
 
@@ -120,15 +121,15 @@ To compare two components, first the component types are determined.  A
 component that only consists of digits is an integer. Otherwise, it is a
 string. If both components are integers, then they are compared as
 integers. Otherwise, they are compared lexicographically and case-
-insensitively. [Note: the reason for case-insensitive comparsion is Windows
-file names.]
+insensitively. \N{The reason for case-insensitive comparsion is Windows
+file names.}
 
 A non-existent component is considered 0 if the other component is an integer
 and an empty string if the other component is a string.  For example, in
 \c{1.2} vs \c{1.2.0}, the third component in the first version is 0 and the
 two versions are therefore equal. As a special exception to this rule, an
-absent \i{prerel} part is always greater than any non-absent part. [Note: and
-thus making the final release always older than any pre-release.]
+absent \i{prerel} part is always greater than any non-absent part. \N{And
+thus making the final release always older than any pre-release.}
 
 This algorithm gives correct results for most commonly-used versioning
 schemes, for example:
@@ -148,10 +149,10 @@ number and pad all the values with leading zeros, for example: \c{00A} vs
 
 It is also possible to convert the \i{upstream} and \i{prerel} parts into a
 \i{canonical representation} that will produce the correct comparison result
-when always compared lexicographically and as a whole. [Note: this can be
+when always compared lexicographically and as a whole. \N{This can be
 useful, for example, when storing versions in the database which would
 otherwise require a custom collation implementation to obtain the correct sort
-order.]
+order.}
 
 To convert one of these parts to its canonical representation, all its string
 components are converted to the lower case while all its integer components
@@ -159,12 +160,12 @@ are padded with leading zeros to the fixed length of \c{16} characters, with
 all trailing zero-only components removed. Note that this places an
 implementation limit on the length of integer components which should be
 checked by the implementation when converting to the canonical
-representation. [Note: the \c{16} characters limit was chosen to still be able
+representation. \N{The \c{16} characters limit was chosen to still be able
 to represent (with some spare) components in the \i{YYYYMMDDhhmmss} form while
-not (visually) bloating the database too much.] As a special case, the absent
-\i{prerel} part is represented as \c{'~'}. [Note: since the ASCII code for
+not (visually) bloating the database too much.} As a special case, the absent
+\i{prerel} part is represented as \c{'~'}. \N{Since the ASCII code for
 \c{'~'} is greater than any other character that could appear in \i{prerel},
-such a string will always be greater than any other representation.] The empty
+such a string will always be greater than any other representation.} The empty
 \i{prerel} part is represented as an empty string.
 
 Note that because it is no possible to perform a reverse conversion without
@@ -172,14 +173,14 @@ the possibility of loss (consider \c{01.AA.BB}), the original parts may also
 have to be stored, for example, for display, to derive package archive names,
 etc.
 
-[Note: in quite a few contexts the implementation needs to ignore the
+\N|In quite a few contexts the implementation needs to ignore the
 \i{revision} and/or \i{iteration} parts. For example, this is needed to
 implement the semantics of newer revisions/iterations of packages replacing
 their old ones since we do not keep multiple revisions/iterations of the same
 upstream version in the same respository. As a result, in the package object
 model, we have a version key as just {\i{epoch}, \i{upstream}, \i{prerel}} but
 also store the package revision and iteration so that it can be shown it to
-the user, etc.]
+the user, etc.|
 
 \h1#manifests|Manifests|
 
@@ -307,7 +308,7 @@ Expressed as a C-string, the value in the above example is:
 \
 
 
-[Note: if we didn't expect to ever need to specify a name with an empty value,
+\N|If we didn't expect to ever need to specify a name with an empty value,
 then an empty value could have turned on the multi-line mode, for example:
 
 \
@@ -320,7 +321,7 @@ Second paragraph.
 
 There are two reasons we don't do this: we don't want to close the door on
 empty values and we want a more explicit \"introductor\" for the multi-line
-mode since it is quite different compared to the simple mode.]
+mode since it is quite different compared to the simple mode.|
 
 Note that in the multi-line mode we can still use newline escaping to split
 long lines, for example:
@@ -394,10 +395,10 @@ package-email: john@example.com
 
 Other common name suffixes (such as -feed) could be added later.
 
-[Note: generally, unless there is a good reason not to, we keep values
+\N|Generally, unless there is a good reason not to, we keep values
 lower-case (for example, \c{requires} values such as \c{c++11} or
 \c{linux}). An example where we use upper/mixed case would be \c{license}; it
-seems unlikely \c{gplv2} would be better than \c{GPLv2}.]
+seems unlikely \c{gplv2} would be better than \c{GPLv2}.|
 
 A number of name-value pairs described below allow for the value proper to be
 optionally followed by ';' and a comment. Such comments serve as additional
@@ -474,8 +475,8 @@ name: <name>
 \
 
 The package name. Note that the package name comparison is case-insensitive
-but the case is preserved for display, in file names, etc. [Note: the reason
-for not using case-sensitive comparison is Windows file names.]
+but the case is preserved for display, in file names, etc. \N{The reason
+for not using case-sensitive comparison is Windows file names.}
 
 Package naming guidelines:
 
@@ -570,8 +571,8 @@ available source ; Not free software/open source.
 proprietary
 \
 
-[Note: an example of automated processing could be filtering for non-copyleft
-licensed packages.]
+\N|An example of automated processing would be filtering for non-copyleft
+licensed packages.|
 
 \h2#manifest-package-tags|\c{tags}|
 
@@ -584,7 +585,7 @@ licensed packages.]
 The package tags (optional). The format is a comma-separated list of words
 that describe this package.
 
-[Note: originally, support for multi-word tags were considered, however this
+\N|Originally, support for multi-word tags were considered, however this
 quickly degenerated into quite a complex functionality. In particular, in such
 a case we should probably treat multi-word tags as if the single word as well
 as shorter, multi-word derivations were also mentioned. That is, \"xml pull
@@ -595,7 +596,7 @@ On the user side, if exact phrase matches are favored, then this serves as an
 encouragement to come up with ever more elaborate multi-word tags to \"cover\"
 as much ground as possible. For example, \"streaming c++ xml pull parser\".
 
-As a result, we will start simple and only allow single-word tags.]
+As a result, we will start simple and only allow single-word tags.|
 
 
 \h2#manifest-package-description|\c{description}|
@@ -624,13 +625,13 @@ example, lists) will be lost and should not be used in the description.
 
 The description of changes in the release.
 
-[Note: the tricky aspect is what happens if the upstream release stays the
+\N|The tricky aspect is what happens if the upstream release stays the
 same (and has, say, a \c{NEWS} file to which we point) but we need to make
-another package release, for example, to apply a critical patch.]
+another package release, for example, to apply a critical patch.|
 
 Multiple \c{changes} values can be present which are all concatenated in the
 order specified, that is, the first value is considered to be the most recent
-[Note: similar to \c{ChangeLog} and \c{NEWS} files]. For example:
+(similar to \c{ChangeLog} and \c{NEWS} files). For example:
 
 \
 changes: 1.2.3-2: applied upstream patch for critical bug bar
@@ -653,7 +654,7 @@ changes-file: NEWS
 \
 
 In the web interface (\c{brep}) the changes are displayed as pre-formatted
-plain text.  [Note: we could use the comment to \"hint\" at the file format.]
+plain text. \N{We could use the comment to \"hint\" at the file format.}
 
 
 \h2#manifest-package-url|\c{url}|
@@ -738,12 +739,13 @@ notifications for this package are sent by email.
 \
 
 The prerequisite packages. If the \c{depends} value start with \c{'*'}, then
-it is a \i{build-time} prerequisite. Otherwise it is \i{run-time}. [Note: most
-of the build-time prerequisites are expected to be tools such as code
+it is a \i{build-time} prerequisite. Otherwise it is \i{run-time}.
+
+\N|Most of the build-time prerequisites are expected to be tools such as code
 generator, so you can think of \c{'*'} as the executable mark printed by
 \c{ls}. An important difference between the two kind of dependencies is that
 in case of cross-compilation a build-time dependency must be built for the
-build machine, not the target.]
+build machine, not the target.|
 
 Two special build-time dependency names are recognized and checked in an ad
 hoc manner: \c{build2} (the \c{build2} build system) and \c{bpkg} (the
@@ -913,11 +915,11 @@ that corresponds to this repository. The \i{sum} value should be 64
 characters long (that is, just the SHA256 value, no file name or any other
 markers), be calculated in the binary mode, and use lower-case letters.
 
-[Note: this checksum is used to make sure that the \c{repositories.manifest}
+\N|This checksum is used to make sure that the \c{repositories.manifest}
 file that was fetched is the same as the one that was used to create the
 \c{packages.manifest} file. This also means that if \c{repositories.manifest}
 is modified in any way, then \c{packages.manifest} must be regenerated as
-well.]
+well.|
 
 \h2#manifest-package-list-pkg-package-location|\c{location} (package manifest)|
 
@@ -928,9 +930,9 @@ location: <path>
 The path to the package archive file relative to the repository root. It
 should be in the POSIX representation.
 
-[Note: if the repository keeps multiple versions of the package and places
+\N|if the repository keeps multiple versions of the package and places
 them all into the repository root directory, it can get untidy. With
-\c{location} we allow for sub-directories.]
+\c{location} we allow for sub-directories.|
 
 
 \h2#manifest-package-list-pkg-package-sha256sum|\c{sha256sum} (package manifest)|
@@ -1021,9 +1023,9 @@ slashes only), Windows is generally able to handle both slash types. As a
 result, it is recommended that POSIX paths are always used in the \c{location}
 values, except, perhaps, if the repository is explicitly Windows-only by, for
 example, having a location that is an absolute Windows path with the drive
-letter. [Note: the bpkg package manager will always try to represent the
+letter. \N{The \cb{bpkg} package manager will always try to represent the
 location as a POSIX path and only fallback to the native representation if
-that is not possible (for example, there is a drive letter in the path).]
+that is not possible (for example, there is a drive letter in the path).}
 
 
 \h2#manifest-repository-type|\c{type}|
@@ -1102,13 +1104,13 @@ marker is used to highlight the changes):
 ../../../..  ->  https://<  >example.org/test<               >
 \
 
-[Note: the rationale for the relative web interface URLs is to allow
+\N|The rationale for the relative web interface URLs is to allow
 deployment of the same repository to slightly different configuration, for
 example, during development, testing, and public use. For instance, for
 development we may use the \c{https://example.org/pkg/} setup while in
 production it becomes \c{https://pkg.example.org/}. By specifying the web
 interface location as, say, \c{../.}, we can run the web interface at
-these respective locations using a single repository manifest.]
+these respective locations using a single repository manifest.|
 
 
 \h2#manifest-repository-email|\c{email}|
@@ -1181,8 +1183,8 @@ repository root directory) describes the repository. First comes a
 prerequisite and complement repositories. After this sequence must come the
 manifest for the base repository, that is, the repository that this manifest
 list is describing. The location value in this last manifest must be
-omitted. [Note: since we got hold of the manifest list, then we presumably
-already know the location of the base repository.]
+omitted. \N{Since we got hold of the manifest list, then we presumably
+already know the location of the base repository.}
 
 As an example, a repository manifest list for the \c{math/testing}
 repository could look like this:
@@ -1223,8 +1225,8 @@ repository root directory) contains the signature of the repository's
 \c{packages.manifest} file. In order to detect the situation where the
 downloaded \c{signature.manifest} and \c{packages.manifest} files belong to
 different updates, the manifest contains both the checksum and the signature
-(which is the encrypted checksum). [Note: we cannot rely on just the signature
-since a mismatch could mean either a split update or tampering.] The manifest
+(which is the encrypted checksum). \N{We cannot rely on just the signature
+since a mismatch could mean either a split update or tampering.} The manifest
 synopsis is presented next followed by the detailed description of each value
 in subsequent sections.
 
