@@ -6,6 +6,7 @@
 
 #include <libbpkg/manifest.hxx>
 
+#include <bpkg/fetch.hxx>            // git_checkout*()
 #include <bpkg/package.hxx>
 #include <bpkg/package-odb.hxx>
 #include <bpkg/database.hxx>
@@ -22,6 +23,38 @@ using namespace butl;
 
 namespace bpkg
 {
+  static void
+  checkout (const common_options& o,
+            const repository_location& rl,
+            const dir_path& dir,
+            const string& fragment,
+            const shared_ptr<available_package>& ap)
+  {
+    switch (rl.type ())
+    {
+    case repository_type::git:
+      {
+        git_checkout (o, dir, fragment);
+
+        if (exists (dir / path (".gitmodules")))
+        {
+          // Print the progress indicator to attribute the possible fetching
+          // progress.
+          //
+          if (verb)
+            text << "checking out "
+                 << package_string (ap->id.name, ap->version);
+
+          git_checkout_submodules (o, dir);
+        }
+
+        break;
+      }
+    case repository_type::pkg:
+    case repository_type::dir: assert (false); break;
+    }
+  }
+
   shared_ptr<selected_package>
   pkg_checkout (const common_options& o,
                 const dir_path& c,
@@ -106,10 +139,10 @@ namespace bpkg
     // working tree so all we need to do is distribute it to the package
     // directory.
     //
-    dir_path sd (c / repos_dir);
+    dir_path sd (c / repos_dir / repository_state (rl));
 
-    sd /= repository_state (rl);
-    sd /= dir_path (pl->fragment);
+    checkout (o, rl, sd, pl->fragment, ap);
+
     sd /= path_cast<dir_path> (pl->location);
 
     // Verify the package prerequisites are all configured since the dist

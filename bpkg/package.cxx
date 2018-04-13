@@ -65,6 +65,12 @@ namespace bpkg
     const auto& ps (r->prerequisites);
     const auto& cs (r->complements);
 
+    // @@ The same repository can be present in the location set multiple times
+    //    with different fragment values. Given that we may traverse the same
+    //    repository tree multiple times, which is inefficient but harmless.
+    //    Let's leave it this way for now as it likely to be changed with
+    //    adding support for repository fragment objects.
+    //
     for (const package_location& pl: ap->locations)
     {
       const lazy_shared_ptr<repository>& lr (pl.repository);

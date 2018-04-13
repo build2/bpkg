@@ -99,6 +99,7 @@
   # Create git repositories.
   #
   $git_extract $src/git/state0/libfoo.tar
+  $git_extract $src/git/state0/libfox.tar
   $git_extract $src/git/state0/libbar.tar
   $git_extract $src/git/state0/style.tar
   $git_extract $src/git/state0/style-basic.tar &$out_git/state0/***
@@ -115,8 +116,9 @@ rep_remove   += -d cfg 2>!
 pkg_status   += -d cfg
 pkg_fetch    += -d cfg 2>!
 pkg_unpack   += -d cfg 2>!
-pkg_checkout += -d cfg 2>!
+pkg_checkout += -d cfg
 pkg_purge    += -d cfg
+pkg_drop     += -d cfg --yes 2>!
 
 : no-repos
 :
@@ -514,15 +516,14 @@ if ($remote != true)
 
       $clone_root_cfg;
 
+      $* "$rep/style.git#master" 2>! &cfg/.bpkg/repos/*/***;
+
       # Convert specific warnings to infos as we expect them to appear. This,
       # in particular, prevents bbot workers to set task result status to
       # warning.
       #
-      $* "$rep/style.git#master" 2>&1 | \
-	sed -e 's/warning: (fetching (over|whole) .*)/info: \1/' >&2 2>! \
-	&cfg/.bpkg/repos/*/***;
-
-      $pkg_checkout "style/1.0.0" 2>!;
+      $pkg_checkout "style/1.0.0" 2>&1 | \
+	sed -e 's/warning: (fetching (over|whole) .*)/info: \1/' >&2 2>!;
 
       $rep_add $rep/style.git;
       $* 2>!;
@@ -598,9 +599,31 @@ else
     }
   }
 
-  : re-clone
+  : checkout-submodules
   :
-  : Test that repository is re-cloned on the location change. Here this happens
+  : Test that if some of the packages are located in the repository
+  : submodules directory, then rep-fetch checks out submoodules.
+  :
+  {
+    $clone_root_cfg && $rep_add "$rep_git/state0/libfox.git#master";
+
+    $* 2>>~%EOE% &cfg/.bpkg/repos/*/***
+      %fetching git:.+libfox#master%
+      %querying .+libfox\.git%
+      %.{0,2}
+      %fetching from .+libfox\.git%
+      %querying .+libbar\.git%?
+      %.{0,2}
+      %fetching submodule 'libbar' from .+libbar\.git%
+      %submodule path 'libbar': checked out '.+'%
+      2 package(s) in 1 repository(s)
+      EOE
+
+  }
+
+  : re-fetching
+  :
+  : Test that repository is re-fetched on the location change. Here it happens
   : due to the scheme change.
   :
   if ($remote == true)
@@ -609,14 +632,13 @@ else
     $* 2>! &cfg/.bpkg/repos/*/***;
     $rep_add "$rep_git_https_smart_unadv/state0/libfoo.git#master";
 
-    $* 2>>~"%EOE%"
+    $* 2>>~%EOE%
       %fetching git:.+libfoo#master%
-      %info: re-cloning git:.+libfoo#master due to location change%
+      %info: location changed for git:.+libfoo#master%
       %  info: new location https://.+libfoo.git#master%
       %  info: old location git://.+libfoo.git#master%
-      %.+
-      %Submodule 'libbar' .+https://.+libbar.+%
-      %.+
+      %querying .+libfoo\.git%
+      1 package(s) in 1 repository(s)
       EOE
   }
 
@@ -630,11 +652,12 @@ else
 
     # Extract the repository path from the output line like this:
     #
-    # Cloning into 'cfg\.bpkg\tmp\f9be881264703b5d\master'...
+    # fetching from <url> in 'cfg/.bpkg/tmp/4bde15f59461'...
     #
-    $* 2>&1 | sed -n -e "s/Cloning into '\(.+master\)'\.{3}/\$1/p"   | \
-              sed -n -e 's%(.+[\\/])tmp([\\/].+)%$1repos$2%p' | \
-              set r;
+    $* --verbose 2 2>&1                                | \
+      sed -n -e "s/fetching from .+ in '\(.+\)'/\$1/p" | \
+      sed -n -e 's%(.+[\\/])tmp([\\/].+)%$1repos$2%p'  | \
+      set r;
 
     # Break the repo (drop the remote repository URL) and try to re-fetch.
     #

@@ -82,13 +82,12 @@ namespace bpkg
       const shared_ptr<available_package>& p (rp);
       vector<package_location>& ls (p->locations);
 
-      for (auto i (ls.cbegin ()), e (ls.cend ()); i != e; ++i)
+      for (auto i (ls.cbegin ()); i != ls.cend (); )
       {
         if (i->repository.object_id () == name)
-        {
-          ls.erase (i);
-          break;
-        }
+          i = ls.erase (i);
+        else
+          ++i;
       }
 
       if (ls.empty ())

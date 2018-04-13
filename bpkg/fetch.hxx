@@ -49,21 +49,41 @@ namespace bpkg
   // Repository type git (fetch-git.cxx).
   //
 
-  // Clone git repository into destdir/<name>/. Return the cloned repository
-  // directory name that was deduced from the repository URL fragment.
+  // Create a git repository in the specified directory and prepare it for
+  // fetching from the specified repository location. Note that the repository
+  // URL fragment is neither used nor validated.
   //
-  dir_path
-  git_clone (const common_options&,
-             const repository_location&,
-             const dir_path& destdir);
+  void
+  git_init (const common_options&,
+            const repository_location&,
+            const dir_path&);
 
-  // Fetch git repository in destdir/<name>/. Return the fetched repository
-  // directory name that was deduced from the repository URL fragment.
+  // Fetch a git repository in the specifid directory (previously created by
+  // git_init()) for the references obtained from the repository URL fragment
+  // returning commit ids these references resolve to. After fetching the
+  // repository working tree state is unspecified (see git_checkout ()).
   //
-  dir_path
+  // Note that submodules are not fetched.
+  //
+  strings
   git_fetch (const common_options&,
              const repository_location&,
-             const dir_path& destdir);
+             const dir_path&);
+
+  // Checkout the specified commit previously fetched by git_fetch().
+  //
+  // Note that submodules are not checked out.
+  //
+  void
+  git_checkout (const common_options&,
+                const dir_path&,
+                const string& commit);
+
+  // Fetch (if necessary) and checkout submodules, recursively, in a working
+  // tree previously checked out by git_checkout().
+  //
+  void
+  git_checkout_submodules (const common_options&, const dir_path&);
 
   // Low-level fetch API (fetch.cxx).
   //

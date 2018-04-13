@@ -935,7 +935,7 @@ namespace bpkg
 
   // Return a list of packages available from this repository.
   //
-  #pragma db view object(repository)                                         \
+  #pragma db view object(repository) query(distinct)                         \
     table("available_package_locations" = "pl" inner:                        \
           "pl.repository = " + repository::name)                             \
     object(available_package = package inner:                                \
@@ -956,7 +956,7 @@ namespace bpkg
 
   // Return a list of repositories the packages come from.
   //
-  #pragma db view object(repository)                                         \
+  #pragma db view object(repository) query(distinct)                         \
     table("available_package_locations" = "pl" inner:                        \
           "pl.repository = " + repository::name)                             \
     object(available_package = package inner:                                \

@@ -72,36 +72,45 @@ namespace bpkg
      as there are commits. Practically, however, we are normally only
      interested in a small subset of them while fetching and processing the
      necessary information for all of them could be prohibitively expensive.
-     As a result, a \cb{git} repository URL must include the fragment
-     component that restricts the set of versions to consider as available.
-     While in the future it will be possible to specify multiple available
-     versions, currently the fragment must identify a single version using one
-     of the following forms:
+     As a result, by default, only advertised tags (\cb{refs/tags/*}) and
+     branches (\cb{refs/heads/*}) are considered to be sources of useful
+     package versions (see \cb{git-ls-remote(1)} for details).
 
-     \
-     #<tag>
-     #<branch>
-     #<commit-id>
-     #<branch>@<commit-id>
-     \
-
-     In the last form <branch> is only used to minimize the amount of data to
-     fetch. If specified, then the commit must belong to its history.
-
-     No abbreviated commit ids are supported and <commit-id> must be the
-     complete, 40-characters SHA1 string. A 40-characters fragment that
-     consists of only hexadecimal digits is assumed to be a commit id and a
-     branch/tag otherwise. In an unlikely case this produces an incorrect
-     result, the last form with omitted <commit-id> can be used.
-
-     Below are some examples of \cb{git} repository URLs:
+     It is also possible to narrow down (or expand) the set of available
+     versions by specifying one or more references and/or commit ids in the
+     repository URL fragment. For example:
 
      \
      https://example.com/foo.git#v1.2.3
      https://example.com/foo.git#master
-     https://example.com/foo.git#48fba3625d65941bb85a39061bcf795d4949c778
-     https://example.com/foo.git#bar@48fba3625d65941bb85a39061bcf795d4949c778
-     https://example.com/foo.git#deadbeefdeadbeefdeadbeefdeadbeefdeadbeef@
+     https://example.com/foo.git#af234f56
+     https://example.com/foo.git#HEAD,tags/v1.2.3,heads/feature1
+     \
+
+     A \cb{git} repository URL fragment must be a comma-separated list of
+     reference filters in the following form:
+
+     \c{[\i{refname}][\b{@}\i{commit}]}
+
+     Either \ci{refname}, \ci{commit}, or both must be specified. If both are
+     specified then \ci{refname} is only used to minimize the amount of data
+     to fetch and \ci{commit} must belong to its history. For example:
+
+     \
+     .../foo.git#master@48fba3625d65941bb85a39061bcf795d4949c778
+     \
+
+     The \ci{refname} part can be a tag, branch, an abbreviated commit id, or
+     some other advertised reference under \cb{refs/}. While \ci{commit} must
+     be the complete, 40-characters SHA1 that need not be advertised. For
+     convenience, a 40-characters filter that consists of only hexadecimal
+     digits is assumed to be \ci{commit} even if not prefixed with \cb{@}. In
+     an unlikely event this produces an incorrect result, the \cb{@}-form with
+     omitted \ci{commit} can be used. For example:
+
+     \
+     .../foo.git#48fba3625d65941bb85a39061bcf795d4949c778   (commit id)
+     .../foo.git#deadbeefdeadbeefdeadbeefdeadbeefdeadbeef@  (reference)
      \
 
      A \cb{git} repository has the same structure and manifest files as the

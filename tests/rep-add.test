@@ -45,13 +45,13 @@ rep_list += -d cfg
     EOE
   }
 
-  : git-no-branch
+  : git-invalid-fragment
   :
   {
     $clone_cfg;
 
-    $* 'git://example.org/repo' 2>>EOE != 0
-    error: invalid git repository location 'git://example.org/repo': missing branch/tag or commit id for git repository
+    $* 'git://example.org/repo#' 2>>EOE != 0
+    error: invalid git repository location 'git://example.org/repo#': missing reference name or commit id for git repository
     EOE
   }
 
@@ -108,8 +108,8 @@ rep_list += -d cfg
     :
     $clone_cfg && mkdir -p repo/.git;
 
-    $* 'repo' 2>>~%EOE% != 0
-      %error: invalid git repository location '.+repo': missing branch/tag or commit id for git repository%
+    $* 'repo' 2>>/~%EOE%
+      %added git:.+/repo%
       EOE
 
     : file-pkg

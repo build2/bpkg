@@ -6,6 +6,17 @@
 # the final states. See tests/common/git/init script for more details.
 #
 
+reason_dumb  = ' (dumb HTTP)'
+reason_unadv = ' (unadvertised commit)'
+
+warn_dumb='
+warning: fetching over dumb HTTP, no progress will be shown'
+
+warn_repo_hist = "warning: fetching whole repository history"
+warn_ref_hist  = "warning: fetching whole reference history"
+
+warn = '%.{0}' # None.
+
 test.cleanups += &cfg/.bpkg/repos/*/***
 
 +if ($git_protocol == 'local')
@@ -33,25 +44,32 @@ else
   rep_git = "$rep"
 end
 
-: branch
+: none
 :
 {
-  branch = 'master'
-  .include rep-fetch-git-branch.test
+  fragment = ''
+  .include rep-fetch-git-refname.test
+}
+
+: refname
+:
+{
+  refname = '#master'
+  .include rep-fetch-git-refname.test
 }
 
 : ltag
 :
 {
-  branch = 'ltag'
-  .include rep-fetch-git-branch.test
+  fragment = '#ltag'
+  .include rep-fetch-git-refname.test
 }
 
 : atag
 :
 {
-  branch = 'atag'
-  .include rep-fetch-git-branch.test
+  fragment = '#atag'
+  .include rep-fetch-git-refname.test
 }
 
 : commit

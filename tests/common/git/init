@@ -37,8 +37,8 @@ if [ -n "$unpack" ]; then
   done
 fi
 
-# Create the initial state of the repositories libfoo.git, libbar.git,
-# style.git, and style-basic.git.
+# Create the initial state of the repositories libfoo.git, libfox.git,
+# libbar.git, style.git, and style-basic.git.
 #
 cd state0
 
@@ -47,6 +47,10 @@ rm -f    libfoo.git/.gitmodules
 rm -f    libfoo.git/README
 rm -f -r libfoo.git/libbar
 rm -f -r libfoo.git/doc/style
+
+rm -f -r libfox.git/.git
+rm -f    libfox.git/.gitmodules
+rm -f -r libfox.git/libbar
 
 rm -f -r libbar.git/.git
 
@@ -112,6 +116,14 @@ git -C libfoo.git tag -a 'atag' -m 'Create annotated tag'
 touch  libfoo.git/README
 git -C libfoo.git add README
 git -C libfoo.git commit -am 'README'
+
+# Create master branch for libfox.git, adding libbar.git as a submodule.
+#
+git -C libfox.git init
+git -C libfox.git add '*'
+git -C libfox.git submodule add ../libbar.git libbar
+git -C libfox.git submodule update --init --recursive # Recursive for safety.
+git -C libfox.git commit -am 'Create'
 
 # Create the modified state of the repositories, replacing libbar.git submodule
 # of libfoo with the newly created libbaz.git repository. Also advance master

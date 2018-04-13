@@ -281,45 +281,11 @@ namespace bpkg
                  const repository_location& rl,
                  bool ignore_unknown)
   {
-    // Plan:
-    //
-    // 1. Check repos_dir/<hash>/:
-    //
-    // 1.a If does not exist, git-clone into temp_dir/<hash>/<fragment>/.
-    //
-    // 1.a Otherwise, move as temp_dir/<hash>/ and git-fetch.
-    //
-    // 2. Move from temp_dir/<hash>/ to repos_dir/<hash>/<fragment>/
-    //
-    // 3. Check if repos_dir/<hash>/<fragment>/repositories.manifest exists:
-    //
-    // 3.a If exists, load.
-    //
-    // 3.b Otherwise, synthesize repository list with base repository.
-    //
-    // 4. Check if repos_dir/<hash>/<fragment>/packages.manifest exists:
-    //
-    // 4.a If exists, load. (into "skeleton" packages list to be filled?)
-    //
-    // 4.b Otherwise, synthesize as if single 'location: ./'.
-    //
-    // 5. For each package location obtained on step 4:
-    //
-    // 5.a Load repos_dir/<hash>/<fragment>/<location>/manifest.
-    //
-    // 5.b Run 'b info: repos_dir/<hash>/<fragment>/<location>/' and fix-up
-    //     package version.
-    //
-    // 6. Return repository and package manifests (certificate is NULL).
-    //
-
     if (conf != nullptr && conf->empty ())
       conf = dir_exists (bpkg_dir) ? &current_dir : nullptr;
 
     assert (conf == nullptr || !conf->empty ());
 
-    // Clone or fetch the repository.
-    //
     dir_path sd (repository_state (rl));
 
     auto_rmdir rm (temp_dir / sd);
@@ -329,17 +295,19 @@ namespace bpkg
       rm_r (td);
 
     // If the git repository directory already exists, then we are fetching
-    // an already cloned repository. Move it to the temporary directory.
+    // an already existing repository, moved to the temporary directory first.
+    // Otherwise, we initialize the repository in the temporary directory.
     //
-    // In this case also set the filesystem_state_changed flag since we are
-    // modifying the repository filesystem state.
+    // In the first case also set the filesystem_state_changed flag since we
+    // are modifying the repository filesystem state.
     //
     // In the future we can probably do something smarter about the flag,
     // keeping it unset unless the repository state directory is really
     // changed.
     //
     dir_path rd;
-    bool fetch (false);
+    bool init (true);
+
     if (conf != nullptr)
     {
       rd = *conf / repos_dir / sd;
@@ -348,34 +316,95 @@ namespace bpkg
       {
         mv (rd, td);
         filesystem_state_changed = true;
-        fetch = true;
+        init = false;
       }
     }
 
-    dir_path nm (fetch ? git_fetch (co, rl, td) : git_clone (co, rl, td));
-    dir_path fd (td / nm); // Full directory path.
-
-    // Parse manifests.
+    // Initialize a new repository in the temporary directory.
     //
-    git_repository_manifests rms (
-      parse_repository_manifests<git_repository_manifests> (
-        fd / repositories_file,
-        ignore_unknown,
-        rl));
+    if (init)
+      git_init (co, rl, td);
 
-    git_package_manifests pms (
-      parse_directory_manifests<git_package_manifests> (
-        fd / packages_file,
-        ignore_unknown,
-        rl));
+    // Fetch the repository in the temporary directory.
+    //
+    strings commits (git_fetch (co, rl, td));
+    assert (!commits.empty ());
 
-    vector<rep_fetch_data::package> fps (
-      parse_package_manifests (co,
-                               fd,
-                               nm.string (),
-                               move (pms),
-                               ignore_unknown,
-                               rl));
+    // Go through fetched commits, checking them out and collecting the
+    // prerequisite repositories and packages.
+    //
+    // For each checked out commit:
+    //
+    // - If repositories.manifest file doesn't exist, then synthesize the
+    //   repository list with just the base repository.
+    //
+    // - Save the repositories into the resulting list.
+    //
+    //   @@ Currently we just save ones from the first commit, assuming them
+    //      to be the same for others. However, this is not very practical
+    //      and must be fixed.
+    //
+    // - If packages.manifest file exists then load it into the "skeleton"
+    //   packages list. Otherwise, synthesize it with the single:
+    //
+    //   location: ./
+    //
+    // - If any of the package locations point to non-existent directory, then
+    //   assume it to be in a submodule and checkout submodules, recursively.
+    //
+    // - For each package location parse the package manifest and add it to
+    //   the resulting list.
+    //
+    git_repository_manifests rms;
+    vector<rep_fetch_data::package> fps;
+
+    for (const string& c: commits)
+    {
+      git_checkout (co, td, c);
+
+      // Parse repository manifests.
+      //
+      if (rms.empty ())
+        rms = parse_repository_manifests<git_repository_manifests> (
+          td / repositories_file,
+          ignore_unknown,
+          rl);
+
+      // Parse package skeleton manifests.
+      //
+      git_package_manifests pms (
+        parse_directory_manifests<git_package_manifests> (
+          td / packages_file,
+          ignore_unknown,
+          rl));
+
+      // Checkout submodules, if required.
+      //
+      for (const package_manifest& sm: pms)
+      {
+        dir_path d (td / path_cast<dir_path> (*sm.location));
+
+        if (!exists (d) || empty (d))
+        {
+          git_checkout_submodules (co, td);
+          break;
+        }
+      }
+
+      // Parse package manifests.
+      //
+      vector<rep_fetch_data::package> cps (
+        parse_package_manifests (co,
+                                 td,
+                                 c,
+                                 move (pms),
+                                 ignore_unknown,
+                                 rl));
+
+      fps.insert (fps.end (),
+                  make_move_iterator (cps.begin ()),
+                  make_move_iterator (cps.end ()));
+    }
 
     // Move the state directory to its proper place.
     //
@@ -389,7 +418,7 @@ namespace bpkg
       filesystem_state_changed = true;
     }
 
-    return rep_fetch_data {move (rms), move (fps), nullptr};
+    return rep_fetch_data {move (rms), move (fps), nullptr /* certificate */};
   }
 
   rep_fetch_data
@@ -740,9 +769,8 @@ namespace bpkg
         }
       }
 
-      // This repository shouldn't already be in the location set since
-      // that would mean it has already been loaded and we shouldn't be
-      // here.
+      // Note that the repository may already be present in the location set
+      // multiple times with different fragments.
       //
       p->locations.push_back (
         package_location {lazy_shared_ptr<repository> (db, r),
@@ -799,7 +827,7 @@ namespace bpkg
         rep_remove (conf, t, r);
 
       // Finally, make sure that the external packages are available from a
-      // single repository.
+      // single directory-based repository.
       //
       // Sort the packages by name and version. This way the external packages
       // with the same upstream version and revision will be adjacent.

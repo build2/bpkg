@@ -4,9 +4,8 @@
 
 #include <bpkg/fetch.hxx>
 
-#ifdef _WIN32
-#  include <algorithm> // replace()
-#endif
+#include <map>
+#include <algorithm> // find(), find_if(), replace()
 
 #include <libbutl/utility.mxx>          // digit(), xdigit()
 #include <libbutl/process.mxx>
@@ -340,7 +339,81 @@ namespace bpkg
       u.insert (7, 1, '/');
 #endif
 
-    return repository_url (u);
+    repository_url r (u);
+
+    path& up (*r.path);
+
+    if (!up.to_directory ())
+      up = path_cast<dir_path> (move (up));
+
+    return r;
+  }
+
+  // Get/set the repository configuration option.
+  //
+  inline static string
+  config_get (const common_options& co,
+              const dir_path& dir,
+              const string& key,
+              const char* what)
+  {
+    return git_string (co,
+                       what,
+                       co.git_option (),
+                       "-C", dir,
+                       "config",
+                       "--get",
+                       key);
+  }
+
+  inline static void
+  config_set (const common_options& co,
+              const dir_path& dir,
+              const string& key,
+              const string& value)
+  {
+    run_git (co, co.git_option (), "-C", dir, "config", key, value);
+  }
+
+  // Get option from the specified configuration file.
+  //
+  inline static string
+  config_get (const common_options& co,
+              const path& file,
+              const string& key,
+              const char* what)
+  {
+    return git_string (co,
+                       what,
+                       co.git_option (),
+                       "config",
+                       "--file", file,
+                       "--get",
+                       key);
+  }
+
+  // Get/set the repository remote URL.
+  //
+  static repository_url
+  origin_url (const common_options& co, const dir_path& dir)
+  {
+    try
+    {
+      return from_git_url (
+        config_get (co, dir, "remote.origin.url", "repository remote URL"));
+    }
+    catch (const invalid_argument& e)
+    {
+      fail << "invalid remote.origin.url configuration value: " << e << endg;
+    }
+  }
+
+  inline static void
+  origin_url (const common_options& co,
+              const dir_path& dir,
+              const repository_url& url)
+  {
+    config_set (co, dir, "remote.origin.url", to_git_url (url));
   }
 
   // Sense the git protocol capabilities for a specified URL.
@@ -476,6 +549,186 @@ namespace bpkg
     fail << "unable to fetch " << url << endg;
   }
 
+  // A git ref (tag, branch, etc) and its commit id (i.e., one line of the
+  // git-ls-remote output).
+  //
+  struct ref
+  {
+    string name;      // Note: without the peel marker ('^{}').
+    string commit;
+    bool   peeled;    // True for '...^{}' references.
+  };
+
+  // List of all refs and their commit ids advertized by a repository (i.e.,
+  // the git-ls-remote output).
+  //
+  class refs: public vector<ref>
+  {
+  public:
+    // Resolve a git refname (tag, branch, etc) returning NULL if not found.
+    //
+    const ref*
+    find_name (const string& n, bool abbr_commit) const
+    {
+      auto find = [this] (const string& n) -> const ref*
+      {
+        auto i (find_if (
+                  begin (), end (),
+                  [&n] (const ref& i)
+                  {
+                    return !i.peeled && i.name == n; // Note: skip peeled.
+                  }));
+
+        return i != end () ? &*i : nullptr;
+      };
+
+      // Let's search in the order refs are disambiguated by git (see
+      // gitrevisions(7) for details).
+      //
+      // What should we do if the name already contains a slash, for example,
+      // tags/v1.2.3? Note that while it most likely is relative to refs/, it
+      // can also be relative to other subdirectories (say releases/v1.2.3 in
+      // tags/releases/v1.2.3). So we just check everywhere.
+
+      // This handles symbolic references like HEAD.
+      //
+      if (const ref* r = find (n))
+        return r;
+
+      if (const ref* r = find ("refs/" + n))
+        return r;
+
+      if (const ref* r = find ("refs/tags/" + n))
+        return r;
+
+      if (const ref* r = find ("refs/heads/" + n))
+        return r;
+
+      // See if this is an abbreviated commit id. We do this check last since
+      // this can be ambiguous. We also don't bother checking strings shorter
+      // than 7 characters (git default).
+      //
+      return abbr_commit && n.size () >= 7 ? find_commit (n) : nullptr;
+    }
+
+    // Resolve (potentially abbreviated) commit id returning NULL if not
+    // found and failing if the resolution is ambiguous.
+    //
+    const ref*
+    find_commit (const string& c) const
+    {
+      const ref* r (nullptr);
+      size_t n (c.size ());
+
+      for (const ref& rf: *this)
+      {
+        if (rf.commit.compare (0, n, c) == 0)
+        {
+          if (r == nullptr)
+            r = &rf;
+
+          // Note that different names can refer to the same commit.
+          //
+          else if (r->commit != rf.commit)
+            fail << "abbreviated commit id " << c << " is ambiguous" <<
+              info << "candidate: " << r->commit <<
+              info << "candidate: " << rf.commit;
+        }
+      }
+
+      return r;
+    }
+  };
+
+  // Map of repository URLs to their advertized refs/commits.
+  //
+  using repository_refs_map = map<string, refs>;
+
+  static repository_refs_map repository_refs;
+
+  // It is assumed that sense_capabilities() function was already called for
+  // the URL.
+  //
+  static const refs&
+  load_refs (const common_options& co, const repository_url& url)
+  {
+    tracer trace ("load_refs");
+
+    string u (url.string ());
+    auto i (repository_refs.find (u));
+
+    if (i != repository_refs.end ())
+      return i->second;
+
+    if (verb)
+      text << "querying " << url;
+
+    refs rs;
+    fdpipe pipe (open_pipe ());
+
+    process pr (start_git (co,
+                           pipe, 2 /* stderr */,
+                           timeout_opts (co, url.scheme),
+                           co.git_option (),
+                           "ls-remote",
+                           to_git_url (url)));
+
+    // Shouldn't throw, unless something is severely damaged.
+    //
+    pipe.out.close ();
+
+    for (;;) // Breakout loop.
+    {
+      try
+      {
+        ifdstream is (move (pipe.in), fdstream_mode::skip, ifdstream::badbit);
+
+        for (string l; !eof (getline (is, l)); )
+        {
+          l4 ([&]{trace << "ref line: " << l;});
+
+          size_t n (l.find ('\t'));
+
+          if (n == string::npos)
+            fail << "unable to parse references for " << url << endg;
+
+          string cm (l, 0, n);
+          string nm (l, n + 1);
+
+          n = nm.rfind ("^{");
+          bool peeled (n != string::npos);
+
+          if (peeled)
+            nm.resize (n); // Strip the peel operation ('^{...}').
+
+          rs.push_back (ref {move (nm), move (cm), peeled});
+        }
+
+        is.close ();
+
+        if (pr.wait ())
+          break;
+
+        // Fall through.
+      }
+      catch (const io_error&)
+      {
+        if (pr.wait ())
+          fail << "unable to read references for " << url << endg;
+
+        // Fall through.
+      }
+
+      // We should only get here if the child exited with an error status.
+      //
+      assert (!pr.wait ());
+
+      fail << "unable to list references for " << url << endg;
+    }
+
+    return repository_refs.emplace (move (u), move (rs)).first->second;
+  }
+
   // Return true if a commit is advertised by the remote repository. It is
   // assumed that sense_capabilities() function was already called for the URL.
   //
@@ -484,56 +737,62 @@ namespace bpkg
                      const repository_url& url,
                      const string& commit)
   {
-    tracer trace ("commit_advertized");
+    return load_refs (co, url).find_commit (commit) != nullptr;
+  }
 
-    fdpipe pipe (open_pipe ());
+  // Return true if a commit is already fetched.
+  //
+  static bool
+  commit_fetched (const common_options& co,
+                  const dir_path& dir,
+                  const string& commit)
+  {
+    auto_fd dev_null (open_dev_null ());
 
     process pr (start_git (co,
-                           pipe, 2 /* stderr */,
-                           timeout_opts (co, url.scheme),
+                           1,                // The output is suppressed by -e.
+                           dev_null,
                            co.git_option (),
-                           "ls-remote",
-                           "--refs",
-                           to_git_url (url)));
+                           "-C", dir,
+                           "cat-file",
+                           "-e",
+                           commit + "^{commit}"));
 
-    pipe.out.close (); // Shouldn't throw, unless something is severely damaged.
-
-    try
-    {
-      bool r (false);
-      ifdstream is (move (pipe.in), fdstream_mode::skip, ifdstream::badbit);
-
-      for (string l; !eof (getline (is, l)); )
-      {
-        l4 ([&]{trace << "ref: " << l;});
-
-        if (l.compare (0, commit.size (), commit) == 0)
-        {
-          r = true;
-          break;
-        }
-      }
-
-      is.close ();
-
-      if (pr.wait ())
-        return r;
-
-      // Fall through.
-    }
-    catch (const io_error&)
-    {
-      if (pr.wait ())
-        fail << "unable to read references for " << url << endg;
-
-      // Fall through.
-    }
-
-    // We should only get here if the child exited with an error status.
+    // Shouldn't throw, unless something is severely damaged.
     //
-    assert (!pr.wait ());
+    dev_null.close ();
+    return pr.wait ();
+  }
 
-    fail << "unable to list references for " << url << endg;
+  // Create an empty repository and configure the remote origin URL and the
+  // default fetch refspec. If requested, use a separate git directory,
+  // creating it if absent.
+  //
+  static void
+  init (const common_options& co,
+        const dir_path& dir,
+        const repository_url& url,
+        const dir_path& git_dir = dir_path ())
+  {
+    if (!run_git (
+          co,
+          co.git_option (),
+          "init",
+
+          !git_dir.empty ()
+          ? strings ({"--separate-git-dir=" + git_dir.string ()})
+          : strings (),
+
+          verb < 2 ? opt ("-q") : nullopt,
+          dir))
+      fail << "unable to init " << dir << endg;
+
+    origin_url (co, dir, url);
+
+    config_set (co,
+                dir,
+                "remote.origin.fetch",
+                "+refs/heads/*:refs/remotes/origin/*");
   }
 
   // Return true if the shallow fetch is possible for the reference.
@@ -542,7 +801,7 @@ namespace bpkg
   shallow_fetch (const common_options& co,
                  const repository_url& url,
                  capabilities cap,
-                 const git_reference& ref)
+                 const git_ref_filter& rf)
   {
     switch (cap)
     {
@@ -552,7 +811,7 @@ namespace bpkg
       }
     case capabilities::smart:
       {
-        return !ref.commit || commit_advertized (co, url, *ref.commit);
+        return !rf.commit || commit_advertized (co, url, *rf.commit);
       }
     case capabilities::unadv:
       {
@@ -564,123 +823,177 @@ namespace bpkg
     return false;
   }
 
-  // Return true if a commit is reachable from the tip(s).
+  // @@ Move to libbpkg when adding support for multiple fragments.
   //
-  // Can be used to avoid redundant fetches.
+  using git_ref_filters = vector<git_ref_filter>;
+
+  // Fetch the references and return their commit ids. If there are no
+  // reference filters specified, then fetch all the tags and branches.
   //
-  // Note that git-submodule script implements this check, so it is probably an
-  // important optimization.
-  //
-  static bool
-  commit_reachable (const common_options& co,
-                    const dir_path& dir,
-                    const string& commit)
+  static strings
+  fetch (const common_options& co,
+         const dir_path& dir,
+         const dir_path& submodule,  // Used only for diagnostics.
+         const git_ref_filters& rfs)
   {
-    fdpipe  pipe (open_pipe ());
-    auto_fd dev_null (open_dev_null ());
+    strings r;
+    capabilities cap;
+    repository_url url;
 
-    process pr (start_git (co,
-                           pipe,
-                           dev_null,
-                           co.git_option (),
-                           "-C", dir,
-                           "rev-list",
-                           "-n", "1",
-                           commit,
-                           "--not",
-                           "--all"));
+    strings scs;  // Shallow fetch commits.
+    strings dcs;  // Deep fetch commits.
 
-    // Shouldn't throw, unless something is severely damaged.
+    bool fetch_repo (false);
+
+    // Translate a name to the corresponding commit. Fail if the name is not
+    // known by the remote repository.
     //
-    pipe.out.close ();
-    dev_null.close ();
-
-    try
+    auto commit = [&co, &dir, &url] (const string& nm, bool abbr_commit)
+      -> const string&
     {
-      ifdstream is (move (pipe.in), fdstream_mode::skip);
+      if (url.empty ())
+        url = origin_url (co, dir);
 
-      string s;
-      if (is.peek () != ifdstream::traits_type::eof ())
-        getline (is, s);
+      const ref* r (load_refs (co, url).find_name (nm, abbr_commit));
 
-      is.close ();
-      return pr.wait () && s.empty ();
-    }
-    catch (const io_error&) {}
-    return false;
-  }
+      if (r == nullptr)
+        fail << "unable to fetch " << nm << " from " << url <<
+          info << "name is not recognized" << endg;
 
-  // Print warnings about non-shallow fetching.
-  //
-  static void
-  fetch_warn (capabilities cap,
-              const char* what,
-              const dir_path& submodule = dir_path ())
-  {
-    {
-      diag_record dr (warn);
-      dr << "fetching whole " << what << " history";
+      return r->commit;
+    };
 
-      if (!submodule.empty ())
-        dr << " for submodule '" << submodule.posix_string () << "'";
-
-      dr << " ("
-         << (cap == capabilities::dumb
-             ? "dumb HTTP"
-             : "unadvertised commit") // There are no other reasons so far.
-         << ')';
-
-    }
-
-    if (cap == capabilities::dumb)
-      warn << "fetching over dumb HTTP, no progress will be shown";
-  }
-
-  // Update git index and working tree to match the reference. Fetch if
-  // necessary.
-  //
-  static void
-  update_tree (const common_options& co,
-               const dir_path& dir,
-               const dir_path& submodule, // Is relative to the top project.
-               const git_reference& ref,
-               capabilities cap,
-               bool shallow,
-               const strings& to)
-  {
-    // Don't fetch it the reference is a commit that is reachable from the
-    // tip(s).
+    // Add a commit to the list, suppressing duplicates.
     //
-    if (!(ref.commit && commit_reachable (co, dir, *ref.commit)))
+    auto add = [] (const string& c, strings& cs)
     {
-      if (!shallow)
-        fetch_warn (cap, ref.commit ? "repository" : "branch", submodule);
+      if (find (cs.begin (), cs.end (), c) == cs.end ())
+        cs.push_back (c);
+    };
 
-      // The clone command prints the following line prior to the progress
-      // lines:
-      //
-      // Cloning into '<dir>'...
-      //
-      // The fetch command doesn't print anything similar, for some reason.
-      // This makes it hard to understand which superproject/submodule is
-      // currently being fetched. Let's fix that.
-      //
-      // Note that we have "fixed" that capital letter nonsense (hoping that
-      // git-clone will do the same at some point).
-      //
-      if (verb != 0)
-        text << "fetching in '" << dir.posix_string () << "'...";
+    if (rfs.empty ())
+    {
+      url = origin_url (co, dir);
 
+      for (const ref& rf: load_refs (co, url))
+      {
+        // Skip everything other than tags and branches.
+        //
+        if (rf.peeled ||
+            (rf.name.compare (0, 11, "refs/heads/") != 0 &&
+             rf.name.compare (0, 10, "refs/tags/") != 0))
+          continue;
+
+        // Add an already fetched commit to the resulting list.
+        //
+        if (commit_fetched (co, dir, rf.commit))
+        {
+          add (rf.commit, r);
+          continue;
+        }
+
+        // Evaluate if the commit can be obtained with the shallow fetch and
+        // add it to the proper list.
+        //
+        if (scs.empty () && dcs.empty ())
+          cap = sense_capabilities (co, url);
+
+        // The commit is advertised, so we can fetch shallow, unless the
+        // protocol is dumb.
+        //
+        add (rf.commit, cap != capabilities::dumb ? scs : dcs);
+      }
+    }
+    else
+    {
+      for (const git_ref_filter& rf: rfs)
+      {
+        // Add an already fetched commit to the resulting list.
+        //
+        if (rf.commit && commit_fetched (co, dir, *rf.commit))
+        {
+          add (*rf.commit, r);
+          continue;
+        }
+
+        if (!rf.commit)
+        {
+          assert (rf.name);
+
+          const string& c (commit (*rf.name, true /* abbr_commit */));
+
+          if (commit_fetched (co, dir, c))
+          {
+            add (c, r);
+            continue;
+          }
+        }
+
+        // Evaluate if the commit can be obtained with the shallow fetch and
+        // add it to the proper list.
+        //
+        if (scs.empty () && dcs.empty ())
+        {
+          if (url.empty ()) // Can already be assigned by commit() lambda.
+            url = origin_url (co, dir);
+
+          cap = sense_capabilities (co, url);
+        }
+
+        bool shallow (shallow_fetch (co, url, cap, rf));
+        strings& commits (shallow ? scs : dcs);
+
+        // If commit is not specified, then we fetch the commit the refname
+        // translates to.
+        //
+        if (!rf.commit)
+        {
+          assert (rf.name);
+
+          add (commit (*rf.name, true /* abbr_commit */), commits);
+        }
+
+        // If commit is specified and the shallow fetch is possible, then we
+        // fetch the commit.
+        //
+        else if (shallow)
+          add (*rf.commit, commits);
+
+        // If commit is specified and the shallow fetch is not possible, but
+        // the refname containing the commit is specified, then we fetch the
+        // whole refname history.
+        //
+        else if (rf.name)
+          add (commit (*rf.name, false /* abbr_commit */), commits);
+
+        // Otherwise, if the refname is not specified and the commit is not
+        // advertised, we have to fetch the whole repository history.
+        //
+        else
+        {
+          add (*rf.commit, commits);
+          fetch_repo = !commit_advertized (co, url, *rf.commit);
+        }
+      }
+    }
+
+    // Bail out if all commits are already fetched.
+    //
+    if (scs.empty () && dcs.empty ())
+      return r;
+
+    auto fetch = [&co, &url, &dir] (const strings& refspecs, bool shallow)
+    {
       // Note that we suppress the (too detailed) fetch command output if the
       // verbosity level is 1. However, we still want to see the progress in
       // this case, unless STDERR is not directed to a terminal.
       //
       // Also note that we don't need to specify --refmap option since we can
-      // rely on the clone command that properly set the remote.origin.fetch
-      // configuration option.
+      // rely on the init() function that properly sets the
+      // remote.origin.fetch configuration option.
       //
       if (!run_git (co,
-                    to,
+                    timeout_opts (co, url.scheme),
                     co.git_option (),
                     "-C", dir,
                     "fetch",
@@ -689,50 +1002,113 @@ namespace bpkg
                     verb == 1 && fdterm (2) ? opt ( "--progress") : nullopt,
                     verb < 2 ? opt ("-q") : verb > 3 ? opt ("-v") : nullopt,
                     "origin",
-                    ref.commit ? *ref.commit : *ref.branch))
+                    refspecs))
         fail << "unable to fetch " << dir << endg;
+    };
+
+    // Print warnings prior to the deep fetching.
+    //
+    if (!dcs.empty ())
+    {
+      {
+        diag_record dr (warn);
+        dr << "fetching whole " << (fetch_repo ? "repository" : "reference")
+           << " history";
+
+        if (!submodule.empty ())
+          dr << " for submodule '" << submodule.posix_string () << "'";
+
+        dr << " ("
+           << (cap == capabilities::dumb
+               ? "dumb HTTP"
+               : "unadvertised commit") // There are no other reasons so far.
+           << ')';
+      }
+
+      if (cap == capabilities::dumb)
+        warn << "fetching over dumb HTTP, no progress will be shown";
     }
 
-    const string& commit (ref.commit ? *ref.commit : string ("FETCH_HEAD"));
+    // Print the progress indicator.
+    //
+    // Note that the clone command prints the following line prior to the
+    // progress lines:
+    //
+    // Cloning into '<dir>'...
+    //
+    // The fetch command doesn't print anything similar, for some reason.
+    // This makes it hard to understand which superproject/submodule is
+    // currently being fetched. Let's fix that.
+    //
+    // Also note that we have "fixed" that capital letter nonsense and stripped
+    // the trailing '...'.
+    //
+    if (verb)
+    {
+      diag_record dr (text);
+      dr << "fetching ";
 
-    // For some (probably valid) reason the hard reset command doesn't remove
-    // a submodule directory that is not plugged into the project anymore. It
-    // also prints the non-suppressible warning like this:
-    //
-    // warning: unable to rmdir libbar: Directory not empty
-    //
-    // That's why we run the clean command afterwards. It may also be helpful
-    // if we produce any untracked files in the tree between fetches down the
-    // road.
-    //
-    if (!run_git (
-          co,
-          co.git_option (),
-          "-C", dir,
-          "reset",
-          "--hard",
-          verb < 2 ? opt ("-q") : nullopt,
-          commit))
-      fail << "unable to reset to " << commit << endg;
+      if (!submodule.empty ())
+        dr << "submodule '" << submodule.posix_string () << "' ";
 
-    if (!run_git (
-          co,
-          co.git_option (),
-          "-C", dir,
-          "clean",
-          "-d",
-          "-x",
-          "-ff",
-          verb < 2 ? opt ("-q") : nullopt))
-      fail << "unable to clean " << dir << endg;
+      dr << "from " << url;
+
+      if (verb >= 2)
+        dr << " in '" << dir.posix_string () << "'"; // Is used by tests.
+    }
+
+    // Note that the shallow, deep and the resulting lists don't overlap.
+    // Thus, we will be moving commits between the lists not caring about
+    // suppressing duplicates.
+    //
+
+    // First, we fetch deep commits.
+    //
+    if (!dcs.empty ())
+    {
+      fetch (!fetch_repo ? dcs : strings (), false);
+
+      r.insert (r.end (),
+                make_move_iterator (dcs.begin ()),
+                make_move_iterator (dcs.end ()));
+    }
+
+    // After the deep fetching some of the shallow commits might also be
+    // fetched, so we move them to the resulting list.
+    //
+    strings cs;
+    for (auto& c: scs)
+      (commit_fetched (co, dir, c) ? r : cs).push_back (move (c));
+
+    // Finally, fetch shallow commits.
+    //
+    if (!cs.empty ())
+    {
+      fetch (cs, true);
+
+      r.insert (r.end (),
+                make_move_iterator (cs.begin ()),
+                make_move_iterator (cs.end ()));
+    }
+
+    return r;
   }
 
+  // Checkout the repository submodules (see git_checkout_submodules()
+  // description for details).
+  //
   static void
-  update_submodules (const common_options& co,
-                     const dir_path& dir,
-                     const dir_path& prefix)
+  checkout_submodules (const common_options& co,
+                       const dir_path& dir,
+                       const dir_path& git_dir,
+                       const dir_path& prefix)
   {
-    tracer trace ("update_submodules");
+    tracer trace ("checkout_submodules");
+
+    path mf (dir / path (".gitmodules"));
+
+    if (!exists (mf))
+      return;
 
     auto failure = [&prefix] (const char* desc)
     {
@@ -759,14 +1135,19 @@ namespace bpkg
           : strings (),
 
           "submodule--helper", "init",
-          verb < 1 ? opt ("-q") : nullopt))
+          verb < 2 ? opt ("-q") : nullopt))
       failure ("unable to initialize submodules");
 
-    // Iterate over the registered submodules cloning/fetching them and
-    // recursively updating their submodules.
+    repository_url orig_url (origin_url (co, dir));
+
+    // Iterate over the registered submodules initializing/fetching them and
+    // recursively checking them out.
     //
     // Note that we don't expect submodules nesting be too deep and so recurse
     // while reading the git process output.
+    //
+    // Also note that we don't catch the failed exception here, relying on the
+    // fact that the process destructor will wait for the process completion.
     //
     fdpipe pipe (open_pipe ());
 
@@ -776,7 +1157,9 @@ namespace bpkg
                            "-C", dir,
                            "submodule--helper", "list"));
 
-    pipe.out.close (); // Shouldn't throw, unless something is severely damaged.
+    // Shouldn't throw, unless something is severely damaged.
+    //
+    pipe.out.close ();
 
     try
     {
@@ -808,92 +1191,119 @@ namespace bpkg
         dir_path psdir (prefix / sdir);
         string psd (psdir.posix_string ()); // For use in the diagnostics.
 
-        string name (git_string (co, "submodule name",
-                                 co.git_option (),
-                                 "-C", dir,
-                                 "submodule--helper", "name",
-                                 sdir));
+        string nm (git_string (co, "submodule name",
+                               co.git_option (),
+                               "-C", dir,
+                               "submodule--helper", "name",
+                               sdir));
 
+        string uo ("submodule." + nm + ".url");
+        string uv (config_get (co, dir, uo, "submodule URL"));
+
+        l4 ([&]{trace << "name: " << nm << ", URL: " << uv;});
+
+        dir_path fsdir (dir / sdir);
+        bool initialized (exists (fsdir / path (".git")));
+
+        // If the submodule is already initialized and its commit didn't
+        // change then we skip it.
+        //
+        if (initialized && git_string (co, "submodule commit",
+                                       co.git_option (),
+                                       "-C", fsdir,
+                                       "rev-parse",
+                                       "--verify",
+                                       "HEAD") == commit)
+          continue;
+
+        // Note that the "submodule--helper init" command (see above) doesn't
+        // sync the submodule URL in .git/config file with the one in
+        // .gitmodules file, that is a primary URL source. Thus, we always
+        // calculate the URL using .gitmodules and update it in .git/config, if
+        // necessary.
+        //
         repository_url url;
 
         try
         {
-          url = from_git_url (git_string (co, "submodule URL",
-                                          co.git_option (),
-                                          "-C", dir,
-                                          "config",
-                                          "--get",
-                                          "submodule." + name + ".url"));
+          url = from_git_url (
+            config_get (co, mf, uo, "submodule original URL"));
+
+          // Complete the relative submodule URL against the containing
+          // repository origin URL.
+          //
+          if (url.scheme == repository_protocol::file && url.path->relative ())
+          {
+            repository_url u (orig_url);
+            *u.path /= *url.path;
+
+            // Note that we need to collapse 'example.com/a/..' to
+            // 'example.com/', rather than to 'example.com/.'.
+            //
+            u.path->normalize (
+              false /* actual */,
+              orig_url.scheme != repository_protocol::file /* cur_empty */);
+
+            url = move (u);
+          }
+
+          // Fix-up submodule URL in .git/config file, if required.
+          //
+          if (url != from_git_url (move (uv)))
+          {
+            config_set (co, dir, uo, to_git_url (url));
+
+            // We also need to fix-up submodule's origin URL, if its
+            // repository is already initialized.
+            //
+            if (initialized)
+              origin_url (co, fsdir, url);
+          }
         }
         catch (const invalid_argument& e)
         {
           fail << "invalid repository URL for submodule '" << psd << "': "
                << e << endg;
         }
-
-        l4 ([&]{trace << "name: " << name << ", URL: " << url;});
-
-        dir_path fsdir (dir / sdir);
-        bool cloned (exists (fsdir / path (".git")));
-
-        // If the submodule is already cloned and it's commit didn't change
-        // then we skip it.
-        //
-        // Note that git-submodule script still recurse into it for some
-        // unclear reason.
-        //
-        if (cloned && git_string (co, "submodule commit",
-                                  co.git_option (),
-                                  "-C", fsdir,
-                                  "rev-parse",
-                                  "--verify",
-                                  "HEAD") == commit)
-          continue;
-
-        git_reference ref {nullopt, commit};
-        capabilities cap (sense_capabilities (co, url));
-        bool shallow (shallow_fetch (co, url, cap, ref));
-        strings to (timeout_opts (co, url.scheme));
-
-        // Clone new submodule.
-        //
-        if (!cloned)
+        catch (const invalid_path& e)
         {
-          if (!shallow)
-            fetch_warn (cap, "repository", psdir);
-
-          if (!run_git (co,
-                        to,
-                        co.git_option (),
-                        "-C", dir,
-                        "submodule--helper", "clone",
-
-                        "--name", name,
-                        "--path", sdir,
-                        "--url", to_git_url (url),
-                        shallow
-                        ? cstrings ({"--depth", "1"})
-                        : cstrings (),
-                        verb < 1 ? opt ("-q") : nullopt))
-            fail << "unable to clone submodule '" << psd << "'" << endg;
+          fail << "invalid repository path for submodule '" << psd << "': "
+               << e << endg;
         }
 
-        update_tree (co, fsdir, psdir, ref, cap, shallow, to);
-
-        // Not quite a checkout, but let's make the message match the
-        // git-submodule script output (again, except for capitalization).
+        // Initialize the submodule repository.
         //
-        if (verb > 0)
+        // Note that we initialize the submodule repository git directory out
+        // of the working tree, the same way as "submodule--helper clone"
+        // does. This prevents us from loosing the fetched data when switching
+        // the containing repository between revisions, that potentially
+        // contain different sets of submodules.
+        //
+        dir_path gdir (git_dir / dir_path ("modules") / sdir);
+
+        if (!initialized)
+        {
+          mk_p (gdir);
+          init (co, fsdir, url, gdir);
+        }
+
+        // Fetch and checkout the submodule.
+        //
+        git_ref_filters rfs {git_ref_filter {nullopt, commit}};
+        fetch (co, fsdir, psdir, rfs);
+
+        git_checkout (co, fsdir, commit);
+
+        // Let's make the message match the git-submodule script output
+        // (again, except for capitalization).
+        //
+        if (verb)
           text << "submodule path '" << psd << "': checked out '" << commit
                << "'";
 
-        // Recurse.
+        // Check out the submodule submodules, recursively.
         //
-        // Can throw the failed exception that we don't catch here, relying on
-        // the fact that the process destructor will wait for the process
-        // completion.
-        //
-        update_submodules (co, fsdir, psdir);
+        checkout_submodules (co, fsdir, gdir, psdir);
       }
 
       is.close ();
@@ -918,169 +1328,107 @@ namespace bpkg
     failure ("unable to list submodules");
   }
 
-  // Extract the git reference from the repository URL fragment. Set the URL
-  // fragment to nullopt.
-  //
-  static git_reference
-  parse_reference (repository_url& url, const char* what)
+  void
+  git_init (const common_options& co,
+            const repository_location& rl,
+            const dir_path& dir)
   {
+    repository_url url (rl.url ());
+    url.fragment = nullopt;
+
+    init (co, dir, url);
+  }
+
+  strings
+  git_fetch (const common_options& co,
+             const repository_location& rl,
+             const dir_path& dir)
+  {
+    git_ref_filters refs;
+    repository_url url (rl.url ());
+
+    if (url.fragment)
     try
     {
-      git_reference r (git_reference (url.fragment));
+      refs.emplace_back (*url.fragment);
       url.fragment = nullopt;
-      return r;
     }
     catch (const invalid_argument& e)
     {
-      fail << "unable to " << what << ' ' << url << ": " << e << endf;
+      fail << "unable to fetch " << url << ": " << e;
     }
-  }
 
-  // Produce a repository directory name for the specified git reference.
-  //
-  // Truncate commit id-based directory names to shorten absolute directory
-  // paths, lowering the probability of hitting the limit on Windows.
-  //
-  // Note that we can't truncate them for branches/tags as chances to clash
-  // would be way higher than for commit ids. Though such names are normally
-  // short anyway.
-  //
-  static inline dir_path
-  repository_dir (const git_reference& ref)
-  {
-    return dir_path (ref.commit ? ref.commit->substr (0, 16) : *ref.branch);
-  }
-
-  dir_path
-  git_clone (const common_options& co,
-             const repository_location& rl,
-             const dir_path& destdir)
-  {
-    repository_url url (rl.url ());
-    git_reference  ref (parse_reference (url, "clone"));
-
-    // All protocols support single branch cloning, so we will always be
-    // cloning a single branch if the branch is specified.
+    // Update the repository URL, if changed.
     //
-    bool single_branch (ref.branch);
-    capabilities cap (sense_capabilities (co, url));
-    bool shallow (shallow_fetch (co, url, cap, ref));
+    repository_url u (origin_url (co, dir));
 
-    if (shallow)
-      single_branch = false; // Is implied for shallow cloning.
-    else
-      fetch_warn (cap, single_branch ? "branch" : "repository");
+    if (url != u)
+    {
+      // Note that the repository canonical name can not change under the
+      // legal scenarios that lead to the location change. Changed canonical
+      // name means that the repository was manually amended. We could fix-up
+      // such repositories as well but want to leave the backdoor for tests.
+      //
+      u.fragment = rl.url ().fragment;       // Restore the fragment.
+      repository_location l (u, rl.type ());
 
-    dir_path r (repository_dir (ref));
-    dir_path d (destdir / r);
+      if (rl.canonical_name () == l.canonical_name ())
+      {
+        if (verb)
+          info << "location changed for " << rl.canonical_name () <<
+            info << "new location " << rl <<
+            info << "old location " << l;
 
-    strings to (timeout_opts (co, url.scheme));
+        origin_url (co, dir, url);
+      }
+    }
+
+    return fetch (co, dir, dir_path () /* submodule */, refs);
+  }
+
+  void
+  git_checkout (const common_options& co,
+                const dir_path& dir,
+                const string& commit)
+  {
+    // For some (probably valid) reason the hard reset command doesn't remove
+    // a submodule directory that is not plugged into the project anymore. It
+    // also prints the non-suppressible warning like this:
+    //
+    // warning: unable to rmdir libbar: Directory not empty
+    //
+    // That's why we run the clean command afterwards. It may also be helpful
+    // if we produce any untracked files in the tree between checkouts down
+    // the road.
+    //
+    if (!run_git (
+          co,
+          co.git_option (),
+          "-C", dir,
+          "reset",
+          "--hard",
+          verb < 2 ? opt ("-q") : nullopt,
+          commit))
+      fail << "unable to reset to " << commit << endg;
 
     if (!run_git (
           co,
-          to,
-          "-c", "advice.detachedHead=false",
           co.git_option (),
-          "clone",
-
-          ref.branch    ? strings ({"--branch", *ref.branch}) : strings (),
-          single_branch ? opt      ("--single-branch")        : nullopt,
-          shallow       ? strings ({"--depth", "1"})          : strings (),
-          ref.commit    ? opt      ("--no-checkout")          : nullopt,
-
-          verb < 1 ? opt ("-q") : verb > 3 ? opt ("-v") : nullopt,
-          to_git_url (url),
-          d))
-      fail << "unable to clone " << url << endg;
-
-    if (ref.commit)
-      update_tree (co, d, dir_path (), ref, cap, shallow, to);
-
-    update_submodules (co, d, dir_path ());
-    return r;
+          "-C", dir,
+          "clean",
+          "-d",
+          "-x",
+          "-ff",
+          verb < 2 ? opt ("-q") : nullopt))
+      fail << "unable to clean " << dir << endg;
   }
 
-  dir_path
-  git_fetch (const common_options& co,
-             const repository_location& rl,
-             const dir_path& destdir)
+  void
+  git_checkout_submodules (const common_options& co, const dir_path& dir)
   {
-    repository_url url (rl.url ());
-    git_reference  ref (parse_reference (url, "fetch"));
-
-    dir_path r (repository_dir (ref));
-
-    // Fetch is noop if the specific commit is checked out.
-    //
-    // What if the user replaces the repository URL with a one with a new
-    // branch/tag/commit? These are not part of the repository name which
-    // means such a repository will have the same hash. But then when we
-    // remove the repository, we will also clean up its state. So seems like
-    // this should work correctly automatically.
-    //
-    if (ref.commit)
-      return r;
-
-    assert (ref.branch);
-
-    dir_path d (destdir);
-    d /= dir_path (*ref.branch);
-
-    // If the repository location differs from the one that was used to clone
-    // the repository then we re-clone it from the new location.
-    //
-    // Another (more hairy) way of doing this would be fixing up the remote
-    // origin URLs recursively prior to fetching.
-    //
-    try
-    {
-      repository_url u (from_git_url (git_string (co, "remote repository URL",
-                                                  co.git_option (),
-                                                  "-C", d,
-                                                  "config",
-                                                  "--get",
-                                                  "remote.origin.url")));
-      if (u != url)
-      {
-        // Note that the repository canonical name can not change under the
-        // legal scenarios that lead to the location change. Changed canonical
-        // name means that the repository was manually amended. We could
-        // re-clone such repositories as well but want to leave the backdoor
-        // for tests.
-        //
-        u.fragment = rl.url ().fragment;       // Restore the fragment.
-        repository_location l (u, rl.type ());
-
-        if (rl.canonical_name () == l.canonical_name ())
-        {
-          if (verb)
-            info << "re-cloning " << rl.canonical_name ()
-                 << " due to location change" <<
-              info << "new location " << rl <<
-              info << "old location " << l;
-
-          rm_r (d);
-          return git_clone (co, rl, destdir);
-        }
-      }
-    }
-    catch (const invalid_argument& e)
-    {
-      fail << "invalid remote.origin.url configuration value: " << e << endg;
-    }
-
-    capabilities cap (sense_capabilities (co, url));
-    bool shallow (shallow_fetch (co, url, cap, ref));
-
-    update_tree (co,
-                 d,
-                 dir_path (),
-                 ref,
-                 cap,
-                 shallow,
-                 timeout_opts (co, url.scheme));
-
-    update_submodules (co, d, dir_path ());
-    return r;
+    checkout_submodules (co,
+                         dir,
+                         dir / dir_path (".git"),
+                         dir_path () /* prefix */);
   }
 }
