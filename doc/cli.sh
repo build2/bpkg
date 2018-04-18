@@ -74,7 +74,7 @@ cli -I .. \
 --html-prologue-file doc-prologue.xhtml \
 --html-epilogue-file doc-epilogue.xhtml \
 --link-regex '%b([-.].+)%../../build2/doc/b$1%' \
---link-regex '%build2(#.+)?%../../build2/doc/build2-build-system-manual.xhtml$1%' \
+--link-regex '%b(#.+)?%../../build2/doc/build2-build-system-manual.xhtml$1%' \
 --output-prefix build2-package-manager- manual.cli
 
 html2ps -f doc.html2ps:a4.html2ps -o build2-package-manager-manual-a4.ps build2-package-manager-manual.xhtml
