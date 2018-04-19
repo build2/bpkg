@@ -106,7 +106,10 @@ namespace bpkg
 
   template <typename M>
   static M
-  parse_manifest (const path& f, bool iu, const repository_location& rl)
+  parse_manifest (const path& f,
+                  bool iu,
+                  const repository_location& rl,
+                  const string& frag)
   {
     try
     {
@@ -117,12 +120,11 @@ namespace bpkg
     catch (const manifest_parsing& e)
     {
       fail (e.name, e.line, e.column) << e.description <<
-        info << "repository " << rl << endf;
+        info << "repository " << rl << ' ' << frag << endf;
     }
     catch (const io_error& e)
     {
-      fail << "unable to read from " << f << ": " << e <<
-        info << "repository " << rl << endf;
+      fail << "unable to read from " << f << ": " << e << endf;
     }
   }
 
@@ -133,11 +135,12 @@ namespace bpkg
   static M
   parse_repository_manifests (const path& f,
                               bool iu,
-                              const repository_location& rl)
+                              const repository_location& rl,
+                              const string& frag)
   {
     M r;
     if (exists (f))
-      r = parse_manifest<M> (f, iu, rl);
+      r = parse_manifest<M> (f, iu, rl, frag);
     else
       r.emplace_back (repository_manifest ()); // Add the base repository.
 
@@ -152,11 +155,12 @@ namespace bpkg
   static M
   parse_directory_manifests (const path& f,
                              bool iu,
-                             const repository_location& rl)
+                             const repository_location& rl,
+                             const string& frag)
   {
     M r;
     if (exists (f))
-      r = parse_manifest<M> (f, iu, rl);
+      r = parse_manifest<M> (f, iu, rl, frag);
     else
     {
       r.push_back (package_manifest ());
@@ -174,7 +178,8 @@ namespace bpkg
                            const string& repo_fragment,
                            vector<package_manifest>&& sms,
                            bool iu,
-                           const repository_location& rl)
+                           const repository_location& rl,
+                           const string& frag)
   {
     vector<rep_fetch_data::package> fps;
     fps.reserve (sms.size ());
@@ -183,14 +188,14 @@ namespace bpkg
     {
       assert (sm.location);
 
-      auto package_info = [&sm, &rl] (diag_record& dr)
+      auto package_info = [&sm, &rl, &frag] (diag_record& dr)
       {
         dr << "package ";
 
         if (!sm.location->current ())
           dr << "'" << sm.location->string () << "' "; // Strip trailing '/'.
 
-        dr << "in repository " << rl;
+        dr << "in repository " << rl << ' ' << frag;
       };
 
       auto failure = [&package_info] (const char* desc)
@@ -225,9 +230,7 @@ namespace bpkg
       }
       catch (const io_error& e)
       {
-        diag_record dr (fail);
-        dr << "unable to read from " << f << ": " << e << info;
-        package_info (dr);
+        fail << "unable to read from " << f << ": " << e;
       }
 
       // Fix-up the package version.
@@ -256,13 +259,15 @@ namespace bpkg
       parse_repository_manifests<dir_repository_manifests> (
         rd / repositories_file,
         ignore_unknown,
-        rl));
+        rl,
+        string () /* frag */));
 
     dir_package_manifests pms (
       parse_directory_manifests<dir_package_manifests> (
         rd / packages_file,
         ignore_unknown,
-        rl));
+        rl,
+        string () /* frag */));
 
     vector<rep_fetch_data::package> fps (
       parse_package_manifests (co,
@@ -270,7 +275,8 @@ namespace bpkg
                                string () /* repo_fragment */,
                                move (pms),
                                ignore_unknown,
-                               rl));
+                               rl,
+                               string () /* frag */));
 
     return rep_fetch_data {move (rms), move (fps), nullptr};
   }
@@ -327,9 +333,6 @@ namespace bpkg
 
     // Fetch the repository in the temporary directory.
     //
-    strings commits (git_fetch (co, rl, td));
-    assert (!commits.empty ());
-
     // Go through fetched commits, checking them out and collecting the
     // prerequisite repositories and packages.
     //
@@ -358,9 +361,9 @@ namespace bpkg
     git_repository_manifests rms;
     vector<rep_fetch_data::package> fps;
 
-    for (const string& c: commits)
+    for (const git_fragment& fr: git_fetch (co, rl, td))
     {
-      git_checkout (co, td, c);
+      git_checkout (co, td, fr.commit);
 
       // Parse repository manifests.
       //
@@ -368,7 +371,8 @@ namespace bpkg
         rms = parse_repository_manifests<git_repository_manifests> (
           td / repositories_file,
           ignore_unknown,
-          rl);
+          rl,
+          fr.name);
 
       // Parse package skeleton manifests.
       //
@@ -376,7 +380,8 @@ namespace bpkg
         parse_directory_manifests<git_package_manifests> (
           td / packages_file,
           ignore_unknown,
-          rl));
+          rl,
+          fr.name));
 
       // Checkout submodules, if required.
       //
@@ -396,10 +401,11 @@ namespace bpkg
       vector<rep_fetch_data::package> cps (
         parse_package_manifests (co,
                                  td,
-                                 c,
+                                 fr.commit,
                                  move (pms),
                                  ignore_unknown,
-                                 rl));
+                                 rl,
+                                 fr.name));
 
       fps.insert (fps.end (),
                   make_move_iterator (cps.begin ()),

@@ -72,6 +72,13 @@ end
   .include rep-fetch-git-refname.test
 }
 
+: list
+:
+{
+  fragment = '#master,ltag,atag'
+  .include rep-fetch-git-refname.test
+}
+
 : commit
 :
 {

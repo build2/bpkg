@@ -59,13 +59,19 @@ namespace bpkg
             const dir_path&);
 
   // Fetch a git repository in the specifid directory (previously created by
-  // git_init()) for the references obtained from the repository URL fragment
-  // returning commit ids these references resolve to. After fetching the
-  // repository working tree state is unspecified (see git_checkout ()).
+  // git_init() for the references obtained with the repository URL fragment
+  // filters, returning commit ids these references resolve to. After fetching
+  // the repository working tree state is unspecified (see git_checkout ()).
   //
   // Note that submodules are not fetched.
   //
-  strings
+  struct git_fragment
+  {
+    string commit;
+    string name;   // User-friendly name (like 'branch foo', 'tag bar', ...).
+  };
+
+  vector<git_fragment>
   git_fetch (const common_options&,
              const repository_location&,
              const dir_path&);

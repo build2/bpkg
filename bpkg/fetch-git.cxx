@@ -554,9 +554,9 @@ namespace bpkg
   //
   struct ref
   {
-    string name;      // Note: without the peel marker ('^{}').
+    string name;      // Note: without the peel operation ('^{...}').
     string commit;
-    bool   peeled;    // True for '...^{}' references.
+    bool   peeled;    // True for '...^{...}' references.
   };
 
   // List of all refs and their commit ids advertized by a repository (i.e.,
@@ -823,33 +823,32 @@ namespace bpkg
     return false;
   }
 
-  // @@ Move to libbpkg when adding support for multiple fragments.
+  // Fetch and return repository fragments obtained with the repository
+  // reference filters specified. If there are no filters specified, then
+  // fetch all the tags and branches.
   //
-  using git_ref_filters = vector<git_ref_filter>;
-
-  // Fetch the references and return their commit ids. If there are no
-  // reference filters specified, then fetch all the tags and branches.
-  //
-  static strings
+  static vector<git_fragment>
   fetch (const common_options& co,
          const dir_path& dir,
          const dir_path& submodule,  // Used only for diagnostics.
          const git_ref_filters& rfs)
   {
-    strings r;
+    using git_fragments = vector<git_fragment>;
+
+    git_fragments r;
     capabilities cap;
     repository_url url;
 
-    strings scs;  // Shallow fetch commits.
-    strings dcs;  // Deep fetch commits.
+    strings scs; // Shallow fetch commits.
+    strings dcs; // Deep fetch commits.
 
     bool fetch_repo (false);
 
-    // Translate a name to the corresponding commit. Fail if the name is not
+    // Translate a name to the corresponding reference. Fail if the name is not
     // known by the remote repository.
     //
-    auto commit = [&co, &dir, &url] (const string& nm, bool abbr_commit)
-      -> const string&
+    auto reference = [&co, &dir, &url] (const string& nm, bool abbr_commit)
+      -> const ref&
     {
       if (url.empty ())
         url = origin_url (co, dir);
@@ -860,15 +859,42 @@ namespace bpkg
         fail << "unable to fetch " << nm << " from " << url <<
           info << "name is not recognized" << endg;
 
-      return r->commit;
+      return *r;
     };
 
-    // Add a commit to the list, suppressing duplicates.
+    // Add a fragment to the resulting list, suppressing duplicates.
     //
-    auto add = [] (const string& c, strings& cs)
+    auto add_frag = [&r] (const git_fragment& f)
+    {
+      auto i (find_if (r.begin (), r.end (),
+                       [&f] (const git_fragment& i)
+                       {
+                         return i.commit == f.commit;
+                       }));
+
+      if (i == r.end ())
+        r.push_back (f);
+      else if (i->name.empty ())
+        i->name = f.name;
+    };
+
+    // Add a commit to the list for subsequent fetching.
+    //
+    auto add_commit = [] (const string& c, strings& cs)
     {
       if (find (cs.begin (), cs.end (), c) == cs.end ())
         cs.push_back (c);
+    };
+
+    // Return a user-friendly git reference name.
+    //
+    auto friendly_name = [] (const string& n) -> string
+    {
+      return n.compare (0, 11, "refs/heads/") == 0
+             ? "branch " + string (n, 11)
+             : n.compare (0, 10, "refs/tags/") == 0
+               ? "tag " + string (n, 10)
+               : "reference " + n;
     };
 
     if (rfs.empty ())
@@ -884,13 +910,14 @@ namespace bpkg
              rf.name.compare (0, 10, "refs/tags/") != 0))
           continue;
 
-        // Add an already fetched commit to the resulting list.
+        // Add the commit to the resulting list.
+        //
+        add_frag (git_fragment {rf.commit, friendly_name (rf.name)});
+
+        // Skip the commit if it is already fetched.
         //
         if (commit_fetched (co, dir, rf.commit))
-        {
-          add (rf.commit, r);
           continue;
-        }
 
         // Evaluate if the commit can be obtained with the shallow fetch and
         // add it to the proper list.
@@ -901,7 +928,7 @@ namespace bpkg
         // The commit is advertised, so we can fetch shallow, unless the
         // protocol is dumb.
         //
-        add (rf.commit, cap != capabilities::dumb ? scs : dcs);
+        add_commit (rf.commit, cap != capabilities::dumb ? scs : dcs);
       }
     }
     else
@@ -912,7 +939,7 @@ namespace bpkg
         //
         if (rf.commit && commit_fetched (co, dir, *rf.commit))
         {
-          add (*rf.commit, r);
+          add_frag (git_fragment {*rf.commit, string ()});
           continue;
         }
 
@@ -920,17 +947,20 @@ namespace bpkg
         {
           assert (rf.name);
 
-          const string& c (commit (*rf.name, true /* abbr_commit */));
+          const ref& rfc (reference (*rf.name, true /* abbr_commit */));
 
-          if (commit_fetched (co, dir, c))
+          if (commit_fetched (co, dir, rfc.commit))
           {
-            add (c, r);
+            add_frag (git_fragment {rfc.commit, friendly_name (rfc.name)});
             continue;
           }
         }
 
         // Evaluate if the commit can be obtained with the shallow fetch and
         // add it to the proper list.
+        //
+        // Get the remote origin URL and sense the git protocol capabilities
+        // for it, if not done yet.
         //
         if (scs.empty () && dcs.empty ())
         {
@@ -941,7 +971,7 @@ namespace bpkg
         }
 
         bool shallow (shallow_fetch (co, url, cap, rf));
-        strings& commits (shallow ? scs : dcs);
+        strings& fetch_list (shallow ? scs : dcs);
 
         // If commit is not specified, then we fetch the commit the refname
         // translates to.
@@ -950,29 +980,42 @@ namespace bpkg
         {
           assert (rf.name);
 
-          add (commit (*rf.name, true /* abbr_commit */), commits);
-        }
+          const ref& rfc (reference (*rf.name, true /* abbr_commit */));
 
+          add_frag   (git_fragment {rfc.commit, friendly_name (rfc.name)});
+          add_commit (rfc.commit, fetch_list);
+        }
         // If commit is specified and the shallow fetch is possible, then we
         // fetch the commit.
         //
         else if (shallow)
-          add (*rf.commit, commits);
-
+        {
+          add_frag   (git_fragment {*rf.commit, string ()});
+          add_commit (*rf.commit, fetch_list);
+        }
         // If commit is specified and the shallow fetch is not possible, but
         // the refname containing the commit is specified, then we fetch the
         // whole refname history.
         //
         else if (rf.name)
-          add (commit (*rf.name, false /* abbr_commit */), commits);
+        {
+          // Note that commits we return and fetch are likely to differ.
+          //
+          add_frag (git_fragment {*rf.commit, string ()});
 
+          add_commit (reference (*rf.name, false /* abbr_commit */).commit,
+                      fetch_list);
+        }
         // Otherwise, if the refname is not specified and the commit is not
         // advertised, we have to fetch the whole repository history.
         //
         else
         {
-          add (*rf.commit, commits);
-          fetch_repo = !commit_advertized (co, url, *rf.commit);
+          add_frag   (git_fragment {*rf.commit, string ()});
+          add_commit (*rf.commit, fetch_list);
+
+          if (!commit_advertized (co, url, *rf.commit))
+            fetch_repo = true;
         }
       }
     }
@@ -1057,38 +1100,33 @@ namespace bpkg
         dr << " in '" << dir.posix_string () << "'"; // Is used by tests.
     }
 
-    // Note that the shallow, deep and the resulting lists don't overlap.
-    // Thus, we will be moving commits between the lists not caring about
-    // suppressing duplicates.
-    //
-
-    // First, we fetch deep commits.
+    // First, we perform the deep fetching.
     //
     if (!dcs.empty ())
-    {
       fetch (!fetch_repo ? dcs : strings (), false);
 
-      r.insert (r.end (),
-                make_move_iterator (dcs.begin ()),
-                make_move_iterator (dcs.end ()));
+    // After the deep fetching some of the shallow commits might also be
+    // fetched, so we drop them from the fetch list.
+    //
+    for (auto i (scs.begin ()); i != scs.end (); )
+    {
+      if (commit_fetched (co, dir, *i))
+        i = scs.erase (i);
+      else
+        ++i;
     }
 
-    // After the deep fetching some of the shallow commits might also be
-    // fetched, so we move them to the resulting list.
+    // Finally, we perform the shallow fetching.
     //
-    strings cs;
-    for (auto& c: scs)
-      (commit_fetched (co, dir, c) ? r : cs).push_back (move (c));
+    if (!scs.empty ())
+      fetch (scs, true);
 
-    // Finally, fetch shallow commits.
+    // Name the unnamed commits with a 12-character length abbreviation.
     //
-    if (!cs.empty ())
+    for (auto& fr: r)
     {
-      fetch (cs, true);
-
-      r.insert (r.end (),
-                make_move_iterator (cs.begin ()),
-                make_move_iterator (cs.end ()));
+      if (fr.name.empty ())
+        fr.name = "commit " + fr.commit.substr (0, 12);
     }
 
     return r;
@@ -1339,18 +1377,18 @@ namespace bpkg
     init (co, dir, url);
   }
 
-  strings
+  vector<git_fragment>
   git_fetch (const common_options& co,
              const repository_location& rl,
              const dir_path& dir)
   {
-    git_ref_filters refs;
+    git_ref_filters rfs;
     repository_url url (rl.url ());
 
     if (url.fragment)
     try
     {
-      refs.emplace_back (*url.fragment);
+      rfs = parse_git_ref_filters (*url.fragment);
       url.fragment = nullopt;
     }
     catch (const invalid_argument& e)
@@ -1383,7 +1421,7 @@ namespace bpkg
       }
     }
 
-    return fetch (co, dir, dir_path () /* submodule */, refs);
+    return fetch (co, dir, dir_path () /* submodule */, rfs);
   }
 
   void
