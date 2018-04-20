@@ -2141,12 +2141,18 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
 
       # Upgrade libhello as a dependency.
       #
+      # Note that despite the fact that we have modified the libhello's
+      # manifest file after the build, libhello may still be considered up to
+      # date on filesystems with a low file timestamps resolution (for example
+      # HFS+).
+      #
       $* ?libhello --yes --keep-out 2>>~%EOE%
         disfigured libfoo/1.1.0
         disfigured libhello/1.0.0
         using libhello/1.0.1 (external)
         configured libhello/1.0.1
         configured libfoo/1.1.0
+        %info: .+dir\{libhello.\} is up to date%?
         %info: .+dir\{libfoo.\} is up to date%
         updated libhello/1.0.1
         updated libfoo/1.1.0
