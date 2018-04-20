@@ -74,8 +74,11 @@ namespace bpkg
      \li|\b{Create Configuration}\n
 
          \
-         bpkg create cc config.cxx=clang++ config.cc.coptions=-O3 \
-           config.install.root=/usr/local config.install.sudo=sudo
+         bpkg create cc                   \
+           config.cxx=clang++             \
+           config.cc.coptions=-O3         \
+           config.install.root=/usr/local \
+           config.install.sudo=sudo
          \
 
          |
@@ -84,7 +87,7 @@ namespace bpkg
 
          \
          bpkg add https://pkg.cppget.org/1/stable
-         bpkg add https://git.build2.org/hello/libhello.git#master
+         bpkg add https://example.org/foo.git
          \
 
          Repeat this command to add more repositories.
@@ -101,7 +104,7 @@ namespace bpkg
      \li|\n\b{Fetch and Build Packages}\n
 
          \
-         bpkg build libfoo bar
+         bpkg build foo bar
          \
 
          |
@@ -112,7 +115,7 @@ namespace bpkg
          configuration.
 
          \
-         bpkg drop libfoo
+         bpkg drop foo
          \
 
          |
