@@ -59,6 +59,11 @@ if ($cxx.class == 'msvc')
 elif ($cxx.class == 'gcc')
   cxx.coptions += -Wno-unknown-pragmas
 
+# VC14 has issues with decorating long names.
+#
+if ($cxx.id == 'msvc' && $cxx.version.major == 19 && $cxx.version.minor < 10)
+  cxx.coptions += /wd4503
+
 obj{utility}: cxx.poptions += -DBPKG_EXE_SUFFIX='"'$bin.exe.suffix'"'
 
 if $cli.configured
