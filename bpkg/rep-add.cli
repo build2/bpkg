@@ -72,36 +72,49 @@ namespace bpkg
      as there are commits. Practically, however, we are normally only
      interested in a small subset of them while fetching and processing the
      necessary information for all of them could be prohibitively expensive.
-     As a result, by default, only advertised tags (\cb{refs/tags/*}) and
-     branches (\cb{refs/heads/*}) are considered to be sources of useful
-     package versions (see \cb{git-ls-remote(1)} for details).
+     As a result, by default, only advertised tags in the \cb{refs/tags/v*}
+     form where the part after \cb{v} is also a valid \l{b#module-version
+     standard version} are considered to be sources of useful package
+     versions. These commits normally correspond to releases and are called
+     the default set.
 
-     It is also possible to narrow down (or expand) the set of available
-     versions by specifying one or more references and/or commit ids in the
-     repository URL fragment. For example:
+     Instead of the default set, it is also possible to provide a custom set
+     of available versions by specifying one or more commit ids and/or
+     references and/or reference patterns in the repository URL fragment (see
+     \cb{git-ls-remote(1)} for details on advertised references). For example:
 
      \
      https://example.com/foo.git#v1.2.3
      https://example.com/foo.git#master
      https://example.com/foo.git#af234f56
-     https://example.com/foo.git#HEAD,tags/v1.2.3,heads/feature1
+     https://example.com/foo.git#tags/releases/*
+     https://example.com/foo.git#HEAD,tags/v1.*.*,heads/feature-*
      \
 
-     A \cb{git} repository URL fragment must be a comma-separated list of
-     reference filters in the following form:
+     Furthermore, it is possible to expand (or narrow down) the default set
+     using the special \cb{##} fragment notation. For example:
+
+     \
+     https://example.com/foo.git##HEAD     - default set plus HEAD
+     https://example.com/foo.git##heads/*  - default set plus branches
+     https://example.com/foo.git##-v1.*    - default set minus v1.*
+     \
+
+     A \cb{git} repository URL fragment is a comma-separated list of reference
+     filters in the following form:
 
      \c{[\i{refname}][\b{@}\i{commit}]}
 
      Either \ci{refname}, \ci{commit}, or both must be specified. If both are
      specified then \ci{refname} is only used to minimize the amount of data
-     to fetch and \ci{commit} must belong to its history. For example:
+     fetched and \ci{commit} must belong to its history. For example:
 
      \
      .../foo.git#master@48fba3625d65941bb85a39061bcf795d4949c778
      \
 
-     The \ci{refname} part can be a tag, branch, an abbreviated commit id, or
-     some other advertised reference under \cb{refs/}. While \ci{commit} must
+     The \ci{refname} part can be an abbreviated commit id or an advertised
+     reference or reference pattern under \cb{refs/}. While \ci{commit} must
      be the complete, 40-characters SHA1 that need not be advertised. For
      convenience, a 40-characters filter that consists of only hexadecimal
      digits is assumed to be \ci{commit} even if not prefixed with \cb{@}. In
@@ -111,6 +124,42 @@ namespace bpkg
      \
      .../foo.git#48fba3625d65941bb85a39061bcf795d4949c778   (commit id)
      .../foo.git#deadbeefdeadbeefdeadbeefdeadbeefdeadbeef@  (reference)
+     \
+
+     The \ci{refname} part can use the \cb{*} and \cb{?} wildcard pattern
+     characters with the standard semantics as well as the \cb{**} character
+     sequence which matches in subdirectories, recursively. For example:
+
+     \
+     .../foo.git#tags/v*    - tags/v1.2.3 but not tags/old/v0.1.0
+     .../foo.git#tags/v**   - tags/v1.2.3 and tags/old/v0.1.0
+     \
+
+     A relative \ci{refname} is searched for in \cb{refs/}, \cb{refs/tags/},
+     and \cb{refs/heads/} as well as symbolic references like \cb{HEAD}. To
+     anchor it to \cb{refs/} make it absolute, for example:
+
+     \
+     .../foo.git#tags/v*   - refs/tags/v1.2.3 but also refs/heads/tags/voo
+     .../foo.git#/tags/v*  - refs/tags/v1.2.3 only
+     \
+
+     If a \ci{refname} starts with \cb{-} then it is treated as an exclusion
+     filter \- any references that it matches are excluded from the set
+     included by the preceding filters (or the default set). For example:
+
+     \
+     .../foo.git#v*,-v1.*  - exclude v1.* from v*
+     .../foo.git##-v1.*    - exclude v1.* from default set
+     \
+
+     To support specifying literal leading \cb{-}, a \ci{refname} that starts
+     with \cb{+} is treated as an inclusion filter. For example:
+
+     \
+     .../foo.git#+x   - include  x
+     .../foo.git#+-x  - include -x
+     .../foo.git#++x  - include +x
      \
 
      A \cb{git} repository has the same structure and manifest files as the

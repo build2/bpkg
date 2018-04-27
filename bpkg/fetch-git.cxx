@@ -589,6 +589,13 @@ namespace bpkg
       // tags/v1.2.3? Note that while it most likely is relative to refs/, it
       // can also be relative to other subdirectories (say releases/v1.2.3 in
       // tags/releases/v1.2.3). So we just check everywhere.
+      //
+      // Unless it is an absolute path, in which case we anchor it to refs/.
+      //
+
+      //@@ I think for patterns (and probably non-patters) we should search
+      //   in all instead of the first found. Except for commit id -- I
+      //   think we should skip it if pattern or if found.
 
       // This handles symbolic references like HEAD.
       //
