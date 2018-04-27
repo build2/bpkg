@@ -44,21 +44,45 @@ namespace bpkg
     if (!traversed.insert (r).second) // We have already been here.
       return false;
 
-    for (const auto& rc: db.query<repository_complement_dependent> (
+    // Iterate over repository fragments that depend on this repository as a
+    // complement.
+    //
+    for (const auto& rf: db.query<repository_complement_dependent> (
            query<repository_complement_dependent>::complement::name == nm))
     {
-      const shared_ptr<repository>& r (rc);
-      if (r->name.empty () /* Root? */ || reachable (db, r, traversed))
+      const shared_ptr<repository_fragment>& f (rf);
+
+      if (f->name.empty ()) // Root?
         return true;
+
+      // Iterate over repositories that contain this repository fragment.
+      //
+      for (const auto& fr: db.query<fragment_repository> (
+             query<fragment_repository>::repository_fragment::name == f->name))
+      {
+        if (reachable (db, fr, traversed))
+          return true;
+      }
     }
 
-    for (const auto& rd: db.query<repository_prerequisite_dependent> (
+    // Iterate over repository fragments that depend on this repository as a
+    // prerequisite.
+    //
+    for (const auto& rf: db.query<repository_prerequisite_dependent> (
            query<repository_prerequisite_dependent>::prerequisite::name == nm))
     {
-      // Note that the root repository has no prerequisites.
+      // Note that the root repository fragment has no prerequisites.
       //
-      if (reachable (db, rd, traversed))
-        return true;
+      const shared_ptr<repository_fragment>& f (rf);
+
+      // Iterate over repositories that contain this repository fragment.
+      //
+      for (const auto& fr: db.query<fragment_repository> (
+             query<fragment_repository>::repository_fragment::name == f->name))
+      {
+        if (reachable (db, fr, traversed))
+          return true;
+      }
     }
 
     return false;
@@ -72,22 +96,28 @@ namespace bpkg
   }
 
   void
-  rep_remove_package_locations (transaction& t, const string& name)
+  rep_remove_package_locations (transaction& t, const string& fragment_name)
   {
-    database& db (t.database ());
+    tracer trace ("rep_remove_package_locations");
 
-    for (const auto& rp: db.query<repository_package> (
-           query<repository_package>::repository::name == name))
+    database& db (t.database ());
+    tracer_guard tg (db, trace);
+
+    using query = query<repository_fragment_package>;
+
+    for (const auto& rp: db.query<repository_fragment_package> (
+           query::repository_fragment::name == fragment_name))
     {
       const shared_ptr<available_package>& p (rp);
       vector<package_location>& ls (p->locations);
 
-      for (auto i (ls.cbegin ()); i != ls.cend (); )
+      for (auto i (ls.cbegin ()); i != ls.cend (); ++i)
       {
-        if (i->repository.object_id () == name)
-          i = ls.erase (i);
-        else
-          ++i;
+        if (i->repository_fragment.object_id () == fragment_name)
+        {
+          ls.erase (i);
+          break;
+        }
       }
 
       if (ls.empty ())
@@ -117,17 +147,29 @@ namespace bpkg
               transaction& t,
               const shared_ptr<repository>& r)
   {
-    const string& nm (r->name);
-    assert (!nm.empty ());      // Can't be the root repository.
+    assert (!r->name.empty ()); // Can't be the root repository.
+
+    tracer trace ("rep_remove");
 
     database& db (t.database ());
+    tracer_guard tg (db, trace);
 
     if (reachable (db, r))
       return;
 
-    rep_remove_package_locations (t, nm);
+    // Note that it is essential to erase the repository object from the
+    // database prior to the repository fragments it contains as they must be
+    // un-referenced first.
+    //
+    db.erase (r);
 
-    // Cleanup the repository state if present.
+    // Remove dangling repository fragments.
+    //
+    for (const repository::fragment_type& fr: r->fragments)
+      rep_remove_fragment (c, t, fr.fragment.load ());
+
+    // Cleanup the repository state if present and there are no more
+    // repositories referring this state.
     //
     // Note that this step is irreversible on failure. If something goes wrong
     // we will end up with a state-less fetched repository and the
@@ -145,14 +187,60 @@ namespace bpkg
       dir_path sd (c / repos_dir / d);
 
       if (exists (sd))
-        rmdir (sd);
-    }
+      {
+        // There is no way to get the list of repositories that share this
+        // state other than traversing all repositories of this type.
+        //
+        bool rm (true);
 
-    // Note that it is essential to erase the repository object from the
-    // database prior to its complements and prerequisites removal as they
-    // must be un-referenced first.
+        using query = query<repository>;
+
+        for (shared_ptr<repository> r:
+               pointer_result (
+                 db.query<repository> (
+                   query::name != "" &&
+                   query::location.type == to_string (r->location.type ()))))
+        {
+          if (repository_state (r->location) == d)
+          {
+            rm = false;
+            break;
+          }
+        }
+
+        if (rm)
+          rmdir (sd);
+      }
+    }
+  }
+
+  void
+  rep_remove_fragment (const dir_path& c,
+                       transaction& t,
+                       const shared_ptr<repository_fragment>& rf)
+  {
+    tracer trace ("rep_remove_fragment");
+
+    database& db (t.database ());
+    tracer_guard tg (db, trace);
+
+    // Bail out if the repository fragment is still used.
     //
-    db.erase (r);
+    using query = query<fragment_repository_count>;
+
+    if (db.query_value<fragment_repository_count> (
+          "fragment=" + query::_val (rf->name)) != 0)
+      return;
+
+    // Remove the repository fragment from locations of the available packages
+    // it contains. Note that this must be done before the repository fragment
+    // removal.
+    //
+    rep_remove_package_locations (t, rf->name);
+
+    // Remove the repository fragment.
+    //
+    db.erase (rf);
 
     // Remove dangling complements and prerequisites.
     //
@@ -167,7 +255,7 @@ namespace bpkg
         rep_remove (c, t, r);
     };
 
-    for (const lazy_shared_ptr<repository>& cr: r->complements)
+    for (const lazy_shared_ptr<repository>& cr: rf->complements)
     {
       // Remove the complement unless it is the root repository (see
       // rep_fetch() for details).
@@ -176,8 +264,15 @@ namespace bpkg
         remove (cr);
     }
 
-    for (const lazy_weak_ptr<repository>& pr: r->prerequisites)
+    for (const lazy_weak_ptr<repository>& pr: rf->prerequisites)
       remove (lazy_shared_ptr<repository> (pr));
+
+    // If there are no repositories stayed in the database then no repository
+    // fragments nor packages should stay either.
+    //
+    assert (db.query_value<repository_count> () != 0 ||
+            (db.query_value<repository_fragment_count> () == 0 &&
+             db.query_value<available_package_count> () == 0));
   }
 
   void
@@ -187,12 +282,13 @@ namespace bpkg
                     bool quiet)
   {
     tracer trace ("rep_remove_clean");
+    tracer_guard tg (db, trace);
 
     assert (!transaction::has_current ());
 
-    // Clean repositories and available packages. At the end only repositories
-    // that were explicitly added by the user and the special root repository
-    // should remain.
+    // Clean repositories, repository fragments and available packages. At the
+    // end only repositories that were explicitly added by the user and the
+    // special root repository should remain.
     //
     {
       // Note that we don't rely on being in session nor create one.
@@ -201,19 +297,19 @@ namespace bpkg
 
       db.erase_query<available_package> ();
 
-      shared_ptr<repository> root (db.load<repository> (""));
-      repository::complements_type& ua (root->complements);
+      db.erase_query<repository_fragment> (
+        query<repository_fragment>::name != "");
+
+      shared_ptr<repository_fragment> root (db.load<repository_fragment> (""));
+      repository_fragment::complements_type& ua (root->complements);
 
       for (shared_ptr<repository> r: pointer_result (db.query<repository> ()))
       {
         if (r->name == "")
-        {
-          l5 ([&]{trace << "skipping root";});
-        }
+          l5 ([&]{trace << "skipping root repository";});
         else if (ua.find (lazy_shared_ptr<repository> (db, r)) != ua.end ())
         {
-          r->complements.clear ();
-          r->prerequisites.clear ();
+          r->fragments.clear ();
           db.update (r);
 
           if (verb >= (quiet ? 2 : 1) && !o.no_result ())
@@ -298,8 +394,8 @@ namespace bpkg
     transaction t (db);
     session s; // Repository dependencies can have cycles.
 
-    shared_ptr<repository> root (db.load<repository> (""));
-    repository::complements_type& ua (root->complements);
+    shared_ptr<repository_fragment> root (db.load<repository_fragment> (""));
+    repository_fragment::complements_type& ua (root->complements);
 
     if (o.all ())
     {
@@ -392,11 +488,12 @@ namespace bpkg
     //
     assert (!o.all () || ua.empty ());
 
-    // If we removed all the user-added repositories then no repositories nor
-    // packages should stay in the database.
+    // If we removed all the user-added repositories then no repositories,
+    // repository fragments or packages should stay in the database.
     //
     assert (!ua.empty () ||
             (db.query_value<repository_count> () == 0 &&
+             db.query_value<repository_fragment_count> () == 0 &&
              db.query_value<available_package_count> () == 0));
 
     t.commit ();

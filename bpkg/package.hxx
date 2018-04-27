@@ -241,24 +241,113 @@ namespace bpkg
                                    : (?).type ()})                  \
     from(bpkg::repository_location (std::move ((?).url), (?).type))
 
-  // repository
+  // repository_fragment
   //
+  // Some repository types (normally version control-based) can be
+  // fragmented. For example, a git repository consists of multiple commits
+  // (fragments) which could contain different sets of packages and even
+  // prerequisite/complement repositories. Note also that the same fragment
+  // could be shared by multiple repository objects. We assume a fragment to
+  // be immutable, so it's complement, prerequisite and package sets can never
+  // change.
+  //
+  // For repository types that do not support fragmentation, there should
+  // be a single repository_fragment with the name and location equal to the
+  // ones of the containing repository. Such a fragment can not be shared but
+  // can be changed.
+  //
+  // One of the consequences of the above is that a fragment can either be
+  // shared or be mutable.
+  //
+  class repository;
+
   #pragma db object pointer(shared_ptr) session
-  class repository
+  class repository_fragment
   {
   public:
-    // We use a weak pointer for prerequisite repositories because we
-    // could have cycles. No cycles in complements, thought.
+    // We use a weak pointer for prerequisite repositories because we could
+    // have cycles. No cycles in complements, thought.
+    //
+    // Note that these point to repositories, not repository fragments.
     //
     using complements_type =
       std::set<lazy_shared_ptr<repository>, compare_lazy_ptr>;
     using prerequisites_type =
       std::set<lazy_weak_ptr<repository>, compare_lazy_ptr>;
 
+    // Repository fragment id is a repository canonical name that identifies
+    // just this fragment (for example, for git it is a canonical name of
+    // the repository URL with the full, non-abbreviated commit id).
+    //
+    // Note that while this works naturally for git where the fragment (full
+    // commit id) is also a valid fragment filter, it may not fit some future
+    // repository types. Let's deal with it when we see such a beast.
+    //
     string name; // Object id (canonical name).
+
+    // For version control-based repositories it is used for a package
+    // checkout, that may involve communication with the remote repository.
+    //
     repository_location location;
-    complements_type complements;
+
+    complements_type   complements;
     prerequisites_type prerequisites;
+
+  public:
+    explicit
+    repository_fragment (repository_location l)
+        : location (move (l))
+    {
+      name = location.canonical_name ();
+    }
+
+    // Database mapping.
+    //
+    #pragma db member(name) id
+
+    #pragma db member(location) column("")                       \
+      set(this.location = std::move (?);                         \
+          assert (this.name == this.location.canonical_name ()))
+
+    #pragma db member(complements) id_column("repository_fragment") \
+      value_column("complement") value_not_null
+
+    #pragma db member(prerequisites) id_column("repository_fragment") \
+      value_column("prerequisite") value_not_null
+
+  private:
+    friend class odb::access;
+    repository_fragment () = default;
+  };
+
+  #pragma db view object(repository_fragment) \
+    query(repository_fragment::name != "" && (?))
+  struct repository_fragment_count
+  {
+    #pragma db column("count(*)")
+    size_t result;
+
+    operator size_t () const {return result;}
+  };
+
+  // repository
+  //
+  #pragma db object pointer(shared_ptr) session
+  class repository
+  {
+  public:
+    #pragma db value
+    struct fragment_type
+    {
+      string friendly_name; // User-friendly fragment name (e.g, tag, etc).
+      lazy_shared_ptr<repository_fragment> fragment;
+    };
+
+    using fragments_type = std::vector<fragment_type>;
+
+    string              name;      // Object id (canonical name).
+    repository_location location;
+    fragments_type      fragments;
 
   public:
     explicit
@@ -275,11 +364,8 @@ namespace bpkg
       set(this.location = std::move (?);                         \
           assert (this.name == this.location.canonical_name ()))
 
-    #pragma db member(complements) id_column("repository") \
-      value_column("complement") value_not_null
-
-    #pragma db member(prerequisites) id_column("repository") \
-      value_column("prerequisite") value_not_null
+    #pragma db member(fragments) id_column("repository") \
+      value_column("") value_not_null
 
   private:
     friend class odb::access;
@@ -300,18 +386,8 @@ namespace bpkg
   #pragma db value
   struct package_location
   {
-    using repository_type = bpkg::repository;
-
-    // Fragment is optional, repository type-specific information that can be
-    // used to identify the repository fragment/partition/view/etc that this
-    // package came from. For example, for a version control-based repository
-    // this could be a commit id.
-    //
-    // The location is the package location within this repository fragment.
-    //
-    lazy_shared_ptr<repository_type> repository;
-    string fragment;
-    path location;
+    lazy_shared_ptr<bpkg::repository_fragment> repository_fragment;
+    path location; // Package location within the repository fragment.
   };
 
   // dependencies
@@ -361,20 +437,21 @@ namespace bpkg
     available_package_id id;
     upstream_version version;
 
-    // List of repositories to which this package version belongs (yes,
-    // in our world, it can be in multiple, unrelated repositories).
+    // List of repository fragments to which this package version belongs
+    // (yes, in our world, it can be in multiple, unrelated repositories)
+    // together with locations within these repository fragments.
     //
-    // Note that if the repository is the special root repository (its
-    // location is empty), then this is a transient (or "fake") object
-    // for an existing package archive or package directory. In this
-    // case the location is the path to the archive/directory and to
-    // determine which one it is, use file/dir_exists(). While on the
-    // topic of fake available_package objects, when one is created for
-    // a selected package (see make_available()), this list is left empty
-    // with the thinking being that since the package is already in at
-    // least fetched state, we shouldn't be needing its location.
+    // Note that if the entry is the special root repository fragment (its
+    // location is empty), then this is a transient (or "fake") object for an
+    // existing package archive or package directory. In this case the
+    // location is the path to the archive/directory and to determine which
+    // one it is, use file/dir_exists(). While on the topic of fake
+    // available_package objects, when one is created for a selected package
+    // (see make_available()), this list is left empty with the thinking being
+    // that since the package is already in at least fetched state, we
+    // shouldn't be needing its location.
     //
-    vector<package_location> locations; //@@ Map?
+    vector<package_location> locations;
 
     // Package manifest data.
     //
@@ -496,28 +573,28 @@ namespace bpkg
     operator size_t () const {return result;}
   };
 
-  // Only return packages that are in the specified repositories, their
+  // Only return packages that are in the specified repository fragments, their
   // complements or prerequisites (if prereq is true), recursively. While you
   // could maybe come up with a (barely comprehensible) view/query to achieve
   // this, doing it on the "client side" is definitely more straightforward.
   //
   vector<shared_ptr<available_package>>
-  filter (const shared_ptr<repository>&,
+  filter (const shared_ptr<repository_fragment>&,
           odb::result<available_package>&&,
           bool prereq = true);
 
-  pair<shared_ptr<available_package>, shared_ptr<repository>>
-  filter_one (const shared_ptr<repository>&,
+  pair<shared_ptr<available_package>, shared_ptr<repository_fragment>>
+  filter_one (const shared_ptr<repository_fragment>&,
               odb::result<available_package>&&,
               bool prereq = true);
 
-  shared_ptr<repository>
-  filter (const shared_ptr<repository>&,
+  shared_ptr<repository_fragment>
+  filter (const shared_ptr<repository_fragment>&,
           const shared_ptr<available_package>&,
           bool prereq = true);
 
-  vector<pair<shared_ptr<available_package>, shared_ptr<repository>>>
-  filter (const vector<shared_ptr<repository>>&,
+  vector<pair<shared_ptr<available_package>, shared_ptr<repository_fragment>>>
+  filter (const vector<shared_ptr<repository_fragment>>&,
           odb::result<available_package>&&,
           bool prereq = true);
 
@@ -606,41 +683,38 @@ namespace bpkg
     package_state state;
     package_substate substate;
 
-    // The hold flags indicate whether this package and/or version
-    // should be retained in the configuration. A held package will
-    // not be automatically removed. A held version will not be
-    // automatically upgraded. Note also that the two flags are
-    // orthogonal: we may want to keep a specific version of the
-    // package as long as it has dependents.
+    // The hold flags indicate whether this package and/or version should be
+    // retained in the configuration. A held package will not be automatically
+    // removed. A held version will not be automatically upgraded. Note also
+    // that the two flags are orthogonal: we may want to keep a specific
+    // version of the package as long as it has dependents.
     //
     bool hold_package;
     bool hold_version;
 
-    // Repository from which this package came. Note that it is not
-    // a pointer to the repository object because it could be wiped
-    // out (e.g., as a result of rep-fetch). We call such packages
-    // "orphans". While we can get a list of orphan's prerequisites
-    // (by loading its manifest), we wouldn't know which repository
-    // to use as a base to resolve them. As a result, an orphan that
-    // is not already configured (and thus has all its prerequisites
-    // resolved) is not very useful and can only be purged.
+    // Repository fragment from which this package came. Note that it is not a
+    // pointer to the repository_fragment object because it could be wiped out
+    // (e.g., as a result of rep-fetch). We call such packages "orphans".
+    // While we can get a list of orphan's prerequisites (by loading its
+    // manifest), we wouldn't know which repository fragment to use as a base
+    // to resolve them. As a result, an orphan that is not already configured
+    // (and thus has all its prerequisites resolved) is not very useful and
+    // can only be purged.
     //
-    repository_location repository;
+    repository_location repository_fragment;
 
-    // Path to the archive of this package, if any. If not absolute,
-    // then it is relative to the configuration directory. The purge
-    // flag indicates whether the archive should be removed when the
-    // packaged is purged. If the archive is not present, it should
-    // be false.
+    // Path to the archive of this package, if any. If not absolute, then it
+    // is relative to the configuration directory. The purge flag indicates
+    // whether the archive should be removed when the packaged is purged. If
+    // the archive is not present, it should be false.
     //
     optional<path> archive;
     bool purge_archive;
 
-    // Path to the source directory of this package, if any. If not
-    // absolute, then it is relative to the configuration directory.
-    // The purge flag indicates whether the directory should be
-    // removed when the packaged is purged. If the source directory
-    // is not present, it should be false.
+    // Path to the source directory of this package, if any. If not absolute,
+    // then it is relative to the configuration directory. The purge flag
+    // indicates whether the directory should be removed when the packaged is
+    // purged. If the source directory is not present, it should be false.
     //
     optional<dir_path> src_root;
     bool purge_src;
@@ -683,11 +757,12 @@ namespace bpkg
       return
         // pkg-unpack <name>/<version>
         //
-        (!repository.empty () && repository.directory_based ()) ||
+        (!repository_fragment.empty () &&
+         repository_fragment.directory_based ()) ||
 
         // pkg-unpack --existing <dir>
         //
-        (repository.empty () && !archive);
+        (repository_fragment.empty () && !archive);
     }
 
     // Represent the wildcard version with the "*" string. Represent naturally
@@ -899,45 +974,66 @@ namespace bpkg
     optional<dependency_constraint> constraint;
   };
 
-  // Return a list of repositories that depend on this repository as a
+  // Return a count of repositories that contain this repository fragment.
+  //
+  #pragma db view table("repository_fragments")
+  struct fragment_repository_count
+  {
+    #pragma db column("count(*)")
+    size_t result;
+
+    operator size_t () const {return result;}
+  };
+
+  // Return a list of repositories that contain this repository fragment.
+  //
+  #pragma db view object(repository)                      \
+    table("repository_fragments" = "rfs" inner:           \
+          "rfs.repository = " + repository::name)         \
+    object(repository_fragment inner: "rfs.fragment = " + \
+           repository_fragment::name)
+  struct fragment_repository
+  {
+    shared_ptr<repository> object;
+
+    operator const shared_ptr<repository> () const {return object;}
+  };
+
+  // Return a list of repository fragments that depend on this repository as a
   // complement.
   //
-  // Note that the last db object pragma is required to produce an object
-  // loading view.
-  //
-  #pragma db view object(repository = complement)                   \
-    table("repository_complements" = "rc" inner:                    \
-          "rc.complement = " + complement::name)                    \
-    object(repository inner: "rc.repository = " + repository::name)
+  #pragma db view object(repository = complement)                    \
+    table("repository_fragment_complements" = "rfc" inner:           \
+          "rfc.complement = " + complement::name)                    \
+    object(repository_fragment inner: "rfc.repository_fragment = " + \
+           repository_fragment::name)
   struct repository_complement_dependent
   {
-    shared_ptr<repository> object;
+    shared_ptr<repository_fragment> object;
 
-    operator const shared_ptr<repository> () const {return object;}
+    operator const shared_ptr<repository_fragment> () const {return object;}
   };
 
-  // Return a list of repositories that depend on this repository as a
+  // Return a list of repository fragments that depend on this repository as a
   // prerequisite.
   //
-  // Note that the last db object pragma is required to produce an object
-  // loading view.
-  //
-  #pragma db view object(repository = prerequisite)                 \
-    table("repository_prerequisites" = "rp" inner:                  \
-          "rp.prerequisite = " + prerequisite::name)                \
-    object(repository inner: "rp.repository = " + repository::name)
+  #pragma db view object(repository = prerequisite)                  \
+    table("repository_fragment_prerequisites" = "rfp" inner:         \
+          "rfp.prerequisite = " + prerequisite::name)                \
+    object(repository_fragment inner: "rfp.repository_fragment = " + \
+           repository_fragment::name)
   struct repository_prerequisite_dependent
   {
-    shared_ptr<repository> object;
+    shared_ptr<repository_fragment> object;
 
-    operator const shared_ptr<repository> () const {return object;}
+    operator const shared_ptr<repository_fragment> () const {return object;}
   };
 
-  // Return a list of packages available from this repository.
+  // Return a list of packages available from this repository fragment.
   //
-  #pragma db view object(repository) query(distinct)                         \
+  #pragma db view object(repository_fragment)                                \
     table("available_package_locations" = "pl" inner:                        \
-          "pl.repository = " + repository::name)                             \
+          "pl.repository_fragment = " + repository_fragment::name)           \
     object(available_package = package inner:                                \
            "pl.name = " + package::id.name + "AND" +                         \
            "pl.version_epoch = " + package::id.version.epoch + "AND" +       \
@@ -947,18 +1043,18 @@ namespace bpkg
              package::id.version.canonical_release + "AND" +                 \
            "pl.version_revision = " + package::id.version.revision + "AND" + \
            "pl.version_iteration = " + package::id.version.iteration)
-  struct repository_package
+  struct repository_fragment_package
   {
     shared_ptr<available_package> package; // Must match the alias (see above).
 
     operator const shared_ptr<available_package> () const {return package;}
   };
 
-  // Return a list of repositories the packages come from.
+  // Return a list of repository fragments the packages come from.
   //
-  #pragma db view object(repository) query(distinct)                         \
+  #pragma db view object(repository_fragment)                                \
     table("available_package_locations" = "pl" inner:                        \
-          "pl.repository = " + repository::name)                             \
+          "pl.repository_fragment = " + repository_fragment::name)           \
     object(available_package = package inner:                                \
            "pl.name = " + package::id.name + "AND" +                         \
            "pl.version_epoch = " + package::id.version.epoch + "AND" +       \
@@ -968,13 +1064,12 @@ namespace bpkg
              package::id.version.canonical_release + "AND" +                 \
            "pl.version_revision = " + package::id.version.revision + "AND" + \
            "pl.version_iteration = " + package::id.version.iteration)
-  struct package_repository
+  struct package_repository_fragment
   {
     #pragma db column(package::id)
     available_package_id package_id;
 
-    using repository_type = bpkg::repository;
-    shared_ptr<repository_type> repository;
+    shared_ptr<bpkg::repository_fragment> repository_fragment;
   };
 
   // Version comparison operators.

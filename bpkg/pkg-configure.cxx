@@ -208,7 +208,7 @@ namespace bpkg
         package_substate::system,
         false,                     // Don't hold package.
         false,                     // Don't hold version.
-        repository_location (),    // Root repository.
+        repository_location (),    // Root repository fragment.
         nullopt,                   // No source archive.
         false,                     // No auto-purge (does not get there).
         nullopt,                   // No source directory.
@@ -278,12 +278,12 @@ namespace bpkg
       if (p != nullptr)
         fail << "package " << n << " already exists in configuration " << c;
 
-      shared_ptr<repository> rep (db.load<repository> ("")); // Root.
+      shared_ptr<repository_fragment> root (db.load<repository_fragment> (""));
 
       using query = query<available_package>;
       query q (query::id.name == n);
 
-      if (filter_one (rep, db.query<available_package> (q)).first == nullptr)
+      if (filter_one (root, db.query<available_package> (q)).first == nullptr)
         fail << "unknown package " << n;
 
       p = pkg_configure_system (n, v.empty () ? wildcard_version : v, t);

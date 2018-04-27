@@ -4,7 +4,8 @@
 
 #include <bpkg/rep-info.hxx>
 
-#include <iostream> // cout
+#include <iostream>  // cout
+#include <algorithm> // find_if()
 
 #include <libbutl/sha256.mxx>              // sha256_to_fingerprint()
 #include <libbutl/manifest-serializer.mxx>
@@ -72,7 +73,7 @@ namespace bpkg
       if (all || cert_info)
       {
         shared_ptr<const certificate>& cert (rfd.certificate);
-        const optional<string>& cert_pem (rfd.repositories.back ().certificate);
+        const optional<string>& cert_pem (rfd.cert_pem);
 
         if (cert_pem)
         {
@@ -145,23 +146,89 @@ namespace bpkg
       {
         if (o.manifest ())
         {
+          // Merge repository manifest lists, adding the fragment value to
+          // prerequisite/complement repository manifests, and picking the
+          // latest base repository manifest.
+          //
+          vector<repository_manifest> rms;
+
+          for (rep_fetch_data::fragment& fr: rfd.fragments)
+          {
+            for (repository_manifest& rm: fr.repositories)
+            {
+              if (rm.effective_role () != repository_role::base)
+              {
+                if (!fr.id.empty ())
+                  rm.fragment = fr.id;
+
+                rms.push_back (move (rm));
+              }
+            }
+          }
+
+          // Append the latest base repository manifest.
+          //
+          // Note that there must be at least one fragment with at least a
+          // base repository being present.
+          //
+          assert (!rfd.fragments.empty () &&
+                  !rfd.fragments.back ().repositories.empty ());
+
+          rms.push_back (move (rfd.fragments.back ().repositories.back ()));
+
           // Note: serializing without any extra repository_manifests info.
           //
           manifest_serializer s (cout, "STDOUT");
-          for (const repository_manifest& rm: rfd.repositories)
+
+          for (const repository_manifest& rm: rms)
             rm.serialize (s);
+
           s.next ("", ""); // End of stream.
         }
         else
         {
-          for (const repository_manifest& rm: rfd.repositories)
+          // Merge complements/prerequisites from all fragments "upgrading"
+          // prerequisites to complements and preferring locations from the
+          // latest fragments.
+          //
+          vector<repository_manifest> rms;
+
+          for (rep_fetch_data::fragment& fr: rfd.fragments)
+          {
+            for (repository_manifest& rm: fr.repositories)
+            {
+              if (rm.effective_role () == repository_role::base)
+                continue;
+
+              repository_location l (rm.location, rl); // Complete.
+
+              auto i (find_if (rms.begin (), rms.end (),
+                               [&l] (const repository_manifest& i)
+                               {
+                                 return i.location.canonical_name () ==
+                                   l.canonical_name ();
+                               }));
+
+              if (i == rms.end ())
+              {
+                rm.location = move (l);
+                rms.push_back (move (rm));
+              }
+              else
+              {
+                if (rm.effective_role () == repository_role::complement)
+                  i->role = rm.effective_role ();
+
+                i->location = move (l);
+              }
+            }
+          }
+
+          for (const repository_manifest& rm: rms)
           {
             repository_role rr (rm.effective_role ());
 
-            if (rr == repository_role::base)
-              continue; // Entry for this repository.
-
-            repository_location l (rm.location, rl); // Complete.
+            const repository_location& l (rm.location);
             const string& n (l.canonical_name ());
 
             switch (rr)
@@ -185,21 +252,56 @@ namespace bpkg
       {
         if (o.manifest ())
         {
+          // Merge package manifest lists, adding the fragment.
+          //
+          vector<package_manifest> pms;
+
+          for (rep_fetch_data::fragment& fr: rfd.fragments)
+          {
+            for (package_manifest& pm: fr.packages)
+            {
+              if (!fr.id.empty ())
+                pm.fragment = fr.id;
+
+              pms.push_back (move (pm));
+            }
+          }
+
           // Note: serializing without any extra package_manifests info.
           //
           manifest_serializer s (cout, "STDOUT");
-          for (const rep_fetch_data::package& p: rfd.packages)
-            p.manifest.serialize (s);
+          for (const package_manifest& pm: pms)
+            pm.serialize (s);
           s.next ("", ""); // End of stream.
         }
         else
         {
+          // Merge packages from all the fragments.
+          //
+          vector<package_manifest> pms;
+
+          for (rep_fetch_data::fragment& fr: rfd.fragments)
+          {
+            for (package_manifest& pm: fr.packages)
+            {
+              auto i (find_if (pms.begin (), pms.end (),
+                               [&pm] (const package_manifest& i)
+                               {
+                                 return i.name == pm.name &&
+                                   i.version == pm.version;
+                               }));
+
+              if (i == pms.end ())
+                pms.push_back (move (pm));
+            }
+          }
+
           // Separate package list from the general repository info.
           //
           cout << endl;
 
-          for (const rep_fetch_data::package& p: rfd.packages)
-            cout << p.manifest.name << "/" << p.manifest.version << endl;
+          for (const package_manifest& pm: pms)
+            cout << pm.name << "/" << pm.version << endl;
         }
       }
     }

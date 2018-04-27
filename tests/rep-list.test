@@ -142,6 +142,6 @@ else
 
   $* --complements --prerequisites >>~%EOO%
     %git:.+libbar#master .+libbar\.git#master%
-    %  prerequisite git:.+style-basic#stable .+style-basic\.git#stable%
+    %  prerequisite git:.+style-basic#stable .+style-basic\.git#stable \(heads/master\)%
     EOO
 }

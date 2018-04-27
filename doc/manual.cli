@@ -955,9 +955,12 @@ following synopsis:
 
 \
 location: <path>
+[fragment]: <string>
 \
 
 The detailed description of each value follows in the subsequent sections.
+The \c{fragment} value can only be present in a merged \c{packages.manifest}
+file for a multi-fragment repository.
 
 As an example, if our repository contained the \c{src/} subdirectory that in
 turn contained the \c{libfoo} and \c{foo} packages, then the corresponding
@@ -980,6 +983,15 @@ The path to the package directory relative to the repository root. It should
 be in the POSIX representation.
 
 
+\h2#manifest-package-list-dir-fragment|\c{fragment}|
+
+\
+[fragment]: <string>
+\
+
+The repository fragment id this package belongs to.
+
+
 \h#manifest-repository|Repository Manifest|
 
 The repository manifest (only used as part of the repository manifest list
@@ -996,6 +1008,7 @@ each value in subsequent sections.
 [summary]: <text>
 [description]: <text>
 [certificate]: <pem>
+[fragment]: <string>
 \
 
 See also the Repository Chaining documentation for further information @@ TODO.
@@ -1172,6 +1185,15 @@ with the corresponding private key and the signature saved in the
 Manifest} for details.
 
 
+\h2#manifest-repository-fragment|\c{fragment}|
+
+\
+[fragment]: <string>
+\
+
+The repository fragment id this repository belongs to.
+
+
 \h#manifest-repository-list|Repository List Manifest|
 
 @@ TODO See the Repository Chaining document for more information on the
@@ -1182,9 +1204,12 @@ repository root directory) describes the repository. First comes a
 (potentially empty) sequence of repository manifests that describe the
 prerequisite and complement repositories. After this sequence must come the
 manifest for the base repository, that is, the repository that this manifest
-list is describing. The location value in this last manifest must be
-omitted. \N{Since we got hold of the manifest list, then we presumably
-already know the location of the base repository.}
+list is describing. The \c{location} value in this last manifest must be
+omitted. \N{Since we got hold of the manifest list, then we presumably already
+know the location of the base repository.}
+
+The \c{fragment} values can only be present in a merged
+\c{repositories.manifest} file for a multi-fragment repository.
 
 As an example, a repository manifest list for the \c{math/testing}
 repository could look like this:

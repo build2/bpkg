@@ -1,6 +1,6 @@
 <changelog xmlns="http://www.codesynthesis.com/xmlns/odb/changelog" database="sqlite" version="1">
   <model version="4">
-    <table name="repository" kind="object">
+    <table name="repository_fragment" kind="object">
       <column name="name" type="TEXT" null="true"/>
       <column name="url" type="TEXT" null="true"/>
       <column name="type" type="TEXT" null="true"/>
@@ -8,17 +8,17 @@
         <column name="name"/>
       </primary-key>
     </table>
-    <table name="repository_complements" kind="container">
-      <column name="repository" type="TEXT" null="true"/>
+    <table name="repository_fragment_complements" kind="container">
+      <column name="repository_fragment" type="TEXT" null="true"/>
       <column name="complement" type="TEXT" null="true"/>
-      <foreign-key name="repository_fk" on-delete="CASCADE">
-        <column name="repository"/>
-        <references table="repository">
+      <foreign-key name="repository_fragment_fk" on-delete="CASCADE">
+        <column name="repository_fragment"/>
+        <references table="repository_fragment">
           <column name="name"/>
         </references>
       </foreign-key>
-      <index name="repository_complements_repository_i">
-        <column name="repository"/>
+      <index name="repository_fragment_complements_repository_fragment_i">
+        <column name="repository_fragment"/>
       </index>
       <foreign-key name="complement_fk" deferrable="DEFERRED">
         <column name="complement"/>
@@ -27,21 +27,53 @@
         </references>
       </foreign-key>
     </table>
-    <table name="repository_prerequisites" kind="container">
-      <column name="repository" type="TEXT" null="true"/>
+    <table name="repository_fragment_prerequisites" kind="container">
+      <column name="repository_fragment" type="TEXT" null="true"/>
       <column name="prerequisite" type="TEXT" null="true"/>
+      <foreign-key name="repository_fragment_fk" on-delete="CASCADE">
+        <column name="repository_fragment"/>
+        <references table="repository_fragment">
+          <column name="name"/>
+        </references>
+      </foreign-key>
+      <index name="repository_fragment_prerequisites_repository_fragment_i">
+        <column name="repository_fragment"/>
+      </index>
+      <foreign-key name="prerequisite_fk" deferrable="DEFERRED">
+        <column name="prerequisite"/>
+        <references table="repository">
+          <column name="name"/>
+        </references>
+      </foreign-key>
+    </table>
+    <table name="repository" kind="object">
+      <column name="name" type="TEXT" null="true"/>
+      <column name="url" type="TEXT" null="true"/>
+      <column name="type" type="TEXT" null="true"/>
+      <primary-key>
+        <column name="name"/>
+      </primary-key>
+    </table>
+    <table name="repository_fragments" kind="container">
+      <column name="repository" type="TEXT" null="true"/>
+      <column name="index" type="INTEGER" null="true"/>
+      <column name="friendly_name" type="TEXT" null="true"/>
+      <column name="fragment" type="TEXT" null="true"/>
       <foreign-key name="repository_fk" on-delete="CASCADE">
         <column name="repository"/>
         <references table="repository">
           <column name="name"/>
         </references>
       </foreign-key>
-      <index name="repository_prerequisites_repository_i">
+      <index name="repository_fragments_repository_i">
         <column name="repository"/>
       </index>
-      <foreign-key name="prerequisite_fk" deferrable="DEFERRED">
-        <column name="prerequisite"/>
-        <references table="repository">
+      <index name="repository_fragments_index_i">
+        <column name="index"/>
+      </index>
+      <foreign-key name="fragment_fk" deferrable="DEFERRED">
+        <column name="fragment"/>
+        <references table="repository_fragment">
           <column name="name"/>
         </references>
       </foreign-key>
@@ -72,8 +104,7 @@
       <column name="version_canonical_release" type="TEXT" null="true" options="COLLATE BINARY"/>
       <column name="version_revision" type="INTEGER" null="true"/>
       <column name="version_iteration" type="INTEGER" null="true"/>
-      <column name="repository" type="TEXT" null="true"/>
-      <column name="fragment" type="TEXT" null="true"/>
+      <column name="repository_fragment" type="TEXT" null="true"/>
       <column name="location" type="TEXT" null="true"/>
       <foreign-key name="object_id_fk" on-delete="CASCADE">
         <column name="name"/>
@@ -99,9 +130,9 @@
         <column name="version_revision"/>
         <column name="version_iteration"/>
       </index>
-      <foreign-key name="repository_fk" deferrable="DEFERRED">
-        <column name="repository"/>
-        <references table="repository">
+      <foreign-key name="repository_fragment_fk" deferrable="DEFERRED">
+        <column name="repository_fragment"/>
+        <references table="repository_fragment">
           <column name="name"/>
         </references>
       </foreign-key>
@@ -209,8 +240,8 @@
       <column name="substate" type="TEXT" null="true"/>
       <column name="hold_package" type="INTEGER" null="true"/>
       <column name="hold_version" type="INTEGER" null="true"/>
-      <column name="repository_url" type="TEXT" null="true"/>
-      <column name="repository_type" type="TEXT" null="true"/>
+      <column name="repository_fragment_url" type="TEXT" null="true"/>
+      <column name="repository_fragment_type" type="TEXT" null="true"/>
       <column name="archive" type="TEXT" null="true"/>
       <column name="purge_archive" type="INTEGER" null="true"/>
       <column name="src_root" type="TEXT" null="true"/>

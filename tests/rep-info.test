@@ -172,4 +172,15 @@ else
   libbar/1.0.0
   libmbar/1.0.0
   EOO
+
+  : repository-manifests
+  :
+  : Here we test that the base repository manifest that comes from the stable
+  : branch is printed because the stable head commit is newer that of the
+  : master branch.
+  :
+  $* -r -m "$rep/style-basic.git#stable,master" >>~%EOO%
+  : 1
+  email: user@example.com
+  EOO
 }

@@ -9,7 +9,7 @@
 #include <list>
 #include <cstring>    // strlen()
 #include <iostream>   // cout
-#include <algorithm>  // find(), find_if()
+#include <algorithm>  // find_if()
 
 #include <libbutl/url.mxx>
 
@@ -125,38 +125,37 @@ namespace bpkg
     return db.query<available_package> (q);
   }
 
-  // Try to find a package that optionally satisfies the specified
-  // version constraint. Look in the specified repository, its
-  // prerequisite repositories, and their complements, recursively
-  // (note: recursivity applies to complements, not prerequisites).
-  // Return the package and the repository in which it was found or
-  // NULL for both if not found. Note that a stub satisfies any
-  // constraint.
+  // Try to find a package that optionally satisfies the specified version
+  // constraint. Look in the specified repository fragment, its prerequisite
+  // repositories, and their complements, recursively (note: recursivity
+  // applies to complements, not prerequisites). Return the package and the
+  // repository fragment in which it was found or NULL for both if not found.
+  // Note that a stub satisfies any constraint.
   //
-  static pair<shared_ptr<available_package>, shared_ptr<repository>>
+  static pair<shared_ptr<available_package>, shared_ptr<repository_fragment>>
   find_available (database& db,
                   const string& name,
-                  const shared_ptr<repository>& r,
+                  const shared_ptr<repository_fragment>& rf,
                   const optional<dependency_constraint>& c,
                   bool prereq = true)
   {
-    // Filter the result based on the repository to which each version
-    // belongs.
+    // Filter the result based on the repository fragment to which each
+    // version belongs.
     //
-    return filter_one (r, query_available (db, name, c), prereq);
+    return filter_one (rf, query_available (db, name, c), prereq);
   }
 
   // Create a transient (or fake, if you prefer) available_package object
   // corresponding to the specified selected object. Note that the package
-  // locations list is left empty and that the returned repository could be
-  // NULL if the package is an orphan.
+  // locations list is left empty and that the returned repository fragment
+  // could be NULL if the package is an orphan.
   //
   // Note also that in our model we assume that make_available() is only
   // called if there is no real available_package. This makes sure that if
   // the package moves (e.g., from testing to stable), then we will be using
   // stable to resolve its dependencies.
   //
-  static pair<shared_ptr<available_package>, shared_ptr<repository>>
+  static pair<shared_ptr<available_package>, shared_ptr<repository_fragment>>
   make_available (const common_options& options,
                   const dir_path& c,
                   database& db,
@@ -168,16 +167,17 @@ namespace bpkg
       return make_pair (make_shared<available_package> (sp->name, sp->version),
                         nullptr);
 
-    // First see if we can find its repository.
+    // First see if we can find its repository fragment.
     //
-    // Note that this is package's "old" repository and there is no guarantee
-    // that its dependencies are still resolvable from it. But this is our
-    // best chance (we could go nuclear and point all orphans to the root
-    // repository but that feels a bit too drastic at the moment).
+    // Note that this is package's "old" repository fragment and there is no
+    // guarantee that its dependencies are still resolvable from it. But this
+    // is our best chance (we could go nuclear and point all orphans to the
+    // root repository fragment but that feels a bit too drastic at the
+    // moment).
     //
-    shared_ptr<repository> ar (
-      db.find<repository> (
-        sp->repository.canonical_name ()));
+    shared_ptr<repository_fragment> af (
+      db.find<repository_fragment> (
+        sp->repository_fragment.canonical_name ()));
 
     // The package is in at least fetched state, which means we should
     // be able to get its manifest.
@@ -193,7 +193,7 @@ namespace bpkg
     //
     m.version = sp->version;
 
-    return make_pair (make_shared<available_package> (move (m)), move (ar));
+    return make_pair (make_shared<available_package> (move (m)), move (af));
   }
 
   // A "dependency-ordered" list of packages and their prerequisites.
@@ -258,7 +258,10 @@ namespace bpkg
 
     shared_ptr<selected_package>  selected;   // NULL if not selected.
     shared_ptr<available_package> available;  // Can be NULL, fake/transient.
-    shared_ptr<bpkg::repository>  repository; // Can be NULL (orphan) or root.
+
+    // Can be NULL (orphan) or root.
+    //
+    shared_ptr<bpkg::repository_fragment> repository_fragment;
 
     const string&
     name () const
@@ -440,8 +443,8 @@ namespace bpkg
     // Packages collection of whose prerequisites has been postponed due the
     // inability to find a version satisfying the pre-entered constraint from
     // repositories available to this package. The idea is that this
-    // constraint could still be satisfied from a repository of some other
-    // package (that we haven't processed yet) that also depends on this
+    // constraint could still be satisfied from a repository fragment of some
+    // other package (that we haven't processed yet) that also depends on this
     // prerequisite.
     //
     using postponed_packages = set<const build_package*>;
@@ -616,8 +619,9 @@ namespace bpkg
     // already configured since that would mean all its prerequisites are
     // configured as well. Note that this is not merely an optimization: the
     // package could be an orphan in which case the below logic will fail (no
-    // repository in which to search for prerequisites). By skipping the
-    // prerequisite check we are able to gracefully handle configured orphans.
+    // repository fragment in which to search for prerequisites). By skipping
+    // the prerequisite check we are able to gracefully handle configured
+    // orphans.
     //
     void
     collect_build_prerequisites (const common_options& options,
@@ -649,7 +653,7 @@ namespace bpkg
           }));
 
       const shared_ptr<available_package>& ap (pkg.available);
-      const shared_ptr<repository>& ar (pkg.repository);
+      const shared_ptr<repository_fragment>& af (pkg.repository_fragment);
       const string& name (ap->id.name);
 
       for (const dependency_alternatives& da: ap->dependencies)
@@ -756,7 +760,9 @@ namespace bpkg
         //
         shared_ptr<selected_package> dsp (db.find<selected_package> (dn));
 
-        pair<shared_ptr<available_package>, shared_ptr<repository>> rp;
+        pair<shared_ptr<available_package>,
+             shared_ptr<repository_fragment>> rp;
+
         shared_ptr<available_package>& dap (rp.first);
 
         bool force (false);
@@ -781,7 +787,9 @@ namespace bpkg
             // system package we pick the latest one (its exact version
             // doesn't really matter).
             //
-            shared_ptr<repository> root (db.load<repository> (""));
+            shared_ptr<repository_fragment> root (
+              db.load<repository_fragment> (""));
+
             rp = system
               ? find_available (db, dn, root, nullopt)
               : find_available (db,
@@ -807,11 +815,12 @@ namespace bpkg
         //
         if (dap == nullptr)
         {
-          // And if we have no repository to look in, then that means the
-          // package is an orphan (we delay this check until we actually
-          // need the repository to allow orphans without prerequisites).
+          // And if we have no repository fragment to look in, then that means
+          // the package is an orphan (we delay this check until we actually
+          // need the repository fragment to allow orphans without
+          // prerequisites).
           //
-          if (ar == nullptr)
+          if (af == nullptr)
             fail << "package " << pkg.available_name_version ()
                  << " is orphaned" <<
               info << "explicitly upgrade it to a new version";
@@ -833,8 +842,8 @@ namespace bpkg
           // Also note that for the user-specified dependency version we rely
           // on its presence in repositories of the first dependent met. As
           // a result, we may fail too early if the version doesn't belong to
-          // its repository, but belongs to the one of some dependent that we
-          // haven't met yet. Can we just search all repositories for an
+          // its repositories, but belongs to the ones of some dependent that
+          // we haven't met yet. Can we just search all repositories for an
           // available package of this version and just take it, if present?
           // We could, but then which repository should we pick? The wrong
           // choice can introduce some unwanted repositories and package
@@ -846,7 +855,7 @@ namespace bpkg
           // the package is recognized. An unrecognized package means the
           // broken/stale repository (see below).
           //
-          rp = find_available (db, dn, ar, !system ? d.constraint : nullopt);
+          rp = find_available (db, dn, af, !system ? d.constraint : nullopt);
 
           if (dap == nullptr)
           {
@@ -868,8 +877,8 @@ namespace bpkg
 
             dr << " of package " << name;
 
-            if (!ar->location.empty () && (!dep_constr || system))
-              dr << info << "repository " << ar->location << " appears to "
+            if (!af->location.empty () && (!dep_constr || system))
+              dr << info << "repository " << af->location << " appears to "
                  << "be broken" <<
                 info << "or the repository state could be stale" <<
                 info << "run 'bpkg rep-fetch' to update";
@@ -1395,7 +1404,7 @@ namespace bpkg
           return build_package {
             build_package::adjust,
             move (dsp),
-            nullptr,     // No available package/repository.
+            nullptr,     // No available package/repository fragment.
             nullptr,
             nullopt,     // Hold package.
             nullopt,     // Hold version.
@@ -1515,8 +1524,8 @@ namespace bpkg
   // this dependency. If the result is a NULL available_package, then it is
   // either no longer used and can be dropped, or no changes to the dependency
   // are necessary. Otherwise, the result is available_package to
-  // upgrade/downgrade to as well as the repository it must come from, and the
-  // system flag.
+  // upgrade/downgrade to as well as the repository fragment it must come
+  // from, and the system flag.
   //
   // If the explicitly specified dependency version can not be found in the
   // dependents repositories, then return the "no changes are necessary"
@@ -1528,7 +1537,7 @@ namespace bpkg
   struct evaluate_result
   {
     shared_ptr<available_package> available;
-    shared_ptr<bpkg::repository> repository;
+    shared_ptr<bpkg::repository_fragment> repository_fragment;
     bool unused;
     bool system; // Is meaningless if unused.
   };
@@ -1541,7 +1550,7 @@ namespace bpkg
                        const shared_ptr<selected_package>&,
                        const version& desired,
                        bool desired_sys,
-                       const set<shared_ptr<repository>>&,
+                       const set<shared_ptr<repository_fragment>>&,
                        const package_dependents&,
                        bool ignore_unsatisfiable);
 
@@ -1567,7 +1576,7 @@ namespace bpkg
       l5 ([&]{trace << *sp << ": unused";});
 
       return evaluate_result {nullptr /* available */,
-                              nullptr /* repository */,
+                              nullptr /* repository_fragment */,
                               true    /* unused */,
                               false   /* system */};
     }
@@ -1598,15 +1607,16 @@ namespace bpkg
       l5 ([&]{trace << *sp << ": unchanged";});
 
       return evaluate_result {nullptr /* available */,
-                              nullptr /* repository */,
+                              nullptr /* repository_fragment */,
                               false   /* unused */,
                               false   /* system */};
     }
 
-    // Build a set of repositories the dependent packages now come from. Also
-    // cache the dependents and the constraints they apply to this dependency.
+    // Build a set of repository fragments the dependent packages now come
+    // from. Also cache the dependents and the constraints they apply to this
+    // dependency.
     //
-    set<shared_ptr<repository>> repos;
+    set<shared_ptr<repository_fragment>> repo_frags;
     package_dependents dependents;
 
     for (auto& pd: pds)
@@ -1622,7 +1632,7 @@ namespace bpkg
         assert (!dap->locations.empty ());
 
         for (const auto& pl: dap->locations)
-          repos.insert (pl.repository.load ());
+          repo_frags.insert (pl.repository_fragment.load ());
       }
 
       dependents.emplace_back (move (dsp), move (pd.constraint));
@@ -1632,7 +1642,7 @@ namespace bpkg
                                 sp,
                                 dv,
                                 dsys,
-                                repos,
+                                repo_frags,
                                 dependents,
                                 ignore_unsatisfiable);
   }
@@ -1642,7 +1652,7 @@ namespace bpkg
                        const shared_ptr<selected_package>& sp,
                        const version& dv,
                        bool dsys,
-                       const set<shared_ptr<repository>>& repos,
+                       const set<shared_ptr<repository_fragment>>& rfs,
                        const package_dependents& dependents,
                        bool ignore_unsatisfiable)
   {
@@ -1658,19 +1668,22 @@ namespace bpkg
               ? query_available (db, nm, nullopt)
               : query_available (db, nm, dependency_constraint (dv)));
 
-    vector<pair<shared_ptr<available_package>, shared_ptr<repository>>> ars (
-      filter (vector<shared_ptr<repository>> (repos.begin (), repos.end ()),
-              move (apr)));
+    vector<pair<shared_ptr<available_package>,
+                shared_ptr<repository_fragment>>> afs (
+                  filter (vector<shared_ptr<repository_fragment>> (
+                            rfs.begin (),
+                            rfs.end ()),
+                          move (apr)));
 
     auto no_change = [] ()
     {
       return evaluate_result {nullptr /* available */,
-                              nullptr /* repository */,
+                              nullptr /* repository_fragment */,
                               false   /* unused */,
                               false   /* system */};
     };
 
-    if (ars.empty ())
+    if (afs.empty ())
     {
       if (ignore_unsatisfiable)
       {
@@ -1706,9 +1719,9 @@ namespace bpkg
 
     assert (!dsys || system_repository.find (nm) != nullptr);
 
-    for (auto& ar: ars)
+    for (auto& af: afs)
     {
-      shared_ptr<available_package>& ap (ar.first);
+      shared_ptr<available_package>& ap (af.first);
       const version& av (!dsys ? ap->version : *ap->system_version ());
 
       // If we aim to upgrade to the highest possible version and it tends to
@@ -1771,7 +1784,7 @@ namespace bpkg
                     << package_string (nm, av, dsys);});
 
       return evaluate_result {
-        move (ap), move (ar.second), false /* unused */, dsys};
+        move (ap), move (af.second), false /* unused */, dsys};
     }
 
     // If we aim to upgrade to the highest possible version, then what we
@@ -1875,7 +1888,8 @@ namespace bpkg
   // Evaluate a package (not necessarily dependency) and return a new desired
   // version. If the result is absent (nullopt), then no changes to the
   // package are necessary. Otherwise, the result is available_package to
-  // upgrade/downgrade to as well as the repository it must come from.
+  // upgrade/downgrade to as well as the repository fragment it must come
+  // from.
   //
   // If the system package cannot be upgraded to the source one, not being
   // found in the dependents repositories, then return nullopt if
@@ -1892,18 +1906,19 @@ namespace bpkg
 
     assert (sp != nullptr);
 
-    // Build a set of repositories the dependent packages come from. Also
-    // cache the dependents and the constraints they apply to this dependency.
+    // Build a set of repository fragment the dependent packages come from.
+    // Also cache the dependents and the constraints they apply to this
+    // dependency.
     //
-    set<shared_ptr<repository>> repos;
+    set<shared_ptr<repository_fragment>> repo_frags;
     package_dependents dependents;
 
     auto pds (db.query<package_dependent> (
                 query<package_dependent>::name == sp->name));
 
-    // Only collect repositories (for best version selection) of (immediate)
-    // dependents that have a hit (direct or indirect) in recs. Note, however,
-    // that we collect constraints from all the dependents.
+    // Only collect repository fragments (for best version selection) of
+    // (immediate) dependents that have a hit (direct or indirect) in recs.
+    // Note, however, that we collect constraints from all the dependents.
     //
     bool upgrade (false);
 
@@ -1916,8 +1931,8 @@ namespace bpkg
         continue;
 
       // While we already know that the dependency upgrade is required, we
-      // continue to iterate over dependents, collecting the repositories and
-      // the constraints.
+      // continue to iterate over dependents, collecting the repository
+      // fragments and the constraints.
       //
       upgrade = true;
 
@@ -1930,7 +1945,7 @@ namespace bpkg
         assert (!dap->locations.empty ());
 
         for (const auto& pl: dap->locations)
-          repos.insert (pl.repository.load ());
+          repo_frags.insert (pl.repository_fragment.load ());
       }
     }
 
@@ -1947,7 +1962,7 @@ namespace bpkg
                            sp,
                            version () /* desired */,
                            false /*desired_sys */,
-                           repos,
+                           repo_frags,
                            dependents,
                            ignore_unsatisfiable));
 
@@ -2374,14 +2389,21 @@ namespace bpkg
           //
           map<string, version> pvs;
 
-          using query = query<repository_package>;
-
-          for (const auto& rp: db.query<repository_package> (
-                 (query::repository::name == r->name) +
-                 order_by_version_desc (query::package::id.version)))
+          for (const repository::fragment_type& rf: r->fragments)
           {
-            const shared_ptr<available_package>& p (rp);
-            pvs.insert (make_pair (p->id.name, p->version));
+            using query = query<repository_fragment_package>;
+
+            for (const auto& rp: db.query<repository_fragment_package> (
+                   (query::repository_fragment::name ==
+                    rf.fragment.load ()->name) +
+                   order_by_version_desc (query::package::id.version)))
+            {
+              const shared_ptr<available_package>& p (rp);
+              auto i (pvs.insert (make_pair (p->id.name, p->version)));
+
+              if (!i.second && i.first->second < p->version)
+                i.first->second = p->version;
+            }
           }
 
           // Populate the argument list with the latest package versions.
@@ -2422,15 +2444,27 @@ namespace bpkg
               ? nullopt
               : optional<dependency_constraint> (v));
 
-            shared_ptr<available_package> ap (
-              find_available (db, n, r, c, false /* prereq */).first);
+            bool complements (false);
+            shared_ptr<available_package> ap;
+
+            for (const repository::fragment_type& rf: r->fragments)
+            {
+              shared_ptr<repository_fragment> fr (rf.fragment.load ());
+              ap = find_available (db, n, fr, c, false /* prereq */).first;
+
+              if (ap != nullptr)
+                break;
+
+              if (!fr->complements.empty ())
+                complements = true;
+            }
 
             if (ap == nullptr)
             {
               diag_record dr (fail);
               dr << "package " << pkg << " is not found in " << r->name;
 
-              if (!r->complements.empty ())
+              if (complements)
                 dr << " or its complements";
             }
 
@@ -2485,7 +2519,7 @@ namespace bpkg
 
       transaction t (db);
 
-      shared_ptr<repository> root (db.load<repository> (""));
+      shared_ptr<repository_fragment> root (db.load<repository_fragment> (""));
 
       // Here is what happens here: for unparsed package args we are going to
       // try and guess whether we are dealing with a package archive, package
@@ -2504,7 +2538,7 @@ namespace bpkg
         // Reduce all the potential variations (archive, directory, package
         // name, package name/version) to a single available_package object.
         //
-        shared_ptr<repository> ar;
+        shared_ptr<repository_fragment> af;
         shared_ptr<available_package> ap;
 
         if (!arg_parsed (pa))
@@ -2544,12 +2578,9 @@ namespace bpkg
                                 m.version,
                                 move (pa.options));
 
-              ar = root;
+              af = root;
               ap = make_shared<available_package> (move (m));
-              ap->locations.push_back (
-                package_location {root,
-                                  string () /* fragment */,
-                                  move (a)});
+              ap->locations.push_back (package_location {root, move (a)});
             }
           }
           catch (const invalid_path&)
@@ -2596,12 +2627,12 @@ namespace bpkg
                 l4 ([&]{trace << "directory '" << d << "': "
                               << arg_string (pa);});
 
-              // Supporting this would complicate things a bit, but we may add
-              // support for it one day.
-              //
-              if (pa.options.dependency ())
-                fail << "package directory '" << d
-                     << "' may not be built as a dependency";
+                // Supporting this would complicate things a bit, but we may
+                // add support for it one day.
+                //
+                if (pa.options.dependency ())
+                  fail << "package directory '" << d
+                       << "' may not be built as a dependency";
 
                 // Fix-up the package version to properly decide if we need to
                 // upgrade/downgrade the package. Note that throwing failed
@@ -2626,11 +2657,8 @@ namespace bpkg
                                   move (pa.options));
 
                 ap = make_shared<available_package> (move (m));
-                ar = root;
-                ap->locations.push_back (
-                  package_location {root,
-                                    string () /* fragment */,
-                                    move (d)});
+                af = root;
+                ap->locations.push_back (package_location {root, move (d)});
               }
             }
             catch (const invalid_path&)
@@ -2691,7 +2719,7 @@ namespace bpkg
                                   root,
                                   dependency_constraint (pa.version)));
               ap = move (rp.first);
-              ar = move (rp.second);
+              af = move (rp.second);
             }
           }
           catch (const failed&)
@@ -2895,7 +2923,7 @@ namespace bpkg
 
           auto rp (make_available (o, c, db, sp));
           ap = rp.first;
-          ar = rp.second; // Could be NULL (orphan).
+          af = rp.second; // Could be NULL (orphan).
         }
 
         // We will keep the output directory only if the external package is
@@ -2913,7 +2941,7 @@ namespace bpkg
           build_package::build,
           move (sp),
           move (ap),
-          move (ar),
+          move (af),
           true,                 // Hold package.
           !pa.version.empty (), // Hold version.
           {},                   // Constraints.
@@ -3068,9 +3096,13 @@ namespace bpkg
     {
       struct dep
       {
-        string name;                              // Empty if up/down-grade.
-        shared_ptr<available_package> available;  // NULL if drop.
-        shared_ptr<bpkg::repository>  repository; // NULL if drop.
+        string name; // Empty if up/down-grade.
+
+        // Both are NULL if drop.
+        //
+        shared_ptr<available_package> available;
+        shared_ptr<bpkg::repository_fragment> repository_fragment;
+
         bool system;
       };
       vector<dep> deps;
@@ -3103,8 +3135,8 @@ namespace bpkg
             build_package bp {
               nullopt,             // Action.
               nullptr,             // Selected package.
-              nullptr,             // Available package.
-              nullptr,             // Available package repository.
+              nullptr,             // Available package/repository fragment.
+              nullptr,
               false,               // Hold package.
               !p.version.empty (), // Hold version.
               {},                  // Constraints.
@@ -3175,14 +3207,14 @@ namespace bpkg
               build_package::build,
               move (sp),
               d.available,
-              d.repository,
-              nullopt,      // Hold package.
-              nullopt,      // Hold version.
-              {},           // Constraints.
+              d.repository_fragment,
+              nullopt,               // Hold package.
+              nullopt,               // Hold version.
+              {},                    // Constraints.
               d.system,
               keep_out,
-              {""},         // Required by (command line).
-              0};           // Adjustments.
+              {""},                  // Required by (command line).
+              0};                    // Adjustments.
 
             pkgs.collect_build (o, c, db, p, &postponed /* recursively */);
           }
@@ -3373,7 +3405,7 @@ namespace bpkg
                 if (!diag)
                   deps.push_back (dep {sp->name,
                                        move (er->available),
-                                       move (er->repository),
+                                       move (er->repository_fragment),
                                        er->system});
                 r = true;
               }
@@ -3752,7 +3784,7 @@ namespace bpkg
         const shared_ptr<available_package>& ap (p.available);
         const package_location& pl (ap->locations[0]);
 
-        if (pl.repository.object_id () == "") // Special root.
+        if (pl.repository_fragment.object_id () == "") // Special root.
           p.keep_out = !exists (pl.location); // Directory case.
         else
         {
@@ -3761,12 +3793,12 @@ namespace bpkg
           // See if the package comes from the directory-based repository, and
           // so is external.
           //
-          // Note that such repositories are always preferred over others (see
-          // below).
+          // Note that such repository fragments are always preferred over
+          // others (see below).
           //
           for (const package_location& l: ap->locations)
           {
-            if (l.repository.load ()->location.directory_based ())
+            if (l.repository_fragment.load ()->location.directory_based ())
             {
               p.keep_out = true;
               break;
@@ -3875,20 +3907,22 @@ namespace bpkg
           //
           const package_location& pl (ap->locations[0]); // Got to have one.
 
-          if (pl.repository.object_id () != "") // Special root?
+          if (pl.repository_fragment.object_id () != "") // Special root?
           {
             transaction t (db, !simulate /* start */);
 
-            // Go through package repositories to decide if we should fetch,
-            // checkout or unpack depending on the available repository basis.
-            // Preferring a local one over the remotes and the dir repository
-            // type over the others seems like a sensible thing to do.
+            // Go through package repository fragments to decide if we should
+            // fetch, checkout or unpack depending on the available repository
+            // basis. Preferring a local one over the remotes and the dir
+            // repository type over the others seems like a sensible thing to
+            // do.
             //
             optional<repository_basis> basis;
 
             for (const package_location& l: ap->locations)
             {
-              const repository_location& rl (l.repository.load ()->location);
+              const repository_location& rl (
+                l.repository_fragment.load ()->location);
 
               if (!basis || rl.local ()) // First or local?
               {
@@ -3963,7 +3997,7 @@ namespace bpkg
 
             if (verbose && !o.no_result ())
             {
-              const repository_location& rl (sp->repository);
+              const repository_location& rl (sp->repository_fragment);
 
               repository_basis basis (
                 !rl.empty ()
@@ -4016,7 +4050,7 @@ namespace bpkg
           else
           {
             const package_location& pl (ap->locations[0]);
-            assert (pl.repository.object_id () == ""); // Special root.
+            assert (pl.repository_fragment.object_id () == ""); // Special root.
 
             transaction t (db, !simulate /* start */);
             sp = pkg_unpack (o,

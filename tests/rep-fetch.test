@@ -39,7 +39,7 @@
 # |   |   `-- root.build
 # |   `-- *
 # |
-# |-- circle
+# |-- cycle
 # |   |-- extra                     -> stable (prerequisite)
 # |   |   |-- libbar-1.1.0+1.tar.gz
 # |   |   `-- repositories.manifest
@@ -50,7 +50,7 @@
 # |       |-- libfoo-1.0.0.tar.gz
 # |       `-- repositories.manifest
 # |
-# |-- no-circle
+# |-- no-cycle
 # |   |-- extra
 # |   |   |-- libbar-1.1.0+1.tar.gz
 # |   |   `-- repositories.manifest

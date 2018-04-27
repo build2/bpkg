@@ -106,7 +106,7 @@ namespace bpkg
 
       p->version = move (v);
       p->state = package_state::unpacked;
-      p->repository = move (rl);
+      p->repository_fragment = move (rl);
       p->src_root = move (d);
       p->purge_src = purge;
       p->manifest_checksum = move (mc);
@@ -172,8 +172,8 @@ namespace bpkg
           o, c, t, d, m.name, m.version, true /* check_external */))
       m.version = move (*v);
 
-    // Use the special root repository as the repository of this
-    // package.
+    // Use the special root repository fragment as the repository fragment of
+    // this package.
     //
     return pkg_unpack (o,
                        c,
@@ -215,14 +215,14 @@ namespace bpkg
     if (ap == nullptr)
       fail << "package " << n << " " << v << " is not available";
 
-    // Pick a directory-based repository. They are always local, so we pick
-    // the first one.
+    // Pick a directory-based repository fragment. They are always local, so we
+    // pick the first one.
     //
     const package_location* pl (nullptr);
 
     for (const package_location& l: ap->locations)
     {
-      if (l.repository.load ()->location.directory_based ())
+      if (l.repository_fragment.load ()->location.directory_based ())
       {
         pl = &l;
         break;
@@ -235,9 +235,9 @@ namespace bpkg
 
     if (verb > 1)
       text << "unpacking " << pl->location.leaf () << " "
-           << "from " << pl->repository->name;
+           << "from " << pl->repository_fragment->name;
 
-    const repository_location& rl (pl->repository->location);
+    const repository_location& rl (pl->repository_fragment->location);
 
     return pkg_unpack (o,
                        c,

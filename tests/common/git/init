@@ -60,6 +60,7 @@ rm -f -r style.git/basic
 rm -f -r style-basic.git/.git
 rm -f    style-basic.git/README
 rm -f    style-basic.git/INSTALL
+rm -f    style-basic.git/repositories.manifest
 
 # Create master branch for style-basic.git.
 #
@@ -69,10 +70,15 @@ git -C style-basic.git commit -am 'Create'
 
 # Create stable branch for style-basic.
 #
+sleep 1 # Make sure that master commits are older than stable commits.
 git -C style-basic.git branch stable
 git -C style-basic.git checkout stable
 touch  style-basic.git/README
-git -C style-basic.git add README
+cat <<EOF >style-basic.git/repositories.manifest
+: 1
+email: user@example.com
+EOF
+git -C style-basic.git add README repositories.manifest
 git -C style-basic.git commit -am 'README'
 
 # Create master branch for style.git, adding style-basic.git as a submodule.

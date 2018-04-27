@@ -28,20 +28,23 @@ namespace bpkg
 
   struct rep_fetch_data
   {
-    using repository = repository_manifest;
-
-    struct package
+    struct fragment
     {
-      package_manifest manifest;
-      string repository_fragment; // See package_location::fragment.
+      // Empty for fragment-less repositories.
+      //
+      string id;
+      string friendly_name; // User-friendly fragment name (e.g, tag, etc).
+
+      vector<repository_manifest> repositories;
+      vector<package_manifest>    packages;
     };
 
-    std::vector<repository>       repositories;
-    std::vector<package>          packages;
+    vector<fragment> fragments;
 
-    // For base repo (can be NULL).
+    // For base pkg repo (can be nullopt/NULL).
     //
-    shared_ptr<const bpkg::certificate> certificate;
+    optional<string> cert_pem;
+    shared_ptr<const bpkg::certificate> certificate; // Authenticated.
   };
 
   rep_fetch_data

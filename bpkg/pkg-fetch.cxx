@@ -58,7 +58,7 @@ namespace bpkg
 
       p->version = move (v);
       p->state = package_state::fetched;
-      p->repository = move (rl);
+      p->repository_fragment = move (rl);
       p->archive = move (a);
       p->purge_archive = purge;
 
@@ -153,8 +153,8 @@ namespace bpkg
     //
     pkg_fetch_check (c, t, m.name, replace);
 
-    // Use the special root repository as the repository of this
-    // package.
+    // Use the special root repository fragment as the repository fragment of
+    // this package.
     //
     return pkg_fetch (c,
                       t,
@@ -197,14 +197,14 @@ namespace bpkg
     if (ap == nullptr)
       fail << "package " << n << " " << v << " is not available";
 
-    // Pick an archive-based repository. Preferring a local one over the
-    // remotes seems like a sensible thing to do.
+    // Pick an archive-based repository fragment. Preferring a local one over
+    // the remotes seems like a sensible thing to do.
     //
     const package_location* pl (nullptr);
 
     for (const package_location& l: ap->locations)
     {
-      const repository_location& rl (l.repository.load ()->location);
+      const repository_location& rl (l.repository_fragment.load ()->location);
 
       if (rl.archive_based () && (pl == nullptr || rl.local ()))
       {
@@ -221,14 +221,16 @@ namespace bpkg
 
     if (verb > 1)
       text << "fetching " << pl->location.leaf () << " "
-           << "from " << pl->repository->name;
+           << "from " << pl->repository_fragment->name;
 
     auto_rmfile arm;
     path a (c / pl->location.leaf ());
 
     if (!simulate)
     {
-      pkg_fetch_archive (co, pl->repository->location, pl->location, a);
+      pkg_fetch_archive (
+        co, pl->repository_fragment->location, pl->location, a);
+
       arm = auto_rmfile (a);
 
       // We can't be fetching an archive for a transient object.
@@ -239,7 +241,7 @@ namespace bpkg
       if (sha256sum != *ap->sha256sum)
       {
         fail << "checksum mismatch for " << n << " " << v <<
-          info << pl->repository->name << " has " << *ap->sha256sum <<
+          info << pl->repository_fragment->name << " has " << *ap->sha256sum <<
           info << "fetched archive has " << sha256sum <<
           info << "consider re-fetching package list and trying again" <<
           info << "if problem persists, consider reporting this to "
@@ -253,7 +255,7 @@ namespace bpkg
                  move (n),
                  move (v),
                  move (a),
-                 pl->repository->location,
+                 pl->repository_fragment->location,
                  true /* purge */,
                  simulate));
 

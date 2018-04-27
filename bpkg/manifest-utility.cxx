@@ -137,15 +137,27 @@ namespace bpkg
   }
 
   dir_path
-  repository_state (const repository_location& l)
+  repository_state (const repository_location& rl)
   {
-    switch (l.type ())
+    switch (rl.type ())
     {
     case repository_type::pkg:
     case repository_type::dir: return dir_path (); // No state.
 
     case repository_type::git:
       {
+        // Strip the fragment, so all the repository fragments of the same
+        // git repository can reuse the state. So, for example, the state is
+        // shared for the fragments fetched from the following git repository
+        // locations:
+        //
+        // https://www.example.com/foo.git#master
+        // git://example.com/foo#stable
+        //
+        repository_url u (rl.url ());
+        u.fragment = nullopt;
+
+        repository_location l (u, rl.type ());
         return dir_path (sha256 (l.canonical_name ()).abbreviated_string (12));
       }
     }

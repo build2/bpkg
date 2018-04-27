@@ -52,13 +52,14 @@ namespace bpkg
     pair<pkg_repository_manifests, string /* checksum */> rmc (
       pkg_fetch_repositories (co, rl, ignore_unknown));
 
-    pkg_repository_manifests& rms (rmc.first);
+    rep_fetch_data::fragment fr;
+    fr.repositories = move (rmc.first);
 
     bool a (co.auth () != auth::none &&
             (co.auth () == auth::all || rl.remote ()));
 
     shared_ptr<const certificate> cert;
-    const optional<string>& cert_pem (rms.back ().certificate);
+    optional<string> cert_pem (move (fr.repositories.back ().certificate));
 
     if (a)
     {
@@ -79,6 +80,8 @@ namespace bpkg
            << rl.canonical_name () <<
         info << "try again";
 
+    fr.packages = move (pms);
+
     if (a)
     {
       signature_manifest sm (
@@ -93,15 +96,7 @@ namespace bpkg
       authenticate_repository (co, conf, cert_pem, *cert, sm, rl);
     }
 
-    vector<rep_fetch_data::package> fps;
-    fps.reserve (pms.size ());
-
-    for (package_manifest& m: pms)
-      fps.emplace_back (
-        rep_fetch_data::package {move (m),
-                                 string () /* repository_state */});
-
-    return rep_fetch_data {move (rms), move (fps), move (cert)};
+    return rep_fetch_data {{move (fr)}, move (cert_pem), move (cert)};
   }
 
   template <typename M>
@@ -109,7 +104,7 @@ namespace bpkg
   parse_manifest (const path& f,
                   bool iu,
                   const repository_location& rl,
-                  const string& frag)
+                  const optional<string>& fragment) // Used for diagnostics.
   {
     try
     {
@@ -119,8 +114,15 @@ namespace bpkg
     }
     catch (const manifest_parsing& e)
     {
-      fail (e.name, e.line, e.column) << e.description <<
-        info << "repository " << rl << ' ' << frag << endf;
+      diag_record dr (fail (e.name, e.line, e.column));
+
+      dr << e.description <<
+        info << "repository " << rl;
+
+      if (fragment)
+        dr << ' ' << *fragment;
+
+      dr << endf;
     }
     catch (const io_error& e)
     {
@@ -136,11 +138,11 @@ namespace bpkg
   parse_repository_manifests (const path& f,
                               bool iu,
                               const repository_location& rl,
-                              const string& frag)
+                              const optional<string>& fragment)
   {
     M r;
     if (exists (f))
-      r = parse_manifest<M> (f, iu, rl, frag);
+      r = parse_manifest<M> (f, iu, rl, fragment);
     else
       r.emplace_back (repository_manifest ()); // Add the base repository.
 
@@ -156,11 +158,11 @@ namespace bpkg
   parse_directory_manifests (const path& f,
                              bool iu,
                              const repository_location& rl,
-                             const string& frag)
+                             const optional<string>& fragment)
   {
     M r;
     if (exists (f))
-      r = parse_manifest<M> (f, iu, rl, frag);
+      r = parse_manifest<M> (f, iu, rl, fragment);
     else
     {
       r.push_back (package_manifest ());
@@ -172,30 +174,32 @@ namespace bpkg
 
   // Parse package manifests referenced by the package directory manifests.
   //
-  static vector<rep_fetch_data::package>
+  static vector<package_manifest>
   parse_package_manifests (const common_options& co,
                            const dir_path& repo_dir,
-                           const string& repo_fragment,
                            vector<package_manifest>&& sms,
                            bool iu,
                            const repository_location& rl,
-                           const string& frag)
+                           const optional<string>& fragment) // For diagnostics.
   {
-    vector<rep_fetch_data::package> fps;
-    fps.reserve (sms.size ());
+    vector<package_manifest> r;
+    r.reserve (sms.size ());
 
     for (package_manifest& sm: sms)
     {
       assert (sm.location);
 
-      auto package_info = [&sm, &rl, &frag] (diag_record& dr)
+      auto package_info = [&sm, &rl, &fragment] (diag_record& dr)
       {
         dr << "package ";
 
         if (!sm.location->current ())
           dr << "'" << sm.location->string () << "' "; // Strip trailing '/'.
 
-        dr << "in repository " << rl << ' ' << frag;
+        dr << "in repository " << rl;
+
+        if (fragment)
+          dr << ' ' << *fragment;
       };
 
       auto failure = [&package_info] (const char* desc)
@@ -240,10 +244,10 @@ namespace bpkg
       if (v)
         sm.version = move (*v);
 
-      fps.emplace_back (rep_fetch_data::package {move (sm), repo_fragment});
+      r.emplace_back (move (sm));
     }
 
-    return fps;
+    return r;
   }
 
   static rep_fetch_data
@@ -255,30 +259,31 @@ namespace bpkg
 
     dir_path rd (path_cast<dir_path> (rl.path ()));
 
-    dir_repository_manifests rms (
-      parse_repository_manifests<dir_repository_manifests> (
-        rd / repositories_file,
-        ignore_unknown,
-        rl,
-        string () /* frag */));
+    rep_fetch_data::fragment fr;
+
+    fr.repositories = parse_repository_manifests<dir_repository_manifests> (
+      rd / repositories_file,
+      ignore_unknown,
+      rl,
+      string () /* fragment */);
 
     dir_package_manifests pms (
       parse_directory_manifests<dir_package_manifests> (
         rd / packages_file,
         ignore_unknown,
         rl,
-        string () /* frag */));
+        string () /* fragment */));
 
-    vector<rep_fetch_data::package> fps (
-      parse_package_manifests (co,
-                               rd,
-                               string () /* repo_fragment */,
-                               move (pms),
-                               ignore_unknown,
-                               rl,
-                               string () /* frag */));
+    fr.packages = parse_package_manifests (co,
+                                           rd,
+                                           move (pms),
+                                           ignore_unknown,
+                                           rl,
+                                           string () /* fragment */);
 
-    return rep_fetch_data {move (rms), move (fps), nullptr};
+    return rep_fetch_data {{move (fr)},
+                           nullopt /* cert_pem */,
+                           nullptr /* certificate */};
   }
 
   static rep_fetch_data
@@ -358,21 +363,23 @@ namespace bpkg
     // - For each package location parse the package manifest and add it to
     //   the resulting list.
     //
-    git_repository_manifests rms;
-    vector<rep_fetch_data::package> fps;
+    rep_fetch_data r;
 
-    for (const git_fragment& fr: git_fetch (co, rl, td))
+    for (git_fragment& gf: git_fetch (co, rl, td))
     {
-      git_checkout (co, td, fr.commit);
+      git_checkout (co, td, gf.commit);
+
+      rep_fetch_data::fragment fr;
+      fr.id            = move (gf.commit);
+      fr.friendly_name = move (gf.friendly_name);
 
       // Parse repository manifests.
       //
-      if (rms.empty ())
-        rms = parse_repository_manifests<git_repository_manifests> (
+      fr.repositories = parse_repository_manifests<git_repository_manifests> (
           td / repositories_file,
           ignore_unknown,
           rl,
-          fr.name);
+          fr.friendly_name);
 
       // Parse package skeleton manifests.
       //
@@ -381,7 +388,7 @@ namespace bpkg
           td / packages_file,
           ignore_unknown,
           rl,
-          fr.name));
+          fr.friendly_name));
 
       // Checkout submodules, if required.
       //
@@ -391,25 +398,20 @@ namespace bpkg
 
         if (!exists (d) || empty (d))
         {
-          git_checkout_submodules (co, td);
+          git_checkout_submodules (co, rl, td);
           break;
         }
       }
 
       // Parse package manifests.
       //
-      vector<rep_fetch_data::package> cps (
-        parse_package_manifests (co,
-                                 td,
-                                 fr.commit,
-                                 move (pms),
-                                 ignore_unknown,
-                                 rl,
-                                 fr.name));
-
-      fps.insert (fps.end (),
-                  make_move_iterator (cps.begin ()),
-                  make_move_iterator (cps.end ()));
+      fr.packages = parse_package_manifests (co,
+                                             td,
+                                             move (pms),
+                                             ignore_unknown,
+                                             rl,
+                                             fr.friendly_name);
+      r.fragments.push_back (move (fr));
     }
 
     // Move the state directory to its proper place.
@@ -424,7 +426,7 @@ namespace bpkg
       filesystem_state_changed = true;
     }
 
-    return rep_fetch_data {move (rms), move (fps), nullptr /* certificate */};
+    return r;
   }
 
   rep_fetch_data
@@ -444,72 +446,89 @@ namespace bpkg
     return rep_fetch_data ();
   }
 
-  using repositories = set<shared_ptr<repository>>;
-
-  // If reason is absent, then don't print the "fetching ..." progress line.
+  // Return an existing repository fragment or create a new one. Update the
+  // existing object unless it is immutable (see repository_fragment class
+  // description for details). Don't fetch the complement and prerequisite
+  // repositories.
   //
-  static void
-  rep_fetch (const common_options& co,
-             const dir_path& conf,
-             transaction& t,
-             const shared_ptr<repository>& r,
-             repositories& fetched,
-             repositories& removed,
-             bool shallow,
-             const optional<string>& reason)
+  static shared_ptr<repository_fragment>
+  rep_fragment (const common_options& co,
+                const dir_path& conf,
+                transaction& t,
+                const repository_location& rl,
+                rep_fetch_data::fragment&& fr)
   {
-    tracer trace ("rep_fetch(rep)");
+    tracer trace ("rep_fragment");
 
     database& db (t.database ());
     tracer_guard tg (db, trace);
 
-    // Check that the repository is not fetched yet and register it as fetched
-    // otherwise.
-    //
-    // Note that we can end up with a repository dependency cycle via
-    // prerequisites. Thus we register the repository before recursing into its
-    // dependencies.
-    //
-    if (!fetched.insert (r).second) // Is already fetched.
-      return;
+    bool mut (fr.id.empty ()); // Is the fragment mutable?
 
-    const repository_location& rl (r->location);
-    l4 ([&]{trace << r->name << " " << rl;});
+    // Calculate the fragment location.
+    //
+    repository_location rfl;
 
-    // Cancel the repository removal.
-    //
-    // Note that this is an optimization as the rep_remove() function checks
-    // for reachability of the repository being removed.
-    //
-    removed.erase (r);
-
-    // The fetch_*() functions below will be quiet at level 1, which can be
-    // quite confusing if the download hangs.
-    //
-    if (verb && reason)
+    switch (rl.type ())
     {
-      diag_record dr (text);
+    case repository_type::pkg:
+    case repository_type::dir:
+      {
+        assert (mut);
 
-      dr << "fetching " << r->name;
+        rfl = rl;
+        break;
+      }
+    case repository_type::git:
+      {
+        assert (!mut);
 
-      if (!reason->empty ())
-        dr << " (" << *reason << ")";
+        repository_url url (rl.url ());
+        url.fragment = move (fr.id);
+
+        rfl = repository_location (url, rl.type ());
+        break;
+      }
     }
 
-    // Load the repository and package manifests and use them to populate the
-    // prerequisite and complement repository sets as well as available
-    // packages.
-    //
-    rep_fetch_data rfd (rep_fetch (co, &conf, rl, true /* ignore_unknow */));
+    shared_ptr<repository_fragment> rf (
+      db.find<repository_fragment> (rfl.canonical_name ()));
 
-    // Create the new prerequisite and complement repository sets. While doing
-    // this we may also reset the shallow flag if discover that any of these
-    // sets have changed.
+    // Return the existing repository fragment if it is immutable.
     //
-    repository::complements_type complements;
-    repository::prerequisites_type prerequisites;
+    bool exists (rf != nullptr);
 
-    for (repository_manifest& rm: rfd.repositories)
+    if (exists)
+    {
+      // Note that the user could change the repository URL the fragment was
+      // fetched from. In this case we need to sync the fragment location with
+      // the repository location to make sure that we use a proper URL for the
+      // fragment checkout. Not doing so we, for example, may try to fetch git
+      // submodules from the URL that is not available anymore.
+      //
+      if (rfl.url () != rf->location.url ())
+      {
+        rf->location = move (rfl);
+        db.update (rf);
+      }
+
+      if (!mut)
+        return rf;
+    }
+
+    // Create or update the repository fragment.
+    //
+    if (exists)
+    {
+      assert (mut);
+
+      rf->complements.clear ();
+      rf->prerequisites.clear ();
+    }
+    else
+      rf = make_shared<repository_fragment> (move (rfl));
+
+    for (repository_manifest& rm: fr.repositories)
     {
       repository_role rr (rm.effective_role ());
 
@@ -535,27 +554,34 @@ namespace bpkg
         }
       }
 
-      // Create the new repository if it is not in the database yet. Otherwise
-      // update its location.
+      // Create the new repository if it is not in the database yet, otherwise
+      // update its location if it is changed, unless the repository is a
+      // top-level one (and so its location is authoritative). Such a change
+      // may root into the top-level repository location change made by the
+      // user.
       //
-      shared_ptr<repository> pr (db.find<repository> (l.canonical_name ()));
+      shared_ptr<repository> r (db.find<repository> (l.canonical_name ()));
 
-      if (pr == nullptr)
+      if (r == nullptr)
       {
-        pr = make_shared<repository> (move (l));
-        db.persist (pr); // Enter into session, important if recursive.
-
-        shallow = false;
+        r = make_shared<repository> (move (l));
+        db.persist (r); // Enter into session, important if recursive.
       }
-      else if (pr->location.url () != l.url ())
+      else if (r->location.url () != l.url ())
       {
-        pr->location = move (l);
-        db.update (r);
+        shared_ptr<repository_fragment> root (
+          db.load<repository_fragment> (""));
 
-        shallow = false;
+        repository_fragment::complements_type& ua (root->complements);
+
+        if (ua.find (r) == ua.end ())
+        {
+          r->location = move (l);
+          db.update (r);
+        }
       }
 
-      // @@ What if we have duplicated? Ideally, we would like to check
+      // @@ What if we have duplicates? Ideally, we would like to check
       //    this once and as early as possible. The original idea was to
       //    do it during manifest parsing and serialization. But at that
       //    stage we have no way of completing relative locations (which
@@ -574,14 +600,14 @@ namespace bpkg
       {
       case repository_role::complement:
         {
-          l4 ([&]{trace << pr->name << " complement of " << r->name;});
-          complements.insert (lazy_shared_ptr<repository> (db, pr));
+          l4 ([&]{trace << r->name << " complement of " << rf->name;});
+          rf->complements.insert (lazy_shared_ptr<repository> (db, r));
           break;
         }
       case repository_role::prerequisite:
         {
-          l4 ([&]{trace << pr->name << " prerequisite of " << r->name;});
-          prerequisites.insert (lazy_weak_ptr<repository> (db, pr));
+          l4 ([&]{trace << r->name << " prerequisite of " << rf->name;});
+          rf->prerequisites.insert (lazy_weak_ptr<repository> (db, r));
           break;
         }
       case repository_role::base:
@@ -603,8 +629,8 @@ namespace bpkg
     case repository_type::git:
     case repository_type::dir:
       {
-        if (complements.empty () && prerequisites.empty ())
-          complements.insert (lazy_shared_ptr<repository> (db, string ()));
+        if (rf->complements.empty () && rf->prerequisites.empty ())
+          rf->complements.insert (lazy_shared_ptr<repository> (db, string ()));
 
         break;
       }
@@ -617,83 +643,10 @@ namespace bpkg
       }
     }
 
-    // Reset the shallow flag if the set of complements and/or prerequisites
-    // has changed.
-    //
-    // Note that weak pointers are generally incomparable (as can point to
-    // expired objects), and thus we can't compare the prerequisite sets
-    // directly.
-    //
-    if (shallow)
-      shallow = r->complements == complements &&
-                equal (r->prerequisites.begin (), r->prerequisites.end (),
-                       prerequisites.begin (), prerequisites.end (),
-                       [] (const lazy_weak_ptr<repository>& x,
-                           const lazy_weak_ptr<repository>& y)
-                       {
-                         return x.object_id () == y.object_id ();
-                       });
-
-    // Fetch prerequisites and complements, unless this is a shallow fetch.
-    //
-    if (!shallow)
-    {
-      // Register complements and prerequisites for potential removal unless
-      // they are fetched. Clear repository dependency sets afterwards.
-      //
-      auto rm = [&fetched, &removed] (const lazy_shared_ptr<repository>& rp)
-      {
-        shared_ptr<repository> r (rp.load ());
-         if (fetched.find (r) == fetched.end ())
-          removed.insert (move (r));
-      };
-
-      for (const lazy_shared_ptr<repository>& cr: r->complements)
-      {
-        // Remove the complement unless it is the root repository (see
-        // rep_fetch() for details).
-        //
-        if (cr.object_id () != "")
-          rm (cr);
-      }
-
-      for (const lazy_weak_ptr<repository>& pr: r->prerequisites)
-        rm (lazy_shared_ptr<repository> (pr));
-
-      r->complements   = move (complements);
-      r->prerequisites = move (prerequisites);
-
-      // Fetch complements.
-      //
-      for (const auto& cr: r->complements)
-      {
-        if (cr.object_id () != "")
-          rep_fetch (co,
-                     conf,
-                     t,
-                     cr.load (),
-                     fetched,
-                     removed,
-                     false /* shallow */,
-                     "complements " + r->name);
-      }
-
-      // Fetch prerequisites.
-      //
-      for (const auto& pr: r->prerequisites)
-        rep_fetch (co,
-                   conf,
-                   t,
-                   pr.load (),
-                   fetched,
-                   removed,
-                   false /* shallow */,
-                   "prerequisite of " + r->name);
-
-      // Save the changes to the repository object.
-      //
-      db.update (r);
-    }
+    if (exists)
+      db.update (rf);
+    else
+      db.persist (rf);
 
     // "Suspend" session while persisting packages to reduce memory
     // consumption.
@@ -701,15 +654,14 @@ namespace bpkg
     session& s (session::current ());
     session::reset_current ();
 
-    // Remove this repository from locations of the available packages it
-    // contains.
+    // Remove this repository fragment from locations of the available
+    // packages it contains.
     //
-    rep_remove_package_locations (t, r->name);
+    if (exists)
+      rep_remove_package_locations (t, rf->name);
 
-    for (rep_fetch_data::package& fp: rfd.packages)
+    for (package_manifest& pm: fr.packages)
     {
-      package_manifest& pm (fp.manifest);
-
       // Fix-up the external package version iteration number.
       //
       if (rl.directory_based ())
@@ -724,7 +676,7 @@ namespace bpkg
             co,
             conf,
             t,
-            path_cast<dir_path> (rl.path () / *fp.manifest.location),
+            path_cast<dir_path> (rl.path () / *pm.location),
             pm.name,
             pm.version,
             false /* check_external */));
@@ -765,7 +717,7 @@ namespace bpkg
             // can pick any to show to the user.
             //
             const string& r1 (rl.canonical_name ());
-            const string& r2 (p->locations[0].repository.object_id ());
+            const string& r2 (p->locations[0].repository_fragment.object_id ());
 
             fail << "checksum mismatch for " << pm.name << " " << pm.version <<
               info << r1 << " has " << *pm.sha256sum <<
@@ -775,12 +727,8 @@ namespace bpkg
         }
       }
 
-      // Note that the repository may already be present in the location set
-      // multiple times with different fragments.
-      //
       p->locations.push_back (
-        package_location {lazy_shared_ptr<repository> (db, r),
-                          move (fp.repository_fragment),
+        package_location {lazy_shared_ptr<repository_fragment> (db, rf),
                           move (*pm.location)});
 
       if (persist)
@@ -790,6 +738,203 @@ namespace bpkg
     }
 
     session::current (s); // "Resume".
+
+    return rf;
+  }
+
+  using repositories         = set<shared_ptr<repository>>;
+  using repository_fragments = set<shared_ptr<repository_fragment>>;
+
+  // If reason is absent, then don't print the "fetching ..." progress line.
+  //
+  static void
+  rep_fetch (const common_options& co,
+             const dir_path& conf,
+             transaction& t,
+             const shared_ptr<repository>& r,
+             repositories& fetched_repositories,
+             repositories& removed_repositories,
+             repository_fragments& removed_fragments,
+             bool shallow,
+             const optional<string>& reason)
+  {
+    tracer trace ("rep_fetch(rep)");
+
+    database& db (t.database ());
+    tracer_guard tg (db, trace);
+
+    // Check that the repository is not fetched yet and register it as fetched
+    // otherwise.
+    //
+    // Note that we can end up with a repository dependency cycle via
+    // prerequisites. Thus we register the repository before recursing into its
+    // dependencies.
+    //
+    if (!fetched_repositories.insert (r).second) // Is already fetched.
+      return;
+
+    const repository_location& rl (r->location);
+    l4 ([&]{trace << r->name << " " << rl;});
+
+    // Cancel the repository removal.
+    //
+    // Note that this is an optimization as the rep_remove() function checks
+    // for reachability of the repository being removed.
+    //
+    removed_repositories.erase (r);
+
+    // The fetch_*() functions below will be quiet at level 1, which can be
+    // quite confusing if the download hangs.
+    //
+    if (verb && reason)
+    {
+      diag_record dr (text);
+
+      dr << "fetching " << r->name;
+
+      if (!reason->empty ())
+        dr << " (" << *reason << ")";
+    }
+
+    // Save the current complements and prerequisites to later check if the
+    // shallow repository fetch is possible and to register them for removal
+    // if that's not the case.
+    //
+    repository_fragment::complements_type old_complements;
+    repository_fragment::prerequisites_type old_prerequisites;
+
+    auto collect_deps = [] (const shared_ptr<repository_fragment>& rf,
+                            repository_fragment::complements_type& cs,
+                            repository_fragment::prerequisites_type& ps)
+    {
+      for (const auto& cr: rf->complements)
+        cs.insert (cr);
+
+      for (const auto& pr: rf->prerequisites)
+        ps.insert (pr);
+    };
+
+    // While traversing fragments also register them for removal.
+    //
+    for (const repository::fragment_type& fr: r->fragments)
+    {
+      shared_ptr<repository_fragment> rf (fr.fragment.load ());
+
+      collect_deps (rf, old_complements, old_prerequisites);
+      removed_fragments.insert (rf);
+    }
+
+    // Cleanup the repository fragments list.
+    //
+    r->fragments.clear ();
+
+    // Load the repository and package manifests and use them to populate the
+    // repository fragments list, as well as its prerequisite and complement
+    // repository sets.
+    //
+    rep_fetch_data rfd (rep_fetch (co, &conf, rl, true /* ignore_unknow */));
+
+    repository_fragment::complements_type new_complements;
+    repository_fragment::prerequisites_type new_prerequisites;
+
+    for (rep_fetch_data::fragment& fr: rfd.fragments)
+    {
+      string nm (fr.friendly_name); // Don't move, still may be used.
+
+      shared_ptr<repository_fragment> rf (
+        rep_fragment (co, conf, t, rl, move (fr)));
+
+      collect_deps (rf, new_complements, new_prerequisites);
+
+      // Cancel the repository fragment removal.
+      //
+      // Note that this is an optimization as the rep_remove_fragment()
+      // function checks if the fragment is dangling prio to the removal.
+      //
+      removed_fragments.erase (rf);
+
+      r->fragments.push_back (
+        repository::fragment_type {
+          move (nm), lazy_shared_ptr<repository_fragment> (db, move (rf))});
+    }
+
+    // Save the changes to the repository object.
+    //
+    db.update (r);
+
+    // Reset the shallow flag if the set of complements and/or prerequisites
+    // has changed.
+    //
+    // Note that weak pointers are generally incomparable (as can point to
+    // expired objects), and thus we can't compare the prerequisite sets
+    // directly.
+    //
+    if (shallow)
+      shallow = new_complements == old_complements &&
+        equal (new_prerequisites.begin (), new_prerequisites.end (),
+               old_prerequisites.begin (), old_prerequisites.end (),
+               [] (const lazy_weak_ptr<repository>& x,
+                   const lazy_weak_ptr<repository>& y)
+               {
+                 return x.object_id () == y.object_id ();
+               });
+
+    // Fetch prerequisites and complements, unless this is a shallow fetch.
+    //
+    if (!shallow)
+    {
+      // Register old complements and prerequisites for potential removal
+      // unless they are fetched.
+      //
+      auto rm = [&fetched_repositories, &removed_repositories] (
+        const lazy_shared_ptr<repository>& rp)
+      {
+        shared_ptr<repository> r (rp.load ());
+        if (fetched_repositories.find (r) == fetched_repositories.end ())
+          removed_repositories.insert (move (r));
+      };
+
+      for (const lazy_shared_ptr<repository>& cr: old_complements)
+      {
+        // Remove the complement unless it is the root repository (see
+        // rep_fetch() for details).
+        //
+        if (cr.object_id () != "")
+          rm (cr);
+      }
+
+      for (const lazy_weak_ptr<repository>& pr: old_prerequisites)
+        rm (lazy_shared_ptr<repository> (pr));
+
+      const string& rn (rl.canonical_name ());
+
+      // Fetch complements and prerequisites.
+      //
+      for (const auto& cr: new_complements)
+      {
+        if (cr.object_id () != "")
+          rep_fetch (co,
+                     conf,
+                     t,
+                     cr.load (),
+                     fetched_repositories,
+                     removed_repositories,
+                     removed_fragments,
+                     false /* shallow */,
+                     "complements " + rn);
+      }
+
+      for (const auto& pr: new_prerequisites)
+        rep_fetch (co,
+                   conf,
+                   t,
+                   pr.load (),
+                   fetched_repositories,
+                   removed_repositories,
+                   removed_fragments,
+                   false /* shallow */,
+                   "prerequisite of " + rn);
+    }
   }
 
   static void
@@ -806,10 +951,12 @@ namespace bpkg
     tracer_guard tg (db, trace);
 
     // As a fist step we fetch repositories recursively building the list of
-    // the former prerequisites and complements to be considered for removal.
+    // the former repository prerequisites, complements and fragments to be
+    // considered for removal.
     //
     // We delay the actual removal until we fetch all the required repositories
     // as a dependency dropped by one repository can appear for another one.
+    // The same is true about repository fragments.
     //
     try
     {
@@ -819,26 +966,42 @@ namespace bpkg
       //
       filesystem_state_changed = false;
 
-      repositories fetched;
-      repositories removed;
+      repositories         fetched_repositories;
+      repositories         removed_repositories;
+      repository_fragments removed_fragments;
 
       // Fetch the requested repositories, recursively.
       //
       for (const lazy_shared_ptr<repository>& r: repos)
-        rep_fetch (o, conf, t, r.load (), fetched, removed, shallow, reason);
+        rep_fetch (o,
+                   conf,
+                   t,
+                   r.load (),
+                   fetched_repositories,
+                   removed_repositories,
+                   removed_fragments,
+                   shallow,
+                   reason);
 
       // Remove dangling repositories.
       //
-      for (const shared_ptr<repository>& r: removed)
+      for (const shared_ptr<repository>& r: removed_repositories)
         rep_remove (conf, t, r);
+
+      // Remove dangling repository fragments.
+      //
+      for (const shared_ptr<repository_fragment>& rf: removed_fragments)
+        rep_remove_fragment (conf, t, rf);
 
       // Finally, make sure that the external packages are available from a
       // single directory-based repository.
       //
       // Sort the packages by name and version. This way the external packages
-      // with the same upstream version and revision will be adjacent.
+      // with the same upstream version and revision will be adjacent. Note
+      // that here we rely on the fact that the directory-based repositories
+      // have a single fragment.
       //
-      using query = query<package_repository>;
+      using query = query<package_repository_fragment>;
       const auto& qv (query::package::id.version);
 
       query q ("ORDER BY" + query::package::id.name + "," +
@@ -849,18 +1012,18 @@ namespace bpkg
                qv.iteration);
 
       available_package_id ap;
-      shared_ptr<repository> rp;
+      shared_ptr<repository_fragment> rf;
 
-      for (const auto& pr: db.query<package_repository> (q))
+      for (const auto& prf: db.query<package_repository_fragment> (q))
       {
-        const shared_ptr<repository>& r (pr.repository);
-        if (!r->location.directory_based ())
+        const shared_ptr<repository_fragment>& f (prf.repository_fragment);
+        if (!f->location.directory_based ())
           continue;
 
         // Fail if the external package is of the same upstream version and
         // revision as the previous one.
         //
-        const available_package_id& id (pr.package_id);
+        const available_package_id& id (prf.package_id);
 
         if (id.name == ap.name &&
             compare_version_eq (id.version, ap.version, true, false))
@@ -871,12 +1034,12 @@ namespace bpkg
           fail << "external package " << id.name << '/'
                << version (v.epoch, v.upstream, v.release, v.revision, 0)
                << " is available from two repositories" <<
-            info << "repository " << rp->location <<
-            info << "repository " << r->location;
+            info << "repository " << rf->location <<
+            info << "repository " << f->location;
         }
 
         ap = id;
-        rp = r;
+        rf = f;
       }
     }
     catch (const failed&)
@@ -913,8 +1076,11 @@ namespace bpkg
 
     transaction t (db);
 
-    shared_ptr<repository> root (db.load<repository> (""));
-    repository::complements_type& ua (root->complements); // User-added repos.
+    shared_ptr<repository_fragment> root (db.load<repository_fragment> (""));
+
+    // User-added repos.
+    //
+    repository_fragment::complements_type& ua (root->complements);
 
     for (const repository_location& rl: rls)
     {
@@ -950,8 +1116,11 @@ namespace bpkg
     transaction t (db);
     session s; // Repository dependencies can have cycles.
 
-    shared_ptr<repository> root (db.load<repository> (""));
-    repository::complements_type& ua (root->complements); // User-added repos.
+    shared_ptr<repository_fragment> root (db.load<repository_fragment> (""));
+
+    // User-added repos.
+    //
+    repository_fragment::complements_type& ua (root->complements);
 
     optional<string> reason;
 

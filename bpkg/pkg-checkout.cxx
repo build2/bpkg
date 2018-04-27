@@ -27,14 +27,15 @@ namespace bpkg
   checkout (const common_options& o,
             const repository_location& rl,
             const dir_path& dir,
-            const string& fragment,
             const shared_ptr<available_package>& ap)
   {
     switch (rl.type ())
     {
     case repository_type::git:
       {
-        git_checkout (o, dir, fragment);
+        assert (rl.fragment ());
+
+        git_checkout (o, dir, *rl.fragment ());
 
         if (exists (dir / path (".gitmodules")))
         {
@@ -45,7 +46,7 @@ namespace bpkg
             text << "checking out "
                  << package_string (ap->id.name, ap->version);
 
-          git_checkout_submodules (o, dir);
+          git_checkout_submodules (o, rl, dir);
         }
 
         break;
@@ -103,14 +104,14 @@ namespace bpkg
     if (ap == nullptr)
       fail << "package " << n << " " << v << " is not available";
 
-    // Pick a version control-based repository. Preferring a local one over
-    // the remotes seems like a sensible thing to do.
+    // Pick a version control-based repository fragment. Preferring a local
+    // one over the remotes seems like a sensible thing to do.
     //
     const package_location* pl (nullptr);
 
     for (const package_location& l: ap->locations)
     {
-      const repository_location& rl (l.repository.load ()->location);
+      const repository_location& rl (l.repository_fragment.load ()->location);
 
       if (rl.version_control_based () && (pl == nullptr || rl.local ()))
       {
@@ -127,22 +128,18 @@ namespace bpkg
 
     if (verb > 1)
       text << "checking out " << pl->location.leaf () << " "
-           << "from " << pl->repository->name;
+           << "from " << pl->repository_fragment->name;
 
-    const repository_location& rl (pl->repository->location);
-
-    // Note: for now we assume this is a git repository. If/when we add other
-    // version control-based repositories, this will need adjustment.
+    // Checkout the repository fragment.
     //
+    const repository_location& rl (pl->repository_fragment->location);
 
-    // Currently the git repository state already contains the checked out
-    // working tree so all we need to do is distribute it to the package
+    dir_path sd (c / repos_dir / repository_state (rl));
+    checkout (o, rl, sd, ap);
+
+    // Calculate the package path that points into the checked out fragment
     // directory.
     //
-    dir_path sd (c / repos_dir / repository_state (rl));
-
-    checkout (o, rl, sd, pl->fragment, ap);
-
     sd /= path_cast<dir_path> (pl->location);
 
     // Verify the package prerequisites are all configured since the dist
@@ -219,7 +216,7 @@ namespace bpkg
 
       p->version = move (v);
       p->state = package_state::unpacked;
-      p->repository = rl;
+      p->repository_fragment = rl;
       p->src_root = d.leaf ();
       p->purge_src = true;
       p->manifest_checksum = move (mc);

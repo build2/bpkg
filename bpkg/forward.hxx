@@ -15,6 +15,7 @@ namespace bpkg
   // <bpkg/package.hxx>
   //
   class repository;
+  class repository_fragment;
   class selected_package;
 }
 

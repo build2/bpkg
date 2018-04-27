@@ -17,12 +17,21 @@ namespace bpkg
   rep_remove (const rep_remove_options&, cli::scanner& args);
 
   // Remove a repository if it is not reachable from the root (and thus is not
-  // required by any user-added repository).
+  // required by any user-added repository), also removing its unused
+  // repository fragments.
   //
   void
   rep_remove (const dir_path& conf,
               transaction&,
               const shared_ptr<repository>&);
+
+  // Remove a repository fragment if it is not referenced by any repository,
+  // also removing its unreachable complements and prerequisites.
+  //
+  void
+  rep_remove_fragment (const dir_path& conf,
+                       transaction&,
+                       const shared_ptr<repository_fragment>&);
 
   // Bring the configuration to the clean state as if repositories were added
   // but never fetched. Leave selected packages intact.
@@ -45,11 +54,11 @@ namespace bpkg
                     database&,
                     bool quiet = true);
 
-  // Remove a repository from locations of the available packages it
-  // contains. Remove packages that come from only this repository.
+  // Remove a repository fragment from locations of the available packages it
+  // contains. Remove packages that come from only this repository fragment.
   //
   void
-  rep_remove_package_locations (transaction&, const string& repository_name);
+  rep_remove_package_locations (transaction&, const string& fragment_name);
 }
 
 #endif // BPKG_REP_REMOVE_HXX

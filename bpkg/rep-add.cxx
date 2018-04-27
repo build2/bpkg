@@ -40,7 +40,7 @@ namespace bpkg
       updated = true;
     }
 
-    shared_ptr<repository> root (db.load<repository> (""));
+    shared_ptr<repository_fragment> root (db.load<repository_fragment> (""));
 
     bool added (
       root->complements.insert (lazy_shared_ptr<repository> (db, r)).second);

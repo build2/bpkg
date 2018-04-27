@@ -5,6 +5,8 @@
 #ifndef BPKG_FETCH_HXX
 #define BPKG_FETCH_HXX
 
+#include <ctime> // time_t
+
 #include <libbutl/process.mxx>
 
 #include <libbpkg/manifest.hxx>
@@ -60,15 +62,21 @@ namespace bpkg
 
   // Fetch a git repository in the specifid directory (previously created by
   // git_init() for the references obtained with the repository URL fragment
-  // filters, returning commit ids these references resolve to. After fetching
-  // the repository working tree state is unspecified (see git_checkout ()).
+  // filters, returning commit ids these references resolve to in the earliest
+  // to latest order. Update the remote repository URL, if changed. After
+  // fetching the repository working tree state is unspecified (see
+  // git_checkout()).
   //
   // Note that submodules are not fetched.
   //
   struct git_fragment
   {
-    string commit;
-    string name;   // User-friendly name (like 'branch foo', 'tag bar', ...).
+    // User-friendly fragment name is either a ref (tags/v1.2.3, heads/master,
+    // HEAD) or an abbreviated commit id (0123456789ab).
+    //
+    string      commit;
+    std::time_t timestamp;
+    string      friendly_name;
   };
 
   vector<git_fragment>
@@ -86,10 +94,13 @@ namespace bpkg
                 const string& commit);
 
   // Fetch (if necessary) and checkout submodules, recursively, in a working
-  // tree previously checked out by git_checkout().
+  // tree previously checked out by git_checkout(). Update the remote
+  // repository URL, if changed.
   //
   void
-  git_checkout_submodules (const common_options&, const dir_path&);
+  git_checkout_submodules (const common_options&,
+                           const repository_location&,
+                           const dir_path&);
 
   // Low-level fetch API (fetch.cxx).
   //

@@ -20,7 +20,7 @@ namespace bpkg
   //
   // Each line has the following form:
   //
-  // [(complement|prerequisite) ]<name> <location>
+  // [(complement|prerequisite) ]<name> <location>[ (<fragment>)]
   //
   // and is indented with 2 additional spaces for each recursion level.
   //
@@ -44,34 +44,42 @@ namespace bpkg
 
     indent += "  ";
 
-    if (o.complements ())
+    auto print_repo = [&o, &indent, &chain] (
+      const shared_ptr<repository>& r,
+      const char* role,
+      const repository::fragment_type& fr)
     {
-      for (const lazy_shared_ptr<repository>& rp: r->complements)
+      cout << indent << role << ' ' << r->name << ' ' << r->location;
+
+      if (!fr.friendly_name.empty ())
+        cout << " ("  << fr.friendly_name << ")";
+
+      cout << endl;
+
+      print_dependencies (o, r, indent, chain);
+    };
+
+    for (const repository::fragment_type& rfr: r->fragments)
+    {
+      shared_ptr<repository_fragment> fr (rfr.fragment.load ());
+
+      if (o.complements ())
       {
-        // Skip the root complement (see rep_fetch() for details).
-        //
-        if (rp.object_id () == "")
-          continue;
+        for (const lazy_shared_ptr<repository>& rp: fr->complements)
+        {
+          // Skip the root complement (see rep_fetch() for details).
+          //
+          if (rp.object_id () == "")
+            continue;
 
-        shared_ptr<repository> r (rp.load ());
-
-        cout << indent << "complement "
-             << r->location.canonical_name () << " " << r->location << endl;
-
-        print_dependencies (o, r, indent, chain);
+          print_repo (rp.load (), "complement", rfr);
+        }
       }
-    }
 
-    if (o.prerequisites ())
-    {
-      for (const lazy_weak_ptr<repository>& rp: r->prerequisites)
+      if (o.prerequisites ())
       {
-        shared_ptr<repository> r (rp.load ());
-
-        cout << indent << "prerequisite "
-             << r->location.canonical_name () << " " << r->location << endl;
-
-        print_dependencies (o, r, indent, chain);
+        for (const lazy_weak_ptr<repository>& rp: fr->prerequisites)
+          print_repo (rp.load (), "prerequisite", rfr);
       }
     }
 
@@ -104,7 +112,7 @@ namespace bpkg
     transaction t (db);
     session s; // Repository dependencies can have cycles.
 
-    shared_ptr<repository> root (db.load<repository> (""));
+    shared_ptr<repository_fragment> root (db.load<repository_fragment> (""));
 
     for (const lazy_shared_ptr<repository>& rp: root->complements)
     {

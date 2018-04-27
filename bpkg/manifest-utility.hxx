@@ -67,8 +67,7 @@ namespace bpkg
   // Note that the semantics used to produce this name is repository type-
   // specific and can base on the repository canonical name or (potentially a
   // subset of) the location URL. In particular, a state directory could be
-  // shared by multiple repository locations of the same type (@@ TODO: if we
-  // ever do this, then we will need to complicate the removal logic).
+  // shared by multiple repository locations of the same type.
   //
   dir_path
   repository_state (const repository_location&);

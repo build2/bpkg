@@ -96,10 +96,31 @@ namespace bpkg
     //
     database db (open (c, trace, true));
 
-    // Add the special, root repository object with empty location.
+    // Add the special, root repository object with empty location and
+    // containing a single repository fragment having an empty location as
+    // well.
+    //
+    // Note that the root repository serves as a complement for dir and git
+    // repositories that have neither prerequisites nor complements. The
+    // root repository fragment is used for transient available package
+    // locations and as a search starting point for held packages (see
+    // pkg-build for details).
     //
     transaction t (db);
-    db.persist (repository (repository_location ()));
+
+    shared_ptr<repository_fragment> fr (
+      make_shared<repository_fragment> (repository_location ()));
+
+    db.persist (fr);
+
+    shared_ptr<repository> r (
+      make_shared<repository> (repository_location ()));
+
+    r->fragments.push_back (
+      repository::fragment_type {string () /* friendly_name */, move (fr)});
+
+    db.persist (r);
+
     t.commit ();
 
     if (verb && !o.no_result ())

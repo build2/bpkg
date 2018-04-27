@@ -29,81 +29,110 @@ namespace bpkg
 
   // available_package
   //
-  // Check if the package is available from the specified repository, its
-  // prerequisite repositories, or one of their complements, recursively.
-  // Return the first repository that contains the package or NULL if none
-  // are.
+  // Check if the package is available from the specified repository fragment,
+  // its prerequisite repositories, or one of their complements, recursively.
+  // Return the first repository fragment that contains the package or NULL if
+  // none are.
   //
   // Note that we can end up with a repository dependency cycle since the
-  // root repository can be the default complement for git repositories (see
-  // rep_fetch() implementation for details). Thus we need to make sure that
-  // the repository is not in the dependency chain yet.
+  // root repository can be the default complement for dir and git
+  // repositories (see rep_fetch() implementation for details). Thus we need
+  // to make sure that the repository fragment is not in the dependency chain
+  // yet.
   //
-  using repositories = vector<reference_wrapper<const shared_ptr<repository>>>;
+  using repository_fragments =
+    vector<reference_wrapper<const shared_ptr<repository_fragment>>>;
 
-  static shared_ptr<repository>
-  find (const shared_ptr<repository>& r,
+  static shared_ptr<repository_fragment>
+  find (const shared_ptr<repository_fragment>& rf,
         const shared_ptr<available_package>& ap,
-        repositories& chain,
+        repository_fragments& chain,
         bool prereq)
   {
     // Prerequisites are not searched through recursively.
     //
     assert (!prereq || chain.empty ());
 
-    auto pr = [&r] (const shared_ptr<repository>& i) -> bool {return i == r;};
-    auto i (find_if (chain.begin (), chain.end (), pr));
+    auto i (find_if (chain.begin (), chain.end (),
+                     [&rf] (const shared_ptr<repository_fragment>& i) -> bool
+                     {
+                       return i == rf;
+                     }));
 
     if (i != chain.end ())
       return nullptr;
 
-    chain.emplace_back (r);
+    chain.emplace_back (rf);
 
-    unique_ptr<repositories, void (*)(repositories*)> deleter (
-      &chain, [] (repositories* r) {r->pop_back ();});
+    unique_ptr<repository_fragments, void (*)(repository_fragments*)> deleter (
+      &chain, [] (repository_fragments* rf) {rf->pop_back ();});
 
-    const auto& ps (r->prerequisites);
-    const auto& cs (r->complements);
+    const auto& cs (rf->complements);
+    const auto& ps (rf->prerequisites);
 
-    // @@ The same repository can be present in the location set multiple times
-    //    with different fragment values. Given that we may traverse the same
-    //    repository tree multiple times, which is inefficient but harmless.
-    //    Let's leave it this way for now as it likely to be changed with
-    //    adding support for repository fragment objects.
-    //
     for (const package_location& pl: ap->locations)
     {
-      const lazy_shared_ptr<repository>& lr (pl.repository);
+      const lazy_shared_ptr<repository_fragment>& lrf (pl.repository_fragment);
 
       // First check the repository itself.
       //
-      if (lr.object_id () == r->name)
-        return r;
+      if (lrf.object_id () == rf->name)
+        return rf;
 
-      // Then check all the complements and prerequisites without
-      // loading them.
+      // Then check all the complements and prerequisites repository fragments
+      // without loading them. Though, we still need to load complement and
+      // prerequisite repositories.
       //
-      if (cs.find (lr) != cs.end () || (prereq && ps.find (lr) != ps.end ()))
-        return lr.load ();
+      auto pr = [&lrf] (const repository::fragment_type& i)
+      {
+        return i.fragment == lrf;
+      };
+
+      for (const lazy_shared_ptr<repository>& r: cs)
+      {
+        const auto& frs (r.load ()->fragments);
+
+        if (find_if (frs.begin (), frs.end (), pr) != frs.end ())
+          return lrf.load ();
+      }
+
+      if (prereq)
+      {
+        for (const lazy_weak_ptr<repository>& r: ps)
+        {
+          const auto& frs (r.load ()->fragments);
+
+          if (find_if (frs.begin (), frs.end (), pr) != frs.end ())
+            return lrf.load ();
+        }
+      }
 
       // Finally, load the complements and prerequisites and check them
       // recursively.
       //
       for (const lazy_shared_ptr<repository>& cr: cs)
       {
-        // Should we consider prerequisites of our complements as our
-        // prerequisites? I'd say not.
-        //
-        if (shared_ptr<repository> r = find (cr.load (), ap, chain, false))
-          return r;
+        for (const auto& fr: cr.load ()->fragments)
+        {
+          // Should we consider prerequisites of our complements as our
+          // prerequisites? I'd say not.
+          //
+          if (shared_ptr<repository_fragment> r =
+              find (fr.fragment.load (), ap, chain, false))
+            return r;
+        }
       }
 
       if (prereq)
       {
         for (const lazy_weak_ptr<repository>& pr: ps)
         {
-          if (shared_ptr<repository> r = find (pr.load (), ap, chain, false))
-            return r;
+          for (const auto& fr: pr.load ()->fragments)
+          {
+            if (shared_ptr<repository_fragment> r =
+                find (fr.fragment.load (), ap, chain, false))
+              return r;
+          }
         }
       }
     }
@@ -111,17 +140,17 @@ namespace bpkg
     return nullptr;
   }
 
-  shared_ptr<repository>
-  filter (const shared_ptr<repository>& r,
+  shared_ptr<repository_fragment>
+  filter (const shared_ptr<repository_fragment>& r,
           const shared_ptr<available_package>& ap,
           bool prereq)
   {
-    repositories chain;
+    repository_fragments chain;
     return find (r, ap, chain, prereq);
   }
 
   vector<shared_ptr<available_package>>
-  filter (const shared_ptr<repository>& r,
+  filter (const shared_ptr<repository_fragment>& r,
           result<available_package>&& apr,
           bool prereq)
   {
@@ -136,34 +165,36 @@ namespace bpkg
     return aps;
   }
 
-  pair<shared_ptr<available_package>, shared_ptr<repository>>
-  filter_one (const shared_ptr<repository>& r,
+  pair<shared_ptr<available_package>, shared_ptr<repository_fragment>>
+  filter_one (const shared_ptr<repository_fragment>& r,
               result<available_package>&& apr,
               bool prereq)
   {
-    using result = pair<shared_ptr<available_package>, shared_ptr<repository>>;
+    using result = pair<shared_ptr<available_package>,
+                        shared_ptr<repository_fragment>>;
 
     for (shared_ptr<available_package> ap: pointer_result (apr))
     {
-      if (shared_ptr<repository> pr = filter (r, ap, prereq))
+      if (shared_ptr<repository_fragment> pr = filter (r, ap, prereq))
         return result (move (ap), move (pr));
     }
 
     return result ();
   }
 
-  vector<pair<shared_ptr<available_package>, shared_ptr<repository>>>
-  filter (const vector<shared_ptr<repository>>& rps,
+  vector<pair<shared_ptr<available_package>, shared_ptr<repository_fragment>>>
+  filter (const vector<shared_ptr<repository_fragment>>& rps,
           odb::result<available_package>&& apr,
           bool prereq)
   {
-    vector<pair<shared_ptr<available_package>, shared_ptr<repository>>> aps;
+    vector<pair<shared_ptr<available_package>,
+                shared_ptr<repository_fragment>>> aps;
 
     for (shared_ptr<available_package> ap: pointer_result (apr))
     {
-      for (const shared_ptr<repository> r: rps)
+      for (const shared_ptr<repository_fragment> r: rps)
       {
-        shared_ptr<repository> ar (filter (r, ap, prereq));
+        shared_ptr<repository_fragment> ar (filter (r, ap, prereq));
 
         if (ar != nullptr)
         {
@@ -235,20 +266,20 @@ namespace bpkg
 
     if (check_external)
     {
-      using query = query<package_repository>;
+      using query = query<package_repository_fragment>;
 
       query q (
         query::package::id.name == n &&
         compare_version_eq (query::package::id.version, v, true, false));
 
-      for (const auto& pr: db.query<package_repository> (q))
+      for (const auto& prf: db.query<package_repository_fragment> (q))
       {
-        const shared_ptr<repository>& r (pr.repository);
+        const shared_ptr<repository_fragment>& rf (prf.repository_fragment);
 
-        if (r->location.directory_based ())
+        if (rf->location.directory_based ())
           fail << "external package " << n << '/' << v
                << " is already available from "
-               << r->location.canonical_name ();
+               << rf->location.canonical_name ();
       }
     }
 

@@ -5,7 +5,7 @@
 #include <bpkg/fetch.hxx>
 
 #include <map>
-#include <algorithm> // find(), find_if(), replace()
+#include <algorithm> // find(), find_if(), replace(), sort()
 
 #include <libbutl/utility.mxx>          // digit(), xdigit()
 #include <libbutl/process.mxx>
@@ -864,18 +864,21 @@ namespace bpkg
 
     // Add a fragment to the resulting list, suppressing duplicates.
     //
-    auto add_frag = [&r] (const git_fragment& f)
+    // Note that the timestamp is set to zero. It is properly filled by the
+    // sort() lambda (see below).
+    //
+    auto add_frag = [&r] (const string& c, string n = string ())
     {
       auto i (find_if (r.begin (), r.end (),
-                       [&f] (const git_fragment& i)
+                       [&c] (const git_fragment& i)
                        {
-                         return i.commit == f.commit;
+                         return i.commit == c;
                        }));
 
       if (i == r.end ())
-        r.push_back (f);
-      else if (i->name.empty ())
-        i->name = f.name;
+        r.push_back (git_fragment {c, 0 /* timestamp */, move (n)});
+      else if (i->friendly_name.empty ())
+        i->friendly_name = move (n);
     };
 
     // Add a commit to the list for subsequent fetching.
@@ -890,11 +893,9 @@ namespace bpkg
     //
     auto friendly_name = [] (const string& n) -> string
     {
-      return n.compare (0, 11, "refs/heads/") == 0
-             ? "branch " + string (n, 11)
-             : n.compare (0, 10, "refs/tags/") == 0
-               ? "tag " + string (n, 10)
-               : "reference " + n;
+      // Strip 'refs/' prefix if present.
+      //
+      return n.compare (0, 5, "refs/") == 0 ? string (n, 5) : n;
     };
 
     if (rfs.empty ())
@@ -912,7 +913,7 @@ namespace bpkg
 
         // Add the commit to the resulting list.
         //
-        add_frag (git_fragment {rf.commit, friendly_name (rf.name)});
+        add_frag (rf.commit, friendly_name (rf.name));
 
         // Skip the commit if it is already fetched.
         //
@@ -939,7 +940,7 @@ namespace bpkg
         //
         if (rf.commit && commit_fetched (co, dir, *rf.commit))
         {
-          add_frag (git_fragment {*rf.commit, string ()});
+          add_frag (*rf.commit);
           continue;
         }
 
@@ -951,7 +952,7 @@ namespace bpkg
 
           if (commit_fetched (co, dir, rfc.commit))
           {
-            add_frag (git_fragment {rfc.commit, friendly_name (rfc.name)});
+            add_frag (rfc.commit, friendly_name (rfc.name));
             continue;
           }
         }
@@ -982,7 +983,7 @@ namespace bpkg
 
           const ref& rfc (reference (*rf.name, true /* abbr_commit */));
 
-          add_frag   (git_fragment {rfc.commit, friendly_name (rfc.name)});
+          add_frag   (rfc.commit, friendly_name (rfc.name));
           add_commit (rfc.commit, fetch_list);
         }
         // If commit is specified and the shallow fetch is possible, then we
@@ -990,7 +991,7 @@ namespace bpkg
         //
         else if (shallow)
         {
-          add_frag   (git_fragment {*rf.commit, string ()});
+          add_frag   (*rf.commit);
           add_commit (*rf.commit, fetch_list);
         }
         // If commit is specified and the shallow fetch is not possible, but
@@ -1001,7 +1002,7 @@ namespace bpkg
         {
           // Note that commits we return and fetch are likely to differ.
           //
-          add_frag (git_fragment {*rf.commit, string ()});
+          add_frag (*rf.commit);
 
           add_commit (reference (*rf.name, false /* abbr_commit */).commit,
                       fetch_list);
@@ -1011,7 +1012,7 @@ namespace bpkg
         //
         else
         {
-          add_frag   (git_fragment {*rf.commit, string ()});
+          add_frag   (*rf.commit);
           add_commit (*rf.commit, fetch_list);
 
           if (!commit_advertized (co, url, *rf.commit))
@@ -1020,10 +1021,50 @@ namespace bpkg
       }
     }
 
+    // Set timestamps for commits and sort them in the timestamp ascending
+    // order.
+    //
+    auto sort = [&co, &dir] (git_fragments&& frs) -> git_fragments
+    {
+      for (git_fragment& fr: frs)
+      {
+        // Add '^{commit}' suffix to strip some unwanted output that appears
+        // for tags.
+        //
+        string s (git_string (co, "commit timestamp",
+                              co.git_option (),
+                              "-C", dir,
+                              "show",
+                              "-s",
+                              "--format=%ct",
+                              fr.commit + "^{commit}"));
+        try
+        {
+          fr.timestamp = static_cast<time_t> (stoull (s));
+        }
+        // Catches both std::invalid_argument and std::out_of_range that
+        // inherit from std::logic_error.
+        //
+        catch (const logic_error&)
+        {
+          fail << "'" << s << "' doesn't appear to contain a git commit "
+            "timestamp" << endg;
+        }
+      }
+
+      std::sort (frs.begin (), frs.end (),
+                 [] (const git_fragment& x, const git_fragment& y)
+                 {
+                   return x.timestamp < y.timestamp;
+                 });
+
+      return frs;
+    };
+
     // Bail out if all commits are already fetched.
     //
     if (scs.empty () && dcs.empty ())
-      return r;
+      return sort (move (r));
 
     auto fetch = [&co, &url, &dir] (const strings& refspecs, bool shallow)
     {
@@ -1125,11 +1166,11 @@ namespace bpkg
     //
     for (auto& fr: r)
     {
-      if (fr.name.empty ())
-        fr.name = "commit " + fr.commit.substr (0, 12);
+      if (fr.friendly_name.empty ())
+        fr.friendly_name = fr.commit.substr (0, 12);
     }
 
-    return r;
+    return sort (move (r));
   }
 
   // Checkout the repository submodules (see git_checkout_submodules()
@@ -1377,50 +1418,62 @@ namespace bpkg
     init (co, dir, url);
   }
 
+  // Update the repository remote origin URL, if changed.
+  //
+  static void
+  sync_origin_url (const common_options& co,
+                   const repository_location& rl,
+                   const dir_path& dir)
+  {
+    repository_url url (rl.url ());
+    url.fragment = nullopt;
+
+    repository_url u (origin_url (co, dir));
+
+    if (url != u)
+    {
+      // Note that the repository canonical name with the fragment part
+      // stripped can not change under the legal scenarios that lead to the
+      // location change. Changed canonical name means that the repository was
+      // manually amended. We could fix-up such repositories as well but want
+      // to leave the backdoor for tests.
+      //
+      if (repository_location (url, rl.type ()).canonical_name () ==
+          repository_location (u,   rl.type ()).canonical_name ())
+      {
+        if (verb)
+        {
+          u.fragment = rl.url ().fragment; // Restore the fragment.
+
+          info << "location changed for " << rl.canonical_name () <<
+            info << "new location " << rl <<
+            info << "old location " << repository_location (u, rl.type ());
+        }
+
+        origin_url (co, dir, url);
+      }
+    }
+  }
+
   vector<git_fragment>
   git_fetch (const common_options& co,
              const repository_location& rl,
              const dir_path& dir)
   {
     git_ref_filters rfs;
-    repository_url url (rl.url ());
+    const repository_url& url (rl.url ());
 
     if (url.fragment)
     try
     {
       rfs = parse_git_ref_filters (*url.fragment);
-      url.fragment = nullopt;
     }
     catch (const invalid_argument& e)
     {
       fail << "unable to fetch " << url << ": " << e;
     }
 
-    // Update the repository URL, if changed.
-    //
-    repository_url u (origin_url (co, dir));
-
-    if (url != u)
-    {
-      // Note that the repository canonical name can not change under the
-      // legal scenarios that lead to the location change. Changed canonical
-      // name means that the repository was manually amended. We could fix-up
-      // such repositories as well but want to leave the backdoor for tests.
-      //
-      u.fragment = rl.url ().fragment;       // Restore the fragment.
-      repository_location l (u, rl.type ());
-
-      if (rl.canonical_name () == l.canonical_name ())
-      {
-        if (verb)
-          info << "location changed for " << rl.canonical_name () <<
-            info << "new location " << rl <<
-            info << "old location " << l;
-
-        origin_url (co, dir, url);
-      }
-    }
-
+    sync_origin_url (co, rl, dir);
     return fetch (co, dir, dir_path () /* submodule */, rfs);
   }
 
@@ -1462,8 +1515,17 @@ namespace bpkg
   }
 
   void
-  git_checkout_submodules (const common_options& co, const dir_path& dir)
+  git_checkout_submodules (const common_options& co,
+                           const repository_location& rl,
+                           const dir_path& dir)
   {
+    // Note that commits could come from different repository URLs that may
+    // contain different sets of commits. Thus, we need to switch to the URL
+    // the checked out commit came from to properly complete submodule
+    // relative URLs.
+    //
+    sync_origin_url (co, rl, dir);
+
     checkout_submodules (co,
                          dir,
                          dir / dir_path (".git"),

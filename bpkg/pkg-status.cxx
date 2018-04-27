@@ -66,7 +66,8 @@ namespace bpkg
       bool known (false);
       bool build (false);
       {
-        shared_ptr<repository> rep (db.load<repository> ("")); // Root.
+        shared_ptr<repository_fragment> root (
+          db.load<repository_fragment> (""));
 
         using query = query<available_package>;
 
@@ -74,7 +75,7 @@ namespace bpkg
         {
           auto r (db.query<available_package> (q));
           known = !r.empty ();
-          build = filter_one (rep, move (r)).first != nullptr;
+          build = filter_one (root, move (r)).first != nullptr;
         }
 
         if (known)
@@ -109,7 +110,7 @@ namespace bpkg
                  pointer_result (
                    db.query<available_package> (q)))
           {
-            bool build (filter (rep, ap));
+            bool build (filter (root, ap));
             apkgs.push_back (apkg {move (ap), build});
           }
         }
