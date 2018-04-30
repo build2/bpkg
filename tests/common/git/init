@@ -106,16 +106,41 @@ git -C libbar.git commit -am 'Create'
 # submodules.
 #
 git -C libfoo.git init
+
+cat <<EOF >libfoo.git/manifest
+: 1
+name: libfoo
+version: 0.0.1
+summary: libfoo
+license: MIT
+url: http://example.org
+email: pkg@example.org
+EOF
+
 git -C libfoo.git add '*'
 git -C libfoo.git submodule add ../style.git doc/style
 git -C libfoo.git submodule add ../libbar.git libbar
 git -C libfoo.git submodule update --init --recursive # Updates doc/style/basic.
 git -C libfoo.git commit -am 'Create'
+git -C libfoo.git tag -a 'v0.0.1' -m 'Tag version 0.0.1'
 
-# Add tags for libfoo.git.
+# Increase libfoo version and add tags.
 #
+cat <<EOF >libfoo.git/manifest
+: 1
+name: libfoo
+version: 1.0.0
+summary: libfoo
+license: MIT
+url: http://example.org
+email: pkg@example.org
+EOF
+
+git -C libfoo.git commit -am 'Increase version to 1.0.0'
+
 git -C libfoo.git tag 'ltag'
-git -C libfoo.git tag -a 'atag' -m 'Create annotated tag'
+git -C libfoo.git tag -a 'atag'   -m 'Create annotated tag'
+git -C libfoo.git tag -a 'v1.0.0' -m 'Tag version 1.0.0'
 
 # Advance the master branch to make tags not to mark a branch tip.
 #

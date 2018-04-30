@@ -51,7 +51,7 @@ rep_list += -d cfg
     $clone_cfg;
 
     $* 'git://example.org/repo#' 2>>EOE != 0
-    error: invalid git repository location 'git://example.org/repo#': missing reference name or commit id for git repository
+    error: invalid git repository location 'git://example.org/repo#': missing refname or commit id for git repository
     EOE
   }
 

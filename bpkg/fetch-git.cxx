@@ -9,6 +9,7 @@
 
 #include <libbutl/utility.mxx>          // digit(), xdigit()
 #include <libbutl/process.mxx>
+#include <libbutl/filesystem.mxx>       // path_match()
 #include <libbutl/standard-version.mxx>
 
 #include <bpkg/diagnostics.hxx>
@@ -565,57 +566,85 @@ namespace bpkg
   class refs: public vector<ref>
   {
   public:
-    // Resolve a git refname (tag, branch, etc) returning NULL if not found.
+    // Resolve references using a name or a pattern. If requested, also search
+    // for abbreviated commit ids unless a matching reference is found, or the
+    // argument is a pattern, or it is too short (see rep-add(1) for details).
+    // Unless the argument is a pattern, fail if no match is found.
     //
-    const ref*
-    find_name (const string& n, bool abbr_commit) const
-    {
-      auto find = [this] (const string& n) -> const ref*
-      {
-        auto i (find_if (
-                  begin (), end (),
-                  [&n] (const ref& i)
-                  {
-                    return !i.peeled && i.name == n; // Note: skip peeled.
-                  }));
+    using search_result = vector<reference_wrapper<const ref>>;
 
-        return i != end () ? &*i : nullptr;
+    search_result
+    search_names (const string& n, bool abbr_commit) const
+    {
+      search_result r;
+      bool pattern (n.find_first_of ("*?") != string::npos);
+
+      auto search = [this, pattern, &r] (const string& n)
+      {
+        // Optimize for non-pattern refnames.
+        //
+        if (pattern)
+        {
+          path p (n);
+          for (const ref& rf: *this)
+          {
+            if (!rf.peeled && path_match (p, path (rf.name)))
+            {
+              // Note that the same name can be matched by different patterns
+              // (like /refs/** and /refs/tags/**), so we need to suppress
+              // duplicates.
+              //
+              if (find_if (r.begin (), r.end (),
+                           [&rf] (const reference_wrapper<const ref>& r)
+                           {
+                             return &r.get () == &rf;
+                           }) == r.end ())
+                r.push_back (rf);
+            }
+          }
+        }
+        else
+        {
+          auto i (find_if (begin (), end (),
+                           [&n] (const ref& i)
+                           {
+                             // Note: skip peeled.
+                             //
+                             return !i.peeled && i.name == n;
+                           }));
+
+          if (i != end ())
+            r.push_back (*i);
+        }
       };
 
-      // Let's search in the order refs are disambiguated by git (see
-      // gitrevisions(7) for details).
+      if (n[0] != '/')              // Relative refname.
+      {
+        // This handles symbolic references like HEAD.
+        //
+        if (n.find ('/') == string::npos)
+          search (n);
+
+        search ("refs/" + n);
+        search ("refs/tags/" + n);
+        search ("refs/heads/" + n);
+      }
+      else                          // Absolute refname.
+        search ("refs" + n);
+
+      // See if this is an abbreviated commit id. We do this check if no names
+      // found but not for patterns. We also don't bother checking strings
+      // shorter than 7 characters (git default).
       //
-      // What should we do if the name already contains a slash, for example,
-      // tags/v1.2.3? Note that while it most likely is relative to refs/, it
-      // can also be relative to other subdirectories (say releases/v1.2.3 in
-      // tags/releases/v1.2.3). So we just check everywhere.
-      //
-      // Unless it is an absolute path, in which case we anchor it to refs/.
-      //
+      const ref* cr;
+      if (r.empty () && abbr_commit && !pattern && n.size () >= 7 &&
+          (cr = find_commit (n)) != nullptr)
+        r.push_back (*cr);
 
-      //@@ I think for patterns (and probably non-patters) we should search
-      //   in all instead of the first found. Except for commit id -- I
-      //   think we should skip it if pattern or if found.
+      if (r.empty () && !pattern)
+        fail << "reference '" << n << "' is not found";
 
-      // This handles symbolic references like HEAD.
-      //
-      if (const ref* r = find (n))
-        return r;
-
-      if (const ref* r = find ("refs/" + n))
-        return r;
-
-      if (const ref* r = find ("refs/tags/" + n))
-        return r;
-
-      if (const ref* r = find ("refs/heads/" + n))
-        return r;
-
-      // See if this is an abbreviated commit id. We do this check last since
-      // this can be ambiguous. We also don't bother checking strings shorter
-      // than 7 characters (git default).
-      //
-      return abbr_commit && n.size () >= 7 ? find_commit (n) : nullptr;
+      return r;
     }
 
     // Resolve (potentially abbreviated) commit id returning NULL if not
@@ -701,6 +730,11 @@ namespace bpkg
 
           string cm (l, 0, n);
           string nm (l, n + 1);
+
+          // Skip the reserved branch prefix.
+          //
+          if (nm.compare (0, 25, "refs/heads/build2-control") == 0)
+            continue;
 
           n = nm.rfind ("^{");
           bool peeled (n != string::npos);
@@ -830,9 +864,8 @@ namespace bpkg
     return false;
   }
 
-  // Fetch and return repository fragments obtained with the repository
-  // reference filters specified. If there are no filters specified, then
-  // fetch all the tags and branches.
+  // Fetch and return repository fragments resolved using the specified
+  // repository reference filters.
   //
   static vector<git_fragment>
   fetch (const common_options& co,
@@ -840,63 +873,59 @@ namespace bpkg
          const dir_path& submodule,  // Used only for diagnostics.
          const git_ref_filters& rfs)
   {
-    using git_fragments = vector<git_fragment>;
+    assert (!rfs.empty ());
 
-    git_fragments r;
-    capabilities cap;
-    repository_url url;
-
-    strings scs; // Shallow fetch commits.
-    strings dcs; // Deep fetch commits.
-
-    bool fetch_repo (false);
-
-    // Translate a name to the corresponding reference. Fail if the name is not
-    // known by the remote repository.
+    // We will delay calculating the remote origin URL and/or sensing
+    // capabilities until we really need them. Under some plausible scenarios
+    // we may do without them.
     //
-    auto reference = [&co, &dir, &url] (const string& nm, bool abbr_commit)
-      -> const ref&
+    repository_url ou;
+    optional<capabilities> cap;
+
+    auto url = [&co, &dir, &ou] () -> const repository_url&
     {
-      if (url.empty ())
-        url = origin_url (co, dir);
+      if (ou.empty ())
+        ou = origin_url (co, dir);
 
-      const ref* r (load_refs (co, url).find_name (nm, abbr_commit));
-
-      if (r == nullptr)
-        fail << "unable to fetch " << nm << " from " << url <<
-          info << "name is not recognized" << endg;
-
-      return *r;
+      return ou;
     };
 
-    // Add a fragment to the resulting list, suppressing duplicates.
-    //
-    // Note that the timestamp is set to zero. It is properly filled by the
-    // sort() lambda (see below).
-    //
-    auto add_frag = [&r] (const string& c, string n = string ())
+    auto caps = [&co, &url, &cap] () -> capabilities
     {
-      auto i (find_if (r.begin (), r.end (),
-                       [&c] (const git_fragment& i)
-                       {
-                         return i.commit == c;
-                       }));
+      if (!cap)
+        cap = sense_capabilities (co, url ());
 
-      if (i == r.end ())
-        r.push_back (git_fragment {c, 0 /* timestamp */, move (n)});
-      else if (i->friendly_name.empty ())
-        i->friendly_name = move (n);
+      return *cap;
     };
 
-    // Add a commit to the list for subsequent fetching.
-    //
-    auto add_commit = [] (const string& c, strings& cs)
+    auto references = [&co, &url] (const string& refname, bool abbr_commit)
+      -> refs::search_result
     {
-      if (find (cs.begin (), cs.end (), c) == cs.end ())
-        cs.push_back (c);
+      return load_refs (co, url ()).search_names (refname, abbr_commit);
     };
 
-    // Return a user-friendly git reference name.
+    // Return the default reference set (see add-rep(1) for details).
+    //
+    auto default_references = [&co, &url] () -> refs::search_result
+    {
+      refs::search_result r;
+      for (const ref& rf: load_refs (co, url ()))
+      {
+        if (!rf.peeled && rf.name.compare (0, 11, "refs/tags/v") == 0)
+        {
+          try
+          {
+            standard_version (string (rf.name, 11));
+            r.push_back (rf);
+          }
+          catch (const invalid_argument&) {}
+        }
+      }
+
+      return r;
+    };
+
+    // Return a user-friendly reference name.
     //
     auto friendly_name = [] (const string& n) -> string
     {
@@ -905,125 +934,214 @@ namespace bpkg
       return n.compare (0, 5, "refs/") == 0 ? string (n, 5) : n;
     };
 
-    if (rfs.empty ())
+    // Collect the list of commits together with the refspecs that should be
+    // used to fetch them. If refspecs are absent then the commit is already
+    // fetched (and must not be re-fetched). Otherwise, it it is empty, then
+    // the whole repository history must be fetched.
+    //
+    // Note that the <refname>@<commit> filter may result in multiple refspecs
+    // for a single commit.
+    //
+    struct fetch_spec
     {
-      url = origin_url (co, dir);
+      string commit;
+      string friendly_name;
+      optional<strings> refspecs;
+      bool shallow;               // Meaningless if refspec is absent.
+    };
 
-      for (const ref& rf: load_refs (co, url))
-      {
-        // Skip everything other than tags and branches.
-        //
-        if (rf.peeled ||
-            (rf.name.compare (0, 11, "refs/heads/") != 0 &&
-             rf.name.compare (0, 10, "refs/tags/") != 0))
-          continue;
+    vector<fetch_spec> fspecs;
 
-        // Add the commit to the resulting list.
-        //
-        add_frag (rf.commit, friendly_name (rf.name));
-
-        // Skip the commit if it is already fetched.
-        //
-        if (commit_fetched (co, dir, rf.commit))
-          continue;
-
-        // Evaluate if the commit can be obtained with the shallow fetch and
-        // add it to the proper list.
-        //
-        if (scs.empty () && dcs.empty ())
-          cap = sense_capabilities (co, url);
-
-        // The commit is advertised, so we can fetch shallow, unless the
-        // protocol is dumb.
-        //
-        add_commit (rf.commit, cap != capabilities::dumb ? scs : dcs);
-      }
-    }
-    else
+    for (const git_ref_filter& rf: rfs)
     {
-      for (const git_ref_filter& rf: rfs)
+      // Add/upgrade the fetch specs, minimizing the amount of history to
+      // fetch and saving the commit friendly name.
+      //
+      auto add_spec = [&fspecs] (const string& c,
+                                 optional<strings>&& rs = nullopt,
+                                 bool sh = false,
+                                 string n = string ())
       {
-        // Add an already fetched commit to the resulting list.
-        //
-        if (rf.commit && commit_fetched (co, dir, *rf.commit))
-        {
-          add_frag (*rf.commit);
-          continue;
-        }
+        auto i (find_if (fspecs.begin (), fspecs.end (),
+                         [&c] (const fetch_spec& i) {return i.commit == c;}));
 
-        if (!rf.commit)
-        {
-          assert (rf.name);
-
-          const ref& rfc (reference (*rf.name, true /* abbr_commit */));
-
-          if (commit_fetched (co, dir, rfc.commit))
-          {
-            add_frag (rfc.commit, friendly_name (rfc.name));
-            continue;
-          }
-        }
-
-        // Evaluate if the commit can be obtained with the shallow fetch and
-        // add it to the proper list.
-        //
-        // Get the remote origin URL and sense the git protocol capabilities
-        // for it, if not done yet.
-        //
-        if (scs.empty () && dcs.empty ())
-        {
-          if (url.empty ()) // Can already be assigned by commit() lambda.
-            url = origin_url (co, dir);
-
-          cap = sense_capabilities (co, url);
-        }
-
-        bool shallow (shallow_fetch (co, url, cap, rf));
-        strings& fetch_list (shallow ? scs : dcs);
-
-        // If commit is not specified, then we fetch the commit the refname
-        // translates to.
-        //
-        if (!rf.commit)
-        {
-          assert (rf.name);
-
-          const ref& rfc (reference (*rf.name, true /* abbr_commit */));
-
-          add_frag   (rfc.commit, friendly_name (rfc.name));
-          add_commit (rfc.commit, fetch_list);
-        }
-        // If commit is specified and the shallow fetch is possible, then we
-        // fetch the commit.
-        //
-        else if (shallow)
-        {
-          add_frag   (*rf.commit);
-          add_commit (*rf.commit, fetch_list);
-        }
-        // If commit is specified and the shallow fetch is not possible, but
-        // the refname containing the commit is specified, then we fetch the
-        // whole refname history.
-        //
-        else if (rf.name)
-        {
-          // Note that commits we return and fetch are likely to differ.
-          //
-          add_frag (*rf.commit);
-
-          add_commit (reference (*rf.name, false /* abbr_commit */).commit,
-                      fetch_list);
-        }
-        // Otherwise, if the refname is not specified and the commit is not
-        // advertised, we have to fetch the whole repository history.
-        //
+        if (i == fspecs.end ())
+          fspecs.push_back (fetch_spec {c, move (n), move (rs), sh});
         else
         {
-          add_frag   (*rf.commit);
-          add_commit (*rf.commit, fetch_list);
+          // No reason to change our mind about (not) fetching.
+          //
+          assert (static_cast<bool> (rs) == static_cast<bool> (i->refspecs));
 
-          if (!commit_advertized (co, url, *rf.commit))
-            fetch_repo = true;
+          // We always prefer to fetch less history.
+          //
+          if (rs && ((!rs->empty () && i->refspecs->empty ()) ||
+                     (sh && !i->shallow)))
+          {
+            i->refspecs = move (rs);
+            i->shallow = sh;
+
+            if (!n.empty ())
+              i->friendly_name = move (n);
+          }
+          else if (i->friendly_name.empty () && !n.empty ())
+            i->friendly_name = move (n);
+        }
+      };
+
+      // Remove the fetch spec.
+      //
+      auto remove_spec = [&fspecs] (const string& c)
+      {
+        auto i (find_if (fspecs.begin (), fspecs.end (),
+                         [&c] (const fetch_spec& i) {return i.commit == c;}));
+
+        if (i != fspecs.end ())
+          fspecs.erase (i);
+      };
+
+      // Evaluate if the commit can be obtained with the shallow fetch. We will
+      // delay this evaluation until we really need it. Under some plausible
+      // scenarios we may do without it.
+      //
+      optional<bool> sh;
+      auto shallow = [&co, &url, &caps, &rf, &sh] () -> bool
+      {
+        if (!sh)
+          sh = shallow_fetch (co, url (), caps (), rf);
+
+        return *sh;
+      };
+
+      // If commit is not specified, then we fetch or exclude commits the
+      // refname translates to. Here we also handle the default reference set.
+      //
+      if (!rf.commit)
+      {
+        // Refname must be specified, except for the default reference set
+        // filter.
+        //
+        assert (rf.default_refs () || rf.name);
+
+        for (const auto& r: rf.default_refs ()
+                            ? default_references ()
+                            : references (*rf.name, true /* abbr_commit */))
+        {
+          const string& c (r.get ().commit);
+
+          if (!rf.exclusion)
+          {
+            string n (friendly_name (r.get ().name));
+
+            if (commit_fetched (co, dir, c))
+              add_spec (
+                c, nullopt /* refspecs */, false /* shallow */, move (n));
+            else
+              add_spec (c, strings ({c}), shallow (), move (n));
+          }
+          else
+            remove_spec (c);
+        }
+      }
+      // Check if this is a commit exclusion and remove the corresponding
+      // fetch spec if that's the case.
+      //
+      else if (rf.exclusion)
+        remove_spec (*rf.commit);
+
+      // Check if the commit is already fetched and, if that's the case, save
+      // it, indicating that no fetch is required.
+      //
+      else if (commit_fetched (co, dir, *rf.commit))
+        add_spec (*rf.commit);
+
+      // If the shallow fetch is possible for the commit, then we fetch it.
+      //
+      else if (shallow ())
+      {
+        assert (!rf.exclusion); // Already handled.
+
+        add_spec (*rf.commit, strings ({*rf.commit}), true);
+      }
+      // If the shallow fetch is not possible for the commit but the refname
+      // containing the commit is specified, then we fetch the whole history
+      // of references the refname translates to.
+      //
+      else if (rf.name)
+      {
+        assert (!rf.exclusion); // Already handled.
+
+        refs::search_result rs (
+          references (*rf.name, false /* abbr_commit */));
+
+        // The resulting set may not be empty. Note that the refname is a
+        // pattern, otherwise we would fail earlier (see refs::search_names()
+        // function for more details).
+        //
+        if (rs.empty ())
+          fail << "no names match pattern '" << *rf.name << "'";
+
+        strings specs;
+        for (const auto& r: rs)
+          specs.push_back (r.get ().commit);
+
+        add_spec (*rf.commit, move (specs)); // Fetch deep.
+      }
+      // Otherwise, if the refname is not specified and the commit is not
+      // advertised, we have to fetch the whole repository history.
+      //
+      else
+      {
+        assert (!rf.exclusion); // Already handled.
+
+        const string& c (*rf.commit);
+
+        // Fetch deep in both cases.
+        //
+        add_spec (
+          c, commit_advertized (co, url (), c) ? strings ({c}) : strings ());
+      }
+    }
+
+    // Now save the resulting commit ids and separate the collected refspecs
+    // into the deep and shallow fetch lists.
+    //
+    vector<git_fragment> r;
+
+    strings scs; // Shallow fetch commits.
+    strings dcs; // Deep fetch commits.
+
+    // Fetch the whole repository history.
+    //
+    bool fetch_repo (false);
+
+    for (fetch_spec& fs: fspecs)
+    {
+      // Fallback to the abbreviated commit for the friendly name.
+      //
+      string n (!fs.friendly_name.empty ()
+                ? move (fs.friendly_name)
+                : string (fs.commit, 0, 12));
+
+      // We will fill timestamps later, after all the commits are fetched.
+      //
+      r.push_back (
+        git_fragment {move (fs.commit), 0 /* timestamp */, move (n)});
+
+      // Save the fetch refspecs to the proper list.
+      //
+      if (fs.refspecs)
+      {
+        // If we fetch the whole repository history, then no refspecs is
+        // required, so we stop collecting them if that's the case.
+        //
+        if (fs.refspecs->empty ())
+          fetch_repo = true;
+        else if (!fetch_repo)
+        {
+          strings& cs (fs.shallow ? scs : dcs);
+          for (string& s: *fs.refspecs)
+            cs.push_back (move (s));
         }
       }
     }
@@ -1031,9 +1149,9 @@ namespace bpkg
     // Set timestamps for commits and sort them in the timestamp ascending
     // order.
     //
-    auto sort = [&co, &dir] (git_fragments&& frs) -> git_fragments
+    auto sort = [&co, &dir] (vector<git_fragment>&& fs) -> vector<git_fragment>
     {
-      for (git_fragment& fr: frs)
+      for (git_fragment& fr: fs)
       {
         // Add '^{commit}' suffix to strip some unwanted output that appears
         // for tags.
@@ -1059,22 +1177,29 @@ namespace bpkg
         }
       }
 
-      std::sort (frs.begin (), frs.end (),
+      std::sort (fs.begin (), fs.end (),
                  [] (const git_fragment& x, const git_fragment& y)
                  {
                    return x.timestamp < y.timestamp;
                  });
 
-      return frs;
+      return fs;
     };
 
     // Bail out if all commits are already fetched.
     //
-    if (scs.empty () && dcs.empty ())
+    if (!fetch_repo && scs.empty () && dcs.empty ())
       return sort (move (r));
 
+    // Fetch the refspecs. If no refspecs are specified, then fetch the
+    // whole repository history.
+    //
     auto fetch = [&co, &url, &dir] (const strings& refspecs, bool shallow)
     {
+      // We don't shallow fetch the whole repository.
+      //
+      assert (!refspecs.empty () || !shallow);
+
       // Note that we suppress the (too detailed) fetch command output if the
       // verbosity level is 1. However, we still want to see the progress in
       // this case, unless STDERR is not directed to a terminal.
@@ -1084,7 +1209,7 @@ namespace bpkg
       // remote.origin.fetch configuration option.
       //
       if (!run_git (co,
-                    timeout_opts (co, url.scheme),
+                    timeout_opts (co, url ().scheme),
                     co.git_option (),
                     "-C", dir,
                     "fetch",
@@ -1096,29 +1221,6 @@ namespace bpkg
                     refspecs))
         fail << "unable to fetch " << dir << endg;
     };
-
-    // Print warnings prior to the deep fetching.
-    //
-    if (!dcs.empty ())
-    {
-      {
-        diag_record dr (warn);
-        dr << "fetching whole " << (fetch_repo ? "repository" : "reference")
-           << " history";
-
-        if (!submodule.empty ())
-          dr << " for submodule '" << submodule.posix_string () << "'";
-
-        dr << " ("
-           << (cap == capabilities::dumb
-               ? "dumb HTTP"
-               : "unadvertised commit") // There are no other reasons so far.
-           << ')';
-      }
-
-      if (cap == capabilities::dumb)
-        warn << "fetching over dumb HTTP, no progress will be shown";
-    }
 
     // Print the progress indicator.
     //
@@ -1142,7 +1244,7 @@ namespace bpkg
       if (!submodule.empty ())
         dr << "submodule '" << submodule.posix_string () << "' ";
 
-      dr << "from " << url;
+      dr << "from " << url ();
 
       if (verb >= 2)
         dr << " in '" << dir.posix_string () << "'"; // Is used by tests.
@@ -1150,18 +1252,42 @@ namespace bpkg
 
     // First, we perform the deep fetching.
     //
-    if (!dcs.empty ())
-      fetch (!fetch_repo ? dcs : strings (), false);
-
-    // After the deep fetching some of the shallow commits might also be
-    // fetched, so we drop them from the fetch list.
-    //
-    for (auto i (scs.begin ()); i != scs.end (); )
+    if (fetch_repo || !dcs.empty ())
     {
-      if (commit_fetched (co, dir, *i))
-        i = scs.erase (i);
-      else
-        ++i;
+      // Print warnings prior to the deep fetching.
+      //
+      {
+        diag_record dr (warn);
+        dr << "fetching whole " << (fetch_repo ? "repository" : "reference")
+           << " history";
+
+        if (!submodule.empty ())
+          dr << " for submodule '" << submodule.posix_string () << "'";
+
+        dr << " ("
+           << (caps () == capabilities::dumb
+               ? "dumb HTTP"
+               : "unadvertised commit") // There are no other reasons so far.
+           << ')';
+      }
+
+      if (caps () == capabilities::dumb)
+        warn << "fetching over dumb HTTP, no progress will be shown";
+
+      // Fetch.
+      //
+      fetch (fetch_repo ? strings () : dcs, false);
+
+      // After the deep fetching some of the shallow commits might also be
+      // fetched, so we drop them from the fetch list.
+      //
+      for (auto i (scs.begin ()); i != scs.end (); )
+      {
+        if (commit_fetched (co, dir, *i))
+          i = scs.erase (i);
+        else
+          ++i;
+      }
     }
 
     // Finally, we perform the shallow fetching.
@@ -1169,12 +1295,14 @@ namespace bpkg
     if (!scs.empty ())
       fetch (scs, true);
 
-    // Name the unnamed commits with a 12-character length abbreviation.
+    // We also need to make sure that all the resulting commits are now
+    // fetched. This may not be the case if the user misspelled the
+    // [<refname>@]<commit> filter.
     //
-    for (auto& fr: r)
+    for (const git_fragment& fr: r)
     {
-      if (fr.friendly_name.empty ())
-        fr.friendly_name = fr.commit.substr (0, 12);
+      if (!commit_fetched (co, dir, fr.commit))
+        fail << "unable to fetch commit " << fr.commit;
     }
 
     return sort (move (r));
@@ -1375,7 +1503,9 @@ namespace bpkg
 
         // Fetch and checkout the submodule.
         //
-        git_ref_filters rfs {git_ref_filter {nullopt, commit}};
+        git_ref_filters rfs {
+          git_ref_filter {nullopt, commit, false /* exclusion */}};
+
         fetch (co, fsdir, psdir, rfs);
 
         git_checkout (co, fsdir, commit);
@@ -1470,10 +1600,9 @@ namespace bpkg
     git_ref_filters rfs;
     const repository_url& url (rl.url ());
 
-    if (url.fragment)
     try
     {
-      rfs = parse_git_ref_filters (*url.fragment);
+      rfs = parse_git_ref_filters (url.fragment);
     }
     catch (const invalid_argument& e)
     {

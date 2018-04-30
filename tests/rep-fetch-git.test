@@ -44,17 +44,10 @@ else
   rep_git = "$rep"
 end
 
-: none
+: branch
 :
 {
-  fragment = ''
-  .include rep-fetch-git-refname.test
-}
-
-: refname
-:
-{
-  refname = '#master'
+  fragment = '#master'
   .include rep-fetch-git-refname.test
 }
 

@@ -10,10 +10,12 @@
   +git -C ../style-basic log '--pretty=format:%H' --all --grep='README' | \
    set commit
 
-  : no-branch
+  : no-refname
+  :
+  : Here we also test that a commit can be specified without leading '@'.
   :
   {
-    $clone_root_cfg && $rep_add "$rep/state0/style-basic.git#@$commit";
+    $clone_root_cfg && $rep_add "$rep/state0/style-basic.git#$commit";
 
     if ($git_protocol == 'https-dumb')
       warn = "$warn_repo_hist$reason_dumb$warn_dumb"
@@ -22,15 +24,15 @@
     end;
 
     $* 2>>~"%EOE%"
-      %fetching git:.+style-basic#@$commit%
+      %fetching git:.+style-basic#$commit%
       %querying .+style-basic\.git%?
-      $warn
       %fetching from .+style-basic\.git%
+      $warn
       1 package\(s\) in 1 repository\(s\)
       EOE
   }
 
-  : branch
+  : refname
   :
   {
     $clone_root_cfg && $rep_add "$rep/state0/style-basic.git#stable@$commit";
@@ -44,8 +46,8 @@
     $* 2>>~"%EOE%"
       %fetching git:.+style-basic#stable@$commit%
       %querying .+style-basic\.git%?
-      $warn
       %fetching from .+style-basic\.git%
+      $warn
       1 package\(s\) in 1 repository\(s\)
       EOE
   }
@@ -61,7 +63,7 @@
      warn = "$warn_ref_hist$reason_dumb$warn_dumb"
    end
 
-  : no-branch
+  : no-refname
   :
   {
     $clone_root_cfg && $rep_add "$rep/state0/style-basic.git#@$commit";
@@ -69,13 +71,13 @@
     $* 2>>~"%EOE%"
       %fetching git:.+style-basic#@$commit%
       %querying .+style-basic\.git%?
-      $warn
       %fetching from .+style-basic.\git%
+      $warn
       1 package\(s\) in 1 repository\(s\)
       EOE
   }
 
-  : branch
+  : refname
   :
   {
     $clone_root_cfg && $rep_add "$rep/state0/style-basic.git#stable@$commit";
@@ -83,8 +85,8 @@
     $* 2>>~"%EOE%"
       %fetching git:.+style-basic#stable@$commit%
       %querying .+style-basic\.git%?
-      $warn
       %fetching from .+style-basic\.git%
+      $warn
       1 package\(s\) in 1 repository\(s\)
       EOE
   }

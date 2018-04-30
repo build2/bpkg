@@ -610,15 +610,14 @@ else
     $* 2>>~%EOE% &cfg/.bpkg/repos/*/***
       %fetching git:.+libfox#master%
       %querying .+libfox\.git%
-      %.{0,2}
       %fetching from .+libfox\.git%
+      %warning: .+%{0,2}
       %querying .+libbar\.git%?
-      %.{0,2}
       %fetching submodule 'libbar' from .+libbar\.git%
+      %warning: .+%{0,2}
       %submodule path 'libbar': checked out '.+'%
       2 package(s) in 1 repository(s)
       EOE
-
   }
 
   : re-fetching
@@ -635,8 +634,8 @@ else
     $* 2>>~%EOE%
       %fetching git:.+libfoo#master%
       %info: location changed for git:.+libfoo#master%
-      %  info: new location https://.+libfoo.git#master%
-      %  info: old location git://.+libfoo.git#master%
+      %  info: new location https://.+libfoo\.git#master%
+      %  info: old location git://.+libfoo\.git#master%
       %querying .+libfoo\.git%
       1 package(s) in 1 repository(s)
       EOE
@@ -670,5 +669,145 @@ else
       EOE
 
     $pkg_status libfoo >'libfoo unknown'
+  }
+
+  : ref-filters
+  :
+  {
+    test.cleanups += &?cfg/.bpkg/repos/*/***
+
+    : pattern
+    :
+    {
+      : matching
+      :
+      {
+        $clone_root_cfg;
+
+        $* "$rep_git/state0/libfoo.git#v**" 2>>~%EOE%
+          %added .+libfoo#v\*\*%
+          %querying .+libfoo\.git%
+          %fetching from .+libfoo\.git%
+          %warning: .+%{0,2}
+          2 package(s) in 1 repository(s)
+          EOE
+      }
+
+      : non-matching
+      :
+      {
+        $clone_root_cfg;
+
+        $* "$rep_git/state0/libfoo.git#tags/mast*" 2>>~%EOE%
+          %added .+libfoo#tags/mast\*%
+          %querying .+libfoo\.git%
+          0 package(s) in 1 repository(s)
+          EOE
+      }
+    }
+
+    : name
+    :
+    {
+      : non-matching
+      :
+      {
+        $clone_root_cfg;
+
+        $* "$rep_git/state0/libfoo.git#foo" 2>>~%EOE% != 0
+          %added .+libfoo#foo%
+          %querying .+libfoo\.git%
+          error: reference 'foo' is not found
+          EOE
+      }
+    }
+
+    : commit
+    :
+    {
+      : non-matching-pattern
+      :
+      {
+        $clone_root_cfg;
+
+        $* "$rep_git/state0/libfoo.git#foo*@9ab039761936802d61b8e591d6812a4dd4605029" 2>>~%EOE% != 0
+          %added .+libfoo#foo\*@9ab039761936802d61b8e591d6812a4dd4605029%
+          %querying .+libfoo\.git%
+          error: no names match pattern 'foo*'
+          EOE
+      }
+
+      : unexisting
+      :
+      {
+        $clone_root_cfg;
+
+        $* "$rep_git/state0/libfoo.git#9ab039761936802d61b8e591d6812a4dd4605029" 2>>~%EOE% != 0
+          %added .+libfoo#9ab039761936802d61b8e591d6812a4dd4605029%
+          %querying .+libfoo\.git%
+          %fetching from .+libfoo\.git%
+          %warning: .+%{0,2}
+          error: unable to fetch commit 9ab039761936802d61b8e591d6812a4dd4605029
+          EOE
+      }
+    }
+
+    : exclusion
+    :
+    {
+      $clone_root_cfg;
+
+      $* "$rep_git/state0/libfoo.git#mast*,-master" 2>>~%EOE%
+        %added .+libfoo#mast\*,-master%
+        %querying .+libfoo\.git%
+        0 package(s) in 1 repository(s)
+        EOE
+    }
+
+    : inclusion
+    :
+    {
+      $clone_root_cfg;
+
+      $* "$rep_git/state0/libfoo.git#tags/mast*,+master" 2>>~%EOE%
+        %added .+libfoo#tags/mast\*,\+master%
+        %querying .+libfoo\.git%
+        %fetching from .+libfoo\.git%
+        %warning: .+%{0,2}
+        1 package(s) in 1 repository(s)
+        EOE
+    }
+
+    : default
+    :
+    {
+      : no-fragment
+      :
+      {
+        $clone_root_cfg;
+
+        $* "$rep_git/state0/libfoo.git" 2>>~%EOE%
+          %added .+libfoo%
+          %querying .+libfoo\.git%
+          %fetching from .+libfoo\.git%
+          %warning: .+%{0,2}
+          2 package(s) in 1 repository(s)
+          EOE
+      }
+
+      : with-exclusion
+      :
+      {
+        $clone_root_cfg;
+
+        $* "$rep_git/state0/libfoo.git##-/tags/v1*" 2>>~%EOE%
+          %added .+libfoo##-/tags/v1\*%
+          %querying .+libfoo\.git%
+          %fetching from .+libfoo\.git%
+          %warning: .+%{0,2}
+          1 package(s) in 1 repository(s)
+          EOE
+      }
+    }
   }
 }

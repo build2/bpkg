@@ -14,8 +14,8 @@
   $* 2>>~"%EOE%"
     %fetching git:.+libfoo$fragment%
     %querying .+libfoo\.git%
-    $warn
     %fetching from .+libfoo\.git%
+    $warn
     1 package\(s\) in 1 repository\(s\)
     EOE
 }
@@ -75,16 +75,16 @@
     $pkg_checkout libfoo/1.0.0 2>>~"%EOE%";
       checking out libfoo/1.0.0
       %querying .+style\.git%?
-      $warn1
       %fetching submodule 'doc/style' from .+style\.git%
+      $warn1
       %submodule path 'doc/style': checked out .+%
       %querying .+style-basic\.git%?
-      $warn2
       %fetching submodule 'doc/style/basic' from .+style-basic\.git%
+      $warn2
       %submodule path 'doc/style/basic': checked out .+%
       %querying .+libbar\.git%?
-      $warn3
       %fetching submodule 'libbar' from .+libbar\.git%
+      $warn3
       %submodule path 'libbar': checked out .+%
       distributing libfoo/1.0.0
       checked out libfoo/1.0.0
@@ -106,8 +106,8 @@
     $* 2>>~"%EOE%" 1>&2;
       %fetching git:.+libfoo$fragment%
       %querying .+libfoo\.git%
-      $warn
       %fetching from .+libfoo\.git%
+      $warn
       %warning: unable to rmdir .?libbar.?: .+%
       1 package\(s\) in 1 repository\(s\)
       EOE
@@ -125,12 +125,12 @@
     $pkg_checkout libfoo/1.0.0 2>>~"%EOE%";
       checking out libfoo/1.0.0
       %querying .+style\.git%?
-      $warn1
       %fetching submodule 'doc/style' from .+style\.git%
+      $warn1
       %submodule path 'doc/style': checked out .+%
       %querying .+libbaz\.git%?
-      $warn2
       %fetching submodule 'libbaz' from .+libbaz\.git%
+      $warn2
       %submodule path 'libbaz': checked out .+%
       distributing libfoo/1.0.0
       checked out libfoo/1.0.0

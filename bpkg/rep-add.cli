@@ -144,6 +144,9 @@ namespace bpkg
      .../foo.git#/tags/v*  - refs/tags/v1.2.3 only
      \
 
+     While a \ci{refname} pattern may not match any references, a non-pattern
+     that doesn't resolve to a reference is invalid.
+
      If a \ci{refname} starts with \cb{-} then it is treated as an exclusion
      filter \- any references that it matches are excluded from the set
      included by the preceding filters (or the default set). For example:
