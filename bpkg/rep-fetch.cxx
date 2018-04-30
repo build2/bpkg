@@ -210,8 +210,9 @@ namespace bpkg
       };
 
       dir_path d (repo_dir / path_cast<dir_path> (*sm.location));
-      path f (d / manifest_file);
+      d.normalize (); // In case location is './'.
 
+      path f (d / manifest_file);
       if (!exists (f))
         failure ("no manifest file");
 
