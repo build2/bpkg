@@ -1131,13 +1131,13 @@ namespace bpkg
         fail << "configuration " << c << " has no repositories" <<
           info << "use 'bpkg rep-add' to add a repository";
 
+      for (const lazy_shared_ptr<repository>& r: ua)
+        repos.push_back (r);
+
       // Always print "fetching ..." for complements of the root, even if
       // there is only one.
       //
       reason = "";
-
-      for (const lazy_shared_ptr<repository>& r: ua)
-        repos.push_back (r);
     }
     else
     {
@@ -1180,7 +1180,21 @@ namespace bpkg
       // with a pointless "fetching ..." line for this repository.
       //
       if (repos.size () > 1)
-        reason = "";
+      {
+        // Also, as a special case (or hack, if you will), suppress these
+        // lines if all the repositories are directory-based. For such
+        // repositories there will never be any fetch progress nor can
+        // they hang.
+        //
+        for (lazy_shared_ptr<repository> r: repos)
+        {
+          if (!r.load ()->location.directory_based ())
+          {
+            reason = "";
+            break;
+          }
+        }
+      }
     }
 
     rep_fetch (o, c, t, repos, o.shallow (), reason);
