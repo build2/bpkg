@@ -1003,6 +1003,7 @@ each value in subsequent sections.
 [location]: <uri>
 [type]: pkg|dir|git
 [role]: base|prerequisite|complement
+[trust]: <fingerprint>
 [url]: <url>
 [email]: <email> [; <comment>]
 [summary]: <text>
@@ -1062,6 +1063,22 @@ The repository role. If the \c{location} value is omitted, then the role can
 be omitted or it must be \c{base}. If the \c{location} value is present, then
 the role can be omitted (in which case it is assume to be \c{prerequisite}) or
 it must be either \c{prerequisite} or \c{complement}.
+
+
+\h2#manifest-repository-trust|\c{trust}|
+
+\
+[trust]: <fingerprint>
+\
+
+The repository fingerprint to trust. The \c{trust} value can only be specified
+for prerequisite and complement repositories and only for repository types
+that support authentication (currently only \c{pkg}). The \i{fingerprint}
+value should be an SHA256 repository fingerprint represented as 32
+colon-separated hex digit pairs. \N{The repository in question is only trusted
+for use as a prerequisite or complement of this repository. If it is also used
+by other repositories or is added to the configuration by the user, then such
+uses cases are authenticated independently.}
 
 
 \h2#manifest-repository-url|\c{url}|
