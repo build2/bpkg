@@ -1021,8 +1021,9 @@ See also the Repository Chaining documentation for further information @@ TODO.
 \
 
 The repository location. The location can only and must be omitted for the
-base repository. If the location is a relative path, then it is treated as
-relative to the base repository location.
+base repository. \N{Since we got hold of its manifest, then we presumably
+already know the location of the base repository.} If the location is a
+relative path, then it is treated as relative to the base repository location.
 
 For the \cb{git} repository type the relative location does not inherit the
 URL fragment from the base repository.
@@ -1059,10 +1060,8 @@ from its \c{location} value as described in \l{bpkg-rep-add(1)}.
 [role]: base|prerequisite|complement
 \
 
-The repository role. If the \c{location} value is omitted, then the role can
-be omitted or it must be \c{base}. If the \c{location} value is present, then
-the role can be omitted (in which case it is assume to be \c{prerequisite}) or
-it must be either \c{prerequisite} or \c{complement}.
+The repository role. The \c{role} value can be omitted for the base
+repository only.
 
 
 \h2#manifest-repository-trust|\c{trust}|
@@ -1217,13 +1216,12 @@ The repository fragment id this repository belongs to.
 terminology and semantics.
 
 The repository list manifest (the \c{repositories.manifest} file found in the
-repository root directory) describes the repository. First comes a
-(potentially empty) sequence of repository manifests that describe the
-prerequisite and complement repositories. After this sequence must come the
-manifest for the base repository, that is, the repository that this manifest
-list is describing. The \c{location} value in this last manifest must be
-omitted. \N{Since we got hold of the manifest list, then we presumably already
-know the location of the base repository.}
+repository root directory) describes the repository. It is a sequence of
+repository manifests consisting of the base repository manifest (that is, the
+manifest for the repository that is being described) as well as manifests for
+its prerequisite and complement repositories. The individual repository
+manifests can appear in any order and the base repository manifest can be
+omitted.
 
 The \c{fragment} values can only be present in a merged
 \c{repositories.manifest} file for a multi-fragment repository.
@@ -1235,19 +1233,20 @@ repository could look like this:
 # math/testing
 #
 : 1
-location: https://pkg.example.org/1/misc/testing
+email: math-pkg@example.org
+summary: Math package repository
 :
 role: complement
 location: ../stable
 :
-email: math-pkg@example.org
-summary: Math package repository
+role: prerequiste
+location: https://pkg.example.org/1/misc/testing
 \
 
-Here the first manifest describes a prerequisite repository, the second
-manifest \- a complement repository, and the third manifest \- the base
-repository itself. Note that the complement repository's location is specified
-as a relative path. For example, if the base repository location were:
+Here the first manifest describes the base repository itself, the second
+manifest \- a complement repository, and the third manifest \- a prerequisite
+repository. Note that the complement repository's location is specified as a
+relative path. For example, if the base repository location were:
 
 \
 https://pkg.example.org/1/math/testing
