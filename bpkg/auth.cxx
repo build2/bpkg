@@ -481,13 +481,22 @@ namespace bpkg
     }
   }
 
-  // Authenticate a real certificate.
+  // Authenticate a real certificate. Return the authenticated certificate and
+  // flag if it was authenticated by the user (via the command line/prompt) or
+  // by the dependent trust.
   //
-  static shared_ptr<certificate>
+  struct cert_auth
+  {
+    shared_ptr<certificate> cert;
+    bool user;
+  };
+
+  static cert_auth
   auth_real (const common_options& co,
              const fingerprint& fp,
              const string& pem,
-             const repository_location& rl)
+             const repository_location& rl,
+             const optional<string>& dependent_trust)
   {
     tracer trace ("auth_real");
 
@@ -515,7 +524,16 @@ namespace bpkg
         info << "certificate for repository " << rl.canonical_name () <<
           " authenticated by command line";
 
-      return cert;
+      return cert_auth {move (cert), true};
+    }
+
+    if (dependent_trust && *dependent_trust == cert->fingerprint)
+    {
+      if (verb >= 2)
+        info << "certificate for repository " << rl.canonical_name () <<
+          " authenticated by dependent trust";
+
+      return cert_auth {move (cert), false};
     }
 
     (co.trust_no () ? error : warn)
@@ -534,7 +552,7 @@ namespace bpkg
     if (co.trust_no () || !yn_prompt ("trust this certificate? [y/n]"))
       throw failed ();
 
-    return cert;
+    return cert_auth {move (cert), true};
   }
 
   // Authenticate a certificate with the database. First check if it is
@@ -545,7 +563,8 @@ namespace bpkg
              const dir_path& conf,
              database& db,
              const optional<string>& pem,
-             const repository_location& rl)
+             const repository_location& rl,
+             const optional<string>& dependent_trust)
   {
     tracer trace ("auth_cert");
     tracer_guard tg (db, trace);
@@ -553,6 +572,10 @@ namespace bpkg
     fingerprint fp (cert_fingerprint (co, pem, rl));
     shared_ptr<certificate> cert (db.find<certificate> (fp.abbreviated));
 
+    // If the certificate is in the database then it is authenticated by the
+    // user. In this case the dependent trust doesn't really matter as the
+    // user is more authoritative then the dependent.
+    //
     if (cert != nullptr)
     {
       l4 ([&]{trace << "existing cert: " << *cert;});
@@ -560,27 +583,37 @@ namespace bpkg
       return cert;
     }
 
-    cert = pem
-      ? auth_real  (co, fp, *pem, rl)
-      : auth_dummy (co, fp.abbreviated, rl);
-
-    db.persist (cert);
-
-    // Save the certificate file.
+    // Note that an unsigned certificate use cannot be authenticated by the
+    // dependent trust.
     //
-    if (pem)
-    {
-      path f (conf / certs_dir / path (cert->id + ".pem"));
+    cert_auth ca (pem
+                  ? auth_real (co, fp, *pem, rl, dependent_trust)
+                  : cert_auth {auth_dummy (co, fp.abbreviated, rl), true});
 
-      try
+    cert = move (ca.cert);
+
+    // Persist the certificate only if it is authenticated by the user.
+    //
+    if (ca.user)
+    {
+      db.persist (cert);
+
+      // Save the certificate file.
+      //
+      if (pem)
       {
-        ofdstream ofs (f);
-        ofs << *pem;
-        ofs.close ();
-      }
-      catch (const io_error& e)
-      {
-        fail << "unable to write certificate to " << f << ": " << e;
+        path f (conf / certs_dir / path (cert->id + ".pem"));
+
+        try
+        {
+          ofdstream ofs (f);
+          ofs << *pem;
+          ofs.close ();
+        }
+        catch (const io_error& e)
+        {
+          fail << "unable to write certificate to " << f << ": " << e;
+        }
       }
     }
 
@@ -591,7 +624,8 @@ namespace bpkg
   authenticate_certificate (const common_options& co,
                             const dir_path* conf,
                             const optional<string>& pem,
-                            const repository_location& rl)
+                            const repository_location& rl,
+                            const optional<string>& dependent_trust)
   {
     tracer trace ("authenticate_certificate");
 
@@ -612,18 +646,23 @@ namespace bpkg
       //
       fingerprint fp (cert_fingerprint (co, pem, rl));
       r = pem
-        ? auth_real  (co, fp, *pem, rl)
+        ? auth_real  (co, fp, *pem, rl, dependent_trust).cert
         : auth_dummy (co, fp.abbreviated, rl);
     }
     else if (transaction::has_current ())
     {
-      r = auth_cert (co, *conf, transaction::current ().database (), pem, rl);
+      r = auth_cert (co,
+                     *conf,
+                     transaction::current ().database (),
+                     pem,
+                     rl,
+                     dependent_trust);
     }
     else
     {
       database db (open (*conf, trace));
       transaction t (db);
-      r = auth_cert (co, *conf, db, pem, rl);
+      r = auth_cert (co, *conf, db, pem, rl, dependent_trust);
       t.commit ();
     }
 
@@ -648,11 +687,13 @@ namespace bpkg
     path f;
     auto_rmfile rm;
 
-    if (conf == nullptr)
+    // If we have no configuration or the certificate was authenticated by the
+    // dependent trust (see auth_cert() function for details), create the
+    // temporary certificate PEM file.
+    //
+    if (conf == nullptr ||
+        !exists (f = *conf / certs_dir / path (cert.id + ".pem")))
     {
-      // If we have no configuration, create the temporary certificate
-      // PEM file.
-      //
       assert (cert_pem);
 
       try
@@ -673,10 +714,6 @@ namespace bpkg
       {
         fail << "unable to obtain temporary file: " << e;
       }
-    }
-    else
-    {
-      f = *conf / certs_dir / path (cert.id + ".pem");
     }
 
     // Make sure the names are either equal or the certificate name is a

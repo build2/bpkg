@@ -73,7 +73,7 @@ namespace bpkg
       if (all || cert_info)
       {
         shared_ptr<const certificate>& cert (rfd.certificate);
-        const optional<string>& cert_pem (rfd.cert_pem);
+        const optional<string>& cert_pem (rfd.certificate_pem);
 
         if (cert_pem)
         {
@@ -174,7 +174,8 @@ namespace bpkg
           assert (!rfd.fragments.empty () &&
                   !rfd.fragments.back ().repositories.empty ());
 
-          rms.push_back (move (rfd.fragments.back ().repositories.back ()));
+          rms.push_back (
+            find_base_repository (rfd.fragments.back ().repositories));
 
           // Note: serializing without any extra repository_manifests info.
           //

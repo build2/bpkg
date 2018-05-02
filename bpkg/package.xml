@@ -50,6 +50,7 @@
       <column name="name" type="TEXT" null="true"/>
       <column name="url" type="TEXT" null="true"/>
       <column name="type" type="TEXT" null="true"/>
+      <column name="certificate" type="TEXT" null="true"/>
       <primary-key>
         <column name="name"/>
       </primary-key>

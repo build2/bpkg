@@ -345,8 +345,9 @@ namespace bpkg
 
     using fragments_type = std::vector<fragment_type>;
 
-    string              name;      // Object id (canonical name).
+    string              name;        // Object id (canonical name).
     repository_location location;
+    optional<string>    certificate; // PEM representation.
     fragments_type      fragments;
 
   public:

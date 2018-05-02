@@ -4,6 +4,7 @@
 
 #include <bpkg/rep-fetch.hxx>
 
+#include <map>
 #include <set>
 #include <algorithm> // equal()
 
@@ -40,10 +41,18 @@ namespace bpkg
   //
   static bool filesystem_state_changed;
 
+  inline static bool
+  need_auth (const common_options& co, const repository_location& rl)
+  {
+    return rl.type () == repository_type::pkg && co.auth () != auth::none &&
+      (co.auth () == auth::all || rl.remote ());
+  }
+
   static rep_fetch_data
   rep_fetch_pkg (const common_options& co,
                  const dir_path* conf,
                  const repository_location& rl,
+                 const optional<string>& dependent_trust,
                  bool ignore_unknown)
   {
     // First fetch the repositories list and authenticate the base's
@@ -55,15 +64,17 @@ namespace bpkg
     rep_fetch_data::fragment fr;
     fr.repositories = move (rmc.first);
 
-    bool a (co.auth () != auth::none &&
-            (co.auth () == auth::all || rl.remote ()));
+    bool a (need_auth (co, rl));
 
     shared_ptr<const certificate> cert;
-    optional<string> cert_pem (move (fr.repositories.back ().certificate));
+    const optional<string>& cert_pem (
+      find_base_repository (fr.repositories).certificate);
 
     if (a)
     {
-      cert = authenticate_certificate (co, conf, cert_pem, rl);
+      cert = authenticate_certificate (
+        co, conf, cert_pem, rl, dependent_trust);
+
       a = !cert->dummy ();
     }
 
@@ -430,15 +441,16 @@ namespace bpkg
     return r;
   }
 
-  rep_fetch_data
+  static rep_fetch_data
   rep_fetch (const common_options& co,
              const dir_path* conf,
              const repository_location& rl,
+             const optional<string>& dt,
              bool iu)
   {
     switch (rl.type ())
     {
-    case repository_type::pkg: return rep_fetch_pkg (co, conf, rl, iu);
+    case repository_type::pkg: return rep_fetch_pkg (co, conf, rl, dt, iu);
     case repository_type::dir: return rep_fetch_dir (co, rl, iu);
     case repository_type::git: return rep_fetch_git (co, conf, rl, iu);
     }
@@ -447,17 +459,29 @@ namespace bpkg
     return rep_fetch_data ();
   }
 
+  rep_fetch_data
+  rep_fetch (const common_options& co,
+             const dir_path* conf,
+             const repository_location& rl,
+             bool iu)
+  {
+    return rep_fetch (co, conf, rl, nullopt /* dependent_trust */, iu);
+  }
+
   // Return an existing repository fragment or create a new one. Update the
   // existing object unless it is immutable (see repository_fragment class
   // description for details). Don't fetch the complement and prerequisite
   // repositories.
   //
+  using repository_trust = map<shared_ptr<repository>, optional<string>>;
+
   static shared_ptr<repository_fragment>
   rep_fragment (const common_options& co,
                 const dir_path& conf,
                 transaction& t,
                 const repository_location& rl,
-                rep_fetch_data::fragment&& fr)
+                rep_fetch_data::fragment&& fr,
+                repository_trust& repo_trust)
   {
     tracer trace ("rep_fragment");
 
@@ -495,6 +519,56 @@ namespace bpkg
     shared_ptr<repository_fragment> rf (
       db.find<repository_fragment> (rfl.canonical_name ()));
 
+    // Complete the repository manifest relative locations using this
+    // repository as a base.
+    //
+    for (repository_manifest& rm: fr.repositories)
+    {
+      if (rm.effective_role () != repository_role::base)
+      {
+        repository_location& l (rm.location);
+
+        if (l.relative ())
+        {
+          try
+          {
+            l = repository_location (l, rl);
+          }
+          catch (const invalid_argument& e)
+          {
+            fail << "invalid relative repository location '" << l
+                 << "': " << e <<
+              info << "base repository location is " << rl;
+          }
+        }
+      }
+    }
+
+    // Add/upgrade (e.g., from the latest commit) the dependent trust for
+    // the prerequisite/complement repositories. Here we rely on the fact that
+    // rep_fragment() function is called for fragments (e.g., commits) in
+    // earliest to latest order, as they appear in the repository object.
+    //
+    // Note that we also rely on the manifest location values be
+    // absolute/remote (see above) and the corresponding repository objects be
+    // present in the database.
+    //
+    auto add_trust = [&fr, &repo_trust, &db] ()
+    {
+      for (repository_manifest& rm: fr.repositories)
+      {
+        if (rm.effective_role () != repository_role::base)
+        {
+          auto i (repo_trust.emplace (
+                    db.load<repository> (rm.location.canonical_name ()),
+                    rm.trust));
+
+          if (!i.second)
+            i.first->second = move (rm.trust);
+        }
+      }
+    };
+
     // Return the existing repository fragment if it is immutable.
     //
     bool exists (rf != nullptr);
@@ -514,7 +588,10 @@ namespace bpkg
       }
 
       if (!mut)
+      {
+        add_trust ();
         return rf;
+      }
     }
 
     // Create or update the repository fragment.
@@ -536,24 +613,7 @@ namespace bpkg
       if (rr == repository_role::base)
         continue; // Entry for this repository.
 
-      repository_location& l (rm.location);
-
-      // If the location is relative, complete it using this repository
-      // as a base.
-      //
-      if (l.relative ())
-      {
-        try
-        {
-          l = repository_location (l, rl);
-        }
-        catch (const invalid_argument& e)
-        {
-          fail << "invalid relative repository location '" << l
-               << "': " << e <<
-            info << "base repository location is " << rl;
-        }
-      }
+      const repository_location& l (rm.location);
 
       // Create the new repository if it is not in the database yet, otherwise
       // update its location if it is changed, unless the repository is a
@@ -565,7 +625,7 @@ namespace bpkg
 
       if (r == nullptr)
       {
-        r = make_shared<repository> (move (l));
+        r = make_shared<repository> (l);
         db.persist (r); // Enter into session, important if recursive.
       }
       else if (r->location.url () != l.url ())
@@ -577,7 +637,7 @@ namespace bpkg
 
         if (ua.find (r) == ua.end ())
         {
-          r->location = move (l);
+          r->location = l;
           db.update (r);
         }
       }
@@ -615,6 +675,8 @@ namespace bpkg
         assert (false);
       }
     }
+
+    add_trust ();
 
     // For dir and git repositories that have neither prerequisites nor
     // complements we use the root repository as the default complement.
@@ -753,6 +815,7 @@ namespace bpkg
              const dir_path& conf,
              transaction& t,
              const shared_ptr<repository>& r,
+             const optional<string>& dependent_trust,
              repositories& fetched_repositories,
              repositories& removed_repositories,
              repository_fragments& removed_fragments,
@@ -772,7 +835,21 @@ namespace bpkg
     // dependencies.
     //
     if (!fetched_repositories.insert (r).second) // Is already fetched.
+    {
+      // Authenticate the repository use by the dependent, if required.
+      //
+      // Note that we only need to authenticate the certificate but not the
+      // repository that was already fetched (and so is already authenticated).
+      //
+      if (need_auth (co, r->location))
+        authenticate_certificate (co,
+                                  &conf,
+                                  r->certificate,
+                                  r->location,
+                                  dependent_trust);
+
       return;
+    }
 
     const repository_location& rl (r->location);
     l4 ([&]{trace << r->name << " " << rl;});
@@ -833,17 +910,24 @@ namespace bpkg
     // repository fragments list, as well as its prerequisite and complement
     // repository sets.
     //
-    rep_fetch_data rfd (rep_fetch (co, &conf, rl, true /* ignore_unknow */));
+    rep_fetch_data rfd (
+      rep_fetch (co, &conf, rl, dependent_trust, true /* ignore_unknow */));
+
+    // Save for subsequent certificate authentication for repository use by
+    // its dependents.
+    //
+    r->certificate = move (rfd.certificate_pem);
 
     repository_fragment::complements_type new_complements;
     repository_fragment::prerequisites_type new_prerequisites;
+    repository_trust repo_trust;
 
     for (rep_fetch_data::fragment& fr: rfd.fragments)
     {
       string nm (fr.friendly_name); // Don't move, still may be used.
 
       shared_ptr<repository_fragment> rf (
-        rep_fragment (co, conf, t, rl, move (fr)));
+        rep_fragment (co, conf, t, rl, move (fr), repo_trust));
 
       collect_deps (rf, new_complements, new_prerequisites);
 
@@ -907,34 +991,48 @@ namespace bpkg
       for (const lazy_weak_ptr<repository>& pr: old_prerequisites)
         rm (lazy_shared_ptr<repository> (pr));
 
-      const string& rn (rl.canonical_name ());
+      auto fetch = [&co,
+                    &conf,
+                    &t,
+                    &fetched_repositories,
+                    &removed_repositories,
+                    &removed_fragments,
+                    &rl,
+                    &repo_trust]
+        (const shared_ptr<repository>& r, const char* what)
+      {
+        auto i (repo_trust.find (r));
+        assert (i != repo_trust.end ());
+
+        rep_fetch (co,
+                   conf,
+                   t,
+                   r,
+                   i->second,
+                   fetched_repositories,
+                   removed_repositories,
+                   removed_fragments,
+                   false /* shallow */,
+                   what + rl.canonical_name ());
+      };
 
       // Fetch complements and prerequisites.
       //
       for (const auto& cr: new_complements)
       {
         if (cr.object_id () != "")
-          rep_fetch (co,
-                     conf,
-                     t,
-                     cr.load (),
-                     fetched_repositories,
-                     removed_repositories,
-                     removed_fragments,
-                     false /* shallow */,
-                     "complements " + rn);
+        {
+          fetch (cr.load (), "complements ");
+
+          // Remove the repository from the prerequisites, if present, to avoid
+          // the use re-authentication.
+          //
+          new_prerequisites.erase (cr);
+        }
       }
 
       for (const auto& pr: new_prerequisites)
-        rep_fetch (co,
-                   conf,
-                   t,
-                   pr.load (),
-                   fetched_repositories,
-                   removed_repositories,
-                   removed_fragments,
-                   false /* shallow */,
-                   "prerequisite of " + rn);
+        fetch (pr.load (), "prerequisite of ");
     }
   }
 
@@ -978,6 +1076,7 @@ namespace bpkg
                    conf,
                    t,
                    r.load (),
+                   nullopt /* dependent_trust */,
                    fetched_repositories,
                    removed_repositories,
                    removed_fragments,

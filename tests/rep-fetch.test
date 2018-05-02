@@ -79,7 +79,21 @@
   # Create 'foo/*' repositories.
   #
   cp -r $src/foo $out/foo
-  $rep_create $out/foo/stable  &$out/foo/stable/packages.manifest
+
+  # Sign foo/stable repository.
+  #
+  cat <<<$cert_manifest >+$out/foo/stable/repositories.manifest
+  $rep_create --key $key $out/foo/stable &$out/foo/stable/packages.manifest \
+                                         &$out/foo/stable/signature.manifest
+
+  # Add dependent trust to foo complement repository into the foo/testing
+  # repository manifest.
+  #
+  tv = "trust: $cert_fp
+:"
+
+  sed -i -e "s/^\(:\)\$/$tv/" $out/foo/testing/repositories.manifest
+
   $rep_create $out/foo/testing &$out/foo/testing/packages.manifest
 
   # Create 'bar/*' repositories.
@@ -154,7 +168,7 @@ $* 2>>/EOE != 0
   {
     $clone_root_cfg && $rep_add $rep/bar/unstable;
 
-    $* --trust-yes 2>>EOE;
+    $* --trust-yes 2>>EOE &cfg/.bpkg/certs/**;
       fetching pkg:build2.org/rep-fetch/bar/unstable
       fetching pkg:build2.org/rep-fetch/bar/testing (complements pkg:build2.org/rep-fetch/bar/unstable)
       fetching pkg:build2.org/rep-fetch/bar/stable (complements pkg:build2.org/rep-fetch/bar/testing)
@@ -204,7 +218,7 @@ $* 2>>/EOE != 0
   {
     $clone_root_cfg;
 
-    $* --trust-yes $rep/bar/unstable 2>>EOE;
+    $* --trust-yes $rep/bar/unstable 2>>EOE &cfg/.bpkg/certs/**;
       added pkg:build2.org/rep-fetch/bar/unstable
       fetching pkg:build2.org/rep-fetch/bar/testing (complements pkg:build2.org/rep-fetch/bar/unstable)
       fetching pkg:build2.org/rep-fetch/bar/stable (complements pkg:build2.org/rep-fetch/bar/testing)
@@ -323,6 +337,114 @@ $* 2>>/EOE != 0
         pkg:build2.org/rep-fetch/cycle/stable ($nc_rep/stable)
           prerequisite pkg:build2.org/rep-fetch/cycle/extra ($nc_rep/extra)
         EOO
+    }
+  }
+
+  : use-auth
+  :
+  {
+    : dependent-trust
+    :
+    : Test that the certificate of foo/stable complement repository is
+    : silently authenticated for use by the dependent foo/testing repository.
+    : In this case the certificate is not saved into the database (see the
+    : subsequent 'rep-fetch $rep/foo/stable' test) and certificate file is not
+    : persisted (otherwise cleanup of non-empty cfg/ directory would fail).
+    :
+    {
+      $clone_root_cfg;
+
+      $* --verbose 2 $rep/foo/testing <'y' 2>>~%EOE%;
+        added pkg:build2.org/rep-fetch/foo/testing
+        %.*
+        warning: repository pkg:build2.org/rep-fetch/foo/testing is unsigned
+        %continue without authenticating repositories at .+\? \[y/n\] .+%
+        %.+
+        info: certificate for repository pkg:build2.org/rep-fetch/foo/stable authenticated by dependent trust
+        %.+
+        2 package(s) in 2 repository(s)
+        EOE
+
+      $* $rep/foo/stable 2>>~%EOE% != 0
+        %.+
+        warning: authenticity of the certificate for repository pkg:build2.org/rep-fetch/foo/stable cannot be established
+        %.+
+        EOE
+    }
+
+    : dependent-command-line
+    :
+    : Test that the certificate of foo/stable complement repository is
+    : authenticated for use by the command line (persisted into the database
+    : and the filesystem) rather than dependent trust.
+    :
+    {
+      $clone_root_cfg;
+
+      $* --trust $cert_fp --verbose 2 $rep/foo/testing <'y' 2>>~%EOE% &cfg/.bpkg/certs/**
+        added pkg:build2.org/rep-fetch/foo/testing
+        %.*
+        warning: repository pkg:build2.org/rep-fetch/foo/testing is unsigned
+        %continue without authenticating repositories at .+\? \[y/n\] .+%
+        %.+
+        info: certificate for repository pkg:build2.org/rep-fetch/foo/stable authenticated by command line
+        %.+
+        2 package(s) in 2 repository(s)
+        EOE
+    }
+
+    : dependent-trust-prompt
+    :
+    : Test that the certificate of foo/stable repository is first authenticated
+    : for use by the dependent foo/test repository and then by the user (via
+    : the prompt) as a top-level repository during a single rep-fetch
+    : operation.
+    :
+    {
+      yy = 'y
+y'
+      $clone_root_cfg;
+
+      $* --verbose 2 $rep/foo/testing $rep/foo/stable <$yy 2>>~%EOE% &cfg/.bpkg/certs/**
+        added pkg:build2.org/rep-fetch/foo/testing
+        added pkg:build2.org/rep-fetch/foo/stable
+        fetching pkg:build2.org/rep-fetch/foo/testing
+        %.*
+        warning: repository pkg:build2.org/rep-fetch/foo/testing is unsigned
+        %continue without authenticating repositories at .+\? \[y/n\] .+%
+        %.+
+        info: certificate for repository pkg:build2.org/rep-fetch/foo/stable authenticated by dependent trust
+        %.+
+        warning: authenticity of the certificate for repository pkg:build2.org/rep-fetch/foo/stable cannot be established
+        certificate is for build2.org, "Code Synthesis" <info@build2.org>
+        %.+
+        %.+2 package\(s\) in 2 repository\(s\)%
+        EOE
+    }
+
+    : command-line-dependent-noop
+    :
+    : Test that the certificate of foo/stable repository is first authenticated
+    : by the user (via the command line) as a top-level repository and so
+    : authentication for use by the dependent foo/test is noop.
+    :
+    {
+      $clone_root_cfg;
+
+      $* --trust $cert_fp --verbose 2 $rep/foo/stable $rep/foo/testing <'y' 2>>~%EOE% &cfg/.bpkg/certs/**
+        added pkg:build2.org/rep-fetch/foo/stable
+        added pkg:build2.org/rep-fetch/foo/testing
+        fetching pkg:build2.org/rep-fetch/foo/stable
+        %.+
+        info: certificate for repository pkg:build2.org/rep-fetch/foo/stable authenticated by command line
+        %.+
+        fetching pkg:build2.org/rep-fetch/foo/testing
+        %.*
+        warning: repository pkg:build2.org/rep-fetch/foo/testing is unsigned
+        %continue without authenticating repositories at .+\? \[y/n\] .+%
+        %.*
+        2 package(s) in 2 repository(s)
+        EOE
     }
   }
 }

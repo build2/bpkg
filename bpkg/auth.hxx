@@ -22,6 +22,11 @@ namespace bpkg
   // other values (including '.') are assumed to be valid configuration paths
   // and will be diagnosed if that's not the case.
   //
+  // If the dependent trust fingerprint is present then try to authenticate
+  // the certificate for use by the dependent prior to prompting the user.
+  // Note that if certificate is authenticated for such a use, then it is not
+  // persisted into the database.
+  //
   // If the configuration is used, then check if we are already in transaction.
   // If so, then assume the configuration database is already opened and use
   // that. Otherwise, open the database and start a new transaction.
@@ -35,7 +40,8 @@ namespace bpkg
   authenticate_certificate (const common_options&,
                             const dir_path* configuration,
                             const optional<string>& cert_pem,
-                            const repository_location&);
+                            const repository_location&,
+                            const optional<string>& dependent_trust);
 
   // Authenticate a repository. First check that the certificate can be used
   // to authenticate this repository by making sure their names match. Then

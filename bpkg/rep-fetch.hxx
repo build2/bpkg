@@ -41,9 +41,9 @@ namespace bpkg
 
     vector<fragment> fragments;
 
-    // For base pkg repo (can be nullopt/NULL).
+    // For pkg repositories (can be nullopt/NULL).
     //
-    optional<string> cert_pem;
+    optional<string> certificate_pem;
     shared_ptr<const bpkg::certificate> certificate; // Authenticated.
   };
 

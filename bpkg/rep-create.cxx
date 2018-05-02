@@ -227,7 +227,8 @@ namespace bpkg
         ofs.close ();
       }
 
-      const optional<string>& cert (rms.back ().certificate);
+      const optional<string>& cert (find_base_repository (rms).certificate);
+
       if (cert)
       {
         const string& key (o.key ());
