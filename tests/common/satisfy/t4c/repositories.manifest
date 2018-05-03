@@ -1,3 +1,4 @@
 : 1
-location: ../t4b
 :
+location: ../t4b
+role: prerequisite

@@ -5,6 +5,7 @@
 #include <bpkg/rep-create.hxx>
 
 #include <map>
+#include <algorithm> // count_if()
 
 #include <libbutl/filesystem.mxx>          // dir_iterator
 #include <libbutl/manifest-serializer.mxx>
@@ -180,13 +181,19 @@ namespace bpkg
 
     l4 ([&]{trace << "creating repository in " << d;});
 
-    // Load the repositories.manifest file to make sure it is there and is
-    // valid.
+    // Load the repositories.manifest file to obtain the certificate, if
+    // present, for signing the repository.
     //
     pkg_repository_manifests rms (
       pkg_fetch_repositories (d, o.ignore_unknown ()));
 
-    l4 ([&]{trace << rms.size () - 1 << " prerequisite repository(s)";});
+    l4 ([&]{trace << count_if (rms.begin(), rms.end(),
+                               [] (const repository_manifest& i)
+                               {
+                                 return i.effective_role () !=
+                                   repository_role::base;
+                               })
+                  << " prerequisite repository(s)";});
 
     // While we could have serialized as we go along, the order of
     // packages will be pretty much random and not reproducible. By

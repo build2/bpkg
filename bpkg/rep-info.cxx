@@ -168,11 +168,9 @@ namespace bpkg
 
           // Append the latest base repository manifest.
           //
-          // Note that there must be at least one fragment with at least a
-          // base repository being present.
+          // Note that there must be at least one fragment.
           //
-          assert (!rfd.fragments.empty () &&
-                  !rfd.fragments.back ().repositories.empty ());
+          assert (!rfd.fragments.empty ());
 
           rms.push_back (
             find_base_repository (rfd.fragments.back ().repositories));

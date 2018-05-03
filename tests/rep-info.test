@@ -119,6 +119,7 @@ $* --name $rep/testing >"pkg:build2.org/rep-info/testing ($rep/testing)"
   : 1
   location: ../../foo/testing
   type: pkg
+  role: prerequisite
   :
   location: ../stable
   type: pkg

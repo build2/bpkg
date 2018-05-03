@@ -2,6 +2,7 @@
 #
 : 1
 location: ../../foo/testing
+role: prerequisite
 :
 location: ../stable
 role: complement

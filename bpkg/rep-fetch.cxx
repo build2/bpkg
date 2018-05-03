@@ -107,7 +107,7 @@ namespace bpkg
       authenticate_repository (co, conf, cert_pem, *cert, sm, rl);
     }
 
-    return rep_fetch_data {{move (fr)}, move (cert_pem), move (cert)};
+    return rep_fetch_data {{move (fr)}, cert_pem, move (cert)};
   }
 
   template <typename M>

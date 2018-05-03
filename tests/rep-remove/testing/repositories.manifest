@@ -3,4 +3,5 @@ location: ../stable
 role: complement
 :
 location: ../extra
+role: prerequisite
 :
