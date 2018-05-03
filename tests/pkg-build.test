@@ -179,21 +179,21 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
   : archive
   :
   $clone_root_cfg;
-  $* $src/libfoo-1.1.0.tar.gz >'build libfoo/1.1.0'
+  $* $src/libfoo-1.1.0.tar.gz >'new libfoo/1.1.0'
 
   : dir
   :
   $clone_root_cfg;
-  $* $src/libfoo-1.1.0/ >'build libfoo/1.1.0'
+  $* $src/libfoo-1.1.0/ >'new libfoo/1.1.0'
 
   : unpacked-dir
   :
   {
     $clone_root_cfg && $pkg_unpack -e $src/libfoo-1.1.0;
 
-    $* libfoo        >'build libfoo/1.1.0';
-    $* libfoo/1.1.0  >'build libfoo/1.1.0';
-    $* libfoo libfoo >'build libfoo/1.1.0';
+    $* libfoo        >'update libfoo/1.1.0';
+    $* libfoo/1.1.0  >'update libfoo/1.1.0';
+    $* libfoo libfoo >'update libfoo/1.1.0';
 
     $* libfoo libfoo/1.1.0 2>>EOE != 0;
       error: duplicate package libfoo
@@ -207,7 +207,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
         info: second mentioned as libfoo
       EOE
 
-    $* libfoo/1.1.0 libfoo/1.1.0 >'build libfoo/1.1.0';
+    $* libfoo/1.1.0 libfoo/1.1.0 >'update libfoo/1.1.0';
 
     $* libfoo/1.0.0 2>>/EOE != 0;
       error: unknown package libfoo
@@ -228,7 +228,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
     {
       $clone_cfg && $pkg_unpack -e $src/libfoo-1.1.0;
 
-      $* libfoo       >'build libfoo/1.1.0';
+      $* libfoo       >'update libfoo/1.1.0';
       $* libfoo/1.0.0 >'downgrade libfoo/1.0.0';
 
       $* libfoo/0.0.1 2>>EOE != 0;
@@ -246,11 +246,11 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       $pkg_fetch -e $src/libfoo-0.0.1.tar.gz && $pkg_unpack libfoo;
       $pkg_fetch -e $src/libfix-0.0.1.tar.gz && $pkg_unpack libfix;
 
-      $* libfoo       >'upgrade libfoo/1.0.0';
+      $* libfoo >'upgrade libfoo/1.0.0';
 
       $* libfoo/0.0.1 >>EOE;
-        build libfix/0.0.1 (required by libfoo)
-        build libfoo/0.0.1
+        update libfix/0.0.1 (required by libfoo)
+        update libfoo/0.0.1
         EOE
 
       $* libfoo/1.1.0 2>>EOE != 0;
@@ -267,8 +267,8 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
     {
       $clone_cfg;
 
-      $* libfoo       >'build libfoo/1.0.0';
-      $* libfoo/1.0.0 >'build libfoo/1.0.0';
+      $* libfoo       >'new libfoo/1.0.0';
+      $* libfoo/1.0.0 >'new libfoo/1.0.0';
 
       $* libfoo/1.1.0 2>>EOE != 0
         error: libfoo/1.1.0 is not available in source
@@ -304,18 +304,18 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       $clone_cfg;
 
       $* libbar >>EOO;
-        build libfoo/1.0.0 (required by libbar)
-        build libbar/1.0.0
+        new libfoo/1.0.0 (required by libbar)
+        new libbar/1.0.0
         EOO
 
       $* libbar libfoo >>EOO;
-        build libfoo/1.0.0
-        build libbar/1.0.0
+        new libfoo/1.0.0
+        new libbar/1.0.0
         EOO
 
       $* libbar libfoo/1.0.0 >>EOO;
-        build libfoo/1.0.0
-        build libbar/1.0.0
+        new libfoo/1.0.0
+        new libbar/1.0.0
         EOO
 
       $* libbar libfoo libbar/1.0.0 2>>EOE != 0;
@@ -338,20 +338,20 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       $pkg_fetch -e $src/libfix-0.0.1.tar.gz && $pkg_unpack libfix;
 
       $* libbar >>EOO;
-        build libfix/0.0.1 (required by libfoo)
-        build libfoo/0.0.1 (required by libbar)
-        build libbar/1.0.0
+        update libfix/0.0.1 (required by libfoo)
+        update libfoo/0.0.1 (required by libbar)
+        new libbar/1.0.0
         EOO
 
       $* libbar libfoo >>EOO;
         upgrade libfoo/1.0.0
-        build libbar/1.0.0
+        new libbar/1.0.0
         EOO
 
       $* libbar libfoo/0.0.1 >>EOO;
-        build libfix/0.0.1 (required by libfoo)
-        build libfoo/0.0.1
-        build libbar/1.0.0
+        update libfix/0.0.1 (required by libfoo)
+        update libfoo/0.0.1
+        new libbar/1.0.0
         EOO
 
       $pkg_purge libfoo 2>'purged libfoo/0.0.1';
@@ -364,18 +364,18 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       $clone_cfg && $pkg_unpack -e $src/libfoo-1.1.0;
 
       $* libbar >>EOO;
-        build libfoo/1.1.0 (required by libbar)
-        build libbar/1.0.0
+        update libfoo/1.1.0 (required by libbar)
+        new libbar/1.0.0
         EOO
 
       $* libbar libfoo >>EOO;
-        build libfoo/1.1.0
-        build libbar/1.0.0
+        update libfoo/1.1.0
+        new libbar/1.0.0
         EOO
 
       $* libbar libfoo/1.0.0 >>EOO;
         downgrade libfoo/1.0.0
-        build libbar/1.0.0
+        new libbar/1.0.0
         EOO
 
       $pkg_purge libfoo 2>'purged libfoo/1.1.0'
@@ -420,9 +420,9 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
     :
     $clone_cfg;
     $* libbaz >>EOO
-      build libfoo/1.0.0 (required by libbar)
-      build libbar/1.0.0 (required by libbaz)
-      build libbaz/1.0.0
+      new libfoo/1.0.0 (required by libbar)
+      new libbar/1.0.0 (required by libbaz)
+      new libbaz/1.0.0
       EOO
 
     : different-build-order
@@ -434,94 +434,94 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       :
       $clone_cfg;
       $* libfox libfoo >>EOO
-        build libfox/1.0.0
-        build libfoo/1.0.0
+        new libfox/1.0.0
+        new libfoo/1.0.0
         EOO
 
       : foo-fox
       :
       $clone_cfg;
       $* libfoo libfox >>EOO
-        build libfoo/1.0.0
-        build libfox/1.0.0
+        new libfoo/1.0.0
+        new libfox/1.0.0
         EOO
 
       : baz-foo
       :
       $clone_cfg;
       $* libbaz libfoo >>EOO
-        build libfoo/1.0.0
-        build libbar/1.0.0 (required by libbaz)
-        build libbaz/1.0.0
+        new libfoo/1.0.0
+        new libbar/1.0.0 (required by libbaz)
+        new libbaz/1.0.0
         EOO
 
       : foo-baz
       :
       $clone_cfg;
       $* libfoo libbaz >>EOO
-        build libfoo/1.0.0
-        build libbar/1.0.0 (required by libbaz)
-        build libbaz/1.0.0
+        new libfoo/1.0.0
+        new libbar/1.0.0 (required by libbaz)
+        new libbaz/1.0.0
         EOO
 
       : baz-fox
       :
       $clone_cfg;
       $* libbaz libfox >>EOO
-        build libfoo/1.0.0 (required by libbar)
-        build libbar/1.0.0 (required by libbaz)
-        build libbaz/1.0.0
-        build libfox/1.0.0
+        new libfoo/1.0.0 (required by libbar)
+        new libbar/1.0.0 (required by libbaz)
+        new libbaz/1.0.0
+        new libfox/1.0.0
         EOO
 
       : fox-baz
       :
       $clone_cfg;
       $* libfox libbaz >>EOO
-        build libfox/1.0.0
-        build libfoo/1.0.0 (required by libbar)
-        build libbar/1.0.0 (required by libbaz)
-        build libbaz/1.0.0
+        new libfox/1.0.0
+        new libfoo/1.0.0 (required by libbar)
+        new libbar/1.0.0 (required by libbaz)
+        new libbaz/1.0.0
         EOO
 
       : fox-foo-baz
       :
       $clone_cfg;
       $* libfox libfoo libbaz >>EOO
-        build libfox/1.0.0
-        build libfoo/1.0.0
-        build libbar/1.0.0 (required by libbaz)
-        build libbaz/1.0.0
+        new libfox/1.0.0
+        new libfoo/1.0.0
+        new libbar/1.0.0 (required by libbaz)
+        new libbaz/1.0.0
         EOO
 
       : fox-baz-foo
       :
       $clone_cfg;
       $* libfox libbaz libfoo >>EOO
-        build libfox/1.0.0
-        build libfoo/1.0.0
-        build libbar/1.0.0 (required by libbaz)
-        build libbaz/1.0.0
+        new libfox/1.0.0
+        new libfoo/1.0.0
+        new libbar/1.0.0 (required by libbaz)
+        new libbaz/1.0.0
         EOO
 
       : foo-fox-baz
       :
       $clone_cfg;
       $* libfoo libfox libbaz >>EOO
-        build libfoo/1.0.0
-        build libfox/1.0.0
-        build libbar/1.0.0 (required by libbaz)
-        build libbaz/1.0.0
+        new libfoo/1.0.0
+        new libfox/1.0.0
+        new libbar/1.0.0 (required by libbaz)
+        new libbaz/1.0.0
         EOO
 
       : foo-baz-fox
       :
       $clone_cfg;
       $* libfoo libbaz libfox >>EOO
-        build libfoo/1.0.0
-        build libbar/1.0.0 (required by libbaz)
-        build libbaz/1.0.0
-        build libfox/1.0.0
+        new libfoo/1.0.0
+        new libbar/1.0.0 (required by libbaz)
+        new libbaz/1.0.0
+        new libfox/1.0.0
         EOO
 
       : baz-fox-foo
@@ -530,38 +530,38 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       :
       $clone_cfg;
       $* libbaz libfox libfoo >>EOO
-        build libfox/1.0.0
-        build libfoo/1.0.0
-        build libbar/1.0.0 (required by libbaz)
-        build libbaz/1.0.0
+        new libfox/1.0.0
+        new libfoo/1.0.0
+        new libbar/1.0.0 (required by libbaz)
+        new libbaz/1.0.0
         EOO
 
       : baz-foo-fox
       :
       $clone_cfg;
       $* libbaz libfoo libfox >>EOO
-        build libfoo/1.0.0
-        build libbar/1.0.0 (required by libbaz)
-        build libbaz/1.0.0
-        build libfox/1.0.0
+        new libfoo/1.0.0
+        new libbar/1.0.0 (required by libbaz)
+        new libbaz/1.0.0
+        new libfox/1.0.0
         EOO
 
       : baz-foo-bar
       :
       $clone_cfg;
       $* libbaz libfoo libbar >>EOO
-        build libfoo/1.0.0
-        build libbar/1.0.0
-        build libbaz/1.0.0
+        new libfoo/1.0.0
+        new libbar/1.0.0
+        new libbaz/1.0.0
         EOO
 
       : baz-bar-foo
       :
       $clone_cfg;
       $* libbaz libbar libfoo >>EOO
-        build libfoo/1.0.0
-        build libbar/1.0.0
-        build libbaz/1.0.0
+        new libfoo/1.0.0
+        new libbar/1.0.0
+        new libbaz/1.0.0
         EOO
     }
   }
@@ -584,18 +584,18 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
     :
     $clone_cfg;
     $* libbaz >>EOO
-      build libfoo/1.1.0 (required by libbar libbaz)
-      build libbar/1.1.0 (required by libbaz)
-      build libbaz/1.1.0
+      new libfoo/1.1.0 (required by libbar libbaz)
+      new libbar/1.1.0 (required by libbaz)
+      new libbaz/1.1.0
       EOO
 
     : foo-baz
     :
     $clone_cfg;
     $* libfoo libbaz >>EOO
-      build libfoo/1.1.0
-      build libbar/1.1.0 (required by libbaz)
-      build libbaz/1.1.0
+      new libfoo/1.1.0
+      new libbar/1.1.0 (required by libbaz)
+      new libbaz/1.1.0
       EOO
 
     : unable-satisfy
@@ -629,8 +629,8 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
 
       $* libbaz >>EOO 2>>EOE;
         upgrade libfoo/1.1.0 (required by libbar libbaz)
-        build libbar/1.1.0 (required by libbaz)
-        build libbaz/1.1.0
+        new libbar/1.1.0 (required by libbaz)
+        new libbaz/1.1.0
         EOO
         warning: package libbar dependency on (libfoo == 1.1.0) is forcing upgrade of libfoo/0.0.1 to 1.1.0
         EOE
@@ -656,8 +656,8 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
 
       $* libfoo/1.1.0 libbaz >>EOO;
         downgrade libfoo/1.1.0
-        build libbar/1.1.0 (required by libbaz)
-        build libbaz/1.1.0
+        new libbar/1.1.0 (required by libbaz)
+        new libbaz/1.1.0
         EOO
 
       $pkg_purge libfoo 2>'purged libfoo/1.2.0'
@@ -684,7 +684,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
           info: or explicitly specify package libfoo version to manually satisfy these constraints
         EOE
 
-      $* libfoo/1.1.0 --keep-unused >'build libfoo/1.1.0';
+      $* libfoo/1.1.0 --keep-unused >'update libfoo/1.1.0';
 
       $pkg_disfigure libbar 2>'disfigured libbar/1.1.0';
       $pkg_purge     libbar 2>'purged libbar/1.1.0';
@@ -741,7 +741,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
     $clone_cfg;
     $* libfoo libbar/1.0.0 >>EOO
       upgrade libfoo/1.1.0
-      reconfigure/build libbar/1.0.0
+      reconfigure/update libbar/1.0.0
       reconfigure libbaz (dependent of libbar libfoo)
       EOO
 
@@ -750,7 +750,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
     $clone_cfg;
     $* libbar/1.0.0 libfoo >>EOO
       upgrade libfoo/1.1.0
-      reconfigure/build libbar/1.0.0
+      reconfigure/update libbar/1.0.0
       reconfigure libbaz (dependent of libbar libfoo)
       EOO
 
@@ -760,15 +760,15 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
     $* libbaz libfoo >>EOO
       upgrade libfoo/1.1.0
       reconfigure libbar (dependent of libfoo)
-      reconfigure/build libbaz/1.1.0
+      reconfigure/update libbaz/1.1.0
       EOO
 
     : baz-foo-1.0.0
     :
     $clone_cfg;
     $* libbaz libfoo/1.0.0 >>EOO
-      build libfoo/1.0.0
-      build libbaz/1.1.0
+      update libfoo/1.0.0
+      update libbaz/1.1.0
       EOO
 
     -$pkg_disfigure libbaz 2>'disfigured libbaz/1.1.0'
@@ -2366,7 +2366,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       $* libbaz/0.0.2 --recursive <'y' 2>>~%EOE%
           drop libfix/0.0.1 (unused)
           upgrade libfoo/1.0.0
-          reconfigure/build libbaz/0.0.2
+          reconfigure libbaz/0.0.2
           reconfigure libbar (dependent of libbaz)
         continue? [Y/n] disfigured libbar/0.0.2
         disfigured libbaz/0.0.2

@@ -3572,7 +3572,7 @@ namespace bpkg
             // make sure it is configured and updated.
             //
             if (sp == nullptr)
-              act = p.system ? "configure" : "build";
+              act = p.system ? "configure" : "new";
             else if (sp->version == p.available_version ())
             {
               // If this package is already configured and is not part of the
@@ -3587,9 +3587,11 @@ namespace bpkg
 
               act = p.system
                 ? "reconfigure"
-                : p.reconfigure ()
-                  ? "reconfigure/build"
-                  : "build";
+                : (p.reconfigure ()
+                   ? (o.configure_only ()
+                      ? "reconfigure"
+                      : "reconfigure/update")
+                   : "update");
             }
             else
             {
