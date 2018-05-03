@@ -67,7 +67,7 @@ namespace bpkg
     bool a (need_auth (co, rl));
 
     shared_ptr<const certificate> cert;
-    const optional<string>& cert_pem (
+    optional<string> cert_pem (
       find_base_repository (fr.repositories).certificate);
 
     if (a)
@@ -107,7 +107,7 @@ namespace bpkg
       authenticate_repository (co, conf, cert_pem, *cert, sm, rl);
     }
 
-    return rep_fetch_data {{move (fr)}, cert_pem, move (cert)};
+    return rep_fetch_data {{move (fr)}, move (cert_pem), move (cert)};
   }
 
   template <typename M>
