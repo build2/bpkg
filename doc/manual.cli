@@ -806,7 +806,7 @@ three-component versions (\c{X.Y.Z} with the optional pre-release part per the
 standard version). Specifically, there is no support for special \c{^X.Y} or
 \c{~X} semantics offered by some package manager \- if desired, such
 functionality can be easily achieved with ranges. Also, the \c{0.0.Z} version
-is not considered special except as having zero manjor component for the tilde
+is not considered special except as having zero major component for the tilde
 semantics discussed above.
 
 Note also that pre-releases do not required any special considerations when
