@@ -71,7 +71,7 @@ namespace bpkg
   void
   clean_tmp (bool ignore_error)
   {
-    if (!temp_dir.empty ())
+    if (!temp_dir.empty () && exists (temp_dir))
     {
       rm_r (temp_dir,
             true /* dir_itself */,
