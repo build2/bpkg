@@ -109,7 +109,7 @@ namespace bpkg
                                 co.git_option (),
                                 "--version"));
 
-          standard_version v;
+          optional<standard_version> v;
 
           // There is some variety across platforms in the version
           // representation.
@@ -132,20 +132,16 @@ namespace bpkg
                 break;
             }
 
-            try
-            {
-              v = standard_version (string (s, b, i - b));
-            }
-            catch (const invalid_argument&) {}
+            v = parse_standard_version (string (s, b, i - b));
           }
 
-          if (v.empty ())
+          if (!v)
             fail << "'" << s << "' doesn't appear to contain a git version" <<
               info << "produced by '" << co.git () << "'; "
                  << "use --git to override" << endg;
 
-          if (v.version < 20120000000)
-            fail << "unsupported git version " << v.string () <<
+          if (v->version < 20120000000)
+            fail << "unsupported git version " << *v <<
               info << "minimum supported version is 2.12.0" << endf;
 
           // Sanitize the environment.
@@ -911,15 +907,9 @@ namespace bpkg
       refs::search_result r;
       for (const ref& rf: load_refs (co, url ()))
       {
-        if (!rf.peeled && rf.name.compare (0, 11, "refs/tags/v") == 0)
-        {
-          try
-          {
-            standard_version (string (rf.name, 11));
-            r.push_back (rf);
-          }
-          catch (const invalid_argument&) {}
-        }
+        if (!rf.peeled && rf.name.compare (0, 11, "refs/tags/v") == 0 &&
+            parse_standard_version (string (rf.name, 11)))
+          r.push_back (rf);
       }
 
       return r;
