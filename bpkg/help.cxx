@@ -12,6 +12,7 @@
 // Help topics.
 //
 #include <bpkg/repository-signing.hxx>
+#include <bpkg/repository-types.hxx>
 
 using namespace std;
 using namespace butl;
@@ -32,6 +33,8 @@ namespace bpkg
         usage = &print_bpkg_common_options_long_usage;
       else if (t == "repository-signing")
         usage = &print_bpkg_repository_signing_usage;
+      else if (t == "repository-types")
+        usage = &print_bpkg_repository_types_usage;
       else
         fail << "unknown bpkg command/help topic '" << t << "'" <<
           info << "run 'bpkg help' for more information";

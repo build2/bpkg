@@ -51,15 +51,17 @@ namespace bpkg
      configuration is an amalgamation that contains packages as subprojects
      (see \l{bpkg-cfg-create(1)} for details).
 
-     A \i{bpkg package} is an archive or directory that contains a \cb{build2}
-     project plus the package \cb{manifest} file. \cb{bpkg} can either use
-     package archives/directories directly from the filesystem or it can fetch
-     archives from repositories.
+     A \i{bpkg package} is an archive or directory (potentially in a version
+     control system) that contains a \cb{build2} project plus the package
+     \cb{manifest} file. \cb{bpkg} can either use package archives/directories
+     directly from the filesystem or it can fetch them from repositories.
 
      A \i{bpkg repository} is a collection of packages as well as prerequisite
      and complement repositories. \i{Archive}, \i{directory} and \i{version
      control}-based repositories are supported. A repository is identified by
-     its location which can be a local filesystem path or a URL.
+     its location which can be a local filesystem path or a URL. See
+     \l{bpkg-repository-types(1)} for details on their structure and URL
+     format.
 
      If the same version of a package is available from multiple repositories,
      then they are assumed to contain identical package content. In such cases
@@ -282,6 +284,11 @@ namespace bpkg
     bool common-options
     {
       "\l{bpkg-common-options(1)} \- details on common options"
+    }
+
+    bool repository-types
+    {
+      "\l{bpkg-repository-types(1)} \- repository types, structure, and URLs"
     }
 
     bool repository-signing

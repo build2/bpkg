@@ -1,0 +1,190 @@
+// file      : bpkg/repository-types.cli
+// copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
+// license   : MIT; see accompanying LICENSE file
+
+include <bpkg/common-options.hxx>;
+
+"\section=1"
+"\name=bpkg-repository-types"
+"\summary=repository types, structure, and URLs"
+
+"
+\h|DESCRIPTION|
+
+This help topic describes the repository types recognized by \cb{bpkg}, their
+structure, and the format of their URLs. Currently three types of repositories
+are supported: archive-based \cb{pkg}, directory-based \cb{dir}, and version
+control-based \cb{git}.
+
+
+\h|PKG REPOSITORIES|
+
+A \cb{pkg} repository is \i{archive}-based. That is, it contains a collection
+of various packages/versions as archive files. For more information on the
+structure of \cb{pkg} repositories refer to \l{bpkg The \cb{build2} Package
+Manager Manual}. The \cb{dir} repository location can be a local directory
+path or an \cb{http(s)://} URL.
+
+
+\h|DIR REPOSITORIES|
+
+A \cb{dir} repository is \i{directory}-based. That is, it contains a
+collection of various packages as directories (but only a single version per
+package can be present in such a repository). The \cb{dir} repository location
+can be a local directory path or a \cb{file://} URL.
+
+A \cb{dir} repository is expected to contain either the \cb{manifest} or
+\cb{packages.manifest} file in the root directory of the repository. If it
+only contains \cb{manifest}, then it is assumed to be a simple, single-package
+repository with the \cb{manifest} file being its package manifest. Otherwise,
+the \cb{packages.manifest} file should list the available packages as
+described in \l{bpkg#manifest-package-list-dir Package List Manifest for
+\cb{dir} Repositories}.
+
+A \cb{dir} repository may also contain the \cb{repositories.manifest} file in
+the root directory of the repository. This file can be used to describe the
+repository itself as well as specify its prerequisite and complement
+repositories. See \l{bpkg#manifest-repository-list Repository List Manifest}
+for details on the format and semantics of this file.
+
+
+\h|GIR REPOSITORIES|
+
+A \cb{git} repository is \i{version control}-based. That is, it normally
+contains multiple versions of the same package (but can also contain several
+packages in the same repository).
+
+A \cb{git} repository has the same structure and manifest files as the
+\cb{dir} repository. See \l{bpkg#manifest-package-list-dir Package List
+Manifest for \cb{dir} Repositories} and \l{bpkg#manifest-repository-list
+Repository List Manifest} for details on the format and semantics of the
+manifest files.
+
+Theoretically, a \cb{git} repository may contain as many package versions as
+there are commits. Practically, however, we are normally only interested in a
+small subset of them while fetching and processing the necessary information
+for all of them could be prohibitively expensive.  As a result, by default,
+only advertised tags in the \cb{refs/tags/v*} form where the part after \cb{v}
+is also a valid \l{b#module-version standard version} are considered to be
+sources of useful package versions. These commits normally correspond to
+releases and are called the default set.
+
+Instead of the default set, it is also possible to provide a custom set of
+available versions by specifying one or more commit ids and/or references
+and/or reference patterns in the repository URL fragment (see
+\cb{git-ls-remote(1)} for details on advertised references). For example:
+
+\
+https://example.com/foo.git#v1.2.3
+https://example.com/foo.git#master
+https://example.com/foo.git#af234f56
+https://example.com/foo.git#tags/releases/*
+https://example.com/foo.git#HEAD,tags/v1.*.*,heads/feature-*
+\
+
+Furthermore, it is possible to expand (or narrow down) the default set using
+the special \cb{##} fragment notation. For example:
+
+\
+https://example.com/foo.git##HEAD     - default set plus HEAD
+https://example.com/foo.git##heads/*  - default set plus branches
+https://example.com/foo.git##-v1.*    - default set minus v1.*
+\
+
+A \cb{git} repository URL fragment is a comma-separated list of reference
+filters in the following form:
+
+\c{[\i{refname}][\b{@}\i{commit}]}
+
+Either \ci{refname}, \ci{commit}, or both must be specified. If both are
+specified then \ci{refname} is only used to minimize the amount of data
+fetched and \ci{commit} must belong to its history. For example:
+
+\
+.../foo.git#master@48fba3625d65941bb85a39061bcf795d4949c778
+\
+
+The \ci{refname} part can be an abbreviated commit id or an advertised
+reference or reference pattern under \cb{refs/}. While \ci{commit} must be the
+complete, 40-characters SHA1 that need not be advertised. For convenience, a
+40-characters filter that consists of only hexadecimal digits is assumed to be
+\ci{commit} even if not prefixed with \cb{@}. In an unlikely event this
+produces an incorrect result, the \cb{@}-form with omitted \ci{commit} can be
+used. For example:
+
+\
+.../foo.git#48fba3625d65941bb85a39061bcf795d4949c778   (commit id)
+.../foo.git#deadbeefdeadbeefdeadbeefdeadbeefdeadbeef@  (reference)
+\
+
+The \ci{refname} part can use the \cb{*} and \cb{?} wildcard pattern
+characters with the standard semantics as well as the \cb{**} character
+sequence which matches in subdirectories, recursively. For example:
+
+\
+.../foo.git#tags/v*    - tags/v1.2.3 but not tags/old/v0.1.0
+.../foo.git#tags/v**   - tags/v1.2.3 and tags/old/v0.1.0
+\
+
+A relative \ci{refname} is searched for in \cb{refs/}, \cb{refs/tags/}, and
+\cb{refs/heads/} as well as symbolic references like \cb{HEAD}. To anchor it
+to \cb{refs/} make it absolute, for example:
+
+\
+.../foo.git#tags/v*   - refs/tags/v1.2.3 but also refs/heads/tags/voo
+.../foo.git#/tags/v*  - refs/tags/v1.2.3 only
+\
+
+While a \ci{refname} pattern may not match any references, a non-pattern that
+doesn't resolve to a reference is invalid.
+
+If a \ci{refname} starts with \cb{-} then it is treated as an exclusion filter
+\- any references that it matches are excluded from the set included by the
+preceding filters (or the default set). For example:
+
+\
+.../foo.git#v*,-v1.*  - exclude v1.* from v*
+.../foo.git##-v1.*    - exclude v1.* from default set
+\
+
+To support specifying literal leading \cb{-}, a \ci{refname} that starts with
+\cb{+} is treated as an inclusion filter. For example:
+
+\
+.../foo.git#+x   - include  x
+.../foo.git#+-x  - include -x
+.../foo.git#++x  - include +x
+\
+
+Supported \cb{git} protocols are \cb{git://}, \cb{http://}, and \cb{https://}
+for remote repositories and \cb{file://} for local repositories. While
+\cb{bpkg} tries to minimize the amount of information (history) fetched, it is
+not always possible for some protocols and/or server configurations, as
+discussed next.
+
+A \cb{git} repository accessible via \cb{http(s)://} can use either \i{dumb}
+or \i{smart} protocol (refer to the \cb{git} documentation for details). The
+dumb protocol provides only limited support for fetch minimization and if this
+protocol is used, then \cb{bpkg} has no choice but to download a substantial
+amount of history.
+
+The smart protocol allows fetching of minimal history for tags and
+branches. Whether this is also possible for (all) commit ids depends on
+whether the server is configured to allow fetching unadvertised commits. For
+details, refer to the \cb{uploadpack.allowReachableSHA1InWant} and
+\cb{uploadpack.allowAnySHA1InWant} \cb{git} configuration values.
+
+The \cb{git://} protocol is similar to smart \cb{http://} in that it supports
+fetching minimal history for tags and branches and may or may not support this
+for commit ids depending on the server configuration. Note, however, that
+unlike for \cb{http(s)://}, for this protocol \cb{bpkg} does not try to sense
+if fetching unadvertised commits is allowed and always assumes that it is not.
+
+Based on this information, to achieve optimal results the recommended protocol
+for remote repositories is smart \cb{https://}. Additionally, if you are
+planning to refer to commit ids, then also consider configuring the server to
+allow fetching unadvertised commits.
+
+The \cb{file://} protocol has the same fetch minimization support as
+\cb{git://} and is therefore treated the same.
+"
