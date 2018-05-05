@@ -44,6 +44,7 @@
 # |   |-- libbar-1.0.0.tar.gz   -> libfoo
 # |   |-- libbaz-0.0.3.tar.gz   -> libfoo
 # |   |-- libbaz-0.0.4.tar.gz
+# |   |-- libbaz-0.1.0.tar.gz
 # |   |-- libbox-0.0.1.tar.gz   -> libbaz
 # |   |-- libfix-0.0.3.tar.gz   -> libbaz >= 0.0.3
 # |   |-- libfoo-1.0.0.tar.gz
@@ -1314,7 +1315,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
 
       $* libbar/0.0.1 2>!;
 
-      $pkg_status libbaz >'libbaz configured 0.0.1 available 0.0.4 0.0.3';
+      $pkg_status libbaz >'libbaz configured 0.0.1 available 0.1.0 0.0.4 0.0.3';
       $pkg_status libfox >'libfox configured 0.0.1';
 
       $* libbar 2>>~%EOE%;
@@ -1333,7 +1334,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
         configured libbar/1.0.0
         EOE
 
-      $pkg_status libbaz >'libbaz available 0.0.4 0.0.3 0.0.1';
+      $pkg_status libbaz >'libbaz available 0.1.0 0.0.4 0.0.3 0.0.1';
       $pkg_status libfox >'libfox available 0.0.1';
 
       $pkg_drop libbar
@@ -1353,7 +1354,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
 
       $* libbar/0.0.1 2>!;
 
-      $pkg_status libbaz >'libbaz configured 0.0.1 available 0.0.4 0.0.3';
+      $pkg_status libbaz >'libbaz configured 0.0.1 available 0.1.0 0.0.4 0.0.3';
       $pkg_status libfox >'libfox configured 0.0.1';
 
       $* ?libbar ?libbaz/0.0.3 2>>~%EOE%;
@@ -1366,7 +1367,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
         EOE
 
       $pkg_status libbar >'libbar available 1.0.0 0.0.3 0.0.1';
-      $pkg_status libbaz >'libbaz available 0.0.4 0.0.3 0.0.1';
+      $pkg_status libbaz >'libbaz available 0.1.0 0.0.4 0.0.3 0.0.1';
       $pkg_status libfox >'libfox available 0.0.1'
     }
   }
@@ -1413,7 +1414,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
           error: unable to satisfy constraints on package libbaz
             info: libfix depends on (libbaz >= 0.0.3)
             info: libbiz depends on (libbaz <= 0.0.3)
-            info: available libbaz/0.0.4
+            info: available libbaz/0.1.0
             info: available libbaz/0.0.2
             info: explicitly specify libbaz version to manually satisfy both constraints
           info: while satisfying libbiz/0.0.2
@@ -1438,7 +1439,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
           configured libbiz/0.0.2
           EOE
 
-        $pkg_status libbaz >'libbaz configured !0.0.3 available 0.0.4';
+        $pkg_status libbaz >'libbaz configured !0.0.3 available 0.1.0 0.0.4';
 
         $pkg_drop libbiz libfix
       }
@@ -1474,7 +1475,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
           configured libfix/0.0.3
           EOE
 
-        $pkg_status libbaz >'libbaz configured !0.0.3 available 0.0.4';
+        $pkg_status libbaz >'libbaz configured !0.0.3 available 0.1.0 0.0.4';
 
         $pkg_drop libbiz libfix
       }
@@ -1544,7 +1545,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
         $* libbar/0.0.1 2>!;
         $* libbar/0.0.2 ?libbaz/0.0.1 2>!;
 
-        $pkg_status libbaz >'libbaz configured !0.0.1 available 0.0.4 0.0.3 0.0.2';
+        $pkg_status libbaz >'libbaz configured !0.0.1 available 0.1.0 0.0.4 0.0.3 0.0.2';
         $pkg_status libfox >'libfox configured 0.0.1';
 
         $pkg_drop libbar
@@ -1558,7 +1559,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
         $* libbar/0.0.1 2>!;
         $* libbar/0.0.2 '?sys:libbaz/0.0.1' 2>!;
 
-        $pkg_status libbaz >'libbaz configured,system !0.0.1 available 0.0.4 0.0.3 0.0.2';
+        $pkg_status libbaz >'libbaz configured,system !0.0.1 available 0.1.0 0.0.4 0.0.3 0.0.2';
         $pkg_status libfox >'libfox available 0.0.1';
 
         $pkg_drop libbar
@@ -1572,7 +1573,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
         $* libbar/0.0.1 '?sys:libbaz/0.0.1' 2>!;
         $* libbar/0.0.2 '?sys:libbaz' 2>!;
 
-        $pkg_status libbaz >'libbaz configured,system !* available 0.0.4 0.0.3 0.0.2 0.0.1';
+        $pkg_status libbaz >'libbaz configured,system !* available 0.1.0 0.0.4 0.0.3 0.0.2 0.0.1';
 
         $pkg_drop libbar
       }
@@ -1585,7 +1586,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
         $* libbar/0.0.1 '?sys:libbaz' 2>!;
         $* libbar/0.0.2 '?sys:libbaz/0.0.1' 2>!;
 
-        $pkg_status libbaz >'libbaz configured,system !0.0.1 available 0.0.4 0.0.3 0.0.2';
+        $pkg_status libbaz >'libbaz configured,system !0.0.1 available 0.1.0 0.0.4 0.0.3 0.0.2';
 
         $pkg_drop libbar
       }
@@ -1862,7 +1863,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
         $* libbar/1.0.0 2>!;
 
         $* ?libfoo/0.0.1 2>>EOE != 0;
-          error: libfoo/0.0.1 is not present in its dependents repositories
+          error: libfoo/0.0.1 is not available from its dependents' repositories
           EOE
 
         $pkg_drop libbar
@@ -1876,7 +1877,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
 
         $* libbar/0.0.1 2>!;
 
-        $pkg_status libbaz >'libbaz configured 0.0.1 available 0.0.4 0.0.3 0.0.2';
+        $pkg_status libbaz >'libbaz configured 0.0.1 available 0.1.0 0.0.4 0.0.3 0.0.2';
 
         $* libbar/0.0.2 ?libbaz 2>>~%EOE%;
           disfigured libbar/0.0.1
@@ -1897,7 +1898,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
           configured libbar/0.0.2
           EOE
 
-        $pkg_status libbaz >'libbaz configured 0.0.2 available 0.0.4 0.0.3';
+        $pkg_status libbaz >'libbaz configured 0.0.2 available 0.1.0 0.0.4 0.0.3';
 
         $rep_remove $rep/t0b && $rep_fetch;
 
@@ -1911,7 +1912,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
           configured libbox/0.0.1
           EOE
 
-        $pkg_status libbaz >'libbaz configured 0.0.2 available 0.0.4 0.0.3';
+        $pkg_status libbaz >'libbaz configured 0.0.2 available 0.1.0 0.0.4 0.0.3';
 
         $rep_remove $rep/t0a && $rep_fetch;
 
@@ -1934,7 +1935,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
           configured libbar/0.0.2
           EOE
 
-        $pkg_status libbaz >'libbaz configured,system !* available 0.0.4 0.0.3';
+        $pkg_status libbaz >'libbaz configured,system !* available 0.1.0 0.0.4 0.0.3';
 
         $pkg_drop libbar libbox
       }
@@ -1946,14 +1947,14 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
 
         $* libbar/0.0.1 2>!;
 
-        $pkg_status libbaz >'libbaz configured 0.0.1 available 0.0.4 0.0.3';
+        $pkg_status libbaz >'libbaz configured 0.0.1 available 0.1.0 0.0.4 0.0.3';
 
         $* ?libbaz/0.0.3 2>>EOE != 0;
           error: package libbaz doesn't satisfy its dependents
             info: libbaz/0.0.3 doesn't satisfy libbar/0.0.1
           EOE
 
-        $pkg_status libbaz >'libbaz configured 0.0.1 available 0.0.4 0.0.3';
+        $pkg_status libbaz >'libbaz configured 0.0.1 available 0.1.0 0.0.4 0.0.3';
 
         $pkg_drop libbar
       }
@@ -1966,7 +1967,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
 
       $* libbox 2>!;
 
-      $pkg_status libbaz >'libbaz configured 0.0.3 available 0.0.4';
+      $pkg_status libbaz >'libbaz configured 0.0.3 available 0.1.0 0.0.4';
       $pkg_status libfoo >'libfoo configured 0.0.1 available 1.0.0';
       $pkg_status libfox >'libfox available 0.0.1';
 
@@ -1994,7 +1995,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
         configured libbox/0.0.1
         EOE
 
-      $pkg_status libbaz >'libbaz configured !0.0.1 available 0.0.4 0.0.3';
+      $pkg_status libbaz >'libbaz configured !0.0.1 available 0.1.0 0.0.4 0.0.3';
       $pkg_status libfoo >'libfoo available 1.0.0 0.0.1';
       $pkg_status libfox >'libfox configured 0.0.1';
 
@@ -2009,7 +2010,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
 
       $* libbar/0.0.2 2>!;
 
-      $pkg_status libbaz >'libbaz configured 0.0.2 available 0.0.4 0.0.3';
+      $pkg_status libbaz >'libbaz configured 0.0.2 available 0.1.0 0.0.4 0.0.3';
       $pkg_status libfoo >'libfoo configured 1.0.0';
 
       $* '?sys:libfoo' ?libbaz/0.0.2 2>>EOE;
@@ -2131,8 +2132,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       # Note that libfoo building doesn't trigger libhello building as it is a
       # fake dependent, so build both explicitly.
       #
-      $* libhello --yes 2>!;
-      $* libfoo 2>!;
+      $* libfoo ?libhello 2>!;
 
       # Move libhello version ahead.
       #
@@ -2263,6 +2263,10 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
 
     +$* libbar/0.0.2 libbaz/0.0.2 libfoo/0.0.1 --yes 2>>~%EOE%
        %.*
+       %.*fetched libfix/0.0.1%
+       unpacked libfix/0.0.1
+       configured libfix/0.0.1
+       %.*
        %.*fetched libfoo/0.0.1%
        unpacked libfoo/0.0.1
        configured libfoo/0.0.1
@@ -2287,9 +2291,9 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
         disfigured libbar/0.0.2
         disfigured libbaz/0.0.2
         %.*
-        %.*fetched libbaz/0.0.4%
-        unpacked libbaz/0.0.4
-        configured libbaz/0.0.4
+        %.*fetched libbaz/0.1.0%
+        unpacked libbaz/0.1.0
+        configured libbaz/0.1.0
         %.*
         %.*fetched libbar/0.0.3%
         unpacked libbar/0.0.3
@@ -2297,7 +2301,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
         EOE
 
       $pkg_status libbar >'!libbar configured !0.0.3 available 1.0.0';
-      $pkg_status libbaz >'!libbaz configured !0.0.4';
+      $pkg_status libbaz >'!libbaz configured !0.1.0';
       $pkg_status libfoo >'!libfoo configured !0.0.1 available 1.0.0'
     }
 
@@ -2315,9 +2319,9 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
         unpacked libfoo/1.0.0
         configured libfoo/1.0.0
         %.*
-        %.*fetched libbaz/0.0.4%
-        unpacked libbaz/0.0.4
-        configured libbaz/0.0.4
+        %.*fetched libbaz/0.1.0%
+        unpacked libbaz/0.1.0
+        configured libbaz/0.1.0
         %.*
         %.*fetched libbar/0.0.3%
         unpacked libbar/0.0.3
@@ -2325,7 +2329,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
         EOE
 
       $pkg_status libbar >'!libbar configured !0.0.3 available 1.0.0';
-      $pkg_status libbaz >'!libbaz configured !0.0.4';
+      $pkg_status libbaz >'!libbaz configured !0.1.0';
       $pkg_status libfoo >'!libfoo configured !1.0.0'
     }
 
@@ -2405,7 +2409,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
         configured libbar/0.0.3
         EOE
 
-      $pkg_status libbaz >'libbaz configured !0.0.3 available 0.0.4'
+      $pkg_status libbaz >'libbaz configured !0.0.3 available 0.1.0 0.0.4'
     }
 
     : unhold
@@ -2432,20 +2436,21 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
         EOE
 
       $pkg_status libbar >'!libbar configured !0.0.3 available 1.0.0';
-      $pkg_status libbaz >'libbaz configured !0.0.3 available 0.0.4';
+      $pkg_status libbaz >'libbaz configured !0.0.3 available 0.1.0 0.0.4';
       $pkg_status libfoo >'libfoo configured 1.0.0'
     }
 
     : unavailable
     :
+    : Test that the selected dependency (libfix/0.0.1) is silently left
+    : unchanged if there is no package available from the dependents
+    : repositories.
+    :
     {
       $clone_cfg;
-
       $rep_remove $rep/t0a $rep/t0b $rep/t0c;
 
-      $* libbar --recursive --yes 2>>EOE != 0
-        error: libfix is not present in its dependents repositories
-        EOE
+      $* libbar --recursive --yes
     }
 
     -$pkg_drop libbar libbaz libfoo
@@ -2544,6 +2549,284 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
 
     $pkg_disfigure libfoo 2>'disfigured libfoo/1.1.0';
     $pkg_purge     libfoo 2>'purged libfoo/1.1.0'
+  }
+}
+
+: patch
+:
+{
+  test.arguments += --configure-only --yes
+
+  +$clone_root_cfg
+
+  : held
+  :
+  {
+    +$clone_cfg
+    +$rep_fetch $rep/t0c
+
+    : success
+    :
+    {
+      $clone_cfg;
+
+      $* libbaz/0.0.3 2>!;
+
+      $* libbaz --patch 2>>~%EOE%;
+        disfigured libbaz/0.0.3
+        disfigured libfoo/1.0.0
+        purged libfoo/1.0.0
+        %.*
+        %.*fetched libbaz/0.0.4%
+        unpacked libbaz/0.0.4
+        configured libbaz/0.0.4
+        EOE
+
+      $pkg_drop libbaz
+    }
+
+    : ignore
+    :
+    {
+      $clone_cfg;
+
+      $* libbaz/0.0.3 --patch 2>>~%EOE%;
+        %.*
+        %.*fetched libfoo/1.0.0%
+        unpacked libfoo/1.0.0
+        configured libfoo/1.0.0
+        %.*
+        %.*fetched libbaz/0.0.3%
+        unpacked libbaz/0.0.3
+        configured libbaz/0.0.3
+        EOE
+
+      $* libbaz/0.1.0 --patch 2>>~%EOE%;
+        disfigured libbaz/0.0.3
+        disfigured libfoo/1.0.0
+        purged libfoo/1.0.0
+        %.*
+        %.*fetched libbaz/0.1.0%
+        unpacked libbaz/0.1.0
+        configured libbaz/0.1.0
+        EOE
+
+      $pkg_drop libbaz
+    }
+
+    : warn
+    :
+    {
+      $clone_cfg;
+
+      $* 'sys:libbaz/0.0.3-alpha' 2>!;
+
+      $* libbaz --patch 2>>~%EOE%;
+        warning: unable to patch libbaz/0.0.3-alpha
+          info: package is not using semantic/standard version
+        info: nothing to build
+        EOE
+
+      $pkg_drop libbaz
+    }
+  }
+
+  : dependency
+  :
+  {
+    +$clone_cfg
+    +$rep_fetch $rep/t0c
+
+    +$* libbox libfix ?libbaz/0.0.3 2>>~%EOE%
+       %.*
+       %.*fetched libfoo/1.0.0%
+       unpacked libfoo/1.0.0
+       configured libfoo/1.0.0
+       %.*
+       %.*fetched libbaz/0.0.3%
+       unpacked libbaz/0.0.3
+       configured libbaz/0.0.3
+       %.*
+       %.*fetched libbox/0.0.1%
+       unpacked libbox/0.0.1
+       configured libbox/0.0.1
+       %.*
+       %.*fetched libfix/0.0.3%
+       unpacked libfix/0.0.3
+       configured libfix/0.0.3
+       EOE
+
+    clone_cfg = cp --no-cleanup -r ../cfg ./ &cfg/***
+
+    : explicitly
+    :
+    : Here we also test that the package --path option overrides the global
+    : --upgrade option.
+    :
+    {
+      $clone_cfg;
+
+      $* ?libbaz +{ --patch } --upgrade 2>>~%EOE%
+        disfigured libbox/0.0.1
+        disfigured libfix/0.0.3
+        disfigured libbaz/0.0.3
+        disfigured libfoo/1.0.0
+        purged libfoo/1.0.0
+        %.*
+        %.*fetched libbaz/0.0.4%
+        unpacked libbaz/0.0.4
+        configured libbaz/0.0.4
+        configured libfix/0.0.3
+        configured libbox/0.0.1
+        EOE
+    }
+
+    : warn
+    :
+    {
+      $clone_cfg;
+
+      $* '?sys:libbaz/0.0.4-alpha' 2>!;
+
+      $* ?libbaz --patch 2>>~%EOE%
+        warning: unable to patch libbaz/0.0.4-alpha
+          info: package is not using semantic/standard version
+        EOE
+    }
+
+    : recursive
+    :
+    {
+      $clone_cfg;
+
+      $* --patch --recursive 2>>~%EOE%
+        disfigured libfix/0.0.3
+        disfigured libbox/0.0.1
+        disfigured libbaz/0.0.3
+        disfigured libfoo/1.0.0
+        purged libfoo/1.0.0
+        %.*
+        %.*fetched libbaz/0.0.4%
+        unpacked libbaz/0.0.4
+        configured libbaz/0.0.4
+        configured libbox/0.0.1
+        configured libfix/0.0.3
+        EOE
+    }
+
+    : upgrade-wins-patch
+    :
+    : Test that --upgrade options wins --patch.
+    :
+    {
+      $clone_cfg;
+
+      $* libbox +{ --upgrade-immediate } libfix +{ --patch-immediate } 2>>~%EOE%
+        disfigured libfix/0.0.3
+        disfigured libbox/0.0.1
+        disfigured libbaz/0.0.3
+        disfigured libfoo/1.0.0
+        purged libfoo/1.0.0
+        %.*
+        %.*fetched libbaz/0.1.0%
+        unpacked libbaz/0.1.0
+        configured libbaz/0.1.0
+        configured libbox/0.0.1
+        configured libfix/0.0.3
+        EOE
+    }
+
+    : unavailable
+    :
+    {
+      $clone_cfg;
+
+      $* '?sys:libbaz/0.0.3' 2>>EOE;
+        disfigured libbox/0.0.1
+        disfigured libfix/0.0.3
+        disfigured libbaz/0.0.3
+        disfigured libfoo/1.0.0
+        purged libfoo/1.0.0
+        purged libbaz/0.0.3
+        configured sys:libbaz/0.0.3
+        configured libfix/0.0.3
+        configured libbox/0.0.1
+        EOE
+
+      $rep_remove $rep/t0c;
+      $rep_fetch $rep/t0b;
+
+      $* ?libbaz --patch --yes 2>>EOE != 0
+        error: patch version for sys:libbaz/0.0.3 is not available from its dependents' repositories
+        EOE
+    }
+
+    -$pkg_drop libbox libfix libbaz libfoo
+  }
+
+  : from-repository
+  :
+  {
+    test.arguments += --patch --auth all --trust-yes
+
+    +$clone_cfg
+
+    +$* "libbaz/0.0.3@$rep/t0c" 2>>~%EOE%
+      added pkg:build2.org/pkg-build/t0c
+      %.*
+      %.*fetching pkg:build2.org/pkg-build/t0c%
+      %.*
+      %.*fetched libfoo/1.0.0%
+      unpacked libfoo/1.0.0
+      configured libfoo/1.0.0
+      %.*
+      %.*fetched libbaz/0.0.3%
+      unpacked libbaz/0.0.3
+      configured libbaz/0.0.3
+      EOE
+
+    clone_cfg = cp --no-cleanup -r ../cfg ./ &cfg/***
+
+    : explicit
+    :
+    {
+      $clone_cfg;
+
+      $* "libbaz@$rep/t0c" 2>>~%EOE%
+        fetching pkg:build2.org/pkg-build/t0c
+        disfigured libbaz/0.0.3
+        disfigured libfoo/1.0.0
+        purged libfoo/1.0.0
+        %.*
+        %.*fetched libbaz/0.0.4%
+        unpacked libbaz/0.0.4
+        configured libbaz/0.0.4
+        EOE
+    }
+
+    : implicit
+    :
+    : Note that libfoo also becomes held.
+    :
+    {
+      $clone_cfg;
+
+      $* "@$rep/t0c" 2>>~%EOE%;
+        fetching pkg:build2.org/pkg-build/t0c
+        info: package libbar is not present in configuration
+        info: package libbox is not present in configuration
+        info: package libfix is not present in configuration
+        disfigured libbaz/0.0.3
+        %.*
+        %.*fetched libbaz/0.0.4%
+        unpacked libbaz/0.0.4
+        configured libbaz/0.0.4
+        EOE
+
+      $pkg_status libfoo >'!libfoo configured !1.0.0'
+    }
+
+    -$pkg_drop libbaz libfoo
   }
 }
 
@@ -2673,6 +2956,49 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
 
     $pkg_disfigure libfoo 2>'disfigured libfoo/1.1.0';
     $pkg_purge     libfoo 2>'purged libfoo/1.1.0'
+  }
+
+  : version
+  :
+  : Test that libfoo/0.0.1 package version is built (repository t0a), rather
+  : than libfoo/1.0.0 (repository t4a).
+  :
+  {
+    $clone_root_cfg;
+
+    $rep_fetch $rep/t4c 2>!;
+
+    $* "libfoo@$rep/t0a" 2>>~%EOE%;
+      %.+
+      configured libfoo/0.0.1
+      %info: .+libfoo-0.0.1.+ is up to date%
+      updated libfoo/0.0.1
+      EOE
+
+    $pkg_drop libfoo
+  }
+
+  : no-patch
+  :
+  : Here we also test that --patch options is ignored if there is no selected
+  : package in the configuration.
+  :
+  {
+    $clone_root_cfg;
+
+    $* "libfoo@$rep/t1" --patch 2>>~%EOE%;
+      %.+
+      configured libfoo/1.0.0
+      %info: .+libfoo-1.0.0.+ is up to date%
+      updated libfoo/1.0.0
+      EOE
+
+    $* "libfoo@$rep/t3" --patch 2>>~%EOE% != 0;
+      %.+
+      error: patch version for libfoo/1.0.0 is not found in pkg:build2.org/pkg-build/t3
+      EOE
+
+    $pkg_drop libfoo
   }
 
   : package-in-complement

@@ -194,17 +194,35 @@ namespace bpkg
     {
       for (const shared_ptr<repository_fragment> r: rps)
       {
-        shared_ptr<repository_fragment> ar (filter (r, ap, prereq));
-
-        if (ar != nullptr)
+        if (shared_ptr<repository_fragment> rf = filter (r, ap, prereq))
         {
-          aps.emplace_back (move (ap), move (ar));
+          aps.emplace_back (move (ap), move (rf));
           break;
         }
       }
     }
 
     return aps;
+  }
+
+  pair<shared_ptr<available_package>, shared_ptr<repository_fragment>>
+  filter_one (const vector<shared_ptr<repository_fragment>>& rps,
+              odb::result<available_package>&& apr,
+              bool prereq)
+  {
+    using result = pair<shared_ptr<available_package>,
+                        shared_ptr<repository_fragment>>;
+
+    for (shared_ptr<available_package> ap: pointer_result (apr))
+    {
+      for (const shared_ptr<repository_fragment> r: rps)
+      {
+        if (shared_ptr<repository_fragment> rf = filter (r, ap, prereq))
+          return result (move (ap), move (rf));
+      }
+    }
+
+    return result ();
   }
 
   void

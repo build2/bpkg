@@ -12,6 +12,7 @@
 #include <algorithm>  // find_if()
 
 #include <libbutl/url.mxx>
+#include <libbutl/standard-version.mxx>
 
 #include <bpkg/package.hxx>
 #include <bpkg/package-odb.hxx>
@@ -1507,6 +1508,52 @@ namespace bpkg
     map<string, data_type> map_;
   };
 
+  // Return a patch version constraint for the selected package if it has a
+  // standard version, otherwise, if requested, issue a warning and return
+  // nullopt.
+  //
+  // Note that the function may also issue a warning and return nullopt if the
+  // selected package minor version reached the limit (see
+  // standard-version.cxx for details).
+  //
+  static optional<dependency_constraint>
+  patch_constraint (const shared_ptr<selected_package>& sp, bool quiet = false)
+  {
+    const string&  nm (sp->name);
+    const version& sv (sp->version);
+
+    // Note that we don't pass allow_stub flag so the system wildcard version
+    // will (naturally) not be patched.
+    //
+    optional<standard_version> v (parse_standard_version (sv.string ()));
+
+    if (!v)
+    {
+      if (!quiet)
+        warn << "unable to patch " << package_string (nm, sv) <<
+          info << "package is not using semantic/standard version";
+
+      return nullopt;
+    }
+
+    try
+    {
+      return dependency_constraint ("~" + sv.string ());
+    }
+    // Note that the only possible reason for invalid_argument exception to
+    // be thrown is that minor version reached the 999 limit (see
+    // standard-version.cxx for details).
+    //
+    catch (const invalid_argument&)
+    {
+      if (!quiet)
+        warn << "unable to patch " << package_string (nm, sv) <<
+          info << "minor version limit reached";
+
+      return nullopt;
+    }
+  }
+
   // List of dependency packages (specified with ? on the command line).
   //
   struct dependency_package
@@ -1515,6 +1562,7 @@ namespace bpkg
     bpkg::version version;                 // Empty if unspecified.
     shared_ptr<selected_package> selected; // NULL if not present.
     bool system;
+    bool patch;                            // Meaningful for an empty version.
     bool keep_out;
   };
   using dependency_packages = vector<dependency_package>;
@@ -1550,6 +1598,8 @@ namespace bpkg
                        const shared_ptr<selected_package>&,
                        const version& desired,
                        bool desired_sys,
+                       bool patch,
+                       bool explicitly,
                        const set<shared_ptr<repository_fragment>>&,
                        const package_dependents&,
                        bool ignore_unsatisfiable);
@@ -1642,6 +1692,8 @@ namespace bpkg
                                 sp,
                                 dv,
                                 dsys,
+                                i->patch,
+                                true /* explicitly */,
                                 repo_frags,
                                 dependents,
                                 ignore_unsatisfiable);
@@ -1652,28 +1704,16 @@ namespace bpkg
                        const shared_ptr<selected_package>& sp,
                        const version& dv,
                        bool dsys,
+                       bool patch,
+                       bool explicitly,
                        const set<shared_ptr<repository_fragment>>& rfs,
                        const package_dependents& dependents,
                        bool ignore_unsatisfiable)
   {
     tracer trace ("evaluate_dependency");
 
-    const string& nm (sp->name);
-
-    // Build the list of available packages for the potential up/down-grade
-    // to, in the version-descending order. For a system package we put no
-    // constraints just to make sure that the package is recognized.
-    //
-    auto apr (dv.empty () || dsys
-              ? query_available (db, nm, nullopt)
-              : query_available (db, nm, dependency_constraint (dv)));
-
-    vector<pair<shared_ptr<available_package>,
-                shared_ptr<repository_fragment>>> afs (
-                  filter (vector<shared_ptr<repository_fragment>> (
-                            rfs.begin (),
-                            rfs.end ()),
-                          move (apr)));
+    const string&  nm (sp->name);
+    const version& sv (sp->version);
 
     auto no_change = [] ()
     {
@@ -1683,17 +1723,37 @@ namespace bpkg
                               false   /* system */};
     };
 
-    if (afs.empty ())
-    {
-      if (ignore_unsatisfiable)
-      {
-        l5 ([&]{trace << *sp << ": no repos";});
-        return no_change ();
-      }
+    // Build the list of available packages for the potential up/down-grade
+    // to, in the version-descending order. If patching, then we constrain the
+    // choice with the latest patch version and place no constraints if
+    // upgrading. For a system package we also put no constraints just to make
+    // sure that the package is recognized.
+    //
+    optional<dependency_constraint> c;
 
-      fail << package_string (nm, dv.empty () || dsys ? version () : dv)
-           << " is not present in its dependents repositories";
+    if (dv.empty ())
+    {
+      assert (!dsys); // The version can't be empty for the system package.
+
+      if (patch)
+      {
+        c = patch_constraint (sp, ignore_unsatisfiable);
+
+        if (!c)
+        {
+          l5 ([&]{trace << *sp << ": non-patchable";});
+          return no_change ();
+        }
+      }
     }
+    else if (!dsys)
+      c = dependency_constraint (dv);
+
+    vector<pair<shared_ptr<available_package>,
+                shared_ptr<repository_fragment>>> afs (
+      filter (vector<shared_ptr<repository_fragment>> (rfs.begin (),
+                                                       rfs.end ()),
+              query_available (db, nm, c)));
 
     // Go through up/down-grade candidates and pick the first one that
     // satisfies all the dependents. Collect (and sort) unsatisfied dependents
@@ -1714,7 +1774,7 @@ namespace bpkg
 
     vector<pair<version, sp_set>> unsatisfiable;
 
-    const version& sv (sp->version);
+    bool stub (false);
     bool ssys (sp->system ());
 
     assert (!dsys || system_repository.find (nm) != nullptr);
@@ -1724,18 +1784,38 @@ namespace bpkg
       shared_ptr<available_package>& ap (af.first);
       const version& av (!dsys ? ap->version : *ap->system_version ());
 
-      // If we aim to upgrade to the highest possible version and it tends to
-      // be less then the selected one, then what we currently have is the
-      // best that we can get, and so we return the "no change" result.
+      // If we aim to upgrade to the latest version and it tends to be less
+      // then the selected one, then what we currently have is the best that
+      // we can get, and so we return the "no change" result.
       //
-      if (dv.empty () && av < sv && !ssys)
+      // Note that we also handle a package stub here.
+      //
+      if (dv.empty () && av < sv)
       {
         assert (!dsys); // Version can't be empty for the system package.
 
-        l5 ([&]{trace << *sp << ": best";});
-        return no_change ();
+        // For the selected system package we still need to pick a source
+        // package version to downgrade to.
+        //
+        if (!ssys)
+        {
+          l5 ([&]{trace << *sp << ": best";});
+          return no_change ();
+        }
+
+        // We can not upgrade the (system) package to a stub version, so just
+        // skip it.
+        //
+        if (ap->stub ())
+        {
+          stub = true;
+          continue;
+        }
       }
 
+      // Check if the version satisfies all the dependents and collect
+      // unsatisfied ones.
+      //
       bool satisfactory (true);
       sp_set unsatisfied_dependents;
 
@@ -1787,9 +1867,9 @@ namespace bpkg
         move (ap), move (af.second), false /* unused */, dsys};
     }
 
-    // If we aim to upgrade to the highest possible version, then what we
-    // currently have is the only thing that we can get, and so returning the
-    // "no change" result.
+    // If we aim to upgrade to the latest version, then what we currently have
+    // is the only thing that we can get, and so returning the "no change"
+    // result, unless we need to upgrade a package configured as system.
     //
     if (dv.empty () && !ssys)
     {
@@ -1799,14 +1879,52 @@ namespace bpkg
       return no_change ();
     }
 
-    // If the desired dependency version is unsatisfiable for some dependents
-    // then we fail, unless requested not to do so. In the later case we
-    // return the "no change" result.
+    // If the desired dependency version is unavailable or unsatisfiable for
+    // some dependents then we fail, unless requested not to do so. In the
+    // later case we return the "no change" result.
     //
     if (ignore_unsatisfiable)
     {
-      l5 ([&]{trace << package_string (nm, dv, dsys) << ": unsatisfiable";});
+      l5 ([&]{trace << package_string (nm, dv, dsys)
+                    << (unsatisfiable.empty ()
+                        ? ": no source"
+                        : ": unsatisfiable");});
+
       return no_change ();
+    }
+
+    // If there are no unsatisfiable versions then the package is not present
+    // (or is not available in source) in its dependents' repositories.
+    //
+    if (unsatisfiable.empty ())
+    {
+      diag_record dr (fail);
+
+      if (dv.empty () && patch)
+      {
+        assert (ssys); // Otherwise, we would bail out earlier (see above).
+
+        // Patch (as any upgrade) of a system package is always explicit, so
+        // we always fail and never treat the package as being up to date.
+        //
+        assert (explicitly);
+
+        fail << "patch version for " << *sp << " is not available "
+             << "from its dependents' repositories";
+      }
+      else if (!stub)
+        fail << package_string (nm, dsys ? version () : dv)
+             << " is not available from its dependents' repositories";
+      else // The only available package is a stub.
+      {
+        // Note that we don't advise to "build" the package as a system one as
+        // it is already as such (see above).
+        //
+        assert (dv.empty () && !dsys && ssys);
+
+        fail << package_string (nm, dv) << " is not available in source "
+             << "from its dependents' repositories";
+      }
     }
 
     // Issue the diagnostics and fail.
@@ -1843,7 +1961,7 @@ namespace bpkg
     if (nv != unsatisfiable.size ())
       dr << info << "and " << unsatisfiable.size () - nv << " more";
 
-    dr  << endf;
+    dr << endf;
   }
 
   // List of dependent packages whose immediate/recursive dependencies must be
@@ -1858,9 +1976,10 @@ namespace bpkg
   using recursive_packages = vector<recursive_package>;
 
   // Recursively check if immediate dependencies of this dependent must be
-  // upgraded.
+  // upgraded or patched. Return true if it must be upgraded, false if
+  // patched, and nullopt otherwise.
   //
-  static bool
+  static optional<bool>
   upgrade_dependencies (database& db,
                         const string& nm,
                         const recursive_packages& recs,
@@ -1872,17 +1991,32 @@ namespace bpkg
                        return i.name == nm;
                      }));
 
+    optional<bool> r;
+
     if (i != recs.end () && i->recursive >= recursion)
-      return true;
+    {
+      r = i->upgrade;
+
+      if (*r) // Upgrade (vs patch)?
+        return r;
+    }
 
     for (const auto& pd: db.query<package_dependent> (
            query<package_dependent>::name == nm))
     {
-      if (upgrade_dependencies (db, pd.name, recs, true))
-        return true;
+      if (optional<bool> u = upgrade_dependencies (db, pd.name, recs, true))
+      {
+        if (!r || *r < *u) // Upgrade wins patch.
+        {
+          r = u;
+
+          if (*r) // Upgrade (vs patch)?
+            return r;
+        }
+      }
     }
 
-    return false;
+    return r;
   }
 
   // Evaluate a package (not necessarily dependency) and return a new desired
@@ -1920,22 +2054,25 @@ namespace bpkg
     // (immediate) dependents that have a hit (direct or indirect) in recs.
     // Note, however, that we collect constraints from all the dependents.
     //
-    bool upgrade (false);
+    optional<bool> upgrade;
 
     for (const auto& pd: pds)
     {
       shared_ptr<selected_package> dsp (db.load<selected_package> (pd.name));
       dependents.emplace_back (dsp, move (pd.constraint));
 
-      if (!upgrade_dependencies (db, pd.name, recs))
+      if (optional<bool> u = upgrade_dependencies (db, pd.name, recs))
+      {
+        if (!upgrade || *upgrade < *u) // Upgrade wins patch.
+          upgrade = u;
+      }
+      else
         continue;
 
       // While we already know that the dependency upgrade is required, we
       // continue to iterate over dependents, collecting the repository
       // fragments and the constraints.
       //
-      upgrade = true;
-
       shared_ptr<available_package> dap (
         db.find<available_package> (
           available_package_id (dsp->name, dsp->version)));
@@ -1962,6 +2099,8 @@ namespace bpkg
                            sp,
                            version () /* desired */,
                            false /*desired_sys */,
+                           !*upgrade /* patch */,
+                           false /* explicitly */,
                            repo_frags,
                            dependents,
                            ignore_unsatisfiable));
@@ -2399,7 +2538,50 @@ namespace bpkg
                    order_by_version_desc (query::package::id.version)))
             {
               const shared_ptr<available_package>& p (rp);
-              auto i (pvs.insert (make_pair (p->id.name, p->version)));
+
+              if (p->stub ()) // Skip stubs.
+                continue;
+
+              const string& nm (p->id.name);
+
+              if (ps.options.patch ())
+              {
+                shared_ptr<selected_package> sp (
+                  db.find<selected_package> (nm));
+
+                // It seems natural in the presence of --patch option to only
+                // patch the selected packages and not to build new packages if
+                // they are not specified explicitly.
+                //
+                // @@ Note that the dependencies may be held now, that can be
+                //    unexpected for the user, who may think "I only asked to
+                //    patch the packages". We probably could keep the hold flag
+                //    for the patched packages unless --dependency option is
+                //    specified explicitly. Sounds like a complication, so
+                //    let's see if it ever becomes a problem.
+                //
+                // We still save these package names with the special empty
+                // version to later issue info messages about them.
+                //
+                if (sp == nullptr)
+                {
+                  pvs.emplace (nm, version ());
+                  continue;
+                }
+
+                optional<dependency_constraint> c (patch_constraint (sp));
+
+                // Skip the non-patchable selected package. Note that the
+                // warning have already been issued in this case.
+                //
+                // We also skip versions that can not be considered as a
+                // patch for the selected package.
+                //
+                if (!c || !satisfies (p->version, c))
+                  continue;
+              }
+
+              auto i (pvs.emplace (nm, p->version));
 
               if (!i.second && i.first->second < p->version)
                 i.first->second = p->version;
@@ -2411,18 +2593,25 @@ namespace bpkg
           // Don't move options as they may be reused.
           //
           for (auto& pv: pvs)
-            pkg_args.push_back (arg_package (package_scheme::none,
-                                             pv.first,
-                                             move (pv.second),
-                                             ps.options));
+          {
+            if (pv.second.empty ()) // Non-existent and so un-patchable?
+              info << "package " << pv.first << " is not present in "
+                   << "configuration";
+            else
+              pkg_args.push_back (arg_package (package_scheme::none,
+                                               pv.first,
+                                               move (pv.second),
+                                               ps.options));
+          }
         }
         else // Packages with optional versions in the coma-separated list.
         {
-          for (size_t b (0); b != string::npos;)
+          for (size_t b (0), p; b != string::npos;
+               b = p != string::npos ? p + 1 : p)
           {
             // Extract the package.
             //
-            size_t p (ps.packages.find (',', b));
+            p = ps.packages.find (',', b);
 
             string pkg (ps.packages, b, p != string::npos ? p - b : p);
             const char* s (pkg.c_str ());
@@ -2432,48 +2621,92 @@ namespace bpkg
             version v (parse_package_version (s));
 
             // Check if the package is present in the repository and its
-            // complements, recursively.
+            // complements, recursively. If the version is not specified then
+            // find the latest allowed one.
             //
             // Note that for the system package we don't care about its exact
             // version available from the repository (which may well be a
             // stub). All we need is to make sure that it is present in the
             // repository.
             //
-            optional<dependency_constraint> c (
-              v.empty () || sc == package_scheme::sys
-              ? nullopt
-              : optional<dependency_constraint> (v));
-
             bool complements (false);
-            shared_ptr<available_package> ap;
+
+            vector<shared_ptr<repository_fragment>> rfs;
+            rfs.reserve (r->fragments.size ());
 
             for (const repository::fragment_type& rf: r->fragments)
             {
               shared_ptr<repository_fragment> fr (rf.fragment.load ());
-              ap = find_available (db, n, fr, c, false /* prereq */).first;
-
-              if (ap != nullptr)
-                break;
 
               if (!fr->complements.empty ())
                 complements = true;
+
+              rfs.push_back (move (fr));
             }
 
-            if (ap == nullptr)
+            optional<dependency_constraint> c;
+            shared_ptr<selected_package> sp;
+
+            if (sc != package_scheme::sys)
+            {
+              if (v.empty ())
+              {
+                if (ps.options.patch () &&
+                    (sp = db.find<selected_package> (n)) != nullptr)
+                {
+                  c = patch_constraint (sp);
+
+                  // Skip the non-patchable selected package. Note that the
+                  // warning have already been issued in this case.
+                  //
+                  if (!c)
+                    continue;
+                }
+              }
+              else
+                c = dependency_constraint (v);
+            }
+
+            shared_ptr<available_package> ap (
+              filter_one (
+                rfs, query_available (db, n, c), false /* prereq */).first);
+
+            // Fail if no available package is found or only a stub is
+            // available and we are building a source package.
+            //
+            if (ap == nullptr || (ap->stub () && sc != package_scheme::sys))
             {
               diag_record dr (fail);
-              dr << "package " << pkg << " is not found in " << r->name;
+
+              // If the selected package is loaded then we aim to patch it.
+              //
+              if (sp != nullptr)
+                dr << "patch version for " << *sp << " is not found in "
+                   << r->name;
+              else if (ap == nullptr)
+                dr << "package " << pkg << " is not found in " << r->name;
+              else // Is a stub.
+                dr << "package " << pkg << " is not available in source from "
+                   << r->name;
 
               if (complements)
                 dr << " or its complements";
+
+              if (sp == nullptr && ap != nullptr) // Is a stub.
+                info << "specify sys:" << pkg << " if it is available "
+                     << "from the system";
             }
+
+            // Note that for a system package the wildcard version will be set
+            // (see arg_package() for details).
+            //
+            if (v.empty () && sc != package_scheme::sys)
+              v = ap->version;
 
             // Don't move options as they may be reused.
             //
             pkg_args.push_back (
               arg_package (sc, move (n), move (v), ps.options));
-
-            b = p != string::npos ? p + 1 : p;
           }
         }
       }
@@ -2683,6 +2916,9 @@ namespace bpkg
 
         // Then it got to be a package name with optional version.
         //
+        shared_ptr<selected_package> sp;
+        bool patch (false);
+
         if (ap == nullptr)
         {
           try
@@ -2707,17 +2943,37 @@ namespace bpkg
 
             if (!pa.options.dependency ())
             {
-              // Either get the user-specified version or the latest for a
-              // source code package. For a system package we pick the latest
-              // one just to make sure the package is recognized.
+              // Either get the user-specified version or the latest allowed
+              // for a source code package. For a system package we pick the
+              // latest one just to make sure the package is recognized.
               //
-              auto rp (
-                pa.version.empty () || arg_sys (pa)
-                ? find_available (db, pa.name, root, nullopt)
-                : find_available (db,
-                                  pa.name,
-                                  root,
-                                  dependency_constraint (pa.version)));
+              optional<dependency_constraint> c;
+
+              if (pa.version.empty ())
+              {
+                assert (!arg_sys (pa));
+
+                if (pa.options.patch () &&
+                    (sp = db.find<selected_package> (pa.name)) != nullptr)
+                {
+                  c = patch_constraint (sp);
+
+                  // Skip the non-patchable selected package. Note that the
+                  // warning have already been issued in this case.
+                  //
+                  if (!c)
+                  {
+                    ++i;
+                    continue;
+                  }
+
+                  patch = true;
+                }
+              }
+              else if (!arg_sys (pa))
+                c = dependency_constraint (pa.version);
+
+              auto rp (find_available (db, pa.name, root, c));
               ap = move (rp.first);
               af = move (rp.second);
             }
@@ -2783,26 +3039,29 @@ namespace bpkg
             check_any_available (c, t, &dr);
           }
 
-          shared_ptr<selected_package> sp (       // Save before the name move.
-            db.find<selected_package> (pa.name));
+          // Save before the name move.
+          //
+          sp = db.find<selected_package> (pa.name);
 
           dep_pkgs.push_back (dependency_package {move (pa.name),
                                                   move (pa.version),
                                                   move (sp),
                                                   sys,
+                                                  pa.options.patch (),
                                                   pa.options.keep_out ()});
           continue;
         }
 
         // Add the held package to the list.
         //
-        // Load the package that may have already been selected and
-        // figure out what exactly we need to do here. The end goal
+        // Load the package that may have already been selected (if not done
+        // yet) and figure out what exactly we need to do here. The end goal
         // is the available_package object corresponding to the actual
         // package that we will be building (which may or may not be
         // the same as the selected package).
         //
-        shared_ptr<selected_package> sp (db.find<selected_package> (pa.name));
+        if (sp == nullptr)
+          sp = db.find<selected_package> (pa.name);
 
         if (sp != nullptr && sp->state == package_state::broken)
           fail << "unable to build broken package " << pa.name <<
@@ -2893,6 +3152,11 @@ namespace bpkg
 
         if (!found)
         {
+          // We can always fallback to making available from the selected
+          // package.
+          //
+          assert (!patch);
+
           diag_record dr (fail);
 
           if (!sys_advise)
@@ -2986,7 +3250,21 @@ namespace bpkg
             continue;
 
           const string& name (sp->name);
-          auto apr (find_available (db, name, root, nullopt));
+
+          optional<dependency_constraint> pc;
+
+          if (o.patch ())
+          {
+            pc = patch_constraint (sp);
+
+            // Skip the non-patchable selected package. Note that the warning
+            // have already been issued in this case.
+            //
+            if (!pc)
+              continue;
+          }
+
+          auto apr (find_available (db, name, root, pc));
 
           shared_ptr<available_package> ap (move (apr.first));
           if (ap == nullptr || ap->stub ())

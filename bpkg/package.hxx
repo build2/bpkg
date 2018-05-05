@@ -599,6 +599,11 @@ namespace bpkg
           odb::result<available_package>&&,
           bool prereq = true);
 
+  pair<shared_ptr<available_package>, shared_ptr<repository_fragment>>
+  filter_one (const vector<shared_ptr<repository_fragment>>&,
+              odb::result<available_package>&&,
+              bool prereq = true);
+
   // Check if there are packages available in the configuration. If that's not
   // the case then print the info message into the diag record or, if it is
   // NULL, print the error message and fail.
