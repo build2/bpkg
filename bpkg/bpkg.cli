@@ -40,11 +40,11 @@ namespace bpkg
     "",
     "",
 
-    "A \cb{bpkg} \i{build configuration} is a directory that will contain
-     packages built with similar settings. For example, a configuration can be
-     for a specific target (\cb{i686}, \cb{x86_64}), compiler (\cb{clang},
-     \cb{gcc}) compile options (\cb{-O3}, \cb{-g}), and so on. Configurations
-     are relatively cheap and can be created and thrown away as needed.
+    "A \cb{bpkg} \i{build configuration} is a directory that contains packages
+     built with similar settings. For example, a configuration can be for a
+     specific target (\cb{i686}, \cb{x86_64}), compiler (\cb{clang}, \cb{gcc})
+     compile options (\cb{-O3}, \cb{-g}), and so on. Configurations are
+     relatively cheap and can be created and thrown away as needed.
      Configurations can be moved and copied by simply moving and copying the
      directories. Note, however, that a move or copy may render some packages
      out-of-date. In the \cb{build2} build system terms a \cb{bpkg} build
@@ -56,12 +56,12 @@ namespace bpkg
      \cb{manifest} file. \cb{bpkg} can either use package archives/directories
      directly from the filesystem or it can fetch them from repositories.
 
-     A \i{bpkg repository} is a collection of packages as well as prerequisite
-     and complement repositories. \i{Archive}, \i{directory} and \i{version
-     control}-based repositories are supported. A repository is identified by
-     its location which can be a local filesystem path or a URL. See
-     \l{bpkg-repository-types(1)} for details on their structure and URL
-     format.
+     A \i{bpkg repository} is a collection of packages as well as information
+     about prerequisite and complement repositories. \i{Archive},
+     \i{directory} and \i{version control}-based repositories are supported. A
+     repository is identified by its location which can be a local filesystem
+     path or a URL. See \l{bpkg-repository-types(1)} for details on the
+     repository structures and URL formats.
 
      If the same version of a package is available from multiple repositories,
      then they are assumed to contain identical package content. In such cases

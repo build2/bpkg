@@ -29,17 +29,17 @@ path or an \cb{http(s)://} URL.
 \h|DIR REPOSITORIES|
 
 A \cb{dir} repository is \i{directory}-based. That is, it contains a
-collection of various packages as directories (but only a single version per
-package can be present in such a repository). The \cb{dir} repository location
+collection of various packages as directories but only a single version per
+package can be present in such a repository. The \cb{dir} repository location
 can be a local directory path or a \cb{file://} URL.
 
 A \cb{dir} repository is expected to contain either the \cb{manifest} or
 \cb{packages.manifest} file in the root directory of the repository. If it
 only contains \cb{manifest}, then it is assumed to be a simple, single-package
 repository with the \cb{manifest} file being its package manifest. Otherwise,
-the \cb{packages.manifest} file should list the available packages as
-described in \l{bpkg#manifest-package-list-dir Package List Manifest for
-\cb{dir} Repositories}.
+the \cb{packages.manifest} file should list the locations of available
+packages as described in \l{bpkg#manifest-package-list-dir Package List
+Manifest for \cb{dir} Repositories}.
 
 A \cb{dir} repository may also contain the \cb{repositories.manifest} file in
 the root directory of the repository. This file can be used to describe the
@@ -51,14 +51,13 @@ for details on the format and semantics of this file.
 \h|GIR REPOSITORIES|
 
 A \cb{git} repository is \i{version control}-based. That is, it normally
-contains multiple versions of the same package (but can also contain several
-packages in the same repository).
+contains multiple versions of the same package (but can also contain several,
+usually related, packages in the same repository).
 
 A \cb{git} repository has the same structure and manifest files as the
 \cb{dir} repository. See \l{bpkg#manifest-package-list-dir Package List
 Manifest for \cb{dir} Repositories} and \l{bpkg#manifest-repository-list
-Repository List Manifest} for details on the format and semantics of the
-manifest files.
+Repository List Manifest} for details on their format and semantics.
 
 Theoretically, a \cb{git} repository may contain as many package versions as
 there are commits. Practically, however, we are normally only interested in a
@@ -67,9 +66,9 @@ for all of them could be prohibitively expensive.  As a result, by default,
 only advertised tags in the \cb{refs/tags/v*} form where the part after \cb{v}
 is also a valid \l{b#module-version standard version} are considered to be
 sources of useful package versions. These commits normally correspond to
-releases and are called the default set.
+released versions and are called the \i{default set}.
 
-Instead of the default set, it is also possible to provide a custom set of
+Instead of the default set, it is possible to provide a custom set of
 available versions by specifying one or more commit ids and/or references
 and/or reference patterns in the repository URL fragment (see
 \cb{git-ls-remote(1)} for details on advertised references). For example:
@@ -98,7 +97,7 @@ filters in the following form:
 
 Either \ci{refname}, \ci{commit}, or both must be specified. If both are
 specified then \ci{refname} is only used to minimize the amount of data
-fetched and \ci{commit} must belong to its history. For example:
+fetched and \ci{commit} is expected to belong to its history. For example:
 
 \
 .../foo.git#master@48fba3625d65941bb85a39061bcf795d4949c778
@@ -127,28 +126,28 @@ sequence which matches in subdirectories, recursively. For example:
 \
 
 A relative \ci{refname} is searched for in \cb{refs/}, \cb{refs/tags/}, and
-\cb{refs/heads/} as well as symbolic references like \cb{HEAD}. To anchor it
-to \cb{refs/} make it absolute, for example:
+\cb{refs/heads/} as well as among symbolic references like \cb{HEAD}. To
+anchor it to \cb{refs/} make it absolute, for example:
 
 \
 .../foo.git#tags/v*   - refs/tags/v1.2.3 but also refs/heads/tags/voo
 .../foo.git#/tags/v*  - refs/tags/v1.2.3 only
 \
 
-While a \ci{refname} pattern may not match any references, a non-pattern that
-doesn't resolve to a reference is invalid.
+While a \ci{refname} pattern is allowed not match any references, a
+non-pattern that doesn't resolve to a reference is invalid.
 
-If a \ci{refname} starts with \cb{-} then it is treated as an exclusion filter
-\- any references that it matches are excluded from the set included by the
-preceding filters (or the default set). For example:
+If a \ci{refname} starts with minus (\cb{-}) then it is treated as an
+exclusion filter \- any references that it matches are excluded from the set
+included by the preceding filters (or the default set). For example:
 
 \
 .../foo.git#v*,-v1.*  - exclude v1.* from v*
 .../foo.git##-v1.*    - exclude v1.* from default set
 \
 
-To support specifying literal leading \cb{-}, a \ci{refname} that starts with
-\cb{+} is treated as an inclusion filter. For example:
+To support specifying literal leading minus, a \ci{refname} that starts with
+plus (\cb{+}) is treated as an inclusion filter. For example:
 
 \
 .../foo.git#+x   - include  x
@@ -156,11 +155,11 @@ To support specifying literal leading \cb{-}, a \ci{refname} that starts with
 .../foo.git#++x  - include +x
 \
 
-Supported \cb{git} protocols are \cb{git://}, \cb{http://}, and \cb{https://}
-for remote repositories and \cb{file://} for local repositories. While
-\cb{bpkg} tries to minimize the amount of information (history) fetched, it is
-not always possible for some protocols and/or server configurations, as
-discussed next.
+Currently supported \cb{git} protocols are \cb{git://}, \cb{http://}, and
+\cb{https://} for remote repositories and \cb{file://} for local
+repositories. While \cb{bpkg} tries to minimize the amount of information
+(history) fetched, it is not always possible for some protocols and/or server
+configurations, as discussed next.
 
 A \cb{git} repository accessible via \cb{http(s)://} can use either \i{dumb}
 or \i{smart} protocol (refer to the \cb{git} documentation for details). The
@@ -182,8 +181,8 @@ if fetching unadvertised commits is allowed and always assumes that it is not.
 
 Based on this information, to achieve optimal results the recommended protocol
 for remote repositories is smart \cb{https://}. Additionally, if you are
-planning to refer to commit ids, then also consider configuring the server to
-allow fetching unadvertised commits.
+planning to refer to unadvertised commit ids, then also consider configuring
+the server to allow fetching unadvertised commits.
 
 The \cb{file://} protocol has the same fetch minimization support as
 \cb{git://} and is therefore treated the same.

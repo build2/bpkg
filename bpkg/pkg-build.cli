@@ -112,7 +112,7 @@ namespace bpkg
      prerequisite repositories of dependent packages are considered as
      available for build as a dependency.
 
-     Packages (both built to hold and as dependents) that are specified with
+     Packages (both built to hold and as dependencies) that are specified with
      an explicit package version (<ver>) or as an archive or directory,
      will have their versions held, that is, they will not be automatically
      upgraded.
