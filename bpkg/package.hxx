@@ -247,17 +247,11 @@ namespace bpkg
   // fragmented. For example, a git repository consists of multiple commits
   // (fragments) which could contain different sets of packages and even
   // prerequisite/complement repositories. Note also that the same fragment
-  // could be shared by multiple repository objects. We assume a fragment to
-  // be immutable, so it's complement, prerequisite and package sets can never
-  // change.
+  // could be shared by multiple repository objects.
   //
   // For repository types that do not support fragmentation, there should
   // be a single repository_fragment with the name and location equal to the
-  // ones of the containing repository. Such a fragment can not be shared but
-  // can be changed.
-  //
-  // One of the consequences of the above is that a fragment can either be
-  // shared or be mutable.
+  // ones of the containing repository. Such a fragment cannot be shared.
   //
   class repository;
 

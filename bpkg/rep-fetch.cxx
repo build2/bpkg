@@ -469,11 +469,11 @@ namespace bpkg
   }
 
   // Return an existing repository fragment or create a new one. Update the
-  // existing object unless it is immutable (see repository_fragment class
-  // description for details). Don't fetch the complement and prerequisite
-  // repositories.
+  // existing object unless it is already fetched. Don't fetch the complement
+  // and prerequisite repositories.
   //
-  using repository_trust = map<shared_ptr<repository>, optional<string>>;
+  using repository_fragments = set<shared_ptr<repository_fragment>>;
+  using repository_trust     = map<shared_ptr<repository>, optional<string>>;
 
   static shared_ptr<repository_fragment>
   rep_fragment (const common_options& co,
@@ -481,14 +481,14 @@ namespace bpkg
                 transaction& t,
                 const repository_location& rl,
                 rep_fetch_data::fragment&& fr,
+                repository_fragments& parsed_fragments,
+                bool full_fetch,
                 repository_trust& repo_trust)
   {
     tracer trace ("rep_fragment");
 
     database& db (t.database ());
     tracer_guard tg (db, trace);
-
-    bool mut (fr.id.empty ()); // Is the fragment mutable?
 
     // Calculate the fragment location.
     //
@@ -499,15 +499,11 @@ namespace bpkg
     case repository_type::pkg:
     case repository_type::dir:
       {
-        assert (mut);
-
         rfl = rl;
         break;
       }
     case repository_type::git:
       {
-        assert (!mut);
-
         repository_url url (rl.url ());
         url.fragment = move (fr.id);
 
@@ -569,7 +565,7 @@ namespace bpkg
       }
     };
 
-    // Return the existing repository fragment if it is immutable.
+    // Create or update the repository fragment.
     //
     bool exists (rf != nullptr);
 
@@ -586,25 +582,20 @@ namespace bpkg
         rf->location = move (rfl);
         db.update (rf);
       }
-
-      if (!mut)
-      {
-        add_trust ();
-        return rf;
-      }
-    }
-
-    // Create or update the repository fragment.
-    //
-    if (exists)
-    {
-      assert (mut);
-
-      rf->complements.clear ();
-      rf->prerequisites.clear ();
     }
     else
       rf = make_shared<repository_fragment> (move (rfl));
+
+    if (!parsed_fragments.insert (rf).second) // Is already parsed.
+    {
+      assert (exists);
+
+      add_trust ();
+      return rf;
+    }
+
+    rf->complements.clear ();
+    rf->prerequisites.clear ();
 
     for (repository_manifest& rm: fr.repositories)
     {
@@ -676,6 +667,9 @@ namespace bpkg
       }
     }
 
+    // Note that it relies on the prerequisite and complement repositories be
+    // already persisted.
+    //
     add_trust ();
 
     // For dir and git repositories that have neither prerequisites nor
@@ -718,9 +712,11 @@ namespace bpkg
     session::reset_current ();
 
     // Remove this repository fragment from locations of the available
-    // packages it contains.
+    // packages it contains. Note that when we fetch all the repositories the
+    // available packages are cleaned up in advance (see rep_fetch() for
+    // details).
     //
-    if (exists)
+    if (exists && !full_fetch)
       rep_remove_package_locations (t, rf->name);
 
     for (package_manifest& pm: fr.packages)
@@ -782,10 +778,24 @@ namespace bpkg
             const string& r1 (rl.canonical_name ());
             const string& r2 (p->locations[0].repository_fragment.object_id ());
 
-            fail << "checksum mismatch for " << pm.name << " " << pm.version <<
+            diag_record dr (fail);
+
+            dr << "checksum mismatch for " << pm.name << " " << pm.version <<
               info << r1 << " has " << *pm.sha256sum <<
-              info << r2 << " has " << *p->sha256sum <<
-              info << "consider reporting this to the repository maintainers";
+              info << r2 << " has " << *p->sha256sum;
+
+            // If we fetch all the repositories then the mismatch is definitely
+            // caused by the broken repository. Otherwise, it may also happen
+            // due to the old available package that is not wiped out yet.
+            // Thus, we advice the user to perform the full fetch, unless the
+            // filesystem state is already changed and so this advice will be
+            // given anyway (see rep_fetch() for details).
+            //
+            if (full_fetch)
+              dr << info << "consider reporting this to the repository "
+                         << "maintainers";
+            else if (!filesystem_state_changed)
+              dr << info << "run 'bpkg rep-fetch' to update";
           }
         }
       }
@@ -805,8 +815,7 @@ namespace bpkg
     return rf;
   }
 
-  using repositories         = set<shared_ptr<repository>>;
-  using repository_fragments = set<shared_ptr<repository_fragment>>;
+  using repositories = set<shared_ptr<repository>>;
 
   // If reason is absent, then don't print the "fetching ..." progress line.
   //
@@ -818,8 +827,10 @@ namespace bpkg
              const optional<string>& dependent_trust,
              repositories& fetched_repositories,
              repositories& removed_repositories,
+             repository_fragments& parsed_fragments,
              repository_fragments& removed_fragments,
              bool shallow,
+             bool full_fetch,
              const optional<string>& reason)
   {
     tracer trace ("rep_fetch(rep)");
@@ -926,8 +937,14 @@ namespace bpkg
     {
       string nm (fr.friendly_name); // Don't move, still may be used.
 
-      shared_ptr<repository_fragment> rf (
-        rep_fragment (co, conf, t, rl, move (fr), repo_trust));
+      shared_ptr<repository_fragment> rf (rep_fragment (co,
+                                                        conf,
+                                                        t,
+                                                        rl,
+                                                        move (fr),
+                                                        parsed_fragments,
+                                                        full_fetch,
+                                                        repo_trust));
 
       collect_deps (rf, new_complements, new_prerequisites);
 
@@ -996,7 +1013,9 @@ namespace bpkg
                     &t,
                     &fetched_repositories,
                     &removed_repositories,
+                    &parsed_fragments,
                     &removed_fragments,
+                    full_fetch,
                     &rl,
                     &repo_trust]
         (const shared_ptr<repository>& r, const char* what)
@@ -1011,8 +1030,10 @@ namespace bpkg
                    i->second,
                    fetched_repositories,
                    removed_repositories,
+                   parsed_fragments,
                    removed_fragments,
                    false /* shallow */,
+                   full_fetch,
                    what + rl.canonical_name ());
       };
 
@@ -1042,6 +1063,7 @@ namespace bpkg
              transaction& t,
              const vector<lazy_shared_ptr<repository>>& repos,
              bool shallow,
+             bool full_fetch,
              const optional<string>& reason)
   {
     tracer trace ("rep_fetch(repos)");
@@ -1067,6 +1089,7 @@ namespace bpkg
 
       repositories         fetched_repositories;
       repositories         removed_repositories;
+      repository_fragments parsed_fragments;
       repository_fragments removed_fragments;
 
       // Fetch the requested repositories, recursively.
@@ -1079,8 +1102,10 @@ namespace bpkg
                    nullopt /* dependent_trust */,
                    fetched_repositories,
                    removed_repositories,
+                   parsed_fragments,
                    removed_fragments,
                    shallow,
+                   full_fetch,
                    reason);
 
       // Remove dangling repositories.
@@ -1195,7 +1220,7 @@ namespace bpkg
       repos.emplace_back (r);
     }
 
-    rep_fetch (o, conf, t, repos, shallow, reason);
+    rep_fetch (o, conf, t, repos, shallow, false /* full_fetch */, reason);
 
     t.commit ();
   }
@@ -1223,8 +1248,9 @@ namespace bpkg
     repository_fragment::complements_type& ua (root->complements);
 
     optional<string> reason;
+    bool full_fetch (!args.more ());
 
-    if (!args.more ())
+    if (full_fetch)
     {
       if (ua.empty ())
         fail << "configuration " << c << " has no repositories" <<
@@ -1237,6 +1263,12 @@ namespace bpkg
       // there is only one.
       //
       reason = "";
+
+      // Cleanup the available packages in advance to avoid sha256sum mismatch
+      // for packages being fetched and the old available packages, that are
+      // not wiped out yet (see rep_fragment() for details).
+      //
+      db.erase_query<available_package> ();
     }
     else
     {
@@ -1296,7 +1328,7 @@ namespace bpkg
       }
     }
 
-    rep_fetch (o, c, t, repos, o.shallow (), reason);
+    rep_fetch (o, c, t, repos, o.shallow (), full_fetch, reason);
 
     size_t rcount (0), pcount (0);
     if (verb)

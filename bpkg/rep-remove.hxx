@@ -43,6 +43,8 @@ namespace bpkg
   //
   // - Remove all repositories except the top-level ones and the root.
   //
+  // - Remove all repository fragments except the root.
+  //
   // - Remove all repository state directories (regardless of whether they
   //   actually relate to any existing repositories).
   //
