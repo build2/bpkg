@@ -358,12 +358,6 @@ namespace bpkg
     // - If repositories.manifest file doesn't exist, then synthesize the
     //   repository list with just the base repository.
     //
-    // - Save the repositories into the resulting list.
-    //
-    //   @@ Currently we just save ones from the first commit, assuming them
-    //      to be the same for others. However, this is not very practical
-    //      and must be fixed.
-    //
     // - If packages.manifest file exists then load it into the "skeleton"
     //   packages list. Otherwise, synthesize it with the single:
     //
@@ -372,8 +366,11 @@ namespace bpkg
     // - If any of the package locations point to non-existent directory, then
     //   assume it to be in a submodule and checkout submodules, recursively.
     //
-    // - For each package location parse the package manifest and add it to
-    //   the resulting list.
+    // - For each package location parse the package manifest.
+    //
+    // - Save the fragment identified by the commit id and containing the
+    //   parsed repository and package manifest lists into the resulting
+    //   fragment list.
     //
     rep_fetch_data r;
 

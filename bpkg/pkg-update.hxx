@@ -17,7 +17,12 @@ namespace bpkg
   inline int
   pkg_update (const pkg_update_options& o, cli::scanner& args)
   {
-    return pkg_command ("update", o, o.for_ (), args);
+    return pkg_command ("update",
+                        o,
+                        o.for_ (),
+                        false /* recursive */,
+                        false /* immediate */,
+                        args);
   }
 
   inline void

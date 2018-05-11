@@ -18,10 +18,15 @@ namespace bpkg
   // If cmd_variant is not empty, then the <cmd>-for-<variant> is performed
   // instead.
   //
+  // The command can also be performed recursively for all or immediate
+  // dependencies of the specified packages.
+  //
   int
   pkg_command (const string& cmd, // Without the 'pkg-' prefix.
                const configuration_options&,
                const string& cmd_variant,
+               bool recursive,
+               bool immediate,
                cli::scanner& args);
 
   struct pkg_command_vars

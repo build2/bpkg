@@ -1,0 +1,82 @@
+# file      : tests/pkg-test.test
+# copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
+# license   : MIT; see accompanying LICENSE file
+
+.include common.test config.test remote.test
+
+# Source repository:
+#
+# pkg-build
+# |
+# `-- t0a
+#     |-- libbar-0.0.1.tar.gz   -> libbaz == 0.0.1
+#     |-- libbaz-0.0.1.tar.gz   -> libfox
+#     |-- libbaz-0.0.3.tar.gz   -> libfoo
+#     |-- libbox-0.0.1.tar.gz   -> libbaz
+#     |-- libfix-0.0.1.tar.gz
+#     |-- libfoo-0.0.1.tar.gz   -> libfix
+#     |-- libfox-0.0.1.tar.gz
+#     `-- repositories.manifest
+
+# Prepare repositories used by tests if running in the local mode.
+#
++if ($remote != true)
+  rep_create += 2>!
+
+  cp -r $src/t0a $out/t0a && $rep_create $out/t0a &$out/t0a/packages.manifest
+end
+
+pkg_build +=  --yes --auth all --trust-yes -d cfg 2>!
+
++$pkg_build "libbaz@$rep/t0a"
+
+test.options += --build-option -s
+
+: non-recursive
+:
+{
+  $clone_cfg;
+
+  $* libbaz 2>>~%EOE%
+      %info: .+libbaz-0.0.3.+ has nothing to test%
+      tested libbaz/0.0.3
+      EOE
+}
+
+: immediate
+:
+{
+  $clone_cfg;
+
+  $* libbaz --immediate 2>>~%EOE%
+      %info: .+libbaz-0.0.3.+ has nothing to test%
+      %info: .+libfoo-0.0.1.+ has nothing to test%
+      tested libbaz/0.0.3
+      tested libfoo/0.0.1
+      EOE
+}
+
+: recursive
+:
+{
+  $clone_cfg;
+
+  $* libbaz --recursive 2>>~%EOE%
+      %info: .+libbaz-0.0.3.+ has nothing to test%
+      %info: .+libfoo-0.0.1.+ has nothing to test%
+      %info: .+libfix-0.0.1.+ has nothing to test%
+      tested libbaz/0.0.3
+      tested libfoo/0.0.1
+      tested libfix/0.0.1
+      EOE
+}
+
+: recursive-immediate
+:
+{
+  $clone_cfg;
+
+  $* libbaz --recursive --immediate 2>>~%EOE% != 0
+      error: both --immediate|-i and --recursive|-r specified
+      EOE
+}

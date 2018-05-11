@@ -20,8 +20,11 @@ namespace bpkg
      \h|DESCRIPTION|
 
      The \cb{pkg-test} command tests the previously configured (via
-     \l{bpkg-pkg-build(1)} or \l{bpkg-pkg-configure(1)}) package. Underneath,
-     this command doesn't do much more than run \cb{b test}.
+     \l{bpkg-pkg-build(1)} or \l{bpkg-pkg-configure(1)}) packages.
+     Additionally, immediate or all dependencies of the specified packages can
+     be tested by specifying the \c{\b{--immediate}|\b{-i}} or
+     \c{\b{--recursive}|\b{-r}} options, respectively. Underneath, this
+     command doesn't do much more than run \cb{b test}.
 
      Additional command line variables (<vars>, normally \cb{config.*}) can be
      passed to the build system by either specifying them before the packages,
@@ -32,5 +35,15 @@ namespace bpkg
   class pkg_test_options: configuration_options
   {
     "\h|PKG-TEST OPTIONS|"
+
+    bool --immediate|-i
+    {
+      "Also test immediate dependencies."
+    }
+
+    bool --recursive|-r
+    {
+      "Also test all dependencies, recursively."
+    }
   };
 }

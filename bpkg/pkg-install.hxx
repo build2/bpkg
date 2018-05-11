@@ -17,7 +17,12 @@ namespace bpkg
   inline int
   pkg_install (const pkg_install_options& o, cli::scanner& args)
   {
-    return pkg_command ("install", o, "", args);
+    return pkg_command ("install",
+                        o,
+                        "" /* cmd_variant */,
+                        false /* recursive */,
+                        false /* immediate */,
+                        args);
   }
 }
 
