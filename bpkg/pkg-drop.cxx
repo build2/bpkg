@@ -292,20 +292,20 @@ namespace bpkg
   //
   static int
   pkg_drop (const dir_path& c,
-            const common_options& o,
+            const pkg_drop_options& o,
             database& db,
             const drop_packages& pkgs,
             bool drop_prq,
-            bool print_only,
-            bool disfigure_only,
-            bool yes,
-            bool no,
-            bool print_plan)
+            bool need_prompt)
   {
     // Print what we are going to do, then ask for the user's confirmation.
     //
-    if (print_only || !(yes || no || !print_plan))
+    if (o.print_only ()     ||
+        o.plan_specified () ||
+        !(o.yes () || o.no () || !need_prompt))
     {
+      bool first (true); // First entry in the plan.
+
       for (const drop_package& dp: pkgs)
       {
         // Skip prerequisites if we weren't instructed to drop them.
@@ -315,7 +315,22 @@ namespace bpkg
 
         const shared_ptr<selected_package>& p (dp.package);
 
-        if (print_only)
+        if (first)
+        {
+          // If the plan header is not empty, now is the time to print it.
+          //
+          if (!o.plan ().empty ())
+          {
+            if (o.print_only ())
+              cout << o.plan () << endl;
+            else
+              text << o.plan ();
+          }
+
+          first = false;
+        }
+
+        if (o.print_only ())
           cout << "drop " << p->name << endl;
         else if (verb)
           // Print indented for better visual separation.
@@ -323,13 +338,14 @@ namespace bpkg
           text << "  drop " << p->name;
       }
 
-      if (print_only)
+      if (o.print_only ())
         return 0;
     }
 
     // Ask the user if we should continue.
     //
-    if (no || !(yes || !print_plan || yn_prompt ("continue? [Y/n]", 'y')))
+    if (o.no () ||
+        !(o.yes () || !need_prompt || yn_prompt ("continue? [Y/n]", 'y')))
       return 1;
 
     // All that's left to do is first disfigure configured packages and
@@ -368,7 +384,7 @@ namespace bpkg
                  : "disfigured ") << p->name;
     }
 
-    if (disfigure_only)
+    if (o.disfigure_only ())
       return 0;
 
     // Purge.
@@ -436,11 +452,12 @@ namespace bpkg
     drop_packages pkgs;
     bool drop_prq (false);
 
-    // Print the plan and ask for the user's confirmation only if there are
-    // additional packages (such as dependents or prerequisites of the
-    // explicitly listed packages) to be dropped.
+    // We need the plan and to ask for the user's confirmation only if there
+    // are additional packages (such as dependents or prerequisites of the
+    // explicitly listed packages) to be dropped. But if the user explicitly
+    // requested it with --plan, then we print it as long as it is not empty.
     //
-    bool print_plan (false);
+    bool need_prompt (false);
     {
       transaction t (db);
 
@@ -495,7 +512,7 @@ namespace bpkg
         if (o.no () || !yn_prompt ("drop dependent packages? [y/N]", 'n'))
           return 1;
 
-        print_plan = true;
+        need_prompt = true;
       }
 
       // Collect all the prerequisites that are not held. These will be
@@ -552,97 +569,12 @@ namespace bpkg
         drop_prq = yn_prompt ("drop unused packages? [Y/n]", 'y');
 
         if (drop_prq)
-          print_plan = true;
+          need_prompt = true;
       }
 
       t.commit ();
     }
 
-    return pkg_drop (c,
-                     o,
-                     db,
-                     pkgs,
-                     drop_prq,
-                     o.print_only (),
-                     o.disfigure_only (),
-                     o.yes (),
-                     o.no (),
-                     print_plan);
-  }
-
-  set<shared_ptr<selected_package>>
-  pkg_drop (const dir_path& c,
-            const common_options& o,
-            database& db,
-            const set<shared_ptr<selected_package>>& prqs,
-            bool prompt)
-  {
-    assert (session::has_current ());
-
-    // Assemble the list of packages we will be dropping.
-    //
-    drop_packages pkgs;
-    {
-      transaction t (db);
-
-      // First add all the "caller selection" of packages to the list and
-      // collect their prerequisites (these will be the candidates to drop
-      // as well).
-      //
-      for (const shared_ptr<selected_package>& p: prqs)
-      {
-        assert (p->state != package_state::broken);
-
-        if (pkgs.collect (p, drop_reason::prerequisite))
-          pkgs.collect_prerequisites (db, p);
-      }
-
-      // Now arrange them (and their prerequisites) in the dependency order.
-      //
-      for (const shared_ptr<selected_package>& p: prqs)
-        pkgs.order (p->name);
-
-      // Finally filter out those that we cannot drop.
-      //
-      bool r (pkgs.filter_prerequisites (db));
-
-      t.commit ();
-
-      if (!r)
-        return {}; // Nothing can be dropped.
-    }
-
-    if (prompt)
-    {
-      {
-        diag_record dr (text);
-
-        dr << "following dependencies were automatically built but will "
-           << "no longer be used:";
-
-        for (const drop_package& dp: pkgs)
-          dr << text << dp.package->name;
-      }
-
-      if (!yn_prompt ("drop unused packages? [Y/n]", 'y'))
-        return {};
-    }
-
-    pkg_drop (c,
-              o,
-              db,
-              pkgs,
-              true,   // Drop prerequisites (that's what we are here for).
-              false,  // Print-only (too late for that).
-              false,  // Disfigure-only (could be an option).
-              true,   // Yes (don't print the plan or prompt).
-              false,  // No (we already said yes).
-              false); // Don't print the plan (just to reiterate).
-
-    set<shared_ptr<selected_package>> r;
-    for (const drop_package& dp: pkgs)
-      r.insert (dp.package);
-
-    return r;
+    return pkg_drop (c, o, db, pkgs, drop_prq, need_prompt);
   }
 }

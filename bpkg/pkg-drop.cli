@@ -65,15 +65,22 @@ namespace bpkg
       "Issue an error if attempting to drop dependent packages."
     }
 
+    bool --disfigure-only
+    {
+      "Disfigure all the packages but don't purge."
+    }
+
     bool --print-only|-p
     {
       "Print to \cb{STDOUT} what would be done without actually doing
        anything."
     }
 
-    bool --disfigure-only
+    string --plan
     {
-      "Disfigure all the packages but don't purge."
-    }
+      "<header>",
+      "Print the plan (even if \cb{--yes} is specified) and start it with the
+       <header> line (unless it is empty)."
+    };
   };
 }
