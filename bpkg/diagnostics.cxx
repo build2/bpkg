@@ -12,6 +12,8 @@
 #include <libbutl/process.mxx>
 #include <libbutl/process-io.mxx> // operator<<(ostream, process_arg)
 
+#include <bpkg/utility.hxx>
+
 using namespace std;
 using namespace butl;
 

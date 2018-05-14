@@ -28,20 +28,39 @@ namespace bpkg
 
     l4 ([&]{trace << "command: " << cmd;});
 
+    // Set common vars on the configuration scope.
+    //
+    cstrings gvars;
+    strings  lvars;
+    lvars.reserve (cvars.size ());
+
+    for (const string& v: cvars)
+    {
+      // Don't scope-qualify global variables.
+      //
+      if (v[0] == '!')
+        gvars.push_back (v.c_str ());
+
+      // Use path representation to get canonical trailing slash.
+      //
+      else
+        lvars.push_back (c.representation () + ':' + v);
+    }
+
     // This one is a bit tricky: we can only update all the packages at once if
     // they don't have any package-specific variables. But let's try to handle
     // this with the same logic (being clever again).
     //
     string bspec;
 
-    auto run =
-      [&trace, &c, &o, &cvars, &bspec] ( const strings& vars = strings ())
+    auto run = [&trace, &c, &o, &lvars, &gvars, &bspec] (
+      const strings& vars = strings ())
     {
       if (!bspec.empty ())
       {
         bspec += ')';
         l4 ([&]{trace << "buildspec: " << bspec;});
-        run_b (o, c, bspec, verb_b::normal, vars, cvars);
+        run_b (o, verb_b::normal, gvars, lvars, vars, bspec);
         bspec.clear ();
       }
     };

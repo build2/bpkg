@@ -19,6 +19,7 @@
 
 #include <bpkg/types.hxx>
 #include <bpkg/version.hxx>
+#include <bpkg/common-options.hxx>
 
 namespace bpkg
 {
@@ -130,34 +131,14 @@ namespace bpkg
   auto_fd
   open_dev_null ();
 
-  // Process.
-  //
-  // By default the process command line is printed for verbosity >= 2
-  // (essential command lines).
-  //
-  // If fallback is specified, then this directory is searched for the
-  // executable as a last resort.
-  //
-  void
-  run (const char* args[], const dir_path& fallback = dir_path ());
-
-  inline void
-  run (cstrings& args, const dir_path& fallback = dir_path ())
-  {
-    run (args.data (), fallback);
-  }
-
   // Directory extracted from argv[0] (i.e., this process' recall directory)
   // or empty if there is none. Can be used as a search fallback.
   //
   extern dir_path exec_dir;
 
   // Run build2, mapping verbosity levels. If quiet is true, then run build2
-  // quiet if our verbosity level is 1. Common vars (cvars) are set on the
-  // configuration scope.
+  // quiet if our verbosity level is 1.
   //
-  class common_options;
-
   const char*
   name_b (const common_options&);
 
@@ -170,13 +151,15 @@ namespace bpkg
     normal    // Run normally (at verbosity 1).
   };
 
+  template <typename O, typename E, typename... A>
+  process
+  start_b (const common_options&, O&& out, E&& err, verb_b, A&&... args);
+
+  template <typename... A>
   void
-  run_b (const common_options&,
-         const dir_path& configuration,
-         const string& buildspec,
-         verb_b = verb_b::normal,
-         const strings& pvars = strings (),
-         const strings& cvars = strings ());
+  run_b (const common_options&, verb_b, A&&... args);
 }
+
+#include <bpkg/utility.txx>
 
 #endif // BPKG_UTILITY_HXX

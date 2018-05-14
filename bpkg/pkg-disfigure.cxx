@@ -123,10 +123,45 @@ namespace bpkg
           // So in this case we just remove the output directory manually
           // rather then running 'b clean disfigure'.
           //
-          if (clean && p->external ())
-            rm_r (out_root);
+          // It may also happen that we can not disfigure the external
+          // package' output directory (the source directory have moved, etc.).
+          // If that's the case, then we fallback to the output directory
+          // removal.
+          //
+          if (p->external ())
+          {
+            if (!clean)
+            {
+              auto_fd dev_null (open_dev_null ());
+
+              // Redirect STDERR to /dev/null. Note that we don't expect
+              // anything to be written to STDOUT.
+              //
+              process pr (start_b (o,
+                                   1 /* stdout */, dev_null /* stderr */,
+                                   verb_b::quiet,
+                                   bspec));
+
+              // If the disfigure meta-operation failed then we report the
+              // abnormal termination and fallback to the output directory
+              // removal otherwise.
+              //
+              if (!pr.wait ())
+              {
+                const process_exit& e (*pr.exit);
+
+                if (!e.normal ())
+                  fail << "process " << name_b (o) << " " << e;
+
+                clean = true;
+              }
+            }
+
+            if (clean)
+              rm_r (out_root);
+          }
           else
-            run_b (o, c, bspec, verb_b::quiet);
+            run_b (o, verb_b::quiet, bspec);
         }
 
         // Make sure the out directory is gone unless it is the same as src,

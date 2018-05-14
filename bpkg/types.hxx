@@ -23,6 +23,7 @@
 #include <odb/lazy-ptr.hxx>
 
 #include <libbutl/path.mxx>
+#include <libbutl/process.mxx>
 #include <libbutl/utility.mxx>  // compare_reference_target
 #include <libbutl/optional.mxx>
 #include <libbutl/fdstream.mxx>
@@ -90,6 +91,13 @@ namespace bpkg
 
   using paths = std::vector<path>;
   using dir_paths = std::vector<dir_path>;
+
+  // <libbutl/process.mxx>
+  //
+  using butl::process;
+  using butl::process_path;
+  using butl::process_exit;
+  using butl::process_error;
 
   // <libbutl/fdstream.mxx>
   //

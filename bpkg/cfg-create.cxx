@@ -75,10 +75,9 @@ namespace bpkg
     // Run quiet. Use path representation to get canonical trailing slash.
     //
     run_b (o,
-           c,
-           "create('" + c.representation () + "'" + mods + ")",
            verb_b::quiet,
-           vars);
+           vars,
+           "create('" + c.representation () + "'" + mods + ")");
 
     // Create .bpkg/ and its subdirectories.
     //

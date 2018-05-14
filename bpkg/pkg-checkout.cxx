@@ -198,10 +198,9 @@ namespace bpkg
         text << "distributing " << n << '/' << v;
 
       run_b (o,
-             c,
-             bspec,
              verb_b::progress,
-             strings ({"config.dist.root=" + c.representation ()}));
+             strings ({"config.dist.root=" + c.representation ()}),
+             bspec);
 
       mc = sha256 (o, d / manifest_file);
     }

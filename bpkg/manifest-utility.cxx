@@ -6,8 +6,6 @@
 
 #include <libbutl/url.mxx>
 #include <libbutl/sha256.mxx>
-#include <libbutl/process.mxx>
-#include <libbutl/process-io.mxx> // operator<<(ostream, process_path)
 
 #include <bpkg/diagnostics.hxx>
 #include <bpkg/common-options.hxx>
@@ -200,92 +198,68 @@ namespace bpkg
   optional<version>
   package_version (const common_options& o, const dir_path& d)
   {
-    const char* b (name_b (o));
+    fdpipe pipe (open_pipe ());
+
+    process pr (start_b (o,
+                         pipe, 2 /* stderr */,
+                         verb_b::quiet,
+                         "info:",
+                         d.representation ()));
+
+    // Shouldn't throw, unless something is severely damaged.
+    //
+    pipe.out.close ();
 
     try
     {
-      process_path pp (process::path_search (b, exec_dir));
+      optional<version> r;
 
-      fdpipe pipe (open_pipe ());
+      ifdstream is (move (pipe.in),
+                    fdstream_mode::skip,
+                    ifdstream::badbit);
 
-      process pr (
-        process_start_callback (
-          [] (const char* const args[], size_t n)
-          {
-            if (verb >= 2)
-              print_process (args, n);
-          },
-          0 /* stdin */, pipe /* stdout */, 2 /* stderr */,
-          pp,
-
-          verb < 2
-          ? strings ({"-q"})
-          : verb == 2
-          ? strings ({"-v"})
-          : strings ({"--verbose", to_string (verb)}),
-
-          o.build_option (),
-          "info:",
-          d.representation ()));
-
-      // Shouldn't throw, unless something is severely damaged.
-      //
-      pipe.out.close ();
-
-      try
+      for (string l; !eof (getline (is, l)); )
       {
-        optional<version> r;
-
-        ifdstream is (move (pipe.in),
-                      fdstream_mode::skip,
-                      ifdstream::badbit);
-
-        for (string l; !eof (getline (is, l)); )
+        if (l.compare (0, 9, "version: ") == 0)
+        try
         {
-          if (l.compare (0, 9, "version: ") == 0)
-          try
-          {
-            string v (l, 9);
+          string v (l, 9);
 
-            // An empty version indicates that the version module is not
-            // enabled for the project.
-            //
-            if (!v.empty ())
-              r = version (v);
+          // An empty version indicates that the version module is not
+          // enabled for the project.
+          //
+          if (!v.empty ())
+            r = version (v);
 
-            break;
-          }
-          catch (const invalid_argument&)
-          {
-            fail << "no package version in '" << l << "'" <<
-              info << "produced by '" << pp << "'; use --build to override";
-          }
+          break;
         }
-
-        is.close ();
-
-        if (pr.wait ())
-          return r;
-
-        // Fall through.
-      }
-      catch (const io_error&)
-      {
-        if (pr.wait ())
-          fail << "unable to read '" << b << "' output";
-
-        // Fall through.
+        catch (const invalid_argument&)
+        {
+          fail << "no package version in '" << l << "'" <<
+            info << "produced by '" << name_b (o) << "'; use --build to "
+                 << "override";
+        }
       }
 
-      // We should only get here if the child exited with an error status.
-      //
-      assert (!pr.wait ());
+      is.close ();
 
-      fail << "unable to obtain version using '" << b << "'" << endf;
+      if (pr.wait ())
+        return r;
+
+      // Fall through.
     }
-    catch (const process_error& e)
+    catch (const io_error&)
     {
-      fail << "unable to execute '" << b << "': " << e << endf;
+      if (pr.wait ())
+        fail << "unable to read '" << name_b (o) << "' output";
+
+      // Fall through.
     }
+
+    // We should only get here if the child exited with an error status.
+    //
+    assert (!pr.wait ());
+
+    fail << "unable to obtain version using '" << name_b (o) << "'" << endf;
   }
 }

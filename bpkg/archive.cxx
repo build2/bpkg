@@ -6,6 +6,7 @@
 
 #include <libbutl/process.mxx>
 
+#include <bpkg/utility.hxx>
 #include <bpkg/diagnostics.hxx>
 
 using namespace std;

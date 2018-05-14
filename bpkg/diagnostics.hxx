@@ -5,12 +5,13 @@
 #ifndef BPKG_DIAGNOSTICS_HXX
 #define BPKG_DIAGNOSTICS_HXX
 
+#include <utility> // forward()
+
 #include <odb/tracer.hxx>
 
 #include <libbutl/diagnostics.mxx>
 
-#include <bpkg/types.hxx>
-#include <bpkg/utility.hxx>
+#include <bpkg/types.hxx> // Note: not <bpkg/utility.hxx>
 
 namespace bpkg
 {
@@ -159,7 +160,9 @@ namespace bpkg
         epilogue_,
         type_,
         name_,
-        location (forward<F> (f), forward<L> (l), forward<C> (c)));
+        location (std::forward<F> (f),
+                  std::forward<L> (l),
+                  std::forward<C> (c)));
     }
 
   protected:

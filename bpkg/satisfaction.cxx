@@ -6,7 +6,6 @@
 
 #include <libbutl/process.mxx>
 
-#include <bpkg/utility.hxx>
 #include <bpkg/package-odb.hxx>
 #include <bpkg/diagnostics.hxx>
 
@@ -100,7 +99,7 @@ namespace bpkg
   static version build2_version;
 
   void
-  satisfy_build2 (const common_options& co,
+  satisfy_build2 (const common_options& o,
                   const string& pkg,
                   const dependency& d)
   {
@@ -110,53 +109,43 @@ namespace bpkg
     //
     if (build2_version.empty ())
     {
-      const char* args[] = {name_b (co), "--version", nullptr};
+      fdpipe pipe (open_pipe ());
 
+      process pr (start_b (o,
+                           pipe, 2 /* stderr */,
+                           verb_b::quiet,
+                           "--version"));
+
+      // Shouldn't throw, unless something is severely damaged.
+      //
+      pipe.out.close ();
+
+      string l;
       try
       {
-        process_path pp (process::path_search (args[0], exec_dir));
+        ifdstream is (move (pipe.in), fdstream_mode::skip);
+        getline (is, l);
+        is.close ();
 
-        if (verb >= 3)
-          print_process (args);
-
-        process pr (pp, args, 0, -1); // Redirect STDOUT to pipe.
-
-        string l;
-        try
+        if (pr.wait () && l.compare (0, 7, "build2 ") == 0)
         {
-          ifdstream is (move (pr.in_ofd), fdstream_mode::skip);
-          getline (is, l);
-          is.close ();
-
-          if (pr.wait () && l.compare (0, 7, "build2 ") == 0)
+          try
           {
-            try
-            {
-              build2_version = version (string (l, 7));
-            }
-            catch (const invalid_argument&) {} // Fall through.
+            build2_version = version (string (l, 7));
           }
-
-          // Fall through.
-        }
-        catch (const io_error&)
-        {
-          pr.wait ();
-          // Fall through.
+          catch (const invalid_argument&) {} // Fall through.
         }
 
-        if (build2_version.empty ())
-          fail << "unable to determine build2 version of " << args[0];
+        // Fall through.
       }
-      catch (const process_error& e)
+      catch (const io_error&)
       {
-        error << "unable to execute " << args[0] << ": " << e;
-
-        if (e.child)
-          exit (1);
-
-        throw failed ();
+        pr.wait ();
+        // Fall through.
       }
+
+      if (build2_version.empty ())
+        fail << "unable to determine build2 version of " << name_b (o);
     }
 
     if (!satisfies (build2_version, d.constraint))

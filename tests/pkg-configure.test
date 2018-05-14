@@ -383,3 +383,26 @@ if ($cxx.target.class != 'windows')
     $pkg_purge libbar 2>'purged libbar/1.3.0'
   }
 }
+
+: keep-out
+:
+{
+  : fallback
+  :
+  : Test that pkg-disfigure falls back to the external package output directory
+  : removal if the source directory have gone.
+  :
+  {
+    $clone_root_cfg;
+
+    # Configure libhello as an external package.
+    #
+    cp --no-cleanup -r $src/libhello-1.0.0 ./libhello;
+    $pkg_unpack -e ./libhello;
+    $* libhello 2>!;
+
+    rm -r ./libhello;
+    $pkg_disfigure --keep-out libhello 2>'disfigured libhello/1.0.0';
+    test -d cfg/libhello != 0
+  }
+}
