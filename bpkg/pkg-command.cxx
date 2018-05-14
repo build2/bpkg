@@ -53,7 +53,7 @@ namespace bpkg
     //
     string bspec;
 
-    auto run = [&trace, &c, &o, &lvars, &gvars, &bspec] (
+    auto run = [&trace, &o, &lvars, &gvars, &bspec] (
       const strings& vars = strings ())
     {
       if (!bspec.empty ())
