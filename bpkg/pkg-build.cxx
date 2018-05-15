@@ -2206,7 +2206,7 @@ namespace bpkg
     {
       if (v)
       {
-        if (r.empty ())
+        if (!r.empty ())
           r += ' ';
         r += o;
       }
