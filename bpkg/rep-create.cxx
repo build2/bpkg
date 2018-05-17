@@ -60,7 +60,7 @@ namespace bpkg
   {
     tracer trace ("collect");
 
-    for (const dir_entry& de: dir_iterator (d)) // system_error
+    for (const dir_entry& de: dir_iterator (d, false /* ignore_dangling */))
     {
       path p (de.path ());
 

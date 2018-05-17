@@ -331,7 +331,7 @@ namespace bpkg
 
     try
     {
-      for (const dir_entry& de: dir_iterator (rd)) // system_error
+      for (const dir_entry& de: dir_iterator (rd, false /* ignore_dangling */))
       {
         if (de.ltype () == entry_type::directory)
           rmdir (rd / path_cast<dir_path> (de.path ()));
