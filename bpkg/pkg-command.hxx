@@ -19,7 +19,7 @@ namespace bpkg
   // instead.
   //
   // The command can also be performed recursively for all or immediate
-  // dependencies of the specified packages.
+  // dependencies of the specified or all the held packages.
   //
   int
   pkg_command (const string& cmd, // Without the 'pkg-' prefix.
@@ -27,6 +27,7 @@ namespace bpkg
                const string& cmd_variant,
                bool recursive,
                bool immediate,
+               bool all,
                cli::scanner& args);
 
   struct pkg_command_vars

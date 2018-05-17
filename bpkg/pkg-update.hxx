@@ -22,6 +22,7 @@ namespace bpkg
                         o.for_ (),
                         false /* recursive */,
                         false /* immediate */,
+                        o.all (),
                         args);
   }
 

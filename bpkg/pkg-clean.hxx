@@ -21,6 +21,7 @@ namespace bpkg
                         "" /* cmd_variant */,
                         false /* recursive */,
                         false /* immediate */,
+                        o.all (),
                         args);
   }
 }

@@ -15,14 +15,17 @@ namespace bpkg
 
     "\h|SYNOPSIS|
 
-     \c{\b{bpkg pkg-clean}|\b{clean} [<options>] [<vars>] (<pkg> [<vars>])...}
+     \c{\b{bpkg pkg-clean}|\b{clean} [<options>] [<vars>] (<pkg> [<vars>])...\n
+        \b{bpkg pkg-clean}|\b{clean} [<options>] [<vars>] \b{--all}|\b{-a}}
 
      \h|DESCRIPTION|
 
-     The \cb{pkg-clean} command cleans the previously configured (via
-     \l{bpkg-pkg-build(1)} or \l{bpkg-pkg-configure(1)}) package. Underneath,
-     this command doesn't do much more than run \cb{b clean}.
+     The \cb{pkg-clean} command cleans the specified packages (the first form)
+     or all the held packages (the second form, see \l{bpkg-pkg-status(1)}).
+     Underneath, this command doesn't do much more than run \cb{b clean}.
 
+     In the first form the specified packages must have been previously
+     configured with \l{bpkg-pkg-build(1)} or \l{bpkg-pkg-configure(1)}.
      Additional command line variables (<vars>, normally \cb{config.*}) can be
      passed to the build system by either specifying them before the packages,
      in which case they apply to the whole configuration, or after a specific
@@ -32,5 +35,10 @@ namespace bpkg
   class pkg_clean_options: configuration_options
   {
     "\h|PKG-CLEAN OPTIONS|"
+
+    bool --all|-a
+    {
+      "Clean all held packages."
+    }
   };
 }

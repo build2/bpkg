@@ -26,13 +26,39 @@
   cp -r $src/t0a $out/t0a && $rep_create $out/t0a &$out/t0a/packages.manifest
 end
 
-pkg_build +=  --yes --auth all --trust-yes -d cfg 2>!
+cfg_create += -d cfg 2>! &cfg/***
+pkg_build  += -d cfg --yes --auth all --trust-yes 2>!
 
 +$pkg_build "libbaz@$rep/t0a"
 
 test.options += --build-option -s
 
-: non-recursive
+: args
+:
+{
+  : no-name
+  :
+  $* 2>>EOE != 0
+    error: package name argument expected
+      info: run 'bpkg help pkg-test' for more information
+    EOE
+
+  : all-name
+  :
+  $* --all libbaz 2>>EOE != 0
+    error: both --all|-a and package argument specified
+      info: run 'bpkg help pkg-test' for more information
+    EOE
+
+  : recursive-immediate
+  :
+  $* libbaz --recursive --immediate 2>>~%EOE% != 0
+      error: both --immediate|-i and --recursive|-r specified
+        info: run 'bpkg help pkg-test' for more information
+      EOE
+}
+
+: package
 :
 {
   $clone_cfg;
@@ -41,6 +67,30 @@ test.options += --build-option -s
       %info: .+libbaz-0.0.3.+ has nothing to test%
       tested libbaz/0.0.3
       EOE
+}
+
+: all
+:
+{
+  : src
+  :
+  {
+    $clone_root_cfg;
+
+    $* --all 2>>~%EOE%
+        %info: .+libbaz-0.0.3.+ has nothing to test%
+        tested libbaz/0.0.3
+        EOE
+  }
+
+  : sys
+  :
+  {
+    $cfg_create;
+    $pkg_build "sys:libbaz@$rep/t0a";
+
+    $* --all 2>'info: nothing to test'
+  }
 }
 
 : immediate
@@ -68,15 +118,5 @@ test.options += --build-option -s
       tested libbaz/0.0.3
       tested libfoo/0.0.1
       tested libfix/0.0.1
-      EOE
-}
-
-: recursive-immediate
-:
-{
-  $clone_cfg;
-
-  $* libbaz --recursive --immediate 2>>~%EOE% != 0
-      error: both --immediate|-i and --recursive|-r specified
       EOE
 }

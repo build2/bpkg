@@ -144,14 +144,10 @@ namespace bpkg
                const string& cmd_v,
                bool recursive,
                bool immediate,
+               bool all,
                cli::scanner& args)
   {
     tracer trace ("pkg_command");
-
-    // We can as well count on the immediate/recursive option names.
-    //
-    if (immediate && recursive)
-      fail << "both --immediate|-i and --recursive|-r specified";
 
     const dir_path& c (o.directory ());
     l4 ([&]{trace << "configuration: " << c;});
@@ -174,9 +170,27 @@ namespace bpkg
     strings cvars;
     read_vars (cvars);
 
-    if (!args.more ())
-      fail << "package name argument expected" <<
-        info << "run 'bpkg help pkg-" << cmd << "' for more information";
+    // Check that options and arguments are consistent.
+    //
+    // Note that we can as well count on the option names that correspond to
+    // the immediate, recursive, and all parameters.
+    //
+    {
+      diag_record dr;
+
+      if (immediate && recursive)
+        dr << fail << "both --immediate|-i and --recursive|-r specified";
+      else if (all)
+      {
+        if (args.more ())
+          dr << fail << "both --all|-a and package argument specified";
+      }
+      else if (!args.more ())
+        dr << fail << "package name argument expected";
+
+      if (!dr.empty ())
+        dr << info << "run 'bpkg help pkg-" << cmd << "' for more information";
+    }
 
     vector<pkg_command_vars> ps;
     {
@@ -188,34 +202,64 @@ namespace bpkg
       //
       session ses;
 
-      while (args.more ())
+      auto add = [&ps, recursive, immediate] (
+        const shared_ptr<selected_package>& p,
+        strings vars)
       {
-        string n (args.next ());
-        shared_ptr<selected_package> p (db.find<selected_package> (n));
-
-        if (p == nullptr)
-          fail << "package " << n << " does not exist in configuration " << c;
-
-        if (p->state != package_state::configured)
-          fail << "package " << n << " is " << p->state <<
-            info << "expected it to be configured";
-
-        if (p->substate == package_substate::system)
-          fail << "cannot " << cmd << " system package " << n;
-
-        l4 ([&]{trace << *p;});
-
-        // Read package-specific variables.
-        //
-        strings vars;
-        read_vars (vars);
-
         ps.push_back (pkg_command_vars {p, move (vars)});
 
         // Note that it can only be recursive or immediate but not both.
         //
         if (recursive || immediate)
           collect_dependencies (p, recursive, ps);
+      };
+
+      if (all)
+      {
+        using query = query<selected_package>;
+
+        query q (query::hold_package &&
+                 query::state == "configured" &&
+                 query::substate != "system");
+
+        for (shared_ptr<selected_package> p:
+               pointer_result (db.query<selected_package> (q)))
+        {
+          l4 ([&]{trace << *p;});
+
+          add (p, strings ());
+        }
+
+        if (ps.empty ())
+          info << "nothing to " << cmd;
+      }
+      else
+      {
+        while (args.more ())
+        {
+          string n (args.next ());
+          shared_ptr<selected_package> p (db.find<selected_package> (n));
+
+          if (p == nullptr)
+            fail << "package " << n << " does not exist in configuration "
+                 << c;
+
+          if (p->state != package_state::configured)
+            fail << "package " << n << " is " << p->state <<
+              info << "expected it to be configured";
+
+          if (p->substate == package_substate::system)
+            fail << "cannot " << cmd << " system package " << n;
+
+          l4 ([&]{trace << *p;});
+
+          // Read package-specific variables.
+          //
+          strings vars;
+          read_vars (vars);
+
+          add (p, move (vars));
+        }
       }
 
       t.commit ();

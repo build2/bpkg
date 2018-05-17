@@ -15,17 +15,21 @@ namespace bpkg
 
     "\h|SYNOPSIS|
 
-     \c{\b{bpkg pkg-uninstall}|\b{uninstall} [<options>] [<vars>] (<pkg> [<vars>])...}
+     \c{\b{bpkg pkg-uninstall}|\b{uninstall} [<options>] [<vars>] (<pkg> [<vars>])...\n
+        \b{bpkg pkg-uninstall}|\b{uninstall} [<options>] [<vars>] \b{--all}|\b{-a}}
 
      \h|DESCRIPTION|
 
-     The \cb{pkg-uninstall} command uninstalls one or more packages that were
-     previously installed with \l{bpkg-pkg-install(1)}. Additionally,
-     immediate or all dependencies of the specified packages can be also
-     uninstalled by specifying the \c{\b{--immediate}|\b{-i}} or
-     \c{\b{--recursive}|\b{-r}} options, respectively. Underneath, this
-     command doesn't do much more than run \cb{b uninstall}.
+     The \cb{pkg-uninstall} command uninstalls the specified packages (the
+     first form) or all held packages (the second form, see
+     \l{bpkg-pkg-status(1)}). Additionally, immediate or all dependencies of
+     these specified packages can be also uninstalled by specifying the
+     \c{\b{--immediate}|\b{-i}} or \c{\b{--recursive}|\b{-r}} options,
+     respectively. Underneath, this command doesn't do much more than run
+     \cb{b uninstall}.
 
+     In the first form the specified packages must have been previously
+     configured with \l{bpkg-pkg-build(1)} or \l{bpkg-pkg-configure(1)}.
      Additional command line variables (<vars>, normally \cb{config.*}) can be
      passed to the build system by either specifying them before the packages,
      in which case they apply to the whole configuration, or after a specific
@@ -36,6 +40,11 @@ namespace bpkg
   class pkg_uninstall_options: configuration_options
   {
     "\h|PKG-UNINSTALL OPTIONS|"
+
+    bool --all|-a
+    {
+      "Uninstall all held packages."
+    }
 
     bool --immediate|-i
     {
