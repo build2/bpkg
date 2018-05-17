@@ -22,7 +22,7 @@ namespace bpkg
      The \cb{pkg-test} command tests the previously configured (via
      \l{bpkg-pkg-build(1)} or \l{bpkg-pkg-configure(1)}) packages.
      Additionally, immediate or all dependencies of the specified packages can
-     be tested by specifying the \c{\b{--immediate}|\b{-i}} or
+     also be tested by specifying the \c{\b{--immediate}|\b{-i}} or
      \c{\b{--recursive}|\b{-r}} options, respectively. Underneath, this
      command doesn't do much more than run \cb{b test}.
 

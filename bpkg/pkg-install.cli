@@ -19,8 +19,11 @@ namespace bpkg
 
      \h|DESCRIPTION|
 
-     The \cb{pkg-install} command installs one or more packages. Underneath,
-     this command doesn't do much more than run \cb{b install}.
+     The \cb{pkg-install} command installs one or more packages. Additionally,
+     immediate or all dependencies of the specified packages can be also
+     installed by specifying the \c{\b{--immediate}|\b{-i}} or
+     \c{\b{--recursive}|\b{-r}} options, respectively. Underneath, this
+     command doesn't do much more than run \cb{b install}.
 
      Additional command line variables (<vars>, normally \cb{config.*}) can be
      passed to the build system by either specifying them before the packages,
@@ -41,5 +44,15 @@ namespace bpkg
   class pkg_install_options: configuration_options
   {
     "\h|PKG-INSTALL OPTIONS|"
+
+    bool --immediate|-i
+    {
+      "Also install immediate dependencies."
+    }
+
+    bool --recursive|-r
+    {
+      "Also install all dependencies, recursively."
+    }
   };
 }

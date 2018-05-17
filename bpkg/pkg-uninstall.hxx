@@ -19,8 +19,8 @@ namespace bpkg
   {
     return pkg_command ("uninstall", o,
                         "" /* cmd_variant */,
-                        false /* recursive */,
-                        false /* immediate */,
+                        o.recursive (),
+                        o.immediate (),
                         args);
   }
 }

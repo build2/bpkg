@@ -20,7 +20,10 @@ namespace bpkg
      \h|DESCRIPTION|
 
      The \cb{pkg-uninstall} command uninstalls one or more packages that were
-     previously installed with \l{bpkg-pkg-install(1)}. Underneath, this
+     previously installed with \l{bpkg-pkg-install(1)}. Additionally,
+     immediate or all dependencies of the specified packages can be also
+     uninstalled by specifying the \c{\b{--immediate}|\b{-i}} or
+     \c{\b{--recursive}|\b{-r}} options, respectively. Underneath, this
      command doesn't do much more than run \cb{b uninstall}.
 
      Additional command line variables (<vars>, normally \cb{config.*}) can be
@@ -33,5 +36,15 @@ namespace bpkg
   class pkg_uninstall_options: configuration_options
   {
     "\h|PKG-UNINSTALL OPTIONS|"
+
+    bool --immediate|-i
+    {
+      "Also uninstall immediate dependencies."
+    }
+
+    bool --recursive|-r
+    {
+      "Also uninstall all dependencies, recursively."
+    }
   };
 }
