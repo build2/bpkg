@@ -3220,7 +3220,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       +$build 'dist(../../libhello/@./out/)' \
               "config.cxx=$config.cxx" config.dist.root=./ \
               config.dist.archives=tar.gz 2>! \
-              &out/*** &libhello-1.0.1/*** &libhello-1.0.1.tar.gz
+              &libhello-1.0.1/*** &libhello-1.0.1.tar.gz
 
       : arg
       :
