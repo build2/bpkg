@@ -45,10 +45,22 @@ namespace bpkg
     if (const char* p = traits::find (s, n, '/'))
       n = static_cast<size_t> (p - s);
 
-    if (n == 0)
-      fail << "empty package name in '" << s << "'";
+    string nm (s, n);
 
-    return string (s, n);
+    // The package name may be a part of some compound argument. So while the
+    // invalid package name would likely result in the operation failure, the
+    // validating can ease the troubleshooting.
+    //
+    try
+    {
+      validate_package_name (nm);
+    }
+    catch (const invalid_argument& e)
+    {
+      fail << "invalid package name in '" << s << "': " << e;
+    }
+
+    return nm;
   }
 
   version

@@ -31,7 +31,8 @@ namespace bpkg
   package_scheme
   parse_package_scheme (const char*&);
 
-  // Extract name and version components from <name>[/<version>].
+  // Extract and validate the package name and version components from
+  // <name>[/<version>].
   //
   string
   parse_package_name (const char*);
