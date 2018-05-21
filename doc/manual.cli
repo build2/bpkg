@@ -16,6 +16,48 @@
 
 This is the preface.
 
+\h1#package-name|Package Name|
+
+The \c{bpkg} package name can contain ASCII alphabetic characters
+(\c{[a-zA-Z]}), digits (\c{[0-9]}), underscores (\c{_}), plus/minus (\c{+-}),
+and dots/periods (\c{\c{.}}). The name must be at least two characters long
+with the following additional restrictions:
+
+\ol|
+
+\li|It must start with an alphabetic character.|
+
+\li|It must end with an alphabetic or digit character.|
+
+\li|It must not be any of the following illegal names:
+
+\
+build
+con prn aux nul
+com1 com2 com3 com4 com5 com6 com7 com8 com9
+lpt1 lpt2 lpt3 lpt4 lpt5 lpt6 lpt7 lpt8 lpt9
+\
+
+||
+
+The use of dot (\c{.}) and plus (\c{+}) characters in package names is
+discouraged. \N{Pluses are used in URL encoding and dots normally separate the
+name from its extension/type which, conceptually, package names do not have.}
+
+Package name comparison is case-insensitive but the original case must be
+preserved for display, in file names, etc. \N{The reason for case-insensitive
+comparison is Windows file names.}
+
+If the package is a library then it is strongly recommended that you start its
+package name with the \c{lib} prefix, for example, \c{libfoo}. Some package
+repositories may make this a requirement as part of their submission policy.
+
+If a package (normally a library) supports usage of multiple major versions
+in the same project, then it is recommended to append the major version
+number to the package name starting from version \c{2.0.0}, for example,
+\c{libfoo} (before \c{2.0.0}), \c{libfoo2}, \c{libfoo3} (\c{3.Y.Z}), etc.
+
+
 \h1#package-version|Package Version|
 
 The \c{bpkg} package version format tries to balance the need of accommodating
@@ -121,7 +163,7 @@ To compare two components, first the component types are determined.  A
 component that only consists of digits is an integer. Otherwise, it is a
 string. If both components are integers, then they are compared as
 integers. Otherwise, they are compared lexicographically and case-
-insensitively. \N{The reason for case-insensitive comparsion is Windows
+insensitively. \N{The reason for case-insensitive comparison is Windows
 file names.}
 
 A non-existent component is considered 0 if the other component is an integer
@@ -474,19 +516,9 @@ email: <email> [; <comment>]
 name: <name>
 \
 
-The package name. Note that the package name comparison is case-insensitive
-but the case is preserved for display, in file names, etc. \N{The reason
-for not using case-sensitive comparison is Windows file names.}
-
-Package naming guidelines:
-
-\ol|
-
-  \li|Use lower-case letters.|
-
-  \li|Use \c{'-'} to separate words, for example, \c{foo-bar}.|
-
-  \li|Use \c{lib} prefix for libraries, for example, \c{libfoo-bar}.||
+The package name. See \l{#package-name Package Name} for the package name
+format description. Note that the name case is preserved for display, in file
+names, etc.
 
 
 \h2#manifest-package-version|\c{version}|
@@ -498,6 +530,7 @@ version: <version>
 The package version. See \l{#package-version Package Version} for the version
 format description. Note that the version case is preserved for display, in
 file names, etc.
+
 
 \h2#manifest-package-|\c{priority}|
 
