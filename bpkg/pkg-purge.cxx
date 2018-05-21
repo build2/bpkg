@@ -8,6 +8,7 @@
 #include <bpkg/package-odb.hxx>
 #include <bpkg/database.hxx>
 #include <bpkg/diagnostics.hxx>
+#include <bpkg/manifest-utility.hxx>
 
 using namespace std;
 using namespace butl;
@@ -117,7 +118,8 @@ namespace bpkg
       fail << "package name argument expected" <<
         info << "run 'bpkg help pkg-purge' for more information";
 
-    string n (args.next ());
+    package_name n (parse_package_name (args.next (),
+                                        false /* allow_version */));
 
     database db (open (c, trace));
     transaction t (db);

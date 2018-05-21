@@ -10,6 +10,7 @@
 #include <bpkg/package-odb.hxx>
 #include <bpkg/database.hxx>
 #include <bpkg/diagnostics.hxx>
+#include <bpkg/manifest-utility.hxx>
 
 using namespace std;
 using namespace butl;
@@ -237,7 +238,9 @@ namespace bpkg
       {
         while (args.more ())
         {
-          string n (args.next ());
+          package_name n (parse_package_name (args.next (),
+                                              false /* allow_version */));
+
           shared_ptr<selected_package> p (db.find<selected_package> (n));
 
           if (p == nullptr)

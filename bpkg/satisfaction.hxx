@@ -41,10 +41,12 @@ namespace bpkg
   // Special build-time dependencies.
   //
   void
-  satisfy_build2 (const common_options&, const string& pkg, const dependency&);
+  satisfy_build2 (const common_options&,
+                  const package_name&,
+                  const dependency&);
 
   void
-  satisfy_bpkg (const common_options&, const string& pkg, const dependency&);
+  satisfy_bpkg (const common_options&, const package_name&, const dependency&);
 }
 
 #endif // BPKG_SATISFACTION_HXX

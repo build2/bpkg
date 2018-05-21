@@ -33,7 +33,7 @@ namespace bpkg
   static void
   pkg_unpack_check (const dir_path& c,
                     transaction& t,
-                    const string& n,
+                    const package_name& n,
                     bool replace)
   {
     tracer trace ("pkg_update_check");
@@ -61,13 +61,14 @@ namespace bpkg
     }
   }
 
-  // Select the external package in this configuration.
+  // Select the external package in this configuration. Can return a new
+  // selected package object, replacing the existing one.
   //
   static shared_ptr<selected_package>
   pkg_unpack (const common_options& o,
               dir_path c,
               transaction& t,
-              string n,
+              package_name n,
               version v,
               dir_path d,
               repository_location rl,
@@ -104,6 +105,20 @@ namespace bpkg
       //
       pkg_purge_fs (c, t, p, simulate);
 
+      // Note that if the package name spelling changed then we need to update
+      // it, to make sure that the subsequent commands don't fail and the
+      // diagnostics is not confusing. Hover, we cannot update the object id,
+      // so have to erase it and persist afterwards.
+      //
+      if (p->name.string () != n.string ())
+      {
+        db.erase (p);
+        p = nullptr;
+      }
+    }
+
+    if (p != nullptr)
+    {
       p->version = move (v);
       p->state = package_state::unpacked;
       p->repository_fragment = move (rl);
@@ -190,7 +205,7 @@ namespace bpkg
   pkg_unpack (const common_options& o,
               const dir_path& c,
               transaction& t,
-              string n,
+              package_name n,
               version v,
               bool replace,
               bool simulate)
@@ -254,7 +269,7 @@ namespace bpkg
   pkg_unpack (const common_options& co,
               const dir_path& c,
               transaction& t,
-              const string& name,
+              const package_name& name,
               bool simulate)
   {
     tracer trace ("pkg_unpack");
@@ -280,7 +295,7 @@ namespace bpkg
     // Also, since we must have verified the archive during fetch,
     // here we can just assume what the resulting directory will be.
     //
-    dir_path d (c / dir_path (p->name + '-' + p->version.string ()));
+    dir_path d (c / dir_path (p->name.string () + '-' + p->version.string ()));
 
     if (exists (d))
       fail << "package directory " << d << " already exists";
@@ -462,9 +477,9 @@ namespace bpkg
         fail << "package name argument expected" <<
           info << "run 'bpkg help pkg-unpack' for more information";
 
-      const char* arg (args.next ());
-      string n (parse_package_name (arg));
-      version v (parse_package_version (arg));
+      const char*  arg (args.next ());
+      package_name n   (parse_package_name (arg));
+      version      v   (parse_package_version (arg));
 
       external = !v.empty ();
 

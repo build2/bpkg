@@ -100,7 +100,7 @@ namespace bpkg
 
   void
   satisfy_build2 (const common_options& o,
-                  const string& pkg,
+                  const package_name& pkg,
                   const dependency& d)
   {
     assert (d.name == "build2");
@@ -157,7 +157,9 @@ namespace bpkg
   static version bpkg_version;
 
   void
-  satisfy_bpkg (const common_options&, const string& pkg, const dependency& d)
+  satisfy_bpkg (const common_options&,
+                const package_name& pkg,
+                const dependency& d)
   {
     assert (d.name == "bpkg");
 

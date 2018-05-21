@@ -35,32 +35,34 @@ namespace bpkg
     return package_scheme::none;
   }
 
-  string
-  parse_package_name (const char* s)
+  package_name
+  parse_package_name (const char* s, bool allow_version)
   {
     using traits = string::traits_type;
+
+    if (!allow_version)
+    try
+    {
+      return package_name (s);
+    }
+    catch (const invalid_argument& e)
+    {
+      fail << "invalid package name '" << s << "': " << e;
+    }
 
     size_t n (traits::length (s));
 
     if (const char* p = traits::find (s, n, '/'))
       n = static_cast<size_t> (p - s);
 
-    string nm (s, n);
-
-    // The package name may be a part of some compound argument. So while the
-    // invalid package name would likely result in the operation failure, the
-    // validating can ease the troubleshooting.
-    //
     try
     {
-      validate_package_name (nm);
+      return package_name (string (s, n));
     }
     catch (const invalid_argument& e)
     {
-      fail << "invalid package name in '" << s << "': " << e;
+      fail << "invalid package name in '" << s << "': " << e << endf;
     }
-
-    return nm;
   }
 
   version

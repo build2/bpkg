@@ -249,15 +249,17 @@ namespace bpkg
   }
 
   string
-  package_string (const string& n, const version& v, bool system)
+  package_string (const package_name& n, const version& v, bool system)
   {
+    assert (!n.empty ());
+
     string vs (v.empty ()
                ? string ()
                : v == wildcard_version
                  ? "/*"
                  : '/' + v.string ());
 
-    return system ? "sys:" + n + vs : n + vs;
+    return system ? "sys:" + n.string () + vs : n.string () + vs;
   }
 
   // selected_package
@@ -273,7 +275,7 @@ namespace bpkg
                      const dir_path& c,
                      transaction& t,
                      const dir_path& d,
-                     const string& n,
+                     const package_name& n,
                      const version& v,
                      bool check_external)
   {

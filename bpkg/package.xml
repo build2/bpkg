@@ -80,7 +80,7 @@
       </foreign-key>
     </table>
     <table name="available_package" kind="object">
-      <column name="name" type="TEXT" null="true"/>
+      <column name="name" type="TEXT" null="true" options="COLLATE NOCASE"/>
       <column name="version_epoch" type="INTEGER" null="true"/>
       <column name="version_canonical_upstream" type="TEXT" null="true"/>
       <column name="version_canonical_release" type="TEXT" null="true" options="COLLATE BINARY"/>
@@ -99,7 +99,7 @@
       </primary-key>
     </table>
     <table name="available_package_locations" kind="container">
-      <column name="name" type="TEXT" null="true"/>
+      <column name="name" type="TEXT" null="true" options="COLLATE NOCASE"/>
       <column name="version_epoch" type="INTEGER" null="true"/>
       <column name="version_canonical_upstream" type="TEXT" null="true"/>
       <column name="version_canonical_release" type="TEXT" null="true" options="COLLATE BINARY"/>
@@ -139,7 +139,7 @@
       </foreign-key>
     </table>
     <table name="available_package_dependencies" kind="container">
-      <column name="name" type="TEXT" null="true"/>
+      <column name="name" type="TEXT" null="true" options="COLLATE NOCASE"/>
       <column name="version_epoch" type="INTEGER" null="true"/>
       <column name="version_canonical_upstream" type="TEXT" null="true"/>
       <column name="version_canonical_release" type="TEXT" null="true" options="COLLATE BINARY"/>
@@ -178,7 +178,7 @@
       </index>
     </table>
     <table name="available_package_dependency_alternatives" kind="container">
-      <column name="name" type="TEXT" null="true"/>
+      <column name="name" type="TEXT" null="true" options="COLLATE NOCASE"/>
       <column name="version_epoch" type="INTEGER" null="true"/>
       <column name="version_canonical_upstream" type="TEXT" null="true"/>
       <column name="version_canonical_release" type="TEXT" null="true" options="COLLATE BINARY"/>
@@ -186,7 +186,7 @@
       <column name="version_iteration" type="INTEGER" null="true"/>
       <column name="dependency_index" type="INTEGER" null="true"/>
       <column name="index" type="INTEGER" null="true"/>
-      <column name="dep_name" type="TEXT" null="true"/>
+      <column name="dep_name" type="TEXT" null="true" options="COLLATE NOCASE"/>
       <column name="dep_min_version_epoch" type="INTEGER" null="true"/>
       <column name="dep_min_version_canonical_upstream" type="TEXT" null="true"/>
       <column name="dep_min_version_canonical_release" type="TEXT" null="true"/>
@@ -229,7 +229,7 @@
       </index>
     </table>
     <table name="selected_package" kind="object">
-      <column name="name" type="TEXT" null="true"/>
+      <column name="name" type="TEXT" null="true" options="COLLATE NOCASE"/>
       <column name="version_epoch" type="INTEGER" null="true"/>
       <column name="version_canonical_upstream" type="TEXT" null="true"/>
       <column name="version_canonical_release" type="TEXT" null="true"/>
@@ -254,8 +254,8 @@
       </primary-key>
     </table>
     <table name="selected_package_prerequisites" kind="container">
-      <column name="package" type="TEXT" null="true"/>
-      <column name="prerequisite" type="TEXT" null="true"/>
+      <column name="package" type="TEXT" null="true" options="COLLATE NOCASE"/>
+      <column name="prerequisite" type="TEXT" null="true" options="COLLATE NOCASE"/>
       <column name="min_version_epoch" type="INTEGER" null="true"/>
       <column name="min_version_canonical_upstream" type="TEXT" null="true"/>
       <column name="min_version_canonical_release" type="TEXT" null="true"/>

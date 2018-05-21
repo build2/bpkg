@@ -42,8 +42,8 @@ namespace bpkg
   //
   struct dependent_name
   {
-    string name;
-    string prq_name; // Prerequisite package name.
+    package_name name;
+    package_name prq_name; // Prerequisite package name.
   };
   using dependent_names = vector<dependent_name>;
 
@@ -72,7 +72,7 @@ namespace bpkg
     bool
     collect (shared_ptr<selected_package> p, drop_reason r = drop_reason::user)
     {
-      string n (p->name); // Because of move(p) below.
+      package_name n (p->name); // Because of move(p) below.
       return map_.emplace (move (n), data_type {end (), {move (p), r}}).second;
     }
 
@@ -107,7 +107,7 @@ namespace bpkg
 
       for (auto& pd: db.query<package_dependent> (query::name == p->name))
       {
-        const string& dn (pd.name);
+        const package_name& dn (pd.name);
 
         if (map_.find (dn) == map_.end ())
         {
@@ -172,7 +172,7 @@ namespace bpkg
     // returning its positions.
     //
     iterator
-    order (const string& name)
+    order (const package_name& name)
     {
       // Every package that we order should have already been collected.
       //
@@ -215,7 +215,7 @@ namespace bpkg
       {
         for (const auto& pair: p->prerequisites)
         {
-          const string& pn (pair.first.object_id ());
+          const package_name& pn (pair.first.object_id ());
 
           // The prerequisites may not necessarily be in the map (e.g.,
           // a held package that we prunned).
@@ -285,7 +285,7 @@ namespace bpkg
       drop_package package;
     };
 
-    map<string, data_type> map_;
+    map<package_name, data_type> map_;
   };
 
   // Drop ordered list of packages.
@@ -464,10 +464,12 @@ namespace bpkg
       // The first step is to load and collect all the packages specified
       // by the user.
       //
-      strings names;
+      vector<package_name> names;
       while (args.more ())
       {
-        string n (args.next ());
+        package_name n (parse_package_name (args.next (),
+                                            false /* allow_version */));
+
         l4 ([&]{trace << "package " << n;});
 
         shared_ptr<selected_package> p (db.find<selected_package> (n));
@@ -538,7 +540,7 @@ namespace bpkg
       // the user selection, it will be inserted before the first package
       // on which it depends.
       //
-      for (const string& n: names)
+      for (const package_name& n: names)
         pkgs.order (n);
 
       for (const dependent_name& dn: dnames)

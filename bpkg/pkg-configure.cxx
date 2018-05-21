@@ -23,7 +23,7 @@ namespace bpkg
   pkg_configure_prerequisites (const common_options& o,
                                transaction& t,
                                const dependencies& deps,
-                               const string& package)
+                               const package_name& package)
   {
     package_prerequisites r;
 
@@ -36,7 +36,7 @@ namespace bpkg
       bool satisfied (false);
       for (const dependency& d: da)
       {
-        const string& n (d.name);
+        const package_name& n (d.name);
 
         if (da.buildtime)
         {
@@ -127,9 +127,10 @@ namespace bpkg
 
     // Calculate package's out_root.
     //
-    dir_path out_root (p->external ()
-                       ? c / dir_path (p->name)
-                       : c / dir_path (p->name + "-" + p->version.string ()));
+    dir_path out_root (
+      p->external ()
+      ? c / dir_path (p->name.string ())
+      : c / dir_path (p->name.string () + "-" + p->version.string ()));
 
     l4 ([&]{trace << "src_root: " << src_root << ", "
                   << "out_root: " << out_root;});
@@ -193,7 +194,9 @@ namespace bpkg
   }
 
   shared_ptr<selected_package>
-  pkg_configure_system (const string& n, const version& v, transaction& t)
+  pkg_configure_system (const package_name& n,
+                        const version& v,
+                        transaction& t)
   {
     tracer trace ("pkg_configure_system");
 
@@ -271,7 +274,7 @@ namespace bpkg
       // Configure system package.
       //
       version v (parse_package_version (package));
-      n = parse_package_name (package);
+      package_name n (parse_package_name (package));
 
       p = db.find<selected_package> (n);
 
@@ -292,7 +295,8 @@ namespace bpkg
     {
       // Configure unpacked package.
       //
-      p = db.find<selected_package> (n);
+      p = db.find<selected_package> (
+        parse_package_name (n, false /* allow_version */));
 
       if (p == nullptr)
         fail << "package " << n << " does not exist in configuration " << c;

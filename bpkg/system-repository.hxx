@@ -7,7 +7,8 @@
 
 #include <map>
 
-#include <libbpkg/manifest.hxx>
+#include <libbpkg/manifest.hxx>     // version
+#include <libbpkg/package-name.hxx>
 
 #include <bpkg/types.hxx>
 #include <bpkg/utility.hxx>
@@ -36,17 +37,17 @@ namespace bpkg
   {
   public:
     const version&
-    insert (const string& name, const version&, bool authoritative);
+    insert (const package_name& name, const version&, bool authoritative);
 
     const system_package*
-    find (const string& name)
+    find (const package_name& name)
     {
       auto i (map_.find (name));
       return i != map_.end () ? &i->second : nullptr;
     }
 
   private:
-    std::map<string, system_package> map_;
+    std::map<package_name, system_package> map_;
   };
 
   extern system_repository_type system_repository;

@@ -6,6 +6,7 @@
 #define BPKG_MANIFEST_UTILITY_HXX
 
 #include <libbpkg/manifest.hxx>
+#include <libbpkg/package-name.hxx>
 
 #include <bpkg/types.hxx>
 #include <bpkg/utility.hxx>
@@ -31,16 +32,16 @@ namespace bpkg
   package_scheme
   parse_package_scheme (const char*&);
 
-  // Extract and validate the package name and version components from
-  // <name>[/<version>].
+  // Extract the package name and version components from <name>[/<version>].
+  // Diagnose invalid components and throw failed.
   //
-  string
-  parse_package_name (const char*);
+  package_name
+  parse_package_name (const char*, bool allow_version = true);
 
-  inline string
-  parse_package_name (const string& s)
+  inline package_name
+  parse_package_name (const string& s, bool allow_version = true)
   {
-    return parse_package_name (s.c_str ());
+    return parse_package_name (s.c_str (), allow_version);
   }
 
   // Return empty version if none is specified.

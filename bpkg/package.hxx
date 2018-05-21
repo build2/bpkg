@@ -16,6 +16,8 @@
 
 #include <libbutl/timestamp.mxx>
 
+#include <libbpkg/package-name.hxx>
+
 #include <bpkg/types.hxx>
 #include <bpkg/forward.hxx> // transaction
 #include <bpkg/utility.hxx>
@@ -408,16 +410,20 @@ namespace bpkg
   //
   extern const version wildcard_version;
 
+  // package_name
+  //
+  #pragma db value(package_name) type("TEXT") options("COLLATE NOCASE")
+
   // available_package
   //
   #pragma db value
   struct available_package_id
   {
-    string name;
+    package_name name;
     canonical_version version;
 
     available_package_id () = default;
-    available_package_id (string, const bpkg::version&);
+    available_package_id (package_name, const bpkg::version&);
   };
 
   bool
@@ -474,7 +480,7 @@ namespace bpkg
     // constructor is only used to create transient/fake available packages
     // based on the system selected packages.
     //
-    available_package (string n, version_type sysv)
+    available_package (package_name n, version_type sysv)
         : id (move (n), wildcard_version),
           version (wildcard_version),
           system_version_ (sysv) {}
@@ -659,7 +665,9 @@ namespace bpkg
   // is omitted for the empty one.
   //
   string
-  package_string (const string& name, const version&, bool system = false);
+  package_string (const package_name& name,
+                  const version&,
+                  bool system = false);
 
   // A map of "effective" prerequisites (i.e., pointers to other selected
   // packages) to optional dependency constraint. Note that because it is a
@@ -678,7 +686,7 @@ namespace bpkg
   public:
     using version_type = bpkg::version;
 
-    std::string name; // Object id.
+    package_name name; // Object id.
     version_type version;
     package_state state;
     package_substate substate;
@@ -802,8 +810,8 @@ namespace bpkg
     //
     #pragma db member(name) id
 
-    #pragma db member(prerequisites) id_column("package") \
-      key_column("prerequisite") value_column("") key_not_null
+    #pragma db member(prerequisites) id_column("package")      \
+      key_column("prerequisite") key_not_null value_column("")
 
   private:
     friend class odb::access;
@@ -853,7 +861,7 @@ namespace bpkg
                      const dir_path& configuration,
                      transaction&,
                      const dir_path&,
-                     const string& name,
+                     const package_name&,
                      const version&,
                      bool check_external);
 
@@ -968,7 +976,7 @@ namespace bpkg
   struct package_dependent
   {
     #pragma db column("pp.package")
-    string name;
+    package_name name;
 
     #pragma db column("pp.")
     optional<dependency_constraint> constraint;

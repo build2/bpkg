@@ -5,7 +5,8 @@
 #ifndef BPKG_PKG_UNPACK_HXX
 #define BPKG_PKG_UNPACK_HXX
 
-#include <libbpkg/manifest.hxx> // version
+#include <libbpkg/manifest.hxx>     // version
+#include <libbpkg/package-name.hxx>
 
 #include <bpkg/types.hxx>
 #include <bpkg/forward.hxx> // transaction, selected_package
@@ -18,7 +19,8 @@ namespace bpkg
   int
   pkg_unpack (const pkg_unpack_options&, cli::scanner& args);
 
-  // Unpack the package as a source directory and commit the transaction.
+  // Unpack the package as a source directory and commit the transaction. Can
+  // return a new selected package object, replacing the existing one.
   //
   shared_ptr<selected_package>
   pkg_unpack (const common_options&,
@@ -35,17 +37,18 @@ namespace bpkg
   pkg_unpack (const common_options&,
               const dir_path& configuration,
               transaction&,
-              const string& name,
+              const package_name&,
               bool simulate);
 
   // Unpack the package as a source directory from a directory-based
-  // repository and commit the transaction.
+  // repository and commit the transaction. Can return a new selected package
+  // object, replacing the existing one.
   //
   shared_ptr<selected_package>
   pkg_unpack (const common_options&,
               const dir_path& configuration,
               transaction&,
-              string name,
+              package_name,
               version,
               bool replace,
               bool simulate);

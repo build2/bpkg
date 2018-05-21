@@ -22,10 +22,12 @@ using namespace butl;
 
 namespace bpkg
 {
+  // Can return a new selected package object, replacing the existing one.
+  //
   static shared_ptr<selected_package>
   pkg_fetch (dir_path c,
              transaction& t,
-             string n,
+             package_name n,
              version v,
              path a,
              repository_location rl,
@@ -56,6 +58,20 @@ namespace bpkg
       //
       pkg_purge_fs (c, t, p, simulate);
 
+      // Note that if the package name spelling changed then we need to update
+      // it, to make sure that the subsequent commands don't fail and the
+      // diagnostics is not confusing. However, we cannot update the object
+      // id, so have to erase it and persist afterwards.
+      //
+      if (p->name.string () != n.string ())
+      {
+        db.erase (p);
+        p = nullptr;
+      }
+    }
+
+    if (p != nullptr)
+    {
       p->version = move (v);
       p->state = package_state::fetched;
       p->repository_fragment = move (rl);
@@ -100,7 +116,7 @@ namespace bpkg
   static void
   pkg_fetch_check (const dir_path& c,
                    transaction& t,
-                   const string& n,
+                   const package_name& n,
                    bool replace)
   {
     tracer trace ("pkg_fetch_check");
@@ -170,7 +186,7 @@ namespace bpkg
   pkg_fetch (const common_options& co,
              const dir_path& c,
              transaction& t,
-             string n,
+             package_name n,
              version v,
              bool replace,
              bool simulate)
@@ -299,9 +315,9 @@ namespace bpkg
         fail << "package name/version argument expected" <<
           info << "run 'bpkg help pkg-fetch' for more information";
 
-      const char* arg (args.next ());
-      string n (parse_package_name (arg));
-      version v (parse_package_version (arg));
+      const char*  arg (args.next ());
+      package_name n   (parse_package_name (arg));
+      version      v   (parse_package_version (arg));
 
       if (v.empty ())
         fail << "package version expected" <<

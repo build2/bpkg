@@ -11,6 +11,7 @@
 #include <libbutl/manifest-serializer.mxx>
 
 #include <libbpkg/manifest.hxx>
+#include <libbpkg/package-name.hxx>
 
 #include <bpkg/auth.hxx>
 #include <bpkg/fetch.hxx>
@@ -28,7 +29,7 @@ namespace bpkg
 {
   struct package_key
   {
-    string name;
+    package_name name;
     bpkg::version version;
 
     // There shouldn't be multiple revisions of the same package
@@ -111,7 +112,7 @@ namespace bpkg
       //
       m.location = a.leaf (root);
 
-      dir_path pd (m.name + "-" + m.version.string ());
+      dir_path pd (m.name.string () + "-" + m.version.string ());
 
       // Expand the description-file manifest value.
       //

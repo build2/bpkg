@@ -5,11 +5,15 @@
 #ifndef BPKG_PKG_CONFIGURE_HXX
 #define BPKG_PKG_CONFIGURE_HXX
 
+#include <libbpkg/manifest.hxx>     // version
+#include <libbpkg/package-name.hxx>
+
 #include <bpkg/types.hxx>
 #include <bpkg/forward.hxx> // transaction, selected_package
 #include <bpkg/utility.hxx>
 
-#include <bpkg/package.hxx>
+#include <bpkg/package.hxx>               // package_prerequisites,
+                                          // dependencies.
 #include <bpkg/pkg-configure-options.hxx>
 
 namespace bpkg
@@ -31,7 +35,7 @@ namespace bpkg
   // Configure a system package and commit the transaction.
   //
   shared_ptr<selected_package>
-  pkg_configure_system (const string& name, const version&, transaction&);
+  pkg_configure_system (const package_name&, const version&, transaction&);
 
   // Return package prerequisites given its dependencies. Fail if some of the
   // prerequisites are not configured or don't satisfy the package's
@@ -42,7 +46,7 @@ namespace bpkg
   pkg_configure_prerequisites (const common_options&,
                                transaction&,
                                const dependencies&,
-                               const string& package);
+                               const package_name&);
 }
 
 #endif // BPKG_PKG_CONFIGURE_HXX

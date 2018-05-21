@@ -19,7 +19,7 @@ namespace bpkg
 {
   struct package
   {
-    string                          name;
+    package_name                    name;
     bpkg::version                   version;    // Empty if unspecified.
     shared_ptr<selected_package>    selected;   // NULL if none selected.
     optional<dependency_constraint> constraint; // Version constraint, if any.
@@ -129,7 +129,9 @@ namespace bpkg
           cout << '!';
       }
 
-      cout << p.name;
+      // If the package name is selected, then print its exact spelling.
+      //
+      cout << (s != nullptr ? s->name : p.name);
 
       if (o.constraint () && p.constraint)
         cout << ' ' << *p.constraint;

@@ -53,11 +53,11 @@ $* libfoo 2>>/EOE != 0
   error: package libfoo does not exist in configuration cfg/
   EOE
 
-: unknown-package-ver
+: invalid-name
 :
 $clone_cfg;
 $* libfoo/1.0.0 2>>~%EOE% != 0
-  %error: package libfoo/1.0.0 does not exist in configuration cfg[/\\]%
+  %error: invalid package name 'libfoo/1.0.0': illegal character%
   EOE
 
 : dependencies-or-dependents

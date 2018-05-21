@@ -60,7 +60,7 @@ namespace bpkg
   pkg_checkout (const common_options& o,
                 const dir_path& c,
                 transaction& t,
-                string n,
+                package_name n,
                 version v,
                 bool replace,
                 bool simulate)
@@ -150,7 +150,7 @@ namespace bpkg
 
     auto_rmdir rmd;
     optional<string> mc;
-    dir_path d (c / dir_path (n + '-' + v.string ()));
+    dir_path d (c / dir_path (n.string () + '-' + v.string ()));
 
     if (!simulate)
     {
@@ -160,7 +160,7 @@ namespace bpkg
       // The temporary out of source directory that is required for the dist
       // meta-operation.
       //
-      auto_rmdir rmo (temp_dir / dir_path (n));
+      auto_rmdir rmo (temp_dir / dir_path (n.string ()));
       const dir_path& od (rmo.path);
 
       if (exists (od))
@@ -213,6 +213,20 @@ namespace bpkg
       //
       pkg_purge_fs (c, t, p, simulate);
 
+      // Note that if the package name spelling changed then we need to update
+      // it, to make sure that the subsequent commands don't fail and the
+      // diagnostics is not confusing. Hover, we cannot update the object id,
+      // so have to erase it and persist afterwards.
+      //
+      if (p->name.string () != n.string ())
+      {
+        db.erase (p);
+        p = nullptr;
+      }
+    }
+
+    if (p != nullptr)
+    {
       p->version = move (v);
       p->state = package_state::unpacked;
       p->repository_fragment = rl;
@@ -269,9 +283,9 @@ namespace bpkg
       fail << "package name/version argument expected" <<
         info << "run 'bpkg help pkg-checkout' for more information";
 
-    const char* arg (args.next ());
-    string n (parse_package_name (arg));
-    version v (parse_package_version (arg));
+    const char*  arg (args.next ());
+    package_name n   (parse_package_name (arg));
+    version      v   (parse_package_version (arg));
 
     if (v.empty ())
       fail << "package version expected" <<

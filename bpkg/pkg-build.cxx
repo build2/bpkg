@@ -52,7 +52,7 @@ namespace bpkg
   //
   odb::result<available_package>
   query_available (database& db,
-                   const string& name,
+                   const package_name& name,
                    const optional<dependency_constraint>& c)
   {
     using query = query<available_package>;
@@ -135,7 +135,7 @@ namespace bpkg
   //
   static pair<shared_ptr<available_package>, shared_ptr<repository_fragment>>
   find_available (database& db,
-                  const string& name,
+                  const package_name& name,
                   const shared_ptr<repository_fragment>& rf,
                   const optional<dependency_constraint>& c,
                   bool prereq = true)
@@ -264,7 +264,7 @@ namespace bpkg
     //
     shared_ptr<bpkg::repository_fragment> repository_fragment;
 
-    const string&
+    const package_name&
     name () const
     {
       return selected != nullptr ? selected->name : available->id.name;
@@ -276,10 +276,10 @@ namespace bpkg
     optional<bool> hold_package;
     optional<bool> hold_version;
 
-    // Constraint value plus, normally, the dependent package name that
-    // placed this constraint but can also be some other name for the
-    // initial selection (e.g., package version specified by the user
-    // on the command line).
+    // Constraint value plus, normally, the dependent package name that placed
+    // this constraint but can also be some other name for the initial
+    // selection (e.g., package version specified by the user on the command
+    // line). This why we use the string type, rather than package_name.
     //
     struct constraint_type
     {
@@ -306,12 +306,12 @@ namespace bpkg
     // Set of package names that caused this package to be built or adjusted.
     // Empty name signifies user selection.
     //
-    set<string> required_by;
+    set<package_name> required_by;
 
     bool
     user_selection () const
     {
-      return required_by.find ("") != required_by.end ();
+      return required_by.find (package_name ()) != required_by.end ();
     }
 
     // Adjustment flags.
@@ -396,7 +396,9 @@ namespace bpkg
         if (p.keep_out)
           keep_out = p.keep_out;
 
-        required_by.insert (""); // Propagate the user-selection tag.
+        // Propagate the user-selection tag.
+        //
+        required_by.insert (package_name ());
       }
 
       // Required-by package names have different semantics for different
@@ -454,7 +456,7 @@ namespace bpkg
     // may already exists.
     //
     void
-    enter (string name, build_package pkg)
+    enter (package_name name, build_package pkg)
     {
       assert (!pkg.action);
 
@@ -547,9 +549,9 @@ namespace bpkg
               //
               if (auto c1 = test (p2, p1))
               {
-                const string& n  (i->first);
-                const string& d1 (c1->dependent);
-                const string& d2 (c2->dependent);
+                const package_name& n  (i->first);
+                const string&       d1 (c1->dependent);
+                const string&       d2 (c2->dependent);
 
                 fail << "unable to satisfy constraints on package " << n <<
                   info << d1 << " depends on (" << n << " " << c1->value
@@ -603,7 +605,9 @@ namespace bpkg
         //
         l4 ([&]{trace << "add " << pkg.available_name_version ();});
 
-        string n (pkg.available->id.name); // Note: copy; see emplace() below.
+        // Note: copy; see emplace() below.
+        //
+        package_name n (pkg.available->id.name);
         i = map_.emplace (move (n), data_type {end (), move (pkg)}).first;
       }
 
@@ -655,7 +659,7 @@ namespace bpkg
 
       const shared_ptr<available_package>& ap (pkg.available);
       const shared_ptr<repository_fragment>& af (pkg.repository_fragment);
-      const string& name (ap->id.name);
+      const package_name& name (ap->id.name);
 
       for (const dependency_alternatives& da: ap->dependencies)
       {
@@ -666,7 +670,7 @@ namespace bpkg
           fail << "multiple dependency alternatives not yet supported";
 
         const dependency& dp (da.front ());
-        const string& dn (dp.name);
+        const package_name& dn (dp.name);
 
         if (da.buildtime)
         {
@@ -948,7 +952,7 @@ namespace bpkg
         // completeness.
         //
         if (dp.constraint)
-          bp.constraints.emplace_back (name, *dp.constraint);
+          bp.constraints.emplace_back (name.string (), *dp.constraint);
 
         // Now collect this prerequisite. If it was actually collected
         // (i.e., it wasn't already there) and we are forcing an upgrade
@@ -1013,7 +1017,7 @@ namespace bpkg
     void
     collect_drop (shared_ptr<selected_package> sp)
     {
-      const string& nm (sp->name);
+      const package_name& nm (sp->name);
 
       build_package p {
         build_package::drop,
@@ -1086,7 +1090,7 @@ namespace bpkg
     collect_build_prerequisites (const common_options& o,
                                  const dir_path& cd,
                                  database& db,
-                                 const string& name,
+                                 const package_name& name,
                                  postponed_packages& postponed)
     {
       auto mi (map_.find (name));
@@ -1121,7 +1125,7 @@ namespace bpkg
     // package to be considered as "early" as possible.
     //
     iterator
-    order (const string& name, bool reorder = true)
+    order (const package_name& name, bool reorder = true)
     {
       // Every package that we order should have already been collected.
       //
@@ -1209,7 +1213,7 @@ namespace bpkg
         {
           for (const auto& p: sp->prerequisites)
           {
-            const string& name (p.first.object_id ());
+            const package_name& name (p.first.object_id ());
 
             // The prerequisites may not necessarily be in the map.
             //
@@ -1234,7 +1238,7 @@ namespace bpkg
           {
             assert (!da.conditional && da.size () == 1); // @@ TODO
             const dependency& d (da.front ());
-            const string& dn (d.name);
+            const package_name& dn (d.name);
 
             // Skip special names.
             //
@@ -1252,7 +1256,7 @@ namespace bpkg
       {
         for (const auto& p: sp->prerequisites)
         {
-          const string& name (p.first.object_id ());
+          const package_name& name (p.first.object_id ());
 
           // The prerequisites may not necessarily be in the map.
           //
@@ -1317,7 +1321,7 @@ namespace bpkg
       build_package& p (*pos);
       const shared_ptr<selected_package>& sp (p.selected);
 
-      const string& n (sp->name);
+      const package_name& n (sp->name);
 
       // See if we are up/downgrading this package. In particular, the
       // available package could be NULL meaning we are just adjusting.
@@ -1330,7 +1334,7 @@ namespace bpkg
 
       for (auto& pd: db.query<package_dependent> (query::name == n))
       {
-        string& dn (pd.name);
+        package_name& dn (pd.name);
         auto i (map_.find (dn));
 
         // First make sure the up/downgraded package still satisfies this
@@ -1378,8 +1382,8 @@ namespace bpkg
             string rb;
             if (!p.user_selection ())
             {
-              for (const string& n: p.required_by)
-                rb += ' ' + n;
+              for (const package_name& n: p.required_by)
+                rb += ' ' + n.string ();
             }
 
             if (!rb.empty ())
@@ -1394,7 +1398,7 @@ namespace bpkg
 
           // Add this contraint to the list for completeness.
           //
-          p.constraints.emplace_back (dn, c);
+          p.constraints.emplace_back (dn.string (), c);
         }
 
         auto adjustment = [&dn, &n, &db] () -> build_package
@@ -1505,7 +1509,7 @@ namespace bpkg
       build_package package;
     };
 
-    map<string, data_type> map_;
+    map<package_name, data_type> map_;
   };
 
   // Return a patch version constraint for the selected package if it has a
@@ -1519,8 +1523,8 @@ namespace bpkg
   static optional<dependency_constraint>
   patch_constraint (const shared_ptr<selected_package>& sp, bool quiet = false)
   {
-    const string&  nm (sp->name);
-    const version& sv (sp->version);
+    const package_name& nm (sp->name);
+    const version&      sv (sp->version);
 
     // Note that we don't pass allow_stub flag so the system wildcard version
     // will (naturally) not be patched.
@@ -1558,7 +1562,7 @@ namespace bpkg
   //
   struct dependency_package
   {
-    string name;
+    package_name name;
     bpkg::version version;                 // Empty if unspecified.
     shared_ptr<selected_package> selected; // NULL if not present.
     bool system;
@@ -1614,7 +1618,7 @@ namespace bpkg
 
     assert (sp != nullptr && !sp->hold_package);
 
-    const string& nm (sp->name);
+    const package_name& nm (sp->name);
 
     // Query the dependents and bail out if the dependency is unused.
     //
@@ -1712,8 +1716,8 @@ namespace bpkg
   {
     tracer trace ("evaluate_dependency");
 
-    const string&  nm (sp->name);
-    const version& sv (sp->version);
+    const package_name& nm (sp->name);
+    const version&      sv (sp->version);
 
     auto no_change = [] ()
     {
@@ -1969,9 +1973,9 @@ namespace bpkg
   //
   struct recursive_package
   {
-    string name;
-    bool   upgrade;   // true -- upgrade,   false -- patch.
-    bool   recursive; // true -- recursive, false -- immediate.
+    package_name name;
+    bool         upgrade;   // true -- upgrade,   false -- patch.
+    bool         recursive; // true -- recursive, false -- immediate.
   };
   using recursive_packages = vector<recursive_package>;
 
@@ -1981,7 +1985,7 @@ namespace bpkg
   //
   static optional<bool>
   upgrade_dependencies (database& db,
-                        const string& nm,
+                        const package_name& nm,
                         const recursive_packages& recs,
                         bool recursion = false)
   {
@@ -2405,7 +2409,7 @@ namespace bpkg
     struct pkg_arg
     {
       package_scheme scheme;
-      string         name;
+      package_name   name;
       bpkg::version  version;
       string         value;
       pkg_options    options;
@@ -2414,7 +2418,7 @@ namespace bpkg
     // Create the parsed package argument.
     //
     auto arg_package = [] (package_scheme sc,
-                           string nm,
+                           package_name nm,
                            version v,
                            pkg_options o) -> pkg_arg
     {
@@ -2447,7 +2451,7 @@ namespace bpkg
     auto arg_raw = [] (string v, pkg_options o) -> pkg_arg
     {
       return pkg_arg {
-        package_scheme::none, string (), version (), move (v), move (o)};
+        package_scheme::none, package_name (), version (), move (v), move (o)};
     };
 
     auto arg_parsed = [] (const pkg_arg& a) {return !a.name.empty ();};
@@ -2497,8 +2501,8 @@ namespace bpkg
 
           if (h != package_scheme::none) // Add parsed.
           {
-            string  n (parse_package_name (s));
-            version v (parse_package_version (s));
+            package_name n (parse_package_name (s));
+            version      v (parse_package_version (s));
 
             pkg_args.push_back (
               arg_package (h, move (n), move (v), move (ps.options)));
@@ -2526,7 +2530,7 @@ namespace bpkg
         {
           // Collect the latest package versions.
           //
-          map<string, version> pvs;
+          map<package_name, version> pvs;
 
           for (const repository::fragment_type& rf: r->fragments)
           {
@@ -2542,7 +2546,7 @@ namespace bpkg
               if (p->stub ()) // Skip stubs.
                 continue;
 
-              const string& nm (p->id.name);
+              const package_name& nm (p->id.name);
 
               if (ps.options.patch ())
               {
@@ -2617,8 +2621,8 @@ namespace bpkg
             const char* s (pkg.c_str ());
 
             package_scheme sc (parse_package_scheme (s));
-            string  n (parse_package_name (s));
-            version v (parse_package_version (s));
+            package_name   n  (parse_package_name (s));
+            version        v  (parse_package_version (s));
 
             // Check if the package is present in the repository and its
             // complements, recursively. If the version is not specified then
@@ -2726,7 +2730,7 @@ namespace bpkg
       // Check if the package is a duplicate. Return true if it is but
       // harmless.
       //
-      map<string, pkg_arg> package_map;
+      map<package_name, pkg_arg> package_map;
 
       auto check_dup = [&package_map, &arg_string, arg_parsed] (
         const pkg_arg& pa) -> bool
@@ -2930,8 +2934,8 @@ namespace bpkg
               // Make sure that we can parse both package name and version,
               // prior to saving them into the package arg.
               //
-              string  n (parse_package_name (package));
-              version v (parse_package_version (package));
+              package_name n (parse_package_name (package));
+              version      v (parse_package_version (package));
 
               pa = arg_package (package_scheme::none,
                                 move (n),
@@ -3211,7 +3215,7 @@ namespace bpkg
           {},                   // Constraints.
           arg_sys (pa),
           keep_out,
-          {""},                 // Required by (command line).
+          {package_name ()},    // Required by (command line).
           0};                   // Adjustments.
 
         l4 ([&]{trace << "stashing held package "
@@ -3249,7 +3253,7 @@ namespace bpkg
           if (sp->system ())
             continue;
 
-          const string& name (sp->name);
+          const package_name& name (sp->name);
 
           optional<dependency_constraint> pc;
 
@@ -3298,7 +3302,7 @@ namespace bpkg
               {},                // Constraints.
               false,             // System package.
               keep_out,
-              {""},              // Required by (command line).
+              {package_name ()}, // Required by (command line).
               0};                // Adjustments.
 
           l4 ([&]{trace << "stashing held package "
@@ -3374,7 +3378,7 @@ namespace bpkg
     {
       struct dep
       {
-        string name; // Empty if up/down-grade.
+        package_name name; // Empty if up/down-grade.
 
         // Both are NULL if drop.
         //
@@ -3420,7 +3424,7 @@ namespace bpkg
               {},                  // Constraints.
               p.system,
               p.keep_out,
-              {""},                // Required by (command line).
+              {package_name ()},   // Required by (command line).
               0};                  // Adjustments.
 
             if (!p.version.empty ())
@@ -3491,7 +3495,7 @@ namespace bpkg
               {},                    // Constraints.
               d.system,
               keep_out,
-              {""},                  // Required by (command line).
+              {package_name ()},     // Required by (command line).
               0};                    // Adjustments.
 
             pkgs.collect_build (o, c, db, p, &postponed /* recursively */);
@@ -3842,7 +3846,7 @@ namespace bpkg
                 act += "/unhold";
             }
 
-            act += ' ' + sp->name;
+            act += ' ' + sp->name.string ();
           }
           else
           {
@@ -3892,8 +3896,8 @@ namespace bpkg
           string rb;
           if (!p.user_selection ())
           {
-            for (const string& n: p.required_by)
-              rb += ' ' + n;
+            for (const package_name& n: p.required_by)
+              rb += ' ' + n.string ();
 
             // If not user-selected, then there should be another (implicit)
             // reason for the action.

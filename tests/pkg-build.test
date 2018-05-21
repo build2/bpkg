@@ -96,6 +96,10 @@
 # |   |-- libbar-1.2.0.tar.gz
 # |   `-- repositories.manifest
 # |
+# |-- t6
+# |   |-- libBar-2.0.0.tar.gz
+# |   `-- repositories.manifest
+# |
 # |-- libhello-1.0.0
 # |   |-- build
 # |   |   |-- bootstrap.build
@@ -125,6 +129,7 @@
   cp -r $src/t4c $out/t4c && $rep_create $out/t4c &$out/t4c/packages.manifest
   cp -r $src/t4d $out/t4d && $rep_create $out/t4d &$out/t4d/packages.manifest
   cp -r $src/t5  $out/t5  && $rep_create $out/t5  &$out/t5/packages.manifest
+  cp -r $src/t6  $out/t6  && $rep_create $out/t6  &$out/t6/packages.manifest
 
   # Create git repositories.
   #
@@ -3327,6 +3332,43 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
 
     $pkg_disfigure libfoo 2>'disfigured libfoo/1.1.0#2'
   }
+}
+
+: ignore-case
+:
+{
+  test.arguments += --yes --auth all --trust-yes
+
+  $clone_cfg;
+
+  $* "libbar@$rep/t5" 2>>~%EOE%;
+    added pkg:build2.org/pkg-build/t5
+    fetching pkg:build2.org/pkg-build/t5
+    %.*
+    %.*fetched libbar/1.2.0%
+    unpacked libbar/1.2.0
+    configured libbar/1.2.0
+    %info: .+dir\{libbar-1.2.0.\} is up to date%
+    updated libbar/1.2.0
+    EOE
+
+  $* "libbar@$rep/t6" 2>>~%EOE%;
+    added pkg:build2.org/pkg-build/t6
+    fetching pkg:build2.org/pkg-build/t6
+    disfigured libbar/1.2.0
+    %.*
+    %.*fetched libBar/2.0.0%
+    unpacked libBar/2.0.0
+    configured libBar/2.0.0
+    %info: .+dir\{libBar-2.0.0.\} is up to date%
+    updated libBar/2.0.0
+    EOE
+
+  $pkg_status libbar >'!libBar configured !2.0.0';
+
+  test -d cfg/libBar-2.0.0;
+
+  $pkg_drop libbar
 }
 
 : git-rep
