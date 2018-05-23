@@ -24,17 +24,17 @@ namespace bpkg
 
      The \cb{cfg-create} command creates a new \cb{bpkg} configuration with
      the specified \cb{build2} modules and configuration variables. The
-     \cb{bpkg} configuration itself is a build system configuration; see the
-     \cb{build2} \cb{create} meta-operation for details.
+     \cb{bpkg} configuration itself is a build system configuration; see
+     build system driver (\l{b(1)}) \cb{create} meta-operation for details.
 
      Unless the \cb{--wipe} option is specified, \cb{cfg-create} expects the
      configuration directory to be empty or to not exist (in which case it
      will be created).
 
      By default, the resulting configuration loads the \cb{config}, \cb{test},
-     and \cb{install} modules. However, additional modules and, if required,
-     their configuration variables can be specified as the \cb{cfg-create}
-     arguments. For example:
+     \cb{dist}, and \cb{install} modules. However, additional modules and, if
+     required, their configuration variables can be specified as the
+     \cb{cfg-create} arguments. For example:
 
      \
      bpkg create cxx config.cxx=clang++ config.install.root=/usr/local

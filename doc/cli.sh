@@ -38,7 +38,8 @@ function compile ()
 
   cli -I .. -v project="bpkg" -v version="$version" -v date="$date" \
 --include-base-last "${o[@]}" --generate-html --html-prologue-file \
- man-prologue.xhtml --html-epilogue-file man-epilogue.xhtml --html-suffix .xhtml \
+      man-prologue.xhtml --html-epilogue-file man-epilogue.xhtml --html-suffix .xhtml \
+--link-regex '%b([-.].+)%../../build2/doc/b$1%' \
 --link-regex '%b(#.+)?%../../build2/doc/build2-build-system-manual.xhtml$1%' \
 --link-regex '%bpkg(#.+)?%build2-package-manager-manual.xhtml$1%' \
 ../bpkg/$n.cli
