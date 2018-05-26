@@ -54,7 +54,20 @@ namespace bpkg
   void location_prologue_base::
   operator() (const diag_record& r) const
   {
-    r << loc_.file << ':' << loc_.line << ':' << loc_.column << ": ";
+    if (!loc_.empty ())
+    {
+      r << loc_.file << ':';
+
+      if (loc_.line != 0)
+      {
+        r << loc_.line << ':';
+
+        if (loc_.column != 0)
+          r << loc_.column << ':';
+      }
+
+      r << ' ';
+    }
 
     if (type_ != nullptr)
       r << type_ << ": ";
