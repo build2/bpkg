@@ -14,7 +14,9 @@
 "
 \h0#preface|Preface|
 
-This is the preface.
+This document describes \c{bpkg}, the \c{build2} package dependency
+manager. For the package manager command line interface refer to the
+\l{bpkg(1)} man pages.
 
 \h1#package-name|Package Name|
 
