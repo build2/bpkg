@@ -295,6 +295,11 @@ namespace bpkg
     {
       "\l{bpkg-repository-signing(1)} \- how to sign repository"
     }
+
+    bool argument-grouping
+    {
+      "\l{bpkg-argument-grouping(1)} \- argument grouping facility"
+    }
   };
 
   class options: common_options

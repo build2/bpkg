@@ -13,6 +13,7 @@
 //
 #include <bpkg/repository-signing.hxx>
 #include <bpkg/repository-types.hxx>
+#include <bpkg/argument-grouping.hxx>
 
 using namespace std;
 using namespace butl;
@@ -35,6 +36,8 @@ namespace bpkg
         usage = &print_bpkg_repository_signing_usage;
       else if (t == "repository-types")
         usage = &print_bpkg_repository_types_usage;
+      else if (t == "argument-grouping")
+        usage = &print_bpkg_argument_grouping_usage;
       else
         fail << "unknown bpkg command/help topic '" << t << "'" <<
           info << "run 'bpkg help' for more information";

@@ -147,7 +147,7 @@ namespace bpkg
 
      The following options can be grouped to apply to a specific \ci{pkg-spec}
      as well as specified globally, in which case they apply to all the
-     specified packages."
+     specified packages (see \l{bpkg-argument-grouping(1)} for details)."
 
     // NOTE: if adding a new option here, don't forget to also update
     //       {validate,merge,compare,print}_options() in pkg-build.cxx!

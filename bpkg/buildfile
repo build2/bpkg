@@ -42,7 +42,7 @@ rep-info-options           \
 rep-list-options           \
 rep-remove-options
 
-help_topics = repository-signing repository-types
+help_topics = repository-signing repository-types argument-grouping
 
 exe{bpkg}:                                                                 \
   {hxx ixx txx cxx}{** -{$options_topics} -{$help_topics} -*-odb -version} \
@@ -112,7 +112,8 @@ if $cli.configured
   # Help topics.
   #
   cli.cxx{repository-signing}: cli{repository-signing}
-  cli.cxx{repository-types}: cli{repository-types}
+  cli.cxx{repository-types}:   cli{repository-types}
+  cli.cxx{argument-grouping}:  cli{argument-grouping}
 
   # Option length must be the same to get commands/topics/options aligned.
   #
@@ -133,8 +134,8 @@ bpkg::pkg_build_pkg_options=exclude-base --generate-modifier
 
   # Avoid generating CLI runtime and empty inline file for help topics.
   #
-  cli.cxx{repository-signing repository-types}: cli.options += --suppress-cli \
---suppress-inline
+  cli.cxx{repository-signing repository-types argument-grouping}: \
+    cli.options += --suppress-cli --suppress-inline
 
   # Include the generated cli files into the distribution and don't remove
   # them when cleaning in src (so that clean results in a state identical to
