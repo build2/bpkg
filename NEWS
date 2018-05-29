@@ -1,3 +1,44 @@
+Version 0.7.0
+
+  * Support for using git repositories as package repositories. See the
+    bpkg-repository-types(1) help topic for details (structure, URL format).
+
+  * Support for ~ and ^ version constraint operators. See the 'depends'
+    package manifest value documentation in the bpkg manual for details.
+
+  * The pkg-build command has been significantly reworked. In particular, it
+    allows "building" repositories in addition to packages (primarily useful
+    with version control-based repositories) and upgrading (--upgrade|-u) or
+    patching (--patch|-p) immediate (--immediate|-i) or all (--recursive|-r)
+    dependencies of a package. See bpkg-pkg-build(1) for details.
+
+  * The pkg-status has been significantly reworked. In particular, it allows
+    querying the status of immediate (--immediate|-i) or all (--recursive|-r)
+    dependencies of a package. See bpkg-pkg-status(1) for details.
+
+  * New commands: rep-list, rep-remove, and pkg-checkout. See their respective
+    man pages for details.
+
+  * The pkg-{test,install,uninstall} commands now also support --immediate|-i
+    and --recursive|-r options (testing/installation of dependencies).
+
+  * The pkg-{update,clean,test,install,uninstall} commands now support the
+    --all|-a option.
+
+  * The rep-fetch command now supports shallow fetching and fetching only a
+    specific repository. See bpkg-rep-fetch(1) for details.
+
+  * New --for|-f <operation> option to the pkg-update and pkg-build commands.
+
+    This allows executing build2 *-for-X operations (e.g., update-for-install
+    or update-for-test) in order to minimize the amount of stuff to be
+    updated.
+
+  * New --fetch-timeout common option.
+
+  * The repositories, packages, and signature files now use the .manifest
+    extension.
+
 Version 0.6.0
 
   * Add doc-url and src-url manifest values.
