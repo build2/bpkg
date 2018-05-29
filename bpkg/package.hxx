@@ -24,7 +24,7 @@
 
 #include <bpkg/diagnostics.hxx>
 
-#pragma db model version(4, 4, open)
+#pragma db model version(4, 4, closed)
 
 namespace bpkg
 {
