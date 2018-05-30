@@ -29,7 +29,7 @@ with the following additional restrictions:
 
 \li|It must start with an alphabetic character.|
 
-\li|It must end with an alphabetic or digit character.|
+\li|It must end with an alphabetic, digit, or plus character.|
 
 \li|It must not be any of the following illegal names:
 
