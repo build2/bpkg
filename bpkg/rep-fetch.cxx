@@ -1112,8 +1112,24 @@ namespace bpkg
 
       // Remove dangling repository fragments.
       //
+      // Prior to removing a fragments we need to make sure it still exists,
+      // which may not be the case due to the containing dangling repository
+      // removal (see above).
+      //
       for (const shared_ptr<repository_fragment>& rf: removed_fragments)
-        rep_remove_fragment (conf, t, rf);
+      {
+        shared_ptr<repository_fragment> f (
+          db.find<repository_fragment> (rf->name));
+
+        if (f != nullptr)
+        {
+          // The persisted object must be the same as the one being removed.
+          //
+          assert (f == rf);
+
+          rep_remove_fragment (conf, t, rf);
+        }
+      }
 
       // Finally, make sure that the external packages are available from a
       // single directory-based repository.
