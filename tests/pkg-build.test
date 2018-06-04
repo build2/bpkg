@@ -2151,10 +2151,10 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       # date on filesystems with a low file timestamps resolution (for example
       # HFS+).
       #
-      # @@ By some reason the following build occasionally relinks on Windows,
-      #    so the test fails. We will copy the configuration directory
-      #    preserving file timestamps to research the issue when it get
-      #    reproduced.
+      # @@ By some reason the following build occasionally re-links, so the
+      #    test fails (most often reproduced on Windows). We will copy the
+      #    configuration directory preserving file timestamps to research the
+      #    issue when it get reproduced.
       #
       cp -r cfg cfg-backup;
 
