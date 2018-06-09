@@ -61,7 +61,7 @@ namespace bpkg
                 : cfg / bpkg_dir / dir_path ("tmp"));
 
     if (exists (d))
-      rm_r (d, true /* dir_itself */, 1); // Verbose to avoid surprises.
+      rm_r (d, true /* dir_itself */, 2);
 
     mk (d); // We shouldn't need mk_p().
 
