@@ -44,6 +44,52 @@ namespace bpkg
     }
   };
 
+  // Register the data migration functions.
+  //
+  template <odb::schema_version v>
+  using migration_entry = odb::data_migration_entry<v, DB_SCHEMA_VERSION_BASE>;
+
+  // Migrate tables that contain package version columns converting the
+  // default zero version epoch to one, unless the version is a stub.
+  //
+  // Note that we can't really distinguish the default zero epoch from an
+  // explicitly specified one, so will just update all of them, assuming that
+  // it is currently unlikely that the epoch was specified explicitly for any
+  // package version.
+  //
+  static const migration_entry<5>
+  migrate_epoch_entry ([] (odb::database& db)
+  {
+    // Delay the foreign key constraint checks until we are done with all the
+    // tables.
+    //
+    assert (transaction::has_current ());
+    db.execute ("PRAGMA defer_foreign_keys = ON");
+
+    auto update = [&db] (const string& table,
+                         const string& version_prefix = "version")
+    {
+      string ec (version_prefix + "_epoch");
+
+      db.execute ("UPDATE " + table + " SET " + ec + " = 1 " +
+                  "WHERE " + ec + " = 0 AND NOT (" +
+                  version_prefix + "_canonical_upstream = '' AND " +
+                  version_prefix + "_canonical_release = '~')");
+    };
+
+    update ("available_package");
+    update ("available_package_locations");
+    update ("available_package_dependencies");
+    update ("available_package_dependency_alternatives");
+    update ("available_package_dependency_alternatives", "dep_min_version");
+    update ("available_package_dependency_alternatives", "dep_max_version");
+    update ("selected_package");
+    update ("selected_package_prerequisites", "min_version");
+    update ("selected_package_prerequisites", "max_version");
+
+    db.execute ("PRAGMA defer_foreign_keys = OFF");
+  });
+
   database
   open (const dir_path& d, tracer& tr, bool create)
   {

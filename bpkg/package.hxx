@@ -24,7 +24,11 @@
 
 #include <bpkg/diagnostics.hxx>
 
-#pragma db model version(4, 4, closed)
+// Used by the data migration entries.
+//
+#define DB_SCHEMA_VERSION_BASE 4
+
+#pragma db model version(DB_SCHEMA_VERSION_BASE, 5, open)
 
 namespace bpkg
 {

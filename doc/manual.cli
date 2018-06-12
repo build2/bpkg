@@ -82,7 +82,10 @@ The \c{bpkg} package version has the following form:
 
 The \i{epoch} part should be an integer. It can be used to change to a new
 versioning scheme that would be incompatible with the old one. If not
-specified, then \i{epoch} defaults to \c{0}.
+specified, then \i{epoch} defaults to \c{1} except for a stub version (see
+below) in which case it defaults to \c{0}. The explicit zero \i{epoch} can be
+used if the current versioning scheme (for example, date-based) is known to be
+temporary.
 
 The \i{upstream} part is the upstream software version that this package
 is based on. It can only contain alpha-numeric characters and \c{'.'}. The
@@ -118,10 +121,11 @@ each modification would be impractical. This mechanism is similar to the
 automatic commit versioning provided by the \i{standard version} except that
 it is limited to the packaging information but works for uncommitted changes.|
 
-Version \c{0-} (least possible version) is reserved and specifying it
+Version \c{+0-0-} (least possible version) is reserved and specifying it
 explicitly is illegal. \N{Explicitly specifying this version does not make
-much sense since \c{libfoo < 0-} is always false and \c{libfoo > 0-} is always
-true. In the implementation this value is used as a special empty version.}
+much sense since \c{libfoo < +0-0-} is always false and \c{libfoo > +0-0-} is
+always true. In the implementation this value is used as a special empty
+version.}
 
 Version \c{0} (with a potential revision, for example, \c{0+1}, \c{0+2}) is
 used to signify a \i{stub package}. A stub is a package that does not contain
@@ -131,9 +135,10 @@ full-fledged package at which point it will be assigned a \"real\" version.
 It is assumed that this version will always be greater than the stub version.
 
 When displaying the package version or when using the version to derive the
-file name, zero \i{epoch}, \i{revision}, and \i{iteration} are omitted (even
-if they were explicitly specified, for instance, in the package manifest). For
-example, \c{+0-1.2.3+0} will be used as \c{libfoo-1.2.3}.
+file name, the default \i{epoch} value as well as zero \i{revision} and
+\i{iteration} values are omitted (even if they were explicitly specified, for
+instance, in the package manifest). For example, \c{+1-1.2.3+0} will be used
+as \c{libfoo-1.2.3}.
 
 \N|This versioning scheme and the choice of delimiter characters (\c{.-+})
 is meant to align with semantic versioning.|
@@ -141,6 +146,8 @@ is meant to align with semantic versioning.|
 Some examples of versions:
 
 \
+0+1
++0-20180112
 1.2.3
 1.2.3-a1
 1.2.3-b2
@@ -149,11 +156,11 @@ Some examples of versions:
 1.2.3-alpha.1
 1.2.3-beta.1
 1.2.3+1
-+1-1.2.3
-+1-1.2.3-alpha.1+3
-+1.2.3#1
++2-1.2.3
++2-1.2.3-alpha.1+3
++2.2.3#1
 1.2.3+1#1
-+1-1.2.3+1#2
++2-1.2.3+1#2
 \
 
 The version sorting order is \i{epoch}, \i{upstream}, \i{prerel},
@@ -164,8 +171,8 @@ next.
 To compare two components, first the component types are determined.  A
 component that only consists of digits is an integer. Otherwise, it is a
 string. If both components are integers, then they are compared as
-integers. Otherwise, they are compared lexicographically and case-
-insensitively. \N{The reason for case-insensitive comparison is Windows
+integers. Otherwise, they are compared lexicographically and
+case-insensitively. \N{The reason for case-insensitive comparison is Windows
 file names.}
 
 A non-existent component is considered 0 if the other component is an integer

@@ -1,4 +1,6 @@
 <changelog xmlns="http://www.codesynthesis.com/xmlns/odb/changelog" database="sqlite" version="1">
+  <changeset version="5"/>
+
   <model version="4">
     <table name="repository_fragment" kind="object">
       <column name="name" type="TEXT" null="true"/>
