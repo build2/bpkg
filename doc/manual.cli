@@ -496,12 +496,12 @@ license: <licenses> [; <comment>]
 [changes]: <text>
 [changes-file]: <path> [; <comment>]
 
-url: <url> [; <comment>]
+[url]: <url> [; <comment>]
 [doc-url]: <url> [; <comment>]
 [src-url]: <url> [; <comment>]
 [package-url]: <url> [; <comment>]
 
-email: <email> [; <comment>]
+[email]: <email> [; <comment>]
 [package-email]: <email> [; <comment>]
 [build-email]: <email> [; <comment>]
 
@@ -695,7 +695,7 @@ plain text. \N{We could use the comment to \"hint\" at the file format.}
 \h2#manifest-package-url|\c{url}|
 
 \
-url: <url> [; <comment>]
+[url]: <url> [; <comment>]
 \
 
 The project home page URL.
@@ -727,13 +727,13 @@ The project source repository URL.
 
 The package home page URL. If not specified, then assumed to be the same as
 \c{url}. It only makes sense to specify this value if the project and
-packaged are maintained separately.
+package are maintained separately.
 
 
 \h2#manifest-package-email|\c{email}|
 
 \
-email: <email> [; <comment>]
+[email]: <email> [; <comment>]
 \
 
 The project email address. For example, a support mailing list.
@@ -747,7 +747,7 @@ The project email address. For example, a support mailing list.
 
 The package email address. If not specified, then assumed to be the same as
 \c{email}. It only makes sense to specify this value if the project and
-packaged are maintained separately.
+package are maintained separately.
 
 
 \h2#manifest-package-build-email|\c{build-email}|
