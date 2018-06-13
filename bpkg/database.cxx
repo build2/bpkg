@@ -4,6 +4,8 @@
 
 #include <bpkg/database.hxx>
 
+#include <stdlib.h> // getenv() setenv()/_putenv()
+
 #include <odb/schema-catalog.hxx>
 #include <odb/sqlite/exceptions.hxx>
 
@@ -19,6 +21,39 @@ namespace bpkg
   using namespace odb::sqlite;
   using odb::schema_catalog;
 
+  // Use a custom connection factory to automatically set and clear the
+  // BPKG_OPEN_CONFIG environment variable. A bit heavy-weight but seems like
+  // the best option.
+  //
+  static const char open_name[] = "BPKG_OPEN_CONFIG";
+
+  class conn_factory: public single_connection_factory // No need for pool.
+  {
+  public:
+    conn_factory (const dir_path& d)
+    {
+      dir_path v (d);
+      v.complete ();
+      v.normalize ();
+
+#ifndef _WIN32
+      setenv (open_name, v.string ().c_str (), 1 /* overwrite */);
+#else
+      _putenv ((string (open_name) + '=' + v.string ()).c_str ());
+#endif
+    }
+
+    virtual
+    ~conn_factory ()
+    {
+#ifndef _WIN32
+      unsetenv (open_name);
+#else
+      _putenv ((string (open_name) + '=').c_str ());
+#endif
+    }
+  };
+
   database
   open (const dir_path& d, tracer& tr, bool create)
   {
@@ -31,16 +66,11 @@ namespace bpkg
 
     try
     {
-
-      // We don't need the thread pool.
-      //
-      unique_ptr<connection_factory> cf (new single_connection_factory);
-
       database db (f.string (),
                    SQLITE_OPEN_READWRITE | (create ? SQLITE_OPEN_CREATE : 0),
                    true,                  // Enable FKs.
                    "",                    // Default VFS.
-                   move (cf));
+                   unique_ptr<connection_factory> (new conn_factory (d)));
 
       db.tracer (trace);
 

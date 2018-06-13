@@ -308,6 +308,14 @@ namespace bpkg
     bool --version;
   };
 
+  "\h|ENVIRONMENT|
+
+  Commands executed by \cb{bpkg} while the build configuration database is
+  open will have the \cb{BPKG_OPEN_CONFIG} environment variable set to the
+  absolute and normalized configuration directory path. This can be used by
+  build system hooks and/or programs that they execute.
+  "
+
   "\h|EXIT STATUS|
 
   Non-zero exit status is returned in case of an error.
