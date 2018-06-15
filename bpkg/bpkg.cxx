@@ -4,8 +4,6 @@
 
 #ifndef _WIN32
 #  include <signal.h> // signal()
-#else
-#  include <stdlib.h> // getenv(), _putenv()
 #endif
 
 #include <cstring>   // strcmp()
@@ -49,6 +47,12 @@
 using namespace std;
 using namespace butl;
 using namespace bpkg;
+
+namespace bpkg
+{
+  int
+  main (int argc, char* argv[]);
+}
 
 // Get -d|--directory value if the option class O has it and empty path
 // otherwise. Note that for some commands (like rep-info) that allow
@@ -134,7 +138,7 @@ init (const common_options& co,
   return o;
 }
 
-int
+int bpkg::
 main (int argc, char* argv[])
 try
 {
@@ -155,15 +159,15 @@ try
   //
 #ifdef _WIN32
   {
-    string mp ("PATH=");
-    if (const char* p = getenv ("PATH"))
+    string mp;
+    if (optional<string> p = getenv ("PATH"))
     {
-      mp += p;
+      mp = move (*p);
       mp += ';';
     }
     mp += "/bin";
 
-    _putenv (mp.c_str ());
+    setenv ("PATH", mp);
   }
 #endif
 
@@ -368,3 +372,9 @@ catch (const std::exception& e)
   return 1;
 }
 */
+
+int
+main (int argc, char* argv[])
+{
+  return bpkg::main (argc, argv);
+}

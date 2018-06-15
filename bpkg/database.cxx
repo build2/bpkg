@@ -4,8 +4,6 @@
 
 #include <bpkg/database.hxx>
 
-#include <stdlib.h> // getenv() setenv()/_putenv()
-
 #include <odb/schema-catalog.hxx>
 #include <odb/sqlite/exceptions.hxx>
 
@@ -25,7 +23,7 @@ namespace bpkg
   // BPKG_OPEN_CONFIG environment variable. A bit heavy-weight but seems like
   // the best option.
   //
-  static const char open_name[] = "BPKG_OPEN_CONFIG";
+  static const string open_name ("BPKG_OPEN_CONFIG");
 
   class conn_factory: public single_connection_factory // No need for pool.
   {
@@ -36,21 +34,13 @@ namespace bpkg
       v.complete ();
       v.normalize ();
 
-#ifndef _WIN32
-      setenv (open_name, v.string ().c_str (), 1 /* overwrite */);
-#else
-      _putenv ((string (open_name) + '=' + v.string ()).c_str ());
-#endif
+      setenv (open_name, v.string ());
     }
 
     virtual
     ~conn_factory ()
     {
-#ifndef _WIN32
       unsetenv (open_name);
-#else
-      _putenv ((string (open_name) + '=').c_str ());
-#endif
     }
   };
 
