@@ -1110,7 +1110,12 @@ already know the location of the base repository.} If the location is a
 relative path, then it is treated as relative to the base repository location.
 
 For the \cb{git} repository type the relative location does not inherit the
-URL fragment from the base repository.
+URL fragment from the base repository. Note also that the remote \cb{git}
+repository locations normally have the \cb{.git} extension that is stripped
+when a repository is cloned locally. To make the relative locations usable in
+both contexts, the \cb{.git} extension should be ignored if the local
+prerequisite repository with the extension does not exist while the one
+without the extension does.
 
 For the \cb{dir} repository type the relative location may also contain the
 URL fragment to make the same repository information usable in case the base

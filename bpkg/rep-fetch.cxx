@@ -533,6 +533,27 @@ namespace bpkg
                  << "': " << e <<
               info << "base repository location is " << rl;
           }
+
+          // If the local prerequisite git repository having the .git extension
+          // doesn't exist but the one without the extension does, then we
+          // strip the extension from the location.
+          //
+          if (l.local ()                        &&
+              l.type () == repository_type::git &&
+              l.path ().extension () == "git")
+          {
+            dir_path d (path_cast<dir_path> (l.path ()));
+
+            if (!exists (d) && exists (d.base () / dir_path (".git")))
+            {
+              repository_url u (l.url ());
+
+              assert (u.path);
+              u.path->make_base ();
+
+              l = repository_location (u, l.type ());
+            }
+          }
         }
       }
     }

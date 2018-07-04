@@ -721,6 +721,39 @@ else
     }
   }
 
+  : strip-ext
+  :
+  : Test that if the local prerequisite git repository having the .git
+  : extension does not exist but the one without the extension does, then
+  : it is picked up by rep-fetch.
+  :
+  if ($remote != true)
+  {
+    cp -r $out_git/state0/libbar.git libbar.git;
+    cp -r $out_git/state0/style-basic.git style-basic;
+
+    $clone_root_cfg;
+
+    rep = ($cxx.target.class != 'windows' \
+           ? "file:$~" \
+           : "file:/$regex.replace($~, '\\', '/')");
+
+    $* "$rep/libbar.git#master" 2>>~%EOE% &cfg/.bpkg/repos/*/***;
+      %added git:.+libbar#master%
+      %querying .+libbar\.git%
+      %fetching from .+libbar\.git%
+      %fetching git:.+style-basic#stable \(prerequisite of git:.+libbar#master\)%
+      %querying .+style-basic%
+      %fetching from .+style-basic%
+      3 package(s) in 2 repository(s)
+      EOE
+
+    $rep_list >>~%EOO%
+      %git:.+libbar#master file:.+libbar\.git#master%
+      %  prerequisite git:.+style-basic#stable file:.+style-basic#stable \(heads/master\)%
+      EOO
+  }
+
   : checkout-submodules
   :
   : Test that if some of the packages are located in the repository
