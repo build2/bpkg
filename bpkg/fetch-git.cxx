@@ -1262,7 +1262,7 @@ namespace bpkg
       }
 
       if (caps () == capabilities::dumb)
-        warn << "fetching over dumb HTTP, no progress will be shown";
+        warn << "no progress will be shown (dumb HTTP)";
 
       // Fetch.
       //
