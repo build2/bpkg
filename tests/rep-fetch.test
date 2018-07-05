@@ -458,8 +458,9 @@ if ($remote != true)
 {
   rep_add += --type dir
 
-  rep = $~/state0
-  +cp -r $out_git/state0 $rep
+  +cp -r $out_git/state0 $~/state0
+
+  rep = $canonicalize([dir_path] $~/state0)
 
   +cat <<EOI >= $rep/libbar.git/repositories.manifest
      : 1
