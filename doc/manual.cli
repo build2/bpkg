@@ -1117,11 +1117,6 @@ both contexts, the \cb{.git} extension should be ignored if the local
 prerequisite repository with the extension does not exist while the one
 without the extension does.
 
-For the \cb{dir} repository type the relative location may also contain the
-URL fragment to make the same repository information usable in case the base
-and prerequisites are also exposed as \cb{git} repositories. For the \cb{dir}
-repository type such a fragment is ignored.
-
 While POSIX systems normally only support POSIX paths (that is, forward
 slashes only), Windows is generally able to handle both slash types. As a
 result, it is recommended that POSIX paths are always used in the \c{location}

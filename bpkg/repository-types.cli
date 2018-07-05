@@ -48,7 +48,7 @@ repositories. See \l{bpkg#manifest-repository-list Repository List Manifest}
 for details on the format and semantics of this file.
 
 
-\h|GIR REPOSITORIES|
+\h|GIT REPOSITORIES|
 
 A \cb{git} repository is \i{version control}-based. That is, it normally
 contains multiple versions of the same package (but can also contain several,

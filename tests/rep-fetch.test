@@ -458,7 +458,15 @@ if ($remote != true)
 {
   rep_add += --type dir
 
-  rep = $canonicalize([dir_path] $out_git/state0)
+  rep = $~/state0
+  +cp -r $out_git/state0 $rep
+
+  +cat <<EOI >= $rep/libbar.git/repositories.manifest
+     : 1
+     role: prerequisite
+     type: dir
+     location: ../style-basic.git
+     EOI
 
   +$clone_cfg && $rep_add $rep/libbar.git
 
