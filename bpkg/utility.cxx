@@ -94,7 +94,7 @@ namespace bpkg
     }
     catch (io_error&)
     {
-      fail << "unable to read y/n answer from stdin";
+      fail << "unable to read y/n answer from stdin" << endf;
     }
   }
 
