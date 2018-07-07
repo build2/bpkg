@@ -183,7 +183,7 @@ sc = " " # Space character to append to here-document line when required.
         certificate SHA256 fingerprint:
         $cert_fp
         trust this certificate? [y/n]$sc
-        error: unable to read y/n answer from STDOUT
+        error: unable to read y/n answer from stdin
         EOE
 
       $not_fetched
@@ -293,7 +293,7 @@ sc = " " # Space character to append to here-document line when required.
       certificate SHA256 fingerprint:
       $cert_fp
       trust this certificate? [y/n]$sc
-      error: unable to read y/n answer from STDOUT
+      error: unable to read y/n answer from stdin
       EOE
 
     : trust-fp
@@ -457,7 +457,7 @@ sc = " " # Space character to append to here-document line when required.
         fetching pkg:build2.org/rep-auth/unsigned1
         warning: repository pkg:build2.org/rep-auth/unsigned1 is unsigned
         %continue without authenticating repositories at .+\? \[y/n\] %
-        error: unable to read y/n answer from STDOUT
+        error: unable to read y/n answer from stdin
         EOE
 
       $not_fetched
@@ -535,7 +535,7 @@ sc = " " # Space character to append to here-document line when required.
     $rep_info 2>>~%EOE% != 0
       warning: repository pkg:build2.org/rep-auth/unsigned1 is unsigned
       %continue without authenticating repositories at .+\? \[y/n\] %
-      error: unable to read y/n answer from STDOUT
+      error: unable to read y/n answer from stdin
       EOE
 
     : trust-yes

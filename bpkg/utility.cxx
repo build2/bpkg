@@ -6,6 +6,7 @@
 
 #include <iostream>     // cout, cin
 
+#include <libbutl/prompt.mxx>
 #include <libbutl/process.mxx>
 #include <libbutl/fdstream.mxx>
 
@@ -85,42 +86,16 @@ namespace bpkg
   bool stderr_term;
 
   bool
-  yn_prompt (const char* prompt, char def)
+  yn_prompt (const string& p, char d)
   {
-    // Writing a robust Y/N prompt is more difficult than one would
-    // expect...
-    //
-    string a;
-    do
+    try
     {
-      *diag_stream << prompt << ' ';
-
-      // getline() will set the failbit if it failed to extract anything,
-      // not even the delimiter and eofbit if it reached eof before seeing
-      // the delimiter.
-      //
-      getline (cin, a);
-
-      bool f (cin.fail ());
-      bool e (cin.eof ());
-
-      if (f || e)
-        *diag_stream << endl; // Assume no delimiter (newline).
-
-      if (f)
-        fail << "unable to read y/n answer from STDOUT";
-
-      if (a.empty () && def != '\0')
-      {
-        // Don't treat eof as the default answer. We need to see the
-        // actual newline.
-        //
-        if (!e)
-          a = def;
-      }
-    } while (a != "y" && a != "n");
-
-    return a == "y";
+      return butl::yn_prompt (p, d);
+    }
+    catch (io_error&)
+    {
+      fail << "unable to read y/n answer from stdin";
+    }
   }
 
   bool

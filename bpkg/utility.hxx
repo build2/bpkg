@@ -88,13 +88,13 @@ namespace bpkg
   //
   extern bool stderr_term; // True if stderr is a terminal.
 
-  // Y/N prompt. The def argument, if specified, should be either 'y'
-  // or 'n'. It is used as the default answer, in case the user just
-  // hits enter. Issue diagnostics and throw failed if no answer could
-  // be extracted from STDOUT (e.g., because it was closed).
+  // Y/N prompt. See butl::yn_prompt() for details (this is a thin wrapper).
+  //
+  // Issue diagnostics and throw failed if no answer could be extracted from
+  // stdin (e.g., because it was closed).
   //
   bool
-  yn_prompt (const char* prompt, char def = '\0');
+  yn_prompt (const string& prompt, char def = '\0');
 
   // Filesystem.
   //
