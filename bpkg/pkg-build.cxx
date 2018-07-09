@@ -2514,10 +2514,16 @@ namespace bpkg
           continue;
         }
 
-        // Expand the [[<packages>]@]<location> spec.
+        // Expand the [[<packages>]@]<location> spec. Fail if the repository
+        // is not found in this configuration, that can be the case in the
+        // presence of --no-fetch option.
         //
         shared_ptr<repository> r (
-          db.load<repository> (ps.location.canonical_name ()));
+          db.find<repository> (ps.location.canonical_name ()));
+
+        if (r == nullptr)
+          fail << "repository '" << ps.location
+               << "' does not exist in this configuration";
 
         // If no packages are specified explicitly (the argument starts with
         // '@' or is a URL) then we select latest versions of all the packages
