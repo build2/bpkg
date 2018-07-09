@@ -88,7 +88,7 @@ namespace bpkg
         return i.fragment == lrf;
       };
 
-      for (const lazy_shared_ptr<repository>& r: cs)
+      for (const lazy_weak_ptr<repository>& r: cs)
       {
         const auto& frs (r.load ()->fragments);
 
@@ -110,7 +110,7 @@ namespace bpkg
       // Finally, load the complements and prerequisites and check them
       // recursively.
       //
-      for (const lazy_shared_ptr<repository>& cr: cs)
+      for (const lazy_weak_ptr<repository>& cr: cs)
       {
         for (const auto& fr: cr.load ()->fragments)
         {

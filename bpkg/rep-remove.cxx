@@ -247,15 +247,13 @@ namespace bpkg
     // Prior to removing a prerequisite/complement we need to make sure it
     // still exists, which may not be the case due to the dependency cycle.
     //
-    auto remove = [&c, &db, &t] (const lazy_shared_ptr<repository>& rp)
+    auto remove = [&c, &db, &t] (const lazy_weak_ptr<repository>& rp)
     {
-      shared_ptr<repository> r (db.find<repository> (rp.object_id ()));
-
-      if (r)
+      if (shared_ptr<repository> r = db.find<repository> (rp.object_id ()))
         rep_remove (c, t, r);
     };
 
-    for (const lazy_shared_ptr<repository>& cr: rf->complements)
+    for (const lazy_weak_ptr<repository>& cr: rf->complements)
     {
       // Remove the complement unless it is the root repository (see
       // rep_fetch() for details).
@@ -265,7 +263,7 @@ namespace bpkg
     }
 
     for (const lazy_weak_ptr<repository>& pr: rf->prerequisites)
-      remove (lazy_shared_ptr<repository> (pr));
+      remove (pr);
 
     // If there are no repositories stayed in the database then no repository
     // fragments nor packages should stay either.
@@ -301,13 +299,13 @@ namespace bpkg
         query<repository_fragment>::name != "");
 
       shared_ptr<repository_fragment> root (db.load<repository_fragment> (""));
-      repository_fragment::complements_type& ua (root->complements);
+      repository_fragment::dependencies& ua (root->complements);
 
       for (shared_ptr<repository> r: pointer_result (db.query<repository> ()))
       {
         if (r->name == "")
           l5 ([&]{trace << "skipping root repository";});
-        else if (ua.find (lazy_shared_ptr<repository> (db, r)) != ua.end ())
+        else if (ua.find (lazy_weak_ptr<repository> (db, r)) != ua.end ())
         {
           r->fragments.clear ();
           db.update (r);
@@ -395,12 +393,12 @@ namespace bpkg
     session s; // Repository dependencies can have cycles.
 
     shared_ptr<repository_fragment> root (db.load<repository_fragment> (""));
-    repository_fragment::complements_type& ua (root->complements);
+    repository_fragment::dependencies& ua (root->complements);
 
     if (o.all ())
     {
-      for (const lazy_shared_ptr<repository>& r: ua)
-        repos.push_back (r);
+      for (const lazy_weak_ptr<repository>& r: ua)
+        repos.push_back (lazy_shared_ptr<repository> (r));
     }
     else
     {
@@ -435,11 +433,11 @@ namespace bpkg
             repository_url u (a);
             assert (!u.empty ());
 
-            for (const lazy_shared_ptr<repository>& rp: ua)
+            for (const lazy_weak_ptr<repository>& rp: ua)
             {
               if (rp.load ()->location.url () == u)
               {
-                r = rp;
+                r = lazy_shared_ptr<repository> (rp);
                 break;
               }
             }

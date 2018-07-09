@@ -266,16 +266,6 @@ namespace bpkg
   class repository_fragment
   {
   public:
-    // We use a weak pointer for prerequisite repositories because we could
-    // have cycles. No cycles in complements, thought.
-    //
-    // Note that these point to repositories, not repository fragments.
-    //
-    using complements_type =
-      std::set<lazy_shared_ptr<repository>, compare_lazy_ptr>;
-    using prerequisites_type =
-      std::set<lazy_weak_ptr<repository>, compare_lazy_ptr>;
-
     // Repository fragment id is a repository canonical name that identifies
     // just this fragment (for example, for git it is a canonical name of
     // the repository URL with the full, non-abbreviated commit id).
@@ -291,8 +281,20 @@ namespace bpkg
     //
     repository_location location;
 
-    complements_type   complements;
-    prerequisites_type prerequisites;
+    // We use a weak pointer for prerequisite repositories because we could
+    // have cycles.
+    //
+    // Note that we could have cycles for complements via the root repository
+    // that is the default complement for dir and git repositories (see
+    // rep-fetch for details), and so we use a weak pointer for complements
+    // either.
+    //
+    // Also note that these point to repositories, not repository fragments.
+    //
+    using dependencies = std::set<lazy_weak_ptr<repository>, compare_lazy_ptr>;
+
+    dependencies complements;
+    dependencies prerequisites;
 
   public:
     explicit

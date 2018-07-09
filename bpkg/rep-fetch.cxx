@@ -642,7 +642,7 @@ namespace bpkg
         shared_ptr<repository_fragment> root (
           db.load<repository_fragment> (""));
 
-        repository_fragment::complements_type& ua (root->complements);
+        repository_fragment::dependencies& ua (root->complements);
 
         if (ua.find (r) == ua.end ())
         {
@@ -907,12 +907,12 @@ namespace bpkg
     // shallow repository fetch is possible and to register them for removal
     // if that's not the case.
     //
-    repository_fragment::complements_type old_complements;
-    repository_fragment::prerequisites_type old_prerequisites;
+    repository_fragment::dependencies old_complements;
+    repository_fragment::dependencies old_prerequisites;
 
     auto collect_deps = [] (const shared_ptr<repository_fragment>& rf,
-                            repository_fragment::complements_type& cs,
-                            repository_fragment::prerequisites_type& ps)
+                            repository_fragment::dependencies& cs,
+                            repository_fragment::dependencies& ps)
     {
       for (const auto& cr: rf->complements)
         cs.insert (cr);
@@ -947,8 +947,8 @@ namespace bpkg
     //
     r->certificate = move (rfd.certificate_pem);
 
-    repository_fragment::complements_type new_complements;
-    repository_fragment::prerequisites_type new_prerequisites;
+    repository_fragment::dependencies new_complements;
+    repository_fragment::dependencies new_prerequisites;
     repository_trust repo_trust;
 
     for (rep_fetch_data::fragment& fr: rfd.fragments)
@@ -990,14 +990,20 @@ namespace bpkg
     // directly.
     //
     if (shallow)
-      shallow = new_complements == old_complements &&
-        equal (new_prerequisites.begin (), new_prerequisites.end (),
-               old_prerequisites.begin (), old_prerequisites.end (),
-               [] (const lazy_weak_ptr<repository>& x,
-                   const lazy_weak_ptr<repository>& y)
-               {
-                 return x.object_id () == y.object_id ();
-               });
+    {
+      auto eq = [] (const lazy_weak_ptr<repository>& x,
+                    const lazy_weak_ptr<repository>& y)
+      {
+        return x.object_id () == y.object_id ();
+      };
+
+      shallow = equal (new_complements.begin (), new_complements.end (),
+                       old_complements.begin (), old_complements.end (),
+                       eq) &&
+                equal (new_prerequisites.begin (), new_prerequisites.end (),
+                       old_prerequisites.begin (), old_prerequisites.end (),
+                       eq);
+    }
 
     // Fetch prerequisites and complements, unless this is a shallow fetch.
     //
@@ -1007,14 +1013,14 @@ namespace bpkg
       // unless they are fetched.
       //
       auto rm = [&fetched_repositories, &removed_repositories] (
-        const lazy_shared_ptr<repository>& rp)
+        const lazy_weak_ptr<repository>& rp)
       {
         shared_ptr<repository> r (rp.load ());
         if (fetched_repositories.find (r) == fetched_repositories.end ())
           removed_repositories.insert (move (r));
       };
 
-      for (const lazy_shared_ptr<repository>& cr: old_complements)
+      for (const lazy_weak_ptr<repository>& cr: old_complements)
       {
         // Remove the complement unless it is the root repository (see
         // rep_fetch() for details).
@@ -1024,7 +1030,7 @@ namespace bpkg
       }
 
       for (const lazy_weak_ptr<repository>& pr: old_prerequisites)
-        rm (lazy_shared_ptr<repository> (pr));
+        rm (pr);
 
       auto fetch = [&co,
                     &conf,
@@ -1239,7 +1245,7 @@ namespace bpkg
 
     // User-added repos.
     //
-    repository_fragment::complements_type& ua (root->complements);
+    repository_fragment::dependencies& ua (root->complements);
 
     for (const repository_location& rl: rls)
     {
@@ -1279,7 +1285,7 @@ namespace bpkg
 
     // User-added repos.
     //
-    repository_fragment::complements_type& ua (root->complements);
+    repository_fragment::dependencies& ua (root->complements);
 
     optional<string> reason;
     bool full_fetch (!args.more ());
@@ -1290,8 +1296,8 @@ namespace bpkg
         fail << "configuration " << c << " has no repositories" <<
           info << "use 'bpkg rep-add' to add a repository";
 
-      for (const lazy_shared_ptr<repository>& r: ua)
-        repos.push_back (r);
+      for (const lazy_weak_ptr<repository>& r: ua)
+        repos.push_back (lazy_shared_ptr<repository> (r));
 
       // Always print "fetching ..." for complements of the root, even if
       // there is only one.

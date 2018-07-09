@@ -65,7 +65,7 @@ namespace bpkg
 
       if (o.complements ())
       {
-        for (const lazy_shared_ptr<repository>& rp: fr->complements)
+        for (const lazy_weak_ptr<repository>& rp: fr->complements)
         {
           // Skip the root complement (see rep_fetch() for details).
           //
@@ -114,7 +114,7 @@ namespace bpkg
 
     shared_ptr<repository_fragment> root (db.load<repository_fragment> (""));
 
-    for (const lazy_shared_ptr<repository>& rp: root->complements)
+    for (const lazy_weak_ptr<repository>& rp: root->complements)
     {
       shared_ptr<repository> r (rp.load ());
       cout << r->location.canonical_name () << " " << r->location << endl;
