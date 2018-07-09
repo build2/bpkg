@@ -44,9 +44,10 @@ namespace bpkg
     }
   };
 
+  using optional_string = optional<string>;
+
   // path
   //
-  using optional_string = optional<string>;
   using optional_path = optional<path>;
   using optional_dir_path = optional<dir_path>;
 
@@ -1363,6 +1364,16 @@ namespace bpkg
   }
 */
 }
+
+// Workaround for GCC __is_invocable/non-constant condition bug (#86441).
+//
+#ifdef ODB_COMPILER
+namespace std
+{
+  template class map<bpkg::available_package::_dependency_key,
+                     bpkg::dependency>;
+}
+#endif
 
 #include <bpkg/package.ixx>
 
