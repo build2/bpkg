@@ -93,10 +93,6 @@ namespace bpkg
   try
   {
     repository_url u (s);
-
-    if (u.empty ())
-      fail << "empty repository location";
-
     assert (u.path);
 
     // Make the relative path absolute using the current directory.

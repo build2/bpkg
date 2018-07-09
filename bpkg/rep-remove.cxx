@@ -433,9 +433,7 @@ namespace bpkg
           try
           {
             repository_url u (a);
-
-            if (u.empty ())
-              fail << "empty repository location";
+            assert (!u.empty ());
 
             for (const lazy_shared_ptr<repository>& rp: ua)
             {

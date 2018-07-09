@@ -24,7 +24,7 @@ rep_list += -d cfg
     $clone_cfg;
 
     $* '' 2>>EOE != 0
-    error: empty repository location
+    error: invalid repository location '': empty URL
     EOE
   }
 

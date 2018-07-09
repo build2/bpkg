@@ -231,9 +231,9 @@ namespace bpkg
     repository_type type;
   };
 
-  #pragma db map type(repository_url) as(string) \
-    to((?).string ())                            \
-    from(bpkg::repository_url (?))
+  #pragma db map type(repository_url) as(string)                            \
+    to((?).string ())                                                       \
+    from((?).empty () ? bpkg::repository_url () : bpkg::repository_url (?))
 
   #pragma db map type(repository_type) as(string) \
     to(to_string (?))                             \
