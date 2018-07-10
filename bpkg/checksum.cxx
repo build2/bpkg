@@ -4,14 +4,10 @@
 
 #include <bpkg/checksum.hxx>
 
-#include <ios>       // streamsize
-#include <streambuf>
-
 #ifdef _WIN32
 #  include <algorithm> // replace()
 #endif
 
-#include <libbutl/sha256.mxx>
 #include <libbutl/process.mxx>
 #include <libbutl/filesystem.mxx>
 
@@ -341,19 +337,6 @@ namespace bpkg
 
       throw failed ();
     }
-  }
-
-  string
-  sha256 (istream& is)
-  {
-    butl::sha256 r;
-
-    char buf[8192];
-    streambuf& sb (*is.rdbuf ());
-    for (streamsize n; (n = sb.sgetn (buf, sizeof (buf))) != 0;)
-      r.append (buf, n);
-
-    return r.string ();
   }
 
   string

@@ -19,11 +19,6 @@ namespace bpkg
   inline string
   sha256 (const char* buf, size_t n) {return butl::sha256 (buf, n).string ();}
 
-  // The same but for a stream (if ifdstream, open in binary mode).
-  //
-  string
-  sha256 (istream&);
-
   // The same but for a file. Issue diagnostics and throw failed if anything
   // goes wrong.
   //
