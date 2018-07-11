@@ -494,6 +494,7 @@ sections.
 \
 name: <name>
 version: <version>
+[project]: <name>
 [priority]: <priority> [; <comment>]
 summary: <text>
 license: <licenses> [; <comment>]
@@ -539,6 +540,24 @@ version: <version>
 The package version. See \l{#package-version Package Version} for the version
 format description. Note that the version case is preserved for display, in
 file names, etc.
+
+
+\h2#manifest-package-project|\c{project}|
+
+\
+[project]: <name>
+\
+
+The project this package belongs to. The project name has the same
+restrictions as the package name (see \l{#package-name Package Name} for
+details) and its case is preserved for display, in directory names, etc. If
+unspecified, then the project name is assumed to be the same as the package
+name.
+
+Projects are used to group related packages together in order to help with
+organization and discovery in repositories. For example, packages \c{hello},
+\c{libhello}, and \c{libhello2} could all belong to project \c{hello}. By
+convention, projects of library packages are named without the \c{lib} prefix.
 
 
 \h2#manifest-package-|\c{priority}|
