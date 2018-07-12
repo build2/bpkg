@@ -29,8 +29,8 @@ namespace bpkg
      prerequisite repositories followed by the list of available packages.
 
      This default format can be altered in various ways using options listed
-     below. Note also that the information is written to \cb{STDOUT}, not
-     \cb{STDERR}.
+     below. Note also that the information is written to \cb{stdout}, not
+     \cb{stderr}.
 
      If the current working directory contains a \cb{bpkg} configuration, then
      \cb{rep-info} will use its certificate database for the repository

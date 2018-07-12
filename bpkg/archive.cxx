@@ -64,7 +64,7 @@ namespace bpkg
     for (const string& o: co.tar_option ())
       args.push_back (o.c_str ());
 
-    // -O/--to-stdout -- extract to STDOUT.
+    // -O/--to-stdout -- extract to stdout.
     //
     args.push_back ("-O");
 
@@ -106,7 +106,7 @@ namespace bpkg
       if (verb >= 2)
         print_process (args);
 
-      // If err is false, then redirect STDERR to STDOUT.
+      // If err is false, then redirect stderr to stdout.
       //
       auto_fd nfd (err ? nullfd : fdnull ());
 

@@ -23,7 +23,7 @@ namespace bpkg
   {
     tracer trace ("check_wget");
 
-    // wget --version prints the version to STDOUT and exits with 0
+    // wget --version prints the version to stdout and exits with 0
     // status. The first line starts with "GNU Wget X.Y[.Z].
     //
     const char* args[] = {prog.string ().c_str (), "--version", nullptr};
@@ -35,7 +35,7 @@ namespace bpkg
       if (verb >= 3)
         print_process (args);
 
-      process pr (pp, args, 0, -1); // Redirect STDOUT to a pipe.
+      process pr (pp, args, 0, -1); // Redirect stdout to a pipe.
 
       string l;
 
@@ -105,7 +105,7 @@ namespace bpkg
     };
 
     // Map verbosity level. If we are running quiet or at level 1
-    // and the output is STDOUT, then run wget quiet. If at level
+    // and the output is stdout, then run wget quiet. If at level
     // 1 and the output is a file, then show the progress bar. At
     // level 2 and 3 run it at the default level (so we will print
     // the command line and it will display the progress, error
@@ -181,7 +181,7 @@ namespace bpkg
   static bool
   check_curl (const path& prog)
   {
-    // curl --version prints the version to STDOUT and exits with 0
+    // curl --version prints the version to stdout and exits with 0
     // status. The first line starts with "curl X.Y.Z"
     //
     const char* args[] = {prog.string ().c_str (), "--version", nullptr};
@@ -193,7 +193,7 @@ namespace bpkg
       if (verb >= 3)
         print_process (args);
 
-      process pr (pp, args, 0, -1); // Redirect STDOUT to a pipe.
+      process pr (pp, args, 0, -1); // Redirect stdout to a pipe.
 
       try
       {
@@ -238,7 +238,7 @@ namespace bpkg
     };
 
     // Map verbosity level. If we are running quiet or at level 1
-    // and the output is STDOUT, then run curl quiet. If at level
+    // and the output is stdout, then run curl quiet. If at level
     // 1 and the output is a file, then show the progress bar. At
     // level 2 and 3 run it at the default level (so we will print
     // the command line and it will display its elaborate progress).
@@ -270,7 +270,7 @@ namespace bpkg
     for (const string& o: ops)
       args.push_back (o.c_str ());
 
-    // Output. By default curl writes to STDOUT.
+    // Output. By default curl writes to stdout.
     //
     if (fo)
     {
@@ -319,7 +319,7 @@ namespace bpkg
       if (verb >= 3)
         print_process (args);
 
-      process pr (pp, args, 0, -1, 1); // Redirect STDOUT and STDERR to a pipe.
+      process pr (pp, args, 0, -1, 1); // Redirect stdout and stderr to a pipe.
 
       try
       {

@@ -135,8 +135,8 @@ namespace bpkg
             {
               auto_fd dev_null (open_dev_null ());
 
-              // Redirect STDERR to /dev/null. Note that we don't expect
-              // anything to be written to STDOUT.
+              // Redirect stderr to /dev/null. Note that we don't expect
+              // anything to be written to stdout.
               //
               process pr (start_b (o,
                                    1 /* stdout */, dev_null /* stderr */,

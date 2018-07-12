@@ -177,7 +177,7 @@ namespace bpkg
 
           // Note: serializing without any extra repository_manifests info.
           //
-          manifest_serializer s (cout, "STDOUT");
+          manifest_serializer s (cout, "stdout");
 
           for (const repository_manifest& rm: rms)
             rm.serialize (s);
@@ -268,7 +268,7 @@ namespace bpkg
 
           // Note: serializing without any extra package_manifests info.
           //
-          manifest_serializer s (cout, "STDOUT");
+          manifest_serializer s (cout, "stdout");
           for (const package_manifest& pm: pms)
             pm.serialize (s);
           s.next ("", ""); // End of stream.
@@ -310,7 +310,7 @@ namespace bpkg
     }
     catch (const io_error&)
     {
-      fail << "unable to write to STDOUT";
+      fail << "unable to write to stdout";
     }
 
     return 0;

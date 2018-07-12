@@ -28,7 +28,7 @@ namespace bpkg
 
     // If diag is false, we need to make tar not print any diagnostics. There
     // doesn't seem to be an option to suppress this and the only way is to
-    // redirect STDERR to something like /dev/null.
+    // redirect stderr to something like /dev/null.
     //
     // If things go badly for tar and it starts spitting errors instead of the
     // manifest, the manifest parser will fail. But that's ok since we assume
@@ -196,7 +196,7 @@ namespace bpkg
       {
         try
         {
-          manifest_serializer s (cout, "STDOUT");
+          manifest_serializer s (cout, "stdout");
           m.serialize (s);
         }
         catch (const manifest_serialization& e)
@@ -205,7 +205,7 @@ namespace bpkg
         }
         catch (const io_error&)
         {
-          fail << "unable to write to STDOUT";
+          fail << "unable to write to stdout";
         }
       }
       else if (verb && !o.silent () && !o.no_result ())

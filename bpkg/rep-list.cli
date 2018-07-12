@@ -24,7 +24,7 @@ namespace bpkg
      The \cb{rep-list} command lists the repositories in the configuration.
 
      For each repository a line containing the repository name and location is
-     printed to \cb{STDOUT}. If the \cb{--complements|-c} and/or
+     printed to \cb{stdout}. If the \cb{--complements|-c} and/or
      \cb{--prerequisites|-p} options are specified, then it is followed by
      the list of complement and/or prerequisite repositories, recursively."
   }

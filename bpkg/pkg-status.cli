@@ -29,8 +29,8 @@ namespace bpkg
      \l{bpkg-pkg-build(1)}). Additionally, the status of immediate or all
      dependencies of the above packages can be printed by specifying the
      \c{\b{--immediate}|\b{-i}} or \c{\b{--recursive}|\b{-r}} options,
-     respectively. Note that the status is written to \cb{STDOUT}, not
-     \cb{STDERR}.
+     respectively. Note that the status is written to \cb{stdout}, not
+     \cb{stderr}.
 
      The status output format is regular with components separated with
      spaces. Each line starts with the package name (and version, if

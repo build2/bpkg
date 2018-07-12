@@ -20,7 +20,7 @@ namespace bpkg
   package_dir (const path& archive);
 
   // Start the process of extracting the specified file from the archive. If
-  // error is false, then redirect STDERR to /dev/null (this can be used, for
+  // error is false, then redirect stderr to /dev/null (this can be used, for
   // example, to suppress diagnostics).
   //
   // Return a pair of processes that form a pipe. Wait on the second first.

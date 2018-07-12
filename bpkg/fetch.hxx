@@ -106,7 +106,7 @@ namespace bpkg
   //
 
   // Start the process of fetching the specified URL. If out is empty, then
-  // fetch to STDOUT. In this case also don't show any progress unless we are
+  // fetch to stdout. In this case also don't show any progress unless we are
   // running verbose.
   //
   butl::process

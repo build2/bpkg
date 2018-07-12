@@ -24,7 +24,7 @@ namespace bpkg
   check_sha256 (const path& prog)
   {
     // This one doesn't have --version or --help. Running it without any
-    // arguments causes it to calculate the sum of STDIN. But we can ask
+    // arguments causes it to calculate the sum of stdin. But we can ask
     // it to calculate a sum of an empty string.
     //
     const char* args[] = {prog.string ().c_str (), "-q", "-s", "", nullptr};
@@ -36,7 +36,7 @@ namespace bpkg
       if (verb >= 3)
         print_process (args);
 
-      process pr (pp, args, 0, -1, 1); // Redirect STDOUT and STDERR to a pipe.
+      process pr (pp, args, 0, -1, 1); // Redirect stdout and stderr to a pipe.
 
       try
       {
@@ -83,7 +83,7 @@ namespace bpkg
     if (verb >= 3)
       print_process (args);
 
-    // Pipe STDOUT. Process exceptions must be handled by the caller.
+    // Pipe stdout. Process exceptions must be handled by the caller.
     //
     return process (pp, args.data (), 0, -1);
   }
@@ -93,7 +93,7 @@ namespace bpkg
   static bool
   check_sha256sum (const path& prog)
   {
-    // sha256sum --version prints the version to STDOUT and exits with 0
+    // sha256sum --version prints the version to stdout and exits with 0
     // status. The first line starts with "sha256sum (GNU coreutils) 8.21".
     //
     const char* args[] = {prog.string ().c_str (), "--version", nullptr};
@@ -105,7 +105,7 @@ namespace bpkg
       if (verb >= 3)
         print_process (args);
 
-      process pr (pp, args, 0, -1); // Redirect STDOUT to a pipe.
+      process pr (pp, args, 0, -1); // Redirect stdout to a pipe.
 
       try
       {
@@ -160,7 +160,7 @@ namespace bpkg
     if (verb >= 3)
       print_process (args);
 
-    // Pipe STDOUT. Process exceptions must be handled by the caller.
+    // Pipe stdout. Process exceptions must be handled by the caller.
     //
     return process (pp, args.data (), 0, -1);
   }
@@ -170,7 +170,7 @@ namespace bpkg
   static bool
   check_shasum (const path& prog)
   {
-    // shasum --version prints just the version to STDOUT and exits with 0
+    // shasum --version prints just the version to stdout and exits with 0
     // status. The output looks like "5.84".
     //
     const char* args[] = {prog.string ().c_str (), "--version", nullptr};
@@ -182,7 +182,7 @@ namespace bpkg
       if (verb >= 3)
         print_process (args);
 
-      process pr (pp, args, 0, -1); // Redirect STDOUT to a pipe.
+      process pr (pp, args, 0, -1); // Redirect stdout to a pipe.
 
       try
       {
@@ -226,7 +226,7 @@ namespace bpkg
     if (verb >= 3)
       print_process (args);
 
-    // Pipe STDOUT. Process exceptions must be handled by the caller.
+    // Pipe stdout. Process exceptions must be handled by the caller.
     //
     return process (pp, args.data (), 0, -1);
   }

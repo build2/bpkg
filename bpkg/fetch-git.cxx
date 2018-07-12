@@ -1192,7 +1192,7 @@ namespace bpkg
 
       // Note that we suppress the (too detailed) fetch command output if the
       // verbosity level is 1. However, we still want to see the progress in
-      // this case, unless STDERR is not directed to a terminal.
+      // this case, unless stderr is not directed to a terminal.
       //
       // Also note that we don't need to specify --refmap option since we can
       // rely on the init() function that properly sets the

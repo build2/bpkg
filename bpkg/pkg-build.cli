@@ -253,7 +253,7 @@ namespace bpkg
 
     bool --print-only|-p
     {
-      "Print to \cb{STDOUT} what would be done without actually doing
+      "Print to \cb{stdout} what would be done without actually doing
        anything."
     }
 
