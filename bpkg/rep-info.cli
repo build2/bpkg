@@ -85,7 +85,7 @@ namespace bpkg
       "Print the list of available packages."
     }
 
-    bool --manifest|-m
+    bool --manifest
     {
       "Instead of printing the information in the human-readable form, dump it
        as manifest(s). Normally you would use this option in combination with

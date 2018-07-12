@@ -42,5 +42,11 @@ namespace bpkg
        declare such a package valid since it cannot be sure the unknown entries
        are valid."
     }
+
+    bool --manifest
+    {
+      "Instead of printing the successful verification result in the
+       human-readable form, dump the package manifest to \cb{stdout}."
+    }
   };
 }

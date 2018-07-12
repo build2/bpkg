@@ -32,7 +32,7 @@
       %1 package\(s\) in .+/stable/%
       EOE
 
-    $rep_info -p -m 1/stable/ >>EOO
+    $rep_info -p --manifest 1/stable/ >>EOO
       : 1
       name: foo
       version: 1
@@ -58,7 +58,7 @@
       %1 package\(s\) in .+/stable/%
       EOE
 
-    $rep_info -p -m 1/stable/ >>EOO
+    $rep_info -p --manifest 1/stable/ >>EOO
       : 1
       name: foo
       version: 1
@@ -100,7 +100,7 @@
       %1 package\(s\) in .+/stable/%
       EOE
 
-    $rep_info --cert-fingerprint -p -m 1/stable/ >>~"%EOO%"
+    $rep_info --cert-fingerprint -p --manifest 1/stable/ >>~"%EOO%"
       $cert_fp
       : 1
       name: foo

@@ -15,6 +15,18 @@
 :
 $* $src/foo-1.tar.gz 2>'valid package foo 1'
 
+: manifest
+:
+$* --manifest $src/foo-1.tar.gz >>EOO
+  : 1
+  name: foo
+  version: 1
+  summary: The "Foo" utility
+  license: MIT
+  url: http://www.example.org/foo
+  email: foo-users@example.org
+  EOO
+
 : no-package
 :
 $* 2>>EOE != 0

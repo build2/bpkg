@@ -4,8 +4,11 @@
 
 #include <bpkg/pkg-verify.hxx>
 
+#include <iostream> // cout
+
 #include <libbutl/process.mxx>
 #include <libbutl/manifest-parser.mxx>
+#include <libbutl/manifest-serializer.mxx>
 
 #include <bpkg/archive.hxx>
 #include <bpkg/diagnostics.hxx>
@@ -189,7 +192,23 @@ namespace bpkg
       package_manifest m (
         pkg_verify (o, a, o.ignore_unknown (), !o.silent ()));
 
-      if (verb && !o.silent () && !o.no_result ())
+      if (o.manifest ())
+      {
+        try
+        {
+          manifest_serializer s (cout, "STDOUT");
+          m.serialize (s);
+        }
+        catch (const manifest_serialization& e)
+        {
+          fail << "unable to serialize manifest: " << e.description;
+        }
+        catch (const io_error&)
+        {
+          fail << "unable to write to STDOUT";
+        }
+      }
+      else if (verb && !o.silent () && !o.no_result ())
         text << "valid package " << m.name << " " << m.version;
 
       return 0;
