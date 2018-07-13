@@ -42,9 +42,13 @@ lpt1 lpt2 lpt3 lpt4 lpt5 lpt6 lpt7 lpt8 lpt9
 
 ||
 
-The use of dot (\c{.}) and plus (\c{+}) characters in package names is
-discouraged. \N{Pluses are used in URL encoding and dots normally separate the
-name from its extension/type which, conceptually, package names do not have.}
+The use of the plus (\c{+}) character in package names is discouraged.
+\N{Pluses are used in URL encoding which makes specifying packages that
+contain pluses in URLs cumbersome.}
+
+The use of the dot (\c{.}) character in package names is discouraged except
+for distinguishing the implementations of the same functionality for different
+languages. \N{For example, \c{libfoo} and \c{libfoo.bash}.}
 
 Package name comparison is case-insensitive but the original case must be
 preserved for display, in file names, etc. \N{The reason for case-insensitive
