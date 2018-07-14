@@ -1136,13 +1136,18 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
     # temporary configuration.
     #
     $clone_root_cfg;
-    $pkg_fetch -e $src/t4b/libbar-1.1.0.tar.gz && $pkg_unpack libbar;
-    cp -r cfg/libbar-1.1.0 libbar;
-    $pkg_fetch -e $src/t4c/libbaz-1.1.0.tar.gz && $pkg_unpack libbaz;
-    cp -r cfg/libbaz-1.1.0 libbaz;
-    rm -r cfg;
 
-    $clone_root_cfg && $rep_add $rep/t4a && $rep_fetch;
+    $pkg_fetch -e $src/t4b/libbar-1.1.0.tar.gz;
+    $pkg_unpack libbar &cfg/libbar-1.1.0/***;
+
+    $pkg_fetch -e $src/t4c/libbaz-1.1.0.tar.gz;
+    $pkg_unpack libbaz &cfg/libbaz-1.1.0/***;
+
+    mv cfg/libbar-1.1.0 libbar;
+    mv cfg/libbaz-1.1.0 libbaz;
+
+    rm -r cfg && $clone_root_cfg;    # Re-clone.
+    $rep_add $rep/t4a && $rep_fetch;
 
     $* ./libbar/ 2>>~%EOE%;
       %.*
