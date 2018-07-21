@@ -249,7 +249,7 @@ of a repository, respectively.
 
 \h#manifest-format|Manifest Format|
 
-The manifest file is a UTF-8 encoded text file containing a list of name-value
+The manifest format is a UTF-8 encoded text containing a list of name-value
 pairs in the form:
 
 \
@@ -486,6 +486,20 @@ license: <licenses> [; <comment>]
 
 In the above example \c{name} is required, \c{license} has an optional
 component (comment), and \c{description} is optional.
+
+In certain situations (for example, shell scripts) it can be easier to parse
+the binary manifest representation. The binary representation does not include
+comments and consists of a sequence of name-value pairs in the following form:
+
+\
+<name>:<value>\0
+\
+
+That is, the name and the value are separated by a colon and each pair
+(including the last) is terminated with the \c{NUL} character. Note that there
+can be no leading or trailing whitespace characters around the name and any
+whitespaces after the colon and before the \c{NUL} terminator are part of the
+value.
 
 
 \h#manifest-package|Package Manifest|
