@@ -499,7 +499,8 @@ That is, the name and the value are separated by a colon and each pair
 (including the last) is terminated with the \c{NUL} character. Note that there
 can be no leading or trailing whitespace characters around the name and any
 whitespaces after the colon and before the \c{NUL} terminator are part of the
-value.
+value. Finally, the manifest format versions are always explicit (that is, not
+empty) in binary manifest lists.
 
 
 \h#manifest-package|Package Manifest|
