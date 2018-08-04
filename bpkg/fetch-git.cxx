@@ -1205,7 +1205,7 @@ namespace bpkg
                     "fetch",
                     "--no-recurse-submodules",
                     shallow ? cstrings ({"--depth", "1"}) : cstrings (),
-                    verb == 1 && fdterm (2) ? opt ( "--progress") : nullopt,
+                    verb == 1 && fdterm (2) ? opt ("--progress") : nullopt,
                     verb < 2 ? opt ("-q") : verb > 3 ? opt ("-v") : nullopt,
                     "origin",
                     refspecs))
