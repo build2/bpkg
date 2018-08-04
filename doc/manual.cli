@@ -510,6 +510,12 @@ directory) describes a \c{bpkg} package. The manifest synopsis is presented
 next followed by the detailed description of each value in subsequent
 sections.
 
+The subset of the values up to and including \c{license} constitute the
+package manifest header. Note that the header is a valid package manifest
+since all the other values are optional. There is also no requirement for the
+header values to appear first or to be in a specific order. In particular, in
+a full package manifest they can be interleaved with non-header values.
+
 \
 name: <name>
 version: <version>
@@ -517,6 +523,9 @@ version: <version>
 [priority]: <priority> [; <comment>]
 summary: <text>
 license: <licenses> [; <comment>]
+\
+
+\
 [tags]: <tags>
 [description]: <text>
 [description-file]: <path> [; <comment>]
