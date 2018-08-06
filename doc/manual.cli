@@ -92,8 +92,8 @@ used if the current versioning scheme (for example, date-based) is known to be
 temporary.
 
 The \i{upstream} part is the upstream software version that this package
-is based on. It can only contain alpha-numeric characters and \c{'.'}. The
-\c{'.'} character is used to separate the version into \i{components}.
+is based on. It can only contain alpha-numeric characters and \c{.}. The
+\c{.} character is used to separate the version into \i{components}.
 
 The \i{prerel} part is the upstream software pre-release marker, for example,
 alpha, beta, candidate, etc. Its format is the same as for \i{upstream} except
@@ -218,8 +218,8 @@ checked by the implementation when converting to the canonical
 representation. \N{The \c{16} characters limit was chosen to still be able
 to represent (with some spare) components in the \i{YYYYMMDDhhmmss} form while
 not (visually) bloating the database too much.} As a special case, the absent
-\i{prerel} part is represented as \c{'~'}. \N{Since the ASCII code for
-\c{'~'} is greater than any other character that could appear in \i{prerel},
+\i{prerel} part is represented as \c{~}. \N{Since the ASCII code for
+\c{~} is greater than any other character that could appear in \i{prerel},
 such a string will always be greater than any other representation.} The empty
 \i{prerel} part is represented as an empty string.
 
@@ -263,12 +263,12 @@ name: libfoo
 version: 1.2.3
 \
 
-The name can contain any characters except \c{':'} and whitespaces. Newline
-terminates the pair unless escaped with \c{'\'} (see below). Leading and
+The name can contain any characters except \c{:} and whitespaces. Newline
+terminates the pair unless escaped with \c{\\} (see below). Leading and
 trailing whitespaces before and after name and value are ignored except in the
 multi-line mode (see below).
 
-If, the first non-whitespace character on the line is \c{'#'}, then the rest
+If, the first non-whitespace character on the line is \c{#}, then the rest
 of the line is treated as a comment and ignored except if the preceding
 newline was escaped or in the multi-line mode (see below). For example:
 
@@ -307,10 +307,10 @@ version: 2.3.4
 \
 
 To disable treating of a newline as a name-value pair terminator we can escape
-it with \c{'\'}. Note that \c{'\'} is only treated as an escape sequence when
+it with \c{\\}. Note that \c{\\} is only treated as an escape sequence when
 followed by a newline and both are simply removed from the stream (as opposed
-to being replaced which a space). To enter a literal \c{'\'} at the end of the
-value, use the \c{'\\'} sequence. For example:
+to being replaced which a space). To enter a literal \c{\\} at the end of the
+value, use the \c{\\\\} sequence. For example:
 
 \
 description: Long text that doesn't fit into one line \
@@ -321,11 +321,11 @@ so it is continued on the next line.
 windows-path: C:\foo\bar\\
 \
 
-Notice that in the final example only the last \c{'\'} needs special handling
+Notice that in the final example only the last \c{\\} needs special handling
 since it is the only one that is followed by a newline.
 
 One may notice that in this newline escaping scheme a line consisting of just
-\c{'\'} followed by a newline has no use, except, perhaps, for visual
+\c{\\} followed by a newline has no use, except, perhaps, for visual
 presentation of, arguably, dubious value. For example, this representation:
 
 \
@@ -341,11 +341,11 @@ description: First line. Second line.
 \
 
 As a result, such a sequence is \"overloaded\" to provide more useful
-functionality in two ways: Firstly, if \c{':'} after the name is immediately
-followed (ignoring whitespaces) by \c{'\'} and a newline, then it signals the
-start of the multi-line mode. In this mode all subsequent newlines and \c{'#'}
+functionality in two ways: Firstly, if \c{:} after the name is immediately
+followed (ignoring whitespaces) by \c{\\} and a newline, then it signals the
+start of the multi-line mode. In this mode all subsequent newlines and \c{#}
 are treated as ordinary characters rather than value terminators or comments
-until a line consisting of just '\' and a newline (the multi-line mode
+until a line consisting of just \\ and a newline (the multi-line mode
 terminator). For example:
 
 \
@@ -389,7 +389,7 @@ Second paragraph.
 \\
 \
 
-In the simple (that is, non-multi-line) mode, the sole \c{'\'} and newline
+In the simple (that is, non-multi-line) mode, the sole \c{\\} and newline
 sequence is overloaded to mean a newline. So the previous example can also be
 represented like this:
 
@@ -428,7 +428,7 @@ description:\
 \
 
 By convention, names are all in lower case and multi-word names are separated
-with \c{'-'}. Note that names are case-sensitive.
+with \c{-}. Note that names are case-sensitive.
 
 Also by convention, the following name suffixes are used to denote common
 types of values:
@@ -828,11 +828,11 @@ notifications for this package are sent by email.
 <range>        := ('(' | '[') <version> <version> (')' | ']')
 \
 
-The prerequisite packages. If the \c{depends} value start with \c{'*'}, then
+The prerequisite packages. If the \c{depends} value start with \c{*}, then
 it is a \i{build-time} prerequisite. Otherwise it is \i{run-time}.
 
 \N|Most of the build-time prerequisites are expected to be tools such as code
-generator, so you can think of \c{'*'} as the executable mark printed by
+generator, so you can think of \c{*} as the executable mark printed by
 \c{ls}. An important difference between the two kind of dependencies is that
 in case of cross-compilation a build-time dependency must be built for the
 build machine, not the target.|
@@ -849,7 +849,7 @@ depends: * bpkg >= 0.6.0
 
 Each \c{depends} value can specify multiple packages with the \i{OR}
 semantics. While multiple \c{depends} values are used to specify multiple
-packages with the \i{AND} semantics. A value that starts with \c{'?'} is a
+packages with the \i{AND} semantics. A value that starts with \c{?} is a
 conditional prerequisite. Whether such a prerequisite will be in effect can
 only be determined at the package configuration time. It is recommended that
 you provide a comment for each conditional prerequisite as an aid to the user.
@@ -926,7 +926,7 @@ simpler operators.|
 The package requirements (other than other packages). Such requirements are
 normally checked during package configuration by the build system and the only
 purpose of capturing them in the manifest is for documentation. Similar to
-\c{depends}, a value that starts with \c{'?'} is a conditional
+\c{depends}, a value that starts with \c{?} is a conditional
 requirement. For example:
 
 \
