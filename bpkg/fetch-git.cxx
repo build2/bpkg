@@ -7,6 +7,7 @@
 #include <map>
 #include <algorithm> // find(), find_if(), replace(), sort()
 
+#include <libbutl/git.mxx>
 #include <libbutl/utility.mxx>          // digit(), xdigit()
 #include <libbutl/process.mxx>
 #include <libbutl/filesystem.mxx>       // path_match()
@@ -70,7 +71,7 @@ namespace bpkg
 
   template <typename... A>
   static string
-  git_string (const common_options&, const char* what, A&&... args);
+  git_line (const common_options&, const char* what, A&&... args);
 
   // Start git process. On the first call check that git version is 2.12.0 or
   // above, and fail if that's not the case.
@@ -105,35 +106,11 @@ namespace bpkg
           //
           // We assume that non-sanitized git environment can't harm this call.
           //
-          string s (git_string (co, "git version",
-                                co.git_option (),
-                                "--version"));
+          string s (git_line (co, "git version",
+                              co.git_option (),
+                              "--version"));
 
-          optional<standard_version> v;
-
-          // There is some variety across platforms in the version
-          // representation.
-          //
-          // Linux:  git version 2.14.3
-          // MacOS:  git version 2.10.1 (Apple Git-78)
-          // MinGit: git version 2.16.1.windows.1
-          //
-          // We will consider the first 3 version components that follows the
-          // common 'git version ' prefix.
-          //
-          const size_t b (12);
-          if (s.compare (0, b, "git version ") == 0)
-          {
-            size_t i (b);
-            size_t n (0);
-            for (char c; i != s.size () && (digit (c = s[i]) || c == '.'); ++i)
-            {
-              if (c == '.' && ++n == 3)
-                break;
-            }
-
-            v = parse_standard_version (string (s, b, i - b));
-          }
+          optional<standard_version> v (git_version (s));
 
           if (!v)
             fail << "'" << s << "' doesn't appear to contain a git version" <<
@@ -228,7 +205,7 @@ namespace bpkg
   //
   template <typename... A>
   static string
-  git_string (const common_options& co, const char* what, A&&... args)
+  git_line (const common_options& co, const char* what, A&&... args)
   {
     fdpipe pipe (open_pipe ());
     process pr (start_git (co, pipe, 2 /* stderr */, forward<A> (args)...));
@@ -354,13 +331,13 @@ namespace bpkg
               const string& key,
               const char* what)
   {
-    return git_string (co,
-                       what,
-                       co.git_option (),
-                       "-C", dir,
-                       "config",
-                       "--get",
-                       key);
+    return git_line (co,
+                     what,
+                     co.git_option (),
+                     "-C", dir,
+                     "config",
+                     "--get",
+                     key);
   }
 
   inline static void
@@ -380,13 +357,13 @@ namespace bpkg
               const string& key,
               const char* what)
   {
-    return git_string (co,
-                       what,
-                       co.git_option (),
-                       "config",
-                       "--file", file,
-                       "--get",
-                       key);
+    return git_line (co,
+                     what,
+                     co.git_option (),
+                     "config",
+                     "--file", file,
+                     "--get",
+                     key);
   }
 
   // Get/set the repository remote URL.
@@ -1146,13 +1123,13 @@ namespace bpkg
         // Add '^{commit}' suffix to strip some unwanted output that appears
         // for tags.
         //
-        string s (git_string (co, "commit timestamp",
-                              co.git_option (),
-                              "-C", dir,
-                              "show",
-                              "-s",
-                              "--format=%ct",
-                              fr.commit + "^{commit}"));
+        string s (git_line (co, "commit timestamp",
+                            co.git_option (),
+                            "-C", dir,
+                            "show",
+                            "-s",
+                            "--format=%ct",
+                            fr.commit + "^{commit}"));
         try
         {
           fr.timestamp = static_cast<time_t> (stoull (s));
@@ -1395,11 +1372,11 @@ namespace bpkg
         dir_path psdir (prefix / sdir);
         string psd (psdir.posix_string ()); // For use in the diagnostics.
 
-        string nm (git_string (co, "submodule name",
-                               co.git_option (),
-                               "-C", dir,
-                               "submodule--helper", "name",
-                               sdir));
+        string nm (git_line (co, "submodule name",
+                             co.git_option (),
+                             "-C", dir,
+                             "submodule--helper", "name",
+                             sdir));
 
         string uo ("submodule." + nm + ".url");
         string uv (config_get (co, dir, uo, "submodule URL"));
@@ -1407,17 +1384,17 @@ namespace bpkg
         l4 ([&]{trace << "name: " << nm << ", URL: " << uv;});
 
         dir_path fsdir (dir / sdir);
-        bool initialized (exists (fsdir / path (".git")));
+        bool initialized (git_repository (fsdir));
 
         // If the submodule is already initialized and its commit didn't
         // change then we skip it.
         //
-        if (initialized && git_string (co, "submodule commit",
-                                       co.git_option (),
-                                       "-C", fsdir,
-                                       "rev-parse",
-                                       "--verify",
-                                       "HEAD") == commit)
+        if (initialized && git_line (co, "submodule commit",
+                                     co.git_option (),
+                                     "-C", fsdir,
+                                     "rev-parse",
+                                     "--verify",
+                                     "HEAD") == commit)
           continue;
 
         // Note that the "submodule--helper init" command (see above) doesn't
