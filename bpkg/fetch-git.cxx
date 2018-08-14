@@ -11,7 +11,8 @@
 #include <libbutl/utility.mxx>          // digit(), xdigit()
 #include <libbutl/process.mxx>
 #include <libbutl/filesystem.mxx>       // path_match()
-#include <libbutl/standard-version.mxx>
+#include <libbutl/semantic-version.mxx>
+#include <libbutl/standard-version.mxx> // parse_standard_version()
 
 #include <bpkg/diagnostics.hxx>
 
@@ -110,14 +111,14 @@ namespace bpkg
                               co.git_option (),
                               "--version"));
 
-          optional<standard_version> v (git_version (s));
+          optional<semantic_version> v (git_version (s));
 
           if (!v)
             fail << "'" << s << "' doesn't appear to contain a git version" <<
               info << "produced by '" << co.git () << "'; "
                  << "use --git to override" << endg;
 
-          if (v->version < 20120000000)
+          if (*v < semantic_version {2, 12, 0})
             fail << "unsupported git version " << *v <<
               info << "minimum supported version is 2.12.0" << endf;
 
