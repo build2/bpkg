@@ -3138,10 +3138,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       disfigured libhello/1.0.0
       using libhello/1.0.1 (external)
       configured libhello/1.0.1
-      %mkdir .+%+
-      %c\+\+ .+%+
-      %ld .+%+
-      updated libhello/1.0.1
+      %(mkdir|c\+\+|ld|ar|updated) .+%{9}
       EOE
   }
 
@@ -3242,9 +3239,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
           fetched libhello/1.0.1
           unpacked libhello/1.0.1
           configured libhello/1.0.1
-          %c\+\+ .+%+
-          %ld .+%+
-          updated libhello/1.0.1
+          %(c\+\+|ld|ar|updated) .+%{7}
           EOE
 
         test -d cfg/libhello-1.0.1/;
@@ -3267,9 +3262,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
 
         $* libhello 2>>~%EOE%;
           configured libhello/1.0.1
-          %c\+\+ .+%+
-          %ld .+%+
-          updated libhello/1.0.1
+          %(c\+\+|ld|ar|updated) .+%{7}
           EOE
 
         test -d cfg/libhello-1.0.1/;
