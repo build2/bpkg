@@ -104,7 +104,8 @@ $* 2>>EOE != 0
     $pkg_configure libhello;
 
     $* $j1 libhello 2>>~%EOE%;
-      %(c\+\+|ar|ld|updated) .+%{7}
+      %(c\+\+|ar|ld) .+%{6}
+      updated libhello/1.0.0
       EOE
 
     $* libhello 2>>~%EOE%;
@@ -124,7 +125,8 @@ $* 2>>EOE != 0
   $pkg_unpack -e $src/libhello-1.0.0 && $pkg_configure libhello;
 
   $* $j1 libhello 2>>~%EOE%;
-    %(mkdir|c\+\+|ar|ld|updated) .+%{9}
+    %(mkdir|c\+\+|ar|ld) .+%{8}
+    updated libhello/1.0.0
     EOE
 
   $* libhello 2>>~%EOE%;

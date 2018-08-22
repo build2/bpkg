@@ -816,7 +816,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       %.*fetched libbaz/1.1.0%
       unpacked libbaz/1.1.0
       configured libbaz/1.1.0
-      %info: .+dir\{libbaz-1.1.0.\} is up to date%
+      %info: .+ is up to date%
       updated libbaz/1.1.0
       EOE
 
@@ -846,7 +846,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
         fetched libfoo/1.0.0
         unpacked libfoo/1.0.0
         configured libfoo/1.0.0
-        %info: .+dir\{libfoo-1.0.0.\} is up to date%
+        %info: .+ is up to date%
         updated libfoo/1.0.0
         EOE
 
@@ -856,7 +856,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
         disfigured libfoo/1.0.0
         using libfoo/1.1.0 (external)
         configured libfoo/1.1.0
-        %info: .+dir\{libfoo.\} is up to date%
+        %info: .+ is up to date%
         updated libfoo/1.1.0
         EOE
 
@@ -876,7 +876,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       $pkg_status libfoo >'libfoo configured 1.0.0';
 
       $* libfoo 2>>~%EOE%;
-        %info: .+dir\{libfoo-1.0.0.\} is up to date%
+        %info: .+ is up to date%
         updated libfoo/1.0.0
         EOE
 
@@ -902,14 +902,14 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
         %.*fetched libfoo/1.0.0%
         unpacked libfoo/1.0.0
         configured libfoo/1.0.0
-        %info: .+dir\{libfoo-1.0.0.\} is up to date%
+        %info: .+ is up to date%
         updated libfoo/1.0.0
         EOE
 
       $pkg_status libfoo >'!libfoo configured 1.0.0 available [1.1.0]';
 
       $* libfoo/1.0.0 2>>~%EOE%;
-        %info: .+dir\{libfoo-1.0.0.\} is up to date%
+        %info: .+ is up to date%
         updated libfoo/1.0.0
         EOE
 
@@ -929,7 +929,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
         %.*fetched libfoo/1.0.0%
         unpacked libfoo/1.0.0
         configured libfoo/1.0.0
-        %info: .+dir\{libfoo-1.0.0.\} is up to date%
+        %info: .+ is up to date%
         updated libfoo/1.0.0
         EOE
 
@@ -957,7 +957,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
         %.*fetched libbaz/1.1.0%
         unpacked libbaz/1.1.0
         configured libbaz/1.1.0
-        %info: .+dir\{libbaz-1.1.0.\} is up to date%
+        %info: .+ is up to date%
         updated libbaz/1.1.0
         EOE
 
@@ -983,7 +983,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
         %.*fetched libfoo/1.0.0%
         unpacked libfoo/1.0.0
         configured libfoo/1.0.0
-        %info: .+dir\{libfoo-1.0.0.\} is up to date%
+        %info: .+ is up to date%
         updated libfoo/1.0.0
         EOE
 
@@ -1004,7 +1004,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
         %.*fetched libbaz/1.1.0%
         unpacked libbaz/1.1.0
         configured libbaz/1.1.0
-        %info: .+dir\{libbaz-1.1.0.\} is up to date%
+        %info: .+ is up to date%
         updated libbaz/1.1.0
         EOE
 
@@ -1030,7 +1030,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
         %.*fetched libfoo/1.0.0%
         unpacked libfoo/1.0.0
         configured libfoo/1.0.0
-        %info: .+dir\{libfoo-1.0.0.\} is up to date%
+        %info: .+ is up to date%
         updated libfoo/1.0.0
         EOE
 
@@ -1063,7 +1063,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       %.*fetched libbar/1.0.0%
       unpacked libbar/1.0.0
       configured libbar/1.0.0
-      %info: .+dir\{libbar-1.0.0.\} is up to date%
+      %info: .+ is up to date%
       updated libbar/1.0.0
       EOE
 
@@ -1080,7 +1080,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       %.*fetched libbar/1.2.0%
       unpacked libbar/1.2.0
       configured libbar/1.2.0
-      %info: .+dir\{libbar-1.2.0.\} is up to date%
+      %info: .+ is up to date%
       updated libbar/1.2.0
       EOE
 
@@ -1097,8 +1097,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       %.*fetched libbar/1.0.0%
       unpacked libbar/1.0.0
       configured libbar/1.0.0
-      %info: .+dir\{libfoo-1.0.0.\} is up to date%
-      %info: .+dir\{libbar-1.0.0.\} is up to date%
+      %info: .+ is up to date%{2}
       updated libfoo/1.0.0
       updated libbar/1.0.0
       EOE
@@ -1112,7 +1111,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       %.*fetched libbar/1.2.0%
       unpacked libbar/1.2.0
       configured libbar/1.2.0
-      %info: .+dir\{libbar-1.2.0.\} is up to date%
+      %info: .+ is up to date%
       updated libbar/1.2.0
       EOE
 
@@ -1156,14 +1155,14 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       configured libfoo/1.1.0
       using libbar/1.1.0 (external)
       configured libbar/1.1.0
-      %info: .+dir\{libbar.\} is up to date%
+      %info: .+ is up to date%
       updated libbar/1.1.0
       EOE
 
     $* ./libbaz/ 2>>~%EOE%;
       using libbaz/1.1.0 (external)
       configured libbaz/1.1.0
-      %info: .+dir\{libbaz.\} is up to date%
+      %info: .+ is up to date%
       updated libbaz/1.1.0
       EOE
 
@@ -1191,7 +1190,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       %.*fetched libbar/1.0.0%
       unpacked libbar/1.0.0
       configured libbar/1.0.0
-      %info: .+dir\{libbar.+\} is up to date%
+      %info: .+ is up to date%
       updated libbar/1.0.0
       EOE
 
@@ -1203,7 +1202,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       %.*fetched libbar/1.2.0%
       unpacked libbar/1.2.0
       configured libbar/1.2.0
-      %info: .+dir\{libbar.+\} is up to date%
+      %info: .+ is up to date%
       updated libbar/1.2.0
       EOE
 
@@ -2169,8 +2168,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
         using libhello/1.0.1 (external)
         configured libhello/1.0.1
         configured libfoo/1.1.0
-        %info: .+dir\{libhello.\} is up to date%?
-        %info: .+dir\{libfoo.\} is up to date%
+        %info: .+ is up to date%{1,2}
         updated libhello/1.0.1
         updated libfoo/1.1.0
         EOE
@@ -2512,8 +2510,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       unpacked libfoo/1.1.0
       configured libfoo/1.1.0
       configured libbar/1.0.0
-      %info: .+ is up to date%
-      %info: .+ is up to date%
+      %info: .+ is up to date%{2}
       updated libfoo/1.1.0
       updated libbar/1.0.0
       EOE
@@ -2888,8 +2885,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
 
       $* "@$rep/t4d" 2>>~%EOE%;
         %.+
-        %info: .+libfox-1.0.0.+ is up to date%
-        %info: .+libbiz-1.0.0.+ is up to date%
+        %info: .+ is up to date%{2}
         updated libfox/1.0.0
         updated libbiz/1.0.0
         EOE
@@ -2923,8 +2919,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
 
       $* "$rep/t4d" 2>>~%EOE%;
         %.+
-        %info: .+libfox-1.0.0.+ is up to date%
-        %info: .+libbiz-1.0.0.+ is up to date%
+        %info: .+ is up to date%{2}
         updated libfox/1.0.0
         updated libbiz/1.0.0
         EOE
@@ -2953,8 +2948,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
 
     $* "libfox,libbiz/1.0.0@$rep/t4d" 2>>~%EOE%;
       %.+
-      %info: .+libfox-1.0.0.+ is up to date%
-      %info: .+libbiz-1.0.0.+ is up to date%
+      %info: .+ is up to date%{2}
       updated libfox/1.0.0
       updated libbiz/1.0.0
       EOE
@@ -2988,7 +2982,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
     $* "libfoo@$rep/t0a" 2>>~%EOE%;
       %.+
       configured libfoo/0.0.1
-      %info: .+libfoo-0.0.1.+ is up to date%
+      %info: .+ is up to date%
       updated libfoo/0.0.1
       EOE
 
@@ -3006,7 +3000,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
     $* "libfoo@$rep/t1" --patch 2>>~%EOE%;
       %.+
       configured libfoo/1.0.0
-      %info: .+libfoo-1.0.0.+ is up to date%
+      %info: .+ is up to date%
       updated libfoo/1.0.0
       EOE
 
@@ -3025,7 +3019,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
 
     $* "libfoo@$rep/t4d" 2>>~%EOE%;
       %.+
-      %info: .+libfoo-1.0.0.+ is up to date%
+      %info: .+ is up to date%
       updated libfoo/1.0.0
       EOE
 
@@ -3072,7 +3066,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       fetching dir:$d
       using libfoo/1.1.0 \(external\)
       configured libfoo/1.1.0
-      %info: .+dir\\{libfoo.\\} is up to date%
+      %info: .+ is up to date%
       updated libfoo/1.1.0
       EOE
 
@@ -3098,7 +3092,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
     $* libfoo 2>>~%EOE%;
       using libfoo/1.1.0 (external)
       configured libfoo/1.1.0
-      %info: .+dir\{libfoo.\} is up to date%
+      %info: .+ is up to date%
       updated libfoo/1.1.0
       EOE
 
@@ -3138,7 +3132,8 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       disfigured libhello/1.0.0
       using libhello/1.0.1 (external)
       configured libhello/1.0.1
-      %(mkdir|c\+\+|ld|ar|updated) .+%{9}
+      %(mkdir|c\+\+|ld|ar) .+%{8}
+      updated libhello/1.0.1
       EOE
   }
 
@@ -3161,7 +3156,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
         disfigured libhello/1.0.0
         using libhello/1.0.1 (external)
         configured libhello/1.0.1
-        %ld .+%*
+        %ld .+%?
         updated libhello/1.0.1
         EOE
 
@@ -3191,7 +3186,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
           disfigured libhello/1.0.0
           using libhello/1.0.1 (external)
           configured libhello/1.0.1
-          %ld .+%*
+          %ld .+%?
           updated libhello/1.0.1
           EOE
 
@@ -3208,7 +3203,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
 
         $* libhello 2>>~%EOE%;
           configured libhello/1.0.1
-          %ld .+%*
+          %ld .+%?
           updated libhello/1.0.1
           EOE
 
@@ -3239,7 +3234,8 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
           fetched libhello/1.0.1
           unpacked libhello/1.0.1
           configured libhello/1.0.1
-          %(c\+\+|ld|ar|updated) .+%{7}
+          %(c\+\+|ld|ar) .+%{6}
+          updated libhello/1.0.1
           EOE
 
         test -d cfg/libhello-1.0.1/;
@@ -3262,7 +3258,8 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
 
         $* libhello 2>>~%EOE%;
           configured libhello/1.0.1
-          %(c\+\+|ld|ar|updated) .+%{7}
+          %(c\+\+|ld|ar) .+%{6}
+          updated libhello/1.0.1
           EOE
 
         test -d cfg/libhello-1.0.1/;
@@ -3304,7 +3301,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
     $* $src/libfoo-1.1.0/ 2>>~%EOE%;
       using libfoo/1.1.0 (external)
       configured libfoo/1.1.0
-      %info: .+dir\{libfoo.\} is up to date%
+      %info: .+ is up to date%
       updated libfoo/1.1.0
       EOE
 
@@ -3314,7 +3311,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       disfigured libfoo/1.1.0
       using libfoo/1.1.0#1 (external)
       configured libfoo/1.1.0#1
-      %info: .+dir\{libfoo.\} is up to date%
+      %info: .+ is up to date%
       updated libfoo/1.1.0#1
       EOE
 
@@ -3324,7 +3321,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       disfigured libfoo/1.1.0#1
       using libfoo/1.1.0#2 (external)
       configured libfoo/1.1.0#2
-      %info: .+dir\{libfoo.\} is up to date%
+      %info: .+ is up to date%
       updated libfoo/1.1.0#2
       EOE
 
@@ -3346,7 +3343,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
     %.*fetched libbar/1.2.0%
     unpacked libbar/1.2.0
     configured libbar/1.2.0
-    %info: .+dir\{libbar-1.2.0.\} is up to date%
+    %info: .+ is up to date%
     updated libbar/1.2.0
     EOE
 
@@ -3358,7 +3355,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
     %.*fetched libBar/2.0.0%
     unpacked libBar/2.0.0
     configured libBar/2.0.0
-    %info: .+dir\{libBar-2.0.0.\} is up to date%
+    %info: .+ is up to date%
     updated libBar/2.0.0
     EOE
 
@@ -3404,7 +3401,7 @@ else
       distributing libmbar/1.0.0
       checked out libmbar/1.0.0
       configured libmbar/1.0.0
-      %info: .+dir\{libmbar-.+\} is up to date%
+      %info: .+ is up to date%
       updated libmbar/1.0.0
       EOE
 
@@ -3434,7 +3431,7 @@ else
       distributing libbaz/1.0.0
       checked out libbaz/1.0.0
       configured libbaz/1.0.0
-      %info: .+dir\{libbaz-.+\} is up to date%
+      %info: .+ is up to date%
       updated libbaz/1.0.0
       EOE
 
@@ -3459,12 +3456,12 @@ else
 
     $* style-basic 2>>~%EOE%;
       %configured style-basic/1\.1\.0-a\.0\.\d+\..+%
-      %info: .+style-basic.+ is up to date%
+      %info: .+ is up to date%
       %updated style-basic/1\.1\.0-a\.0\.\d+\..+%
       EOE
 
     $* $d 2>>~%EOE%;
-      %info: .+style-basic.+ is up to date%
+      %info: .+ is up to date%
       %updated style-basic/1\.1\.0-a\.0\.\d+\..+%
       EOE
 

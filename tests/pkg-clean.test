@@ -100,7 +100,7 @@ $* 2>>EOE != 0
     $pkg_configure libhello       && $pkg_update libhello;
 
     $* libhello 2>>~%EOE%;
-      %.{6}
+      %rm .+%{6}
       cleaned libhello/1.0.0
       EOE
 
@@ -122,7 +122,7 @@ $* 2>>EOE != 0
   $pkg_configure libhello && $pkg_update libhello;
 
   $* libhello 2>>~%EOE%;
-    %.{8}
+    %rm .+%{8}
     cleaned libhello/1.0.0
     EOE
 

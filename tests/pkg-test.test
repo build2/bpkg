@@ -64,7 +64,7 @@ test.options += --build-option -s
   $clone_cfg;
 
   $* libbaz 2>>~%EOE%
-      %info: .+libbaz-0.0.3.+ has nothing to test%
+      %info: .+ has nothing to test%
       tested libbaz/0.0.3
       EOE
 }
@@ -78,7 +78,7 @@ test.options += --build-option -s
     $clone_root_cfg;
 
     $* --all 2>>~%EOE%
-        %info: .+libbaz-0.0.3.+ has nothing to test%
+        %info: .+ has nothing to test%
         tested libbaz/0.0.3
         EOE
   }
@@ -99,8 +99,7 @@ test.options += --build-option -s
   $clone_cfg;
 
   $* libbaz --immediate 2>>~%EOE%
-      %info: .+libbaz-0.0.3.+ has nothing to test%
-      %info: .+libfoo-0.0.1.+ has nothing to test%
+      %info: .+ has nothing to test%{2}
       tested libbaz/0.0.3
       tested libfoo/0.0.1
       EOE
@@ -112,9 +111,7 @@ test.options += --build-option -s
   $clone_cfg;
 
   $* libbaz --recursive 2>>~%EOE%
-      %info: .+libbaz-0.0.3.+ has nothing to test%
-      %info: .+libfoo-0.0.1.+ has nothing to test%
-      %info: .+libfix-0.0.1.+ has nothing to test%
+      %info: .+ has nothing to test%{3}
       tested libbaz/0.0.3
       tested libfoo/0.0.1
       tested libfix/0.0.1
