@@ -174,14 +174,13 @@ namespace bpkg
             }
           }
 
-          // Append the latest base repository manifest.
+          // Append the latest base repository manifest or an empty base if
+          // there are no fragments.
           //
-          // Note that there must be at least one fragment.
-          //
-          assert (!rfd.fragments.empty ());
-
           rms.push_back (
-            find_base_repository (rfd.fragments.back ().repositories));
+            !rfd.fragments.empty ()
+            ? find_base_repository (rfd.fragments.back ().repositories)
+            : repository_manifest ());
 
           auto serialize = [&rms] (ostream& os, const string& name)
           {
