@@ -88,9 +88,24 @@ namespace bpkg
     bool --manifest
     {
       "Instead of printing the information in the human-readable form, dump it
-       as manifest(s). Normally you would use this option in combination with
-       \cb{--packages|-p} or \cb{--repositories|-r} to only dump one of the
-       manifests."
+       (to \cb{stdout}) as manifest(s). Normally you would use this option in
+       combination with \cb{--packages|-p} or \cb{--repositories|-r} to only
+       dump one of the manifests. See also \cb{--repositories-file} and
+       \cb{--packages-file}."
+    }
+
+    path --repositories-file
+    {
+      "<path>",
+      "If \cb{--manifest} is specified, then save the repositories manifest
+       to the specified file instead of dumping it to \cb{stdout}."
+    }
+
+    path --packages-file
+    {
+      "<path>",
+      "If \cb{--manifest} is specified, then save the packages manifest to the
+       specified file instead of dumping it to \cb{stdout}."
     }
 
     repository_type --type

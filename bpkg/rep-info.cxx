@@ -33,6 +33,14 @@ namespace bpkg
       fail << "repository location argument expected" <<
         info << "run 'bpkg help rep-info' for more information";
 
+    if ((o.repositories_file_specified () || o.packages_file_specified ()) &&
+        !o.manifest ())
+      fail << (o.repositories_file_specified ()
+               ? "--repositories-file"
+               : "--packages-file")
+           << " specified without --manifest" <<
+        info << "run 'bpkg help rep-info' for more information";
+
     repository_location rl (
       parse_location (args.next (),
                       o.type_specified ()
@@ -175,14 +183,38 @@ namespace bpkg
           rms.push_back (
             find_base_repository (rfd.fragments.back ().repositories));
 
-          // Note: serializing without any extra repository_manifests info.
-          //
-          manifest_serializer s (cout, "stdout");
+          auto serialize = [&rms] (ostream& os, const string& name)
+          {
+            // Note: serializing without any extra repository_manifests info.
+            //
+            manifest_serializer s (os, name);
 
-          for (const repository_manifest& rm: rms)
-            rm.serialize (s);
+            for (const repository_manifest& rm: rms)
+              rm.serialize (s);
 
-          s.next ("", ""); // End of stream.
+            s.next ("", ""); // End of stream.
+          };
+
+          if (o.repositories_file_specified ())
+          {
+            const path& p (o.repositories_file ());
+
+            try
+            {
+              // Let's set the binary mode not to litter the manifest file
+              // with the carriage return characters on Windows.
+              //
+              ofdstream ofs (p, ios::binary);
+              serialize (ofs, p.string ());
+              ofs.close ();
+            }
+            catch (const io_error& e)
+            {
+              fail << "unable to write to " << p << ": " << e;
+            }
+          }
+          else
+            serialize (cout, "stdout");
         }
         else
         {
@@ -266,12 +298,39 @@ namespace bpkg
             }
           }
 
-          // Note: serializing without any extra package_manifests info.
-          //
-          manifest_serializer s (cout, "stdout");
-          for (const package_manifest& pm: pms)
-            pm.serialize (s);
-          s.next ("", ""); // End of stream.
+          auto serialize = [&pms] (ostream& os, const string& name)
+          {
+            // Note: serializing without any extra package_manifests info.
+            //
+            manifest_serializer s (os, name);
+
+            for (const package_manifest& pm: pms)
+              pm.serialize (s);
+
+            s.next ("", ""); // End of stream.
+          };
+
+          if (o.packages_file_specified ())
+          {
+            const path& p (o.packages_file ());
+
+            try
+            {
+              // Let's set the binary mode not to litter the manifest file
+              // with the carriage return characters on Windows.
+              //
+              ofdstream ofs (p, ios::binary);
+              serialize (ofs, p.string ());
+              ofs.close ();
+            }
+            catch (const io_error& e)
+            {
+              fail << "unable to write to " << p << ": " << e;
+            }
+          }
+          else
+            serialize (cout, "stdout");
+
         }
         else
         {

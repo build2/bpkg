@@ -122,7 +122,7 @@ if $cli.configured
 --cli-namespace bpkg::cli --generate-vector-scanner --generate-file-scanner \
 --generate-group-scanner --keep-separator --generate-specifier \
 --generate-parse --page-usage 'bpkg::print_$name$_' --ansi-color \
---include-base-last --option-length 23
+--include-base-last --option-length 24
 
   cli.cxx{common-options}: cli.options += --short-usage --long-usage # Both.
   cli.cxx{bpkg-options}: cli.options += --short-usage --suppress-undocumented

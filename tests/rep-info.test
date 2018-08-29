@@ -81,16 +81,18 @@ $* --name $rep/testing >"pkg:build2.org/rep-info/testing ($rep/testing)"
 : packages
 :
 {
+  test.arguments += --packages # Should go after the rep-info command argument.
+
   : list
   :
-  $* --packages $rep/testing >>EOO
+  $* $rep/testing >>EOO
 
   foo/1
   EOO
 
   : manifest
   :
-  $* --packages --manifest $rep/testing >>EOO
+  $* --manifest $rep/testing >>EOO
   : 1
   name: foo
   version: 1
@@ -101,21 +103,54 @@ $* --name $rep/testing >"pkg:build2.org/rep-info/testing ($rep/testing)"
   location: foo-1.tar.gz
   sha256sum: fee330a362a4f87ff42a954aa305b6446d541b7b60000ebcd2fbf68f2b1ae58e
   EOO
+
+  : to-file
+  :
+  {
+    : no-manifest
+    :
+    $* --packages-file m $rep/testing 2>>EOE != 0
+    error: --packages-file specified without --manifest
+      info: run 'bpkg help rep-info' for more information
+    EOE
+
+    : manifest
+    :
+    {
+      $* --manifest --packages-file m $rep/testing &m;
+
+      cat m >>EOO
+        : 1
+        name: foo
+        version: 1
+        summary: The "Foo" utility
+        license: MIT
+        url: http://www.example.org/foo
+        email: foo-users@example.org
+        location: foo-1.tar.gz
+        sha256sum: fee330a362a4f87ff42a954aa305b6446d541b7b60000ebcd2fbf68f2b1ae58e
+        EOO
+    }
+  }
 }
 
 : repositories
 :
 {
+  # Should go after the rep-info command argument.
+  #
+  test.arguments += --repositories
+
   : list
   :
-  $* --repositories $rep/testing >>"EOO"
+  $* $rep/testing >>"EOO"
   prerequisite pkg:build2.org/foo/testing ($rep_root/foo/testing)
   complement pkg:build2.org/rep-info/stable ($rep/stable)
   EOO
 
   : manifest
   :
-  $* --repositories --manifest $rep/testing >>EOO
+  $* --manifest $rep/testing >>EOO
   : 1
   location: ../../foo/testing
   type: pkg
@@ -126,6 +161,35 @@ $* --name $rep/testing >"pkg:build2.org/rep-info/testing ($rep/testing)"
   role: complement
   :
   EOO
+
+  : to-file
+  :
+  {
+    : no-manifest
+    :
+    $* --repositories-file m $rep/testing 2>>EOE != 0
+    error: --repositories-file specified without --manifest
+      info: run 'bpkg help rep-info' for more information
+    EOE
+
+    : manifest
+    :
+    {
+      $* --manifest --repositories-file m $rep/testing &m;
+
+      cat m >>EOO
+        : 1
+        location: ../../foo/testing
+        type: pkg
+        role: prerequisite
+        :
+        location: ../stable
+        type: pkg
+        role: complement
+        :
+        EOO
+    }
+  }
 }
 
 : cert
