@@ -318,7 +318,7 @@ so it is continued on the next line.
 \
 
 \
-windows-path: C:\foo\bar\\
+windows-path: C:\foo\bar\\\\
 \
 
 Notice that in the final example only the last \c{\\} needs special handling
