@@ -1,8 +1,8 @@
-# file      : tests/pkg-purge.test
+# file      : tests/pkg-purge.testscript
 # copyright : Copyright (c) 2014-2018 Code Synthesis Ltd
 # license   : MIT; see accompanying LICENSE file
 
-.include common.test config.test
+.include common.testscript config.testscript
 
 # Source repository:
 #

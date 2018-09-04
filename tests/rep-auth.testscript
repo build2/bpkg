@@ -1,8 +1,8 @@
-# file      : tests/rep-auth.test
+# file      : tests/rep-auth.testscript
 # copyright : Copyright (c) 2014-2018 Code Synthesis Ltd
 # license   : MIT; see accompanying LICENSE file
 
-.include common.test auth.test config.test remote.test
+.include common.testscript auth.testscript config.testscript remote.testscript
 
 # There is no rep-auth command, and this testscript contains tests for various
 # authentication scenarios throughout different stages of repositories

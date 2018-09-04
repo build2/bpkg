@@ -1,8 +1,8 @@
-# file      : tests/pkg-system.test
+# file      : tests/pkg-system.testscript
 # copyright : Copyright (c) 2014-2018 Code Synthesis Ltd
 # license   : MIT; see accompanying LICENSE file
 
-.include common.test auth.test config.test remote.test
+.include common.testscript auth.testscript config.testscript remote.testscript
 
 # There is no pkg-system command, and this testscript contains tests for
 # various building scenarios that involves system packages. Note that by that

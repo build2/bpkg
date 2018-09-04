@@ -3,7 +3,7 @@
 # license   : MIT; see accompanying LICENSE file
 
 define common: file
-common{*}: extension = test
+common{*}: extension = testscript
 
 commons = common config auth remote \
           remote-git rep-fetch-git rep-fetch-git-refname rep-fetch-git-commit
@@ -11,4 +11,4 @@ commons = common config auth remote \
 # The common/ directory contains repositories that are reused, being symlinked
 # in source repositories specific for testscripts.
 #
-./: test{* -{$commons}} common{$commons} {*/ -build/ -test/}{**} $bpkg
+./: testscript{* -{$commons}} common{$commons} {*/ -build/ -test/}{**} $bpkg

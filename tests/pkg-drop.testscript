@@ -1,8 +1,8 @@
-# file      : tests/pkg-drop.test
+# file      : tests/pkg-drop.testscript
 # copyright : Copyright (c) 2014-2018 Code Synthesis Ltd
 # license   : MIT; see accompanying LICENSE file
 
-.include common.test config.test remote.test
+.include common.testscript config.testscript remote.testscript
 
 # Source repository:
 #

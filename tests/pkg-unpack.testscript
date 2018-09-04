@@ -1,8 +1,12 @@
-# file      : tests/pkg-unpack.test
+# file      : tests/pkg-unpack.testscript
 # copyright : Copyright (c) 2014-2018 Code Synthesis Ltd
 # license   : MIT; see accompanying LICENSE file
 
-.include common.test auth.test config.test remote.test remote-git.test
+.include common.testscript \
+	 auth.testscript \
+	 config.testscript \
+	 remote.testscript \
+	 remote-git.testscript
 
 # Source repository:
 #

@@ -1,8 +1,11 @@
-# file      : tests/pkg-status.test
+# file      : tests/pkg-status.testscript
 # copyright : Copyright (c) 2014-2018 Code Synthesis Ltd
 # license   : MIT; see accompanying LICENSE file
 
-.include common.test config.test remote.test remote-git.test
+.include common.testscript \
+	 config.testscript \
+	 remote.testscript \
+	 remote-git.testscript
 
 # Source repository:
 #

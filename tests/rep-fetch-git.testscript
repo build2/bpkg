@@ -1,4 +1,4 @@
-# file      : tests/rep-fetch-git.test
+# file      : tests/rep-fetch-git.testscript
 # copyright : Copyright (c) 2014-2018 Code Synthesis Ltd
 # license   : MIT; see accompanying LICENSE file
 
@@ -48,32 +48,32 @@ end
 :
 {
   fragment = '#master'
-  .include rep-fetch-git-refname.test
+  .include rep-fetch-git-refname.testscript
 }
 
 : ltag
 :
 {
   fragment = '#ltag'
-  .include rep-fetch-git-refname.test
+  .include rep-fetch-git-refname.testscript
 }
 
 : atag
 :
 {
   fragment = '#atag'
-  .include rep-fetch-git-refname.test
+  .include rep-fetch-git-refname.testscript
 }
 
 : list
 :
 {
   fragment = '#master,ltag,atag'
-  .include rep-fetch-git-refname.test
+  .include rep-fetch-git-refname.testscript
 }
 
 : commit
 :
 {
-  .include rep-fetch-git-commit.test
+  .include rep-fetch-git-commit.testscript
 }

@@ -1,8 +1,8 @@
-# file      : tests/cfg-create.test
+# file      : tests/cfg-create.testscript
 # copyright : Copyright (c) 2014-2018 Code Synthesis Ltd
 # license   : MIT; see accompanying LICENSE file
 
-.include common.test
+.include common.testscript
 
 pkg_status += -d cfg
 

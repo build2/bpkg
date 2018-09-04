@@ -1,4 +1,4 @@
-# file      : tests/common.test
+# file      : tests/common.testscript
 # copyright : Copyright (c) 2014-2018 Code Synthesis Ltd
 # license   : MIT; see accompanying LICENSE file
 
@@ -37,8 +37,9 @@ rep_info      = $* rep-info
 rep_list      = $* rep-list
 rep_remove    = $* rep-remove
 
-# All testscripts are named after bpkg commands, for example pkg-verify.test.
-# So the testscript scope id is a name of the command being tested.
+# All testscripts are named after bpkg commands, for example
+# pkg-verify.testscript. So the testscript scope id is a name of the command
+# being tested.
 #
 cmd = [string] $@
 test.arguments = $cmd

@@ -1,8 +1,12 @@
-# file      : tests/rep-fetch.test
+# file      : tests/rep-fetch.testscript
 # copyright : Copyright (c) 2014-2018 Code Synthesis Ltd
 # license   : MIT; see accompanying LICENSE file
 
-.include common.test auth.test config.test remote.test remote-git.test
+.include common.testscript \
+	 auth.testscript \
+	 config.testscript \
+	 remote.testscript \
+	 remote-git.testscript
 
 # Source repository:
 #
@@ -61,7 +65,7 @@
 # |       |-- libfoo-1.0.0.tar.gz
 # |       `-- repositories.manifest
 # |
-# `-- git/* (see rep-fetch-git.test)
+# `-- git/* (see rep-fetch-git.testscript)
 
 # Prepare repositories used by tests if running in the local mode.
 #
@@ -697,7 +701,7 @@ else
   if ($remote != true)
   {
     git_protocol = 'local'
-    .include rep-fetch-git.test
+    .include rep-fetch-git.testscript
   }
   else
   {
@@ -705,28 +709,28 @@ else
     :
     {
       git_protocol = 'https-dumb'
-      .include rep-fetch-git.test
+      .include rep-fetch-git.testscript
     }
 
     : https-smart
     :
     {
       git_protocol = 'https-smart'
-      .include rep-fetch-git.test
+      .include rep-fetch-git.testscript
     }
 
     : https-smart-unadv
     :
     {
       git_protocol = 'https-smart-unadv'
-      .include rep-fetch-git.test
+      .include rep-fetch-git.testscript
     }
 
     : git
     :
     {
       git_protocol = 'git'
-      .include rep-fetch-git.test
+      .include rep-fetch-git.testscript
     }
   }
 

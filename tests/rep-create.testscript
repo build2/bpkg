@@ -1,8 +1,8 @@
-# file      : tests/rep-create.test
+# file      : tests/rep-create.testscript
 # copyright : Copyright (c) 2014-2018 Code Synthesis Ltd
 # license   : MIT; see accompanying LICENSE file
 
-.include common.test auth.test
+.include common.testscript auth.testscript
 
 # Source repository:
 #

@@ -1,8 +1,11 @@
-# file      : tests/rep-info.test
+# file      : tests/rep-info.testscript
 # copyright : Copyright (c) 2014-2018 Code Synthesis Ltd
 # license   : MIT; see accompanying LICENSE file
 
-.include common.test auth.test remote.test remote-git.test
+.include common.testscript \
+	 auth.testscript \
+	 remote.testscript \
+	 remote-git.testscript
 
 # Source repository:
 #

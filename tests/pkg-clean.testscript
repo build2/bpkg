@@ -1,12 +1,12 @@
-# file      : tests/pkg-update.test
+# file      : tests/pkg-clean.testscript
 # copyright : Copyright (c) 2014-2018 Code Synthesis Ltd
 # license   : MIT; see accompanying LICENSE file
 
-.include common.test auth.test config.test remote.test
+.include common.testscript auth.testscript config.testscript remote.testscript
 
 # Source repository:
 #
-# pkg-update
+# pkg-clean
 # |-- hello
 # |   |-- libhello-1.0.0.tar.gz
 # |   `-- repositories.manifest
@@ -53,20 +53,16 @@ pkg_disfigure += -d cfg
 pkg_fetch     += -d cfg 2>!
 pkg_purge     += -d cfg
 pkg_unpack    += -d cfg 2>!
+pkg_update    += -d cfg 2>!
 rep_add       += -d cfg 2>!
 rep_fetch     += -d cfg --auth all 2>!
-
-# Sometimes we need to run underlying build update operation with -j 1 options
-# to have an output that we can match reliably.
-#
-j1 = --build-option -j --build-option 1
 
 : no-name
 :
 $clone_cfg;
 $* 2>>EOE != 0
   error: package name argument expected
-    info: run 'bpkg help pkg-update' for more information
+    info: run 'bpkg help pkg-clean' for more information
   EOE
 
 : fetched
@@ -100,17 +96,17 @@ $* 2>>EOE != 0
   :
   {
     $clone_cfg;
-    $pkg_fetch libhello/1.0.0 && $pkg_unpack libhello;
-    $pkg_configure libhello;
+    $pkg_fetch     libhello/1.0.0 && $pkg_unpack libhello;
+    $pkg_configure libhello       && $pkg_update libhello;
 
-    $* $j1 libhello 2>>~%EOE%;
-      %(c\+\+|ar|ld) .+%{6}
-      updated libhello/1.0.0
+    $* libhello 2>>~%EOE%;
+      %rm .+%{6}
+      cleaned libhello/1.0.0
       EOE
 
     $* libhello 2>>~%EOE%;
-      %info: .+ is up to date%
-      updated libhello/1.0.0
+      %info: .+ is clean%
+      cleaned libhello/1.0.0
       EOE
 
     $pkg_disfigure libhello 2>'disfigured libhello/1.0.0';
@@ -122,16 +118,17 @@ $* 2>>EOE != 0
 :
 {
   $clone_cfg;
-  $pkg_unpack -e $src/libhello-1.0.0 && $pkg_configure libhello;
+  $pkg_unpack -e $src/libhello-1.0.0;
+  $pkg_configure libhello && $pkg_update libhello;
 
-  $* $j1 libhello 2>>~%EOE%;
-    %(mkdir|c\+\+|ar|ld) .+%{8}
-    updated libhello/1.0.0
+  $* libhello 2>>~%EOE%;
+    %rm .+%{8}
+    cleaned libhello/1.0.0
     EOE
 
   $* libhello 2>>~%EOE%;
-    %info: .+ is up to date%
-    updated libhello/1.0.0
+    %info: .+ is clean%
+    cleaned libhello/1.0.0
     EOE
 
   $pkg_disfigure libhello 2>'disfigured libhello/1.0.0';

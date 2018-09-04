@@ -1,11 +1,11 @@
-# file      : tests/pkg-configure.test
+# file      : tests/pkg-configure.testscript
 # copyright : Copyright (c) 2014-2018 Code Synthesis Ltd
 # license   : MIT; see accompanying LICENSE file
 
 # Here we test both pkg-configure and pkg-disfigure commands.
 #
 
-.include common.test auth.test config.test remote.test
+.include common.testscript auth.testscript config.testscript remote.testscript
 
 # Source repository:
 #
