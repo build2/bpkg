@@ -76,7 +76,7 @@ Note also that if you are strating a new project that will use the \c{build2}
 toolchain, then it is strongly recommended that you use the \i{standard
 versioning} scheme which is a more strictly defined subset of semanic
 versioning and that allows automation of many version management tasks. See
-\l{b#module-version Version Module} for details.
+\l{b#module-version \c{version} Module} for details.
 
 The \c{bpkg} package version has the following form:
 
