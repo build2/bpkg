@@ -1,3 +1,22 @@
+Version 0.8.0
+
+  * New optional 'project' manifest value that specifies the project the
+    package belongs to. See the package dependency manager manual for
+    details.
+
+  * Make package manifest 'url' and 'email' values optional.
+
+  * Make default versioning epoch 1 instead of 0 (0 is now reserved for
+    "foreign" packages).
+
+  * New --manifest option for the pkg-verify command that allows extracting
+    package's manifest file.
+
+  * New --{repositories|packages}-file options for the rep-info command.
+
+    This allows saving both manifests with a single invocation (which is the
+    only way to guarantee they are consistent).
+
 Version 0.7.0
 
   * Support for using git repositories as package repositories. See the
