@@ -373,6 +373,7 @@ namespace bpkg
     //   fragment list.
     //
     rep_fetch_data r;
+    size_t np (0);
 
     for (git_fragment& gf: git_fetch (co, rl, td))
     {
@@ -420,6 +421,8 @@ namespace bpkg
                                              ignore_unknown,
                                              rl,
                                              fr.friendly_name);
+      np += fr.packages.size ();
+
       r.fragments.push_back (move (fr));
     }
 
@@ -434,6 +437,11 @@ namespace bpkg
       rm.cancel ();
       filesystem_state_changed = true;
     }
+
+    if (np == 0 && !rl.url ().fragment)
+      warn << "repository " << rl << " has no available packages" <<
+        info << "consider specifying explicit URL fragment (for example, "
+             << "#master)";
 
     return r;
   }
