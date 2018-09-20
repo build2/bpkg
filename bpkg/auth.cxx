@@ -173,16 +173,13 @@ namespace bpkg
 
       // Fall through.
     }
-    // For old versions of g++ (as of 4.9) ios_base::failure is not derived
-    // from system_error.
-    //
-    catch (const io_error& e)
+    catch (const process_error& e)
     {
-      calc_failed (&e);
+      error << "unable to execute " << co.openssl () << ": " << e;
 
       // Fall through.
     }
-    catch (const system_error& e)
+    catch (const io_error& e)
     {
       calc_failed (&e);
 
@@ -449,16 +446,13 @@ namespace bpkg
 
       // Fall through.
     }
-    // For old versions of g++ (as of 4.9) ios_base::failure is not derived
-    // from system_error.
-    //
-    catch (const io_error& e)
+    catch (const process_error& e)
     {
-      parse_failed (&e);
+      error << "unable to execute " << co.openssl () << ": " << e;
 
       // Fall through.
     }
-    catch (const system_error& e)
+    catch (const io_error& e)
     {
       parse_failed (&e);
 
@@ -855,16 +849,13 @@ namespace bpkg
 
       // Fall through.
     }
-    // For old versions of g++ (as of 4.9) ios_base::failure is not derived
-    // from system_error.
-    //
-    catch (const io_error& e)
+    catch (const process_error& e)
     {
-      auth_failed (&e);
+      error << "unable to execute " << co.openssl () << ": " << e;
 
       // Fall through.
     }
-    catch (const system_error& e)
+    catch (const io_error& e)
     {
       auth_failed (&e);
 
@@ -932,16 +923,13 @@ namespace bpkg
 
       // Fall through.
     }
-    // For old versions of g++ (as of 4.9) ios_base::failure is not derived
-    // from system_error.
-    //
-    catch (const io_error& e)
+    catch (const process_error& e)
     {
-      sign_failed (&e);
+      error << "unable to execute " << co.openssl () << ": " << e;
 
       // Fall through.
     }
-    catch (const system_error& e)
+    catch (const io_error& e)
     {
       sign_failed (&e);
 
