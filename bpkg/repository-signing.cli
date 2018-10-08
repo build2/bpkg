@@ -190,13 +190,14 @@ media, store it in a secure, offline location, and remove the key from the
 build machine.
 
 To sign the repository with Yubikey specify the following options instead of
-just \cb{--key} as at step 4 (\c{\"SIGN key\"} is the name for slot \c{9c}):
+just \cb{--key} as at step 4 (\c{\"SIGN key\"} is the label for the slot
+\c{9c} private key):
 
 \
-bpkg rep-create                                     \
-  --openssl-option -engine --openssl-option pkcs11  \
-  --openssl-option -keyform --openssl-option engine \
-  --key \"label_SIGN key\" /path/to/repository
+bpkg rep-create                                                   \
+  --openssl-option rsautl:-engine --openssl-option rsautl:pkcs11  \
+  --openssl-option rsautl:-keyform --openssl-option rsautl:engine \
+  --key \"pkcs11:object=SIGN%20key\" /path/to/repository
 \
 
 ||

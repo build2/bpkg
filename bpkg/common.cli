@@ -217,21 +217,43 @@ namespace bpkg
        multiple tar options."
     }
 
-    path --openssl = "openssl"
+    // NOTE: when adding support for a new openssl command, don't forget to
+    // update the openssl_commands qualifier list.
+    //
+    qualified_option<openssl_commands, path> --openssl = "openssl"
     {
       "<path>",
       "The openssl program to be used for crypto operations. You can also
        specify additional options that should be passed to the openssl
        program with \cb{--openssl-option}. If the openssl program is not
-       explicitly specified, then \cb{bpkg} will use \cb{openssl} by default."
+       explicitly specified, then \cb{bpkg} will use \cb{openssl} by default.
+
+       The \cb{--openssl*} values can be optionally qualified with the openssl
+       command in the \c{\i{command}\b{:}\i{value}} form. This makes the value
+       only applicable to the specific command, for example:
+
+       \
+       bpkg rep-create                     \
+         --openssl rsautl:/path/to/openssl \
+         --openssl-option rsautl:-engine   \
+         --openssl-option rsautl:pkcs11    \
+         ...
+       \
+
+       An unqualified value that contains a colon can be specified as
+       qualified with an empty command, for example, \cb{--openssl
+       :C:\\bin\\openssl}. To see openssl commands executed by \cb{bpkg}, use
+       the verbose mode (\cb{-v} option)."
     }
 
-    strings --openssl-option
+    qualified_option<openssl_commands, strings> --openssl-option
     {
       "<opt>",
       "Additional option to be passed to the openssl program. See
-       \cb{--openssl} for more information on the openssl program. Repeat this
-       option to specify multiple openssl options."
+       \cb{--openssl} for more information on the openssl program.
+       The values can be optionally qualified with the openssl command,
+       as discussed in \cb{--openssl}. Repeat this option to specify
+       multiple openssl options."
     }
 
     bpkg::auth --auth = bpkg::auth::remote

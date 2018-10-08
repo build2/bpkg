@@ -46,7 +46,16 @@ namespace bpkg
       static void
       parse (repository_type&, bool&, scanner&);
     };
+
+    template <const char* Q[], typename V>
+    struct parser<qualified_option<Q, V>>
+    {
+      static void
+      parse (qualified_option<Q, V>&, bool&, scanner&);
+    };
   }
 }
+
+#include <bpkg/types-parsers.txx>
 
 #endif // BPKG_TYPES_PARSERS_HXX

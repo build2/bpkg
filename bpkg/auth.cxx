@@ -26,6 +26,13 @@ using namespace butl;
 
 namespace bpkg
 {
+  static const string openssl_rsautl ("rsautl");
+  static const string openssl_x509   ("x509");
+
+  const char* openssl_commands[] = {openssl_rsautl.c_str (),
+                                    openssl_x509.c_str (),
+                                    nullptr};
+
   // Print process command line.
   //
   static void
@@ -139,12 +146,15 @@ namespace bpkg
         dr << ": " << *e;
     };
 
+    const path& openssl_path (co.openssl ()[openssl_x509]);
+    const strings& openssl_opts (co.openssl_option ()[openssl_x509]);
+
     try
     {
       openssl os (print_command,
                   fdstream_mode::text, fdstream_mode::text, 2,
-                  co.openssl (), "x509",
-                  co.openssl_option (), "-sha256", "-noout", "-fingerprint");
+                  openssl_path, openssl_x509,
+                  openssl_opts, "-sha256", "-noout", "-fingerprint");
 
       os.out << pem;
       os.out.close ();
@@ -175,7 +185,7 @@ namespace bpkg
     }
     catch (const process_error& e)
     {
-      error << "unable to execute " << co.openssl () << ": " << e;
+      error << "unable to execute " << openssl_path << ": " << e;
 
       // Fall through.
     }
@@ -223,6 +233,9 @@ namespace bpkg
         dr << ": " << *e;
     };
 
+    const path& openssl_path (co.openssl ()[openssl_x509]);
+    const strings& openssl_opts (co.openssl_option ()[openssl_x509]);
+
     try
     {
       // The order of the options we pass to openssl determines the order in
@@ -247,12 +260,8 @@ namespace bpkg
       openssl os (
         print_command,
         fdstream_mode::text, fdstream_mode::text, 2,
-        co.openssl (), "x509",
-        co.openssl_option (),
-        "-noout",
-        "-subject",
-        "-dates",
-        "-email",
+        openssl_path, openssl_x509,
+        openssl_opts, "-noout", "-subject", "-dates", "-email",
 
         // Previously we have used "RFC2253,sep_multiline" format to display
         // the requested fields, but that resulted in some undesirable
@@ -448,7 +457,7 @@ namespace bpkg
     }
     catch (const process_error& e)
     {
-      error << "unable to execute " << co.openssl () << ": " << e;
+      error << "unable to execute " << openssl_path << ": " << e;
 
       // Fall through.
     }
@@ -818,12 +827,15 @@ namespace bpkg
         dr << ": " << *e;
     };
 
+    const path& openssl_path (co.openssl ()[openssl_rsautl]);
+    const strings& openssl_opts (co.openssl_option ()[openssl_rsautl]);
+
     try
     {
       openssl os (print_command,
                   path ("-"), fdstream_mode::text, 2,
-                  co.openssl (), "rsautl",
-                  co.openssl_option (), "-verify", "-certin", "-inkey", f);
+                  openssl_path, openssl_rsautl,
+                  openssl_opts, "-verify", "-certin", "-inkey", f);
 
       for (const auto& c: sm.signature)
         os.out.put (c); // Sets badbit on failure.
@@ -851,7 +863,7 @@ namespace bpkg
     }
     catch (const process_error& e)
     {
-      error << "unable to execute " << co.openssl () << ": " << e;
+      error << "unable to execute " << openssl_path << ": " << e;
 
       // Fall through.
     }
@@ -903,12 +915,15 @@ namespace bpkg
         dr << ": " << *e;
     };
 
+    const path& openssl_path (co.openssl ()[openssl_rsautl]);
+    const strings& openssl_opts (co.openssl_option ()[openssl_rsautl]);
+
     try
     {
       openssl os (print_command,
                   fdstream_mode::text, path ("-"), 2,
-                  co.openssl (), "rsautl",
-                  co.openssl_option (), "-sign", "-inkey", key_name);
+                  openssl_path, openssl_rsautl,
+                  openssl_opts, "-sign", "-inkey", key_name);
 
       os.out << sha256sum;
       os.out.close ();
@@ -925,7 +940,7 @@ namespace bpkg
     }
     catch (const process_error& e)
     {
-      error << "unable to execute " << co.openssl () << ": " << e;
+      error << "unable to execute " << openssl_path << ": " << e;
 
       // Fall through.
     }
