@@ -6,7 +6,7 @@ namespace bpkg
 {
   namespace cli
   {
-    template <const char* Q[], typename V>
+    template <const char* const* Q, typename V>
     void parser<qualified_option<Q, V>>::
     parse (qualified_option<Q, V>& x, bool& xs, scanner& s)
     {
@@ -25,7 +25,7 @@ namespace bpkg
 
       if (n != string::npos)
       {
-        const char** q (Q);
+        const char* const* q (Q);
         for (; *q != nullptr; ++q)
         {
           if (v.compare (0, n, *q) == 0)
@@ -58,7 +58,7 @@ namespace bpkg
       //
       if (qv.empty ())
       {
-        for (const char** q (Q); *q != nullptr; ++q)
+        for (const char* const* q (Q); *q != nullptr; ++q)
         {
           argv_scanner s (0, ac, av);
           parser<V>::parse (x[*q], dummy, s);

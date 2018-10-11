@@ -29,9 +29,9 @@ namespace bpkg
   static const string openssl_rsautl ("rsautl");
   static const string openssl_x509   ("x509");
 
-  const char* openssl_commands[] = {openssl_rsautl.c_str (),
-                                    openssl_x509.c_str (),
-                                    nullptr};
+  const char* openssl_commands[3] = {openssl_rsautl.c_str (),
+                                     openssl_x509.c_str (),
+                                     nullptr};
 
   // Print process command line.
   //

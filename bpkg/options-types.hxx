@@ -31,7 +31,7 @@ namespace bpkg
   //
   // const char* option_qualifiers[] = {"foo", "bar", nullptr};
   //
-  template <const char* Q[], typename V>
+  template <const char* const* Q, typename V>
   class qualified_option: public std::map<string, V>
   {
   public:
@@ -39,7 +39,7 @@ namespace bpkg
 
     template <typename T>
     explicit
-    qualified_option (T v) {this->emplace ("", std::move (v));}
+    qualified_option (T v) {this->emplace (string (), V (std::move (v)));}
 
     qualified_option (): qualified_option (V ()) {}
 
@@ -50,7 +50,7 @@ namespace bpkg
     {
       auto verify = [&q] ()
       {
-        for (const char** p (Q); *p != nullptr; ++p)
+        for (const char* const* p (Q); *p != nullptr; ++p)
         {
           if (q == *p)
             return true;
@@ -70,7 +70,7 @@ namespace bpkg
     }
   };
 
-  extern const char* openssl_commands[];
+  extern const char* openssl_commands[3]; // Clang bug requres explicit size.
 }
 
 #endif // BPKG_OPTIONS_TYPES_HXX

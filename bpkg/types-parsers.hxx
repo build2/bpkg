@@ -47,7 +47,7 @@ namespace bpkg
       parse (repository_type&, bool&, scanner&);
     };
 
-    template <const char* Q[], typename V>
+    template <const char* const* Q, typename V>
     struct parser<qualified_option<Q, V>>
     {
       static void
