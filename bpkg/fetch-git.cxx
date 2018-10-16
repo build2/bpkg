@@ -1151,7 +1151,7 @@ namespace bpkg
                    return x.timestamp < y.timestamp;
                  });
 
-      return fs;
+      return move (fs);
     };
 
     // Bail out if all commits are already fetched.
