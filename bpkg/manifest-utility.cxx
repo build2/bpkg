@@ -131,13 +131,13 @@ namespace bpkg
       dr << endf;
     }
   }
-  catch (const invalid_argument& e)
-  {
-    fail << "invalid repository location '" << s << "': " << e << endf;
-  }
   catch (const invalid_path& e)
   {
     fail << "invalid repository path '" << s << "': " << e << endf;
+  }
+  catch (const invalid_argument& e)
+  {
+    fail << "invalid repository location '" << s << "': " << e << endf;
   }
   catch (const system_error& e)
   {

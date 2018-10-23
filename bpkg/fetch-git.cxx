@@ -1442,14 +1442,14 @@ namespace bpkg
               origin_url (co, fsdir, url);
           }
         }
-        catch (const invalid_argument& e)
-        {
-          fail << "invalid repository URL for submodule '" << psd << "': "
-               << e << endg;
-        }
         catch (const invalid_path& e)
         {
           fail << "invalid repository path for submodule '" << psd << "': "
+               << e << endg;
+        }
+        catch (const invalid_argument& e)
+        {
+          fail << "invalid repository URL for submodule '" << psd << "': "
                << e << endg;
         }
 
