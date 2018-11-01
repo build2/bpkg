@@ -74,10 +74,16 @@ namespace bpkg
   static string
   git_line (const common_options&, const char* what, A&&... args);
 
-  // Start git process. On the first call check that git version is 2.12.0 or
+  // Start git process. On the first call check that git version is 2.14.0 or
   // above, and fail if that's not the case.
   //
-  // Note that git is executed in the "sanitized" environment, having the
+  // Note that prior to 2.14.0 the git-fetch command doesn't accept commit id
+  // as a refspec:
+  //
+  // $ git fetch --no-recurse-submodules --depth 1 origin 5e8245ee3526530a3467f59b0601bbffb614f45b
+  //   error: Server does not allow request for unadvertised object 5e8245ee3526530a3467f59b0601bbffb614f45b
+  //
+  // Also note that git is executed in the "sanitized" environment, having the
   // environment variables that are local to the repository being unset (all
   // except GIT_CONFIG_PARAMETERS). We do the same as the git-submodule script
   // does for commands executed for submodules. Though we do it for all
@@ -118,9 +124,9 @@ namespace bpkg
               info << "produced by '" << co.git () << "'; "
                  << "use --git to override" << endg;
 
-          if (*v < semantic_version {2, 12, 0})
+          if (*v < semantic_version {2, 14, 0})
             fail << "unsupported git version " << *v <<
-              info << "minimum supported version is 2.12.0" << endf;
+              info << "minimum supported version is 2.14.0" << endf;
 
           // Sanitize the environment.
           //

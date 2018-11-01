@@ -11,7 +11,8 @@
 # contain repositories produced) are not cleaned up.
 #
 
-# Check that git version is the minimum supported one (2.12.0) or above.
+# Check that git version is the minimum supported one (2.14.0) or above (see
+# bpkg/fetch-git.cxx for details).
 #
 +git --version | set git_version_out
 
@@ -29,7 +30,7 @@ end
 # repository-related tests.
 #
 git_supported = ($git_version_major >  2 || \
-		 $git_version_major == 2 && $git_version_minor >= 12)
+		 $git_version_major == 2 && $git_version_minor >= 14)
 
 # Output directory path that testscripts must use to prepare repositories
 # required by tests they contain.
