@@ -74,14 +74,11 @@ namespace bpkg
   static string
   git_line (const common_options&, const char* what, A&&... args);
 
-  // Start git process. On the first call check that git version is 2.14.0 or
-  // above, and fail if that's not the case.
-  //
-  // Note that prior to 2.14.0 the git-fetch command doesn't accept commit id
-  // as a refspec:
-  //
-  // $ git fetch --no-recurse-submodules --depth 1 origin 5e8245ee3526530a3467f59b0601bbffb614f45b
-  //   error: Server does not allow request for unadvertised object 5e8245ee3526530a3467f59b0601bbffb614f45b
+  // Start git process. On the first call check that git version is 2.11.0 or
+  // above, and fail if that's not the case. Note that the full functionality
+  // (such as being able to fetch unadvertised commits) requires 2.14.0. And
+  // supporting versions prior to 2.11.0 doesn't seem worth it (plus other
+  // parts of the toolchain also requires 2.11.0).
   //
   // Also note that git is executed in the "sanitized" environment, having the
   // environment variables that are local to the repository being unset (all
@@ -89,6 +86,7 @@ namespace bpkg
   // does for commands executed for submodules. Though we do it for all
   // commands (including the ones related to the top repository).
   //
+  static semantic_version git_ver;
   static optional<strings> unset_vars;
 
   template <typename O, typename E, typename... A>
@@ -124,9 +122,11 @@ namespace bpkg
               info << "produced by '" << co.git () << "'; "
                  << "use --git to override" << endg;
 
-          if (*v < semantic_version {2, 14, 0})
+          if (*v < semantic_version {2, 11, 0})
             fail << "unsupported git version " << *v <<
-              info << "minimum supported version is 2.14.0" << endf;
+              info << "minimum supported version is 2.11.0" << endf;
+
+          git_ver = move (*v);
 
           // Sanitize the environment.
           //
@@ -910,8 +910,9 @@ namespace bpkg
 
     // Collect the list of commits together with the refspecs that should be
     // used to fetch them. If refspecs are absent then the commit is already
-    // fetched (and must not be re-fetched). Otherwise, it it is empty, then
-    // the whole repository history must be fetched.
+    // fetched (and must not be re-fetched). Otherwise, if it is empty, then
+    // the whole repository history must be fetched. And otherwise, it is a
+    // list of commit ids.
     //
     // Note that the <refname>@<commit> filter may result in multiple refspecs
     // for a single commit.
@@ -1174,6 +1175,40 @@ namespace bpkg
       //
       assert (!refspecs.empty () || !shallow);
 
+      // Prior to 2.14.0 the git-fetch command didn't accept commit id as a
+      // refspec:
+      //
+      // $ git fetch --no-recurse-submodules --depth 1 origin 5e8245ee3526530a3467f59b0601bbffb614f45b
+      //   error: Server does not allow request for unadvertised object 5e8245ee3526530a3467f59b0601bbffb614f45b
+      //
+      // We will try to remap commits back to git refs (tags, branches, etc)
+      // based on git-ls-remote output and fail if unable to do so (which
+      // should only happen for unadvertised commits).
+      //
+      // Note that in this case we will fail only for servers supporting
+      // unadvertised refs fetch. For other protocols we have already fallen
+      // back to fetching some history, passing to fetch() either advertised
+      // commit ids (of branches, tags, etc) or an empty refspecs list (the
+      // whole repository history). So we could just reduce the server
+      // capabilities from 'unadv' to 'smart' for such old clients.
+      //
+      optional<strings> remapped_refspecs;
+      if (!refspecs.empty () && git_ver < semantic_version {2, 14, 0})
+      {
+        remapped_refspecs = strings ();
+
+        for (const string& c: refspecs)
+        {
+          const ref* r (load_refs (co, url ()).find_commit (c));
+
+          if (r == nullptr)
+            fail << "git version is too old for specified location" <<
+              info << "consider upgrading git to 2.14.0 or above";
+
+          remapped_refspecs->push_back (r->name);
+        }
+      }
+
       // Note that we suppress the (too detailed) fetch command output if the
       // verbosity level is 1. However, we still want to see the progress in
       // this case, unless stderr is not directed to a terminal.
@@ -1192,7 +1227,7 @@ namespace bpkg
                     verb == 1 && fdterm (2) ? opt ("--progress") : nullopt,
                     verb < 2 ? opt ("-q") : verb > 3 ? opt ("-v") : nullopt,
                     "origin",
-                    refspecs))
+                    remapped_refspecs ? *remapped_refspecs : refspecs))
         fail << "unable to fetch " << dir << endg;
     };
 
@@ -1318,7 +1353,11 @@ namespace bpkg
           co.git_option (),
           "-C", dir,
 
-          !prefix.empty ()
+          // Note that older git versions don't recognize the --super-prefix
+          // option but seem to behave correctly without any additional
+          // efforts when it is omitted.
+          //
+          !prefix.empty () && git_ver >= semantic_version {2, 14, 0}
           ? strings ({"--super-prefix", prefix.posix_representation ()})
           : strings (),
 

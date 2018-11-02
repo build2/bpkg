@@ -39,6 +39,7 @@
 
   : changed
   :
+  if ($git_fully_supported || $git_protocol != 'https-smart-unadv')
   {
     g = git -C
     u = "$rep_git/state1"

@@ -6,6 +6,7 @@
 
 : unadvertised
 :
+if ($git_fully_supported || $git_protocol != 'https-smart-unadv')
 {
   +git -C ../style-basic log '--pretty=format:%H' --all --grep='README' | \
    set commit
@@ -72,6 +73,7 @@
       %fetching git:.+style-basic#@$commit%
       %querying .+style-basic\.git%?
       %fetching from .+style-basic.\git%
+      %querying .+style-basic\.git%?
       $warn
       1 package\(s\) in 1 repository\(s\)
       EOE
@@ -86,6 +88,7 @@
       %fetching git:.+style-basic#stable@$commit%
       %querying .+style-basic\.git%?
       %fetching from .+style-basic\.git%
+      %querying .+style-basic\.git%?
       $warn
       1 package\(s\) in 1 repository\(s\)
       EOE

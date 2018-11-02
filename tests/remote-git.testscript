@@ -26,11 +26,15 @@ end
 +echo "$git_version" | sed -e 's/(\d+).*/\1/'      | set git_version_major
 +echo "$git_version" | sed -e 's/\d+\.(\d+).*/\1/' | set git_version_minor
 
-# This flag must be used by testscripts to decide if they should skip git
-# repository-related tests.
+# These flags must be used by testscripts to decide if they should skip git
+# repository-related tests. See bpkg/fetch-git.cxx for the functionality
+# reduction details for partially supported git versions.
 #
 git_supported = ($git_version_major >  2 || \
-		 $git_version_major == 2 && $git_version_minor >= 14)
+                 $git_version_major == 2 && $git_version_minor >= 11)
+
+git_fully_supported = ($git_version_major >  2 || \
+                       $git_version_major == 2 && $git_version_minor >= 14)
 
 # Output directory path that testscripts must use to prepare repositories
 # required by tests they contain.
