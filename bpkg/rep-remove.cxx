@@ -195,13 +195,13 @@ namespace bpkg
 
         using query = query<repository>;
 
-        for (shared_ptr<repository> r:
+        for (shared_ptr<repository> rp:
                pointer_result (
                  db.query<repository> (
                    query::name != "" &&
                    query::location.type == to_string (r->location.type ()))))
         {
-          if (repository_state (r->location) == d)
+          if (repository_state (rp->location) == d)
           {
             rm = false;
             break;
