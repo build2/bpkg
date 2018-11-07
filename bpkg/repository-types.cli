@@ -155,11 +155,11 @@ plus (\cb{+}) is treated as an inclusion filter. For example:
 .../foo.git#++x  - include +x
 \
 
-Currently supported \cb{git} protocols are \cb{git://}, \cb{http://}, and
-\cb{https://} for remote repositories and \cb{file://} for local
-repositories. While \cb{bpkg} tries to minimize the amount of information
-(history) fetched, it is not always possible for some protocols and/or server
-configurations, as discussed next.
+Currently supported \cb{git} protocols are \cb{git://}, \cb{ssh://} (but not
+\c{scp} pseudo-URL syntax), \cb{http://}, and \cb{https://} for remote
+repositories and \cb{file://} for local repositories. While \cb{bpkg} tries to
+minimize the amount of information (history) fetched, it is not always
+possible for some protocols and/or server configurations, as discussed next.
 
 A \cb{git} repository accessible via \cb{http(s)://} can use either \i{dumb}
 or \i{smart} protocol (refer to the \cb{git} documentation for details). The
@@ -173,11 +173,12 @@ whether the server is configured to allow fetching unadvertised commits. For
 details, refer to the \cb{uploadpack.allowReachableSHA1InWant} and
 \cb{uploadpack.allowAnySHA1InWant} \cb{git} configuration values.
 
-The \cb{git://} protocol is similar to smart \cb{http://} in that it supports
-fetching minimal history for tags and branches and may or may not support this
-for commit ids depending on the server configuration. Note, however, that
-unlike for \cb{http(s)://}, for this protocol \cb{bpkg} does not try to sense
-if fetching unadvertised commits is allowed and always assumes that it is not.
+The \cb{git://} and \cb{ssh://} protocols are similar to smart \cb{http://} in
+that they support fetching minimal history for tags and branches and may or
+may not support this for commit ids depending on the server configuration.
+Note, however, that unlike for \cb{http(s)://}, for these protocols \cb{bpkg}
+does not try to sense if fetching unadvertised commits is allowed and always
+assumes that it is not.
 
 Based on this information, to achieve optimal results the recommended protocol
 for remote repositories is smart \cb{https://}. Additionally, if you are

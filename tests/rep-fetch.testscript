@@ -732,6 +732,14 @@ else
       git_protocol = 'git'
       .include rep-fetch-git.testscript
     }
+
+    : ssh
+    :
+    if ($git_ssh == true)
+    {
+      git_protocol = 'ssh'
+      .include rep-fetch-git.testscript
+    }
   }
 
   : strip-ext

@@ -63,6 +63,21 @@ namespace bpkg
         warn << "--fetch-timeout is not supported by the git protocol";
         break;
       }
+    case repository_protocol::ssh:
+      {
+        // The way to support timeout for the ssh protocol would be using the
+        // '-c core.sshCommand=...' git option (relying on ConnectTimeout and
+        // ServerAlive* options for OpenSSH). To do it cleanly, we would need
+        // to determine the ssh program path and kind (ssh, putty, plink, etc)
+        // that git will use to communicate with the repository server. And it
+        // looks like there is no easy way to do it (see the core.sshCommand
+        // and ssh.variant git configuration options for details). So we will
+        // not support the ssh protocol timeout for now. Note that the user
+        // can always specify the timeout in git or ssh configuration.
+        //
+        warn << "--fetch-timeout is not supported by the ssh protocol";
+        break;
+      }
     case repository_protocol::file: return strings (); // Local communications.
     }
 
@@ -401,7 +416,7 @@ namespace bpkg
   //
   // Protocols other than HTTP(S) are considered smart but without the
   // unadvertised refs (note that this is a pessimistic assumption for
-  // git://).
+  // git:// and ssh://).
   //
   // For HTTP(S) sense the protocol type by sending the first HTTP request of
   // the fetch operation handshake and analyzing the first line of the
@@ -429,6 +444,7 @@ namespace bpkg
     switch (url.scheme)
     {
     case repository_protocol::git:
+    case repository_protocol::ssh:
     case repository_protocol::file: return capabilities::smart;
     case repository_protocol::http:
     case repository_protocol::https: break; // Ask the server (see below).

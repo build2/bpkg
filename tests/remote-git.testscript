@@ -54,10 +54,17 @@ remote = $config.bpkg.test.remote
 
   mkdir -p $out_git
 else
+  # If $git_ssh is not true then testscripts must skip tests that use the ssh
+  # protocol. Otherwise, it is assumed that the password-less ssh
+  # authentication is arranged for git.build2.org.
+  #
+  git_ssh = $config.bpkg.test.git.ssh
+
   rep_git_https_dumb        = "https://build2.org/bpkg/git/$cmd"
   rep_git_https_smart       = "https://git.build2.org/testing/bpkg/advonly/$cmd"
   rep_git_https_smart_unadv = "https://git.build2.org/testing/bpkg/unadv/$cmd"
   rep_git_git               = "git://git.build2.org/testing/bpkg/unadv/$cmd"
+  rep_git_ssh               = "ssh://git.build2.org/var/scm/testing/bpkg/unadv/$cmd"
 
   rep_git = $rep_git_https_dumb # Default remote repository URL.
 end

@@ -65,6 +65,7 @@
 
     if ($git_protocol == 'local'       || \
         $git_protocol == 'https-smart' || \
+        $git_protocol == 'ssh'         || \
         $git_protocol == 'git')
       warn2 = "$warn_repo_hist for submodule 'doc/style/basic'$reason_unadv"
     elif ($git_protocol == 'https-dumb')

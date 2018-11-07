@@ -140,8 +140,8 @@ namespace bpkg
        \cb{curl} and to the \cb{--timeout} option for \cb{wget} and
        \cb{fetch}. For \cb{git} over HTTP/HTTPS this semantics is achieved
        using the \cb{http.lowSpeedLimit}=\i{1} \cb{http.lowSpeedTime}=\i{sec}
-       configuration values (the \cb{git://} protocol currently does not
-       support timeouts).
+       configuration values (the \cb{git://} and \cb{ssh://} protocols
+       currently do not support timeouts).
 
        See \cb{--fetch} and \cb{--git} for more information on the fetch
        programs."
