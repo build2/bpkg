@@ -42,10 +42,10 @@ namespace bpkg
       if (v[0] == '!')
         gvars.push_back (v.c_str ());
 
-      // Use path representation to get canonical trailing slash.
+      // Use path representation to get the trailing slash.
       //
       else
-        lvars.push_back (c.representation () + ':' + v);
+        lvars.push_back (c.representation () + v);
     }
 
     // This one is a bit tricky: we can only update all the packages at once if
