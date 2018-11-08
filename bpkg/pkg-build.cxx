@@ -7,7 +7,7 @@
 #include <map>
 #include <set>
 #include <list>
-#include <cstring>    // strlen()
+#include <cstring>    // strlen(), strcmp(), strchr()
 #include <iostream>   // cout
 #include <algorithm>  // find_if()
 
@@ -303,6 +303,11 @@ namespace bpkg
     //
     bool keep_out;
 
+    // Command line configuration variables. Only meaningful for non-system
+    // packages.
+    //
+    strings config_vars;
+
     // Set of package names that caused this package to be built or adjusted.
     // Empty name signifies user selection.
     //
@@ -351,12 +356,13 @@ namespace bpkg
     {
       assert (action && *action != drop);
 
-      return selected != nullptr &&
-        selected->state == package_state::configured &&
-        ((adjustments & adjust_reconfigure) != 0 ||
-         (*action == build &&
-          (selected->system () != system ||
-           selected->version != available_version ())));
+      return selected != nullptr                          &&
+             selected->state == package_state::configured &&
+             ((adjustments & adjust_reconfigure) != 0 ||
+              (*action == build &&
+               (selected->system () != system             ||
+                selected->version != available_version () ||
+                (!system && !config_vars.empty ()))));
     }
 
     const version&
@@ -380,7 +386,7 @@ namespace bpkg
     }
 
     // Merge constraints, required-by package names, hold_* flags,
-    // adjustments, and user-specified options.
+    // adjustments, and user-specified options/variables.
     //
     void
     merge (build_package&& p)
@@ -389,12 +395,20 @@ namespace bpkg
       //
       assert (action && *action != drop && (!p.action || *p.action != drop));
 
-      // Copy the user-specified options.
+      // Copy the user-specified options/variables.
       //
       if (p.user_selection ())
       {
+        // We don't allow a package specified on the command line multiple
+        // times to have different sets of options/variables.
+        //
+        assert (!user_selection () ||
+                (keep_out == p.keep_out && config_vars == p.config_vars));
+
         if (p.keep_out)
           keep_out = p.keep_out;
+
+        config_vars = move (p.config_vars);
 
         // Propagate the user-selection tag.
         //
@@ -936,13 +950,14 @@ namespace bpkg
           dsp,
           dap,
           rp.second,
-          nullopt,   // Hold package.
-          nullopt,   // Hold version.
-          {},        // Constraints.
+          nullopt,    // Hold package.
+          nullopt,    // Hold version.
+          {},         // Constraints.
           system,
-          false,     // Keep output directory.
-          {name},    // Required by (dependent).
-          0};        // Adjustments.
+          false,      // Keep output directory.
+          strings (), // Configuration variables.
+          {name},     // Required by (dependent).
+          0};         // Adjustments.
 
         // Add our constraint, if we have one.
         //
@@ -1024,13 +1039,14 @@ namespace bpkg
         move (sp),
         nullptr,
         nullptr,
-        nullopt,   // Hold package.
-        nullopt,   // Hold version.
-        {},        // Constraints.
-        false,     // System package.
-        false,     // Keep output directory.
-        {},        // Required by.
-        0};        // Adjustments.
+        nullopt,    // Hold package.
+        nullopt,    // Hold version.
+        {},         // Constraints.
+        false,      // System package.
+        false,      // Keep output directory.
+        strings (), // Configuration variables.
+        {},         // Required by.
+        0};         // Adjustments.
 
       auto i (map_.find (nm));
 
@@ -1071,12 +1087,13 @@ namespace bpkg
           sp,
           nullptr,
           nullptr,
-          nullopt,   // Hold package.
-          nullopt,   // Hold version.
-          {},        // Constraints.
-          false,     // System package.
-          false,     // Keep output directory.
-          {},        // Required by.
+          nullopt,    // Hold package.
+          nullopt,    // Hold version.
+          {},         // Constraints.
+          false,      // System package.
+          false,      // Keep output directory.
+          strings (), // Configuration variables.
+          {},         // Required by.
           build_package::adjust_unhold};
 
         p.merge (move (bp));
@@ -1416,6 +1433,7 @@ namespace bpkg
             {},          // Constraints.
             system,
             false,       // Keep output directory.
+            strings (),  // Configuration variables.
             {n},         // Required by (dependency).
             build_package::adjust_reconfigure};
         };
@@ -1566,8 +1584,9 @@ namespace bpkg
     bpkg::version version;                 // Empty if unspecified.
     shared_ptr<selected_package> selected; // NULL if not present.
     bool system;
-    bool patch;                            // Meaningful for an empty version.
+    bool patch;                            // Only for an empty version.
     bool keep_out;
+    strings config_vars;                   // Only if not system.
   };
   using dependency_packages = vector<dependency_package>;
 
@@ -2261,7 +2280,8 @@ namespace bpkg
     session ses;
 
     // Preparse the (possibly grouped) package specs splitting them into the
-    // packages and location parts, and also parsing their options.
+    // packages and location parts, and also parsing their options and
+    // configuration variables.
     //
     // Also collect repository locations for the subsequent fetch, suppressing
     // duplicates. Note that the last repository location overrides the
@@ -2272,10 +2292,54 @@ namespace bpkg
       string packages;
       repository_location location;
       pkg_options options;
+      strings config_vars;
     };
 
     vector<pkg_spec> specs;
     {
+      // Parse the global configuration variables until we reach the "--"
+      // separator, eos or an argument. Non-empty variables list should always
+      // be terminated with the "--". Furthermore, argument list that contains
+      // anything that looks like a variable (has the '=' character) should be
+      // preceded with "--".
+      //
+      strings config_vars;
+      bool vars_separated (false);
+
+      while (args.more ())
+      {
+        const char* a (args.peek ());
+
+        // If we see the "--" separator, then we are done parsing variables.
+        //
+        if (strcmp (a, "--") == 0)
+        {
+          vars_separated = true;
+          args.next ();
+          break;
+        }
+
+        // Bail out if arguments have started. We will perform the validation
+        // later (together with the eos case).
+        //
+        if (strchr (a, '=') == nullptr)
+          break;
+
+        string v (args.next ());
+
+        // Make sure this is not an argument having an option group.
+        //
+        if (args.group ().more ())
+          fail << "unexpected options group for configuration variable '"
+               << v << "'";
+
+        config_vars.push_back (move (v));
+      }
+
+      if (!config_vars.empty () && !vars_separated)
+        fail << "configuration variables must be separated from packages "
+             << "with '--'";
+
       vector<repository_location> locations;
 
       transaction t (db);
@@ -2284,6 +2348,13 @@ namespace bpkg
       {
         string a (args.next ());
 
+        // Make sure the argument can not be misinterpreted as a configuration
+        // variable.
+        //
+        if (a.find ('=') != string::npos && !vars_separated)
+          fail << "unexpected configuration variable '" << a << "'" <<
+            info << "use the '--' separator to treat it as a package";
+
         specs.emplace_back ();
         pkg_spec& ps (specs.back ());
 
@@ -2291,9 +2362,22 @@ namespace bpkg
         {
           auto& po (ps.options);
 
-          po.parse (args.group (),
-                    cli::unknown_mode::fail,
-                    cli::unknown_mode::fail);
+          cli::scanner& ag (args.group ());
+          po.parse (ag, cli::unknown_mode::fail, cli::unknown_mode::stop);
+
+          // Merge the global and package-specific configuration variables
+          // (globals go first).
+          //
+          ps.config_vars = config_vars;
+
+          while (ag.more ())
+          {
+            string a (ag.next ());
+            if (a.find ('=') == string::npos)
+              fail << "unexpected group argument '" << a << "'";
+
+            ps.config_vars.push_back (move (a));
+          }
 
           // We have to manually merge global options into local since just
           // initializing local with global and then parsing local may end up
@@ -2399,7 +2483,7 @@ namespace bpkg
 
     // Expand the package specs into individual package args, parsing them
     // into the package scheme, name, and version components, and also saving
-    // associated options.
+    // associated options and configuration variables.
     //
     // Note that the package specs that have no scheme and location cannot be
     // unambiguously distinguished from the package archive and directory
@@ -2413,16 +2497,18 @@ namespace bpkg
       bpkg::version  version;
       string         value;
       pkg_options    options;
+      strings        config_vars;
     };
 
     // Create the parsed package argument.
     //
     auto arg_package = [] (package_scheme sc,
                            package_name nm,
-                           version v,
-                           pkg_options o) -> pkg_arg
+                           version vr,
+                           pkg_options os,
+                           strings vs) -> pkg_arg
     {
-      pkg_arg r {sc, move (nm), move (v), string (), move (o)};
+      pkg_arg r {sc, move (nm), move (vr), string (), move (os), move (vs)};
 
       switch (sc)
       {
@@ -2448,10 +2534,14 @@ namespace bpkg
 
     // Create the unparsed package argument.
     //
-    auto arg_raw = [] (string v, pkg_options o) -> pkg_arg
+    auto arg_raw = [] (string v, pkg_options os, strings vs) -> pkg_arg
     {
-      return pkg_arg {
-        package_scheme::none, package_name (), version (), move (v), move (o)};
+      return pkg_arg {package_scheme::none,
+                      package_name (),
+                      version (),
+                      move (v),
+                      move (os),
+                      move (vs)};
     };
 
     auto arg_parsed = [] (const pkg_arg& a) {return !a.name.empty ();};
@@ -2478,8 +2568,18 @@ namespace bpkg
       {
         string s (print_options (a.options, false));
 
-        if (!s.empty ())
-          r += " +{ " + s + " }";
+        if (!s.empty () || !a.config_vars.empty ())
+        {
+          r += " +{ ";
+
+          if (!s.empty ())
+            r += s + ' ';
+
+          for (const string& v: a.config_vars)
+            r += v + ' ';
+
+          r += '}';
+        }
       }
 
       return r;
@@ -2504,12 +2604,16 @@ namespace bpkg
             package_name n (parse_package_name (s));
             version      v (parse_package_version (s));
 
-            pkg_args.push_back (
-              arg_package (h, move (n), move (v), move (ps.options)));
+            pkg_args.push_back (arg_package (h,
+                                             move (n),
+                                             move (v),
+                                             move (ps.options),
+                                             move (ps.config_vars)));
           }
           else                           // Add unparsed.
-            pkg_args.push_back (
-              arg_raw (move (ps.packages), move (ps.options)));
+            pkg_args.push_back (arg_raw (move (ps.packages),
+                                         move (ps.options),
+                                         move (ps.config_vars)));
 
           continue;
         }
@@ -2600,7 +2704,7 @@ namespace bpkg
 
           // Populate the argument list with the latest package versions.
           //
-          // Don't move options as they may be reused.
+          // Don't move options and variables as they may be reused.
           //
           for (auto& pv: pvs)
           {
@@ -2611,7 +2715,8 @@ namespace bpkg
               pkg_args.push_back (arg_package (package_scheme::none,
                                                pv.first,
                                                move (pv.second),
-                                               ps.options));
+                                               ps.options,
+                                               ps.config_vars));
           }
         }
         else // Packages with optional versions in the coma-separated list.
@@ -2713,10 +2818,13 @@ namespace bpkg
             if (v.empty () && sc != package_scheme::sys)
               v = ap->version;
 
-            // Don't move options as they may be reused.
+            // Don't move options and variables as they may be reused.
             //
-            pkg_args.push_back (
-              arg_package (sc, move (n), move (v), ps.options));
+            pkg_args.push_back (arg_package (sc,
+                                             move (n),
+                                             move (v),
+                                             ps.options,
+                                             ps.config_vars));
           }
         }
       }
@@ -2748,11 +2856,14 @@ namespace bpkg
         const pkg_arg& a (r.first->second);
         assert (arg_parsed (a));
 
+        // Note that the variable order may matter.
+        //
         if (!r.second &&
-            (a.scheme  != pa.scheme                  ||
-             a.name    != pa.name                    ||
-             a.version != pa.version                 ||
-             !compare_options (a.options, pa.options)))
+            (a.scheme  != pa.scheme                   ||
+             a.name    != pa.name                     ||
+             a.version != pa.version                  ||
+             !compare_options (a.options, pa.options) ||
+             a.config_vars != pa.config_vars))
           fail << "duplicate package " << pa.name <<
             info << "first mentioned as " << arg_string (r.first->second) <<
             info << "second mentioned as " << arg_string (pa);
@@ -2819,7 +2930,8 @@ namespace bpkg
               pa = arg_package (package_scheme::none,
                                 m.name,
                                 m.version,
-                                move (pa.options));
+                                move (pa.options),
+                                move (pa.config_vars));
 
               af = root;
               ap = make_shared<available_package> (move (m));
@@ -2897,7 +3009,8 @@ namespace bpkg
                 pa = arg_package (package_scheme::none,
                                   m.name,
                                   m.version,
-                                  move (pa.options));
+                                  move (pa.options),
+                                  move (pa.config_vars));
 
                 ap = make_shared<available_package> (move (m));
                 af = root;
@@ -2946,7 +3059,8 @@ namespace bpkg
               pa = arg_package (package_scheme::none,
                                 move (n),
                                 move (v),
-                                move (pa.options));
+                                move (pa.options),
+                                move (pa.config_vars));
             }
 
             l4 ([&]{trace << "package: " << arg_string (pa);});
@@ -3058,7 +3172,8 @@ namespace bpkg
                                                   move (sp),
                                                   sys,
                                                   pa.options.patch (),
-                                                  pa.options.keep_out ()});
+                                                  pa.options.keep_out (),
+                                                  move (pa.config_vars)});
           continue;
         }
 
@@ -3221,6 +3336,7 @@ namespace bpkg
           {},                   // Constraints.
           arg_sys (pa),
           keep_out,
+          move (pa.config_vars),
           {package_name ()},    // Required by (command line).
           0};                   // Adjustments.
 
@@ -3303,13 +3419,14 @@ namespace bpkg
               move (sp),
               move (ap),
               move (apr.second),
-              true,              // Hold package.
-              false,             // Hold version.
-              {},                // Constraints.
-              false,             // System package.
+              true,               // Hold package.
+              false,              // Hold version.
+              {},                 // Constraints.
+              false,              // System package.
               keep_out,
-              {package_name ()}, // Required by (command line).
-              0};                // Adjustments.
+              strings (),         // Configuration variables.
+              {package_name ()},  // Required by (command line).
+              0};                 // Adjustments.
 
           l4 ([&]{trace << "stashing held package "
                         << p.available_name_version ();});
@@ -3430,6 +3547,7 @@ namespace bpkg
               {},                  // Constraints.
               p.system,
               p.keep_out,
+              p.config_vars,
               {package_name ()},   // Required by (command line).
               0};                  // Adjustments.
 
@@ -3501,6 +3619,7 @@ namespace bpkg
               {},                    // Constraints.
               d.system,
               keep_out,
+              strings (),            // Configuration vars.
               {package_name ()},     // Required by (command line).
               0};                    // Adjustments.
 
@@ -4386,7 +4505,7 @@ namespace bpkg
       if (p.system)
         sp = pkg_configure_system (ap->id.name, p.available_version (), t);
       else if (ap != nullptr)
-        pkg_configure (c, o, t, sp, ap->dependencies, strings (), simulate);
+        pkg_configure (c, o, t, sp, ap->dependencies, p.config_vars, simulate);
       else // Dependent.
       {
         // Must be in the unpacked state since it was disfigured on the first
@@ -4395,7 +4514,7 @@ namespace bpkg
         assert (sp->state == package_state::unpacked);
 
         package_manifest m (pkg_verify (sp->effective_src_root (c), true));
-        pkg_configure (c, o, t, sp, m.dependencies, strings (), simulate);
+        pkg_configure (c, o, t, sp, m.dependencies, p.config_vars, simulate);
       }
 
       assert (sp->state == package_state::configured);

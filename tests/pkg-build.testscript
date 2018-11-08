@@ -2569,6 +2569,57 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
   }
 }
 
+: config-vars
+:
+{
+  test.arguments += --yes
+
+  +$cfg_create cxx "config.cxx=$config.cxx" -d cfg 2>- &cfg/***
+  +cp -r $src/libhello-1.0.0 ./libhello
+  +$rep_add libhello --type dir
+  +$rep_fetch
+
+  : vars-global-local
+  :
+  {
+    $clone_cfg;
+
+    $* config.cxx.poptions=-DG -- libhello +{ config.cxx.poptions+=-DL } 2>>~%EOE%;
+      using libhello/1.0.0 (external)
+      configured libhello/1.0.0
+      %(mkdir|c\+\+|ar|ld) .+%{8}
+      updated libhello/1.0.0
+      EOE
+
+    cat cfg/libhello/build/config.build >>~%EOO%;
+      %.*
+      config.cxx.poptions = -DG -DL
+      EOO
+
+    $pkg_drop libhello
+  }
+
+  : vars-options
+  :
+  {
+    $clone_cfg;
+
+    $* config.cxx.poptions=-DG --fetch-timeout=60 -- libhello 2>>~%EOE%;
+      using libhello/1.0.0 (external)
+      configured libhello/1.0.0
+      %(mkdir|c\+\+|ar|ld) .+%{8}
+      updated libhello/1.0.0
+      EOE
+
+    cat cfg/libhello/build/config.build >>~%EOO%;
+      %.*
+      config.cxx.poptions = -DG
+      EOO
+
+    $pkg_drop libhello
+  }
+}
+
 : patch
 :
 {

@@ -75,6 +75,7 @@ static O
 init (const common_options& co,
       cli::group_scanner& scan,
       strings& args,
+      bool keep_sep,
       bool tmp)
 {
   O o;
@@ -91,7 +92,9 @@ init (const common_options& co,
       //
       if (strcmp (scan.peek (), "--") == 0)
       {
-        scan.next ();
+        if (!keep_sep)
+          scan.next ();
+
         opt = false;
         continue;
       }
@@ -207,7 +210,13 @@ try
   const common_options& co (o);
 
   if (o.help ())
-    return help (init<help_options> (co, scan, argsv, false), "", nullptr);
+    return help (init<help_options> (co,
+                                     scan,
+                                     argsv,
+                                     false /* keep_sep */,
+                                     false /* tmp */),
+                 "",
+                 nullptr);
 
   // The next argument should be a command.
   //
@@ -233,7 +242,11 @@ try
 
   if (h)
   {
-    ho = init<help_options> (co, scan, argsv, false);
+    ho = init<help_options> (co,
+                             scan,
+                             argsv,
+                             false /* keep_sep */,
+                             false /* tmp */);
 
     if (args.more ())
     {
@@ -273,54 +286,60 @@ try
     //
     // if (cmd.pkg_verify ())
     // {
-    //  if (h)
-    //    r = help (ho, "pkg-verify", print_bpkg_pkg_verify_usage);
-    //  else
-    //    r = pkg_verify (init<pkg_verify_options> (co, scan, argsv, TMP), args);
+    //   if (h)
+    //     r = help (ho, "pkg-verify", print_bpkg_pkg_verify_usage);
+    //   else
+    //     r = pkg_verify (init<pkg_verify_options> (co,
+    //                                               scan,
+    //                                               argsv,
+    //                                               false /* keep_sep */,
+    //                                               true  /* tmp */),
+    //                     args);
     //
     //  break;
     // }
     //
-#define COMMAND_IMPL(NP, SP, CMD, TMP)                                      \
-    if (cmd.NP##CMD ())                                                     \
-    {                                                                       \
-      if (h)                                                                \
-        r = help (ho, SP#CMD, print_bpkg_##NP##CMD##_usage);                \
-      else                                                                  \
-        r = NP##CMD (init<NP##CMD##_options> (co, scan, argsv, TMP), args); \
-                                                                            \
-      break;                                                                \
+#define COMMAND_IMPL(NP, SP, CMD, SEP, TMP)                               \
+    if (cmd.NP##CMD ())                                                   \
+    {                                                                     \
+      if (h)                                                              \
+        r = help (ho, SP#CMD, print_bpkg_##NP##CMD##_usage);              \
+      else                                                                \
+        r = NP##CMD (init<NP##CMD##_options> (co, scan, argsv, SEP, TMP), \
+                     args);                                               \
+                                                                          \
+      break;                                                              \
     }
 
     // cfg-* commands
     //
-#define CFG_COMMAND(CMD, TMP) COMMAND_IMPL(cfg_, "cfg-", CMD, TMP)
+#define CFG_COMMAND(CMD, TMP) COMMAND_IMPL(cfg_, "cfg-", CMD, false, TMP)
 
     CFG_COMMAND (create, false); // Temp dir initialized manually.
 
     // pkg-* commands
     //
-#define PKG_COMMAND(CMD) COMMAND_IMPL(pkg_, "pkg-", CMD, true)
+#define PKG_COMMAND(CMD, SEP) COMMAND_IMPL(pkg_, "pkg-", CMD, SEP, true)
 
-    PKG_COMMAND (build);
-    PKG_COMMAND (checkout);
-    PKG_COMMAND (clean);
-    PKG_COMMAND (configure);
-    PKG_COMMAND (disfigure);
-    PKG_COMMAND (drop);
-    PKG_COMMAND (fetch);
-    PKG_COMMAND (install);
-    PKG_COMMAND (purge);
-    PKG_COMMAND (status);
-    PKG_COMMAND (test);
-    PKG_COMMAND (uninstall);
-    PKG_COMMAND (unpack);
-    PKG_COMMAND (update);
-    PKG_COMMAND (verify);
+    PKG_COMMAND (build,     true);  // Keeps the '--' separator in args.
+    PKG_COMMAND (checkout,  false);
+    PKG_COMMAND (clean,     false);
+    PKG_COMMAND (configure, false);
+    PKG_COMMAND (disfigure, false);
+    PKG_COMMAND (drop,      false);
+    PKG_COMMAND (fetch,     false);
+    PKG_COMMAND (install,   false);
+    PKG_COMMAND (purge,     false);
+    PKG_COMMAND (status,    false);
+    PKG_COMMAND (test,      false);
+    PKG_COMMAND (uninstall, false);
+    PKG_COMMAND (unpack,    false);
+    PKG_COMMAND (update,    false);
+    PKG_COMMAND (verify,    false);
 
     // rep-* commands
     //
-#define REP_COMMAND(CMD) COMMAND_IMPL(rep_, "rep-", CMD, true)
+#define REP_COMMAND(CMD) COMMAND_IMPL(rep_, "rep-", CMD, false, true)
 
     REP_COMMAND (add);
     REP_COMMAND (create);

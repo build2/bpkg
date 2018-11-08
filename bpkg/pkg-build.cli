@@ -12,6 +12,7 @@ namespace bpkg
 {
   {
     "<options>
+     <cfg-var>
      <pkg-spec> <flags> <scheme> <pkg> <ver>
      <file>
      <dir>
@@ -19,7 +20,8 @@ namespace bpkg
 
     "\h|SYNOPSIS|
 
-     \c{\b{bpkg pkg-build}|\b{build} [<options>] [\b{--upgrade}|\b{-u} | \b{--patch}|\b{-p}] <pkg-spec>...\n
+     \c{\b{bpkg pkg-build}|\b{build} [<options>] [\b{--upgrade}|\b{-u} | \b{--patch}|\b{-p}]\n
+        \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ [<cfg-var>... \b{--}] <pkg-spec>...\n
         \b{bpkg pkg-build}|\b{build} [<options>] \ \b{--upgrade}|\b{-u} | \b{--patch}|\b{-p}}
 
      \c{<pkg-spec> = [<flags>](([<scheme>\b{:}]<pkg>[\b{/}<ver>])\b{,}...[\b{@}<rep-loc>] | \n
@@ -98,6 +100,14 @@ namespace bpkg
      \l{bpkg-pkg-unpack(1)} commands for more information on the semantics of
      specifying the package as an archive or a directory.
 
+     Additional configuration variables (<cfg-var>), if any, should be
+     specified before packages (<pkg-spec>) and should be separated with
+     \cb{--}. Such variables are effective only when configuring and only for
+     packages that were explicitly specified on the command line (they can
+     also be specified to apply only to specific packages using the argument
+     grouping mechanism discussed below). See \l{bpkg-pkg-configure(1)} for
+     more information on configuration variables.
+
      By default a package that is specified explicitly on the command line is
      built to \i{hold}: it will not be considered for automatic removal if it
      no longer has any dependents. Only versions from repositories that were
@@ -145,9 +155,10 @@ namespace bpkg
   {
     "\h|PKG-BUILD PACKAGE OPTIONS|
 
-     The following options can be grouped to apply to a specific \ci{pkg-spec}
-     as well as specified globally, in which case they apply to all the
-     specified packages (see \l{bpkg-argument-grouping(1)} for details)."
+     The following options (as well as additional configuration variables) can
+     be grouped to apply to a specific \ci{pkg-spec} as well as specified
+     globally, in which case they apply to all the specified packages (see
+     \l{bpkg-argument-grouping(1)} for details)."
 
     // NOTE: if adding a new option here, don't forget to also update
     //       {validate,merge,compare,print}_options() in pkg-build.cxx!
