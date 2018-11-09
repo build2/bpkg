@@ -29,39 +29,22 @@ namespace bpkg
 
     l4 ([&]{trace << "command: " << cmd;});
 
-    // Set common vars on the configuration scope.
+    // This one is a bit tricky: we can only update all the packages at once
+    // if they don't have any package-specific variables. But let's try to
+    // handle this with the same logic (being clever again).
     //
-    cstrings gvars;
-    strings  lvars;
-    lvars.reserve (cvars.size ());
-
-    for (const string& v: cvars)
-    {
-      // Don't scope-qualify global variables.
-      //
-      if (v[0] == '!')
-        gvars.push_back (v.c_str ());
-
-      // Use path representation to get the trailing slash.
-      //
-      else
-        lvars.push_back (c.representation () + v);
-    }
-
-    // This one is a bit tricky: we can only update all the packages at once if
-    // they don't have any package-specific variables. But let's try to handle
-    // this with the same logic (being clever again).
+    // @@ If the build system supported command line variable grouping, then
+    //    we could always build at once.
     //
     string bspec;
 
-    auto run = [&trace, &o, &lvars, &gvars, &bspec] (
-      const strings& vars = strings ())
+    auto run = [&trace, &o, &cvars, &bspec] (const strings& vars = strings ())
     {
       if (!bspec.empty ())
       {
         bspec += ')';
         l4 ([&]{trace << "buildspec: " << bspec;});
-        run_b (o, verb_b::normal, gvars, lvars, vars, bspec);
+        run_b (o, verb_b::normal, cvars, vars, bspec);
         bspec.clear ();
       }
     };
@@ -154,6 +137,8 @@ namespace bpkg
     l4 ([&]{trace << "configuration: " << c;});
 
     // First read the common variables.
+    //
+    // @@ TODO: redo using argument groups.
     //
     auto read_vars = [&args](strings& v)
     {

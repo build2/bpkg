@@ -33,7 +33,7 @@ namespace bpkg
   struct pkg_command_vars
   {
     shared_ptr<selected_package> pkg;
-    strings vars;
+    strings                     vars; // Package-specific command line vars.
   };
 
   void
