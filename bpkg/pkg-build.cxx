@@ -4260,13 +4260,20 @@ namespace bpkg
       {
         if (*p.action == build_package::drop)
         {
-          transaction t (db, !simulate /* start */);
-          pkg_purge (c, t, sp, simulate); // Commits the transaction.
+          // Note that the selected system package has already gone being
+          // disfigured (see above).
+          //
+          if (sp != nullptr)
+          {
+            transaction t (db, !simulate /* start */);
+            pkg_purge (c, t, sp, simulate); // Commits the transaction.
 
-          if (verbose && !o.no_result ())
-            text << "purged " << *sp;
+            if (verbose && !o.no_result ())
+              text << "purged " << *sp;
 
-          sp = nullptr;
+            sp = nullptr;
+          }
+
           break;
         }
 

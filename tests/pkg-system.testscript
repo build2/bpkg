@@ -908,4 +908,16 @@ rep_remove += -d cfg 2>!
 
     $pkg_drop foo
   }
+
+  : unhold
+  :
+  : Test that the system package get purged being unhold.
+  :
+  {
+    $clone_cfg;
+
+    $pkg_build 'sys:foo' 2>'configured sys:foo/*';
+
+    $pkg_build ?foo 2>'purged foo/*'
+  }
 }
