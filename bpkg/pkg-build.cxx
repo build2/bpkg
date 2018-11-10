@@ -7,7 +7,7 @@
 #include <map>
 #include <set>
 #include <list>
-#include <cstring>    // strlen(), strcmp(), strchr()
+#include <cstring>    // strlen()
 #include <iostream>   // cout
 #include <algorithm>  // find_if()
 
@@ -2297,14 +2297,14 @@ namespace bpkg
 
     vector<pkg_spec> specs;
     {
-      // Parse the global configuration variables until we reach the "--"
+      // Read the common configuration variables until we reach the "--"
       // separator, eos or an argument. Non-empty variables list should always
       // be terminated with the "--". Furthermore, argument list that contains
       // anything that looks like a variable (has the '=' character) should be
       // preceded with "--".
       //
-      strings config_vars;
-      bool vars_separated (false);
+      strings cvars;
+      bool sep (false); // Seen '--'.
 
       while (args.more ())
       {
@@ -2314,7 +2314,7 @@ namespace bpkg
         //
         if (strcmp (a, "--") == 0)
         {
-          vars_separated = true;
+          sep = true;
           args.next ();
           break;
         }
@@ -2333,10 +2333,10 @@ namespace bpkg
           fail << "unexpected options group for configuration variable '"
                << v << "'";
 
-        config_vars.push_back (move (v));
+        cvars.push_back (move (v));
       }
 
-      if (!config_vars.empty () && !vars_separated)
+      if (!cvars.empty () && !sep)
         fail << "configuration variables must be separated from packages "
              << "with '--'";
 
@@ -2351,7 +2351,7 @@ namespace bpkg
         // Make sure the argument can not be misinterpreted as a configuration
         // variable.
         //
-        if (a.find ('=') != string::npos && !vars_separated)
+        if (a.find ('=') != string::npos && !sep)
           fail << "unexpected configuration variable '" << a << "'" <<
             info << "use the '--' separator to treat it as a package";
 
@@ -2365,10 +2365,10 @@ namespace bpkg
           cli::scanner& ag (args.group ());
           po.parse (ag, cli::unknown_mode::fail, cli::unknown_mode::stop);
 
-          // Merge the global and package-specific configuration variables
-          // (globals go first).
+          // Merge the common and package-specific configuration variables
+          // (commons go first).
           //
-          ps.config_vars = config_vars;
+          ps.config_vars = cvars;
 
           while (ag.more ())
           {
@@ -4260,8 +4260,8 @@ namespace bpkg
       {
         if (*p.action == build_package::drop)
         {
-          // Note that the selected system package has already gone being
-          // disfigured (see above).
+          // Note that the selected system package is gone once disfigured
+          // (see above).
           //
           if (sp != nullptr)
           {

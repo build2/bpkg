@@ -129,32 +129,67 @@ namespace bpkg
                bool recursive,
                bool immediate,
                bool all,
-               cli::scanner& args)
+               cli::group_scanner& args)
   {
     tracer trace ("pkg_command");
 
     const dir_path& c (o.directory ());
     l4 ([&]{trace << "configuration: " << c;});
 
-    // First read the common variables.
+    // First sort arguments into the package names and variables.
     //
-    // @@ TODO: redo using argument groups.
-    //
-    auto read_vars = [&args](strings& v)
-    {
-      for (; args.more (); args.next ())
-      {
-        string a (args.peek ());
-
-        if (a.find ('=') == string::npos)
-          break;
-
-        v.push_back (move (a));
-      }
-    };
-
     strings cvars;
-    read_vars (cvars);
+    bool sep (false); // Seen '--'.
+
+    struct pkg_arg
+    {
+      package_name name;
+      strings      vars;
+    };
+    vector<pkg_arg> pkg_args;
+
+    while (args.more ())
+    {
+      string a (args.next ());
+
+      // If we see the "--" separator, then we are done parsing common
+      // variables.
+      //
+      if (!sep && a == "--")
+      {
+        sep = true;
+        continue;
+      }
+
+      if (!sep && a.find ('=') != string::npos)
+      {
+        // Make sure this is not a (misspelled) package name with an option
+        // group.
+        //
+        if (args.group ().more ())
+          fail << "unexpected options group for variable '" << a << "'";
+
+        cvars.push_back (move (a));
+      }
+      else
+      {
+        package_name n (parse_package_name (a, false /* allow_version */));
+
+        // Read package-specific variables.
+        //
+        strings vars;
+        for (cli::scanner& ag (args.group ()); ag.more (); )
+        {
+          string a (ag.next ());
+          if (a.find ('=') == string::npos)
+            fail << "unexpected group argument '" << a << "'";
+
+          vars.push_back (move (a));
+        }
+
+        pkg_args.push_back (pkg_arg {move (n), move (vars)});
+      }
+    }
 
     // Check that options and arguments are consistent.
     //
@@ -168,10 +203,10 @@ namespace bpkg
         dr << fail << "both --immediate|-i and --recursive|-r specified";
       else if (all)
       {
-        if (args.more ())
+        if (!pkg_args.empty ())
           dr << fail << "both --all|-a and package argument specified";
       }
-      else if (!args.more ())
+      else if (pkg_args.empty ())
         dr << fail << "package name argument expected";
 
       if (!dr.empty ())
@@ -221,32 +256,24 @@ namespace bpkg
       }
       else
       {
-        while (args.more ())
+        for (auto& a: pkg_args)
         {
-          package_name n (parse_package_name (args.next (),
-                                              false /* allow_version */));
-
-          shared_ptr<selected_package> p (db.find<selected_package> (n));
+          shared_ptr<selected_package> p (db.find<selected_package> (a.name));
 
           if (p == nullptr)
-            fail << "package " << n << " does not exist in configuration "
-                 << c;
+            fail << "package " << a.name << " does not exist in "
+                 << "configuration " << c;
 
           if (p->state != package_state::configured)
-            fail << "package " << n << " is " << p->state <<
+            fail << "package " << a.name << " is " << p->state <<
               info << "expected it to be configured";
 
           if (p->substate == package_substate::system)
-            fail << "cannot " << cmd << " system package " << n;
+            fail << "cannot " << cmd << " system package " << a.name;
 
           l4 ([&]{trace << *p;});
 
-          // Read package-specific variables.
-          //
-          strings vars;
-          read_vars (vars);
-
-          add (p, move (vars));
+          add (p, move (a.vars));
         }
       }
 

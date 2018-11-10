@@ -15,7 +15,7 @@
 namespace bpkg
 {
   inline int
-  pkg_update (const pkg_update_options& o, cli::scanner& args)
+  pkg_update (const pkg_update_options& o, cli::group_scanner& args)
   {
     return pkg_command ("update",
                         o,

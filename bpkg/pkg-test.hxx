@@ -14,7 +14,7 @@
 namespace bpkg
 {
   inline int
-  pkg_test (const pkg_test_options& o, cli::scanner& args)
+  pkg_test (const pkg_test_options& o, cli::group_scanner& args)
   {
     return pkg_command ("test",
                         o,

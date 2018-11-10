@@ -286,6 +286,9 @@ namespace bpkg
   // command that we use to clone submodules. So to truncate local submodule
   // histories we will use the file URL notation for local repositories.
   //
+  // @@ An update: we don't use the 'submodule--helper clone' command anymore.
+  //    Should we switch to the local path notation for the file:// protocol?
+  //
   static string
   to_git_url (const repository_url& url)
   {

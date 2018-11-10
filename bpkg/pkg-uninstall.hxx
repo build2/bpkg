@@ -15,7 +15,7 @@
 namespace bpkg
 {
   inline int
-  pkg_uninstall (const pkg_uninstall_options& o, cli::scanner& args)
+  pkg_uninstall (const pkg_uninstall_options& o, cli::group_scanner& args)
   {
     return pkg_command ("uninstall", o,
                         "" /* cmd_variant */,

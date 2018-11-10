@@ -22,7 +22,8 @@ namespace bpkg
 
      \c{\b{bpkg pkg-build}|\b{build} [<options>] [\b{--upgrade}|\b{-u} | \b{--patch}|\b{-p}]\n
         \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ [<cfg-var>... \b{--}] <pkg-spec>...\n
-        \b{bpkg pkg-build}|\b{build} [<options>] \ \b{--upgrade}|\b{-u} | \b{--patch}|\b{-p}}
+        \b{bpkg pkg-build}|\b{build} [<options>] \ \b{--upgrade}|\b{-u} | \b{--patch}|\b{-p}\n
+        \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ [<cfg-var>... \b{--}]}
 
      \c{<pkg-spec> = [<flags>](([<scheme>\b{:}]<pkg>[\b{/}<ver>])\b{,}...[\b{@}<rep-loc>] | \n
         \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ [\b{@}]<rep-loc> \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ | \n
@@ -104,7 +105,7 @@ namespace bpkg
      specified before packages (<pkg-spec>) and should be separated with
      \cb{--}. Such variables are effective only when configuring and only for
      packages that were explicitly specified on the command line (they can
-     also be specified to apply only to specific packages using the argument
+     also be specified to only apply to specific packages using the argument
      grouping mechanism discussed below). See \l{bpkg-pkg-configure(1)} for
      more information on configuration variables.
 

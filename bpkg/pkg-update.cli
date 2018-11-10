@@ -15,7 +15,7 @@ namespace bpkg
 
     "\h|SYNOPSIS|
 
-     \c{\b{bpkg pkg-update}|\b{update} [<options>] [<vars>] (<pkg> [<vars>])...\n
+     \c{\b{bpkg pkg-update}|\b{update} [<options>] [<vars>] <pkg>...\n
         \b{bpkg pkg-update}|\b{update} [<options>] [<vars>] \b{--all}|\b{-a}}
 
      \h|DESCRIPTION|
@@ -24,14 +24,15 @@ namespace bpkg
      form) or all the held packages (the second form, see
      \l{bpkg-pkg-status(1)}). Underneath, this command doesn't do much more
      than run \cb{b update} (or one of its \c{update-for-*} variants; see
-     \cb{--for|-f}).
+     \cb{--for|-f}). In the first form the specified packages must have been
+     previously configured with \l{bpkg-pkg-build(1)} or
+     \l{bpkg-pkg-configure(1)}.
 
-     In the first form the specified packages must have been previously
-     configured with \l{bpkg-pkg-build(1)} or \l{bpkg-pkg-configure(1)}.
      Additional command line variables (<vars>, normally \cb{config.*}) can be
-     passed to the build system by either specifying them before the packages,
-     in which case they apply to the whole configuration, or after a specific
-     package, in which case they apply only to this package."
+     passed to the build system. Such variables apply to all the specified
+     packages but can also be specified to only apply to specific packages
+     using the argument grouping mechanism (see \l{bpkg-argument-grouping(1)}
+     for details)."
   }
 
   class pkg_update_options: configuration_options

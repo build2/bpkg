@@ -25,8 +25,8 @@ namespace bpkg
 
      A source code package inherits the common \cb{build2} configuration
      values that were specified when creating the configuration
-     (\l{bpkg-cfg-create(1)}). Additional, package-specific configuration
-     variables can be specified before the package name.
+     (\l{bpkg-cfg-create(1)}). Additional package-specific configuration
+     variables can be passed to \cb{pkg-configure} (<cfg-var>).
 
      A system package is specified using the \c{\b{sys:}<pkg>[/<ver>]}
      syntax. If the package version (<ver>) is not specified, then it is

@@ -28,7 +28,7 @@ namespace bpkg
                bool recursive,
                bool immediate,
                bool all,
-               cli::scanner& args);
+               cli::group_scanner& args);
 
   struct pkg_command_vars
   {

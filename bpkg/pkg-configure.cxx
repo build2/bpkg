@@ -238,12 +238,21 @@ namespace bpkg
     //
     string n;
     strings vars;
+    bool sep (false); // Seen '--'.
 
     while (args.more ())
     {
       string a (args.next ());
 
-      if (a.find ('=') != string::npos)
+      // If we see the "--" separator, then we are done parsing variables.
+      //
+      if (!sep && a == "--")
+      {
+        sep = true;
+        continue;
+      }
+
+      if (!sep && a.find ('=') != string::npos)
         vars.push_back (move (a));
       else if (n.empty ())
         n = move (a);

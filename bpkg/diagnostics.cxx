@@ -4,7 +4,6 @@
 
 #include <bpkg/diagnostics.hxx>
 
-#include <cstring>  // strchr()
 #include <iostream>
 
 #include <odb/statement.hxx>

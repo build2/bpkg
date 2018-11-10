@@ -6,7 +6,6 @@
 #  include <signal.h> // signal()
 #endif
 
-#include <cstring>   // strcmp()
 #include <iostream>
 
 #include <bpkg/types.hxx>
@@ -321,20 +320,23 @@ try
     //
 #define PKG_COMMAND(CMD, SEP) COMMAND_IMPL(pkg_, "pkg-", CMD, SEP, true)
 
-    PKG_COMMAND (build,     true);  // Keeps the '--' separator in args.
+    // These commands need the '--' separator to be kept in args.
+    //
+    PKG_COMMAND (build,     true);
+    PKG_COMMAND (clean,     true);
+    PKG_COMMAND (configure, true);
+    PKG_COMMAND (install,   true);
+    PKG_COMMAND (test,      true);
+    PKG_COMMAND (uninstall, true);
+    PKG_COMMAND (update,    true);
+
     PKG_COMMAND (checkout,  false);
-    PKG_COMMAND (clean,     false);
-    PKG_COMMAND (configure, false);
     PKG_COMMAND (disfigure, false);
     PKG_COMMAND (drop,      false);
     PKG_COMMAND (fetch,     false);
-    PKG_COMMAND (install,   false);
     PKG_COMMAND (purge,     false);
     PKG_COMMAND (status,    false);
-    PKG_COMMAND (test,      false);
-    PKG_COMMAND (uninstall, false);
     PKG_COMMAND (unpack,    false);
-    PKG_COMMAND (update,    false);
     PKG_COMMAND (verify,    false);
 
     // rep-* commands

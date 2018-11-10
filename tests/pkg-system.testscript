@@ -911,7 +911,8 @@ rep_remove += -d cfg 2>!
 
   : unhold
   :
-  : Test that the system package get purged being unhold.
+  : Test that the system package get purged once unheld (and there are
+  : no dependencies).
   :
   {
     $clone_cfg;

@@ -7,6 +7,7 @@
 
 #include <memory>   // make_shared()
 #include <string>   // to_string()
+#include <cstring>  // strcmp(), strchr()
 #include <utility>  // move(), forward(), declval(), make_pair()
 #include <cassert>  // assert()
 #include <iterator> // make_move_iterator()
@@ -31,6 +32,9 @@ namespace bpkg
   using std::make_shared;
   using std::make_move_iterator;
   using std::to_string;
+
+  using std::strcmp;
+  using std::strchr;
 
   // <libbutl/utility.mxx>
   //

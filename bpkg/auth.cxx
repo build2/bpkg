@@ -5,9 +5,8 @@
 #include <bpkg/auth.hxx>
 
 #include <ratio>
-#include <limits>    // numeric_limits
-#include <cstring>   // strlen(), strcmp()
-#include <iterator>  // ostreambuf_iterator
+#include <limits>   // numeric_limits
+#include <iterator> // ostreambuf_iterator
 
 #include <libbutl/sha256.mxx>
 #include <libbutl/base64.mxx>

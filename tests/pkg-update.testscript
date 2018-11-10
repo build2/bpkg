@@ -52,14 +52,10 @@ pkg_configure += -d cfg "config.cxx=$config.cxx" 2>!
 pkg_disfigure += -d cfg
 pkg_fetch     += -d cfg 2>!
 pkg_purge     += -d cfg
+pkg_build     += -d cfg
 pkg_unpack    += -d cfg 2>!
 rep_add       += -d cfg 2>!
 rep_fetch     += -d cfg --auth all 2>!
-
-# Sometimes we need to run underlying build update operation with -j 1 options
-# to have an output that we can match reliably.
-#
-j1 = --build-option -j --build-option 1
 
 : no-name
 :
@@ -103,7 +99,7 @@ $* 2>>EOE != 0
     $pkg_fetch libhello/1.0.0 && $pkg_unpack libhello;
     $pkg_configure libhello;
 
-    $* $j1 libhello 2>>~%EOE%;
+    $* libhello 2>>~%EOE%;
       %(c\+\+|ar|ld) .+%{6}
       updated libhello/1.0.0
       EOE
@@ -124,7 +120,7 @@ $* 2>>EOE != 0
   $clone_cfg;
   $pkg_unpack -e $src/libhello-1.0.0 && $pkg_configure libhello;
 
-  $* $j1 libhello 2>>~%EOE%;
+  $* libhello 2>>~%EOE%;
     %(mkdir|c\+\+|ar|ld) .+%{8}
     updated libhello/1.0.0
     EOE
@@ -136,4 +132,54 @@ $* 2>>EOE != 0
 
   $pkg_disfigure libhello 2>'disfigured libhello/1.0.0';
   $pkg_purge     libhello 2>'purged libhello/1.0.0'
+}
+
+: vars
+:
+{
+  +$clone_cfg
+  +$rep_fetch $rep/hello --trust $cert_fp &cfg/.bpkg/certs/**
+
+  : global-and-local
+  :
+  {
+    $clone_cfg;
+    $pkg_fetch libhello/1.0.0 && $pkg_unpack libhello;
+    $pkg_configure libhello;
+
+    $* -v config.cxx.poptions=-DG libhello +{ config.cxx.poptions+=-DL } 2>>~%EOE%;
+      %b .+ config\.cxx\.poptions=-DG config\.cxx\.poptions\+=-DL update.+%
+      %.{6}
+      updated libhello/1.0.0
+      EOE
+
+    $pkg_disfigure libhello 2>'disfigured libhello/1.0.0';
+    $pkg_purge     libhello 2>'purged libhello/1.0.0'
+  }
+
+  : all-packages
+  :
+  {
+    $clone_cfg;
+    $pkg_build libhello 2>!; # To hold libhello package.
+
+    $* -v --all config.cxx.poptions=-DG 2>>~%EOE%;
+      %b .+ config\.cxx\.poptions=-DG update.+%
+      %.{6}
+      updated libhello/1.0.0
+      EOE
+
+    $pkg_disfigure libhello 2>'disfigured libhello/1.0.0';
+    $pkg_purge     libhello 2>'purged libhello/1.0.0'
+  }
+
+  : var-opts
+  :
+  {
+    $clone_cfg;
+
+    $* config.cxx.poptions=-DG +{ --all } 2>>EOE != 0
+      error: unexpected options group for variable 'config.cxx.poptions=-DG'
+      EOE
+  }
 }
