@@ -57,7 +57,7 @@ EOE
   : verbose
   :
   $* $src/foo-2.tar.gz 2>>/~%EOE% != 0
-  foo-2/manifest:8:1: error: unknown name 'color' in package manifest
+  foo-2/manifest:10:1: error: unknown name 'color' in package manifest
   %  info: package archive .+/foo-2.tar.gz%
   EOE
 
@@ -69,3 +69,25 @@ EOE
   :
   $* --ignore-unknown $src/foo-2.tar.gz 2>'valid package foo 2'
 }
+
+: manifest-expand
+:
+$* --deep --ignore-unknown --manifest $src/foo-2.tar.gz >>EOO
+  : 1
+  name: foo
+  version: 2
+  summary: The "Foo" utility
+  license: MIT
+  description: \
+  This package contains the foo utility.
+
+  \
+  changes: \
+  Version 2
+
+    * First public release.
+
+  \
+  url: http://www.example.org/foo
+  email: foo-users@example.org
+  EOO

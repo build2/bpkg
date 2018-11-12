@@ -17,14 +17,16 @@ namespace bpkg
   int
   pkg_verify (const pkg_verify_options&, cli::scanner& args);
 
-  // Verify archive is a valid package and return its manifest. Throw
-  // failed if invalid or if something goes wrong. If diag is false,
-  // then don't issue diagnostics about the reason why the package is
-  // invalid.
+  // Verify archive is a valid package and return its manifest. If requested,
+  // expand the file-referencing manifest values (description, changes, etc),
+  // setting them to the contents of files they refer to. Throw failed if
+  // invalid or if something goes wrong. If diag is false, then don't issue
+  // diagnostics about the reason why the package is invalid.
   //
   package_manifest
   pkg_verify (const common_options&,
               const path& archive,
+              bool expand_values,
               bool ignore_unknown,
               bool diag = true);
 

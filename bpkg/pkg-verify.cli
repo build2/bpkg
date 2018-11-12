@@ -22,8 +22,10 @@ namespace bpkg
      The \cb{pkg-verify} command verifies that the specified archive file is a
      valid \cb{bpkg} package. Specifically, it checks that the file's name and
      the top-level directory inside the archive match the canonical
-     \c{\i{name}\b{-}\i{version}} form and that there is a valid manifest
-     file in that top-level directory."
+     \c{\i{name}\b{-}\i{version}} form and that there is a valid manifest file
+     in that top-level directory. Additionally, if the \cb{--deep} option is
+     specified, it also checks that the files referenced by the \cb{*-file}
+     manifest values are present in the archive and are not empty."
   }
 
   class pkg_verify_options: common_options
@@ -36,6 +38,11 @@ namespace bpkg
        invalid. Just return the error status."
     }
 
+    bool --deep
+    {
+      "Verify files referenced by the \cb{*-file} manifest values."
+    }
+
     bool --ignore-unknown
     {
       "Ignore unknown manifest entries. By default, \cb{bpkg} will refuse to
@@ -46,7 +53,10 @@ namespace bpkg
     bool --manifest
     {
       "Instead of printing the successful verification result in the
-       human-readable form, dump the package manifest to \cb{stdout}."
+       human-readable form, dump the package manifest to \cb{stdout}. If the
+       \cb{--deep} option is specified, then in the resulting manifest the
+       \cb{*-file} values are replaced with the contents of the referenced
+       files."
     }
   };
 }

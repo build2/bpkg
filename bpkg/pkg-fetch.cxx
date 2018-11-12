@@ -162,7 +162,11 @@ namespace bpkg
 
     // Verify archive is a package and get its manifest.
     //
-    package_manifest m (pkg_verify (co, a, true));
+    package_manifest m (pkg_verify (co,
+                                    a,
+                                    false /* expand_values */,
+                                    true /* ignore_unknown */));
+
     l4 ([&]{trace << m.name << " " << m.version;});
 
     // Check/diagnose an already existing package.

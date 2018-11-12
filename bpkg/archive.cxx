@@ -30,7 +30,7 @@ namespace bpkg
   start_extract (const common_options& co,
                  const path& a,
                  const path& f,
-                 bool err)
+                 bool diag)
   {
     assert (!f.empty () && f.relative ());
 
@@ -106,17 +106,17 @@ namespace bpkg
       if (verb >= 2)
         print_process (args);
 
-      // If err is false, then redirect stderr to stdout.
+      // If diag is false, then redirect stderr to stdout.
       //
-      auto_fd nfd (err ? nullfd : fdnull ());
+      auto_fd nfd (diag ? nullfd : fdnull ());
 
       if (i != 0)
       {
-        dpr = process (dpp, &args[what = 0], 0,   -1, (err ? 2 : nfd.get ()));
-        tpr = process (tpp, &args[what = i], dpr, -1, (err ? 2 : nfd.get ()));
+        dpr = process (dpp, &args[what = 0], 0,   -1, (diag ? 2 : nfd.get ()));
+        tpr = process (tpp, &args[what = i], dpr, -1, (diag ? 2 : nfd.get ()));
       }
       else
-        tpr = process (tpp, &args[what = 0], 0, -1, (err ? 2 : nfd.get ()));
+        tpr = process (tpp, &args[what = 0], 0, -1, (diag ? 2 : nfd.get ()));
 
       return make_pair (move (dpr), move (tpr));
     }
@@ -132,10 +132,10 @@ namespace bpkg
   }
 
   string
-  extract (const common_options& o, const path& a, const path& f)
+  extract (const common_options& o, const path& a, const path& f, bool diag)
   try
   {
-    pair<process, process> pr (start_extract (o, a, f));
+    pair<process, process> pr (start_extract (o, a, f, diag));
 
     try
     {
@@ -163,12 +163,17 @@ namespace bpkg
     // While it is reasonable to assuming the child process issued diagnostics
     // if exited with an error status, tar, specifically, doesn't mention the
     // archive name. So print the error message whatever the child exit status
-    // is.
+    // is, if the diagnostics is requested.
     //
-    fail << "unable to extract " << f << " from " << a << endf;
+    if (diag)
+      error << "unable to extract " << f << " from " << a;
+
+    throw failed ();
   }
   catch (const process_error& e)
   {
+    // Note: this is not a "file can't be extracted" case, so no diag check.
+    //
     fail << "unable to extract " << f << " from " << a << ": " << e << endf;
   }
 }

@@ -20,7 +20,11 @@ using namespace butl;
 namespace bpkg
 {
   package_manifest
-  pkg_verify (const common_options& co, const path& af, bool iu, bool diag)
+  pkg_verify (const common_options& co,
+              const path& af,
+              bool ev,
+              bool iu,
+              bool diag)
   try
   {
     dir_path pd (package_dir (af));
@@ -60,6 +64,52 @@ namespace bpkg
               info << "expected from manifest '" << ed << "'";
 
           throw failed ();
+        }
+
+        // Expand the *-file manifest values, if requested.
+        //
+        if (ev)
+        {
+          // Expand the description-file manifest value.
+          //
+          if (m.description && m.description->file)
+          {
+            path f (pd / m.description->path);
+            string s (extract (co, af, f, diag));
+
+            if (s.empty ())
+            {
+              if (diag)
+                error << "description-file manifest value in package archive "
+                      << af << " references empty file " << f;
+
+              throw failed ();
+            }
+
+            m.description = text_file (move (s));
+          }
+
+          // Expand the changes-file manifest values.
+          //
+          for (auto& c: m.changes)
+          {
+            if (c.file)
+            {
+              path f (pd / c.path);
+              string s (extract (co, af, f, diag));
+
+              if (s.empty ())
+              {
+                if (diag)
+                  error << "changes-file manifest value in package archive "
+                        << af << " references empty file " << f;
+
+                throw failed ();
+              }
+
+              c = text_file (move (s));
+            }
+          }
         }
 
         return m;
@@ -190,7 +240,7 @@ namespace bpkg
     try
     {
       package_manifest m (
-        pkg_verify (o, a, o.ignore_unknown (), !o.silent ()));
+        pkg_verify (o, a, o.deep (), o.ignore_unknown (), !o.silent ()));
 
       if (o.manifest ())
       {

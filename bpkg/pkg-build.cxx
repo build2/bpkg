@@ -187,7 +187,10 @@ namespace bpkg
 
     package_manifest m (
       sp->state == package_state::fetched
-      ? pkg_verify (options, a->absolute () ? *a : c / *a, true)
+      ? pkg_verify (options,
+                    a->absolute () ? *a : c / *a,
+                    false /* expand_values */,
+                    true /* ignore_unknown */)
       : pkg_verify (sp->effective_src_root (c), true));
 
     // Copy the possibly fixed up version from the selected package.
@@ -2912,7 +2915,11 @@ namespace bpkg
                 info << "'" << package << "' does not appear to be a valid "
                      << "package archive: ";
 
-              package_manifest m (pkg_verify (o, a, true, diag));
+              package_manifest m (pkg_verify (o,
+                                              a,
+                                              false /* expand_values */,
+                                              true /* ignore_unknown */,
+                                              diag));
 
               // This is a package archive.
               //
