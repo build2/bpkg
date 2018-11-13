@@ -148,7 +148,7 @@ $* 2>>EOE != 0
     $pkg_configure libhello;
 
     $* -v config.cxx.poptions=-DG libhello +{ config.cxx.poptions+=-DL } 2>>~%EOE%;
-      %b .+ config\.cxx\.poptions=-DG config\.cxx\.poptions\+=-DL update.+%
+      %.+ config\.cxx\.poptions=-DG config\.cxx\.poptions\+=-DL update.+%
       %.{6}
       updated libhello/1.0.0
       EOE
@@ -164,7 +164,7 @@ $* 2>>EOE != 0
     $pkg_build libhello 2>!; # To hold libhello package.
 
     $* -v --all config.cxx.poptions=-DG 2>>~%EOE%;
-      %b .+ config\.cxx\.poptions=-DG update.+%
+      %.+ config\.cxx\.poptions=-DG update.+%
       %.{6}
       updated libhello/1.0.0
       EOE
