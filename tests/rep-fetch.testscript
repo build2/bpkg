@@ -486,9 +486,9 @@ if ($remote != true)
       3 package\(s\) in 2 repository\(s\)
       EOE
 
-    $rep_list >>"EOO"
-      dir:($rep/libbar.git) ($rep/libbar.git)
-        prerequisite dir:($rep/style-basic.git) ($rep/style-basic.git)
+    $rep_list >>~%EOO%
+      %dir:.+libbar\.git dir\+file:///.+libbar\.git%
+      %  prerequisite dir:.+style-basic\.git dir\+file:///.+style-basic\.git%
       EOO
   }
 
@@ -506,9 +506,9 @@ if ($remote != true)
       3 package\(s\) in 2 repository\(s\)
       EOE
 
-    $rep_list >>"EOO"
-      dir:($rep/libbar.git) ($rep/libbar.git)
-        prerequisite dir:($rep/style-basic.git) ($rep/style-basic.git)
+    $rep_list >>~%EOO%
+      %dir:.+libbar\.git dir\+file:///.+libbar\.git%
+      %  prerequisite dir:.+style-basic\.git dir\+file:///.+style-basic\.git%
       EOO
   }
 
@@ -527,9 +527,9 @@ if ($remote != true)
         3 package\(s\) in 2 repository\(s\)
         EOE
 
-      $rep_list >>"EOO"
-        dir:($rep/libbar.git) ($rep/libbar.git)
-          prerequisite dir:($rep/style-basic.git) ($rep/style-basic.git)
+      $rep_list >>~%EOO%
+        %dir:.+libbar\.git dir\+file:///.+libbar\.git%
+        %  prerequisite dir:.+style-basic\.git dir\+file:///.+style-basic\.git%
         EOO
     }
 
@@ -544,9 +544,9 @@ if ($remote != true)
         3 package\(s\) in 2 repository\(s\)
         EOE
 
-      $rep_list >>"EOO"
-        dir:($rep/libbar.git) ($rep/libbar.git)
-          prerequisite dir:($rep/style-basic.git) ($rep/style-basic.git)
+      $rep_list >>~%EOO%
+        %dir:.+libbar\.git dir\+file:///.+libbar\.git%
+        %  prerequisite dir:.+style-basic\.git dir\+file:///.+style-basic\.git%
         EOO
     }
   }
@@ -771,7 +771,7 @@ else
 
     $rep_list >>~%EOO%
       %git:.+libbar#master file:.+libbar\.git#master%
-      %  prerequisite git:.+style-basic#stable file:.+style-basic#stable \(heads/master\)%
+      %  prerequisite git:.+style-basic#stable git\+file:.+style-basic#stable \(heads/master\)%
       EOO
   }
 

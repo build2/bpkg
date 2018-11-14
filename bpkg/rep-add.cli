@@ -40,9 +40,9 @@ namespace bpkg
      case of a local repository, its content (for example, the presence of the
      \cb{.git/} subdirectory). Without any identifying information the
      \cb{pkg} type is assumed unless explicitly specified with the \cb{--type}
-     option. Note, however, that the \cb{dir} repository type is never guessed
-     since it is not easily distinguishable from local \cb{pkg} and \cb{git}
-     repositories.
+     option or in the URL scheme. Note, however, that the \cb{dir} repository
+     type is never guessed since it is not easily distinguishable from local
+     \cb{pkg} and \cb{git} repositories.
      "
   }
 

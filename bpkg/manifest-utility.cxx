@@ -92,7 +92,9 @@ namespace bpkg
   parse_location (const string& s, optional<repository_type> ot)
   try
   {
-    repository_url u (s);
+    typed_repository_url tu (s);
+
+    repository_url& u (tu.url);
     assert (u.path);
 
     // Make the relative path absolute using the current directory.
@@ -102,13 +104,24 @@ namespace bpkg
 
     // Guess the repository type to construct the repository location:
     //
-    // 1. If type is specified as an option use that (but validate
-    //    incompatible scheme/type e.g., git/pkg).
+    // 1. If the type is specified in the URL scheme, then use that (but
+    //    validate that it matches the --type option, if present).
     //
-    // 2. See guess_type() function description in libbpkg/manifest.hxx for
-    //    the algorithm details.
+    // 2. If the type is specified as an option, then use that.
     //
-    repository_type t (ot ? *ot : guess_type (u, true));
+    // Validate the protocol/type compatibility (e.g. git:// vs pkg) for both
+    // cases.
+    //
+    // 3. See the guess_type() function description in <libbpkg/manifest.hxx>
+    //    for the algorithm details.
+    //
+    if (tu.type && ot && tu.type != ot)
+      fail << to_string (*ot) << " repository type mismatch for location '"
+           << s << "'";
+
+    repository_type t (tu.type ? *tu.type :
+                       ot      ? *ot      :
+                       guess_type (tu.url, true /* local */));
 
     try
     {
@@ -125,7 +138,7 @@ namespace bpkg
       // If the pkg repository type was guessed, then suggest the user to
       // specify the type explicitly.
       //
-      if (!ot && t == repository_type::pkg)
+      if (!tu.type && !ot && t == repository_type::pkg)
         dr << info << "consider using --type to specify repository type";
 
       dr << endf;

@@ -14,9 +14,9 @@ rep_list += -d cfg
   : none
   :
   $* 2>>EOE != 0
-  error: repository location argument expected
-    info: run 'bpkg help rep-add' for more information
-  EOE
+    error: repository location argument expected
+      info: run 'bpkg help rep-add' for more information
+    EOE
 
   : empty
   :
@@ -24,15 +24,15 @@ rep_list += -d cfg
     $clone_cfg;
 
     $* '' 2>>EOE != 0
-    error: invalid repository location '': empty URL
-    EOE
+      error: invalid repository location '': empty URL
+      EOE
   }
 
   : unknown-type
   :
   $* 'repo' --type unknown 2>>EOE != 0
-  error: invalid value 'unknown' for option '--type'
-  EOE
+    error: invalid value 'unknown' for option '--type'
+    EOE
 
   : no-version
   :
@@ -40,9 +40,9 @@ rep_list += -d cfg
     $clone_cfg;
 
     $* 'stable' 2>>/~%EOE% != 0
-    %error: invalid pkg repository location '.+/no-version/stable': missing repository version%
-      info: consider using --type to specify repository type
-    EOE
+      %error: invalid pkg repository location '.+/no-version/stable': missing repository version%
+        info: consider using --type to specify repository type
+      EOE
   }
 
   : git-invalid-fragment
@@ -51,18 +51,28 @@ rep_list += -d cfg
     $clone_cfg;
 
     $* 'git://example.org/repo#' 2>>EOE != 0
-    error: invalid git repository location 'git://example.org/repo#': missing refname or commit id for git repository
-    EOE
+      error: invalid git repository location 'git://example.org/repo#': missing refname or commit id for git repository
+      EOE
   }
 
-  : pkg-git-scheme
+  : git-scheme-pkg-type
   :
   {
     $clone_cfg;
 
     $* 'git://example.org/repo' --type pkg 2>>EOE != 0
-    error: invalid pkg repository location 'git://example.org/repo': unsupported scheme for pkg repository
-    EOE
+      error: invalid pkg repository location 'git://example.org/repo': unsupported scheme for pkg repository
+      EOE
+  }
+
+  : git-pkg-types
+  :
+  {
+    $clone_cfg;
+
+    $* 'git+https://example.org/repo' --type pkg 2>>EOE != 0
+      error: pkg repository type mismatch for location 'git+https://example.org/repo'
+      EOE
   }
 
   : invalid-path
@@ -74,8 +84,8 @@ rep_list += -d cfg
     $clone_cfg;
 
     $* "$s" 2>>~%EOE% != 0
-    %error: invalid repository path '.+/': invalid filesystem path%
-    EOE
+      %error: invalid repository path '.+/': invalid filesystem path%
+      EOE
   }
 
   : type-detection
@@ -85,40 +95,53 @@ rep_list += -d cfg
 
     : git-scheme
     :
-    $clone_cfg;
-    $* 'git://example.org/repo#master' 2>>EOE
-      added git:example.org/repo#master
-      EOE
+    {
+      $clone_cfg;
+
+      $* 'git://example.org/repo#master' 2>>EOE
+        added git:example.org/repo#master
+        EOE
+    }
 
     : http-git
     :
-    $clone_cfg;
-    $* 'http://example.org/repo.git#master' 2>>EOE
-      added git:example.org/repo#master
-      EOE
+    {
+      $clone_cfg;
+
+      $* 'http://example.org/repo.git#master' 2>>EOE
+        added git:example.org/repo#master
+        EOE
+    }
 
     : http-pkg
     :
-    $clone_cfg;
-    $* 'http://example.org/1/repo' 2>>EOE
-      added pkg:example.org/repo
-      EOE
+    {
+      $clone_cfg;
+
+      $* 'http://example.org/1/repo' 2>>EOE
+        added pkg:example.org/repo
+        EOE
+    }
 
     : file-git
     :
-    $clone_cfg && mkdir -p repo/.git;
+    {
+      $clone_cfg && mkdir -p repo/.git;
 
-    $* 'repo' 2>>/~%EOE%
-      %added git:.+/repo%
-      EOE
+      $* 'repo' 2>>/~%EOE%
+        %added git:.+/repo%
+        EOE
+    }
 
     : file-pkg
     :
-    $clone_cfg;
+    {
+      $clone_cfg;
 
-    $* '1/repo' 2>>/~%EOE%
-      %added .+/repo%
-      EOE
+      $* '1/repo' 2>>/~%EOE%
+        %added .+/repo%
+        EOE
+    }
   }
 }
 
@@ -157,34 +180,52 @@ rep_list += -d cfg
 
   : pkg
   :
-  $clone_cfg;
+  {
+    $clone_cfg;
 
-  $* 'http://pkg.example.org/1/testing' 2>>EOE;
-    added pkg:example.org/testing
-    EOE
+    $* 'http://pkg.example.org/1/testing' 2>>EOE;
+      added pkg:example.org/testing
+      EOE
 
-  $* 'https://www.example.org/1/testing' 2>>EOE;
-    updated pkg:example.org/testing
-    EOE
+    $* 'https://www.example.org/1/testing' 2>>EOE;
+      updated pkg:example.org/testing
+      EOE
 
-  $rep_list >>EOO
-    pkg:example.org/testing https://www.example.org/1/testing
-    EOO
+    $rep_list >>EOO
+      pkg:example.org/testing https://www.example.org/1/testing
+      EOO
+  }
 
   : git
   :
+  {
+    $clone_cfg;
+
+    $* 'git://example.org/testing.git#master' 2>>~%EOE%;
+      %added git:example.org/testing#master%
+      EOE
+
+    $* 'https://www.example.org/testing.git#master' 2>>EOE;
+      updated git:example.org/testing#master
+      EOE
+
+    $rep_list >>EOO
+      git:example.org/testing#master https://www.example.org/testing.git#master
+      EOO
+  }
+}
+
+: typed-url
+:
+{
   $clone_cfg;
 
-  $* 'git://example.org/testing.git#master' 2>>~%EOE%;
-    %added git:example.org/testing#master%
-    EOE
-
-  $* 'https://www.example.org/testing.git#master' 2>>EOE;
-    updated git:example.org/testing#master
+  $* 'git+https://example.org/repo' 2>>EOE;
+    added git:example.org/repo
     EOE
 
   $rep_list >>EOO
-    git:example.org/testing#master https://www.example.org/testing.git#master
+    git:example.org/repo git+https://example.org/repo
     EOO
 }
 

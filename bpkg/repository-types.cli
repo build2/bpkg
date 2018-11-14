@@ -16,6 +16,17 @@ structure, and the format of their URLs. Currently three types of repositories
 are supported: archive-based \cb{pkg}, directory-based \cb{dir}, and version
 control-based \cb{git}.
 
+The repository location may specify the repository type as part of the URL
+scheme component in the \c{\i{type}\b{+}\i{protocol}} form. For example:
+
+\
+git+https://example.com/foo
+dir+file:///tmp/repo
+\
+
+Note that the explicit specification is only needed when the correct type
+cannot be guessed from the URL. See \l{bpkg-rep-add(1)} for details.
+
 
 \h|PKG REPOSITORIES|
 

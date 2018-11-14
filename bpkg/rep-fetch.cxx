@@ -537,8 +537,8 @@ namespace bpkg
           }
           catch (const invalid_argument& e)
           {
-            fail << "invalid relative repository location '" << l
-                 << "': " << e <<
+            fail << "invalid relative repository location '" << l << "': "
+                 << e <<
               info << "base repository location is " << rl;
           }
 
