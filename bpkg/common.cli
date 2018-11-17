@@ -81,6 +81,16 @@ namespace bpkg
        \li|Even more detailed information.||"
     }
 
+    size_t --jobs|-j
+    {
+      "<num>",
+      "Number of jobs to perform in parallel. If this option is not
+       specified or specified with the \c{0} value, then the number of
+       available hardware threads is used. This option is also propagated
+       when performing build system operations such as \cb{update},
+       \cb{test}, etc."
+    }
+
     // In the future we may also have --structured-result, similar to the
     // build system.
     //

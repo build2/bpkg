@@ -44,7 +44,16 @@ namespace bpkg
       {
         bspec += ')';
         l4 ([&]{trace << "buildspec: " << bspec;});
-        run_b (o, verb_b::normal, cvars, vars, bspec);
+
+        run_b (o,
+               verb_b::normal,
+               (o.jobs_specified ()
+                ? strings ({"-j", to_string (o.jobs ())})
+                : strings ()),
+               cvars,
+               vars,
+               bspec);
+
         bspec.clear ();
       }
     };
