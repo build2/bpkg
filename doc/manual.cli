@@ -960,8 +960,11 @@ requires: ? ; VC 15 or later if targeting Windows.
 requires: ? ; libc++ if using Clang on Mac OS.
 \
 
+Notice that in the last two cases the id is omitted altogether with only the
+comment specifying the requirement.
+
 Note that \c{requires} should also be used to specify dependencies on external
-libraries, that is, then ones not packaged or not in the repository. In this
+libraries, that is, the ones not packaged or not in the repository. In this
 case it may make sense to also specify the version constraint. For example:
 
 \
@@ -980,7 +983,8 @@ c++03
 c++11
 c++14
 c++17
-c++21
+c++20
+c++23
 \
 
 \
