@@ -546,6 +546,7 @@ license: <licenses> [; <comment>]
 [depends]: [?][*] <alternatives> [; <comment>]
 [requires]: [?] [<alternatives>] [; <comment>]
 
+[builds]: <class-expr> [; <comment>]
 [build-include]: <config>[/<target>] [; <comment>]
 [build-exclude]: <config>[/<target>] [; <comment>]
 \
@@ -1001,6 +1002,84 @@ clang[_X.Y]  ; For example: clang_6, clang_3.4, clang_3.4.1
 msvc[_NU]    ; For example: msvc_14, msvc_15u3
 \
 
+
+\h2#manifest-package-builds|\c{builds}|
+
+\
+[builds]: [<class-uset> ':' ] [<class-expr>] [; <comment>]
+
+<class-uset> := <class-name> [ <class-name>]*
+<class-expr> := <class-term> [ <class-term>]*
+<class-term> := ('+'|'-'|'&')['!'](<class-name> | '(' <class-expr> ')')
+\
+
+The package build configurations. They specify the build configuration classes
+the package should or should not be built for by automated build bots. For
+example:
+
+\
+builds: -windows
+\
+
+Build configurations can belong to multiple classes with their names and
+semantics varying between different build bot deployments. However, the
+pre-defined \c{none}, \c{default}, and \c{all} classes are always provided. If
+no \c{builds} value is specified in the package manifest, then the \c{default}
+class is assumed.
+
+\N|See the Build Configurations page of the build bot deployment for the list
+of available build configurations and their classes.|
+
+The \c{builds} value consists of an optional underlying class set
+(\c{<class-uset>}) followed by a class set expression (\c{<class-expr>}). The
+underlying set is a space-separated list of class names that define the set of
+build configurations to consider. If not specified, then all the
+configurations belonging to the \c{default} class are assumed. The class set
+expression can then be used to exclude certain configurations from this
+initial set.
+
+The class expression is a space-separated list of terms that are evaluated
+from left to right. The first character of each term determines whether the
+build configuration that belong to its set are added to (\c{+}), subtracted
+from (\c{-}), or intersected with (\c{&}) the current set. If the second
+character in the term is \c{!}, then its set of configuration is inverted
+against the underlying set. The term itself can be either the class name or a
+parenthesized expression. Some examples:
+
+\
+builds: none                     ; None
+builds: all                      ; All
+builds: default legacy           ; Default and legacy
+builds: -windows                 ; Default except Windows
+builds: all : -windows           ; All except Windows
+builds: all : &gcc               ; All with GCC only
+builds: gcc : -optimized         ; GCC without optimization
+builds: gcc : &( +linux +macos ) ; GCC on Linux or Mac OS
+\
+
+Notice that the colon and parentheses must be separated with spaces from both
+preceding and following terms.
+
+Multiple \c{builds} values are evaluated in the order specified and as if they
+were all part of a single expression. Only the first value may specify the
+underlying set. The main reason for having multiple values is to provide
+individual reasons (as the \c{builds} value comments) for different parts of
+the expression. For example:
+
+\
+builds: default experimental ; Only modern compilers are supported.
+builds: -gcc                 ; GCC is not supported
+builds: -clang               ; Clang is not supported
+\
+
+\N|The \c{builds} value comments are used by the web interface (\c{brep}) to
+display the reason for the build configuration exclusion.|
+
+After evaluating all the \c{builds} values, the final configuration set can be
+further fine-tuned using the \l{#manifest-package-include-exclude
+\c{build-{include,exclude\}}} patterns.
+
+
 \h2#manifest-package-include-exclude|\c{build-{include,exclude\}}|
 
 \
@@ -1009,11 +1088,11 @@ msvc[_NU]    ; For example: msvc_14, msvc_15u3
 \
 
 The package build inclusions and exclusions. The \c{build-include} and
-\c{build-exclude} values specify the build configurations and, optionally,
-targets the package should or should not be built for by automated build
-bots. The \i{config} and \i{target} values are filesystem wildcard patterns
-which are matched against the build configuration names and target names (see
-the \c{bbot} documentation for details).
+\c{build-exclude} values further reduce the configuration set produced by
+evaluating the \l{#manifest-package-builds \c{builds}} values. The \i{config}
+and \i{target} values are filesystem wildcard patterns which are matched
+against the build configuration names and target names (see the \c{bbot}
+documentation for details).
 
 The exclusion and inclusion patterns are applied in the order specified with
 the first match determining whether the package will be built for this
@@ -1036,7 +1115,7 @@ build-exclude: * ; Only supported on Linux.
 \
 
 Note that the comment of the matching exclusion is used by the web interface
-(\c{brep}) to display the reason for the build exclusion.
+(\c{brep}) to display the reason for the build configuration exclusion.
 
 
 \h#manifest-package-list-pkg|Package List Manifest for \cb{pkg} Repositories|
