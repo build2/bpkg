@@ -405,8 +405,11 @@ namespace bpkg
         // We don't allow a package specified on the command line multiple
         // times to have different sets of options/variables.
         //
-        assert (!user_selection () ||
-                (keep_out == p.keep_out && config_vars == p.config_vars));
+        // Note, however, that this doesn't relate to the keep_out flag that
+        // also depends on whether the selected package is external or not, if
+        // present, and may change during simulation.
+        //
+        assert (!user_selection () || config_vars == p.config_vars);
 
         if (p.keep_out)
           keep_out = p.keep_out;
@@ -3787,10 +3790,10 @@ namespace bpkg
         {
           // First, we check if the refinement is required, ignoring the
           // unsatisfiable dependency versions. If we end up refining the
-          // execution plan, such dependencies might be dropped, and then there
-          // will be nothing to complain about. When no more refinements are
-          // necessary we will run the diagnostics check, to make sure that the
-          // unsatisfiable dependency, if left, is reported.
+          // execution plan, such dependencies might be dropped, and then
+          // there will be nothing to complain about. When no more refinements
+          // are necessary we will run the diagnostics check, to make sure
+          // that the unsatisfiable dependency, if left, is reported.
           //
           auto need_refinement = [&eval_dep, &deps, rec_pkgs, &db, &o] (
             bool diag = false) -> bool
