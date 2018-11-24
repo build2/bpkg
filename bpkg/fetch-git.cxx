@@ -1228,6 +1228,40 @@ namespace bpkg
         }
       }
 
+      // If we fetch the whole history, then the --unshallow option is
+      // required to make sure that the shallow-fetched branches are also
+      // re-fetched. The problem is that git fails if this option is used for
+      // a complete repository. A straightforward way to check if our
+      // repository is shallow would be using the 'git rev-parse
+      // --is-shallow-repository' command. However, the
+      // --is-shallow-repository option is not available prior to 2.15.
+      // That's why we will check for the .git/shallow file existence,
+      // instead.
+      //
+      auto shallow_repo = [co, &dir] ()
+      {
+        try
+        {
+          dir_path d (git_line (co, ".git directory path",
+                                co.git_option (),
+                                "-C", dir,
+                                "rev-parse",
+                                "--git-dir"));
+
+          // Resolve the .git directory path if it is relative.
+          //
+          if (d.relative ())
+            d = dir / d;
+
+          return exists (d / "shallow");
+        }
+        catch (const invalid_path& e)
+        {
+          fail << "invalid .git directory path '" << e.path << "': " << e
+               << endg;
+        }
+      };
+
       // Note that we suppress the (too detailed) fetch command output if the
       // verbosity level is 1. However, we still want to see the progress in
       // this case, unless stderr is not directed to a terminal.
@@ -1242,12 +1276,22 @@ namespace bpkg
                     "-C", dir,
                     "fetch",
                     "--no-recurse-submodules",
-                    shallow ? cstrings ({"--depth", "1"}) : cstrings (),
+
+                    shallow         ? cstrings ({"--depth", "1"}) :
+                    shallow_repo () ? cstrings ({"--unshallow"})  :
+                    cstrings (),
+
                     verb == 1 && fdterm (2) ? opt ("--progress") : nullopt,
                     verb < 2 ? opt ("-q") : verb > 3 ? opt ("-v") : nullopt,
                     "origin",
                     remapped_refspecs ? *remapped_refspecs : refspecs))
         fail << "unable to fetch " << dir << endg;
+
+      // If we fetched shallow then let's make sure that the method we use to
+      // detect if the repository is shallow still works.
+      //
+      if (shallow && !shallow_repo ())
+        fail << "unable to test if " << dir << " is shallow" << endg;
     };
 
     // Print the progress indicator.
