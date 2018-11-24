@@ -403,18 +403,17 @@ namespace bpkg
       if (p.user_selection ())
       {
         // We don't allow a package specified on the command line multiple
-        // times to have different sets of options/variables.
+        // times to have different sets of options/variables. Given that, it's
+        // tempting to assert that the options/variables don't change if we
+        // merge into a user selection. That's, however, not the case due to
+        // the iterative plan refinement implementation details (variables are
+        // only saved into the pre-entered dependencies, etc.).
         //
-        // Note, however, that this doesn't relate to the keep_out flag that
-        // also depends on whether the selected package is external or not, if
-        // present, and may change during simulation.
-        //
-        assert (!user_selection () || config_vars == p.config_vars);
-
         if (p.keep_out)
           keep_out = p.keep_out;
 
-        config_vars = move (p.config_vars);
+        if (!p.config_vars.empty ())
+          config_vars = move (p.config_vars);
 
         // Propagate the user-selection tag.
         //
@@ -3629,7 +3628,7 @@ namespace bpkg
               {},                    // Constraints.
               d.system,
               keep_out,
-              strings (),            // Configuration vars.
+              strings (),            // Configuration variables.
               {package_name ()},     // Required by (command line).
               0};                    // Adjustments.
 
