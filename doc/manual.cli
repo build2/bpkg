@@ -1092,26 +1092,35 @@ The package build inclusions and exclusions. The \c{build-include} and
 evaluating the \l{#manifest-package-builds \c{builds}} values. The \i{config}
 and \i{target} values are filesystem wildcard patterns which are matched
 against the build configuration names and target names (see the \c{bbot}
-documentation for details).
+documentation for details). In particular, the \c{*} wildcard matches zero or
+more characters within the name component while the \c{**} sequence matches
+across the components. Plus, wildcard-only pattern components match absent
+name components. For example:
+
+\
+build-exclude: windows**     # matches windows_10-msvc_15
+build-exclude: macos*-gcc**  # matches macos_10.13-gcc_8.1-O3
+build-exclude: linux-gcc*-*  # matches linux-gcc_8.1 and linux-gcc_8.1-O3
+\
 
 The exclusion and inclusion patterns are applied in the order specified with
 the first match determining whether the package will be built for this
 configuration and target. If none of the patterns match (or none we
 specified), then the package is built.
 
-As an example, the following value will exclude 32-bit builds for the VC14
-compiler:
+As an example, the following value will exclude 32-bit builds for the MSVC
+14 compiler:
 
 \
-build-exclude: *-msvc_14*/i?86-* ; Linker crash.
+build-exclude: *-msvc_14**/i?86-** ; Linker crash.
 \
 
 As another example, the following pair of values will make sure that a package
 is only built on Linux:
 
 \
-build-include: linux*
-build-exclude: * ; Only supported on Linux.
+build-include: linux**
+build-exclude: ** ; Only supported on Linux.
 \
 
 Note that the comment of the matching exclusion is used by the web interface
