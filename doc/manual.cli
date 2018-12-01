@@ -463,7 +463,7 @@ which are ignored, these comments are considered to be part of the value. For
 example:
 
 \
-email: foo-users@example.com; Public mailing list.
+email: foo-users@example.com ; Public mailing list.
 \
 
 It is recommended that you keep comments short, single-sentence. Note that
@@ -639,8 +639,8 @@ For complex licensing schemes it is recommended to add comments as an aid to
 the user, for example:
 
 \
-license: LGPLv2, MIT; If linking with GNU TLS.
-license: BSD;         If linking with OpenSSL.
+license: LGPLv2, MIT ; If linking with GNU TLS.
+license: BSD         ; If linking with OpenSSL.
 \
 
 To assist automated processing, the following pre-defined values should be
@@ -882,10 +882,10 @@ For example:
 
 \
 depends: libz
-depends: libfoo ~1.2.0; Only works with libfoo 1.2.*.
+depends: libfoo ~1.2.0 ; Only works with libfoo 1.2.*.
 depends: libgnutls >= 1.2.3 | libopenssl >= 2.3.4
-depends: ? libboost-regex >= 1.52.0; Only if no C++11 <regex>.
-depends: ? libqtcore >= 5.0.0; Only if GUI is enabled.
+depends: ? libboost-regex >= 1.52.0 ; Only if no C++11 <regex>.
+depends: ? libqtcore >= 5.0.0 ; Only if GUI is enabled.
 \
 
 It is recommended that you specify unconditional dependencies first with
@@ -969,7 +969,7 @@ libraries, that is, the ones not packaged or not in the repository. In this
 case it may make sense to also specify the version constraint. For example:
 
 \
-requires: zlib >= 1.2.0; Most systems already have it or get from zlib.net.
+requires: zlib >= 1.2.0 ; Most systems already have it or get from zlib.net.
 \
 
 It is recommended that you specify unconditional requirements first with
@@ -1047,14 +1047,14 @@ against the underlying set. The term itself can be either the class name or a
 parenthesized expression. Some examples:
 
 \
-builds: none                     ; None
-builds: all                      ; All
-builds: default legacy           ; Default and legacy
-builds: -windows                 ; Default except Windows
-builds: all : -windows           ; All except Windows
-builds: all : &gcc               ; All with GCC only
-builds: gcc : -optimized         ; GCC without optimization
-builds: gcc : &( +linux +macos ) ; GCC on Linux or Mac OS
+builds: none                     ; None.
+builds: all                      ; All.
+builds: default legacy           ; Default and legacy.
+builds: -windows                 ; Default except Windows.
+builds: all : -windows           ; All except Windows.
+builds: all : &gcc               ; All with GCC only.
+builds: gcc : -optimized         ; GCC without optimization.
+builds: gcc : &( +linux +macos ) ; GCC on Linux or Mac OS.
 \
 
 Notice that the colon and parentheses must be separated with spaces from both
@@ -1068,8 +1068,8 @@ the expression. For example:
 
 \
 builds: default experimental ; Only modern compilers are supported.
-builds: -gcc                 ; GCC is not supported
-builds: -clang               ; Clang is not supported
+builds: -gcc                 ; GCC is not supported.
+builds: -clang               ; Clang is not supported.
 \
 
 \N|The \c{builds} value comments are used by the web interface (\c{brep}) to
