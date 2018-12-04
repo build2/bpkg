@@ -467,7 +467,7 @@ email: foo-users@example.com ; Public mailing list.
 \
 
 It is recommended that you keep comments short, single-sentence. Note that
-non-comment semicolons in such values have to be escape with a backslash, for
+non-comment semicolons in such values have to be escaped with a backslash, for
 example:
 
 \
