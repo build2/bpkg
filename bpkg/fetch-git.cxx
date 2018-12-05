@@ -1704,14 +1704,21 @@ namespace bpkg
     // if we produce any untracked files in the tree between checkouts down
     // the road.
     //
-    if (!run_git (
-          co,
-          co.git_option (),
-          "-C", dir,
-          "reset",
-          "--hard",
-          verb < 2 ? opt ("-q") : nullopt,
-          commit))
+    // Note that the `git reset --hard` command running non-quiet prints the
+    // `HEAD is now at...` message to stdout (which is a deliberate behavior;
+    // see reply to the 631ae70d-9b5f-613d-5b6f-5064d548a894@codesynthesis.com
+    // issue report for details). To avoid messing up bpkg output we will
+    // redirect git stdout to stderr.
+    //
+    process pr (start_git (co,
+                           2 /* stdout */, 2 /* stderr */,
+                           co.git_option (),
+                           "-C", dir,
+                           "reset",
+                           "--hard",
+                           verb < 2 ? opt ("-q") : nullopt,
+                           commit));
+    if (!pr.wait ())
       fail << "unable to reset to " << commit << endg;
 
     if (!run_git (
