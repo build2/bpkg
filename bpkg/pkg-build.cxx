@@ -975,13 +975,14 @@ namespace bpkg
           bp.constraints.emplace_back (name.string (), *dp.constraint);
 
         // Now collect this prerequisite. If it was actually collected
-        // (i.e., it wasn't already there) and we are forcing an upgrade
-        // and the version is not held, then warn, unless we are running
-        // quiet. Downgrade or upgrade of a held version -- refuse.
+        // (i.e., it wasn't already there) and we are forcing a downgrade or
+        // upgrade, then refuse for a held version, warn for a held package,
+        // and print the info message otherwise, unless the verbosity level is
+        // less than two.
         //
         // Note though that while the prerequisite was collected it could have
         // happen because it is an optional package and so not being
-        // pre-collected earlier. Meanwhile the package version was specified
+        // pre-collected earlier. Meanwhile the package was specified
         // explicitly and we shouldn't consider that as a dependency-driven
         // up/down-grade enforcement.
         //
@@ -996,19 +997,24 @@ namespace bpkg
 
         if (p != nullptr && force && !dep_optional)
         {
-          const version& av (p->available_version ());
-
-          // Fail if downgrade non-system package or held.
+          // Fail if the version is held. Otherwise, warn if the package is
+          // held.
           //
-          bool u (av > dsp->version);
-          bool f (dsp->hold_version || (!u && !dsp->system ()));
+          bool f (dsp->hold_version);
+          bool w (!f && dsp->hold_package);
 
-          if (verb || f)
+          if (f || w || verb >= 2)
           {
+            const version& av (p->available_version ());
+
+            bool u (av > dsp->version);
             bool c (d.constraint);
+
             diag_record dr;
 
-            (f ? dr << fail : dr << warn)
+            (f ? dr << fail :
+             w ? dr << warn :
+             dr << info)
               << "package " << name << " dependency on "
               << (c ? "(" : "") << d << (c ? ")" : "") << " is forcing "
               << (u ? "up" : "down") << "grade of " << *dsp << " to ";

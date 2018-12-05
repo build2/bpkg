@@ -629,37 +629,34 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
         info: specify sys:libfoo/1.1.0 if it is available from the system
       EOE
 
-    : upgrade-warning
+    : upgrade
     :
     {
       $clone_cfg;
       $pkg_fetch -e $src/libfoo-0.0.1.tar.gz && $pkg_unpack libfoo;
       $pkg_fetch -e $src/libfix-0.0.1.tar.gz && $pkg_unpack libfix;
 
-      $* libbaz >>EOO 2>>EOE;
+      $* libbaz >>EOO;
         upgrade libfoo/1.1.0 (required by libbar libbaz)
         new libbar/1.1.0 (required by libbaz)
         new libbaz/1.1.0
         EOO
-        warning: package libbar dependency on (libfoo == 1.1.0) is forcing upgrade of libfoo/0.0.1 to 1.1.0
-        EOE
 
       $pkg_purge libfoo 2>'purged libfoo/0.0.1';
       $pkg_purge libfix 2>'purged libfix/0.0.1'
     }
 
-    : downgrade-error
+    : downgrade
     :
     {
       $clone_cfg;
       $pkg_fetch -e $src/libfoo-1.2.0.tar.gz && $pkg_unpack libfoo;
 
-      $* libbaz 2>>EOE != 0;
-        error: package libbar dependency on (libfoo == 1.1.0) is forcing downgrade of libfoo/1.2.0 to 1.1.0
-          info: explicitly request version downgrade to continue
-        info: while satisfying libbar/1.1.0
-        info: while satisfying libbaz/1.1.0
-        EOE
+      $* libbaz >>EOO;
+        downgrade libfoo/1.1.0 (required by libbar libbaz)
+        new libbar/1.1.0 (required by libbaz)
+        new libbaz/1.1.0
+        EOO
 
       $rep_add $rep/t4a && $rep_fetch;
 
@@ -728,13 +725,11 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
     : its dependencies.
     :
     $clone_cfg;
-    $* libbar >>EOO 2>>EOE
+    $* libbar >>EOO
       upgrade libfoo/1.1.0 (required by libbar)
       upgrade libbar/1.1.0
       reconfigure libbaz (dependent of libbar libfoo)
       EOO
-      warning: package libbar dependency on (libfoo == 1.1.0) is forcing upgrade of libfoo/1.0.0 to 1.1.0
-      EOE
 
     : foo
     :
@@ -1226,6 +1221,98 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
 : dependency
 :
 {
+  : upgrade-diag
+  :
+  {
+    +$clone_root_cfg && $rep_fetch $rep/t1
+
+    : warning
+    :
+    {
+      $clone_cfg;
+
+      $* libfoo 2>!;
+      $rep_fetch $rep/t4b;
+
+      $* libbar --yes 2>>~%EOE%;
+        warning: package libbar dependency on (libfoo == 1.1.0) is forcing upgrade of libfoo/1.0.0 to 1.1.0
+        disfigured libfoo/1.0.0
+        %.*
+        %.*fetched libfoo/1.1.0%
+        unpacked libfoo/1.1.0
+        configured libfoo/1.1.0
+        %.*
+        %.*fetched libbar/1.1.0%
+        unpacked libbar/1.1.0
+        configured libbar/1.1.0
+        %info: .+ is up to date%
+        updated libbar/1.1.0
+        EOE
+
+      $pkg_drop libbar libfoo
+    }
+
+    : error
+    :
+    {
+      $clone_cfg;
+
+      $* libfoo/1.0.0 2>!;
+      $rep_fetch $rep/t4b;
+
+      $* libbar 2>>EOE != 0;
+        error: package libbar dependency on (libfoo == 1.1.0) is forcing upgrade of libfoo/1.0.0 to 1.1.0
+          info: package version libfoo/1.0.0 is held
+          info: explicitly request version upgrade to continue
+        info: while satisfying libbar/1.1.0
+        EOE
+
+      $pkg_drop libfoo
+    }
+
+    : info
+    :
+    {
+      $clone_cfg && $rep_fetch $rep/t2;
+
+      $* libbar --yes 2>!;
+      $rep_fetch $rep/t4b;
+
+      $* -v libbar --yes 2>>~%EOE%;
+        info: package libbar dependency on (libfoo == 1.1.0) is forcing upgrade of libfoo/1.0.0 to 1.1.0
+        %.*
+        EOE
+
+      $pkg_drop libbar
+    }
+
+    : none
+    :
+    {
+      $clone_cfg && $rep_fetch $rep/t2;
+
+      $* libbar --yes 2>!;
+      $rep_fetch $rep/t4b;
+
+      $* libbar --yes 2>>~%EOE%;
+        disfigured libbar/1.0.0
+        disfigured libfoo/1.0.0
+        %.*
+        %.*fetched libfoo/1.1.0%
+        unpacked libfoo/1.1.0
+        configured libfoo/1.1.0
+        %.*
+        %.*fetched libbar/1.1.0%
+        unpacked libbar/1.1.0
+        configured libbar/1.1.0
+        %info: .+ is up to date%
+        updated libbar/1.1.0
+        EOE
+
+      $pkg_drop libbar
+    }
+  }
+
   : unknown
   :
   {
