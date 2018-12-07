@@ -456,7 +456,7 @@ lower-case (for example, \c{requires} values such as \c{c++11} or
 seems unlikely \c{gplv2} would be better than \c{GPLv2}.|
 
 A number of name-value pairs described below allow for the value proper to be
-optionally followed by ';' and a comment. Such comments serve as additional
+optionally followed by \c{;} and a comment. Such comments serve as additional
 documentation for the user and should be full sentence(s), that is start with
 a capital letter and end with a period. Note that unlike \c{#}-style comments
 which are ignored, these comments are considered to be part of the value. For
