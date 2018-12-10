@@ -1027,8 +1027,11 @@ pre-defined \c{none}, \c{default}, and \c{all} classes are always provided. If
 no \c{builds} value is specified in the package manifest, then the \c{default}
 class is assumed.
 
-\N|See the Build Configurations page of the build bot deployment for the list
-of available build configurations and their classes.|
+\N|A build configuration class can also derive from another class in which
+case configurations that belong to the derived class are treated as also
+belonging to the base class (or classes, recursively). See the Build
+Configurations page of the build bot deployment for the list of available
+build configurations and their classes.|
 
 The \c{builds} value consists of an optional underlying class set
 (\c{<class-uset>}) followed by a class set expression (\c{<class-expr>}). The
@@ -1053,6 +1056,7 @@ builds: default legacy           ; Default and legacy.
 builds: -windows                 ; Default except Windows.
 builds: all : -windows           ; All except Windows.
 builds: all : &gcc               ; All with GCC only.
+builds: all : &gcc-8+            ; All with GCC 8 and up only.
 builds: gcc : -optimized         ; GCC without optimization.
 builds: gcc : &( +linux +macos ) ; GCC on Linux or Mac OS.
 \
