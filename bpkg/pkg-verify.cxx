@@ -70,46 +70,23 @@ namespace bpkg
         //
         if (ev)
         {
-          // Expand the description-file manifest value.
-          //
-          if (m.description && m.description->file)
-          {
-            path f (pd / m.description->path);
-            string s (extract (co, af, f, diag));
-
-            if (s.empty ())
+          m.load_files (
+            [&pd, &co, &af, diag] (const string& n, const path& p)
             {
-              if (diag)
-                error << "description-file manifest value in package archive "
-                      << af << " references empty file " << f;
-
-              throw failed ();
-            }
-
-            m.description = text_file (move (s));
-          }
-
-          // Expand the changes-file manifest values.
-          //
-          for (auto& c: m.changes)
-          {
-            if (c.file)
-            {
-              path f (pd / c.path);
+              path f (pd / p);
               string s (extract (co, af, f, diag));
 
               if (s.empty ())
               {
                 if (diag)
-                  error << "changes-file manifest value in package archive "
+                  error << n << " manifest value in package archive "
                         << af << " references empty file " << f;
 
                 throw failed ();
               }
 
-              c = text_file (move (s));
-            }
-          }
+              return s;
+            });
         }
 
         return m;
