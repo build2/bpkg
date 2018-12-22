@@ -17,7 +17,7 @@ namespace bpkg
   bool
   satisfies (const version& v, const dependency_constraint& c)
   {
-    assert (!c.empty ());
+    assert (!c.empty () && c.complete ());
 
     if (v == wildcard_version)
       return true;
@@ -45,7 +45,7 @@ namespace bpkg
   bool
   satisfies (const dependency_constraint& l, const dependency_constraint& r)
   {
-    assert (!l.empty () && !r.empty ());
+    assert (!l.empty () && l.complete () && !r.empty () && r.complete ());
 
     // Note: the revision ignoring logic is still unclear/unimplemented. It
     // seems it will be specific to each case below.

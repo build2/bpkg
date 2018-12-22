@@ -171,7 +171,7 @@ namespace bpkg
 
     // Verify the directory is a package and get its manifest.
     //
-    package_manifest m (pkg_verify (d, true));
+    package_manifest m (pkg_verify (d, true /* ignore_unknown */));
     l4 ([&]{trace << d << ": " << m.name << " " << m.version;});
 
     // Check/diagnose an already existing package.

@@ -90,4 +90,20 @@ $* --deep --ignore-unknown --manifest $src/foo-2.tar.gz >>EOO
   \
   url: http://www.example.org/foo
   email: foo-users@example.org
+  depends: bar == 2
+  EOO
+
+: incomplete-dependency
+:
+$* --ignore-unknown --manifest $src/foo-2.tar.gz >>EOO
+  : 1
+  name: foo
+  version: 2
+  summary: The "Foo" utility
+  license: MIT
+  description-file: README
+  changes-file: NEWS
+  url: http://www.example.org/foo
+  email: foo-users@example.org
+  depends: bar == $
   EOO

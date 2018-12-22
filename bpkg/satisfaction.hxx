@@ -13,6 +13,9 @@
 
 namespace bpkg
 {
+  // Note: all of the following functions expect the package dependency
+  // constraints to be complete.
+
   // Return true if version satisfies the constraint.
   //
   bool

@@ -56,7 +56,7 @@ namespace bpkg
        human-readable form, dump the package manifest to \cb{stdout}. If the
        \cb{--deep} option is specified, then in the resulting manifest the
        \cb{*-file} values are replaced with the contents of the referenced
-       files."
+       files and the package dependency constraints are completed."
     }
   };
 }

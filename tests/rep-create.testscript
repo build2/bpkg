@@ -28,12 +28,23 @@
     $clone_rep;
 
     $* 1/stable/ 2>>/~%EOE% &1/stable/packages.manifest;
+      added bar 1
       added foo 1
-      %1 package\(s\) in .+/stable/%
+      %2 package\(s\) in .+/stable/%
       EOE
 
     $rep_info -p --manifest 1/stable/ >>EOO
       : 1
+      name: bar
+      version: 1
+      summary: The "Bar" utility
+      license: MIT
+      url: http://www.example.org/bar
+      email: bar-users@example.org
+      depends: foo == 1
+      location: bar-1.tar.gz
+      sha256sum: 514a99f5fadb94f946f8abff59caa9c3cc442cd4f30d4383a1cf6d26ca058036
+      :
       name: foo
       version: 1
       summary: The "Foo" utility
@@ -51,15 +62,26 @@
     $clone_rep;
 
     $* --key $key 1/stable/ 2>>/~%EOE% &1/stable/packages.manifest;
+      added bar 1
       added foo 1
       warning: --key option ignored
         info: repository manifest contains no certificate
         info: run 'bpkg help rep-create' for more information
-      %1 package\(s\) in .+/stable/%
+      %2 package\(s\) in .+/stable/%
       EOE
 
     $rep_info -p --manifest 1/stable/ >>EOO
       : 1
+      name: bar
+      version: 1
+      summary: The "Bar" utility
+      license: MIT
+      url: http://www.example.org/bar
+      email: bar-users@example.org
+      depends: foo == 1
+      location: bar-1.tar.gz
+      sha256sum: 514a99f5fadb94f946f8abff59caa9c3cc442cd4f30d4383a1cf6d26ca058036
+      :
       name: foo
       version: 1
       summary: The "Foo" utility
@@ -96,13 +118,24 @@
 
     $* --key $key 1/stable/ 2>>/~%EOE% &1/stable/packages.manifest \
                                        &1/stable/signature.manifest;
+      added bar 1
       added foo 1
-      %1 package\(s\) in .+/stable/%
+      %2 package\(s\) in .+/stable/%
       EOE
 
     $rep_info --cert-fingerprint -p --manifest 1/stable/ >>~"%EOO%"
       $cert_fp
       : 1
+      name: bar
+      version: 1
+      summary: The "Bar" utility
+      license: MIT
+      url: http://www.example.org/bar
+      email: bar-users@example.org
+      depends: foo == 1
+      location: bar-1.tar.gz
+      sha256sum: 514a99f5fadb94f946f8abff59caa9c3cc442cd4f30d4383a1cf6d26ca058036
+      :
       name: foo
       version: 1
       summary: The "Foo" utility
@@ -118,6 +151,7 @@
   :
   $clone_rep;
   $* 1/stable/ 2>>EOE &1/stable/packages.manifest != 0
+    added bar 1
     added foo 1
     error: --key option required
       info: repository manifest contains a certificate

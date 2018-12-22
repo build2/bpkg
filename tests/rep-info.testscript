@@ -251,4 +251,29 @@ else
   : 1
   email: user@example.com
   EOO
+
+  : complete-dependency
+  :
+  $* -p --manifest "$rep/libbar.git#master" >>~%EOO%d
+    : 1
+    name: libbar
+    version: 1.0.0
+    summary: libbar
+    license: MIT
+    url: http://example.org/libbar
+    email: pkg@example.org
+    depends: style-basic >= 1.0.0
+    location: libbar
+    %fragment: \.+%
+    :
+    name: libmbar
+    version: 1.0.0
+    summary: libmbar
+    license: MIT
+    url: http://example.org/libmbar
+    email: pkg@example.org
+    depends: style-basic >= 1.0.0
+    location: libmbar
+    %fragment: \.+%
+    EOO
 }

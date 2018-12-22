@@ -477,6 +477,8 @@ namespace bpkg
     mutable optional<version_type> system_version_;
 
   public:
+    // Note: dependency constraints must be complete.
+    //
     available_package (package_manifest&& m)
         : id (move (m.name), m.version),
           version (move (m.version)),

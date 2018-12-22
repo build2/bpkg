@@ -19,15 +19,17 @@ namespace bpkg
 
   // Verify archive is a valid package and return its manifest. If requested,
   // expand the file-referencing manifest values (description, changes, etc),
-  // setting them to the contents of files they refer to. Throw failed if
-  // invalid or if something goes wrong. If diag is false, then don't issue
-  // diagnostics about the reason why the package is invalid.
+  // setting them to the contents of files they refer to as well as complete
+  // the dependency constraints. Throw failed if invalid or if something goes
+  // wrong. If diag is false, then don't issue diagnostics about the reason
+  // why the package is invalid.
   //
   package_manifest
   pkg_verify (const common_options&,
               const path& archive,
-              bool expand_values,
               bool ignore_unknown,
+              bool expand_values,
+              bool complete_depends = true,
               bool diag = true);
 
   // Similar to the above but verifies that a source directory is a valid

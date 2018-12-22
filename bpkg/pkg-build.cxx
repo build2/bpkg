@@ -65,6 +65,8 @@ namespace bpkg
     //
     if (c)
     {
+      assert (c->complete ());
+
       // If the revision is not explicitly specified, then compare ignoring the
       // revision. The idea is that when the user runs 'bpkg build libfoo/1'
       // and there is 1+1 available, it should just work. The user shouldn't
@@ -189,9 +191,9 @@ namespace bpkg
       sp->state == package_state::fetched
       ? pkg_verify (options,
                     a->absolute () ? *a : c / *a,
-                    false /* expand_values */,
-                    true /* ignore_unknown */)
-      : pkg_verify (sp->effective_src_root (c), true));
+                    true /* ignore_unknown */,
+                    false /* expand_values */)
+      : pkg_verify (sp->effective_src_root (c), true /* ignore_unknown */));
 
     // Copy the possibly fixed up version from the selected package.
     //
@@ -1558,7 +1560,8 @@ namespace bpkg
     // Note that we don't pass allow_stub flag so the system wildcard version
     // will (naturally) not be patched.
     //
-    optional<standard_version> v (parse_standard_version (sv.string ()));
+    string vs (sv.string ());
+    optional<standard_version> v (parse_standard_version (vs));
 
     if (!v)
     {
@@ -1571,7 +1574,7 @@ namespace bpkg
 
     try
     {
-      return dependency_constraint ("~" + sv.string ());
+      return dependency_constraint ("~" + vs);
     }
     // Note that the only possible reason for invalid_argument exception to
     // be thrown is that minor version reached the 999 limit (see
@@ -2923,11 +2926,13 @@ namespace bpkg
                 info << "'" << package << "' does not appear to be a valid "
                      << "package archive: ";
 
-              package_manifest m (pkg_verify (o,
-                                              a,
-                                              false /* expand_values */,
-                                              true /* ignore_unknown */,
-                                              diag));
+              package_manifest m (
+                pkg_verify (o,
+                            a,
+                            true /* ignore_unknown */,
+                            false /* expand_values */,
+                            true /* complete_depends */,
+                            diag));
 
               // This is a package archive.
               //
@@ -2988,7 +2993,8 @@ namespace bpkg
                   info << "'" << package << "' does not appear to be a valid "
                        << "package directory: ";
 
-                package_manifest m (pkg_verify (d, true, diag));
+                package_manifest m (
+                  pkg_verify (d, true /* ignore_unknown */, diag));
 
                 // This is a package directory.
                 //
@@ -4535,7 +4541,9 @@ namespace bpkg
         //
         assert (sp->state == package_state::unpacked);
 
-        package_manifest m (pkg_verify (sp->effective_src_root (c), true));
+        package_manifest m (
+          pkg_verify (sp->effective_src_root (c), true /* ignore_unknown */));
+
         pkg_configure (c, o, t, sp, m.dependencies, p.config_vars, simulate);
       }
 

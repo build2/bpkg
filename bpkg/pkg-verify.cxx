@@ -22,8 +22,9 @@ namespace bpkg
   package_manifest
   pkg_verify (const common_options& co,
               const path& af,
-              bool ev,
               bool iu,
+              bool ev,
+              bool cd,
               bool diag)
   try
   {
@@ -47,7 +48,7 @@ namespace bpkg
     {
       ifdstream is (move (pr.second.in_ofd), fdstream_mode::skip);
       manifest_parser mp (is, mf.string ());
-      package_manifest m (mp, iu);
+      package_manifest m (mp, iu, cd);
       is.close ();
 
       if (wait ())
@@ -216,8 +217,12 @@ namespace bpkg
     //
     try
     {
-      package_manifest m (
-        pkg_verify (o, a, o.deep (), o.ignore_unknown (), !o.silent ()));
+      package_manifest m (pkg_verify (o,
+                                      a,
+                                      o.ignore_unknown (),
+                                      o.deep () /* expand_values   */,
+                                      o.deep () /* complete_depends */,
+                                      !o.silent ()));
 
       if (o.manifest ())
       {

@@ -316,7 +316,9 @@ namespace bpkg
 
       l4 ([&]{trace << *p;});
 
-      package_manifest m (pkg_verify (p->effective_src_root (c), true));
+      package_manifest m (
+        pkg_verify (p->effective_src_root (c), true /* ignore_unknown */));
+
       pkg_configure (c, o, t, p, m.dependencies, vars, false /* simulate */);
     }
 

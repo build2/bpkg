@@ -21,6 +21,9 @@ namespace bpkg
   int
   pkg_configure (const pkg_configure_options&, cli::scanner& args);
 
+  // Note: all of the following functions expect the package dependency
+  // constraints to be complete.
+
   // Configure the package, update its state, and commit the transaction.
   //
   void
