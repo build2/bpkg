@@ -702,10 +702,8 @@ The detailed description of the package. It can be provided either inline as a
 text fragment or by referring to a file within a package (e.g., \c{README}),
 but not both.
 
-In the web interface (\c{brep}) the description is formatted into one or more
-paragraphs using blank lines as paragraph separators. Specifically, it is not
-represented as \c{<pre>} so any kind of additional plain text formatting (for
-example, lists) will be lost and should not be used in the description.
+In the web interface (\c{brep}) the description is displayed as pre-formatted
+plain text. \N{We could use the comment to \"hint\" at the file format.}
 
 
 \h2#manifest-package-changes|\c{changes}|
@@ -746,7 +744,7 @@ changes-file: NEWS
 \
 
 In the web interface (\c{brep}) the changes are displayed as pre-formatted
-plain text. \N{We could use the comment to \"hint\" at the file format.}
+plain text, similar to the package description.
 
 
 \h2#manifest-package-url|\c{url}|
@@ -1425,8 +1423,9 @@ The detailed description of the repository. It can only be specified for the
 base repository.
 
 In the web interface (\c{brep}) the description is formatted into one or more
-paragraphs using blank lines as paragraph separators, similar to the package
-description.
+paragraphs using blank lines as paragraph separators. Specifically, it is not
+represented as \c{<pre>} so any kind of additional plain text formatting (for
+example, lists) will be lost and should not be used in the description.
 
 
 \h2#manifest-repository-certificate|\c{certificate}|
