@@ -4,6 +4,7 @@
 
 #include <bpkg/manifest-utility.hxx>
 
+#include <libbutl/b.mxx>
 #include <libbutl/url.mxx>
 #include <libbutl/sha256.mxx>
 
@@ -221,68 +222,39 @@ namespace bpkg
   optional<version>
   package_version (const common_options& o, const dir_path& d)
   {
-    fdpipe pipe (open_pipe ());
-
-    process pr (start_b (o,
-                         pipe, 2 /* stderr */,
-                         verb_b::quiet,
-                         "info:",
-                         d.representation ()));
-
-    // Shouldn't throw, unless something is severely damaged.
-    //
-    pipe.out.close ();
+    path b (name_b (o));
 
     try
     {
+      b_project_info pi (
+        b_info (d,
+                verb,
+                [] (const char* const args[], size_t n)
+                {
+                  if (verb >= 2)
+                    print_process (args, n);
+                },
+                b,
+                exec_dir,
+                o.build_option ()));
+
       optional<version> r;
 
-      ifdstream is (move (pipe.in),
-                    fdstream_mode::skip,
-                    ifdstream::badbit);
+      // An empty version indicates that the version module is not enabled for
+      // the project.
+      //
+      if (!pi.version.empty ())
+        r = version (pi.version.string ());
 
-      for (string l; !eof (getline (is, l)); )
-      {
-        if (l.compare (0, 9, "version: ") == 0)
-        try
-        {
-          string v (l, 9);
-
-          // An empty version indicates that the version module is not
-          // enabled for the project.
-          //
-          if (!v.empty ())
-            r = version (v);
-
-          break;
-        }
-        catch (const invalid_argument&)
-        {
-          fail << "no package version in '" << l << "'" <<
-            info << "produced by '" << name_b (o) << "'; use --build to "
-                 << "override";
-        }
-      }
-
-      is.close ();
-
-      if (pr.wait ())
-        return r;
-
-      // Fall through.
+      return r;
     }
-    catch (const io_error&)
+    catch (const b_error& e)
     {
-      if (pr.wait ())
-        fail << "unable to read '" << name_b (o) << "' output";
+      if (e.normal ())
+        throw failed (); // Assume the build2 process issued diagnostics.
 
-      // Fall through.
+      fail << "unable to parse project " << d << " info: " << e <<
+        info << "produced by '" << b << "'; use --build to override" << endf;
     }
-
-    // We should only get here if the child exited with an error status.
-    //
-    assert (!pr.wait ());
-
-    fail << "unable to obtain version using '" << name_b (o) << "'" << endf;
   }
 }
