@@ -1,5 +1,5 @@
 // file      : bpkg/help.hxx -*- C++ -*-
-// copyright : Copyright (c) 2014-2018 Code Synthesis Ltd
+// copyright : Copyright (c) 2014-2019 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
 #ifndef BPKG_HELP_HXX

@@ -1,5 +1,5 @@
 # file      : tests/rep-fetch-git-commit.testscript
-# copyright : Copyright (c) 2014-2018 Code Synthesis Ltd
+# copyright : Copyright (c) 2014-2019 Code Synthesis Ltd
 # license   : MIT; see accompanying LICENSE file
 
 +git clone "$rep_git/state0/style-basic.git" 2>! &style-basic/***
