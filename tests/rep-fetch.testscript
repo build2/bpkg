@@ -358,7 +358,7 @@ $* 2>>/EOE != 0
     {
       $clone_root_cfg;
 
-      $* --verbose 2 $rep/foo/testing <'y' 2>>~%EOE%;
+      $* -v $rep/foo/testing <'y' 2>>~%EOE%;
         added pkg:build2.org/rep-fetch/foo/testing
         %.*
         warning: repository pkg:build2.org/rep-fetch/foo/testing is unsigned
@@ -385,7 +385,7 @@ $* 2>>/EOE != 0
     {
       $clone_root_cfg;
 
-      $* --trust $cert_fp --verbose 2 $rep/foo/testing <'y' 2>>~%EOE% &cfg/.bpkg/certs/**
+      $* -v --trust $cert_fp $rep/foo/testing <'y' 2>>~%EOE% &cfg/.bpkg/certs/**
         added pkg:build2.org/rep-fetch/foo/testing
         %.*
         warning: repository pkg:build2.org/rep-fetch/foo/testing is unsigned
@@ -409,7 +409,7 @@ $* 2>>/EOE != 0
 y'
       $clone_root_cfg;
 
-      $* --verbose 2 $rep/foo/testing $rep/foo/stable <$yy 2>>~%EOE% &cfg/.bpkg/certs/**
+      $* -v $rep/foo/testing $rep/foo/stable <$yy 2>>~%EOE% &cfg/.bpkg/certs/**
         added pkg:build2.org/rep-fetch/foo/testing
         added pkg:build2.org/rep-fetch/foo/stable
         fetching pkg:build2.org/rep-fetch/foo/testing
@@ -435,7 +435,7 @@ y'
     {
       $clone_root_cfg;
 
-      $* --trust $cert_fp --verbose 2 $rep/foo/stable $rep/foo/testing <'y' 2>>~%EOE% &cfg/.bpkg/certs/**
+      $* -v --trust $cert_fp $rep/foo/stable $rep/foo/testing <'y' 2>>~%EOE% &cfg/.bpkg/certs/**
         added pkg:build2.org/rep-fetch/foo/stable
         added pkg:build2.org/rep-fetch/foo/testing
         fetching pkg:build2.org/rep-fetch/foo/stable
@@ -829,7 +829,7 @@ else
     #
     # fetching from <url> in 'cfg/.bpkg/tmp/4bde15f59461'...
     #
-    $* --verbose 2 2>&1                                | \
+    $* -v 2>&1                                         | \
       sed -n -e "s/fetching from .+ in '\(.+\)'/\$1/p" | \
       sed -n -e 's%(.+[\\/])tmp([\\/].+)%$1repos$2%p'  | \
       set r;

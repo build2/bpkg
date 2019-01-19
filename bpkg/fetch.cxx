@@ -91,6 +91,7 @@ namespace bpkg
   static process
   start_wget (const path& prog,
               const optional<size_t>& timeout,
+              bool no_progress,
               const strings& ops,
               const string& url,
               const path& out)
@@ -119,7 +120,10 @@ namespace bpkg
     // user re-runs the command with -v to see all the gory details.
     //
     if (verb < (fo ? 1 : 2))
+    {
       args.push_back ("-q");
+      no_progress = false; // Already suppressed with -q.
+    }
     else if (fo && verb == 1)
     {
       // Wget 1.16 introduced the --show-progress option which in the
@@ -129,11 +133,23 @@ namespace bpkg
       if (wget_major > 1 || (wget_major == 1 && wget_minor >= 16))
       {
         args.push_back ("-q");
-        args.push_back ("--show-progress");
+
+        if (!no_progress)
+          args.push_back ("--show-progress");
+        else
+          no_progress = false; // Already suppressed with -q.
       }
     }
     else if (verb > 3)
       args.push_back ("-d");
+
+    // Suppress progress.
+    //
+    // Note: the `--no-verbose -d` options combination is valid and results in
+    // debug messages with the progress meter suppressed.
+    //
+    if (no_progress)
+      args.push_back ("--no-verbose");
 
     // Set download timeout if requested.
     //
@@ -224,6 +240,7 @@ namespace bpkg
   static process
   start_curl (const path& prog,
               const optional<size_t>& timeout,
+              bool no_progress,
               const strings& ops,
               const string& url,
               const path& out)
@@ -237,6 +254,12 @@ namespace bpkg
       "-A", (BPKG_USER_AGENT " curl")
     };
 
+    auto suppress_progress = [&args] ()
+    {
+      args.push_back ("-s");
+      args.push_back ("-S"); // But show errors.
+    };
+
     // Map verbosity level. If we are running quiet or at level 1
     // and the output is stdout, then run curl quiet. If at level
     // 1 and the output is a file, then show the progress bar. At
@@ -246,13 +269,24 @@ namespace bpkg
     //
     if (verb < (fo ? 1 : 2))
     {
-      args.push_back ("-s");
-      args.push_back ("-S"); // But show errors.
+      suppress_progress ();
+      no_progress = false; // Already suppressed.
     }
     else if (fo && verb == 1)
-      args.push_back ("--progress-bar");
+    {
+      if (!no_progress)
+        args.push_back ("--progress-bar");
+    }
     else if (verb > 3)
       args.push_back ("-v");
+
+    // Suppress progress.
+    //
+    // Note: the `-v -s` options combination is valid and results in a verbose
+    // output without progress.
+    //
+    if (no_progress)
+      suppress_progress ();
 
     // Set download timeout if requested.
     //
@@ -285,7 +319,7 @@ namespace bpkg
 
     if (verb >= 2)
       print_process (args);
-    else if (verb == 1 && fo)
+    else if (verb == 1 && fo && !no_progress)
       //
       // Unfortunately curl doesn't print the filename being fetched
       // next to the progress bar. So the best we can do is print it
@@ -350,6 +384,7 @@ namespace bpkg
   static process
   start_fetch (const path& prog,
                const optional<size_t>& timeout,
+               bool no_progress,
                const strings& ops,
                const string& url,
                const path& out)
@@ -369,10 +404,28 @@ namespace bpkg
     // level 2 or 3, then run it at the default level (so it will display
     // the progress). Higher than that -- run it verbose.
     //
+    // Note that the only way to suppress progress for the fetch program is to
+    // run it quiet (-q). However, it prints nothing but the progress by
+    // default and some additional information in the verbose mode (-v).
+    // Therefore, if the progress suppression is requested we will run quiet
+    // unless the verbosity level is greater than three, in which case we will
+    // run verbose (and with progress). That's the best we can do.
+    //
     if (verb < (fo ? 1 : 2))
+    {
       args.push_back ("-q");
+      no_progress = false;   // Already suppressed with -q.
+    }
     else if (verb > 3)
+    {
       args.push_back ("-v");
+      no_progress = false; // Don't be quiet in the verbose mode (see above).
+    }
+
+    // Suppress progress.
+    //
+    if (no_progress)
+      args.push_back ("-q");
 
     // Set download timeout if requested.
     //
@@ -417,8 +470,8 @@ namespace bpkg
 
   // The dispatcher.
   //
-  // Cache the result of finding/testing the fetch program. Sometimes
-  // a simple global variable is really the right solution...
+  // Cache the result of finding/testing the fetch program. Sometimes a simple
+  // global variable is really the right solution...
   //
   enum kind {wget, curl, fetch};
 
@@ -509,6 +562,7 @@ namespace bpkg
   {
     process (*f) (const path&,
                   const optional<size_t>&,
+                  bool,
                   const strings&,
                   const string&,
                   const path&) = nullptr;
@@ -526,7 +580,8 @@ namespace bpkg
 
     try
     {
-      return f (fetch_path, timeout, o.fetch_option (), url, out);
+      return f (
+        fetch_path, timeout, o.no_progress (), o.fetch_option (), url, out);
     }
     catch (const process_error& e)
     {

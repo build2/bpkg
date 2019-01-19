@@ -39,6 +39,11 @@ pkg_unpack += -d cfg
 rep_add    += -d cfg 2>!
 rep_fetch  += -d cfg --auth all 2>!
 
+# Let's disable the progress indication that complicates stderr output
+# validation.
+#
+test.options += --no-progress
+
 : no-archive
 :
 $clone_cfg;
@@ -96,11 +101,6 @@ $* libfoo/1.0.0 2>>/EOE != 0
     EOE
 }
 
-# Note that when we fetch a package from remote repository the bpkg stderr
-# contains fetch program progress output, that comes prior the informational
-# message.
-#
-
 : fetched-rep
 :
 {
@@ -118,10 +118,7 @@ $* libfoo/1.0.0 2>>/EOE != 0
   {
     $clone_cfg;
 
-    $* libfoo/1.0.0 2>>~%EOE%;
-      %.*
-      %.*fetched libfoo/1.0.0%
-      EOE
+    $* libfoo/1.0.0 2>'fetched libfoo/1.0.0';
 
     $pkg_status libfoo/1.0.0 1>'libfoo fetched 1.0.0';
 
@@ -151,20 +148,14 @@ $* libfoo/1.0.0 2>>/EOE != 0
 
     test.arguments += --replace; # Replace existing package.
 
-    $* libfoo/1.1.0 2>>~%EOE%;
-      %.*
-      %.*fetched libfoo/1.1.0%
-      EOE
+    $* libfoo/1.1.0 2>'fetched libfoo/1.1.0';
 
     $pkg_status   libfoo/1.1.0        1>'libfoo fetched 1.1.0';
     $pkg_unpack   libfoo              2>'unpacked libfoo/1.1.0';
     $* -e $src/t1/libfoo-1.0.0.tar.gz 2>'using libfoo/1.0.0 (external)';
     $pkg_status   libfoo/1.0.0        1>'libfoo fetched 1.0.0';
 
-    $* libfoo/1.1.0 2>>~%EOE%;
-      %.*
-      %.*fetched libfoo/1.1.0%
-      EOE
+    $* libfoo/1.1.0 2>'fetched libfoo/1.1.0';
 
     $pkg_status   libfoo/1.1.0        1>'libfoo fetched 1.1.0';
     $* -e $src/t1/libfoo-1.0.0.tar.gz 2>'using libfoo/1.0.0 (external)';
@@ -192,10 +183,7 @@ $* libfoo/1.0.0 2>>/EOE != 0
   $rep_add $rep/hello;
   $rep_fetch --trust $cert_fp &cfg/.bpkg/certs/**;
 
-  $* libhello/1.0.0 2>>~%EOE%;
-    %.*
-    %.*fetched libhello/1.0.0%
-    EOE
+  $* libhello/1.0.0 2>'fetched libhello/1.0.0';
 
   $pkg_status libhello/1.0.0 1>'libhello fetched 1.0.0';
 

@@ -152,6 +152,11 @@ rep_add       += -d cfg 2>!
 rep_remove    += -d cfg 2>!
 rep_fetch     += -d cfg --auth all --trust-yes 2>!
 
+# Let's disable the progress indication that complicates stderr output
+# validation.
+#
+test.options += --no-progress
+
 : libfoo
 :
 : Test building different versions of libfoo.
@@ -802,16 +807,13 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
     $clone_root_cfg && $rep_add $rep/t4c && $rep_fetch;
 
     $* libbaz 2>>~%EOE%;
-      %.*
-      %.*fetched libfoo/1.1.0%
+      fetched libfoo/1.1.0
       unpacked libfoo/1.1.0
       configured libfoo/1.1.0
-      %.*
-      %.*fetched libbar/1.1.0%
+      fetched libbar/1.1.0
       unpacked libbar/1.1.0
       configured libbar/1.1.0
-      %.*
-      %.*fetched libbaz/1.1.0%
+      fetched libbaz/1.1.0
       unpacked libbaz/1.1.0
       configured libbaz/1.1.0
       %info: .+ is up to date%
@@ -896,8 +898,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       $clone_cfg;
 
       $* libfoo 2>>~%EOE%;
-        %.*
-        %.*fetched libfoo/1.0.0%
+        fetched libfoo/1.0.0
         unpacked libfoo/1.0.0
         configured libfoo/1.0.0
         %info: .+ is up to date%
@@ -923,8 +924,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       $clone_cfg;
 
       $* libfoo/1.0.0 2>>~%EOE%;
-        %.*
-        %.*fetched libfoo/1.0.0%
+        fetched libfoo/1.0.0
         unpacked libfoo/1.0.0
         configured libfoo/1.0.0
         %info: .+ is up to date%
@@ -943,16 +943,13 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       $clone_cfg;
 
       $* libbaz 2>>~%EOE%;
-        %.*
-        %.*fetched libfoo/1.1.0%
+        fetched libfoo/1.1.0
         unpacked libfoo/1.1.0
         configured libfoo/1.1.0
-        %.*
-        %.*fetched libbar/1.1.0%
+        fetched libbar/1.1.0
         unpacked libbar/1.1.0
         configured libbar/1.1.0
-        %.*
-        %.*fetched libbaz/1.1.0%
+        fetched libbaz/1.1.0
         unpacked libbaz/1.1.0
         configured libbaz/1.1.0
         %info: .+ is up to date%
@@ -977,8 +974,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       $clone_cfg;
 
       $* libfoo 2>>~%EOE%;
-        %.*
-        %.*fetched libfoo/1.0.0%
+        fetched libfoo/1.0.0
         unpacked libfoo/1.0.0
         configured libfoo/1.0.0
         %info: .+ is up to date%
@@ -990,16 +986,13 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       $* libbaz 2>>~%EOE%;
         warning: package libbar dependency on (libfoo == 1.1.0) is forcing upgrade of libfoo/1.0.0 to 1.1.0
         disfigured libfoo/1.0.0
-        %.*
-        %.*fetched libfoo/1.1.0%
+        fetched libfoo/1.1.0
         unpacked libfoo/1.1.0
         configured libfoo/1.1.0
-        %.*
-        %.*fetched libbar/1.1.0%
+        fetched libbar/1.1.0
         unpacked libbar/1.1.0
         configured libbar/1.1.0
-        %.*
-        %.*fetched libbaz/1.1.0%
+        fetched libbaz/1.1.0
         unpacked libbaz/1.1.0
         configured libbaz/1.1.0
         %info: .+ is up to date%
@@ -1024,8 +1017,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       $clone_cfg;
 
       $* libfoo/1.0.0 2>>~%EOE%;
-        %.*
-        %.*fetched libfoo/1.0.0%
+        fetched libfoo/1.0.0
         unpacked libfoo/1.0.0
         configured libfoo/1.0.0
         %info: .+ is up to date%
@@ -1053,12 +1045,10 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
     $clone_root_cfg && $rep_add $rep/t2 && $rep_fetch;
 
     $* libbar 2>>~%EOE%;
-      %.*
-      %.*fetched libfoo/1.0.0%
+      fetched libfoo/1.0.0
       unpacked libfoo/1.0.0
       configured libfoo/1.0.0
-      %.*
-      %.*fetched libbar/1.0.0%
+      fetched libbar/1.0.0
       unpacked libbar/1.0.0
       configured libbar/1.0.0
       %info: .+ is up to date%
@@ -1074,8 +1064,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       disfigured libbar/1.0.0
       disfigured libfoo/1.0.0
       purged libfoo/1.0.0
-      %.*
-      %.*fetched libbar/1.2.0%
+      fetched libbar/1.2.0
       unpacked libbar/1.2.0
       configured libbar/1.2.0
       %info: .+ is up to date%
@@ -1087,12 +1076,10 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
 
     $* libbar/1.0.0 libfoo 2>>~%EOE%;
       disfigured libbar/1.2.0
-      %.*
-      %.*fetched libfoo/1.0.0%
+      fetched libfoo/1.0.0
       unpacked libfoo/1.0.0
       configured libfoo/1.0.0
-      %.*
-      %.*fetched libbar/1.0.0%
+      fetched libbar/1.0.0
       unpacked libbar/1.0.0
       configured libbar/1.0.0
       %info: .+ is up to date%{2}
@@ -1105,8 +1092,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
 
     $* libbar 2>>~%EOE%;
       disfigured libbar/1.0.0
-      %.*
-      %.*fetched libbar/1.2.0%
+      fetched libbar/1.2.0
       unpacked libbar/1.2.0
       configured libbar/1.2.0
       %info: .+ is up to date%
@@ -1147,8 +1133,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
     $rep_add $rep/t4a && $rep_fetch;
 
     $* ./libbar/ 2>>~%EOE%;
-      %.*
-      %.*fetched libfoo/1.1.0%
+      fetched libfoo/1.1.0
       unpacked libfoo/1.1.0
       configured libfoo/1.1.0
       using libbar/1.1.0 (external)
@@ -1180,12 +1165,10 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
     $clone_root_cfg && $rep_fetch $rep/t2 $rep/t5;
 
     $* libbar/1.0 2>>~%EOE%;
-      %.*
-      %.*fetched libfoo/1.0.0%
+      fetched libfoo/1.0.0
       unpacked libfoo/1.0.0
       configured libfoo/1.0.0
-      %.*
-      %.*fetched libbar/1.0.0%
+      fetched libbar/1.0.0
       unpacked libbar/1.0.0
       configured libbar/1.0.0
       %info: .+ is up to date%
@@ -1196,8 +1179,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       disfigured libbar/1.0.0
       disfigured libfoo/1.0.0
       purged libfoo/1.0.0
-      %.*
-      %.*fetched libbar/1.2.0%
+      fetched libbar/1.2.0
       unpacked libbar/1.2.0
       configured libbar/1.2.0
       %info: .+ is up to date%
@@ -1237,12 +1219,10 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       $* libbar --yes 2>>~%EOE%;
         warning: package libbar dependency on (libfoo == 1.1.0) is forcing upgrade of libfoo/1.0.0 to 1.1.0
         disfigured libfoo/1.0.0
-        %.*
-        %.*fetched libfoo/1.1.0%
+        fetched libfoo/1.1.0
         unpacked libfoo/1.1.0
         configured libfoo/1.1.0
-        %.*
-        %.*fetched libbar/1.1.0%
+        fetched libbar/1.1.0
         unpacked libbar/1.1.0
         configured libbar/1.1.0
         %info: .+ is up to date%
@@ -1297,12 +1277,10 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       $* libbar --yes 2>>~%EOE%;
         disfigured libbar/1.0.0
         disfigured libfoo/1.0.0
-        %.*
-        %.*fetched libfoo/1.1.0%
+        fetched libfoo/1.1.0
         unpacked libfoo/1.1.0
         configured libfoo/1.1.0
-        %.*
-        %.*fetched libbar/1.1.0%
+        fetched libbar/1.1.0
         unpacked libbar/1.1.0
         configured libbar/1.1.0
         %info: .+ is up to date%
@@ -1339,25 +1317,22 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
     {
       $clone_cfg;
 
-      $* --yes libbar/1.0.0 2>>~%EOE%;
-        %.*
-        %.*fetched libfoo/1.0.0%
+      $* --yes libbar/1.0.0 2>>EOE;
+        fetched libfoo/1.0.0
         unpacked libfoo/1.0.0
         configured libfoo/1.0.0
-        %.*
-        %.*fetched libbar/1.0.0%
+        fetched libbar/1.0.0
         unpacked libbar/1.0.0
         configured libbar/1.0.0
         EOE
 
-      $* libbar/1.2.0 <'y' 2>>~%EOE%;
+      $* libbar/1.2.0 <'y' 2>>EOE;
           drop libfoo/1.0.0 (unused)
           upgrade libbar/1.2.0
         continue? [Y/n] disfigured libbar/1.0.0
         disfigured libfoo/1.0.0
         purged libfoo/1.0.0
-        %.*
-        %.*fetched libbar/1.2.0%
+        fetched libbar/1.2.0
         unpacked libbar/1.2.0
         configured libbar/1.2.0
         EOE
@@ -1375,22 +1350,19 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
     {
       $clone_cfg;
 
-      $* --yes libbar/1.0.0 2>>~%EOE%;
-        %.*
-        %.*fetched libfoo/1.0.0%
+      $* --yes libbar/1.0.0 2>>EOE;
+        fetched libfoo/1.0.0
         unpacked libfoo/1.0.0
         configured libfoo/1.0.0
-        %.*
-        %.*fetched libbar/1.0.0%
+        fetched libbar/1.0.0
         unpacked libbar/1.0.0
         configured libbar/1.0.0
         EOE
 
-      $* --keep-unused libbar/1.2.0 <'y' 2>>~%EOE%;
+      $* --keep-unused libbar/1.2.0 <'y' 2>>EOE;
           upgrade libbar/1.2.0
         continue? [Y/n] disfigured libbar/1.0.0
-        %.*
-        %.*fetched libbar/1.2.0%
+        fetched libbar/1.2.0
         unpacked libbar/1.2.0
         configured libbar/1.2.0
         EOE
@@ -1417,18 +1389,16 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       $pkg_status libbaz >'libbaz configured 0.0.1 available 0.1.0 0.0.4 0.0.3';
       $pkg_status libfox >'libfox configured 0.0.1';
 
-      $* libbar 2>>~%EOE%;
+      $* libbar 2>>EOE;
         disfigured libbar/0.0.1
         disfigured libbaz/0.0.1
         disfigured libfox/0.0.1
-        %.*
-        %.*fetched libfoo/1.0.0%
+        fetched libfoo/1.0.0
         unpacked libfoo/1.0.0
         configured libfoo/1.0.0
         purged libfox/0.0.1
         purged libbaz/0.0.1
-        %.*
-        %.*fetched libbar/1.0.0%
+        fetched libbar/1.0.0
         unpacked libbar/1.0.0
         configured libbar/1.0.0
         EOE
@@ -1456,7 +1426,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       $pkg_status libbaz >'libbaz configured 0.0.1 available 0.1.0 0.0.4 0.0.3';
       $pkg_status libfox >'libfox configured 0.0.1';
 
-      $* ?libbar ?libbaz/0.0.3 2>>~%EOE%;
+      $* ?libbar ?libbaz/0.0.3 2>>EOE;
         disfigured libbar/0.0.1
         disfigured libbaz/0.0.1
         disfigured libfox/0.0.1
@@ -1519,21 +1489,17 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
           info: while satisfying libbiz/0.0.2
           EOE
 
-        $* libfix libbiz ?libbaz/0.0.3 2>>~%EOE%;
-          %.*
-          %.*fetched libfoo/1.0.0%
+        $* libfix libbiz ?libbaz/0.0.3 2>>EOE;
+          fetched libfoo/1.0.0
           unpacked libfoo/1.0.0
           configured libfoo/1.0.0
-          %.*
-          %.*fetched libbaz/0.0.3%
+          fetched libbaz/0.0.3
           unpacked libbaz/0.0.3
           configured libbaz/0.0.3
-          %.*
-          %.*fetched libfix/0.0.3%
+          fetched libfix/0.0.3
           unpacked libfix/0.0.3
           configured libfix/0.0.3
-          %.*
-          %.*fetched libbiz/0.0.2%
+          fetched libbiz/0.0.2
           unpacked libbiz/0.0.2
           configured libbiz/0.0.2
           EOE
@@ -1555,21 +1521,17 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
         $clone_root_cfg;
         $rep_fetch $rep/t0b $rep/t0c;
 
-        $* libbiz libfix ?libbaz/0.0.3 2>>~%EOE%;
-          %.*
-          %.*fetched libfoo/1.0.0%
+        $* libbiz libfix ?libbaz/0.0.3 2>>EOE;
+          fetched libfoo/1.0.0
           unpacked libfoo/1.0.0
           configured libfoo/1.0.0
-          %.*
-          %.*fetched libbaz/0.0.3%
+          fetched libbaz/0.0.3
           unpacked libbaz/0.0.3
           configured libbaz/0.0.3
-          %.*
-          %.*fetched libbiz/0.0.2%
+          fetched libbiz/0.0.2
           unpacked libbiz/0.0.2
           configured libbiz/0.0.2
-          %.*
-          %.*fetched libfix/0.0.3%
+          fetched libfix/0.0.3
           unpacked libfix/0.0.3
           configured libfix/0.0.3
           EOE
@@ -1602,21 +1564,17 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
           info: while satisfying libbiz/0.0.1
           EOE
 
-        $* libbiz ?libfox/0.0.1 2>>~%EOE%;
-          %.*
-          %.*fetched libfox/0.0.1%
+        $* libbiz ?libfox/0.0.1 2>>EOE;
+          fetched libfox/0.0.1
           unpacked libfox/0.0.1
           configured libfox/0.0.1
-          %.*
-          %.*fetched libfoo/1.0.0%
+          fetched libfoo/1.0.0
           unpacked libfoo/1.0.0
           configured libfoo/1.0.0
-          %.*
-          %.*fetched libbox/0.0.2%
+          fetched libbox/0.0.2
           unpacked libbox/0.0.2
           configured libbox/0.0.2
-          %.*
-          %.*fetched libbiz/0.0.1%
+          fetched libbiz/0.0.1
           unpacked libbiz/0.0.1
           configured libbiz/0.0.1
           EOE
@@ -1722,15 +1680,14 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       {
         $clone_cfg;
 
-        $* libbar '?sys:libfoo' 2>>~%EOE%;
+        $* libbar '?sys:libfoo' 2>>EOE;
           configured sys:libfoo/*
-          %.*
-          %.*fetched libbar/1.0.0%
+          fetched libbar/1.0.0
           unpacked libbar/1.0.0
           configured libbar/1.0.0
           EOE
 
-        $* '?sys:libfoo/0.1' 2>>~%EOE%;
+        $* '?sys:libfoo/0.1' 2>>EOE;
           disfigured libbar/1.0.0
           purged libfoo/*
           configured sys:libfoo/0.1
@@ -1745,10 +1702,9 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       {
         $clone_cfg;
 
-        $* libbar '?sys:libfoo' 2>>~%EOE%;
+        $* libbar '?sys:libfoo' 2>>EOE;
           configured sys:libfoo/*
-          %.*
-          %.*fetched libbar/1.0.0%
+          fetched libbar/1.0.0
           unpacked libbar/1.0.0
           configured libbar/1.0.0
           EOE
@@ -1763,23 +1719,20 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       {
         $clone_cfg;
 
-        $* libbar/0.0.1 '?sys:libbaz' 2>>~%EOE%;
+        $* libbar/0.0.1 '?sys:libbaz' 2>>EOE;
           configured sys:libbaz/*
-          %.*
-          %.*fetched libbar/0.0.1%
+          fetched libbar/0.0.1
           unpacked libbar/0.0.1
           configured libbar/0.0.1
           EOE
 
-        $* '?libbaz' 2>>~%EOE%;
+        $* '?libbaz' 2>>EOE;
           disfigured libbar/0.0.1
           purged libbaz/*
-          %.*
-          %.*fetched libfox/0.0.1%
+          fetched libfox/0.0.1
           unpacked libfox/0.0.1
           configured libfox/0.0.1
-          %.*
-          %.*fetched libbaz/0.0.1%
+          fetched libbaz/0.0.1
           unpacked libbaz/0.0.1
           configured libbaz/0.0.1
           configured libbar/0.0.1
@@ -1793,15 +1746,14 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       {
         $clone_cfg;
 
-        $* libbar '?sys:libfoo/0.1' 2>>~%EOE%;
+        $* libbar '?sys:libfoo/0.1' 2>>EOE;
           configured sys:libfoo/0.1
-          %.*
-          %.*fetched libbar/1.0.0%
+          fetched libbar/1.0.0
           unpacked libbar/1.0.0
           configured libbar/1.0.0
           EOE
 
-        $* '?sys:libfoo' 2>>~%EOE%;
+        $* '?sys:libfoo' 2>>EOE;
           disfigured libbar/1.0.0
           purged libfoo/0.1
           configured sys:libfoo/*
@@ -1816,10 +1768,9 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       {
         $clone_cfg;
 
-        $* libbar '?sys:libfoo/0.1' 2>>~%EOE%;
+        $* libbar '?sys:libfoo/0.1' 2>>EOE;
           configured sys:libfoo/0.1
-          %.*
-          %.*fetched libbar/1.0.0%
+          fetched libbar/1.0.0
           unpacked libbar/1.0.0
           configured libbar/1.0.0
           EOE
@@ -1834,15 +1785,14 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       {
         $clone_cfg;
 
-        $* libbar '?sys:libfoo/0.2' 2>>~%EOE%;
+        $* libbar '?sys:libfoo/0.2' 2>>EOE;
           configured sys:libfoo/0.2
-          %.*
-          %.*fetched libbar/1.0.0%
+          fetched libbar/1.0.0
           unpacked libbar/1.0.0
           configured libbar/1.0.0
           EOE
 
-        $* '?sys:libfoo/0.1' 2>>~%EOE%;
+        $* '?sys:libfoo/0.1' 2>>EOE;
           disfigured libbar/1.0.0
           purged libfoo/0.2
           configured sys:libfoo/0.1
@@ -1857,23 +1807,20 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       {
         $clone_cfg;
 
-        $* libbar/0.0.1 '?sys:libbaz/0.0.1' 2>>~%EOE%;
+        $* libbar/0.0.1 '?sys:libbaz/0.0.1' 2>>EOE;
           configured sys:libbaz/0.0.1
-          %.*
-          %.*fetched libbar/0.0.1%
+          fetched libbar/0.0.1
           unpacked libbar/0.0.1
           configured libbar/0.0.1
           EOE
 
-        $* '?libbaz/0.0.1' 2>>~%EOE%;
+        $* '?libbaz/0.0.1' 2>>EOE;
           disfigured libbar/0.0.1
           purged libbaz/0.0.1
-          %.*
-          %.*fetched libfox/0.0.1%
+          fetched libfox/0.0.1
           unpacked libfox/0.0.1
           configured libfox/0.0.1
-          %.*
-          %.*fetched libbaz/0.0.1%
+          fetched libbaz/0.0.1
           unpacked libbaz/0.0.1
           configured libbaz/0.0.1
           configured libbar/0.0.1
@@ -1887,22 +1834,19 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       {
         $clone_cfg;
 
-        $* libbar/0.0.1 '?libbaz' 2>>~%EOE%;
-          %.*
-          %.*fetched libfox/0.0.1%
+        $* libbar/0.0.1 '?libbaz' 2>>EOE;
+          fetched libfox/0.0.1
           unpacked libfox/0.0.1
           configured libfox/0.0.1
-          %.*
-          %.*fetched libbaz/0.0.1%
+          fetched libbaz/0.0.1
           unpacked libbaz/0.0.1
           configured libbaz/0.0.1
-          %.*
-          %.*fetched libbar/0.0.1%
+          fetched libbar/0.0.1
           unpacked libbar/0.0.1
           configured libbar/0.0.1
           EOE
 
-        $* '?sys:libbaz' 2>>~%EOE%;
+        $* '?sys:libbaz' 2>>EOE;
           disfigured libbar/0.0.1
           disfigured libbaz/0.0.1
           disfigured libfox/0.0.1
@@ -1920,22 +1864,19 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       {
         $clone_cfg;
 
-        $* libbar/0.0.1 '?libbaz/0.0.1' 2>>~%EOE%;
-          %.*
-          %.*fetched libfox/0.0.1%
+        $* libbar/0.0.1 '?libbaz/0.0.1' 2>>EOE;
+          fetched libfox/0.0.1
           unpacked libfox/0.0.1
           configured libfox/0.0.1
-          %.*
-          %.*fetched libbaz/0.0.1%
+          fetched libbaz/0.0.1
           unpacked libbaz/0.0.1
           configured libbaz/0.0.1
-          %.*
-          %.*fetched libbar/0.0.1%
+          fetched libbar/0.0.1
           unpacked libbar/0.0.1
           configured libbar/0.0.1
           EOE
 
-        $* '?sys:libbaz/0.0.1' 2>>~%EOE%;
+        $* '?sys:libbaz/0.0.1' 2>>EOE;
           disfigured libbar/0.0.1
           disfigured libbaz/0.0.1
           disfigured libfox/0.0.1
@@ -1978,21 +1919,18 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
 
         $pkg_status libbaz >'libbaz configured 0.0.1 available 0.1.0 0.0.4 0.0.3 0.0.2';
 
-        $* libbar/0.0.2 ?libbaz 2>>~%EOE%;
+        $* libbar/0.0.2 ?libbaz 2>>EOE;
           disfigured libbar/0.0.1
           disfigured libbaz/0.0.1
           disfigured libfox/0.0.1
           purged libfox/0.0.1
-          %.*
-          %.*fetched libfoo/1.0.0%
+          fetched libfoo/1.0.0
           unpacked libfoo/1.0.0
           configured libfoo/1.0.0
-          %.*
-          %.*fetched libbaz/0.0.2%
+          fetched libbaz/0.0.2
           unpacked libbaz/0.0.2
           configured libbaz/0.0.2
-          %.*
-          %.*fetched libbar/0.0.2%
+          fetched libbar/0.0.2
           unpacked libbar/0.0.2
           configured libbar/0.0.2
           EOE
@@ -2004,9 +1942,8 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
         # Test that the selected package, that is "better" than the available
         # one, is left.
         #
-        $* libbox ?libbaz 2>>~%EOE%;
-          %.*
-          %.*fetched libbox/0.0.1%
+        $* libbox ?libbaz 2>>EOE;
+          fetched libbox/0.0.1
           unpacked libbox/0.0.1
           configured libbox/0.0.1
           EOE
@@ -2022,7 +1959,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
 
         # Test that the above behavior is not triggered for the system package.
         #
-        $* '?sys:libbaz' 2>>~%EOE%;
+        $* '?sys:libbaz' 2>>EOE;
           disfigured libbar/0.0.2
           disfigured libbox/0.0.1
           disfigured libbaz/0.0.2
@@ -2076,19 +2013,17 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       # anymore). So we replace libfoo upgrade with drop and start from
       # scratch.
       #
-      $* ?libfoo/1.0.0 ?libbaz/0.0.1 2>>~%EOE%;
+      $* ?libfoo/1.0.0 ?libbaz/0.0.1 2>>EOE;
         disfigured libbox/0.0.1
         disfigured libbaz/0.0.3
         disfigured libfoo/0.0.1
         disfigured libfix/0.0.1
         purged libfix/0.0.1
         purged libfoo/0.0.1
-        %.*
-        %.*fetched libfox/0.0.1%
+        fetched libfox/0.0.1
         unpacked libfox/0.0.1
         configured libfox/0.0.1
-        %.*
-        %.*fetched libbaz/0.0.1%
+        fetched libbaz/0.0.1
         unpacked libbaz/0.0.1
         configured libbaz/0.0.1
         configured libbox/0.0.1
@@ -2273,27 +2208,28 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       $clone_root_cfg;
       $rep_fetch $rep/t0a $rep/t0b;
 
-      $* libbar libfoo/0.0.1 2>>~%EOE%;
-        %.*
-        %.*fetched libfoo/0.0.1%
+      $* libbar libfoo/0.0.1 2>>EOE;
+        fetched libfix/0.0.1
+        unpacked libfix/0.0.1
+        configured libfix/0.0.1
+        fetched libfoo/0.0.1
         unpacked libfoo/0.0.1
         configured libfoo/0.0.1
-        %.*
-        %.*fetched libbaz/0.0.2%
+        fetched libbaz/0.0.2
         unpacked libbaz/0.0.2
         configured libbaz/0.0.2
-        %.*
-        %.*fetched libbar/0.0.2%
+        fetched libbar/0.0.2
         unpacked libbar/0.0.2
         configured libbar/0.0.2
         EOE
 
-      $* libbar libfoo 2>>~%EOE%;
+      $* libbar libfoo 2>>EOE;
         disfigured libbar/0.0.2
         disfigured libbaz/0.0.2
         disfigured libfoo/0.0.1
-        %.*
-        %.*fetched libfoo/1.0.0%
+        disfigured libfix/0.0.1
+        purged libfix/0.0.1
+        fetched libfoo/1.0.0
         unpacked libfoo/1.0.0
         configured libfoo/1.0.0
         configured libbaz/0.0.2
@@ -2314,30 +2250,25 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
       $clone_root_cfg;
       $rep_fetch $rep/t0a;
 
-      $* libfoo 2>>~%EOE%;
-        %.*
-        %.*fetched libfix/0.0.1%
+      $* libfoo 2>>EOE;
+        fetched libfix/0.0.1
         unpacked libfix/0.0.1
         configured libfix/0.0.1
-        %.*
-        %.*fetched libfoo/0.0.1%
+        fetched libfoo/0.0.1
         unpacked libfoo/0.0.1
         configured libfoo/0.0.1
         EOE
 
-      $* libbaz libbar 'sys:libfix' 2>>~%EOE%;
+      $* libbaz libbar 'sys:libfix' 2>>EOE;
         disfigured libfoo/0.0.1
         disfigured libfix/0.0.1
-        %.*
-        %.*fetched libfox/0.0.1%
+        fetched libfox/0.0.1
         unpacked libfox/0.0.1
         configured libfox/0.0.1
-        %.*
-        %.*fetched libbaz/0.0.1%
+        fetched libbaz/0.0.1
         unpacked libbaz/0.0.1
         configured libbaz/0.0.1
-        %.*
-        %.*fetched libbar/0.0.1%
+        fetched libbar/0.0.1
         unpacked libbar/0.0.1
         configured libbar/0.0.1
         purged libfix/0.0.1
@@ -2359,21 +2290,17 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
     +$clone_root_cfg
     +$rep_fetch $rep/t0a $rep/t0b $rep/t0c
 
-    +$* libbar/0.0.2 libbaz/0.0.2 libfoo/0.0.1 --yes 2>>~%EOE%
-       %.*
-       %.*fetched libfix/0.0.1%
+    +$* libbar/0.0.2 libbaz/0.0.2 libfoo/0.0.1 --yes 2>>EOE
+       fetched libfix/0.0.1
        unpacked libfix/0.0.1
        configured libfix/0.0.1
-       %.*
-       %.*fetched libfoo/0.0.1%
+       fetched libfoo/0.0.1
        unpacked libfoo/0.0.1
        configured libfoo/0.0.1
-       %.*
-       %.*fetched libbaz/0.0.2%
+       fetched libbaz/0.0.2
        unpacked libbaz/0.0.2
        configured libbaz/0.0.2
-       %.*
-       %.*fetched libbar/0.0.2%
+       fetched libbar/0.0.2
        unpacked libbar/0.0.2
        configured libbar/0.0.2
        EOE
@@ -2385,15 +2312,13 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
     {
       $clone_cfg;
 
-      $* libbar/0.0.3 --immediate --yes 2>>~%EOE%;
+      $* libbar/0.0.3 --immediate --yes 2>>EOE;
         disfigured libbar/0.0.2
         disfigured libbaz/0.0.2
-        %.*
-        %.*fetched libbaz/0.1.0%
+        fetched libbaz/0.1.0
         unpacked libbaz/0.1.0
         configured libbaz/0.1.0
-        %.*
-        %.*fetched libbar/0.0.3%
+        fetched libbar/0.0.3
         unpacked libbar/0.0.3
         configured libbar/0.0.3
         EOE
@@ -2408,20 +2333,19 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
     {
       $clone_cfg;
 
-      $* libbar/0.0.3 --recursive --yes 2>>~%EOE%;
+      $* libbar/0.0.3 --recursive --yes 2>>EOE;
         disfigured libbar/0.0.2
         disfigured libbaz/0.0.2
         disfigured libfoo/0.0.1
-        %.*
-        %.*fetched libfoo/1.0.0%
+        disfigured libfix/0.0.1
+        purged libfix/0.0.1
+        fetched libfoo/1.0.0
         unpacked libfoo/1.0.0
         configured libfoo/1.0.0
-        %.*
-        %.*fetched libbaz/0.1.0%
+        fetched libbaz/0.1.0
         unpacked libbaz/0.1.0
         configured libbaz/0.1.0
-        %.*
-        %.*fetched libbar/0.0.3%
+        fetched libbar/0.0.3
         unpacked libbar/0.0.3
         configured libbar/0.0.3
         EOE
@@ -2438,7 +2362,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
 
       $* ?libfoo/0.0.1 ?libbaz/0.0.2; # Unhold.
 
-      $* --upgrade --recursive <'y' 2>>~%EOE%
+      $* --upgrade --recursive <'y' 2>>EOE
           drop libfix/0.0.1 (unused)
           upgrade libfoo/1.0.0
           drop libbaz/0.0.2 (unused)
@@ -2448,13 +2372,11 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
         disfigured libfoo/0.0.1
         disfigured libfix/0.0.1
         purged libfix/0.0.1
-        %.*
-        %.*fetched libfoo/1.0.0%
+        fetched libfoo/1.0.0
         unpacked libfoo/1.0.0
         configured libfoo/1.0.0
         purged libbaz/0.0.2
-        %.*
-        %.*fetched libbar/1.0.0%
+        fetched libbar/1.0.0
         unpacked libbar/1.0.0
         configured libbar/1.0.0
         EOE
@@ -2465,7 +2387,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
     {
       $clone_cfg;
 
-      $* libbaz/0.0.2 --recursive <'y' 2>>~%EOE%
+      $* libbaz/0.0.2 --recursive <'y' 2>>EOE
           drop libfix/0.0.1 (unused)
           upgrade libfoo/1.0.0
           reconfigure libbaz/0.0.2
@@ -2475,8 +2397,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
         disfigured libfoo/0.0.1
         disfigured libfix/0.0.1
         purged libfix/0.0.1
-        %.*
-        %.*fetched libfoo/1.0.0%
+        fetched libfoo/1.0.0
         unpacked libfoo/1.0.0
         configured libfoo/1.0.0
         configured libbaz/0.0.2
@@ -2489,20 +2410,19 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
     {
       $clone_cfg;
 
-      $* libbar/0.0.3 ?libbaz/0.0.3 --recursive --yes 2>>~%EOE%;
+      $* libbar/0.0.3 ?libbaz/0.0.3 --recursive --yes 2>>EOE;
         disfigured libbar/0.0.2
         disfigured libbaz/0.0.2
         disfigured libfoo/0.0.1
-        %.*
-        %.*fetched libfoo/1.0.0%
+        disfigured libfix/0.0.1
+        purged libfix/0.0.1
+        fetched libfoo/1.0.0
         unpacked libfoo/1.0.0
         configured libfoo/1.0.0
-        %.*
-        %.*fetched libbaz/0.0.3%
+        fetched libbaz/0.0.3
         unpacked libbaz/0.0.3
         configured libbaz/0.0.3
-        %.*
-        %.*fetched libbar/0.0.3%
+        fetched libbar/0.0.3
         unpacked libbar/0.0.3
         configured libbar/0.0.3
         EOE
@@ -2515,20 +2435,19 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
     {
       $clone_cfg;
 
-      $* libbar/0.0.3 ?libbaz/0.0.3 ?libfoo --recursive --yes 2>>~%EOE%;
+      $* libbar/0.0.3 ?libbaz/0.0.3 ?libfoo --recursive --yes 2>>EOE;
         disfigured libbar/0.0.2
         disfigured libbaz/0.0.2
         disfigured libfoo/0.0.1
-        %.*
-        %.*fetched libfoo/1.0.0%
+        disfigured libfix/0.0.1
+        purged libfix/0.0.1
+        fetched libfoo/1.0.0
         unpacked libfoo/1.0.0
         configured libfoo/1.0.0
-        %.*
-        %.*fetched libbaz/0.0.3%
+        fetched libbaz/0.0.3
         unpacked libbaz/0.0.3
         configured libbaz/0.0.3
-        %.*
-        %.*fetched libbar/0.0.3%
+        fetched libbar/0.0.3
         unpacked libbar/0.0.3
         configured libbar/0.0.3
         EOE
@@ -2569,12 +2488,10 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
     $clone_cfg;
 
     $* --yes libbar 2>>~%EOE%;
-      %.*
-      %.*fetched libfoo/1.0.0%
+      fetched libfoo/1.0.0
       unpacked libfoo/1.0.0
       configured libfoo/1.0.0
-      %.*
-      %.*fetched libbar/1.0.0%
+      fetched libbar/1.0.0
       unpacked libbar/1.0.0
       configured libbar/1.0.0
       %info: .+ is up to date%
@@ -2588,8 +2505,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
         reconfigure libbar (dependent of libfoo)
       continue? [Y/n] disfigured libbar/1.0.0
       disfigured libfoo/1.0.0
-      %.*
-      %.*fetched libfoo/1.1.0%
+      fetched libfoo/1.1.0
       unpacked libfoo/1.1.0
       configured libfoo/1.1.0
       configured libbar/1.0.0
@@ -2613,12 +2529,10 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
     $clone_cfg;
 
     $* --yes libbar 2>>~%EOE%;
-      %.*
-      %.*fetched libfoo/1.0.0%
+      fetched libfoo/1.0.0
       unpacked libfoo/1.0.0
       configured libfoo/1.0.0
-      %.*
-      %.*fetched libbar/1.0.0%
+      fetched libbar/1.0.0
       unpacked libbar/1.0.0
       configured libbar/1.0.0
       %info: .+ is up to date%
@@ -2632,8 +2546,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
         reconfigure libbar (dependent of libfoo)
       continue? [Y/n] disfigured libbar/1.0.0
       disfigured libfoo/1.0.0
-      %.*
-      %.*fetched libfoo/1.1.0%
+      fetched libfoo/1.1.0
       unpacked libfoo/1.1.0
       configured libfoo/1.1.0
       configured libbar/1.0.0
@@ -2720,12 +2633,11 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
 
       $* libbaz/0.0.3 2>!;
 
-      $* libbaz --patch 2>>~%EOE%;
+      $* libbaz --patch 2>>EOE;
         disfigured libbaz/0.0.3
         disfigured libfoo/1.0.0
         purged libfoo/1.0.0
-        %.*
-        %.*fetched libbaz/0.0.4%
+        fetched libbaz/0.0.4
         unpacked libbaz/0.0.4
         configured libbaz/0.0.4
         EOE
@@ -2738,23 +2650,20 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
     {
       $clone_cfg;
 
-      $* libbaz/0.0.3 --patch 2>>~%EOE%;
-        %.*
-        %.*fetched libfoo/1.0.0%
+      $* libbaz/0.0.3 --patch 2>>EOE;
+        fetched libfoo/1.0.0
         unpacked libfoo/1.0.0
         configured libfoo/1.0.0
-        %.*
-        %.*fetched libbaz/0.0.3%
+        fetched libbaz/0.0.3
         unpacked libbaz/0.0.3
         configured libbaz/0.0.3
         EOE
 
-      $* libbaz/0.1.0 --patch 2>>~%EOE%;
+      $* libbaz/0.1.0 --patch 2>>EOE;
         disfigured libbaz/0.0.3
         disfigured libfoo/1.0.0
         purged libfoo/1.0.0
-        %.*
-        %.*fetched libbaz/0.1.0%
+        fetched libbaz/0.1.0
         unpacked libbaz/0.1.0
         configured libbaz/0.1.0
         EOE
@@ -2769,7 +2678,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
 
       $* 'sys:libbaz/0.0.3-alpha' 2>!;
 
-      $* libbaz --patch 2>>~%EOE%;
+      $* libbaz --patch 2>>EOE;
         warning: unable to patch libbaz/0.0.3-alpha
           info: package is not using semantic/standard version
         info: nothing to build
@@ -2785,21 +2694,17 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
     +$clone_cfg
     +$rep_fetch $rep/t0c
 
-    +$* libbox libfix ?libbaz/0.0.3 2>>~%EOE%
-       %.*
-       %.*fetched libfoo/1.0.0%
+    +$* libbox libfix ?libbaz/0.0.3 2>>EOE
+       fetched libfoo/1.0.0
        unpacked libfoo/1.0.0
        configured libfoo/1.0.0
-       %.*
-       %.*fetched libbaz/0.0.3%
+       fetched libbaz/0.0.3
        unpacked libbaz/0.0.3
        configured libbaz/0.0.3
-       %.*
-       %.*fetched libbox/0.0.1%
+       fetched libbox/0.0.1
        unpacked libbox/0.0.1
        configured libbox/0.0.1
-       %.*
-       %.*fetched libfix/0.0.3%
+       fetched libfix/0.0.3
        unpacked libfix/0.0.3
        configured libfix/0.0.3
        EOE
@@ -2814,14 +2719,13 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
     {
       $clone_cfg;
 
-      $* ?libbaz +{ --patch } --upgrade 2>>~%EOE%
+      $* ?libbaz +{ --patch } --upgrade 2>>EOE
         disfigured libbox/0.0.1
         disfigured libfix/0.0.3
         disfigured libbaz/0.0.3
         disfigured libfoo/1.0.0
         purged libfoo/1.0.0
-        %.*
-        %.*fetched libbaz/0.0.4%
+        fetched libbaz/0.0.4
         unpacked libbaz/0.0.4
         configured libbaz/0.0.4
         configured libfix/0.0.3
@@ -2836,7 +2740,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
 
       $* '?sys:libbaz/0.0.4-alpha' 2>!;
 
-      $* ?libbaz --patch 2>>~%EOE%
+      $* ?libbaz --patch 2>>EOE
         warning: unable to patch libbaz/0.0.4-alpha
           info: package is not using semantic/standard version
         EOE
@@ -2847,14 +2751,13 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
     {
       $clone_cfg;
 
-      $* --patch --recursive 2>>~%EOE%
+      $* --patch --recursive 2>>EOE
         disfigured libfix/0.0.3
         disfigured libbox/0.0.1
         disfigured libbaz/0.0.3
         disfigured libfoo/1.0.0
         purged libfoo/1.0.0
-        %.*
-        %.*fetched libbaz/0.0.4%
+        fetched libbaz/0.0.4
         unpacked libbaz/0.0.4
         configured libbaz/0.0.4
         configured libbox/0.0.1
@@ -2869,14 +2772,13 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
     {
       $clone_cfg;
 
-      $* libbox +{ --upgrade-immediate } libfix +{ --patch-immediate } 2>>~%EOE%
+      $* libbox +{ --upgrade-immediate } libfix +{ --patch-immediate } 2>>EOE
         disfigured libfix/0.0.3
         disfigured libbox/0.0.1
         disfigured libbaz/0.0.3
         disfigured libfoo/1.0.0
         purged libfoo/1.0.0
-        %.*
-        %.*fetched libbaz/0.1.0%
+        fetched libbaz/0.1.0
         unpacked libbaz/0.1.0
         configured libbaz/0.1.0
         configured libbox/0.0.1
@@ -2919,16 +2821,13 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
 
     +$clone_cfg
 
-    +$* "libbaz/0.0.3@$rep/t0c" 2>>~%EOE%
+    +$* "libbaz/0.0.3@$rep/t0c" 2>>EOE
       added pkg:build2.org/pkg-build/t0c
-      %.*
-      %.*fetching pkg:build2.org/pkg-build/t0c%
-      %.*
-      %.*fetched libfoo/1.0.0%
+      fetching pkg:build2.org/pkg-build/t0c
+      fetched libfoo/1.0.0
       unpacked libfoo/1.0.0
       configured libfoo/1.0.0
-      %.*
-      %.*fetched libbaz/0.0.3%
+      fetched libbaz/0.0.3
       unpacked libbaz/0.0.3
       configured libbaz/0.0.3
       EOE
@@ -2940,13 +2839,12 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
     {
       $clone_cfg;
 
-      $* "libbaz@$rep/t0c" 2>>~%EOE%
+      $* "libbaz@$rep/t0c" 2>>EOE
         fetching pkg:build2.org/pkg-build/t0c
         disfigured libbaz/0.0.3
         disfigured libfoo/1.0.0
         purged libfoo/1.0.0
-        %.*
-        %.*fetched libbaz/0.0.4%
+        fetched libbaz/0.0.4
         unpacked libbaz/0.0.4
         configured libbaz/0.0.4
         EOE
@@ -2959,14 +2857,13 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
     {
       $clone_cfg;
 
-      $* "@$rep/t0c" 2>>~%EOE%;
+      $* "@$rep/t0c" 2>>EOE;
         fetching pkg:build2.org/pkg-build/t0c
         info: package libbar is not present in configuration
         info: package libbox is not present in configuration
         info: package libfix is not present in configuration
         disfigured libbaz/0.0.3
-        %.*
-        %.*fetched libbaz/0.0.4%
+        fetched libbaz/0.0.4
         unpacked libbaz/0.0.4
         configured libbaz/0.0.4
         EOE
@@ -2986,13 +2883,11 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
   $clone_cfg;
   $rep_add $rep/t2 && $rep_fetch;
 
-  $* --configure-only --yes libbar 2>>~%EOE%;
-    %.*
-    %.*fetched libfoo/1.0.0%
+  $* --configure-only --yes libbar 2>>EOE;
+    fetched libfoo/1.0.0
     unpacked libfoo/1.0.0
     configured libfoo/1.0.0
-    %.*
-    %.*fetched libbar/1.0.0%
+    fetched libbar/1.0.0
     unpacked libbar/1.0.0
     configured libbar/1.0.0
     EOE
@@ -3473,8 +3368,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
   $* "libbar@$rep/t5" 2>>~%EOE%;
     added pkg:build2.org/pkg-build/t5
     fetching pkg:build2.org/pkg-build/t5
-    %.*
-    %.*fetched libbar/1.2.0%
+    fetched libbar/1.2.0
     unpacked libbar/1.2.0
     configured libbar/1.2.0
     %info: .+ is up to date%
@@ -3485,8 +3379,7 @@ rep_fetch     += -d cfg --auth all --trust-yes 2>!
     added pkg:build2.org/pkg-build/t6
     fetching pkg:build2.org/pkg-build/t6
     disfigured libbar/1.2.0
-    %.*
-    %.*fetched libBar/2.0.0%
+    fetched libBar/2.0.0
     unpacked libBar/2.0.0
     configured libBar/2.0.0
     %info: .+ is up to date%
@@ -3529,10 +3422,8 @@ else
     $rep_fetch &cfg/.bpkg/repos/*/***;
 
     $* libmbar 2>>~%EOE%;
-      %distributing style-basic/.+%
       %checked out style-basic/.+%
       %configured style-basic/.+%
-      distributing libmbar/1.0.0
       checked out libmbar/1.0.0
       configured libmbar/1.0.0
       %info: .+ is up to date%
@@ -3559,10 +3450,8 @@ else
     $rep_fetch &cfg/.bpkg/repos/*/***;
 
     $* libbaz 2>>~%EOE%;
-      %distributing style-basic/.+%
       %checked out style-basic/.+%
       %configured style-basic/.+%
-      distributing libbaz/1.0.0
       checked out libbaz/1.0.0
       configured libbaz/1.0.0
       %info: .+ is up to date%

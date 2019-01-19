@@ -35,8 +35,6 @@ namespace bpkg
 
   static const diag_noreturn_end<fail_git> endg;
 
-  using opt = optional<const char*>; // Program option.
-
   static strings
   timeout_opts (const common_options& co, repository_protocol proto)
   {
@@ -209,17 +207,75 @@ namespace bpkg
     }
   }
 
-  // Run git process.
+  // Run git process, optionally suppressing progress.
   //
+  template <typename... A>
+  static process_exit
+  run_git (const common_options& co, bool progress, A&&... args)
+  {
+    // Unfortunately git doesn't have any kind of a no-progress option. The
+    // only way to suppress progress is to run quiet (-q) which also
+    // suppresses some potentially useful information. However, git suppresses
+    // progress automatically if its stderr is not a terminal. So we use this
+    // feature for the progress suppression by redirecting git's stderr to our
+    // own diagnostics stream via a proxy pipe.
+    //
+    fdpipe pipe;
+
+    if (!progress)
+      pipe = open_pipe ();
+
+    process pr (start_git (co,
+                           1                               /* stdout */,
+                           !progress ? pipe.out.get () : 2 /* stderr */,
+                           forward<A> (args)...));
+
+    if (!progress)
+    {
+      // Shouldn't throw, unless something is severely damaged.
+      //
+      pipe.out.close ();
+
+      try
+      {
+        ifdstream is (move (pipe.in), fdstream_mode::skip, ifdstream::badbit);
+
+        // We could probably write something like this, instead:
+        //
+        // *diag_stream << is.rdbuf () << flush;
+        //
+        // However, it would never throw and we could potentially miss the
+        // reading failure, unless we decide to additionally mess with the
+        // diagnostics stream exception mask.
+        //
+        for (string l; !eof (getline (is, l)); )
+          *diag_stream << l << endl;
+
+        is.close ();
+
+        // Fall through.
+      }
+      catch (const io_error& e)
+      {
+        // Fail if git exited normally with zero code, so the issue won't go
+        // unnoticed. Otherwise, let the caller handle git's failure.
+        //
+        if (pr.wait ())
+          fail << "unable to read git diagnostics: " << e;
+
+        // Fall through.
+      }
+    }
+
+    pr.wait ();
+    return *pr.exit;
+  }
+
   template <typename... A>
   static process_exit
   run_git (const common_options& co, A&&... args)
   {
-    process pr (start_git (co,
-                           1 /* stdout */, 2 /* stderr */,
-                           forward<A> (args)...));
-    pr.wait ();
-    return *pr.exit;
+    return run_git (co, true /* progress */, forward<A> (args)...);
   }
 
   // Run git process and return it's output as a string. Fail if the output
@@ -695,12 +751,15 @@ namespace bpkg
     if (i != repository_refs.end ())
       return i->second;
 
-    if (verb)
+    if (verb && !co.no_progress ())
       text << "querying " << url;
 
     refs rs;
     fdpipe pipe (open_pipe ());
 
+    // Note: ls-remote doesn't print anything to stderr, so no progress
+    // suppression is required.
+    //
     process pr (start_git (co,
                            pipe, 2 /* stderr */,
                            timeout_opts (co, url.scheme),
@@ -823,7 +882,7 @@ namespace bpkg
           ? strings ({"--separate-git-dir=" + git_dir.string ()})
           : strings (),
 
-          verb < 2 ? opt ("-q") : nullopt,
+          verb < 2 ? "-q" : nullptr,
           dir))
       fail << "unable to init " << dir << endg;
 
@@ -1262,27 +1321,44 @@ namespace bpkg
         }
       };
 
-      // Note that we suppress the (too detailed) fetch command output if the
-      // verbosity level is 1. However, we still want to see the progress in
-      // this case, unless stderr is not directed to a terminal.
+      // Map verbosity level. Suppress the (too detailed) fetch command output
+      // if the verbosity level is 1. However, we still want to see the
+      // progress in this case, unless we were asked to suppress it (git also
+      // suppress progress for a non-terminal stderr).
       //
+      cstrings vos;
+      bool progress (!co.no_progress ());
+
+      if (verb < 2)
+      {
+        vos.push_back ("-q");
+
+        if (progress)
+        {
+          if (verb == 1 && stderr_term)
+            vos.push_back ("--progress");
+        }
+        else
+          progress = true; // Already suppressed with -q.
+      }
+      else if (verb > 3)
+        vos.push_back ("-v");
+
       // Also note that we don't need to specify --refmap option since we can
       // rely on the init() function that properly sets the
       // remote.origin.fetch configuration option.
       //
       if (!run_git (co,
+                    progress,
                     timeout_opts (co, url ().scheme),
                     co.git_option (),
                     "-C", dir,
                     "fetch",
                     "--no-recurse-submodules",
-
-                    shallow         ? cstrings ({"--depth", "1"}) :
-                    shallow_repo () ? cstrings ({"--unshallow"})  :
-                    cstrings (),
-
-                    verb == 1 && fdterm (2) ? opt ("--progress") : nullopt,
-                    verb < 2 ? opt ("-q") : verb > 3 ? opt ("-v") : nullopt,
+                    (shallow         ? cstrings ({"--depth", "1"}) :
+                     shallow_repo () ? cstrings ({"--unshallow"})  :
+                     cstrings ()),
+                    vos,
                     "origin",
                     remapped_refspecs ? *remapped_refspecs : refspecs))
         fail << "unable to fetch " << dir << endg;
@@ -1294,72 +1370,74 @@ namespace bpkg
         fail << "unable to test if " << dir << " is shallow" << endg;
     };
 
-    // Print the progress indicator.
+    // Print progress.
     //
-    // Note that the clone command prints the following line prior to the
-    // progress lines:
-    //
-    // Cloning into '<dir>'...
-    //
-    // The fetch command doesn't print anything similar, for some reason.
-    // This makes it hard to understand which superproject/submodule is
-    // currently being fetched. Let's fix that.
-    //
-    // Also note that we have "fixed" that capital letter nonsense and stripped
-    // the trailing '...'.
-    //
-    if (verb)
+    if (verb && !co.no_progress ())
     {
-      diag_record dr (text);
-      dr << "fetching ";
-
-      if (!submodule.empty ())
-        dr << "submodule '" << submodule.posix_string () << "' ";
-
-      dr << "from " << url ();
-
-      if (verb >= 2)
-        dr << " in '" << dir.posix_string () << "'"; // Is used by tests.
-    }
-
-    // First, we perform the deep fetching.
-    //
-    if (fetch_repo || !dcs.empty ())
-    {
-      // Print warnings prior to the deep fetching.
+      // Note that the clone command prints the following line prior to the
+      // progress lines:
+      //
+      // Cloning into '<dir>'...
+      //
+      // The fetch command doesn't print anything similar, for some reason.
+      // This makes it hard to understand which superproject/submodule is
+      // currently being fetched. Let's fix that.
+      //
+      // Also note that we have "fixed" that capital letter nonsense and
+      // stripped the trailing '...'.
       //
       {
-        diag_record dr (warn);
-        dr << "fetching whole " << (fetch_repo ? "repository" : "reference")
-           << " history";
+        diag_record dr (text);
+        dr << "fetching ";
 
         if (!submodule.empty ())
-          dr << " for submodule '" << submodule.posix_string () << "'";
+          dr << "submodule '" << submodule.posix_string () << "' ";
 
-        dr << " ("
-           << (caps () == capabilities::dumb
-               ? "dumb HTTP"
-               : "unadvertised commit") // There are no other reasons so far.
-           << ')';
+        dr << "from " << url ();
+
+        if (verb >= 2)
+          dr << " in '" << dir.posix_string () << "'"; // Is used by tests.
       }
 
-      if (caps () == capabilities::dumb)
-        warn << "no progress will be shown (dumb HTTP)";
-
-      // Fetch.
+      // Print warnings prior to the deep fetching.
       //
-      fetch (fetch_repo ? strings () : dcs, false);
-
-      // After the deep fetching some of the shallow commits might also be
-      // fetched, so we drop them from the fetch list.
-      //
-      for (auto i (scs.begin ()); i != scs.end (); )
+      if (fetch_repo || !dcs.empty ())
       {
-        if (commit_fetched (co, dir, *i))
-          i = scs.erase (i);
-        else
-          ++i;
+        {
+          diag_record dr (warn);
+          dr << "fetching whole " << (fetch_repo ? "repository" : "reference")
+             << " history";
+
+          if (!submodule.empty ())
+            dr << " for submodule '" << submodule.posix_string () << "'";
+
+          dr << " ("
+             << (caps () == capabilities::dumb
+                 ? "dumb HTTP"
+                 : "unadvertised commit") // There are no other reasons so far.
+             << ')';
+        }
+
+        if (caps () == capabilities::dumb)
+          warn << "no progress will be shown (dumb HTTP)";
       }
+    }
+
+    // Fetch.
+    //
+    // First, we perform the deep fetching.
+    //
+    fetch (fetch_repo ? strings () : dcs, false);
+
+    // After the deep fetching some of the shallow commits might also be
+    // fetched, so we drop them from the fetch list.
+    //
+    for (auto i (scs.begin ()); i != scs.end (); )
+    {
+      if (commit_fetched (co, dir, *i))
+        i = scs.erase (i);
+      else
+        ++i;
     }
 
     // Finally, we perform the shallow fetching.
@@ -1425,7 +1503,7 @@ namespace bpkg
           : strings (),
 
           "submodule--helper", "init",
-          verb < 2 ? opt ("-q") : nullopt))
+          verb < 2 ? "-q" : nullptr))
       failure ("unable to initialize submodules");
 
     repository_url orig_url (origin_url (co, dir));
@@ -1589,7 +1667,7 @@ namespace bpkg
         // Let's make the message match the git-submodule script output
         // (again, except for capitalization).
         //
-        if (verb)
+        if (verb && !co.no_progress ())
           text << "submodule path '" << psd << "': checked out '" << commit
                << "'";
 
@@ -1716,7 +1794,7 @@ namespace bpkg
                            "-C", dir,
                            "reset",
                            "--hard",
-                           verb < 2 ? opt ("-q") : nullopt,
+                           verb < 2 ? "-q" : nullptr,
                            commit));
     if (!pr.wait ())
       fail << "unable to reset to " << commit << endg;
@@ -1729,7 +1807,7 @@ namespace bpkg
           "-d",
           "-x",
           "-ff",
-          verb < 2 ? opt ("-q") : nullopt))
+          verb < 2 ? "-q" : nullptr))
       fail << "unable to clean " << dir << endg;
   }
 

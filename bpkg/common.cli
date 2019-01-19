@@ -100,6 +100,23 @@ namespace bpkg
        a command."
     }
 
+    // When it comes to external programs (such as curl, git, etc), if stderr
+    // is not a terminal, the logic is actually tri-state: With --no-progress
+    // we suppress any progress. With --progress (which we may add in the
+    // future), we request full progress. Finally, without any --*progress
+    // options we let the external program decide what to do: it may do
+    // something intelligent (like curl) and produce non-terminal-friendly
+    // progress (such as status lines printed periodically) or it may disable
+    // progress all together (like git). Of course, it may also do no
+    // detection and dump non-terminal-unfriendly progress in which case we
+    // should probably do the detection ourselves and suppress it.
+    //
+    bool --no-progress
+    {
+      "Suppress progress indicators for long-lasting operations, such as
+       network transfers, building, etc."
+    }
+
     path --build
     {
       "<path>",
@@ -138,6 +155,14 @@ namespace bpkg
        \cb{wget}, and \cb{fetch}."
     }
 
+    strings --fetch-option
+    {
+      "<opt>",
+      "Additional option to be passed to the fetch program. See \cb{--fetch}
+       for more information on the fetch program. Repeat this option to
+       specify multiple fetch options."
+    }
+
     size_t --fetch-timeout
     {
       "<sec>",
@@ -155,14 +180,6 @@ namespace bpkg
 
        See \cb{--fetch} and \cb{--git} for more information on the fetch
        programs."
-    }
-
-    strings --fetch-option
-    {
-      "<opt>",
-      "Additional option to be passed to the fetch program. See \cb{--fetch}
-       for more information on the fetch program. Repeat this option to
-       specify multiple fetch options."
     }
 
     path --git = "git"

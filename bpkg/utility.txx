@@ -36,17 +36,26 @@ namespace bpkg
       // as us.
       //
       string vl;
+      bool no_progress (co.no_progress ());
 
       if (verb == 0)
+      {
         ops.push_back ("-q");
+        no_progress = false;  // Already suppressed with -q.
+      }
       else if (verb == 1)
       {
         if (v != verb_b::normal)
         {
           ops.push_back ("-q");
 
-          if (v == verb_b::progress && stderr_term)
-            ops.push_back ("--progress");
+          if (!no_progress)
+          {
+            if (v == verb_b::progress && stderr_term)
+              ops.push_back ("--progress");
+          }
+          else
+            no_progress = false; // Already suppressed with -q.
         }
       }
       else if (verb == 2)
@@ -57,6 +66,9 @@ namespace bpkg
         ops.push_back ("--verbose");
         ops.push_back (vl.c_str ());
       }
+
+      if (no_progress)
+        ops.push_back ("--no-progress");
 
       return process_start_callback (
         [] (const char* const args[], size_t n)

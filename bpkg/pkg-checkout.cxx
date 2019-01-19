@@ -42,7 +42,7 @@ namespace bpkg
           // Print the progress indicator to attribute the possible fetching
           // progress.
           //
-          if (verb)
+          if (verb && !o.no_progress ())
             text << "checking out "
                  << package_string (ap->id.name, ap->version);
 
@@ -194,7 +194,7 @@ namespace bpkg
       // At verbosity level 1 we want our (nicer) progress header but the
       // build system's actual progress.
       //
-      if (verb == 1)
+      if (verb == 1 && !o.no_progress ())
         text << "distributing " << n << '/' << v;
 
       run_b (o,
