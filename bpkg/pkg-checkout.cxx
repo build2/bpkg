@@ -130,23 +130,7 @@ namespace bpkg
       text << "checking out " << pl->location.leaf () << " "
            << "from " << pl->repository_fragment->name;
 
-    // Checkout the repository fragment.
-    //
     const repository_location& rl (pl->repository_fragment->location);
-
-    dir_path sd (c / repos_dir / repository_state (rl));
-    checkout (o, rl, sd, ap);
-
-    // Calculate the package path that points into the checked out fragment
-    // directory.
-    //
-    sd /= path_cast<dir_path> (pl->location);
-
-    // Verify the package prerequisites are all configured since the dist
-    // meta-operation generally requires all imports to be resolvable.
-    //
-    package_manifest m (pkg_verify (sd, true /* ignore_unknown */));
-    pkg_configure_prerequisites (o, t, m.dependencies, m.name);
 
     auto_rmdir rmd;
     optional<string> mc;
@@ -154,6 +138,22 @@ namespace bpkg
 
     if (!simulate)
     {
+      // Checkout the repository fragment.
+      //
+      dir_path sd (c / repos_dir / repository_state (rl));
+      checkout (o, rl, sd, ap);
+
+      // Calculate the package path that points into the checked out fragment
+      // directory.
+      //
+      sd /= path_cast<dir_path> (pl->location);
+
+      // Verify the package prerequisites are all configured since the dist
+      // meta-operation generally requires all imports to be resolvable.
+      //
+      package_manifest m (pkg_verify (sd, true /* ignore_unknown */));
+      pkg_configure_prerequisites (o, t, m.dependencies, m.name);
+
       if (exists (d))
         fail << "package directory " << d << " already exists";
 
