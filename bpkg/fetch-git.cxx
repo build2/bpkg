@@ -225,9 +225,16 @@ namespace bpkg
     if (!progress)
       pipe = open_pipe ();
 
+    int err (!progress ? pipe.out.get () : 2);
+
+    // We don't expect git to print anything to stdout, as the caller would use
+    // start_git() and pipe otherwise. Thus, let's redirect stdout to stderr
+    // for good measure, as git is known to print some informational messages
+    // to stdout.
+    //
     process pr (start_git (co,
-                           1                               /* stdout */,
-                           !progress ? pipe.out.get () : 2 /* stderr */,
+                           err /* stdout */,
+                           err /* stderr */,
                            forward<A> (args)...));
 
     if (!progress)
@@ -272,7 +279,7 @@ namespace bpkg
   }
 
   template <typename... A>
-  static process_exit
+  inline static process_exit
   run_git (const common_options& co, A&&... args)
   {
     return run_git (co, true /* progress */, forward<A> (args)...);
@@ -427,7 +434,9 @@ namespace bpkg
               const string& key,
               const string& value)
   {
-    run_git (co, co.git_option (), "-C", dir, "config", key, value);
+    if (!run_git (co, co.git_option (), "-C", dir, "config", key, value))
+      fail << "unable to set configuration option " << key << "='" << value
+           << "' in " << dir << endg;
   }
 
   // Get option from the specified configuration file.
@@ -1326,23 +1335,23 @@ namespace bpkg
       // progress in this case, unless we were asked to suppress it (git also
       // suppress progress for a non-terminal stderr).
       //
-      cstrings vos;
+      cstrings v;
       bool progress (!co.no_progress ());
 
       if (verb < 2)
       {
-        vos.push_back ("-q");
+        v.push_back ("-q");
 
         if (progress)
         {
           if (verb == 1 && stderr_term)
-            vos.push_back ("--progress");
+            v.push_back ("--progress");
         }
         else
-          progress = true; // Already suppressed with -q.
+          progress = true; // No need to suppress (already done with -q).
       }
       else if (verb > 3)
-        vos.push_back ("-v");
+        v.push_back ("-v");
 
       // Also note that we don't need to specify --refmap option since we can
       // rely on the init() function that properly sets the
@@ -1358,7 +1367,7 @@ namespace bpkg
                     (shallow         ? cstrings ({"--depth", "1"}) :
                      shallow_repo () ? cstrings ({"--unshallow"})  :
                      cstrings ()),
-                    vos,
+                    v,
                     "origin",
                     remapped_refspecs ? *remapped_refspecs : refspecs))
         fail << "unable to fetch " << dir << endg;
@@ -1782,32 +1791,23 @@ namespace bpkg
     // if we produce any untracked files in the tree between checkouts down
     // the road.
     //
-    // Note that the `git reset --hard` command running non-quiet prints the
-    // `HEAD is now at...` message to stdout (which is a deliberate behavior;
-    // see reply to the 631ae70d-9b5f-613d-5b6f-5064d548a894@codesynthesis.com
-    // issue report for details). To avoid messing up bpkg output we will
-    // redirect git stdout to stderr.
-    //
-    process pr (start_git (co,
-                           2 /* stdout */, 2 /* stderr */,
-                           co.git_option (),
-                           "-C", dir,
-                           "reset",
-                           "--hard",
-                           verb < 2 ? "-q" : nullptr,
-                           commit));
-    if (!pr.wait ())
+    if (!run_git (co,
+                  co.git_option (),
+                  "-C", dir,
+                  "reset",
+                  "--hard",
+                  verb < 2 ? "-q" : nullptr,
+                  commit))
       fail << "unable to reset to " << commit << endg;
 
-    if (!run_git (
-          co,
-          co.git_option (),
-          "-C", dir,
-          "clean",
-          "-d",
-          "-x",
-          "-ff",
-          verb < 2 ? "-q" : nullptr))
+    if (!run_git (co,
+                  co.git_option (),
+                  "-C", dir,
+                  "clean",
+                  "-d",
+                  "-x",
+                  "-ff",
+                  verb < 2 ? "-q" : nullptr))
       fail << "unable to clean " << dir << endg;
   }
 
