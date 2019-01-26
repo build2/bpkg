@@ -971,15 +971,17 @@ namespace bpkg
       return load_refs (co, url ()).search_names (refname, abbr_commit);
     };
 
-    // Return the default reference set (see add-rep(1) for details).
+    // Return the default reference set (see repository-types(1) for details).
     //
     auto default_references = [&co, &url] () -> refs::search_result
     {
       refs::search_result r;
       for (const ref& rf: load_refs (co, url ()))
       {
-        if (!rf.peeled && rf.name.compare (0, 11, "refs/tags/v") == 0 &&
-            parse_standard_version (string (rf.name, 11)))
+        if (!rf.peeled                                  &&
+            rf.name.compare (0, 11, "refs/tags/v") == 0 &&
+            parse_standard_version (string (rf.name, 11),
+                                    standard_version::allow_stub))
           r.push_back (rf);
       }
 
