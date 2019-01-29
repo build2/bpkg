@@ -33,11 +33,16 @@ namespace bpkg
               bool diag = true);
 
   // Similar to the above but verifies that a source directory is a valid
-  // package. Note that it doesn't enforce the <name>-<version> form for the
-  // directory itself.
+  // package. Always translates the package version and completes dependency
+  // constraints but doesn't expand the file-referencing manifest values. Note
+  // that it doesn't enforce the <name>-<version> form for the directory
+  // itself.
   //
   package_manifest
-  pkg_verify (const dir_path& source, bool ignore_unknown, bool diag = true);
+  pkg_verify (const dir_path& source,
+              bool ignore_unknown,
+              const function<package_manifest::translate_function>&,
+              bool diag = true);
 }
 
 #endif // BPKG_PKG_VERIFY_HXX

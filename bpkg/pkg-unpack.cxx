@@ -171,7 +171,15 @@ namespace bpkg
 
     // Verify the directory is a package and get its manifest.
     //
-    package_manifest m (pkg_verify (d, true /* ignore_unknown */));
+    package_manifest m (
+      pkg_verify (d,
+                  true /* ignore_unknown */,
+                  [&o, &d] (version& v)
+                  {
+                    if (optional<version> pv = package_version (o, d))
+                      v = move (*pv);
+                  }));
+
     l4 ([&]{trace << d << ": " << m.name << " " << m.version;});
 
     // Check/diagnose an already existing package.
@@ -180,9 +188,6 @@ namespace bpkg
 
     // Fix-up the package version.
     //
-    if (optional<version> v = package_version (o, d))
-      m.version = move (*v);
-
     if (optional<version> v = package_iteration (
           o, c, t, d, m.name, m.version, true /* check_external */))
       m.version = move (*v);

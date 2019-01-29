@@ -231,7 +231,15 @@ namespace bpkg
       {
         ifdstream ifs (f);
         manifest_parser mp (ifs, f.string ());
-        package_manifest m (mp, iu);
+
+        package_manifest m (
+          mp,
+          [&co, &d] (version& v)
+          {
+            if (optional<version> pv = package_version (co, d))
+              v = move (*pv);
+          },
+          iu);
 
         // Save the package manifest, preserving its location.
         //
@@ -248,13 +256,6 @@ namespace bpkg
       {
         fail << "unable to read from " << f << ": " << e;
       }
-
-      // Fix-up the package version.
-      //
-      optional<version> v (package_version (co, d));
-
-      if (v)
-        sm.version = move (*v);
 
       r.emplace_back (move (sm));
     }

@@ -151,7 +151,10 @@ namespace bpkg
       // Verify the package prerequisites are all configured since the dist
       // meta-operation generally requires all imports to be resolvable.
       //
-      package_manifest m (pkg_verify (sd, true /* ignore_unknown */));
+      package_manifest m (pkg_verify (sd,
+                                      true /* ignore_unknown */,
+                                      [&ap] (version& v) {v = ap->version;}));
+
       pkg_configure_prerequisites (o, t, m.dependencies, m.name);
 
       if (exists (d))

@@ -143,7 +143,10 @@ namespace bpkg
   }
 
   package_manifest
-  pkg_verify (const dir_path& d, bool iu, bool diag)
+  pkg_verify (const dir_path& d,
+              bool iu,
+              const function<package_manifest::translate_function>& tf,
+              bool diag)
   {
     // Parse the manifest.
     //
@@ -161,7 +164,7 @@ namespace bpkg
     {
       ifdstream ifs (mf);
       manifest_parser mp (ifs, mf.string ());
-      package_manifest m (mp, iu);
+      package_manifest m (mp, tf, iu);
 
       // We used to verify package directory is <name>-<version> but it is
       // not clear why we should enforce it in this case (i.e., the user

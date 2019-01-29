@@ -193,11 +193,10 @@ namespace bpkg
                     a->absolute () ? *a : c / *a,
                     true /* ignore_unknown */,
                     false /* expand_values */)
-      : pkg_verify (sp->effective_src_root (c), true /* ignore_unknown */));
-
-    // Copy the possibly fixed up version from the selected package.
-    //
-    m.version = sp->version;
+      : pkg_verify (sp->effective_src_root (c),
+                    true /* ignore_unknown */,
+                    // Copy potentially fixed up version from selected package.
+                    [&sp] (version& v) {v = sp->version;}));
 
     return make_pair (make_shared<available_package> (move (m)), move (af));
   }
@@ -2936,6 +2935,8 @@ namespace bpkg
 
               // This is a package archive.
               //
+              // Note that throwing failed from here on will be fatal.
+              //
               package_arc = true;
 
               l4 ([&]{trace << "archive '" << a << "': " << arg_string (pa);});
@@ -2994,9 +2995,19 @@ namespace bpkg
                        << "package directory: ";
 
                 package_manifest m (
-                  pkg_verify (d, true /* ignore_unknown */, diag));
+                  pkg_verify (
+                    d,
+                    true /* ignore_unknown */,
+                    [&o, &d] (version& v)
+                    {
+                      if (optional<version> pv = package_version (o, d))
+                        v = move (*pv);
+                    },
+                    diag));
 
                 // This is a package directory.
+                //
+                // Note that throwing failed from here on will be fatal.
                 //
                 package_dir = true;
 
@@ -3011,12 +3022,8 @@ namespace bpkg
                        << "' may not be built as a dependency";
 
                 // Fix-up the package version to properly decide if we need to
-                // upgrade/downgrade the package. Note that throwing failed
-                // from here on will be fatal.
+                // upgrade/downgrade the package.
                 //
-                if (optional<version> v = package_version (o, d))
-                  m.version = move (*v);
-
                 if (optional<version> v =
                     package_iteration (o,
                                        c,
@@ -4542,7 +4549,9 @@ namespace bpkg
         assert (sp->state == package_state::unpacked);
 
         package_manifest m (
-          pkg_verify (sp->effective_src_root (c), true /* ignore_unknown */));
+          pkg_verify (sp->effective_src_root (c),
+                      true /* ignore_unknown */,
+                      [&sp] (version& v) {v = sp->version;}));
 
         pkg_configure (c, o, t, sp, m.dependencies, p.config_vars, simulate);
       }
