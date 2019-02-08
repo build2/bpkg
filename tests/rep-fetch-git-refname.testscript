@@ -92,6 +92,15 @@
       checked out libfoo/1.0.0
       EOE
 
+    # While at it, check that the fetch was shallow (and the repository
+    # contains a single commit), unless the protocol is dumb.
+    #
+    if ($git_protocol != 'https-dumb')
+      $g "$r" log '--pretty=format:%d %s' >>:~%EOO%
+        % \(.+\) .+%
+        EOO
+    end;
+
     $g "$r" config remote.origin.url "$u/libfoo.git";
 
     # Preconditions.

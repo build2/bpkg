@@ -1397,6 +1397,8 @@ namespace bpkg
         fail << "unable to test if " << dir << " is shallow" << endg;
     };
 
+    bool fetch_deep (fetch_repo || !dcs.empty ());
+
     // Print progress.
     //
     if (verb && !co.no_progress ())
@@ -1428,7 +1430,7 @@ namespace bpkg
 
       // Print warnings prior to the deep fetching.
       //
-      if (fetch_repo || !dcs.empty ())
+      if (fetch_deep)
       {
         {
           diag_record dr (warn);
@@ -1454,23 +1456,26 @@ namespace bpkg
     //
     // First, we perform the deep fetching.
     //
-    fetch (fetch_repo ? strings () : dcs, false);
-
-    // After the deep fetching some of the shallow commits might also be
-    // fetched, so we drop them from the fetch list.
-    //
-    for (auto i (scs.begin ()); i != scs.end (); )
+    if (fetch_deep)
     {
-      if (commit_fetched (co, dir, *i))
-        i = scs.erase (i);
-      else
-        ++i;
+      fetch (fetch_repo ? strings () : dcs, false /* shallow */);
+
+      // After the deep fetching some of the shallow commits might also be
+      // fetched, so we drop them from the fetch list.
+      //
+      for (auto i (scs.begin ()); i != scs.end (); )
+      {
+        if (commit_fetched (co, dir, *i))
+          i = scs.erase (i);
+        else
+          ++i;
+      }
     }
 
     // Finally, we perform the shallow fetching.
     //
     if (!scs.empty ())
-      fetch (scs, true);
+      fetch (scs, true /* shallow */);
 
     // We also need to make sure that all the resulting commits are now
     // fetched. This may not be the case if the user misspelled the
