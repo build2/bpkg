@@ -497,6 +497,14 @@ namespace bpkg
   // hanging indefinitely while trying to establish TCP/IP connection (see the
   // timeout_opts() function for the gory details).
   //
+  // Note that some smart HTTP(S) repositories are capable of adding missing
+  // .git directory extension in the URL (see git-upload-pack(1) for details).
+  // Some of them, specifically hosted on GitHub, do that if `git/...` value
+  // is specified for the User-Agent HTTP request header. We will pretend to
+  // be git while sensing the protocol capabilities to "fix-up" repository
+  // URLs, if possible. That's why the function requires the git version
+  // parameter.
+  //
   enum class capabilities
   {
     dumb,  // No shallow clone support.
@@ -505,7 +513,9 @@ namespace bpkg
   };
 
   static capabilities
-  sense_capabilities (const common_options& co, repository_url url)
+  sense_capabilities (const common_options& co,
+                      repository_url url,
+                      const semantic_version& git_ver)
   {
     assert (url.path);
 
@@ -531,7 +541,10 @@ namespace bpkg
       url.query = "service=git-upload-pack";
 
     string u (url.string ());
-    process pr (start_fetch (co, u));
+    process pr (start_fetch (co,
+                             u,
+                             path () /* out */,
+                             "git/" + git_ver.string ()));
 
     try
     {
@@ -959,8 +972,11 @@ namespace bpkg
 
     auto caps = [&co, &url, &cap] () -> capabilities
     {
+      // Note that url() runs `git config --get remote.origin.url` command on
+      // the first call, and so git version get assigned (and checked).
+      //
       if (!cap)
-        cap = sense_capabilities (co, url ());
+        cap = sense_capabilities (co, url (), git_ver);
 
       return *cap;
     };

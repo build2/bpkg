@@ -94,11 +94,15 @@ namespace bpkg
               bool no_progress,
               const strings& ops,
               const string& url,
-              const path& out)
+              const path& out,
+              const string& user_agent)
   {
     bool fo (!out.empty ()); // Output to file.
-    string ua (BPKG_USER_AGENT " wget/" + to_string (wget_major) + "."
-               + to_string (wget_minor));
+
+    const string& ua (user_agent.empty ()
+                      ? BPKG_USER_AGENT " wget/" + to_string (wget_major) +
+                        "." + to_string (wget_minor)
+                      : user_agent);
 
     cstrings args {
       prog.string ().c_str (),
@@ -243,15 +247,20 @@ namespace bpkg
               bool no_progress,
               const strings& ops,
               const string& url,
-              const path& out)
+              const path& out,
+              const string& user_agent)
   {
     bool fo (!out.empty ()); // Output to file.
+
+    const string& ua (user_agent.empty ()
+                      ? string (BPKG_USER_AGENT " curl")
+                      : user_agent);
 
     cstrings args {
       prog.string ().c_str (),
       "-f", // Fail on HTTP errors (e.g., 404).
       "-L", // Follow redirects.
-      "-A", (BPKG_USER_AGENT " curl")
+      "-A", ua.c_str ()
     };
 
     auto suppress_progress = [&args] ()
@@ -387,13 +396,18 @@ namespace bpkg
                bool no_progress,
                const strings& ops,
                const string& url,
-               const path& out)
+               const path& out,
+               const string& user_agent)
   {
     bool fo (!out.empty ()); // Output to file.
 
+    const string& ua (user_agent.empty ()
+                      ? string (BPKG_USER_AGENT " fetch")
+                      : user_agent);
+
     cstrings args {
       prog.string ().c_str (),
-      "--user-agent", (BPKG_USER_AGENT " fetch")
+      "--user-agent", ua.c_str ()
     };
 
     if (fo)
@@ -558,14 +572,18 @@ namespace bpkg
   }
 
   process
-  start_fetch (const common_options& o, const string& url, const path& out)
+  start_fetch (const common_options& o,
+               const string& url,
+               const path& out,
+               const string& user_agent)
   {
     process (*f) (const path&,
                   const optional<size_t>&,
                   bool,
                   const strings&,
                   const string&,
-                  const path&) = nullptr;
+                  const path&,
+                  const string&) = nullptr;
 
     switch (check (o))
     {
@@ -580,8 +598,13 @@ namespace bpkg
 
     try
     {
-      return f (
-        fetch_path, timeout, o.no_progress (), o.fetch_option (), url, out);
+      return f (fetch_path,
+                timeout,
+                o.no_progress (),
+                o.fetch_option (),
+                url,
+                out,
+                user_agent);
     }
     catch (const process_error& e)
     {

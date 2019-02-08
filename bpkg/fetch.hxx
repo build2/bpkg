@@ -107,12 +107,14 @@ namespace bpkg
 
   // Start the process of fetching the specified URL. If out is empty, then
   // fetch to stdout. In this case also don't show any progress unless we are
-  // running verbose.
+  // running verbose. If user_agent is empty, then send the default (fetch
+  // program specific) User-Agent header value.
   //
   butl::process
   start_fetch (const common_options& o,
                const string& url,
-               const path& out = path ());
+               const path& out = {},
+               const string& user_agent = {});
 }
 
 #endif // BPKG_FETCH_HXX
