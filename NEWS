@@ -1,8 +1,54 @@
+Version 0.9.0
+
+  * Support for the ssh:// protocol in the git repository URLs.
+
+  * The repository type can now be specified in the repository URL's scheme
+    component. For example:
+
+    $ bpkg build git+https://example.org/project
+
+  * New 'builds' package manifest value for specify the build configuration
+    classes the package should or should not be built for. For example:
+
+    builds: -windows
+
+    Note also that the 'build-include' and 'build-exclude' pattern matching
+    semantics has been adjusted to distinguish between single-component ('*')
+    and multi-component ('**') matches. See the manual for details.
+
+  * Support for the '$' dependent package's version special value in the
+    package manifest dependency constraints.
+
+    This mechanism is primarily useful when developing related packages that
+    should track each other's versions exactly or closely. For example:
+
+    name: sqlite3
+    version: 3.18.2
+    depends: libsqlite3 == $
+
+    See the 'depends' package manifest value in the manual for details.
+
+  * Support for passing configuration variables in the bpkg-pkg-build command.
+
+  * New 'build-warning-email' and 'build-error-email' package manifest values
+    for specifying alternative emails for different diagnostics levels. See
+    the manual for details.
+
+  * New --jobs|-j option for specifying the number of jobs to perform in
+    parallel.
+
+  * New --no-progress option for suppressing progress indicators.
+
+  * New --deep option for the bpkg-pkg-verify command. See the command's man
+    pages for details.
+
+  * Values to the --openssl* options can now be qualified with the command
+    they should apply to.
+
 Version 0.8.0
 
   * New optional 'project' manifest value that specifies the project the
-    package belongs to. See the package dependency manager manual for
-    details.
+    package belongs to. See the manual for details.
 
   * Make package manifest 'url' and 'email' values optional.
 
@@ -23,7 +69,7 @@ Version 0.7.0
     bpkg-repository-types(1) help topic for details (structure, URL format).
 
   * Support for ~ and ^ version constraint operators. See the 'depends'
-    package manifest value documentation in the bpkg manual for details.
+    package manifest value documentation in the manual for details.
 
   * The pkg-build command has been significantly reworked. In particular, it
     allows "building" repositories in addition to packages (primarily useful
