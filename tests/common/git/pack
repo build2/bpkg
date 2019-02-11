@@ -15,6 +15,7 @@ function error () { info "$*"; exit 1; }
 
 projects=(\
   state0/libfoo state0/libfox state0/libbar state0/style state0/style-basic \
+  state0/links \
   state1/libfoo state1/libfox state1/libbaz state1/style state1/style-basic)
 
 for p in "${projects[@]}"; do

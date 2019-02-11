@@ -5,12 +5,12 @@
 #include <bpkg/fetch.hxx>
 
 #include <map>
-#include <algorithm> // find(), find_if(), replace(), sort()
+#include <algorithm> // find_if(), replace(), sort()
 
 #include <libbutl/git.mxx>
 #include <libbutl/utility.mxx>          // digit(), xdigit()
 #include <libbutl/process.mxx>
-#include <libbutl/filesystem.mxx>       // path_match()
+#include <libbutl/filesystem.mxx>       // path_match(), path_entry()
 #include <libbutl/semantic-version.mxx>
 #include <libbutl/standard-version.mxx> // parse_standard_version()
 
@@ -1490,6 +1490,127 @@ namespace bpkg
     return sort (move (r));
   }
 
+  // Print diagnostics, optionally attributing it to a submodule with the
+  // specified (non-empty) directory prefix, and fail.
+  //
+  [[noreturn]] static void
+  submodule_failure (const string& desc,
+                     const dir_path& prefix,
+                     const exception* e = nullptr)
+  {
+    diag_record dr (fail);
+    dr << desc;
+
+    if (!prefix.empty ())
+      // Strips the trailing slash.
+      //
+      dr << " for submodule '" << prefix.string () << "'";
+
+    if (e != nullptr)
+      dr << ": " << *e;
+
+    dr << endg;
+  }
+
+  // Find submodules for a top repository or submodule directory. The prefix
+  // is only used for diagnostics (see submodule_failure() for details).
+  //
+  struct submodule
+  {
+    dir_path path; // Relative to the containing repository.
+    string commit;
+  };
+  using submodules = vector<submodule>;
+
+  static submodules
+  find_submodules (const common_options& co,
+                   const dir_path& dir,
+                   const dir_path& prefix)
+  {
+    tracer trace ("find_submodules");
+
+    auto failure = [&prefix] (const string& d, const exception* e = nullptr)
+    {
+      submodule_failure (d, prefix, e);
+    };
+
+    fdpipe pipe (open_pipe ());
+
+    process pr (start_git (co,
+                           pipe, 2 /* stderr */,
+                           co.git_option (),
+                           "-C", dir,
+                           "submodule--helper", "list"));
+
+    // Shouldn't throw, unless something is severely damaged.
+    //
+    pipe.out.close ();
+
+    try
+    {
+      submodules r;
+      ifdstream is (move (pipe.in), fdstream_mode::skip, ifdstream::badbit);
+
+      for (string l; !eof (getline (is, l)); )
+      {
+        // The line describing a submodule has the following form:
+        //
+        // <mode><SPACE><commit><SPACE><stage><TAB><path>
+        //
+        // For example:
+        //
+        // 160000 658436a9522b5a0d016c3da0253708093607f95d 0	doc/style
+        //
+        l4 ([&]{trace << "submodule: " << l;});
+
+        if (!(l.size () > 50 && l[48] == '0' && l[49] == '\t'))
+          throw runtime_error ("invalid submodule description '" + l + "'");
+
+        // Submodule directory path is relative to the containing repository.
+        //
+        r.push_back (submodule {dir_path (string (l, 50)) /* path */,
+                                string (l, 7, 40) /* commit */});
+      }
+
+      is.close ();
+
+      if (pr.wait ())
+        return r;
+
+      // Fall through.
+    }
+    catch (const invalid_path& e)
+    {
+      if (pr.wait ())
+        failure ("invalid submodule path '" + e.path + "'");
+
+      // Fall through.
+    }
+    catch (const io_error& e)
+    {
+      if (pr.wait ())
+        failure ("unable to read submodules list", &e);
+
+      // Fall through.
+    }
+    // Note that the io_error class inherits from the runtime_error class, so
+    // this catch-clause must go last.
+    //
+    catch (const runtime_error& e)
+    {
+      if (pr.wait ())
+        failure (e.what ());
+
+      // Fall through.
+    }
+
+    // We should only get here if the child exited with an error status.
+    //
+    assert (!pr.wait ());
+
+    submodule_failure ("unable to list submodules", prefix);
+  }
+
   // Checkout the repository submodules (see git_checkout_submodules()
   // description for details).
   //
@@ -1501,23 +1622,15 @@ namespace bpkg
   {
     tracer trace ("checkout_submodules");
 
+    auto failure = [&prefix] (const string& d, const exception* e = nullptr)
+    {
+      submodule_failure (d, prefix, e);
+    };
+
     path mf (dir / path (".gitmodules"));
 
     if (!exists (mf))
       return;
-
-    auto failure = [&prefix] (const char* desc)
-    {
-      diag_record dr (fail);
-      dr << desc;
-
-      if (!prefix.empty ())
-        // Strips the trailing slash.
-        //
-        dr << " for submodule '" << prefix.string () << "'";
-
-      dr << endg;
-    };
 
     // Initialize submodules.
     //
@@ -1543,191 +1656,128 @@ namespace bpkg
     // Iterate over the registered submodules initializing/fetching them and
     // recursively checking them out.
     //
-    // Note that we don't expect submodules nesting be too deep and so recurse
-    // while reading the git process output.
-    //
-    // Also note that we don't catch the failed exception here, relying on the
-    // fact that the process destructor will wait for the process completion.
-    //
-    fdpipe pipe (open_pipe ());
+    for (const submodule& sm: find_submodules (co, dir, prefix))
+    {
+      // Submodule directory path, relative to the top repository.
+      //
+      dir_path psdir (prefix / sm.path);
+      string psd (psdir.posix_string ()); // For use in the diagnostics.
 
-    process pr (start_git (co,
-                           pipe, 2 /* stderr */,
+      string nm (git_line (co, "submodule name",
                            co.git_option (),
                            "-C", dir,
-                           "submodule--helper", "list"));
+                           "submodule--helper", "name",
+                           sm.path));
 
-    // Shouldn't throw, unless something is severely damaged.
-    //
-    pipe.out.close ();
+      string uo ("submodule." + nm + ".url");
+      string uv (config_get (co, dir, uo, "submodule URL"));
 
-    try
-    {
-      ifdstream is (move (pipe.in), fdstream_mode::skip, ifdstream::badbit);
+      l4 ([&]{trace << "name: " << nm << ", URL: " << uv;});
 
-      for (string l; !eof (getline (is, l)); )
+      dir_path fsdir (dir / sm.path);
+      bool initialized (git_repository (fsdir));
+
+      // If the submodule is already initialized and its commit didn't
+      // change then we skip it.
+      //
+      if (initialized && git_line (co, "submodule commit",
+                                   co.git_option (),
+                                   "-C", fsdir,
+                                   "rev-parse",
+                                   "--verify",
+                                   "HEAD") == sm.commit)
+        continue;
+
+      // Note that the "submodule--helper init" command (see above) doesn't
+      // sync the submodule URL in .git/config file with the one in
+      // .gitmodules file, that is a primary URL source. Thus, we always
+      // calculate the URL using .gitmodules and update it in .git/config, if
+      // necessary.
+      //
+      repository_url url;
+
+      try
       {
-        // The line describing a submodule has the following form:
+        url = from_git_url (
+          config_get (co, mf, uo, "submodule original URL"));
+
+        // Complete the relative submodule URL against the containing
+        // repository origin URL.
         //
-        // <mode><SPACE><commit><SPACE><stage><TAB><path>
-        //
-        // For example:
-        //
-        // 160000 658436a9522b5a0d016c3da0253708093607f95d 0	doc/style
-        //
-        l4 ([&]{trace << "submodule: " << l;});
-
-        if (!(l.size () > 50 && l[48] == '0' && l[49] == '\t'))
-          failure ("invalid submodule description");
-
-        string commit (l.substr (7, 40));
-
-        // Submodule directory path, relative to the containing project.
-        //
-        dir_path sdir  (l.substr (50));
-
-        // Submodule directory path, relative to the top project.
-        //
-        dir_path psdir (prefix / sdir);
-        string psd (psdir.posix_string ()); // For use in the diagnostics.
-
-        string nm (git_line (co, "submodule name",
-                             co.git_option (),
-                             "-C", dir,
-                             "submodule--helper", "name",
-                             sdir));
-
-        string uo ("submodule." + nm + ".url");
-        string uv (config_get (co, dir, uo, "submodule URL"));
-
-        l4 ([&]{trace << "name: " << nm << ", URL: " << uv;});
-
-        dir_path fsdir (dir / sdir);
-        bool initialized (git_repository (fsdir));
-
-        // If the submodule is already initialized and its commit didn't
-        // change then we skip it.
-        //
-        if (initialized && git_line (co, "submodule commit",
-                                     co.git_option (),
-                                     "-C", fsdir,
-                                     "rev-parse",
-                                     "--verify",
-                                     "HEAD") == commit)
-          continue;
-
-        // Note that the "submodule--helper init" command (see above) doesn't
-        // sync the submodule URL in .git/config file with the one in
-        // .gitmodules file, that is a primary URL source. Thus, we always
-        // calculate the URL using .gitmodules and update it in .git/config, if
-        // necessary.
-        //
-        repository_url url;
-
-        try
+        if (url.scheme == repository_protocol::file && url.path->relative ())
         {
-          url = from_git_url (
-            config_get (co, mf, uo, "submodule original URL"));
+          repository_url u (orig_url);
+          *u.path /= *url.path;
 
-          // Complete the relative submodule URL against the containing
-          // repository origin URL.
+          // Note that we need to collapse 'example.com/a/..' to
+          // 'example.com/', rather than to 'example.com/.'.
           //
-          if (url.scheme == repository_protocol::file && url.path->relative ())
-          {
-            repository_url u (orig_url);
-            *u.path /= *url.path;
+          u.path->normalize (
+            false /* actual */,
+            orig_url.scheme != repository_protocol::file /* cur_empty */);
 
-            // Note that we need to collapse 'example.com/a/..' to
-            // 'example.com/', rather than to 'example.com/.'.
-            //
-            u.path->normalize (
-              false /* actual */,
-              orig_url.scheme != repository_protocol::file /* cur_empty */);
+          url = move (u);
+        }
 
-            url = move (u);
-          }
+        // Fix-up submodule URL in .git/config file, if required.
+        //
+        if (url != from_git_url (move (uv)))
+        {
+          config_set (co, dir, uo, to_git_url (url));
 
-          // Fix-up submodule URL in .git/config file, if required.
+          // We also need to fix-up submodule's origin URL, if its
+          // repository is already initialized.
           //
-          if (url != from_git_url (move (uv)))
-          {
-            config_set (co, dir, uo, to_git_url (url));
-
-            // We also need to fix-up submodule's origin URL, if its
-            // repository is already initialized.
-            //
-            if (initialized)
-              origin_url (co, fsdir, url);
-          }
+          if (initialized)
+            origin_url (co, fsdir, url);
         }
-        catch (const invalid_path& e)
-        {
-          fail << "invalid repository path for submodule '" << psd << "': "
-               << e << endg;
-        }
-        catch (const invalid_argument& e)
-        {
-          fail << "invalid repository URL for submodule '" << psd << "': "
-               << e << endg;
-        }
-
-        // Initialize the submodule repository.
-        //
-        // Note that we initialize the submodule repository git directory out
-        // of the working tree, the same way as "submodule--helper clone"
-        // does. This prevents us from loosing the fetched data when switching
-        // the containing repository between revisions, that potentially
-        // contain different sets of submodules.
-        //
-        dir_path gdir (git_dir / dir_path ("modules") / sdir);
-
-        if (!initialized)
-        {
-          mk_p (gdir);
-          init (co, fsdir, url, gdir);
-        }
-
-        // Fetch and checkout the submodule.
-        //
-        git_ref_filters rfs {
-          git_ref_filter {nullopt, commit, false /* exclusion */}};
-
-        fetch (co, fsdir, psdir, rfs);
-
-        git_checkout (co, fsdir, commit);
-
-        // Let's make the message match the git-submodule script output
-        // (again, except for capitalization).
-        //
-        if (verb && !co.no_progress ())
-          text << "submodule path '" << psd << "': checked out '" << commit
-               << "'";
-
-        // Check out the submodule submodules, recursively.
-        //
-        checkout_submodules (co, fsdir, gdir, psdir);
+      }
+      catch (const invalid_path& e)
+      {
+        failure (
+          "invalid submodule '" + nm + "' repository path '" + e.path + "'");
+      }
+      catch (const invalid_argument& e)
+      {
+        failure ("invalid submodule '" + nm + "' repository URL", &e);
       }
 
-      is.close ();
+      // Initialize the submodule repository.
+      //
+      // Note that we initialize the submodule repository git directory out of
+      // the working tree, the same way as "submodule--helper clone" does.
+      // This prevents us from loosing the fetched data when switching the
+      // containing repository between revisions, that potentially contain
+      // different sets of submodules.
+      //
+      dir_path gdir (git_dir / dir_path ("modules") / sm.path);
 
-      if (pr.wait ())
-        return;
+      if (!initialized)
+      {
+        mk_p (gdir);
+        init (co, fsdir, url, gdir);
+      }
 
-      // Fall through.
+      // Fetch and checkout the submodule.
+      //
+      git_ref_filters rfs {
+        git_ref_filter {nullopt, sm.commit, false /* exclusion */}};
+
+      fetch (co, fsdir, psdir, rfs);
+
+      git_checkout (co, fsdir, sm.commit);
+
+      // Let's make the message match the git-submodule script output (again,
+      // except for capitalization).
+      //
+      if (verb && !co.no_progress ())
+        text << "submodule path '" << psd << "': checked out '" << sm.commit
+             << "'";
+
+      // Check out the submodule submodules, recursively.
+      //
+      checkout_submodules (co, fsdir, gdir, psdir);
     }
-    catch (const io_error&)
-    {
-      if (pr.wait ())
-        failure ("unable to read submodules list");
-
-      // Fall through.
-    }
-
-    // We should only get here if the child exited with an error status.
-    //
-    assert (!pr.wait ());
-
-    failure ("unable to list submodules");
   }
 
   void
@@ -1805,8 +1855,8 @@ namespace bpkg
                 const string& commit)
   {
     // For some (probably valid) reason the hard reset command doesn't remove
-    // a submodule directory that is not plugged into the project anymore. It
-    // also prints the non-suppressible warning like this:
+    // a submodule directory that is not plugged into the repository anymore.
+    // It also prints the non-suppressible warning like this:
     //
     // warning: unable to rmdir libbar: Directory not empty
     //
@@ -1851,4 +1901,391 @@ namespace bpkg
                          dir / dir_path (".git"),
                          dir_path () /* prefix */);
   }
+
+#ifndef _WIN32
+
+  // Noop on POSIX.
+  //
+  bool
+  git_fixup_worktree (const common_options&, const dir_path&, bool)
+  {
+    return false;
+  }
+
+#else
+
+  // Find symlinks in the repository (non-recursive submodule-wise).
+  //
+  static paths
+  find_symlinks (const common_options& co,
+                 const dir_path& dir,
+                 const dir_path& prefix)
+  {
+    tracer trace ("find_symlinks");
+
+    auto failure = [&prefix] (const string& d, const exception* e = nullptr)
+    {
+      submodule_failure (d, prefix, e);
+    };
+
+    fdpipe pipe (open_pipe ());
+
+    // Note: -z tells git to print file paths literally (without escaping) and
+    // terminate lines with NUL character.
+    //
+    process pr (start_git (co,
+                           pipe, 2 /* stderr */,
+                           co.git_option (),
+                           "-C", dir,
+                           "ls-files",
+                           "--stage",
+                           "-z"));
+
+    // Shouldn't throw, unless something is severely damaged.
+    //
+    pipe.out.close ();
+
+    try
+    {
+      paths r;
+      ifdstream is (move (pipe.in), fdstream_mode::skip, ifdstream::badbit);
+
+      for (string l; !eof (getline (is, l, '\0')); )
+      {
+        // The line describing a file is NUL-terminated and has the following
+        // form:
+        //
+        // <mode><SPACE><object><SPACE><stage><TAB><path>
+        //
+        // The mode is a 6-digit octal representation of the file type and
+        // permission bits mask. For example:
+        //
+        // 100644 165b42ec7a10fb6dd4a60b756fa1966c1065ef85 0	README
+        //
+        l4 ([&]{trace << "file: " << l;});
+
+        if (!(l.size () > 50 && l[48] == '0' && l[49] == '\t'))
+          throw runtime_error ("invalid file description '" + l + "'");
+
+        // For symlinks permission bits are always zero, so we can match the
+        // mode as a string.
+        //
+        if (l.compare (0, 6, "120000") == 0)
+          r.push_back (path (string (l, 50)));
+      }
+
+      is.close ();
+
+      if (pr.wait ())
+        return r;
+
+      // Fall through.
+    }
+    catch (const invalid_path& e)
+    {
+      if (pr.wait ())
+        failure ("invalid repository symlink path '" + e.path + "'");
+
+      // Fall through.
+    }
+    catch (const io_error& e)
+    {
+      if (pr.wait ())
+        failure ("unable to read repository file list", &e);
+
+      // Fall through.
+    }
+    // Note that the io_error class inherits from the runtime_error class,
+    // so this catch-clause must go last.
+    //
+    catch (const runtime_error& e)
+    {
+      if (pr.wait ())
+        failure (e.what ());
+
+      // Fall through.
+    }
+
+    // We should only get here if the child exited with an error status.
+    //
+    assert (!pr.wait ());
+
+    // Show the noreturn attribute to the compiler to avoid the 'end of
+    // non-void function' warning.
+    //
+    submodule_failure ("unable to list repository files", prefix);
+  }
+
+  // Fix up or revert the previously made fixes in a working tree of a top
+  // repository or submodule (see git_fixup_worktree() description for
+  // details). Return nullopt if no changes are required (because real symlink
+  // are being used).
+  //
+  static optional<bool>
+  fixup_worktree (const common_options& co,
+                  const dir_path& dir,
+                  bool revert,
+                  const dir_path& prefix)
+  {
+    bool r (false);
+
+    auto failure = [&prefix] (const string& d, const exception* e = nullptr)
+    {
+      submodule_failure (d, prefix, e);
+    };
+
+    if (!revert)
+    {
+      // Fix up symlinks depth-first, so link targets in submodules exist by
+      // the time we potentially reference them from the containing
+      // repository.
+      //
+      for (const submodule& sm: find_submodules (co, dir, prefix))
+      {
+        optional<bool> fixed (
+          fixup_worktree (co, dir / sm.path, revert, prefix / sm.path));
+
+        // If no further fix up is required, then the repository contains a
+        // real symlink. If that's the case, bailout or fail if git's
+        // filesystem-agnostic symlinks are also present in the repository.
+        //
+        if (!fixed)
+        {
+          // Note that the error message is not precise as path for the
+          // symlink in question is no longer available. However, the case
+          // feels unusual, so let's not complicate things for now.
+          //
+          if (r)
+            failure ("unexpected real symlink in submodule '" +
+                     sm.path.string () + "'");
+
+          return nullopt;
+        }
+
+        if (*fixed)
+          r = true;
+      }
+
+      // Note that the target belonging to the current repository can be
+      // unavailable at the time we create a link to it because its path may
+      // contain a not yet created link components. Also, an existing target
+      // can be a not yet replaced filesystem-agnostic symlink.
+      //
+      // First, we cache link/target paths and remove the filesystem-agnostic
+      // links from the filesystem in order not to end up hard-linking them as
+      // targets. Then, we create links (hardlinks and junctions) iteratively,
+      // skipping those with not-yet-existing target, unless no links were
+      // created at the previous run, in which case we fail.
+      //
+      paths ls (find_symlinks (co, dir, prefix));
+      vector<pair<path, path>> links; // List of the link/target path pairs.
+
+      // Cache/remove filesystem-agnostic symlinks.
+      //
+      for (auto& l: ls)
+      {
+        path lp (dir / l); // Absolute or relative to the current directory.
+
+        // Check the symlink type to see if we need to replace it or can bail
+        // out/fail (see above).
+        //
+        // @@ Note that things are broken here if running in the Windows
+        //    "elevated console mode":
+        //
+        // - file symlinks are currently not supported (see
+        //   libbutl/filesystem.mxx for details).
+        //
+        // - git creates symlinks to directories, rather than junctions. This
+        //   makes things to fall apart as Windows API seems to be unable to
+        //   see through such directory symlinks. More research is required.
+        //
+        try
+        {
+          pair<bool, entry_stat> e (path_entry (lp));
+
+          if (!e.first)
+            failure ("symlink '" + l.string () + "' does not exist");
+
+          if (e.second.type == entry_type::symlink)
+          {
+            if (r)
+              failure ("unexpected real symlink '" + l.string () + "'");
+
+            return nullopt;
+          }
+        }
+        catch (const system_error& e)
+        {
+          failure ("unable to stat symlink '" + l.string ()  + "'", &e);
+        }
+
+        // Read the symlink target path.
+        //
+        path t;
+
+        try
+        {
+          ifdstream fs (lp);
+          t = path (fs.read_text ());
+        }
+        catch (const invalid_path& e)
+        {
+          failure ("invalid target path '" + e.path + "' for symlink '" +
+                   l.string () + "'",
+                   &e);
+        }
+        catch (const io_error& e)
+        {
+          failure ("unable to read target path for symlink '" + l.string () +
+                   "'",
+                   &e);
+        }
+
+        // Mark the symlink as unchanged and remove it.
+        //
+        if (!run_git (co,
+                      co.git_option (),
+                      "-C", dir,
+                      "update-index",
+                      "--assume-unchanged",
+                      l))
+          failure ("unable to mark symlink '" + l.string () +
+                   "' as unchanged");
+
+        links.emplace_back (move (l), move (t));
+
+        rm (lp);
+        r = true;
+      }
+
+      // Create real links (hardlinks and junctions).
+      //
+      while (!links.empty ())
+      {
+        size_t n (links.size ());
+
+        for (auto i (links.cbegin ()); i != links.cend (); )
+        {
+          const path& l (i->first);
+          const path& t (i->second);
+
+          // Absolute or relative to the current directory.
+          //
+          path lp (dir / l);
+          path tp (lp.directory () / t);
+
+          bool dir_target;
+
+          try
+          {
+            pair<bool, entry_stat> pe (path_entry (tp));
+
+            // Skip the symlink that references a not-yet-existing target.
+            //
+            if (!pe.first)
+            {
+              ++i;
+              continue;
+            }
+
+            dir_target = pe.second.type == entry_type::directory;
+          }
+          catch (const system_error& e)
+          {
+            failure ("unable to stat target '" + t.string () +
+                     "' for symlink '" + l.string () + "'",
+                     &e);
+          }
+
+          // Create the hardlink for a file target and junction for a
+          // directory target.
+          //
+          try
+          {
+            if (dir_target)
+              mksymlink (tp, lp, true /* dir */);
+            else
+              mkhardlink (tp, lp);
+          }
+          catch (const system_error& e)
+          {
+            failure (string ("unable to create ") +
+                     (dir_target ? "junction" : "hardlink") + " '" +
+                     l.string () + "' with target '" + t.string () + "'",
+                     &e);
+          }
+
+          i = links.erase (i);
+        }
+
+        // Fail if no links were created on this run.
+        //
+        if (links.size () == n)
+        {
+          assert (!links.empty ());
+
+          failure ("target '" + links[0].first.string () + "' for symlink '" +
+                   links[0].second.string () + "' does not exist");
+        }
+      }
+    }
+    else
+    {
+      // Revert the fixes we've made previously in the opposite, depth-last,
+      // order.
+      //
+      // For the directory junctions the git-checkout command (see below)
+      // removes the target directory content, rather then the junction
+      // filesystem entry. To prevent this, we remove all hardlinks/junctions
+      // ourselves first.
+      //
+      for (const path& l: find_symlinks (co, dir, prefix))
+      {
+        try
+        {
+          try_rmfile (dir / l);
+        }
+        catch (const system_error& e)
+        {
+          failure ("unable to remove hardlink or junction '" + l.string () +
+                   "'",
+                   &e);
+        }
+      }
+
+      if (!run_git (co,
+                    co.git_option (),
+                    "-C", dir,
+                    "checkout",
+                    "--",
+                    "./"))
+        failure ("unable to revert '" + dir.string () + '"');
+
+      // Revert fixes in submodules.
+      //
+      for (const submodule& sm: find_submodules (co, dir, prefix))
+        fixup_worktree (co, dir / sm.path, revert, prefix / sm.path);
+
+      // Let's not complicate things detecting if we have reverted anything
+      // and always return true, assuming there wouldn't be a reason to revert
+      // if no fixes were made previously.
+      //
+      r = true;
+    }
+
+    return r;
+  }
+
+  bool
+  git_fixup_worktree (const common_options& co,
+                      const dir_path& dir,
+                      bool revert)
+  {
+    optional<bool> r (
+      fixup_worktree (co, dir, revert, dir_path () /* prefix */));
+
+    return r ? *r : false;
+  }
+
+#endif
 }

@@ -11,6 +11,8 @@
 #     |-- libbar.git      -> style-basic.git (prerequisite)
 #     `-- style-basic.git
 
+posix = ($cxx.target.class != 'windows')
+
 # Prepare repositories used by tests if running in the local mode.
 #
 +if ($remote != true)
@@ -19,6 +21,11 @@
   $git_extract $src/git/libbar.tar
   $git_extract $src/git/style-basic0.tar &$out_git/state0/***
   $git_extract $src/git/style-basic1.tar &$out_git/state1/***
+
+  if $posix
+    $git_extract $src/git/style.tar
+    $git_extract $src/git/links.tar
+  end
 end
 
 : git-rep
@@ -39,67 +46,172 @@ else
   pkg_purge     += -d cfg 2>!
   pkg_status    += -d cfg
 
-  test.cleanups += &cfg/.bpkg/repos/*/***
+  test.cleanups += &?cfg/.bpkg/repos/*/***
 
   : unconfigured-dependency
   :
-  $clone_root_cfg;
-  $rep_add "$rep/libbar.git#master";
-  $rep_fetch;
+  {
+    $clone_root_cfg;
+    $rep_add "$rep/libbar.git#master";
+    $rep_fetch;
 
-  $* libmbar/1.0.0 2>>EOE != 0
-  error: no configured package satisfies dependency on style-basic >= 1.0.0
-  EOE
+    $* libmbar/1.0.0 2>>EOE != 0
+      error: no configured package satisfies dependency on style-basic >= 1.0.0
+      warning: repository state is now broken
+        info: run 'bpkg rep-fetch' to repair
+      EOE
+  }
 
   : configured-dependency
   :
-  $clone_root_cfg;
-  $rep_add "$rep/libbar.git#master" && $rep_add "$rep/style-basic.git#master";
-  $rep_fetch;
+  {
+    $clone_root_cfg;
+    $rep_add "$rep/libbar.git#master" && $rep_add "$rep/style-basic.git#master";
+    $rep_fetch;
 
-  $pkg_status style-basic | sed -n -e 's/style-basic available \[.+\] ([^ ]+)/\1/p' | set v;
+    $pkg_status style-basic | sed -n -e 's/style-basic available \[.+\] ([^ ]+)/\1/p' | set v;
 
-  $* "style-basic/$v" 2>>"EOE";
-  distributing style-basic/$v
-  checked out style-basic/$v
-  EOE
+    $* "style-basic/$v" 2>>"EOE";
+      distributing style-basic/$v
+      checked out style-basic/$v
+      EOE
 
-  $pkg_configure style-basic;
+    $pkg_configure style-basic;
 
-  $* libmbar/1.0.0 2>>EOE;
-  distributing libmbar/1.0.0
-  checked out libmbar/1.0.0
-  EOE
+    $* libmbar/1.0.0 2>>EOE;
+      distributing libmbar/1.0.0
+      checked out libmbar/1.0.0
+      EOE
 
-  $pkg_disfigure style-basic;
+    $pkg_disfigure style-basic;
 
-  $pkg_purge libmbar;
-  $pkg_purge style-basic
+    $pkg_purge libmbar;
+    $pkg_purge style-basic
+  }
 
   : replacement
   :
-  # @@ Reduce to a single repository when multiple revisions can be specified
-  #    in the repository URL fragment.
-  #
-  rep0 = "$rep_git/state0";
-  rep1 = "$rep_git/state1";
+  {
+    # @@ Reduce to a single repository when multiple revisions can be specified
+    #    in the repository URL fragment.
+    #
+    rep0 = "$rep_git/state0";
+    rep1 = "$rep_git/state1";
 
-  $clone_root_cfg;
-  $rep_add "$rep0/style-basic.git#master";
-  $rep_add "$rep1/style-basic.git#stable";
-  $rep_fetch;
+    $clone_root_cfg;
+    $rep_add "$rep0/style-basic.git#master";
+    $rep_add "$rep1/style-basic.git#stable";
+    $rep_fetch;
 
-  $pkg_status style-basic | \
-    sed -n -e 's/style-basic available ([^ ]+) +([^ ]+)/\1 \2/p' | set vs;
+    $pkg_status style-basic | \
+      sed -n -e 's/style-basic available ([^ ]+) +([^ ]+)/\1 \2/p' | set vs;
 
-  echo "$vs" | sed -e 's/([^ ]+).+/\1/'        | set v0;
-  echo "$vs" | sed -e 's/([^ ]+) +([^ ]+)/\2/' | set v1;
+    echo "$vs" | sed -e 's/([^ ]+).+/\1/'        | set v0;
+    echo "$vs" | sed -e 's/([^ ]+) +([^ ]+)/\2/' | set v1;
 
-  $* "style-basic/$v0" 2>!;
-  $pkg_status style-basic >~"/style-basic unpacked $v0/";
+    $* "style-basic/$v0" 2>!;
+    $pkg_status style-basic >~"/style-basic unpacked $v0/";
 
-  $* --replace "style-basic/$v1" 2>!;
-  $pkg_status style-basic >~"/style-basic unpacked $v1 .+/";
+    $* --replace "style-basic/$v1" 2>!;
+    $pkg_status style-basic >~"/style-basic unpacked $v1 .+/";
 
-  $pkg_purge style-basic
+    $pkg_purge style-basic
+  }
+
+  : links
+  :
+  if ($remote == true || $posix)
+  {
+    $clone_root_cfg;
+
+    $rep_fetch "$rep/links.git#v1.0.0-alpha";
+
+    $pkg_status links | sed -n -e 's/links available (.+)/\1/p' | set v;
+
+    $* "links/$v" 2>>~%EOE%;
+      %.*
+      %checking out links/1.0.0-a.0.[^.]+.[^.]+%d
+      %.*
+      %distributing links/1.0.0-a.0.[^.]+.[^.]+%d
+      %checked out links/1.0.0-a.0.[^.]+.[^.]+%d
+      EOE
+
+    d = "cfg/links-$v";
+
+    # See common/git/init script for the symlinks descriptions.
+    #
+    test -d $d/bs;
+    test -d $d/ts;
+
+    cat $d/pg          >'h1 {font-size: 3em;}';
+    cat $d/bs/page.css >'h1 {font-size: 3em;}';
+    cat $d/bf          >'./: file{manifest}';
+    cat $d/td          >'@@';
+    cat $d/tl          >'@@';
+    cat $d/ts/TODO     >'@@';
+
+    $pkg_purge links;
+    $rep_fetch "$rep/links.git#v0.0.1";
+
+    $* links/0.0.1 2>>~%EOE%;
+      checking out links/0.0.1
+      distributing links/0.0.1
+      checked out links/0.0.1
+      EOE
+
+    d = cfg/links-0.0.1;
+
+    test -d $d/bs == 1;
+    test -d $d/ts == 1;
+    test -f $d/pg == 1;
+    test -f $d/bf == 1;
+    test -f $d/td == 1;
+    test -f $d/tl == 1;
+
+    $pkg_purge links;
+
+    # Dangling symlink in the repository.
+    #
+    $rep_fetch "$rep/links.git#v1.0.1";
+
+    if $posix
+      $* links/1.0.1 2>>~%EOE%
+        checking out links/1.0.1
+        distributing links/1.0.1
+        checked out links/1.0.1
+        EOE
+
+      $pkg_purge links
+    else
+      $* links/1.0.1 2>>~%EOE% != 0
+        checking out links/1.0.1
+        error: target 'bl' for symlink 'lc' does not exist
+          info: re-run with -v for more information
+        warning: repository state is now broken
+          info: run 'bpkg rep-fetch' to repair
+        EOE
+    end;
+
+    # Cyclic symlinks in the repository.
+    #
+    if $posix
+      $rep_fetch "$rep/links.git#v1.0.2" 2>>~%EOE% != 0
+        %.*
+        %error: unable to iterate over .+%
+        warning: repository state is now broken and will be cleaned up
+          info: run 'bpkg rep-fetch' to update
+        EOE
+    else
+      $rep_fetch "$rep/links.git#v1.0.2"
+
+      $* links/1.0.2 2>>~%EOE% != 0
+        checking out links/1.0.2
+        %.*
+        %error: target '..' for symlink '..' does not exist%
+          info: re-run with -v for more information
+        warning: repository state is now broken
+          info: run 'bpkg rep-fetch' to repair
+        EOE
+    end
+  }
 }

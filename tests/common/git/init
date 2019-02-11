@@ -42,6 +42,18 @@ fi
 #
 cd state0
 
+rm -f -r links.git/.git
+rm -f    links.git/.gitmodules
+rm -f    links.git/bl
+rm -f    links.git/lc
+rm -f    links.git/pg
+rm -f    links.git/bs
+rm -f    links.git/bf
+rm -f    links.git/tl
+rm -f    links.git/td
+rm -f    links.git/ts
+rm -f -r links.git/doc/style
+
 rm -f -r libfoo.git/.git
 rm -f    libfoo.git/.gitmodules
 rm -f    libfoo.git/README
@@ -156,6 +168,86 @@ git -C libfox.git submodule add ../libbar.git libbar
 git -C libfox.git submodule update --init --recursive # Recursive for safety.
 git -C libfox.git commit -am 'Create'
 
+# Create master branch for links.git, adding style.git as a submodule.
+#
+git -C links.git init
+
+cat <<EOF >links.git/manifest
+: 1
+name: links
+version: 0.0.1
+summary: links
+license: MIT
+url: http://example.org
+email: pkg@example.org
+EOF
+
+git -C links.git add '*'
+git -C links.git submodule add ../style.git doc/style
+git -C links.git submodule update --init --recursive # Updates doc/style/basic.
+git -C links.git commit -am 'Create'
+git -C links.git tag -a 'v0.0.1' -m 'Tag version 0.0.1'
+
+# Increase links version and add symlinks.
+#
+cat <<EOF >links.git/manifest
+: 1
+name: links
+version: 1.0.0-a.0.z
+summary: links
+license: MIT
+url: http://example.org
+email: pkg@example.org
+EOF
+
+ln -s tests links.git/ts               # Directory symlink.
+ln -s ts/TODO links.git/td             # File symlink via directory symlink.
+ln -s td links.git/tl                  # Symlink symlink.
+ln -s doc/style/buildfile links.git/bf # Submodule file symlink.
+ln -s doc/style/basic links.git/bs     # Submodule directory symlink.
+ln -s bs/page.css links.git/pg         # Symlink via submodule directory symlink.
+
+git -C links.git add '*'
+git -C links.git commit -am 'Add symlinks'
+git -C links.git tag -a 'v1.0.0-alpha' -m 'Tag version 1.0.0-alpha'
+
+# Increase links version and add dangling symlink.
+#
+cat <<EOF >links.git/manifest
+: 1
+name: links
+version: 1.0.1
+summary: links
+license: MIT
+url: http://example.org
+email: pkg@example.org
+EOF
+
+ln -s lc links.git/bl # Dangling symlink.
+
+git -C links.git add '*'
+git -C links.git commit -am 'Add dangling symlinks'
+git -C links.git tag -a 'v1.0.1' -m 'Tag version 1.0.1'
+
+# Increase links version and add cyclic symlink.
+#
+cat <<EOF >links.git/manifest
+: 1
+name: links
+version: 1.0.2
+summary: links
+license: MIT
+url: http://example.org
+email: pkg@example.org
+EOF
+
+ln -s bl links.git/lc # Cyclic symlink.
+
+git -C links.git add '*'
+git -C links.git commit -am 'Add cyclic symlinks'
+git -C links.git tag -a 'v1.0.2' -m 'Tag version 1.0.2'
+
+
 # Create the modified state of the repositories, replacing libbar.git submodule
 # of libfoo with the newly created libbaz.git repository. Also advance master
 # branches and tags for libfoo.git and it's submodule style.git.
@@ -168,6 +260,10 @@ for d in ../state0/*.git; do
   rm -f -r $(basename $d)
   cp -r $d .
 done
+
+# Drop the links.git repository.
+#
+rm -f -r links.git/
 
 # Create libbaz.git repository.
 #

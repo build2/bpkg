@@ -313,7 +313,7 @@ namespace bpkg
     dir_path sd (repository_state (rl));
 
     auto_rmdir rm (temp_dir / sd);
-    dir_path& td (rm.path);
+    const dir_path& td (rm.path);
 
     if (exists (td))
       rm_r (td);

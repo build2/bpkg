@@ -56,6 +56,31 @@ namespace bpkg
     }
   }
 
+  // For some platforms/repository types the working tree needs to be
+  // temporary "fixed up" for the build2 operations to work properly on it.
+  //
+  static bool
+  fixup (const common_options& o,
+         const repository_location& rl,
+         const dir_path& dir,
+         bool revert = false)
+  {
+    bool r (false);
+
+    switch (rl.type ())
+    {
+    case repository_type::git:
+      {
+        r = git_fixup_worktree (o, dir, revert);
+        break;
+      }
+    case repository_type::pkg:
+    case repository_type::dir: assert (false); break;
+    }
+
+    return r;
+  }
+
   shared_ptr<selected_package>
   pkg_checkout (const common_options& o,
                 const dir_path& c,
@@ -136,29 +161,39 @@ namespace bpkg
     optional<string> mc;
     dir_path d (c / dir_path (n.string () + '-' + v.string ()));
 
+    // An incomplete checkout may result in an unusable repository state
+    // (submodule fetch is interrupted, working tree fix up failed in the
+    // middle, etc.). That's why we will move the repository into the
+    // temporary directory prior to manipulating it. In the case of a failure
+    // (or interruption) the user will need to run bpkg-rep-fetch to restore
+    // the missing repository.
+    //
+    bool fs_changed (false);
+
     if (!simulate)
+    try
     {
-      // Checkout the repository fragment.
-      //
-      dir_path sd (c / repos_dir / repository_state (rl));
-      checkout (o, rl, sd, ap);
-
-      // Calculate the package path that points into the checked out fragment
-      // directory.
-      //
-      sd /= path_cast<dir_path> (pl->location);
-
-      // Verify the package prerequisites are all configured since the dist
-      // meta-operation generally requires all imports to be resolvable.
-      //
-      package_manifest m (pkg_verify (sd,
-                                      true /* ignore_unknown */,
-                                      [&ap] (version& v) {v = ap->version;}));
-
-      pkg_configure_prerequisites (o, t, m.dependencies, m.name);
-
       if (exists (d))
         fail << "package directory " << d << " already exists";
+
+      // Check that the repository directory exists, which may not be the case
+      // if the previous checkout have failed or been interrupted.
+      //
+      dir_path sd (repository_state (rl));
+      dir_path rd (c / repos_dir / sd);
+
+      if (!exists (rd))
+        fail << "missing repository directory for package " << n << " " << v
+             << " in configuration " << c <<
+          info << "run 'bpkg rep-fetch' to repair";
+
+      // The repository temporary directory.
+      //
+      auto_rmdir rmt (temp_dir / sd);
+      const dir_path& td (rmt.path);
+
+      if (exists (td))
+        rm_r (td);
 
       // The temporary out of source directory that is required for the dist
       // meta-operation.
@@ -169,10 +204,35 @@ namespace bpkg
       if (exists (od))
         rm_r (od);
 
+      // Finally, move the repository to the temporary directory and proceed
+      // with the checkout.
+      //
+      mv (rd, td);
+      fs_changed = true;
+
+      // Checkout the repository fragment and fix up the working tree.
+      //
+      checkout (o, rl, td, ap);
+      bool fixedup (fixup (o, rl, td));
+
+      // Calculate the package path that points into the checked out fragment
+      // directory.
+      //
+      dir_path pd (td / path_cast<dir_path> (pl->location));
+
+      // Verify the package prerequisites are all configured since the dist
+      // meta-operation generally requires all imports to be resolvable.
+      //
+      package_manifest m (pkg_verify (pd,
+                                      true /* ignore_unknown */,
+                                      [&ap] (version& v) {v = ap->version;}));
+
+      pkg_configure_prerequisites (o, t, m.dependencies, m.name);
+
       // Form the buildspec.
       //
       string bspec ("dist(");
-      bspec += sd.representation ();
+      bspec += pd.representation ();
       bspec += '@';
       bspec += od.representation ();
       bspec += ')';
@@ -205,7 +265,32 @@ namespace bpkg
              strings ({"config.dist.root=" + c.representation ()}),
              bspec);
 
+      // Revert the fix-ups.
+      //
+      if (fixedup)
+        fixup (o, rl, td, true /* revert */);
+
+      // Manipulations over the repository are now complete, so we can return
+      // it to its permanent location.
+      //
+      mv (td, rd);
+      fs_changed = false;
+
+      rmt.cancel ();
+
       mc = sha256 (o, d / manifest_file);
+    }
+    catch (const failed&)
+    {
+      if (fs_changed)
+      {
+        // We assume that the diagnostics has already been issued.
+        //
+        warn << "repository state is now broken" <<
+          info << "run 'bpkg rep-fetch' to repair";
+      }
+
+      throw;
     }
 
     if (p != nullptr)
