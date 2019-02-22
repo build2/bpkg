@@ -7,7 +7,7 @@ Version 0.9.0
 
     $ bpkg build git+https://example.org/project
 
-  * New 'builds' package manifest value for specify the build configuration
+  * New 'builds' package manifest value for specifying the build configuration
     classes the package should or should not be built for. For example:
 
     builds: -windows
