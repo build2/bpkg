@@ -76,6 +76,12 @@ pkg_unpack    += -d cfg 2>!
 rep_add       += -d cfg 2>!
 rep_fetch     += -d cfg --auth all 2>!
 
+posix = ($cxx.target.class != 'windows')
+
++if $posix
+  id -u | set uid
+end
+
 : no-name
 :
 $clone_cfg;
@@ -198,7 +204,7 @@ $* libhello libhello 2>>EOE != 0
 
 : broken
 :
-if ($cxx.target.class != 'windows')
+if ($posix && "$uid" != '0')
 {
   : disfigure-failed
   :
