@@ -757,6 +757,7 @@ namespace bpkg
 
     package_prerequisites prerequisites;
 
+  public:
     bool
     system () const
     {
@@ -821,6 +822,37 @@ namespace bpkg
 
     #pragma db member(prerequisites) id_column("package")      \
       key_column("prerequisite") key_not_null value_column("")
+
+    // Explicit aggregate initialization for C++20 (private default ctor).
+    //
+    selected_package (package_name n,
+                      version_type v,
+                      package_state s,
+                      package_substate ss,
+                      bool hp,
+                      bool hv,
+                      repository_location rf,
+                      optional<path> a,
+                      bool pa,
+                      optional<dir_path> sr,
+                      bool ps,
+                      optional<std::string> mc,
+                      optional<dir_path> o,
+                      package_prerequisites pps)
+    : name (move (n)),
+      version (move (v)),
+      state (s),
+      substate (ss),
+      hold_package (hp),
+      hold_version (hv),
+      repository_fragment (move (rf)),
+      archive (move (a)),
+      purge_archive (pa),
+      src_root (move (sr)),
+      purge_src (ps),
+      manifest_checksum (move (mc)),
+      out_root (move (o)),
+      prerequisites (move (pps)) {}
 
   private:
     friend class odb::access;
