@@ -11,4 +11,5 @@ goal is to show a canonical build2/bpkg project/package.
 url: http://www.example.org/libhello
 email: hello-users@example.org
 requires: c++11
-depends: * build2 >= 0.5.0-
+depends: * build2 >= 0.9.0
+depends: * bpkg >= 0.9.0
