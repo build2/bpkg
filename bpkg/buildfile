@@ -44,13 +44,39 @@ rep-remove-options
 
 help_topics = repository-signing repository-types argument-grouping
 
-exe{bpkg}:                                                                 \
-  {hxx ixx txx cxx}{** -{$options_topics} -{$help_topics} -*-odb -version} \
-  {hxx ixx cxx}{$options_topics} {hxx cxx}{$help_topics}                   \
-  {hxx ixx cxx}{package-odb} {hxx}{version}                                \
-  $libs xml{*}
+./: exe{bpkg}: cxx{bpkg} libue{bpkg}
+
+libue{bpkg}: {hxx ixx txx cxx}{** -bpkg              \
+                                  -{$options_topics} \
+                                  -{$help_topics}    \
+                                  -*-odb             \
+                                  -version           \
+                                  -**.test...}       \
+             {hxx ixx cxx}{$options_topics}          \
+             {hxx cxx}{$help_topics}                 \
+             {hxx ixx cxx}{package-odb}              \
+             {hxx}{version}                          \
+             $libs                                   \
+             xml{*}
 
 hxx{version}: in{version} $src_root/manifest
+
+# Unit tests.
+#
+exe{*.test}:
+{
+  test = true
+  install = false
+}
+
+for t: cxx{**.test...}
+{
+  d = $directory($t)
+  n = $name($t)...
+
+  ./: $d/exe{$n}: $t $d/{hxx ixx txx}{+$n} $d/testscript{+$n}
+  $d/exe{$n}: libue{bpkg}: bin.whole = false
+}
 
 # Build options.
 #
