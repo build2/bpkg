@@ -44,7 +44,7 @@ rep-remove-options
 
 help_topics = repository-signing repository-types argument-grouping
 
-./: exe{bpkg}: cxx{bpkg} libue{bpkg}
+./: exe{bpkg}: {hxx ixx txx cxx}{+bpkg} libue{bpkg}
 
 libue{bpkg}: {hxx ixx txx cxx}{** -bpkg              \
                                   -{$options_topics} \
