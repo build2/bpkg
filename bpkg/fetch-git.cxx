@@ -83,9 +83,28 @@ namespace bpkg
     return strings ();
   }
 
+  // Run git process and return it's output as a string if git exits with zero
+  // code and nullopt if it exits with the specified no-result indicating
+  // code. Fail if the output doesn't contain a single line.
+  //
+  // Note that the zero no-result code indicates that the result is not
+  // optional. A non-zero no-result code means that the requested string (for
+  // example configuration option value) is not available if git exits with
+  // this code.
+  //
   template <typename... A>
-  static string
-  git_line (const common_options&, const char* what, A&&... args);
+  static optional<string>
+  git_line (const common_options&,
+            int no_result,
+            const char* what,
+            A&&... args);
+
+  template <typename... A>
+  inline static string
+  git_line (const common_options& co, const char* what, A&&... args)
+  {
+    return *git_line (co, 0 /* no_result */, what, forward<A> (args)...);
+  }
 
   // Start git process. On the first call check that git version is 2.11.0 or
   // above, and fail if that's not the case. Note that the full functionality
@@ -285,12 +304,12 @@ namespace bpkg
     return run_git (co, true /* progress */, forward<A> (args)...);
   }
 
-  // Run git process and return it's output as a string. Fail if the output
-  // doesn't contain a single line.
-  //
   template <typename... A>
-  static string
-  git_line (const common_options& co, const char* what, A&&... args)
+  static optional<string>
+  git_line (const common_options& co,
+            int no_result,
+            const char* what,
+            A&&... args)
   {
     fdpipe pipe (open_pipe ());
     process pr (start_git (co, pipe, 2 /* stderr */, forward<A> (args)...));
@@ -319,6 +338,11 @@ namespace bpkg
 
         fail << "invalid " << what << endg;
       }
+
+      assert (pr.exit);
+
+      if (pr.exit->normal () && pr.exit->code () == no_result)
+        return nullopt;
 
       // Fall through.
     }
@@ -441,19 +465,33 @@ namespace bpkg
 
   // Get option from the specified configuration file.
   //
-  inline static string
+  inline static optional<string>
   config_get (const common_options& co,
               const path& file,
               const string& key,
+              bool required,
               const char* what)
   {
+    // Note: `git config --get` command exits with the one code if the key
+    // wasn't found in the configuration file (see git-config(1) for details).
+    //
     return git_line (co,
+                     required ? 0 : 1 /* no_result */,
                      what,
                      co.git_option (),
                      "config",
                      "--file", file,
                      "--get",
                      key);
+  }
+
+  inline static string
+  config_get (const common_options& co,
+              const path& file,
+              const string& key,
+              const char* what)
+  {
+    return *config_get (co, file, key, true /* required */, what);
   }
 
   // Get/set the repository remote URL.
@@ -1661,6 +1699,8 @@ namespace bpkg
       // Submodule directory path, relative to the top repository.
       //
       dir_path psdir (prefix / sm.path);
+
+      dir_path fsdir (dir / sm.path);     // Submodule full directory path.
       string psd (psdir.posix_string ()); // For use in the diagnostics.
 
       string nm (git_line (co, "submodule name",
@@ -1669,12 +1709,43 @@ namespace bpkg
                            "submodule--helper", "name",
                            sm.path));
 
+      // The 'none' submodule working tree update method most likely
+      // indicates that the submodule is not currently used in the project.
+      // Let's skip such submodules as the `git submodule update` command does
+      // by default.
+      //
+      {
+        optional<string> u (config_get (co,
+                                        mf,
+                                        "submodule." + nm + ".update",
+                                        false /* required */,
+                                        "submodule update method"));
+
+        l4 ([&]{trace << "name: " << nm << ", "
+                      << "update: " << (u ? *u : "[null]");});
+
+        if (u && *u == "none")
+        {
+          if (verb >= 2 && !co.no_progress ())
+            text << "skipping submodule '" << psd << "'";
+
+          // Note that the submodule can be enabled for some other snapshot
+          // we are potentially switching from, and so the submodule
+          // directory can be non-empty. Let's clean the directory content up
+          // for good measure, not to confuse build2 operations.
+          //
+          if (exists (fsdir))
+            rm_r (fsdir, false /* dir_itself */);
+
+          continue;
+        }
+      }
+
       string uo ("submodule." + nm + ".url");
       string uv (config_get (co, dir, uo, "submodule URL"));
 
       l4 ([&]{trace << "name: " << nm << ", URL: " << uv;});
 
-      dir_path fsdir (dir / sm.path);
       bool initialized (git_repository (fsdir));
 
       // If the submodule is already initialized and its commit didn't
