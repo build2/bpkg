@@ -83,12 +83,12 @@ namespace bpkg
     return strings ();
   }
 
-  // Run git process and return it's output as a string if git exits with zero
-  // code and nullopt if it exits with the specified no-result indicating
-  // code. Fail if the output doesn't contain a single line.
+  // Run git process and return its output as a string if git exits with zero
+  // code and nullopt if it exits with the specified "no-result" code. Fail if
+  // the output doesn't contain a single line.
   //
-  // Note that the zero no-result code indicates that the result is not
-  // optional. A non-zero no-result code means that the requested string (for
+  // Note that the zero no-result code means that the result is non-optional.
+  // While a non-zero no-result code means that the requested string (for
   // example configuration option value) is not available if git exits with
   // this code.
   //
@@ -472,8 +472,8 @@ namespace bpkg
               bool required,
               const char* what)
   {
-    // Note: `git config --get` command exits with the one code if the key
-    // wasn't found in the configuration file (see git-config(1) for details).
+    // Note: `git config --get` command exits with code 1 if the key wasn't
+    // found in the configuration file (see git-config(1) for details).
     //
     return git_line (co,
                      required ? 0 : 1 /* no_result */,
@@ -1729,10 +1729,10 @@ namespace bpkg
           if (verb >= 2 && !co.no_progress ())
             text << "skipping submodule '" << psd << "'";
 
-          // Note that the submodule can be enabled for some other snapshot
-          // we are potentially switching from, and so the submodule
-          // directory can be non-empty. Let's clean the directory content up
-          // for good measure, not to confuse build2 operations.
+          // Note that the submodule can be enabled for some other snapshot we
+          // are potentially switching from, and so the submodule directory
+          // can be non-empty. So let's clean the directory up for good
+          // measure.
           //
           if (exists (fsdir))
             rm_r (fsdir, false /* dir_itself */);
