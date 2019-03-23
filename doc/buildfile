@@ -20,7 +20,7 @@ bpkg-pkg-uninstall \
 bpkg-pkg-unpack    \
 bpkg-pkg-update    \
 bpkg-pkg-verify    \
-bpkg-rep-add 	   \
+bpkg-rep-add       \
 bpkg-rep-create    \
 bpkg-rep-fetch     \
 bpkg-rep-info      \
@@ -34,7 +34,7 @@ define xhtml: doc
 xhtml{*}: extension = xhtml
 
 ./: {man1 xhtml}{bpkg bpkg-common-options bpkg-repository-signing $cmds} \
-    css{common pre-box man} 	                                         \
+    css{common pre-box man}                                              \
     file{man-*}
 
 ./: doc{build2-package-manager-manual*}  \

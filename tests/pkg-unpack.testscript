@@ -3,10 +3,10 @@
 # license   : MIT; see accompanying LICENSE file
 
 .include common.testscript \
-	 auth.testscript \
-	 config.testscript \
-	 remote.testscript \
-	 remote-git.testscript
+         auth.testscript   \
+         config.testscript \
+         remote.testscript \
+         remote-git.testscript
 
 # Source repository:
 #

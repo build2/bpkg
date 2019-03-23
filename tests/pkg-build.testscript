@@ -3,9 +3,9 @@
 # license   : MIT; see accompanying LICENSE file
 
 .include common.testscript \
-	 config.testscript \
-	 remote.testscript \
-	 remote-git.testscript
+         config.testscript \
+         remote.testscript \
+         remote-git.testscript
 
 # Source repository:
 #
@@ -1738,7 +1738,7 @@ test.options += --no-progress
           configured libbar/0.0.1
           EOE
 
-  	$pkg_drop libbar
+        $pkg_drop libbar
       }
 
       : version-to-wildcard
@@ -1856,7 +1856,7 @@ test.options += --no-progress
           configured libbar/0.0.1
           EOE
 
-  	$pkg_drop libbar
+        $pkg_drop libbar
       }
 
       : src-to-version
@@ -1886,7 +1886,7 @@ test.options += --no-progress
           configured libbar/0.0.1
           EOE
 
-  	$pkg_drop libbar
+        $pkg_drop libbar
       }
     }
 
@@ -3273,7 +3273,7 @@ test.options += --no-progress
         $pkg_disfigure libhello 2>'disfigured libhello/1.0.1';
         $pkg_purge     libhello 2>'purged libhello/1.0.1';
 
-	rm -r cfg/
+        rm -r cfg/
       }
 
       : unpacked
@@ -3297,7 +3297,7 @@ test.options += --no-progress
         $pkg_disfigure libhello 2>'disfigured libhello/1.0.1';
         $pkg_purge     libhello 2>'purged libhello/1.0.1';
 
-	rm -r cfg/
+        rm -r cfg/
       }
     }
   }

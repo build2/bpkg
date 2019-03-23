@@ -76,7 +76,7 @@ for r in $(find test -type d -regex '.*/git/.*/[^/]+\.git'); do
       while read branch; do
         $echo_git git -C $br push --tags origin "$branch:$branch"
       done < <(git -C $br for-each-ref --format='%(refname:short)' \
-		   'refs/heads/')
+                   'refs/heads/')
     fi
   done
 

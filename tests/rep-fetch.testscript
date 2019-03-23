@@ -3,10 +3,10 @@
 # license   : MIT; see accompanying LICENSE file
 
 .include common.testscript \
-	 auth.testscript \
-	 config.testscript \
-	 remote.testscript \
-	 remote-git.testscript
+         auth.testscript   \
+         config.testscript \
+         remote.testscript \
+         remote-git.testscript
 
 # Source repository:
 #
@@ -622,7 +622,7 @@ if ($remote != true)
       : unchanged-external
       :
       {
-	$clone_cfg && $rep_add $src/libhello-1.0.0;
+        $clone_cfg && $rep_add $src/libhello-1.0.0;
         $* 2>!;
 
         $pkg_status libhello >'libhello unpacked 1.0.0'
@@ -634,7 +634,7 @@ if ($remote != true)
         cp -r $src/libhello-1.0.0 libhello;
         echo "" >+ libhello/manifest;
 
-	$clone_cfg && $rep_add libhello;
+        $clone_cfg && $rep_add libhello;
         $* 2>!;
 
         $pkg_status libhello >'libhello unpacked 1.0.0 available 1.0.0#1'
@@ -658,7 +658,7 @@ if ($remote != true)
       # warning.
       #
       $pkg_checkout "style/1.0.0" 2>&1 | \
-	sed -e 's/warning: (fetching (over|whole) .*)/info: \1/' >&2 2>!;
+      sed -e 's/warning: (fetching (over|whole) .*)/info: \1/' >&2 2>!;
 
       $rep_add $rep/style.git;
       $* 2>!;

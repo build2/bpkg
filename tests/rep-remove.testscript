@@ -3,9 +3,9 @@
 # license   : MIT; see accompanying LICENSE file
 
 .include common.testscript \
-	 config.testscript \
-	 remote.testscript \
-	 remote-git.testscript
+         config.testscript \
+         remote.testscript \
+         remote-git.testscript
 
 # Source repository:
 #

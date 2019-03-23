@@ -14,8 +14,8 @@ while [ $# -gt 0 ]; do
     --clean)
       rm -f bpkg*.xhtml bpkg*.1
       rm -f build2-package-manager-manual*.ps \
-	 build2-package-manager-manual*.pdf   \
-	 build2-package-manager-manual.xhtml
+         build2-package-manager-manual*.pdf   \
+         build2-package-manager-manual.xhtml
       exit 0
       ;;
     *)
