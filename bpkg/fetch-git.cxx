@@ -383,7 +383,8 @@ namespace bpkg
       return url.string ();
 
 #ifndef _WIN32
-    // Enforce the 'file://' notation for local URLs (see libpkg/manifest.hxx).
+    // Enforce the 'file://' notation for local URLs (see
+    // libbpkg/manifest.hxx).
     //
     repository_url u (url.scheme,
                       repository_url::authority_type (),

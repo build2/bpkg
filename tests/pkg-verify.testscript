@@ -82,6 +82,7 @@ $* --deep --ignore-unknown --manifest $src/foo-2.tar.gz >>EOO
   This package contains the foo utility.
 
   \
+  description-type: text/plain
   changes: \
   Version 2
 

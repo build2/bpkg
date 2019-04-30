@@ -87,7 +87,8 @@ namespace bpkg
               }
 
               return s;
-            });
+            },
+            iu);
         }
 
         return m;

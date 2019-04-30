@@ -529,6 +529,7 @@ license: <licenses> [; <comment>]
 [tags]: <tags>
 [description]: <text>
 [description-file]: <path> [; <comment>]
+[description-type]: <text-type>
 [changes]: <text>
 [changes-file]: <path> [; <comment>]
 
@@ -696,14 +697,35 @@ As a result, we will start simple and only allow single-word tags.|
 \
 [description]: <text>
 [description-file]: <path> [; <comment>]
+[description-type]: <text-type>
 \
 
 The detailed description of the package. It can be provided either inline as a
 text fragment or by referring to a file within a package (e.g., \c{README}),
 but not both.
 
-In the web interface (\c{brep}) the description is displayed as pre-formatted
-plain text. \N{We could use the comment to \"hint\" at the file format.}
+In the web interface (\c{brep}) the description is displayed according to its
+type. Currently, pre-formatted plain text, \l{https://github.github.com/gfm
+GitHub-Flavored Markdown}, and \l{https://spec.commonmark.org/current
+CommonMark} are supported with the following \c{description-type} values,
+respectively:
+
+\
+text/plain
+text/markdown;variant=GFM
+text/markdown;variant=CommonMark
+\
+
+If just \c{text/markdown} is specified, then the GitHub-Flavored Markdown
+(which is a superset of CommonMark) is assumed.
+
+If the description type is not explicitly specified and the description is
+specified as \c{description-file}, then an attempt to derive the type from the
+file extension is made. Specifically, the \cb{.md} and \cb{.markdown}
+extensions are mapped to \c{text/markdown}, the \cb{.txt} and no extension are
+mapped to \c{text/plain}, and all other extensions are treated as an unknown
+type, similar to unknown \c{description-type} values. And if the description
+is not specified as a file, \c{text/plain} is assumed.
 
 
 \h2#manifest-package-changes|\c{changes}|

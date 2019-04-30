@@ -90,7 +90,7 @@ namespace bpkg
       if (d == root)
       {
         if (p == repositories_file ||
-            p == packages_file ||
+            p == packages_file     ||
             p == signature_file)
           continue;
       }
