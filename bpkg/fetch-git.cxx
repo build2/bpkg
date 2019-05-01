@@ -1409,6 +1409,12 @@ namespace bpkg
       else if (verb > 3)
         v.push_back ("-v");
 
+      // Note that passing --no-tags is not just an optimization. Not doing so
+      // we may end up with the "would clobber existing tag" git error for a
+      // changed tag (for example, the version tag advanced for revision) if
+      // the user has globally configured fetching all remote tags (via the
+      // remote.<name>.tagOpt option or similar).
+      //
       // Also note that we don't need to specify --refmap option since we can
       // rely on the init() function that properly sets the
       // remote.origin.fetch configuration option.
@@ -1419,6 +1425,7 @@ namespace bpkg
                     co.git_option (),
                     "-C", dir,
                     "fetch",
+                    "--no-tags",
                     "--no-recurse-submodules",
                     (shallow         ? cstrings ({"--depth", "1"}) :
                      shallow_repo () ? cstrings ({"--unshallow"})  :
