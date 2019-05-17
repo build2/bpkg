@@ -2,8 +2,6 @@
 // copyright : Copyright (c) 2014-2019 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-#include <libbutl/small-vector.mxx>
-
 #include <bpkg/diagnostics.hxx>
 
 namespace bpkg
@@ -29,7 +27,7 @@ namespace bpkg
       //
       process_path pp (process::path_search (b, exec_dir));
 
-      butl::small_vector<const char*, 1> ops;
+      small_vector<const char*, 1> ops;
 
       // Map verbosity level. If we are running quiet or at level 1,
       // then run build2 quiet. Otherwise, run it at the same level

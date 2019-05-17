@@ -41,14 +41,12 @@ namespace bpkg
 {
   // @@ Overall TODO:
   //
-  //    - Detect and complain about dependency cycles.
-  //
   //    - Configuration vars (both passed and preserved)
   //
 
   // Query the available packages that optionally satisfy the specified version
-  // version constraint and return them in the version descending order. Note
-  // that a stub satisfies any constraint.
+  // constraint and return them in the version descending order. Note that a
+  // stub satisfies any constraint.
   //
   odb::result<available_package>
   query_available (database& db,
@@ -551,15 +549,17 @@ namespace bpkg
             // pointer to the unsatisfied constraint or NULL if all are
             // satisfied.
             //
-            auto test = [] (build_package* pv, build_package* pc)
-              -> const constraint_type*
+            auto test = [] (build_package* pv,
+                            build_package* pc) -> const constraint_type*
+            {
+              for (const constraint_type& c: pc->constraints)
               {
-                for (const constraint_type& c: pc->constraints)
-                  if (!satisfies (pv->available_version (), c.value))
-                    return &c;
+                if (!satisfies (pv->available_version (), c.value))
+                  return &c;
+              }
 
-                return nullptr;
-              };
+              return nullptr;
+            };
 
             // First see if p1 satisfies p2's constraints.
             //
@@ -633,6 +633,26 @@ namespace bpkg
 
       build_package& p (i->second.package);
 
+      // Recursively collect build prerequisites, if requested.
+      //
+      // Note that detecting dependency cycles during the satisfaction phase
+      // would be premature since they may not be present in the final package
+      // list. Instead we check for them during the ordering phase.
+      //
+      // The question, of course, is whether we can still end up with an
+      // infinite recursion here? Note that for an existing map entry we only
+      // recurse after the entry replacement. The infinite recursion would
+      // mean that we may replace a package in the map with the same version
+      // multiple times:
+      //
+      // ... p1 -> p2 -> ... p1
+      //
+      // Every replacement increases the entry version and/or tightens the
+      // constraints the next replacement will need to satisfy. It feels
+      // impossible that a package version can "return" into the map being
+      // replaced once. So let's wait until some real use case proves this
+      // reasoning wrong.
+      //
       if (recursively != nullptr)
         collect_build_prerequisites (options, cd, db, p, recursively);
 
@@ -1150,153 +1170,16 @@ namespace bpkg
     }
 
     // Order the previously-collected package with the specified name
-    // returning its positions. If reorder is true, then reorder this
-    // package to be considered as "early" as possible.
+    // returning its positions. Recursively order the package dependencies
+    // being ordered failing if a dependency cycle is detected. If reorder is
+    // true, then reorder this package to be considered as "early" as
+    // possible.
     //
     iterator
     order (const package_name& name, bool reorder = true)
     {
-      // Every package that we order should have already been collected.
-      //
-      auto mi (map_.find (name));
-      assert (mi != map_.end ());
-
-      build_package& p (mi->second.package);
-
-      assert (p.action); // Can't order just a pre-entered package.
-
-      // If this package is already in the list, then that would also
-      // mean all its prerequisites are in the list and we can just
-      // return its position. Unless we want it reordered.
-      //
-      iterator& pos (mi->second.position);
-      if (pos != end ())
-      {
-        if (reorder)
-          erase (pos);
-        else
-          return pos;
-      }
-
-      // Order all the prerequisites of this package and compute the
-      // position of its "earliest" prerequisite -- this is where it
-      // will be inserted.
-      //
-      const shared_ptr<selected_package>& sp (p.selected);
-      const shared_ptr<available_package>& ap (p.available);
-
-      bool build (*p.action == build_package::build);
-
-      // Package build must always have the available package associated.
-      //
-      assert (!build || ap != nullptr);
-
-      // Unless this package needs something to be before it, add it to
-      // the end of the list.
-      //
-      iterator i (end ());
-
-      // Figure out if j is before i, in which case set i to j. The goal
-      // here is to find the position of our "earliest" prerequisite.
-      //
-      auto update = [this, &i] (iterator j)
-      {
-        for (iterator k (j); i != j && k != end ();)
-          if (++k == i)
-            i = j;
-      };
-
-      // Similar to collect_build(), we can prune if the package is already
-      // configured, right? While in collect_build() we didn't need to add
-      // prerequisites of such a package, it doesn't mean that they actually
-      // never ended up in the map via another dependency path. For example,
-      // some can be a part of the initial selection. And in that case we must
-      // order things properly.
-      //
-      // Also, if the package we are ordering is not a system one and needs to
-      // be disfigured during the plan execution, then we must order its
-      // (current) dependencies that also need to be disfigured.
-      //
-      bool src_conf (sp != nullptr &&
-                     sp->state == package_state::configured &&
-                     sp->substate != package_substate::system);
-
-      auto disfigure = [] (const build_package& p)
-      {
-        return p.action && (*p.action == build_package::drop ||
-                            p.reconfigure ());
-      };
-
-      bool order_disfigured (src_conf && disfigure (p));
-
-      // Order the build dependencies.
-      //
-      if (build && !p.system)
-      {
-        // So here we are going to do things differently depending on
-        // whether the package is already configured or not. If it is and
-        // not as a system package, then that means we can use its
-        // prerequisites list. Otherwise, we use the manifest data.
-        //
-        if (src_conf && sp->version == p.available_version ())
-        {
-          for (const auto& p: sp->prerequisites)
-          {
-            const package_name& name (p.first.object_id ());
-
-            // The prerequisites may not necessarily be in the map.
-            //
-            auto i (map_.find (name));
-            if (i != map_.end () && i->second.package.action)
-              update (order (name, false));
-          }
-
-          // We just ordered them among other prerequisites.
-          //
-          order_disfigured = false;
-        }
-        else
-        {
-          // We are iterating in reverse so that when we iterate over
-          // the dependency list (also in reverse), prerequisites will
-          // be built in the order that is as close to the manifest as
-          // possible.
-          //
-          for (const dependency_alternatives& da:
-                 reverse_iterate (ap->dependencies))
-          {
-            assert (!da.conditional && da.size () == 1); // @@ TODO
-            const dependency& d (da.front ());
-            const package_name& dn (d.name);
-
-            // Skip special names.
-            //
-            if (da.buildtime && (dn == "build2" || dn == "bpkg"))
-              continue;
-
-            update (order (d.name, false));
-          }
-        }
-      }
-
-      // Order the dependencies being disfigured.
-      //
-      if (order_disfigured)
-      {
-        for (const auto& p: sp->prerequisites)
-        {
-          const package_name& name (p.first.object_id ());
-
-          // The prerequisites may not necessarily be in the map.
-          //
-          auto i (map_.find (name));
-
-          if (i != map_.end () && disfigure (i->second.package))
-            update (order (name, false));
-        }
-      }
-
-      return pos = insert (i, p);
+      package_names chain;
+      return order (name, chain, reorder);
     }
 
     // If a configured package is being up/down-graded then that means
@@ -1510,7 +1393,11 @@ namespace bpkg
           i->second.position = insert (pos, i->second.package);
         }
 
-        // Collect our own dependents inserting them before us.
+        // Recursively collect our own dependents inserting them before us.
+        //
+        // Note that we cannot end up with an infinite recursion for
+        // configured packages due to a dependency cycle (see order() for
+        // details).
         //
         collect_order_dependents (db, i->second.position);
       }
@@ -1530,6 +1417,193 @@ namespace bpkg
 
       for (auto& p: map_)
         p.second.position = end ();
+    }
+
+  private:
+    using package_names = small_vector<reference_wrapper<const package_name>,
+                                       16>;
+
+    iterator
+    order (const package_name& name, package_names& chain, bool reorder)
+    {
+      // Every package that we order should have already been collected.
+      //
+      auto mi (map_.find (name));
+      assert (mi != map_.end ());
+
+      build_package& p (mi->second.package);
+
+      assert (p.action); // Can't order just a pre-entered package.
+
+      // Make sure there is no dependency cycle.
+      //
+      {
+        auto i (find (chain.begin (), chain.end (), name));
+
+        if (i != chain.end ())
+        {
+          diag_record dr (fail);
+          dr << "dependency cycle detected involving package " << name;
+
+          auto nv = [this] (const package_name& name)
+          {
+            auto mi (map_.find (name));
+            assert (mi != map_.end ());
+
+            build_package& p (mi->second.package);
+
+            assert (p.action); // See above.
+
+            // We cannot end up with a dependency cycle for actions other than
+            // build since these packages are configured and we would fail on
+            // a previous run while building them.
+            //
+            assert (p.available != nullptr);
+
+            return p.available_name_version ();
+          };
+
+          for (chain.push_back (name); i != chain.end () - 1; ++i)
+            dr << info << nv (*i) << " depends on " << nv (*(i + 1));
+        }
+      }
+
+      // If this package is already in the list, then that would also
+      // mean all its prerequisites are in the list and we can just
+      // return its position. Unless we want it reordered.
+      //
+      iterator& pos (mi->second.position);
+      if (pos != end ())
+      {
+        if (reorder)
+          erase (pos);
+        else
+          return pos;
+      }
+
+      // Order all the prerequisites of this package and compute the
+      // position of its "earliest" prerequisite -- this is where it
+      // will be inserted.
+      //
+      const shared_ptr<selected_package>& sp (p.selected);
+      const shared_ptr<available_package>& ap (p.available);
+
+      bool build (*p.action == build_package::build);
+
+      // Package build must always have the available package associated.
+      //
+      assert (!build || ap != nullptr);
+
+      // Unless this package needs something to be before it, add it to
+      // the end of the list.
+      //
+      iterator i (end ());
+
+      // Figure out if j is before i, in which case set i to j. The goal
+      // here is to find the position of our "earliest" prerequisite.
+      //
+      auto update = [this, &i] (iterator j)
+      {
+        for (iterator k (j); i != j && k != end ();)
+          if (++k == i)
+            i = j;
+      };
+
+      // Similar to collect_build(), we can prune if the package is already
+      // configured, right? While in collect_build() we didn't need to add
+      // prerequisites of such a package, it doesn't mean that they actually
+      // never ended up in the map via another dependency path. For example,
+      // some can be a part of the initial selection. And in that case we must
+      // order things properly.
+      //
+      // Also, if the package we are ordering is not a system one and needs to
+      // be disfigured during the plan execution, then we must order its
+      // (current) dependencies that also need to be disfigured.
+      //
+      bool src_conf (sp != nullptr &&
+                     sp->state == package_state::configured &&
+                     sp->substate != package_substate::system);
+
+      auto disfigure = [] (const build_package& p)
+      {
+        return p.action && (*p.action == build_package::drop ||
+                            p.reconfigure ());
+      };
+
+      bool order_disfigured (src_conf && disfigure (p));
+
+      chain.push_back (name);
+
+      // Order the build dependencies.
+      //
+      if (build && !p.system)
+      {
+        // So here we are going to do things differently depending on
+        // whether the package is already configured or not. If it is and
+        // not as a system package, then that means we can use its
+        // prerequisites list. Otherwise, we use the manifest data.
+        //
+        if (src_conf && sp->version == p.available_version ())
+        {
+          for (const auto& p: sp->prerequisites)
+          {
+            const package_name& name (p.first.object_id ());
+
+            // The prerequisites may not necessarily be in the map.
+            //
+            auto i (map_.find (name));
+            if (i != map_.end () && i->second.package.action)
+              update (order (name, chain, false /* reorder */));
+          }
+
+          // We just ordered them among other prerequisites.
+          //
+          order_disfigured = false;
+        }
+        else
+        {
+          // We are iterating in reverse so that when we iterate over
+          // the dependency list (also in reverse), prerequisites will
+          // be built in the order that is as close to the manifest as
+          // possible.
+          //
+          for (const dependency_alternatives& da:
+                 reverse_iterate (ap->dependencies))
+          {
+            assert (!da.conditional && da.size () == 1); // @@ TODO
+            const dependency& d (da.front ());
+            const package_name& dn (d.name);
+
+            // Skip special names.
+            //
+            if (da.buildtime && (dn == "build2" || dn == "bpkg"))
+              continue;
+
+            update (order (d.name, chain, false /* reorder */));
+          }
+        }
+      }
+
+      // Order the dependencies being disfigured.
+      //
+      if (order_disfigured)
+      {
+        for (const auto& p: sp->prerequisites)
+        {
+          const package_name& name (p.first.object_id ());
+
+          // The prerequisites may not necessarily be in the map.
+          //
+          auto i (map_.find (name));
+
+          if (i != map_.end () && disfigure (i->second.package))
+            update (order (name, chain, false /* reorder */));
+        }
+      }
+
+      chain.pop_back ();
+
+      return pos = insert (i, p);
     }
 
   private:
@@ -2040,6 +2114,9 @@ namespace bpkg
     for (const auto& pd: db.query<package_dependent> (
            query<package_dependent>::name == nm))
     {
+      // Note that we cannot end up with an infinite recursion for configured
+      // packages due to a dependency cycle (see order() for details).
+      //
       if (optional<bool> u = upgrade_dependencies (db, pd.name, recs, true))
       {
         if (!r || *r < *u) // Upgrade wins patch.
@@ -3691,7 +3768,7 @@ namespace bpkg
         for (const dependency_package& p: dep_pkgs)
         {
           if (p.selected != nullptr && p.selected->hold_package)
-            pkgs.order (p.name, false);
+            pkgs.order (p.name, false /* reorder */);
         }
 
         // We are about to execute the plan on the database (but not on the

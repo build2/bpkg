@@ -2562,6 +2562,99 @@ test.options += --no-progress
   }
 }
 
+: dependency-cycle
+:
+{
+  test.arguments += --yes
+
+  : direct
+  :
+  {
+    $clone_root_cfg;
+
+    cp -r $src/libfoo-1.1.0/ libfoo;
+    echo "depends: libfoo" >+ libfoo/manifest;
+    $rep_add libfoo --type dir;
+
+    $rep_fetch;
+
+    $* libfoo 2>>EOE != 0
+      error: dependency cycle detected involving package libfoo
+        info: libfoo/1.1.0 depends on libfoo/1.1.0
+      EOE
+  }
+
+  : indirect
+  :
+  {
+    : new
+    :
+    {
+      $clone_root_cfg;
+
+      cp -r $src/libfoo-1.1.0/ libfoo;
+      echo "depends: libbar" >+ libfoo/manifest;
+
+      cat <<"EOI" >=libfoo/repositories.manifest;
+        : 1
+        summary: libfoo project repository
+
+        :
+        role: prerequisite
+        location: $rep/t0b
+        EOI
+
+      $rep_add libfoo --type dir;
+
+      $rep_fetch;
+
+      $* libfoo 2>>EOE != 0
+        error: dependency cycle detected involving package libfoo
+          info: libfoo/1.1.0 depends on libbar/0.0.2
+          info: libbar/0.0.2 depends on libbaz/0.0.2
+          info: libbaz/0.0.2 depends on libfoo/1.1.0
+        EOE
+    }
+
+    : upgrade
+    :
+    {
+      $clone_root_cfg;
+
+      cp -r $src/libfoo-1.1.0/ libfoo;
+      $rep_add libfoo --type dir;
+
+      cp -r $src/libhello-1.0.0/ libhello;
+      echo "depends: libfoo" >+ libhello/manifest;
+      $rep_add libhello --type dir;
+
+      $rep_fetch;
+
+      $* libhello 2>>~%EOE%;
+        using libfoo/1.1.0 (external)
+        configured libfoo/1.1.0
+        using libhello/1.0.0 (external)
+        configured libhello/1.0.0
+        %(mkdir|c\+\+|ld|ar) .+%{8}
+        updated libhello/1.0.0
+        EOE
+
+      echo "depends: libhello" >+ libfoo/manifest;
+      sed -i -e 's/(version: 1.1).0/\1.1/' libfoo/manifest;
+
+      $rep_fetch;
+
+      $* ?libfoo 2>>EOE != 0;
+        error: dependency cycle detected involving package libfoo
+          info: libfoo/1.1.1 depends on libhello/1.0.0
+          info: libhello/1.0.0 depends on libfoo/1.1.1
+        EOE
+
+      $pkg_drop libhello
+    }
+  }
+}
+
 : config-vars
 :
 {
