@@ -623,46 +623,53 @@ license: <licenses> [; <comment>]
 <licenses> = <license> [, <license>]*
 \
 
-The package lincense. The format is a comma-separated list of license names
-under which this package is distributed. This list has the \i{AND} semantics,
-that is, the user must comply with all the licenses listed. To capture
-alternative licensing options use multiple \c{license} values, for example:
+The package license. The format is a comma-separated list of case-insensitive
+license names under which this package is distributed. This list has the
+\i{AND} semantics, that is, the user must comply with all the licenses
+listed. To capture alternative licensing options use multiple \c{license}
+values, for example:
 
 \
-license: LGPLv2, MIT
-license: BSD
+license: LGPLv2.1, MIT
+license: BSD3
 \
 
-In the above example, the package can be used either under the BSD license or
-both LGPLv2 and MIT.
+In the above example, the package can be used either under the BSD3 license or
+both LGPLv2.1 and MIT.
 
 For complex licensing schemes it is recommended to add comments as an aid to
 the user, for example:
 
 \
-license: LGPLv2, MIT ; If linking with GNU TLS.
-license: BSD         ; If linking with OpenSSL.
+license: LGPLv2.1, MIT ; If linking with GNU TLS.
+license: BSD3          ; If linking with OpenSSL.
 \
 
-To assist automated processing, the following pre-defined values should be
+To assist automated processing, the following pre-defined names should be
 used for the common licenses:
 
 \
-MIT
-GPLv2
-GPLv3
-LGPLv2
-LGPLv3
-ASLv1         ; Apache License 1.0.
-ASLv1.1       ; Apache License 1.1.
-ASLv2         ; Apache License 2.0.
-BSD           ; BSD 3-clause.
-BSD-Original  ; BSD original.
+MIT          ; MIT License.
+BSD2         ; Simplified 2-clause BSD License.
+BSD3         ; New 3-clause BSD License.
+BSD4         ; Original 4-clause BSD License.
+GPLv2        ; GNU General Public License v2.0.
+GPLv3        ; GNU General Public License v3.0.
+LGPLv2       ; GNU Lesser General Public License v2.0.
+LGPLv2.1     ; GNU Lesser General Public License v2.1.
+LGPLv3       ; GNU Lesser General Public License v3.0.
+ASLv1        ; Apache License v1.0.
+ASLv1.1      ; Apache License v1.1.
+ASLv2        ; Apache License v2.0.
+MPLv2        ; Mozilla Public License v2.0.
 
 public domain
 available source ; Not free software/open source.
 proprietary
+TODO             ; License is not yet decided.
 \
+
+Note that just \c{BSD} is ambiguous and should be avoided.
 
 \N|An example of automated processing would be filtering for non-copyleft
 licensed packages.|
