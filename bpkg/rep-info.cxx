@@ -55,7 +55,8 @@ namespace bpkg
       rep_fetch (o,
                  o.directory_specified () && d.empty () ? nullptr : &d,
                  rl,
-                 !o.manifest () /* ignore_unknow */));
+                 !o.manifest () /* ignore_unknow */,
+                 o.deep () /* expand_values */));
 
     // Now print.
     //

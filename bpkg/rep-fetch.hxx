@@ -47,11 +47,18 @@ namespace bpkg
     shared_ptr<const bpkg::certificate> certificate; // Authenticated.
   };
 
+  // If requested, expand the file-referencing package manifest values
+  // (description, changes, etc), setting them to the contents of files they
+  // refer to and set the potentially absent description-type value to the
+  // effective description type (see libbpkg/manifest.hxx). Note that for pkg
+  // repositories such values are expanded at the repository creation time.
+  //
   rep_fetch_data
   rep_fetch (const common_options&,
              const dir_path* conf,
              const repository_location&,
-             bool ignore_unknown);
+             bool ignore_unknown,
+             bool expand_values);
 
   // Add (or update) repository locations to the configuration and fetch
   // them. If shallow is true, then don't fetch their prerequisite and/or

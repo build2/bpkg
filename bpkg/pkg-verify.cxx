@@ -224,7 +224,7 @@ namespace bpkg
       package_manifest m (pkg_verify (o,
                                       a,
                                       o.ignore_unknown (),
-                                      o.deep () /* expand_values   */,
+                                      o.deep () /* expand_values */,
                                       o.deep () /* complete_depends */,
                                       !o.silent ()));
 

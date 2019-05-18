@@ -90,8 +90,15 @@ namespace bpkg
       "Instead of printing the information in the human-readable form, dump it
        (to \cb{stdout}) as manifest(s). Normally you would use this option in
        combination with \cb{--packages|-p} or \cb{--repositories|-r} to only
-       dump one of the manifests. See also \cb{--repositories-file} and
-       \cb{--packages-file}."
+       dump one of the manifests. If the \cb{--deep} option is specified,
+       then in the resulting packages manifest the \cb{*-file} values are
+       replaced with the contents of the referenced files. See also
+       \cb{--repositories-file} and \cb{--packages-file}."
+    }
+
+    bool --deep
+    {
+      "Verify files referenced by the \cb{*-file} manifest values."
     }
 
     path --repositories-file

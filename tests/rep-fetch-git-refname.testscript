@@ -62,6 +62,7 @@
     warn1 = '%.{0}';
     warn2 = '%.{0}';
     warn3 = '%.{0}';
+    warn4 = '%.{0}';
 
     if ($git_protocol == 'local'       || \
         $git_protocol == 'https-smart' || \
@@ -72,6 +73,7 @@
       warn1 = "$warn_ref_hist for submodule 'doc/style'$reason_dumb$warn_dumb"
       warn2 = "$warn_repo_hist for submodule 'doc/style/basic'$reason_dumb$warn_dumb"
       warn3 = "$warn_ref_hist for submodule 'libbar'$reason_dumb$warn_dumb"
+      warn4 = "$warn_ref_hist for submodule 'libbar/extras'$reason_dumb$warn_dumb"
     end;
 
     $pkg_checkout libfoo/1.0.0 2>>~"%EOE%";
@@ -88,6 +90,9 @@
       %fetching submodule 'libbar' from .+libbar\.git%
       $warn3
       %submodule path 'libbar': checked out .+%
+      %fetching submodule 'libbar/extras' from .+style-basic\.git+%
+      $warn4
+      %submodule path 'libbar/extras': checked out .+%
       distributing libfoo/1.0.0
       checked out libfoo/1.0.0
       EOE

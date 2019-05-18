@@ -44,12 +44,14 @@ end
 
 test.options += --auth all --trust-yes
 
+posix = ($cxx.target.class != 'windows')
+
 : no-location
 :
 $* 2>>EOE != 0
-error: repository location argument expected
-  info: run 'bpkg help rep-info' for more information
-EOE
+  error: repository location argument expected
+    info: run 'bpkg help rep-info' for more information
+  EOE
 
 : default
 :
@@ -57,24 +59,24 @@ EOE
   : unsigned
   :
   $* $rep/testing >>"EOO"
-  pkg:build2.org/rep-info/testing ($rep/testing)
-  prerequisite pkg:build2.org/foo/testing ($rep_root/foo/testing)
-  complement pkg:build2.org/rep-info/stable ($rep/stable)
+    pkg:build2.org/rep-info/testing ($rep/testing)
+    prerequisite pkg:build2.org/foo/testing ($rep_root/foo/testing)
+    complement pkg:build2.org/rep-info/stable ($rep/stable)
 
-  foo/1
-  EOO
+    foo/1
+    EOO
 
   : signed
   :
   $* $rep/signed >>"EOO"
-  pkg:build2.org/rep-info/signed ($rep/signed)
-  CN=build2.org/O=Code Synthesis/info@build2.org
-  $cert_fp
-  prerequisite pkg:build2.org/foo/testing ($rep_root/foo/testing)
-  complement pkg:build2.org/rep-info/stable ($rep/stable)
+    pkg:build2.org/rep-info/signed ($rep/signed)
+    CN=build2.org/O=Code Synthesis/info@build2.org
+    $cert_fp
+    prerequisite pkg:build2.org/foo/testing ($rep_root/foo/testing)
+    complement pkg:build2.org/rep-info/stable ($rep/stable)
 
-  foo/1
-  EOO
+    foo/1
+    EOO
 }
 
 : name
@@ -88,24 +90,96 @@ $* --name $rep/testing >"pkg:build2.org/rep-info/testing ($rep/testing)"
 
   : list
   :
-  $* $rep/testing >>EOO
+    $* $rep/testing >>EOO
 
-  foo/1
-  EOO
+    foo/1
+    EOO
 
   : manifest
   :
-  $* --manifest $rep/testing >>EOO
-  : 1
-  name: foo
-  version: 1
-  summary: The "Foo" utility
-  license: MIT
-  url: http://www.example.org/foo
-  email: foo-users@example.org
-  location: foo-1.tar.gz
-  sha256sum: fee330a362a4f87ff42a954aa305b6446d541b7b60000ebcd2fbf68f2b1ae58e
-  EOO
+  {
+    test.arguments += --manifest
+
+    : basic
+    :
+    $* $rep/testing >>EOO
+      : 1
+      name: foo
+      version: 1
+      summary: The "Foo" utility
+      license: MIT
+      url: http://www.example.org/foo
+      email: foo-users@example.org
+      location: foo-1.tar.gz
+      sha256sum: fee330a362a4f87ff42a954aa305b6446d541b7b60000ebcd2fbf68f2b1ae58e
+      EOO
+
+    : deep
+    :
+    {
+      test.arguments += --deep
+
+      : dir
+      :
+      {
+        tar ($posix ? : --force-local) -xf $src/git/libbar.tar &state0/***;
+
+        $* --type dir "state0/libbar.git" >>~%EOO%d;
+          : 1
+          name: libbar
+          version: 1.0.0
+          summary: libbar
+          license: MIT
+          description: \
+          TODO
+
+          \
+          description-type: text/plain
+          %.+
+          EOO
+
+        rm state0/libbar.git/libbar/README;
+
+        $* --type dir "state0/libbar.git" 2>>/~%EOE% != 0
+          %error: unable to read from libbar/README referenced by description-file manifest value in libbar/manifest: .+%
+          %  info: repository .+%
+          EOE
+      }
+
+      : git
+      :
+      : Enable on Windows if/when we make *-file values expansion to properly
+      : work for symlinks on Windows (see rep_fetch_git() for details).
+      :
+      if ($git_supported && $posix)
+      {
+        $* "$rep_git/state0/libbar.git#master" >>~%EOO%d 2>!
+          : 1
+          name: libbar
+          version: 1.0.0
+          summary: libbar
+          license: MIT
+          description: \
+          TODO
+
+          \
+          description-type: text/plain
+          %.+
+          :
+          name: libmbar
+          version: 1.0.0
+          summary: libmbar
+          license: MIT
+          description: \
+          TODO
+
+          \
+          description-type: text/plain
+          %.+
+          EOO
+      }
+    }
+  }
 
   : to-file
   :
@@ -113,9 +187,9 @@ $* --name $rep/testing >"pkg:build2.org/rep-info/testing ($rep/testing)"
     : no-manifest
     :
     $* --packages-file m $rep/testing 2>>EOE != 0
-    error: --packages-file specified without --manifest
-      info: run 'bpkg help rep-info' for more information
-    EOE
+      error: --packages-file specified without --manifest
+        info: run 'bpkg help rep-info' for more information
+      EOE
 
     : manifest
     :
@@ -147,23 +221,23 @@ $* --name $rep/testing >"pkg:build2.org/rep-info/testing ($rep/testing)"
   : list
   :
   $* $rep/testing >>"EOO"
-  prerequisite pkg:build2.org/foo/testing ($rep_root/foo/testing)
-  complement pkg:build2.org/rep-info/stable ($rep/stable)
-  EOO
+    prerequisite pkg:build2.org/foo/testing ($rep_root/foo/testing)
+    complement pkg:build2.org/rep-info/stable ($rep/stable)
+    EOO
 
   : manifest
   :
   $* --manifest $rep/testing >>EOO
-  : 1
-  location: ../../foo/testing
-  type: pkg
-  role: prerequisite
-  :
-  location: ../stable
-  type: pkg
-  role: complement
-  :
-  EOO
+    : 1
+    location: ../../foo/testing
+    type: pkg
+    role: prerequisite
+    :
+    location: ../stable
+    type: pkg
+    role: complement
+    :
+    EOO
 
   : to-file
   :
@@ -171,9 +245,9 @@ $* --name $rep/testing >"pkg:build2.org/rep-info/testing ($rep/testing)"
     : no-manifest
     :
     $* --repositories-file m $rep/testing 2>>EOE != 0
-    error: --repositories-file specified without --manifest
-      info: run 'bpkg help rep-info' for more information
-    EOE
+      error: --repositories-file specified without --manifest
+        info: run 'bpkg help rep-info' for more information
+      EOE
 
     : manifest
     :
@@ -223,10 +297,10 @@ else
   : Version module is enabled for the project.
   :
   $* "$rep/style-basic.git#master" >>~%EOO%
-  %git:.+style-basic#master .+style-basic.git#master%
+    %git:.+style-basic#master .+style-basic.git#master%
 
-  %style-basic/1\.1\.0-a\.0\.\d+\..+%
-  EOO
+    %style-basic/1\.1\.0-a\.0\.\d+\..+%
+    EOO
 
   : manifest-lists
   :
@@ -234,12 +308,12 @@ else
   : repository root.
   :
   $* "$rep/libbar.git#master" >>~%EOO%
-  %git:.+libbar#master .+libbar.git#master%
-  %prerequisite git:.+style-basic#stable .+style-basic.git#stable%
+    %git:.+libbar#master .+libbar.git#master%
+    %prerequisite git:.+style-basic#stable .+style-basic.git#stable%
 
-  libbar/1.0.0
-  libmbar/1.0.0
-  EOO
+    libbar/1.0.0
+    libmbar/1.0.0
+    EOO
 
   : repository-manifests
   :
@@ -248,9 +322,9 @@ else
   : master branch.
   :
   $* -r --manifest "$rep/style-basic.git#stable,master" >>~%EOO%
-  : 1
-  email: user@example.com
-  EOO
+    : 1
+    email: user@example.com
+    EOO
 
   : complete-dependency
   :
@@ -260,6 +334,7 @@ else
     version: 1.0.0
     summary: libbar
     license: MIT
+    description-file: README
     url: http://example.org/libbar
     email: pkg@example.org
     depends: style-basic >= 1.0.0
@@ -270,6 +345,7 @@ else
     version: 1.0.0
     summary: libmbar
     license: MIT
+    description-file: README
     url: http://example.org/libmbar
     email: pkg@example.org
     depends: style-basic >= 1.0.0

@@ -55,7 +55,8 @@ else
     $rep_add "$rep/libbar.git#master";
     $rep_fetch;
 
-    $* libmbar/1.0.0 2>>EOE != 0
+    $* libmbar/1.0.0 2>>~%EOE% != 0
+      %.+
       error: no configured package satisfies dependency on style-basic >= 1.0.0
       warning: repository state is now broken
         info: run 'bpkg rep-fetch' to repair
@@ -78,7 +79,9 @@ else
 
     $pkg_configure style-basic;
 
-    $* libmbar/1.0.0 2>>EOE;
+    $* libmbar/1.0.0 2>>~%EOE%;
+      checking out libmbar/1.0.0
+      %.+
       distributing libmbar/1.0.0
       checked out libmbar/1.0.0
       EOE

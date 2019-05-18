@@ -792,6 +792,10 @@ else
       %fetching submodule 'libbar' from .+libbar\.git%
       %warning: .+%{0,2}
       %submodule path 'libbar': checked out '.+'%
+      %querying .+style-basic\.git%?
+      %fetching submodule 'libbar/extras' from .+style-basic\.git%
+      %warning: .+%{0,2}
+      %submodule path 'libbar/extras': checked out '.+'%
       2 package(s) in 1 repository(s)
       EOE
   }

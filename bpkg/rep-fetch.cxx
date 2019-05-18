@@ -263,10 +263,47 @@ namespace bpkg
     return r;
   }
 
+  // Return contents of a file referenced by a *-file package manifest value.
+  //
+  static string
+  read_package_file (const path& f,
+                     const string& name,
+                     const dir_path& pkg,
+                     const dir_path& repo,
+                     const repository_location& rl,
+                     const string& fragment)
+  {
+    path rp (pkg / f);
+    path fp (repo / rp);
+
+    try
+    {
+      ifdstream is (fp);
+      string s (is.read_text ());
+
+      if (s.empty ())
+        fail << name << " manifest value in " << pkg / manifest_file
+             << " references empty file " << rp <<
+          info << "repository " << rl
+               << (!fragment.empty () ? " " + fragment : "");
+
+      return s;
+    }
+    catch (const io_error& e)
+    {
+      fail << "unable to read from " << rp << " referenced by "
+           << name << " manifest value in " << pkg / manifest_file << ": "
+           << e <<
+        info << "repository " << rl
+             << (!fragment.empty () ? " " + fragment : "")  << endf;
+    }
+  }
+
   static rep_fetch_data
   rep_fetch_dir (const common_options& co,
                  const repository_location& rl,
-                 bool ignore_unknown)
+                 bool iu,
+                 bool ev)
   {
     assert (rl.absolute ());
 
@@ -276,23 +313,41 @@ namespace bpkg
 
     fr.repositories = parse_repository_manifests<dir_repository_manifests> (
       rd / repositories_file,
-      ignore_unknown,
+      iu,
       rl,
       string () /* fragment */);
 
     dir_package_manifests pms (
       parse_directory_manifests<dir_package_manifests> (
         rd / packages_file,
-        ignore_unknown,
+        iu,
         rl,
         string () /* fragment */));
 
     fr.packages = parse_package_manifests (co,
                                            rd,
                                            move (pms),
-                                           ignore_unknown,
+                                           iu,
                                            rl,
-                                           string () /* fragment */);
+                                           empty_string /* fragment */);
+
+    // Expand file-referencing package manifest values.
+    //
+    if (ev)
+    {
+      for (package_manifest& m: fr.packages)
+        m.load_files (
+          [&m, &rd, &rl] (const string& n, const path& p)
+          {
+            return read_package_file (p,
+                                      n,
+                                      path_cast<dir_path> (*m.location),
+                                      rd,
+                                      rl,
+                                      empty_string /* fragment */);
+          },
+          iu);
+    }
 
     return rep_fetch_data {{move (fr)},
                            nullopt /* cert_pem */,
@@ -303,7 +358,8 @@ namespace bpkg
   rep_fetch_git (const common_options& co,
                  const dir_path* conf,
                  const repository_location& rl,
-                 bool ignore_unknown)
+                 bool iu,
+                 bool ev)
   {
     if (conf != nullptr && conf->empty ())
       conf = dir_exists (bpkg_dir) ? &current_dir : nullptr;
@@ -388,7 +444,7 @@ namespace bpkg
       //
       fr.repositories = parse_repository_manifests<git_repository_manifests> (
           td / repositories_file,
-          ignore_unknown,
+          iu,
           rl,
           fr.friendly_name);
 
@@ -397,11 +453,23 @@ namespace bpkg
       git_package_manifests pms (
         parse_directory_manifests<git_package_manifests> (
           td / packages_file,
-          ignore_unknown,
+          iu,
           rl,
           fr.friendly_name));
 
-      // Checkout submodules, if required.
+      // Checkout submodules on the first call.
+      //
+      bool cs (true);
+      auto checkout_submodules = [&co, &rl, &td, &cs] ()
+      {
+        if (cs)
+        {
+          git_checkout_submodules (co, rl, td);
+          cs = false;
+        }
+      };
+
+      // Checkout submodules to parse package manifests, if required.
       //
       for (const package_manifest& sm: pms)
       {
@@ -409,7 +477,7 @@ namespace bpkg
 
         if (!exists (d) || empty (d))
         {
-          git_checkout_submodules (co, rl, td);
+          checkout_submodules ();
           break;
         }
       }
@@ -419,9 +487,41 @@ namespace bpkg
       fr.packages = parse_package_manifests (co,
                                              td,
                                              move (pms),
-                                             ignore_unknown,
+                                             iu,
                                              rl,
                                              fr.friendly_name);
+
+      // Expand file-referencing package manifest values checking out
+      // submodules, if required.
+      //
+      if (ev)
+      {
+        for (package_manifest& m: fr.packages)
+          m.load_files (
+            [&m, &td, &rl, &fr, &checkout_submodules] (const string& n,
+                                                       const path& p)
+            {
+              // Note that this doesn't work for symlinks on Windows where git
+              // normally creates filesystem-agnostic symlinks that are
+              // indistinguishable from regular files (see fixup_worktree()
+              // for details). It seems like the only way to deal with that is
+              // to unconditionally checkout submodules on Windows. Let's not
+              // pessimize things for now (if someone really wants this to
+              // work, they can always enable real symlinks in git).
+              //
+              if (!exists (td / *m.location / p))
+                checkout_submodules ();
+
+              return read_package_file (p,
+                                        n,
+                                        path_cast<dir_path> (*m.location),
+                                        td,
+                                        rl,
+                                        fr.friendly_name);
+            },
+            iu);
+      }
+
       np += fr.packages.size ();
 
       r.fragments.push_back (move (fr));
@@ -452,13 +552,14 @@ namespace bpkg
              const dir_path* conf,
              const repository_location& rl,
              const optional<string>& dt,
-             bool iu)
+             bool iu,
+             bool ev)
   {
     switch (rl.type ())
     {
     case repository_type::pkg: return rep_fetch_pkg (co, conf, rl, dt, iu);
-    case repository_type::dir: return rep_fetch_dir (co, rl, iu);
-    case repository_type::git: return rep_fetch_git (co, conf, rl, iu);
+    case repository_type::dir: return rep_fetch_dir (co, rl, iu, ev);
+    case repository_type::git: return rep_fetch_git (co, conf, rl, iu, ev);
     }
 
     assert (false); // Can't be here.
@@ -469,9 +570,10 @@ namespace bpkg
   rep_fetch (const common_options& co,
              const dir_path* conf,
              const repository_location& rl,
-             bool iu)
+             bool iu,
+             bool ev)
   {
-    return rep_fetch (co, conf, rl, nullopt /* dependent_trust */, iu);
+    return rep_fetch (co, conf, rl, nullopt /* dependent_trust */, iu, ev);
   }
 
   // Return an existing repository fragment or create a new one. Update the
@@ -949,7 +1051,12 @@ namespace bpkg
     // repository sets.
     //
     rep_fetch_data rfd (
-      rep_fetch (co, &conf, rl, dependent_trust, true /* ignore_unknow */));
+      rep_fetch (co,
+                 &conf,
+                 rl,
+                 dependent_trust,
+                 true /* ignore_unknow */,
+                 false /* expand_values */));
 
     // Save for subsequent certificate authentication for repository use by
     // its dependents.
