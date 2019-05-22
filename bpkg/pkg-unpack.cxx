@@ -12,6 +12,7 @@
 
 #include <libbpkg/manifest.hxx>
 
+#include <bpkg/archive.hxx>
 #include <bpkg/package.hxx>
 #include <bpkg/package-odb.hxx>
 #include <bpkg/database.hxx>
@@ -322,108 +323,19 @@ namespace bpkg
       //
       arm = auto_rmdir (d);
 
-      cstrings args;
-
-      // See if we need to decompress.
-      //
-      {
-        string e (a.extension ());
-
-        if      (e == "gz")    args.push_back ("gzip");
-        else if (e == "bzip2") args.push_back ("bzip2");
-        else if (e == "xz")    args.push_back ("xz");
-        else if (e != "tar")
-          fail << "unknown compression method in package " << a;
-      }
-
-      size_t i (0); // The tar command line start.
-      if (!args.empty ())
-      {
-        args.push_back ("-dc");
-        args.push_back (a.string ().c_str ());
-        args.push_back (nullptr);
-        i = args.size ();
-      }
-
-      args.push_back (co.tar ().string ().c_str ());
-
-      // Add extra options.
-      //
-      for (const string& o: co.tar_option ())
-        args.push_back (o.c_str ());
-
-      // -C/--directory -- change to directory.
-      //
-      args.push_back ("-C");
-
-#ifndef _WIN32
-      args.push_back (c.string ().c_str ());
-#else
-      // Note that tar misinterprets -C option's absolute paths on Windows,
-      // unless only forward slashes are used as directory separators:
-      //
-      // tar -C c:\a\cfg --force-local -xf c:\a\cfg\libbutl-0.7.0.tar.gz
-      // tar: c\:\a\\cfg: Cannot open: No such file or directory
-      // tar: Error is not recoverable: exiting now
-      //
-      string cwd (c.string ());
-      replace (cwd.begin (), cwd.end (), '\\', '/');
-
-      args.push_back (cwd.c_str ());
-
-      // An archive name that has a colon in it specifies a file or device on a
-      // remote machine. That makes it impossible to use absolute Windows paths
-      // unless we add the --force-local option. Note that BSD tar doesn't
-      // support this option.
-      //
-      args.push_back ("--force-local");
-#endif
-
-      args.push_back ("-xf");
-      args.push_back (i == 0 ? a.string ().c_str () : "-");
-      args.push_back (nullptr);
-      args.push_back (nullptr); // Pipe end.
-
-      size_t what;
       try
       {
-        process_path dpp;
-        process_path tpp;
-
-        process dpr;
-        process tpr;
-
-        if (i != 0)
-          dpp = process::path_search (args[what = 0]);
-
-        tpp = process::path_search (args[what = i]);
-
-        if (verb >= 2)
-          print_process (args);
-
-        if (i != 0)
-        {
-          dpr = process (dpp, &args[what = 0], 0, -1);
-          tpr = process (tpp, &args[what = i], dpr);
-        }
-        else
-          tpr = process (tpp, &args[what = 0]);
+        pair<process, process> pr (start_extract (co, a, c));
 
         // While it is reasonable to assuming the child process issued
         // diagnostics, tar, specifically, doesn't mention the archive name.
         //
-        if (!(what = i, tpr.wait ()) ||
-            !(what = 0, dpr.wait ()))
-          fail << "unable to extract package archive " << a;
+        if (!pr.second.wait () || !pr.first.wait ())
+          fail << "unable to extract " << a << " to " << c;
       }
       catch (const process_error& e)
       {
-        error << "unable to execute " << args[what] << ": " << e;
-
-        if (e.child)
-          exit (1);
-
-        throw failed ();
+        fail << "unable to extract " << a << " to " << c << ": " << e;
       }
 
       mc = sha256 (co, d / manifest_file);

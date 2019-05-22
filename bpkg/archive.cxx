@@ -26,14 +26,9 @@ namespace bpkg
     return path_cast<dir_path> (d);
   }
 
-  pair<process, process>
-  start_extract (const common_options& co,
-                 const path& a,
-                 const path& f,
-                 bool diag)
+  static pair<cstrings, size_t>
+  start_extract (const common_options& co, const path& a)
   {
-    assert (!f.empty () && f.relative ());
-
     cstrings args;
 
     // See if we need to decompress.
@@ -59,19 +54,15 @@ namespace bpkg
 
     args.push_back (co.tar ().string ().c_str ());
 
-    // Add extra options.
+    // Add user's extra options.
     //
     for (const string& o: co.tar_option ())
       args.push_back (o.c_str ());
 
-    // -O/--to-stdout -- extract to stdout.
-    //
-    args.push_back ("-O");
-
     // An archive name that has a colon in it specifies a file or device on a
     // remote machine. That makes it impossible to use absolute Windows paths
     // unless we add the --force-local option. Note that BSD tar doesn't
-    // support this option.
+    // support this option but appears to do the right thing on Windows.
     //
 #ifdef _WIN32
     args.push_back ("--force-local");
@@ -80,8 +71,95 @@ namespace bpkg
     args.push_back ("-xf");
     args.push_back (i == 0 ? a.string ().c_str () : "-");
 
-    // MSYS tar doesn't find archived file if it's path is provided in Windows
-    // notation.
+    return make_pair (move (args), i);
+  }
+
+  pair<process, process>
+  start_extract (const common_options& co, const path& a, const dir_path& d)
+  {
+    pair<cstrings, size_t> args_i (start_extract (co, a));
+    cstrings& args (args_i.first);
+    size_t i (args_i.second);
+
+    // -C/--directory -- change to directory.
+    //
+    args.push_back ("-C");
+
+#ifndef _WIN32
+    args.push_back (d.string ().c_str ());
+#else
+    // Note that MSYS GNU tar misinterprets -C option's absolute paths on
+    // Windows, unless only forward slashes are used as directory separators:
+    //
+    // tar -C c:\a\cfg --force-local -xf c:\a\cfg\libbutl-0.7.0.tar.gz
+    // tar: c\:\a\\cfg: Cannot open: No such file or directory
+    // tar: Error is not recoverable: exiting now
+    //
+    string cwd (d.string ());
+    replace (cwd.begin (), cwd.end (), '\\', '/');
+
+    args.push_back (cwd.c_str ());
+#endif
+
+    args.push_back (nullptr);
+    args.push_back (nullptr); // Pipe end.
+
+    size_t what;
+    try
+    {
+      process_path dpp;
+      process_path tpp;
+
+      process dpr;
+      process tpr;
+
+      if (i != 0)
+        dpp = process::path_search (args[what = 0]);
+
+      tpp = process::path_search (args[what = i]);
+
+      if (verb >= 2)
+        print_process (args);
+
+      if (i != 0)
+      {
+        dpr = process (dpp, &args[what = 0], 0, -1);
+        tpr = process (tpp, &args[what = i], dpr);
+      }
+      else
+        tpr = process (tpp, &args[what = 0]);
+
+      return make_pair (move (dpr), move (tpr));
+    }
+    catch (const process_error& e)
+    {
+      error << "unable to execute " << args[what] << ": " << e;
+
+      if (e.child)
+        exit (1);
+
+      throw failed ();
+    }
+  }
+
+  pair<process, process>
+  start_extract (const common_options& co,
+                 const path& a,
+                 const path& f,
+                 bool diag)
+  {
+    assert (!f.empty () && f.relative ());
+
+    pair<cstrings, size_t> args_i (start_extract (co, a));
+    cstrings& args (args_i.first);
+    size_t i (args_i.second);
+
+    // -O/--to-stdout -- extract to stdout.
+    //
+    args.push_back ("-O");
+
+    // On Windows neither MSYS GNU tar nor BSD tar will find the archived file
+    // if its path is provided in the Windows notation.
     //
     string fs (f.posix_string ());
     args.push_back (fs.c_str ());

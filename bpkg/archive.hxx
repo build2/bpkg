@@ -19,14 +19,21 @@ namespace bpkg
   dir_path
   package_dir (const path& archive);
 
-  // Start the process of extracting the specified file from the archive. If
-  // diag is false, then redirect stderr to /dev/null (this can be used, for
-  // example, to suppress diagnostics). Note that in this case process errors
-  // (like unable to start) are still printed.
+  // Start the process of extracting the archive to the specified directory.
+  //
+  pair<process, process>
+  start_extract (const common_options&,
+                 const path& archive,
+                 const dir_path&);
+
+  // Start the process of extracting the specified file from the archive to
+  // the process' stdout. If diag is false, then redirect stderr to /dev/null
+  // (this can be used, for example, to suppress diagnostics). Note that in
+  // this case process errors (like unable to start) are still reported.
   //
   // Return a pair of processes that form a pipe. Wait on the second first.
   //
-  pair<butl::process, butl::process>
+  pair<process, process>
   start_extract (const common_options&,
                  const path& archive,
                  const path& file,
