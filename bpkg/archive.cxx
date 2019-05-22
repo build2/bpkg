@@ -4,6 +4,8 @@
 
 #include <bpkg/archive.hxx>
 
+#include <cstring> // strlen()
+
 #include <libbutl/process.mxx>
 
 #include <bpkg/utility.hxx>
@@ -26,21 +28,47 @@ namespace bpkg
     return path_cast<dir_path> (d);
   }
 
+#ifdef _WIN32
+  static inline bool
+  bsdtar (const char* p)
+  {
+    const char* l (path::traits::find_leaf (p, strlen (p)));
+    return l != nullptr && casecmp (l, "bsdtar", 6) == 0;
+  }
+#endif
+
   static pair<cstrings, size_t>
   start_extract (const common_options& co, const path& a)
   {
     cstrings args;
 
+    // On Windows we default to libarchive's bsdtar with auto-decompression
+    // (though there is also bsdcat which we could have used).
+    //
+    const char* tar (co.tar_specified ()
+                     ? co.tar ().string ().c_str ()
+#ifdef _WIN32
+                     : "tar"
+#else
+                     : "tar"
+#endif
+    );
+
     // See if we need to decompress.
     //
     {
+      const char* d (nullptr);
       string e (a.extension ());
 
-      if      (e == "gz")    args.push_back ("gzip");
-      else if (e == "bzip2") args.push_back ("bzip2");
-      else if (e == "xz")    args.push_back ("xz");
-      else if (e != "tar")
-        fail << "unknown compression method in " << a;
+      if      (e == "gz")    d = "gzip";
+      else if (e == "bzip2") d = "bzip2";
+      else if (e == "xz")    d = "xz";
+      else if (e != "tar")   fail << "unknown compression method in " << a;
+
+#ifdef _WIN32
+      if (!bsdtar (tar))
+#endif
+        args.push_back (d);
     }
 
     size_t i (0); // The tar command line start.
@@ -52,7 +80,7 @@ namespace bpkg
       i = args.size ();
     }
 
-    args.push_back (co.tar ().string ().c_str ());
+    args.push_back (tar);
 
     // Add user's extra options.
     //
@@ -65,7 +93,8 @@ namespace bpkg
     // support this option but appears to do the right thing on Windows.
     //
 #ifdef _WIN32
-    args.push_back ("--force-local");
+    if (!bsdtar (tar))
+      args.push_back ("--force-local");
 #endif
 
     args.push_back ("-xf");
@@ -85,21 +114,24 @@ namespace bpkg
     //
     args.push_back ("-C");
 
-#ifndef _WIN32
-    args.push_back (d.string ().c_str ());
-#else
-    // Note that MSYS GNU tar misinterprets -C option's absolute paths on
-    // Windows, unless only forward slashes are used as directory separators:
+#ifdef _WIN32
+    // MSYS GNU tar misinterprets -C option's absolute paths on Windows,
+    // unless only forward slashes are used as directory separators:
     //
     // tar -C c:\a\cfg --force-local -xf c:\a\cfg\libbutl-0.7.0.tar.gz
     // tar: c\:\a\\cfg: Cannot open: No such file or directory
     // tar: Error is not recoverable: exiting now
     //
-    string cwd (d.string ());
-    replace (cwd.begin (), cwd.end (), '\\', '/');
-
-    args.push_back (cwd.c_str ());
+    string cwd;
+    if (!bsdtar (args[i]))
+    {
+      cwd = d.string ();
+      replace (cwd.begin (), cwd.end (), '\\', '/');
+      args.push_back (cwd.c_str ());
+    }
+    else
 #endif
+      args.push_back (d.string ().c_str ());
 
     args.push_back (nullptr);
     args.push_back (nullptr); // Pipe end.
@@ -161,8 +193,12 @@ namespace bpkg
     // On Windows neither MSYS GNU tar nor BSD tar will find the archived file
     // if its path is provided in the Windows notation.
     //
+#ifdef _WIN32
     string fs (f.posix_string ());
     args.push_back (fs.c_str ());
+#else
+    args.push_back (f.string ().c_str ());
+#endif
 
     args.push_back (nullptr);
     args.push_back (nullptr); // Pipe end.

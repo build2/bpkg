@@ -226,7 +226,7 @@ namespace bpkg
        specify multiple sha256 options."
     }
 
-    path --tar = "tar"
+    path --tar
     {
       "<path>",
       "The tar program to be used to extract package archives. For example,
