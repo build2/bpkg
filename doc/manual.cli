@@ -567,11 +567,19 @@ names, etc.
 
 \
 version: <version>
+[upstream-version]: <string>
 \
 
 The package version. See \l{#package-version Package Version} for the version
 format description. Note that the version case is preserved for display, in
 file names, etc.
+
+When packaging existing projects, sometimes you may want to deviate from the
+upstream versioning scheme because, for example, it may not be representable
+as a \c{bpkg} package version or simply be inconvenient to work with. In this
+case you would need to come up with an upstream-to-downstream version mapping
+and use the \c{upstream-version} value to preserve the original version for
+information.
 
 
 \h2#manifest-package-project|\c{project}|
