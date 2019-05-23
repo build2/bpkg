@@ -4,8 +4,6 @@
 
 #include <bpkg/archive.hxx>
 
-#include <cstring> // strlen()
-
 #include <libbutl/process.mxx>
 
 #include <bpkg/utility.hxx>
@@ -32,7 +30,7 @@ namespace bpkg
   static inline bool
   bsdtar (const char* p)
   {
-    const char* l (path::traits::find_leaf (p, strlen (p)));
+    const char* l (path::traits::find_leaf (p));
     return l != nullptr && casecmp (l, "bsdtar", 6) == 0;
   }
 #endif
@@ -48,7 +46,7 @@ namespace bpkg
     const char* tar (co.tar_specified ()
                      ? co.tar ().string ().c_str ()
 #ifdef _WIN32
-                     : "tar"
+                     : "bsdtar"
 #else
                      : "tar"
 #endif
