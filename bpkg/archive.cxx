@@ -157,7 +157,10 @@ namespace bpkg
         tpr = process (tpp, &args[what = i], dpr);
       }
       else
+      {
+        dpr = process (process_exit (0)); // Successfully exited.
         tpr = process (tpp, &args[what = 0]);
+      }
 
       return make_pair (move (dpr), move (tpr));
     }
@@ -228,7 +231,10 @@ namespace bpkg
         tpr = process (tpp, &args[what = i], dpr, -1, (diag ? 2 : nfd.get ()));
       }
       else
+      {
+        dpr = process (process_exit (0)); // Successfully exited.
         tpr = process (tpp, &args[what = 0], 0, -1, (diag ? 2 : nfd.get ()));
+      }
 
       return make_pair (move (dpr), move (tpr));
     }
