@@ -94,6 +94,11 @@ if ($cxx.id == 'msvc' && $cxx.version.major == 19 && $cxx.version.minor < 10)
 
 obj{utility}: cxx.poptions += -DBPKG_EXE_SUFFIX='"'$bin.exe.suffix'"'
 
+# Make sure backtrace includes function names.
+#
+if ($cxx.target.class == 'linux')
+  cxx.loptions += -rdynamic
+
 # Generated options parser.
 #
 if $cli.configured

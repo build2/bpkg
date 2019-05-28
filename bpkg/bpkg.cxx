@@ -7,6 +7,9 @@
 #endif
 
 #include <iostream>
+#include <exception> // set_terminate(), terminate_handler
+
+#include <libbutl/backtrace.mxx> // backtrace()
 
 #include <bpkg/types.hxx>
 #include <bpkg/utility.hxx>
@@ -140,11 +143,27 @@ init (const common_options& co,
   return o;
 }
 
+// Print backtrace if terminating due to an unhandled exception. Note that
+// custom_terminate is non-static and not a lambda to reduce the noise.
+//
+static terminate_handler default_terminate;
+
+void
+custom_terminate ()
+{
+  *diag_stream << backtrace ();
+
+  if (default_terminate != nullptr)
+    default_terminate ();
+}
+
 int bpkg::
 main (int argc, char* argv[])
 try
 {
   using namespace cli;
+
+  default_terminate = set_terminate (custom_terminate);
 
   stderr_term = fdterm (stderr_fd ());
   exec_dir = path (argv[0]).directory ();
