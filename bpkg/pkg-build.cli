@@ -91,9 +91,10 @@ namespace bpkg
      (<scheme>). Currently the only recognized scheme is \cb{sys} which
      instructs \cb{pkg-build} to configure the package as available from the
      system rather than building it from source. If the system package version
-     (<ver>) is not specified, then it is considered to be unknown but
-     satisfying any dependency constraint. Such a version is displayed as
-     '\cb{*}'.
+     (<ver>) is not specified or is '\cb{*}', then it is considered to be
+     unknown but satisfying any dependency constraint. If the version is not
+     explicitly specified, then at least a stub package must be available from
+     one of the repositories.
 
      Finally, a package can be specified as either the path to the package
      archive (<file>) or to the package directory (<dir>\cb{/}; note that it

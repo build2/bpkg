@@ -48,6 +48,31 @@ rep_add    += -d cfg 2>!
 rep_fetch  += -d cfg --auth all --trust-yes 2>!
 rep_remove += -d cfg 2>!
 
+: no-repo
+:
+{
+  $clone_cfg;
+
+  $pkg_build 'sys:libbar' 2>>EOE != 0;
+    error: unknown package libbar
+      info: configuration cfg/ has no repositories
+      info: use 'bpkg rep-add' to add a repository
+    EOE
+
+  $pkg_build 'sys:libbar/1' 2>>EOE;
+    configured sys:libbar/1
+    EOE
+
+  $pkg_status libbar >'!libbar configured,system !1';
+
+  $pkg_build 'sys:libbar/*' 2>>EOE;
+    purged libbar/1
+    configured sys:libbar/*
+    EOE
+
+  $pkg_status libbar >'!libbar configured,system !*'
+}
+
 # Note that when we fetch a package from remote repository the bpkg stderr
 # contains fetch program progress output, that comes prior the informational
 # message.
@@ -826,12 +851,14 @@ rep_remove += -d cfg 2>!
       info: while satisfying foo/2
       EOE
 
-    $pkg_build 'sys:libbar/1' 2>>EOE != 0;
+    $pkg_build 'sys:libbar' 2>>EOE != 0;
       error: unknown package libbar
       EOE
 
     $pkg_build foo 'sys:libbar/1' 2>>EOE != 0;
-      error: unknown package libbar
+      error: dependency libbar >= 2 of package foo is not available in source
+        info: sys:libbar/1 does not satisfy the constrains
+      info: while satisfying foo/2
       EOE
 
     $pkg_build foo '?sys:libbar/1' 2>>EOE != 0;

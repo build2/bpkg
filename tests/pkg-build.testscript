@@ -1302,6 +1302,58 @@ test.options += --no-progress
     $* '?libbar/1.3' 2>'error: unknown package libbar/1.3' != 0
   }
 
+  : system-no-repo
+  :
+  {
+    $clone_root_cfg;
+
+    cp -r $src/libfoo-1.1.0 libfoo;
+    echo 'depends: libhello >= 1.0' >+libfoo/manifest;
+    $rep_add libfoo --type dir;
+
+    $rep_fetch;
+
+    $* libfoo 2>>~%EOE% != 0;
+      error: unknown dependency libhello >= 1.0 of package libfoo
+      %.+
+      EOE
+
+    $* libfoo '?sys:libhello' 2>'error: unknown package sys:libhello' != 0;
+
+    $* "?sys:libhello/2.0@$rep/t0a" --trust-yes 2>>~%EOE% != 0;
+      %.+
+      %error: package sys:libhello/2\.0 is not found in .+t0a%
+      EOE
+
+    $* libfoo '?sys:libhello/0.1' 2>>~%EOE% != 0;
+      error: unable to satisfy constraints on package libhello
+      %.+
+      EOE
+
+    $* libfoo '?sys:libhello/*' 2>>~%EOE%;
+      configured sys:libhello/*
+      using libfoo/1.1.0 (external)
+      configured libfoo/1.1.0
+      %info: .+ is up to date%
+      updated libfoo/1.1.0
+      EOE
+
+    $pkg_status libhello >'libhello configured,system !*';
+
+    $* '?sys:libhello/2.0' --yes 2>>~%EOE%;
+      disfigured libfoo/1.1.0
+      purged libhello/*
+      configured sys:libhello/2.0
+      configured libfoo/1.1.0
+      %info: .+ is up to date%
+      updated libfoo/1.1.0
+      EOE
+
+    $pkg_status libhello >'libhello configured,system !2.0';
+
+    $pkg_drop libfoo
+  }
+
   : unused
   :
   {
@@ -1317,7 +1369,10 @@ test.options += --no-progress
     {
       $clone_cfg;
 
-      $* --yes libbar/1.0.0 2>>EOE;
+      # Here we also test that specifying unknown but unused system
+      # dependencies.
+      #
+      $* --yes libbar/1.0.0 '?sys:libbox/*' '?sys:libbux/1' 2>>EOE;
         fetched libfoo/1.0.0
         unpacked libfoo/1.0.0
         configured libfoo/1.0.0

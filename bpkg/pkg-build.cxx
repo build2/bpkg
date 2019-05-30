@@ -44,11 +44,13 @@ namespace bpkg
   //    - Configuration vars (both passed and preserved)
   //
 
-  // Query the available packages that optionally satisfy the specified version
-  // constraint and return them in the version descending order. Note that a
-  // stub satisfies any constraint.
+  // Query the available packages that optionally satisfy the specified
+  // version constraint and return them in the version descending order. Note
+  // that a stub satisfies any constraint. Note also that this function does
+  // not return the extra stubs from the imaginary system repository (use one
+  // of the find_available*() overloads instead).
   //
-  odb::result<available_package>
+  static odb::result<available_package>
   query_available (database& db,
                    const package_name& name,
                    const optional<dependency_constraint>& c)
@@ -126,24 +128,146 @@ namespace bpkg
     return db.query<available_package> (q);
   }
 
-  // Try to find a package that optionally satisfies the specified version
-  // constraint. Look in the specified repository fragment, its prerequisite
-  // repositories, and their complements, recursively (note: recursivity
-  // applies to complements, not prerequisites). Return the package and the
-  // repository fragment in which it was found or NULL for both if not found.
-  // Note that a stub satisfies any constraint.
+  // Try to find an available stub package in the imaginary system repository.
+  // Such a repository contains stubs corresponding to the system packages
+  // specified by the user on the command line with version information
+  // (sys:libfoo/1.0, ?sys:libfoo/* but not ?sys:libfoo; the idea is that a
+  // real stub won't add any extra information to such a specification so we
+  // shouldn't insist on its presence). Semantically this imaginary repository
+  // complements all real repositories.
   //
-  static pair<shared_ptr<available_package>, shared_ptr<repository_fragment>>
+  static vector<shared_ptr<available_package>> imaginary_stubs;
+
+  static shared_ptr<available_package>
+  find_imaginary_stub (const package_name& name)
+  {
+    auto i (find_if (imaginary_stubs.begin (), imaginary_stubs.end (),
+                     [&name] (const shared_ptr<available_package>& p)
+                     {
+                       return p->id.name == name;
+                     }));
+
+    return i != imaginary_stubs.end () ? *i : nullptr;
+  }
+
+  // Try to find packages that optionally satisfy the specified version
+  // constraint. Return the list of packages and repository fragments in which
+  // each was found or empty list if none were found. Note that a stub
+  // satisfies any constraint.
+  //
+  static
+  vector<pair<shared_ptr<available_package>, shared_ptr<repository_fragment>>>
   find_available (database& db,
                   const package_name& name,
-                  const shared_ptr<repository_fragment>& rf,
+                  const optional<dependency_constraint>& c)
+  {
+    vector<pair<shared_ptr<available_package>,
+                shared_ptr<repository_fragment>>> r;
+
+    for (shared_ptr<available_package> ap:
+           pointer_result (query_available (db, name, c)))
+    {
+      // An available package should come from at least one fetched
+      // repository fragment.
+      //
+      assert (!ap->locations.empty ());
+
+      // All repository fragments the package comes from are equally good, so
+      // we pick the first one.
+      //
+      r.emplace_back (move (ap),
+                      ap->locations[0].repository_fragment.load ());
+    }
+
+    // Adding a stub from the imaginary system repository to the non-empty
+    // results isn't necessary but may end up with a duplicate. That's why we
+    // only add it if nothing else is found.
+    //
+    if (r.empty ())
+    {
+      shared_ptr<available_package> ap (find_imaginary_stub (name));
+
+      if (ap != nullptr)
+        r.emplace_back (move (ap), nullptr);
+    }
+
+    return r;
+  }
+
+  // As above but only look for packages from the specified list fo repository
+  // fragments, their prerequisite repositories, and their complements,
+  // recursively (note: recursivity applies to complements, not
+  // prerequisites).
+  //
+  static
+  vector<pair<shared_ptr<available_package>, shared_ptr<repository_fragment>>>
+  find_available (database& db,
+                  const package_name& name,
                   const optional<dependency_constraint>& c,
+                  const vector<shared_ptr<repository_fragment>>& rfs,
                   bool prereq = true)
+  {
+    // Filter the result based on the repository fragments to which each
+    // version belongs.
+    //
+    vector<pair<shared_ptr<available_package>,
+                shared_ptr<repository_fragment>>> r (
+                  filter (rfs, query_available (db, name, c), prereq));
+
+    if (r.empty ())
+    {
+      shared_ptr<available_package> ap (find_imaginary_stub (name));
+
+      if (ap != nullptr)
+        r.emplace_back (move (ap), nullptr);
+    }
+
+    return r;
+  }
+
+  // As above but only look for a single package from the specified repository
+  // fragment, its prerequisite repositories, and their complements,
+  // recursively (note: recursivity applies to complements, not
+  // prerequisites). Return the package and the repository fragment in which
+  // it was found or NULL for both if not found.
+  //
+  static pair<shared_ptr<available_package>, shared_ptr<repository_fragment>>
+  find_available_one (database& db,
+                      const package_name& name,
+                      const optional<dependency_constraint>& c,
+                      const shared_ptr<repository_fragment>& rf,
+                      bool prereq = true)
   {
     // Filter the result based on the repository fragment to which each
     // version belongs.
     //
-    return filter_one (rf, query_available (db, name, c), prereq);
+    auto r (filter_one (rf, query_available (db, name, c), prereq));
+
+    if (r.first == nullptr)
+      r.first = find_imaginary_stub (name);
+
+    return r;
+  }
+
+  // As above but look for a single package from a list of repository
+  // fragments.
+  //
+  static pair<shared_ptr<available_package>, shared_ptr<repository_fragment>>
+  find_available_one (database& db,
+                      const package_name& name,
+                      const optional<dependency_constraint>& c,
+                      const vector<shared_ptr<repository_fragment>>& rfs,
+                      bool prereq = true)
+  {
+    // Filter the result based on the repository fragments to which each
+    // version belongs.
+    //
+    auto r (filter_one (rfs, query_available (db, name, c), prereq));
+
+    if (r.first == nullptr)
+      r.first = find_imaginary_stub (name);
+
+    return r;
   }
 
   // Create a transient (or fake, if you prefer) available_package object
@@ -836,11 +960,11 @@ namespace bpkg
               db.load<repository_fragment> (""));
 
             rp = system
-              ? find_available (db, dn, root, nullopt)
-              : find_available (db,
-                                dn,
-                                root,
-                                dependency_constraint (dsp->version));
+              ? find_available_one (db, dn, nullopt, root)
+              : find_available_one (db,
+                                    dn,
+                                    dependency_constraint (dsp->version),
+                                    root);
 
             // A stub satisfies any dependency constraint so we weed them out
             // (returning stub as an available package feels wrong).
@@ -900,7 +1024,10 @@ namespace bpkg
           // the package is recognized. An unrecognized package means the
           // broken/stale repository (see below).
           //
-          rp = find_available (db, dn, af, !system ? d.constraint : nullopt);
+          rp = find_available_one (db,
+                                   dn,
+                                   !system ? d.constraint : nullopt,
+                                   af);
 
           if (dap == nullptr)
           {
@@ -1861,9 +1988,11 @@ namespace bpkg
 
     vector<pair<shared_ptr<available_package>,
                 shared_ptr<repository_fragment>>> afs (
-      filter (vector<shared_ptr<repository_fragment>> (rfs.begin (),
-                                                       rfs.end ()),
-              query_available (db, nm, c)));
+      find_available (db,
+                      nm,
+                      c,
+                      vector<shared_ptr<repository_fragment>> (rfs.begin (),
+                                                               rfs.end ())));
 
     // Go through up/down-grade candidates and pick the first one that
     // satisfies all the dependents. Collect (and sort) unsatisfied dependents
@@ -2612,7 +2741,9 @@ namespace bpkg
           // Will deal with all the duplicates later.
           //
           if (sp == nullptr || !sp->authoritative)
-            system_repository.insert (r.name, r.version, true);
+            system_repository.insert (r.name,
+                                      r.version,
+                                      true /* authoritative */);
 
           break;
         }
@@ -2677,6 +2808,14 @@ namespace bpkg
 
     vector<pkg_arg> pkg_args;
     {
+      // Cache the system stubs to create the imaginary system repository at
+      // the end of the package args parsing. This way we make sure that
+      // repositories searched for available packages during the parsing are
+      // not complemented with the half-cooked imaginary system repository
+      // containing packages that appeared on the command line earlier.
+      //
+      vector<shared_ptr<available_package>> stubs;
+
       transaction t (db);
 
       for (pkg_spec& ps: specs)
@@ -2691,8 +2830,17 @@ namespace bpkg
 
           if (h != package_scheme::none) // Add parsed.
           {
+            bool sys (h == package_scheme::sys);
+
             package_name n (parse_package_name (s));
-            version      v (parse_package_version (s));
+            version      v (parse_package_version (s, sys));
+
+            // For system packages not associated with a specific repository
+            // location add the stub package to the imaginary system
+            // repository (see above for details).
+            //
+            if (sys && !v.empty ())
+              stubs.push_back (make_shared<available_package> (n));
 
             pkg_args.push_back (arg_package (h,
                                              move (n),
@@ -2822,8 +2970,11 @@ namespace bpkg
             const char* s (pkg.c_str ());
 
             package_scheme sc (parse_package_scheme (s));
-            package_name   n  (parse_package_name (s));
-            version        v  (parse_package_version (s));
+
+            bool sys (sc == package_scheme::sys);
+
+            package_name n (parse_package_name (s));
+            version      v (parse_package_version (s, sys));
 
             // Check if the package is present in the repository and its
             // complements, recursively. If the version is not specified then
@@ -2852,7 +3003,7 @@ namespace bpkg
             optional<dependency_constraint> c;
             shared_ptr<selected_package> sp;
 
-            if (sc != package_scheme::sys)
+            if (!sys)
             {
               if (v.empty ())
               {
@@ -2873,13 +3024,12 @@ namespace bpkg
             }
 
             shared_ptr<available_package> ap (
-              filter_one (
-                rfs, query_available (db, n, c), false /* prereq */).first);
+              find_available_one (db, n, c, rfs, false /* prereq */).first);
 
             // Fail if no available package is found or only a stub is
             // available and we are building a source package.
             //
-            if (ap == nullptr || (ap->stub () && sc != package_scheme::sys))
+            if (ap == nullptr || (ap->stub () && !sys))
             {
               diag_record dr (fail);
 
@@ -2905,7 +3055,7 @@ namespace bpkg
             // Note that for a system package the wildcard version will be set
             // (see arg_package() for details).
             //
-            if (v.empty () && sc != package_scheme::sys)
+            if (v.empty () && !sys)
               v = ap->version;
 
             // Don't move options and variables as they may be reused.
@@ -2920,6 +3070,8 @@ namespace bpkg
       }
 
       t.commit ();
+
+      imaginary_stubs = move (stubs);
     }
 
     // Separate the packages specified on the command line into to hold and to
@@ -3202,7 +3354,7 @@ namespace bpkg
               else if (!arg_sys (pa))
                 c = dependency_constraint (pa.version);
 
-              auto rp (find_available (db, pa.name, root, c));
+              auto rp (find_available_one (db, pa.name, c, root));
               ap = move (rp.first);
               af = move (rp.second);
             }
@@ -3256,10 +3408,11 @@ namespace bpkg
           // Make sure that the package is known.
           //
           auto apr (pa.version.empty () || sys
-                    ? query_available (db, pa.name, nullopt)
-                    : query_available (db,
-                                       pa.name,
-                                       dependency_constraint (pa.version)));
+                    ? find_available (db, pa.name, nullopt)
+                    : find_available (db,
+                                      pa.name,
+                                      dependency_constraint (pa.version)));
+
           if (apr.empty ())
           {
             diag_record dr (fail);
@@ -3318,7 +3471,10 @@ namespace bpkg
           if (ap == nullptr)
           {
             if (!pa.version.empty () &&
-                find_available (db, pa.name, root, nullopt).first != nullptr)
+                find_available_one (db,
+                                    pa.name,
+                                    nullopt,
+                                    root).first != nullptr)
               sys_advise = true;
           }
           else if (ap->stub ())
@@ -3495,7 +3651,7 @@ namespace bpkg
               continue;
           }
 
-          auto apr (find_available (db, name, root, pc));
+          auto apr (find_available_one (db, name, pc, root));
 
           shared_ptr<available_package> ap (move (apr.first));
           if (ap == nullptr || ap->stub ())

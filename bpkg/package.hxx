@@ -485,6 +485,12 @@ namespace bpkg
           dependencies (move (m.dependencies)),
           sha256sum (move (m.sha256sum)) {}
 
+    // Create available stub package.
+    //
+    available_package (package_name n)
+        : id (move (n), wildcard_version),
+          version (wildcard_version) {}
+
     // Create a stub available package with a fixed system version. This
     // constructor is only used to create transient/fake available packages
     // based on the system selected packages.

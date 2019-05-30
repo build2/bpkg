@@ -8,6 +8,7 @@
 #include <libbutl/url.mxx>
 #include <libbutl/sha256.mxx>
 
+#include <bpkg/package.hxx>        // wildcard_version
 #include <bpkg/diagnostics.hxx>
 #include <bpkg/common-options.hxx>
 
@@ -67,7 +68,7 @@ namespace bpkg
   }
 
   version
-  parse_package_version (const char* s)
+  parse_package_version (const char* s, bool allow_wildcard)
   {
     using traits = string::traits_type;
 
@@ -75,6 +76,9 @@ namespace bpkg
     {
       if (*++p == '\0')
         fail << "empty package version in '" << s << "'";
+
+      if (allow_wildcard && strcmp (p, "*") == 0)
+        return wildcard_version;
 
       try
       {
