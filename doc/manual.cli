@@ -666,6 +666,8 @@ GPLv3        ; GNU General Public License v3.0.
 LGPLv2       ; GNU Lesser General Public License v2.0.
 LGPLv2.1     ; GNU Lesser General Public License v2.1.
 LGPLv3       ; GNU Lesser General Public License v3.0.
+AGPLv2       ; Affero General Public License v2.0.
+AGPLv3       ; GNU Affero General Public License v3.0.
 ASLv1        ; Apache License v1.0.
 ASLv1.1      ; Apache License v1.1.
 ASLv2        ; Apache License v2.0.
