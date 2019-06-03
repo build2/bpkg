@@ -2626,7 +2626,7 @@ namespace bpkg
         //
         size_t p (0);
 
-        using url_traits = butl::url::traits;
+        using url_traits = butl::url::traits_type;
 
         // Skip leading ':' that are not part of a URL.
         //
@@ -3210,7 +3210,7 @@ namespace bpkg
           // the directory separator.
           //
           size_t pn (strlen (package));
-          if (pn != 0 && path::traits::is_separator (package[pn - 1]))
+          if (pn != 0 && path::traits_type::is_separator (package[pn - 1]))
           {
             bool package_dir (false);
 

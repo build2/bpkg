@@ -885,7 +885,8 @@ namespace bpkg
   {
     tracer trace ("sign_repository");
 
-    string r (repository.string () + dir_path::traits::directory_separator);
+    string r (repository.string () +
+              dir_path::traits_type::directory_separator);
 
     // No sense to calculate the fingerprint for the certificate being used
     // just to check the expiration date.
