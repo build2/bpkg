@@ -526,7 +526,8 @@ license: <licenses> [; <comment>]
 \
 
 \
-[tags]: <tags>
+[topics]: <topics>
+[keywords]: <keywords>
 [description]: <text>
 [description-file]: <path> [; <comment>]
 [description-type]: <text-type>
@@ -684,29 +685,35 @@ Note that just \c{BSD} is ambiguous and should be avoided.
 \N|An example of automated processing would be filtering for non-copyleft
 licensed packages.|
 
-\h2#manifest-package-tags|\c{tags}|
+
+\h2#manifest-package-topics|\c{topics}|
 
 \
-[tags]: <tags>
+[topics]: <topics>
 
-<tags> = <tag> [, <tag>]*
+<topics> = <topic> [, <topic>]*
 \
 
-The package tags (optional). The format is a comma-separated list of words
-that describe this package.
+The package topics (optional). The format is a comma-separated list of up to
+five potentially multi-word concepts that describe this package. For example:
 
-\N|Originally, support for multi-word tags were considered, however this
-quickly degenerated into quite a complex functionality. In particular, in such
-a case we should probably treat multi-word tags as if the single word as well
-as shorter, multi-word derivations were also mentioned. That is, \"xml pull
-parser\" should be equivalent to \"xml pull parser, xml pull, xml parser,
-pull parser, xml, pull, parser\".
+\
+topics: xml parser, xml serializer
+\
 
-On the user side, if exact phrase matches are favored, then this serves as an
-encouragement to come up with ever more elaborate multi-word tags to \"cover\"
-as much ground as possible. For example, \"streaming c++ xml pull parser\".
 
-As a result, we will start simple and only allow single-word tags.|
+\h2#manifest-package-keywords|\c{keywords}|
+
+\
+[keywords]: <keywords>
+
+<keywords> = <keyword> [ <keyword>]*
+\
+
+The package keywords (optional). The format is a space-separated list of up to
+five words that describe this package. Note that the package and project names
+as well as words from its summary are already considered to be keywords and
+need not be repeated in this value.
 
 
 \h2#manifest-package-description|\c{description}|
