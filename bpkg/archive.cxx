@@ -30,7 +30,7 @@ namespace bpkg
   static inline bool
   bsdtar (const char* p)
   {
-    const char* l (path::traits::find_leaf (p));
+    const char* l (path::traits_type::find_leaf (p));
     return l != nullptr && casecmp (l, "bsdtar", 6) == 0;
   }
 #endif
