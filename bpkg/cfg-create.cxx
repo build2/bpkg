@@ -18,41 +18,58 @@ namespace bpkg
   {
     tracer trace ("cfg_create");
 
+    if (o.existing () && o.wipe ())
+      fail << "both --existing|-e and --wipe specified";
+
     if (o.wipe () && !o.directory_specified ())
       fail << "--wipe requires explicit --directory|-d";
 
     dir_path c (o.directory ());
     l4 ([&]{trace << "creating configuration in " << c;});
 
-    // If the directory already exists, make sure it is empty. Otherwise
-    // create it.
+    // Verify the existing directory is compatible with our mode.
     //
     if (exists (c))
     {
-      l5 ([&]{trace << "directory " << c << " exists";});
-
-      if (!empty (c))
+      if (o.existing ())
       {
-        l5 ([&]{trace << "directory " << c << " not empty";});
+        // Bail if the .bpkg/ directory already exists and is not empty.
+        //
+        // If you are wondering why don't we allow --wipe here, it's the
+        // existing packages that may be littering the configuration --
+        // cleaning those up will be messy.
+        //
+        dir_path d (c / bpkg_dir);
 
-        if (!o.wipe ())
-          fail << "directory " << c << " is not empty" <<
-            info << "use --wipe to clean it up but be careful";
+        if (exists (d) && !empty (d))
+          fail << "directory " << d << " already exists";
+      }
+      else
+      {
+        // If the directory already exists, make sure it is empty.
+        //
+        if (!empty (c))
+        {
+          if (!o.wipe ())
+            fail << "directory " << c << " is not empty" <<
+              info << "use --wipe to clean it up but be careful";
 
-        rm_r (c, false);
+          rm_r (c, false);
+        }
       }
     }
     else
     {
-      l5 ([&]{trace << "directory " << c << " does not exist";});
+      // Note that we allow non-existent directory even in the --existing mode
+      // in case the user wants to add the build system configuration later.
+      //
       mk_p (c);
     }
 
     // Sort arguments into modules and configuration variables.
     //
-    string mods;  // build2 create meta-operation parameters.
+    strings mods;
     strings vars;
-
     while (args.more ())
     {
       string a (args.next ());
@@ -63,8 +80,7 @@ namespace bpkg
       }
       else if (!a.empty ())
       {
-        mods += mods.empty () ? ", " : " ";
-        mods += a;
+        mods.push_back (move (a));
       }
       else
         fail << "empty string as argument";
@@ -72,12 +88,33 @@ namespace bpkg
 
     // Create and configure.
     //
-    // Run quiet. Use path representation to get canonical trailing slash.
-    //
-    run_b (o,
-           verb_b::quiet,
-           vars,
-           "create('" + c.representation () + "'" + mods + ")");
+    if (o.existing ())
+    {
+      if (!mods.empty ())
+        fail << "module '" << mods[0] << "' specified with --existing|-e";
+
+      if (!vars.empty ())
+        fail << "variable '" << vars[0] << "' specified with --existing|-e";
+    }
+    else
+    {
+      // Assemble the build2 create meta-operation parameters.
+      //
+      string params ("'" + c.representation () + "'");
+      if (!mods.empty ())
+      {
+        params += ',';
+        for (const string& m: mods)
+        {
+          params += ' ';
+          params += m;
+        }
+      }
+
+      // Run quiet. Use path representation to get canonical trailing slash.
+      //
+      run_b (o, verb_b::quiet, vars, "create(" + params + ")");
+    }
 
     // Create .bpkg/ and its subdirectories.
     //
@@ -125,7 +162,10 @@ namespace bpkg
     if (verb && !o.no_result ())
     {
       c.complete ().normalize ();
-      text << "created new configuration in " << c;
+      if (o.existing ())
+        text << "initialized existing configuration in " << c;
+      else
+        text << "created new configuration in " << c;
     }
 
     return 0;

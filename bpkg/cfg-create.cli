@@ -16,25 +16,28 @@ namespace bpkg
 
     "\h|SYNOPSIS|
 
-     \c{\b{bpkg cfg-create}|\b{create} [<options>] [<cfg-args>]}
+     \c{\b{bpkg cfg-create}|\b{create} [<options>] [<cfg-args>]\n
+        \b{bpkg cfg-create}|\b{create} [<options>] \b{--existing|-e}}
 
      \c{<cfg-args> = (<module> | <cfg-var>)...}
 
      \h|DESCRIPTION|
 
      The \cb{cfg-create} command creates a new \cb{bpkg} configuration with
-     the specified \cb{build2} modules and configuration variables. The
-     \cb{bpkg} configuration itself is a build system configuration; see
-     build system driver (\l{b(1)}) \cb{create} meta-operation for details.
+     the specified \cb{build2} modules and configuration variables (the first
+     form) or initializes one based on an existing build system configuration
+     (the second form). The \cb{bpkg} configuration itself is a build system
+     configuration; see build system driver (\l{b(1)}) \cb{create}
+     meta-operation for details.
 
-     Unless the \cb{--wipe} option is specified, \cb{cfg-create} expects the
-     configuration directory to be empty or to not exist (in which case it
-     will be created).
+     Unless the \cb{--existing|-e} or \cb{--wipe} option is specified,
+     \cb{cfg-create} expects the configuration directory to be empty or to not
+     exist (in which case it will be created).
 
-     By default, the resulting configuration loads the \cb{config}, \cb{test},
-     \cb{dist}, and \cb{install} modules. However, additional modules and, if
-     required, their configuration variables can be specified as the
-     \cb{cfg-create} arguments. For example:
+     By default, the configuration created with the first form loads the
+     \cb{config}, \cb{test}, \cb{dist}, and \cb{install} modules. However,
+     additional modules and, if required, their configuration variables can be
+     specified as the \cb{cfg-create} arguments. For example:
 
      \
      bpkg create cxx config.cxx=clang++ config.install.root=/usr/local
@@ -61,6 +64,12 @@ namespace bpkg
       "<dir>",
       "Create the configuration in <dir> rather than in the current working
        directory."
+    }
+
+    bool --existing|-e
+    {
+      "Initialize a \cb{bpkg} configuration based on an existing build system
+       configuration."
     }
 
     bool --wipe
