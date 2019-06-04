@@ -72,4 +72,16 @@ EOE
 
     $pkg_status libfoo >'libfoo unknown'
   }
+
+  : existing
+  :
+  {
+    $build 'create(cfg/,cc)' "config.cxx=$config.cxx" 2>!;
+
+    $* --existing 2>>/~%EOE%;
+      %initialized existing configuration in .+/cfg/%
+      EOE
+
+    $pkg_status libfoo >'libfoo unknown'
+  }
 }
