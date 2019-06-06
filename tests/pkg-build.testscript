@@ -172,6 +172,31 @@ test.options += --no-progress
       info: run 'bpkg help pkg-build' for more information
     EOE
 
+  : version
+  :
+  {
+    : empty
+    :
+    $clone_root_cfg;
+    $* libfoo/ 2>>EOE != 0
+      error: empty package version in 'libfoo/'
+      EOE
+
+    : earliest
+    :
+    $clone_root_cfg;
+    $* libfoo/1.0.0- 2>>EOE != 0
+      error: invalid package version '1.0.0-' in 'libfoo/1.0.0-': earliest version
+      EOE
+
+    : stub
+    :
+    $clone_root_cfg;
+    $* libfoo/0+1 2>>EOE != 0
+      error: invalid package version '0+1' in 'libfoo/0+1': stub version
+      EOE
+  }
+
   : unknown-package
   :
   $clone_root_cfg;

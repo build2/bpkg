@@ -1777,7 +1777,7 @@ namespace bpkg
       return dependency_constraint ("~" + vs);
     }
     // Note that the only possible reason for invalid_argument exception to
-    // be thrown is that minor version reached the 999 limit (see
+    // be thrown is that minor version reached the 99999 limit (see
     // standard-version.cxx for details).
     //
     catch (const invalid_argument&)

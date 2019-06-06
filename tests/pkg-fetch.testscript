@@ -79,7 +79,7 @@ $* libfoo 2>>EOE != 0
 :
 $clone_cfg;
 $* libfoo/1/2/3 2>>EOE != 0
-  error: invalid package version '1/2/3': alpha-numeric characters expected in a component
+  error: invalid package version '1/2/3' in 'libfoo/1/2/3': alpha-numeric characters expected in a component
   EOE
 
 : no-repositories

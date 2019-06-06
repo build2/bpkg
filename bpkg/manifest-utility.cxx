@@ -82,11 +82,20 @@ namespace bpkg
 
       try
       {
-        return version (p);
+        version r (p);
+
+        if (r.release && r.release->empty ())
+          throw invalid_argument ("earliest version");
+
+        if (r.compare (wildcard_version, true /* ignore_revision */) == 0)
+          throw invalid_argument ("stub version");
+
+        return r;
       }
       catch (const invalid_argument& e)
       {
-        fail << "invalid package version '" << p << "': " << e;
+        fail << "invalid package version '" << p << "' in '" << s << "': "
+             << e;
       }
     }
 
