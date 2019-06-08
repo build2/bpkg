@@ -1,11 +1,23 @@
 Version 0.11.0
 
-  * The 'tags' package manifest value has been replaced with 'keywords' (list
-    of space-separated words) and 'topics' (list of comma-separated,
-    potentially multi-word concepts). For example:
+  * The 'tags' package manifest value has been deprecated and replaced with
+    'keywords' (list of space-separated words) and 'topics' (list of comma-
+    separated, potentially multi-word concepts). For example:
 
     topics: xml parser, xml serializer
     keywords: sax dom
+
+  * New 'description-type' package manifest value allows specifying the
+    content type of the 'description' or 'description-file' value. Currently
+    recognized values are:
+
+    text/plain
+    text/markdown
+    text/markdown;variant=GFM
+    text/markdown;variant=CommonMark
+
+  * New 'upstream-version' package manifest value allows preserving the
+    original version for information.
 
   * The pkg-build command can now "build" a system package that doesn't have a
     stub provided its version is specified explicitly. For example:
@@ -21,18 +33,6 @@ Version 0.11.0
 
   * New rep-info --deep option triggers the replacement of '*-file' package
     manifest values with the contents of the referenced files.
-
-  * New 'description-type' package manifest value allows specifying the
-    content type of the 'description' or 'description-file' value. Currently
-    recognized values are:
-
-    text/plain
-    text/markdown
-    text/markdown;variant=GFM
-    text/markdown;variant=CommonMark
-
-  * New 'upstream-version' package manifest value allows preserving the
-    original version for information.
 
 Version 0.10.0
 
