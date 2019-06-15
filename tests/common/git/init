@@ -114,8 +114,10 @@ git -C style-basic.git checkout master
 #
 git -C libbar.git init
 git -C libbar.git add '*'
-git -C libbar.git submodule add -b stable ../style-basic.git extras
 git -C libbar.git commit -am 'Create'
+git -C libbar.git tag -a 'v1.0.0' -m 'Tag version 1.0.0'
+git -C libbar.git submodule add -b stable ../style-basic.git extras
+git -C libbar.git commit -am 'Add extras'
 
 # Create master branch for libfoo.git, adding style.git and libbar.git as
 # submodules.

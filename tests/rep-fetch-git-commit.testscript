@@ -3,6 +3,7 @@
 # license   : MIT; see accompanying LICENSE file
 
 +git clone "$rep_git/state0/style-basic.git" 2>! &style-basic/***
++git clone "$rep_git/state0/libbar.git"      2>! &libbar/***
 
 : unadvertised
 :
@@ -91,6 +92,40 @@ if ($git_fully_supported || $git_protocol != 'https-smart-unadv')
       %querying .+style-basic\.git%?
       $warn
       1 package\(s\) in 1 repository\(s\)
+      EOE
+  }
+}
+
+: peeled
+:
+{
+  +git -C ../libbar log '--pretty=format:%H' --all --grep='Create' | \
+   set commit
+
+  : remap
+  :
+  : Test that the commit id is properly remapped back to the advertised tag
+  : reference.
+  :
+  {
+    $clone_root_cfg && $rep_add "$rep/state0/libbar.git#@$commit";
+
+    $* 2>>~"%EOE%"
+      %fetching git:.+libbar#@$commit%
+      %.+
+      EOE
+  }
+
+  : peel
+  :
+  : Test that the tag reference is properly peeled into the commit id.
+  :
+  {
+    $clone_root_cfg && $rep_add "$rep/state0/libbar.git#v1.0.0,-$commit";
+
+    $* 2>>~%EOE%
+      %.+
+      0 package(s) in 1 repository(s)
       EOE
   }
 }

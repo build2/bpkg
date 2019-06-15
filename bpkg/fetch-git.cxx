@@ -107,10 +107,9 @@ namespace bpkg
   }
 
   // Start git process. On the first call check that git version is 2.11.0 or
-  // above, and fail if that's not the case. Note that the full functionality
-  // (such as being able to fetch unadvertised commits) requires 2.14.0. And
-  // supporting versions prior to 2.11.0 doesn't seem worth it (plus other
-  // parts of the toolchain also requires 2.11.0).
+  // above, and fail if that's not the case. Note that supporting earlier
+  // versions doesn't seem worth it (plus other parts of the toolchain also
+  // require 2.11.0).
   //
   // Also note that git is executed in the "sanitized" environment, having the
   // environment variables that are local to the repository being unset (all
@@ -790,6 +789,31 @@ namespace bpkg
 
       return r;
     }
+
+    // Return the peeled reference for an annotated tag and the original
+    // reference if it is not an annotated tag or is already peeled.
+    //
+    const ref&
+    peel (const ref& rf) const
+    {
+      if (rf.name.compare (0, 10, "refs/tags/") == 0 && !rf.peeled)
+      {
+        for (const ref& r: *this)
+        {
+          if (r.peeled && r.name == rf.name)
+            return r;
+        }
+
+        // Fall through.
+        //
+        // Presumably is a lightweight tag reference containing the commit id.
+        // Note that git-ls-remote output normally contains peeled references
+        // for all annotated tags.
+        //
+      }
+
+      return rf;
+    }
   };
 
   // Map of repository URLs to their advertized refs/commits.
@@ -971,6 +995,13 @@ namespace bpkg
       }
     case capabilities::smart:
       {
+        // Note that the git server communicating with the client using the
+        // protocol version 2 always supports unadvertised refs fetch (see the
+        // "advertised commit fetch using commit id fails" git bug report for
+        // details). We ignore this fact (because currently this is disabled
+        // by default, even if both support version 2) but may rely on it in
+        // the future.
+        //
         return !rf.commit || commit_advertized (co, url, *rf.commit);
       }
     case capabilities::unadv:
@@ -1020,16 +1051,27 @@ namespace bpkg
       return *cap;
     };
 
-    auto references = [&co, &url] (const string& refname, bool abbr_commit)
+    auto references = [&co, &url, &caps] (const string& refname,
+                                          bool abbr_commit)
       -> refs::search_result
     {
+      // Make sure the URL is probed before running git-ls-remote (see
+      // load_refs() for details).
+      //
+      caps ();
+
       return load_refs (co, url ()).search_names (refname, abbr_commit);
     };
 
     // Return the default reference set (see repository-types(1) for details).
     //
-    auto default_references = [&co, &url] () -> refs::search_result
+    auto default_references = [&co, &url, &caps] () -> refs::search_result
     {
+      // Make sure the URL is probed before running git-ls-remote (see
+      // load_refs() for details).
+      //
+      caps ();
+
       refs::search_result r;
       for (const ref& rf: load_refs (co, url ()))
       {
@@ -1146,7 +1188,9 @@ namespace bpkg
                             ? default_references ()
                             : references (*rf.name, true /* abbr_commit */))
         {
-          const string& c (r.get ().commit);
+          // Reduce the reference to the commit id.
+          //
+          const string& c (load_refs (co, url ()).peel (r).commit);
 
           if (!rf.exclusion)
           {
@@ -1180,7 +1224,7 @@ namespace bpkg
       {
         assert (!rf.exclusion); // Already handled.
 
-        add_spec (*rf.commit, strings ({*rf.commit}), true);
+        add_spec (*rf.commit, strings ({*rf.commit}), true /* shallow */);
       }
       // If the shallow fetch is not possible for the commit but the refname
       // containing the commit is specified, then we fetch the whole history
@@ -1313,41 +1357,35 @@ namespace bpkg
     // Fetch the refspecs. If no refspecs are specified, then fetch the
     // whole repository history.
     //
-    auto fetch = [&co, &url, &dir] (const strings& refspecs, bool shallow)
+    auto fetch = [&co, &url, &dir, &caps] (const strings& refspecs,
+                                           bool shallow)
     {
       // We don't shallow fetch the whole repository.
       //
       assert (!refspecs.empty () || !shallow);
 
-      // Prior to 2.14.0 the git-fetch command didn't accept commit id as a
-      // refspec:
-      //
-      // $ git fetch --no-recurse-submodules --depth 1 origin 5e8245ee3526530a3467f59b0601bbffb614f45b
-      //   error: Server does not allow request for unadvertised object 5e8245ee3526530a3467f59b0601bbffb614f45b
-      //
-      // We will try to remap commits back to git refs (tags, branches, etc)
-      // based on git-ls-remote output and fail if unable to do so (which
-      // should only happen for unadvertised commits).
-      //
-      // Note that in this case we will fail only for servers supporting
-      // unadvertised refs fetch. For other protocols we have already fallen
-      // back to fetching some history, passing to fetch() either advertised
-      // commit ids (of branches, tags, etc) or an empty refspecs list (the
-      // whole repository history). So we could just reduce the server
-      // capabilities from 'unadv' to 'smart' for such old clients.
+      // Note that peeled references present in git-ls-remote output are not
+      // advertised, so we need to "unpeel" them back to the annotated tag
+      // references. Also note that prior to 2.14.0 the git-fetch command
+      // didn't accept commit id as a refspec for advertised commits except
+      // for servers with dumb or unadv capabilities. Seems that remapping
+      // reference ids back to git refs (tags, branches, etc) is harmless and
+      // works consistently across different git versions. That's why we will
+      // always remap except for the server with the unadv capabilities, where
+      // we may not have a name to remap to. That seems OK as no issues with
+      // using commit ids for fetching from such servers were encountered so
+      // far.
       //
       optional<strings> remapped_refspecs;
-      if (!refspecs.empty () && git_ver < semantic_version {2, 14, 0})
+
+      if (!refspecs.empty () && caps () != capabilities::unadv)
       {
         remapped_refspecs = strings ();
 
         for (const string& c: refspecs)
         {
           const ref* r (load_refs (co, url ()).find_commit (c));
-
-          if (r == nullptr)
-            fail << "git version is too old for specified location" <<
-              info << "consider upgrading git to 2.14.0 or above";
+          assert (r != nullptr); // Otherwise we would fail earlier.
 
           remapped_refspecs->push_back (r->name);
         }

@@ -60,7 +60,7 @@ for r in $(find test -type d -regex '.*/git/.*/[^/]+\.git'); do
 
     # Push local branches and tags to the remote repository, if it exists.
     #
-    if git ls-remote "$url" 2>/dev/null >&2; then
+    if git ls-remote --refs "$url" 2>/dev/null >&2; then
       # Point the bare repository origin to the remote repository.
       #
       git -C $br config remote.origin.url "$url"
