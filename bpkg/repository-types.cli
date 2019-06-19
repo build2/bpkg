@@ -77,7 +77,8 @@ for all of them could be prohibitively expensive.  As a result, by default,
 only advertised tags in the \cb{refs/tags/v*} form where the part after \cb{v}
 is also a valid \l{b#module-version standard version} are considered to be
 sources of useful package versions. These commits normally correspond to
-released versions and are called the \i{default set}.
+released versions and are called the \i{default set}. Note that only the
+latest revision of each such version is considered.
 
 Instead of the default set, it is possible to provide a custom set of
 available versions by specifying one or more commit ids and/or references

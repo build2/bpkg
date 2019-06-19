@@ -113,11 +113,38 @@ git -C style-basic.git checkout master
 # Create master branch for libbar.git.
 #
 git -C libbar.git init
+
+cat <<EOF >libbar.git/libbar/manifest
+: 1
+name: libbar
+version: 1.0.0
+summary: libbar
+license: MIT
+description-file: README
+url: http://example.org/libbar
+email: pkg@example.org
+depends: style-basic >= $
+EOF
+
 git -C libbar.git add '*'
 git -C libbar.git commit -am 'Create'
 git -C libbar.git tag -a 'v1.0.0' -m 'Tag version 1.0.0'
+
 git -C libbar.git submodule add -b stable ../style-basic.git extras
+cat <<EOF >libbar.git/libbar/manifest
+: 1
+name: libbar
+version: 1.0.0+1
+summary: libbar
+license: MIT
+description-file: README
+url: http://example.org/libbar
+email: pkg@example.org
+depends: style-basic >= $
+EOF
+
 git -C libbar.git commit -am 'Add extras'
+git -C libbar.git tag -a 'v1.0.0+1' -m 'Tag version 1.0.0+1'
 
 # Create master branch for libfoo.git, adding style.git and libbar.git as
 # submodules.

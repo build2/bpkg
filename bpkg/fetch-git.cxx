@@ -1073,13 +1073,41 @@ namespace bpkg
       caps ();
 
       refs::search_result r;
+      vector<standard_version> vs; // Parallel to search_result.
+
       for (const ref& rf: load_refs (co, url ()))
       {
-        if (!rf.peeled                                  &&
-            rf.name.compare (0, 11, "refs/tags/v") == 0 &&
+        if (!rf.peeled && rf.name.compare (0, 11, "refs/tags/v") == 0)
+        {
+          optional<standard_version> v (
             parse_standard_version (string (rf.name, 11),
-                                    standard_version::allow_stub))
-          r.push_back (rf);
+                                    standard_version::allow_stub));
+
+          if (v)
+          {
+            // Add this tag reference into the default set if it doesn't
+            // contain this version yet or replace the existing reference if
+            // this revision is greater.
+            //
+            auto i (find_if (
+                      vs.begin (), vs.end (),
+                      [&v] (const standard_version& i)
+                      {
+                        return i.compare (*v, true /* ignore_revision */) == 0;
+                      }));
+
+            if (i == vs.end ())
+            {
+              r.push_back (rf);
+              vs.push_back (move (*v));
+            }
+            else if (*i < *v)
+            {
+              r[i - vs.begin ()] = rf;
+              *i = move (*v);
+            }
+          }
+        }
       }
 
       return r;

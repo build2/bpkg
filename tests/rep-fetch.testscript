@@ -1003,6 +1003,19 @@ else
           1 package(s) in 1 repository(s)
           EOE
       }
+
+      : latest-revision
+      :
+      {
+        $clone_root_cfg;
+
+        $* "$rep_git/state0/libbar.git" 2>>~%EOE%;
+          %.+
+          3 package(s) in 2 repository(s)
+          EOE
+
+        $pkg_status libbar >'libbar available 1.0.0+1'
+      }
     }
   }
 }

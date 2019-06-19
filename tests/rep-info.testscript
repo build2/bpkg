@@ -127,7 +127,7 @@ $* --name $rep/testing >"pkg:build2.org/rep-info/testing ($rep/testing)"
         $* --type dir "state0/libbar.git" >>~%EOO%d;
           : 1
           name: libbar
-          version: 1.0.0
+          version: 1.0.0+1
           summary: libbar
           license: MIT
           description: \
@@ -156,7 +156,7 @@ $* --name $rep/testing >"pkg:build2.org/rep-info/testing ($rep/testing)"
         $* "$rep_git/state0/libbar.git#master" >>~%EOO%d 2>!
           : 1
           name: libbar
-          version: 1.0.0
+          version: 1.0.0+1
           summary: libbar
           license: MIT
           description: \
@@ -311,7 +311,7 @@ else
     %git:.+libbar#master .+libbar.git#master%
     %prerequisite git:.+style-basic#stable .+style-basic.git#stable%
 
-    libbar/1.0.0
+    libbar/1.0.0+1
     libmbar/1.0.0
     EOO
 
@@ -331,7 +331,7 @@ else
   $* -p --manifest "$rep/libbar.git#master" >>~%EOO%d
     : 1
     name: libbar
-    version: 1.0.0
+    version: 1.0.0+1
     summary: libbar
     license: MIT
     description-file: README
