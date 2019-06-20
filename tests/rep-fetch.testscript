@@ -733,11 +733,26 @@ else
       .include rep-fetch-git.testscript
     }
 
+    : git-unadv
+    :
+    {
+      git_protocol = 'git-unadv'
+      .include rep-fetch-git.testscript
+    }
+
     : ssh
     :
     if ($git_ssh == true)
     {
       git_protocol = 'ssh'
+      .include rep-fetch-git.testscript
+    }
+
+    : ssh-unadv
+    :
+    if ($git_ssh == true)
+    {
+      git_protocol = 'ssh-unadv'
       .include rep-fetch-git.testscript
     }
   }

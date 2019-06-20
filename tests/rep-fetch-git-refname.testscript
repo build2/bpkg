@@ -39,7 +39,6 @@
 
   : changed
   :
-  if ($git_fully_supported || $git_protocol != 'https-smart-unadv')
   {
     g = git -C
     u = "$rep_git/state1"
@@ -66,8 +65,10 @@
 
     if ($git_protocol == 'local'       || \
         $git_protocol == 'https-smart' || \
+        $git_protocol == 'git'         || \
+        $git_protocol == 'git-unadv'   || \
         $git_protocol == 'ssh'         || \
-        $git_protocol == 'git')
+        $git_protocol == 'ssh-unadv')
       warn2 = "$warn_repo_hist for submodule 'doc/style/basic'$reason_unadv"
     elif ($git_protocol == 'https-dumb')
       warn1 = "$warn_ref_hist for submodule 'doc/style'$reason_dumb$warn_dumb"
@@ -164,7 +165,6 @@
 
   : no-progress
   :
-  if ($git_fully_supported || $git_protocol != 'https-smart-unadv')
   {
     $clone_root_cfg && $rep_add "$rep/state0/libfoo.git$fragment";
 

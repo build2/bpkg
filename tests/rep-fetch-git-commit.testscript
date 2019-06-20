@@ -7,7 +7,6 @@
 
 : unadvertised
 :
-if ($git_fully_supported || $git_protocol != 'https-smart-unadv')
 {
   +git -C ../style-basic log '--pretty=format:%H' --all --grep='README' | \
    set commit

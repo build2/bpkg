@@ -29,8 +29,12 @@ elif ($git_protocol == 'https-smart-unadv')
   rep = "$rep_git_https_smart_unadv"
 elif ($git_protocol == 'git')
   rep = "$rep_git_git"
+elif ($git_protocol == 'git-unadv')
+  rep = "$rep_git_git_unadv"
 elif ($git_protocol == 'ssh')
   rep = "$rep_git_ssh"
+elif ($git_protocol == 'ssh-unadv')
+  rep = "$rep_git_ssh_unadv"
 else
   exit "unexpected git protocol '$git_protocol'"
 end
