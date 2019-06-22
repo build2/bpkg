@@ -59,7 +59,7 @@ namespace bpkg
     case repository_protocol::git:
       {
         warn << "--fetch-timeout is not supported by the git protocol";
-        break;
+        return strings ();
       }
     case repository_protocol::ssh:
       {
@@ -74,7 +74,7 @@ namespace bpkg
         // can always specify the timeout in git or ssh configuration.
         //
         warn << "--fetch-timeout is not supported by the ssh protocol";
-        break;
+        return strings ();
       }
     case repository_protocol::file: return strings (); // Local communications.
     }
