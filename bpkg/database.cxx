@@ -50,16 +50,8 @@ namespace bpkg
   template <odb::schema_version v>
   using migration_entry = odb::data_migration_entry<v, DB_SCHEMA_VERSION_BASE>;
 
-  // Migrate tables that contain package version columns converting the
-  // default zero version epoch to one, unless the version is a stub.
-  //
-  // Note that we can't really distinguish the default zero epoch from an
-  // explicitly specified one, so will just update all of them, assuming that
-  // it is currently unlikely that the epoch was specified explicitly for any
-  // package version.
-  //
   static const migration_entry<6>
-  migrate_epoch_entry ([] (odb::database& db)
+  migrate_v6 ([] (odb::database& db)
   {
   });
 #endif
