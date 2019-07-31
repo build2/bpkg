@@ -15,12 +15,12 @@
 # The most commonly used configuration cloning command that copies it from the
 # parent scope working directory.
 #
-clone_cfg = cp -p -r ../cfg ./
+clone_cfg = cp -pr ../cfg ./
 
 # Clones the original (presumably empty) configuration from the root scope
 # working directory.
 #
-clone_root_cfg = cp -p -r $~/cfg ./
+clone_root_cfg = cp -pr $~/cfg ./
 
 # Setup a test command to use a cloned configuration directory by default.
 #

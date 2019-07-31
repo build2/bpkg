@@ -3401,7 +3401,7 @@ test.options += --no-progress
       {
         $clone_cfg;
         $pkg_disfigure libhello --keep-out 2>!;
-        $pkg_unpack -r -e ../../../libhello;
+        $pkg_unpack -re ../../../libhello;
 
         $* libhello 2>>~%EOE%;
           configured libhello/1.0.1
@@ -3419,7 +3419,7 @@ test.options += --no-progress
     : Test that libhello is fully rebuilt, as the resulted package is not
     : external.
     {
-      clone_cfg = cp -p --no-cleanup -r ../../cfg ./
+      clone_cfg = cp -pr --no-cleanup ../../cfg ./
 
       +$build 'dist(../../libhello/@./out/)' \
               "config.cxx=$config.cxx" config.dist.root=./ \
@@ -3455,7 +3455,7 @@ test.options += --no-progress
         $clone_cfg;
 
         $pkg_disfigure libhello 2>!;
-        $pkg_fetch -r -e ../libhello-1.0.1.tar.gz;
+        $pkg_fetch -re ../libhello-1.0.1.tar.gz;
         $pkg_unpack libhello;
 
         $* libhello 2>>~%EOE%;
@@ -3507,7 +3507,7 @@ test.options += --no-progress
       updated libfoo/1.1.0
       EOE
 
-    cp -p -r $src/libfoo-1.1.0 libfoo;
+    cp -pr $src/libfoo-1.1.0 libfoo;
 
     $* libfoo/ 2>>~%EOE%;
       disfigured libfoo/1.1.0

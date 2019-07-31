@@ -170,7 +170,7 @@ $* libfoo/1.0.0 2>>/EOE != 0
     $clone_cfg;
     cp --no-cleanup $src/t1/libfoo-1.0.0.tar.gz ./;
 
-    $* -p -e libfoo-1.0.0.tar.gz 2>'using libfoo/1.0.0 (external)';
+    $* -pe libfoo-1.0.0.tar.gz 2>'using libfoo/1.0.0 (external)';
 
     $pkg_purge libfoo 2>'purged libfoo/1.0.0'
   }
