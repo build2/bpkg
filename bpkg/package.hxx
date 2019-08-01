@@ -346,7 +346,7 @@ namespace bpkg
       lazy_shared_ptr<repository_fragment> fragment;
     };
 
-    using fragments_type = std::vector<fragment_type>;
+    using fragments_type = small_vector<fragment_type, 1>;
 
     string              name;        // Object id (canonical name).
     repository_location location;
@@ -459,7 +459,7 @@ namespace bpkg
     // that since the package is already in at least fetched state, we
     // shouldn't be needing its location.
     //
-    vector<package_location> locations;
+    small_vector<package_location, 1> locations;
 
     // Package manifest data.
     //

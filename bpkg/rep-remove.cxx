@@ -109,7 +109,7 @@ namespace bpkg
            query::repository_fragment::name == fragment_name))
     {
       const shared_ptr<available_package>& p (rp);
-      vector<package_location>& ls (p->locations);
+      small_vector<package_location, 1>& ls (p->locations);
 
       for (auto i (ls.cbegin ()); i != ls.cend (); ++i)
       {
