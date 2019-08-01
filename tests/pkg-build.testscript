@@ -3401,7 +3401,7 @@ test.options += --no-progress
       {
         $clone_cfg;
         $pkg_disfigure libhello --keep-out 2>!;
-        $pkg_unpack -re ../../../libhello;
+        $pkg_unpack --replace --existing ../../../libhello;
 
         $* libhello 2>>~%EOE%;
           configured libhello/1.0.1
@@ -3455,7 +3455,7 @@ test.options += --no-progress
         $clone_cfg;
 
         $pkg_disfigure libhello 2>!;
-        $pkg_fetch -re ../libhello-1.0.1.tar.gz;
+        $pkg_fetch --replace --existing ../libhello-1.0.1.tar.gz;
         $pkg_unpack libhello;
 
         $* libhello 2>>~%EOE%;

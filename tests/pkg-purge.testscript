@@ -63,7 +63,7 @@ $* libfoo 2>>/EOE != 0
 {
   $clone_cfg;
   cp --no-cleanup $src/libfoo-1.0.0.tar.gz cfg/;
-  $pkg_fetch -ep cfg/libfoo-1.0.0.tar.gz;
+  $pkg_fetch --purge --existing cfg/libfoo-1.0.0.tar.gz;
 
   $*          libfoo              2>'purged libfoo/1.0.0';
   $pkg_status libfoo              1>'libfoo unknown';
@@ -122,7 +122,7 @@ $* libfoo 2>>/EOE != 0
   $clone_cfg;
   cp --no-cleanup -r $src/libfoo-1.1.0 cfg/;
 
-  $pkg_unpack -ep cfg/libfoo-1.1.0;
+  $pkg_unpack --purge --existing cfg/libfoo-1.1.0;
 
   $*          libfoo       2>'purged libfoo/1.1.0';
   $pkg_status libfoo       1>'libfoo unknown';
@@ -134,7 +134,7 @@ $* libfoo 2>>/EOE != 0
 {
   $clone_cfg;
   cp --no-cleanup $src/libfoo-1.0.0.tar.gz cfg/;
-  $pkg_fetch -ep cfg/libfoo-1.0.0.tar.gz && $pkg_unpack libfoo;
+  $pkg_fetch --purge --existing cfg/libfoo-1.0.0.tar.gz && $pkg_unpack libfoo;
 
   $*          libfoo              2>'purged libfoo/1.0.0';
   $pkg_status libfoo              1>'libfoo unknown';
@@ -148,7 +148,7 @@ if ($posix && "$uid" != '0')
 {
   $clone_cfg;
   cp --no-cleanup $src/libfoo-1.0.0.tar.gz cfg/;
-  $pkg_fetch -ep cfg/libfoo-1.0.0.tar.gz;
+  $pkg_fetch --purge --existing cfg/libfoo-1.0.0.tar.gz;
   $pkg_unpack libfoo;
   chmod 000 cfg/libfoo-1.0.0;
 
@@ -159,7 +159,7 @@ if ($posix && "$uid" != '0')
 
   $pkg_status libfoo/1.0.0 >'libfoo broken 1.0.0';
 
-  $* -fk libfoo 2>'error: cannot keep broken package libfoo' != 0;
+  $* --force --keep libfoo 2>'error: cannot keep broken package libfoo' != 0;
   $pkg_status libfoo/1.0.0 >'libfoo broken 1.0.0';
 
   $* -f libfoo 2>>/EOE != 0;

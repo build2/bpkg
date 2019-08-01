@@ -132,7 +132,7 @@ $* 2>>EOE != 0
         info: use 'pkg-unpack --replace|-r' to replace
       EOE
 
-    $* -re $src/libfoo-1.1.0 2>'using libfoo/1.1.0 (external)';
+    $* --replace --existing $src/libfoo-1.1.0 2>'using libfoo/1.1.0 (external)';
     $pkg_status libfoo/1.1.0 1>'libfoo unpacked 1.1.0';
 
     $pkg_purge libfoo 2>'purged libfoo/1.1.0'
@@ -151,7 +151,7 @@ $* 2>>EOE != 0
         info: use 'pkg-unpack --replace|-r' to replace
       EOE
 
-    $* -re $src/libfoo-1.1.0 2>'using libfoo/1.1.0 (external)';
+    $* --replace --existing $src/libfoo-1.1.0 2>'using libfoo/1.1.0 (external)';
     $pkg_status libfoo/1.1.0 1>'libfoo unpacked 1.1.0';
 
     $pkg_purge libfoo 2>'purged libfoo/1.1.0'
@@ -198,7 +198,7 @@ $* 2>>EOE != 0
     $clone_cfg;
     cp --no-cleanup -r $src/libfoo-1.1.0 ./;
 
-    $* -pe libfoo-1.1.0 2>'using libfoo/1.1.0 (external)';
+    $* --purge --existing libfoo-1.1.0 2>'using libfoo/1.1.0 (external)';
 
     $pkg_purge libfoo 2>'purged libfoo/1.1.0'
   }
