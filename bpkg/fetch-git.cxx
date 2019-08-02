@@ -2043,12 +2043,12 @@ namespace bpkg
                   verb < 2 ? "-q" : nullptr))
       fail << "unable to clean " << dir << endg;
 
-    // Iterate over the registered submodules and "deinitialize" those which
-    // commit has changed.
+    // Iterate over the registered submodules and "deinitialize" those whose
+    // tip commit has changed.
     //
-    // Note that not doing so will make git to treat the repository worktree
-    // as modified (new commits in submodule). Also the caller may proceed
-    // with an inconsistent repository, having no indication that he needs to
+    // Note that not doing so will make git treat the repository worktree as
+    // modified (new commits in submodule). Also the caller may proceed with
+    // an inconsistent repository, having no indication that they need to
     // re-run git_checkout_submodules().
     //
     if (exists (dir / gitmodules_file))
