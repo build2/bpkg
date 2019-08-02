@@ -1723,6 +1723,26 @@ namespace bpkg
     submodule_failure ("unable to list submodules", prefix);
   }
 
+  // Return commit id for the submodule directory or nullopt if the submodule
+  // is not initialized (directory doesn't exist, doesn't contain .git entry,
+  // etc).
+  //
+  static optional<string>
+  submodule_commit (const common_options& co, const dir_path& dir)
+  {
+    if (!git_repository (dir))
+      return nullopt;
+
+    return git_line (co, "submodule commit",
+                     co.git_option (),
+                     "-C", dir,
+                     "rev-parse",
+                     "--verify",
+                     "HEAD");
+  }
+
+  const path gitmodules_file (".gitmodules");
+
   // Checkout the repository submodules (see git_checkout_submodules()
   // description for details).
   //
@@ -1739,7 +1759,7 @@ namespace bpkg
       submodule_failure (d, prefix, e);
     };
 
-    path mf (dir / path (".gitmodules"));
+    path mf (dir / gitmodules_file);
 
     if (!exists (mf))
       return;
@@ -1820,17 +1840,12 @@ namespace bpkg
 
       l4 ([&]{trace << "name: " << nm << ", URL: " << uv;});
 
-      bool initialized (git_repository (fsdir));
-
       // If the submodule is already initialized and its commit didn't
       // change then we skip it.
       //
-      if (initialized && git_line (co, "submodule commit",
-                                   co.git_option (),
-                                   "-C", fsdir,
-                                   "rev-parse",
-                                   "--verify",
-                                   "HEAD") == sm.commit)
+      optional<string> commit (submodule_commit (co, fsdir));
+
+      if (commit && *commit == sm.commit)
         continue;
 
       // Note that the "submodule--helper init" command (see above) doesn't
@@ -1873,7 +1888,7 @@ namespace bpkg
           // We also need to fix-up submodule's origin URL, if its
           // repository is already initialized.
           //
-          if (initialized)
+          if (commit)
             origin_url (co, fsdir, url);
         }
       }
@@ -1897,7 +1912,7 @@ namespace bpkg
       //
       dir_path gdir (git_dir / dir_path ("modules") / sm.path);
 
-      if (!initialized)
+      if (!commit)
       {
         mk_p (gdir);
         init (co, fsdir, url, gdir);
@@ -2027,6 +2042,33 @@ namespace bpkg
                   "-ff",
                   verb < 2 ? "-q" : nullptr))
       fail << "unable to clean " << dir << endg;
+
+    // Iterate over the registered submodules and "deinitialize" those which
+    // commit has changed.
+    //
+    // Note that not doing so will make git to treat the repository worktree
+    // as modified (new commits in submodule). Also the caller may proceed
+    // with an inconsistent repository, having no indication that he needs to
+    // re-run git_checkout_submodules().
+    //
+    if (exists (dir / gitmodules_file))
+    {
+      for (const submodule& sm: find_submodules (co,
+                                                 dir,
+                                                 dir_path () /* prefix */))
+      {
+        dir_path sd (dir / sm.path); // Submodule full directory path.
+
+        optional<string> commit (submodule_commit (co, sd));
+
+        // Note that we may re-initialize the submodule later due to the empty
+        // directory (see checkout_submodules() for details). Seems that git
+        // has no problem with such a re-initialization.
+        //
+        if (commit && *commit != sm.commit)
+          rm_r (sd, false /* dir_itself */);
+      }
+    }
   }
 
   void

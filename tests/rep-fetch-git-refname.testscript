@@ -145,6 +145,7 @@
       %fetching submodule 'doc/style' from .+style\.git%
       $warn1
       %submodule path 'doc/style': checked out .+%
+      %submodule path 'doc/style/basic': checked out .+%
       %querying .+libbaz\.git%?
       %fetching submodule 'libbaz' from .+libbaz\.git%
       $warn2

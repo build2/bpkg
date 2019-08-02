@@ -86,7 +86,7 @@ namespace bpkg
 
   // Checkout the specified commit previously fetched by git_fetch().
   //
-  // Note that submodules are not checked out.
+  // Note that submodules may not be checked out.
   //
   void
   git_checkout (const common_options&,
