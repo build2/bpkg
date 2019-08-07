@@ -106,6 +106,16 @@ namespace bpkg
     uint32_t iteration;
     string upstream;
     optional<string> release;
+
+    // @@ TMP: work around MSVC 16.2 bug.
+    //
+    _version () = default;
+    _version (uint16_t e,
+              string cu, string cr,
+              uint16_t rv, uint32_t i, string u, optional<string> rl)
+        : epoch (e),
+          canonical_upstream (cu), canonical_release (cr),
+          revision (rv), iteration (i), upstream (u), release (rl) {}
   };
 }
 
@@ -229,6 +239,12 @@ namespace bpkg
   {
     repository_url  url;
     repository_type type;
+
+    // @@ TMP: work around MSVC 16.2 bug.
+    //
+    _repository_location () = default;
+    _repository_location (repository_url u, repository_type t)
+        : url (move (u)), type (t) {}
   };
 
   #pragma db map type(repository_url) as(string)                            \
