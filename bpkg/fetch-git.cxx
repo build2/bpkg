@@ -1540,12 +1540,12 @@ namespace bpkg
           dr << " in '" << dir.posix_string () << "'"; // Is used by tests.
       }
 
-      // Print warnings prior to the deep fetching.
+      // Print information messages prior to the deep fetching.
       //
       if (fetch_deep)
       {
         {
-          diag_record dr (warn);
+          diag_record dr (info);
           dr << "fetching whole " << (fetch_repo ? "repository" : "reference")
              << " history";
 
@@ -1560,7 +1560,7 @@ namespace bpkg
         }
 
         if (caps () == capabilities::dumb)
-          warn << "no progress will be shown (dumb HTTP)";
+          info << "no progress will be shown (dumb HTTP)";
       }
     }
 

@@ -205,11 +205,7 @@ else
   $clone_root_cfg;
   $rep_add "$rep/libbar.git#master" && $rep_add "$rep/style.git#master";
 
-  # Convert specific warnings to infos as we expect them to appear. This, in
-  # particular, prevents bbot workers to set task result status to warning.
-  #
-  $rep_fetch 2>&1 | \
-  sed -e 's/warning: (fetching (over|whole) .*)/info: \1/' >&2 2>!;
+  $rep_fetch 2>!;
 
   $* style-basic >~'%style-basic available \[1\.1\.0-a\.0\..+\]%'
 }

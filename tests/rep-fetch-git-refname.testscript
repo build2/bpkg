@@ -8,14 +8,14 @@
   $clone_root_cfg && $rep_add "$rep/state0/libfoo.git$fragment";
 
   if ($git_protocol == 'https-dumb')
-    warn = "$warn_ref_hist$reason_dumb$warn_dumb"
+    info = "$info_ref_hist$reason_dumb$info_dumb"
   end;
 
   $* 2>>~"%EOE%"
     %fetching git:.+libfoo$fragment%
     %querying .+libfoo\.git%
     %fetching from .+libfoo\.git%
-    $warn
+    $info
     1 package\(s\) in 1 repository\(s\)
     EOE
 }
@@ -58,10 +58,10 @@
     # Note that the commit for doc/style/basic submodule is not at the branch
     # tip and so is not advertised.
     #
-    warn1 = '%.{0}';
-    warn2 = '%.{0}';
-    warn3 = '%.{0}';
-    warn4 = '%.{0}';
+    info1 = '%.{0}';
+    info2 = '%.{0}';
+    info3 = '%.{0}';
+    info4 = '%.{0}';
 
     if ($git_protocol == 'local'       || \
         $git_protocol == 'https-smart' || \
@@ -69,30 +69,30 @@
         $git_protocol == 'git-unadv'   || \
         $git_protocol == 'ssh'         || \
         $git_protocol == 'ssh-unadv')
-      warn2 = "$warn_repo_hist for submodule 'doc/style/basic'$reason_unadv"
+      info2 = "$info_repo_hist for submodule 'doc/style/basic'$reason_unadv"
     elif ($git_protocol == 'https-dumb')
-      warn1 = "$warn_ref_hist for submodule 'doc/style'$reason_dumb$warn_dumb"
-      warn2 = "$warn_repo_hist for submodule 'doc/style/basic'$reason_dumb$warn_dumb"
-      warn3 = "$warn_ref_hist for submodule 'libbar'$reason_dumb$warn_dumb"
-      warn4 = "$warn_ref_hist for submodule 'libbar/extras'$reason_dumb$warn_dumb"
+      info1 = "$info_ref_hist for submodule 'doc/style'$reason_dumb$info_dumb"
+      info2 = "$info_repo_hist for submodule 'doc/style/basic'$reason_dumb$info_dumb"
+      info3 = "$info_ref_hist for submodule 'libbar'$reason_dumb$info_dumb"
+      info4 = "$info_ref_hist for submodule 'libbar/extras'$reason_dumb$info_dumb"
     end;
 
     $pkg_checkout libfoo/1.0.0 2>>~"%EOE%";
       checking out libfoo/1.0.0
       %querying .+style\.git%?
       %fetching submodule 'doc/style' from .+style\.git%
-      $warn1
+      $info1
       %submodule path 'doc/style': checked out .+%
       %querying .+style-basic\.git%?
       %fetching submodule 'doc/style/basic' from .+style-basic\.git%
-      $warn2
+      $info2
       %submodule path 'doc/style/basic': checked out .+%
       %querying .+libbar\.git%?
       %fetching submodule 'libbar' from .+libbar\.git%
-      $warn3
+      $info3
       %submodule path 'libbar': checked out .+%
       %fetching submodule 'libbar/extras' from .+style-basic\.git+%
-      $warn4
+      $info4
       %submodule path 'libbar/extras': checked out .+%
       distributing libfoo/1.0.0
       checked out libfoo/1.0.0
@@ -117,38 +117,38 @@
     test -d $d/libbaz != 0;
 
     if ($git_protocol == 'https-dumb')
-      warn = "$warn_ref_hist$reason_dumb$warn_dumb"
+      info = "$info_ref_hist$reason_dumb$info_dumb"
     end;
 
     $* 2>>~"%EOE%" 1>&2;
       %fetching git:.+libfoo$fragment%
       %querying .+libfoo\.git%
       %fetching from .+libfoo\.git%
-      $warn
+      $info
       %warning: unable to rmdir .?libbar.?: .+%
       1 package\(s\) in 1 repository\(s\)
       EOE
 
     $pkg_drop libfoo;
 
-    warn1 = '%.{0}';
-    warn2 = '%.{0}';
+    info1 = '%.{0}';
+    info2 = '%.{0}';
 
     if ($git_protocol == 'https-dumb')
-      warn1 = "$warn_ref_hist for submodule 'doc/style'$reason_dumb$warn_dumb"
-      warn2 = "$warn_ref_hist for submodule 'libbaz'$reason_dumb$warn_dumb"
+      info1 = "$info_ref_hist for submodule 'doc/style'$reason_dumb$info_dumb"
+      info2 = "$info_ref_hist for submodule 'libbaz'$reason_dumb$info_dumb"
     end;
 
     $pkg_checkout libfoo/1.0.0 2>>~"%EOE%";
       checking out libfoo/1.0.0
       %querying .+style\.git%?
       %fetching submodule 'doc/style' from .+style\.git%
-      $warn1
+      $info1
       %submodule path 'doc/style': checked out .+%
       %submodule path 'doc/style/basic': checked out .+%
       %querying .+libbaz\.git%?
       %fetching submodule 'libbaz' from .+libbaz\.git%
-      $warn2
+      $info2
       %submodule path 'libbaz': checked out .+%
       distributing libfoo/1.0.0
       checked out libfoo/1.0.0

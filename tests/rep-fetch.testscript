@@ -653,12 +653,7 @@ if ($remote != true)
 
       $* "$rep/style.git#master" 2>! &cfg/.bpkg/repos/*/***;
 
-      # Convert specific warnings to infos as we expect them to appear. This,
-      # in particular, prevents bbot workers to set task result status to
-      # warning.
-      #
-      $pkg_checkout "style/1.0.0" 2>&1 | \
-      sed -e 's/warning: (fetching (over|whole) .*)/info: \1/' >&2 2>!;
+      $pkg_checkout "style/1.0.0" 2>!;
 
       $rep_add $rep/style.git;
       $* 2>!;
@@ -802,14 +797,14 @@ else
       %fetching git:.+libfox#master%
       %querying .+libfox\.git%
       %fetching from .+libfox\.git%
-      %warning: .+%{0,2}
+      %info: .+%{0,2}
       %querying .+libbar\.git%?
       %fetching submodule 'libbar' from .+libbar\.git%
-      %warning: .+%{0,2}
+      %info: .+%{0,2}
       %submodule path 'libbar': checked out '.+'%
       %querying .+style-basic\.git%?
       %fetching submodule 'libbar/extras' from .+style-basic\.git%
-      %warning: .+%{0,2}
+      %info: .+%{0,2}
       %submodule path 'libbar/extras': checked out '.+'%
       2 package(s) in 1 repository(s)
       EOE
@@ -883,7 +878,7 @@ else
           %added .+libfoo#v\*\*%
           %querying .+libfoo\.git%
           %fetching from .+libfoo\.git%
-          %warning: .+%{0,2}
+          %info: .+%{0,2}
           2 package(s) in 1 repository(s)
           EOE
       }
@@ -941,7 +936,7 @@ else
           %added .+libfoo#9ab039761936802d61b8e591d6812a4dd4605029%
           %querying .+libfoo\.git%
           %fetching from .+libfoo\.git%
-          %warning: .+%{0,2}
+          %info: .+%{0,2}
           error: unable to fetch commit 9ab039761936802d61b8e591d6812a4dd4605029
           EOE
       }
@@ -968,7 +963,7 @@ else
         %added .+libfoo#tags/mast\*,\+master%
         %querying .+libfoo\.git%
         %fetching from .+libfoo\.git%
-        %warning: .+%{0,2}
+        %info: .+%{0,2}
         1 package(s) in 1 repository(s)
         EOE
     }
@@ -985,7 +980,7 @@ else
           %added .+libfoo%
           %querying .+libfoo\.git%
           %fetching from .+libfoo\.git%
-          %warning: .+%{0,2}
+          %info: .+%{0,2}
           2 package(s) in 1 repository(s)
           EOE
       }
@@ -999,7 +994,7 @@ else
           %added .+libfoo##-/tags/v1\*%
           %querying .+libfoo\.git%
           %fetching from .+libfoo\.git%
-          %warning: .+%{0,2}
+          %info: .+%{0,2}
           1 package(s) in 1 repository(s)
           EOE
       }

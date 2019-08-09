@@ -19,16 +19,16 @@
     $clone_root_cfg && $rep_add "$rep/state0/style-basic.git#$commit";
 
     if ($git_protocol == 'https-dumb')
-      warn = "$warn_repo_hist$reason_dumb$warn_dumb"
+      info = "$info_repo_hist$reason_dumb$info_dumb"
     elif ($git_protocol != 'https-smart-unadv')
-      warn = "$warn_repo_hist$reason_unadv"
+      info = "$info_repo_hist$reason_unadv"
     end;
 
     $* 2>>~"%EOE%"
       %fetching git:.+style-basic#$commit%
       %querying .+style-basic\.git%?
       %fetching from .+style-basic\.git%
-      $warn
+      $info
       1 package\(s\) in 1 repository\(s\)
       EOE
   }
@@ -39,16 +39,16 @@
     $clone_root_cfg && $rep_add "$rep/state0/style-basic.git#stable@$commit";
 
     if ($git_protocol == 'https-dumb')
-      warn = "$warn_ref_hist$reason_dumb$warn_dumb"
+      info = "$info_ref_hist$reason_dumb$info_dumb"
     elif ($git_protocol != 'https-smart-unadv')
-      warn = "$warn_ref_hist$reason_unadv"
+      info = "$info_ref_hist$reason_unadv"
     end;
 
     $* 2>>~"%EOE%"
       %fetching git:.+style-basic#stable@$commit%
       %querying .+style-basic\.git%?
       %fetching from .+style-basic\.git%
-      $warn
+      $info
       1 package\(s\) in 1 repository\(s\)
       EOE
   }
@@ -61,7 +61,7 @@
    set commit
 
   +if ($git_protocol == 'https-dumb')
-     warn = "$warn_ref_hist$reason_dumb$warn_dumb"
+     info = "$info_ref_hist$reason_dumb$info_dumb"
    end
 
   : no-refname
@@ -74,7 +74,7 @@
       %querying .+style-basic\.git%?
       %fetching from .+style-basic.\git%
       %querying .+style-basic\.git%?
-      $warn
+      $info
       1 package\(s\) in 1 repository\(s\)
       EOE
   }
@@ -89,7 +89,7 @@
       %querying .+style-basic\.git%?
       %fetching from .+style-basic\.git%
       %querying .+style-basic\.git%?
-      $warn
+      $info
       1 package\(s\) in 1 repository\(s\)
       EOE
   }

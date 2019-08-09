@@ -9,13 +9,13 @@
 reason_dumb  = ' (dumb HTTP)'
 reason_unadv = ' (unadvertised commit)'
 
-warn_dumb='
-warning: no progress will be shown (dumb HTTP)'
+info_dumb='
+info: no progress will be shown (dumb HTTP)'
 
-warn_repo_hist = "warning: fetching whole repository history"
-warn_ref_hist  = "warning: fetching whole reference history"
+info_repo_hist = "info: fetching whole repository history"
+info_ref_hist  = "info: fetching whole reference history"
 
-warn = '%.{0}' # None.
+info = '%.{0}' # None.
 
 test.cleanups += &cfg/.bpkg/repos/*/***
 
