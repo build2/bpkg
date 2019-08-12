@@ -204,7 +204,7 @@ namespace bpkg
               // Let's set the binary mode not to litter the manifest file
               // with the carriage return characters on Windows.
               //
-              ofdstream ofs (p, ios::binary);
+              ofdstream ofs (p, fdopen_mode::binary);
               serialize (ofs, p.string ());
               ofs.close ();
             }
@@ -319,7 +319,7 @@ namespace bpkg
               // Let's set the binary mode not to litter the manifest file
               // with the carriage return characters on Windows.
               //
-              ofdstream ofs (p, ios::binary);
+              ofdstream ofs (p, fdopen_mode::binary);
               serialize (ofs, p.string ());
               ofs.close ();
             }

@@ -196,7 +196,7 @@ namespace bpkg
         // no reason to litter the auto-generated packages and signature
         // manifest files.
         //
-        ofdstream ofs (p, ios::binary);
+        ofdstream ofs (p, fdopen_mode::binary);
 
         manifest_serializer s (ofs, p.string ());
         manifests.serialize (s);
@@ -219,7 +219,7 @@ namespace bpkg
 
         p = path (d / signature_file);
 
-        ofdstream ofs (p, ios::binary);
+        ofdstream ofs (p, fdopen_mode::binary);
 
         manifest_serializer s (ofs, p.string ());
         m.serialize (s);
