@@ -330,9 +330,9 @@ namespace bpkg
       // generally be completed against the configuration directory (unlikely
       // but possible), that can be relative and/or not normalized.
       //
-      src_root.complete ().normalize ();
+      normalize (src_root, "package source");
 
-      changed = src_root != dir_path (d).complete ().normalize ();
+      changed = src_root != normalize (d, "package source");
     }
 
     return !changed

@@ -7,7 +7,8 @@
 #endif
 
 #include <iostream>
-#include <exception> // set_terminate(), terminate_handler
+#include <exception>   // set_terminate(), terminate_handler
+#include <type_traits> // enable_if, is_base_of
 
 #include <libbutl/backtrace.mxx> // backtrace()
 
@@ -52,6 +53,91 @@ using namespace bpkg;
 
 namespace bpkg
 {
+  // Deduce the default options files and the directory to start searching
+  // from based on the command line options and arguments.
+  //
+  // default_options_files
+  // options_files (const char* cmd, const xxx_options&, const strings& args);
+
+  // Return the default options files and the configuration directory as a
+  // search start directory for commands that operate on a configuration (and
+  // thus have their options derived from configuration_options).
+  //
+  // Note that we don't support package-level default options files.
+  //
+  static inline default_options_files
+  options_files (const char* cmd,
+                 const configuration_options& o,
+                 const strings&)
+  {
+    // bpkg.options
+    // bpkg-<cmd>.options
+
+    return default_options_files {
+      {path ("bpkg.options"), path (string ("bpkg-") + cmd + ".options")},
+      normalize (o.directory (), "configuration")};
+  }
+
+  // Return the default options files without search start directory for
+  // commands that don't operate on a configuration (and thus their options
+  // are not derived from configuration_options).
+  //
+  template <typename O>
+  static inline typename enable_if<!is_base_of<configuration_options,
+                                               O>::value,
+                                   default_options_files>::type
+  options_files (const char* cmd,
+                 const O&,
+                 const strings&)
+  {
+    // bpkg.options
+    // bpkg-<cmd>.options
+
+    return default_options_files {
+      {path ("bpkg.options"), path (string ("bpkg-") + cmd + ".options")},
+      nullopt /* start_dir */};
+  }
+
+  // Merge the default options and the command line options. Fail if options
+  // used to deduce the default options files or the start directory appear in
+  // an options file (or for other good reasons).
+  //
+  // xxx_options
+  // merge_options (const default_options<xxx_options>&, const xxx_options&);
+
+  // Merge the default options and the command line options for commands
+  // that operate on configuration. Fail if --directory|-d appears in the
+  // options file to avoid the chicken and egg problem.
+  //
+  template <typename O>
+  static inline typename enable_if<is_base_of<configuration_options,
+                                              O>::value,
+                                   O>::type
+  merge_options (const default_options<O>& defs, const O& cmd)
+  {
+    return merge_default_options (
+      defs,
+      cmd,
+      [] (const default_options_entry<O>& e, const O&)
+      {
+        if (e.options.directory_specified ())
+          fail (e.file) << "--directory|-d in default options file";
+      });
+  }
+
+  // Merge the default options and the command line options for commands that
+  // allow any option in the options files (and thus their options are not
+  // derived from configuration_options).
+  //
+  template <typename O>
+  static inline typename enable_if<!is_base_of<configuration_options,
+                                               O>::value,
+                                   O>::type
+  merge_options (const default_options<O>& defs, const O& cmd)
+  {
+    return merge_default_options (defs, cmd);
+  }
+
   int
   main (int argc, char* argv[]);
 }
@@ -77,9 +163,12 @@ static O
 init (const common_options& co,
       cli::group_scanner& scan,
       strings& args,
+      const char* cmd,
       bool keep_sep,
       bool tmp)
 {
+  tracer trace ("init");
+
   O o;
   static_cast<common_options&> (o) = co;
 
@@ -126,14 +215,48 @@ init (const common_options& co,
     }
   }
 
+  // Note that the diagnostics verbosity level can only be calculated after
+  // default options are loaded and merged (see below). Thus, to trace the
+  // default options files search, we refer to the verbosity level specified
+  // on the command line.
+  //
+  auto verbosity = [&o] ()
+  {
+    return o.verbose_specified ()
+           ? o.verbose ()
+           : o.V () ? 3 : o.v () ? 2 : o.quiet () ? 0 : 1;
+  };
+
+  // Handle default options files.
+  //
+  // Note: don't need to use group_scaner (no arguments in options files).
+  //
+  if (!o.no_default_options ()) // Command line option.
+  try
+  {
+    o = merge_options (
+      load_default_options<O, cli::argv_file_scanner, cli::unknown_mode> (
+        nullopt /* sys_dir */,
+        path::home_directory (),
+        options_files (cmd, o, args),
+        [&trace, &verbosity] (const path& f, bool remote)
+        {
+          if (verbosity () >= 3)
+            trace << "loading " << (remote ? "remote " : "local ") << f;
+        }),
+      o);
+  }
+  catch (const system_error& e)
+  {
+    fail << "unable to load default options files: " << e;
+  }
+
   // Global initializations.
   //
 
   // Diagnostics verbosity.
   //
-  verb = o.verbose_specified ()
-    ? o.verbose ()
-    : o.V () ? 3 : o.v () ? 2 : o.quiet () ? 0 : 1;
+  verb = verbosity ();
 
   // Temporary directory.
   //
@@ -231,6 +354,7 @@ try
     return help (init<help_options> (co,
                                      scan,
                                      argsv,
+                                     "help",
                                      false /* keep_sep */,
                                      false /* tmp */),
                  "",
@@ -263,6 +387,7 @@ try
     ho = init<help_options> (co,
                              scan,
                              argsv,
+                             "help",
                              false /* keep_sep */,
                              false /* tmp */);
 
@@ -310,6 +435,7 @@ try
     //     r = pkg_verify (init<pkg_verify_options> (co,
     //                                               scan,
     //                                               argsv,
+    //                                               "pkg-verify",
     //                                               false /* keep_sep */,
     //                                               true  /* tmp */),
     //                     args);
@@ -317,16 +443,21 @@ try
     //  break;
     // }
     //
-#define COMMAND_IMPL(NP, SP, CMD, SEP, TMP)                               \
-    if (cmd.NP##CMD ())                                                   \
-    {                                                                     \
-      if (h)                                                              \
-        r = help (ho, SP#CMD, print_bpkg_##NP##CMD##_usage);              \
-      else                                                                \
-        r = NP##CMD (init<NP##CMD##_options> (co, scan, argsv, SEP, TMP), \
-                     args);                                               \
-                                                                          \
-      break;                                                              \
+#define COMMAND_IMPL(NP, SP, CMD, SEP, TMP)                  \
+    if (cmd.NP##CMD ())                                      \
+    {                                                        \
+      if (h)                                                 \
+        r = help (ho, SP#CMD, print_bpkg_##NP##CMD##_usage); \
+      else                                                   \
+        r = NP##CMD (init<NP##CMD##_options> (co,            \
+                                              scan,          \
+                                              argsv,         \
+                                              SP#CMD,        \
+                                              SEP,           \
+                                              TMP),          \
+                     args);                                  \
+                                                             \
+      break;                                                 \
     }
 
     // cfg-* commands

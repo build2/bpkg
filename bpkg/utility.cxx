@@ -83,6 +83,44 @@ namespace bpkg
     }
   }
 
+  path&
+  normalize (path& f, const char* what)
+  {
+    try
+    {
+      f.complete ().normalize ();
+    }
+    catch (const invalid_path& e)
+    {
+      fail << "invalid " << what << " path " << e.path;
+    }
+    catch (const system_error& e)
+    {
+      fail << "unable to obtain current directory: " << e;
+    }
+
+    return f;
+  }
+
+  dir_path&
+  normalize (dir_path& d, const char* what)
+  {
+    try
+    {
+      d.complete ().normalize ();
+    }
+    catch (const invalid_path& e)
+    {
+      fail << "invalid " << what << " directory " << e.path;
+    }
+    catch (const system_error& e)
+    {
+      fail << "unable to obtain current directory: " << e;
+    }
+
+    return d;
+  }
+
   bool stderr_term;
 
   bool

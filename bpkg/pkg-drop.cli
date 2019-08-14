@@ -21,7 +21,7 @@ namespace bpkg
 
      The \cb{pkg-drop} command drops one or more packages from the
      configuration. If the packages being dropped still have dependent
-     packages, then those will have to be drop as well and you will be
+     packages, then those will have to be dropped as well and you will be
      prompted to confirm. And if the packages being dropped have dependency
      packages that would otherwise no longer be used, then they will be
      dropped as well unless the \c{\b{--keep-unused}|\b{-K}} option is

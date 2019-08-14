@@ -246,8 +246,7 @@ namespace bpkg
 
     if (verb && !o.no_result ())
     {
-      d.complete ();
-      d.normalize ();
+      normalize (d, "repository");
       text << pm.size () << " package(s) in " << d;
     }
 
@@ -256,5 +255,47 @@ namespace bpkg
   catch (const invalid_path& e)
   {
     fail << "invalid path: '" << e.path << "'" << endf;
+  }
+
+  default_options_files
+  options_files (const char*, const rep_create_options&, const strings& args)
+  {
+    // bpkg.options
+    // bpkg-rep-create.options
+
+    // Use the repository directory as a start directory.
+    //
+    optional<dir_path> start_dir;
+
+    // Let rep_create() complain later for invalid repository directory.
+    //
+    try
+    {
+      dir_path d (!args.empty () ? args[0] : ".");
+      if (!d.empty ())
+        start_dir = move (normalize (d, "repository"));
+    }
+    catch (const invalid_path&) {}
+
+    return default_options_files {
+      {path ("bpkg.options"), path ("bpkg-rep-create.options")},
+      move (start_dir)};
+  }
+
+  rep_create_options
+  merge_options (const default_options<rep_create_options>& defs,
+                 const rep_create_options& cmd)
+  {
+    return merge_default_options (
+      defs,
+      cmd,
+      [] (const default_options_entry<rep_create_options>& e,
+          const rep_create_options&)
+      {
+        // For security reason.
+        //
+        if (e.options.key_specified () && e.remote)
+          fail (e.file) << "--key <name> in remote default options file";
+      });
   }
 }

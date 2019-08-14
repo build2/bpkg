@@ -52,6 +52,10 @@ namespace bpkg
               version,
               bool replace,
               bool simulate);
+
+  pkg_unpack_options
+  merge_options (const default_options<pkg_unpack_options>&,
+                 const pkg_unpack_options&);
 }
 
 #endif // BPKG_PKG_UNPACK_HXX

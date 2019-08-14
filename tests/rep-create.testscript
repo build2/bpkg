@@ -147,6 +147,23 @@
       EOO
   }
 
+  : remote-key-option-failure
+  :
+  : Test that bpkg-rep-create fails for the remote --key option.
+  :
+  {
+    $clone_rep;
+
+    touch .git; # Pretend we are in the git repository.
+
+    mkdir .build2;
+    echo "--key $key" >=.build2/bpkg-rep-create.options;
+
+    $* 1/stable/ 2>>/~%EOE% != 0
+      %.+/bpkg-rep-create.options: error: --key <name> in remote default options file%
+      EOE
+  }
+
   : without-key
   :
   $clone_rep;

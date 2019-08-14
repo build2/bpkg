@@ -635,7 +635,7 @@ namespace bpkg
       fail << "--trust-yes and --trust-no are mutually exclusive";
 
     if (conf != nullptr && conf->empty ())
-      conf = dir_exists (bpkg_dir) ? &current_dir : nullptr;
+      conf = exists (bpkg_dir) ? &current_dir : nullptr;
 
     assert (conf == nullptr || !conf->empty ());
 
@@ -682,7 +682,7 @@ namespace bpkg
     tracer trace ("authenticate_repository");
 
     if (conf != nullptr && conf->empty ())
-      conf = dir_exists (bpkg_dir) ? &current_dir : nullptr;
+      conf = exists (bpkg_dir) ? &current_dir : nullptr;
 
     assert (conf == nullptr || !conf->empty ());
 

@@ -362,7 +362,7 @@ namespace bpkg
                  bool ev)
   {
     if (conf != nullptr && conf->empty ())
-      conf = dir_exists (bpkg_dir) ? &current_dir : nullptr;
+      conf = exists (bpkg_dir) ? &current_dir : nullptr;
 
     assert (conf == nullptr || !conf->empty ());
 

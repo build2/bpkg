@@ -43,6 +43,10 @@ namespace bpkg
              version,
              bool replace,
              bool simulate);
+
+  pkg_fetch_options
+  merge_options (const default_options<pkg_fetch_options>&,
+                 const pkg_fetch_options&);
 }
 
 #endif // BPKG_PKG_FETCH_HXX

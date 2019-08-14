@@ -24,6 +24,9 @@ namespace bpkg
     {
       static void
       parse (path&, bool&, scanner&);
+
+      static void
+      merge (path& b, const path& a) {b = a;}
     };
 
     template <>
@@ -31,6 +34,9 @@ namespace bpkg
     {
       static void
       parse (dir_path&, bool&, scanner&);
+
+      static void
+      merge (dir_path& b, const dir_path& a) {b = a;}
     };
 
     template <>
@@ -38,6 +44,9 @@ namespace bpkg
     {
       static void
       parse (auth&, bool&, scanner&);
+
+      static void
+      merge (auth& b, const auth& a) {b = a;}
     };
 
     template <>
@@ -45,6 +54,9 @@ namespace bpkg
     {
       static void
       parse (repository_type&, bool&, scanner&);
+
+      static void
+      merge (repository_type& b, const repository_type& a) {b = a;}
     };
 
     template <const char* const* Q, typename V>
@@ -52,6 +64,9 @@ namespace bpkg
     {
       static void
       parse (qualified_option<Q, V>&, bool&, scanner&);
+
+      static void
+      merge (qualified_option<Q, V>&, const qualified_option<Q, V>&);
     };
   }
 }

@@ -30,11 +30,7 @@ namespace bpkg
   public:
     conn_factory (const dir_path& d)
     {
-      dir_path v (d);
-      v.complete ();
-      v.normalize ();
-
-      setenv (open_name, v.string ());
+      setenv (open_name, normalize (d, "configuration").string ());
     }
 
     virtual

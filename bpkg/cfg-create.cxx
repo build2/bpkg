@@ -161,7 +161,8 @@ namespace bpkg
 
     if (verb && !o.no_result ())
     {
-      c.complete ().normalize ();
+      normalize (c, "configuration");
+
       if (o.existing ())
         text << "initialized existing configuration in " << c;
       else
@@ -169,5 +170,50 @@ namespace bpkg
     }
 
     return 0;
+  }
+
+  default_options_files
+  options_files (const char*, const cfg_create_options& o, const strings&)
+  {
+    // bpkg.options
+    // bpkg-cfg-create.options
+
+    // Use the configuration parent directory as a start directory.
+    //
+    optional<dir_path> start_dir;
+
+    // Let cfg_create() complain later for the root directory used as a
+    // configuration directory.
+    //
+    dir_path d (normalize (o.directory (), "configuration"));
+    if (!d.root ())
+      start_dir = d.directory ();
+
+    return default_options_files {
+      {path ("bpkg.options"), path ("bpkg-cfg-create.options")},
+      move (start_dir)};
+  }
+
+  cfg_create_options
+  merge_options (const default_options<cfg_create_options>& defs,
+                 const cfg_create_options& cmd)
+  {
+    return merge_default_options (
+      defs,
+      cmd,
+      [] (const default_options_entry<cfg_create_options>& e,
+          const cfg_create_options&)
+      {
+        const cfg_create_options& o (e.options);
+
+        auto forbid = [&e] (const char* opt, bool specified)
+        {
+          if (specified)
+            fail (e.file) << opt << " in default options file";
+        };
+
+        forbid ("--directory|-d", o.directory_specified ());
+        forbid ("--wipe",         o.wipe ()); // Dangerous.
+      });
   }
 }

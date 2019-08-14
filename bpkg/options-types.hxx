@@ -21,7 +21,7 @@ namespace bpkg
   // Qualified options.
   //
   // An option that uses this type can have its values qualified using the
-  // <qualifier>:<value> form, for example, '--option foo:bar' An unqualified
+  // <qualifier>:<value> form, for example, '--option foo:bar'. An unqualified
   // value that contains a colon can be specified as qualified with an empty
   // qualifier, for example, '--option :http://example.org'. Unqualified
   // values apply to all the qualifiers in the order specified.

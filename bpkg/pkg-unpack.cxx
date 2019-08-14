@@ -90,8 +90,8 @@ namespace bpkg
     // If the package is inside the configuration, use the relative path.
     // This way we can move the configuration around.
     //
-    c.complete ().normalize ();
-    d.complete ().normalize ();
+    normalize (c, "configuration");
+    normalize (d, "package");
 
     if (d.sub (c))
       d = d.leaf (c);
@@ -427,5 +427,28 @@ namespace bpkg
     }
 
     return 0;
+  }
+
+  pkg_unpack_options
+  merge_options (const default_options<pkg_unpack_options>& defs,
+                 const pkg_unpack_options& cmd)
+  {
+    return merge_default_options (
+      defs,
+      cmd,
+      [] (const default_options_entry<pkg_unpack_options>& e,
+          const pkg_unpack_options&)
+      {
+        const pkg_unpack_options& o (e.options);
+
+        auto forbid = [&e] (const char* opt, bool specified)
+        {
+          if (specified)
+            fail (e.file) << opt << " in default options file";
+        };
+
+        forbid ("--directory|-d", o.directory_specified ());
+        forbid ("--purge|-p",     o.purge ()); // Dangerous.
+      });
   }
 }

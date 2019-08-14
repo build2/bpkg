@@ -88,6 +88,31 @@ namespace bpkg
   void
   clean_tmp (bool ignore_errors);
 
+  // Path.
+  //
+  // Normalize a path. Also make the relative path absolute using the current
+  // directory.
+  //
+  path&
+  normalize (path&, const char* what);
+
+  inline path
+  normalize (const path& f, const char* what)
+  {
+    path r (f);
+    return move (normalize (r, what));
+  }
+
+  dir_path&
+  normalize (dir_path&, const char* what);
+
+  inline dir_path
+  normalize (const dir_path& d, const char* what)
+  {
+    dir_path r (d);
+    return move (normalize (r, what));
+  }
+
   // Progress.
   //
   extern bool stderr_term; // True if stderr is a terminal.

@@ -43,8 +43,8 @@ namespace bpkg
     // If the archive is inside the configuration, use the relative path.
     // This way we can move the configuration around.
     //
-    c.complete ().normalize ();
-    a.complete ().normalize ();
+    normalize (c, "configuration");
+    normalize (a, "archive");
 
     if (a.sub (c))
       a = a.leaf (c);
@@ -345,5 +345,28 @@ namespace bpkg
     }
 
     return 0;
+  }
+
+  pkg_fetch_options
+  merge_options (const default_options<pkg_fetch_options>& defs,
+                 const pkg_fetch_options& cmd)
+  {
+    return merge_default_options (
+      defs,
+      cmd,
+      [] (const default_options_entry<pkg_fetch_options>& e,
+          const pkg_fetch_options&)
+      {
+        const pkg_fetch_options& o (e.options);
+
+        auto forbid = [&e] (const char* opt, bool specified)
+        {
+          if (specified)
+            fail (e.file) << opt << " in default options file";
+        };
+
+        forbid ("--directory|-d", o.directory_specified ());
+        forbid ("--purge|-p",     o.purge ()); // Dangerous.
+      });
   }
 }

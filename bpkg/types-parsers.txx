@@ -65,5 +65,20 @@ namespace bpkg
         }
       }
     }
+
+    template <const char* const* Q, typename V>
+    void parser<qualified_option<Q, V>>::
+    merge (qualified_option<Q, V>& b, const qualified_option<Q, V>& a)
+    {
+      for (const auto& o: a)
+      {
+        auto i (b.find (o.first));
+
+        if (i != b.end ())
+          i->second = o.second;
+        else
+          b.emplace (o.first, o.second);
+      }
+    }
   }
 }

@@ -374,4 +374,51 @@ namespace bpkg
 
     return 0;
   }
+
+  default_options_files
+  options_files (const char*, const rep_info_options& o, const strings&)
+  {
+    // bpkg.options
+    // bpkg-rep-info.options
+
+    // If bpkg-rep-info operates in the configuration directory, then use it
+    // as a search start directory.
+    //
+    optional<dir_path> start_dir;
+
+    // Let rep_info() complain later for invalid configuration directory.
+    //
+    try
+    {
+      dir_path d;
+
+      if (o.directory_specified ())
+        d = dir_path (o.directory ());
+      else if (exists (bpkg_dir))
+        d = current_dir;
+
+      if (!d.empty ())
+        start_dir = move (normalize (d, "configuration"));
+    }
+    catch (const invalid_path&) {}
+
+    return default_options_files {
+      {path ("bpkg.options"), path ("bpkg-rep-info.options")},
+      move (start_dir)};
+  }
+
+  rep_info_options
+  merge_options (const default_options<rep_info_options>& defs,
+                 const rep_info_options& cmd)
+  {
+    return merge_default_options (
+      defs,
+      cmd,
+      [] (const default_options_entry<rep_info_options>& e,
+          const rep_info_options&)
+      {
+        if (e.options.directory_specified ())
+          fail (e.file) << "--directory|-d in default options file";
+      });
+  }
 }

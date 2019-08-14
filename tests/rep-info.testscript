@@ -353,3 +353,48 @@ else
     %fragment: \.+%
     EOO
 }
+
+: default-options-files
+:
+{
+  : specified-dir
+  :
+  {
+    $cfg_create -d cfg 2>! &cfg/***;
+
+    mkdir cfg/.build2;
+
+    echo '--directory .' >= cfg/.build2/bpkg-rep-info.options;
+
+    $* $rep/testing -d cfg 2>>/~%EOE%d != 0;
+      %\.+/specified-dir/cfg/.build2/bpkg-rep-info.options: error: --directory\|-d in default options file%
+      EOE
+
+    # Disable default options files loading.
+    #
+    $* --no-default-options --name $rep/testing -d cfg >>"EOO"
+      pkg:build2.org/rep-info/testing ($rep/testing)
+      EOO
+  }
+
+  : current-dir
+  :
+  {
+    mkdir .bpkg;   # Pretend we are in the configuration directory.
+    mkdir .build2;
+
+    echo '--directory .' >= .build2/bpkg-rep-info.options;
+
+    # Load options from the current (configuration) directory.
+    #
+    $* $rep/testing 2>>/~%EOE%d != 0;
+      %\.+/current-dir/.build2/bpkg-rep-info.options: error: --directory\|-d in default options file%
+      EOE
+
+    # Disable loading options from the current (configuration) directory.
+    #
+    $* --name  -d '' $rep/testing >>"EOO"
+      pkg:build2.org/rep-info/testing ($rep/testing)
+      EOO
+  }
+}

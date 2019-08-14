@@ -14,6 +14,15 @@ namespace bpkg
 {
   int
   cfg_create (const cfg_create_options&, cli::scanner& args);
+
+  default_options_files
+  options_files (const char* cmd,
+                 const cfg_create_options&,
+                 const strings& args);
+
+  cfg_create_options
+  merge_options (const default_options<cfg_create_options>&,
+                 const cfg_create_options&);
 }
 
 #endif // BPKG_CFG_CREATE_HXX

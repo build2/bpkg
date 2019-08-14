@@ -24,10 +24,11 @@
 
 #include <libbutl/path.mxx>
 #include <libbutl/process.mxx>
-#include <libbutl/utility.mxx>  // compare_reference_target
+#include <libbutl/utility.mxx>         // compare_reference_target
 #include <libbutl/optional.mxx>
 #include <libbutl/fdstream.mxx>
 #include <libbutl/small-vector.mxx>
+#include <libbutl/default-options.mxx>
 
 namespace bpkg
 {
@@ -108,6 +109,12 @@ namespace bpkg
   using butl::ifdstream;
   using butl::ofdstream;
   using butl::fdstream_mode;
+
+  // <libbutl/default-options.mxx>
+  //
+  using butl::default_options_files;
+  using butl::default_options_entry;
+  using butl::default_options;
 }
 
 // In order to be found (via ADL) these have to be either in std:: or in
