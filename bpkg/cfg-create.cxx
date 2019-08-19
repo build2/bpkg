@@ -180,18 +180,18 @@ namespace bpkg
 
     // Use the configuration parent directory as a start directory.
     //
-    optional<dir_path> start_dir;
+    optional<dir_path> start;
 
     // Let cfg_create() complain later for the root directory used as a
     // configuration directory.
     //
     dir_path d (normalize (o.directory (), "configuration"));
     if (!d.root ())
-      start_dir = d.directory ();
+      start = d.directory ();
 
     return default_options_files {
       {path ("bpkg.options"), path ("bpkg-cfg-create.options")},
-      move (start_dir)};
+      move (start)};
   }
 
   cfg_create_options

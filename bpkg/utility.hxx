@@ -14,9 +14,9 @@
 
 #include <libbutl/ft/lang.hxx>
 
-#include <libbutl/utility.mxx> // casecmp(), reverse_iterate(), etc
-
+#include <libbutl/utility.mxx>         // casecmp(), reverse_iterate(), etc
 #include <libbutl/filesystem.mxx>
+#include <libbutl/default-options.mxx>
 
 #include <bpkg/types.hxx>
 #include <bpkg/version.hxx>
@@ -52,6 +52,11 @@ namespace bpkg
   //
   using butl::auto_rmfile;
   using butl::auto_rmdir;
+
+  // <libbutl/default-options.mxx>
+  //
+  using butl::load_default_options;
+  using butl::merge_default_options;
 
   // Empty string and path.
   //

@@ -265,7 +265,7 @@ namespace bpkg
 
     // Use the repository directory as a start directory.
     //
-    optional<dir_path> start_dir;
+    optional<dir_path> start;
 
     // Let rep_create() complain later for invalid repository directory.
     //
@@ -273,13 +273,13 @@ namespace bpkg
     {
       dir_path d (!args.empty () ? args[0] : ".");
       if (!d.empty ())
-        start_dir = move (normalize (d, "repository"));
+        start = move (normalize (d, "repository"));
     }
     catch (const invalid_path&) {}
 
     return default_options_files {
       {path ("bpkg.options"), path ("bpkg-rep-create.options")},
-      move (start_dir)};
+      move (start)};
   }
 
   rep_create_options

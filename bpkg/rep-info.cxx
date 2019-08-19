@@ -384,7 +384,7 @@ namespace bpkg
     // If bpkg-rep-info operates in the configuration directory, then use it
     // as a search start directory.
     //
-    optional<dir_path> start_dir;
+    optional<dir_path> start;
 
     // Let rep_info() complain later for invalid configuration directory.
     //
@@ -398,13 +398,13 @@ namespace bpkg
         d = current_dir;
 
       if (!d.empty ())
-        start_dir = move (normalize (d, "configuration"));
+        start = move (normalize (d, "configuration"));
     }
     catch (const invalid_path&) {}
 
     return default_options_files {
       {path ("bpkg.options"), path ("bpkg-rep-info.options")},
-      move (start_dir)};
+      move (start)};
   }
 
   rep_info_options
