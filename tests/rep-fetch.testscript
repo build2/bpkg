@@ -769,6 +769,8 @@ else
            ? "file:$~" \
            : "file:/$regex.replace($~, '\\', '/')");
 
+    rep = "$regex.replace($rep, ' ', '%20')";
+
     $* "$rep/libbar.git#master" 2>>~%EOE% &cfg/.bpkg/repos/*/***;
       %added git:.+libbar#master%
       %querying .+libbar\.git%

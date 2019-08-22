@@ -3117,6 +3117,8 @@ test.options += --no-progress
         rep = ($cxx.target.class != 'windows' \
                ? "file:$rep" \
                : "file:/$regex.replace($rep, '\\', '/')")
+
+        rep = "$regex.replace($rep, ' ', '%20')"
       end;
 
       $* "$rep/t4d" 2>>~%EOE%;

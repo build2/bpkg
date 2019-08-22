@@ -231,11 +231,11 @@ namespace bpkg
 
       // Form the buildspec.
       //
-      string bspec ("dist(");
+      string bspec ("dist('");
       bspec += pd.representation ();
-      bspec += '@';
+      bspec += "'@'";
       bspec += od.representation ();
-      bspec += ')';
+      bspec += "')";
 
       // Remove the resulting package distribution directory on failure.
       //
@@ -262,7 +262,7 @@ namespace bpkg
 
       run_b (o,
              verb_b::progress,
-             strings ({"config.dist.root=" + c.representation ()}),
+             strings ({"config.dist.root='" + c.representation () + "'"}),
              bspec);
 
       // Revert the fix-ups.

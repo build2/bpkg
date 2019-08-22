@@ -32,7 +32,7 @@ EOE
   : conf-var
   :
   {
-    $* "config.install.root=$~/opt" 2>>/~%EOE%;
+    $* "config.install.root='$~/opt'" 2>>/~%EOE%;
       %created new configuration in .+/cfg/%
       EOE
 

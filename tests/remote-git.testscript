@@ -46,6 +46,8 @@ remote = $config.bpkg.test.remote
                    ? "file://$out_git" \
                    : "file:/$regex.replace($out_git, '\\', '/')")
 
+  rep_git_local = "$regex.replace($rep_git_local, ' ', '%20')"
+
   rep_git = $rep_git_local # Default local repository URL.
 
   mkdir -p $out_git
