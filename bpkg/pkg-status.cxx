@@ -86,9 +86,9 @@ namespace bpkg
           //
           if (!p.version.empty ())
             q = q && compare_version_eq (query::id.version,
-                                         p.version,
-                                         p.version.revision != 0,
-                                         false);
+                                         canonical_version (p.version),
+                                         p.version.revision.has_value (),
+                                         false /* iteration */);
 
           // And if we found an existing package, then only look for versions
           // greater than to what already exists unless we were asked to show
@@ -98,7 +98,7 @@ namespace bpkg
           // available versions (since it is 0).
           //
           if (s != nullptr && !o.old_available ())
-            q = q && query::id.version > s->version;
+            q = q && query::id.version > canonical_version (s->version);
 
           q += order_by_version_desc (query::id.version);
 
@@ -281,7 +281,9 @@ namespace bpkg
         {
           const char* arg (args.next ());
           package p {parse_package_name (arg),
-                     parse_package_version (arg),
+                     parse_package_version (arg,
+                                            false /* allow_wildcard */,
+                                            false /* fold_zero_revision */),
                      nullptr  /* selected */,
                      nullopt  /* constraint */};
 
@@ -292,9 +294,9 @@ namespace bpkg
 
             if (!p.version.empty ())
               q = q && compare_version_eq (query::version,
-                                           p.version,
-                                           p.version.revision != 0,
-                                           false);
+                                           canonical_version (p.version),
+                                           p.version.revision.has_value (),
+                                           false /* iteration */);
 
             p.selected = db.query_one<selected_package> (q);
           }

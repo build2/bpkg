@@ -94,6 +94,11 @@ rep_fetch  += -d cfg --auth all --trust-yes 2>!
     $clone_cfg;
     $* libfoo/1.0.0 >'libfoo available 1.0.0'
 
+    : libfoo-1.0.0+0
+    :
+    $clone_cfg;
+    $* libfoo/1.0.0+0 >'libfoo available 1.0.0'
+
     : libfoo
     :
     $clone_cfg;
@@ -147,9 +152,30 @@ rep_fetch  += -d cfg --auth all --trust-yes 2>!
   : testing
   :
   {
-    $clone_cfg ./ && $rep_add $rep/testing && $rep_fetch;
+    +$clone_cfg ./ && $rep_add $rep/testing && $rep_fetch
 
-    $* libbar >'libbar available [1.1.0+1] 1.1.0 1.0.0+1 1.0.0'
+    clone_cfg = cp -r ../cfg ./
+
+    : no-version
+    :
+    {
+      $clone_cfg;
+      $* libbar >'libbar available [1.1.0+1] 1.1.0 1.0.0+1 1.0.0'
+    }
+
+    : no-revision
+    :
+    {
+      $clone_cfg;
+      $* libbar/1.0.0 >'libbar available 1.0.0+1 1.0.0'
+    }
+
+    : zero-revision
+    :
+    {
+      $clone_cfg;
+      $* libbar/1.0.0+0 >'libbar available 1.0.0'
+    }
   }
 
   : unstable

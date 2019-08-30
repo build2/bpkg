@@ -24,18 +24,27 @@ namespace bpkg
 
     bool s (true);
 
-    // See notes in pkg-build:find_available() on ignoring revision in
+    // Here an absent revision means zero revision and version X must satisfy
+    // the [X+0 ...) dependency constraint. Note that technically X < X+0.
+    //
+    version ev (v.epoch,
+                v.upstream,
+                v.release,
+                v.effective_revision (),
+                v.iteration);
+
+    // See notes in pkg-build:query_available() on ignoring revision in
     // comparison.
     //
     if (c.min_version)
     {
-      int i (v.compare (*c.min_version, c.min_version->revision == 0));
+      int i (ev.compare (*c.min_version, !c.min_version->revision));
       s = c.min_open ? i > 0 : i >= 0;
     }
 
     if (s && c.max_version)
     {
-      int i (v.compare (*c.max_version, c.max_version->revision == 0));
+      int i (ev.compare (*c.max_version, !c.max_version->revision));
       s = c.max_open ? i < 0 : i <= 0;
     }
 
@@ -47,16 +56,33 @@ namespace bpkg
   {
     assert (!l.empty () && l.complete () && !r.empty () && r.complete ());
 
-    // Note: the revision ignoring logic is still unclear/unimplemented. It
-    // seems it will be specific to each case below.
+    // Note that a revision should not be ignored if we compare the endpoint
+    // versions. However, an absent revision translates into the effective
+    // revision differently, depending on the range endpoint side and openness
+    // (see libbpkg/manifest.hxx for details). That's why we normalize
+    // endpoint versions prior to comparison.
     //
+    auto norm = [] (const version& v, bool min, bool open) -> version
+    {
+      return version (v.epoch,
+                      v.upstream,
+                      v.release,
+                      v.revision                       ? v.revision :
+                      (min && !open) || (!min && open) ? 0          :
+                                                        uint16_t (~0),
+                      v.iteration);
+    };
+
     bool s (false);
 
     if (l.min_version)
     {
       if (r.min_version)
       {
-        int i (l.min_version->compare (*r.min_version, false));
+        version lv (norm (*l.min_version, true /* min */, l.min_open));
+        version rv (norm (*r.min_version, true /* min */, r.min_open));
+
+        int i (lv.compare (rv, false /* ignore_revision */));
         if (l.min_open)
           // Doesn't matter if r is min_open or not.
           //
@@ -76,7 +102,10 @@ namespace bpkg
       {
         if (r.max_version)
         {
-          int i (l.max_version->compare (*r.max_version, false));
+          version lv (norm (*l.max_version, false /* min */, l.max_open));
+          version rv (norm (*r.max_version, false /* min */, r.max_open));
+
+          int i (lv.compare (rv, false /* ignore_revision */));
           if (l.max_open)
             // Doesn't matter if r is max_open or not.
             //

@@ -75,18 +75,14 @@ namespace bpkg
       // satisfy this constraint. The same for libfoo <= 1 -- 1+1 should
       // satisfy.
       //
-      // Note that strictly speaking 0 doesn't mean unspecified. Which means
-      // with this implementation there is no way to say "I really mean
-      // revision 0" since 1 == 1+0. One can, in the current model, say libfoo
-      // == 1+1, though. This is probably ok since one would assume any
-      // subsequent revision of a package version are just as (un)satisfactory
-      // as the first one.
+      // Note that we always compare ignoring the iteration, as it can not be
+      // specified in the manifest/command line. This way the latest iteration
+      // will always be picked up.
       //
-      // Also note that we always compare ignoring the iteration, as it can
-      // not be specified in the manifest/command line. This way the latest
-      // iteration will always be picked up.
-      //
-      query qs (compare_version_eq (vm, wildcard_version, false, false));
+      query qs (compare_version_eq (vm,
+                                    canonical_version (wildcard_version),
+                                    false /* revision */,
+                                    false /* iteration */));
 
       if (c->min_version &&
           c->max_version &&
@@ -94,7 +90,12 @@ namespace bpkg
       {
         const version& v (*c->min_version);
 
-        q = q && (compare_version_eq (vm, v, v.revision != 0, false) || qs);
+        q = q &&
+            (compare_version_eq (vm,
+                                 canonical_version (v),
+                                 v.revision.has_value (),
+                                 false /* iteration */) ||
+             qs);
       }
       else
       {
@@ -103,21 +104,25 @@ namespace bpkg
         if (c->min_version)
         {
           const version& v (*c->min_version);
+          canonical_version cv (v);
+          bool rv (v.revision);
 
           if (c->min_open)
-            qr = compare_version_gt (vm, v, v.revision != 0, false);
+            qr = compare_version_gt (vm, cv, rv, false /* iteration */);
           else
-            qr = compare_version_ge (vm, v, v.revision != 0, false);
+            qr = compare_version_ge (vm, cv, rv, false /* iteration */);
         }
 
         if (c->max_version)
         {
           const version& v (*c->max_version);
+          canonical_version cv (v);
+          bool rv (v.revision);
 
           if (c->max_open)
-            qr = qr && compare_version_lt (vm, v, v.revision != 0, false);
+            qr = qr && compare_version_lt (vm, cv, rv, false /* iteration */);
           else
-            qr = qr && compare_version_le (vm, v, v.revision != 0, false);
+            qr = qr && compare_version_le (vm, cv, rv, false /* iteration */);
         }
 
         q = q && (qr || qs);
@@ -2818,6 +2823,20 @@ namespace bpkg
 
       transaction t (db);
 
+      // Don't fold the zero revision if building the package from source so
+      // that we build the exact X+0 package revision if it is specified.
+      //
+      auto fold_zero_rev = [] (package_scheme sc)
+      {
+        bool r (false);
+        switch (sc)
+        {
+        case package_scheme::none: r = false; break;
+        case package_scheme::sys:  r = true;  break;
+        }
+        return r;
+      };
+
       for (pkg_spec& ps: specs)
       {
         if (ps.location.empty ())
@@ -2826,14 +2845,14 @@ namespace bpkg
           // otherwise add unparsed.
           //
           const char* s (ps.packages.c_str ());
-          package_scheme h (parse_package_scheme (s));
+          package_scheme sc (parse_package_scheme (s));
 
-          if (h != package_scheme::none) // Add parsed.
+          if (sc != package_scheme::none) // Add parsed.
           {
-            bool sys (h == package_scheme::sys);
+            bool sys (sc == package_scheme::sys);
 
             package_name n (parse_package_name (s));
-            version      v (parse_package_version (s, sys));
+            version v (parse_package_version (s, sys, fold_zero_rev (sc)));
 
             // For system packages not associated with a specific repository
             // location add the stub package to the imaginary system
@@ -2842,7 +2861,7 @@ namespace bpkg
             if (sys && !v.empty ())
               stubs.push_back (make_shared<available_package> (n));
 
-            pkg_args.push_back (arg_package (h,
+            pkg_args.push_back (arg_package (sc,
                                              move (n),
                                              move (v),
                                              move (ps.options),
@@ -2974,7 +2993,7 @@ namespace bpkg
             bool sys (sc == package_scheme::sys);
 
             package_name n (parse_package_name (s));
-            version      v (parse_package_version (s, sys));
+            version v (parse_package_version (s, sys, fold_zero_rev (sc)));
 
             // Check if the package is present in the repository and its
             // complements, recursively. If the version is not specified then
@@ -3311,7 +3330,14 @@ namespace bpkg
               // prior to saving them into the package arg.
               //
               package_name n (parse_package_name (package));
-              version      v (parse_package_version (package));
+
+              // Don't fold the zero revision so that we build the exact X+0
+              // package revision, if it is specified.
+              //
+              version v (
+                parse_package_version (package,
+                                       false /* allow_wildcard */,
+                                       false /* fold_zero_revision */));
 
               pa = arg_package (package_scheme::none,
                                 move (n),

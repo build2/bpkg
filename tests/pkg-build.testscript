@@ -10,8 +10,8 @@
 # Source repository:
 #
 # pkg-build
-# |-- libbar-1.0.0.tar.gz
-# |-- libbaz-1.1.0.tar.gz
+# |-- libbar-1.0.0.tar.gz -> libfoo
+# |-- libbaz-1.1.0.tar.gz -> libfoo, libbar
 # |-- libfix-0.0.1.tar.gz
 # |-- libfoo-0.0.1.tar.gz -> libfix
 # |-- libfoo-1.0.0.tar.gz
@@ -95,6 +95,10 @@
 # |   |-- libfox-1.0.0.tar.gz
 # |   `-- repositories.manifest
 # |
+# |-- t4e
+# |   |-- libfoo-1.1.0+1.tar.gz
+# |   `-- repositories.manifest
+# |
 # |-- t5
 # |   |-- libbar-1.2.0.tar.gz
 # |   `-- repositories.manifest
@@ -131,6 +135,7 @@
   cp -r $src/t4b $out/t4b && $rep_create $out/t4b &$out/t4b/packages.manifest
   cp -r $src/t4c $out/t4c && $rep_create $out/t4c &$out/t4c/packages.manifest
   cp -r $src/t4d $out/t4d && $rep_create $out/t4d &$out/t4d/packages.manifest
+  cp -r $src/t4e $out/t4e && $rep_create $out/t4e &$out/t4e/packages.manifest
   cp -r $src/t5  $out/t5  && $rep_create $out/t5  &$out/t5/packages.manifest
   cp -r $src/t6  $out/t6  && $rep_create $out/t6  &$out/t6/packages.manifest
 
@@ -315,6 +320,33 @@ test.options += --no-progress
         EOE
     }
   }
+
+  : revision
+  :
+  {
+    +$clone_root_cfg
+    +$rep_add $rep/t4e && $rep_fetch
+
+    : latest
+    :
+    {
+      $clone_cfg;
+
+      $* libfoo/1.1.0 >>EOO
+        new libfoo/1.1.0+1
+        EOO
+    }
+
+    : zero
+    :
+    {
+      $clone_cfg;
+
+      $* libfoo/1.1.0+0 >>EOO
+        new libfoo/1.1.0
+        EOO
+    }
+  }
 }
 
 : libbar-libfoo
@@ -418,6 +450,34 @@ test.options += --no-progress
         EOO
 
       $pkg_purge libfoo 2>'purged libfoo/1.1.0'
+    }
+  }
+
+  : dependency-revision
+  :
+  {
+    +$clone_root_cfg && $rep_add $rep/t4e && $rep_fetch
+
+    : latest
+    :
+    {
+      $clone_cfg;
+
+      $* libbar/1.1.0 >>EOO
+        new libfoo/1.1.0+1 (required by libbar)
+        new libbar/1.1.0
+        EOO
+    }
+
+    : zero
+    :
+    {
+      $clone_cfg;
+
+      $* libbar/1.1.1 >>EOO
+        new libfoo/1.1.0 (required by libbar)
+        new libbar/1.1.1
+        EOO
     }
   }
 }

@@ -42,15 +42,39 @@ namespace bpkg
 
   // Register the data migration functions.
   //
-#if 0
   template <odb::schema_version v>
   using migration_entry = odb::data_migration_entry<v, DB_SCHEMA_VERSION_BASE>;
 
   static const migration_entry<6>
   migrate_v6 ([] (odb::database& db)
   {
+    // Set the zero version revision to NULL.
+    //
+    auto migrate_rev = [&db] (const char* table, const char* column)
+    {
+      db.execute (string ("UPDATE ") + table + " SET " + column + " = NULL " +
+                          "WHERE " + column + " = 0");
+    };
+
+    // The version package manifest value. Note: is not part of a primary key.
+    //
+    migrate_rev ("selected_package", "version_revision");
+
+    // The depends package manifest value endpoint versions.
+    //
+    // Note that previously the zero and absent revisions had the same
+    // semantics. Now the semantics differs and the zero revision is preserved
+    // (see libbpkg/manifest.hxx for details).
+    //
+    migrate_rev ("selected_package_prerequisites", "min_version_revision");
+    migrate_rev ("selected_package_prerequisites", "max_version_revision");
+
+    migrate_rev ("available_package_dependency_alternatives",
+                 "dep_min_version_revision");
+
+    migrate_rev ("available_package_dependency_alternatives",
+                 "dep_max_version_revision");
   });
-#endif
 
   database
   open (const dir_path& d, tracer& tr, bool create)

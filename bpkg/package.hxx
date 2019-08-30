@@ -28,7 +28,7 @@
 //
 #define DB_SCHEMA_VERSION_BASE 5
 
-#pragma db model version(DB_SCHEMA_VERSION_BASE, 5, closed)
+#pragma db model version(DB_SCHEMA_VERSION_BASE, 6, closed)
 
 namespace bpkg
 {
@@ -102,7 +102,7 @@ namespace bpkg
     uint16_t epoch;
     string canonical_upstream;
     string canonical_release;
-    uint16_t revision;
+    optional<uint16_t> revision;
     uint32_t iteration;
     string upstream;
     optional<string> release;
@@ -112,10 +112,12 @@ namespace bpkg
     _version () = default;
     _version (uint16_t e,
               string cu, string cr,
-              uint16_t rv, uint32_t i, string u, optional<string> rl)
+              optional<uint16_t> rv, uint32_t i,
+              string u, optional<string> rl)
         : epoch (e),
-          canonical_upstream (cu), canonical_release (cr),
-          revision (rv), iteration (i), upstream (u), release (rl) {}
+          canonical_upstream (move (cu)), canonical_release (move (cr)),
+          revision (rv), iteration (i),
+          upstream (move (u)), release (move (rl)) {}
   };
 }
 
@@ -147,6 +149,11 @@ namespace bpkg
   // strange contraption is for. See available_package for an example
   // on how everything fits together.
   //
+  // Note that the object id cannot contain an optional member which is why we
+  // make the revision type uint16_t and represent nullopt as zero. This
+  // should be ok for package object ids referencing the package manifest
+  // version values because an absent revision and zero revision mean the
+  // same thing.
   //
   #pragma db value
   struct canonical_version
@@ -156,6 +163,16 @@ namespace bpkg
     string   canonical_release;
     uint16_t revision;
     uint32_t iteration;
+
+    canonical_version () = default;
+
+    explicit
+    canonical_version (const version& v)
+        : epoch (v.epoch),
+          canonical_upstream (v.canonical_upstream),
+          canonical_release (v.canonical_release),
+          revision (v.effective_revision ()),
+          iteration (v.iteration) {}
 
     // By default SQLite3 uses BINARY collation for TEXT columns. So while this
     // means we don't need to do anything special to make "absent" (~) and
@@ -169,14 +186,15 @@ namespace bpkg
   #pragma db value transient
   struct upstream_version: version
   {
-    #pragma db member(upstream_) virtual(string)                         \
-      get(this.upstream)                                                 \
-      set(this = bpkg::version (0, std::move (?), std::string (), 0, 0))
+    #pragma db member(upstream_) virtual(string)                 \
+      get(this.upstream)                                         \
+      set(this = bpkg::version (                                 \
+            0, std::move (?), std::string (), bpkg::nullopt, 0))
 
-    #pragma db member(release_) virtual(optional_string)              \
-      get(this.release)                                               \
-      set(this = bpkg::version (                                      \
-            0, std::move (this.upstream), std::move (?), 0, 0))
+    #pragma db member(release_) virtual(optional_string)                    \
+      get(this.release)                                                     \
+      set(this = bpkg::version (                                            \
+            0, std::move (this.upstream), std::move (?), bpkg::nullopt, 0))
 
     upstream_version () = default;
     upstream_version (version v): version (move (v)) {}
@@ -186,10 +204,14 @@ namespace bpkg
     void
     init (const canonical_version& cv, const upstream_version& uv)
     {
+      // Note: revert the zero revision mapping (see above).
+      //
       *this = version (cv.epoch,
                        uv.upstream,
                        uv.release,
-                       cv.revision,
+                       (cv.revision != 0
+                        ? optional<uint16_t> (cv.revision)
+                        : nullopt),
                        cv.iteration);
 
       assert (cv.canonical_upstream == canonical_upstream &&
@@ -1147,17 +1169,20 @@ namespace bpkg
   //
   // They allow comparing objects that have epoch, canonical_upstream,
   // canonical_release, revision, and iteration data members. The idea is that
-  // this works for both query members of types version and canonical_version
-  // as well as for comparing canonical_version to version.
+  // this works for both query members of types version and canonical_version.
+  // Note, though, that the object revisions should be comparable (both
+  // optional, numeric, etc), so to compare version to query member or
+  // canonical_version you may need to explicitly convert the version object
+  // to canonical_version.
   //
-  // Note that if the comparison operation ignores the revision, then it also
-  // unconditionally ignores the iteration (that semantically extends the
+  // Also note that if the comparison operation ignores the revision, then it
+  // also unconditionally ignores the iteration (that semantically extends the
   // revision).
   //
   template <typename T1, typename T2>
   inline auto
   compare_version_eq (const T1& x, const T2& y, bool revision, bool iteration)
-    -> decltype (x.epoch == y.epoch)
+    -> decltype (x.revision == y.revision)
   {
     assert (revision || !iteration); // !revision && iteration is meaningless.
 
@@ -1181,7 +1206,7 @@ namespace bpkg
 
   template <typename T1, typename T2>
   inline auto
-  operator== (const T1& x, const T2& y) -> decltype (x.epoch == y.epoch)
+  operator== (const T1& x, const T2& y) -> decltype (x.revision == y.revision)
   {
   return compare_version_eq (x, y, true);
   }
@@ -1190,7 +1215,7 @@ namespace bpkg
   template <typename T1, typename T2>
   inline auto
   compare_version_ne (const T1& x, const T2& y, bool revision, bool iteration)
-    -> decltype (x.epoch == y.epoch)
+    -> decltype (x.revision == y.revision)
   {
     assert (revision || !iteration); // !revision && iteration is meaningless.
 
@@ -1207,7 +1232,7 @@ namespace bpkg
 
   template <typename T1, typename T2>
   inline auto
-  operator!= (const T1& x, const T2& y) -> decltype (x.epoch != y.epoch)
+  operator!= (const T1& x, const T2& y) -> decltype (x.revision != y.revision)
   {
     return compare_version_ne (x, y, true, true);
   }
@@ -1215,7 +1240,7 @@ namespace bpkg
   template <typename T1, typename T2>
   inline auto
   compare_version_lt (const T1& x, const T2& y, bool revision, bool iteration)
-    -> decltype (x.epoch == y.epoch)
+    -> decltype (x.revision == y.revision)
   {
     assert (revision || !iteration); // !revision && iteration is meaningless.
 
@@ -1245,7 +1270,7 @@ namespace bpkg
 
   template <typename T1, typename T2>
   inline auto
-  operator< (const T1& x, const T2& y) -> decltype (x.epoch < y.epoch)
+  operator< (const T1& x, const T2& y) -> decltype (x.revision < y.revision)
   {
     return compare_version_lt (x, y, true, true);
   }
@@ -1253,7 +1278,7 @@ namespace bpkg
   template <typename T1, typename T2>
   inline auto
   compare_version_le (const T1& x, const T2& y, bool revision, bool iteration)
-    -> decltype (x.epoch == y.epoch)
+    -> decltype (x.revision == y.revision)
   {
     assert (revision || !iteration); // !revision && iteration is meaningless.
 
@@ -1301,7 +1326,7 @@ namespace bpkg
 
   template <typename T1, typename T2>
   inline auto
-  operator<= (const T1& x, const T2& y) -> decltype (x.epoch <= y.epoch)
+  operator<= (const T1& x, const T2& y) -> decltype (x.revision <= y.revision)
   {
     return compare_version_le (x, y, true);
   }
@@ -1310,7 +1335,7 @@ namespace bpkg
   template <typename T1, typename T2>
   inline auto
   compare_version_gt (const T1& x, const T2& y, bool revision, bool iteration)
-    -> decltype (x.epoch == y.epoch)
+    -> decltype (x.revision == y.revision)
   {
     assert (revision || !iteration); // !revision && iteration is meaningless.
 
@@ -1340,7 +1365,7 @@ namespace bpkg
 
   template <typename T1, typename T2>
   inline auto
-  operator> (const T1& x, const T2& y) -> decltype (x.epoch > y.epoch)
+  operator> (const T1& x, const T2& y) -> decltype (x.revision > y.revision)
   {
     return compare_version_gt (x, y, true, true);
   }
@@ -1348,7 +1373,7 @@ namespace bpkg
   template <typename T1, typename T2>
   inline auto
   compare_version_ge (const T1& x, const T2& y, bool revision, bool iteration)
-    -> decltype (x.epoch == y.epoch)
+    -> decltype (x.revision == y.revision)
   {
     assert (revision || !iteration); // !revision && iteration is meaningless.
 
@@ -1393,7 +1418,7 @@ namespace bpkg
 
   template <typename T1, typename T2>
   inline auto
-  operator>= (const T1& x, const T2& y) -> decltype (x.epoch >= y.epoch)
+  operator>= (const T1& x, const T2& y) -> decltype (x.revision >= y.revision)
   {
     return compare_version_ge (x, y, true, true);
   }

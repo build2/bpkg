@@ -68,7 +68,9 @@ namespace bpkg
   }
 
   version
-  parse_package_version (const char* s, bool allow_wildcard)
+  parse_package_version (const char* s,
+                         bool allow_wildcard,
+                         bool fold_zero_revision)
   {
     using traits = string::traits_type;
 
@@ -82,7 +84,7 @@ namespace bpkg
 
       try
       {
-        version r (p);
+        version r (p, fold_zero_revision);
 
         if (r.release && r.release->empty ())
           throw invalid_argument ("earliest version");

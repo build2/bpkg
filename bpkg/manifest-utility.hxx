@@ -47,12 +47,18 @@ namespace bpkg
   // Return empty version if none is specified.
   //
   version
-  parse_package_version (const char*, bool allow_wildcard = false);
+  parse_package_version (const char*,
+                         bool allow_wildcard = false,
+                         bool fold_zero_revision = true);
 
   inline version
-  parse_package_version (const string& s, bool allow_wildcard = false)
+  parse_package_version (const string& s,
+                         bool allow_wildcard = false,
+                         bool fold_zero_revision = true)
   {
-    return parse_package_version (s.c_str (), allow_wildcard);
+    return parse_package_version (s.c_str (),
+                                  allow_wildcard,
+                                  fold_zero_revision);
   }
 
   // If the passed location is a relative local path, then assume this is a

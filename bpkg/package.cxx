@@ -16,7 +16,7 @@ using namespace std;
 
 namespace bpkg
 {
-  const version wildcard_version (0, "0", nullopt, 0, 0);
+  const version wildcard_version (0, "0", nullopt, nullopt, 0);
 
   // available_package_id
   //
@@ -290,7 +290,10 @@ namespace bpkg
 
       query q (
         query::package::id.name == n &&
-        compare_version_eq (query::package::id.version, v, true, false));
+        compare_version_eq (query::package::id.version,
+                            canonical_version (v),
+                            true /* revision */,
+                            false /* iteration */));
 
       for (const auto& prf: db.query<package_repository_fragment> (q))
       {
@@ -306,7 +309,10 @@ namespace bpkg
     shared_ptr<selected_package> p (db.find<selected_package> (n));
 
     if (p == nullptr || !p->src_root ||
-        compare_version_ne (v, p->version, true, false))
+        compare_version_ne (v,
+                            p->version,
+                            true /* revision */,
+                            false /* iteration */))
       return nullopt;
 
     string mc (sha256 (o, d / manifest_file));

@@ -1307,7 +1307,10 @@ namespace bpkg
         const available_package_id& id (prf.package_id);
 
         if (id.name == ap.name &&
-            compare_version_eq (id.version, ap.version, true, false))
+            compare_version_eq (id.version,
+                                ap.version,
+                                true /* revision */,
+                                false /* iteration */))
         {
           shared_ptr<available_package> p (db.load<available_package> (id));
           const version& v (p->version);
