@@ -10,7 +10,7 @@
 #include <libbutl/git.mxx>
 #include <libbutl/utility.mxx>          // digit(), xdigit()
 #include <libbutl/process.mxx>
-#include <libbutl/filesystem.mxx>       // path_match(), path_entry()
+#include <libbutl/filesystem.mxx>       // path_{entry,match,pattern}()
 #include <libbutl/semantic-version.mxx>
 #include <libbutl/standard-version.mxx> // parse_standard_version()
 
@@ -692,7 +692,22 @@ namespace bpkg
     search_names (const string& n, bool abbr_commit) const
     {
       search_result r;
-      bool pattern (n.find_first_of ("*?") != string::npos);
+      bool pattern (false);
+
+      // If the name is not a valid path, then we don't consider it as a
+      // pattern.
+      //
+      // Note that creating a path starting with '/' (that we use for
+      // anchoring search to refs; see below for details) fails on Windows, so
+      // we strip it.
+      //
+      try
+      {
+        pattern  = path_pattern (path (n[0] != '/'
+                                       ? n.c_str ()
+                                       : n.c_str () + 1));
+      }
+      catch (const invalid_path&) {}
 
       auto search = [this, pattern, &r] (const string& n)
       {
