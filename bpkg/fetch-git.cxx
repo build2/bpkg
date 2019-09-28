@@ -718,7 +718,7 @@ namespace bpkg
           path p (n);
           for (const ref& rf: *this)
           {
-            if (!rf.peeled && path_match (p, path (rf.name)))
+            if (!rf.peeled && path_match (path (rf.name), p))
             {
               // Note that the same name can be matched by different patterns
               // (like /refs/** and /refs/tags/**), so we need to suppress
