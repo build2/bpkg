@@ -14,7 +14,7 @@
 
 #include <libbutl/ft/lang.hxx>
 
-#include <libbutl/utility.mxx>         // casecmp(), reverse_iterate(), etc
+#include <libbutl/utility.mxx>         // icasecmp(), reverse_iterate(), etc
 #include <libbutl/filesystem.mxx>
 #include <libbutl/default-options.mxx>
 
@@ -38,7 +38,7 @@ namespace bpkg
 
   // <libbutl/utility.mxx>
   //
-  using butl::casecmp;
+  using butl::icasecmp;
   using butl::reverse_iterate;
 
   using butl::make_guard;

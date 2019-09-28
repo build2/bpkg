@@ -28,7 +28,7 @@ namespace bpkg
     // Ignore the character case for consistency with a case insensitivity of
     // URI schemes some of which we may support in the future.
     //
-    if (casecmp (s, "sys:", 4) == 0)
+    if (icasecmp (s, "sys:", 4) == 0)
     {
       s += 4;
       return package_scheme::sys;

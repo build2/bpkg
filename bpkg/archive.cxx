@@ -31,7 +31,7 @@ namespace bpkg
   bsdtar (const char* p)
   {
     const char* l (path::traits_type::find_leaf (p));
-    return l != nullptr && casecmp (l, "bsdtar", 6) == 0;
+    return l != nullptr && icasecmp (l, "bsdtar", 6) == 0;
   }
 #endif
 

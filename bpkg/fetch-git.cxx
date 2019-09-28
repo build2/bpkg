@@ -421,7 +421,7 @@ namespace bpkg
     // details).
     //
 #ifdef _WIN32
-    if (casecmp (u, "file://", 7) == 0 && u[7] != '/')
+    if (icasecmp (u, "file://", 7) == 0 && u[7] != '/')
       u.insert (7, 1, '/');
 #endif
 
