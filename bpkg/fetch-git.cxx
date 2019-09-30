@@ -10,7 +10,8 @@
 #include <libbutl/git.mxx>
 #include <libbutl/utility.mxx>          // digit(), xdigit()
 #include <libbutl/process.mxx>
-#include <libbutl/filesystem.mxx>       // path_{entry,match,pattern}()
+#include <libbutl/filesystem.mxx>       // path_entry
+#include <libbutl/path-pattern.mxx>
 #include <libbutl/semantic-version.mxx>
 #include <libbutl/standard-version.mxx> // parse_standard_version()
 
