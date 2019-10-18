@@ -4,6 +4,8 @@
 
 .include common.testscript
 
+config_cxx = config.cxx=$quote($recall($cxx.path) $cxx.mode, true)
+
 pkg_status += -d cfg
 
 : non-empty
@@ -48,7 +50,7 @@ EOE
   : module
   :
   {
-    $* cxx "config.cxx=$config.cxx" 2>>/~%EOE%;
+    $* cxx $config_cxx 2>>/~%EOE%;
       %created new configuration in .+/cfg/%
       EOE
 
@@ -76,7 +78,7 @@ EOE
   : existing
   :
   {
-    $build 'create(cfg/,cc)' "config.cxx=$config.cxx" 2>!;
+    $build 'create(cfg/,cc)' $config_cxx 2>!;
 
     $* --existing 2>>/~%EOE%;
       %initialized existing configuration in .+/cfg/%

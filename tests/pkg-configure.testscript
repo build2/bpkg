@@ -66,7 +66,7 @@
   $rep_create $out/stable &$out/stable/packages.manifest
 end
 
-test.arguments += "config.cxx=$config.cxx"
+test.arguments += config.cxx=$quote($recall($cxx.path) $cxx.mode, true)
 
 pkg_disfigure += -d cfg
 pkg_fetch     += -d cfg 2>!
