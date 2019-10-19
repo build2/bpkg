@@ -2709,10 +2709,12 @@ test.options += --no-progress
 {
   test.arguments += --yes
 
+  +$cfg_create cxx $config_cxx -d cfg 2>- &cfg/***
+
   : direct
   :
   {
-    $clone_root_cfg;
+    $clone_cfg;
 
     cp -r $src/libfoo-1.1.0/ libfoo;
     echo "depends: libfoo" >+ libfoo/manifest;
@@ -2729,10 +2731,12 @@ test.options += --no-progress
   : indirect
   :
   {
+    +$clone_cfg
+
     : new
     :
     {
-      $clone_root_cfg;
+      $clone_cfg;
 
       cp -r $src/libfoo-1.1.0/ libfoo;
       echo "depends: libbar" >+ libfoo/manifest;
@@ -2761,7 +2765,7 @@ test.options += --no-progress
     : upgrade
     :
     {
-      $clone_root_cfg;
+      $clone_cfg;
 
       cp -r $src/libfoo-1.1.0/ libfoo;
       $rep_add libfoo --type dir;
@@ -3485,8 +3489,13 @@ test.options += --no-progress
     {
       clone_cfg = cp -pr --no-cleanup ../../cfg ./
 
-      +$build 'dist(../../libhello/@./out/)' \
-              $config_cxx config.dist.root=./ \
+      # Distribute using the dedicated configuration to avoid the 'c and cxx
+      # module toolchain pattern mismatch' warning.
+      #
+      +$cfg_create cxx $config_cxx -d cfg 2>- &cfg/***
+
+      +$build 'dist(../../libhello/@./cfg/libhello/)' \
+              config.dist.root=./ \
               config.dist.archives=tar.gz 2>! \
               &libhello-1.0.1/*** &libhello-1.0.1.tar.gz
 

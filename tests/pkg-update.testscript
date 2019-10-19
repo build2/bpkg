@@ -48,7 +48,9 @@
                                     &$out/hello/signature.manifest
 end
 
-pkg_configure += -d cfg config.cxx=$quote($recall($cxx.path) $cxx.mode, true) 2>!
+config_cxx = config.cxx=$quote($recall($cxx.path) $cxx.mode, true)
+
+pkg_configure += -d cfg $config_cxx 2>!
 pkg_disfigure += -d cfg
 pkg_fetch     += -d cfg 2>!
 pkg_purge     += -d cfg
@@ -137,7 +139,7 @@ $* 2>>EOE != 0
 : vars
 :
 {
-  +$clone_cfg
+  +$cfg_create cxx $config_cxx -d cfg 2>- &cfg/***
   +$rep_fetch $rep/hello --trust $cert_fp &cfg/.bpkg/certs/**
 
   : global-and-local
