@@ -61,6 +61,17 @@ namespace bpkg
                                   fold_zero_revision);
   }
 
+  // Extract the package constraint from either <name>[/<version>] or
+  // <name><version-constraint> forms, unless version_only is true. For the
+  // former case return the `== <version>` constraint. Return nullopt if only
+  // the package name is specified.
+  //
+  optional<version_constraint>
+  parse_package_version_constraint (const char*,
+                                    bool allow_wildcard = false,
+                                    bool fold_zero_revision = true,
+                                    bool version_only = false);
+
   // If the passed location is a relative local path, then assume this is a
   // relative path to the repository directory and complete it based on the
   // current working directory. Diagnose invalid locations and throw failed.

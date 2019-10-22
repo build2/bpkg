@@ -262,6 +262,40 @@ namespace bpkg
     return system ? "sys:" + n.string () + vs : n.string () + vs;
   }
 
+  string
+  package_string (const package_name& name,
+                  const optional<version_constraint>& constraint,
+                  bool system)
+  {
+    // Fallback to the version type-based overload if the constraint is not
+    // specified.
+    //
+    if (!constraint)
+      return package_string (name, version (), system);
+
+    // There are no scenarios where the version constrain is present but is
+    // empty (both endpoints are nullopt).
+    //
+    assert (!constraint->empty ());
+
+    // If the endpoint versions are equal then represent the constraint as the
+    // "<name>/<version>" string rather than "<name> == <version>", using the
+    // version type-based overload.
+    //
+    const optional<version>& min_ver (constraint->min_version);
+    bool eq (min_ver == constraint->max_version);
+
+    if (eq)
+      return package_string (name, *min_ver, system);
+
+    if (system)
+      return package_string (name, version (), system) + "/...";
+
+    // Quote the result as it contains the space character.
+    //
+    return "'" + name.string () + ' ' + constraint->string () + "'";
+  }
+
   // selected_package
   //
   string selected_package::

@@ -53,7 +53,7 @@ namespace bpkg
   static odb::result<available_package>
   query_available (database& db,
                    const package_name& name,
-                   const optional<dependency_constraint>& c)
+                   const optional<version_constraint>& c)
   {
     using query = query<available_package>;
 
@@ -164,7 +164,7 @@ namespace bpkg
   vector<pair<shared_ptr<available_package>, shared_ptr<repository_fragment>>>
   find_available (database& db,
                   const package_name& name,
-                  const optional<dependency_constraint>& c)
+                  const optional<version_constraint>& c)
   {
     vector<pair<shared_ptr<available_package>,
                 shared_ptr<repository_fragment>>> r;
@@ -208,7 +208,7 @@ namespace bpkg
   vector<pair<shared_ptr<available_package>, shared_ptr<repository_fragment>>>
   find_available (database& db,
                   const package_name& name,
-                  const optional<dependency_constraint>& c,
+                  const optional<version_constraint>& c,
                   const vector<shared_ptr<repository_fragment>>& rfs,
                   bool prereq = true)
   {
@@ -239,7 +239,7 @@ namespace bpkg
   static pair<shared_ptr<available_package>, shared_ptr<repository_fragment>>
   find_available_one (database& db,
                       const package_name& name,
-                      const optional<dependency_constraint>& c,
+                      const optional<version_constraint>& c,
                       const shared_ptr<repository_fragment>& rf,
                       bool prereq = true)
   {
@@ -260,7 +260,7 @@ namespace bpkg
   static pair<shared_ptr<available_package>, shared_ptr<repository_fragment>>
   find_available_one (database& db,
                       const package_name& name,
-                      const optional<dependency_constraint>& c,
+                      const optional<version_constraint>& c,
                       const vector<shared_ptr<repository_fragment>>& rfs,
                       bool prereq = true)
   {
@@ -328,6 +328,19 @@ namespace bpkg
     return make_pair (make_shared<available_package> (move (m)), move (af));
   }
 
+  // Return true if the version constraint represents the wildcard version.
+  //
+  static inline bool
+  wildcard (const version_constraint& vc)
+  {
+    bool r (vc.min_version && *vc.min_version == wildcard_version);
+
+    if (r)
+      assert (vc.max_version == vc.min_version);
+
+    return r;
+  }
+
   // A "dependency-ordered" list of packages and their prerequisites.
   // That is, every package on the list only possibly depending on the
   // ones after it. In a nutshell, the usage is as follows: we first
@@ -344,7 +357,7 @@ namespace bpkg
   //
   // During the satisfaction phase, we collect all the packages, their
   // prerequisites (and so on, recursively) in a map trying to satisfy
-  // any dependency constraints. Specifically, during this step, we may
+  // any version constraints. Specifically, during this step, we may
   // "upgrade" or "downgrade" a package that is already in a map as a
   // result of another package depending on it and, for example, requiring
   // a different version. One notable side-effect of this process is that
@@ -415,10 +428,10 @@ namespace bpkg
     struct constraint_type
     {
       string dependent;
-      dependency_constraint value;
+      version_constraint value;
 
       constraint_type () = default;
-      constraint_type (string d, dependency_constraint v)
+      constraint_type (string d, version_constraint v)
           : dependent (move (d)), value (move (v)) {}
     };
 
@@ -868,9 +881,9 @@ namespace bpkg
         bool system (false);
         bool dep_optional (false);
 
-        // If the user specified the desired dependency version, then we will
-        // use it to overwrite the constraint imposed by the dependent
-        // package, checking that it is still satisfied.
+        // If the user specified the desired dependency version constraint,
+        // then we will use it to overwrite the constraint imposed by the
+        // dependent package, checking that it is still satisfied.
         //
         // Note that we can't just rely on the execution plan refinement that
         // will pick up the proper dependency version at the end of the day.
@@ -880,17 +893,10 @@ namespace bpkg
         // pkg-build/dependency/apply-constraints/resolve-conflict{1,2}
         // tests).
 
-        // Points to the version constraint created from the desired
-        // dependency version, if specified. Is NULL otherwise. Can be used as
-        // boolean flag.
+        // Points to the desired dependency version constraint, if specified,
+        // and is NULL otherwise. Can be used as boolean flag.
         //
-        const dependency_constraint* dep_constr (nullptr);
-
-        auto dep_version = [&dep_constr] () -> const version&
-        {
-          assert (dep_constr && dep_constr->min_version);
-          return *dep_constr->min_version;
-        };
+        const version_constraint* dep_constr (nullptr);
 
         auto i (map_.find (dn));
         if (i != map_.end ())
@@ -900,19 +906,23 @@ namespace bpkg
           dep_optional = !bp.action; // Is pre-entered.
 
           if (dep_optional &&
-              bp.hold_version && *bp.hold_version) // The version is specified,
+              //
+              // The version constraint is specified,
+              //
+              bp.hold_version && *bp.hold_version)
           {
             assert (bp.constraints.size () == 1);
 
             const build_package::constraint_type& c (bp.constraints[0]);
 
-            dep_constr = &c.value; // Assign before dep_version() usage.
+            dep_constr = &c.value;
             system = bp.system;
 
             // If the user-specified dependency constraint is the wildcard
             // version, then it satisfies any dependency constraint.
             //
-            if (!satisfies (dep_version (), dp.constraint))
+            if (!wildcard (*dep_constr) &&
+                !satisfies (*dep_constr, dp.constraint))
               fail << "unable to satisfy constraints on package " << dn <<
                 info << name << " depends on (" << dn << " "
                    << *dp.constraint << ")" <<
@@ -928,9 +938,9 @@ namespace bpkg
                              : dependency {dn, *dep_constr});
 
         // First see if this package is already selected. If we already have
-        // it in the configuraion and it satisfies our dependency constraint,
-        // then we don't want to be forcing its upgrade (or, worse,
-        // downgrade).
+        // it in the configuraion and it satisfies our dependency version
+        // constraint, then we don't want to be forcing its upgrade (or,
+        // worse, downgrade).
         //
         shared_ptr<selected_package> dsp (db.find<selected_package> (dn));
 
@@ -968,10 +978,10 @@ namespace bpkg
               ? find_available_one (db, dn, nullopt, root)
               : find_available_one (db,
                                     dn,
-                                    dependency_constraint (dsp->version),
+                                    version_constraint (dsp->version),
                                     root);
 
-            // A stub satisfies any dependency constraint so we weed them out
+            // A stub satisfies any version constraint so we weed them out
             // (returning stub as an available package feels wrong).
             //
             if (dap == nullptr || dap->stub ())
@@ -1013,17 +1023,18 @@ namespace bpkg
           // Note that this logic (naturally) does not apply if the package is
           // already selected by the user (see above).
           //
-          // Also note that for the user-specified dependency version we rely
-          // on its presence in repositories of the first dependent met. As
-          // a result, we may fail too early if the version doesn't belong to
-          // its repositories, but belongs to the ones of some dependent that
+          // Also note that for the user-specified dependency version
+          // constraint we rely on the satisfying package version be present
+          // in repositories of the first dependent met. As a result, we may
+          // fail too early if such package version doesn't belong to its
+          // repositories, but belongs to the ones of some dependent that
           // we haven't met yet. Can we just search all repositories for an
-          // available package of this version and just take it, if present?
-          // We could, but then which repository should we pick? The wrong
-          // choice can introduce some unwanted repositories and package
-          // versions into play. So instead, we will postpone collecting the
-          // problematic dependent, expecting that some other one will find
-          // the version in its repositories.
+          // available package of the appropriate version and just take it,
+          // if present? We could, but then which repository should we pick?
+          // The wrong choice can introduce some unwanted repositories and
+          // package versions into play. So instead, we will postpone
+          // collecting the problematic dependent, expecting that some other
+          // one will find the appropriate version in its repositories.
           //
           // For a system package we pick the latest version just to make sure
           // the package is recognized. An unrecognized package means the
@@ -1048,8 +1059,7 @@ namespace bpkg
             // We need to be careful not to print the wildcard-based
             // constraint.
             //
-            if (d.constraint &&
-                (!dep_constr || dep_version () != wildcard_version))
+            if (d.constraint && (!dep_constr || !wildcard (*dep_constr)))
               dr << ' ' << *d.constraint;
 
             dr << " of package " << name;
@@ -1075,8 +1085,8 @@ namespace bpkg
           {
             // Note that the constraint can safely be printed as it can't
             // be a wildcard (produced from the user-specified dependency
-            // version). If it were, then the system version wouldn't be NULL
-            // and would satisfy itself.
+            // version constraint). If it were, then the system version
+            // wouldn't be NULL and would satisfy itself.
             //
             if (dap->system_version () == nullptr)
               fail << "dependency " << d << " of package " << name << " is "
@@ -1087,7 +1097,9 @@ namespace bpkg
             if (!satisfies (*dap->system_version (), d.constraint))
               fail << "dependency " << d << " of package " << name << " is "
                    << "not available in source" <<
-                info << package_string (dn,  *dap->system_version (), true)
+                info << package_string (dn,
+                                        *dap->system_version (),
+                                        true /* system */)
                    << " does not satisfy the constrains";
 
             system = true;
@@ -1403,7 +1415,7 @@ namespace bpkg
         if (check)
         {
           const version& av (p.available_version ());
-          const dependency_constraint& c (*pd.constraint);
+          const version_constraint& c (*pd.constraint);
 
           if (!satisfies (av, c))
           {
@@ -1756,7 +1768,7 @@ namespace bpkg
   // selected package minor version reached the limit (see
   // standard-version.cxx for details).
   //
-  static optional<dependency_constraint>
+  static optional<version_constraint>
   patch_constraint (const shared_ptr<selected_package>& sp, bool quiet = false)
   {
     const package_name& nm (sp->name);
@@ -1779,7 +1791,7 @@ namespace bpkg
 
     try
     {
-      return dependency_constraint ("~" + vs);
+      return version_constraint ("~" + vs);
     }
     // Note that the only possible reason for invalid_argument exception to
     // be thrown is that minor version reached the 99999 limit (see
@@ -1800,12 +1812,12 @@ namespace bpkg
   struct dependency_package
   {
     package_name name;
-    bpkg::version version;                 // Empty if unspecified.
-    shared_ptr<selected_package> selected; // NULL if not present.
+    optional<version_constraint> constraint; // nullopt if unspecified.
+    shared_ptr<selected_package> selected;   // NULL if not present.
     bool system;
-    bool patch;                            // Only for an empty version.
+    bool patch;                              // Only for an empty version.
     bool keep_out;
-    strings config_vars;                   // Only if not system.
+    strings config_vars;                     // Only if not system.
   };
   using dependency_packages = vector<dependency_package>;
 
@@ -1817,12 +1829,12 @@ namespace bpkg
   // upgrade/downgrade to as well as the repository fragment it must come
   // from, and the system flag.
   //
-  // If the explicitly specified dependency version can not be found in the
-  // dependents repositories, then return the "no changes are necessary"
-  // result if ignore_unsatisfiable argument is true and fail otherwise. The
-  // common approach is to pass true for this argument until the execution
-  // plan is finalized, assuming that the problematic dependency might be
-  // dropped.
+  // If the package version that satisfies explicitly specified dependency
+  // version constraint can not be found in the dependents repositories, then
+  // return the "no changes are necessary" result if ignore_unsatisfiable
+  // argument is true and fail otherwise. The common approach is to pass true
+  // for this argument until the execution plan is finalized, assuming that
+  // the problematic dependency might be dropped.
   //
   struct evaluate_result
   {
@@ -1833,12 +1845,12 @@ namespace bpkg
   };
 
   using package_dependents = vector<pair<shared_ptr<selected_package>,
-                                         optional<dependency_constraint>>>;
+                                         optional<version_constraint>>>;
 
   static optional<evaluate_result>
   evaluate_dependency (database&,
                        const shared_ptr<selected_package>&,
-                       const version& desired,
+                       const optional<version_constraint>& desired,
                        bool desired_sys,
                        bool patch,
                        bool explicitly,
@@ -1883,18 +1895,20 @@ namespace bpkg
     if (i == deps.end ())
       return nullopt;
 
-    // If the user expectation is exactly what the selected package is then
-    // no package change is required.
+    // If the selected package matches the user expectations then no package
+    // change is required.
     //
     const version& sv (sp->version);
     bool ssys (sp->system ());
 
-    // The requested dependency version and system flag.
+    // The requested dependency version constraint and system flag.
     //
-    const version& dv (i->version); // May be empty.
+    const optional<version_constraint>& dvc (i->constraint); // May be nullopt.
     bool dsys (i->system);
 
-    if (dv == sv && ssys == dsys)
+    if (ssys == dsys &&
+        dvc          &&
+        (ssys ? sv == *dvc->min_version : satisfies (sv, dvc)))
     {
       l5 ([&]{trace << *sp << ": unchanged";});
 
@@ -1932,7 +1946,7 @@ namespace bpkg
 
     return evaluate_dependency (db,
                                 sp,
-                                dv,
+                                dvc,
                                 dsys,
                                 i->patch,
                                 true /* explicitly */,
@@ -1944,7 +1958,7 @@ namespace bpkg
   static optional<evaluate_result>
   evaluate_dependency (database& db,
                        const shared_ptr<selected_package>& sp,
-                       const version& dv,
+                       const optional<version_constraint>& dvc,
                        bool dsys,
                        bool patch,
                        bool explicitly,
@@ -1971,9 +1985,9 @@ namespace bpkg
     // upgrading. For a system package we also put no constraints just to make
     // sure that the package is recognized.
     //
-    optional<dependency_constraint> c;
+    optional<version_constraint> c;
 
-    if (dv.empty ())
+    if (!dvc)
     {
       assert (!dsys); // The version can't be empty for the system package.
 
@@ -1989,7 +2003,7 @@ namespace bpkg
       }
     }
     else if (!dsys)
-      c = dependency_constraint (dv);
+      c = dvc;
 
     vector<pair<shared_ptr<available_package>,
                 shared_ptr<repository_fragment>>> afs (
@@ -2034,7 +2048,7 @@ namespace bpkg
       //
       // Note that we also handle a package stub here.
       //
-      if (dv.empty () && av < sv)
+      if (!dvc && av < sv)
       {
         assert (!dsys); // Version can't be empty for the system package.
 
@@ -2115,7 +2129,7 @@ namespace bpkg
     // is the only thing that we can get, and so returning the "no change"
     // result, unless we need to upgrade a package configured as system.
     //
-    if (dv.empty () && !ssys)
+    if (!dvc && !ssys)
     {
       assert (!dsys); // Version cannot be empty for the system package.
 
@@ -2123,13 +2137,14 @@ namespace bpkg
       return no_change ();
     }
 
-    // If the desired dependency version is unavailable or unsatisfiable for
-    // some dependents then we fail, unless requested not to do so. In the
-    // later case we return the "no change" result.
+    // If the version satisfying the desired dependency version constraint is
+    // unavailable or unsatisfiable for some dependents then we fail, unless
+    // requested not to do so. In the later case we return the "no change"
+    // result.
     //
     if (ignore_unsatisfiable)
     {
-      l5 ([&]{trace << package_string (nm, dv, dsys)
+      l5 ([&]{trace << package_string (nm, dvc, dsys)
                     << (unsatisfiable.empty ()
                         ? ": no source"
                         : ": unsatisfiable");});
@@ -2144,7 +2159,7 @@ namespace bpkg
     {
       diag_record dr (fail);
 
-      if (dv.empty () && patch)
+      if (!dvc && patch)
       {
         assert (ssys); // Otherwise, we would bail out earlier (see above).
 
@@ -2157,16 +2172,16 @@ namespace bpkg
              << "from its dependents' repositories";
       }
       else if (!stub)
-        fail << package_string (nm, dsys ? version () : dv)
+        fail << package_string (nm, dsys ? nullopt : dvc)
              << " is not available from its dependents' repositories";
       else // The only available package is a stub.
       {
         // Note that we don't advise to "build" the package as a system one as
         // it is already as such (see above).
         //
-        assert (dv.empty () && !dsys && ssys);
+        assert (!dvc && !dsys && ssys);
 
-        fail << package_string (nm, dv) << " is not available in source "
+        fail << package_string (nm, dvc) << " is not available in source "
              << "from its dependents' repositories";
       }
     }
@@ -2344,7 +2359,7 @@ namespace bpkg
     optional<evaluate_result> r (
       evaluate_dependency (db,
                            sp,
-                           version () /* desired */,
+                           nullopt /* desired */,
                            false /*desired_sys */,
                            !*upgrade /* patch */,
                            false /* explicitly */,
@@ -2706,8 +2721,8 @@ namespace bpkg
     }
 
     // Expand the package specs into individual package args, parsing them
-    // into the package scheme, name, and version components, and also saving
-    // associated options and configuration variables.
+    // into the package scheme, name, and version constraint components, and
+    // also saving associated options and configuration variables.
     //
     // Note that the package specs that have no scheme and location cannot be
     // unambiguously distinguished from the package archive and directory
@@ -2716,30 +2731,37 @@ namespace bpkg
     //
     struct pkg_arg
     {
-      package_scheme scheme;
-      package_name   name;
-      bpkg::version  version;
-      string         value;
-      pkg_options    options;
-      strings        config_vars;
+      package_scheme               scheme;
+      package_name                 name;
+      optional<version_constraint> constraint;
+      string                       value;
+      pkg_options                  options;
+      strings                      config_vars;
     };
 
     // Create the parsed package argument.
     //
     auto arg_package = [] (package_scheme sc,
                            package_name nm,
-                           version vr,
+                           optional<version_constraint> vc,
                            pkg_options os,
                            strings vs) -> pkg_arg
     {
-      pkg_arg r {sc, move (nm), move (vr), string (), move (os), move (vs)};
+      assert (!vc || !vc->empty ()); // May not be empty if present.
+
+      pkg_arg r {sc, move (nm), move (vc), string (), move (os), move (vs)};
 
       switch (sc)
       {
       case package_scheme::sys:
         {
-          if (r.version.empty ())
-            r.version = wildcard_version;
+          if (!r.constraint)
+            r.constraint = version_constraint (wildcard_version);
+
+          // The system package may only have an exact/wildcard version
+          // specified.
+          //
+          assert (r.constraint->min_version == r.constraint->max_version);
 
           const system_package* sp (system_repository.find (r.name));
 
@@ -2747,7 +2769,7 @@ namespace bpkg
           //
           if (sp == nullptr || !sp->authoritative)
             system_repository.insert (r.name,
-                                      r.version,
+                                      *r.constraint->min_version,
                                       true /* authoritative */);
 
           break;
@@ -2764,7 +2786,7 @@ namespace bpkg
     {
       return pkg_arg {package_scheme::none,
                       package_name (),
-                      version (),
+                      nullopt /* constraint */,
                       move (v),
                       move (os),
                       move (vs)};
@@ -2785,10 +2807,11 @@ namespace bpkg
 
       string r (options && a.options.dependency () ? "?" : string ());
 
-      r += package_string (
-        a.name,
-        a.version != wildcard_version ? a.version : version (),
-        arg_sys (a));
+      r += package_string (a.name,
+                           (a.constraint && !wildcard (*a.constraint)
+                            ? a.constraint
+                            : nullopt),
+                           arg_sys (a));
 
       if (options)
       {
@@ -2837,6 +2860,20 @@ namespace bpkg
         return r;
       };
 
+      // The system package may only be constrained with an exact/wildcard
+      // version.
+      //
+      auto version_only = [] (package_scheme sc)
+      {
+        bool r (false);
+        switch (sc)
+        {
+        case package_scheme::none: r = false; break;
+        case package_scheme::sys:  r = true;  break;
+        }
+        return r;
+      };
+
       for (pkg_spec& ps: specs)
       {
         if (ps.location.empty ())
@@ -2852,18 +2889,21 @@ namespace bpkg
             bool sys (sc == package_scheme::sys);
 
             package_name n (parse_package_name (s));
-            version v (parse_package_version (s, sys, fold_zero_rev (sc)));
+
+            optional<version_constraint> vc (
+              parse_package_version_constraint (
+                s, sys, fold_zero_rev (sc), version_only (sc)));
 
             // For system packages not associated with a specific repository
             // location add the stub package to the imaginary system
             // repository (see above for details).
             //
-            if (sys && !v.empty ())
+            if (sys && vc)
               stubs.push_back (make_shared<available_package> (n));
 
             pkg_args.push_back (arg_package (sc,
                                              move (n),
-                                             move (v),
+                                             move (vc),
                                              move (ps.options),
                                              move (ps.config_vars)));
           }
@@ -2940,7 +2980,7 @@ namespace bpkg
                   continue;
                 }
 
-                optional<dependency_constraint> c (patch_constraint (sp));
+                optional<version_constraint> c (patch_constraint (sp));
 
                 // Skip the non-patchable selected package. Note that the
                 // warning have already been issued in this case.
@@ -2971,7 +3011,7 @@ namespace bpkg
             else
               pkg_args.push_back (arg_package (package_scheme::none,
                                                pv.first,
-                                               move (pv.second),
+                                               version_constraint (pv.second),
                                                ps.options,
                                                ps.config_vars));
           }
@@ -2993,7 +3033,10 @@ namespace bpkg
             bool sys (sc == package_scheme::sys);
 
             package_name n (parse_package_name (s));
-            version v (parse_package_version (s, sys, fold_zero_rev (sc)));
+
+            optional<version_constraint> vc (
+              parse_package_version_constraint (
+                s, sys, fold_zero_rev (sc), version_only (sc)));
 
             // Check if the package is present in the repository and its
             // complements, recursively. If the version is not specified then
@@ -3019,12 +3062,12 @@ namespace bpkg
               rfs.push_back (move (fr));
             }
 
-            optional<dependency_constraint> c;
+            optional<version_constraint> c;
             shared_ptr<selected_package> sp;
 
             if (!sys)
             {
-              if (v.empty ())
+              if (!vc)
               {
                 if (ps.options.patch () &&
                     (sp = db.find<selected_package> (n)) != nullptr)
@@ -3039,7 +3082,7 @@ namespace bpkg
                 }
               }
               else
-                c = dependency_constraint (v);
+                c = vc;
             }
 
             shared_ptr<available_package> ap (
@@ -3067,21 +3110,22 @@ namespace bpkg
                 dr << " or its complements";
 
               if (sp == nullptr && ap != nullptr) // Is a stub.
-                info << "specify sys:" << pkg << " if it is available "
-                     << "from the system";
+                dr << info << "specify "
+                           << package_string (n, vc, true /* system */)
+                           << " if it is available from the system";
             }
 
             // Note that for a system package the wildcard version will be set
             // (see arg_package() for details).
             //
-            if (v.empty () && !sys)
-              v = ap->version;
+            if (!vc && !sys)
+              vc = version_constraint (ap->version);
 
             // Don't move options and variables as they may be reused.
             //
             pkg_args.push_back (arg_package (sc,
                                              move (n),
-                                             move (v),
+                                             move (vc),
                                              ps.options,
                                              ps.config_vars));
           }
@@ -3119,10 +3163,15 @@ namespace bpkg
 
         // Note that the variable order may matter.
         //
+        // @@ Later we may relax this and replace one package argument with
+        //    another if they only differ with the version constraint and one
+        //    constraint satisfies the other. We will also need to carefully
+        //    maintain the above *_pkgs lists.
+        //
         if (!r.second &&
-            (a.scheme  != pa.scheme                   ||
-             a.name    != pa.name                     ||
-             a.version != pa.version                  ||
+            (a.scheme     != pa.scheme                ||
+             a.name       != pa.name                  ||
+             a.constraint != pa.constraint            ||
              !compare_options (a.options, pa.options) ||
              a.config_vars != pa.config_vars))
           fail << "duplicate package " << pa.name <<
@@ -3198,7 +3247,7 @@ namespace bpkg
 
               pa = arg_package (package_scheme::none,
                                 m.name,
-                                m.version,
+                                version_constraint (m.version),
                                 move (pa.options),
                                 move (pa.config_vars));
 
@@ -3284,7 +3333,7 @@ namespace bpkg
 
                 pa = arg_package (package_scheme::none,
                                   m.name,
-                                  m.version,
+                                  version_constraint (m.version),
                                   move (pa.options),
                                   move (pa.config_vars));
 
@@ -3334,14 +3383,15 @@ namespace bpkg
               // Don't fold the zero revision so that we build the exact X+0
               // package revision, if it is specified.
               //
-              version v (
-                parse_package_version (package,
-                                       false /* allow_wildcard */,
-                                       false /* fold_zero_revision */));
+              optional<version_constraint> vc (
+                parse_package_version_constraint (
+                  package,
+                  false /* allow_wildcard */,
+                  false /* fold_zero_revision */));
 
               pa = arg_package (package_scheme::none,
                                 move (n),
-                                move (v),
+                                move (vc),
                                 move (pa.options),
                                 move (pa.config_vars));
             }
@@ -3354,9 +3404,9 @@ namespace bpkg
               // for a source code package. For a system package we pick the
               // latest one just to make sure the package is recognized.
               //
-              optional<dependency_constraint> c;
+              optional<version_constraint> c;
 
-              if (pa.version.empty ())
+              if (!pa.constraint)
               {
                 assert (!arg_sys (pa));
 
@@ -3378,7 +3428,7 @@ namespace bpkg
                 }
               }
               else if (!arg_sys (pa))
-                c = dependency_constraint (pa.version);
+                c = pa.constraint;
 
               auto rp (find_available_one (db, pa.name, c, root));
               ap = move (rp.first);
@@ -3433,11 +3483,9 @@ namespace bpkg
 
           // Make sure that the package is known.
           //
-          auto apr (pa.version.empty () || sys
+          auto apr (!pa.constraint || sys
                     ? find_available (db, pa.name, nullopt)
-                    : find_available (db,
-                                      pa.name,
-                                      dependency_constraint (pa.version)));
+                    : find_available (db, pa.name, *pa.constraint));
 
           if (apr.empty ())
           {
@@ -3452,7 +3500,7 @@ namespace bpkg
           sp = db.find<selected_package> (pa.name);
 
           dep_pkgs.push_back (dependency_package {move (pa.name),
-                                                  move (pa.version),
+                                                  move (pa.constraint),
                                                   move (sp),
                                                   sys,
                                                   pa.options.patch (),
@@ -3496,7 +3544,7 @@ namespace bpkg
           //
           if (ap == nullptr)
           {
-            if (!pa.version.empty () &&
+            if (pa.constraint &&
                 find_available_one (db,
                                     pa.name,
                                     nullopt,
@@ -3509,10 +3557,10 @@ namespace bpkg
             ap = nullptr;
           }
 
-          // If the user asked for a specific version, then that's what we
-          // ought to be building.
+          // If the user constrained the version, then that's what we ought to
+          // be building.
           //
-          if (!pa.version.empty ())
+          if (pa.constraint)
           {
             for (;;)
             {
@@ -3520,9 +3568,11 @@ namespace bpkg
                 break;
 
               // Otherwise, our only chance is that the already selected object
-              // is that exact version.
+              // satisfies the version constraint.
               //
-              if (sp != nullptr && !sp->system () && sp->version == pa.version)
+              if (sp != nullptr  &&
+                  !sp->system () &&
+                  satisfies (sp->version, pa.constraint))
                 break; // Derive ap from sp below.
 
               found = false;
@@ -3584,9 +3634,12 @@ namespace bpkg
             assert (!arg_sys (pa));
 
             dr << arg_string (pa, false /* options */)
-               << " is not available in source" <<
-              info << "specify sys:" << arg_string (pa, false /* options */)
-                   << " if it is available from the system";
+               << " is not available in source";
+
+            pa.scheme = package_scheme::sys;
+
+            dr << info << "specify " << arg_string (pa, false /* options */)
+                       << " if it is available from the system";
           }
         }
 
@@ -3618,27 +3671,25 @@ namespace bpkg
           move (sp),
           move (ap),
           move (af),
-          true,                 // Hold package.
-          !pa.version.empty (), // Hold version.
-          {},                   // Constraints.
+          true,                       // Hold package.
+          pa.constraint.has_value (), // Hold version.
+          {},                         // Constraints.
           arg_sys (pa),
           keep_out,
           move (pa.config_vars),
-          {package_name ()},    // Required by (command line).
-          0};                   // Adjustments.
+          {package_name ()},          // Required by (command line).
+          0};                         // Adjustments.
 
         l4 ([&]{trace << "stashing held package "
                       << p.available_name_version ();});
 
-        // "Fix" the version the user asked for by adding the '==' constraint.
+        // "Fix" the version the user asked for by adding the constraint.
         //
         // Note: for a system package this must always be present (so that
         // this build_package instance is never replaced).
         //
-        if (!pa.version.empty ())
-          p.constraints.emplace_back (
-            "command line",
-            dependency_constraint (pa.version));
+        if (pa.constraint)
+          p.constraints.emplace_back ("command line", move (*pa.constraint));
 
         hold_pkgs.push_back (move (p));
       }
@@ -3664,7 +3715,7 @@ namespace bpkg
 
           const package_name& name (sp->name);
 
-          optional<dependency_constraint> pc;
+          optional<version_constraint> pc;
 
           if (o.patch ())
           {
@@ -3825,23 +3876,21 @@ namespace bpkg
           for (const dependency_package& p: dep_pkgs)
           {
             build_package bp {
-              nullopt,             // Action.
-              nullptr,             // Selected package.
-              nullptr,             // Available package/repository fragment.
+              nullopt,                   // Action.
+              nullptr,                   // Selected package.
+              nullptr,                   // Available package/repository frag.
               nullptr,
-              false,               // Hold package.
-              !p.version.empty (), // Hold version.
-              {},                  // Constraints.
+              false,                     // Hold package.
+              p.constraint.has_value (), // Hold version.
+              {},                        // Constraints.
               p.system,
               p.keep_out,
               p.config_vars,
-              {package_name ()},   // Required by (command line).
-              0};                  // Adjustments.
+              {package_name ()},         // Required by (command line).
+              0};                        // Adjustments.
 
-            if (!p.version.empty ())
-              bp.constraints.emplace_back (
-                "command line",
-                dependency_constraint (p.version));
+            if (p.constraint)
+              bp.constraints.emplace_back ("command line", *p.constraint);
 
             pkgs.enter (p.name, move (bp));
           }
@@ -4066,11 +4115,12 @@ namespace bpkg
         if (!scratch)
         {
           // First, we check if the refinement is required, ignoring the
-          // unsatisfiable dependency versions. If we end up refining the
-          // execution plan, such dependencies might be dropped, and then
-          // there will be nothing to complain about. When no more refinements
-          // are necessary we will run the diagnostics check, to make sure
-          // that the unsatisfiable dependency, if left, is reported.
+          // unsatisfiable dependency version constraints. If we end up
+          // refining the execution plan, such dependencies might be dropped,
+          // and then there will be nothing to complain about. When no more
+          // refinements are necessary we will run the diagnostics check, to
+          // make sure that the unsatisfiable dependency, if left, is
+          // reported.
           //
           auto need_refinement = [&eval_dep, &deps, rec_pkgs, &db, &o] (
             bool diag = false) -> bool

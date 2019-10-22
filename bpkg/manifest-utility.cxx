@@ -4,6 +4,8 @@
 
 #include <bpkg/manifest-utility.hxx>
 
+#include <cstring> // strcspn()
+
 #include <libbutl/b.mxx>
 #include <libbutl/url.mxx>
 #include <libbutl/sha256.mxx>
@@ -40,8 +42,6 @@ namespace bpkg
   package_name
   parse_package_name (const char* s, bool allow_version)
   {
-    using traits = string::traits_type;
-
     if (!allow_version)
     try
     {
@@ -52,10 +52,11 @@ namespace bpkg
       fail << "invalid package name '" << s << "': " << e;
     }
 
-    size_t n (traits::length (s));
-
-    if (const char* p = traits::find (s, n, '/'))
-      n = static_cast<size_t> (p - s);
+    // Calculate the package name length as a length of the prefix that
+    // doesn't contain spaces, slashes and the version constraint starting
+    // characters. Note that none of them are valid package name characters.
+    //
+    size_t n (strcspn (s, " /=<>([~^"));
 
     try
     {
@@ -102,6 +103,68 @@ namespace bpkg
     }
 
     return version ();
+  }
+
+  optional<version_constraint>
+  parse_package_version_constraint (const char* s,
+                                    bool allow_wildcard,
+                                    bool fold_zero_revision,
+                                    bool version_only)
+  {
+    // Calculate the version specification position as a length of the prefix
+    // that doesn't contain slashes and the version constraint starting
+    // characters.
+    //
+    size_t n (strcspn (s, "/=<>([~^"));
+
+    if (s[n] == '\0') // No version (constraint) is specified?
+      return nullopt;
+
+    const char* v (s + n); // Constraint or version including '/'.
+
+    // If only the version is allowed or the package name is followed by '/'
+    // then fallback to the version parsing.
+    //
+    if (version_only || v[0] == '/')
+    try
+    {
+      return version_constraint (
+        parse_package_version (s, allow_wildcard, fold_zero_revision));
+    }
+    catch (const invalid_argument& e)
+    {
+      fail << "invalid package version '" << v + 1 << "' in '" << s << "': "
+           << e;
+    }
+
+    try
+    {
+      version_constraint r (v);
+
+      if (!r.complete ())
+        throw invalid_argument ("incomplete");
+
+      // There doesn't seem to be any good reason to allow specifying a stub
+      // version in the version constraint. Note that the constraint having
+      // both endpoints set to the wildcard version (which is a stub) denotes
+      // the system package wildcard version and may result only from the '/*'
+      // string representation.
+      //
+      auto stub = [] (const optional<version>& v)
+      {
+        return v && v->compare (wildcard_version, true) == 0;
+      };
+
+      if (stub (r.min_version) || stub (r.max_version))
+        throw invalid_argument ("endpoint is a stub");
+
+      return r;
+    }
+    catch (const invalid_argument& e)
+    {
+      fail << "invalid package version constraint '" << v << "' in '" << s
+           << "': " << e << endf;
+    }
   }
 
   repository_location

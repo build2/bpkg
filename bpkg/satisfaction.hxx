@@ -13,16 +13,16 @@
 
 namespace bpkg
 {
-  // Note: all of the following functions expect the package dependency
+  // Note: all of the following functions expect the package version
   // constraints to be complete.
 
   // Return true if version satisfies the constraint.
   //
   bool
-  satisfies (const version&, const dependency_constraint&);
+  satisfies (const version&, const version_constraint&);
 
   inline bool
-  satisfies (const version& v, const optional<dependency_constraint>& c)
+  satisfies (const version& v, const optional<version_constraint>& c)
   {
     return !c || satisfies (v, *c);
   }
@@ -32,11 +32,11 @@ namespace bpkg
   // l is a subset of r.
   //
   bool
-  satisfies (const dependency_constraint& l, const dependency_constraint& r);
+  satisfies (const version_constraint& l, const version_constraint& r);
 
   inline bool
-  satisfies (const optional<dependency_constraint>& l,
-             const optional<dependency_constraint>& r)
+  satisfies (const optional<version_constraint>& l,
+             const optional<version_constraint>& r)
   {
     return l ? (!r || satisfies (*l, *r)) : !r;
   }

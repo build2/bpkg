@@ -442,15 +442,15 @@ namespace bpkg
   // package" to refer to the "effective" dependency that has been resolved to
   // the actual package object.
   //
-  #pragma db value(dependency_constraint) definition
+  #pragma db value(version_constraint) definition
   #pragma db value(dependency) definition
   #pragma db member(dependency::constraint) column("")
   #pragma db value(dependency_alternatives) definition
 
   using dependencies = vector<dependency_alternatives>;
 
-  // Wildcard version. Satisfies any dependency constraint and is represented
-  // as 0+0 (which is also the "stub version"; since a real version is always
+  // Wildcard version. Satisfies any version constraint and is represented as
+  // 0+0 (which is also the "stub version"; since a real version is always
   // greater than the stub version, we reuse it to signify a special case).
   //
   extern const version wildcard_version;
@@ -515,7 +515,7 @@ namespace bpkg
     mutable optional<version_type> system_version_;
 
   public:
-    // Note: dependency constraints must be complete.
+    // Note: version constraints must be complete.
     //
     available_package (package_manifest&& m)
         : id (move (m.name), m.version),
@@ -722,15 +722,32 @@ namespace bpkg
                   const version&,
                   bool system = false);
 
+  // Return the package name in the [sys:]<name>[<version-constraint>] form.
+  // The version constraint component is represented with the "/<version>"
+  // string for the `== <version>` constraint, "/*" string for the wildcard
+  // version, and is omitted for nullopt.
+  //
+  // If the version constraint other than the equality operator is specified
+  // for a system package, return the "sys:<name>/..." string (with "..."
+  // literally). This, in particular, is used for issuing diagnostics that
+  // advises the user to configure a system package. Note that in this case
+  // the user can only specify a specific version/wildcard on the command
+  // line.
+  //
+  string
+  package_string (const package_name& name,
+                  const optional<version_constraint>&,
+                  bool system = false);
+
   // A map of "effective" prerequisites (i.e., pointers to other selected
-  // packages) to optional dependency constraint. Note that because it is a
+  // packages) to optional version constraint. Note that because it is a
   // single constraint, we don't support multiple dependencies on the same
   // package (e.g., two ranges of versions). See pkg_configure().
   //
   class selected_package;
 
   using package_prerequisites = std::map<lazy_shared_ptr<selected_package>,
-                                         optional<dependency_constraint>,
+                                         optional<version_constraint>,
                                          compare_lazy_ptr>;
 
   #pragma db object pointer(shared_ptr) session
@@ -1048,7 +1065,7 @@ namespace bpkg
     string name;
 
     #pragma db column(pp.value)
-    optional<dependency_constraint> constraint;
+    optional<version_constraint> constraint;
   };
   */
 
@@ -1064,7 +1081,7 @@ namespace bpkg
     package_name name;
 
     #pragma db column("pp.")
-    optional<dependency_constraint> constraint;
+    optional<version_constraint> constraint;
   };
 
   // Return a count of repositories that contain this repository fragment.

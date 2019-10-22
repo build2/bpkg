@@ -15,7 +15,7 @@ using namespace butl;
 namespace bpkg
 {
   bool
-  satisfies (const version& v, const dependency_constraint& c)
+  satisfies (const version& v, const version_constraint& c)
   {
     assert (!c.empty () && c.complete ());
 
@@ -25,7 +25,7 @@ namespace bpkg
     bool s (true);
 
     // Here an absent revision means zero revision and version X must satisfy
-    // the [X+0 ...) dependency constraint. Note that technically X < X+0.
+    // the [X+0 ...) version constraint. Note that technically X < X+0.
     //
     version ev (v.epoch,
                 v.upstream,
@@ -52,7 +52,7 @@ namespace bpkg
   }
 
   bool
-  satisfies (const dependency_constraint& l, const dependency_constraint& r)
+  satisfies (const version_constraint& l, const version_constraint& r)
   {
     assert (!l.empty () && l.complete () && !r.empty () && r.complete ());
 

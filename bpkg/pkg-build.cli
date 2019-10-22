@@ -13,7 +13,8 @@ namespace bpkg
   {
     "<options>
      <cfg-var>
-     <pkg-spec> <flags> <scheme> <pkg> <ver>
+     <pkg-spec> <flags> <scheme> <pkg> <ver-spec>
+     <version> <version-constraint>
      <file>
      <dir>
      <rep-loc>",
@@ -25,12 +26,13 @@ namespace bpkg
         \b{bpkg pkg-build}|\b{build} [<options>] \ \b{--upgrade}|\b{-u} | \b{--patch}|\b{-p}\n
         \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ [<cfg-var>... \b{--}]}
 
-     \c{<pkg-spec> = [<flags>](([<scheme>\b{:}]<pkg>[\b{/}<ver>])\b{,}...[\b{@}<rep-loc>] | \n
-        \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ [\b{@}]<rep-loc> \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ | \n
-        \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ <file> \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ | \n
+     \c{<pkg-spec> = [<flags>](([<scheme>\b{:}]<pkg>[<ver-spec>])\b{,}...[\b{@}<rep-loc>] | \n
+        \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ [\b{@}]<rep-loc> \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ | \n
+        \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ <file> \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ | \n
         \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ <dir>\b{/})\n
-        <flags>\ \ \ \ = \b{?}\n
-        <scheme> \ \ = \b{sys}}
+        <flags>\ \ \ \ \ \ = \b{?}\n
+        <scheme> \ \ \ \ = \b{sys}\n
+        <ver-spec>\ \ \ = \b{/}<version> | <version-constraint>}
 
      \h|DESCRIPTION|
 
@@ -56,21 +58,25 @@ namespace bpkg
      or \cb{--patch}.
 
      Each package can be specified as just the name (<pkg>) with optional
-     package version (<ver>) in which case the source code for the package
-     will be automatically fetched from one of the configured
+     version specification (<ver-spec>), in which case the source code for the
+     package will be automatically fetched from one of the configured
      repositories. See the \l{bpkg-rep-add(1)} and \l{bpkg-rep-fetch(1)}
-     commands for more information on package repositories. If <ver> is not
-     specified, then the latest available version will be built. To downgrade,
-     the desired version must be specified explicitly. For example:
+     commands for more information on package repositories. The version
+     specification (<ver-spec>) can be either the exact version in the
+     \c{\b{/}\i{version}} form or the version constraint as described in
+     \l{bpkg#package-version-constraint Package Version Constraint}. If
+     <ver-spec> is not specified, then the latest available version will be
+     built. To downgrade, the desired version must be specified
+     explicitly. For example:
 
      \
-     bpkg build foo libfoo/1.2.3
+     bpkg build foo libfoo/1.2.3 \"bar < 2.0.0\"
      \
 
      Alternatively, the package repository location (<rep-loc>) can be
-     specified as part of the build command. In this case, if <ver> is not
-     specified, then the latest available from this repository version will be
-     built. For example:
+     specified as part of the build command. In this case, if <ver-spec> is
+     not specified, then the latest available from this repository version
+     will be built. For example:
 
      \
      bpkg build foo,libfoo/1.2.3@https://git.example.org/foo.git#master
@@ -91,8 +97,9 @@ namespace bpkg
      (<scheme>). Currently the only recognized scheme is \cb{sys} which
      instructs \cb{pkg-build} to configure the package as available from the
      system rather than building it from source. If the system package version
-     (<ver>) is not specified or is '\cb{*}', then it is considered to be
-     unknown but satisfying any dependency constraint. If the version is not
+     (<ver-spec>) is not specified or is '\cb{/*}', then it is considered to
+     be unknown but satisfying any version constraint. If specified,
+     <ver-spec> may not be a version constraint. If the version is not
      explicitly specified, then at least a stub package must be available from
      one of the repositories.
 
@@ -125,7 +132,7 @@ namespace bpkg
      available for build as a dependency.
 
      Packages (both built to hold and as dependencies) that are specified with
-     an explicit package version (<ver>) or as an archive or directory,
+     an explicit package version (<ver-spec>) or as an archive or directory,
      will have their versions held, that is, they will not be automatically
      upgraded.
 

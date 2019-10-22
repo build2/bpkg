@@ -19,10 +19,10 @@ namespace bpkg
 {
   struct package
   {
-    package_name                    name;
-    bpkg::version                   version;    // Empty if unspecified.
-    shared_ptr<selected_package>    selected;   // NULL if none selected.
-    optional<dependency_constraint> constraint; // Version constraint, if any.
+    package_name                 name;
+    bpkg::version                version;    // Empty if unspecified.
+    shared_ptr<selected_package> selected;   // NULL if none selected.
+    optional<version_constraint> constraint; // Version constraint, if any.
   };
   using packages = vector<package>;
 
@@ -236,7 +236,7 @@ namespace bpkg
           for (const auto& pair: s->prerequisites)
           {
             shared_ptr<selected_package> d (pair.first.load ());
-            const optional<dependency_constraint>& c (pair.second);
+            const optional<version_constraint>& c (pair.second);
             dpkgs.push_back (package {d->name, version (), move (d), c});
           }
         }

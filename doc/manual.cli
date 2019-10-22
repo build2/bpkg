@@ -237,6 +237,68 @@ model, we have a version key as just {\i{epoch}, \i{upstream}, \i{prerel}} but
 also store the package revision and iteration so that it can be shown it to
 the user, etc.|
 
+
+\h1#package-version-constraint|Package Version Constraint|
+
+The \c{bpkg} package version constraint may follow the package name in certain
+contexts, such as the manifest values and \c{bpkg} command line, to restrict
+the allowed package version set. It can be specified using comparison
+operators, shortcut (to range) operators, or ranges and has the following
+form:
+
+\
+<version-constraint> := <comparison> | <shortcut> | <range>
+<comparison>         := ('==' | '>' | '<' | '>=' | '<=') <version>
+<shortcut>           := ('^' | '~') <version>
+<range>              := ('(' | '[') <version> <version> (')' | ']')
+\
+
+The shortcut operators can only be used with \l{b#module-version standard
+versions} (a semantic version without the pre-release part is a standard
+version). They are equivalent to the following ranges. \N{The \c{X.Y.Z-} version
+signifies the earliest pre-release in the \c{X.Y.Z} series; see
+\l{#package-version Package Version} for details}.
+
+\
+~X.Y.Z  [X.Y.Z  X.Y+1.0-)
+
+^X.Y.Z  [X.Y.Z  X+1.0.0-)  if X >  0
+^0.Y.Z  [0.Y.Z  0.Y+1.0-)  if X == 0
+\
+
+That is, the tilde (\c{~}) constraint allows upgrades to any further patch
+version while the caret (\c{^}) constraint \- also to any further minor
+version.
+
+\N|Zero major version component is customarily used during early development
+where the minor version effectively becomes major. As a result, the tilde
+constraint has special semantics for this case.|
+
+Note that the shortuct operators can only be used with the complete,
+three-component versions (\c{X.Y.Z} with the optional pre-release part per the
+standard version). Specifically, there is no support for special \c{^X.Y} or
+\c{~X} semantics offered by some package manager \- if desired, such
+functionality can be easily achieved with ranges. Also, the \c{0.0.Z} version
+is not considered special except as having zero major component for the tilde
+semantics discussed above.
+
+Note also that pre-releases do not required any special considerations when
+used with the shortcut operators. For example, if package \c{libfoo} is
+usable starting with the second beta of the \c{2.0.0} release, then our
+constraint could be expressed as:
+
+\
+libfoo ^2.0.0-b.2
+\
+
+\N|Internally shortucts and comparisons can be represented as ranges (that is,
+\c{[v, v]} for \c{==}, \c{(v, inf)} for \c{>}, etc). However, for display and
+serialization such representations should be converted back to simple
+operators. While it is possible that the original manifest specified equality
+or shortucts as full ranges, it is acceptable to display/serialize them as
+simpler operators.|
+
+
 \h1#manifests|Manifests|
 
 This chapter describes the general manifest file format as well as the
@@ -547,6 +609,10 @@ license: <licenses> [; <comment>]
 
 [depends]: [?][*] <alternatives> [; <comment>]
 [requires]: [?] [<alternatives>] [; <comment>]
+
+[tests]: <name> [<version-constraint>]
+[examples]: <name> [<version-constraint>]
+[benchmarks]: <name> [<version-constraint>]
 
 [builds]: <class-expr> [; <comment>]
 [build-include]: <config>[/<target>] [; <comment>]
@@ -890,11 +956,7 @@ build error notifications are sent to this email.
 [depends]: [?][*] <alternatives> [; <comment>]
 
 <alternatives> := <dependency> [ '|' <dependency>]*
-<dependency>   := <name> [<constraint>]
-<constraint>   := <comparison> | <shortcut> | <range>
-<comparison>   := ('==' | '>' | '<' | '>=' | '<=') <version>
-<shortcut>     := ('^' | '~') <version>
-<range>        := ('(' | '[') <version> <version> (')' | ']')
+<dependency>   := <name> [<version-constraint>]
 \
 
 The prerequisite packages. If the \c{depends} value start with \c{*}, then
@@ -935,60 +997,14 @@ depends: ? libqtcore >= 5.0.0 ; Only if GUI is enabled.
 It is recommended that you specify unconditional dependencies first with
 simple (no alternatives) dependencies leading each set.
 
-The optional version constraint can be specified using comparison operators,
-shortcut (to range) operators, and ranges.
-
-The shortcut operators can only be used with \l{b#module-version standard
-versions} (a semantic version without the pre-release part is a standard
-version). They are equivalent to the following ranges. \N{The \c{X.Y.Z-} version
-signifies the earliest pre-release in the \c{X.Y.Z} series; see
-\l{#package-version Package Version} for details}.
-
-\
-~X.Y.Z  [X.Y.Z  X.Y+1.0-)
-
-^X.Y.Z  [X.Y.Z  X+1.0.0-)  if X >  0
-^0.Y.Z  [0.Y.Z  0.Y+1.0-)  if X == 0
-\
-
-That is, the tilde (\c{~}) constraint allows upgrades to any further patch
-version while the caret (\c{^}) constraint \- also to any further minor
-version.
-
-\N|Zero major version component is customarily used during early development
-where the minor version effectively becomes major. As a result, the tilde
-constraint has special semantics for this case.|
-
-Note that the shortuct operators can only be used with the complete,
-three-component versions (\c{X.Y.Z} with the optional pre-release part per the
-standard version). Specifically, there is no support for special \c{^X.Y} or
-\c{~X} semantics offered by some package manager \- if desired, such
-functionality can be easily achieved with ranges. Also, the \c{0.0.Z} version
-is not considered special except as having zero major component for the tilde
-semantics discussed above.
-
-Note also that pre-releases do not required any special considerations when
-used with the shortcut operators. For example, if package \c{libfoo} is
-usable starting with the second beta of the \c{2.0.0} release, then our
-constraint could be expressed as:
-
-\
-depends: libfoo ^2.0.0-b.2
-\
-
-\N|Internally shortucts and comparisons can be represented as ranges (that is,
-\c{[v, v]} for \c{==}, \c{(v, inf)} for \c{>}, etc). However, for display and
-serialization such representations should be converted back to simple
-operators. While it is possible that the original manifest specified equality
-or shortucts as full ranges, it is acceptable to display/serialize them as
-simpler operators.|
-
-Instead of a specific version, the constraint can be specified in terms of the
-dependent package's version (that is, its \l{#manifest-package-version
-\c{version}} value) using the special \c{$} value. A \c{depends} value that
-contains \c{$} is called incomplete. This mechanism is primarily useful when
-developing related packages that should track each other's versions exactly or
-closely. For example:
+See \l{#package-version-constraint Package Version Constraint} for the format
+and semantics of the optional version constraint. Instead of a concrete
+value, it can also be specified in terms of the dependent package's version
+(that is, its \l{#manifest-package-version \c{version}} value) using the
+special \c{$} value. A \c{depends} value that contains \c{$} is called
+incomplete. This mechanism is primarily useful when developing related
+packages that should track each other's versions exactly or closely. For
+example:
 
 \
 name: sqlite3
@@ -1135,6 +1151,38 @@ msvc[_NU]    ; For example: msvc_14, msvc_15u3
 \
 
 
+\h2#manifest-package-tests-examples-benchmarks|\c{tests, examples, benchmarks}|
+
+\
+[tests]: <name> [<version-constraint>]
+[examples]: <name> [<version-constraint>]
+[benchmarks]: <name> [<version-constraint>]
+\
+
+Separate tests, examples, and benchmarks packages. These packages are built
+and tested by automated build bots together with the dependent package (see
+the \c{bbot} documentation for details). This, in particular, implies that
+these packages must be available from the dependent package's repository or
+its complement repositories, recursively. The recommended naming convention
+for these packages is the dependent package name followed with \c{-tests},
+\c{-examples}, or \c{-benchmarks}, respectively. For example:
+
+\
+name: hello
+tests : hello-tests
+examples: hello-examples
+\
+
+See \l{#package-version-constraint Package Version Constraint} for the format
+and semantics of the optional version constraint. Instead of a concrete value,
+it can also be specified in terms of the dependent package's version (see the
+\l{#manifest-package-depends \c{depends}} value for details), for example:
+
+\
+tests: hello-tests ~$
+\
+
+
 \h2#manifest-package-builds|\c{builds}|
 
 \
@@ -1213,10 +1261,10 @@ display the reason for the build configuration exclusion.|
 
 After evaluating all the \c{builds} values, the final configuration set can be
 further fine-tuned using the \l{#manifest-package-include-exclude
-\c{build-{include,exclude\}}} patterns.
+\c{build-{include, exclude\}}} patterns.
 
 
-\h2#manifest-package-include-exclude|\c{build-{include,exclude\}}|
+\h2#manifest-package-include-exclude|\c{build-{include, exclude\}}|
 
 \
 [build-include]: <config>[/<target>] [; <comment>]

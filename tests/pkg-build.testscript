@@ -196,11 +196,25 @@ test.options += --no-progress
       error: invalid package version '1.0.0-' in 'libfoo/1.0.0-': earliest version
       EOE
 
+    : earliest-constraint
+    :
+    $clone_root_cfg;
+    $* -- 'libfoo == 1.0.0-' 2>>EOE != 0
+      error: invalid package version constraint '== 1.0.0-' in 'libfoo == 1.0.0-': invalid version: equal version endpoints are earliest
+      EOE
+
     : stub
     :
     $clone_root_cfg;
     $* libfoo/0+1 2>>EOE != 0
       error: invalid package version '0+1' in 'libfoo/0+1': stub version
+      EOE
+
+    : stub-constraint
+    :
+    $clone_root_cfg;
+    $* -- 'libfoo [0 1]' 2>>EOE != 0
+      error: invalid package version constraint '[0 1]' in 'libfoo [0 1]': endpoint is a stub
       EOE
   }
 
@@ -222,6 +236,15 @@ test.options += --no-progress
       info: use 'bpkg rep-add' to add a repository
     EOE
 
+  : unknown-package-constraint
+  :
+  $clone_root_cfg;
+  $* 'libfoo>1.0.0' 2>>/EOE != 0
+    error: unknown package libfoo
+      info: configuration cfg/ has no repositories
+      info: use 'bpkg rep-add' to add a repository
+    EOE
+
   : archive
   :
   $clone_root_cfg;
@@ -237,9 +260,10 @@ test.options += --no-progress
   {
     $clone_root_cfg && $pkg_unpack -e $src/libfoo-1.1.0;
 
-    $* libfoo        >'update libfoo/1.1.0';
-    $* libfoo/1.1.0  >'update libfoo/1.1.0';
-    $* libfoo libfoo >'update libfoo/1.1.0';
+    $* libfoo               >'update libfoo/1.1.0';
+    $* libfoo/1.1.0         >'update libfoo/1.1.0';
+    $* -- 'libfoo == 1.1.0' >'update libfoo/1.1.0';
+    $* libfoo libfoo        >'update libfoo/1.1.0';
 
     $* libfoo libfoo/1.1.0 2>>EOE != 0;
       error: duplicate package libfoo
@@ -280,6 +304,22 @@ test.options += --no-progress
       $* libfoo/0.0.1 2>>EOE != 0;
         error: libfoo/0.0.1 is not available in source
           info: specify sys:libfoo/0.0.1 if it is available from the system
+        EOE
+
+      $pkg_purge libfoo 2>'purged libfoo/1.1.0'
+    }
+
+    : downgrade-constraint
+    :
+    {
+      $clone_cfg && $pkg_unpack -e $src/libfoo-1.1.0;
+
+      $* libfoo         >'update libfoo/1.1.0';
+      $* 'libfoo<1.1.0' >'downgrade libfoo/1.0.0';
+
+      $* 'libfoo<1.0.0' 2>>EOE != 0;
+        error: 'libfoo < 1.0.0' is not available in source
+          info: specify sys:libfoo/... if it is available from the system
         EOE
 
       $pkg_purge libfoo 2>'purged libfoo/1.1.0'
@@ -1384,9 +1424,58 @@ test.options += --no-progress
     $clone_root_cfg;
     $rep_fetch $rep/t0c;
 
-    $* '?libbux'     2>'error: unknown package libbux' != 0;
-    $* '?sys:libbux' 2>'error: unknown package sys:libbux' != 0;
-    $* '?libbar/1.3' 2>'error: unknown package libbar/1.3' != 0
+    $* '?libbux'      2>'error: unknown package libbux' != 0;
+    $* '?sys:libbux'  2>'error: unknown package sys:libbux' != 0;
+    $* '?libbar/1.3'  2>'error: unknown package libbar/1.3' != 0;
+    $* '?libbar[5 7]' 2>"error: unknown package 'libbar [5 7]'" != 0
+  }
+
+  : constraint
+  :
+  {
+    $clone_root_cfg;
+    $rep_fetch $rep/t0c;
+
+    # Constraint the dependency version.
+    #
+    $* libbox '?libbaz < 0.1.0' 2>>~%EOE%;
+      fetched libbaz/0.0.4
+      unpacked libbaz/0.0.4
+      configured libbaz/0.0.4
+      fetched libbox/0.0.1
+      unpacked libbox/0.0.1
+      configured libbox/0.0.1
+      %info: .+ is up to date%{2}
+      updated libbaz/0.0.4
+      updated libbox/0.0.1
+      EOE
+
+    $pkg_status libbaz >'libbaz configured !0.0.4 available 0.1.0';
+
+    # The selected dependency libbaz/0.0.4 satisfies the constraint, thus it
+    # is not upgraded.
+    #
+    $* '?libbaz < 1.0.0';
+
+    $pkg_status libbaz >'libbaz configured !0.0.4 available 0.1.0';
+
+    # Upgrade the dependency.
+    #
+    $* '?libbaz > 0.0.4' --yes 2>>~%EOE%;
+      disfigured libbox/0.0.1
+      disfigured libbaz/0.0.4
+      fetched libbaz/0.1.0
+      unpacked libbaz/0.1.0
+      configured libbaz/0.1.0
+      configured libbox/0.0.1
+      %info: .+ is up to date%{2}
+      updated libbaz/0.1.0
+      updated libbox/0.0.1
+      EOE
+
+    $pkg_status libbaz >'libbaz configured !0.1.0';
+
+    $pkg_drop libbox
   }
 
   : system-no-repo
@@ -1598,10 +1687,18 @@ test.options += --no-progress
       $clone_root_cfg;
       $rep_fetch $rep/t0a $rep/t0b;
 
-      $* libbar/0.0.1 ?libbaz/0.0.2 2>>EOE != 0
+      $* libbar/0.0.1 ?libbaz/0.0.2 2>>EOE != 0;
         error: unable to satisfy constraints on package libbaz
           info: libbar depends on (libbaz == 0.0.1)
           info: command line depends on (libbaz == 0.0.2)
+          info: specify libbaz version to satisfy libbar constraint
+        info: while satisfying libbar/0.0.1
+        EOE
+
+      $* -- libbar/0.0.1 '?libbaz>=0.0.2' 2>>EOE != 0
+        error: unable to satisfy constraints on package libbaz
+          info: libbar depends on (libbaz == 0.0.1)
+          info: command line depends on (libbaz >= 0.0.2)
           info: specify libbaz version to satisfy libbar constraint
         info: while satisfying libbar/0.0.1
         EOE
@@ -1613,7 +1710,7 @@ test.options += --no-progress
       : satisfy-dependents
       :
       : Test resolving a conflict when libfix and libbiz have selected such
-      : versions of their dependency libbaz. that do not satisfy each other
+      : versions of their dependency libbaz, that do not satisfy each other
       : constraints. We resolve the conflict explicitly specifying
       : ?libbaz/0.0.3 on the command line, which satisfies both constraints.
       :
@@ -1743,6 +1840,20 @@ test.options += --no-progress
 
         $* libbar/0.0.1 2>!;
         $* libbar/0.0.2 ?libbaz/0.0.1 2>!;
+
+        $pkg_status libbaz >'libbaz configured !0.0.1 available 0.1.0 0.0.4 0.0.3 0.0.2';
+        $pkg_status libfox >'libfox configured 0.0.1';
+
+        $pkg_drop libbar
+      }
+
+      : same-constraint
+      :
+      {
+        $clone_cfg;
+
+        $* libbar/0.0.1 2>!;
+        $* libbar/0.0.2 '?libbaz<0.0.2' 2>!;
 
         $pkg_status libbaz >'libbaz configured !0.0.1 available 0.1.0 0.0.4 0.0.3 0.0.2';
         $pkg_status libfox >'libfox configured 0.0.1';
@@ -1971,6 +2082,33 @@ test.options += --no-progress
         $pkg_drop libbar
       }
 
+      : version-to-constraint
+      :
+      {
+        $clone_cfg;
+
+        $* libbar/0.0.1 '?sys:libbaz/0.0.1' 2>>EOE;
+          configured sys:libbaz/0.0.1
+          fetched libbar/0.0.1
+          unpacked libbar/0.0.1
+          configured libbar/0.0.1
+          EOE
+
+        $* '?libbaz [0.0.1 0.0.2]' 2>>EOE;
+          disfigured libbar/0.0.1
+          purged libbaz/0.0.1
+          fetched libfox/0.0.1
+          unpacked libfox/0.0.1
+          configured libfox/0.0.1
+          fetched libbaz/0.0.1
+          unpacked libbaz/0.0.1
+          configured libbaz/0.0.1
+          configured libbar/0.0.1
+          EOE
+
+        $pkg_drop libbar
+      }
+
       : src-to-wildcard
       :
       {
@@ -2046,6 +2184,10 @@ test.options += --no-progress
 
         $* ?libfoo/0.0.1 2>>EOE != 0;
           error: libfoo/0.0.1 is not available from its dependents' repositories
+          EOE
+
+        $* '?libfoo < 0.0.2' 2>>EOE != 0;
+          error: 'libfoo < 0.0.2' is not available from its dependents' repositories
           EOE
 
         $pkg_drop libbar
