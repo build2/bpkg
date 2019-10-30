@@ -38,4 +38,25 @@ namespace bpkg
   {
     "\h|PKG-CONFIGURE OPTIONS|"
   };
+
+  "
+   \h|DEFAULT OPTIONS FILES|
+
+   See \l{bpkg-default-options-files(1)} for an overview of the default
+   options files. For the \cb{pkg-configure} command the search start
+   directory is the configuration directory. The following options files are
+   searched for in each directory and, if found, loaded in the order listed:
+
+   \
+   bpkg.options
+   bpkg-pkg-configure.options
+   \
+
+   The following \cb{pkg-configure} command options cannot be specified in the
+   default options files:
+
+   \
+   --directory|-d
+   \
+  "
 }

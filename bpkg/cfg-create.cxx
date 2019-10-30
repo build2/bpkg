@@ -175,6 +175,8 @@ namespace bpkg
   default_options_files
   options_files (const char*, const cfg_create_options& o, const strings&)
   {
+    // NOTE: remember to update the documentation if changing anything here.
+
     // bpkg.options
     // bpkg-cfg-create.options
 
@@ -198,6 +200,8 @@ namespace bpkg
   merge_options (const default_options<cfg_create_options>& defs,
                  const cfg_create_options& cmd)
   {
+    // NOTE: remember to update the documentation if changing anything here.
+
     return merge_default_options (
       defs,
       cmd,

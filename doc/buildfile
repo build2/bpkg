@@ -34,7 +34,8 @@ define xhtml: doc
 xhtml{*}: extension = xhtml
 
 ./: {man1 xhtml}{bpkg bpkg-common-options bpkg-repository-signing    \
-                 bpkg-repository-types bpkg-argument-grouping $cmds} \
+                 bpkg-repository-types bpkg-argument-grouping        \
+                 bpkg-default-options-files $cmds}                   \
     css{common pre-box man}                                          \
     file{man-*}
 

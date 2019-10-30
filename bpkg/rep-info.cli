@@ -128,4 +128,27 @@ namespace bpkg
       "Use configuration in <dir> for the trusted certificate database."
     }
   };
+
+  "
+   \h|DEFAULT OPTIONS FILES|
+
+   See \l{bpkg-default-options-files(1)} for an overview of the default
+   options files. If the \cb{rep-info} command uses an existing \c{bpkg}
+   configuration, then the start directory is the configuration directory.
+   Otherwise, only the predefined directories (home, system, etc) are
+   searched. The following options files are searched for in each directory
+   and, if found, loaded in the order listed:
+
+   \
+   bpkg.options
+   bpkg-rep-info.options
+   \
+
+   The following \cb{rep-info} command options cannot be specified in the
+   default options files:
+
+   \
+   --directory|-d
+   \
+  "
 }

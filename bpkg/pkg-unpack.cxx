@@ -433,6 +433,8 @@ namespace bpkg
   merge_options (const default_options<pkg_unpack_options>& defs,
                  const pkg_unpack_options& cmd)
   {
+    // NOTE: remember to update the documentation if changing anything here.
+
     return merge_default_options (
       defs,
       cmd,

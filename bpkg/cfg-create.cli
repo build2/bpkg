@@ -79,4 +79,27 @@ namespace bpkg
        configuration directory explicitly with \cb{--directory|-d}."
     }
   };
+
+  "
+   \h|DEFAULT OPTIONS FILES|
+
+   See \l{bpkg-default-options-files(1)} for an overview of the default
+   options files. For the \cb{cfg-create} command the search start directory
+   is the parent directory of the new configuration. The following options
+   files are searched for in each directory and, if found, loaded in the
+   order listed:
+
+   \
+   bpkg.options
+   bpkg-cfg-create.options
+   \
+
+   The following \cb{cfg-create} command options cannot be specified in the
+   default options files:
+
+   \
+   --directory|-d
+   --wipe
+   \
+  "
 }

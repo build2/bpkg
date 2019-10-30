@@ -42,7 +42,10 @@ rep-info-options           \
 rep-list-options           \
 rep-remove-options
 
-help_topics = repository-signing repository-types argument-grouping
+help_topics = repository-signing    \
+              repository-types      \
+              argument-grouping     \
+              default-options-files
 
 ./: exe{bpkg}: {hxx ixx txx cxx}{+bpkg} libue{bpkg}
 
@@ -146,9 +149,10 @@ if $cli.configured
 
   # Help topics.
   #
-  cli.cxx{repository-signing}: cli{repository-signing}
-  cli.cxx{repository-types}:   cli{repository-types}
-  cli.cxx{argument-grouping}:  cli{argument-grouping}
+  cli.cxx{repository-signing}:    cli{repository-signing}
+  cli.cxx{repository-types}:      cli{repository-types}
+  cli.cxx{argument-grouping}:     cli{argument-grouping}
+  cli.cxx{default-options-files}: cli{default-options-files}
 
   # Option length must be the same to get commands/topics/options aligned.
   #
@@ -170,7 +174,8 @@ bpkg::pkg_build_pkg_options=exclude-base --generate-modifier
 
   # Avoid generating CLI runtime and empty inline file for help topics.
   #
-  cli.cxx{repository-signing repository-types argument-grouping}: \
+  cli.cxx{repository-signing repository-types argument-grouping \
+          default-options-files}:                               \
     cli.options += --suppress-cli --suppress-inline
 
   # Include the generated cli files into the distribution and don't remove

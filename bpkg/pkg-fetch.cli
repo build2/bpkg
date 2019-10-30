@@ -58,4 +58,26 @@ namespace bpkg
       "Remove the existing package archive when the package is purged."
     }
   };
+
+  "
+   \h|DEFAULT OPTIONS FILES|
+
+   See \l{bpkg-default-options-files(1)} for an overview of the default
+   options files. For the \cb{pkg-fetch} command the search start
+   directory is the configuration directory. The following options files are
+   searched for in each directory and, if found, loaded in the order listed:
+
+   \
+   bpkg.options
+   bpkg-pkg-fetch.options
+   \
+
+   The following \cb{pkg-fetch} command options cannot be specified in the
+   default options files:
+
+   \
+   --directory|-d
+   --purge|-p
+   \
+  "
 }

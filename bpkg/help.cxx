@@ -14,6 +14,7 @@
 #include <bpkg/repository-signing.hxx>
 #include <bpkg/repository-types.hxx>
 #include <bpkg/argument-grouping.hxx>
+#include <bpkg/default-options-files.hxx>
 
 using namespace std;
 using namespace butl;
@@ -38,6 +39,8 @@ namespace bpkg
         usage = &print_bpkg_repository_types_usage;
       else if (t == "argument-grouping")
         usage = &print_bpkg_argument_grouping_usage;
+      else if (t == "default-options-files")
+        usage = &print_bpkg_default_options_files_usage;
       else
         fail << "unknown bpkg command/help topic '" << t << "'" <<
           info << "run 'bpkg help' for more information";

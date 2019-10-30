@@ -45,4 +45,25 @@ namespace bpkg
        \cb{openssl} cryptographic engine is used."
     }
   };
+
+  "
+   \h|DEFAULT OPTIONS FILES|
+
+   See \l{bpkg-default-options-files(1)} for an overview of the default
+   options files. For the \cb{rep-create} command the search start
+   directory is the repository directory. The following options files are
+   searched for in each directory and, if found, loaded in the order listed:
+
+   \
+   bpkg.options
+   bpkg-rep-create.options
+   \
+
+   The following \cb{rep-create} command options cannot be specified in the
+   remote default options files:
+
+   \
+   --key
+   \
+  "
 }

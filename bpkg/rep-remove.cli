@@ -52,4 +52,25 @@ namespace bpkg
       "Clean the repository state."
     }
   };
+
+  "
+   \h|DEFAULT OPTIONS FILES|
+
+   See \l{bpkg-default-options-files(1)} for an overview of the default
+   options files. For the \cb{pkg-rep-remove} command the search start
+   directory is the configuration directory. The following options files are
+   searched for in each directory and, if found, loaded in the order listed:
+
+   \
+   bpkg.options
+   bpkg-rep-remove.options
+   \
+
+   The following \cb{rep-remove} command options cannot be specified in the
+   default options files:
+
+   \
+   --directory|-d
+   \
+  "
 }

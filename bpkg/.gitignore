@@ -5,6 +5,7 @@ bpkg
 repository-signing.?xx
 repository-types.?xx
 argument-grouping.?xx
+default-options-files.?xx
 version.hxx
 
 # Testscript output directory (can be symlink).

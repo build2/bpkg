@@ -59,4 +59,18 @@ namespace bpkg
        files and the package dependency constraints are completed."
     }
   };
+
+  "
+   \h|DEFAULT OPTIONS FILES|
+
+   See \l{bpkg-default-options-files(1)} for an overview of the default
+   options files. For the \cb{pkg-verify} command the following options files
+   are searched for in the predefined directories (system, etc) and, if found,
+   loaded in the order listed:
+
+   \
+   bpkg.options
+   bpkg-pkg-verify.options
+   \
+  "
 }

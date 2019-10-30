@@ -286,6 +286,11 @@ namespace bpkg
       "\l{bpkg-common-options(1)} \- details on common options"
     }
 
+    bool default-options-files
+    {
+      "\l{bpkg-default-options-files(1)} \- specifying default options"
+    }
+
     bool repository-types
     {
       "\l{bpkg-repository-types(1)} \- repository types, structure, and URLs"
