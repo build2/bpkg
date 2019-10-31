@@ -2678,10 +2678,33 @@ namespace bpkg
           // to parse it. Note that the straight parsing could otherwise fail,
           // being unable to properly guess the repository type.
           //
-          using query = query<repository>;
+          // Also note that the repository location URL is not unique and we
+          // can potentially end up with multiple repositories. For example:
+          //
+          // $ bpkg add git+file:/path/to/git/repo dir+file:/path/to/git/repo
+          // $ bpkg build @/path/to/git/repo
+          //
+          // That's why we pick the repository only if there is exactly one
+          // match.
+          //
+          shared_ptr<repository> r;
+          {
+            using query = query<repository>;
 
-          shared_ptr<repository> r (
-            db.query_one<repository> (query::location.url == l));
+            auto q (db.query<repository> (query::location.url == l));
+            auto i (q.begin ());
+
+            if (i != q.end ())
+            {
+              r = i.load ();
+
+              // Fallback to parsing the location if several repositories
+              // match.
+              //
+              if (++i != q.end ())
+                r = nullptr;
+            }
+          }
 
           ps.location = r != nullptr
             ? r->location
