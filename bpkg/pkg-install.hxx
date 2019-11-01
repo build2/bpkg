@@ -23,6 +23,7 @@ namespace bpkg
                         o.recursive (),
                         o.immediate (),
                         o.all (),
+                        false /* package_cwd */,
                         args);
   }
 }

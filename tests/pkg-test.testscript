@@ -117,3 +117,14 @@ test.options += --build-option -s
       tested libfix/0.0.1
       EOE
 }
+
+: package-cwd
+:
+{
+  $clone_cfg;
+
+  $* libbaz --recursive --package-cwd -v 2>>/~%EOE%
+      %(.+ test\('\./'\)|info: .+ has nothing to test)%{6}
+      %tested .+%{3}
+      EOE
+}

@@ -28,12 +28,15 @@ namespace bpkg
                bool recursive,
                bool immediate,
                bool all,
+               bool package_cwd,
                cli::group_scanner& args);
 
   struct pkg_command_vars
   {
     shared_ptr<selected_package> pkg;
     strings                     vars; // Package-specific command line vars.
+
+    bool cwd; // Change the working directory to the package directory.
   };
 
   void

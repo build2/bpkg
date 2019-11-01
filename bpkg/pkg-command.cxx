@@ -30,11 +30,9 @@ namespace bpkg
     l4 ([&]{trace << "command: " << cmd;});
 
     // This one is a bit tricky: we can only update all the packages at once
-    // if they don't have any package-specific variables. But let's try to
-    // handle this with the same logic (being clever again).
-    //
-    // @@ If the build system supported command line variable grouping, then
-    //    we could always build at once.
+    // if they don't have any package-specific variables and don't require to
+    // change the current working directory to the package directory. But
+    // let's try to handle this with the same logic (being clever again).
     //
     string bspec;
 
@@ -60,7 +58,7 @@ namespace bpkg
 
     for (const pkg_command_vars& pv: ps)
     {
-      if (!pv.vars.empty ())
+      if (!pv.vars.empty () || pv.cwd)
         run (); // Run previously collected packages.
 
       if (bspec.empty ())
@@ -90,11 +88,25 @@ namespace bpkg
       // Use path representation to get canonical trailing slash.
       //
       bspec += '\'';
-      bspec += out_root.representation ();
+      bspec += (!pv.cwd ? out_root : current_dir).representation ();
       bspec += '\'';
 
-      if (!pv.vars.empty ())
-        run (pv.vars); // Run this package.
+      if (!pv.vars.empty () || pv.cwd)
+      {
+        // Run this package, changing the current working directory to the
+        // package directory, if requested. Note that we do it this way
+        // instead of changing the working directory of the process for
+        // diagnostics.
+        //
+        auto owdg = make_guard (
+          [owd = pv.cwd ? change_wd (out_root) : dir_path ()] ()
+          {
+            if (!owd.empty ())
+              change_wd (owd);
+          });
+
+        run (pv.vars);
+      }
     }
 
     run ();
@@ -103,6 +115,7 @@ namespace bpkg
   static void
   collect_dependencies (const shared_ptr<selected_package>& p,
                         bool recursive,
+                        bool package_cwd,
                         vector<pkg_command_vars>& ps)
   {
     for (const auto& pr: p->prerequisites)
@@ -123,10 +136,12 @@ namespace bpkg
       {
         // Note: no package-specific variables (global ones still apply).
         //
-        ps.push_back (pkg_command_vars {d, strings () /* vars */});
+        ps.push_back (pkg_command_vars {d,
+                                        strings () /* vars */,
+                                        package_cwd});
 
         if (recursive)
-          collect_dependencies (d, recursive, ps);
+          collect_dependencies (d, recursive, package_cwd, ps);
       }
     }
   }
@@ -138,6 +153,7 @@ namespace bpkg
                bool recursive,
                bool immediate,
                bool all,
+               bool package_cwd,
                cli::group_scanner& args)
   {
     tracer trace ("pkg_command");
@@ -232,16 +248,16 @@ namespace bpkg
       //
       session ses;
 
-      auto add = [&ps, recursive, immediate] (
+      auto add = [&ps, recursive, immediate, package_cwd] (
         const shared_ptr<selected_package>& p,
         strings vars)
       {
-        ps.push_back (pkg_command_vars {p, move (vars)});
+        ps.push_back (pkg_command_vars {p, move (vars), package_cwd});
 
         // Note that it can only be recursive or immediate but not both.
         //
         if (recursive || immediate)
-          collect_dependencies (p, recursive, ps);
+          collect_dependencies (p, recursive, package_cwd, ps);
       };
 
       if (all)

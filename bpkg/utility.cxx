@@ -262,6 +262,26 @@ namespace bpkg
     }
   }
 
+  dir_path
+  change_wd (const dir_path& d)
+  {
+    try
+    {
+      dir_path r (dir_path::current_directory ());
+
+      if (verb >= 3)
+        text << "cd " << d; // Prints trailing slash.
+
+      dir_path::current_directory (d);
+      return r;
+    }
+    catch (const system_error& e)
+    {
+      fail << "unable to change current directory to " << d << ": " << e
+           << endf;
+    }
+  }
+
   fdpipe
   open_pipe ()
   {

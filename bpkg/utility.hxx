@@ -161,6 +161,12 @@ namespace bpkg
   void
   mv (const dir_path& from, const dir_path& to);
 
+  // Set (with diagnostics at verbosity level 3 or higher) the new and return
+  // the previous working directory.
+  //
+  dir_path
+  change_wd (const dir_path&);
+
   // File descriptor streams.
   //
   fdpipe

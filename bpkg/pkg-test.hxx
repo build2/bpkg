@@ -18,10 +18,11 @@ namespace bpkg
   {
     return pkg_command ("test",
                         o,
-                        "",
+                        "" /* cmd_variant */,
                         o.recursive (),
                         o.immediate (),
                         o.all (),
+                        o.package_cwd (),
                         args);
   }
 }

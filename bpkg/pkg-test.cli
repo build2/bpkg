@@ -54,6 +54,14 @@ namespace bpkg
     {
       "Also test all dependencies, recursively."
     }
+
+    bool --package-cwd
+    {
+      "Change the current working directory to the package directory prior
+       to running tests. This may help ported third-party packages since
+       its not uncommon for tests to expect they are running form the project
+       root directory."
+    }
   };
 
   "

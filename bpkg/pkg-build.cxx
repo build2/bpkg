@@ -4504,7 +4504,9 @@ namespace bpkg
 
       if (!sp->system () && // System package doesn't need update.
           p.user_selection ())
-        upkgs.push_back (pkg_command_vars {sp, strings ()});
+        upkgs.push_back (pkg_command_vars {sp,
+                                           strings () /* vars */,
+                                           false /* cwd */});
     }
 
     // Then add dependents. We do it as a separate step so that they are
@@ -4517,7 +4519,9 @@ namespace bpkg
         assert (p.action);
 
         if (*p.action == build_package::adjust && p.reconfigure ())
-          upkgs.push_back (pkg_command_vars {p.selected, strings ()});
+          upkgs.push_back (pkg_command_vars {p.selected,
+                                             strings () /* vars */,
+                                             false /* cwd */});
       }
     }
 
