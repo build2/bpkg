@@ -2826,15 +2826,26 @@ namespace bpkg
     auto arg_string = [&arg_parsed, &arg_sys] (const pkg_arg& a,
                                                bool options = true) -> string
     {
-      assert (arg_parsed (a));
-
       string r (options && a.options.dependency () ? "?" : string ());
 
-      r += package_string (a.name,
-                           (a.constraint && !wildcard (*a.constraint)
-                            ? a.constraint
-                            : nullopt),
-                           arg_sys (a));
+      // Quote an argument if empty or contains spaces.
+      //
+      auto append = [&r] (const string& a)
+      {
+        if (a.empty () || a.find (' ') != string::npos)
+          r += '"' + a + '"';
+        else
+          r += a;
+      };
+
+      if (arg_parsed (a))
+        r += package_string (a.name,
+                             (a.constraint && !wildcard (*a.constraint)
+                              ? a.constraint
+                              : nullopt),
+                             arg_sys (a));
+      else
+        append (a.value);
 
       if (options)
       {
@@ -2848,7 +2859,10 @@ namespace bpkg
             r += s + ' ';
 
           for (const string& v: a.config_vars)
-            r += v + ' ';
+          {
+            append (v);
+            r += ' ';
+          }
 
           r += '}';
         }
