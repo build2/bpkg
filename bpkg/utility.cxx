@@ -4,8 +4,6 @@
 
 #include <bpkg/utility.hxx>
 
-#include <iostream>     // cout, cin
-
 #include <libbutl/prompt.mxx>
 #include <libbutl/process.mxx>
 #include <libbutl/fdstream.mxx>
