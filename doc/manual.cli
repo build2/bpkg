@@ -1160,11 +1160,11 @@ msvc[_NU]    ; For example: msvc_14, msvc_15u3
 \
 
 Separate tests, examples, and benchmarks packages. These packages are built
-and tested by automated build bots together with the dependent package (see
-the \c{bbot} documentation for details). This, in particular, implies that
-these packages must be available from the dependent package's repository or
-its complement repositories, recursively. The recommended naming convention
-for these packages is the dependent package name followed with \c{-tests},
+and tested by automated build bots together with the primary package (see the
+\c{bbot} documentation for details). This, in particular, implies that these
+packages must be available from the primary package's repository or its
+complement repositories, recursively. The recommended naming convention for
+these packages is the primary package name followed by \c{-tests},
 \c{-examples}, or \c{-benchmarks}, respectively. For example:
 
 \
@@ -1175,13 +1175,22 @@ examples: hello-examples
 
 See \l{#package-version-constraint Package Version Constraint} for the format
 and semantics of the optional version constraint. Instead of a concrete value,
-it can also be specified in terms of the dependent package's version (see the
+it can also be specified in terms of the primary package's version (see the
 \l{#manifest-package-depends \c{depends}} value for details), for example:
 
 \
 tests: hello-tests ~$
 \
 
+Note that normally the tests, etc., packages themselves do not have an
+explicit dependency on the primary package (in a sense, the primary package
+has a special dependency on them). They would also normally be excluded from
+any builds (since they are built as part of the main package), for example:
+
+\
+name: hello-tests
+builds: none
+\
 
 \h2#manifest-package-builds|\c{builds}|
 
