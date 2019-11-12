@@ -58,10 +58,10 @@ If the package is a library then it is strongly recommended that you start its
 package name with the \c{lib} prefix, for example, \c{libfoo}. Some package
 repositories may make this a requirement as part of their submission policy.
 
-If a package (normally a library) supports usage of multiple major versions
-in the same project, then it is recommended to append the major version
-number to the package name starting from version \c{2.0.0}, for example,
-\c{libfoo} (before \c{2.0.0}), \c{libfoo2}, \c{libfoo3} (\c{3.Y.Z}), etc.
+If a package (normally a library) supports usage of multiple major versions in
+the same project, then it is recommended to append the major version number to
+the package name starting from version \c{2.0.0}, for example, \c{libfoo}
+(before \c{2.0.0}), \c{libfoo2} (\c{2.Y.Z}), \c{libfoo3} (\c{3.Y.Z}), etc.
 
 
 \h1#package-version|Package Version|
