@@ -1,3 +1,23 @@
+Version 0.12.0
+
+  * Ability to specify the full package version constraint in the pkg-build
+    command.
+
+    For example:
+
+    $ bpkg build "bar < 2.0.0"
+
+    See bpkg-pkg-build(1) for details.
+
+  * Support for default options files (aka tool config files).
+
+    See the bpkg-default-options-files(1) help topic for background and the
+    DEFAULT OPTIONS FILES section in each command's man pages for specifics.
+
+  * Support for tests, examples, and benchmarks as separate packages.
+
+    See the "tests, examples, benchmarks" section in the manual for details.
+
 Version 0.11.0
 
   * The 'tags' package manifest value has been deprecated and replaced with
