@@ -47,6 +47,8 @@ namespace bpkg
     assert (!satisfies (vc ("[1.0   2.0]"),   vc ("[1.0   2.0+0)")));
     assert (!satisfies (vc ("[1.0   2.0]"),   vc ("[1.0   2.0+1)")));
 
+    assert (satisfies (vc ("^1.0.0"), vc ("^1.0.0")));
+
     return 0;
   }
 }

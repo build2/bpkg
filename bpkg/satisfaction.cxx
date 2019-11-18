@@ -62,14 +62,21 @@ namespace bpkg
     // (see libbpkg/manifest.hxx for details). That's why we normalize
     // endpoint versions prior to comparison.
     //
-    auto norm = [] (const version& v, bool min, bool open) -> version
+    auto norm = [] (const version& v, bool min, bool open)
     {
+      // Return the version as is if the revision is present or this is an
+      // earliest release (for which the revision is meaningless).
+      //
+      // We could probably avoid copying of versions that don't require
+      // normalization but let's keep it simple for now.
+      //
+      if (v.revision || (v.release && v.release->empty ()))
+        return v;
+
       return version (v.epoch,
                       v.upstream,
                       v.release,
-                      v.revision                       ? v.revision :
-                      (min && !open) || (!min && open) ? 0          :
-                                                        uint16_t (~0),
+                      (min && !open) || (!min && open) ? 0 : uint16_t (~0),
                       v.iteration);
     };
 
