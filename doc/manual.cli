@@ -311,8 +311,9 @@ of a repository, respectively.
 
 \h#manifest-format|Manifest Format|
 
-The manifest format is a UTF-8 encoded text containing a list of name-value
-pairs in the form:
+A manifest is a UTF-8 encoded text restricted to the Unicode graphic
+characters, tabs (\c{\\t}), carriage returns (\c{\\r}), and line feeds
+(\c{\\n}). It contains a list of name-value pairs in the form:
 
 \
 <name>: <value>
@@ -324,6 +325,10 @@ For example:
 name: libfoo
 version: 1.2.3
 \
+
+\N|If a value needs to be able to contain other Unicode codepoints, they
+should be escaped in a value-specific manner. For example, the backslash
+(\c{\\}) escaping described below can be extended for this purpose.|
 
 The name can contain any characters except \c{:} and whitespaces. Newline
 terminates the pair unless escaped with \c{\\} (see below). Leading and
