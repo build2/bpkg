@@ -902,7 +902,7 @@ namespace bpkg
     using days = chrono::duration<size_t, ratio<3600 * 24>>;
 
     days left (chrono::duration_cast<days> (cert->end_date - now));
-    if (left < days (60))
+    if (left < days (365))
       warn << "certificate for repository " << r
            << " expires in less than " << left.count () + 1 << " day(s)";
 
