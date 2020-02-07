@@ -1,5 +1,4 @@
 // file      : bpkg/value-traits.hxx -*- C++ -*-
-// copyright : Copyright (c) 2014-2019 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
 #ifndef BPKG_VALUE_TRAITS_HXX

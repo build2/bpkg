@@ -1,5 +1,4 @@
 // file      : bpkg/options-types.hxx -*- C++ -*-
-// copyright : Copyright (c) 2014-2019 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
 #ifndef BPKG_OPTIONS_TYPES_HXX

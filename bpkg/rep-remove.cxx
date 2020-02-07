@@ -1,5 +1,4 @@
 // file      : bpkg/rep-remove.cxx -*- C++ -*-
-// copyright : Copyright (c) 2014-2019 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
 #include <bpkg/rep-remove.hxx>

@@ -1,5 +1,4 @@
 // file      : bpkg/rep-info.hxx -*- C++ -*-
-// copyright : Copyright (c) 2014-2019 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
 #ifndef BPKG_REP_INFO_HXX

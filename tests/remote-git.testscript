@@ -1,5 +1,4 @@
 # file      : tests/remote-git.testscript
-# copyright : Copyright (c) 2014-2019 Code Synthesis Ltd
 # license   : MIT; see accompanying LICENSE file
 
 # Tests for commands that accept git repository location must be able to run

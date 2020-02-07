@@ -1,5 +1,4 @@
 # file      : tests/config.testscript
-# copyright : Copyright (c) 2014-2019 Code Synthesis Ltd
 # license   : MIT; see accompanying LICENSE file
 
 # Create an empty configuration that will be copied by subsequent tests and

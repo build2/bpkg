@@ -1,5 +1,4 @@
 # file      : tests/rep-fetch-git.testscript
-# copyright : Copyright (c) 2014-2019 Code Synthesis Ltd
 # license   : MIT; see accompanying LICENSE file
 
 # All tests use the same repository infrastructure present in the initial and
