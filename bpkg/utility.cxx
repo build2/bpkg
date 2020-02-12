@@ -293,11 +293,11 @@ namespace bpkg
   }
 
   auto_fd
-  open_dev_null ()
+  open_null ()
   {
     try
     {
-      return fdnull ();
+      return fdopen_null ();
     }
     catch (const io_error& e)
     {

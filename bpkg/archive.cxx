@@ -222,7 +222,7 @@ namespace bpkg
 
       // If diag is false, then redirect stderr to stdout.
       //
-      auto_fd nfd (diag ? nullfd : fdnull ());
+      auto_fd nfd (diag ? nullfd : open_null ());
 
       if (i != 0)
       {

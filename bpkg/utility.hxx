@@ -172,7 +172,7 @@ namespace bpkg
   open_pipe ();
 
   auto_fd
-  open_dev_null ();
+  open_null ();
 
   // Directory extracted from argv[0] (i.e., this process' recall directory)
   // or empty if there is none. Can be used as a search fallback.

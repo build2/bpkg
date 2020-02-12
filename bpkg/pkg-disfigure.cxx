@@ -132,7 +132,7 @@ namespace bpkg
           {
             if (!clean)
             {
-              auto_fd dev_null (open_dev_null ());
+              auto_fd dev_null (open_null ());
 
               // Redirect stderr to /dev/null. Note that we don't expect
               // anything to be written to stdout.

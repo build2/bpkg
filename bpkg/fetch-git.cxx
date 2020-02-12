@@ -971,7 +971,7 @@ namespace bpkg
                   const dir_path& dir,
                   const string& commit)
   {
-    auto_fd dev_null (open_dev_null ());
+    auto_fd dev_null (open_null ());
 
     process pr (start_git (co,
                            1,                // The output is suppressed by -e.
