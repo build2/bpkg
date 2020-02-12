@@ -82,6 +82,16 @@ for t: cxx{**.test...}
 
 # Build options.
 #
+obj{utility}: cxx.poptions += -DBPKG_EXE_SUFFIX='"'$bin.exe.suffix'"'
+
+# Pass the copyright notice extracted from the COPYRIGHT file.
+#
+copyright = $process.run_regex(cat $src_root/COPYRIGHT,  \
+                               'Copyright \(c\) (.+)\.', \
+                               '\1')
+
+obj{bpkg}: cxx.poptions += -DBPKG_COPYRIGHT=\"$copyright\"
+
 # Disable "unknown pragma" warnings.
 #
 switch $cxx.class
@@ -97,8 +107,6 @@ switch $cxx.class
 #
 if ($cxx.id == 'msvc' && $cxx.version.major == 19 && $cxx.version.minor < 10)
   cxx.coptions += /wd4503
-
-obj{utility}: cxx.poptions += -DBPKG_EXE_SUFFIX='"'$bin.exe.suffix'"'
 
 # Make sure backtrace includes function names.
 #
