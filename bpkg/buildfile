@@ -86,9 +86,9 @@ obj{utility}: cxx.poptions += -DBPKG_EXE_SUFFIX='"'$bin.exe.suffix'"'
 
 # Pass the copyright notice extracted from the LICENSE file.
 #
-copyright = $process.run_regex(                      \
-  cat $src_root/LICENSE,                             \
-  'Copyright \(c\) (.+) \(see the AUTHORS file\)\.', \
+copyright = $process.run_regex(                                 \
+  cat $src_root/LICENSE,                                        \
+  'Copyright \(c\) (.+) \(see the AUTHORS and LEGAL files\)\.', \
   '\1')
 
 obj{bpkg}: cxx.poptions += -DBPKG_COPYRIGHT=\"$copyright\"
