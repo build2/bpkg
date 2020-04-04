@@ -1188,12 +1188,14 @@ tests: hello-tests ~$
 
 Note that normally the tests, etc., packages themselves do not have an
 explicit dependency on the primary package (in a sense, the primary package
-has a special dependency on them). They would also normally be excluded from
-any builds (since they are built as part of the main package), for example:
+has a special dependency on them). They are also not built by automated build
+bots separately from their primary package but may have their own build
+constraints, for example, to be excluded from building on some platforms where
+the primary package is still built, for example:
 
 \
 name: hello-tests
-builds: none
+builds: -windows
 \
 
 \h2#manifest-package-builds|\c{builds}|
