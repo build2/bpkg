@@ -34,7 +34,7 @@
 
 # Prepare repositories used by tests if running in the local mode.
 #
-+if ($remote != true)
++if! $remote
   cp -r $src/extra   $out/extra
   cp -r $src/math    $out/math
   cp -r $src/stable  $out/stable
@@ -187,7 +187,7 @@ pkg_status += -d cfg
 
 : git-rep
 :
-if ($git_supported != true)
+if! $git_supported
 {
   # Skip git repository tests.
   #

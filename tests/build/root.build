@@ -1,6 +1,22 @@
 # file      : tests/build/root.build
 # license   : MIT; see accompanying LICENSE file
 
+# Use remote repository locations for tests.
+#
+config [bool] config.bpkg.tests.remote ?= false
+
+# Enable tests which use ssh protocol for remote git repositories. If true, it
+# is assumed that the password-less ssh authentication is arranged for
+# git.build2.org.
+#
+config [bool] config.bpkg.tests.git.ssh ?= false
+
+# Using the project configuration variables all over the testscripts makes
+# them look hairy. Thus, let's provide short aliases for these variables.
+#
+remote  = $config.bpkg.tests.remote
+git_ssh = $config.bpkg.tests.git.ssh
+
 # We need to configure C++ module to pass the compiler path to some of bpkg
 # test commands.
 #

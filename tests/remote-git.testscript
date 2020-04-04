@@ -36,11 +36,7 @@ git_supported = ($git_version_major >  2 || \
 #
 out_git = $canonicalize([dir_path] $~/git/$cmd)
 
-# If $remote is true then remote repository locations must be used for tests.
-#
-remote = $config.bpkg.test.remote
-
-+if ($remote != true)
++if! $remote
   rep_git_local = ($cxx.target.class != 'windows' \
                    ? "file://$out_git" \
                    : "file:/$regex.replace($out_git, '\\', '/')")
@@ -51,12 +47,6 @@ remote = $config.bpkg.test.remote
 
   mkdir -p $out_git
 else
-  # If $git_ssh is not true then testscripts must skip tests that use the ssh
-  # protocol. Otherwise, it is assumed that the password-less ssh
-  # authentication is arranged for git.build2.org.
-  #
-  git_ssh = $config.bpkg.test.git.ssh
-
   rep_git_https_dumb        = "https://build2.org/bpkg/git/$cmd"
   rep_git_https_smart       = "https://git.build2.org/testing/bpkg/advonly/$cmd"
   rep_git_https_smart_unadv = "https://git.build2.org/testing/bpkg/unadv/$cmd"

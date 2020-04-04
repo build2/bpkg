@@ -19,7 +19,7 @@
 
 # Prepare repositories used by tests if running in the local mode.
 #
-+if ($remote != true)
++if! $remote
   rc = $rep_create 2>!
 
   # Create the unsigned 'testing' repository.
@@ -281,7 +281,7 @@ $* --name $rep/testing >"pkg:build2.org/rep-info/testing ($rep/testing)"
 
 : git-rep
 :
-if ($git_supported != true)
+if! $git_supported
 {
   # Skip git repository tests.
   #

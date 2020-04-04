@@ -68,7 +68,7 @@
 
 # Prepare repositories used by tests if running in the local mode.
 #
-+if ($remote != true)
++if! $remote
   rep_create += 2>!
 
   # Create the signed 'hello' repository.
@@ -457,7 +457,7 @@ y'
 : For dir repository tests we will reuse local git repositories, that have the
 : same repository structure.
 :
-if ($remote != true)
+if! $remote
 {
   rep_add += --type dir
 
@@ -644,7 +644,7 @@ if ($remote != true)
 
     : git-rep
     :
-    if ($git_supported == true && $remote != true)
+    if ($git_supported && !$remote)
     {
       rep = $canonicalize([dir_path] $out_git/state0);
 
@@ -683,7 +683,7 @@ if ($remote != true)
 
 : git-rep
 :
-if ($git_supported != true)
+if! $git_supported
 {
   # Skip git repository tests.
   #
@@ -692,7 +692,7 @@ else
 {
   : proto
   :
-  if ($remote != true)
+  if! $remote
   {
     git_protocol = 'local'
     .include rep-fetch-git.testscript
@@ -736,7 +736,7 @@ else
 
     : ssh
     :
-    if ($git_ssh == true)
+    if $git_ssh
     {
       git_protocol = 'ssh'
       .include rep-fetch-git.testscript
@@ -744,7 +744,7 @@ else
 
     : ssh-unadv
     :
-    if ($git_ssh == true)
+    if $git_ssh
     {
       git_protocol = 'ssh-unadv'
       .include rep-fetch-git.testscript
@@ -757,7 +757,7 @@ else
   : extension does not exist but the one without the extension does, then
   : it is picked up by rep-fetch.
   :
-  if ($remote != true)
+  if! $remote
   {
     cp -r $out_git/state0/libbar.git libbar.git;
     cp -r $out_git/state0/style-basic.git style-basic;
@@ -816,7 +816,7 @@ else
   : Test that repository is re-fetched on the location change. Here it happens
   : due to the scheme change.
   :
-  if ($remote == true)
+  if $remote
   {
     $clone_root_cfg && $rep_add "$rep_git_git/state0/libfoo.git#master";
     $* 2>! &cfg/.bpkg/repos/*/***;

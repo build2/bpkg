@@ -23,7 +23,7 @@
 
 # Prepare repositories used by tests if running in the local mode.
 #
-+if ($remote != true)
++if! $remote
   rc = $rep_create 2>!
 
   # Create the 'unsigned1' repository.
@@ -337,7 +337,7 @@ sc = " " # Space character to append to here-document line when required.
 
       : subdomain
       :
-      if ($remote != true)
+      if! $remote
       {
         : first-level
         :
@@ -373,7 +373,7 @@ sc = " " # Space character to append to here-document line when required.
 
       : subdomain
       :
-      if ($remote != true)
+      if! $remote
       {
         : first-level
         :
@@ -409,7 +409,7 @@ sc = " " # Space character to append to here-document line when required.
 
       : subdomain
       :
-      if ($remote != true)
+      if! $remote
       {
         : first-level
         :

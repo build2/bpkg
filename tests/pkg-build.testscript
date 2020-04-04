@@ -120,7 +120,7 @@
 
 # Prepare repositories used by tests if running in the local mode.
 #
-+if ($remote != true)
++if! $remote
   rep_create += 2>!
 
   cp -r $src/t0a $out/t0a && $rep_create $out/t0a &$out/t0a/packages.manifest
@@ -3320,7 +3320,7 @@ test.options += --no-progress
     {
       $clone_root_cfg;
 
-      if ($remote != true)
+      if! $remote
         rep = ($cxx.target.class != 'windows' \
                ? "file:$rep" \
                : "file:/$regex.replace($rep, '\\', '/')")
@@ -3782,7 +3782,7 @@ test.options += --no-progress
 
 : git-rep
 :
-if ($git_supported != true)
+if! $git_supported
 {
   # Skip git repository tests.
   #
@@ -3857,7 +3857,7 @@ else
   : Test that the unpacked external package is properly built for the first
   : time and is not rebuilt afterwards via the directory argument.
   :
-  if ($remote != true)
+  if! $remote
   {
     $clone_root_cfg;
 

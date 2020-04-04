@@ -23,7 +23,7 @@
 
 # Prepare repositories used by tests if running in the local mode.
 #
-+if ($remote != true)
++if! $remote
   rep_create += 2>!
 
   cp -r $src/t4a $out/t4a && $rep_create $out/t4a &$out/t4a/packages.manifest

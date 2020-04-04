@@ -19,18 +19,16 @@
 #
 out = $canonicalize([dir_path] $~/pkg/1/build2.org/)
 
-# If $remote is true then remote repositories locations must be used for
-# tests. Variables rep_root and rep refer to the root and the command-
-# specific repositories respectively. Note that the variables type is dir_path
-# for local repositories (rather than string for the remote ones), that allows
-# to portably obtain sub-repositories locations representations.
+# Variables rep_root and rep refer to the root and the command-specific
+# repositories respectively. Note that the variables type is dir_path for
+# local repositories (rather than string for the remote ones), that allows to
+# portably obtain sub-repositories locations representations.
 #
-remote   = $config.bpkg.test.remote
-rep_root = ($remote == true ? [string] "https://build2.org/bpkg/1" : $out)
+rep_root = ($remote ? [string] "https://build2.org/bpkg/1" : $out)
 
 out += [dir_path] $cmd
-rep  = ($remote == true ? [string] "$rep_root/$cmd" : $out)
+rep  = ($remote ? [string] "$rep_root/$cmd" : $out)
 
-+if ($remote != true)
++if! $remote
   mkdir -p $out
 end

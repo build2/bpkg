@@ -14,7 +14,7 @@ posix = ($cxx.target.class != 'windows')
 
 # Prepare repositories used by tests if running in the local mode.
 #
-+if ($remote != true)
++if! $remote
   # Create git repositories.
   #
   $git_extract $src/git/libbar.tar
@@ -29,7 +29,7 @@ end
 
 : git-rep
 :
-if ($git_supported != true)
+if! $git_supported
 {
   # Skip git repository tests.
   #
@@ -122,7 +122,7 @@ else
 
   : links
   :
-  if ($remote == true || $posix)
+  if ($remote || $posix)
   {
     $clone_root_cfg;
 
