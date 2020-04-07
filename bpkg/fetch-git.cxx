@@ -2385,7 +2385,7 @@ namespace bpkg
         r = true;
       }
 
-      // Create real links (hardlinks and junctions).
+      // Create real links (hardlinks, symlinks, and junctions).
       //
       while (!links.empty ())
       {
@@ -2424,8 +2424,8 @@ namespace bpkg
                      &e);
           }
 
-          // Create the hardlink for a file target and junction for a
-          // directory target.
+          // Create the hardlink for a file target and symlink or junction for
+          // a directory target.
           //
           try
           {
@@ -2463,8 +2463,8 @@ namespace bpkg
       //
       // For the directory junctions the git-checkout command (see below)
       // removes the target directory content, rather then the junction
-      // filesystem entry. To prevent this, we remove all hardlinks/junctions
-      // ourselves first.
+      // filesystem entry. To prevent this, we remove all links ourselves
+      // first.
       //
       for (const path& l: find_symlinks (co, dir, prefix))
       {
@@ -2474,8 +2474,8 @@ namespace bpkg
         }
         catch (const system_error& e)
         {
-          failure ("unable to remove hardlink or junction '" + l.string () +
-                   "'",
+          failure ("unable to remove hardlink, symlink, or junction '" +
+                   l.string () + "'",
                    &e);
         }
       }
