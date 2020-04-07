@@ -2430,7 +2430,7 @@ namespace bpkg
           try
           {
             if (dir_target)
-              mksymlink (tp, lp, true /* dir */);
+              mksymlink (t, lp, true /* dir */);
             else
               mkhardlink (tp, lp);
           }
