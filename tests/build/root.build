@@ -1,13 +1,18 @@
 # file      : tests/build/root.build
 # license   : MIT; see accompanying LICENSE file
 
-# Use remote repository locations for tests.
+# Use remote instead of local repository locations for tests.
+#
+# Note that this is an "instead of" rather than "in addition to" configuration
+# so ideally you would want to run both with and without this enabled. This is
+# also one of the reasons remote tests are not enabled by default (the other
+# being that they take forever).
 #
 config [bool] config.bpkg.tests.remote ?= false
 
-# Enable tests which use ssh protocol for remote git repositories. If true, it
-# is assumed that the password-less ssh authentication is arranged for
-# git.build2.org.
+# Additionally enable tests that use ssh protocol for remote git repositories.
+# If true, it is assumed that the password-less ssh authentication is arranged
+# for git.build2.org.
 #
 config [bool] config.bpkg.tests.git.ssh ?= false
 
