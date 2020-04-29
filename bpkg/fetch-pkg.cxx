@@ -24,7 +24,11 @@ namespace bpkg
                   bool ignore_unknown)
   {
     string url (u.string ());
-    process pr (start_fetch (o, url));
+    process pr (start_fetch (o,
+                             url,
+                             path () /* out */,
+                             string () /* user_agent */,
+                             o.pkg_proxy ()));
 
     try
     {
@@ -94,7 +98,11 @@ namespace bpkg
       fail << "file " << df << " already exists";
 
     auto_rmfile arm (df);
-    process pr (start_fetch (o, u.string (), df));
+    process pr (start_fetch (o,
+                             u.string (),
+                             df,
+                             string () /* user_agent */,
+                             o.pkg_proxy ()));
 
     if (!pr.wait ())
     {

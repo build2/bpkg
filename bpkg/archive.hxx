@@ -4,8 +4,6 @@
 #ifndef BPKG_ARCHIVE_HXX
 #define BPKG_ARCHIVE_HXX
 
-#include <libbutl/process.mxx>
-
 #include <bpkg/types.hxx>
 #include <bpkg/utility.hxx>
 

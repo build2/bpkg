@@ -3,13 +3,10 @@
 
 #include <bpkg/satisfaction.hxx>
 
-#include <libbutl/process.mxx>
-
 #include <bpkg/package-odb.hxx>
 #include <bpkg/diagnostics.hxx>
 
 using namespace std;
-using namespace butl;
 
 namespace bpkg
 {

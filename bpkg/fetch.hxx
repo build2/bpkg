@@ -6,8 +6,6 @@
 
 #include <ctime> // time_t
 
-#include <libbutl/process.mxx>
-
 #include <libbpkg/manifest.hxx>
 
 #include <bpkg/types.hxx>
@@ -20,6 +18,9 @@ namespace bpkg
   // Repository type pkg (fetch-pkg.cxx).
   //
 
+  // If HTTP proxy is specified via the --pkg-proxy option, then use it for
+  // fetching manifests and archives from the remote pkg repository.
+  //
   pkg_repository_manifests
   pkg_fetch_repositories (const dir_path&, bool ignore_unknown);
 
@@ -120,13 +121,17 @@ namespace bpkg
   // Start the process of fetching the specified URL. If out is empty, then
   // fetch to stdout. In this case also don't show any progress unless we are
   // running verbose. If user_agent is empty, then send the default (fetch
-  // program specific) User-Agent header value.
+  // program specific) User-Agent header value. If the HTTP proxy URL is not
+  // empty and the URL to fetch is HTTP(S), then fetch it via the specified
+  // proxy server converting the https URL scheme to http (see the --pkg-proxy
+  // option for details).
   //
-  butl::process
+  process
   start_fetch (const common_options& o,
                const string& url,
                const path& out = {},
-               const string& user_agent = {});
+               const string& user_agent = {},
+               const butl::url& proxy = {});
 }
 
 #endif // BPKG_FETCH_HXX

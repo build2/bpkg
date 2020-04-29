@@ -19,6 +19,16 @@ namespace bpkg
   namespace cli
   {
     template <>
+    struct parser<url>
+    {
+      static void
+      parse (url&, bool&, scanner&);
+
+      static void
+      merge (url& b, const url& a) {b = a;}
+    };
+
+    template <>
     struct parser<path>
     {
       static void

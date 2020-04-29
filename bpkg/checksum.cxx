@@ -7,13 +7,9 @@
 #  include <algorithm> // replace()
 #endif
 
-#include <libbutl/process.mxx>
-#include <libbutl/filesystem.mxx>
-
 #include <bpkg/diagnostics.hxx>
 
 using namespace std;
-using namespace butl;
 
 namespace bpkg
 {

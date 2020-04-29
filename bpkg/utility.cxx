@@ -4,7 +4,6 @@
 #include <bpkg/utility.hxx>
 
 #include <libbutl/prompt.mxx>
-#include <libbutl/process.mxx>
 #include <libbutl/fdstream.mxx>
 
 #include <bpkg/diagnostics.hxx>

@@ -5,7 +5,6 @@
 
 #include <iostream> // cout
 
-#include <libbutl/process.mxx>
 #include <libbutl/manifest-parser.mxx>
 #include <libbutl/manifest-serializer.mxx>
 

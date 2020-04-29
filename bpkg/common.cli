@@ -181,12 +181,30 @@ namespace bpkg
        programs."
     }
 
+    butl::url --pkg-proxy
+    {
+      "<url>",
+      "HTTP proxy server to use when fetching package manifests and archives
+       from remote \cb{pkg} repositories. If specified, the proxy <url> must
+       be in the \c{\b{http://}\i{host}[\b{:}\i{port}]} form. If \ci{port} is
+       omitted, 80 is used by default.
+
+       Note that to allow caching, the proxied \cb{https://} URLs are
+       converted to \cb{http://} in order to prevent the fetch program from
+       tunneling (which is the standard approach for proxying HTTPS). If both
+       HTTP and HTTPS repositories are used, it is assumed that the proxy
+       server can figure out which URLs need to be converted back to
+       \cb{https://} based on the request information (for example, host
+       name). For security, this mechanism should only be used with signed
+       repositories or when the proxy is located inside a trusted network."
+    }
+
     path --git = "git"
     {
       "<path>",
       "The git program to be used to fetch git repositories. You can also
-       specify additional options that should be passed to the git program with
-       \cb{--git-option}.
+       specify additional options that should be passed to the git program
+       with \cb{--git-option}.
 
        If the git program is not explicitly specified, then \cb{bpkg} will use
        \cb{git} by default."

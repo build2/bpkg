@@ -7,8 +7,6 @@
 #  include <algorithm> // replace()
 #endif
 
-#include <libbutl/process.mxx>
-
 #include <libbpkg/manifest.hxx>
 
 #include <bpkg/archive.hxx>
@@ -23,7 +21,6 @@
 #include <bpkg/pkg-verify.hxx>
 
 using namespace std;
-using namespace butl;
 
 namespace bpkg
 {

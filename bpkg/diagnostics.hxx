@@ -49,6 +49,28 @@ namespace bpkg
     print_process (args.data (), args.size ());
   }
 
+  // As above but with process_env.
+  //
+  void
+  print_process (diag_record&,
+                 const process_env&, const char* const args[], size_t n = 0);
+
+  void
+  print_process (const process_env&, const char* const args[], size_t n = 0);
+
+  inline void
+  print_process (diag_record& dr,
+                 const process_env& pe, const cstrings& args)
+  {
+    print_process (dr, pe, args.data (), args.size ());
+  }
+
+  inline void
+  print_process (const process_env& pe, const cstrings& args)
+  {
+    print_process (pe, args.data (), args.size ());
+  }
+
   // Verbosity level. Update documentation for --verbose if changing.
   //
   // 0 - disabled

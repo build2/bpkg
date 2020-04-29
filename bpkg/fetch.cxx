@@ -3,12 +3,9 @@
 
 #include <bpkg/fetch.hxx>
 
-#include <libbutl/process.mxx>
-
 #include <bpkg/diagnostics.hxx>
 
 using namespace std;
-using namespace butl;
 
 namespace bpkg
 {
@@ -94,7 +91,8 @@ namespace bpkg
               const strings& ops,
               const string& url,
               const path& out,
-              const string& user_agent)
+              const string& user_agent,
+              const string& http_proxy)
   {
     bool fo (!out.empty ()); // Output to file.
 
@@ -178,10 +176,23 @@ namespace bpkg
     args.push_back (url.c_str ());
     args.push_back (nullptr);
 
-    process_path pp (process::path_search (args[0]));
+    process_path pp  (process::path_search (args[0]));
+    process_env  env (pp);
+
+    // HTTP proxy.
+    //
+    string evar;
+    const char* evars[] = {nullptr, nullptr};
+
+    if (!http_proxy.empty ())
+    {
+      evar = "http_proxy=" + http_proxy;
+      evars[0] = evar.c_str ();
+      env.vars = evars;
+    }
 
     if (verb >= 2)
-      print_process (args);
+      print_process (env, args);
 
     // If we are fetching into a file, change the wget's directory to
     // that of the output file. We do it this way so that we end up with
@@ -191,8 +202,9 @@ namespace bpkg
     return fo
       ? process (pp, args.data (),
                  0, 1, 2,
-                 out.directory ().string ().c_str ())
-      : process (pp, args.data (), 0, -1);
+                 out.directory ().string ().c_str (),
+                 env.vars)
+      : process (pp, args.data (), 0, -1, 2, nullptr /* cwd */, env.vars);
   }
 
   // curl
@@ -247,7 +259,8 @@ namespace bpkg
               const strings& ops,
               const string& url,
               const path& out,
-              const string& user_agent)
+              const string& user_agent,
+              const string& http_proxy)
   {
     bool fo (!out.empty ()); // Output to file.
 
@@ -318,6 +331,14 @@ namespace bpkg
     {
       args.push_back ("-o");
       args.push_back (out.string ().c_str ());
+    }
+
+    // HTTP proxy.
+    //
+    if (!http_proxy.empty ())
+    {
+      args.push_back ("--proxy");
+      args.push_back (http_proxy.c_str ());
     }
 
     args.push_back (url.c_str ());
@@ -396,7 +417,8 @@ namespace bpkg
                const strings& ops,
                const string& url,
                const path& out,
-               const string& user_agent)
+               const string& user_agent,
+               const string& http_proxy)
   {
     bool fo (!out.empty ()); // Output to file.
 
@@ -464,10 +486,23 @@ namespace bpkg
     args.push_back (url.c_str ());
     args.push_back (nullptr);
 
-    process_path pp (process::path_search (args[0]));
+    process_path pp  (process::path_search (args[0]));
+    process_env  env (pp);
+
+    // HTTP proxy.
+    //
+    string evar;
+    const char* evars[] = {nullptr, nullptr};
+
+    if (!http_proxy.empty ())
+    {
+      evar = "HTTP_PROXY=" + http_proxy;
+      evars[0] = evar.c_str ();
+      env.vars = evars;
+    }
 
     if (verb >= 2)
-      print_process (args);
+      print_process (env, args);
 
     // If we are fetching into a file, change the fetch's directory to
     // that of the output file. We do it this way so that we end up with
@@ -477,8 +512,9 @@ namespace bpkg
     return fo
       ? process (pp, args.data (),
                  0, 1, 2,
-                 out.directory ().string ().c_str ())
-      : process (pp, args.data (), 0, -1);
+                 out.directory ().string ().c_str (),
+                 env.vars)
+      : process (pp, args.data (), 0, -1, 2, nullptr /* cwd */, env.vars);
   }
 
   // The dispatcher.
@@ -572,9 +608,10 @@ namespace bpkg
 
   process
   start_fetch (const common_options& o,
-               const string& url,
+               const string& src,
                const path& out,
-               const string& user_agent)
+               const string& user_agent,
+               const url& proxy)
   {
     process (*f) (const path&,
                   const optional<size_t>&,
@@ -582,6 +619,7 @@ namespace bpkg
                   const strings&,
                   const string&,
                   const path&,
+                  const string&,
                   const string&) = nullptr;
 
     switch (check (o))
@@ -595,15 +633,79 @@ namespace bpkg
     if (o.fetch_timeout_specified ())
       timeout = o.fetch_timeout ();
 
+    // If the HTTP proxy is specified and the URL is HTTP(S), then fetch
+    // through the proxy, converting the https URL scheme to http.
+    //
     try
     {
+      string http_url;
+      string http_proxy;
+
+      if (!proxy.empty ())
+      {
+        auto bad_proxy = [&src, &proxy] (const char* d)
+        {
+          fail << "unable to fetch '" << src << "' using '" << proxy
+               << "' as proxy: " << d;
+        };
+
+        if (icasecmp (proxy.scheme, "http") != 0)
+          bad_proxy ("only HTTP proxy is supported");
+
+        if (!proxy.authority || proxy.authority->host.empty ())
+          bad_proxy ("invalid host name in proxy URL");
+
+        if (!proxy.authority->user.empty ())
+          bad_proxy ("unexpected user in proxy URL");
+
+        if (proxy.path)
+          bad_proxy ("unexpected path in proxy URL");
+
+        if (proxy.query)
+          bad_proxy ("unexpected query in proxy URL");
+
+        if (proxy.fragment)
+          bad_proxy ("unexpected fragment in proxy URL");
+
+        if (proxy.rootless)
+          bad_proxy ("proxy URL cannot be rootless");
+
+        url u;
+        try
+        {
+          u = url (src);
+        }
+        catch (const invalid_argument& e)
+        {
+          fail << "unable to fetch '" << src << "': invalid URL: " << e;
+        }
+
+        bool http  (icasecmp (u.scheme, "http")  == 0);
+        bool https (icasecmp (u.scheme, "https") == 0);
+
+        if (http || https)
+        {
+          http_proxy = proxy.string ();
+
+          if (proxy.authority->port == 0)
+            http_proxy += ":80";
+
+          if (https)
+          {
+            u.scheme = "http";
+            http_url = u.string ();
+          }
+        }
+      }
+
       return f (fetch_path,
                 timeout,
                 o.no_progress (),
                 o.fetch_option (),
-                url,
+                !http_url.empty () ? http_url : src,
                 out,
-                user_agent);
+                user_agent,
+                http_proxy);
     }
     catch (const process_error& e)
     {

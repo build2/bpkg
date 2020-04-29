@@ -10,7 +10,6 @@
 #include <iostream>   // cout
 #include <algorithm>  // find_if()
 
-#include <libbutl/url.mxx>
 #include <libbutl/standard-version.mxx>
 
 #include <bpkg/package.hxx>
@@ -2645,7 +2644,7 @@ namespace bpkg
         //
         size_t p (0);
 
-        using url_traits = butl::url::traits_type;
+        using url_traits = url::traits_type;
 
         // Skip leading ':' that are not part of a URL.
         //

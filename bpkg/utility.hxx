@@ -14,6 +14,7 @@
 #include <libbutl/ft/lang.hxx>
 
 #include <libbutl/utility.mxx>         // icasecmp(), reverse_iterate(), etc
+#include <libbutl/process.mxx>
 #include <libbutl/filesystem.mxx>
 #include <libbutl/default-options.mxx>
 
@@ -46,6 +47,10 @@ namespace bpkg
   using butl::getenv;
   using butl::setenv;
   using butl::unsetenv;
+
+  // <libbutl/process.mxx>
+  //
+  using butl::process_start_callback;
 
   // <libbutl/filesystem.mxx>
   //

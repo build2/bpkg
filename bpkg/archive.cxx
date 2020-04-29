@@ -3,13 +3,10 @@
 
 #include <bpkg/archive.hxx>
 
-#include <libbutl/process.mxx>
-
 #include <bpkg/utility.hxx>
 #include <bpkg/diagnostics.hxx>
 
 using namespace std;
-using namespace butl;
 
 namespace bpkg
 {
