@@ -167,6 +167,12 @@ namespace bpkg
     for (const repository::fragment_type& fr: r->fragments)
       rep_remove_fragment (c, t, fr.fragment.load ());
 
+    // If there are no repositories stayed in the database then no repository
+    // fragments should stay either.
+    //
+    if (db.query_value<repository_count> () == 0)
+      assert (db.query_value<repository_fragment_count> () == 0);
+
     // Cleanup the repository state if present and there are no more
     // repositories referring this state.
     //
@@ -241,6 +247,20 @@ namespace bpkg
     //
     db.erase (rf);
 
+    // If there are no repository fragments stayed in the database then no
+    // repositories nor packages should stay either.
+    //
+    // Note that a repository is removed prior to the removal of fragments it
+    // contains (see rep_remove()). Also note that the packages contained in a
+    // repository fragment are removed, if this is the only containing
+    // fragment, prior to the fragment removal (see above).
+    //
+    if (db.query_value<repository_fragment_count> () == 0)
+    {
+      assert (db.query_value<repository_count> ()        == 0);
+      assert (db.query_value<available_package_count> () == 0);
+    }
+
     // Remove dangling complements and prerequisites.
     //
     // Prior to removing a prerequisite/complement we need to make sure it
@@ -263,13 +283,6 @@ namespace bpkg
 
     for (const lazy_weak_ptr<repository>& pr: rf->prerequisites)
       remove (pr);
-
-    // If there are no repositories stayed in the database then no repository
-    // fragments nor packages should stay either.
-    //
-    assert (db.query_value<repository_count> () != 0 ||
-            (db.query_value<repository_fragment_count> () == 0 &&
-             db.query_value<available_package_count> () == 0));
   }
 
   void
