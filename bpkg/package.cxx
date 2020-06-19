@@ -191,7 +191,7 @@ namespace bpkg
 
     for (shared_ptr<available_package> ap: pointer_result (apr))
     {
-      for (const shared_ptr<repository_fragment> r: rps)
+      for (const shared_ptr<repository_fragment>& r: rps)
       {
         if (shared_ptr<repository_fragment> rf = filter (r, ap, prereq))
         {
@@ -214,7 +214,7 @@ namespace bpkg
 
     for (shared_ptr<available_package> ap: pointer_result (apr))
     {
-      for (const shared_ptr<repository_fragment> r: rps)
+      for (const shared_ptr<repository_fragment>& r: rps)
       {
         if (shared_ptr<repository_fragment> rf = filter (r, ap, prereq))
           return result (move (ap), move (rf));
