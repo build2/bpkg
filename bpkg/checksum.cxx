@@ -3,10 +3,6 @@
 
 #include <bpkg/checksum.hxx>
 
-#ifdef _WIN32
-#  include <algorithm> // replace()
-#endif
-
 #include <bpkg/diagnostics.hxx>
 
 using namespace std;

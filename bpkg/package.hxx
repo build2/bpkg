@@ -27,7 +27,7 @@
 //
 #define DB_SCHEMA_VERSION_BASE 5
 
-#pragma db model version(DB_SCHEMA_VERSION_BASE, 6, closed)
+#pragma db model version(DB_SCHEMA_VERSION_BASE, 7, closed)
 
 namespace bpkg
 {
@@ -446,7 +446,61 @@ namespace bpkg
   #pragma db member(dependency::constraint) column("")
   #pragma db value(dependency_alternatives) definition
 
-  using dependencies = vector<dependency_alternatives>;
+  // Extend dependency_alternatives to also represent the special test
+  // dependencies of the test packages to the main packages, produced by
+  // inverting the main packages external test dependencies (specified with
+  // the tests, etc., manifest values).
+  //
+  #pragma db value
+  class dependency_alternatives_ex: public dependency_alternatives
+  {
+  public:
+    optional<test_dependency_type> type;
+
+    dependency_alternatives_ex () = default;
+
+    // Create the regular dependency alternatives object.
+    //
+    dependency_alternatives_ex (dependency_alternatives da)
+        : dependency_alternatives (move (da)) {}
+
+    // Create the special test dependencies object (built incrementally).
+    //
+    dependency_alternatives_ex (test_dependency_type t)
+        : dependency_alternatives (false /* conditional */,
+                                   false /* buildtime */,
+                                   "" /* comment */),
+          type (t) {}
+  };
+
+  using dependencies = vector<dependency_alternatives_ex>;
+
+  // Convert the regular dependency alternatives list (normally comes from a
+  // package manifest) to the extended version of it (see above).
+  //
+  inline dependencies
+  convert (vector<dependency_alternatives>&& das)
+  {
+    return dependencies (make_move_iterator (das.begin ()),
+                         make_move_iterator (das.end ()));
+  }
+
+  // tests
+  //
+  #pragma db value(test_dependency) definition
+
+  using optional_test_dependency_type = optional<test_dependency_type>;
+
+  #pragma db map type(test_dependency_type) as(string) \
+    to(to_string (?))                                  \
+    from(bpkg::to_test_dependency_type (?))
+
+  #pragma db map type(optional_test_dependency_type)      \
+   as(bpkg::optional_string)                              \
+    to((?) ? to_string (*(?)) : bpkg::optional_string ()) \
+    from((?)                                              \
+         ? bpkg::to_test_dependency_type (*(?))           \
+         : bpkg::optional_test_dependency_type ())
 
   // Wildcard version. Satisfies any version constraint and is represented as
   // 0+0 (which is also the "stub version"; since a real version is always
@@ -498,11 +552,16 @@ namespace bpkg
     //
     small_vector<package_location, 1> locations;
 
-    // Package manifest data.
+    // Package manifest data and, potentially, the special test dependencies.
+    //
+    // Note that there can be only one special test dependencies entry in the
+    // list and it's always the last one, if present.
     //
     using dependencies_type = bpkg::dependencies;
 
     dependencies_type dependencies;
+
+    small_vector<test_dependency, 1> tests;
 
     // Present for non-transient objects only (and only for certain repository
     // types).
@@ -519,7 +578,8 @@ namespace bpkg
     available_package (package_manifest&& m)
         : id (move (m.name), m.version),
           version (move (m.version)),
-          dependencies (move (m.dependencies)),
+          dependencies (convert (move (m.dependencies))),
+          tests (move (m.tests)),
           sha256sum (move (m.sha256sum)) {}
 
     // Create available stub package.
@@ -596,8 +656,8 @@ namespace bpkg
 
     // dependencies
     //
-    using _dependency_key = odb::nested_key<dependency_alternatives>;
-    using _dependency_alternatives_type =
+    using _dependency_key = odb::nested_key<dependency_alternatives_ex>;
+    using _dependency_alternatives_ex_type =
       std::map<_dependency_key, dependency>;
 
     #pragma db value(_dependency_key)
@@ -605,12 +665,17 @@ namespace bpkg
     #pragma db member(_dependency_key::inner) column("index")
 
     #pragma db member(dependencies) id_column("") value_column("")
-    #pragma db member(dependency_alternatives)                \
-      virtual(_dependency_alternatives_type)                  \
+    #pragma db member(dependency_alternatives_ex)             \
+      table("available_package_dependency_alternatives")      \
+      virtual(_dependency_alternatives_ex_type)               \
       after(dependencies)                                     \
       get(odb::nested_get (this.dependencies))                \
       set(odb::nested_set (this.dependencies, std::move (?))) \
       id_column("") key_column("") value_column("dep_")
+
+    // tests
+    //
+    #pragma db member(tests) id_column("") value_column("test_")
 
   private:
     friend class odb::access;
@@ -625,6 +690,57 @@ namespace bpkg
 
     operator size_t () const {return result;}
   };
+
+  // Return the list of available test packages, that is, that are referred to
+  // as external tests by some main package(s).
+  //
+  // Note that there can be only one test dependency row per package, so the
+  // DISTINCT clause is not required.
+  //
+  #pragma db view object(available_package = package)                       \
+    table("available_package_dependencies" = "pd" inner:                    \
+          "pd.type IN ('tests', 'examples', 'benchmarks') AND "             \
+          "pd.name = " + package::id.name + "AND" +                         \
+          "pd.version_epoch = " + package::id.version.epoch + "AND" +       \
+          "pd.version_canonical_upstream = " +                              \
+            package::id.version.canonical_upstream + "AND" +                \
+          "pd.version_canonical_release = " +                               \
+            package::id.version.canonical_release + "AND" +                 \
+          "pd.version_revision = " + package::id.version.revision + "AND" + \
+          "pd.version_iteration = " + package::id.version.iteration)
+  struct available_test
+  {
+    shared_ptr<available_package> package;
+  };
+
+  // Return the list of available main packages, that is, that refer to some
+  // external test packages.
+  //
+  #pragma db view object(available_package = package)                       \
+    table("available_package_tests" = "pt" inner:                           \
+          "pt.name = " + package::id.name + "AND" +                         \
+          "pt.version_epoch = " + package::id.version.epoch + "AND" +       \
+          "pt.version_canonical_upstream = " +                              \
+            package::id.version.canonical_upstream + "AND" +                \
+          "pt.version_canonical_release = " +                               \
+            package::id.version.canonical_release + "AND" +                 \
+          "pt.version_revision = " + package::id.version.revision + "AND" + \
+          "pt.version_iteration = " + package::id.version.iteration)        \
+    query(distinct)
+  struct available_main
+  {
+    shared_ptr<available_package> package;
+  };
+
+  // Query the available packages that optionally satisfy the specified
+  // version constraint and return them in the version descending order, by
+  // default. Note that a stub satisfies any constraint.
+  //
+  odb::result<available_package>
+  query_available (database&,
+                   const package_name&,
+                   const optional<version_constraint>&,
+                   bool order = true);
 
   // Only return packages that are in the specified repository fragments, their
   // complements or prerequisites (if prereq is true), recursively. While you

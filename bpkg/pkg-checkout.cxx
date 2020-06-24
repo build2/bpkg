@@ -226,7 +226,10 @@ namespace bpkg
                                       true /* ignore_unknown */,
                                       [&ap] (version& v) {v = ap->version;}));
 
-      pkg_configure_prerequisites (o, t, m.dependencies, m.name);
+      pkg_configure_prerequisites (o,
+                                   t,
+                                   convert (move (m.dependencies)),
+                                   m.name);
 
       // Form the buildspec.
       //

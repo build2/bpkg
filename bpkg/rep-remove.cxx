@@ -4,7 +4,6 @@
 #include <bpkg/rep-remove.hxx>
 
 #include <set>
-#include <algorithm> // find()
 
 #include <libbutl/filesystem.mxx> // dir_iterator
 

@@ -1,4 +1,64 @@
 <changelog xmlns="http://www.codesynthesis.com/xmlns/odb/changelog" database="sqlite" version="1">
+  <changeset version="7">
+    <alter-table name="available_package_dependencies">
+      <add-column name="type" type="TEXT" null="true"/>
+    </alter-table>
+    <add-table name="available_package_tests" kind="container">
+      <column name="name" type="TEXT" null="true" options="COLLATE NOCASE"/>
+      <column name="version_epoch" type="INTEGER" null="true"/>
+      <column name="version_canonical_upstream" type="TEXT" null="true"/>
+      <column name="version_canonical_release" type="TEXT" null="true" options="COLLATE BINARY"/>
+      <column name="version_revision" type="INTEGER" null="true"/>
+      <column name="version_iteration" type="INTEGER" null="true"/>
+      <column name="index" type="INTEGER" null="true"/>
+      <column name="test_name" type="TEXT" null="true" options="COLLATE NOCASE"/>
+      <column name="test_min_version_epoch" type="INTEGER" null="true"/>
+      <column name="test_min_version_canonical_upstream" type="TEXT" null="true"/>
+      <column name="test_min_version_canonical_release" type="TEXT" null="true"/>
+      <column name="test_min_version_revision" type="INTEGER" null="true"/>
+      <column name="test_min_version_iteration" type="INTEGER" null="true"/>
+      <column name="test_min_version_upstream" type="TEXT" null="true"/>
+      <column name="test_min_version_release" type="TEXT" null="true"/>
+      <column name="test_max_version_epoch" type="INTEGER" null="true"/>
+      <column name="test_max_version_canonical_upstream" type="TEXT" null="true"/>
+      <column name="test_max_version_canonical_release" type="TEXT" null="true"/>
+      <column name="test_max_version_revision" type="INTEGER" null="true"/>
+      <column name="test_max_version_iteration" type="INTEGER" null="true"/>
+      <column name="test_max_version_upstream" type="TEXT" null="true"/>
+      <column name="test_max_version_release" type="TEXT" null="true"/>
+      <column name="test_min_open" type="INTEGER" null="true"/>
+      <column name="test_max_open" type="INTEGER" null="true"/>
+      <column name="test_type" type="TEXT" null="true"/>
+      <foreign-key name="object_id_fk" on-delete="CASCADE">
+        <column name="name"/>
+        <column name="version_epoch"/>
+        <column name="version_canonical_upstream"/>
+        <column name="version_canonical_release"/>
+        <column name="version_revision"/>
+        <column name="version_iteration"/>
+        <references table="available_package">
+          <column name="name"/>
+          <column name="version_epoch"/>
+          <column name="version_canonical_upstream"/>
+          <column name="version_canonical_release"/>
+          <column name="version_revision"/>
+          <column name="version_iteration"/>
+        </references>
+      </foreign-key>
+      <index name="available_package_tests_object_id_i">
+        <column name="name"/>
+        <column name="version_epoch"/>
+        <column name="version_canonical_upstream"/>
+        <column name="version_canonical_release"/>
+        <column name="version_revision"/>
+        <column name="version_iteration"/>
+      </index>
+      <index name="available_package_tests_index_i">
+        <column name="index"/>
+      </index>
+    </add-table>
+  </changeset>
+
   <changeset version="6"/>
 
   <model version="5">

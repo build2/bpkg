@@ -3,8 +3,6 @@
 
 #include <bpkg/pkg-command.hxx>
 
-#include <algorithm> // find_if()
-
 #include <bpkg/package.hxx>
 #include <bpkg/package-odb.hxx>
 #include <bpkg/database.hxx>

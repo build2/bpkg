@@ -8,7 +8,6 @@
 #include <list>
 #include <cstring>    // strlen()
 #include <iostream>   // cout
-#include <algorithm>  // find_if()
 
 #include <libbutl/standard-version.mxx>
 
@@ -41,95 +40,6 @@ namespace bpkg
   //
   //    - Configuration vars (both passed and preserved)
   //
-
-  // Query the available packages that optionally satisfy the specified
-  // version constraint and return them in the version descending order. Note
-  // that a stub satisfies any constraint. Note also that this function does
-  // not return the extra stubs from the imaginary system repository (use one
-  // of the find_available*() overloads instead).
-  //
-  static odb::result<available_package>
-  query_available (database& db,
-                   const package_name& name,
-                   const optional<version_constraint>& c)
-  {
-    using query = query<available_package>;
-
-    query q (query::id.name == name);
-    const auto& vm (query::id.version);
-
-    // If there is a constraint, then translate it to the query. Otherwise,
-    // get the latest version or stub versions if present.
-    //
-    if (c)
-    {
-      assert (c->complete ());
-
-      // If the revision is not explicitly specified, then compare ignoring the
-      // revision. The idea is that when the user runs 'bpkg build libfoo/1'
-      // and there is 1+1 available, it should just work. The user shouldn't
-      // have to spell the revision explicitly. Similarly, when we have
-      // 'depends: libfoo == 1', then it would be strange if 1+1 did not
-      // satisfy this constraint. The same for libfoo <= 1 -- 1+1 should
-      // satisfy.
-      //
-      // Note that we always compare ignoring the iteration, as it can not be
-      // specified in the manifest/command line. This way the latest iteration
-      // will always be picked up.
-      //
-      query qs (compare_version_eq (vm,
-                                    canonical_version (wildcard_version),
-                                    false /* revision */,
-                                    false /* iteration */));
-
-      if (c->min_version &&
-          c->max_version &&
-          *c->min_version == *c->max_version)
-      {
-        const version& v (*c->min_version);
-
-        q = q &&
-            (compare_version_eq (vm,
-                                 canonical_version (v),
-                                 v.revision.has_value (),
-                                 false /* iteration */) ||
-             qs);
-      }
-      else
-      {
-        query qr (true);
-
-        if (c->min_version)
-        {
-          const version& v (*c->min_version);
-          canonical_version cv (v);
-          bool rv (v.revision);
-
-          if (c->min_open)
-            qr = compare_version_gt (vm, cv, rv, false /* iteration */);
-          else
-            qr = compare_version_ge (vm, cv, rv, false /* iteration */);
-        }
-
-        if (c->max_version)
-        {
-          const version& v (*c->max_version);
-          canonical_version cv (v);
-          bool rv (v.revision);
-
-          if (c->max_open)
-            qr = qr && compare_version_lt (vm, cv, rv, false /* iteration */);
-          else
-            qr = qr && compare_version_le (vm, cv, rv, false /* iteration */);
-        }
-
-        q = q && (qr || qs);
-      }
-    }
-
-    q += order_by_version_desc (vm);
-    return db.query<available_package> (q);
-  }
 
   // Try to find an available stub package in the imaginary system repository.
   // Such a repository contains stubs corresponding to the system packages
@@ -841,7 +751,7 @@ namespace bpkg
       const shared_ptr<repository_fragment>& af (pkg.repository_fragment);
       const package_name& name (ap->id.name);
 
-      for (const dependency_alternatives& da: ap->dependencies)
+      for (const dependency_alternatives_ex& da: ap->dependencies)
       {
         if (da.conditional) // @@ TODO
           fail << "conditional dependencies are not yet supported";
@@ -1017,6 +927,17 @@ namespace bpkg
           // While one can probably argue either way, resolving it to 1.0.0 is
           // the conservative choice and the user can always override it by
           // explicitly building libhello.
+          //
+          // Note though, that if this is a test package, then its special
+          // test dependencies (main packages that refer to it) should be
+          // searched upstream through the complement repositories
+          // recursively, since the test packages may only belong to the main
+          // package's repository and its complements.
+          //
+          // @@ Currently we don't implement the reverse direction search for
+          //    the test dependencies, effectively only supporting the common
+          //    case where the main and test packages belong to the same
+          //    repository. Will need to fix this eventually.
           //
           // Note that this logic (naturally) does not apply if the package is
           // already selected by the user (see above).
@@ -1709,7 +1630,7 @@ namespace bpkg
           // be built in the order that is as close to the manifest as
           // possible.
           //
-          for (const dependency_alternatives& da:
+          for (const dependency_alternatives_ex& da:
                  reverse_iterate (ap->dependencies))
           {
             assert (!da.conditional && da.size () == 1); // @@ TODO
@@ -4901,7 +4822,13 @@ namespace bpkg
                       true /* ignore_unknown */,
                       [&sp] (version& v) {v = sp->version;}));
 
-        pkg_configure (c, o, t, sp, m.dependencies, p.config_vars, simulate);
+        pkg_configure (c,
+                       o,
+                       t,
+                       sp,
+                       convert (move (m.dependencies)),
+                       p.config_vars,
+                       simulate);
       }
 
       assert (sp->state == package_state::configured);

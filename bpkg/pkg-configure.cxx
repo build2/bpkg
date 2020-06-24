@@ -28,7 +28,7 @@ namespace bpkg
 
     database& db (t.database ());
 
-    for (const dependency_alternatives& da: deps)
+    for (const dependency_alternatives_ex& da: deps)
     {
       assert (!da.conditional); //@@ TODO
 
@@ -319,7 +319,13 @@ namespace bpkg
                                       true /* ignore_unknown */,
                                       [&p] (version& v) {v = p->version;}));
 
-      pkg_configure (c, o, t, p, m.dependencies, vars, false /* simulate */);
+      pkg_configure (c,
+                     o,
+                     t,
+                     p,
+                     convert (move (m.dependencies)),
+                     vars,
+                     false /* simulate */);
     }
 
     if (verb && !o.no_result ())

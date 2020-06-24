@@ -3,10 +3,6 @@
 
 #include <bpkg/pkg-unpack.hxx>
 
-#ifdef _WIN32
-#  include <algorithm> // replace()
-#endif
-
 #include <libbpkg/manifest.hxx>
 
 #include <bpkg/archive.hxx>

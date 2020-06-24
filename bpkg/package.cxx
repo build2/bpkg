@@ -4,8 +4,6 @@
 #include <bpkg/package.hxx>
 #include <bpkg/package-odb.hxx>
 
-#include <algorithm> // find_if()
-
 #include <bpkg/database.hxx>
 #include <bpkg/checksum.hxx>
 #include <bpkg/diagnostics.hxx>
@@ -28,6 +26,92 @@ namespace bpkg
 
   // available_package
   //
+  odb::result<available_package>
+  query_available (database& db,
+                   const package_name& name,
+                   const optional<version_constraint>& c,
+                   bool order)
+  {
+    using query = query<available_package>;
+
+    query q (query::id.name == name);
+    const auto& vm (query::id.version);
+
+    // If there is a constraint, then translate it to the query. Otherwise,
+    // get the latest version or stub versions if present.
+    //
+    if (c)
+    {
+      assert (c->complete ());
+
+      // If the revision is not explicitly specified, then compare ignoring the
+      // revision. The idea is that when the user runs 'bpkg build libfoo/1'
+      // and there is 1+1 available, it should just work. The user shouldn't
+      // have to spell the revision explicitly. Similarly, when we have
+      // 'depends: libfoo == 1', then it would be strange if 1+1 did not
+      // satisfy this constraint. The same for libfoo <= 1 -- 1+1 should
+      // satisfy.
+      //
+      // Note that we always compare ignoring the iteration, as it can not be
+      // specified in the manifest/command line. This way the latest iteration
+      // will always be picked up.
+      //
+      query qs (compare_version_eq (vm,
+                                    canonical_version (wildcard_version),
+                                    false /* revision */,
+                                    false /* iteration */));
+
+      if (c->min_version &&
+          c->max_version &&
+          *c->min_version == *c->max_version)
+      {
+        const version& v (*c->min_version);
+
+        q = q &&
+            (compare_version_eq (vm,
+                                 canonical_version (v),
+                                 v.revision.has_value (),
+                                 false /* iteration */) ||
+             qs);
+      }
+      else
+      {
+        query qr (true);
+
+        if (c->min_version)
+        {
+          const version& v (*c->min_version);
+          canonical_version cv (v);
+          bool rv (v.revision);
+
+          if (c->min_open)
+            qr = compare_version_gt (vm, cv, rv, false /* iteration */);
+          else
+            qr = compare_version_ge (vm, cv, rv, false /* iteration */);
+        }
+
+        if (c->max_version)
+        {
+          const version& v (*c->max_version);
+          canonical_version cv (v);
+          bool rv (v.revision);
+
+          if (c->max_open)
+            qr = qr && compare_version_lt (vm, cv, rv, false /* iteration */);
+          else
+            qr = qr && compare_version_le (vm, cv, rv, false /* iteration */);
+        }
+
+        q = q && (qr || qs);
+      }
+    }
+
+    if (order)
+      q += order_by_version_desc (vm);
+
+    return db.query<available_package> (q);
+  }
+
   // Check if the package is available from the specified repository fragment,
   // its prerequisite repositories, or one of their complements, recursively.
   // Return the first repository fragment that contains the package or NULL if

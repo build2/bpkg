@@ -4,7 +4,6 @@
 #include <bpkg/fetch.hxx>
 
 #include <map>
-#include <algorithm> // find_if(), replace(), sort()
 
 #include <libbutl/git.mxx>
 #include <libbutl/utility.mxx>          // digit(), xdigit()

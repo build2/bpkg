@@ -4,12 +4,13 @@
 #ifndef BPKG_UTILITY_HXX
 #define BPKG_UTILITY_HXX
 
-#include <memory>   // make_shared()
-#include <string>   // to_string()
-#include <cstring>  // strcmp(), strchr()
-#include <utility>  // move(), forward(), declval(), make_pair()
-#include <cassert>  // assert()
-#include <iterator> // make_move_iterator()
+#include <memory>    // make_shared()
+#include <string>    // to_string()
+#include <cstring>   // strcmp(), strchr()
+#include <utility>   // move(), forward(), declval(), make_pair()
+#include <cassert>   // assert()
+#include <iterator>  // make_move_iterator()
+#include <algorithm> // *
 
 #include <libbutl/ft/lang.hxx>
 

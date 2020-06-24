@@ -5,7 +5,6 @@
 
 #include <map>
 #include <set>
-#include <algorithm> // equal()
 
 #include <libbutl/manifest-parser.mxx>
 
@@ -1273,8 +1272,8 @@ namespace bpkg
         }
       }
 
-      // Finally, make sure that the external packages are available from a
-      // single directory-based repository.
+      // Make sure that the external packages are available from a single
+      // directory-based repository.
       //
       // Sort the packages by name and version. This way the external packages
       // with the same upstream version and revision will be adjacent. Note
@@ -1323,6 +1322,70 @@ namespace bpkg
 
         ap = id;
         rf = f;
+      }
+
+      // Finally, invert the main packages external test dependencies into the
+      // the test packages special test dependencies.
+      //
+      // But first, remove the existing (and possibly outdated) special test
+      // dependencies from the test packages, unless all the available
+      // packages are (re)created from scratch.
+      //
+      if (!full_fetch)
+      {
+        for (const auto& at: db.query<available_test> ())
+        {
+          dependencies& ds (at.package->dependencies);
+
+          // Note that the special test dependencies entry is always the last
+          // one, if present.
+          //
+          assert (!ds.empty () && ds.back ().type);
+
+          ds.pop_back ();
+
+          db.update (at.package);
+        }
+      }
+
+      // Go through the available packages that have external tests and add
+      // them as the special test dependencies to these test packages.
+      //
+      for (const auto& am: db.query<available_main> ())
+      {
+        const shared_ptr<available_package>& p (am.package);
+
+        vector<shared_ptr<repository_fragment>> rfs;
+
+        for (const package_location& pl: p->locations)
+          rfs.push_back (pl.repository_fragment.load ());
+
+        for (const test_dependency& td: p->tests)
+        {
+          vector<pair<shared_ptr<available_package>,
+                      shared_ptr<repository_fragment>>> tps (
+                        filter (rfs,
+                                query_available (db,
+                                                 td.name,
+                                                 td.constraint,
+                                                 false /* order */),
+                                false /* prereq */));
+
+          for (const auto& t: tps)
+          {
+            const shared_ptr<available_package>& tp (t.first);
+
+            dependencies& ds (tp->dependencies);
+
+            if (ds.empty () || !ds.back ().type)
+              ds.push_back (dependency_alternatives_ex (td.type));
+
+            ds.back ().push_back (
+              dependency {p->id.name, version_constraint (p->version)});
+
+            db.update (tp);
+          }
+        }
       }
     }
     catch (const failed&)

@@ -4,7 +4,6 @@
 #include <bpkg/rep-create.hxx>
 
 #include <map>
-#include <algorithm> // count_if()
 
 #include <libbutl/filesystem.mxx>          // dir_iterator
 #include <libbutl/manifest-serializer.mxx>
