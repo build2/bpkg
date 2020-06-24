@@ -295,7 +295,7 @@ if ($posix && "$uid" != '0')
     $* libbar 2>'configured libbar/1.0.0';
 
     $pkg_disfigure libfoo 2>>EOE != 0;
-      error: package libfoo still has dependencies:
+      error: package libfoo still has dependents:
         info: package libbar
       EOE
 
@@ -355,7 +355,7 @@ if ($posix && "$uid" != '0')
     $*             libbar        2>'configured libbar/1.2.0';
 
     $pkg_disfigure libfoo 2>>EOE != 0;
-      error: package libfoo still has dependencies:
+      error: package libfoo still has dependents:
         info: package libbar on libfoo >= 1.2.0
       EOE
 

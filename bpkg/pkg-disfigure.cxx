@@ -43,7 +43,7 @@ namespace bpkg
       if (!r.empty ())
       {
         diag_record dr;
-        dr << fail << "package " << p->name << " still has dependencies:";
+        dr << fail << "package " << p->name << " still has dependents:";
 
         for (const package_dependent& pd: r)
         {
