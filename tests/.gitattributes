@@ -1,0 +1,4 @@
+Normalize the package manifest files since some tests rely on the fact that
+the package manifests in the archive and the source directory are identical.
+
+manifest text eol=lf
