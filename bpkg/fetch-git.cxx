@@ -1668,16 +1668,28 @@ namespace bpkg
   struct submodule
   {
     dir_path path; // Relative to the containing repository.
+    string name;
     string commit;
   };
   using submodules = vector<submodule>;
 
+  const path gitmodules_file (".gitmodules");
+
+  // If gitmodules is false, then don't check if the .gitmodules file is
+  // present, assuming this have already been checked.
+  //
   static submodules
   find_submodules (const common_options& co,
                    const dir_path& dir,
-                   const dir_path& prefix)
+                   const dir_path& prefix,
+                   bool gitmodules = true)
   {
     tracer trace ("find_submodules");
+
+    submodules r;
+
+    if (gitmodules && !exists (dir / gitmodules_file))
+      return r;
 
     auto failure = [&prefix] (const string& d, const exception* e = nullptr)
     {
@@ -1698,7 +1710,6 @@ namespace bpkg
 
     try
     {
-      submodules r;
       ifdstream is (move (pipe.in), fdstream_mode::skip, ifdstream::badbit);
 
       for (string l; !eof (getline (is, l)); )
@@ -1716,9 +1727,25 @@ namespace bpkg
         if (!(l.size () > 50 && l[48] == '0' && l[49] == '\t'))
           throw runtime_error ("invalid submodule description '" + l + "'");
 
+        dir_path d (string (l, 50));
+
+        // Note that improper submodule removal (for example, `git rm --cached
+        // <submodule-path>` was not executed) can leave git project in the
+        // broken state, where the module is not mentioned in .gitmodules but
+        // still present in the submodule--helper-list command output. Thus,
+        // requesting/returning the module name is not just for the caller's
+        // convenience but also for the repository integrity verification.
+        //
+        string n (git_line (co, "submodule name",
+                            co.git_option (),
+                            "-C", dir,
+                            "submodule--helper", "name",
+                            d));
+
         // Submodule directory path is relative to the containing repository.
         //
-        r.push_back (submodule {dir_path (string (l, 50)) /* path */,
+        r.push_back (submodule {move (d),
+                                move (n),
                                 string (l, 7, 40) /* commit */});
       }
 
@@ -1779,8 +1806,6 @@ namespace bpkg
                      "HEAD");
   }
 
-  const path gitmodules_file (".gitmodules");
-
   // Checkout the repository submodules (see git_checkout_submodules()
   // description for details).
   //
@@ -1826,7 +1851,8 @@ namespace bpkg
     // Iterate over the registered submodules initializing/fetching them and
     // recursively checking them out.
     //
-    for (const submodule& sm: find_submodules (co, dir, prefix))
+    for (const submodule& sm:
+           find_submodules (co, dir, prefix, false /* gitmodules */))
     {
       // Submodule directory path, relative to the top repository.
       //
@@ -1834,12 +1860,6 @@ namespace bpkg
 
       dir_path fsdir (dir / sm.path);     // Submodule full directory path.
       string psd (psdir.posix_string ()); // For use in the diagnostics.
-
-      string nm (git_line (co, "submodule name",
-                           co.git_option (),
-                           "-C", dir,
-                           "submodule--helper", "name",
-                           sm.path));
 
       // The 'none' submodule working tree update method most likely
       // indicates that the submodule is not currently used in the project.
@@ -1849,11 +1869,11 @@ namespace bpkg
       {
         optional<string> u (config_get (co,
                                         mf,
-                                        "submodule." + nm + ".update",
+                                        "submodule." + sm.name + ".update",
                                         false /* required */,
                                         "submodule update method"));
 
-        l4 ([&]{trace << "name: " << nm << ", "
+        l4 ([&]{trace << "name: " << sm.name << ", "
                       << "update: " << (u ? *u : "[null]");});
 
         if (u && *u == "none")
@@ -1873,10 +1893,10 @@ namespace bpkg
         }
       }
 
-      string uo ("submodule." + nm + ".url");
+      string uo ("submodule." + sm.name + ".url");
       string uv (config_get (co, dir, uo, "submodule URL"));
 
-      l4 ([&]{trace << "name: " << nm << ", URL: " << uv;});
+      l4 ([&]{trace << "name: " << sm.name << ", URL: " << uv;});
 
       // If the submodule is already initialized and its commit didn't
       // change then we skip it.
@@ -1932,12 +1952,12 @@ namespace bpkg
       }
       catch (const invalid_path& e)
       {
-        failure (
-          "invalid submodule '" + nm + "' repository path '" + e.path + "'");
+        failure ("invalid submodule '" + sm.name + "' repository path '" +
+                 e.path + "'");
       }
       catch (const invalid_argument& e)
       {
-        failure ("invalid submodule '" + nm + "' repository URL", &e);
+        failure ("invalid submodule '" + sm.name + "' repository URL", &e);
       }
 
       // Initialize the submodule repository.
@@ -2089,23 +2109,19 @@ namespace bpkg
     // an inconsistent repository, having no indication that they need to
     // re-run git_checkout_submodules().
     //
-    if (exists (dir / gitmodules_file))
+    for (const submodule& sm:
+           find_submodules (co, dir, dir_path () /* prefix */))
     {
-      for (const submodule& sm: find_submodules (co,
-                                                 dir,
-                                                 dir_path () /* prefix */))
-      {
-        dir_path sd (dir / sm.path); // Submodule full directory path.
+      dir_path sd (dir / sm.path); // Submodule full directory path.
 
-        optional<string> commit (submodule_commit (co, sd));
+      optional<string> commit (submodule_commit (co, sd));
 
-        // Note that we may re-initialize the submodule later due to the empty
-        // directory (see checkout_submodules() for details). Seems that git
-        // has no problem with such a re-initialization.
-        //
-        if (commit && *commit != sm.commit)
-          rm_r (sd, false /* dir_itself */);
-      }
+      // Note that we may re-initialize the submodule later due to the empty
+      // directory (see checkout_submodules() for details). Seems that git
+      // has no problem with such a re-initialization.
+      //
+      if (commit && *commit != sm.commit)
+        rm_r (sd, false /* dir_itself */);
     }
   }
 
