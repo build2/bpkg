@@ -25,7 +25,7 @@ git_ssh = $config.bpkg.tests.git.ssh
 # We need to configure C++ module to pass the compiler path to some of bpkg
 # test commands.
 #
-using cxx
+using cxx.config
 
 # Setup the bpkg that we are testing.
 #
