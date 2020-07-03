@@ -752,7 +752,7 @@ Unlicense          ; The Unlicense (public domain)
 \
 
 If the package is licensed under multiple licenses, then an SPDX license
-expression can used to specify this, for example:
+expression can be used to specify this, for example:
 
 \
 license: Apache-2.0 OR MIT
