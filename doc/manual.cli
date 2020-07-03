@@ -700,60 +700,134 @@ The short description of the package.
 license: <licenses> [; <comment>]
 
 <licenses> = <license> [, <license>]*
+<license>  = [<scheme>:] <name>
+<scheme>   = other
 \
 
-The package license. The format is a comma-separated list of case-insensitive
-license names under which this package is distributed. This list has the
-\i{AND} semantics, that is, the user must comply with all the licenses
-listed. To capture alternative licensing options use multiple \c{license}
-values, for example:
+The package license. The default license name scheme is
+\l{https://spdx.org/licenses/ SPDX License Expression}. In its simplest form,
+it is just an ID of the license under which this package is distributed. An
+optional comment normally gives the full name of the license, for example:
 
 \
-license: LGPLv2.1, MIT
-license: BSD3
+license: MPL-2.0 ; Mozilla Public License 2.0
 \
 
-In the above example, the package can be used either under the BSD3 license or
-both LGPLv2.1 and MIT.
-
-For complex licensing schemes it is recommended to add comments as an aid to
-the user, for example:
+The following table lists the most commonly used free/open source software
+licenses and their SPDX license IDs:
 
 \
-license: LGPLv2.1, MIT ; If linking with GNU TLS.
-license: BSD3          ; If linking with OpenSSL.
+MIT                ; MIT License.
+
+BSD-2-Clause       ; BSD 2-Clause \"Simplified\" License
+BSD-3-Clause       ; BSD 3-Clause \"New\" or \"Revised\" License
+BSD-4-Clause       ; BSD 4-Clause \"Original\" or \"Old\" License
+
+GPL-2.0-only       ; GNU General Public License v2.0 only
+GPL-2.0-or-later   ; GNU General Public License v2.0 or later
+GPL-3.0-only       ; GNU General Public License v3.0 only
+GPL-3.0-or-later   ; GNU General Public License v3.0 or later
+
+LGPL-2.0-only      ; GNU Library General Public License v2 only
+LGPL-2.0-or-later  ; GNU Library General Public License v2 or later
+LGPL-2.1-only      ; GNU Lesser General Public License v2.1 only
+LGPL-2.1-or-later  ; GNU Lesser General Public License v2.1 or later
+LGPL-3.0-only      ; GNU Lesser General Public License v3.0 only
+LGPL-3.0-or-later  ; GNU Lesser General Public License v3.0 or later
+
+AGPL-3.0-only      ; GNU Affero General Public License v3.0 only
+AGPL-3.0-or-later  ; GNU Affero General Public License v3.0 or later
+
+Apache-1.0         ; Apache License 1.0
+Apache-1.1         ; Apache License 1.1
+Apache-2.0         ; Apache License 2.0
+
+MPL-1.0            ; Mozilla Public License 1.0
+MPL-1.1            ; Mozilla Public License 1.1
+MPL-2.0            ; Mozilla Public License 2.0
+
+BSL-1.0            ; Boost Software License 1.0
+
+Unlicense          ; The Unlicense (public domain)
 \
 
-To assist automated processing, the following pre-defined names should be
-used for the common licenses:
+If the package is licensed under multiple licenses, then an SPDX license
+expression can used to specify this, for example:
 
 \
-MIT          ; MIT License.
-BSD2         ; Simplified 2-clause BSD License.
-BSD3         ; New 3-clause BSD License.
-BSD4         ; Original 4-clause BSD License.
-GPLv2        ; GNU General Public License v2.0.
-GPLv3        ; GNU General Public License v3.0.
-LGPLv2       ; GNU Lesser General Public License v2.0.
-LGPLv2.1     ; GNU Lesser General Public License v2.1.
-LGPLv3       ; GNU Lesser General Public License v3.0.
-AGPLv2       ; Affero General Public License v2.0.
-AGPLv3       ; GNU Affero General Public License v3.0.
-ASLv1        ; Apache License v1.0.
-ASLv1.1      ; Apache License v1.1.
-ASLv2        ; Apache License v2.0.
-MPLv2        ; Mozilla Public License v2.0.
-
-public domain
-available source ; Not free software/open source.
-proprietary
-TODO             ; License is not yet decided.
+license: Apache-2.0 OR MIT
+license: MIT AND BSD-2-Clause
 \
 
-Note that just \c{BSD} is ambiguous and should be avoided.
+A custom license or extra conditions can be expressed either using the license
+reference mechanism of the SPDX license expression or using the \c{other}
+scheme (described below). For example:
 
-\N|An example of automated processing would be filtering for non-copyleft
-licensed packages.|
+\
+license: LicenseRef-My-MIT-Like; Custom MIT-alike license
+license: other: MIT with extra attribution requirements
+\
+
+The \c{other} license name scheme can be used to specify licenses that are not
+defined by SPDX. The license names in this scheme are free form with
+case-insensitive comparison. The following names in this scheme have
+predefined meaning:
+
+\
+other: public domain    ; Released into the public domain
+other: available source ; Not free/open source with public source code
+other: proprietary      ; Not free/open source
+other: TODO             ; License is not yet decided
+\
+
+\N|For new projects \l{https://unlicense.org The Unlicense} disclaimer with
+the \c{Unlicense} SPDX ID is recommended over \c{other: public domain}.|
+
+To support combining license names that use different schemes, the \c{license}
+manifest value can contain a comma-separated list of license names. This list
+has the \i{AND} semantics, that is, the user must comply with all the licenses
+listed. To capture alternative licensing options (the \i{OR} semantics),
+multiple \c{license} manifest values are used, for example:
+
+\
+license: GPL-2.0-only, other: available source
+license: other: proprietary
+\
+
+For complex licensing situations it is recommended to add comments as an aid
+to the user, for example:
+
+\
+license: LGPL-2.1-only AND MIT ; If linking with GNU TLS.
+license: BSD-3-Clause          ; If linking with OpenSSL.
+\
+
+\N|For backwards compatibility with existing packages, the following
+(deprecated) scheme-less values on the left are recognized as aliases for the
+new values on the right:
+
+\
+BSD2               BSD-2-Clause
+BSD3               BSD-3-Clause
+BSD4               BSD-4-Clause
+GPLv2              GPL-2.0-only
+GPLv3              GPL-3.0-only
+LGPLv2             LGPL-2.0-only
+LGPLv2.1           LGPL-2.1-only
+LGPLv3             LGPL-3.0-only
+AGPLv3             AGPL-3.0-only
+ASLv1              Apache-1.0
+ASLv1.1            Apache-1.1
+ASLv2              Apache-2.0
+MPLv2              MPL-2.0
+
+public domain      other: public domain
+available source   other: available source
+proprietary        other: proprietary
+TODO               other: TODO
+\
+
+|
 
 
 \h2#manifest-package-topics|\c{topics}|
@@ -959,8 +1033,8 @@ build error notifications are sent to this email.
 \
 [depends]: [?][*] <alternatives> [; <comment>]
 
-<alternatives> := <dependency> [ '|' <dependency>]*
-<dependency>   := <name> [<version-constraint>]
+<alternatives> = <dependency> [ '|' <dependency>]*
+<dependency>   = <name> [<version-constraint>]
 \
 
 The prerequisite packages. If the \c{depends} value start with \c{*}, then
@@ -1096,8 +1170,8 @@ are treated the same):
 \
 [requires]: [?] [<alternatives>] [; <comment>]
 
-<alternatives> := <requirement> [ '|' <requirement>]*
-<requirement>  := <id> | <dependency>
+<alternatives> = <requirement> [ '|' <requirement>]*
+<requirement>  = <id> | <dependency>
 \
 
 The package requirements (other than other packages). Such requirements are
@@ -1203,9 +1277,9 @@ builds: -windows
 \
 [builds]: [<class-uset> ':' ] [<class-expr>] [; <comment>]
 
-<class-uset> := <class-name> [ <class-name>]*
-<class-expr> := <class-term> [ <class-term>]*
-<class-term> := ('+'|'-'|'&')['!'](<class-name> | '(' <class-expr> ')')
+<class-uset> = <class-name> [ <class-name>]*
+<class-expr> = <class-term> [ <class-term>]*
+<class-term> = ('+'|'-'|'&')['!'](<class-name> | '(' <class-expr> ')')
 \
 
 The package build configurations. They specify the build configuration classes
