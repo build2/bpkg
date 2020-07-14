@@ -1,3 +1,16 @@
+Version 0.13.0
+
+  * The SPDX License Expression is now the default scheme for the 'license'
+    manifest value. See the "license" section in the manual for details.
+
+  * New --pkg-proxy common option.
+
+    This option specifies the proxy server to use when fetching package
+    manifests and archives from remote pkg repositories. See the option
+    documentation in the bpkg-common(1) for details.
+
+  * External test packages can now have their own build constraints.
+
 Version 0.12.0
 
   * Ability to specify the full package version constraint in the pkg-build
