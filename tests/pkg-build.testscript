@@ -145,7 +145,7 @@
   $git_extract $src/git/libbaz.tar &$out_git/state1/***
 end
 
-config_cxx = config.cxx=$quote($recall($cxx.path) $cxx.mode, true)
+config_cxx = config.cxx=$quote($recall($cxx.path) $cxx.config.mode, true)
 
 pkg_configure += -d cfg $config_cxx 2>!
 pkg_disfigure += -d cfg
