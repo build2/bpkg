@@ -1,8 +1,9 @@
 Version 0.13.0
 
   * The SPDX License Expression is now the default scheme for the 'license'
-    package manifest value. See the "license" section in the manual for
-    details.
+    package manifest value.
+
+    See the "license" section in the manual for details.
 
   * New --pkg-proxy common option.
 
