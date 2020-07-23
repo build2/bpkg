@@ -59,9 +59,7 @@
     </add-table>
   </changeset>
 
-  <changeset version="6"/>
-
-  <model version="5">
+  <model version="6">
     <table name="repository_fragment" kind="object">
       <column name="name" type="TEXT" null="true"/>
       <column name="url" type="TEXT" null="true"/>
