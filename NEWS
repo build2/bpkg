@@ -9,7 +9,7 @@ Version 0.13.0
 
     This option specifies the proxy server to use when fetching package
     manifests and archives from remote pkg repositories. See the option
-    documentation in bpkg-common(1) for details.
+    documentation in bpkg-common-options(1) for details.
 
   * External test packages can now have their own build constraints.
 
