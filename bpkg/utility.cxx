@@ -246,7 +246,7 @@ namespace bpkg
   mv (const dir_path& from, const dir_path& to)
   {
     if (verb >= 3)
-      text << "mv " << from << " to " << to; // Prints trailing slashes.
+      text << "mv " << from << ' ' << to; // Prints trailing slashes.
 
     try
     {
