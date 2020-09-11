@@ -61,14 +61,14 @@ namespace bpkg
 
     p /= ".";
 
-    // If this is a remote location then use the canonical name prefix. For
-    // a local location this doesn't always work. Consider:
+    // If this is a remote location then use the canonical name prefix. For a
+    // local location this doesn't always work. Consider:
     //
     // .../pkg/1/build2.org/common/hello
     //
-    // In this case we will end with an empty canonical name (because of
-    // the special pkg/1 treatment). So in case of local locations we will
-    // use the location rather than the name prefix.
+    // In this case we will end with an empty canonical name (because of the
+    // special pkg/1 treatment). So in case of local locations we will use the
+    // location rather than the name prefix.
     //
     if (rl.remote ())
       return repository_location (
@@ -527,7 +527,8 @@ namespace bpkg
       return cert_auth {move (cert), true};
     }
 
-    if (dependent_trust && *dependent_trust == cert->fingerprint)
+    if (dependent_trust &&
+        icasecmp (*dependent_trust, cert->fingerprint) == 0)
     {
       if (verb >= 2)
         info << "certificate for repository " << rl.canonical_name () <<

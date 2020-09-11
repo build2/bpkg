@@ -310,7 +310,7 @@ namespace bpkg
        \cb{none}."
     }
 
-    std::set<string> --trust
+    std::set<string, icase_compare_string> --trust
     {
       "<fingerprint>",
       "Trust repository certificate with a SHA256 <fingerprint>. Such a

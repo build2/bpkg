@@ -24,7 +24,8 @@
 #include <libbutl/url.mxx>
 #include <libbutl/path.mxx>
 #include <libbutl/process.mxx>
-#include <libbutl/utility.mxx>         // compare_reference_target
+#include <libbutl/utility.mxx>         // icase_compare_string,
+                                       // compare_reference_target
 #include <libbutl/optional.mxx>
 #include <libbutl/fdstream.mxx>
 #include <libbutl/small-vector.mxx>
@@ -71,6 +72,7 @@ namespace bpkg
 
   // <libbutl/utility.mxx>
   //
+  using butl::icase_compare_string;
   using butl::compare_reference_target;
 
   // <libbutl/optional.mxx>

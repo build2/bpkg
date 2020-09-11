@@ -32,7 +32,7 @@ cannot be guessed from the URL. See \l{bpkg-rep-add(1)} for details.
 A \cb{pkg} repository is \i{archive}-based. That is, it contains a collection
 of various packages/versions as archive files. For more information on the
 structure of \cb{pkg} repositories refer to \l{bpkg The \cb{build2} Package
-Manager Manual}. The \cb{dir} repository location can be a local directory
+Manager Manual}. The \cb{pkg} repository location can be a local directory
 path or an \cb{http(s)://} URL.
 
 
