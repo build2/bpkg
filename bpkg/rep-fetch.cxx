@@ -85,9 +85,13 @@ namespace bpkg
     pkg_package_manifests& pms (pmc.first);
 
     if (rmc.second != pms.sha256sum)
-      fail << "repositories manifest file checksum mismatch for "
-           << rl.canonical_name () <<
+    {
+      error << "repositories manifest file checksum mismatch for "
+            << rl.canonical_name () <<
         info << "try again";
+
+      throw recoverable ();
+    }
 
     fr.packages = move (pms);
 
@@ -97,9 +101,13 @@ namespace bpkg
         pkg_fetch_signature (co, rl, true /* ignore_unknown */));
 
       if (sm.sha256sum != pmc.second)
-        fail << "packages manifest file checksum mismatch for "
-             << rl.canonical_name () <<
+      {
+        error << "packages manifest file checksum mismatch for "
+              << rl.canonical_name () <<
           info << "try again";
+
+        throw recoverable ();
+      }
 
       assert (cert != nullptr);
       authenticate_repository (co, conf, cert_pem, *cert, sm, rl);
@@ -911,12 +919,12 @@ namespace bpkg
               info << r1 << " has " << *pm.sha256sum <<
               info << r2 << " has " << *p->sha256sum;
 
-            // If we fetch all the repositories then the mismatch is definitely
-            // caused by the broken repository. Otherwise, it may also happen
-            // due to the old available package that is not wiped out yet.
-            // Thus, we advice the user to perform the full fetch, unless the
-            // filesystem state is already changed and so this advice will be
-            // given anyway (see rep_fetch() for details).
+            // If we fetch all the repositories then the mismatch is
+            // definitely caused by the broken repository. Otherwise, it may
+            // also happen due to the old available package that is not wiped
+            // out yet.  Thus, we advice the user to perform the full fetch,
+            // unless the filesystem state is already changed and so this
+            // advice will be given anyway (see rep_fetch() for details).
             //
             if (full_fetch)
               dr << info << "consider reporting this to the repository "
@@ -969,15 +977,16 @@ namespace bpkg
     // otherwise.
     //
     // Note that we can end up with a repository dependency cycle via
-    // prerequisites. Thus we register the repository before recursing into its
-    // dependencies.
+    // prerequisites. Thus we register the repository before recursing into
+    // its dependencies.
     //
     if (!fetched_repositories.insert (r).second) // Is already fetched.
     {
       // Authenticate the repository use by the dependent, if required.
       //
       // Note that we only need to authenticate the certificate but not the
-      // repository that was already fetched (and so is already authenticated).
+      // repository that was already fetched (and so is already
+      // authenticated).
       //
       if (need_auth (co, r->location))
         authenticate_certificate (co,

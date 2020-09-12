@@ -517,6 +517,13 @@ try
     assert (false);
     fail << "unhandled command";
   }
+  // Derived from failed and so needs to be caught first.
+  //
+  catch (const recoverable&)
+  {
+    r = 2;
+    break;
+  }
   catch (const failed&)
   {
     r = 1;

@@ -21,6 +21,11 @@ namespace bpkg
   //
   class failed: public std::exception {};
 
+  // As above but needs to be used for recoverable errors which are likely to
+  // disappear on the command retry.
+  //
+  class recoverable: public failed {};
+
   // Print process commmand line. If the number of elements is specified
   // (or the second version is used), then it will print the piped multi-
   // process command line, if present. In this case, the expected format

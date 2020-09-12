@@ -322,6 +322,19 @@ namespace bpkg
 
   "\h|EXIT STATUS|
 
-  Non-zero exit status is returned in case of an error.
+  \dl|
+
+  \li|\cb{0}
+
+  Success.|
+
+  \li|\cb{1}
+
+  Fatal error.|
+
+  \li|\cb{2}
+
+  Recoverable error which is likely to disappear if the command is
+  re-executed.||
   "
 }
