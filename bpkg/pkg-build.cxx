@@ -4389,10 +4389,12 @@ namespace bpkg
     //
     // We are also going to combine purge and fetch/unpack|checkout into a
     // single step and use the replace mode so it will become just
-    // fetch/unpack|checkout. Configure will also be combined with the above
-    // operations to guarantee that prerequisite packages are configured by
-    // the time its dependents need to be checked out (see the pkg_checkout()
-    // function implementation for details).
+    // fetch/unpack|checkout. Configure is also combined with the above
+    // operations, since previously we had to guarantee that prerequisite
+    // packages are configured by the time its dependents need to be checked
+    // out. Now, when we start using the bootstrap dist for pkg-checkout
+    // that's not a requirement anymore. We, however, still keep it this way
+    // since there is no reason why not to.
     //
     // We also have the dependent packages that we reconfigure because their
     // prerequsites got upgraded/downgraded and that the user may want to in

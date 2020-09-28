@@ -219,18 +219,6 @@ namespace bpkg
       //
       dir_path pd (td / path_cast<dir_path> (pl->location));
 
-      // Verify the package prerequisites are all configured since the dist
-      // meta-operation generally requires all imports to be resolvable.
-      //
-      package_manifest m (pkg_verify (pd,
-                                      true /* ignore_unknown */,
-                                      [&ap] (version& v) {v = ap->version;}));
-
-      pkg_configure_prerequisites (o,
-                                   t,
-                                   convert (move (m.dependencies)),
-                                   m.name);
-
       // Form the buildspec.
       //
       string bspec ("dist('");
@@ -245,7 +233,11 @@ namespace bpkg
 
       // Distribute.
       //
-      // Note that on failure the package stays in the existing (working)
+      // Note that we are using the bootstrap distribution mode (and also skip
+      // bootstrapping external modules) to make sure a package can be checked
+      // out without its dependencies being present.
+      //
+      // Note also that on failure the package stays in the existing (working)
       // state.
       //
       // At first it may seem we have a problem: an existing package with the
@@ -264,7 +256,9 @@ namespace bpkg
 
       run_b (o,
              verb_b::progress,
-             strings ({"config.dist.root='" + c.representation () + "'"}),
+             "--no-external-modules",
+             "!config.dist.bootstrap=true",
+             "config.dist.root='" + c.representation () + "'",
              bspec);
 
       // Revert the fix-ups.

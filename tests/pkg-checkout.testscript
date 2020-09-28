@@ -54,12 +54,14 @@ else
     $rep_add "$rep/libbar.git#master";
     $rep_fetch;
 
-    $* libmbar/1.0.0 2>>~%EOE% != 0
+    $* libmbar/1.0.0 2>>~%EOE%;
+      checking out libmbar/1.0.0
       %.+
-      error: no configured package satisfies dependency on style-basic >= 1.0.0
-      warning: repository state is now broken
-        info: run 'bpkg rep-fetch' to repair
+      distributing libmbar/1.0.0
+      checked out libmbar/1.0.0
       EOE
+
+    $pkg_purge libmbar
   }
 
   : configured-dependency
@@ -177,13 +179,13 @@ else
     $rep_fetch "$rep/links.git#v1.0.1";
 
     if $posix
-      $* links/1.0.1 2>>~%EOE%
+      $* links/1.0.1 2>>~%EOE% != 0
         checking out links/1.0.1
         distributing links/1.0.1
-        checked out links/1.0.1
+        %error: unable to stat .+%
+        warning: repository state is now broken
+          info: run 'bpkg rep-fetch' to repair
         EOE
-
-      $pkg_purge links
     else
       $* links/1.0.1 2>>~%EOE% != 0
         checking out links/1.0.1
@@ -200,8 +202,6 @@ else
       $rep_fetch "$rep/links.git#v1.0.2" 2>>~%EOE% != 0
         %.*
         %error: unable to iterate over .+%
-        warning: repository state is now broken and will be cleaned up
-          info: run 'bpkg rep-fetch' to update
         EOE
     else
       $rep_fetch "$rep/links.git#v1.0.2"
