@@ -304,6 +304,7 @@ namespace bpkg
     {
       b_project_info pi (
         b_info (d,
+                false /* ext_mods */,
                 verb,
                 [] (const char* const args[], size_t n)
                 {
