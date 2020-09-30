@@ -22,6 +22,15 @@ namespace bpkg
      from one of the version control-based repositories (\l{bpkg-rep-add(1)}).
      The resulting package state is \cb{unpacked} (\l{bpkg-pkg-status(1)}).
 
+     If the \cb{--output-root} option is passed, then the package is checked
+     out into the specified directory rather than into the configuration
+     directory. In this case, \cb{bpkg} uses the package (source) directory in
+     place, similar to the \cb{pkg-unpack --existing|-e} mode. Also, unless
+     the \cb{--output-purge} option is specified, \cb{bpkg} will not attempt
+     to remove this directory when the package is later purged with the
+     \l{bpkg-pkg-purge(1)} command. Note also that such a package is not
+     \i{external} (see \l{bpkg-pkg-unpack(1)} for details).
+
      If the \cb{--replace|-r} option is specified, then \cb{pkg-checkout} will
      replace the archive and/or source directory of a package that is already
      in the \cb{unpacked} or \cb{fetched} state."
@@ -35,6 +44,20 @@ namespace bpkg
     {
       "Replace the source directory if the package is already fetched or
        unpacked."
+    }
+
+    dir_path --output-root
+    {
+      "<dir>",
+      "Check out the package into the specified directory rather than into the
+       configuration directory. Note that the package source is placed into
+       the \c{\i{package}\b{-}\i{version}} subdirectory of this directory."
+    }
+
+    bool --output-purge
+    {
+      "Remove the checked out package (source) directory when the package is
+       purged."
     }
   };
 

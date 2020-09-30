@@ -18,8 +18,24 @@ namespace bpkg
   int
   pkg_checkout (const pkg_checkout_options&, cli::scanner& args);
 
+  // Check out the package from a version control-based repository into a
+  // directory other than the configuration directory and commit the
+  // transaction. Return the selected package object which may replace the
+  // existing one.
+  //
+  shared_ptr<selected_package>
+  pkg_checkout (const common_options&,
+                const dir_path& configuration,
+                transaction&,
+                package_name,
+                version,
+                const dir_path& output_root,
+                bool replace,
+                bool purge,
+                bool simulate);
+
   // Check out the package from a version control-based repository and commit
-  // the transaction. Can return a new selected package object, replacing the
+  // the transaction. Return the selected package object which may replace the
   // existing one.
   //
   shared_ptr<selected_package>

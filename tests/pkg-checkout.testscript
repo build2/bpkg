@@ -19,7 +19,6 @@ posix = ($cxx.target.class != 'windows')
   #
   $git_extract $src/git/libbar.tar
   $git_extract $src/git/style-basic0.tar &$out_git/state0/***
-  $git_extract $src/git/style-basic1.tar &$out_git/state1/***
 
   if $posix
     $git_extract $src/git/style.tar
@@ -96,15 +95,8 @@ else
   : replacement
   :
   {
-    # @@ Reduce to a single repository when multiple revisions can be specified
-    #    in the repository URL fragment.
-    #
-    rep0 = "$rep_git/state0";
-    rep1 = "$rep_git/state1";
-
     $clone_root_cfg;
-    $rep_add "$rep0/style-basic.git#master";
-    $rep_add "$rep1/style-basic.git#stable";
+    $rep_add "$rep/style-basic.git#master,stable";
     $rep_fetch;
 
     $pkg_status style-basic | \
@@ -215,5 +207,50 @@ else
           info: run 'bpkg rep-fetch' to repair
         EOE
     end
+  }
+
+  : output-root
+  :
+  {
+    : no-purge
+    :
+    {
+      $clone_root_cfg;
+      $rep_add "$rep/libbar.git#master";
+      $rep_fetch;
+
+      $* --output-root $~ libmbar/1.0.0 &libmbar-1.0.0/*** 2>>~%EOE%;
+        checking out libmbar/1.0.0
+        %.+
+        distributing libmbar/1.0.0
+        checked out libmbar/1.0.0
+        EOE
+
+      test -f libmbar-1.0.0/manifest;
+
+      # While at it, test that the package is buildable.
+      #
+      $pkg_build libmbar -d cfg/ --yes 2>!;
+      $pkg_drop  libmbar -d cfg/ --yes 2>!
+    }
+
+    : purge
+    :
+    {
+      $clone_root_cfg;
+      $rep_add "$rep/libbar.git#master";
+      $rep_fetch;
+
+      $* --output-root $~ libmbar/1.0.0 --output-purge 2>>~%EOE%;
+        checking out libmbar/1.0.0
+        %.+
+        distributing libmbar/1.0.0
+        checked out libmbar/1.0.0
+        EOE
+
+      test -f libmbar-1.0.0/manifest;
+
+      $pkg_purge libmbar
+    }
   }
 }

@@ -54,8 +54,8 @@ namespace bpkg
     }
   }
 
-  // Select the external package in this configuration. Can return a new
-  // selected package object, replacing the existing one.
+  // Select the external package in this configuration. Return the selected
+  // package object which may replace the existing one.
   //
   static shared_ptr<selected_package>
   pkg_unpack (const common_options& o,

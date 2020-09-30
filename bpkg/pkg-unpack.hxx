@@ -18,8 +18,8 @@ namespace bpkg
   int
   pkg_unpack (const pkg_unpack_options&, cli::scanner& args);
 
-  // Unpack the package as a source directory and commit the transaction. Can
-  // return a new selected package object, replacing the existing one.
+  // Unpack the package as a source directory and commit the transaction.
+  // Return the selected package object which may replace the existing one.
   //
   shared_ptr<selected_package>
   pkg_unpack (const common_options&,
@@ -40,8 +40,8 @@ namespace bpkg
               bool simulate);
 
   // Unpack the package as a source directory from a directory-based
-  // repository and commit the transaction. Can return a new selected package
-  // object, replacing the existing one.
+  // repository and commit the transaction. Return the selected package object
+  // which may replace the existing one.
   //
   shared_ptr<selected_package>
   pkg_unpack (const common_options&,

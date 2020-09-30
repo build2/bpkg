@@ -18,8 +18,8 @@ namespace bpkg
   int
   pkg_fetch (const pkg_fetch_options&, cli::scanner& args);
 
-  // Fetch the package as an archive file and commit the transaction. Can
-  // return a new selected package object, replacing the existing one.
+  // Fetch the package as an archive file and commit the transaction. Return
+  // the selected package object which may replace the existing one.
   //
   shared_ptr<selected_package>
   pkg_fetch (const common_options&,
@@ -31,7 +31,7 @@ namespace bpkg
              bool simulate);
 
   // Fetch the package from an archive-based repository and commit the
-  // transaction. Can return a new selected package object, replacing the
+  // transaction. Return the selected package object which may replace the
   // existing one.
   //
   shared_ptr<selected_package>

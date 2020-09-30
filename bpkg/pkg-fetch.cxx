@@ -21,7 +21,7 @@ using namespace butl;
 
 namespace bpkg
 {
-  // Can return a new selected package object, replacing the existing one.
+  // Return the selected package object which may replace the existing one.
   //
   static shared_ptr<selected_package>
   pkg_fetch (dir_path c,

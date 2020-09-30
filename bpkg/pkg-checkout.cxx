@@ -80,13 +80,17 @@ namespace bpkg
     return r;
   }
 
-  shared_ptr<selected_package>
+  // Return the selected package object which may replace the existing one.
+  //
+  static shared_ptr<selected_package>
   pkg_checkout (const common_options& o,
-                const dir_path& c,
+                dir_path c,
                 transaction& t,
                 package_name n,
                 version v,
+                const optional<dir_path>& output_root,
                 bool replace,
+                bool purge,
                 bool simulate)
   {
     tracer trace ("pkg_checkout");
@@ -158,7 +162,9 @@ namespace bpkg
 
     auto_rmdir rmd;
     optional<string> mc;
-    dir_path d (c / dir_path (n.string () + '-' + v.string ()));
+
+    const dir_path& ord (output_root ? *output_root : c);
+    dir_path d (ord / dir_path (n.string () + '-' + v.string ()));
 
     // An incomplete checkout may result in an unusable repository state
     // (submodule fetch is interrupted, working tree fix up failed in the
@@ -258,7 +264,7 @@ namespace bpkg
              verb_b::progress,
              "--no-external-modules",
              "!config.dist.bootstrap=true",
-             "config.dist.root='" + c.representation () + "'",
+             "config.dist.root='" + ord.representation () + "'",
              bspec);
 
       // Revert the fix-ups.
@@ -309,13 +315,23 @@ namespace bpkg
       }
     }
 
+    // Make the package and configuration paths absolute and normalized.
+    // If the package is inside the configuration, use the relative path.
+    // This way we can move the configuration around.
+    //
+    normalize (c, "configuration");
+    normalize (d, "package");
+
+    if (d.sub (c))
+      d = d.leaf (c);
+
     if (p != nullptr)
     {
       p->version = move (v);
       p->state = package_state::unpacked;
       p->repository_fragment = rl;
-      p->src_root = d.leaf ();
-      p->purge_src = true;
+      p->src_root = move (d);
+      p->purge_src = purge;
       p->manifest_checksum = move (mc);
 
       db.update (p);
@@ -334,8 +350,8 @@ namespace bpkg
         rl,
         nullopt,   // No archive
         false,
-        d.leaf (), // Source root.
-        true,      // Purge directory.
+        move (d),  // Source root.
+        purge,     // Purge directory.
         move (mc),
         nullopt,   // No output directory yet.
         {}});      // No prerequisites captured yet.
@@ -347,6 +363,48 @@ namespace bpkg
 
     rmd.cancel ();
     return p;
+  }
+
+  shared_ptr<selected_package>
+  pkg_checkout (const common_options& o,
+                const dir_path& c,
+                transaction& t,
+                package_name n,
+                version v,
+                const dir_path& d,
+                bool replace,
+                bool purge,
+                bool simulate)
+  {
+    return pkg_checkout (o,
+                         c,
+                         t,
+                         move (n),
+                         move (v),
+                         optional<dir_path> (d),
+                         replace,
+                         purge,
+                         simulate);
+  }
+
+  shared_ptr<selected_package>
+  pkg_checkout (const common_options& o,
+                const dir_path& c,
+                transaction& t,
+                package_name n,
+                version v,
+                bool replace,
+                bool simulate)
+  {
+    return pkg_checkout (o,
+                         c,
+                         t,
+                         move (n),
+                         move (v),
+                         nullopt /* output_root */,
+                         replace,
+                         true /* purge */,
+                         simulate);
   }
 
   int
@@ -377,13 +435,24 @@ namespace bpkg
 
     // Commits the transaction.
     //
-    p = pkg_checkout (o,
-                      c,
-                      t,
-                      move (n),
-                      move (v),
-                      o.replace (),
-                      false /* simulate */);
+    if (o.output_root_specified ())
+      p = pkg_checkout (o,
+                        c,
+                        t,
+                        move (n),
+                        move (v),
+                        o.output_root (),
+                        o.replace (),
+                        o.output_purge (),
+                        false /* simulate */);
+    else
+      p = pkg_checkout (o,
+                        c,
+                        t,
+                        move (n),
+                        move (v),
+                        o.replace (),
+                        false /* simulate */);
 
     if (verb && !o.no_result ())
       text << "checked out " << *p;
