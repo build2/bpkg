@@ -227,6 +227,22 @@ namespace bpkg
       "Keep output directories of external packages between upgrades and
        downgrades. Refer to \l{bpkg-pkg-disfigure(1)} for details."
     }
+
+    dir_path --checkout-root
+    {
+      "<dir>",
+      "Check out packages that come from version control-based repositories
+       into the specified directory rather than into the configuration
+       directory. Refer to the \cb{--output-root} option in
+       \l{bpkg-pkg-checkout(1)} for details."
+    }
+
+    bool --checkout-purge
+    {
+      "Remove the checked out package (source) directories when the packages
+       are purged. Refer to the \cb{--output-purge} option in
+       \l{bpkg-pkg-checkout(1)} for details."
+    }
   };
 
   class pkg_build_options: configuration_options,

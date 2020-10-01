@@ -3877,4 +3877,28 @@ else
 
     $pkg_disfigure style-basic
   }
+
+  : checkout-root
+  :
+  {
+    $clone_root_cfg;
+    $rep_fetch "$rep0/libbar.git#master" &cfg/.bpkg/repos/*/***;
+
+    $* libmbar --checkout-root $~ --checkout-purge 2>>~%EOE%;
+      %checked out style-basic/.+%
+      %configured style-basic/.+%
+      checked out libmbar/1.0.0
+      configured libmbar/1.0.0
+      %info: .+ is up to date%
+      updated libmbar/1.0.0
+      EOE
+
+    test -d libmbar-1.0.0;
+
+    $pkg_disfigure libmbar;
+    $pkg_disfigure style-basic;
+
+    $pkg_purge libmbar;
+    $pkg_purge style-basic
+  }
 }

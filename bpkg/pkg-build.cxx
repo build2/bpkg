@@ -355,6 +355,14 @@ namespace bpkg
     //
     bool keep_out;
 
+    // If present, then check out the package into the specified directory
+    // rather than into the configuration directory, if it comes from a
+    // version control-based repository. Optionally, remove this directory
+    // when the package is purged.
+    //
+    optional<dir_path> checkout_root;
+    bool               checkout_purge;
+
     // Command line configuration variables. Only meaningful for non-system
     // packages.
     //
@@ -455,11 +463,18 @@ namespace bpkg
         // times to have different sets of options/variables. Given that, it's
         // tempting to assert that the options/variables don't change if we
         // merge into a user selection. That's, however, not the case due to
-        // the iterative plan refinement implementation details (variables are
-        // only saved into the pre-entered dependencies, etc.).
+        // the iterative plan refinement implementation details (--checkout-*
+        // options and variables are only saved into the pre-entered
+        // dependencies, etc.).
         //
         if (p.keep_out)
           keep_out = p.keep_out;
+
+        if (p.checkout_root)
+          checkout_root = move (p.checkout_root);
+
+        if (p.checkout_purge)
+          checkout_purge = p.checkout_purge;
 
         if (!p.config_vars.empty ())
           config_vars = move (p.config_vars);
@@ -1044,6 +1059,8 @@ namespace bpkg
           {},         // Constraints.
           system,
           false,      // Keep output directory.
+          nullopt,    // Checkout root.
+          false,      // Checkout purge.
           strings (), // Configuration variables.
           {name},     // Required by (dependent).
           0};         // Adjustments.
@@ -1139,6 +1156,8 @@ namespace bpkg
         {},         // Constraints.
         false,      // System package.
         false,      // Keep output directory.
+        nullopt,    // Checkout root.
+        false,      // Checkout purge.
         strings (), // Configuration variables.
         {},         // Required by.
         0};         // Adjustments.
@@ -1187,6 +1206,8 @@ namespace bpkg
           {},         // Constraints.
           false,      // System package.
           false,      // Keep output directory.
+          nullopt,    // Checkout root.
+          false,      // Checkout purge.
           strings (), // Configuration variables.
           {},         // Required by.
           build_package::adjust_unhold};
@@ -1391,6 +1412,8 @@ namespace bpkg
             {},          // Constraints.
             system,
             false,       // Keep output directory.
+            nullopt,     // Checkout root.
+            false,       // Checkout purge.
             strings (),  // Configuration variables.
             {n},         // Required by (dependency).
             build_package::adjust_reconfigure};
@@ -1736,6 +1759,8 @@ namespace bpkg
     bool system;
     bool patch;                              // Only for an empty version.
     bool keep_out;
+    optional<dir_path> checkout_root;
+    bool checkout_purge;
     strings config_vars;                     // Only if not system.
   };
   using dependency_packages = vector<dependency_package>;
@@ -2361,6 +2386,14 @@ namespace bpkg
 
     dst.dependency (src.dependency () || dst.dependency ());
     dst.keep_out   (src.keep_out ()   || dst.keep_out ());
+
+    if (!dst.checkout_root_specified () && src.checkout_root_specified ())
+    {
+      dst.checkout_root (src.checkout_root ());
+      dst.checkout_root_specified (true);
+    }
+
+    dst.checkout_purge (src.checkout_purge () || dst.checkout_purge ());
   }
 
   static bool
@@ -2375,35 +2408,9 @@ namespace bpkg
            x.upgrade_immediate () == y.upgrade_immediate () &&
            x.upgrade_recursive () == y.upgrade_recursive () &&
            x.patch_immediate ()   == y.patch_immediate ()   &&
-           x.patch_recursive ()   == y.patch_recursive ();
-  }
-
-  static string
-  print_options (const pkg_options& o, bool dep = true)
-  {
-    string r (dep && o.dependency () ? "--dependency" : string ());
-
-    auto add = [&r] (bool v, const char* o)
-    {
-      if (v)
-      {
-        if (!r.empty ())
-          r += ' ';
-        r += o;
-      }
-    };
-
-    add (o.keep_out (),          "--keep-out");
-    add (o.upgrade (),           "--upgrade");
-    add (o.patch (),             "--patch");
-    add (o.immediate (),         "--immediate");
-    add (o.recursive (),         "--recursive");
-    add (o.upgrade_immediate (), "--upgrade-immediate");
-    add (o.upgrade_recursive (), "--upgrade-recursive");
-    add (o.patch_immediate (),   "--patch-immediate");
-    add (o.patch_recursive (),   "--patch-recursive");
-
-    return r;
+           x.patch_recursive ()   == y.patch_recursive ()   &&
+           x.checkout_root ()     == y.checkout_root ()     &&
+           x.checkout_purge ()    == y.checkout_purge ();
   }
 
   int
@@ -2749,7 +2756,7 @@ namespace bpkg
 
       // Quote an argument if empty or contains spaces.
       //
-      auto append = [&r] (const string& a)
+      auto append = [] (const string& a, string& r)
       {
         if (a.empty () || a.find (' ') != string::npos)
           r += '"' + a + '"';
@@ -2764,12 +2771,54 @@ namespace bpkg
                               : nullopt),
                              arg_sys (a));
       else
-        append (a.value);
+        append (a.value, r);
 
       if (options)
       {
-        string s (print_options (a.options, false));
+        // Compose the options string.
+        //
+        string s;
 
+        auto add_bool = [&s] (const char* o, bool v)
+        {
+          if (v)
+          {
+            if (!s.empty ())
+              s += ' ';
+
+            s += o;
+          }
+        };
+
+        auto add_string = [&s, &append] (const char* o, const string& v)
+        {
+          if (!s.empty ())
+            s += ' ';
+
+          s += o;
+          s += ' ';
+          append (v, s);
+        };
+
+        const pkg_options& o (a.options);
+
+        add_bool ("--keep-out",          o.keep_out ());
+        add_bool ("--upgrade",           o.upgrade ());
+        add_bool ("--patch",             o.patch ());
+        add_bool ("--immediate",         o.immediate ());
+        add_bool ("--recursive",         o.recursive ());
+        add_bool ("--upgrade-immediate", o.upgrade_immediate ());
+        add_bool ("--upgrade-recursive", o.upgrade_recursive ());
+        add_bool ("--patch-immediate",   o.patch_immediate ());
+        add_bool ("--patch-recursive",   o.patch_recursive ());
+
+        if (o.checkout_root_specified ())
+          add_string ("--checkout-root", o.checkout_root ().string ());
+
+        add_bool ("--checkout-purge", o.checkout_purge ());
+
+        // Compose the option/variable group.
+        //
         if (!s.empty () || !a.config_vars.empty ())
         {
           r += " +{ ";
@@ -2779,7 +2828,7 @@ namespace bpkg
 
           for (const string& v: a.config_vars)
           {
-            append (v);
+            append (v, r);
             r += ' ';
           }
 
@@ -3455,13 +3504,18 @@ namespace bpkg
           //
           sp = db.find<selected_package> (pa.name);
 
-          dep_pkgs.push_back (dependency_package {move (pa.name),
-                                                  move (pa.constraint),
-                                                  move (sp),
-                                                  sys,
-                                                  pa.options.patch (),
-                                                  pa.options.keep_out (),
-                                                  move (pa.config_vars)});
+          dep_pkgs.push_back (
+            dependency_package {move (pa.name),
+                                move (pa.constraint),
+                                move (sp),
+                                sys,
+                                pa.options.patch (),
+                                pa.options.keep_out (),
+                                (pa.options.checkout_root_specified ()
+                                 ? move (pa.options.checkout_root ())
+                                 : optional<dir_path> ()),
+                                pa.options.checkout_purge (),
+                                move (pa.config_vars)});
           continue;
         }
 
@@ -3632,6 +3686,10 @@ namespace bpkg
           {},                         // Constraints.
           arg_sys (pa),
           keep_out,
+          (pa.options.checkout_root_specified ()
+           ? move (pa.options.checkout_root ())
+           : optional<dir_path> ()),
+          pa.options.checkout_purge (),
           move (pa.config_vars),
           {package_name ()},          // Required by (command line).
           0};                         // Adjustments.
@@ -3718,6 +3776,8 @@ namespace bpkg
               {},                 // Constraints.
               false,              // System package.
               keep_out,
+              nullopt,            // Checkout root.
+              false,              // Checkout purge.
               strings (),         // Configuration variables.
               {package_name ()},  // Required by (command line).
               0};                 // Adjustments.
@@ -3772,7 +3832,7 @@ namespace bpkg
     // in-memory objects that might have changed during the simulation) and
     // add the up/down-grades and drops to the plan.
     //
-    // Of course, adding dependecy up/down-grades to the plan can change the
+    // Of course, adding dependency up/down-grade to the plan can change the
     // plan. For example, a new version of a dependency we are upgrading may
     // force an upgrade of one of the packages from the user selected. And
     // that, in turn, can pretty much rewrite the plan entirely (including
@@ -3841,6 +3901,8 @@ namespace bpkg
               {},                        // Constraints.
               p.system,
               p.keep_out,
+              p.checkout_root,
+              p.checkout_purge,
               p.config_vars,
               {package_name ()},         // Required by (command line).
               0};                        // Adjustments.
@@ -3911,6 +3973,8 @@ namespace bpkg
               {},                    // Constraints.
               d.system,
               keep_out,
+              nullopt,               // Checkout root.
+              false,                 // Checkout purge.
               strings (),            // Configuration variables.
               {package_name ()},     // Required by (command line).
               0};                    // Adjustments.
@@ -3967,7 +4031,7 @@ namespace bpkg
         auto selected_packages_session = [&db, &ses] () -> selected_packages*
         {
           auto& m (ses.map ()[&db]);
-          auto i = m.find (&typeid (selected_package));
+          auto i (m.find (&typeid (selected_package)));
           return (i != m.end ()
                   ? &static_cast<selected_packages&> (*i->second)
                   : nullptr);
@@ -4667,13 +4731,23 @@ namespace bpkg
               }
             case repository_basis::version_control:
               {
-                sp = pkg_checkout (o,
-                                   c,
-                                   t,
-                                   ap->id.name,
-                                   p.available_version (),
-                                   true /* replace */,
-                                   simulate);
+                sp = p.checkout_root
+                     ? pkg_checkout (o,
+                                     c,
+                                     t,
+                                     ap->id.name,
+                                     p.available_version (),
+                                     *p.checkout_root,
+                                     true /* replace */,
+                                     p.checkout_purge,
+                                     simulate)
+                     : pkg_checkout (o,
+                                     c,
+                                     t,
+                                     ap->id.name,
+                                     p.available_version (),
+                                     true /* replace */,
+                                     simulate);
                 break;
               }
             case repository_basis::directory:
