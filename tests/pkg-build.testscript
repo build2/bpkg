@@ -935,12 +935,12 @@ test.options += --no-progress
     $* libbaz 2>>~%EOE%;
       fetched libfoo/1.1.0
       unpacked libfoo/1.1.0
-      configured libfoo/1.1.0
       fetched libbar/1.1.0
       unpacked libbar/1.1.0
-      configured libbar/1.1.0
       fetched libbaz/1.1.0
       unpacked libbaz/1.1.0
+      configured libfoo/1.1.0
+      configured libbar/1.1.0
       configured libbaz/1.1.0
       %info: .+ is up to date%
       updated libbaz/1.1.0
@@ -1071,12 +1071,12 @@ test.options += --no-progress
       $* libbaz 2>>~%EOE%;
         fetched libfoo/1.1.0
         unpacked libfoo/1.1.0
-        configured libfoo/1.1.0
         fetched libbar/1.1.0
         unpacked libbar/1.1.0
-        configured libbar/1.1.0
         fetched libbaz/1.1.0
         unpacked libbaz/1.1.0
+        configured libfoo/1.1.0
+        configured libbar/1.1.0
         configured libbaz/1.1.0
         %info: .+ is up to date%
         updated libbaz/1.1.0
@@ -1114,12 +1114,12 @@ test.options += --no-progress
         disfigured libfoo/1.0.0
         fetched libfoo/1.1.0
         unpacked libfoo/1.1.0
-        configured libfoo/1.1.0
         fetched libbar/1.1.0
         unpacked libbar/1.1.0
-        configured libbar/1.1.0
         fetched libbaz/1.1.0
         unpacked libbaz/1.1.0
+        configured libfoo/1.1.0
+        configured libbar/1.1.0
         configured libbaz/1.1.0
         %info: .+ is up to date%
         updated libbaz/1.1.0
@@ -1173,9 +1173,9 @@ test.options += --no-progress
     $* libbar 2>>~%EOE%;
       fetched libfoo/1.0.0
       unpacked libfoo/1.0.0
-      configured libfoo/1.0.0
       fetched libbar/1.0.0
       unpacked libbar/1.0.0
+      configured libfoo/1.0.0
       configured libbar/1.0.0
       %info: .+ is up to date%
       updated libbar/1.0.0
@@ -1204,9 +1204,9 @@ test.options += --no-progress
       disfigured libbar/1.2.0
       fetched libfoo/1.0.0
       unpacked libfoo/1.0.0
-      configured libfoo/1.0.0
       fetched libbar/1.0.0
       unpacked libbar/1.0.0
+      configured libfoo/1.0.0
       configured libbar/1.0.0
       %info: .+ is up to date%{2}
       updated libfoo/1.0.0
@@ -1261,8 +1261,8 @@ test.options += --no-progress
     $* ./libbar/ 2>>~%EOE%;
       fetched libfoo/1.1.0
       unpacked libfoo/1.1.0
-      configured libfoo/1.1.0
       using libbar/1.1.0 (external)
+      configured libfoo/1.1.0
       configured libbar/1.1.0
       %info: .+ is up to date%
       updated libbar/1.1.0
@@ -1293,9 +1293,9 @@ test.options += --no-progress
     $* libbar/1.0 2>>~%EOE%;
       fetched libfoo/1.0.0
       unpacked libfoo/1.0.0
-      configured libfoo/1.0.0
       fetched libbar/1.0.0
       unpacked libbar/1.0.0
+      configured libfoo/1.0.0
       configured libbar/1.0.0
       %info: .+ is up to date%
       updated libbar/1.0.0
@@ -1347,9 +1347,9 @@ test.options += --no-progress
         disfigured libfoo/1.0.0
         fetched libfoo/1.1.0
         unpacked libfoo/1.1.0
-        configured libfoo/1.1.0
         fetched libbar/1.1.0
         unpacked libbar/1.1.0
+        configured libfoo/1.1.0
         configured libbar/1.1.0
         %info: .+ is up to date%
         updated libbar/1.1.0
@@ -1405,9 +1405,9 @@ test.options += --no-progress
         disfigured libfoo/1.0.0
         fetched libfoo/1.1.0
         unpacked libfoo/1.1.0
-        configured libfoo/1.1.0
         fetched libbar/1.1.0
         unpacked libbar/1.1.0
+        configured libfoo/1.1.0
         configured libbar/1.1.0
         %info: .+ is up to date%
         updated libbar/1.1.0
@@ -1440,9 +1440,9 @@ test.options += --no-progress
     $* libbox '?libbaz < 0.1.0' 2>>~%EOE%;
       fetched libbaz/0.0.4
       unpacked libbaz/0.0.4
-      configured libbaz/0.0.4
       fetched libbox/0.0.1
       unpacked libbox/0.0.1
+      configured libbaz/0.0.4
       configured libbox/0.0.1
       %info: .+ is up to date%{2}
       updated libbaz/0.0.4
@@ -1506,8 +1506,8 @@ test.options += --no-progress
       EOE
 
     $* libfoo '?sys:libhello/*' 2>>~%EOE%;
-      configured sys:libhello/*
       using libfoo/1.1.0 (external)
+      configured sys:libhello/*
       configured libfoo/1.1.0
       %info: .+ is up to date%
       updated libfoo/1.1.0
@@ -1550,9 +1550,9 @@ test.options += --no-progress
       $* --yes libbar/1.0.0 '?sys:libbox/*' '?sys:libbux/1' 2>>EOE;
         fetched libfoo/1.0.0
         unpacked libfoo/1.0.0
-        configured libfoo/1.0.0
         fetched libbar/1.0.0
         unpacked libbar/1.0.0
+        configured libfoo/1.0.0
         configured libbar/1.0.0
         EOE
 
@@ -1583,9 +1583,9 @@ test.options += --no-progress
       $* --yes libbar/1.0.0 2>>EOE;
         fetched libfoo/1.0.0
         unpacked libfoo/1.0.0
-        configured libfoo/1.0.0
         fetched libbar/1.0.0
         unpacked libbar/1.0.0
+        configured libfoo/1.0.0
         configured libbar/1.0.0
         EOE
 
@@ -1625,11 +1625,11 @@ test.options += --no-progress
         disfigured libfox/0.0.1
         fetched libfoo/1.0.0
         unpacked libfoo/1.0.0
-        configured libfoo/1.0.0
         purged libfox/0.0.1
         purged libbaz/0.0.1
         fetched libbar/1.0.0
         unpacked libbar/1.0.0
+        configured libfoo/1.0.0
         configured libbar/1.0.0
         EOE
 
@@ -1730,15 +1730,15 @@ test.options += --no-progress
         $* libfix libbiz ?libbaz/0.0.3 2>>EOE;
           fetched libfoo/1.0.0
           unpacked libfoo/1.0.0
-          configured libfoo/1.0.0
           fetched libbaz/0.0.3
           unpacked libbaz/0.0.3
-          configured libbaz/0.0.3
           fetched libfix/0.0.3
           unpacked libfix/0.0.3
-          configured libfix/0.0.3
           fetched libbiz/0.0.2
           unpacked libbiz/0.0.2
+          configured libfoo/1.0.0
+          configured libbaz/0.0.3
+          configured libfix/0.0.3
           configured libbiz/0.0.2
           EOE
 
@@ -1762,15 +1762,15 @@ test.options += --no-progress
         $* libbiz libfix ?libbaz/0.0.3 2>>EOE;
           fetched libfoo/1.0.0
           unpacked libfoo/1.0.0
-          configured libfoo/1.0.0
           fetched libbaz/0.0.3
           unpacked libbaz/0.0.3
-          configured libbaz/0.0.3
           fetched libbiz/0.0.2
           unpacked libbiz/0.0.2
-          configured libbiz/0.0.2
           fetched libfix/0.0.3
           unpacked libfix/0.0.3
+          configured libfoo/1.0.0
+          configured libbaz/0.0.3
+          configured libbiz/0.0.2
           configured libfix/0.0.3
           EOE
 
@@ -1805,15 +1805,15 @@ test.options += --no-progress
         $* libbiz ?libfox/0.0.1 2>>EOE;
           fetched libfox/0.0.1
           unpacked libfox/0.0.1
-          configured libfox/0.0.1
           fetched libfoo/1.0.0
           unpacked libfoo/1.0.0
-          configured libfoo/1.0.0
           fetched libbox/0.0.2
           unpacked libbox/0.0.2
-          configured libbox/0.0.2
           fetched libbiz/0.0.1
           unpacked libbiz/0.0.1
+          configured libfox/0.0.1
+          configured libfoo/1.0.0
+          configured libbox/0.0.2
           configured libbiz/0.0.1
           EOE
 
@@ -1933,9 +1933,9 @@ test.options += --no-progress
         $clone_cfg;
 
         $* libbar '?sys:libfoo' 2>>EOE;
-          configured sys:libfoo/*
           fetched libbar/1.0.0
           unpacked libbar/1.0.0
+          configured sys:libfoo/*
           configured libbar/1.0.0
           EOE
 
@@ -1955,9 +1955,9 @@ test.options += --no-progress
         $clone_cfg;
 
         $* libbar '?sys:libfoo' 2>>EOE;
-          configured sys:libfoo/*
           fetched libbar/1.0.0
           unpacked libbar/1.0.0
+          configured sys:libfoo/*
           configured libbar/1.0.0
           EOE
 
@@ -1972,9 +1972,9 @@ test.options += --no-progress
         $clone_cfg;
 
         $* libbar/0.0.1 '?sys:libbaz' 2>>EOE;
-          configured sys:libbaz/*
           fetched libbar/0.0.1
           unpacked libbar/0.0.1
+          configured sys:libbaz/*
           configured libbar/0.0.1
           EOE
 
@@ -1983,9 +1983,9 @@ test.options += --no-progress
           purged libbaz/*
           fetched libfox/0.0.1
           unpacked libfox/0.0.1
-          configured libfox/0.0.1
           fetched libbaz/0.0.1
           unpacked libbaz/0.0.1
+          configured libfox/0.0.1
           configured libbaz/0.0.1
           configured libbar/0.0.1
           EOE
@@ -1999,9 +1999,9 @@ test.options += --no-progress
         $clone_cfg;
 
         $* libbar '?sys:libfoo/0.1' 2>>EOE;
-          configured sys:libfoo/0.1
           fetched libbar/1.0.0
           unpacked libbar/1.0.0
+          configured sys:libfoo/0.1
           configured libbar/1.0.0
           EOE
 
@@ -2021,9 +2021,9 @@ test.options += --no-progress
         $clone_cfg;
 
         $* libbar '?sys:libfoo/0.1' 2>>EOE;
-          configured sys:libfoo/0.1
           fetched libbar/1.0.0
           unpacked libbar/1.0.0
+          configured sys:libfoo/0.1
           configured libbar/1.0.0
           EOE
 
@@ -2038,9 +2038,9 @@ test.options += --no-progress
         $clone_cfg;
 
         $* libbar '?sys:libfoo/0.2' 2>>EOE;
-          configured sys:libfoo/0.2
           fetched libbar/1.0.0
           unpacked libbar/1.0.0
+          configured sys:libfoo/0.2
           configured libbar/1.0.0
           EOE
 
@@ -2060,9 +2060,9 @@ test.options += --no-progress
         $clone_cfg;
 
         $* libbar/0.0.1 '?sys:libbaz/0.0.1' 2>>EOE;
-          configured sys:libbaz/0.0.1
           fetched libbar/0.0.1
           unpacked libbar/0.0.1
+          configured sys:libbaz/0.0.1
           configured libbar/0.0.1
           EOE
 
@@ -2071,9 +2071,9 @@ test.options += --no-progress
           purged libbaz/0.0.1
           fetched libfox/0.0.1
           unpacked libfox/0.0.1
-          configured libfox/0.0.1
           fetched libbaz/0.0.1
           unpacked libbaz/0.0.1
+          configured libfox/0.0.1
           configured libbaz/0.0.1
           configured libbar/0.0.1
           EOE
@@ -2087,9 +2087,9 @@ test.options += --no-progress
         $clone_cfg;
 
         $* libbar/0.0.1 '?sys:libbaz/0.0.1' 2>>EOE;
-          configured sys:libbaz/0.0.1
           fetched libbar/0.0.1
           unpacked libbar/0.0.1
+          configured sys:libbaz/0.0.1
           configured libbar/0.0.1
           EOE
 
@@ -2098,9 +2098,9 @@ test.options += --no-progress
           purged libbaz/0.0.1
           fetched libfox/0.0.1
           unpacked libfox/0.0.1
-          configured libfox/0.0.1
           fetched libbaz/0.0.1
           unpacked libbaz/0.0.1
+          configured libfox/0.0.1
           configured libbaz/0.0.1
           configured libbar/0.0.1
           EOE
@@ -2116,12 +2116,12 @@ test.options += --no-progress
         $* libbar/0.0.1 '?libbaz' 2>>EOE;
           fetched libfox/0.0.1
           unpacked libfox/0.0.1
-          configured libfox/0.0.1
           fetched libbaz/0.0.1
           unpacked libbaz/0.0.1
-          configured libbaz/0.0.1
           fetched libbar/0.0.1
           unpacked libbar/0.0.1
+          configured libfox/0.0.1
+          configured libbaz/0.0.1
           configured libbar/0.0.1
           EOE
 
@@ -2146,12 +2146,12 @@ test.options += --no-progress
         $* libbar/0.0.1 '?libbaz/0.0.1' 2>>EOE;
           fetched libfox/0.0.1
           unpacked libfox/0.0.1
-          configured libfox/0.0.1
           fetched libbaz/0.0.1
           unpacked libbaz/0.0.1
-          configured libbaz/0.0.1
           fetched libbar/0.0.1
           unpacked libbar/0.0.1
+          configured libfox/0.0.1
+          configured libbaz/0.0.1
           configured libbar/0.0.1
           EOE
 
@@ -2209,12 +2209,12 @@ test.options += --no-progress
           purged libfox/0.0.1
           fetched libfoo/1.0.0
           unpacked libfoo/1.0.0
-          configured libfoo/1.0.0
           fetched libbaz/0.0.2
           unpacked libbaz/0.0.2
-          configured libbaz/0.0.2
           fetched libbar/0.0.2
           unpacked libbar/0.0.2
+          configured libfoo/1.0.0
+          configured libbaz/0.0.2
           configured libbar/0.0.2
           EOE
 
@@ -2305,9 +2305,9 @@ test.options += --no-progress
         purged libfoo/0.0.1
         fetched libfox/0.0.1
         unpacked libfox/0.0.1
-        configured libfox/0.0.1
         fetched libbaz/0.0.1
         unpacked libbaz/0.0.1
+        configured libfox/0.0.1
         configured libbaz/0.0.1
         configured libbox/0.0.1
         EOE
@@ -2494,15 +2494,15 @@ test.options += --no-progress
       $* libbar libfoo/0.0.1 2>>EOE;
         fetched libfix/0.0.1
         unpacked libfix/0.0.1
-        configured libfix/0.0.1
         fetched libfoo/0.0.1
         unpacked libfoo/0.0.1
-        configured libfoo/0.0.1
         fetched libbaz/0.0.2
         unpacked libbaz/0.0.2
-        configured libbaz/0.0.2
         fetched libbar/0.0.2
         unpacked libbar/0.0.2
+        configured libfix/0.0.1
+        configured libfoo/0.0.1
+        configured libbaz/0.0.2
         configured libbar/0.0.2
         EOE
 
@@ -2536,9 +2536,9 @@ test.options += --no-progress
       $* libfoo 2>>EOE;
         fetched libfix/0.0.1
         unpacked libfix/0.0.1
-        configured libfix/0.0.1
         fetched libfoo/0.0.1
         unpacked libfoo/0.0.1
+        configured libfix/0.0.1
         configured libfoo/0.0.1
         EOE
 
@@ -2547,14 +2547,14 @@ test.options += --no-progress
         disfigured libfix/0.0.1
         fetched libfox/0.0.1
         unpacked libfox/0.0.1
-        configured libfox/0.0.1
         fetched libbaz/0.0.1
         unpacked libbaz/0.0.1
-        configured libbaz/0.0.1
         fetched libbar/0.0.1
         unpacked libbar/0.0.1
-        configured libbar/0.0.1
         purged libfix/0.0.1
+        configured libfox/0.0.1
+        configured libbaz/0.0.1
+        configured libbar/0.0.1
         configured sys:libfix/*
         configured libfoo/0.0.1
         EOE
@@ -2576,15 +2576,15 @@ test.options += --no-progress
     +$* libbar/0.0.2 libbaz/0.0.2 libfoo/0.0.1 --yes 2>>EOE
        fetched libfix/0.0.1
        unpacked libfix/0.0.1
-       configured libfix/0.0.1
        fetched libfoo/0.0.1
        unpacked libfoo/0.0.1
-       configured libfoo/0.0.1
        fetched libbaz/0.0.2
        unpacked libbaz/0.0.2
-       configured libbaz/0.0.2
        fetched libbar/0.0.2
        unpacked libbar/0.0.2
+       configured libfix/0.0.1
+       configured libfoo/0.0.1
+       configured libbaz/0.0.2
        configured libbar/0.0.2
        EOE
 
@@ -2600,9 +2600,9 @@ test.options += --no-progress
         disfigured libbaz/0.0.2
         fetched libbaz/0.1.0
         unpacked libbaz/0.1.0
-        configured libbaz/0.1.0
         fetched libbar/0.0.3
         unpacked libbar/0.0.3
+        configured libbaz/0.1.0
         configured libbar/0.0.3
         EOE
 
@@ -2624,12 +2624,12 @@ test.options += --no-progress
         purged libfix/0.0.1
         fetched libfoo/1.0.0
         unpacked libfoo/1.0.0
-        configured libfoo/1.0.0
         fetched libbaz/0.1.0
         unpacked libbaz/0.1.0
-        configured libbaz/0.1.0
         fetched libbar/0.0.3
         unpacked libbar/0.0.3
+        configured libfoo/1.0.0
+        configured libbaz/0.1.0
         configured libbar/0.0.3
         EOE
 
@@ -2657,10 +2657,10 @@ test.options += --no-progress
         purged libfix/0.0.1
         fetched libfoo/1.0.0
         unpacked libfoo/1.0.0
-        configured libfoo/1.0.0
         purged libbaz/0.0.2
         fetched libbar/1.0.0
         unpacked libbar/1.0.0
+        configured libfoo/1.0.0
         configured libbar/1.0.0
         EOE
     }
@@ -2701,12 +2701,12 @@ test.options += --no-progress
         purged libfix/0.0.1
         fetched libfoo/1.0.0
         unpacked libfoo/1.0.0
-        configured libfoo/1.0.0
         fetched libbaz/0.0.3
         unpacked libbaz/0.0.3
-        configured libbaz/0.0.3
         fetched libbar/0.0.3
         unpacked libbar/0.0.3
+        configured libfoo/1.0.0
+        configured libbaz/0.0.3
         configured libbar/0.0.3
         EOE
 
@@ -2726,12 +2726,12 @@ test.options += --no-progress
         purged libfix/0.0.1
         fetched libfoo/1.0.0
         unpacked libfoo/1.0.0
-        configured libfoo/1.0.0
         fetched libbaz/0.0.3
         unpacked libbaz/0.0.3
-        configured libbaz/0.0.3
         fetched libbar/0.0.3
         unpacked libbar/0.0.3
+        configured libfoo/1.0.0
+        configured libbaz/0.0.3
         configured libbar/0.0.3
         EOE
 
@@ -2773,9 +2773,9 @@ test.options += --no-progress
     $* --yes libbar 2>>~%EOE%;
       fetched libfoo/1.0.0
       unpacked libfoo/1.0.0
-      configured libfoo/1.0.0
       fetched libbar/1.0.0
       unpacked libbar/1.0.0
+      configured libfoo/1.0.0
       configured libbar/1.0.0
       %info: .+ is up to date%
       updated libbar/1.0.0
@@ -2814,9 +2814,9 @@ test.options += --no-progress
     $* --yes libbar 2>>~%EOE%;
       fetched libfoo/1.0.0
       unpacked libfoo/1.0.0
-      configured libfoo/1.0.0
       fetched libbar/1.0.0
       unpacked libbar/1.0.0
+      configured libfoo/1.0.0
       configured libbar/1.0.0
       %info: .+ is up to date%
       updated libbar/1.0.0
@@ -2919,8 +2919,8 @@ test.options += --no-progress
 
       $* libhello 2>>~%EOE%;
         using libfoo/1.1.0 (external)
-        configured libfoo/1.1.0
         using libhello/1.0.0 (external)
+        configured libfoo/1.1.0
         configured libhello/1.0.0
         %(mkdir|c\+\+|ld|ar) .+%{8}
         updated libhello/1.0.0
@@ -3033,9 +3033,9 @@ test.options += --no-progress
       $* libbaz/0.0.3 --patch 2>>EOE;
         fetched libfoo/1.0.0
         unpacked libfoo/1.0.0
-        configured libfoo/1.0.0
         fetched libbaz/0.0.3
         unpacked libbaz/0.0.3
+        configured libfoo/1.0.0
         configured libbaz/0.0.3
         EOE
 
@@ -3077,15 +3077,15 @@ test.options += --no-progress
     +$* libbox libfix ?libbaz/0.0.3 2>>EOE
        fetched libfoo/1.0.0
        unpacked libfoo/1.0.0
-       configured libfoo/1.0.0
        fetched libbaz/0.0.3
        unpacked libbaz/0.0.3
-       configured libbaz/0.0.3
        fetched libbox/0.0.1
        unpacked libbox/0.0.1
-       configured libbox/0.0.1
        fetched libfix/0.0.3
        unpacked libfix/0.0.3
+       configured libfoo/1.0.0
+       configured libbaz/0.0.3
+       configured libbox/0.0.1
        configured libfix/0.0.3
        EOE
 
@@ -3206,9 +3206,9 @@ test.options += --no-progress
       fetching pkg:build2.org/pkg-build/t0c
       fetched libfoo/1.0.0
       unpacked libfoo/1.0.0
-      configured libfoo/1.0.0
       fetched libbaz/0.0.3
       unpacked libbaz/0.0.3
+      configured libfoo/1.0.0
       configured libbaz/0.0.3
       EOE
 
@@ -3266,9 +3266,9 @@ test.options += --no-progress
   $* --configure-only --yes libbar 2>>EOE;
     fetched libfoo/1.0.0
     unpacked libfoo/1.0.0
-    configured libfoo/1.0.0
     fetched libbar/1.0.0
     unpacked libbar/1.0.0
+    configured libfoo/1.0.0
     configured libbar/1.0.0
     EOE
 
@@ -3810,8 +3810,8 @@ else
 
     $* libmbar 2>>~%EOE%;
       %checked out style-basic/.+%
-      %configured style-basic/.+%
       checked out libmbar/1.0.0
+      %configured style-basic/.+%
       configured libmbar/1.0.0
       %info: .+ is up to date%
       updated libmbar/1.0.0
@@ -3838,8 +3838,8 @@ else
 
     $* libbaz 2>>~%EOE%;
       %checked out style-basic/.+%
-      %configured style-basic/.+%
       checked out libbaz/1.0.0
+      %configured style-basic/.+%
       configured libbaz/1.0.0
       %info: .+ is up to date%
       updated libbaz/1.0.0
@@ -3886,8 +3886,8 @@ else
 
     $* libmbar --checkout-root $~ --checkout-purge 2>>~%EOE%;
       %checked out style-basic/.+%
-      %configured style-basic/.+%
       checked out libmbar/1.0.0
+      %configured style-basic/.+%
       configured libmbar/1.0.0
       %info: .+ is up to date%
       updated libmbar/1.0.0

@@ -4453,12 +4453,7 @@ namespace bpkg
     //
     // We are also going to combine purge and fetch/unpack|checkout into a
     // single step and use the replace mode so it will become just
-    // fetch/unpack|checkout. Configure is also combined with the above
-    // operations, since previously we had to guarantee that prerequisite
-    // packages are configured by the time its dependents need to be checked
-    // out. Now, when we start using the bootstrap dist for pkg-checkout
-    // that's not a requirement anymore. We, however, still keep it this way
-    // since there is no reason why not to.
+    // fetch/unpack|checkout.
     //
     // We also have the dependent packages that we reconfigure because their
     // prerequsites got upgraded/downgraded and that the user may want to in
@@ -4607,7 +4602,7 @@ namespace bpkg
       }
     }
 
-    // purge, fetch/unpack|checkout, configure
+    // purge, fetch/unpack|checkout
     //
     for (build_package& p: reverse_iterate (build_pkgs))
     {
@@ -4859,10 +4854,18 @@ namespace bpkg
 
         break; // Get out from the breakout loop.
       }
+    }
 
-      // We are done for the dropped package.
-      //
-      if (*p.action == build_package::drop)
+    // configure
+    //
+    for (build_package& p: reverse_iterate (build_pkgs))
+    {
+      assert (p.action);
+
+      shared_ptr<selected_package>& sp (p.selected);
+      const shared_ptr<available_package>& ap (p.available);
+
+      if (*p.action == build_package::drop) // Skip package drops.
         continue;
 
       // Configure the package.

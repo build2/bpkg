@@ -179,10 +179,10 @@ rep_remove += -d cfg 2>!
       %.*
       %.*fetched libbaz/2%
       unpacked libbaz/2
-      configured libbaz/2
       %.*
       %.*fetched libbar/2%
       unpacked libbar/2
+      configured libbaz/2
       configured libbar/2
       configured foo/2
       %info: .+ is up to date%{2}
@@ -205,10 +205,10 @@ rep_remove += -d cfg 2>!
     $clone_cfg;
 
     $pkg_build foo 'sys:libbar/2' 2>>~%EOE%;
-      configured sys:libbar/2
       %.*
       %.*fetched foo/2%
       unpacked foo/2
+      configured sys:libbar/2
       configured foo/2
       %info: .+ is up to date%
       updated foo/2
@@ -229,10 +229,10 @@ rep_remove += -d cfg 2>!
     $clone_cfg;
 
     $pkg_build 'sys:libbar/2' foo 2>>~%EOE%;
-      configured sys:libbar/2
       %.*
       %.*fetched foo/2%
       unpacked foo/2
+      configured sys:libbar/2
       configured foo/2
       %info: .+ is up to date%
       updated foo/2
@@ -258,10 +258,10 @@ rep_remove += -d cfg 2>!
       %.*
       %.*fetched libbaz/2%
       unpacked libbaz/2
-      configured libbaz/2
       %.*
       %.*fetched libbar/2%
       unpacked libbar/2
+      configured libbaz/2
       configured libbar/2
       %info: .+ is up to date%
       updated libbar/2
@@ -277,10 +277,10 @@ rep_remove += -d cfg 2>!
       disfigured libbaz/2
       purged libbaz/2
       purged libbar/2
-      configured sys:libbar/2
       %.*
       %.*fetched foo/2%
       unpacked foo/2
+      configured sys:libbar/2
       configured foo/2
       %info: .+ is up to date%
       updated foo/2
@@ -306,10 +306,10 @@ rep_remove += -d cfg 2>!
       %.*
       %.*fetched libbaz/2%
       unpacked libbaz/2
-      configured libbaz/2
       %.*
       %.*fetched libbar/2%
       unpacked libbar/2
+      configured libbaz/2
       configured libbar/2
       %info: .+ is up to date%
       updated libbar/2
@@ -325,10 +325,10 @@ rep_remove += -d cfg 2>!
       disfigured libbaz/2
       purged libbaz/2
       purged libbar/2
-      configured sys:libbar/*
       %.*
       %.*fetched foo/2%
       unpacked foo/2
+      configured sys:libbar/*
       configured foo/2
       %info: .+ is up to date%
       updated foo/2
@@ -361,14 +361,14 @@ rep_remove += -d cfg 2>!
       %.*
       %.*fetched libbaz/2%
       unpacked libbaz/2
-      configured libbaz/2
       %.*
       %.*fetched libbar/2%
       unpacked libbar/2
-      configured libbar/2
       %.*
       %.*fetched foo/2%
       unpacked foo/2
+      configured libbaz/2
+      configured libbar/2
       configured foo/2
       %info: .+ is up to date%{2}
       updated libbar/2
@@ -405,10 +405,10 @@ rep_remove += -d cfg 2>!
       %.*
       %.*fetched libbaz/2%
       unpacked libbaz/2
-      configured libbaz/2
       %.*
       %.*fetched libbar/2%
       unpacked libbar/2
+      configured libbaz/2
       configured libbar/2
       configured foo/2
       %info: .+ is up to date%{2}
@@ -453,14 +453,14 @@ rep_remove += -d cfg 2>!
       %.*
       %.*fetched libbaz/2%
       unpacked libbaz/2
-      configured libbaz/2
       %.*
       %.*fetched libbar/2%
       unpacked libbar/2
-      configured libbar/2
       %.*
       %.*fetched foo/2%
       unpacked foo/2
+      configured libbaz/2
+      configured libbar/2
       configured foo/2
       %info: .+ is up to date%{2}
       updated libbar/2
@@ -482,10 +482,10 @@ rep_remove += -d cfg 2>!
     $clone_cfg;
 
     $pkg_build foo '?sys:libbar' 2>>~%EOE%;
-      configured sys:libbar/*
       %.*
       %.*fetched foo/2%
       unpacked foo/2
+      configured sys:libbar/*
       configured foo/2
       %info: .+ is up to date%
       updated foo/2
@@ -512,10 +512,10 @@ rep_remove += -d cfg 2>!
       %.*
       %.*fetched libbaz/2%
       unpacked libbaz/2
-      configured libbaz/2
       %.*
       %.*fetched libbar/1%
       unpacked libbar/1
+      configured libbaz/2
       configured libbar/1
       %info: .+ is up to date%
       updated libbar/1
@@ -540,10 +540,10 @@ rep_remove += -d cfg 2>!
       disfigured libbaz/2
       purged libbaz/2
       purged libbar/1
-      configured sys:libbar/2
       %.*
       %.*fetched foo/2%
       unpacked foo/2
+      configured sys:libbar/2
       configured foo/2
       %info: .+ is up to date%
       updated foo/2
@@ -631,10 +631,10 @@ rep_remove += -d cfg 2>!
     $clone_cfg;
 
     $pkg_build foo 'sys:libbar' 2>>~%EOE%;
-      configured sys:libbar/*
       %.*
       %.*fetched foo/2%
       unpacked foo/2
+      configured sys:libbar/*
       configured foo/2
       %info: .+ is up to date%
       updated foo/2
@@ -671,10 +671,10 @@ rep_remove += -d cfg 2>!
     #
     $pkg_build foo 'sys:libbar/2' 2>>~%EOE%;
       purged libbar/1
-      configured sys:libbar/2
       %.*
       %.*fetched foo/2%
       unpacked foo/2
+      configured sys:libbar/2
       configured foo/2
       %info: .+ is up to date%
       updated foo/2
@@ -757,10 +757,10 @@ rep_remove += -d cfg 2>!
     # Build foo and ?sys:libbar.
     #
     $pkg_build foo '?sys:libbar' 2>>~%EOE%;
-      configured sys:libbar/*
       %.*
       %.*fetched foo/2%
       unpacked foo/2
+      configured sys:libbar/*
       configured foo/2
       %info: .+ is up to date%
       updated foo/2
@@ -806,10 +806,10 @@ rep_remove += -d cfg 2>!
     #
     $pkg_build foo '?sys:libbar/2' 2>>~%EOE%;
       purged libbar/1
-      configured sys:libbar/2
       %.*
       %.*fetched foo/2%
       unpacked foo/2
+      configured sys:libbar/2
       configured foo/2
       %info: .+ is up to date%
       updated foo/2
@@ -884,10 +884,10 @@ rep_remove += -d cfg 2>!
     # Build foo '?sys:libbar/2'.
     #
     $pkg_build foo '?sys:libbar/2' 2>>~%EOE%;
-      configured sys:libbar/2
       %.*
       %.*fetched foo/2%
       unpacked foo/2
+      configured sys:libbar/2
       configured foo/2
       %info: .+ is up to date%
       updated foo/2
