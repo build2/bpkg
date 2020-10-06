@@ -3870,6 +3870,9 @@ namespace bpkg
       //
       for (bool refine (true), scratch (true); refine; )
       {
+        l4 ([&]{trace << "refining execution plan"
+                      << (scratch ? " from scratch" : "");});
+
         transaction t (db);
 
         build_packages::postponed_packages postponed;
@@ -4523,6 +4526,10 @@ namespace bpkg
                 build_package_list& build_pkgs,
                 bool simulate)
   {
+    tracer trace ("execute_plan");
+
+    l4 ([&]{trace << "simulate: " << (simulate ? "yes" : "no");});
+
     uint16_t verbose (!simulate ? verb : 0);
 
     // disfigure
