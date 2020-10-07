@@ -336,5 +336,11 @@ namespace bpkg
 
   Recoverable error which is likely to disappear if the command is
   re-executed.||
+
+  \h|ENVIRONMENT|
+
+  The \cb{BPKG_DEF_OPT} environment variable is used to suppress loading of
+  default options files in nested \cb{bpkg} invocations. Its values are
+  \cb{false} or \cb{0} to suppress and \cb{true} or \cb{1} to load.
   "
 }

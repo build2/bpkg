@@ -166,6 +166,9 @@ init (const common_options& co,
       bool keep_sep,
       bool tmp)
 {
+  using bpkg::optional;
+  using bpkg::getenv;
+
   tracer trace ("init");
 
   O o;
@@ -226,14 +229,23 @@ init (const common_options& co,
            : o.V () ? 3 : o.v () ? 2 : o.quiet () ? 0 : 1;
   };
 
-  // Handle default options files.
+  // Load the default options files, unless --no-default-options is specified
+  // on the command line or the BPKG_DEF_OPT environment variable is set to a
+  // value other than 'true' or '1'.
   //
+  optional<string> env_def (getenv ("BPKG_DEF_OPT"));
+
+  // False if --no-default-options is specified on the command line. Note that
+  // we cache the flag since it can be overridden by a default options file.
+  //
+  bool cmd_def (!o.no_default_options ());
+
   // Note: don't need to use group_scaner (no arguments in options files).
   //
-  if (!o.no_default_options ()) // Command line option.
+  if (cmd_def && (!env_def || *env_def == "true" || *env_def == "1"))
   try
   {
-    bpkg::optional<dir_path> extra;
+    optional<dir_path> extra;
     if (o.default_options_specified ())
       extra = o.default_options ();
 
@@ -264,6 +276,12 @@ init (const common_options& co,
   {
     fail << "unable to obtain home directory: " << e;
   }
+
+  // Propagate disabling of the default options files to the potential nested
+  // invocations.
+  //
+  if (!cmd_def && (!env_def || *env_def != "0"))
+    setenv ("BPKG_DEF_OPT", "0");
 
   // Global initializations.
   //
