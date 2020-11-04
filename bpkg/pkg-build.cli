@@ -286,7 +286,7 @@ namespace bpkg
       "Configure all the packages but don't update."
     }
 
-    bool --print-only|-p
+    bool --print-only
     {
       "Print to \cb{stdout} what would be done without actually doing
        anything."
