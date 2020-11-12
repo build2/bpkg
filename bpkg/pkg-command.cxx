@@ -3,6 +3,8 @@
 
 #include <bpkg/pkg-command.hxx>
 
+#include <libbutl/path-pattern.mxx>
+
 #include <bpkg/package.hxx>
 #include <bpkg/package-odb.hxx>
 #include <bpkg/database.hxx>
@@ -150,6 +152,7 @@ namespace bpkg
                bool recursive,
                bool immediate,
                bool all,
+               const strings& all_patterns,
                bool package_cwd,
                cli::group_scanner& args)
   {
@@ -216,7 +219,7 @@ namespace bpkg
     // Check that options and arguments are consistent.
     //
     // Note that we can as well count on the option names that correspond to
-    // the immediate, recursive, and all parameters.
+    // the immediate, recursive, all, and all_patterns parameters.
     //
     {
       diag_record dr;
@@ -225,8 +228,16 @@ namespace bpkg
         dr << fail << "both --immediate|-i and --recursive|-r specified";
       else if (all)
       {
+        if (!all_patterns.empty ())
+          dr << fail << "both --all|-a and --all-pattern specified";
+
         if (!pkg_args.empty ())
           dr << fail << "both --all|-a and package argument specified";
+      }
+      else if (!all_patterns.empty ())
+      {
+        if (!pkg_args.empty ())
+          dr << fail << "both --all-pattern and package argument specified";
       }
       else if (pkg_args.empty ())
         dr << fail << "package name argument expected";
@@ -257,7 +268,7 @@ namespace bpkg
           collect_dependencies (p, recursive, package_cwd, ps);
       };
 
-      if (all)
+      if (all || !all_patterns.empty ())
       {
         using query = query<selected_package>;
 
@@ -270,7 +281,19 @@ namespace bpkg
         {
           l4 ([&]{trace << *p;});
 
-          add (p, strings ());
+          if (!all_patterns.empty ())
+          {
+            for (const string& pat: all_patterns)
+            {
+              if (path_match (p->name.string (), pat))
+              {
+                add (p, strings ());
+                break;
+              }
+            }
+          }
+          else // --all
+            add (p, strings ());
         }
 
         if (ps.empty ())

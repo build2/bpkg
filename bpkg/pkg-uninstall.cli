@@ -15,18 +15,20 @@ namespace bpkg
     "\h|SYNOPSIS|
 
      \c{\b{bpkg pkg-uninstall}|\b{uninstall} [<options>] [<vars>] <pkg>...\n
-        \b{bpkg pkg-uninstall}|\b{uninstall} [<options>] [<vars>] \b{--all}|\b{-a}}
+        \b{bpkg pkg-uninstall}|\b{uninstall} [<options>] [<vars>] \b{--all}|\b{-a}\n
+        \b{bpkg pkg-uninstall}|\b{uninstall} [<options>] [<vars>] (\b{--all-pattern} <pattern>)...}
 
      \h|DESCRIPTION|
 
      The \cb{pkg-uninstall} command uninstalls the specified packages (the
-     first form) or all held packages (the second form, see
-     \l{bpkg-pkg-status(1)}). Additionally, immediate or all dependencies of
-     these specified packages can be also uninstalled by specifying the
-     \c{\b{--immediate}|\b{-i}} or \c{\b{--recursive}|\b{-r}} options,
-     respectively. Underneath, this command doesn't do much more than run
-     \cb{b uninstall}. In the first form the specified packages must have been
-     previously configured with \l{bpkg-pkg-build(1)} or
+     first form), all the held packages (the second form, see
+     \l{bpkg-pkg-status(1)}), or all the held packages that match any of the
+     specified wildcard patterns (the third form). Additionally, immediate or
+     all dependencies of these specified packages can be also uninstalled by
+     specifying the \c{\b{--immediate}|\b{-i}} or \c{\b{--recursive}|\b{-r}}
+     options, respectively. Underneath, this command doesn't do much more than
+     run \cb{b uninstall}. In the first form the specified packages must have
+     been previously configured with \l{bpkg-pkg-build(1)} or
      \l{bpkg-pkg-configure(1)}.
 
      Additional command line variables (<vars>, normally \cb{config.*}) can be
@@ -43,6 +45,14 @@ namespace bpkg
     bool --all|-a
     {
       "Uninstall all held packages."
+    }
+
+    strings --all-pattern
+    {
+      "<pattern>",
+      "Uninstall held packages that match the specified wildcard pattern.
+       Repeat this option to match multiple patterns. Note that you may need
+       to quote the pattern to prevent expansion by your shell."
     }
 
     bool --immediate|-i

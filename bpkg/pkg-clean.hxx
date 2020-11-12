@@ -21,6 +21,7 @@ namespace bpkg
                         false /* recursive */,
                         false /* immediate */,
                         o.all (),
+                        o.all_pattern (),
                         false /* package_cwd */,
                         args);
   }

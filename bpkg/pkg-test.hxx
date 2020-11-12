@@ -21,6 +21,7 @@ namespace bpkg
                         o.recursive (),
                         o.immediate (),
                         o.all (),
+                        o.all_pattern (),
                         o.package_cwd (),
                         args);
   }

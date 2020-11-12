@@ -42,10 +42,24 @@ test.options += --build-option -s
       info: run 'bpkg help pkg-test' for more information
     EOE
 
+  : all-all-pattern
+  :
+  $* --all --all-pattern 'lib*' 2>>EOE != 0
+    error: both --all|-a and --all-pattern specified
+      info: run 'bpkg help pkg-test' for more information
+    EOE
+
   : all-name
   :
   $* --all libbaz 2>>EOE != 0
     error: both --all|-a and package argument specified
+      info: run 'bpkg help pkg-test' for more information
+    EOE
+
+  : all-pattern-name
+  :
+  $* --all-pattern 'lib*' libbaz 2>>EOE != 0
+    error: both --all-pattern and package argument specified
       info: run 'bpkg help pkg-test' for more information
     EOE
 
@@ -89,6 +103,29 @@ test.options += --build-option -s
     $pkg_build "sys:libbaz@$rep/t0a";
 
     $* --all 2>'info: nothing to test'
+  }
+}
+
+: all-pattern
+:
+{
+  : match
+  :
+  {
+    $clone_root_cfg;
+
+    $* --all-pattern 'libf*' --all-pattern 'lib*' --all-pattern 'libz*' 2>>~%EOE%
+        %info: .+ has nothing to test%
+        tested libbaz/0.0.3
+        EOE
+  }
+
+  : not-match
+  :
+  {
+    $clone_root_cfg;
+
+    $* --all-pattern 'libf*' 2>'info: nothing to test'
   }
 }
 

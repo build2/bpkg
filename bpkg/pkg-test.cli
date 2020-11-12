@@ -15,15 +15,17 @@ namespace bpkg
     "\h|SYNOPSIS|
 
      \c{\b{bpkg pkg-test}|\b{test} [<options>] [<vars>] <pkg>...\n
-        \b{bpkg pkg-test}|\b{test} [<options>] [<vars>] \b{--all}|\b{-a}}
+        \b{bpkg pkg-test}|\b{test} [<options>] [<vars>] \b{--all}|\b{-a}\n
+        \b{bpkg pkg-test}|\b{test} [<options>] [<vars>] (\b{--all-pattern} <pattern>)...}
 
      \h|DESCRIPTION|
 
-     The \cb{pkg-test} command tests the specified packages (the first form)
-     or all the held packages (the second form, see \l{bpkg-pkg-status(1)}).
-     Additionally, immediate or all dependencies of these packages can also be
-     tested by specifying the \c{\b{--immediate}|\b{-i}} or
-     \c{\b{--recursive}|\b{-r}} options, respectively. Underneath, this
+     The \cb{pkg-test} command tests the specified packages (the first form),
+     all the held packages (the second form, see \l{bpkg-pkg-status(1)}), or
+     all the held packages that match any of the specified wildcard patterns
+     (the third form). Additionally, immediate or all dependencies of these
+     packages can also be tested by specifying the \c{\b{--immediate}|\b{-i}}
+     or \c{\b{--recursive}|\b{-r}} options, respectively. Underneath, this
      command doesn't do much more than run \cb{b test}. In the first form the
      specified packages must have been previously configured with
      \l{bpkg-pkg-build(1)} or \l{bpkg-pkg-configure(1)}.
@@ -42,6 +44,14 @@ namespace bpkg
     bool --all|-a
     {
       "Test all held packages."
+    }
+
+    strings --all-pattern
+    {
+      "<pattern>",
+      "Test held packages that match the specified wildcard pattern. Repeat
+       this option to match multiple patterns. Note that you may need to quote
+       the pattern to prevent expansion by your shell."
     }
 
     bool --immediate|-i

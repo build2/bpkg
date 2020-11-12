@@ -27,6 +27,7 @@ namespace bpkg
                bool recursive,
                bool immediate,
                bool all,
+               const strings& all_patterns,
                bool package_cwd,
                cli::group_scanner& args);
 
