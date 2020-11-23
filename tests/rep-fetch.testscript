@@ -66,6 +66,8 @@
 # |
 # `-- git/* (see rep-fetch-git.testscript)
 
+posix = ($cxx.target.class != 'windows')
+
 # Prepare repositories used by tests if running in the local mode.
 #
 +if! $remote
@@ -474,14 +476,23 @@ if! $remote
 
   +$clone_cfg && $rep_add $rep/libbar.git
 
+  d = $canonicalize($rep)
+
+  # Note that on Windows the local repository canonical name path part is
+  # converted to lower case.
+  #
+  if! $posix
+    d = [dir_path] $string.lcase($d)
+  end
+
   : prerequisites
   :
   {
     $clone_cfg;
 
     $* 2>>"EOE";
-      fetching dir:($rep/libbar.git)
-      fetching dir:($rep/style-basic.git) \(prerequisite of dir:($rep/libbar.git)\)
+      fetching dir:($d/libbar.git)
+      fetching dir:($d/style-basic.git) \(prerequisite of dir:($d/libbar.git)\)
       3 package\(s\) in 2 repository\(s\)
       EOE
 
@@ -500,8 +511,8 @@ if! $remote
     $clone_cfg;
     $* 2>!;
 
-    $* "dir:($rep/libbar.git)" 2>>"EOE";
-      fetching dir:($rep/style-basic.git) \(prerequisite of dir:($rep/libbar.git)\)
+    $* "dir:($d/libbar.git)" 2>>"EOE";
+      fetching dir:($d/style-basic.git) \(prerequisite of dir:($d/libbar.git)\)
       3 package\(s\) in 2 repository\(s\)
       EOE
 
@@ -522,7 +533,7 @@ if! $remote
       $clone_cfg;
       $* 2>!;
 
-      $* --shallow "dir:($rep/libbar.git)" 2>>"EOE";
+      $* --shallow "dir:($d/libbar.git)" 2>>"EOE";
         3 package\(s\) in 2 repository\(s\)
         EOE
 
@@ -538,8 +549,8 @@ if! $remote
       $clone_cfg;
 
       $* --shallow 2>>"EOE";
-        fetching dir:($rep/libbar.git)
-        fetching dir:($rep/style-basic.git) \(prerequisite of dir:($rep/libbar.git)\)
+        fetching dir:($d/libbar.git)
+        fetching dir:($d/style-basic.git) \(prerequisite of dir:($d/libbar.git)\)
         3 package\(s\) in 2 repository\(s\)
         EOE
 
@@ -764,7 +775,7 @@ else
 
     $clone_root_cfg;
 
-    rep = ($cxx.target.class != 'windows' \
+    rep = ($posix \
            ? "file:$~" \
            : "file:/$regex.replace($~, '\\', '/')");
 

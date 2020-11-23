@@ -118,6 +118,8 @@
 #     |-- libbaz.git
 #     `-- style-basic.git
 
+posix = ($cxx.target.class != 'windows')
+
 # Prepare repositories used by tests if running in the local mode.
 #
 +if! $remote
@@ -3321,7 +3323,7 @@ test.options += --no-progress
       $clone_root_cfg;
 
       if! $remote
-        rep = ($cxx.target.class != 'windows' \
+        rep = ($posix \
                ? "file:$rep" \
                : "file:/$regex.replace($rep, '\\', '/')")
 
@@ -3473,8 +3475,11 @@ test.options += --no-progress
 
     d = $canonicalize([dir_path] $src/libfoo-1.1.0);
 
+    # Note that on Windows the local repository canonical name path part is
+    # converted to lower case.
+    #
     $* "libfoo@$d" 2>>~"%EOE%";
-      fetching dir:$d
+      fetching dir:($posix ? "$d" : $string.lcase("$d"))
       using libfoo/1.1.0 \(external\)
       configured libfoo/1.1.0
       %info: .+ is up to date%
@@ -3498,7 +3503,14 @@ test.options += --no-progress
     $clone_root_cfg;
     $rep_fetch $rep/t4a;
     $rep_add $src/libfoo-1.1.0 --type dir;
-    $rep_fetch "dir:$canonicalize([dir_path] $src/libfoo-1.1.0)";
+
+    d = $canonicalize([dir_path] $src/libfoo-1.1.0);
+
+    if! $posix
+      d = [dir_path] $string.lcase($d)
+    end;
+
+    $rep_fetch "dir:$d";
 
     $* libfoo 2>>~%EOE%;
       using libfoo/1.1.0 (external)
