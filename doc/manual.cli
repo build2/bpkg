@@ -1002,10 +1002,13 @@ package are maintained separately.
 \
 
 The build notification email address. It is used to send build result
-notifications by automated build bots. If none of the \c{build-*email} values
-are specified, then it is assumed to be the same as \c{package-email}. If it
-is specified but empty, then no build result notifications for this package
-are sent by email.
+notifications by automated build bots. If unspecified, then no build result
+notifications for this package are sent by email.
+
+\N|For backwards compatibility with existing packages, if it is specified but
+empty, then this is the same as unspecified.
+
+|
 
 
 \h2#manifest-package-warning-email|\c{build-warning-email}|
