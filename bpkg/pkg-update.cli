@@ -23,11 +23,14 @@ namespace bpkg
      The \cb{pkg-update} command updates the specified packages (the first
      form), all the held packages (the second form, see
      \l{bpkg-pkg-status(1)}), or all the held packages that match any of the
-     specified wildcard patterns (the third form). Underneath, this command
-     doesn't do much more than run \cb{b update} (or one of its
-     \c{update-for-*} variants; see \cb{--for|-f}). In the first form the
-     specified packages must have been previously configured with
-     \l{bpkg-pkg-build(1)} or \l{bpkg-pkg-configure(1)}.
+     specified wildcard patterns (the third form). Additionally, immediate or
+     all dependencies of these packages can be also updated by specifying the
+     \c{\b{--immediate}|\b{-i}} or \c{\b{--recursive}|\b{-r}} options,
+     respectively. Underneath, this command doesn't do much more than run
+     \cb{b update} (or one of its \c{update-for-*} variants; see
+     \cb{--for|-f}). In the first form the specified packages must have been
+     previously configured with \l{bpkg-pkg-build(1)} or
+     \l{bpkg-pkg-configure(1)}.
 
      Additional command line variables (<vars>, normally \cb{config.*}) can be
      passed to the build system. Such variables apply to all the specified
@@ -51,6 +54,16 @@ namespace bpkg
       "Update held packages that match the specified wildcard pattern. Repeat
        this option to match multiple patterns. Note that you may need to quote
        the pattern to prevent expansion by your shell."
+    }
+
+    bool --immediate|-i
+    {
+      "Also update immediate dependencies."
+    }
+
+    bool --recursive|-r
+    {
+      "Also update all dependencies, recursively."
     }
 
     string --for|-f
