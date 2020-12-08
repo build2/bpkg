@@ -264,7 +264,8 @@ init (const common_options& co,
             else
               trace << "loading " << (r ? "remote " : "local ") << f;
           }
-        }),
+        },
+        "--options-file"),
       o);
   }
   catch (const pair<path, system_error>& e)
