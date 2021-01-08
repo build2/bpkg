@@ -311,6 +311,6 @@ namespace bpkg
   {
     return co.build_specified ()
       ? co.build ().string ().c_str ()
-      : "b" BPKG_EXE_SUFFIX;
+      : BPKG_EXE_PREFIX "b" BPKG_EXE_SUFFIX;
   }
 }
