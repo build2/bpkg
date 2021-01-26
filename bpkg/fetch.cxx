@@ -522,20 +522,20 @@ namespace bpkg
   // Cache the result of finding/testing the fetch program. Sometimes a simple
   // global variable is really the right solution...
   //
-  enum kind {wget, curl, fetch};
+  enum class fetch_kind {wget, curl, fetch};
 
-  static path fetch_path;
-  static kind fetch_kind;
+  static path       path_;
+  static fetch_kind kind_;
 
-  static kind
+  static fetch_kind
   check (const common_options& o)
   {
-    if (!fetch_path.empty ())
-      return fetch_kind; // Cached.
+    if (!path_.empty ())
+      return kind_; // Cached.
 
     if (o.fetch_specified ())
     {
-      const path& p (fetch_path = o.fetch ());
+      const path& p (path_ = o.fetch ());
 
       // Figure out which one it is.
       //
@@ -547,21 +547,21 @@ namespace bpkg
         if (!check_wget (p))
           fail << p << " does not appear to be the 'wget' program";
 
-        fetch_kind = wget;
+        kind_ = fetch_kind::wget;
       }
       else if (s.find ("curl") != string::npos)
       {
         if (!check_curl (p))
           fail << p << " does not appear to be the 'curl' program";
 
-        fetch_kind = curl;
+        kind_ = fetch_kind::curl;
       }
       else if (s.find ("fetch") != string::npos)
       {
         if (!check_fetch (p))
           fail << p << " does not appear to be the 'fetch' program";
 
-        fetch_kind = fetch;
+        kind_ = fetch_kind::fetch;
       }
       else
         fail << "unknown fetch program " << p;
@@ -575,35 +575,35 @@ namespace bpkg
       // wget
       // fetch
       //
-      bool wg (check_wget (fetch_path = path ("wget")));
+      bool wg (check_wget (path_ = path ("wget")));
 
       if (wg && (wget_major > 1 || (wget_major == 1 && wget_minor >= 16)))
       {
-        fetch_kind = wget;
+        kind_ = fetch_kind::wget;
       }
-      else if (check_curl (fetch_path = path ("curl")))
+      else if (check_curl (path_ = path ("curl")))
       {
-        fetch_kind = curl;
+        kind_ = fetch_kind::curl;
       }
       else if (wg)
       {
-        fetch_path = path ("wget");
-        fetch_kind = wget;
+        path_ = path ("wget");
+        kind_ = fetch_kind::wget;
       }
-      else if (check_fetch (fetch_path = path ("fetch")))
+      else if (check_fetch (path_ = path ("fetch")))
       {
-        fetch_kind = fetch;
+        kind_ = fetch_kind::fetch;
       }
       else
         fail << "unable to find 'wget', 'curl', or 'fetch'" <<
           info << "use --fetch to specify the fetch program location";
 
       if (verb >= 3)
-        info << "using '" << fetch_path << "' as the fetch program, "
+        info << "using '" << path_ << "' as the fetch program, "
              << "use --fetch to override";
     }
 
-    return fetch_kind;
+    return kind_;
   }
 
   process
@@ -624,9 +624,9 @@ namespace bpkg
 
     switch (check (o))
     {
-    case wget:  f = &start_wget;  break;
-    case curl:  f = &start_curl;  break;
-    case fetch: f = &start_fetch; break;
+    case fetch_kind::wget:  f = &start_wget;  break;
+    case fetch_kind::curl:  f = &start_curl;  break;
+    case fetch_kind::fetch: f = &start_fetch; break;
     }
 
     optional<size_t> timeout;
@@ -698,7 +698,7 @@ namespace bpkg
         }
       }
 
-      return f (fetch_path,
+      return f (path_,
                 timeout,
                 o.no_progress (),
                 o.fetch_option (),
@@ -709,7 +709,7 @@ namespace bpkg
     }
     catch (const process_error& e)
     {
-      error << "unable to execute " << fetch_path << ": " << e;
+      error << "unable to execute " << path_ << ": " << e;
 
       if (e.child)
         exit (1);

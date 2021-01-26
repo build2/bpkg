@@ -227,20 +227,20 @@ namespace bpkg
   // Cache the result of finding/testing the sha256 program. Sometimes
   // a simple global variable is really the right solution...
   //
-  enum class kind {sha256, sha256sum, shasum};
+  enum class sha256_kind {sha256, sha256sum, shasum};
 
-  static path sha256_path;
-  static kind sha256_kind;
+  static path        path_;
+  static sha256_kind kind_;
 
-  static kind
+  static sha256_kind
   check (const common_options& o)
   {
-    if (!sha256_path.empty ())
-      return sha256_kind; // Cached.
+    if (!path_.empty ())
+      return kind_; // Cached.
 
     if (o.sha256_specified ())
     {
-      const path& p (sha256_path = o.sha256 ());
+      const path& p (path_ = o.sha256 ());
 
       // Figure out which one it is.
       //
@@ -252,21 +252,21 @@ namespace bpkg
         if (!check_sha256sum (p))
           fail << p << " does not appear to be the 'sha256sum' program";
 
-        sha256_kind = kind::sha256sum;
+        kind_ = sha256_kind::sha256sum;
       }
       else if (s.find ("shasum") != string::npos)
       {
         if (!check_shasum (p))
           fail << p << " does not appear to be the 'shasum' program";
 
-        sha256_kind = kind::shasum;
+        kind_ = sha256_kind::shasum;
       }
       else if (s.find ("sha256") != string::npos)
       {
         if (!check_sha256 (p))
           fail << p << " does not appear to be the 'sha256' program";
 
-        sha256_kind = kind::sha256;
+        kind_ = sha256_kind::sha256;
       }
       else
         fail << "unknown sha256 program " << p;
@@ -279,28 +279,28 @@ namespace bpkg
       // sha256sum (Linux coreutils)
       // shasum    (Perl tool, Mac OS)
       //
-      if (check_sha256 (sha256_path = path ("sha256")))
+      if (check_sha256 (path_ = path ("sha256")))
       {
-        sha256_kind = kind::sha256;
+        kind_ = sha256_kind::sha256;
       }
-      else if (check_sha256sum (sha256_path = path ("sha256sum")))
+      else if (check_sha256sum (path_ = path ("sha256sum")))
       {
-        sha256_kind = kind::sha256sum;
+        kind_ = sha256_kind::sha256sum;
       }
-      else if (check_shasum (sha256_path = path ("shasum")))
+      else if (check_shasum (path_ = path ("shasum")))
       {
-        sha256_kind = kind::shasum;
+        kind_ = sha256_kind::shasum;
       }
       else
         fail << "unable to find 'sha256', 'sha256sum', or 'shasum'" <<
           info << "use --sha256 to specify the sha256 program location";
 
       if (verb >= 3)
-        info << "using '" << sha256_path << "' as the sha256 program, "
+        info << "using '" << path_ << "' as the sha256 program, "
              << "use --sha256 to override";
     }
 
-    return sha256_kind;
+    return kind_;
   }
 
   static process
@@ -310,18 +310,18 @@ namespace bpkg
 
     switch (check (o))
     {
-    case kind::sha256:    sf = &start_sha256;    break;
-    case kind::sha256sum: sf = &start_sha256sum; break;
-    case kind::shasum:    sf = &start_shasum;    break;
+    case sha256_kind::sha256:    sf = &start_sha256;    break;
+    case sha256_kind::sha256sum: sf = &start_sha256sum; break;
+    case sha256_kind::shasum:    sf = &start_shasum;    break;
     }
 
     try
     {
-      return sf (sha256_path, o.sha256_option (), f);
+      return sf (path_, o.sha256_option (), f);
     }
     catch (const process_error& e)
     {
-      error << "unable to execute " << sha256_path << ": " << e;
+      error << "unable to execute " << path_ << ": " << e;
 
       if (e.child)
         exit (1);
@@ -352,8 +352,7 @@ namespace bpkg
       {
         if (s.size () != 64)
           fail << "'" << s << "' doesn't appear to be a SHA256 sum" <<
-            info << "produced by '" << sha256_path << "'; "
-               << "use --sha256 to override";
+            info << "produced by '" << path_ << "'; use --sha256 to override";
 
         return s;
       }
@@ -366,7 +365,7 @@ namespace bpkg
     catch (const io_error&)
     {
       if (pr.wait ())
-        fail << "unable to read '" << sha256_path << "' output";
+        fail << "unable to read '" << path_ << "' output";
     }
 
     // We should only get here if the child exited with an error status.
@@ -376,7 +375,7 @@ namespace bpkg
     // While it is reasonable to assuming the child process issued diagnostics,
     // issue something just in case.
     //
-    fail << "unable to calculate SHA256 sum using '" << sha256_path << "'" <<
+    fail << "unable to calculate SHA256 sum using '" << path_ << "'" <<
       info << "re-run with -v for more information" << endf;
   }
 }
