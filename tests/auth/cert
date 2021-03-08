@@ -4,25 +4,25 @@
 #
 # openssl genrsa 4096 > key.pem
 
-openssl req -x509 -new -key key.pem -days 1825 -config default-openssl.cnf > \
+openssl req -x509 -new -key key.pem -days 36500 -config default-openssl.cnf > \
 	default-cert.pem
 
 cat default-cert.pem | openssl x509 -sha256 -noout -fingerprint | \
   sed -n 's/^SHA256 Fingerprint=\(.*\)$/\1/p' >default-cert-fp
 
-openssl req -x509 -new -key key.pem -days 1825 -config mismatch-openssl.cnf > \
+openssl req -x509 -new -key key.pem -days 36500 -config mismatch-openssl.cnf > \
         mismatch-cert.pem
 
-openssl req -x509 -new -key key.pem -days 1825 -config noemail-openssl.cnf > \
+openssl req -x509 -new -key key.pem -days 36500 -config noemail-openssl.cnf > \
         noemail-cert.pem
 
-openssl req -x509 -new -key key.pem -days 1825 \
+openssl req -x509 -new -key key.pem -days 36500 \
 	-config subdomain-openssl.cnf > subdomain-cert.pem
 
-openssl req -x509 -new -key key.pem -days 1825 -config self-openssl.cnf > \
+openssl req -x509 -new -key key.pem -days 36500 -config self-openssl.cnf > \
         self-cert.pem
 
-openssl req -x509 -new -key key.pem -days 1825 -config self-any-openssl.cnf > \
+openssl req -x509 -new -key key.pem -days 36500 -config self-any-openssl.cnf > \
         self-any-cert.pem
 
 # Normally, you have no reason to regenerate expired-cert.pem, as need to keep
