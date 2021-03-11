@@ -71,10 +71,10 @@ straightforward comparison semantics on another. For some background on this
 problem see \cb{deb-version(1)} and the \l{http://semver.org Semantic
 Versioning} specification.
 
-Note also that if you are strating a new project that will use the \c{build2}
+Note also that if you are starting a new project that will use the \c{build2}
 toolchain, then it is strongly recommended that you use the \i{standard
-versioning} scheme which is a more strictly defined subset of semanic
-versioning and that allows automation of many version management tasks. See
+versioning} scheme which is a more strictly defined subset of semantic
+versioning that allows automation of many version management tasks. See
 \l{b#module-version \c{version} Module} for details.
 
 The \c{bpkg} package version has the following form:
@@ -115,7 +115,7 @@ cannot not be specified by the user and is only shown in the \c{bpkg} output
 package iterations with otherwise identical versions. Note also that
 \i{iteration} is relative to the \c{bpkg} configuration. Or, in other words,
 it is an iteration number of a package as observed by a specific
-configuration. As a result, two configuration can \"see\" the same package
+configuration. As a result, two configurations can \"see\" the same package
 state as two different iterations.
 
 \N|Package iterations are used to support package development during which
@@ -222,19 +222,19 @@ not (visually) bloating the database too much.} As a special case, the absent
 such a string will always be greater than any other representation.} The empty
 \i{prerel} part is represented as an empty string.
 
-Note that because it is no possible to perform a reverse conversion without
+Note that because it is not possible to perform a reverse conversion without
 the possibility of loss (consider \c{01.AA.BB}), the original parts may also
 have to be stored, for example, for display, to derive package archive names,
 etc.
 
-\N|In quite a few contexts the implementation needs to ignore the
-\i{revision} and/or \i{iteration} parts. For example, this is needed to
-implement the semantics of newer revisions/iterations of packages replacing
-their old ones since we do not keep multiple revisions/iterations of the same
-upstream version in the same respository. As a result, in the package object
-model, we have a version key as just {\i{epoch}, \i{upstream}, \i{prerel}} but
-also store the package revision and iteration so that it can be shown it to
-the user, etc.|
+\N|In quite a few contexts the implementation needs to ignore the \i{revision}
+and/or \i{iteration} parts. For example, this is needed to implement the
+semantics of newer revisions/iterations of packages replacing their old ones
+since we do not keep multiple revisions/iterations of the same upstream
+version in the same repository. As a result, in the package object model, we
+have a version key as just {\i{epoch}, \i{upstream}, \i{prerel}} but also
+store the package revision and iteration so that it can be shown to the user,
+etc.|
 
 
 \h1#package-version-constraint|Package Version Constraint|
@@ -281,7 +281,7 @@ functionality can be easily achieved with ranges. Also, the \c{0.0.Z} version
 is not considered special except as having zero major component for the tilde
 semantics discussed above.
 
-Note also that pre-releases do not required any special considerations when
+Note also that pre-releases do not require any special considerations when
 used with the shortcut operators. For example, if package \c{libfoo} is
 usable starting with the second beta of the \c{2.0.0} release, then our
 constraint could be expressed as:
@@ -290,9 +290,9 @@ constraint could be expressed as:
 libfoo ^2.0.0-b.2
 \
 
-\N|Internally shortucts and comparisons can be represented as ranges (that is,
-\c{[v, v]} for \c{==}, \c{(v, inf)} for \c{>}, etc). However, for display and
-serialization such representations should be converted back to simple
+\N|Internally, shortcuts and comparisons can be represented as ranges (that
+is, \c{[v, v]} for \c{==}, \c{(v, inf)} for \c{>}, etc). However, for display
+and serialization such representations should be converted back to simple
 operators. While it is possible that the original manifest specified equality
 or shortucts as full ranges, it is acceptable to display/serialize them as
 simpler operators.|
@@ -334,7 +334,7 @@ terminates the pair unless escaped with \c{\\} (see below). Leading and
 trailing whitespaces before and after name and value are ignored except in the
 multi-line mode (see below).
 
-If, the first non-whitespace character on the line is \c{#}, then the rest
+If the first non-whitespace character on the line is \c{#}, then the rest
 of the line is treated as a comment and ignored except if the preceding
 newline was escaped or in the multi-line mode (see below). For example:
 
@@ -523,10 +523,10 @@ seems unlikely \c{gplv2} would be better than \c{GPLv2}.|
 
 A number of name-value pairs described below allow for the value proper to be
 optionally followed by \c{;} and a comment. Such comments serve as additional
-documentation for the user and should be full sentence(s), that is start with
-a capital letter and end with a period. Note that unlike \c{#}-style comments
-which are ignored, these comments are considered to be part of the value. For
-example:
+documentation for the user and should be one or more full sentences, that is
+start with a capital letter and end with a period. Note that unlike
+\c{#}-style comments which are ignored, these comments are considered to be
+part of the value. For example:
 
 \
 email: foo-users@example.com ; Public mailing list.
@@ -1040,12 +1040,12 @@ build error notifications are sent to this email.
 <dependency>   = <name> [<version-constraint>]
 \
 
-The prerequisite packages. If the \c{depends} value start with \c{*}, then
+The prerequisite packages. If the \c{depends} value starts with \c{*}, then
 it is a \i{build-time} prerequisite. Otherwise it is \i{run-time}.
 
 \N|Most of the build-time prerequisites are expected to be tools such as code
 generator, so you can think of \c{*} as the executable mark printed by
-\c{ls}. An important difference between the two kind of dependencies is that
+\c{ls}. An important difference between the two kinds of dependencies is that
 in case of cross-compilation a build-time dependency must be built for the
 build machine, not the target.|
 
@@ -1544,7 +1544,7 @@ See also the Repository Chaining documentation for further information @@ TODO.
 [location]: <uri>
 \
 
-The repository location. The location can only and must be omitted for the
+The repository location. The location can and must only be omitted for the
 base repository. \N{Since we got hold of its manifest, then we presumably
 already know the location of the base repository.} If the location is a
 relative path, then it is treated as relative to the base repository location.
@@ -1639,7 +1639,7 @@ rest (after the two \c{.}/\c{..} components) of the \c{url} value is appended
 to it, and the resulting path is normalized with all remaining \c{..}  and
 \c{.} applied normally.
 
-For examples, assuming repository location is:
+For example, assuming repository location is:
 
 \
 https://pkg.example.org/test/pkg/1/hello/stable
