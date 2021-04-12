@@ -1537,7 +1537,13 @@ namespace bpkg
                      cstrings ()),
                     v,
                     "origin",
-                    remapped_refspecs ? *remapped_refspecs : refspecs))
+                    //
+                    // Note that has_value() is used here to work around bogus
+                    // "requires the compiler to capture 'this'" VC warning.
+                    //
+                    (remapped_refspecs.has_value ()
+                     ? *remapped_refspecs
+                     : refspecs)))
         fail << "unable to fetch " << dir << endg;
 
       // If we fetched shallow then let's make sure that the method we use to
