@@ -27,7 +27,7 @@
 //
 #define DB_SCHEMA_VERSION_BASE 6
 
-#pragma db model version(DB_SCHEMA_VERSION_BASE, 7, closed)
+#pragma db model version(DB_SCHEMA_VERSION_BASE, 8, closed)
 
 namespace bpkg
 {
@@ -390,11 +390,19 @@ namespace bpkg
     optional<string>    certificate; // PEM representation.
     fragments_type      fragments;
 
+    // While we could potentially calculate this flag on the fly, that would
+    // complicate the database queries significantly.
+    //
+    optional<bool> local;            // nullopt for root repository.
+
   public:
     explicit
     repository (repository_location l): location (move (l))
     {
       name = location.canonical_name ();
+
+      if (!name.empty ()) // Non-root?
+        local = location.local ();
     }
 
     // Database mapping.

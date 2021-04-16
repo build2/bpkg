@@ -41,15 +41,21 @@ namespace bpkg
 
   // Register the data migration functions.
   //
-#if 0
   template <odb::schema_version v>
   using migration_entry = odb::data_migration_entry<v, DB_SCHEMA_VERSION_BASE>;
 
   static const migration_entry<8>
   migrate_v8 ([] (odb::database& db)
   {
+    for (shared_ptr<repository> r: pointer_result (db.query<repository> ()))
+    {
+      if (!r->name.empty ()) // Non-root repository?
+      {
+        r->local = r->location.local ();
+        db.update (r);
+      }
+    }
   });
-#endif
 
   database
   open (const dir_path& d, tracer& tr, bool create)

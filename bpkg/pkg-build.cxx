@@ -2620,17 +2620,38 @@ namespace bpkg
           {
             using query = query<repository>;
 
-            auto q (db.query<repository> (query::location.url == l));
-            auto i (q.begin ());
+            // For case-insensitive filesystems (Windows) we need to match the
+            // location case-insensitively against the local repository URLs
+            // and case-sensitively against the remote ones.
+            //
+            // Note that the root repository will never be matched, since its
+            // location is empty.
+            //
+            const auto& url (query::location.url);
 
-            if (i != q.end ())
+#ifndef _WIN32
+            query q (url == l);
+#else
+            string u (url.table ());
+            u += '.';
+            u += url.column ();
+
+            query q (
+              (!query::local && url == l) ||
+              ( query::local && u + " COLLATE nocase = " + query::_val (l)));
+#endif
+
+            auto rs (db.query<repository> (q));
+            auto i (rs.begin ());
+
+            if (i != rs.end ())
             {
               r = i.load ();
 
               // Fallback to parsing the location if several repositories
               // match.
               //
-              if (++i != q.end ())
+              if (++i != rs.end ())
                 r = nullptr;
             }
           }

@@ -1,4 +1,10 @@
 <changelog xmlns="http://www.codesynthesis.com/xmlns/odb/changelog" database="sqlite" version="1">
+  <changeset version="8">
+    <alter-table name="repository">
+      <add-column name="local" type="INTEGER" null="true"/>
+    </alter-table>
+  </changeset>
+
   <changeset version="7">
     <alter-table name="available_package_dependencies">
       <add-column name="type" type="TEXT" null="true"/>

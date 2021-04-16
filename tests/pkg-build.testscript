@@ -159,6 +159,7 @@ pkg_unpack    += -d cfg 2>!
 rep_add       += -d cfg 2>!
 rep_remove    += -d cfg 2>!
 rep_fetch     += -d cfg --auth all --trust-yes 2>!
+rep_list      += -d cfg
 
 # Let's disable the progress indication that complicates stderr output
 # validation.
@@ -3757,7 +3758,7 @@ test.options += --no-progress
   }
 }
 
-: ignore-case
+: ignore-case-pkg
 :
 {
   test.arguments += --yes --auth all --trust-yes
@@ -3788,6 +3789,36 @@ test.options += --no-progress
   $pkg_status libbar >'!libBar configured !2.0.0';
 
   test -d cfg/libBar-2.0.0;
+
+  $pkg_drop libbar
+}
+
+: ignore-case-rep
+:
+: Test that package spec local repository location is matched
+: case-insensitively on Windows.
+:
+if (!$remote && !$posix)
+{
+  $clone_cfg;
+
+  $* "libbar@$rep/t5" 2>>~%EOE%;
+    added pkg:build2.org/pkg-build/t5
+    fetching pkg:build2.org/pkg-build/t5
+    fetched libbar/1.2.0
+    unpacked libbar/1.2.0
+    configured libbar/1.2.0
+    %info: .+ is up to date%
+    updated libbar/1.2.0
+    EOE
+
+  $* "libbar@$rep/T5" 2>>~%EOE%;
+    fetching pkg:build2.org/pkg-build/t5
+    %info: .+ is up to date%
+    updated libbar/1.2.0
+    EOE
+
+  $rep_list >~'%pkg:build2\.org/pkg-build/t5 .+t5%';
 
   $pkg_drop libbar
 }
