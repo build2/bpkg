@@ -2600,6 +2600,9 @@ namespace bpkg
         {
           string l (a, p);
 
+          if (l.empty ())
+            fail << "empty repository location in '" << a << "'";
+
           // Search for the repository location in the database before trying
           // to parse it. Note that the straight parsing could otherwise fail,
           // being unable to properly guess the repository type.
