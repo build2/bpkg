@@ -33,6 +33,7 @@ namespace bpkg
 
   struct drop_package
   {
+    database& db;
     shared_ptr<selected_package> package;
     drop_reason reason;
   };
@@ -41,7 +42,9 @@ namespace bpkg
   //
   struct dependent_name
   {
+    database& db;
     package_name name;
+    database& prq_db;
     package_name prq_name; // Prerequisite package name.
   };
   using dependent_names = vector<dependent_name>;
@@ -69,17 +72,20 @@ namespace bpkg
     // Collect a package to be dropped, by default, as a user selection.
     //
     bool
-    collect (shared_ptr<selected_package> p, drop_reason r = drop_reason::user)
+    collect (database& db,
+             shared_ptr<selected_package> p,
+             drop_reason r = drop_reason::user)
     {
       package_name n (p->name); // Because of move(p) below.
-      return map_.emplace (move (n), data_type {end (), {move (p), r}}).second;
+      return map_.emplace (config_package {db, move (n)},
+                           data_type {end (), {db, move (p), r}}).second;
     }
 
-    // Collect all the dependets of the user selection returning the list
+    // Collect all the dependents of the user selection returning the list
     // of their names. Dependents of dependents are collected recursively.
     //
     dependent_names
-    collect_dependents (database& db)
+    collect_dependents ()
     {
       dependent_names dns;
 
@@ -91,7 +97,7 @@ namespace bpkg
         //
         if (dp.reason != drop_reason::dependent &&
             dp.package->state == package_state::configured)
-          collect_dependents (db, dns, dp.package);
+          collect_dependents (pr.first.db, dp.package, dns);
       }
 
       return dns;
@@ -99,21 +105,22 @@ namespace bpkg
 
     void
     collect_dependents (database& db,
-                        dependent_names& dns,
-                        const shared_ptr<selected_package>& p)
+                        const shared_ptr<selected_package>& p,
+                        dependent_names& dns)
     {
-      using query = query<package_dependent>;
-
-      for (auto& pd: db.query<package_dependent> (query::name == p->name))
+      for (database& ddb: db.dependent_configs ())
       {
-        const package_name& dn (pd.name);
-
-        if (map_.find (dn) == map_.end ())
+        for (auto& pd: query_dependents (ddb, p->name, db))
         {
-          shared_ptr<selected_package> dp (db.load<selected_package> (dn));
-          dns.push_back (dependent_name {dn, p->name});
-          collect (dp, drop_reason::dependent);
-          collect_dependents (db, dns, dp);
+          const package_name& dn (pd.name);
+
+          if (map_.find (ddb, dn) == map_.end ())
+          {
+            shared_ptr<selected_package> dp (ddb.load<selected_package> (dn));
+            dns.push_back (dependent_name {ddb, dn, db, p->name});
+            collect (ddb, dp, drop_reason::dependent);
+            collect_dependents (ddb, dp, dns);
+          }
         }
       }
     }
@@ -123,7 +130,7 @@ namespace bpkg
     // are collected recursively.
     //
     bool
-    collect_prerequisites (database& db)
+    collect_prerequisites ()
     {
       bool r (false);
 
@@ -136,29 +143,30 @@ namespace bpkg
         if ((dp.reason == drop_reason::user ||
              dp.reason == drop_reason::dependent) &&
             dp.package->state == package_state::configured)
-          r = collect_prerequisites (db, dp.package) || r;
+          r = collect_prerequisites (dp.package) || r;
       }
 
       return r;
     }
 
     bool
-    collect_prerequisites (database& db, const shared_ptr<selected_package>& p)
+    collect_prerequisites (const shared_ptr<selected_package>& p)
     {
       bool r (false);
 
       for (const auto& pair: p->prerequisites)
       {
         const lazy_shared_ptr<selected_package>& lpp (pair.first);
+        database& pdb (lpp.database ());
 
-        if (map_.find (lpp.object_id ()) == map_.end ())
+        if (map_.find (pdb, lpp.object_id ()) == map_.end ())
         {
           shared_ptr<selected_package> pp (lpp.load ());
 
           if (!pp->hold_package) // Prune held packages.
           {
-            collect (pp, drop_reason::prerequisite);
-            collect_prerequisites (db, pp);
+            collect (pdb, pp, drop_reason::prerequisite);
+            collect_prerequisites (pp);
             r = true;
           }
         }
@@ -171,11 +179,11 @@ namespace bpkg
     // returning its positions.
     //
     iterator
-    order (const package_name& name)
+    order (database& db, const package_name& name)
     {
       // Every package that we order should have already been collected.
       //
-      auto mi (map_.find (name));
+      auto mi (map_.find (db, name));
       assert (mi != map_.end ());
 
       // If this package is already in the list, then that would also
@@ -214,13 +222,14 @@ namespace bpkg
       {
         for (const auto& pair: p->prerequisites)
         {
+          database& pdb (pair.first.database ());
           const package_name& pn (pair.first.object_id ());
 
           // The prerequisites may not necessarily be in the map (e.g.,
           // a held package that we prunned).
           //
-          if (map_.find (pn) != map_.end ())
-            update (order (pn));
+          if (map_.find (pdb, pn) != map_.end ())
+            update (order (pdb, pn));
         }
       }
 
@@ -231,7 +240,7 @@ namespace bpkg
     // true if any remain.
     //
     bool
-    filter_prerequisites (database& db)
+    filter_prerequisites ()
     {
       bool r (false);
 
@@ -244,27 +253,32 @@ namespace bpkg
         if (dp.reason == drop_reason::prerequisite)
         {
           const shared_ptr<selected_package>& p (dp.package);
+          database& db (dp.db);
 
           bool keep (true);
 
           // Get our dependents (which, BTW, could only have been before us
           // on the list). If they are all in the map, then we can be dropped.
           //
-          using query = query<package_dependent>;
-
-          for (auto& pd: db.query<package_dependent> (query::name == p->name))
+          for (database& ddb: db.dependent_configs ())
           {
-            if (map_.find (pd.name) == map_.end ())
+            for (auto& pd: query_dependents (ddb, p->name, db))
             {
-              keep = false;
-              break;
+              if (map_.find (ddb, pd.name) == map_.end ())
+              {
+                keep = false;
+                break;
+              }
             }
+
+            if (!keep)
+              break;
           }
 
           if (!keep)
           {
             i = erase (i);
-            map_.erase (p->name);
+            map_.erase (config_package {db, p->name});
             continue;
           }
 
@@ -284,15 +298,24 @@ namespace bpkg
       drop_package package;
     };
 
-    map<package_name, data_type> map_;
+    class config_package_map: public map<config_package, data_type>
+    {
+    public:
+      using base_type = map<config_package, data_type>;
+
+      iterator
+      find (database& db, const package_name& pn)
+      {
+        return base_type::find (config_package {db, pn});
+      }
+    };
+    config_package_map map_;
   };
 
   // Drop ordered list of packages.
   //
   static int
-  pkg_drop (const dir_path& c,
-            const pkg_drop_options& o,
-            database& db,
+  pkg_drop (const pkg_drop_options& o,
             const drop_packages& pkgs,
             bool drop_prq,
             bool need_prompt)
@@ -330,11 +353,11 @@ namespace bpkg
         }
 
         if (o.print_only ())
-          cout << "drop " << p->name << endl;
+          cout << "drop " << p->name << dp.db << endl;
         else if (verb)
           // Print indented for better visual separation.
           //
-          text << "  drop " << p->name;
+          text << "  drop " << p->name << dp.db;
       }
 
       if (o.print_only ())
@@ -365,6 +388,8 @@ namespace bpkg
       if (p->state != package_state::configured)
         continue;
 
+      database& db (dp.db);
+
       // Each package is disfigured in its own transaction, so that we always
       // leave the configuration in a valid state.
       //
@@ -372,7 +397,7 @@ namespace bpkg
 
       // Commits the transaction.
       //
-      pkg_disfigure (c, o, t, p, true /* clean */, false /* simulate */);
+      pkg_disfigure (o, db, t, p, true /* clean */, false /* simulate */);
 
       assert (p->state == package_state::unpacked ||
               p->state == package_state::transient);
@@ -380,7 +405,7 @@ namespace bpkg
       if (verb && !o.no_result ())
         text << (p->state == package_state::transient
                  ? "purged "
-                 : "disfigured ") << p->name;
+                 : "disfigured ") << p->name << db;
     }
 
     if (o.disfigure_only ())
@@ -403,14 +428,16 @@ namespace bpkg
       assert (p->state == package_state::fetched ||
               p->state == package_state::unpacked);
 
+      database& db (dp.db);
+
       transaction t (db);
 
       // Commits the transaction, p is now transient.
       //
-      pkg_purge (c, t, p, false /* simulate */);
+      pkg_purge (db, t, p, false /* simulate */);
 
       if (verb && !o.no_result ())
-        text << "purged " << p->name;
+        text << "purged " << p->name << db;
     }
 
     return 0;
@@ -436,7 +463,7 @@ namespace bpkg
       fail << "package name argument expected" <<
         info << "run 'bpkg help pkg-drop' for more information";
 
-    database db (open (c, trace));
+    database db (c, trace, true /* pre_attach */);
 
     // Note that the session spans all our transactions. The idea here is
     // that drop_package objects in the drop_packages list below will be
@@ -480,7 +507,7 @@ namespace bpkg
           fail << "unable to drop broken package " << n <<
             info << "use 'pkg-purge --force' to remove";
 
-        if (pkgs.collect (move (p)))
+        if (pkgs.collect (db, move (p)))
           names.push_back (move (n));
       }
 
@@ -488,7 +515,7 @@ namespace bpkg
       // already on the list. We will either have to drop those as well or
       // abort.
       //
-      dependent_names dnames (pkgs.collect_dependents (db));
+      dependent_names dnames (pkgs.collect_dependents ());
       if (!dnames.empty () && !o.drop_dependent ())
       {
         {
@@ -503,7 +530,8 @@ namespace bpkg
              << "as well:";
 
           for (const dependent_name& dn: dnames)
-            dr << text << dn.name << " (requires " << dn.prq_name << ")";
+            dr << text << dn.name << dn.db << " (requires " << dn.prq_name
+               << dn.prq_db << ")";
         }
 
         if (o.yes ())
@@ -526,7 +554,7 @@ namespace bpkg
       // on the latter and, if that's the case and "more" cannot be dropped,
       // then neither can "less".
       //
-      pkgs.collect_prerequisites (db);
+      pkgs.collect_prerequisites ();
 
       // Now that we have collected all the packages we could possibly be
       // dropping, arrange them in the "dependency order", that is, with
@@ -540,17 +568,17 @@ namespace bpkg
       // on which it depends.
       //
       for (const package_name& n: names)
-        pkgs.order (n);
+        pkgs.order (db, n);
 
       for (const dependent_name& dn: dnames)
-        pkgs.order (dn.name);
+        pkgs.order (dn.db, dn.name);
 
       // Filter out prerequisites that we cannot possibly drop (e.g., they
       // have dependents other than the ones we are dropping). If there are
       // some that we can drop, ask the user for confirmation.
       //
-      if (pkgs.filter_prerequisites (db) &&
-          !o.keep_unused ()              &&
+      if (pkgs.filter_prerequisites () &&
+          !o.keep_unused ()            &&
           !(drop_prq = o.yes ()) && !o.no ())
       {
         {
@@ -563,7 +591,7 @@ namespace bpkg
           {
             if (dp.reason == drop_reason::prerequisite)
               dr << text << (dp.package->system () ? "sys:" : "")
-                 << dp.package->name;
+                 << dp.package->name << dp.db;
           }
         }
 
@@ -576,6 +604,6 @@ namespace bpkg
       t.commit ();
     }
 
-    return pkg_drop (c, o, db, pkgs, drop_prq, need_prompt);
+    return pkg_drop (o, pkgs, drop_prq, need_prompt);
   }
 }

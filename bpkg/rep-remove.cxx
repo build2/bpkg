@@ -94,11 +94,12 @@ namespace bpkg
   }
 
   void
-  rep_remove_package_locations (transaction& t, const string& fragment_name)
+  rep_remove_package_locations (database& db,
+                                transaction&,
+                                const string& fragment_name)
   {
     tracer trace ("rep_remove_package_locations");
 
-    database& db (t.database ());
     tracer_guard tg (db, trace);
 
     using query = query<repository_fragment_package>;
@@ -141,15 +142,12 @@ namespace bpkg
   }
 
   void
-  rep_remove (const dir_path& c,
-              transaction& t,
-              const shared_ptr<repository>& r)
+  rep_remove (database& db, transaction& t, const shared_ptr<repository>& r)
   {
     assert (!r->name.empty ()); // Can't be the root repository.
 
     tracer trace ("rep_remove");
 
-    database& db (t.database ());
     tracer_guard tg (db, trace);
 
     if (reachable (db, r))
@@ -164,7 +162,7 @@ namespace bpkg
     // Remove dangling repository fragments.
     //
     for (const repository::fragment_type& fr: r->fragments)
-      rep_remove_fragment (c, t, fr.fragment.load ());
+      rep_remove_fragment (db, t, fr.fragment.load ());
 
     // If there are no repositories stayed in the database then no repository
     // fragments should stay either.
@@ -188,7 +186,7 @@ namespace bpkg
 
     if (!d.empty ())
     {
-      dir_path sd (c / repos_dir / d);
+      dir_path sd (db.config_orig / repos_dir / d);
 
       if (exists (sd))
       {
@@ -219,13 +217,12 @@ namespace bpkg
   }
 
   void
-  rep_remove_fragment (const dir_path& c,
+  rep_remove_fragment (database& db,
                        transaction& t,
                        const shared_ptr<repository_fragment>& rf)
   {
     tracer trace ("rep_remove_fragment");
 
-    database& db (t.database ());
     tracer_guard tg (db, trace);
 
     // Bail out if the repository fragment is still used.
@@ -240,7 +237,7 @@ namespace bpkg
     // it contains. Note that this must be done before the repository fragment
     // removal.
     //
-    rep_remove_package_locations (t, rf->name);
+    rep_remove_package_locations (db, t, rf->name);
 
     // Remove the repository fragment.
     //
@@ -265,10 +262,10 @@ namespace bpkg
     // Prior to removing a prerequisite/complement we need to make sure it
     // still exists, which may not be the case due to the dependency cycle.
     //
-    auto remove = [&c, &db, &t] (const lazy_weak_ptr<repository>& rp)
+    auto remove = [&db, &t] (const lazy_weak_ptr<repository>& rp)
     {
       if (shared_ptr<repository> r = db.find<repository> (rp.object_id ()))
-        rep_remove (c, t, r);
+        rep_remove (db, t, r);
     };
 
     for (const lazy_weak_ptr<repository>& cr: rf->complements)
@@ -285,10 +282,7 @@ namespace bpkg
   }
 
   void
-  rep_remove_clean (const common_options& o,
-                    const dir_path& c,
-                    database& db,
-                    bool quiet)
+  rep_remove_clean (const common_options& o, database& db, bool quiet)
   {
     tracer trace ("rep_remove_clean");
     tracer_guard tg (db, trace);
@@ -336,7 +330,7 @@ namespace bpkg
 
     // Remove repository state subdirectories.
     //
-    dir_path rd (c / repos_dir);
+    dir_path rd (db.config_orig / repos_dir);
 
     try
     {
@@ -384,13 +378,13 @@ namespace bpkg
         dr << info << "run 'bpkg help rep-remove' for more information";
     }
 
-    database db (open (c, trace));
+    database db (c, trace, false /* pre_attach */);
 
     // Clean the configuration if requested.
     //
     if (o.clean ())
     {
-      rep_remove_clean (o, c, db, false /* quiet */);
+      rep_remove_clean (o, db, false /* quiet */);
       return 0;
     }
 
@@ -484,7 +478,7 @@ namespace bpkg
     //
     for (const lazy_shared_ptr<repository>& r: repos)
     {
-      rep_remove (c, t, r.load ());
+      rep_remove (db, t, r.load ());
 
       if (verb && !o.no_result ())
         text << "removed " << r.object_id ();

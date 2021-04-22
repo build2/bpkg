@@ -26,9 +26,10 @@ namespace bpkg
   // Note that if certificate is authenticated for such a use, then it is not
   // persisted into the database.
   //
-  // If the configuration is used, then check if we are already in transaction.
-  // If so, then assume the configuration database is already opened and use
-  // that. Otherwise, open the database and start a new transaction.
+  // If the configuration is used and also the configuration database is
+  // specified, then assume the database is already opened with the
+  // transaction started and use that. Otherwise, open the database and start
+  // a new transaction.
   //
   // Note that one drawback of doing this as part of an existing transaction
   // is that if things go south and the transaction gets aborted, then all the
@@ -38,6 +39,7 @@ namespace bpkg
   shared_ptr<const certificate>
   authenticate_certificate (const common_options&,
                             const dir_path* configuration,
+                            database*,
                             const optional<string>& cert_pem,
                             const repository_location&,
                             const optional<string>& dependent_trust);

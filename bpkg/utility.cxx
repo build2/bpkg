@@ -117,6 +117,19 @@ namespace bpkg
     return d;
   }
 
+  dir_path
+  current_directory ()
+  {
+    try
+    {
+      return dir_path::current_directory ();
+    }
+    catch (const system_error& e)
+    {
+      fail << "unable to obtain current directory: " << e << endf;
+    }
+  }
+
   bool stderr_term;
 
   bool

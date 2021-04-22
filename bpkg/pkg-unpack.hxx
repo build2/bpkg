@@ -23,7 +23,7 @@ namespace bpkg
   //
   shared_ptr<selected_package>
   pkg_unpack (const common_options&,
-              const dir_path& configuration,
+              database&,
               transaction&,
               const dir_path&,
               bool replace,
@@ -34,7 +34,7 @@ namespace bpkg
   //
   shared_ptr<selected_package>
   pkg_unpack (const common_options&,
-              const dir_path& configuration,
+              database&,
               transaction&,
               const package_name&,
               bool simulate);
@@ -45,7 +45,7 @@ namespace bpkg
   //
   shared_ptr<selected_package>
   pkg_unpack (const common_options&,
-              const dir_path& configuration,
+              database&,
               transaction&,
               package_name,
               version,

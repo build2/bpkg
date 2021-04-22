@@ -23,6 +23,8 @@
 
 #include <libbutl/url.mxx>
 #include <libbutl/path.mxx>
+#include <libbutl/uuid.hxx>
+#include <libbutl/uuid-io.hxx>
 #include <libbutl/process.mxx>
 #include <libbutl/utility.mxx>         // icase_compare_string,
                                        // compare_reference_target
@@ -80,17 +82,16 @@ namespace bpkg
   using butl::optional;
   using butl::nullopt;
 
-  // ODB smart pointers.
-  //
-  using odb::lazy_shared_ptr;
-  using odb::lazy_weak_ptr;
-
   // <libbutl/path.mxx>
   //
   using butl::path;
   using butl::dir_path;
   using butl::basic_path;
   using butl::invalid_path;
+
+  // <libbutl/uuid.mxx>
+  //
+  using butl::uuid;
 
   using butl::path_cast;
 
@@ -123,6 +124,75 @@ namespace bpkg
   using butl::default_options_files;
   using butl::default_options_entry;
   using butl::default_options;
+
+  // Derive from ODB smart pointers to return derived database (note that the
+  // database() functions are defined in database.hxx).
+  //
+  class database;
+
+  template <class T>
+  class lazy_shared_ptr: public odb::lazy_shared_ptr<T>
+  {
+  public:
+    using base_type = odb::lazy_shared_ptr<T>;
+
+    using base_type::base_type;
+
+    explicit
+    lazy_shared_ptr (base_type&& p): base_type (move (p)) {}
+
+    lazy_shared_ptr () = default;
+
+    bpkg::database&
+    database () const;
+  };
+
+  template <class T>
+  class lazy_weak_ptr: public odb::lazy_weak_ptr<T>
+  {
+  public:
+    using base_type = odb::lazy_weak_ptr<T>;
+
+    using base_type::base_type;
+
+    bpkg::database&
+    database () const;
+
+    lazy_shared_ptr<T>
+    lock () const
+    {
+      return lazy_shared_ptr<T> (base_type::lock ());
+    }
+  };
+
+  struct compare_lazy_ptr
+  {
+    template <typename P>
+    bool
+    operator() (const P& x, const P& y) const
+    {
+      // See operator==(database, database).
+      //
+      return x.object_id () != y.object_id ()
+             ? (x.object_id () < y.object_id ())
+             : (&static_cast<typename P::base_type> (x).database () <
+                &static_cast<typename P::base_type> (y).database ());
+    }
+  };
+
+  // Compare two lazy pointers via the pointed-to object ids.
+  //
+  struct compare_lazy_ptr_id
+  {
+    template <typename P>
+    bool
+    operator() (const P& x, const P& y) const
+    {
+      // Note: ignoring database is intentional.
+      //
+      return x.object_id () < y.object_id ();
+    }
+  };
 }
 
 // In order to be found (via ADL) these have to be either in std:: or in

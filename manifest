@@ -20,5 +20,6 @@ depends: * bpkg >= 0.13.0
 requires: ? cli ; Only required if changing .cli files.
 depends: libodb [2.5.0-b.20.1 2.5.0-b.21)
 depends: libodb-sqlite [2.5.0-b.20.1 2.5.0-b.21)
+depends: libsqlite3 ^3.21.0 ; ATTACH in transaction
 depends: libbutl [0.14.0-a.0.1 0.14.0-a.1)
 depends: libbpkg [0.14.0-a.0.1 0.14.0-a.1)

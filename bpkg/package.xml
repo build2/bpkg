@@ -1,4 +1,31 @@
 <changelog xmlns="http://www.codesynthesis.com/xmlns/odb/changelog" database="sqlite" version="1">
+  <changeset version="9">
+    <add-table name="main.configuration" kind="object">
+      <column name="id" type="INTEGER" null="true"/>
+      <column name="uuid" type="TEXT" null="true"/>
+      <column name="name" type="TEXT" null="true"/>
+      <column name="type" type="TEXT" null="true"/>
+      <column name="path" type="TEXT" null="true"/>
+      <column name="explicit" type="INTEGER" null="true"/>
+      <primary-key auto="true">
+        <column name="id"/>
+      </primary-key>
+      <index name="configuration_uuid_i" type="UNIQUE">
+        <column name="uuid"/>
+      </index>
+      <index name="configuration_name_i" type="UNIQUE">
+        <column name="name"/>
+      </index>
+      <index name="configuration_path_i" type="UNIQUE">
+        <column name="path"/>
+      </index>
+    </add-table>
+    <alter-table name="main.selected_package_prerequisites">
+      <add-column name="configuration" type="TEXT" null="true"/>
+      <drop-foreign-key name="prerequisite_fk"/>
+    </alter-table>
+  </changeset>
+
   <changeset version="8">
     <alter-table name="main.repository">
       <add-column name="local" type="INTEGER" null="true"/>

@@ -16,12 +16,12 @@ namespace bpkg
 {
   shared_ptr<repository>
   rep_add (const common_options& o,
-           transaction& t,
+           database& db,
+           transaction&,
            const repository_location& rl)
   {
     const string& rn (rl.canonical_name ());
 
-    database& db (t.database ());
     shared_ptr<repository> r (db.find<repository> (rn));
 
     bool updated (false);
@@ -65,7 +65,7 @@ namespace bpkg
       fail << "repository location argument expected" <<
         info << "run 'bpkg help rep-add' for more information";
 
-    database db (open (c, trace));
+    database db (c, trace, false /* pre_attach */);
     transaction t (db);
     session s; // Repository dependencies can have cycles.
 
@@ -77,7 +77,7 @@ namespace bpkg
                         ? optional<repository_type> (o.type ())
                         : nullopt));
 
-      rep_add (o, t, rl);
+      rep_add (o, db, t, rl);
     }
 
     t.commit ();
