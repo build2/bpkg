@@ -42,6 +42,11 @@ namespace bpkg
   using butl::icasecmp;
   using butl::reverse_iterate;
 
+  using butl::alpha;
+  using butl::alnum;
+  using butl::digit;
+  using butl::xdigit;
+
   using butl::make_guard;
   using butl::make_exception_guard;
 
@@ -74,6 +79,7 @@ namespace bpkg
   extern const dir_path bpkg_dir;    // .bpkg/
   extern const dir_path certs_dir;   // .bpkg/certs/
   extern const dir_path repos_dir;   // .bpkg/repos/
+  extern const dir_path host_dir;    // .bpkg/host/
   extern const dir_path current_dir; // ./
 
   // Temporary directory facility.
@@ -122,6 +128,9 @@ namespace bpkg
     dir_path r (d);
     return move (normalize (r, what));
   }
+
+  dir_path
+  current_directory ();
 
   // Progress.
   //

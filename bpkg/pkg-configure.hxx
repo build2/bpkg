@@ -26,8 +26,8 @@ namespace bpkg
   // Configure the package, update its state, and commit the transaction.
   //
   void
-  pkg_configure (const dir_path& configuration,
-                 const common_options&,
+  pkg_configure (const common_options&,
+                 database&,
                  transaction&,
                  const shared_ptr<selected_package>&,
                  const dependencies&,
@@ -37,15 +37,21 @@ namespace bpkg
   // Configure a system package and commit the transaction.
   //
   shared_ptr<selected_package>
-  pkg_configure_system (const package_name&, const version&, transaction&);
+  pkg_configure_system (const package_name&,
+                        const version&,
+                        database&,
+                        transaction&);
 
   // Return package prerequisites given its dependencies. Fail if some of the
   // prerequisites are not configured or don't satisfy the package's
   // dependency constraints. Note that the package argument is used for
   // diagnostics only.
   //
+  // Note: loads selected packages.
+  //
   package_prerequisites
   pkg_configure_prerequisites (const common_options&,
+                               database&,
                                transaction&,
                                const dependencies&,
                                const package_name&);

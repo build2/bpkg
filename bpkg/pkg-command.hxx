@@ -20,6 +20,8 @@ namespace bpkg
   // The command can also be performed recursively for all or immediate
   // dependencies of the specified or all the held packages.
   //
+  // Note: loads selected packages.
+  //
   int
   pkg_command (const string& cmd, // Without the 'pkg-' prefix.
                const configuration_options&,
@@ -33,15 +35,34 @@ namespace bpkg
 
   struct pkg_command_vars
   {
+    // Configuration information.
+    //
+    // Used to derive the package out_root directory, issue diagnostics, etc.
+    //
+    // Note that we cannot store the database reference here since it can be
+    // closed by the time this information is used. Instead, we save the
+    // required information.
+    //
+    dir_path                     config_orig; // Database's config_orig.
+    bool                         config_main; // True if database is main.
+
     shared_ptr<selected_package> pkg;
-    strings                     vars; // Package-specific command line vars.
+    strings                      vars; // Package-specific command line vars.
 
     bool cwd; // Change the working directory to the package directory.
+
+    // Return the selected package name/version followed by the configuration
+    // directory, unless this is the main configuration. For example:
+    //
+    // libfoo/1.1.0
+    // libfoo/1.1.0 [cfg/]
+    //
+    std::string
+    string () const;
   };
 
   void
   pkg_command (const string& cmd,
-               const dir_path& configuration,
                const common_options&,
                const string& cmd_variant,
                const strings& common_vars,

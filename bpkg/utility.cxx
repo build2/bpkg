@@ -25,6 +25,7 @@ namespace bpkg
   //
   const dir_path certs_dir (dir_path (bpkg_dir) /= "certs");
   const dir_path repos_dir (dir_path (bpkg_dir) /= "repos");
+  const dir_path host_dir  (dir_path (bpkg_dir) /= "host");
 
   const dir_path current_dir (".");
 
@@ -115,6 +116,19 @@ namespace bpkg
     }
 
     return d;
+  }
+
+  dir_path
+  current_directory ()
+  {
+    try
+    {
+      return dir_path::current_directory ();
+    }
+    catch (const system_error& e)
+    {
+      fail << "unable to obtain current directory: " << e << endf;
+    }
   }
 
   bool stderr_term;

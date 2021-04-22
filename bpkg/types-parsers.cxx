@@ -67,6 +67,31 @@ namespace bpkg
       parse_path (x, s);
     }
 
+    void parser<uuid>::
+    parse (uuid& x, bool& xs, scanner& s)
+    {
+      xs = true;
+
+      const char* o (s.next ());
+
+      if (!s.more ())
+        throw missing_value (o);
+
+      const char* v (s.next ());
+
+      try
+      {
+        x = uuid (v);
+
+        if (x.nil ())
+          throw invalid_value (o, v);
+      }
+      catch (const invalid_argument&)
+      {
+        throw invalid_value (o, v);
+      }
+    }
+
     void parser<auth>::
     parse (auth& x, bool& xs, scanner& s)
     {

@@ -22,7 +22,10 @@ namespace bpkg
   // repository if it is not already.
   //
   shared_ptr<repository>
-  rep_add (const common_options&, transaction&, const repository_location&);
+  rep_add (const common_options&,
+           database&,
+           transaction&,
+           const repository_location&);
 }
 
 #endif // BPKG_REP_ADD_HXX

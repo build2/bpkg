@@ -8,29 +8,62 @@
 #include <bpkg/database.hxx>
 #include <bpkg/diagnostics.hxx>
 
+#include <bpkg/cfg-add.hxx>
+
 using namespace std;
 
 namespace bpkg
 {
-  int
-  cfg_create (const cfg_create_options& o, cli::scanner& args)
+  shared_ptr<configuration>
+  cfg_create (const common_options& o,
+              const dir_path& c,
+              optional<string> name,
+              string type,
+              const strings& mods,
+              const strings& vars,
+              bool existing,
+              bool wipe,
+              optional<uuid> uid,
+              const optional<dir_path>& host_config)
   {
     tracer trace ("cfg_create");
 
-    if (o.existing () && o.wipe ())
-      fail << "both --existing|-e and --wipe specified";
+    // Stash and restore the current transaction, if any.
+    //
+    namespace sqlite = odb::sqlite;
 
-    if (o.wipe () && !o.directory_specified ())
-      fail << "--wipe requires explicit --directory|-d";
+    sqlite::transaction* ct (nullptr);
+    if (sqlite::transaction::has_current ())
+    {
+      ct = &sqlite::transaction::current ();
+      sqlite::transaction::reset_current ();
+    }
 
-    dir_path c (o.directory ());
-    l4 ([&]{trace << "creating configuration in " << c;});
+    auto tg (make_guard ([ct] ()
+                         {
+                           if (ct != nullptr)
+                             sqlite::transaction::current (*ct);
+                         }));
+
+    // First, let's verify the host configuration existence and type and
+    // normalize its path.
+    //
+    dir_path hc;
+    if (host_config)
+    {
+      hc = normalize (*host_config, "host configuration");
+
+      database db (hc, trace, false /* pre_attach */);
+      if (db.type != "host")
+        fail << "host configuration " << hc << " is of '" << db.type
+             << "' type";
+    }
 
     // Verify the existing directory is compatible with our mode.
     //
     if (exists (c))
     {
-      if (o.existing ())
+      if (existing)
       {
         // Bail if the .bpkg/ directory already exists and is not empty.
         //
@@ -49,7 +82,7 @@ namespace bpkg
         //
         if (!empty (c))
         {
-          if (!o.wipe ())
+          if (!wipe)
             fail << "directory " << c << " is not empty" <<
               info << "use --wipe to clean it up but be careful";
 
@@ -65,29 +98,9 @@ namespace bpkg
       mk_p (c);
     }
 
-    // Sort arguments into modules and configuration variables.
-    //
-    strings mods;
-    strings vars;
-    while (args.more ())
-    {
-      string a (args.next ());
-
-      if (a.find ('=') != string::npos)
-      {
-        vars.push_back (move (a));
-      }
-      else if (!a.empty ())
-      {
-        mods.push_back (move (a));
-      }
-      else
-        fail << "empty string as argument";
-    }
-
     // Create and configure.
     //
-    if (o.existing ())
+    if (existing)
     {
       if (!mods.empty ())
         fail << "module '" << mods[0] << "' specified with --existing|-e";
@@ -149,7 +162,12 @@ namespace bpkg
 
     // Create the database.
     //
-    database db (open (c, trace, true));
+    shared_ptr<configuration> r (make_shared<configuration> (move (name),
+                                                             move (type),
+                                                             uid));
+
+    database db (c, r, trace, host_config ? &hc : nullptr);
+    transaction t (db);
 
     // Add the special, root repository object with empty location and
     // containing a single repository fragment having an empty location as
@@ -161,31 +179,97 @@ namespace bpkg
     // locations and as a search starting point for held packages (see
     // pkg-build for details).
     //
-    transaction t (db);
-
     shared_ptr<repository_fragment> fr (
       make_shared<repository_fragment> (repository_location ()));
 
     db.persist (fr);
 
-    shared_ptr<repository> r (
+    shared_ptr<repository> rep (
       make_shared<repository> (repository_location ()));
 
-    r->fragments.push_back (
+    rep->fragments.push_back (
       repository::fragment_type {string () /* friendly_name */, move (fr)});
 
-    db.persist (r);
+    db.persist (rep);
+
+    if (host_config)
+      cfg_add (db, hc, host_config->relative (), nullopt /* name */);
 
     t.commit ();
+
+    return r;
+  }
+
+  int
+  cfg_create (const cfg_create_options& o, cli::scanner& args)
+  {
+    tracer trace ("cfg_create");
+
+    if (o.name_specified ())
+      validate_configuration_name (o.name (), "--name option value");
+
+    if (o.type ().empty ())
+      fail << "empty --type option value";
+
+    if (o.existing () && o.wipe ())
+      fail << "both --existing|-e and --wipe specified";
+
+    if (o.wipe () && !o.directory_specified ())
+      fail << "--wipe requires explicit --directory|-d";
+
+    dir_path c (o.directory ());
+    l4 ([&]{trace << "creating configuration in " << c;});
+
+    // Sort arguments into modules and configuration variables.
+    //
+    strings mods;
+    strings vars;
+    while (args.more ())
+    {
+      string a (args.next ());
+
+      if (a.find ('=') != string::npos)
+        vars.push_back (move (a));
+      else if (!a.empty ())
+        mods.push_back (move (a));
+      else
+        fail << "empty string as argument";
+    }
+
+    // Auto-generate the configuration UUID, unless it is specified
+    // explicitly.
+    //
+    shared_ptr<configuration> cf (
+      cfg_create (
+        o,
+        c,
+        o.name_specified () ? o.name () : optional<string> (),
+        o.type (),
+        mods,
+        vars,
+        o.existing (),
+        o.wipe (),
+        o.config_uuid_specified () ? o.config_uuid () : optional<uuid> (),
+        (o.host_config_specified ()
+         ? o.host_config ()
+         : optional<dir_path> ())));
 
     if (verb && !o.no_result ())
     {
       normalize (c, "configuration");
 
+      diag_record dr (text);
+
       if (o.existing ())
-        text << "initialized existing configuration in " << c;
+        dr << "initialized existing configuration in " << c;
       else
-        text << "created new configuration in " << c;
+        dr << "created new configuration in " << c;
+
+      dr << info << "uuid: " << cf->uuid
+         << info << "type: " << cf->type;
+
+      if (cf->name)
+        dr << info << "name: " << *cf->name;
     }
 
     return 0;

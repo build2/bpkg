@@ -6,7 +6,6 @@
 #include <map>
 
 #include <libbutl/git.mxx>
-#include <libbutl/utility.mxx>          // digit(), xdigit()
 #include <libbutl/filesystem.mxx>       // path_entry
 #include <libbutl/path-pattern.mxx>
 #include <libbutl/semantic-version.mxx>

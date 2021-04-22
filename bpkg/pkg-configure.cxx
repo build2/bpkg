@@ -20,13 +20,12 @@ namespace bpkg
 {
   package_prerequisites
   pkg_configure_prerequisites (const common_options& o,
-                               transaction& t,
+                               database& db,
+                               transaction&,
                                const dependencies& deps,
                                const package_name& package)
   {
     package_prerequisites r;
-
-    database& db (t.database ());
 
     for (const dependency_alternatives_ex& da: deps)
     {
@@ -57,13 +56,12 @@ namespace bpkg
             satisfied = true;
             break;
           }
-          // else
-          //
-          // @@ TODO: in the future we would need to at least make sure the
-          // build and target machines are the same. See also pkg-build.
         }
 
-        if (shared_ptr<selected_package> dp = db.find<selected_package> (n))
+        pair<shared_ptr<selected_package>, database*> spd (
+          find_dependency (db, n, da.buildtime));
+
+        if (const shared_ptr<selected_package>& dp = spd.first)
         {
           if (dp->state != package_state::configured)
             continue;
@@ -71,27 +69,32 @@ namespace bpkg
           if (!satisfies (dp->version, d.constraint))
             continue;
 
-          auto p (r.emplace (dp, d.constraint));
-
-          // Currently we can only capture a single constraint, so if we
-          // already have a dependency on this package and one constraint is
-          // not a subset of the other, complain.
+          // See the package_prerequisites definition for details on creating
+          // the map keys with the database passed.
           //
-          if (!p.second)
-          {
-            auto& c (p.first->second);
+          auto p (
+            r.emplace (lazy_shared_ptr<selected_package> (*spd.second, dp),
+                       d.constraint));
 
-            bool s1 (satisfies (c, d.constraint));
-            bool s2 (satisfies (d.constraint, c));
+           // Currently we can only capture a single constraint, so if we
+           // already have a dependency on this package and one constraint is
+           // not a subset of the other, complain.
+           //
+           if (!p.second)
+           {
+             auto& c (p.first->second);
 
-            if (!s1 && !s2)
-              fail << "multiple dependencies on package " << n <<
-                info << n << " " << *c <<
-                info << n << " " << *d.constraint;
+             bool s1 (satisfies (c, d.constraint));
+             bool s2 (satisfies (d.constraint, c));
 
-            if (s2 && !s1)
-              c = d.constraint;
-          }
+             if (!s1 && !s2)
+               fail << "multiple dependencies on package " << n <<
+                 info << n << " " << *c <<
+                 info << n << " " << *d.constraint;
+
+             if (s2 && !s1)
+               c = d.constraint;
+           }
 
           satisfied = true;
           break;
@@ -106,8 +109,8 @@ namespace bpkg
   }
 
   void
-  pkg_configure (const dir_path& c,
-                 const common_options& o,
+  pkg_configure (const common_options& o,
+                 database& db,
                  transaction& t,
                  const shared_ptr<selected_package>& p,
                  const dependencies& deps,
@@ -119,9 +122,9 @@ namespace bpkg
     assert (p->state == package_state::unpacked);
     assert (p->src_root); // Must be set since unpacked.
 
-    database& db (t.database ());
     tracer_guard tg (db, trace);
 
+    const dir_path& c (db.config_orig);
     dir_path src_root (p->effective_src_root (c));
 
     // Calculate package's out_root.
@@ -139,10 +142,32 @@ namespace bpkg
     //
     assert (p->prerequisites.empty ());
 
-    p->prerequisites = pkg_configure_prerequisites (o, t, deps, p->name);
+    p->prerequisites = pkg_configure_prerequisites (o, db, t, deps, p->name);
 
     if (!simulate)
     {
+      // Add the config.import.* variables for prerequisites from the
+      // associated configurations.
+      //
+      strings imports;
+
+      for (const auto& pp: p->prerequisites)
+      {
+        database& pdb (pp.first.database ());
+
+        if (pdb != db)
+        {
+          shared_ptr<selected_package> sp (pp.first.load ());
+
+          if (!sp->system ())
+          {
+            dir_path od (sp->effective_out_root (pdb.config));
+            imports.push_back ("config.import." + sp->name.string () + "='" +
+                               od.representation () + "'");
+          }
+        }
+      }
+
       // Form the buildspec.
       //
       string bspec;
@@ -162,7 +187,7 @@ namespace bpkg
       //
       try
       {
-        run_b (o, verb_b::quiet, vars, bspec);
+        run_b (o, verb_b::quiet, imports, vars, bspec);
       }
       catch (const failed&)
       {
@@ -180,7 +205,7 @@ namespace bpkg
 
         // Commits the transaction.
         //
-        pkg_disfigure (c, o, t, p, true /* clean */, false /* simulate */);
+        pkg_disfigure (o, db, t, p, true /* clean */, false /* simulate */);
         throw;
       }
     }
@@ -195,11 +220,11 @@ namespace bpkg
   shared_ptr<selected_package>
   pkg_configure_system (const package_name& n,
                         const version& v,
+                        database& db,
                         transaction& t)
   {
     tracer trace ("pkg_configure_system");
 
-    database& db (t.database ());
     tracer_guard tg (db, trace);
 
     shared_ptr<selected_package> p (
@@ -269,7 +294,7 @@ namespace bpkg
     if (ps == package_scheme::sys && !vars.empty ())
       fail << "configuration variables specified for a system package";
 
-    database db (open (c, trace));
+    database db (c, trace, true /* pre_attach */);
     transaction t (db);
     session s;
 
@@ -297,7 +322,7 @@ namespace bpkg
       if (filter_one (root, db.query<available_package> (q)).first == nullptr)
         fail << "unknown package " << n;
 
-      p = pkg_configure_system (n, v.empty () ? wildcard_version : v, t);
+      p = pkg_configure_system (n, v.empty () ? wildcard_version : v, db, t);
     }
     else
     {
@@ -319,8 +344,8 @@ namespace bpkg
                                       true /* ignore_unknown */,
                                       [&p] (version& v) {v = p->version;}));
 
-      pkg_configure (c,
-                     o,
+      pkg_configure (o,
+                     db,
                      t,
                      p,
                      convert (move (m.dependencies)),
