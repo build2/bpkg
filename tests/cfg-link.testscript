@@ -1,0 +1,190 @@
+# file      : tests/cfg-link.testscript
+# license   : MIT; see accompanying LICENSE file
+
+.include common.testscript
+
+cfg_create += 2>!
+
+# @@ To verify the linking result use cfg-list command rather than pkg-status,
+#    when implemented.
+#
+
+test.arguments += -d cfg
+
+cfg_uuid  = '18f48b4b-b5d9-4712-b98c-1930df1c4228'
+acfg_uuid = '28f48b4b-b5d9-4712-b98c-1930df1c4228'
+
+: success
+:
+{
+  $cfg_create -d  cfg --name 'main';
+  $cfg_create -d acfg --name 'shared' --config-uuid "$acfg_uuid" &acfg/***;
+
+  # Try to link configuration under the same name.
+  #
+  $* cfg 2>>/~"%EOE%" != 0;
+    %error: linking configuration .+/cfg/ with itself%
+    %  info: uuid: .{36}%
+    EOE
+
+  # Try to link configuration under the same name.
+  #
+  $* acfg --name 'main' 2>>/~"%EOE%" != 0;
+    %error: linking configuration .+/acfg/ using current configuration name 'main'%
+      info: consider specifying alternative name with --name
+    EOE
+
+  # Link configuration.
+  #
+  $* acfg 2>>/~"%EOE%";
+    %linked configuration .+/acfg/%
+      info: uuid: $acfg_uuid
+      info: type: target
+      info: name: shared
+      info: id:   1
+    EOE
+
+  $pkg_status -d cfg  libfoo >'libfoo unknown';
+  $pkg_status -d acfg libfoo >'libfoo unknown';
+
+  # Test that the recreated configuration can be implicitly re-linked.
+  #
+  rm -r cfg;
+  $cfg_create -d cfg --name 'test' --config-uuid "$cfg_uuid" &cfg/***;
+
+  $* acfg 2>>/~"%EOE%";
+    %warning: current configuration .+/cfg/ is already implicitly linked with .+/acfg/%
+    %linked configuration .+/acfg/%
+      info: uuid: $acfg_uuid
+      info: type: target
+      info: name: shared
+      info: id:   1
+    EOE
+
+  # Test that the repeated link is reported.
+  #
+  $* acfg 2>>/~%EOE% != 0;
+    %error: configuration with uuid .{36} is already linked as \.\./acfg/%
+    EOE
+
+  rm -r acfg;
+
+  $cfg_create -d acfg --name 'shared' &acfg/***;
+
+  # Test that the path clash is reported.
+  #
+  $* acfg 2>>/~%EOE% != 0;
+    %error: configuration with path .+/acfg/ is already linked%
+    EOE
+
+  # Test that the name clash is reported.
+  #
+  $cfg_create -d acfg2 --name 'shared' &acfg2/***;
+
+  $* acfg2 --name 'shared' 2>>/EOE != 0;
+    error: configuration with name shared is already linked as ../acfg/
+      info: consider specifying alternative name with --name
+    EOE
+
+  $* acfg2 2>>/~%EOE%;
+    warning: configuration with name shared is already linked as ../acfg/, linking as unnamed
+    %linked configuration .+/acfg2/%
+    %  info: uuid: .{36}%
+      info: type: target
+      info: id:   2
+    EOE
+
+  # Test that the integrity check fails.
+  #
+  $pkg_status -d cfg libfoo 2>>/~"%EOE%" != 0;
+    error: configuration acfg/ uuid mismatch
+    %  info: uuid .+%
+      info: linked with cfg/ as $acfg_uuid
+    EOE
+
+  # Link the second configuration.
+  #
+  rm -r acfg;
+  $cfg_create -d acfg --name 'shared' --config-uuid "$acfg_uuid" &acfg/***;
+
+  $pkg_status -d cfg   libfoo >'libfoo unknown';
+  $pkg_status -d acfg2 libfoo >'libfoo unknown';
+
+  # Test that the configuration type mismatch is reported.
+  #
+  mv cfg cfg.tmp;
+  $cfg_create -d cfg --type host --config-uuid "$cfg_uuid";
+
+  $* -d acfg2 cfg 2>>/EOE != 0;
+    error: configuration cfg/ type mismatch
+      info: type host
+      info: implicitly linked with acfg2/ as target
+    EOE
+
+  rm -r cfg;
+  mv cfg.tmp cfg;
+
+  # Make the implicit link explicit.
+  #
+  $* -d acfg2 cfg 2>>/~"%EOE%";
+    %linked configuration .+/cfg/%
+      info: uuid: $cfg_uuid
+      info: type: target
+      info: name: test
+      info: id:   1
+    EOE
+
+  $pkg_status -d cfg libfoo >'libfoo unknown';
+  $pkg_status -d acfg2 libfoo >'libfoo unknown';
+
+  $* -d acfg2 cfg 2>>/~%EOE% != 0;
+    %error: configuration with uuid .{36} is already linked as \.\./cfg/%
+    EOE
+
+  # Test that the implicit link path clash is reported.
+  #
+  rm -r cfg;
+  $cfg_create -d cfg --name 'test' &cfg/***;
+
+  $* acfg2 2>>/~%EOE% != 0;
+    %error: current configuration .+/cfg/ is already linked with .+/acfg2/%
+    EOE
+
+  # Test that the repeated implicit link is reported.
+  #
+  $cfg_create -d cfg2 --config-uuid "$cfg_uuid";
+
+  $* -d cfg2 acfg2 2>>/~"%EOE%" != 0;
+    %error: current configuration $cfg_uuid is already linked with .+/acfg2/%
+    EOE
+
+  # Make sure that current configuration is implicitly linked as unnamed.
+  #
+  # @@ Make sure that's really the case when the cfg-list command is
+  #    implemented.
+  #
+  rm -r cfg2;
+  $cfg_create -d cfg2 --name 'test' &cfg2/***;
+
+  $* -d cfg2 acfg2 2>>/~%EOE%;
+    %linked configuration .+/acfg2/%
+    %  info: uuid: .{36}%
+      info: type: target
+      info: name: shared
+      info: id:   1
+    EOE
+
+  # Test that the integrity check fails.
+  #
+  $pkg_status -d cfg2 libfoo 2>>/~"%EOE%" != 0;
+    error: configuration cfg/ uuid mismatch
+    %  info: uuid .+%
+      info: linked with acfg2/ as $cfg_uuid
+    EOE
+
+  rm -r cfg;
+  $cfg_create -d cfg --name 'test' --config-uuid "$cfg_uuid" &cfg/***;
+
+  $pkg_status -d cfg2  libfoo >'libfoo unknown';
+  $pkg_status -d acfg2 libfoo >'libfoo unknown'
+}

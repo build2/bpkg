@@ -15,7 +15,7 @@ using namespace butl;
 namespace bpkg
 {
   void
-  pkg_purge_fs (const dir_path& c,
+  pkg_purge_fs (database& db,
                 transaction& t,
                 const shared_ptr<selected_package>& p,
                 bool simulate,
@@ -26,8 +26,9 @@ namespace bpkg
     assert (p->state == package_state::fetched ||
             p->state == package_state::unpacked);
 
-    database& db (t.database ());
     tracer_guard tg (db, trace);
+
+    const dir_path& c (db.config_orig);
 
     try
     {
@@ -76,14 +77,14 @@ namespace bpkg
       db.update (p);
       t.commit ();
 
-      info << "package " << p->name << " is now broken; "
+      info << "package " << p->name << db << " is now broken; "
            << "use 'pkg-purge --force' to remove";
       throw;
     }
   }
 
   void
-  pkg_purge (const dir_path& c,
+  pkg_purge (database& db,
              transaction& t,
              const shared_ptr<selected_package>& p,
              bool simulate)
@@ -93,11 +94,10 @@ namespace bpkg
 
     tracer trace ("pkg_purge");
 
-    database& db (t.database ());
     tracer_guard tg (db, trace);
 
     assert (!p->out_root);
-    pkg_purge_fs (c, t, p, simulate, true);
+    pkg_purge_fs (db, t, p, simulate, true);
 
     db.erase (p);
     t.commit ();
@@ -120,7 +120,7 @@ namespace bpkg
     package_name n (parse_package_name (args.next (),
                                         false /* allow_version */));
 
-    database db (open (c, trace));
+    database db (c, trace, true /* pre_attach */);
     transaction t (db);
 
     shared_ptr<selected_package> p (db.find<selected_package> (n));
@@ -201,7 +201,7 @@ namespace bpkg
     else
     {
       assert (!p->out_root);
-      pkg_purge_fs (c, t, p, false /* simulate */, !o.keep ());
+      pkg_purge_fs (db, t, p, false /* simulate */, !o.keep ());
     }
 
     // Finally, update the database state.

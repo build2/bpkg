@@ -156,6 +156,17 @@ namespace bpkg
      bpkg build libfoo/2.0.0   # upgrade libfoo 2.0.0 to hold,
                                #         also hold version 2.0.0
      \
+
+     A package can be built in one of the linked configurations instead of the
+     current (or host/build system module, for build-time dependencies)
+     configuration by specifying one of the \cb{--config-*} options (see
+     \l{bpkg-cfg-create(1)} for background on linked configurations). For
+     example:
+
+     \
+     bpkg build foo { --config-name=alt-host }+ ?bison
+     \
+
      "
   }
 
@@ -243,6 +254,27 @@ namespace bpkg
        are purged. Refer to the \cb{--output-purge} option in
        \l{bpkg-pkg-checkout(1)} for details."
     }
+
+    string --config-name
+    {
+      "<id>",
+       "Name of the linked configuration to build this package(s) in. By
+        default, the package is built in the current configuration."
+    }
+
+    uint64_t --config-id
+    {
+      "<id>",
+      "Numeric id of the linked configuration to build this package(s) in. By
+       default, the package is built in the current configuration."
+    }
+
+    uuid --config-uuid
+    {
+      "<uuid>",
+      "UUID of the linked configuration to build this package(s) in. By
+       default, the package is built in the current configuration."
+    }
   };
 
   class pkg_build_options: configuration_options,
@@ -309,6 +341,14 @@ namespace bpkg
       "Don't re-fetch complement and prerequisite repositories of repositories
        specified as part of the build command. Refer to the \cb{--shallow}
        option in \l{bpkg-rep-fetch(1)} for details."
+    }
+
+    bool --no-refinement
+    {
+      "Don't try to refine the configuration by offering drop any unused
+       dependencies that were potentially left behind on the previous
+       \cb{pkg-build} or \cb{pkg-drop} command execution if the command
+       is otherwise a noop (performs no new package builds, upgrades, etc)."
     }
   };
 

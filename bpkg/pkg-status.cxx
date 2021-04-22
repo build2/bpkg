@@ -18,6 +18,7 @@ namespace bpkg
 {
   struct package
   {
+    database&                    db;
     package_name                 name;
     bpkg::version                version;    // Empty if unspecified.
     shared_ptr<selected_package> selected;   // NULL if none selected.
@@ -30,7 +31,6 @@ namespace bpkg
   //
   static void
   pkg_status (const pkg_status_options& o,
-              database& db,
               const packages& pkgs,
               string& indent,
               bool recursive,
@@ -59,6 +59,8 @@ namespace bpkg
       };
       vector<apkg> apkgs;
 
+      database& mdb (p.db.main_database ());
+
       // A package with this name is known in available packages potentially
       // for build.
       //
@@ -66,13 +68,13 @@ namespace bpkg
       bool build (false);
       {
         shared_ptr<repository_fragment> root (
-          db.load<repository_fragment> (""));
+          mdb.load<repository_fragment> (""));
 
         using query = query<available_package>;
 
         query q (query::id.name == p.name);
         {
-          auto r (db.query<available_package> (q));
+          auto r (mdb.query<available_package> (q));
           known = !r.empty ();
           build = filter_one (root, move (r)).first != nullptr;
         }
@@ -107,7 +109,7 @@ namespace bpkg
           //
           for (shared_ptr<available_package> ap:
                  pointer_result (
-                   db.query<available_package> (q)))
+                   mdb.query<available_package> (q)))
           {
             bool build (filter (root, ap));
             apkgs.push_back (apkg {move (ap), build});
@@ -130,7 +132,7 @@ namespace bpkg
 
       // If the package name is selected, then print its exact spelling.
       //
-      cout << (s != nullptr ? s->name : p.name);
+      cout << (s != nullptr ? s->name : p.name) << p.db;
 
       if (o.constraint () && p.constraint)
         cout << ' ' << *p.constraint;
@@ -235,20 +237,16 @@ namespace bpkg
           for (const auto& pair: s->prerequisites)
           {
             shared_ptr<selected_package> d (pair.first.load ());
+            database& db (pair.first.database ());
             const optional<version_constraint>& c (pair.second);
-            dpkgs.push_back (package {d->name, version (), move (d), c});
+            dpkgs.push_back (package {db, d->name, version (), move (d), c});
           }
         }
 
         if (!dpkgs.empty ())
         {
           indent += "  ";
-          pkg_status (o,
-                      db,
-                      dpkgs,
-                      indent,
-                      recursive,
-                      false /* immediate */);
+          pkg_status (o, dpkgs, indent, recursive, false /* immediate */);
           indent.resize (indent.size () - 2);
         }
       }
@@ -266,7 +264,7 @@ namespace bpkg
     const dir_path& c (o.directory ());
     l4 ([&]{trace << "configuration: " << c;});
 
-    database db (open (c, trace));
+    database db (c, trace, true /* pre_attach */);
     transaction t (db);
     session s;
 
@@ -279,39 +277,69 @@ namespace bpkg
         while (args.more ())
         {
           const char* arg (args.next ());
-          package p {parse_package_name (arg),
-                     parse_package_version (arg,
-                                            false /* allow_wildcard */,
-                                            false /* fold_zero_revision */),
-                     nullptr  /* selected */,
-                     nullopt  /* constraint */};
 
-          // Search in the packages that already exist in this configuration.
+          package_name pn (parse_package_name (arg));
+          version pv (parse_package_version (arg,
+                                             false /* allow_wildcard */,
+                                             false /* fold_zero_revision */));
+
+          query q (query::name == pn);
+
+          if (!pv.empty ())
+            q = q && compare_version_eq (query::version,
+                                         canonical_version (pv),
+                                         pv.revision.has_value (),
+                                         false /* iteration */);
+
+          // Search in the packages that already exist in this and all the
+          // dependency configurations.
           //
+          bool found (false);
+          for (database& ldb: db.dependency_configs ())
           {
-            query q (query::name == p.name);
+            shared_ptr<selected_package> sp (
+              ldb.query_one<selected_package> (q));
 
-            if (!p.version.empty ())
-              q = q && compare_version_eq (query::version,
-                                           canonical_version (p.version),
-                                           p.version.revision.has_value (),
-                                           false /* iteration */);
-
-            p.selected = db.query_one<selected_package> (q);
+            if (sp != nullptr)
+            {
+              pkgs.push_back (package {ldb,
+                                       pn,
+                                       pv,
+                                       move (sp),
+                                       nullopt /* constraint */});
+              found = true;
+            }
           }
 
-          pkgs.push_back (move (p));
+          if (!found)
+          {
+            pkgs.push_back (package {db,
+                                     move (pn),
+                                     move (pv),
+                                     nullptr  /* selected */,
+                                     nullopt  /* constraint */});
+          }
         }
       }
       else
       {
-        // Find all held packages.
+        // Find all held packages in this and all the dependency
+        // configurations.
         //
-        for (shared_ptr<selected_package> s:
-               pointer_result (
-                 db.query<selected_package> (query::hold_package)))
+        for (database& ldb: db.dependency_configs ())
         {
-          pkgs.push_back (package {s->name, version (), move (s), nullopt});
+          for (shared_ptr<selected_package> s:
+                 pointer_result (
+                   ldb.query<selected_package> (query::hold_package)))
+          {
+            pkgs.push_back (package {ldb,
+                                     s->name,
+                                     version (),
+                                     move (s),
+                                     nullopt /* constraint */});
+
+
+          }
         }
 
         if (pkgs.empty ())
@@ -323,7 +351,7 @@ namespace bpkg
     }
 
     string indent;
-    pkg_status (o, db, pkgs, indent, o.recursive (), o.immediate ());
+    pkg_status (o, pkgs, indent, o.recursive (), o.immediate ());
 
     t.commit ();
     return 0;

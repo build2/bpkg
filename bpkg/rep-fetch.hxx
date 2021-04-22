@@ -7,7 +7,6 @@
 #include <libbpkg/manifest.hxx>
 
 #include <bpkg/types.hxx>
-#include <bpkg/forward.hxx> // database
 #include <bpkg/utility.hxx>
 
 #include <bpkg/rep-fetch-options.hxx>
@@ -69,7 +68,6 @@ namespace bpkg
   //
   void
   rep_fetch (const common_options&,
-             const dir_path& conf,
              database&,
              const vector<repository_location>&,
              bool shallow,

@@ -21,6 +21,7 @@
 //
 #include <bpkg/help.hxx>
 
+#include <bpkg/cfg-link.hxx>
 #include <bpkg/cfg-create.hxx>
 
 #include <bpkg/pkg-build.hxx>
@@ -498,6 +499,7 @@ try
 #define CFG_COMMAND(CMD, TMP) COMMAND_IMPL(cfg_, "cfg-", CMD, false, TMP)
 
     CFG_COMMAND (create, false); // Temp dir initialized manually.
+    CFG_COMMAND (link,   true);
 
     // pkg-* commands
     //

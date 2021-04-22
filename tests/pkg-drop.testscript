@@ -9,16 +9,31 @@
 # |-- t4a
 # |   |-- libfoo-1.1.0.tar.gz
 # |   `-- repositories.manifest
+# |
 # |-- t4b                     -> t4a (prerequisite repository)
 # |   |-- libbar-1.1.0.tar.gz -> libfoo == 1.1.0
 # |   `-- repositories.manifest
+# |
 # |-- t4c                     -> t4b (prerequisite repository)
 # |   |-- libbaz-1.1.0.tar.gz -> libfoo, libbar
 # |   |-- libfoo-1.0.0.tar.gz
 # |   `-- repositories.manifest
-# `-- t4d                     -> t4c (complement)
-#     |-- libbiz-1.0.0.tar.gz -> libfox, libfoo, libbaz
-#     |-- libfox-1.0.0.tar.gz
+# |
+# |-- t4d                     -> t4c (complement)
+# |   |-- libbiz-1.0.0.tar.gz -> libfox, libfoo, libbaz
+# |   |-- libfox-1.0.0.tar.gz
+# |   `-- repositories.manifest
+# |
+# |-- t7a
+# |   |-- libbaz-1.0.0.tar.gz
+# |   |-- foo-1.0.0.tar.gz      -> libbaz ^1.0.0
+# |   |-- libbar-1.0.0.tar.gz   -> * foo ^1.0.0, libbaz ^1.0.0
+# |   `-- repositories.manifest
+# |
+# `-- t7b                       -> t7a (complement repository)
+#     |-- libbaz-1.1.0.tar.gz
+#     |-- foo-1.1.0.tar.gz      -> libbaz ^1.1.0
+#     |-- libbar-1.1.0.tar.gz   -> * foo ^1.1.0, libbaz ^1.0.0
 #     `-- repositories.manifest
 
 # Prepare repositories used by tests if running in the local mode.
@@ -30,8 +45,12 @@
   cp -r $src/t4b $out/t4b && $rep_create $out/t4b &$out/t4b/packages.manifest
   cp -r $src/t4c $out/t4c && $rep_create $out/t4c &$out/t4c/packages.manifest
   cp -r $src/t4d $out/t4d && $rep_create $out/t4d &$out/t4d/packages.manifest
+  cp -r $src/t7a $out/t7a && $rep_create $out/t7a &$out/t7a/packages.manifest
+  cp -r $src/t7b $out/t7b && $rep_create $out/t7b &$out/t7b/packages.manifest
 end
 
+cfg_create += 2>!
+cfg_link   += 2>!
 pkg_build  += -d cfg --yes 2>!
 pkg_status += -d cfg
 rep_add    += -d cfg 2>!
@@ -443,4 +462,270 @@ $* libfoo/1.0.0 2>>~%EOE% != 0
   $pkg_status libfoo >'!libfoo unpacked 1.1.0';
 
   $* libfoo 2>'purged libfoo'
+}
+
+: linked-configs
+:
+{
+  : 3-configs
+  :
+  {
+    +$clone_root_cfg && $rep_add $rep/t4c && $rep_fetch
+
+    +$cfg_create -d cfg-bar &cfg-bar/***
+    +$cfg_create -d cfg-foo &cfg-foo/***
+
+    +$cfg_link -d cfg     cfg-bar
+    +$cfg_link -d cfg-bar cfg-foo
+
+    : baz
+    :
+    {
+      $clone_cfg;
+      cp -pr ../cfg-bar ./;
+      cp -pr ../cfg-foo ./;
+
+      $pkg_build libbar@"$rep/t4b" -d cfg-bar ?libfoo +{ --config-id 2 } --trust-yes 2>!;
+      $pkg_build libbaz 2>!;
+
+      $pkg_build '?libbar' +{ --config-id 1 } 2>!;
+
+      $* libbaz <<EOI 2>>/~%EOE%
+          y
+          y
+          EOI
+          following dependencies were automatically built but will no longer be used:
+            libbar [cfg-bar/]
+            libfoo [cfg-foo/]
+          %drop unused packages\? \[Y.n\]   drop libbaz%
+            drop libbar [cfg-bar/]
+            drop libfoo [cfg-foo/]
+          %continue\? \[Y.n\] disfigured libbaz%
+          disfigured libbar [cfg-bar/]
+          disfigured libfoo [cfg-foo/]
+          purged libbaz
+          purged libbar [cfg-bar/]
+          purged libfoo [cfg-foo/]
+          EOE
+    }
+
+    : foo
+    :
+    {
+      $clone_cfg;
+      cp -pr ../cfg-bar ./;
+      cp -pr ../cfg-foo ./;
+
+      $pkg_build libbar@"$rep/t4b" -d cfg-bar ?libfoo +{ --config-id 2 } --trust-yes 2>!;
+      $pkg_build libbaz 2>!;
+
+      # Make sure that dependents of a package being dropped can be found in
+      # implicitly linked configurations recursively. Note that configuring
+      # libbar as system, we make libbaz an only dependent of libfoo.
+      #
+      $pkg_build '?sys:libbar' +{ --config-id 1 } 2>!;
+
+      $pkg_status -r libbaz >>/EOO;
+        !libbaz configured 1.1.0
+          libbar [cfg-bar/] configured,system !* available [1.1.0]
+          libfoo [cfg-foo/] configured 1.1.0
+        EOO
+
+        $pkg_status -d cfg-bar -r libbar >>EOO;
+          libbar configured,system !* available 1.1.0
+          EOO
+
+        $pkg_status -d cfg-foo libfoo >'libfoo configured 1.1.0';
+
+        $* -d cfg-foo libfoo <<EOI 2>>/~%EOE%;
+          y
+          y
+          y
+          EOI
+          following dependent packages will have to be dropped as well:
+            libbaz [cfg/] (requires libfoo)
+          %drop dependent packages\? \[y.N\] following dependencies were automatically built but will no longer be used:%
+            sys:libbar [cfg-bar/]
+          %drop unused packages\? \[Y.n\]   drop libbaz \[cfg/\]%
+            drop libfoo
+            drop libbar [cfg-bar/]
+          %continue\? \[Y.n\] disfigured libbaz \[cfg/\]%
+          disfigured libfoo
+          purged libbar [cfg-bar/]
+          purged libbaz [cfg/]
+          purged libfoo
+          EOE
+
+      $pkg_status            libbaz >'libbaz available 1.1.0';
+      $pkg_status -d cfg-bar libbar >'libbar available 1.1.0';
+      $pkg_status -d cfg-foo libfoo >'libfoo unknown'
+    }
+
+    : bar
+    :
+    {
+      $clone_cfg;
+      cp -pr ../cfg-bar ./;
+      cp -pr ../cfg-foo ./;
+
+      # Test that if we turn implicit links into explicit, then all dependents
+      # are still discovered.
+      #
+      $cfg_link -d cfg-bar cfg;
+      $cfg_link -d cfg-foo cfg-bar;
+
+      $pkg_build libbar@"$rep/t4b" -d cfg-bar ?libfoo +{ --config-id 2 } --trust-yes 2>!;
+      $pkg_build libbaz 2>!;
+
+      $pkg_status -r libbaz >>/EOO;
+        !libbaz configured 1.1.0
+          !libbar [cfg-bar/] configured !1.1.0
+            libfoo [cfg-foo/] configured 1.1.0
+          libfoo [cfg-foo/] configured 1.1.0
+        EOO
+
+      $pkg_status -d cfg-bar -r libbar >>/EOO;
+        !libbar configured !1.1.0
+          libfoo [cfg-foo/] configured 1.1.0
+        EOO
+
+      $pkg_status -d cfg-foo libfoo >'libfoo configured 1.1.0';
+
+      $* -d cfg-bar libbar <<EOI 2>>/~%EOE%;
+        y
+        y
+        y
+        EOI
+        following dependent packages will have to be dropped as well:
+          libbaz [cfg/] (requires libbar)
+        %drop dependent packages\? \[y.N\] following dependencies were automatically built but will no longer be used:%
+          libfoo [cfg-foo/]
+        %drop unused packages\? \[Y.n\]   drop libbaz \[cfg/\]%
+          drop libbar
+          drop libfoo [cfg-foo/]
+        %continue\? \[Y.n\] disfigured libbaz \[cfg/\]%
+        disfigured libbar
+        disfigured libfoo [cfg-foo/]
+        purged libbaz [cfg/]
+        purged libbar
+        purged libfoo [cfg-foo/]
+        EOE
+
+      $pkg_status            libbaz >'libbaz available 1.1.0';
+      $pkg_status -d cfg-bar libbar >'libbar available 1.1.0';
+      $pkg_status -d cfg-foo libfoo >'libfoo unknown'
+    }
+  }
+}
+
+: buildtime-dep
+:
+{
+  +$clone_cfg && $rep_add $rep/t7a && $rep_fetch
+  +$cfg_create -d cfg2 --type host &cfg2/***
+  +$cfg_link -d cfg cfg2
+
+  : drop-dependent
+  :
+  {
+    $clone_cfg;
+    cp -pr ../cfg2 ./;
+
+    $pkg_build libbar --yes >!;
+
+    $* libbar <<EOI 2>>/~%EOE%;
+      y
+      y
+      EOI
+      following dependencies were automatically built but will no longer be used:
+        foo [cfg2/]
+        libbaz [cfg2/]
+        libbaz
+      %drop unused packages\? \[Y.n\]   drop libbar%
+        drop foo [cfg2/]
+        drop libbaz [cfg2/]
+        drop libbaz
+      %continue\? \[Y.n\] disfigured libbar%
+      disfigured foo [cfg2/]
+      disfigured libbaz [cfg2/]
+      disfigured libbaz
+      purged libbar
+      purged foo [cfg2/]
+      purged libbaz [cfg2/]
+      purged libbaz
+      EOE
+
+    $pkg_status -r libbar >'libbar available 1.0.0'
+  }
+
+  : drop-dependency
+  :
+  {
+    $clone_cfg;
+    cp -pr ../cfg2 ./;
+
+    $pkg_build libbar --yes >!;
+
+    $* -d cfg2 libbaz <<EOI 2>>/~%EOE%;
+      y
+      y
+      y
+      EOI
+      following dependent packages will have to be dropped as well:
+        foo (requires libbaz)
+        libbar [cfg/] (requires foo)
+      %drop dependent packages\? \[y.N\] following dependencies were automatically built but will no longer be used:%
+        libbaz [cfg/]
+      %drop unused packages\? \[Y.n\]   drop libbar \[cfg.\]%
+        drop foo
+        drop libbaz
+        drop libbaz [cfg/]
+      %continue\? \[Y.n\] disfigured libbar \[cfg.\]%
+      disfigured foo
+      disfigured libbaz
+      disfigured libbaz [cfg/]
+      purged libbar [cfg/]
+      purged foo
+      purged libbaz
+      purged libbaz [cfg/]
+      EOE
+
+    $pkg_status -r libbar >'libbar available 1.0.0'
+  }
+
+  : skip-deleted-dependency
+  :
+  {
+    $clone_cfg;
+    cp -pr ../cfg2 ./;
+
+    $pkg_build libbar --yes >! &cfg/lib*/*** &cfg/lib*;
+
+    mv cfg cfg.tmp;
+
+    $* -d cfg2 libbaz <<EOI 2>>/~%EOE%;
+      y
+      y
+      EOI
+      following dependent packages will have to be dropped as well:
+        foo (requires libbaz)
+      %drop dependent packages\? \[y.N\]   drop foo%
+        drop libbaz
+      %continue\? \[Y.n\] disfigured foo%
+      disfigured libbaz
+      purged foo
+      purged libbaz
+      EOE
+
+    # While at it, test that we properly handle the missing prerequisite
+    # situation.
+    #
+    mv cfg.tmp cfg;
+
+    $* libbar 2>>/EOE != 0;
+      error: unable to find prerequisite package foo in linked configuration cfg2/
+      EOE
+
+    $pkg_status -d cfg2 -r 2>'info: no held packages in the configuration'
+  }
 }

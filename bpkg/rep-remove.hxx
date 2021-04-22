@@ -5,7 +5,7 @@
 #define BPKG_REP_REMOVE_HXX
 
 #include <bpkg/types.hxx>
-#include <bpkg/forward.hxx> // database, transaction, repository
+#include <bpkg/forward.hxx> // transaction, repository
 #include <bpkg/utility.hxx>
 
 #include <bpkg/rep-remove-options.hxx>
@@ -20,15 +20,13 @@ namespace bpkg
   // repository fragments.
   //
   void
-  rep_remove (const dir_path& conf,
-              transaction&,
-              const shared_ptr<repository>&);
+  rep_remove (database&, transaction&, const shared_ptr<repository>&);
 
   // Remove a repository fragment if it is not referenced by any repository,
   // also removing its unreachable complements and prerequisites.
   //
   void
-  rep_remove_fragment (const dir_path& conf,
+  rep_remove_fragment (database&,
                        transaction&,
                        const shared_ptr<repository_fragment>&);
 
@@ -50,16 +48,15 @@ namespace bpkg
   // - Remove all available packages.
   //
   void
-  rep_remove_clean (const common_options&,
-                    const dir_path& conf,
-                    database&,
-                    bool quiet = true);
+  rep_remove_clean (const common_options&, database&, bool quiet = true);
 
   // Remove a repository fragment from locations of the available packages it
   // contains. Remove packages that come from only this repository fragment.
   //
   void
-  rep_remove_package_locations (transaction&, const string& fragment_name);
+  rep_remove_package_locations (database&,
+                                transaction&,
+                                const string& fragment_name);
 }
 
 #endif // BPKG_REP_REMOVE_HXX

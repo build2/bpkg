@@ -1,0 +1,81 @@
+// file      : bpkg/cfg-link.cli
+// license   : MIT; see accompanying LICENSE file
+
+include <bpkg/configuration.cli>;
+
+"\section=1"
+"\name=bpkg-cfg-link"
+"\summary=link configuration"
+
+namespace bpkg
+{
+  {
+    "<options> <dir>",
+
+    "\h|SYNOPSIS|
+
+     \c{\b{bpkg cfg-link} [<options>] <dir>}
+
+     \h|DESCRIPTION|
+
+     The \cb{cfg-link} command links the specified \cb{bpkg} configuration
+     with the current configuration. See \l{bpkg-cfg-create(1)} for background
+     on linked configurations.
+
+     The linked configurations are normally referred to using names when
+     specified on the \cb{bpkg} command line. Unless overridden with the
+     \cb{--name} option, the original configuration name is used to name the
+     link. If the link is unnamed, then it can be referred to using the
+     numeric id that is automatically assigned when establishing the link or
+     using the configuration UUID.
+
+     If the specified configuration path is relative, then it is rebased
+     relative to the current configuration directory. This way, when the
+     linked configurations are moved around together, the stored relative
+     paths remain valid. If the specified directory path is absolute, then it
+     is stored as absolute unless the \cb{--relative} option is specified in
+     which case it is also rebased relative to the current configuration
+     directory.
+     "
+  }
+
+  class cfg_link_options: configuration_options
+  {
+    "\h|CFG-LINK OPTIONS|"
+
+    string --name
+    {
+      "<name>",
+      "Alternative link name. If this option is not specified, then the
+       configuration name is used as the link name (see \l{bpkg-cfg-create(1)}
+       for details)."
+    }
+
+    bool --relative
+    {
+      "Rebase the absolute linked configuration path relative to the current
+       configuration directory."
+    }
+  };
+
+  "
+   \h|DEFAULT OPTIONS FILES|
+
+   See \l{bpkg-default-options-files(1)} for an overview of the default
+   options files. For the \cb{cfg-link} command the search start directory is
+   the configuration directory. The following options files are searched for
+   in each directory and, if found, loaded in the order listed:
+
+   \
+   bpkg.options
+   bpkg-cfg-link.options
+   \
+
+   The following \cb{cfg-link} command options cannot be specified in the
+   default options files:
+
+   \
+   --directory|-d
+   \
+  "
+}

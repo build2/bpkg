@@ -32,10 +32,12 @@ namespace bpkg
      \cb{stderr}.
 
      The status output format is regular with components separated with
-     spaces. Each line starts with the package name (and version, if
-     specified) followed by one of the status words listed below.  Some of
-     them can be optionally followed by '\cb{,}' (no spaces) and a sub-status
-     word.
+     spaces. Each line starts with the package name and version (if specified)
+     followed by one of the status words listed below. Some of them can be
+     optionally followed by '\cb{,}' (no spaces) and a sub-status word. Lines
+     corresponding to dependencies from linked configurations will
+     additionally mention the configuration directory in square brackets after
+     the package name and version.
 
      \dl|
 
@@ -144,6 +146,16 @@ namespace bpkg
      \
      bpkg status libfoo
      !libfoo configured,system * available 1.1.0 1.1.1
+     \
+
+     Another example of the status output this time including dependencies:
+
+     \
+     bpkg status -r libbaz
+     !libbaz configured 1.0.0
+       libfoo configured 1.0.0
+         bison [.bpkg/host/] configured 1.0.0
+       libbar configured 2.0.0
      \
 
      "

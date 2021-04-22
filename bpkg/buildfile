@@ -16,6 +16,7 @@ import libs += libodb-sqlite%lib{odb-sqlite}
 options_topics =           \
 bpkg-options               \
 cfg-create-options         \
+cfg-link-options           \
 common-options             \
 configuration-options      \
 help-options               \
@@ -150,6 +151,7 @@ if $cli.configured
   # cfg-* command.
   #
   cli.cxx{cfg-create-options}: cli{cfg-create}
+  cli.cxx{cfg-link-options}:   cli{cfg-link}
 
   # rep-* command.
   #

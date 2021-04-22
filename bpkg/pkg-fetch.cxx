@@ -24,7 +24,7 @@ namespace bpkg
   // Return the selected package object which may replace the existing one.
   //
   static shared_ptr<selected_package>
-  pkg_fetch (dir_path c,
+  pkg_fetch (database& db,
              transaction& t,
              package_name n,
              version v,
@@ -35,18 +35,16 @@ namespace bpkg
   {
     tracer trace ("pkg_fetch");
 
-    database& db (t.database ());
     tracer_guard tg (db, trace);
 
-    // Make the archive and configuration paths absolute and normalized.
-    // If the archive is inside the configuration, use the relative path.
-    // This way we can move the configuration around.
+    // Make the archive path absolute and normalized. If the archive is
+    // inside the configuration, use the relative path. This way we can move
+    // the configuration around.
     //
-    normalize (c, "configuration");
     normalize (a, "archive");
 
-    if (a.sub (c))
-      a = a.leaf (c);
+    if (a.sub (db.config))
+      a = a.leaf (db.config);
 
     shared_ptr<selected_package> p (db.find<selected_package> (n));
     if (p != nullptr)
@@ -55,7 +53,7 @@ namespace bpkg
       // replacing. Once this is done, there is no going back. If things
       // go badly, we can't simply abort the transaction.
       //
-      pkg_purge_fs (c, t, p, simulate);
+      pkg_purge_fs (db, t, p, simulate);
 
       // Note that if the package name spelling changed then we need to update
       // it, to make sure that the subsequent commands don't fail and the
@@ -113,14 +111,13 @@ namespace bpkg
   // or fetching one.
   //
   static void
-  pkg_fetch_check (const dir_path& c,
-                   transaction& t,
+  pkg_fetch_check (database& db,
+                   transaction&,
                    const package_name& n,
                    bool replace)
   {
     tracer trace ("pkg_fetch_check");
 
-    database& db (t.database ());
     tracer_guard tg (db, trace);
 
     if (shared_ptr<selected_package> p = db.find<selected_package> (n))
@@ -131,6 +128,7 @@ namespace bpkg
       if (!replace || !s)
       {
         diag_record dr (fail);
+        const dir_path& c (db.config_orig);
 
         dr << "package " << n << " already exists in configuration " << c <<
           info << "version: " << p->version_string ()
@@ -145,7 +143,7 @@ namespace bpkg
 
   shared_ptr<selected_package>
   pkg_fetch (const common_options& co,
-             const dir_path& c,
+             database& db,
              transaction& t,
              path a,
              bool replace,
@@ -170,12 +168,12 @@ namespace bpkg
 
     // Check/diagnose an already existing package.
     //
-    pkg_fetch_check (c, t, m.name, replace);
+    pkg_fetch_check (db, t, m.name, replace);
 
     // Use the special root repository fragment as the repository fragment of
     // this package.
     //
-    return pkg_fetch (c,
+    return pkg_fetch (db,
                       t,
                       move (m.name),
                       move (m.version),
@@ -187,7 +185,7 @@ namespace bpkg
 
   shared_ptr<selected_package>
   pkg_fetch (const common_options& co,
-             const dir_path& c,
+             database& db,
              transaction& t,
              package_name n,
              version v,
@@ -196,14 +194,15 @@ namespace bpkg
   {
     tracer trace ("pkg_fetch");
 
-    database& db (t.database ());
     tracer_guard tg (db, trace);
 
     // Check/diagnose an already existing package.
     //
-    pkg_fetch_check (c, t, n, replace);
+    pkg_fetch_check (db, t, n, replace);
 
-    check_any_available (c, t);
+    database& mdb (db.main_database ());
+
+    check_any_available (mdb, t);
 
     // Note that here we compare including the revision (unlike, say in
     // pkg-status). Which means one cannot just specify 1.0.0 and get 1.0.0+1
@@ -211,7 +210,7 @@ namespace bpkg
     // a low-level command where some extra precision doesn't hurt.
     //
     shared_ptr<available_package> ap (
-      db.find<available_package> (available_package_id (n, v)));
+      mdb.find<available_package> (available_package_id (n, v)));
 
     if (ap == nullptr)
       fail << "package " << n << " " << v << " is not available";
@@ -243,7 +242,7 @@ namespace bpkg
            << "from " << pl->repository_fragment->name;
 
     auto_rmfile arm;
-    path a (c / pl->location.leaf ());
+    path a (db.config_orig / pl->location.leaf ());
 
     if (!simulate)
     {
@@ -264,12 +263,12 @@ namespace bpkg
           info << "fetched archive has " << sha256sum <<
           info << "consider re-fetching package list and trying again" <<
           info << "if problem persists, consider reporting this to "
-             << "the repository maintainer";
+               << "the repository maintainer";
       }
     }
 
     shared_ptr<selected_package> p (
-      pkg_fetch (c,
+      pkg_fetch (db,
                  t,
                  move (n),
                  move (v),
@@ -290,7 +289,7 @@ namespace bpkg
     dir_path c (o.directory ());
     l4 ([&]{trace << "configuration: " << c;});
 
-    database db (open (c, trace));
+    database db (c, trace, true /* pre_attach */);
     transaction t (db);
     session s;
 
@@ -305,7 +304,7 @@ namespace bpkg
           info << "run 'bpkg help pkg-fetch' for more information";
 
       p = pkg_fetch (o,
-                     c,
+                     db,
                      t,
                      path (args.next ()),
                      o.replace (),
@@ -327,7 +326,7 @@ namespace bpkg
           info << "run 'bpkg help pkg-fetch' for more information";
 
       p = pkg_fetch (o,
-                     c,
+                     db,
                      t,
                      move (n),
                      move (v),

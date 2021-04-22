@@ -51,6 +51,40 @@ namespace bpkg
      \
      bpkg create cxx. \"?cli\"
      \
+
+     Configurations can be linked with each other to allow a package to be
+     built in one configuration while its dependencies in one or more linked
+     configurations. This can be used to create a \"base\" configuration with
+     common dependencies that are shared between multiple configurations. This
+     mechanism is also used to provide a host configuration that is used to
+     build build-time dependencies.
+
+     Each configuration is assigned an automatically-generated UUID unless one
+     is specified with the \cb{--config-uuid} option. This UUID is used to
+     check the integrity of configuration links. For convenience of referring
+     to linked configurations, a configuration can also be assigned a name
+     with the \cb{--name} option.
+
+     A configuration also has a type specified with the \cb{--type} option.
+     Three predefined types are \cb{target}, \cb{host}, and \cb{build2}. If
+     the type is not specified explicitly, then \cb{target} is assumed. When
+     satisfying a dependency of one package on another, a linked configuration
+     will only be considered if (1) it has the same type as the other
+     configuration for run-time dependencies, (2) it has the \cb{host} type
+     for regular build-time dependencies, and (3) it has the \cb{build2} type
+     for build system module build-time dependencies. Note that a host
+     configuration is a target configuration for the host machine. So to
+     create a self-hosted configuration, use type \cb{host}.
+
+     To link a configuration we use the \l{bpkg-cfg-link(1)} command. As a
+     shortcut, host and build system module configurations can also be linked
+     during the configuration creation with the \cb{--host-config} and
+     \cb{--build2-config} options, respectively. If a build-time dependency is
+     encountered in a configuration that has no linked configuration of a
+     suitable type (\cb{host} or \cb{build2}, nor is itself of a suitable
+     type), then a private host or build system module configuration named
+     \cb{host} or \cb{build2}, respectively, is created automatically inside
+     the configuration's \c{.bpkg/} subdirectory.
      "
   }
 
@@ -76,6 +110,44 @@ namespace bpkg
       "Wipe the configuration directory clean before creating the new
        configuration. For safety, this option requires that you specify the
        configuration directory explicitly with \cb{--directory|-d}."
+    }
+
+    dir_path --host-config
+    {
+      "<dir>",
+      "Link the specified host configuration with the configuration being
+       created as if by running the \l{bpkg-cfg-link(1)} command."
+    }
+
+    dir_path --build2-config
+    {
+      "<dir>",
+      "Link the specified build system module configuration with the
+       configuration being created as if by running the \l{bpkg-cfg-link(1)}
+       command."
+    }
+
+    string --name
+    {
+      "<name>",
+      "The name of the configuration being created. If this configuration is
+       linked with another configuration using \l{bpkg-cfg-link(1)}, this name
+       will be used as the link name unless overridden. By default the
+       configuration is created unnamed."
+    }
+
+    string --type = "target"
+    {
+      "<type>",
+      "The type of the configuration being created. By default, configuration
+       of type \cb{target} is created."
+    }
+
+    uuid --config-uuid
+    {
+      "<uuid>",
+      "Use the specified UUID as the configuration id instead of generating
+       one automatically."
     }
   };
 
