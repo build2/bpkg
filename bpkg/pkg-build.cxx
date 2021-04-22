@@ -107,7 +107,7 @@ namespace bpkg
     return r;
   }
 
-  // As above but only look for packages from the specified list fo repository
+  // As above but only look for packages from the specified list of repository
   // fragments, their prerequisite repositories, and their complements,
   // recursively (note: recursivity applies to complements, not
   // prerequisites).
@@ -284,6 +284,8 @@ namespace bpkg
   {
     enum action_type
     {
+      // Available package is not NULL.
+      //
       build,
 
       // Selected package is not NULL, available package is NULL.
@@ -1067,9 +1069,9 @@ namespace bpkg
 
         // Add our constraint, if we have one.
         //
-        // Note that we always add the constraint implied by the dependent. The
-        // user-implied constraint, if present, will be added when merging from
-        // the pre-entered entry. So we will have both constraints for
+        // Note that we always add the constraint implied by the dependent.
+        // The user-implied constraint, if present, will be added when merging
+        // from the pre-entered entry. So we will have both constraints for
         // completeness.
         //
         if (dp.constraint)
@@ -1549,8 +1551,12 @@ namespace bpkg
             return p.available_name_version ();
           };
 
-          for (chain.push_back (name); i != chain.end () - 1; ++i)
-            dr << info << nv (*i) << " depends on " << nv (*(i + 1));
+          // Note: push_back() can invalidate the iterator.
+          //
+          size_t j (i - chain.begin ());
+
+          for (chain.push_back (name); j != chain.size () - 1; ++j)
+            dr << info << nv (chain[j]) << " depends on " << nv (chain[j + 1]);
         }
       }
 
@@ -3180,8 +3186,8 @@ namespace bpkg
       //
       map<package_name, pkg_arg> package_map;
 
-      auto check_dup = [&package_map, &arg_string, arg_parsed] (
-        const pkg_arg& pa) -> bool
+      auto check_dup = [&package_map, &arg_string, &arg_parsed]
+                       (const pkg_arg& pa) -> bool
       {
         assert (arg_parsed (pa));
 
@@ -3904,7 +3910,6 @@ namespace bpkg
         if (scratch)
         {
           pkgs.clear ();
-          postponed.clear ();
 
           // Pre-enter dependencies to keep track of the desired versions and
           // options specified on the command line. In particular, if the
@@ -4169,7 +4174,7 @@ namespace bpkg
           // make sure that the unsatisfiable dependency, if left, is
           // reported.
           //
-          auto need_refinement = [&eval_dep, &deps, rec_pkgs, &db, &o] (
+          auto need_refinement = [&eval_dep, &deps, &rec_pkgs, &db, &o] (
             bool diag = false) -> bool
           {
             // Examine the new dependency set for any up/down-grade/drops.
@@ -4654,6 +4659,8 @@ namespace bpkg
           //
           if (sp != nullptr)
           {
+            assert (!sp->system ());
+
             transaction t (db, !simulate /* start */);
             pkg_purge (c, t, sp, simulate); // Commits the transaction.
 
