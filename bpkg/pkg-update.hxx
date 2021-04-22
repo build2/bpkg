@@ -28,13 +28,12 @@ namespace bpkg
   }
 
   inline void
-  pkg_update (const dir_path& configuration,
-              const common_options& o,
+  pkg_update (const common_options& o,
               const string& cmd_variant,
               const strings& common_vars,
               const vector<pkg_command_vars>& pkgs)
   {
-    pkg_command ("update", configuration, o, cmd_variant, common_vars, pkgs);
+    pkg_command ("update", o, cmd_variant, common_vars, pkgs);
   }
 }
 

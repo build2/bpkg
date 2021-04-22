@@ -19,7 +19,7 @@ namespace bpkg
   // transaction. If this fails, set the package state to broken.
   //
   void
-  pkg_purge (const dir_path& configuration,
+  pkg_purge (database&,
              transaction&,
              const shared_ptr<selected_package>&,
              bool simulate);
@@ -29,7 +29,7 @@ namespace bpkg
   // set the package state to broken, commit the transaction, and fail.
   //
   void
-  pkg_purge_fs (const dir_path& configuration,
+  pkg_purge_fs (database&,
                 transaction&,
                 const shared_ptr<selected_package>&,
                 bool simulate,

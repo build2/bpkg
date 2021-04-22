@@ -113,6 +113,21 @@
 # |   |   `-- root.build
 # |   `-- *
 # |
+# |-- t7a
+# |   |-- libbaz-1.0.0.tar.gz
+# |   |-- foo-1.0.0.tar.gz      -> libbaz ^1.0.0
+# |   |-- libbar-1.0.0.tar.gz   -> * foo ^1.0.0, libbaz ^1.0.0
+# |   |-- libbox-1.0.0.tar.gz   -> * foo ^1.0.0, libbaz ^1.0.0
+# |   |-- libfix-1.0.0.tar.gz   -> libbar ^1.0.0, libbox ^1.0.0
+# |   `-- repositories.manifest
+# |
+# |-- t7b                       -> t7a (complement repository)
+# |   |-- libbaz-1.1.0.tar.gz
+# |   |-- foo-1.1.0.tar.gz      -> libbaz ^1.1.0
+# |   |-- libbar-1.1.0.tar.gz   -> * foo ^1.1.0, libbaz ^1.0.0
+# |   |-- libbox-1.1.0.tar.gz   -> * foo ^1.0.0
+# |   `-- repositories.manifest
+# |
 # `-- git
 #     |-- libbar.git            -> style-basic.git (prerequisite repository)
 #     |-- libbaz.git
@@ -139,6 +154,8 @@ posix = ($cxx.target.class != 'windows')
   cp -r $src/t4e $out/t4e && $rep_create $out/t4e &$out/t4e/packages.manifest
   cp -r $src/t5  $out/t5  && $rep_create $out/t5  &$out/t5/packages.manifest
   cp -r $src/t6  $out/t6  && $rep_create $out/t6  &$out/t6/packages.manifest
+  cp -r $src/t7a $out/t7a && $rep_create $out/t7a &$out/t7a/packages.manifest
+  cp -r $src/t7b $out/t7b && $rep_create $out/t7b &$out/t7b/packages.manifest
 
   # Create git repositories.
   #
@@ -149,6 +166,8 @@ end
 
 config_cxx = config.cxx=$quote($recall($cxx.path) $cxx.config.mode, true)
 
+cfg_create    += 2>!
+cfg_add       += 2>!
 pkg_configure += -d cfg $config_cxx 2>!
 pkg_disfigure += -d cfg
 pkg_drop      += -d cfg --yes 2>!
@@ -408,6 +427,18 @@ test.options += --no-progress
     info: while satisfying libbar/1.0.0
     EOE
 
+  : unknown-dependency-config
+  :
+  : As above but with an associated configuration.
+  :
+  $clone_root_cfg;
+  $cfg_create -d cfg2 &cfg2/***;
+  $cfg_add -d cfg cfg2;
+  $* $src/libbar-1.0.0.tar.gz +{ --config-id 1 } 2>>~%EOE% != 0
+    %error: unknown dependency libfoo of package libbar \[cfg2.\]%
+    %info: while satisfying libbar/1.0.0 \[cfg2.\]%
+    EOE
+
   : t2
   :
   {
@@ -510,6 +541,21 @@ test.options += --no-progress
       $* libbar/1.1.0 >>EOO
         new libfoo/1.1.0+1 (required by libbar)
         new libbar/1.1.0
+        EOO
+    }
+
+    : latest-config
+    :
+    : As above but with an associated configuration.
+    :
+    {
+      $clone_cfg;
+      $cfg_create -d cfg2 &cfg2/***;
+      $cfg_add -d cfg cfg2;
+
+      $* libbar/1.1.0 +{ --config-id 1 } >>~%EOO%
+        %new libfoo/1.1.0\+1 \[cfg2.\] \(required by libbar \[cfg2.\]\)%
+        %new libbar/1.1.0 \[cfg2.\]%
         EOO
     }
 
@@ -755,6 +801,24 @@ test.options += --no-progress
       info: while satisfying libbaz/1.1.0
       EOE
 
+    : unable-satisfy-config
+    :
+    : As above but with an associated configuration.
+    :
+    $clone_cfg;
+    $cfg_create -d cfg2 &cfg2/***;
+    $cfg_add -d cfg cfg2;
+    $* libbaz ?libbar +{ --config-id 1 } libfoo/1.0.0 +{ --config-id 1 } 2>>~%EOE% != 0
+      error: unable to satisfy constraints on package libfoo
+      %  info: libbar \[cfg2.\] depends on \(libfoo == 1.1.0\)%
+        info: command line depends on (libfoo == 1.0.0)
+        info: available libfoo/1.1.0
+        info: available libfoo/1.0.0
+        info: explicitly specify libfoo version to manually satisfy both constraints
+      %info: while satisfying libbar/1.1.0 \[cfg2.\]%
+      info: while satisfying libbaz/1.1.0
+      EOE
+
     : not-available
     :
     $clone_cfg;
@@ -820,6 +884,38 @@ test.options += --no-progress
       $* libfoo/1.0.0 2>>EOE != 0;
         error: unable to downgrade package libfoo/1.1.0 to 1.0.0
           info: because package libbar depends on (libfoo == 1.1.0)
+          info: explicitly request up/downgrade of package libbar
+          info: or explicitly specify package libfoo version to manually satisfy these constraints
+        EOE
+
+      $* libfoo/1.1.0 --keep-unused >'update libfoo/1.1.0';
+
+      $pkg_disfigure libbar 2>'disfigured libbar/1.1.0';
+      $pkg_purge     libbar 2>'purged libbar/1.1.0';
+
+      $pkg_disfigure libfoo 2>'disfigured libfoo/1.1.0';
+      $pkg_purge     libfoo 2>'purged libfoo/1.1.0'
+    }
+
+    : unable-downgrade-config
+    :
+    : As above but with an associated configuration.
+    :
+    {
+      $clone_cfg;
+      $cfg_create -d cfg2 &cfg2/***;
+      $rep_add -d cfg2 $rep/t4c && $rep_fetch -d cfg2;
+      $cfg_add -d cfg2 cfg;
+      $pkg_fetch libfoo/1.1.0 && $pkg_unpack libfoo && $pkg_configure libfoo;
+      $pkg_fetch libbar/1.1.0 && $pkg_unpack libbar && $pkg_configure libbar;
+
+      $* libfoo-1.2.0.tar.gz 2>>EOE != 0;
+        error: unknown package libfoo-1.2.0.tar.gz
+        EOE
+
+      $* -d cfg2 libfoo/1.0.0 +{ --config-id 1 } 2>>~%EOE% != 0;
+        %error: unable to downgrade package libfoo/1.1.0 \[cfg.\] to 1.0.0%
+        %  info: because package libbar \[cfg.\] depends on \(libfoo == 1.1.0\)%
           info: explicitly request up/downgrade of package libbar
           info: or explicitly specify package libfoo version to manually satisfy these constraints
         EOE
@@ -1165,6 +1261,37 @@ test.options += --no-progress
 
       $pkg_disfigure libfoo 2>'disfigured libfoo/1.0.0';
       $pkg_purge     libfoo 2>'purged libfoo/1.0.0'
+    }
+
+    : forcing-upgrade-held-config
+    :
+    : As above but with an associated configuration.
+    :
+    {
+      $clone_cfg;
+      $cfg_create -d cfg2 &cfg2/***;
+      $cfg_add -d cfg cfg2;
+
+      $* libfoo/1.0.0 +{ --config-id 1 } 2>>~%EOE%;
+        %fetched libfoo/1.0.0 \[cfg2.\]%
+        %unpacked libfoo/1.0.0 \[cfg2.\]%
+        %configured libfoo/1.0.0 \[cfg2.\]%
+        %info: .+ is up to date%
+        %updated libfoo/1.0.0 \[cfg2.\]%
+        EOE
+
+      $pkg_status -d cfg2 libfoo >'!libfoo configured !1.0.0';
+
+      $* libbaz ?libbar +{ --config-id 1 } 2>>~%EOE% != 0;
+        %error: package libbar \[cfg2.\] dependency on \(libfoo == 1.1.0\) is forcing upgrade of libfoo/1.0.0 \[cfg2.\] to 1.1.0%
+        %  info: package version libfoo/1.0.0 \[cfg2.\] is held%
+          info: explicitly request version upgrade to continue
+        %info: while satisfying libbar/1.1.0 \[cfg2.\]%
+        info: while satisfying libbaz/1.1.0
+        EOE
+
+      $pkg_disfigure -d cfg2 libfoo 2>'disfigured libfoo/1.0.0';
+      $pkg_purge     -d cfg2 libfoo 2>'purged libfoo/1.0.0'
     }
   }
 
@@ -2280,6 +2407,29 @@ test.options += --no-progress
 
         $pkg_drop libbar
       }
+
+      : unsatisfied-config
+      :
+      : As above but with an associated configuration.
+      :
+      {
+        $clone_cfg;
+        $cfg_create -d cfg2 &cfg2/***;
+        $cfg_add -d cfg cfg2;
+
+        $* libbar/0.0.1 +{ --config-id 1 } 2>!;
+
+        $pkg_status -d cfg2 libbaz >'libbaz configured 0.0.1';
+
+        $* ?libbaz/0.0.3 +{ --config-id 1 } 2>>~%EOE% != 0;
+          %error: package libbaz \[cfg2.\] doesn't satisfy its dependents%
+          %  info: libbaz/0.0.3 doesn't satisfy libbar/0.0.1 \[cfg2.\]%
+          EOE
+
+        $pkg_status -d cfg2 libbaz >'libbaz configured 0.0.1';
+
+        $pkg_drop -d cfg2 libbar
+      }
     }
 
     : scratch
@@ -2434,7 +2584,7 @@ test.options += --no-progress
     : as a dependency, so it is built incrementally.
     :
     {
-      $cfg_create cxx $config_cxx -d cfg 2>- &cfg/***;
+      $cfg_create cxx $config_cxx -d cfg &cfg/***;
 
       # Add libhello as the dir repository.
       #
@@ -2853,7 +3003,7 @@ test.options += --no-progress
 {
   test.arguments += --yes
 
-  +$cfg_create cxx $config_cxx -d cfg 2>- &cfg/***
+  +$cfg_create cxx $config_cxx -d cfg &cfg/***
 
   : direct
   :
@@ -2869,6 +3019,27 @@ test.options += --no-progress
     $* libfoo 2>>EOE != 0
       error: dependency cycle detected involving package libfoo
         info: libfoo/1.1.0 depends on libfoo/1.1.0
+      EOE
+  }
+
+  : direct-config
+  :
+  : As above but with an associated configuration.
+  :
+  {
+    $clone_cfg;
+    $cfg_create -d cfg2 &cfg2/***;
+    $cfg_add -d cfg cfg2;
+
+    cp -r $src/libfoo-1.1.0/ libfoo;
+    echo "depends: libfoo" >+ libfoo/manifest;
+    $rep_add libfoo --type dir;
+
+    $rep_fetch;
+
+    $* libfoo +{ --config-id 1 } 2>>~%EOE% != 0
+      %error: dependency cycle detected involving package libfoo \[cfg2.\]%
+      %  info: libfoo/1.1.0 \[cfg2.\] depends on libfoo/1.1.0 \[cfg2.\]%
       EOE
   }
 
@@ -2950,7 +3121,7 @@ test.options += --no-progress
 {
   test.arguments += --yes
 
-  +$cfg_create cxx $config_cxx -d cfg 2>- &cfg/***
+  +$cfg_create cxx $config_cxx -d cfg &cfg/***
   +cp -r $src/libhello-1.0.0 ./libhello
   +$rep_add libhello --type dir
   +$rep_fetch
@@ -3426,6 +3597,30 @@ test.options += --no-progress
     $pkg_drop libfoo
   }
 
+  : no-patch-config
+  :
+  : As above but with an associated configuration.
+  :
+  {
+    $clone_root_cfg;
+    $cfg_create -d cfg2 &cfg2/***;
+    $cfg_add -d cfg cfg2;
+
+    $* "libfoo@$rep/t1" +{ --config-id 1 } --patch 2>>~%EOE%;
+      %.+
+      %configured libfoo/1.0.0 \[cfg2.\]%
+      %info: .+ is up to date%
+      %updated libfoo/1.0.0 \[cfg2.\]%
+      EOE
+
+    $* "libfoo@$rep/t3" +{ --config-id 1 } --patch 2>>~%EOE% != 0;
+      %.+
+      %error: patch version for libfoo/1.0.0 \[cfg2.\] is not found in pkg:build2.org/pkg-build/t3%
+      EOE
+
+    $pkg_drop -d cfg2 libfoo
+  }
+
   : package-in-complement
   :
   {
@@ -3528,7 +3723,7 @@ test.options += --no-progress
 : keep-out
 :
 {
-  +$cfg_create cxx $config_cxx -d cfg 2>- &cfg/***
+  +$cfg_create cxx $config_cxx -d cfg &cfg/***
 
   # Build libhello as an external package.
   #
@@ -3646,7 +3841,7 @@ test.options += --no-progress
       # Distribute using the dedicated configuration to avoid the 'c and cxx
       # module toolchain pattern mismatch' warning.
       #
-      +$cfg_create cxx $config_cxx -d cfg 2>- &cfg/***
+      +$cfg_create cxx $config_cxx -d cfg &cfg/***
 
       +$build 'dist(../../libhello/@./cfg/libhello/)' \
               config.dist.root=./ \
@@ -3943,5 +4138,569 @@ else
 
     $pkg_purge libmbar;
     $pkg_purge style-basic
+  }
+}
+
+: associated-configs
+:
+{
+  : 2-configs
+  :
+  {
+    +$clone_root_cfg && $rep_add $rep/t4c && $rep_fetch
+
+    : invalid-cfg
+    :
+    {
+      +$clone_cfg
+
+      : config-id
+      :
+      {
+        $clone_cfg;
+        $* libbaz --config-id 1 2>>/EOE != 0
+          error: no configuration with id 1 is associated with cfg/
+          EOE
+      }
+
+      : config-name
+      :
+      {
+        $clone_cfg;
+        $* libbaz --config-name foo 2>>/EOE != 0
+          error: no configuration with name 'foo' is associated with cfg/
+          EOE
+      }
+
+      : config-uuid
+      :
+      {
+        $clone_cfg;
+        $* libbaz --config-uuid '18f48b4b-b5d9-4712-b98c-1930df1c4228' 2>>/EOE != 0
+          error: no configuration with uuid 18f48b4b-b5d9-4712-b98c-1930df1c4228 is associated with cfg/
+          EOE
+      }
+
+      : multiple
+      :
+      {
+        $clone_cfg;
+        $* libbaz --config-id 1 --config-name foo 2>>/EOE != 0
+          error: multiple --config-* specified
+          EOE
+      }
+    }
+
+    : baz
+    :
+    {
+      $clone_cfg;
+      $cfg_create -d cfg-bar-foo &cfg-bar-foo/***;
+      $cfg_add -d cfg cfg-bar-foo;
+
+      $* libbaz ?libbar +{ --config-id 1 } ?libfoo +{ --config-id 1 } 2>>~%EOE%;
+        %fetched libfoo/1.1.0 \[cfg-bar-foo.\]%
+        %unpacked libfoo/1.1.0 \[cfg-bar-foo.\]%
+        %fetched libbar/1.1.0 \[cfg-bar-foo.\]%
+        %unpacked libbar/1.1.0 \[cfg-bar-foo.\]%
+        fetched libbaz/1.1.0
+        unpacked libbaz/1.1.0
+        %configured libfoo/1.1.0 \[cfg-bar-foo.\]%
+        %configured libbar/1.1.0 \[cfg-bar-foo.\]%
+        configured libbaz/1.1.0
+        %info: cfg-bar-foo.+libfoo-1.1.0.+ is up to date%
+        %info: cfg-bar-foo.+libbar-1.1.0.+ is up to date%
+        %info: cfg[^-].+libbaz-1.1.0.+ is up to date%
+        %updated libfoo/1.1.0 \[cfg-bar-foo.\]%
+        %updated libbar/1.1.0 \[cfg-bar-foo.\]%
+        updated libbaz/1.1.0
+        EOE
+
+      $pkg_status -r libbaz >>/EOO;
+        !libbaz configured 1.1.0
+          libbar [cfg-bar-foo/] configured 1.1.0
+            libfoo [cfg-bar-foo/] configured 1.1.0
+          libfoo [cfg-bar-foo/] configured 1.1.0
+        EOO
+
+      $pkg_status -d cfg-bar-foo -r libbar >>EOO;
+        libbar configured 1.1.0
+          libfoo configured 1.1.0
+        EOO
+
+      $pkg_status -d cfg-bar-foo libfoo >'libfoo configured 1.1.0';
+
+      $pkg_drop libbaz;
+
+      $pkg_status libbaz libbar libfoo >>EOO
+        libbaz available 1.1.0
+        libbar available [1.1.0]
+        libfoo available [1.1.0] 1.0.0
+        EOO
+    }
+  }
+
+  : 3-configs
+  :
+  {
+    +$clone_root_cfg && $rep_add $rep/t4c && $rep_fetch
+
+    : baz
+    :
+    {
+      uuid = '28f48b4b-b5d9-4712-b98c-1930df1c4228';
+
+      $clone_cfg;
+      $cfg_create -d cfg-bar &cfg-bar/***;
+      $cfg_create -d cfg-foo --config-uuid $uuid &cfg-foo/***;
+
+      $cfg_add -d cfg     cfg-bar;
+      $cfg_add -d cfg-bar cfg-foo;
+
+      $* libbar@"$rep/t4b" -d cfg-bar ?libfoo +{ --config-id 2 } --trust-yes 2>>~%EOE%;
+        added pkg:build2.org/pkg-build/t4b
+        fetching pkg:build2.org/pkg-build/t4b
+        fetching pkg:build2.org/pkg-build/t4a (prerequisite of pkg:build2.org/pkg-build/t4b)
+        %fetched libfoo/1.1.0 \[cfg-foo.\]%
+        %unpacked libfoo/1.1.0 \[cfg-foo.\]%
+        fetched libbar/1.1.0
+        unpacked libbar/1.1.0
+        %configured libfoo/1.1.0 \[cfg-foo.\]%
+        configured libbar/1.1.0
+        %info: cfg-foo.+libfoo-1.1.0.+ is up to date%
+        %info: cfg-bar.+libbar-1.1.0.+ is up to date%
+        %updated libfoo/1.1.0 \[cfg-foo.\]%
+        updated libbar/1.1.0
+        EOE
+
+      $* libfoo --config-uuid $uuid 2>>~%EOE%;
+        %info: cfg-foo.+libfoo-1.1.0.+ is up to date%
+        %updated libfoo/1.1.0 \[cfg-foo.\]%
+        EOE
+
+      $* libbaz 2>>~%EOE%;
+        fetched libbaz/1.1.0
+        unpacked libbaz/1.1.0
+        configured libbaz/1.1.0
+        %info: cfg[^-].+libbaz-1.1.0.+ is up to date%
+        updated libbaz/1.1.0
+        EOE
+
+      $pkg_status -r >>/EOO;
+        !libbaz configured 1.1.0
+          !libbar [cfg-bar/] configured !1.1.0
+            !libfoo [cfg-foo/] configured 1.1.0
+          !libfoo [cfg-foo/] configured 1.1.0
+        !libbar [cfg-bar/] configured !1.1.0
+          !libfoo [cfg-foo/] configured 1.1.0
+        !libfoo [cfg-foo/] configured 1.1.0
+        EOO
+
+      $pkg_drop libbaz;
+
+      $* ?libfoo --config-uuid $uuid; # Unhold.
+
+      $pkg_status libbaz libbar libfoo >>/EOO;
+        libbaz available 1.1.0
+        !libbar [cfg-bar/] configured !1.1.0
+        libfoo [cfg-foo/] configured 1.1.0
+        EOO
+
+      $* ?libbar +{ --config-id 1 } <'y' 2>>~%EOE%;
+        %  drop libfoo/1.1.0 \[cfg-foo.\] \(unused\)%
+        %  drop libbar/1.1.0 \[cfg-bar.\] \(unused\)%
+        %continue\? \[Y/n\] disfigured libbar/1.1.0 \[cfg-bar.\]%
+        %disfigured libfoo/1.1.0 \[cfg-foo.\]%
+        %purged libfoo/1.1.0 \[cfg-foo.\]%
+        %purged libbar/1.1.0 \[cfg-bar.\]%
+        EOE
+
+      $pkg_status libbar libfoo >>EOO
+        libbar available [1.1.0]
+        libfoo available [1.1.0] 1.0.0
+        EOO
+    }
+  }
+
+  : buildtime-dep
+  :
+  {
+    +$clone_root_cfg && $rep_add $rep/t7a && $rep_fetch
+
+    : external-config
+    :
+    {
+      +$clone_cfg
+      +$cfg_create -d cfg2 --type host --name alt-host &cfg2/***
+      +$cfg_add -d cfg cfg2
+
+      : upgrade-dependency
+      :
+      {
+        $clone_cfg;
+        cp -pr ../cfg2 ./;
+
+        $* libbar <'y' 2>>~%EOE%;
+          %  new libbaz/1.0.0 \[cfg2.\] \(required by foo \[cfg2.\]\)%
+          %  new foo/1.0.0 \[cfg2.\] \(required by libbar\)%
+          %  new libbaz/1.0.0 \(required by libbar\)%
+            new libbar/1.0.0
+          %continue\? \[Y/n\] fetched libbaz/1.0.0 \[cfg2.\]%
+          %unpacked libbaz/1.0.0 \[cfg2.\]%
+          %fetched foo/1.0.0 \[cfg2.\]%
+          %unpacked foo/1.0.0 \[cfg2.\]%
+          fetched libbaz/1.0.0
+          unpacked libbaz/1.0.0
+          fetched libbar/1.0.0
+          unpacked libbar/1.0.0
+          %configured libbaz/1.0.0 \[cfg2.\]%
+          %configured foo/1.0.0 \[cfg2.\]%
+          configured libbaz/1.0.0
+          configured libbar/1.0.0
+          %info: .+libbar-1.0.0.+ is up to date%
+          updated libbar/1.0.0
+          EOE
+
+        $pkg_status -r libbar >>/EOO;
+          !libbar configured 1.0.0
+            foo [cfg2/] configured 1.0.0
+              libbaz [cfg2/] configured 1.0.0
+            libbaz configured 1.0.0
+          EOO
+
+        # While at it, make sure that from several available host
+        # configurations the selected package configuration is chosen and we
+        # don't fail with the 'multiple possible host configurations'
+        # diagnostics.
+        #
+        $cfg_create -d cfg3 --type host &cfg3/***;
+        $cfg_add -d cfg cfg3;
+
+        $rep_add $rep/t7b && $rep_fetch;
+
+        $* libbar <'y' 2>>~%EOE%;
+          %  upgrade libbaz/1.1.0 \[cfg2.\] \(required by foo \[cfg2.\]\)%
+          %  upgrade foo/1.1.0 \[cfg2.\] \(required by libbar\)%
+            upgrade libbar/1.1.0
+          %continue\? \[Y/n\] disfigured libbar/1.0.0%
+          %disfigured foo/1.0.0 \[cfg2.\]%
+          %disfigured libbaz/1.0.0 \[cfg2.\]%
+          %fetched libbaz/1.1.0 \[cfg2.\]%
+          %unpacked libbaz/1.1.0 \[cfg2.\]%
+          %fetched foo/1.1.0 \[cfg2.\]%
+          %unpacked foo/1.1.0 \[cfg2.\]%
+          fetched libbar/1.1.0
+          unpacked libbar/1.1.0
+          %configured libbaz/1.1.0 \[cfg2.\]%
+          %configured foo/1.1.0 \[cfg2.\]%
+          configured libbar/1.1.0
+          %info: .+libbar-1.1.0.+ is up to date%
+          updated libbar/1.1.0
+          EOE
+
+        $pkg_status -r libbar >>/EOO;
+          !libbar configured 1.1.0
+            foo [cfg2/] configured 1.1.0
+              libbaz [cfg2/] configured 1.1.0
+            libbaz configured 1.0.0 available 1.1.0
+          EOO
+
+        # Now upgrade libbaz in cfg/ and downgrade it in cfg2/. Note that
+        # libbaz/1.1.0 doesn't exist in the t7a repository where libbar/1.0.0
+        # belongs to, thus we build it to hold rather than a dependency.
+        #
+        # While at it, test the --config-name option.
+        #
+        $* libbar/1.0.0 libbaz/1.1.0 ?foo/1.0.0 +{ --config-name alt-host } \
+           ?libbaz/1.0.0 +{ --config-id 1 } <'y' 2>>~%EOE%;
+          %  downgrade libbaz/1.0.0 \[cfg2.\]%
+          %  downgrade foo/1.0.0 \[cfg2.\]%
+            upgrade libbaz/1.1.0
+            downgrade libbar/1.0.0
+          continue? [Y/n] disfigured libbar/1.1.0
+          disfigured libbaz/1.0.0
+          %disfigured foo/1.1.0 \[cfg2.\]%
+          %disfigured libbaz/1.1.0 \[cfg2.\]%
+          %fetched libbaz/1.0.0 \[cfg2.\]%
+          %unpacked libbaz/1.0.0 \[cfg2.\]%
+          %fetched foo/1.0.0 \[cfg2.\]%
+          %unpacked foo/1.0.0 \[cfg2.\]%
+          fetched libbaz/1.1.0
+          unpacked libbaz/1.1.0
+          fetched libbar/1.0.0
+          unpacked libbar/1.0.0
+          %configured libbaz/1.0.0 \[cfg2.\]%
+          %configured foo/1.0.0 \[cfg2.\]%
+          configured libbaz/1.1.0
+          configured libbar/1.0.0
+          %info: .+libbaz-1.0.0.+ is up to date%
+          %info: .+foo-1.0.0.+ is up to date%
+          %info: .+libbaz-1.1.0.+ is up to date%
+          %info: .+libbar-1.0.0.+ is up to date%
+          %updated libbaz/1.0.0 \[cfg2.\]%
+          %updated foo/1.0.0 \[cfg2.\]%
+          updated libbaz/1.1.0
+          updated libbar/1.0.0
+          EOE
+
+        $pkg_status -r libbar >>/EOO;
+          !libbar configured !1.0.0 available 1.1.0
+            foo [cfg2/] configured !1.0.0 available 1.1.0
+              libbaz [cfg2/] configured !1.0.0 available 1.1.0
+            !libbaz configured !1.1.0
+          EOO
+
+        $pkg_drop libbar libbaz
+      }
+
+      : resolve-host-config
+      :
+      {
+        $clone_cfg;
+        cp -pr ../cfg2 ./;
+
+        $cfg_create -d cfg3 --type host &cfg3/***;
+        $cfg_add -d cfg cfg3;
+
+        $* libbar 2>>/~%EOE% != 0;
+          error: multiple possible host configurations for build-time dependency (foo ^1.0.0)
+            info: cfg2/
+            info: cfg3/
+            info: use --config-* to select the configuration
+          %info: while satisfying libbar.1.0.0%
+          EOE
+
+        $* libbar ?foo +{ --config-id 2 } --yes 2>!;
+
+        $pkg_status -r libbar >>/EOE;
+          !libbar configured 1.0.0
+            foo [cfg3/] configured 1.0.0
+              libbaz [cfg3/] configured 1.0.0
+            libbaz configured 1.0.0
+          EOE
+
+        $pkg_drop libbar
+      }
+
+      : 3-configs
+      :
+      {
+        $clone_cfg;
+        cp -pr ../cfg2 ./;
+
+        $cfg_create -d cfg3 --type host &cfg3/***;
+        $cfg_add -d cfg2 cfg3;
+
+        $rep_add -d cfg2 $rep/t7a && $rep_fetch -d cfg2;
+
+        $* -d cfg2 libbaz +{ --config-id 2 } 2>!;
+
+        $* libbar --yes 2>>~%EOE%;
+          %fetched foo/1.0.0 \[cfg2.\]%
+          %unpacked foo/1.0.0 \[cfg2.\]%
+          fetched libbaz/1.0.0
+          unpacked libbaz/1.0.0
+          fetched libbar/1.0.0
+          unpacked libbar/1.0.0
+          %configured foo/1.0.0 \[cfg2.\]%
+          configured libbaz/1.0.0
+          configured libbar/1.0.0
+          %info: .+libbar-1.0.0.+ is up to date%
+          updated libbar/1.0.0
+          EOE
+
+        $pkg_status -r libbar >>/EOE;
+          !libbar configured 1.0.0
+            foo [cfg2/] configured 1.0.0
+              !libbaz [cfg3/] configured 1.0.0
+            libbaz configured 1.0.0
+          EOE
+
+        $pkg_drop libbar
+      }
+    }
+
+    : private-config
+    :
+    {
+      $clone_cfg;
+
+      $* libbar <'y' 2>>~%EOE% &cfg/.bpkg/host/***;
+        %  new libbaz/1.0.0 \[cfg..bpkg.host.\] \(required by foo \[cfg..bpkg.host.\]\)%
+        %  new foo/1.0.0 \[cfg..bpkg.host.\] \(required by libbar\)%
+        %  new libbaz/1.0.0 \(required by libbar\)%
+          new libbar/1.0.0
+        %continue\? \[Y/n\] fetched libbaz/1.0.0 \[cfg..bpkg.host.\]%
+        %unpacked libbaz/1.0.0 \[cfg..bpkg.host.\]%
+        %fetched foo/1.0.0 \[cfg..bpkg.host.\]%
+        %unpacked foo/1.0.0 \[cfg..bpkg.host.\]%
+        fetched libbaz/1.0.0
+        unpacked libbaz/1.0.0
+        fetched libbar/1.0.0
+        unpacked libbar/1.0.0
+        %configured libbaz/1.0.0 \[cfg..bpkg.host.\]%
+        %configured foo/1.0.0 \[cfg..bpkg.host.\]%
+        configured libbaz/1.0.0
+        configured libbar/1.0.0
+        %info: .+libbar-1.0.0.+ is up to date%
+        updated libbar/1.0.0
+        EOE
+
+      $pkg_status -r libbar >>/EOO;
+        !libbar configured 1.0.0
+          foo [cfg/.bpkg/host/] configured 1.0.0
+            libbaz [cfg/.bpkg/host/] configured 1.0.0
+          libbaz configured 1.0.0
+        EOO
+
+      $rep_add $rep/t7b && $rep_fetch;
+
+      $* libbar <'y' 2>>~%EOE%;
+        %  upgrade libbaz/1.1.0 \[cfg..bpkg.host.\] \(required by foo \[cfg..bpkg.host.\]\)%
+        %  upgrade foo/1.1.0 \[cfg..bpkg.host.\] \(required by libbar\)%
+          upgrade libbar/1.1.0
+        %continue\? \[Y/n\] disfigured libbar/1.0.0%
+        %disfigured foo/1.0.0 \[cfg..bpkg.host.\]%
+        %disfigured libbaz/1.0.0 \[cfg..bpkg.host.\]%
+        %fetched libbaz/1.1.0 \[cfg..bpkg.host.\]%
+        %unpacked libbaz/1.1.0 \[cfg..bpkg.host.\]%
+        %fetched foo/1.1.0 \[cfg..bpkg.host.\]%
+        %unpacked foo/1.1.0 \[cfg..bpkg.host.\]%
+        fetched libbar/1.1.0
+        unpacked libbar/1.1.0
+        %configured libbaz/1.1.0 \[cfg..bpkg.host.\]%
+        %configured foo/1.1.0 \[cfg..bpkg.host.\]%
+        configured libbar/1.1.0
+        %info: .+libbar-1.1.0.+ is up to date%
+        updated libbar/1.1.0
+        EOE
+
+      $pkg_status -r libbar >>/EOO;
+        !libbar configured 1.1.0
+          foo [cfg/.bpkg/host/] configured 1.1.0
+            libbaz [cfg/.bpkg/host/] configured 1.1.0
+          libbaz configured 1.0.0 available 1.1.0
+        EOO
+
+      $pkg_drop libbar
+    }
+
+    : self-hosted-config
+    :
+    {
+      $cfg_create -d cfg --type host &cfg/***;
+      $rep_add $rep/t7a && $rep_fetch;
+
+      $* libbar <'y' 2>>~%EOE%;
+          new libbaz/1.0.0 (required by foo libbar)
+          new foo/1.0.0 (required by libbar)
+          new libbar/1.0.0
+        continue? [Y/n] fetched libbaz/1.0.0
+        unpacked libbaz/1.0.0
+        fetched foo/1.0.0
+        unpacked foo/1.0.0
+        fetched libbar/1.0.0
+        unpacked libbar/1.0.0
+        configured libbaz/1.0.0
+        configured foo/1.0.0
+        configured libbar/1.0.0
+        %info: .+libbar-1.0.0.+ is up to date%
+        updated libbar/1.0.0
+        EOE
+
+      $pkg_status -r libbar >>EOO;
+        !libbar configured 1.0.0
+          foo configured 1.0.0
+            libbaz configured 1.0.0
+          libbaz configured 1.0.0
+        EOO
+
+      $rep_add $rep/t7b && $rep_fetch;
+
+      $* libbar <'y' 2>>~%EOE%;
+          upgrade libbaz/1.1.0 (required by foo libbar)
+          upgrade foo/1.1.0 (required by libbar)
+          upgrade libbar/1.1.0
+        continue? [Y/n] disfigured libbar/1.0.0
+        disfigured foo/1.0.0
+        disfigured libbaz/1.0.0
+        fetched libbaz/1.1.0
+        unpacked libbaz/1.1.0
+        fetched foo/1.1.0
+        unpacked foo/1.1.0
+        fetched libbar/1.1.0
+        unpacked libbar/1.1.0
+        configured libbaz/1.1.0
+        configured foo/1.1.0
+        configured libbar/1.1.0
+        %info: .+libbar-1.1.0.+ is up to date%
+        updated libbar/1.1.0
+        EOE
+
+      $pkg_status -r libbar >>EOO;
+        !libbar configured 1.1.0
+          foo configured 1.1.0
+            libbaz configured 1.1.0
+          libbaz configured 1.1.0
+        EOO
+
+      $pkg_drop libbar
+    }
+  }
+
+  : verify-dependencies
+  :
+  {
+    +$clone_root_cfg && $rep_add $rep/t7a && $rep_fetch
+
+    : fail
+    :
+    {
+      $cfg_create -d cfg2 &cfg2/***;
+      $rep_add -d cfg2 $rep/t7a && $rep_fetch -d cfg2;
+
+      $cfg_create -d cfg3 &cfg3/***;
+      $rep_add -d cfg3 $rep/t7a && $rep_fetch -d cfg3;
+
+      $* -d cfg2 --yes libbar 2>!;
+      $* -d cfg3 --yes libbox 2>!;
+
+      $clone_cfg;
+      $cfg_add -d cfg cfg2;
+      $cfg_add -d cfg cfg3;
+
+      $* libfix --yes 2>>~%EOE% != 0
+        error: package libbaz indirectly required by libfix/1.0.0 is configured in multiple configurations
+        %  info: libbaz/1.0.0 \[cfg3.\]%
+        %  info: libbaz/1.0.0 \[cfg2.\]%
+        EOE
+    }
+
+    : succeed
+    :
+    {
+      $cfg_create -d cfg2 &cfg2/***;
+      $rep_add -d cfg2 $rep/t7b && $rep_fetch -d cfg2;
+
+      $cfg_create -d cfg3 &cfg3/***;
+      $rep_add -d cfg3 $rep/t7b && $rep_fetch -d cfg3;
+
+      $* -d cfg2 --yes libbar 2>!;
+      $* -d cfg3 --yes libbox 2>!;
+
+      $clone_cfg;
+      $cfg_add -d cfg cfg2;
+      $cfg_add -d cfg cfg3;
+
+      $* libfix --yes 2>>~%EOE%;
+        fetched libfix/1.0.0
+        unpacked libfix/1.0.0
+        configured libfix/1.0.0
+        %info: .+libfix-1.0.0.+ is up to date%
+        updated libfix/1.0.0
+        EOE
+
+      $pkg_drop libfix
+    }
   }
 }

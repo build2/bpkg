@@ -1,0 +1,81 @@
+// file      : bpkg/cfg-add.cli
+// license   : MIT; see accompanying LICENSE file
+
+include <bpkg/configuration.cli>;
+
+"\section=1"
+"\name=bpkg-cfg-add"
+"\summary=associate configuration"
+
+namespace bpkg
+{
+  {
+    "<options> <dir>",
+
+    "\h|SYNOPSIS|
+
+     \c{\b{bpkg cfg-add} [<options>] <dir>}
+
+     \h|DESCRIPTION|
+
+     The \cb{cfg-add} command associates the specified \cb{bpkg} configuration
+     with the current configuration. See \l{bpkg-cfg-create(1)} for background
+     on associated configurations.
+
+     The associated configurations are normally referred to using names when
+     specified on the \cb{bpkg} command line. Unless overridden with the
+     \cb{--name} option, the original configuration name is used to name the
+     association. If the association is unnamed, then it can be referred to
+     using the numeric id that is automatically assigned when establishing the
+     association or using the configuration UUID.
+
+     If the specified configuration path is relative, then it is rebased
+     relative to the current configuration directory. This way, when the
+     associated configurations are moved around together, the stored relative
+     paths remain valid. If the specified directory path is absolute, then it
+     is stored as absolute unless the \cb{--relative} option is specified in
+     which case it is also rebased relative to the current configuration
+     directory.
+     "
+  }
+
+  class cfg_add_options: configuration_options
+  {
+    "\h|CFG-ADD OPTIONS|"
+
+    string --name
+    {
+      "<name>",
+      "Alternative association name. If this option is not specified, then the
+       configuration name is used as the association name (see
+       \l{bpkg-cfg-create(1)} for details)."
+    }
+
+    bool --relative
+    {
+      "Rebase the absolute associated configuration path relative to the
+       current configuration directory."
+    }
+  };
+
+  "
+   \h|DEFAULT OPTIONS FILES|
+
+   See \l{bpkg-default-options-files(1)} for an overview of the default
+   options files. For the \cb{cfg-add} command the search start directory is
+   the configuration directory. The following options files are searched for
+   in each directory and, if found, loaded in the order listed:
+
+   \
+   bpkg.options
+   bpkg-cfg-add.options
+   \
+
+   The following \cb{cfg-add} command options cannot be specified in the
+   default options files:
+
+   \
+   --directory|-d
+   \
+  "
+}

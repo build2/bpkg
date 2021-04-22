@@ -2,6 +2,7 @@
 # license   : MIT; see accompanying LICENSE file
 
 cmds =             \
+bpkg-cfg-add       \
 bpkg-cfg-create    \
 bpkg-help          \
 bpkg-pkg-build     \

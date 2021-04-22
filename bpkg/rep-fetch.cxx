@@ -49,6 +49,7 @@ namespace bpkg
   static rep_fetch_data
   rep_fetch_pkg (const common_options& co,
                  const dir_path* conf,
+                 database* db,
                  const repository_location& rl,
                  const optional<string>& dependent_trust,
                  bool ignore_unknown)
@@ -71,7 +72,7 @@ namespace bpkg
     if (a)
     {
       cert = authenticate_certificate (
-        co, conf, cert_pem, rl, dependent_trust);
+        co, conf, db, cert_pem, rl, dependent_trust);
 
       a = !cert->dummy ();
     }
@@ -556,6 +557,7 @@ namespace bpkg
   static rep_fetch_data
   rep_fetch (const common_options& co,
              const dir_path* conf,
+             database* db,
              const repository_location& rl,
              const optional<string>& dt,
              bool iu,
@@ -563,7 +565,7 @@ namespace bpkg
   {
     switch (rl.type ())
     {
-    case repository_type::pkg: return rep_fetch_pkg (co, conf, rl, dt, iu);
+    case repository_type::pkg: return rep_fetch_pkg (co, conf, db, rl, dt, iu);
     case repository_type::dir: return rep_fetch_dir (co, rl, iu, ev);
     case repository_type::git: return rep_fetch_git (co, conf, rl, iu, ev);
     }
@@ -579,7 +581,13 @@ namespace bpkg
              bool iu,
              bool ev)
   {
-    return rep_fetch (co, conf, rl, nullopt /* dependent_trust */, iu, ev);
+    return rep_fetch (co,
+                      conf,
+                      nullptr /* database */,
+                      rl,
+                      nullopt /* dependent_trust */,
+                      iu,
+                      ev);
   }
 
   // Return an existing repository fragment or create a new one. Update the
@@ -591,7 +599,7 @@ namespace bpkg
 
   static shared_ptr<repository_fragment>
   rep_fragment (const common_options& co,
-                const dir_path& conf,
+                database& db,
                 transaction& t,
                 const repository_location& rl,
                 rep_fetch_data::fragment&& fr,
@@ -601,7 +609,6 @@ namespace bpkg
   {
     tracer trace ("rep_fragment");
 
-    database& db (t.database ());
     tracer_guard tg (db, trace);
 
     // Calculate the fragment location.
@@ -852,7 +859,7 @@ namespace bpkg
     // details).
     //
     if (exists && !full_fetch)
-      rep_remove_package_locations (t, rf->name);
+      rep_remove_package_locations (db, t, rf->name);
 
     for (package_manifest& pm: fr.packages)
     {
@@ -868,7 +875,7 @@ namespace bpkg
         optional<version> v (
           package_iteration (
             co,
-            conf,
+            db,
             t,
             path_cast<dir_path> (rl.path () / *pm.location),
             pm.name,
@@ -956,7 +963,7 @@ namespace bpkg
   //
   static void
   rep_fetch (const common_options& co,
-             const dir_path& conf,
+             database& db,
              transaction& t,
              const shared_ptr<repository>& r,
              const optional<string>& dependent_trust,
@@ -970,7 +977,6 @@ namespace bpkg
   {
     tracer trace ("rep_fetch(rep)");
 
-    database& db (t.database ());
     tracer_guard tg (db, trace);
 
     // Check that the repository is not fetched yet and register it as fetched
@@ -990,7 +996,8 @@ namespace bpkg
       //
       if (need_auth (co, r->location))
         authenticate_certificate (co,
-                                  &conf,
+                                  &db.config_orig,
+                                  &db,
                                   r->certificate,
                                   r->location,
                                   dependent_trust);
@@ -1059,7 +1066,8 @@ namespace bpkg
     //
     rep_fetch_data rfd (
       rep_fetch (co,
-                 &conf,
+                 &db.config_orig,
+                 &db,
                  rl,
                  dependent_trust,
                  true /* ignore_unknow */,
@@ -1079,7 +1087,7 @@ namespace bpkg
       string nm (fr.friendly_name); // Don't move, still may be used.
 
       shared_ptr<repository_fragment> rf (rep_fragment (co,
-                                                        conf,
+                                                        db,
                                                         t,
                                                         rl,
                                                         move (fr),
@@ -1156,7 +1164,7 @@ namespace bpkg
         rm (pr);
 
       auto fetch = [&co,
-                    &conf,
+                    &db,
                     &t,
                     &fetched_repositories,
                     &removed_repositories,
@@ -1171,7 +1179,7 @@ namespace bpkg
         assert (i != repo_trust.end ());
 
         rep_fetch (co,
-                   conf,
+                   db,
                    t,
                    r,
                    i->second,
@@ -1206,7 +1214,7 @@ namespace bpkg
 
   static void
   rep_fetch (const common_options& o,
-             const dir_path& conf,
+             database& db,
              transaction& t,
              const vector<lazy_shared_ptr<repository>>& repos,
              bool shallow,
@@ -1215,7 +1223,6 @@ namespace bpkg
   {
     tracer trace ("rep_fetch(repos)");
 
-    database& db (t.database ());
     tracer_guard tg (db, trace);
 
     // As a fist step we fetch repositories recursively building the list of
@@ -1243,7 +1250,7 @@ namespace bpkg
       //
       for (const lazy_shared_ptr<repository>& r: repos)
         rep_fetch (o,
-                   conf,
+                   db,
                    t,
                    r.load (),
                    nullopt /* dependent_trust */,
@@ -1258,7 +1265,7 @@ namespace bpkg
       // Remove dangling repositories.
       //
       for (const shared_ptr<repository>& r: removed_repositories)
-        rep_remove (conf, t, r);
+        rep_remove (db, t, r);
 
       // Remove dangling repository fragments.
       //
@@ -1277,7 +1284,7 @@ namespace bpkg
           //
           assert (f == rf);
 
-          rep_remove_fragment (conf, t, rf);
+          rep_remove_fragment (db, t, rf);
         }
       }
 
@@ -1409,7 +1416,7 @@ namespace bpkg
         warn << "repository state is now broken and will be cleaned up" <<
           info << "run 'bpkg rep-fetch' to update";
 
-        rep_remove_clean (o, conf, t.database ());
+        rep_remove_clean (o, db);
       }
 
       throw;
@@ -1418,7 +1425,6 @@ namespace bpkg
 
   void
   rep_fetch (const common_options& o,
-             const dir_path& conf,
              database& db,
              const vector<repository_location>& rls,
              bool shallow,
@@ -1449,12 +1455,12 @@ namespace bpkg
       // case, which is ok.
       //
       if (ua.find (r) == ua.end () || r.load ()->location.url () != rl.url ())
-        rep_add (o, t, rl);
+        rep_add (o, db, t, rl);
 
       repos.emplace_back (r);
     }
 
-    rep_fetch (o, conf, t, repos, shallow, false /* full_fetch */, reason);
+    rep_fetch (o, db, t, repos, shallow, false /* full_fetch */, reason);
 
     t.commit ();
   }
@@ -1471,7 +1477,11 @@ namespace bpkg
     //
     vector<lazy_shared_ptr<repository>> repos;
 
-    database db (open (c, trace));
+    // Pre-attach the explicitly associated databases since we call
+    // package_iteration().
+    //
+    database db (c, trace, true /* pre_attach */);
+
     transaction t (db);
     session s; // Repository dependencies can have cycles.
 
@@ -1535,7 +1545,7 @@ namespace bpkg
           //
           auto i (ua.find (r));
           if (i == ua.end () || i->load ()->location.url () != rl.url ())
-            r = lazy_shared_ptr<repository> (db, rep_add (o, t, rl));
+            r = lazy_shared_ptr<repository> (db, rep_add (o, db, t, rl));
         }
 
         repos.emplace_back (move (r));
@@ -1562,7 +1572,7 @@ namespace bpkg
       }
     }
 
-    rep_fetch (o, c, t, repos, o.shallow (), full_fetch, reason);
+    rep_fetch (o, db, t, repos, o.shallow (), full_fetch, reason);
 
     size_t rcount (0), pcount (0);
     if (verb)

@@ -43,9 +43,11 @@ fi
 $odb "${inc[@]}"                                                      \
     -DLIBODB_BUILD2 -DLIBODB_SQLITE_BUILD2 --generate-schema          \
     -d sqlite --std c++14 --generate-query                            \
-    --odb-epilogue '#include <libbutl/small-vector-odb.hxx>' \
+    --odb-epilogue '#include <libbutl/small-vector-odb.hxx>'          \
+    --odb-epilogue '#include <bpkg/pointer-traits.hxx>'               \
     --odb-epilogue '#include <bpkg/wrapper-traits.hxx>'               \
-    --hxx-prologue '#include <libbutl/small-vector-odb.hxx>' \
+    --hxx-prologue '#include <libbutl/small-vector-odb.hxx>'          \
+    --hxx-prologue '#include <bpkg/pointer-traits.hxx>'               \
     --hxx-prologue '#include <bpkg/wrapper-traits.hxx>'               \
     --hxx-prologue '#include <bpkg/value-traits.hxx>'                 \
     --include-with-brackets --include-prefix bpkg --guard-prefix BPKG \

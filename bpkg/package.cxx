@@ -15,17 +15,118 @@ namespace bpkg
 {
   const version wildcard_version (0, "0", nullopt, nullopt, 0);
 
-  // available_package_id
+  // configuration
   //
-  bool
-  operator< (const available_package_id& x, const available_package_id& y)
+  configuration::
+  configuration (optional<string> n, string t, optional<uuid_type> uid)
+      : id (0),
+        name (move (n)),
+        type (move (t)),
+        expl (false)
   {
-    int r (x.name.compare (y.name));
-    return r != 0 ? r < 0 : x.version < y.version;
+    try
+    {
+      uuid = uid ? *uid : uuid_type::generate ();
+    }
+    catch (const system_error& e)
+    {
+      fail << "unable to generate configuration uuid: " << e;
+    }
+  }
+
+  dir_path configuration::
+  effective_path (const dir_path& d) const
+  {
+    if (path.relative ())
+    {
+      dir_path r (d / path);
+
+      string what ("associated with " + d.representation () +
+                   " configuration " + (name ? *name : to_string (*id)));
+
+      normalize (r, what.c_str ());
+      return r;
+    }
+    else
+      return path;
+  }
+
+  void
+  validate_configuration_name (const string& s, const char* what)
+  {
+    if (s.empty ())
+      fail << "empty " << what;
+
+    if (!(alpha (s[0]) || s[0] == '_'))
+      fail << "invalid " << what << " '" << s << "': illegal first character "
+           << "(must be alphabetic or underscore)";
+
+    for (auto i (s.cbegin () + 1), e (s.cend ()); i != e; ++i)
+    {
+      char c (*i);
+
+      if (!(alnum (c) || c == '_' || c == '-'))
+        fail << "invalid " << what << " '" << s << "': illegal character "
+             << "(must be alphabetic, digit, underscore, or dash)";
+    }
+  }
+
+  // config_package
+  //
+  string config_package::
+  string () const
+  {
+    std::string s (db.string ());
+    return !s.empty () ? name.string () + ' ' + s : name.string ();
   }
 
   // available_package
   //
+  const version* available_package::
+  system_version (database& db) const
+  {
+    if (!system_version_)
+    {
+      assert (db.system_repository);
+
+      if (const system_package* sp = db.system_repository->find (id.name))
+      {
+        // Only cache if it is authoritative.
+        //
+        if (sp->authoritative)
+          system_version_ = sp->version;
+        else
+          return &sp->version;
+      }
+    }
+
+    return system_version_ ? &*system_version_ : nullptr;
+  }
+
+  pair<const version*, bool> available_package::
+  system_version_authoritative (database& db) const
+  {
+    assert (db.system_repository);
+
+    const system_package* sp (db.system_repository->find (id.name));
+
+    if (!system_version_)
+    {
+      if (sp != nullptr)
+      {
+        // Only cache if it is authoritative.
+        //
+        if (sp->authoritative)
+          system_version_ = sp->version;
+        else
+          return make_pair (&sp->version, false);
+      }
+    }
+
+    return make_pair (system_version_ ?  &*system_version_ : nullptr,
+                      sp != nullptr ? sp->authoritative : false);
+  }
+
   odb::result<available_package>
   query_available (database& db,
                    const package_name& name,
@@ -309,11 +410,9 @@ namespace bpkg
   }
 
   void
-  check_any_available (const dir_path& c,
-                       transaction& t,
-                       const diag_record* dr)
+  check_any_available (database& db, transaction&, const diag_record* dr)
   {
-    database& db (t.database ());
+    const dir_path& c (db.config_orig);
 
     if (db.query_value<repository_count> () == 0)
     {
@@ -382,15 +481,62 @@ namespace bpkg
   // selected_package
   //
   string selected_package::
-  version_string () const
+  string (database& db) const
   {
-    return version != wildcard_version ? version.string () : "*";
+    std::string s (db.string ());
+    return !s.empty () ? string () + ' ' + s : string ();
+  }
+
+  _selected_package_ref::
+  _selected_package_ref (const lazy_shared_ptr<selected_package>& p)
+      : configuration (p.database ().uuid),
+        prerequisite (p.object_id ())
+  {
+  }
+
+  lazy_shared_ptr<selected_package> _selected_package_ref::
+  to_ptr (odb::database& db) &&
+  {
+    // Note that if this points to a different configuration, then it should
+    // already be pre-attached since it must be explicitly associated.
+    //
+    return lazy_shared_ptr<selected_package> (
+      static_cast<database&> (db).find_dependency_config (configuration),
+      move (prerequisite));
+  }
+
+  pair<shared_ptr<selected_package>, database*>
+  find_dependency (database& db, const package_name& pn, bool buildtime)
+  {
+    pair<shared_ptr<selected_package>, database*> r;
+
+    for (database& adb: db.dependency_configs (buildtime))
+    {
+      shared_ptr<selected_package> p (adb.find<selected_package> (pn));
+
+      if (p != nullptr)
+      {
+        if (r.first == nullptr)
+        {
+          r.first = move (p);
+          r.second = &adb;
+        }
+        else
+        {
+          fail << "package " << pn << " appears in multiple configurations" <<
+            info << r.first->state << " in " << r.second->config_orig <<
+            info << p->state << " in " << adb.config_orig;
+        }
+      }
+    }
+
+    return r;
   }
 
   optional<version>
   package_iteration (const common_options& o,
-                     const dir_path& c,
-                     transaction& t,
+                     database& db,
+                     transaction&,
                      const dir_path& d,
                      const package_name& n,
                      const version& v,
@@ -398,7 +544,6 @@ namespace bpkg
   {
     tracer trace ("package_iteration");
 
-    database& db (t.database ());
     tracer_guard tg (db, trace);
 
     if (check_external)
@@ -447,7 +592,7 @@ namespace bpkg
     //
     if (!changed && p->external ())
     {
-      dir_path src_root (p->effective_src_root (c));
+      dir_path src_root (p->effective_src_root (db.config));
 
       // We need to complete and normalize the source directory as it may
       // generally be completed against the configuration directory (unlikely
@@ -531,5 +676,19 @@ namespace bpkg
          << c.start_date << " - " << c.end_date << ", " << c.fingerprint;
 
     return os;
+  }
+
+  // package_dependent
+  //
+  odb::result<package_dependent>
+  query_dependents (database& db,
+                    const package_name& dep,
+                    database& dep_db)
+  {
+    using query = query<package_dependent>;
+
+    return db.query<package_dependent> (
+             "prerequisite = " + query::_val (dep.string ()) + "AND" +
+             "configuration = " + query::_val (dep_db.uuid.string ()));
   }
 }
