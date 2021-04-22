@@ -124,6 +124,9 @@ namespace bpkg
       //
       transaction t (db.begin ());
 
+      // @@ EC GOOD We should probably have a per-configuration system
+      //    repository and switch them when crossing the config boundary?
+      //
       for (const auto& p:
              db.query<selected_package> (
                query<selected_package>::substate == "system"))

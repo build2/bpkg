@@ -34,6 +34,8 @@ namespace bpkg
   {
     using query = query<available_package>;
 
+    // @@ EC GOOD
+    //
     query q (query::id.name == name);
     const auto& vm (query::id.version);
 
@@ -315,6 +317,8 @@ namespace bpkg
   {
     database& db (t.database ());
 
+    // @@ EC GOOD
+    //
     if (db.query_value<repository_count> () == 0)
     {
       diag_record d;
@@ -405,6 +409,8 @@ namespace bpkg
     {
       using query = query<package_repository_fragment>;
 
+      // @@ EC GOOD
+      //
       query q (
         query::package::id.name == n &&
         compare_version_eq (query::package::id.version,
@@ -423,6 +429,8 @@ namespace bpkg
       }
     }
 
+    // @@ EC GOOD
+    //
     shared_ptr<selected_package> p (db.find<selected_package> (n));
 
     if (p == nullptr || !p->src_root ||

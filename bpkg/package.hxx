@@ -744,6 +744,8 @@ namespace bpkg
   // version constraint and return them in the version descending order, by
   // default. Note that a stub satisfies any constraint.
   //
+  // @@ EC Doesn't cross configuration boundaries.
+  //
   odb::result<available_package>
   query_available (database&,
                    const package_name&,
@@ -815,10 +817,18 @@ namespace bpkg
 
   // package_substate
   //
+  // @@ EC It feels that we only need the external configuration package
+  //    reference when we configure this package. In a sense the reference
+  //    package is similar to the system package - both both point to
+  //    something outside the configuration, which can be managed
+  //    independently. Maybe in most of the cases the reference packages can
+  //    be handled similarly to system packages.
+  //
   enum class package_substate
   {
     none,
-    system // System package; valid states: configured.
+    system    // System package; valid states: configured.
+  //reference // External config package reference; valid states: configured.
   };
 
   string
@@ -873,6 +883,14 @@ namespace bpkg
                                          optional<version_constraint>,
                                          compare_lazy_ptr>;
 
+  // @@ EC If the object is a reference to an external configuration package,
+  //    then:
+  //
+  //    - Reference member is present (refers an external config).
+  //
+  //    - The referenced package contains this package configuration in its
+  //      external_configs.
+  //
   #pragma db object pointer(shared_ptr) session
   class selected_package
   {
@@ -940,6 +958,14 @@ namespace bpkg
     optional<dir_path> out_root;
 
     package_prerequisites prerequisites;
+
+    // @@ EC Referred (substate is reference) and referencing configurations.
+    //    The latter could also contain the self configuration if there are
+    //    local dependents, so that handling local and external dependents
+    //    could be unified.
+    //
+    // optional<dir_path> reference;
+    // dir_paths dependent_configs;
 
   public:
     bool

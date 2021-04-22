@@ -192,6 +192,10 @@ namespace bpkg
     t.commit ();
   }
 
+  // @@ EC Implement pkg_configure_referenced() similarly. Also add the
+  //    configuration the reference is configured in to dependent_configs of
+  //    the selected package in the referenced configuration.
+  //
   shared_ptr<selected_package>
   pkg_configure_system (const package_name& n,
                         const version& v,

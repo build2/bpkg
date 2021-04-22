@@ -35,6 +35,7 @@ namespace bpkg
   {
     shared_ptr<selected_package> pkg;
     strings                     vars; // Package-specific command line vars.
+    //dir_path config;                  // @@ EC Configuration to execute in.
 
     bool cwd; // Change the working directory to the package directory.
   };

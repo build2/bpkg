@@ -34,6 +34,16 @@
 using namespace std;
 using namespace butl;
 
+// @@ EC Notes:
+//
+// - For each external configuration we open its DB file and attach it to the
+//   current DB/connection with the schema name deduced from the configuration
+//   path. Later, to operate on the external configuration data, we likely be
+//   switching context (DB schema, configuration directory to use for
+//   completing relative paths, system package repository, etc) and revert it
+//   when done.
+//
+
 namespace bpkg
 {
   // @@ Overall TODO:
@@ -48,6 +58,8 @@ namespace bpkg
   // real stub won't add any extra information to such a specification so we
   // shouldn't insist on its presence). Semantically this imaginary repository
   // complements all real repositories.
+  //
+  // @@ EC Is it config-specific?
   //
   static vector<shared_ptr<available_package>> imaginary_stubs;
 
@@ -213,6 +225,8 @@ namespace bpkg
     // root repository fragment but that feels a bit too drastic at the
     // moment).
     //
+    // @@ EC GOOD
+    //
     shared_ptr<repository_fragment> af (
       db.find<repository_fragment> (
         sp->repository_fragment.canonical_name ()));
@@ -306,12 +320,27 @@ namespace bpkg
       adjust
     };
 
+    // @@ EC Configuration the action is performed in.
+    //
+    //dir_path config;
+
+    // @@ EC Reference for the reference package we need to configure.
+    //
+    //optional<dir_path> reference;
+
     // An object with an absent action is there to "pre-enter" information
     // about a package (constraints and flags) in case it is used.
     //
     optional<action_type> action;
 
     shared_ptr<selected_package>  selected;   // NULL if not selected.
+
+    // @@ When building a reference package we have two build_package objects
+    //    both referencing the same available_package object. build_package
+    //    object in referenced config builds a package as usual.
+    //    build_package in the referencing config configures reference package
+    //    with available package used to obtain the version, etc.
+    //
     shared_ptr<available_package> available;  // Can be NULL, fake/transient.
 
     // Can be NULL (orphan) or root.
@@ -366,12 +395,15 @@ namespace bpkg
     bool               checkout_purge;
 
     // Command line configuration variables. Only meaningful for non-system
-    // packages.
+    // (@@ and non-reference) packages.
     //
     strings config_vars;
 
     // Set of package names that caused this package to be built or adjusted.
     // Empty name signifies user selection.
+    //
+    // @@ EC Seems we also need to record which configuration the packages
+    //    come from.
     //
     set<package_name> required_by;
 
@@ -423,6 +455,7 @@ namespace bpkg
              ((adjustments & adjust_reconfigure) != 0 ||
               (*action == build &&
                (selected->system () != system             ||
+                // @@ EC selected->reference != p.reference ||
                 selected->version != available_version () ||
                 (!system && !config_vars.empty ()))));
     }
@@ -468,6 +501,8 @@ namespace bpkg
         // the iterative plan refinement implementation details (--checkout-*
         // options and variables are only saved into the pre-entered
         // dependencies, etc.).
+        //
+        // @@ EC Move reference, if present? Assert that config is the same.
         //
         if (p.keep_out)
           keep_out = p.keep_out;
@@ -569,6 +604,9 @@ namespace bpkg
       assert (pkg.action && *pkg.action == build_package::build &&
               pkg.available != nullptr);
 
+      // @@ EC Same package names but in different configurations are
+      //    different entries in the map.
+      //
       auto i (map_.find (pkg.available->id.name));
 
       // If we already have an entry for this package name, then we
@@ -823,6 +861,8 @@ namespace bpkg
         //
         const version_constraint* dep_constr (nullptr);
 
+        // @@ EC Use the dependant's config id as a part of the key here.
+        //
         auto i (map_.find (dn));
         if (i != map_.end ())
         {
@@ -867,6 +907,10 @@ namespace bpkg
         // constraint, then we don't want to be forcing its upgrade (or,
         // worse, downgrade).
         //
+        // @@ EC GOOD Search in DB where dependant is being built. Can end up
+        //    with a package reference object. In the latter case we should
+        //    probably search in DB of the referenced config.
+        //
         shared_ptr<selected_package> dsp (db.find<selected_package> (dn));
 
         pair<shared_ptr<available_package>,
@@ -878,6 +922,9 @@ namespace bpkg
 
         if (dsp != nullptr)
         {
+          // @@ EC May need to switch to the referenced config (DB, etc) till
+          //    the end of the scope.
+          //
           if (dsp->state == package_state::broken)
             fail << "unable to build broken package " << dn <<
               info << "use 'pkg-purge --force' to remove";
@@ -976,6 +1023,9 @@ namespace bpkg
           // the package is recognized. An unrecognized package means the
           // broken/stale repository (see below).
           //
+          // @@ EC GOOD If the dependency package is in shared_pkgs, then use
+          //    the mapped config DB.
+          //
           rp = find_available_one (db,
                                    dn,
                                    !system ? d.constraint : nullopt,
@@ -1051,6 +1101,10 @@ namespace bpkg
           }
         }
 
+        // @@ EC Set its config to where the available package came from.
+        //    Should, instead, the available package reference the config it
+        //    came from?
+        //
         build_package bp {
           build_package::build,
           dsp,
@@ -1330,6 +1384,9 @@ namespace bpkg
 
       using query = query<package_dependent>;
 
+      // @@ EC We should take the dependents from the selected package
+      //    directly, so the query should go away.
+      //
       for (auto& pd: db.query<package_dependent> (query::name == n))
       {
         package_name& dn (pd.name);
@@ -1401,6 +1458,8 @@ namespace bpkg
 
         auto adjustment = [&dn, &n, &db] () -> build_package
         {
+          // @@ EC Comes from a dependency package, no need to load.
+          //
           shared_ptr<selected_package> dsp (db.load<selected_package> (dn));
           bool system (dsp->system ()); // Save flag before the move(dsp) call.
 
@@ -1639,6 +1698,9 @@ namespace bpkg
 
             // The prerequisites may not necessarily be in the map.
             //
+            // @@ EC If p is a reference, then use the external config for the
+            //    key.
+            //
             auto i (map_.find (name));
             if (i != map_.end () && i->second.package.action)
               update (order (name, chain, false /* reorder */));
@@ -1667,6 +1729,8 @@ namespace bpkg
             if (da.buildtime && (dn == "build2" || dn == "bpkg"))
               continue;
 
+            // @@ EC Get the config from shared_pkgs?
+            //
             update (order (d.name, chain, false /* reorder */));
           }
         }
@@ -1701,6 +1765,9 @@ namespace bpkg
       build_package package;
     };
 
+    // @@ EC Need to add config (where the action is performed) as a part of
+    //    the key.
+    //
     map<package_name, data_type> map_;
   };
 
@@ -1752,6 +1819,9 @@ namespace bpkg
   }
 
   // List of dependency packages (specified with ? on the command line).
+  //
+  // @@ EC We should probably add the config id to propagate it later to
+  //    build_package.
   //
   struct dependency_package
   {
@@ -1817,6 +1887,9 @@ namespace bpkg
     const package_name& nm (sp->name);
 
     // Query the dependents and bail out if the dependency is unused.
+    //
+    // @@ EC We need to also consider dependents in selected package's
+    //    dependent_configs.
     //
     auto pds (db.query<package_dependent> (
                 query<package_dependent>::name == nm));
@@ -2631,6 +2704,8 @@ namespace bpkg
             //
             const auto& url (query::location.url);
 
+            // @@ EC GOOD Search in DB specific for this package spec.
+            //
 #ifndef _WIN32
             query q (url == l);
 #else
@@ -2686,6 +2761,11 @@ namespace bpkg
 
       t.commit ();
 
+      // @@ EC GOOD Feels like we need to fetch repositories into multiple
+      //    configurations, those which the package specs are attributed
+      //    to. We should switch to a proper DB for each top-level location
+      //    and then fetch repos recursively querying/updating this DB.
+      //
       if (!locations.empty ())
         rep_fetch (o,
                    c,
@@ -2741,6 +2821,10 @@ namespace bpkg
           const system_package* sp (system_repository.find (r.name));
 
           // Will deal with all the duplicates later.
+          //
+          // @@ EC Do we insert into the configuration-specific system repo?
+          //    Feels like a package can be built or configured as system with
+          //    different versions in different configs.
           //
           if (sp == nullptr || !sp->authoritative)
             system_repository.insert (r.name,
@@ -2950,6 +3034,8 @@ namespace bpkg
         // is not found in this configuration, that can be the case in the
         // presence of --no-fetch option.
         //
+        // @@ EC GOOD Search in DB specific for this package spec.
+        //
         shared_ptr<repository> r (
           db.find<repository> (ps.location.canonical_name ()));
 
@@ -2974,6 +3060,8 @@ namespace bpkg
           {
             using query = query<repository_fragment_package>;
 
+            // @@ EC GOOD Search in DB specific for this package spec.
+            //
             for (const auto& rp: db.query<repository_fragment_package> (
                    (query::repository_fragment::name ==
                     rf.fragment.load ()->name) +
@@ -2988,6 +3076,8 @@ namespace bpkg
 
               if (ps.options.patch ())
               {
+                // @@ EC GOOD Search in DB specific for this package spec.
+                //
                 shared_ptr<selected_package> sp (
                   db.find<selected_package> (nm));
 
@@ -3100,6 +3190,8 @@ namespace bpkg
             {
               if (!vc)
               {
+                // @@ EC GOOD Search in DB specific for this package spec.
+                //
                 if (ps.options.patch () &&
                     (sp = db.find<selected_package> (n)) != nullptr)
                 {
@@ -3116,6 +3208,8 @@ namespace bpkg
                 c = vc;
             }
 
+            // @@ EC GOOD Search in DB specific for this package spec.
+            //
             shared_ptr<available_package> ap (
               find_available_one (db, n, c, rfs, false /* prereq */).first);
 
@@ -3172,6 +3266,12 @@ namespace bpkg
     // up/down-grade as dependencies, and save dependents whose dependencies
     // must be upgraded recursively.
     //
+    // @@ EC Invent shared_pkgs?
+    //
+    //    If the package is specified in the external (shared) config but
+    //    needs to be available as a dependency in the current config, then
+    //    add it to shared_pkgs map (package name -> config dir).
+    //
     vector<build_package> hold_pkgs;
     dependency_packages   dep_pkgs;
     recursive_packages    rec_pkgs;
@@ -3179,6 +3279,19 @@ namespace bpkg
     {
       // Check if the package is a duplicate. Return true if it is but
       // harmless.
+      //
+      // @@ EC Should dups checks be performed in the specific configuration
+      //    boundaries, since different versions of the same package can exist
+      //    in different configs? Probably yes.
+      //
+      //    Say package A -> B -> C and A -> C. Should we be able to build
+      //    A -> ?C1 in configuration X (current) and ?B -> ?C2 in
+      //    configuration Y (external) with the single pkg-build command?
+      //
+      //    How this could be expressed? Note that we need to somehow indicate
+      //    that ?B should be used as a prerequisite for A, but not ?C2. In
+      //    other words, B (but not C) needs to be present as a reference in
+      //    X.
       //
       map<package_name, pkg_arg> package_map;
 
@@ -3214,6 +3327,9 @@ namespace bpkg
 
       transaction t (db);
 
+      // @@ EC GOOD Need to use root from DB specific for the respective
+      //    package spec.
+      //
       shared_ptr<repository_fragment> root (db.load<repository_fragment> (""));
 
       // Here is what happens here: for unparsed package args we are going to
@@ -3224,6 +3340,12 @@ namespace bpkg
       // case things are really confusing since we suppress all diagnostics
       // for the first two "guesses". So what we are going to do here is re-run
       // them with full diagnostics if the name/version guess doesn't pan out.
+      //
+      // @@ EC Each iteration is specific to some configuration specified via
+      //    the package spec (current by default). Thus, at the beginning of
+      //    the iteration we can potentially switch the context - the config,
+      //    DB, and root repo fragment. Otherwise, all the queries in the
+      //    iteration are GOOD.
       //
       bool diag (false);
       for (auto i (pkg_args.begin ()); i != pkg_args.end (); )
@@ -3742,6 +3864,8 @@ namespace bpkg
       {
         using query = query<selected_package>;
 
+        // @@ EC GOOD Search in the current DB till the end of the block.
+        //
         for (shared_ptr<selected_package> sp:
                pointer_result (
                  db.query<selected_package> (query::state == "configured" &&
@@ -3752,7 +3876,6 @@ namespace bpkg
           //
           if (sp->system ())
             continue;
-
           const package_name& name (sp->name);
 
           optional<version_constraint> pc;
@@ -3879,6 +4002,9 @@ namespace bpkg
     //
     build_packages pkgs;
     {
+      // @@ EC We should probably add the config id telling which
+      //    configuration we operate upon.
+      //
       struct dep
       {
         package_name name; // Empty if up/down-grade.
@@ -3917,6 +4043,8 @@ namespace bpkg
           // Also, if a dependency package already has selected package that
           // is held, then we need to unhold it.
           //
+          // @@ EC Propagate configuration/reference info.
+          //
           for (const dependency_package& p: dep_pkgs)
           {
             build_package bp {
@@ -3938,12 +4066,21 @@ namespace bpkg
             if (p.constraint)
               bp.constraints.emplace_back ("command line", *p.constraint);
 
+            // @@ EC If this package has cfg_id specified, then enter action
+            //    for this configuration. If there is also ref flag specified,
+            //    then also enter this action for the primary config but with
+            //    the reference set. The former will perform the actual build
+            //    and the latter will just configure the ref package and
+            //    add the backlink to the target package.
+            //
             pkgs.enter (p.name, move (bp));
           }
 
           // Pre-collect user selection to make sure dependency-forced
           // up/down-grades are handled properly (i.e., the order in which we
           // specify packages on the command line does not matter).
+          //
+          // @@ EC Same as for enter() above.
           //
           for (const build_package& p: hold_pkgs)
             pkgs.collect_build (o, c, db, p);
@@ -3973,12 +4110,14 @@ namespace bpkg
         //
         for (const dep& d: deps)
         {
+          // @@ EC dep keeps the config we operate upon.
+          //
           if (d.available == nullptr)
-            pkgs.collect_drop (db.load<selected_package> (d.name));
+            pkgs.collect_drop (db.load<selected_package> (d.name)); // @@ EC GOOD
           else
           {
             shared_ptr<selected_package> sp (
-              db.find<selected_package> (d.name));
+              db.find<selected_package> (d.name));  // @@ EC GOOD
 
             // We will keep the output directory only if the external package
             // is replaced with an external one (see above for details).
@@ -4510,6 +4649,10 @@ namespace bpkg
 
       const shared_ptr<selected_package>& sp (p.selected);
 
+      // @@ EC Also skip reference packages.
+      //
+      // @@ EC Propagate the build_package config directory to the command.
+      //
       if (!sp->system () && // System package doesn't need update.
           p.user_selection ())
         upkgs.push_back (pkg_command_vars {sp,
@@ -4569,6 +4712,8 @@ namespace bpkg
       if (*p.action != build_package::drop && !p.reconfigure ())
         continue;
 
+      // @@ EC Switch to p.config till the end of the block.
+      //
       shared_ptr<selected_package>& sp (p.selected);
 
       // Each package is disfigured in its own transaction, so that we
@@ -4597,6 +4742,8 @@ namespace bpkg
           //
           for (const package_location& l: ap->locations)
           {
+            // @@ EC GOOD
+            //
             if (l.repository_fragment.load ()->location.directory_based ())
             {
               p.keep_out = true;
@@ -4640,6 +4787,11 @@ namespace bpkg
     {
       assert (p.action);
 
+      // @@ EC Switch to p.config till the end of the block.
+      //
+      //    The notes/logic for a system package are also applicable for a
+      //    reference package till the end of the block.
+      //
       shared_ptr<selected_package>& sp (p.selected);
       const shared_ptr<available_package>& ap (p.available);
 
@@ -4902,6 +5054,13 @@ namespace bpkg
       if (*p.action == build_package::drop) // Skip package drops.
         continue;
 
+      // @@ EC Switch to p.config till the end of the block.
+      //
+      //    The notes/logic for a system package are also applicable for a
+      //    reference package till the end of the block. Note that the
+      //    referenced package is already cofigured.
+      //
+
       // Configure the package.
       //
       // At this stage the package is either selected, in which case it's a
@@ -4921,6 +5080,15 @@ namespace bpkg
       //
       if (p.system)
         sp = pkg_configure_system (ap->id.name, p.available_version (), t);
+      //
+      // @@ EC:
+      //
+      //else if (p.reference)
+      //  sp = pkg_configure_reference (ap->id.name,
+      //                                p.available_version (),
+      //                                p.reference,
+      //                                t);
+      //
       else if (ap != nullptr)
         pkg_configure (c, o, t, sp, ap->dependencies, p.config_vars, simulate);
       else // Dependent.

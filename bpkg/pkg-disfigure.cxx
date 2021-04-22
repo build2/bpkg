@@ -38,6 +38,8 @@ namespace bpkg
     {
       using query = query<package_dependent>;
 
+      // @@ EC GOOD Also fail if dependent_configs is not empty.
+      //
       auto r (db.query<package_dependent> (query::name == p->name));
 
       if (!r.empty ())
@@ -65,6 +67,12 @@ namespace bpkg
 
       return;
     }
+
+    // @@ EC If substate == package_substate::reference, then exclude this
+    //    configuration from dependent_configs of the selected package in the
+    //    referenced configuration. Then do as for the system substate above
+    //    and return.
+    //
 
     // Since we are no longer configured, clear the prerequisites list.
     //
