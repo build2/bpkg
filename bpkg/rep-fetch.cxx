@@ -1444,6 +1444,10 @@ namespace bpkg
       // Add the repository, unless it is already a top-level one and has the
       // same location.
       //
+      // Note that on Windows we can overwrite the local repository location
+      // with the same location but some characters specified in a different
+      // case, which is ok.
+      //
       if (ua.find (r) == ua.end () || r.load ()->location.url () != rl.url ())
         rep_add (o, t, rl);
 
