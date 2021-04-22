@@ -33,15 +33,15 @@ namespace bpkg
 
   struct pkg_command_vars
   {
+    database&                    db;
     shared_ptr<selected_package> pkg;
-    strings                     vars; // Package-specific command line vars.
+    strings                      vars; // Package-specific command line vars.
 
     bool cwd; // Change the working directory to the package directory.
   };
 
   void
   pkg_command (const string& cmd,
-               const dir_path& configuration,
                const common_options&,
                const string& cmd_variant,
                const strings& common_vars,

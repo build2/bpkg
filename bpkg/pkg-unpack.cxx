@@ -24,14 +24,13 @@ namespace bpkg
   // diagnose all the illegal cases.
   //
   static void
-  pkg_unpack_check (const dir_path& c,
-                    transaction& t,
+  pkg_unpack_check (database& db,
+                    transaction&,
                     const package_name& n,
                     bool replace)
   {
     tracer trace ("pkg_update_check");
 
-    database& db (t.database ());
     tracer_guard tg (db, trace);
 
     if (shared_ptr<selected_package> p = db.find<selected_package> (n))
@@ -43,7 +42,8 @@ namespace bpkg
       {
         diag_record dr (fail);
 
-        dr << "package " << n << " already exists in configuration " << c <<
+        dr << "package " << n << " already exists in configuration "
+           << db.config <<
           info << "version: " << p->version_string ()
            << ", state: " << p->state
            << ", substate: " << p->substate;
@@ -59,7 +59,7 @@ namespace bpkg
   //
   static shared_ptr<selected_package>
   pkg_unpack (const common_options& o,
-              dir_path c,
+              database& db,
               transaction& t,
               package_name n,
               version v,
@@ -70,7 +70,6 @@ namespace bpkg
   {
     tracer trace ("pkg_unpack");
 
-    database& db (t.database ());
     tracer_guard tg (db, trace);
 
     optional<string> mc;
@@ -78,15 +77,14 @@ namespace bpkg
     if (!simulate)
       mc = sha256 (o, d / manifest_file);
 
-    // Make the package and configuration paths absolute and normalized.
-    // If the package is inside the configuration, use the relative path.
-    // This way we can move the configuration around.
+    // Make the package path absolute and normalized. If the package is inside
+    // the configuration, use the relative path. This way we can move the
+    // configuration around.
     //
-    normalize (c, "configuration");
     normalize (d, "package");
 
-    if (d.sub (c))
-      d = d.leaf (c);
+    if (d.sub (db.config))
+      d = d.leaf (db.config);
 
     shared_ptr<selected_package> p (db.find<selected_package> (n));
 
@@ -96,7 +94,7 @@ namespace bpkg
       // replacing. Once this is done, there is no going back. If things
       // go badly, we can't simply abort the transaction.
       //
-      pkg_purge_fs (c, t, p, simulate);
+      pkg_purge_fs (db, t, p, simulate);
 
       // Note that if the package name spelling changed then we need to update
       // it, to make sure that the subsequent commands don't fail and the
@@ -150,7 +148,7 @@ namespace bpkg
 
   shared_ptr<selected_package>
   pkg_unpack (const common_options& o,
-              const dir_path& c,
+              database& db,
               transaction& t,
               const dir_path& d,
               bool replace,
@@ -177,19 +175,19 @@ namespace bpkg
 
     // Check/diagnose an already existing package.
     //
-    pkg_unpack_check (c, t, m.name, replace);
+    pkg_unpack_check (db, t, m.name, replace);
 
     // Fix-up the package version.
     //
     if (optional<version> v = package_iteration (
-          o, c, t, d, m.name, m.version, true /* check_external */))
+          o, db, t, d, m.name, m.version, true /* check_external */))
       m.version = move (*v);
 
     // Use the special root repository fragment as the repository fragment of
     // this package.
     //
     return pkg_unpack (o,
-                       c,
+                       db,
                        t,
                        move (m.name),
                        move (m.version),
@@ -201,7 +199,7 @@ namespace bpkg
 
   shared_ptr<selected_package>
   pkg_unpack (const common_options& o,
-              const dir_path& c,
+              database& db,
               transaction& t,
               package_name n,
               version v,
@@ -210,14 +208,13 @@ namespace bpkg
   {
     tracer trace ("pkg_unpack");
 
-    database& db (t.database ());
     tracer_guard tg (db, trace);
 
     // Check/diagnose an already existing package.
     //
-    pkg_unpack_check (c, t, n, replace);
+    pkg_unpack_check (db, t, n, replace);
 
-    check_any_available (c, t);
+    check_any_available (db, t);
 
     // Note that here we compare including the revision (see pkg-fetch()
     // implementation for more details).
@@ -253,7 +250,7 @@ namespace bpkg
     const repository_location& rl (pl->repository_fragment->location);
 
     return pkg_unpack (o,
-                       c,
+                       db,
                        t,
                        move (n),
                        move (v),
@@ -265,20 +262,20 @@ namespace bpkg
 
   shared_ptr<selected_package>
   pkg_unpack (const common_options& co,
-              const dir_path& c,
+              database& db,
               transaction& t,
               const package_name& name,
               bool simulate)
   {
     tracer trace ("pkg_unpack");
 
-    database& db (t.database ());
     tracer_guard tg (db, trace);
 
     shared_ptr<selected_package> p (db.find<selected_package> (name));
 
     if (p == nullptr)
-      fail << "package " << name << " does not exist in configuration " << c;
+      fail << "package " << name << " does not exist in configuration "
+           << db.config;
 
     if (p->state != package_state::fetched)
       fail << "package " << name << " is " << p->state <<
@@ -293,7 +290,8 @@ namespace bpkg
     // Also, since we must have verified the archive during fetch,
     // here we can just assume what the resulting directory will be.
     //
-    dir_path d (c / dir_path (p->name.string () + '-' + p->version.string ()));
+    dir_path d (db.config /
+                dir_path (p->name.string () + '-' + p->version.string ()));
 
     if (exists (d))
       fail << "package directory " << d << " already exists";
@@ -306,7 +304,7 @@ namespace bpkg
       // If the archive path is not absolute, then it must be relative
       // to the configuration.
       //
-      path a (p->archive->absolute () ? *p->archive : c / *p->archive);
+      path a (p->archive->absolute () ? *p->archive : db.config / *p->archive);
 
       l4 ([&]{trace << "archive: " << a;});
 
@@ -317,17 +315,17 @@ namespace bpkg
 
       try
       {
-        pair<process, process> pr (start_extract (co, a, c));
+        pair<process, process> pr (start_extract (co, a, db.config));
 
         // While it is reasonable to assuming the child process issued
         // diagnostics, tar, specifically, doesn't mention the archive name.
         //
         if (!pr.second.wait () || !pr.first.wait ())
-          fail << "unable to extract " << a << " to " << c;
+          fail << "unable to extract " << a << " to " << db.config;
       }
       catch (const process_error& e)
       {
-        fail << "unable to extract " << a << " to " << c << ": " << e;
+        fail << "unable to extract " << a << " to " << db.config << ": " << e;
       }
 
       mc = sha256 (co, d / manifest_file);
@@ -356,7 +354,7 @@ namespace bpkg
     const dir_path& c (o.directory ());
     l4 ([&]{trace << "configuration: " << c;});
 
-    database db (open (c, trace));
+    database db (c, trace, true /* pre_attach */);
     transaction t (db);
 
     shared_ptr<selected_package> p;
@@ -371,7 +369,7 @@ namespace bpkg
           info << "run 'bpkg help pkg-unpack' for more information";
 
       p = pkg_unpack (o,
-                      c,
+                      db,
                       t,
                       dir_path (args.next ()),
                       o.replace (),
@@ -400,9 +398,9 @@ namespace bpkg
       // "unpack" it from the directory-based repository.
       //
       p = v.empty ()
-        ? pkg_unpack (o, c, t, n, false /* simulate */)
+        ? pkg_unpack (o, db, t, n, false /* simulate */)
         : pkg_unpack (o,
-                      c,
+                      db,
                       t,
                       move (n),
                       move (v),

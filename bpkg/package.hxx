@@ -18,7 +18,7 @@
 #include <libbpkg/package-name.hxx>
 
 #include <bpkg/types.hxx>
-#include <bpkg/forward.hxx> // transaction
+#include <bpkg/forward.hxx> // database, transaction
 #include <bpkg/utility.hxx>
 
 #include <bpkg/diagnostics.hxx>
@@ -27,7 +27,7 @@
 //
 #define DB_SCHEMA_VERSION_BASE 6
 
-#pragma db model version(DB_SCHEMA_VERSION_BASE, 8, closed)
+#pragma db model version(DB_SCHEMA_VERSION_BASE, 9, open)
 
 namespace bpkg
 {
@@ -44,6 +44,7 @@ namespace bpkg
   };
 
   using optional_string = optional<string>;
+  using optional_uint64_t = optional<uint64_t>;
 
   // path
   //
@@ -66,6 +67,14 @@ namespace bpkg
   #pragma db map type(optional_dir_path) as(bpkg::optional_string) \
     to((?) ? (?)->string () : bpkg::optional_string ())            \
     from((?) ? bpkg::dir_path (*(?)) : bpkg::optional_dir_path ())
+
+  // uuid
+  //
+  // Map nil UUID to empty string.
+  //
+  #pragma db map type(uuid) as(string)               \
+    to((?).nil () ? std::string () : (?).string ())  \
+    from((?).empty () ? bpkg::uuid () : bpkg::uuid (?))
 
   // timestamp
   //
@@ -136,6 +145,100 @@ void assert (int);
 
 namespace bpkg
 {
+  // Self or associated bpkg configuration.
+  //
+  // The self configuration object captures information about the current
+  // configuration. This information is cached in the associated configuration
+  // objects stored in other configurations, which associate the current one.
+  //
+  #pragma db object pointer(shared_ptr) session
+  class configuration
+  {
+  public:
+    using uuid_type = bpkg::uuid;
+
+    // Zero for the self configuration and is auto-assigned for associated
+    // configurations when the object is persisted.
+    //
+    optional<uint64_t> id;   // Object id.
+
+    uuid_type          uuid;
+    optional<string>   name;
+    string             type;
+    dir_path           path; // Is empty for the self configuration.
+
+    // True if the association is created explicitly by the user, rather than
+    // created automatically as a reverse association.
+    //
+    bool               expl;
+
+    // Database mapping.
+    //
+    #pragma db member(id)   id auto
+    #pragma db member(path) unique
+    #pragma db member(expl) column("explicit")
+
+  public:
+    // Create the self configuration. Generate the UUID, unless specified.
+    //
+    configuration (optional<string> n,
+                   string t,
+                   const uuid_type& uid = uuid_type ());
+
+    // Create an associated configuration.
+    //
+    configuration (optional<string> n,
+                   string t,
+                   dir_path p,
+                   bool e,
+                   const uuid_type& uid)
+        : uuid (uid),
+          name (move (n)),
+          type (move (t)),
+          path (move (p)),
+          expl (e) {}
+
+    // If the configuration path is absolute, then return it as is. Otherwise,
+    // return it completed against the specified primary directory path and
+    // normalized afterwords. The primary configuration directory should be
+    // absolute and normalized. Issue diagnostics and fail on the path
+    // conversion error.
+    //
+    // Note that the self configuration object is naturally supported by this
+    // function.
+    //
+    dir_path
+    effective_path (const dir_path&) const;
+
+    const dir_path&
+    resolve_path (const dir_path& d)
+    {
+      if (path.relative ())
+        path = effective_path (d);
+
+      return path;
+    }
+
+    string
+    diag_name () const
+    {
+      assert (id.has_value());
+      return name ? *name : to_string (*id);
+    }
+
+  private:
+    friend class odb::access;
+    configuration () = default;
+  };
+
+  // Verify that a string is a valid configuration name, that is non-empty,
+  // containing only alpha-numeric characters, '_', '-' (except for the first
+  // character which can only be alphabetic or '_'). Issue diagnostics and
+  // fail if that's not the case.
+  //
+  void
+  validate_configuration_name (const string&, const char* what);
+
   // version
   //
   // Sometimes we need to split the version into two parts: the part
@@ -612,48 +715,13 @@ namespace bpkg
     // we do not implicitly assume a wildcard version.
     //
     const version_type*
-    system_version () const
-    {
-      if (!system_version_)
-      {
-        if (const system_package* sp = system_repository.find (id.name))
-        {
-          // Only cache if it is authoritative.
-          //
-          if (sp->authoritative)
-            system_version_ = sp->version;
-          else
-            return &sp->version;
-        }
-      }
-
-      return system_version_ ? &*system_version_ : nullptr;
-    }
+    system_version (database&) const;
 
     // As above but also return an indication if the version information is
     // authoritative.
     //
     pair<const version_type*, bool>
-    system_version_authoritative () const
-    {
-      const system_package* sp (system_repository.find (id.name));
-
-      if (!system_version_)
-      {
-        if (sp != nullptr)
-        {
-          // Only cache if it is authoritative.
-          //
-          if (sp->authoritative)
-            system_version_ = sp->version;
-          else
-            return make_pair (&sp->version, false);
-        }
-      }
-
-      return make_pair (system_version_ ?  &*system_version_ : nullptr,
-                        sp != nullptr ? sp->authoritative : false);
-    }
+    system_version_authoritative (database&) const;
 
     // Database mapping.
     //
@@ -785,9 +853,7 @@ namespace bpkg
   // NULL, print the error message and fail.
   //
   void
-  check_any_available (const dir_path& configuration,
-                       transaction&,
-                       const diag_record* = nullptr);
+  check_any_available (database&, transaction&, const diag_record* = nullptr);
 
   // package_state
   //
@@ -818,7 +884,7 @@ namespace bpkg
   enum class package_substate
   {
     none,
-    system // System package; valid states: configured.
+    system   // System package; valid states: configured.
   };
 
   string
@@ -867,11 +933,48 @@ namespace bpkg
   // single constraint, we don't support multiple dependencies on the same
   // package (e.g., two ranges of versions). See pkg_configure().
   //
+  // Note also that the pointer can point to a selected package in another
+  // database.
+  //
   class selected_package;
 
+  // Note that the keys for this map needs to be created with the database
+  // passed to their constructor, which is required for persisting them (see
+  // _selected_package_ref() implementation for details).
+  //
   using package_prerequisites = std::map<lazy_shared_ptr<selected_package>,
                                          optional<version_constraint>,
                                          compare_lazy_ptr>;
+
+  // Database mapping for lazy_shared_ptr<selected_package> to configuration
+  // UUID and package name.
+  //
+  #pragma db value
+  struct _selected_package_ref
+  {
+    using ptr = lazy_shared_ptr<selected_package>;
+
+    uuid          configuration;
+    package_name  prerequisite;
+
+    explicit
+    _selected_package_ref (const ptr&);
+
+    _selected_package_ref () = default;
+
+    // Note: nil configuration UUID is recognized as the same configuration to
+    // facilitate migration.
+    //
+    ptr
+    to_ptr (odb::database&) &&;
+
+    #pragma db member(configuration) default("") // Nil UUID.
+  };
+
+  #pragma db map type(_selected_package_ref::ptr) \
+    as(_selected_package_ref)                     \
+    to(bpkg::_selected_package_ref (?))           \
+    from(std::move (?).to_ptr (*db))
 
   #pragma db object pointer(shared_ptr) session
   class selected_package
@@ -1004,8 +1107,8 @@ namespace bpkg
     //
     #pragma db member(name) id
 
-    #pragma db member(prerequisites) id_column("package")      \
-      key_column("prerequisite") key_not_null value_column("")
+    #pragma db member(prerequisites) id_column("package") \
+      key_column("") value_column("")
 
     // Explicit aggregate initialization for C++20 (private default ctor).
     //
@@ -1083,7 +1186,7 @@ namespace bpkg
 
   optional<version>
   package_iteration (const common_options&,
-                     const dir_path& configuration,
+                     database&,
                      transaction&,
                      const dir_path&,
                      const package_name&,
@@ -1179,25 +1282,11 @@ namespace bpkg
   // Return a list of packages that depend on this package along with
   // their constraints.
   //
-  /*
-  #pragma db view object(selected_package) \
-    container(selected_package::prerequisites = pp inner: pp.key)
-  struct package_dependent
-  {
-    #pragma db column(pp.id)
-    string name;
-
-    #pragma db column(pp.value)
-    optional<version_constraint> constraint;
-  };
-  */
-
-  // @@ Using raw container table since ODB doesn't support containers
-  //    in views yet.
+  // @@ Using raw container table since ODB doesn't support containers in
+  //    views yet.
   //
-  #pragma db view object(selected_package)                    \
-    table("main.selected_package_prerequisites" = "pp" inner: \
-          "pp.prerequisite = " + selected_package::name)
+  /*
+  #pragma db view container(selected_package::prerequisites = pp)
   struct package_dependent
   {
     #pragma db column("pp.package")
@@ -1206,6 +1295,25 @@ namespace bpkg
     #pragma db column("pp.")
     optional<version_constraint> constraint;
   };
+  */
+
+  #pragma db view table("main.selected_package_prerequisites" = "pp")
+  struct package_dependent
+  {
+    #pragma db column("pp.package")
+    package_name name;
+
+    #pragma db column("pp.")
+    optional<version_constraint> constraint;
+  };
+
+  // Query dependent in the specified database of a dependency potentially
+  // residing in other database.
+  //
+  odb::result<package_dependent>
+  query_dependents (database& dependent_db,
+                    const package_name& dependency,
+                    database& dependency_db);
 
   // Return a count of repositories that contain this repository fragment.
   //

@@ -84,8 +84,8 @@ $* libfoo/1/2/3 2>>EOE != 0
 : no-repositories
 :
 $clone_cfg;
-$* libfoo/1.0.0 2>>/EOE != 0
-  error: configuration cfg/ has no repositories
+$* libfoo/1.0.0 2>>/~%EOE% != 0
+  %error: configuration .+/cfg/ has no repositories%
     info: use 'bpkg rep-add' to add a repository
   EOE
 
@@ -94,8 +94,8 @@ $* libfoo/1.0.0 2>>/EOE != 0
 {
   $clone_cfg && $rep_add $rep/t1;
 
-  $* libfoo/1.0.0 2>>/EOE != 0
-    error: configuration cfg/ has no available packages
+  $* libfoo/1.0.0 2>>/~%EOE% != 0
+    %error: configuration .+/cfg/ has no available packages%
       info: use 'bpkg rep-fetch' to fetch available packages list
     EOE
 }
@@ -121,14 +121,14 @@ $* libfoo/1.0.0 2>>/EOE != 0
 
     $pkg_status libfoo/1.0.0 1>'libfoo fetched 1.0.0';
 
-    $* libfoo/1.0.0 2>>/EOE != 0;
-      error: package libfoo already exists in configuration cfg/
+    $* libfoo/1.0.0 2>>/~%EOE% != 0;
+      %error: package libfoo already exists in configuration .+/cfg/%
         info: version: 1.0.0, state: fetched, substate: none
         info: use 'pkg-fetch --replace|-r' to replace
       EOE
 
-    $* -e $src/t1/libfoo-1.0.0.tar.gz 2>>/EOE != 0;
-      error: package libfoo already exists in configuration cfg/
+    $* -e $src/t1/libfoo-1.0.0.tar.gz 2>>/~%EOE% != 0;
+      %error: package libfoo already exists in configuration .+/cfg/%
         info: version: 1.0.0, state: fetched, substate: none
         info: use 'pkg-fetch --replace|-r' to replace
       EOE

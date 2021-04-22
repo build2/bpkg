@@ -624,6 +624,7 @@ namespace bpkg
   shared_ptr<const certificate>
   authenticate_certificate (const common_options& co,
                             const dir_path* conf,
+                            database* db,
                             const optional<string>& pem,
                             const repository_location& rl,
                             const optional<string>& dependent_trust)
@@ -650,18 +651,20 @@ namespace bpkg
         ? auth_real  (co, fp, *pem, rl, dependent_trust).cert
         : auth_dummy (co, fp.abbreviated, rl);
     }
-    else if (transaction::has_current ())
+    else if (db != nullptr)
     {
+      assert (transaction::has_current ());
+
       r = auth_cert (co,
                      *conf,
-                     transaction::current ().database (),
+                     *db,
                      pem,
                      rl,
                      dependent_trust);
     }
     else
     {
-      database db (open (*conf, trace));
+      database db (*conf, trace, false /* pre_attach */);
       transaction t (db);
       r = auth_cert (co, *conf, db, pem, rl, dependent_trust);
       t.commit ();

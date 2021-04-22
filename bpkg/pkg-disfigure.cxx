@@ -15,8 +15,8 @@ using namespace butl;
 namespace bpkg
 {
   void
-  pkg_disfigure (const dir_path& c,
-                 const common_options& o,
+  pkg_disfigure (const common_options& o,
+                 database& db,
                  transaction& t,
                  const shared_ptr<selected_package>& p,
                  bool clean,
@@ -29,28 +29,32 @@ namespace bpkg
 
     l4 ([&]{trace << *p;});
 
-    database& db (t.database ());
     tracer_guard tg (db, trace);
 
     // Check that we have no dependents.
     //
     if (p->state == package_state::configured)
     {
-      using query = query<package_dependent>;
-
-      auto r (db.query<package_dependent> (query::name == p->name));
-
-      if (!r.empty ())
+      // Query dependents in all implicitly associated databases, including
+      // the current database.
+      //
+      diag_record dr;
+      for (associated_config& ac: db.implicit_associations ())
       {
-        diag_record dr;
-        dr << fail << "package " << p->name << " still has dependents:";
+        auto r (query_dependents (ac.db, p->name, db));
 
-        for (const package_dependent& pd: r)
+        if (!r.empty ())
         {
-          dr << info << "package " << pd.name;
+          if (dr.empty ())
+            dr << fail << "package " << p->name << " still has dependents:";
 
-          if (pd.constraint)
-            dr << " on " << p->name << " " << *pd.constraint;
+          for (const package_dependent& pd: r)
+          {
+            dr << info << "package " << pd.name;
+
+            if (pd.constraint)
+              dr << " on " << p->name << " " << *pd.constraint;
+          }
         }
       }
     }
@@ -66,6 +70,12 @@ namespace bpkg
       return;
     }
 
+    // @@ EC If substate == package_substate::reference, then exclude this
+    //    configuration from dependent_configs of the selected package in the
+    //    referenced configuration. Then do as for the system substate above
+    //    and return.
+    //
+
     // Since we are no longer configured, clear the prerequisites list.
     //
     p->prerequisites.clear ();
@@ -75,8 +85,8 @@ namespace bpkg
 
     if (!simulate)
     {
-      dir_path src_root (p->effective_src_root (c));
-      dir_path out_root (p->effective_out_root (c));
+      dir_path src_root (p->effective_src_root (db.config));
+      dir_path out_root (p->effective_out_root (db.config));
 
       l4 ([&]{trace << "src_root: " << src_root << ", "
                     << "out_root: " << out_root;});
@@ -207,7 +217,7 @@ namespace bpkg
     package_name n (parse_package_name (args.next (),
                                         false /* allow_version */));
 
-    database db (open (c, trace));
+    database db (c, trace, true /* pre_attach */);
     transaction t (db);
 
     shared_ptr<selected_package> p (db.find<selected_package> (n));
@@ -221,7 +231,7 @@ namespace bpkg
 
     // Commits the transaction.
     //
-    pkg_disfigure (c, o, t, p, !o.keep_out (), false /* simulate */);
+    pkg_disfigure (o, db, t, p, !o.keep_out (), false /* simulate */);
 
     assert (p->state == package_state::unpacked ||
             p->state == package_state::transient);

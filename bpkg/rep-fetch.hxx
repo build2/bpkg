@@ -69,7 +69,6 @@ namespace bpkg
   //
   void
   rep_fetch (const common_options&,
-             const dir_path& conf,
              database&,
              const vector<repository_location>&,
              bool shallow,

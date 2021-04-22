@@ -50,6 +50,11 @@ namespace bpkg
      configuration is an amalgamation that contains packages as subprojects
      (see \l{bpkg-cfg-create(1)} for details).
 
+     Build configurations can be associated with each other, so that while a
+     package is built in one configuration, some of its dependencies can be
+     built in associated potentially shared configurations (see
+     \l{bpkg-cfg-create(1)} for details).
+
      A \i{bpkg package} is an archive or directory (potentially in a version
      control system) that contains a \cb{build2} project plus the package
      \cb{manifest} file. \cb{bpkg} can either use package archives/directories
@@ -166,6 +171,11 @@ namespace bpkg
     bool cfg-create|create
     {
       "\l{bpkg-cfg-create(1)} \- create configuration"
+    }
+
+    bool cfg-add
+    {
+      "\l{bpkg-cfg-add(1)} \- associate configurations"
     }
 
     bool rep-info

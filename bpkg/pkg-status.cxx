@@ -266,7 +266,7 @@ namespace bpkg
     const dir_path& c (o.directory ());
     l4 ([&]{trace << "configuration: " << c;});
 
-    database db (open (c, trace));
+    database db (c, trace, true /* pre_attach */);
     transaction t (db);
     session s;
 

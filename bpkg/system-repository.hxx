@@ -32,7 +32,7 @@ namespace bpkg
     bool authoritative;
   };
 
-  class system_repository_type
+  class system_repository
   {
   public:
     const version&
@@ -48,8 +48,6 @@ namespace bpkg
   private:
     std::map<package_name, system_package> map_;
   };
-
-  extern system_repository_type system_repository;
 }
 
 #endif // BPKG_SYSTEM_REPOSITORY_HXX

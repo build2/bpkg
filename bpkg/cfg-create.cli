@@ -51,12 +51,52 @@ namespace bpkg
      \
      bpkg create cxx. \"?cli\"
      \
+
+     The configurations can be associated with each other, so that dependent
+     and dependency packages can be built across multiple potentially shared
+     configurations (see \l{bpkg-cfg-add(1)} for details). For a convenience
+     of referring the configuration on the \cb{bpkg} command line in the
+     future, it can be named using the \cb{--name|-n} option.
+
+     The dependent and its dependency packages are only assumed to be
+     compatible at runtime if types of the associated configurations they were
+     built in are identical. The configuration type can be specified using the
+     \cb{--type|-t} option. The predefined types are \cb{host} and \cb{target}
+     (default). Configurations of the \cb{host} type are normally used for
+     building compile-time dependencies while of the \cb{target} type for the
+     runtime dependencies.
+
+     At creation time a unique id (UUID) is assigned to the configuration. It,
+     in particular, is used for the configuration associations integrity
+     checks. Unless it is explicitly specified with the \cb{--config-uuid}
+     option, it is generated automatically.
      "
   }
 
   class cfg_create_options: common_options
   {
     "\h|CFG-CREATE OPTIONS|"
+
+    string --name|-n
+    {
+      "<name>",
+      "The name of the configuration being created. This name will be used by
+       default when this configuration is associated with other configurations
+       (\l{bpkg-cfg-add(1)}). By default, configuration is created unnamed."
+    }
+
+    string --type|-t = "target"
+    {
+      "<type>",
+      "The type of the configuration being created. By default, configuration
+       of the \cb{target} type is created."
+    }
+
+    uuid --config-uuid
+    {
+      "<uuid>",
+      "Use this unique id for the configuration rather than auto-generate it."
+    }
 
     dir_path --directory|-d (".")
     {

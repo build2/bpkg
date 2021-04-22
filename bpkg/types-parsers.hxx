@@ -49,6 +49,16 @@ namespace bpkg
     };
 
     template <>
+    struct parser<uuid>
+    {
+      static void
+      parse (uuid&, bool&, scanner&);
+
+      static void
+      merge (uuid& b, const uuid& a) {b = a;}
+    };
+
+    template <>
     struct parser<auth>
     {
       static void

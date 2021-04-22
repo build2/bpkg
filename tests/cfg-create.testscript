@@ -5,6 +5,9 @@
 
 config_cxx = config.cxx=$quote($recall($cxx.path) $cxx.config.mode, true)
 
+# @@ To verify the creation result use cfg-list command rather than
+#    pkg-status, when implemented.
+#
 pkg_status += -d cfg
 
 : non-empty
@@ -85,4 +88,78 @@ EOE
 
     $pkg_status libfoo >'libfoo unknown'
   }
+}
+
+: name
+:
+{
+  test.arguments += -d cfg
+
+  : valid
+  :
+  {
+    $* --name foo 2>>/~%EOE% &cfg/***;
+      %created new configuration in .+/cfg/%
+      EOE
+
+    # @@ To verify the result use cfg-list, when implemented.
+    #
+    $pkg_status libfoo >'libfoo unknown'
+  }
+
+  : invalid
+  :
+  : Also use the short option.
+  :
+  $* -n 123 2>>EOE != 0
+    error: invalid --name|-n option value '123': illegal first character (must be alphabetic or underscore)
+    EOE
+}
+
+: type
+:
+{
+  test.arguments += -d cfg
+
+  : valid
+  :
+  {
+    $* --type host 2>>/~%EOE% &cfg/***;
+      %created new configuration in .+/cfg/%
+      EOE
+
+    $pkg_status libfoo >'libfoo unknown'
+  }
+
+  : invalid
+  :
+  : Also use the short option.
+  :
+  $* --type '' 2>>EOE != 0
+    error: empty --type|-t option value
+    EOE
+}
+
+: uuid
+:
+{
+  test.arguments += -d cfg
+
+  : valid
+  :
+  {
+    $* --config-uuid '18f48b4b-b5d9-4712-b98c-1930df1c4228' 2>>/~%EOE% &cfg/***;
+      %created new configuration in .+/cfg/%
+      EOE
+
+    $pkg_status libfoo >'libfoo unknown'
+  }
+
+  : invalid
+  :
+  : Also use the short option.
+  :
+  $* --config-uuid '123' 2>>EOE != 0
+    error: invalid value '123' for option '--config-uuid'
+    EOE
 }

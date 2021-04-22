@@ -1,0 +1,124 @@
+# file      : tests/cfg-add.testscript
+# license   : MIT; see accompanying LICENSE file
+
+.include common.testscript
+
+cfg_create += 2>!
+
+# @@ To verify the association result use cfg-list command rather than
+#    pkg-status, when implemented.
+#
+
+test.arguments += -d cfg
+
+uuid = '18f48b4b-b5d9-4712-b98c-1930df1c4228'
+
+: success
+:
+{
+  $cfg_create -d cfg --name test --config-uuid "$uuid";
+  $cfg_create -d acfg --name shared &acfg/***;
+
+  # Associate configuration.
+  #
+  $* acfg 2>>/~%EOE%;
+    %associated target configuration .+/acfg/%
+    EOE
+
+  $pkg_status -d cfg  libfoo >'libfoo unknown';
+  $pkg_status -d acfg libfoo >'libfoo unknown';
+
+  # Test that the repeated association is reported.
+  #
+  $* acfg 2>>/~%EOE% != 0;
+    %error: configuration [-0-9a-fA-F]{36} is already associated%
+    EOE
+
+  rm -r acfg;
+
+  $cfg_create -d acfg --name shared &acfg/***;
+
+  # Test that the path clash is reported.
+  #
+  $* acfg 2>>/~%EOE% != 0;
+    %error: configuration '.+/acfg/' is already associated: [-0-9a-fA-F]{36}%
+    EOE
+
+  # Test that the name clash is reported.
+  #
+  $cfg_create -d acfg2 --name shared &acfg2/***;
+
+  $* acfg2 2>>/~%EOE% != 0;
+    %error: configuration named 'shared' is already associated: [-0-9a-fA-F]{36}%
+      info: consider specifying name explicitly with --name|-n
+    EOE
+
+  $* acfg2 -n shared 2>>/~%EOE% != 0;
+    %error: configuration named 'shared' is already associated: [-0-9a-fA-F]{36}%
+    EOE
+
+  # Associate the second configuration.
+  #
+  $* acfg2 -n shared2 2>>/~%EOE%;
+    %associated target configuration .+%
+    EOE
+
+  $pkg_status -d cfg   libfoo >'libfoo unknown';
+  $pkg_status -d acfg2 libfoo >'libfoo unknown';
+
+  # Test that the configuration type mismatch is reported.
+  #
+  mv cfg cfg.tmp;
+  $cfg_create -d cfg --type host --config-uuid "$uuid";
+
+  $* -d acfg2 cfg 2>>EOE != 0;
+    error: configuration type 'host' doesn't match existing association type 'target'
+    EOE
+  rm -r cfg;
+  mv cfg.tmp cfg;
+
+  # Make the implicit association explicit.
+  #
+  $* -d acfg2 cfg 2>>/~%EOE%;
+    %associated target configuration .+%
+    EOE
+
+  $pkg_status -d cfg libfoo >'libfoo unknown';
+  $pkg_status -d acfg2 libfoo >'libfoo unknown';
+
+  $* -d acfg2 cfg 2>>/~%EOE% != 0;
+    %error: configuration [-0-9a-fA-F]{36} is already associated%
+    EOE
+
+  # Test that the repeated reverse association is reported.
+  #
+  rm -r cfg;
+  $cfg_create -d cfg --config-uuid "$uuid";
+
+  $* acfg2 2>>/~"%EOE%" != 0;
+    %error: current configuration $uuid is already associated with '.+/acfg2/'%
+    EOE
+
+  # Test that the reverse association path clash is reported.
+  #
+  rm -r cfg;
+  $cfg_create -d cfg --name test &cfg/***;
+
+  $* acfg2 2>>/~%EOE% != 0;
+    %error: current configuration '.+/cfg/' is already associated with '.+/acfg2/'%
+    EOE
+
+  # Make sure that current configuration is reverse associated as unnamed.
+  #
+  # @@ Make sure that's really the case when the cfg-list command is
+  #    implemented.
+  #
+  $cfg_create -d cfg2 --name test &cfg2/***;
+
+  $* -d cfg2 acfg2 2>>/~%EOE%;
+    %associated target configuration .+/acfg2/%
+    EOE
+
+  $pkg_status -d cfg2  libfoo >'libfoo unknown';
+  $pkg_status -d acfg2 libfoo >'libfoo unknown'
+}

@@ -15,6 +15,64 @@ namespace bpkg
 {
   const version wildcard_version (0, "0", nullopt, nullopt, 0);
 
+  // configuration
+  //
+  configuration::
+  configuration (optional<string> n, string t, const uuid_type& uid)
+      : id (0),
+        uuid (uid),
+        name (move (n)),
+        type (move (t)),
+        expl (0)
+  {
+    if (uuid.nil ())
+    try
+    {
+      uuid = uuid_type::generate ();
+    }
+    catch (const system_error& e)
+    {
+      fail << "unable to generate configuration uuid: " << e;
+    }
+  }
+
+  dir_path configuration::
+  effective_path (const dir_path& d) const
+  {
+    if (path.relative ())
+    {
+      dir_path r (d / path);
+
+      string what ("associated with '" + d.representation () +
+                   "' configuration " + diag_name ());
+
+      normalize (r, what.c_str ());
+      return r;
+    }
+    else
+      return path;
+  }
+
+  void
+  validate_configuration_name (const string& s, const char* what)
+  {
+    if (s.empty ())
+      fail << "empty " << what;
+
+    if (!(alpha (s[0]) || s[0] == '_'))
+      fail << "invalid " << what << " '" << s << "': illegal first character "
+           << "(must be alphabetic or underscore)";
+
+    for (auto i (s.cbegin () + 1), e (s.cend ()); i != e; ++i)
+    {
+      char c (*i);
+
+      if (!(alnum (c) || c == '_' || c == '-'))
+        fail << "invalid " << what << " '" << s << "': illegal character "
+             << "(must be alphabetic, digit, underscore, or dash)";
+    }
+  }
+
   // available_package_id
   //
   bool
@@ -26,6 +84,47 @@ namespace bpkg
 
   // available_package
   //
+  const version* available_package::
+  system_version (database& db) const
+  {
+    if (!system_version_)
+    {
+      if (const system_package* sp = db.system_repository.find (id.name))
+      {
+        // Only cache if it is authoritative.
+        //
+        if (sp->authoritative)
+          system_version_ = sp->version;
+        else
+          return &sp->version;
+      }
+    }
+
+    return system_version_ ? &*system_version_ : nullptr;
+  }
+
+  pair<const version*, bool> available_package::
+  system_version_authoritative (database& db) const
+  {
+    const system_package* sp (db.system_repository.find (id.name));
+
+    if (!system_version_)
+    {
+      if (sp != nullptr)
+      {
+        // Only cache if it is authoritative.
+        //
+        if (sp->authoritative)
+          system_version_ = sp->version;
+        else
+          return make_pair (&sp->version, false);
+      }
+    }
+
+    return make_pair (system_version_ ?  &*system_version_ : nullptr,
+                      sp != nullptr ? sp->authoritative : false);
+  }
+
   odb::result<available_package>
   query_available (database& db,
                    const package_name& name,
@@ -34,6 +133,8 @@ namespace bpkg
   {
     using query = query<available_package>;
 
+    // @@ EC GOOD
+    //
     query q (query::id.name == name);
     const auto& vm (query::id.version);
 
@@ -309,24 +410,20 @@ namespace bpkg
   }
 
   void
-  check_any_available (const dir_path& c,
-                       transaction& t,
-                       const diag_record* dr)
+  check_any_available (database& db, transaction&, const diag_record* dr)
   {
-    database& db (t.database ());
-
     if (db.query_value<repository_count> () == 0)
     {
       diag_record d;
       (dr != nullptr ? *dr << info : d << fail)
-        << "configuration " << c << " has no repositories" <<
+        << "configuration " << db.config << " has no repositories" <<
         info << "use 'bpkg rep-add' to add a repository";
     }
     else if (db.query_value<available_package_count> () == 0)
     {
       diag_record d;
       (dr != nullptr ? *dr << info : d << fail)
-        << "configuration " << c << " has no available packages" <<
+        << "configuration " << db.config << " has no available packages" <<
         info << "use 'bpkg rep-fetch' to fetch available packages list";
     }
   }
@@ -381,6 +478,26 @@ namespace bpkg
 
   // selected_package
   //
+  _selected_package_ref::
+  _selected_package_ref (const lazy_shared_ptr<selected_package>& p)
+      : configuration (static_cast<database&> (p.database ()).uuid),
+        prerequisite (p.object_id ())
+  {
+  }
+
+  lazy_shared_ptr<selected_package> _selected_package_ref::
+  to_ptr (odb::database& db) &&
+  {
+    // Note that if this points to a different configuration, then it should
+    // already be pre-attached since it must be explicitly associated.
+    //
+    return lazy_shared_ptr<selected_package> (
+      configuration.nil ()
+      ? db
+      : static_cast<database&> (db).find_attached (configuration),
+      move (prerequisite));
+  }
+
   string selected_package::
   version_string () const
   {
@@ -389,8 +506,8 @@ namespace bpkg
 
   optional<version>
   package_iteration (const common_options& o,
-                     const dir_path& c,
-                     transaction& t,
+                     database& db,
+                     transaction&,
                      const dir_path& d,
                      const package_name& n,
                      const version& v,
@@ -398,7 +515,6 @@ namespace bpkg
   {
     tracer trace ("package_iteration");
 
-    database& db (t.database ());
     tracer_guard tg (db, trace);
 
     if (check_external)
@@ -447,7 +563,7 @@ namespace bpkg
     //
     if (!changed && p->external ())
     {
-      dir_path src_root (p->effective_src_root (c));
+      dir_path src_root (p->effective_src_root (db.config));
 
       // We need to complete and normalize the source directory as it may
       // generally be completed against the configuration directory (unlikely
@@ -502,8 +618,8 @@ namespace bpkg
   {
     switch (s)
     {
-    case package_substate::none:   return "none";
-    case package_substate::system: return "system";
+    case package_substate::none:      return "none";
+    case package_substate::system:    return "system";
     }
 
     return string (); // Should never reach.
@@ -531,5 +647,19 @@ namespace bpkg
          << c.start_date << " - " << c.end_date << ", " << c.fingerprint;
 
     return os;
+  }
+
+  // package_dependent
+  //
+  odb::result<package_dependent>
+  query_dependents (database& db,
+                    const package_name& dep,
+                    database& dep_db)
+  {
+    using query = query<package_dependent>;
+
+    return db.query<package_dependent> (
+             "prerequisite = " + query::_val (dep.string ()) + "AND" +
+             "configuration = " + query::_val (dep_db.uuid.string ()));
   }
 }

@@ -103,8 +103,8 @@ $* 2>>EOE != 0
   {
     $clone_cfg && $pkg_fetch libfoo/1.0.0;
 
-    $* -e $src/libfoo-1.1.0 2>>/EOE != 0;
-      error: package libfoo already exists in configuration cfg/
+    $* -e $src/libfoo-1.1.0 2>>/~%EOE% != 0;
+      %error: package libfoo already exists in configuration .+/cfg/%
         info: version: 1.0.0, state: fetched, substate: none
         info: use 'pkg-unpack --replace|-r' to replace
       EOE
@@ -125,8 +125,8 @@ $* 2>>EOE != 0
   {
     $clone_cfg && $pkg_fetch libfoo/1.0.0;
 
-    $* -e $src/libfoo-1.1.0 2>>/EOE != 0;
-      error: package libfoo already exists in configuration cfg/
+    $* -e $src/libfoo-1.1.0 2>>/~%EOE% != 0;
+      %error: package libfoo already exists in configuration .+/cfg/%
         info: version: 1.0.0, state: fetched, substate: none
         info: use 'pkg-unpack --replace|-r' to replace
       EOE
@@ -144,8 +144,8 @@ $* 2>>EOE != 0
 
     $* libfoo 2>'unpacked libfoo/1.0.0';
 
-    $* -e $src/libfoo-1.1.0 2>>/EOE != 0;
-      error: package libfoo already exists in configuration cfg/
+    $* -e $src/libfoo-1.1.0 2>>/~%EOE% != 0;
+      %error: package libfoo already exists in configuration .+/cfg/%
         info: version: 1.0.0, state: unpacked, substate: none
         info: use 'pkg-unpack --replace|-r' to replace
       EOE
@@ -161,8 +161,8 @@ $* 2>>EOE != 0
   {
     $clone_cfg;
 
-    $* libfoo 2>>/EOE != 0;
-      error: package libfoo does not exist in configuration cfg/
+    $* libfoo 2>>/~%EOE% != 0;
+      %error: package libfoo does not exist in configuration .+/cfg/%
       EOE
 
     $* -e $src/libfoo-1.1.0 2>'using libfoo/1.1.0 (external)';
@@ -213,8 +213,8 @@ $* 2>>EOE != 0
   {
     $clone_root_cfg;
 
-    $* libfoo/1.1.0 2>>/EOE != 0
-      error: configuration cfg/ has no repositories
+    $* libfoo/1.1.0 2>>/~%EOE% != 0
+      %error: configuration .+/cfg/ has no repositories%
         info: use 'bpkg rep-add' to add a repository
       EOE
   }
@@ -224,8 +224,8 @@ $* 2>>EOE != 0
   {
     $clone_root_cfg && $rep_add $src/libfoo-1.1.0;
 
-    $* libfoo/1.1.0 2>>/EOE != 0
-      error: configuration cfg/ has no available packages
+    $* libfoo/1.1.0 2>>/~%EOE% != 0
+      %error: configuration .+/cfg/ has no available packages%
         info: use 'bpkg rep-fetch' to fetch available packages list
       EOE
   }

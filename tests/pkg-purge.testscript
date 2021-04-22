@@ -152,7 +152,7 @@ if ($posix && "$uid" != '0')
   chmod 000 cfg/libfoo-1.0.0;
 
   $* libfoo 2>>/~%EOE% != 0;
-    %error: unable to remove directory cfg/libfoo-1.0.0/.+%
+    %error: unable to remove directory .+/cfg/libfoo-1.0.0/.+%
     info: package libfoo is now broken; use 'pkg-purge --force' to remove
     EOE
 

@@ -23,6 +23,7 @@
 
 #include <libbutl/url.mxx>
 #include <libbutl/path.mxx>
+#include <libbutl/uuid.hxx>
 #include <libbutl/process.mxx>
 #include <libbutl/utility.mxx>         // icase_compare_string,
                                        // compare_reference_target
@@ -91,6 +92,10 @@ namespace bpkg
   using butl::dir_path;
   using butl::basic_path;
   using butl::invalid_path;
+
+  // <libbutl/uuid.mxx>
+  //
+  using butl::uuid;
 
   using butl::path_cast;
 

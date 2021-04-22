@@ -156,6 +156,14 @@ namespace bpkg
      bpkg build libfoo/2.0.0   # upgrade libfoo 2.0.0 to hold,
                                #         also hold version 2.0.0
      \
+
+     Packages can be built in associated configurations by specifying the
+     \cb{--config-id} option (see \l{bpkg-cfg-create(1)} for details). A
+     dependency package built in an associated configuration can be referred
+     by dependents in the current configuration only if the configuration
+     types are the same. In contrast, a held package built in an associated
+     configuration can be referred in the current configuration
+     unconditionally.
      "
   }
 
@@ -242,6 +250,15 @@ namespace bpkg
       "Remove the checked out package (source) directories when the packages
        are purged. Refer to the \cb{--output-purge} option in
        \l{bpkg-pkg-checkout(1)} for details."
+    }
+
+    uint64_t --config-id
+    {
+      "<id>",
+       "Numeric identifier of the associated configuration the package should
+        be built in. By default, the configuration id is zero which denotes
+        the current configuration. In a sense, a configuration is always
+        associated with itself under the zero id."
     }
   };
 

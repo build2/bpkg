@@ -1,0 +1,79 @@
+// file      : bpkg/cfg-add.cli
+// license   : MIT; see accompanying LICENSE file
+
+include <bpkg/configuration.cli>;
+
+"\section=1"
+"\name=bpkg-cfg-add"
+"\summary=associate configuration"
+
+namespace bpkg
+{
+  {
+    "<options> <dir>",
+
+    "\h|SYNOPSIS|
+
+     \c{\b{bpkg cfg-add} [<options>] <dir>}
+
+     \h|DESCRIPTION|
+
+     The \cb{cfg-add} command symmetrically associates the current and the
+     specified \cb{bpkg} configurations (see \l{bpkg-cfg-create(1)} for
+     details on associated configurations).
+
+     The associated configuration is normally referred by name when specified
+     on the \cb{bpkg} command line. Unless overriden with the \cb{--name}
+     option, the original configuration name is used for the association. If
+     the associated configuration is unnamed, then it can only be referred by
+     the identifier, automatically assigned when the association is created.
+
+     If the specified directory path is relative, then its path is rebased
+     against the current configuration directory path prior to being
+     saved. This way the associated configurations can be moved around
+     together with the relative locations preserved. If the specified
+     directory path is absolute, then it is just normalized instead, unless
+     the \cb{--relative} option is specified in which case it is rebased as if
+     it were relative.
+     "
+  }
+
+  class cfg_add_options: configuration_options
+  {
+    "\h|CFG-ADD OPTIONS|"
+
+    string --name|-n
+    {
+      "<name>",
+      "Override the associated configuration name."
+    }
+
+    bool --relative
+    {
+      "Rebase the associated configuration directory absolute path against the
+       current configuration directory path, in the same way as for the
+       relative paths. Has no effect on relative paths."
+    }
+  };
+
+  "
+   \h|DEFAULT OPTIONS FILES|
+
+   See \l{bpkg-default-options-files(1)} for an overview of the default
+   options files. For the \cb{cfg-add} command the search start directory is
+   the configuration directory. The following options files are searched for
+   in each directory and, if found, loaded in the order listed:
+
+   \
+   bpkg.options
+   bpkg-cfg-add.options
+   \
+
+   The following \cb{cfg-add} command options cannot be specified in the
+   default options files:
+
+   \
+   --directory|-d
+   \
+  "
+}

@@ -84,7 +84,7 @@ namespace bpkg
   //
   static shared_ptr<selected_package>
   pkg_checkout (const common_options& o,
-                dir_path c,
+                database& db,
                 transaction& t,
                 package_name n,
                 version v,
@@ -95,7 +95,6 @@ namespace bpkg
   {
     tracer trace ("pkg_checkout");
 
-    database& db (t.database ());
     tracer_guard tg (db, trace);
 
     // See if this package already exists in this configuration.
@@ -111,7 +110,8 @@ namespace bpkg
       {
         diag_record dr (fail);
 
-        dr << "package " << n << " already exists in configuration " << c <<
+        dr << "package " << n << " already exists in configuration "
+           << db.config <<
           info << "version: " << p->version_string ()
            << ", state: " << p->state
            << ", substate: " << p->substate;
@@ -121,7 +121,7 @@ namespace bpkg
       }
     }
 
-    check_any_available (c, t);
+    check_any_available (db, t);
 
     // Note that here we compare including the revision (see pkg-fetch()
     // implementation for more details).
@@ -163,7 +163,7 @@ namespace bpkg
     auto_rmdir rmd;
     optional<string> mc;
 
-    const dir_path& ord (output_root ? *output_root : c);
+    const dir_path& ord (output_root ? *output_root : db.config);
     dir_path d (ord / dir_path (n.string () + '-' + v.string ()));
 
     // An incomplete checkout may result in an unusable repository state
@@ -185,11 +185,11 @@ namespace bpkg
       // if the previous checkout have failed or been interrupted.
       //
       dir_path sd (repository_state (rl));
-      dir_path rd (c / repos_dir / sd);
+      dir_path rd (db.config / repos_dir / sd);
 
       if (!exists (rd))
         fail << "missing repository directory for package " << n << " " << v
-             << " in configuration " << c <<
+             << " in configuration " << db.config <<
           info << "run 'bpkg rep-fetch' to repair";
 
       // The repository temporary directory.
@@ -301,7 +301,7 @@ namespace bpkg
       // replacing. Once this is done, there is no going back. If things go
       // badly, we can't simply abort the transaction.
       //
-      pkg_purge_fs (c, t, p, simulate);
+      pkg_purge_fs (db, t, p, simulate);
 
       // Note that if the package name spelling changed then we need to update
       // it, to make sure that the subsequent commands don't fail and the
@@ -315,15 +315,14 @@ namespace bpkg
       }
     }
 
-    // Make the package and configuration paths absolute and normalized.
-    // If the package is inside the configuration, use the relative path.
-    // This way we can move the configuration around.
+    // Make the package path absolute and normalized. If the package is inside
+    // the configuration, use the relative path. This way we can move the
+    // configuration around.
     //
-    normalize (c, "configuration");
     normalize (d, "package");
 
-    if (d.sub (c))
-      d = d.leaf (c);
+    if (d.sub (db.config))
+      d = d.leaf (db.config);
 
     if (p != nullptr)
     {
@@ -367,7 +366,7 @@ namespace bpkg
 
   shared_ptr<selected_package>
   pkg_checkout (const common_options& o,
-                const dir_path& c,
+                database& db,
                 transaction& t,
                 package_name n,
                 version v,
@@ -377,7 +376,7 @@ namespace bpkg
                 bool simulate)
   {
     return pkg_checkout (o,
-                         c,
+                         db,
                          t,
                          move (n),
                          move (v),
@@ -389,7 +388,7 @@ namespace bpkg
 
   shared_ptr<selected_package>
   pkg_checkout (const common_options& o,
-                const dir_path& c,
+                database& db,
                 transaction& t,
                 package_name n,
                 version v,
@@ -397,7 +396,7 @@ namespace bpkg
                 bool simulate)
   {
     return pkg_checkout (o,
-                         c,
+                         db,
                          t,
                          move (n),
                          move (v),
@@ -415,7 +414,7 @@ namespace bpkg
     dir_path c (o.directory ());
     l4 ([&]{trace << "configuration: " << c;});
 
-    database db (open (c, trace));
+    database db (c, trace, true /* pre_attach */);
     transaction t (db);
     session s;
 
@@ -437,7 +436,7 @@ namespace bpkg
     //
     if (o.output_root_specified ())
       p = pkg_checkout (o,
-                        c,
+                        db,
                         t,
                         move (n),
                         move (v),
@@ -447,7 +446,7 @@ namespace bpkg
                         false /* simulate */);
     else
       p = pkg_checkout (o,
-                        c,
+                        db,
                         t,
                         move (n),
                         move (v),

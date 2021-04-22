@@ -102,18 +102,24 @@ namespace bpkg
                         dependent_names& dns,
                         const shared_ptr<selected_package>& p)
     {
-      using query = query<package_dependent>;
-
-      for (auto& pd: db.query<package_dependent> (query::name == p->name))
+      // Query dependents in all implicitly associated databases, including
+      // the current database.
+      //
+      for (associated_config& ac: db.implicit_associations ())
       {
-        const package_name& dn (pd.name);
+        database& ddb (ac.db);
 
-        if (map_.find (dn) == map_.end ())
+        for (auto& pd: query_dependents (ddb, p->name, db))
         {
-          shared_ptr<selected_package> dp (db.load<selected_package> (dn));
-          dns.push_back (dependent_name {dn, p->name});
-          collect (dp, drop_reason::dependent);
-          collect_dependents (db, dns, dp);
+          const package_name& dn (pd.name);
+
+          if (map_.find (dn) == map_.end ())
+          {
+            shared_ptr<selected_package> dp (ddb.load<selected_package> (dn));
+            dns.push_back (dependent_name {dn, p->name});
+            collect (dp, drop_reason::dependent);
+            collect_dependents (ddb, dns, dp);
+          }
         }
       }
     }
@@ -250,15 +256,24 @@ namespace bpkg
           // Get our dependents (which, BTW, could only have been before us
           // on the list). If they are all in the map, then we can be dropped.
           //
-          using query = query<package_dependent>;
-
-          for (auto& pd: db.query<package_dependent> (query::name == p->name))
+          // Query dependents in all implicitly associated databases, including
+          // the current database.
+          //
+          for (associated_config& ac: db.implicit_associations ())
           {
-            if (map_.find (pd.name) == map_.end ())
+            database& ddb (ac.db);
+
+            for (auto& pd: query_dependents (ddb, p->name, db))
             {
-              keep = false;
-              break;
+              if (map_.find (pd.name) == map_.end ())
+              {
+                keep = false;
+                break;
+              }
             }
+
+            if (!keep)
+              break;
           }
 
           if (!keep)
@@ -284,14 +299,16 @@ namespace bpkg
       drop_package package;
     };
 
+    // @@ EC Add db to the key, with all the consequences (see pkg-build for
+    //    details).
+    //
     map<package_name, data_type> map_;
   };
 
   // Drop ordered list of packages.
   //
   static int
-  pkg_drop (const dir_path& c,
-            const pkg_drop_options& o,
+  pkg_drop (const pkg_drop_options& o,
             database& db,
             const drop_packages& pkgs,
             bool drop_prq,
@@ -372,7 +389,7 @@ namespace bpkg
 
       // Commits the transaction.
       //
-      pkg_disfigure (c, o, t, p, true /* clean */, false /* simulate */);
+      pkg_disfigure (o, db, t, p, true /* clean */, false /* simulate */);
 
       assert (p->state == package_state::unpacked ||
               p->state == package_state::transient);
@@ -407,7 +424,7 @@ namespace bpkg
 
       // Commits the transaction, p is now transient.
       //
-      pkg_purge (c, t, p, false /* simulate */);
+      pkg_purge (db, t, p, false /* simulate */);
 
       if (verb && !o.no_result ())
         text << "purged " << p->name;
@@ -436,7 +453,7 @@ namespace bpkg
       fail << "package name argument expected" <<
         info << "run 'bpkg help pkg-drop' for more information";
 
-    database db (open (c, trace));
+    database db (c, trace, true /* pre_attach */);
 
     // Note that the session spans all our transactions. The idea here is
     // that drop_package objects in the drop_packages list below will be
@@ -576,6 +593,6 @@ namespace bpkg
       t.commit ();
     }
 
-    return pkg_drop (c, o, db, pkgs, drop_prq, need_prompt);
+    return pkg_drop (o, db, pkgs, drop_prq, need_prompt);
   }
 }

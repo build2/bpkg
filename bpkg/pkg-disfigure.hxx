@@ -22,8 +22,8 @@ namespace bpkg
   // for that matter).
   //
   void
-  pkg_disfigure (const dir_path& configuration,
-                 const common_options&,
+  pkg_disfigure (const common_options&,
+                 database&,
                  transaction&,
                  const shared_ptr<selected_package>&,
                  bool clean,

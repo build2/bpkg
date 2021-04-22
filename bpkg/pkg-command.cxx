@@ -18,7 +18,6 @@ namespace bpkg
 {
   void
   pkg_command (const string& cmd,
-               const dir_path& c,
                const common_options& o,
                const string& cmd_v,
                const strings& cvars,
@@ -78,7 +77,7 @@ namespace bpkg
       assert (p->state == package_state::configured);
       assert (p->out_root); // Should be present since configured.
 
-      dir_path out_root (p->effective_out_root (c));
+      dir_path out_root (p->effective_out_root (pv.db.config));
       l4 ([&]{trace << p->name << " out_root: " << out_root;});
 
       if (bspec.back () != '(')
@@ -135,9 +134,11 @@ namespace bpkg
       {
         // Note: no package-specific variables (global ones still apply).
         //
-        ps.push_back (pkg_command_vars {d,
-                                        strings () /* vars */,
-                                        package_cwd});
+        ps.push_back (
+          pkg_command_vars {static_cast<database&> (pr.first.database ()),
+                            d,
+                            strings () /* vars */,
+                            package_cwd});
 
         if (recursive)
           collect_dependencies (d, recursive, package_cwd, ps);
@@ -246,9 +247,9 @@ namespace bpkg
         dr << info << "run 'bpkg help pkg-" << cmd << "' for more information";
     }
 
+    database db (c, trace, true /* pre_attach */);
     vector<pkg_command_vars> ps;
     {
-      database db (open (c, trace));
       transaction t (db);
 
       // We need to suppress duplicate dependencies for the recursive command
@@ -256,11 +257,11 @@ namespace bpkg
       //
       session ses;
 
-      auto add = [&ps, recursive, immediate, package_cwd] (
+      auto add = [&db, &ps, recursive, immediate, package_cwd] (
         const shared_ptr<selected_package>& p,
         strings vars)
       {
-        ps.push_back (pkg_command_vars {p, move (vars), package_cwd});
+        ps.push_back (pkg_command_vars {db, p, move (vars), package_cwd});
 
         // Note that it can only be recursive or immediate but not both.
         //
@@ -325,7 +326,7 @@ namespace bpkg
       t.commit ();
     }
 
-    pkg_command (cmd, c, o, cmd_v, cvars, ps);
+    pkg_command (cmd, o, cmd_v, cvars, ps);
 
     if (verb && !o.no_result ())
     {

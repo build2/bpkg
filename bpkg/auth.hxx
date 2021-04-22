@@ -38,6 +38,7 @@ namespace bpkg
   shared_ptr<const certificate>
   authenticate_certificate (const common_options&,
                             const dir_path* configuration,
+                            database*,
                             const optional<string>& cert_pem,
                             const repository_location&,
                             const optional<string>& dependent_trust);

@@ -223,27 +223,27 @@ test.options += --no-progress
   : unknown-package
   :
   $clone_root_cfg;
-  $* libfoo 2>>/EOE != 0
+  $* libfoo 2>>/~%EOE% != 0
     error: unknown package libfoo
-      info: configuration cfg/ has no repositories
+    %  info: configuration .+/cfg/ has no repositories%
       info: use 'bpkg rep-add' to add a repository
     EOE
 
   : unknown-package-ver
   :
   $clone_root_cfg;
-  $* libfoo/1.0.0 2>>/EOE != 0
+  $* libfoo/1.0.0 2>>/~%EOE% != 0
     error: unknown package libfoo
-      info: configuration cfg/ has no repositories
+    %  info: configuration .+/cfg/ has no repositories%
       info: use 'bpkg rep-add' to add a repository
     EOE
 
   : unknown-package-constraint
   :
   $clone_root_cfg;
-  $* 'libfoo>1.0.0' 2>>/EOE != 0
+  $* 'libfoo>1.0.0' 2>>/~%EOE% != 0
     error: unknown package libfoo
-      info: configuration cfg/ has no repositories
+    %  info: configuration .+/cfg/ has no repositories%
       info: use 'bpkg rep-add' to add a repository
     EOE
 
@@ -281,9 +281,9 @@ test.options += --no-progress
 
     $* libfoo/1.1.0 libfoo/1.1.0 >'update libfoo/1.1.0';
 
-    $* libfoo/1.0.0 2>>/EOE != 0;
+    $* libfoo/1.0.0 2>>/~%EOE% != 0;
       error: unknown package libfoo
-        info: configuration cfg/ has no repositories
+      %  info: configuration .+/cfg/ has no repositories%
         info: use 'bpkg rep-add' to add a repository
       EOE
 
@@ -1319,9 +1319,9 @@ test.options += --no-progress
 
     $rep_remove $rep/t2 $rep/t5;
 
-    $* --upgrade 2>>/EOE != 0;
+    $* --upgrade 2>>/~%EOE% != 0;
       error: libbar is not available
-        info: configuration cfg/ has no repositories
+      %  info: configuration .+/cfg/ has no repositories%
         info: use 'bpkg rep-add' to add a repository
       EOE
 

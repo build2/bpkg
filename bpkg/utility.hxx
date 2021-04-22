@@ -42,6 +42,11 @@ namespace bpkg
   using butl::icasecmp;
   using butl::reverse_iterate;
 
+  using butl::alpha;
+  using butl::alnum;
+  using butl::digit;
+  using butl::xdigit;
+
   using butl::make_guard;
   using butl::make_exception_guard;
 

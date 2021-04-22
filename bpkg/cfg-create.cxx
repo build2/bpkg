@@ -17,6 +17,12 @@ namespace bpkg
   {
     tracer trace ("cfg_create");
 
+    if (o.name_specified ())
+      validate_configuration_name (o.name (), "--name|-n option value");
+
+    if (o.type ().empty ())
+      fail << "empty --type|-t option value";
+
     if (o.existing () && o.wipe ())
       fail << "both --existing|-e and --wipe specified";
 
@@ -149,7 +155,20 @@ namespace bpkg
 
     // Create the database.
     //
-    database db (open (c, trace, true));
+    // Auto-generate the configuration UUID, unless it is specified
+    // explicitly.
+    //
+    shared_ptr<configuration> sc (
+      make_shared<configuration> ((o.name_specified ()
+                                   ? o.name ()
+                                   : optional<string> ()),
+                                  o.type (),
+                                  (o.config_uuid_specified ()
+                                   ? o.config_uuid ()
+                                   : uuid ())));
+
+    database db (c, sc, trace);
+    transaction t (db);
 
     // Add the special, root repository object with empty location and
     // containing a single repository fragment having an empty location as
@@ -161,8 +180,6 @@ namespace bpkg
     // locations and as a search starting point for held packages (see
     // pkg-build for details).
     //
-    transaction t (db);
-
     shared_ptr<repository_fragment> fr (
       make_shared<repository_fragment> (repository_location ()));
 
