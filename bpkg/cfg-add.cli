@@ -1,0 +1,77 @@
+// file      : bpkg/cfg-add.cli
+// license   : MIT; see accompanying LICENSE file
+
+include <bpkg/configuration.cli>;
+
+"\section=1"
+"\name=bpkg-cfg-add"
+"\summary=associate configuration"
+
+namespace bpkg
+{
+  {
+    "<options> <dir>",
+
+    "\h|SYNOPSIS|
+
+     \c{\b{bpkg cfg-add} [<options>] <dir>}
+
+     \h|DESCRIPTION|
+
+     The \cb{cfg-add} command associates the current \cb{bpkg} configuration
+     with the specified configuration, so that dependencies of a package built
+     in the current configuration can be built in associated, potentially
+     shared configurations.
+
+     The associated configurations are referred by name or identifier when
+     specified on the \cb{bpkg} command line. The original configuration name
+     can we overridden by specifying the \cb{--name} option.
+
+     If the specified directory path is relative, then its path is rebased
+     against the current configuration directory path before being saved. This
+     way the associated configurations can be moved around together with the
+     relative locations preserved. If the directory path is absolute then it
+     is just normalized before being saved, unless the \cb{--relative} option
+     is specified.
+     "
+  }
+
+  class cfg_add_options: configuration_options
+  {
+    "\h|CFG-ADD OPTIONS|"
+
+    string --name|-n
+    {
+      "<name>",
+      "Override the associated configuration name."
+    }
+
+    bool --relative
+    {
+      "Rebase the associated configuration directory absolute path against the
+       current configuration directory path, in the same way as for the
+       relative paths. Has no effect on relative paths."
+    }
+  };
+
+  "
+   \h|DEFAULT OPTIONS FILES|
+
+   See \l{bpkg-default-options-files(1)} for an overview of the default
+   options files. For the \cb{cfg-add} command the search start directory is
+   the configuration directory. The following options files are searched for
+   in each directory and, if found, loaded in the order listed:
+
+   \
+   bpkg.options
+   bpkg-cfg-add.options
+   \
+
+   The following \cb{cfg-add} command options cannot be specified in the
+   default options files:
+
+   \
+   --directory|-d
+   \
+  "
+}

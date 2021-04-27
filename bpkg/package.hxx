@@ -27,7 +27,7 @@
 //
 #define DB_SCHEMA_VERSION_BASE 6
 
-#pragma db model version(DB_SCHEMA_VERSION_BASE, 8, closed)
+#pragma db model version(DB_SCHEMA_VERSION_BASE, 9, open)
 
 namespace bpkg
 {
@@ -44,6 +44,7 @@ namespace bpkg
   };
 
   using optional_string = optional<string>;
+  using optional_uint64_t = optional<uint64_t>;
 
   // path
   //
@@ -136,6 +137,59 @@ void assert (int);
 
 namespace bpkg
 {
+  // Associated or self bpkg configuration.
+  //
+  #pragma db object pointer(shared_ptr) session
+  class configuration
+  {
+  public:
+    // Zero for the self configuration and is auto-assigned for associated
+    // configurations when the object is persisted.
+    //
+    optional<uint64_t> id;
+
+    optional<string>   name;
+    string             type;
+
+    // Is empty only for the self configuration.
+    //
+    dir_path           path;
+
+    // Database mapping.
+    //
+    #pragma db member(id) id auto
+    #pragma db member(path) unique
+
+  public:
+    // Create the self configuration.
+    //
+    configuration (optional<string> n, string t)
+        : id (0),
+          name (move (n)),
+          type (move (t)) {}
+
+    // Create an associated configuration.
+    //
+    configuration (optional<string> n,
+                   string t,
+                   dir_path p)
+        : name (move (n)),
+          type (move (t)),
+          path (move (p)) {}
+
+  private:
+    friend class odb::access;
+    configuration () = default;
+  };
+
+  // Verify that a string is a valid configuration name, that is non-empty,
+  // containing only alpha-numeric characters, '_', '-' (except for the first
+  // character which can only be alphabetic or '_'). Issue diagnostics and
+  // fail if that's not the case.
+  //
+  void
+  validate_configuration_name (const string&, const char* what);
+
   // version
   //
   // Sometimes we need to split the version into two parts: the part

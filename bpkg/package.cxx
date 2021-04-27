@@ -15,6 +15,28 @@ namespace bpkg
 {
   const version wildcard_version (0, "0", nullopt, nullopt, 0);
 
+  // configuration
+  //
+  void
+  validate_configuration_name (const string& s, const char* what)
+  {
+    if (s.empty ())
+      fail << "empty " << what;
+
+    if (!(alpha (s[0]) || s[0] == '_'))
+      fail << "invalid " << what << " '" << s << "': illegal first character "
+           << "(must be alphabetic or underscore)";
+
+    for (auto i (s.cbegin () + 1), e (s.cend ()); i != e; ++i)
+    {
+      char c (*i);
+
+      if (!(alnum (c) || c == '_' || c == '-'))
+        fail << "invalid " << what << " '" << s << "': illegal character "
+             << "(must be alphabetic, digit, underscore, or dash)";
+    }
+  }
+
   // available_package_id
   //
   bool

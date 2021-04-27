@@ -58,6 +58,25 @@ namespace bpkg
   {
     "\h|CFG-CREATE OPTIONS|"
 
+    string --name|-n
+    {
+      "<name>",
+      "The name to assign for the configuration. This name will be used by
+       default when this configuration will be associated with other
+       configurations (\l{bpkg-cfg-add(1)}). By default, a configuration is
+       created unnamed."
+    }
+
+    string --type|-t = "target"
+    {
+      "<type>",
+      "The type to assign for the configuration. The dependency and dependent
+       packages are only assumed to be compatible at runtime if types of the
+       associated configurations they were built in are identical (see
+       \l{bpkg-cfg-add(1)} for details). The predefined types are \cb{host}
+       and \cb{target} (default)."
+    }
+
     dir_path --directory|-d (".")
     {
       "<dir>",

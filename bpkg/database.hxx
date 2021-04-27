@@ -79,7 +79,10 @@ namespace bpkg
   };
 
   database
-  open (const dir_path& configuration, tracer&, bool create = false);
+  open (const dir_path& configuration,
+        tracer&,
+        bool create = false,
+        bool sys_rep = true);
 
   struct tracer_guard
   {

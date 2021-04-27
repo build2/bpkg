@@ -59,8 +59,19 @@ namespace bpkg
     }
   });
 
+  static const migration_entry<9>
+  migrate_v9 ([] (odb::database& db)
+  {
+    // Add the unnamed self configuration of the target type.
+    //
+    shared_ptr<configuration> sc (
+      make_shared<configuration> (optional<string> (), "target"));
+
+    db.persist (sc);
+  });
+
   database
-  open (const dir_path& d, tracer& tr, bool create)
+  open (const dir_path& d, tracer& tr, bool create, bool sys_rep)
   {
     tracer trace ("open");
 
@@ -122,17 +133,20 @@ namespace bpkg
       // available_package (e.g., a stub) will automatically "see" system
       // version, if one is known.
       //
-      transaction t (db.begin ());
+      if (sys_rep)
+      {
+        transaction t (db.begin ());
 
-      // @@ EC GOOD We should probably have a per-configuration system
-      //    repository and switch them when crossing the config boundary?
-      //
-      for (const auto& p:
-             db.query<selected_package> (
-               query<selected_package>::substate == "system"))
-        system_repository.insert (p.name, p.version, false);
+        // @@ EC GOOD We should probably have a per-configuration system
+        //    repository and switch them when crossing the config boundary?
+        //
+        for (const auto& p:
+               db.query<selected_package> (
+                 query<selected_package>::substate == "system"))
+          system_repository.insert (p.name, p.version, false);
 
-      t.commit ();
+        t.commit ();
+      }
 
       db.tracer (tr); // Switch to the caller's tracer.
       return db;
