@@ -1,15 +1,15 @@
 <changelog xmlns="http://www.codesynthesis.com/xmlns/odb/changelog" database="sqlite" version="1">
   <changeset version="8">
-    <alter-table name="repository">
+    <alter-table name="main.repository">
       <add-column name="local" type="INTEGER" null="true"/>
     </alter-table>
   </changeset>
 
   <changeset version="7">
-    <alter-table name="available_package_dependencies">
+    <alter-table name="main.available_package_dependencies">
       <add-column name="type" type="TEXT" null="true"/>
     </alter-table>
-    <add-table name="available_package_tests" kind="container">
+    <add-table name="main.available_package_tests" kind="container">
       <column name="name" type="TEXT" null="true" options="COLLATE NOCASE"/>
       <column name="version_epoch" type="INTEGER" null="true"/>
       <column name="version_canonical_upstream" type="TEXT" null="true"/>
@@ -42,7 +42,7 @@
         <column name="version_canonical_release"/>
         <column name="version_revision"/>
         <column name="version_iteration"/>
-        <references table="available_package">
+        <references table="main.available_package">
           <column name="name"/>
           <column name="version_epoch"/>
           <column name="version_canonical_upstream"/>
@@ -66,7 +66,7 @@
   </changeset>
 
   <model version="6">
-    <table name="repository_fragment" kind="object">
+    <table name="main.repository_fragment" kind="object">
       <column name="name" type="TEXT" null="true"/>
       <column name="url" type="TEXT" null="true"/>
       <column name="type" type="TEXT" null="true"/>
@@ -74,12 +74,12 @@
         <column name="name"/>
       </primary-key>
     </table>
-    <table name="repository_fragment_complements" kind="container">
+    <table name="main.repository_fragment_complements" kind="container">
       <column name="repository_fragment" type="TEXT" null="true"/>
       <column name="complement" type="TEXT" null="true"/>
       <foreign-key name="repository_fragment_fk" on-delete="CASCADE">
         <column name="repository_fragment"/>
-        <references table="repository_fragment">
+        <references table="main.repository_fragment">
           <column name="name"/>
         </references>
       </foreign-key>
@@ -88,17 +88,17 @@
       </index>
       <foreign-key name="complement_fk" deferrable="DEFERRED">
         <column name="complement"/>
-        <references table="repository">
+        <references table="main.repository">
           <column name="name"/>
         </references>
       </foreign-key>
     </table>
-    <table name="repository_fragment_prerequisites" kind="container">
+    <table name="main.repository_fragment_prerequisites" kind="container">
       <column name="repository_fragment" type="TEXT" null="true"/>
       <column name="prerequisite" type="TEXT" null="true"/>
       <foreign-key name="repository_fragment_fk" on-delete="CASCADE">
         <column name="repository_fragment"/>
-        <references table="repository_fragment">
+        <references table="main.repository_fragment">
           <column name="name"/>
         </references>
       </foreign-key>
@@ -107,12 +107,12 @@
       </index>
       <foreign-key name="prerequisite_fk" deferrable="DEFERRED">
         <column name="prerequisite"/>
-        <references table="repository">
+        <references table="main.repository">
           <column name="name"/>
         </references>
       </foreign-key>
     </table>
-    <table name="repository" kind="object">
+    <table name="main.repository" kind="object">
       <column name="name" type="TEXT" null="true"/>
       <column name="url" type="TEXT" null="true"/>
       <column name="type" type="TEXT" null="true"/>
@@ -121,14 +121,14 @@
         <column name="name"/>
       </primary-key>
     </table>
-    <table name="repository_fragments" kind="container">
+    <table name="main.repository_fragments" kind="container">
       <column name="repository" type="TEXT" null="true"/>
       <column name="index" type="INTEGER" null="true"/>
       <column name="friendly_name" type="TEXT" null="true"/>
       <column name="fragment" type="TEXT" null="true"/>
       <foreign-key name="repository_fk" on-delete="CASCADE">
         <column name="repository"/>
-        <references table="repository">
+        <references table="main.repository">
           <column name="name"/>
         </references>
       </foreign-key>
@@ -140,12 +140,12 @@
       </index>
       <foreign-key name="fragment_fk" deferrable="DEFERRED">
         <column name="fragment"/>
-        <references table="repository_fragment">
+        <references table="main.repository_fragment">
           <column name="name"/>
         </references>
       </foreign-key>
     </table>
-    <table name="available_package" kind="object">
+    <table name="main.available_package" kind="object">
       <column name="name" type="TEXT" null="true" options="COLLATE NOCASE"/>
       <column name="version_epoch" type="INTEGER" null="true"/>
       <column name="version_canonical_upstream" type="TEXT" null="true"/>
@@ -164,7 +164,7 @@
         <column name="version_iteration"/>
       </primary-key>
     </table>
-    <table name="available_package_locations" kind="container">
+    <table name="main.available_package_locations" kind="container">
       <column name="name" type="TEXT" null="true" options="COLLATE NOCASE"/>
       <column name="version_epoch" type="INTEGER" null="true"/>
       <column name="version_canonical_upstream" type="TEXT" null="true"/>
@@ -180,7 +180,7 @@
         <column name="version_canonical_release"/>
         <column name="version_revision"/>
         <column name="version_iteration"/>
-        <references table="available_package">
+        <references table="main.available_package">
           <column name="name"/>
           <column name="version_epoch"/>
           <column name="version_canonical_upstream"/>
@@ -199,12 +199,12 @@
       </index>
       <foreign-key name="repository_fragment_fk" deferrable="DEFERRED">
         <column name="repository_fragment"/>
-        <references table="repository_fragment">
+        <references table="main.repository_fragment">
           <column name="name"/>
         </references>
       </foreign-key>
     </table>
-    <table name="available_package_dependencies" kind="container">
+    <table name="main.available_package_dependencies" kind="container">
       <column name="name" type="TEXT" null="true" options="COLLATE NOCASE"/>
       <column name="version_epoch" type="INTEGER" null="true"/>
       <column name="version_canonical_upstream" type="TEXT" null="true"/>
@@ -222,7 +222,7 @@
         <column name="version_canonical_release"/>
         <column name="version_revision"/>
         <column name="version_iteration"/>
-        <references table="available_package">
+        <references table="main.available_package">
           <column name="name"/>
           <column name="version_epoch"/>
           <column name="version_canonical_upstream"/>
@@ -243,7 +243,7 @@
         <column name="index"/>
       </index>
     </table>
-    <table name="available_package_dependency_alternatives" kind="container">
+    <table name="main.available_package_dependency_alternatives" kind="container">
       <column name="name" type="TEXT" null="true" options="COLLATE NOCASE"/>
       <column name="version_epoch" type="INTEGER" null="true"/>
       <column name="version_canonical_upstream" type="TEXT" null="true"/>
@@ -276,7 +276,7 @@
         <column name="version_canonical_release"/>
         <column name="version_revision"/>
         <column name="version_iteration"/>
-        <references table="available_package">
+        <references table="main.available_package">
           <column name="name"/>
           <column name="version_epoch"/>
           <column name="version_canonical_upstream"/>
@@ -294,7 +294,7 @@
         <column name="version_iteration"/>
       </index>
     </table>
-    <table name="selected_package" kind="object">
+    <table name="main.selected_package" kind="object">
       <column name="name" type="TEXT" null="true" options="COLLATE NOCASE"/>
       <column name="version_epoch" type="INTEGER" null="true"/>
       <column name="version_canonical_upstream" type="TEXT" null="true"/>
@@ -319,7 +319,7 @@
         <column name="name"/>
       </primary-key>
     </table>
-    <table name="selected_package_prerequisites" kind="container">
+    <table name="main.selected_package_prerequisites" kind="container">
       <column name="package" type="TEXT" null="true" options="COLLATE NOCASE"/>
       <column name="prerequisite" type="TEXT" null="true" options="COLLATE NOCASE"/>
       <column name="min_version_epoch" type="INTEGER" null="true"/>
@@ -340,7 +340,7 @@
       <column name="max_open" type="INTEGER" null="true"/>
       <foreign-key name="package_fk" on-delete="CASCADE">
         <column name="package"/>
-        <references table="selected_package">
+        <references table="main.selected_package">
           <column name="name"/>
         </references>
       </foreign-key>
@@ -349,12 +349,12 @@
       </index>
       <foreign-key name="prerequisite_fk" deferrable="DEFERRED">
         <column name="prerequisite"/>
-        <references table="selected_package">
+        <references table="main.selected_package">
           <column name="name"/>
         </references>
       </foreign-key>
     </table>
-    <table name="certificate" kind="object">
+    <table name="main.certificate" kind="object">
       <column name="id" type="TEXT" null="true"/>
       <column name="fingerprint" type="TEXT" null="true"/>
       <column name="name" type="TEXT" null="true"/>

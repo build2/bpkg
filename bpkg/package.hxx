@@ -706,7 +706,7 @@ namespace bpkg
   // DISTINCT clause is not required.
   //
   #pragma db view object(available_package = package)                       \
-    table("available_package_dependencies" = "pd" inner:                    \
+    table("main.available_package_dependencies" = "pd" inner:               \
           "pd.type IN ('tests', 'examples', 'benchmarks') AND "             \
           "pd.name = " + package::id.name + "AND" +                         \
           "pd.version_epoch = " + package::id.version.epoch + "AND" +       \
@@ -725,7 +725,7 @@ namespace bpkg
   // external test packages.
   //
   #pragma db view object(available_package = package)                       \
-    table("available_package_tests" = "pt" inner:                           \
+    table("main.available_package_tests" = "pt" inner:                      \
           "pt.name = " + package::id.name + "AND" +                         \
           "pt.version_epoch = " + package::id.version.epoch + "AND" +       \
           "pt.version_canonical_upstream = " +                              \
@@ -1195,8 +1195,8 @@ namespace bpkg
   // @@ Using raw container table since ODB doesn't support containers
   //    in views yet.
   //
-  #pragma db view object(selected_package)               \
-    table("selected_package_prerequisites" = "pp" inner: \
+  #pragma db view object(selected_package)                    \
+    table("main.selected_package_prerequisites" = "pp" inner: \
           "pp.prerequisite = " + selected_package::name)
   struct package_dependent
   {
@@ -1209,7 +1209,7 @@ namespace bpkg
 
   // Return a count of repositories that contain this repository fragment.
   //
-  #pragma db view table("repository_fragments")
+  #pragma db view table("main.repository_fragments")
   struct fragment_repository_count
   {
     #pragma db column("count(*)")
@@ -1221,7 +1221,7 @@ namespace bpkg
   // Return a list of repositories that contain this repository fragment.
   //
   #pragma db view object(repository)                      \
-    table("repository_fragments" = "rfs" inner:           \
+    table("main.repository_fragments" = "rfs" inner:      \
           "rfs.repository = " + repository::name)         \
     object(repository_fragment inner: "rfs.fragment = " + \
            repository_fragment::name)
@@ -1236,7 +1236,7 @@ namespace bpkg
   // complement.
   //
   #pragma db view object(repository = complement)                    \
-    table("repository_fragment_complements" = "rfc" inner:           \
+    table("main.repository_fragment_complements" = "rfc" inner:      \
           "rfc.complement = " + complement::name)                    \
     object(repository_fragment inner: "rfc.repository_fragment = " + \
            repository_fragment::name)
@@ -1251,7 +1251,7 @@ namespace bpkg
   // prerequisite.
   //
   #pragma db view object(repository = prerequisite)                  \
-    table("repository_fragment_prerequisites" = "rfp" inner:         \
+    table("main.repository_fragment_prerequisites" = "rfp" inner:    \
           "rfp.prerequisite = " + prerequisite::name)                \
     object(repository_fragment inner: "rfp.repository_fragment = " + \
            repository_fragment::name)
@@ -1265,7 +1265,7 @@ namespace bpkg
   // Return a list of packages available from this repository fragment.
   //
   #pragma db view object(repository_fragment)                                \
-    table("available_package_locations" = "pl" inner:                        \
+    table("main.available_package_locations" = "pl" inner:                   \
           "pl.repository_fragment = " + repository_fragment::name)           \
     object(available_package = package inner:                                \
            "pl.name = " + package::id.name + "AND" +                         \
@@ -1286,7 +1286,7 @@ namespace bpkg
   // Return a list of repository fragments the packages come from.
   //
   #pragma db view object(repository_fragment)                                \
-    table("available_package_locations" = "pl" inner:                        \
+    table("main.available_package_locations" = "pl" inner:                   \
           "pl.repository_fragment = " + repository_fragment::name)           \
     object(available_package = package inner:                                \
            "pl.name = " + package::id.name + "AND" +                         \

@@ -49,4 +49,5 @@ $odb "${inc[@]}"                                                      \
     --hxx-prologue '#include <bpkg/wrapper-traits.hxx>'               \
     --hxx-prologue '#include <bpkg/value-traits.hxx>'                 \
     --include-with-brackets --include-prefix bpkg --guard-prefix BPKG \
+    --schema main --schema-version-table main.schema_version          \
     --sqlite-override-null package.hxx

@@ -41,6 +41,8 @@ namespace bpkg
 
   // Register the data migration functions.
   //
+  // NOTE: remember to qualify table names if using native statements.
+  //
   template <odb::schema_version v>
   using migration_entry = odb::data_migration_entry<v, DB_SCHEMA_VERSION_BASE>;
 
