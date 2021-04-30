@@ -15,33 +15,12 @@ using namespace std;
 
 namespace bpkg
 {
-  using namespace odb::sqlite;
-  using odb::schema_catalog;
-
-  // Use a custom connection factory to automatically set and clear the
-  // BPKG_OPEN_CONFIG environment variable. A bit heavy-weight but seems like
-  // the best option.
-  //
-  static const string open_name ("BPKG_OPEN_CONFIG");
-
-  class conn_factory: public single_connection_factory // No need for pool.
-  {
-  public:
-    conn_factory (const dir_path& d)
-    {
-      setenv (open_name, normalize (d, "configuration").string ());
-    }
-
-    virtual
-    ~conn_factory ()
-    {
-      unsetenv (open_name);
-    }
-  };
+  namespace sqlite = odb::sqlite;
 
   // Register the data migration functions.
   //
-  // NOTE: remember to qualify table names if using native statements.
+  // NOTE: remember to qualify table names with \"main\". if using native
+  // statements.
   //
   template <odb::schema_version v>
   using migration_entry = odb::data_migration_entry<v, DB_SCHEMA_VERSION_BASE>;
@@ -70,25 +49,70 @@ namespace bpkg
     db.persist (sc);
   });
 
-  database
-  open (const dir_path& d, tracer& tr, bool create, bool sys_rep)
+  class database::impl
   {
-    tracer trace ("open");
+  };
 
+  static inline path
+  cfg_path (const dir_path& d, bool create)
+  {
     path f (d / bpkg_dir / "bpkg.sqlite3");
 
     if (!create && !exists (f))
       fail << d << " does not look like a bpkg configuration directory";
 
+    return f;
+  }
+
+  static void
+  open (database&, const dir_path&, bool, bool);
+
+  // Automatically set and clear the BPKG_OPEN_CONFIG environment variable in
+  // the main database constructor and destructor.
+  //
+  static const string open_name ("BPKG_OPEN_CONFIG");
+
+  database::
+  database (const dir_path& d, odb::tracer& tr, bool create, bool sys_rep)
+      : sqlite::database (
+          cfg_path (d, create).string (),
+          SQLITE_OPEN_READWRITE | (create ? SQLITE_OPEN_CREATE : 0),
+          true,                  // Enable FKs.
+          "",                    // Default VFS.
+          unique_ptr<sqlite::connection_factory> (
+            new sqlite::single_connection_factory)) // Single connection.
+                                                    // @@ TMP serial_
+  {
+    open (*this, d, create, sys_rep);
+
+    tracer (tr);
+
+    setenv (open_name, normalize (d, "configuration").string ());
+
+    impl_ = new impl; // Will leak if anything further throws
+  }
+
+  database::
+  ~database ()
+  {
+    // @@ TMP
+    //if (schema.empty ()) // Main database?
+    {
+      delete impl_;
+      unsetenv (open_name);
+    }
+  }
+
+  static void
+  open (database& db, const dir_path& d, bool create, bool sys_rep)
+  {
+    using odb::schema_catalog;
+
+    tracer trace ("open");
+
     try
     {
-      database db (f.string (),
-                   SQLITE_OPEN_READWRITE | (create ? SQLITE_OPEN_CREATE : 0),
-                   true,                  // Enable FKs.
-                   "",                    // Default VFS.
-                   unique_ptr<connection_factory> (new conn_factory (d)));
-
-      db.tracer (trace);
+      tracer_guard tg (db, trace);
 
       // Lock the database for as long as the connection is active. First
       // we set locking_mode to EXCLUSIVE which instructs SQLite not to
@@ -98,7 +122,7 @@ namespace bpkg
       // also fail if the database is inaccessible (e.g., file does not
       // exist, already used by another process, etc).
       //
-      using odb::sqlite::transaction; // Skip the wrapper.
+      using sqlite::transaction; // Skip the wrapper.
 
       try
       {
@@ -110,7 +134,7 @@ namespace bpkg
           // Create the new schema.
           //
           if (db.schema_version () != 0)
-            fail << f << ": already has database schema";
+            fail << db.name () << ": already has database schema";
 
           schema_catalog::create_schema (db);
         }
@@ -147,13 +171,10 @@ namespace bpkg
 
         t.commit ();
       }
-
-      db.tracer (tr); // Switch to the caller's tracer.
-      return db;
     }
-    catch (const database_exception& e)
+    catch (const sqlite::database_exception& e)
     {
-      fail << f << ": " << e.message () << endf;
+      fail << db.name () << ": " << e.message ();
     }
   }
 }

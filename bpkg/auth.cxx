@@ -664,7 +664,7 @@ namespace bpkg
     }
     else
     {
-      database db (open (*conf, trace));
+      database db (*conf, trace);
       transaction t (db);
       r = auth_cert (co, *conf, db, pem, rl, dependent_trust);
       t.commit ();

@@ -23,18 +23,46 @@ namespace bpkg
   using odb::result;
   using odb::session;
 
-  using odb::sqlite::database;
+  // Derive a custom database class that handles attaching/detaching
+  // additional configurations.
+  //
+  class database: public odb::sqlite::database
+  {
+  public:
+    // Create main database.
+    //
+    // Note that
+    //
+    database (const dir_path& cfg,
+              odb::tracer&,
+              bool create = false,
+              bool sys_rep = true);
+
+    // Attach another (existing) database.
+    //
+    // @@ sys_rep ?
+    //
+    database&
+    attach (const dir_path&);
+
+    ~database ();
+
+  private:
+    class impl;
+    impl* impl_;
+  };
 
   // Transaction wrapper that allow the creation of dummy transactions (start
   // is false) that in reality use an existing transaction.
   //
   // Note that there can be multiple databases attached to the primary one and
   // normally a transaction object is passed around together with a specific
-  // database object. Thus, we don't provide the database accessor function,
-  // so that the database is always chosen deliberately.
+  // database. Thus, we don't provide the database accessor function, so that
+  // the database is always chosen deliberately.
   //
-  struct transaction
+  class transaction
   {
+  public:
     using database_type = bpkg::database;
 
     explicit
@@ -65,29 +93,17 @@ namespace bpkg
       return odb::sqlite::transaction::has_current ();
     }
 
-    static odb::sqlite::transaction&
-    current ()
-    {
-      return odb::sqlite::transaction::current ();
-    }
-
   private:
     database_type& db_;
     bool start_;
     odb::sqlite::transaction t_;
   };
 
-  database
-  open (const dir_path& configuration,
-        tracer&,
-        bool create = false,
-        bool sys_rep = true);
-
   struct tracer_guard
   {
     tracer_guard (database& db, tracer& t)
         : db_ (db), t_ (db.tracer ()) {db.tracer (t);}
-    ~tracer_guard () {db_.tracer (*t_);}
+    ~tracer_guard () {db_.tracer (t_);}
 
   private:
     database& db_;

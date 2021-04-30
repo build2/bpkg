@@ -359,7 +359,7 @@ namespace bpkg
     const dir_path& c (o.directory ());
     l4 ([&]{trace << "configuration: " << c;});
 
-    database db (open (c, trace));
+    database db (c, trace);
     transaction t (db);
 
     shared_ptr<selected_package> p;

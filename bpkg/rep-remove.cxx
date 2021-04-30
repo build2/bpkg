@@ -385,7 +385,7 @@ namespace bpkg
         dr << info << "run 'bpkg help rep-remove' for more information";
     }
 
-    database db (open (c, trace));
+    database db (c, trace);
 
     // Clean the configuration if requested.
     //

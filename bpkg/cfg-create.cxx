@@ -135,7 +135,7 @@ namespace bpkg
 
     // Create the database.
     //
-    database db (open (c, trace, true /* create */));
+    database db (c, trace, true /* create */);
 
     transaction t (db);
 

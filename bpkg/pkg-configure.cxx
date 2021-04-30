@@ -272,7 +272,7 @@ namespace bpkg
     if (ps == package_scheme::sys && !vars.empty ())
       fail << "configuration variables specified for a system package";
 
-    database db (open (c, trace));
+    database db (c, trace);
     transaction t (db);
     session s;
 

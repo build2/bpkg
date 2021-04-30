@@ -2507,7 +2507,7 @@ namespace bpkg
       fail << "package name argument expected" <<
         info << "run 'bpkg help pkg-build' for more information";
 
-    database db (open (c, trace)); // Also populates the system repository.
+    database db (c, trace); // Also populates the system repository.
 
     // Note that the session spans all our transactions. The idea here is that
     // selected_package objects in build_packages below will be cached in this

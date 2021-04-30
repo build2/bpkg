@@ -436,7 +436,7 @@ namespace bpkg
       fail << "package name argument expected" <<
         info << "run 'bpkg help pkg-drop' for more information";
 
-    database db (open (c, trace));
+    database db (c, trace);
 
     // Note that the session spans all our transactions. The idea here is
     // that drop_package objects in the drop_packages list below will be

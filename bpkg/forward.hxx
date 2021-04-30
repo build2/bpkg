@@ -4,12 +4,10 @@
 #ifndef BPKG_FORWARD_HXX
 #define BPKG_FORWARD_HXX
 
-#include <odb/sqlite/forward.hxx>
-
 namespace bpkg
 {
-  using odb::sqlite::database;
-  struct transaction;
+  class database;
+  class transaction;
 
   // <bpkg/package.hxx>
   //

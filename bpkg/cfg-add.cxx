@@ -46,14 +46,14 @@ namespace bpkg
     //
     shared_ptr<configuration> ac;
     {
-      database db (open (d, trace, false /* create */, false /* sys_rep */));
+      database db (d, trace, false /* create */, false /* sys_rep */);
 
       transaction t (db);
       ac = db.load<configuration> (0);
       t.commit ();
     }
 
-    database db (open (c, trace));
+    database db (c, trace);
     transaction t (db);
 
     // Verify that name and path of the configuration being associated doesn't

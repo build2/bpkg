@@ -1486,7 +1486,7 @@ namespace bpkg
     //
     vector<lazy_shared_ptr<repository>> repos;
 
-    database db (open (c, trace));
+    database db (c, trace);
     transaction t (db);
     session s; // Repository dependencies can have cycles.
 

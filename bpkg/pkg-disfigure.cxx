@@ -215,7 +215,7 @@ namespace bpkg
     package_name n (parse_package_name (args.next (),
                                         false /* allow_version */));
 
-    database db (open (c, trace));
+    database db (c, trace);
     transaction t (db);
 
     shared_ptr<selected_package> p (db.find<selected_package> (n));

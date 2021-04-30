@@ -248,7 +248,7 @@ namespace bpkg
 
     vector<pkg_command_vars> ps;
     {
-      database db (open (c, trace));
+      database db (c, trace);
       transaction t (db);
 
       // We need to suppress duplicate dependencies for the recursive command
