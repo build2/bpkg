@@ -8,6 +8,8 @@
 #include <odb/schema-catalog.hxx>
 #include <odb/sqlite/exceptions.hxx>
 
+#include <libbutl/sha256.mxx>
+
 #include <bpkg/package.hxx>
 #include <bpkg/package-odb.hxx>
 #include <bpkg/diagnostics.hxx>
@@ -71,6 +73,8 @@ namespace bpkg
     sqlite::connection_ptr conn; // Main connection.
 
     map<dir_path, database> attached_map;
+
+    impl (sqlite::connection_ptr&& c): conn (move (c)) {}
   };
 
   database::
@@ -85,13 +89,14 @@ namespace bpkg
           true,                  // Enable FKs.
           "",                    // Default VFS.
           unique_ptr<sqlite::connection_factory> (
-            new sqlite::serial_connection_factory)) // Single connection.
+            new sqlite::serial_connection_factory)), // Single connection.
+        config (normalize (d, "configuration"))
   {
     bpkg::tracer trace ("database");
 
     // Cache the (single) main connection we will be using.
     //
-    unique_ptr ig ((impl_ = new impl {connection ()}));
+    unique_ptr<impl> ig ((impl_ = new impl (connection ())));
 
     try
     {
@@ -100,7 +105,7 @@ namespace bpkg
       // Lock the database for as long as the connection is active. First we
       // set locking_mode to EXCLUSIVE which instructs SQLite not to release
       // any locks until the connection is closed. Then we force SQLite to
-      // acquire the write lock by starting exclusive transaction.  See the
+      // acquire the write lock by starting exclusive transaction. See the
       // locking_mode pragma documentation for details. This will also fail if
       // the database is inaccessible (e.g., file does not exist, already used
       // by another process, etc).
@@ -127,39 +132,26 @@ namespace bpkg
         }
         else
         {
-          // @@ PLAN:
-          //
-          // - If migrating:
-          //
-          //     - Recursive attach and migrate all associated.
-          //     - Commit.
-          //     - Maybe change locking_mode (to be able to detach).
-          //     - Detach all.
-          //     - Maybe restore locking mode (and relock main db?)
-          //
-          //     ! Pre-association is tricky: we may not need migration
-          //       but it does!
-          //
-          // - If cfg-add:
-          //
-          //     - Pass as pre-associated.
-          //     - Add both directions.
-          //
+          migrate ();
 
-          // Migrate the database if necessary.
-          //
-          schema_catalog::migrate (*this);
+          if (pre_assoc != nullptr)
+            attach (*pre_assoc, false /* sys_rep */).migrate ();
         }
 
+        if (sys_rep)
+          load_system_repository ();
+
         t.commit ();
+
+        // Detach potentially attached during migration the (pre-)associated
+        // databases.
+        //
+        detach_all ();
       }
       catch (odb::timeout&)
       {
         fail << "configuration " << d << " is already used by another process";
       }
-
-      if (sys_rep)
-        load_system_repository ();
     }
     catch (const sqlite::database_exception& e)
     {
@@ -176,6 +168,45 @@ namespace bpkg
     ig.release (); // Will be leaked if anything further throws.
   }
 
+  void database::
+  migrate ()
+  {
+    using odb::schema_catalog;
+
+    odb::schema_version sv  (schema_version ());
+    odb::schema_version scv (schema_catalog::current_version (*this));
+
+    if (sv != scv)
+    {
+      if (sv < schema_catalog::base_version (*this))
+        fail << "configuration '" << config << "' is too old";
+
+      if (sv > scv)
+        fail << "configuration '" << config << "' is too new";
+
+      // Note that we need to migrate the current database before the
+      // associated ones to properly handle association cycles.
+      //
+      schema_catalog::migrate (*this);
+
+      for (auto& c: query<configuration> (odb::query<configuration>::id != 0))
+      {
+        if (c.path.relative ())
+        {
+          c.path = config / c.path;
+
+          string cn (c.name ? move (*c.name) : to_string (*c.id));
+
+          normalize (c.path,
+                     "associated to '" + config.string () +
+                     "' configuration '" + cn + "'");
+        }
+
+        attach (c.path, false /* sys_rep */).migrate ();
+      }
+    }
+  }
+
   database::
   database (impl* i,
             const dir_path& d,
@@ -183,7 +214,8 @@ namespace bpkg
             bool sys_rep)
       : sqlite::database (i->conn,
                           cfg_path (d, false /* create */).string (),
-                          move (schema))
+                          move (schema)),
+        config (d),
         impl_ (i)
   {
     bpkg::tracer trace ("database");
@@ -209,29 +241,45 @@ namespace bpkg
     // available_package (e.g., a stub) will automatically "see" system
     // version, if one is known.
     //
-    transaction t (db.begin ());
+    assert (transaction::has_current ());
 
-    for (const auto& p:
-           query<selected_package> (
-             query<selected_package>::substate == "system"))
-      system_repository.insert (p.name, p.version, false);
-
-    t.commit ();
+    for (const auto& p: query<selected_package> (
+           odb::query<selected_package>::substate == "system"))
+      system_repository.insert (p.name, p.version, false /* authoritative */);
   }
 
   database::
   ~database ()
   {
-    if (schema.empty ()) // Main database?
+    if (impl_ != nullptr &&  // Not a moved-from database?
+        schema ().empty ())  // Main database?
     {
       delete impl_;
       unsetenv (open_name);
     }
   }
 
+  database::
+  database (database&& d)
+      : sqlite::database (move (d)),
+        config (move (d.config)),
+        system_repository (move (d.system_repository)),
+        impl_ (d.impl_)
+  {
+    d.impl_ = nullptr; // See ~database().
+  }
+
   database& database::
   attach (const dir_path& d, bool sys_rep)
   {
+    assert (d.absolute () && d.normalized ());
+
+    // Check if we are trying to attach the main database.
+    //
+    database& md (static_cast<database&> (main_database ()));
+    if (d == md.config)
+      return md;
+
     auto& am (impl_->attached_map);
 
     auto i (am.find (d));
@@ -244,13 +292,17 @@ namespace bpkg
       //
       string schema;
       {
-        sha256 h (d.string ());
+        butl::sha256 h (d.string ());
 
         for (size_t n (4);; ++n)
         {
           schema = h.abbreviated_string (n);
 
-          if (find_if (... [] () {.second.schema () == schema) == end))
+          if (find_if (am.begin (), am.end (),
+                       [&schema] (const map<dir_path, database>::value_type& v)
+                       {
+                         return v.second.schema () == schema;
+                       }) == am.end ())
             break;
         }
       }
@@ -261,11 +313,19 @@ namespace bpkg
       //
       sqlite::transaction t;
       if (!sqlite::transaction::has_current ())
-        t.reset (db.begin_exclusive ());
+        t.reset (begin_exclusive ());
 
-      i = am.emplace (d, impl_, d, move (schema), sys_rep).first;
+      try
+      {
+        i = am.insert (
+          make_pair (d, database (impl_, d, move (schema), sys_rep))).first;
+      }
+      catch (odb::timeout&)
+      {
+        fail << "configuration " << d << " is already used by another process";
+      }
 
-      if (!t.finilized ())
+      if (!t.finalized ())
         t.commit ();
     }
 
@@ -275,7 +335,7 @@ namespace bpkg
   void database::
   detach_all ()
   {
-    assert (schema.empty ());
+    assert (schema ().empty ());
 
     for (auto i (impl_->attached_map.begin ());
          i != impl_->attached_map.end (); )

@@ -666,48 +666,13 @@ namespace bpkg
     // we do not implicitly assume a wildcard version.
     //
     const version_type*
-    system_version () const
-    {
-      if (!system_version_)
-      {
-        if (const system_package* sp = system_repository.find (id.name))
-        {
-          // Only cache if it is authoritative.
-          //
-          if (sp->authoritative)
-            system_version_ = sp->version;
-          else
-            return &sp->version;
-        }
-      }
-
-      return system_version_ ? &*system_version_ : nullptr;
-    }
+    system_version (database&) const;
 
     // As above but also return an indication if the version information is
     // authoritative.
     //
     pair<const version_type*, bool>
-    system_version_authoritative () const
-    {
-      const system_package* sp (system_repository.find (id.name));
-
-      if (!system_version_)
-      {
-        if (sp != nullptr)
-        {
-          // Only cache if it is authoritative.
-          //
-          if (sp->authoritative)
-            system_version_ = sp->version;
-          else
-            return make_pair (&sp->version, false);
-        }
-      }
-
-      return make_pair (system_version_ ?  &*system_version_ : nullptr,
-                        sp != nullptr ? sp->authoritative : false);
-    }
+    system_version_authoritative (database&) const;
 
     // Database mapping.
     //

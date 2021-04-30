@@ -48,6 +48,47 @@ namespace bpkg
 
   // available_package
   //
+  const version* available_package::
+  system_version (database& db) const
+  {
+    if (!system_version_)
+    {
+      if (const system_package* sp = db.system_repository.find (id.name))
+      {
+        // Only cache if it is authoritative.
+        //
+        if (sp->authoritative)
+          system_version_ = sp->version;
+        else
+          return &sp->version;
+      }
+    }
+
+    return system_version_ ? &*system_version_ : nullptr;
+  }
+
+  pair<const version*, bool> available_package::
+  system_version_authoritative (database& db) const
+  {
+    const system_package* sp (db.system_repository.find (id.name));
+
+    if (!system_version_)
+    {
+      if (sp != nullptr)
+      {
+        // Only cache if it is authoritative.
+        //
+        if (sp->authoritative)
+          system_version_ = sp->version;
+        else
+          return make_pair (&sp->version, false);
+      }
+    }
+
+    return make_pair (system_version_ ?  &*system_version_ : nullptr,
+                      sp != nullptr ? sp->authoritative : false);
+  }
+
   odb::result<available_package>
   query_available (database& db,
                    const package_name& name,

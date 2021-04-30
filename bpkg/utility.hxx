@@ -128,6 +128,12 @@ namespace bpkg
     return move (normalize (r, what));
   }
 
+  inline dir_path&
+  normalize (dir_path& d, const string& what)
+  {
+    return normalize (d, what.c_str ());
+  }
+
   // Progress.
   //
   extern bool stderr_term; // True if stderr is a terminal.

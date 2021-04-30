@@ -32,8 +32,9 @@ namespace bpkg
   public:
     // Create main database.
     //
-    // If pre-associate is not NULL, then this configration is treated as
-    // another associated configuration for schema migration purposes.
+    // If pre-associate is not NULL (also needs to be absolute and
+    // normalized), then this configuration is treated as another associated
+    // configuration for schema migration purposes.
     //
     database (const dir_path& cfg,
               odb::tracer&,
@@ -43,8 +44,13 @@ namespace bpkg
 
     ~database ();
 
-    database (database&&) = delete;
+    // Move-constructible but not move-assignable.
+    //
+    database (database&&);
     database& operator= (database&&) = delete;
+
+    database (const database&) = delete;
+    database& operator= (const database&) = delete;
 
     // Attach another (existing) database. The configuration directory should
     // be absolute and normalized.
@@ -58,10 +64,12 @@ namespace bpkg
     void
     detach_all ();
 
+  public:
+    dir_path config; // Absolute and normalized configuration directory.
+
     // Per-configuration system repository (only loaded if sys_rep above is
     // true).
     //
-  public:
     bpkg::system_repository system_repository;
 
   private:
@@ -74,6 +82,19 @@ namespace bpkg
               string schema,
               bool sys_rep);
 
+    // If necessary, migrate this database and all the associated databases,
+    // recursively. Leave associated databases attached. Must be called inside
+    // the transaction.
+    //
+    // Note that since the whole associated databases cluster is migrated at
+    // once, it is assumed that if migration is unnecessary for a database
+    // then it is also unnecessary for its associated databases.
+    //
+    void
+    migrate ();
+
+    // Must be called inside the transaction.
+    //
     void
     load_system_repository ();
 
@@ -95,7 +116,7 @@ namespace bpkg
 
     explicit
     transaction (database_type& db, bool start = true)
-        : db_ (db), start_ (start), t_ () // Finalized.
+        : start_ (start), t_ () // Finalized.
     {
       if (start)
         t_.reset (db.begin_exclusive ()); // See locking_mode for details.
@@ -122,7 +143,6 @@ namespace bpkg
     }
 
   private:
-    database_type& db_;
     bool start_;
     odb::sqlite::transaction t_;
   };

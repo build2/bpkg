@@ -446,7 +446,7 @@ namespace bpkg
     static const uint16_t adjust_reconfigure = 0x0002;
 
     bool
-    reconfigure () const
+    reconfigure (database& db) const
     {
       assert (action && *action != drop);
 
@@ -456,28 +456,30 @@ namespace bpkg
               (*action == build &&
                (selected->system () != system             ||
                 // @@ EC selected->reference != p.reference ||
-                selected->version != available_version () ||
+                selected->version != available_version (db) ||
                 (!system && !config_vars.empty ()))));
     }
 
     const version&
-    available_version () const
+    available_version (database& db) const
     {
       // This should have been diagnosed before creating build_package object.
       //
       assert (available != nullptr &&
               (system
-               ? available->system_version () != nullptr
+               ? available->system_version (db) != nullptr
                : !available->stub ()));
 
-      return system ? *available->system_version () : available->version;
+      return system ? *available->system_version (db) : available->version;
     }
 
     string
-    available_name_version () const
+    available_name_version (database& db) const
     {
       assert (available != nullptr);
-      return package_string (available->id.name, available_version (), system);
+      return package_string (available->id.name,
+                             available_version (db),
+                             system);
     }
 
     // Merge constraints, required-by package names, hold_* flags,
@@ -638,7 +640,7 @@ namespace bpkg
           build_package* p1 (&bp);
           build_package* p2 (&pkg);
 
-          if (p1->available_version () != p2->available_version ())
+          if (p1->available_version (db) != p2->available_version (db))
           {
             using constraint_type = build_package::constraint_type;
 
@@ -647,19 +649,19 @@ namespace bpkg
             // should prefer. So get the first to try into p1 and the second
             // to try -- into p2.
             //
-            if (p2->available_version () > p1->available_version ())
+            if (p2->available_version (db) > p1->available_version (db))
               swap (p1, p2);
 
             // See if pv's version satisfies pc's constraints. Return the
             // pointer to the unsatisfied constraint or NULL if all are
             // satisfied.
             //
-            auto test = [] (build_package* pv,
-                            build_package* pc) -> const constraint_type*
+            auto test = [&db] (build_package* pv,
+                               build_package* pc) -> const constraint_type*
             {
               for (const constraint_type& c: pc->constraints)
               {
-                if (!satisfies (pv->available_version (), c.value))
+                if (!satisfies (pv->available_version (db), c.value))
                   return &c;
               }
 
@@ -683,8 +685,8 @@ namespace bpkg
                      << ")" <<
                   info << d2 << " depends on (" << n << " " << c2->value
                        << ")" <<
-                  info << "available " << p1->available_name_version () <<
-                  info << "available " << p2->available_name_version () <<
+                  info << "available " << p1->available_name_version (db) <<
+                  info << "available " << p2->available_name_version (db) <<
                   info << "explicitly specify " << n << " version to manually "
                        << "satisfy both constraints";
               }
@@ -692,8 +694,8 @@ namespace bpkg
                 swap (p1, p2);
             }
 
-            l4 ([&]{trace << "pick " << p1->available_name_version ()
-                          << " over " << p2->available_name_version ();});
+            l4 ([&]{trace << "pick " << p1->available_name_version (db)
+                          << " over " << p2->available_name_version (db);});
           }
           // If versions are the same, then we still need to pick the entry as
           // one of them can build a package from source while another
@@ -728,7 +730,7 @@ namespace bpkg
       {
         // This is the first time we are adding this package name to the map.
         //
-        l4 ([&]{trace << "add " << pkg.available_name_version ();});
+        l4 ([&]{trace << "add " << pkg.available_name_version (db);});
 
         // Note: copy; see emplace() below.
         //
@@ -790,16 +792,16 @@ namespace bpkg
           (sp != nullptr &&
            sp->state == package_state::configured &&
            sp->substate != package_substate::system &&
-           sp->version == pkg.available_version ()))
+           sp->version == pkg.available_version (db)))
         return;
 
       // Show how we got here if things go wrong.
       //
       auto g (
         make_exception_guard (
-          [&pkg] ()
+          [&db, &pkg] ()
           {
-            info << "while satisfying " << pkg.available_name_version ();
+            info << "while satisfying " << pkg.available_name_version (db);
           }));
 
       const shared_ptr<available_package>& ap (pkg.available);
@@ -977,7 +979,7 @@ namespace bpkg
           // prerequisites).
           //
           if (af == nullptr)
-            fail << "package " << pkg.available_name_version ()
+            fail << "package " << pkg.available_name_version (db)
                  << " is orphaned" <<
               info << "explicitly upgrade it to a new version";
 
@@ -1074,17 +1076,17 @@ namespace bpkg
             // version constraint). If it were, then the system version
             // wouldn't be NULL and would satisfy itself.
             //
-            if (dap->system_version () == nullptr)
+            if (dap->system_version (db) == nullptr)
               fail << "dependency " << d << " of package " << name << " is "
                    << "not available in source" <<
                 info << "specify ?sys:" << dn << " if it is available from "
                    << "the system";
 
-            if (!satisfies (*dap->system_version (), d.constraint))
+            if (!satisfies (*dap->system_version (db), d.constraint))
               fail << "dependency " << d << " of package " << name << " is "
                    << "not available in source" <<
                 info << package_string (dn,
-                                        *dap->system_version (),
+                                        *dap->system_version (db),
                                         true /* system */)
                    << " does not satisfy the constrains";
 
@@ -1092,7 +1094,7 @@ namespace bpkg
           }
           else
           {
-            auto p (dap->system_version_authoritative ());
+            auto p (dap->system_version_authoritative (db));
 
             if (p.first != nullptr &&
                 p.second && // Authoritative.
@@ -1162,7 +1164,7 @@ namespace bpkg
 
           if (f || w || verb >= 2)
           {
-            const version& av (p->available_version ());
+            const version& av (p->available_version (db));
 
             bool u (av > dsp->version);
             bool c (d.constraint);
@@ -1180,7 +1182,7 @@ namespace bpkg
             // attribution changes.
             //
             if (dsp->system ())
-              dr << p->available_name_version ();
+              dr << p->available_name_version (db);
             else
               dr << av; // Can't be a system version so is never wildcard.
 
@@ -1316,10 +1318,10 @@ namespace bpkg
     // possible.
     //
     iterator
-    order (const package_name& name, bool reorder = true)
+    order (database& db, const package_name& name, bool reorder = true)
     {
       package_names chain;
-      return order (name, chain, reorder);
+      return order (db, name, chain, reorder);
     }
 
     // If a configured package is being up/down-graded then that means
@@ -1358,7 +1360,7 @@ namespace bpkg
 
         // Dropped package may have no dependents.
         //
-        if (*p.action != build_package::drop && p.reconfigure ())
+        if (*p.action != build_package::drop && p.reconfigure (db))
           collect_order_dependents (db, i);
       }
     }
@@ -1379,7 +1381,7 @@ namespace bpkg
       // available package could be NULL meaning we are just adjusting.
       //
       int ud (p.available != nullptr
-              ? sp->version.compare (p.available_version ())
+              ? sp->version.compare (p.available_version (db))
               : 0);
 
       using query = query<package_dependent>;
@@ -1408,12 +1410,12 @@ namespace bpkg
 
           check = dp.available == nullptr ||
             (dp.selected->system () == dp.system &&
-             dp.selected->version == dp.available_version ());
+             dp.selected->version == dp.available_version (db));
         }
 
         if (check)
         {
-          const version& av (p.available_version ());
+          const version& av (p.available_version (db));
           const version_constraint& c (*pd.constraint);
 
           if (!satisfies (av, c))
@@ -1427,7 +1429,7 @@ namespace bpkg
             // attribution changes.
             //
             if (p.system != sp->system ())
-              dr << p.available_name_version ();
+              dr << p.available_name_version (db);
             else
               dr << av; // Can't be the wildcard otherwise would satisfy.
 
@@ -1442,7 +1444,7 @@ namespace bpkg
             }
 
             if (!rb.empty ())
-              dr << info << "package " << p.available_name_version ()
+              dr << info << "package " << p.available_name_version (db)
                  << " required by" << rb;
 
             dr << info << "explicitly request up/downgrade of package " << dn;
@@ -1571,7 +1573,10 @@ namespace bpkg
                                        16>;
 
     iterator
-    order (const package_name& name, package_names& chain, bool reorder)
+    order (database& db,
+           const package_name& name,
+           package_names& chain,
+           bool reorder)
     {
       // Every package that we order should have already been collected.
       //
@@ -1592,7 +1597,7 @@ namespace bpkg
           diag_record dr (fail);
           dr << "dependency cycle detected involving package " << name;
 
-          auto nv = [this] (const package_name& name)
+          auto nv = [&db, this] (const package_name& name)
           {
             auto mi (map_.find (name));
             assert (mi != map_.end ());
@@ -1607,7 +1612,7 @@ namespace bpkg
             //
             assert (p.available != nullptr);
 
-            return p.available_name_version ();
+            return p.available_name_version (db);
           };
 
           for (chain.push_back (name); i != chain.end () - 1; ++i)
@@ -1671,10 +1676,10 @@ namespace bpkg
                      sp->state == package_state::configured &&
                      sp->substate != package_substate::system);
 
-      auto disfigure = [] (const build_package& p)
+      auto disfigure = [&db] (const build_package& p)
       {
         return p.action && (*p.action == build_package::drop ||
-                            p.reconfigure ());
+                            p.reconfigure (db));
       };
 
       bool order_disfigured (src_conf && disfigure (p));
@@ -1690,7 +1695,7 @@ namespace bpkg
         // not as a system package, then that means we can use its
         // prerequisites list. Otherwise, we use the manifest data.
         //
-        if (src_conf && sp->version == p.available_version ())
+        if (src_conf && sp->version == p.available_version (db))
         {
           for (const auto& p: sp->prerequisites)
           {
@@ -1703,7 +1708,7 @@ namespace bpkg
             //
             auto i (map_.find (name));
             if (i != map_.end () && i->second.package.action)
-              update (order (name, chain, false /* reorder */));
+              update (order (db, name, chain, false /* reorder */));
           }
 
           // We just ordered them among other prerequisites.
@@ -1731,7 +1736,7 @@ namespace bpkg
 
             // @@ EC Get the config from shared_pkgs?
             //
-            update (order (d.name, chain, false /* reorder */));
+            update (order (db, d.name, chain, false /* reorder */));
           }
         }
       }
@@ -1749,7 +1754,7 @@ namespace bpkg
           auto i (map_.find (name));
 
           if (i != map_.end () && disfigure (i->second.package))
-            update (order (name, chain, false /* reorder */));
+            update (order (db, name, chain, false /* reorder */));
         }
       }
 
@@ -2054,12 +2059,12 @@ namespace bpkg
     bool stub (false);
     bool ssys (sp->system ());
 
-    assert (!dsys || system_repository.find (nm) != nullptr);
+    assert (!dsys || db.system_repository.find (nm) != nullptr);
 
     for (auto& af: afs)
     {
       shared_ptr<available_package>& ap (af.first);
-      const version& av (!dsys ? ap->version : *ap->system_version ());
+      const version& av (!dsys ? ap->version : *ap->system_version (db));
 
       // If we aim to upgrade to the latest version and it tends to be less
       // then the selected one, then what we currently have is the best that
@@ -2796,11 +2801,11 @@ namespace bpkg
 
     // Create the parsed package argument.
     //
-    auto arg_package = [] (package_scheme sc,
-                           package_name nm,
-                           optional<version_constraint> vc,
-                           pkg_options os,
-                           strings vs) -> pkg_arg
+    auto arg_package = [&db] (package_scheme sc,
+                              package_name nm,
+                              optional<version_constraint> vc,
+                              pkg_options os,
+                              strings vs) -> pkg_arg
     {
       assert (!vc || !vc->empty ()); // May not be empty if present.
 
@@ -2818,7 +2823,7 @@ namespace bpkg
           //
           assert (r.constraint->min_version == r.constraint->max_version);
 
-          const system_package* sp (system_repository.find (r.name));
+          const system_package* sp (db.system_repository.find (r.name));
 
           // Will deal with all the duplicates later.
           //
@@ -2827,7 +2832,7 @@ namespace bpkg
           //    different versions in different configs.
           //
           if (sp == nullptr || !sp->authoritative)
-            system_repository.insert (r.name,
+            db.system_repository.insert (r.name,
                                       *r.constraint->min_version,
                                       true /* authoritative */);
 
@@ -3844,7 +3849,7 @@ namespace bpkg
           0};                         // Adjustments.
 
         l4 ([&]{trace << "stashing held package "
-                      << p.available_name_version ();});
+                      << p.available_name_version (db);});
 
         // "Fix" the version the user asked for by adding the constraint.
         //
@@ -3933,7 +3938,7 @@ namespace bpkg
               0};                 // Adjustments.
 
           l4 ([&]{trace << "stashing held package "
-                        << p.available_name_version ();});
+                        << p.available_name_version (db);});
 
           hold_pkgs.push_back (move (p));
 
@@ -4170,10 +4175,10 @@ namespace bpkg
         // appear (e.g., on the plan) last.
         //
         for (const dep& d: deps)
-          pkgs.order (d.name, false /* reorder */);
+          pkgs.order (db, d.name, false /* reorder */);
 
         for (const build_package& p: reverse_iterate (hold_pkgs))
-          pkgs.order (p.name ());
+          pkgs.order (db, p.name ());
 
         // Collect and order all the dependents that we will need to
         // reconfigure because of the up/down-grades of packages that are now
@@ -4187,7 +4192,7 @@ namespace bpkg
         for (const dependency_package& p: dep_pkgs)
         {
           if (p.selected != nullptr && p.selected->hold_package)
-            pkgs.order (p.name, false /* reorder */);
+            pkgs.order (db, p.name, false /* reorder */);
         }
 
         // We are about to execute the plan on the database (but not on the
@@ -4253,16 +4258,17 @@ namespace bpkg
         // The empty version means that the package must be dropped.
         //
         const version ev;
-        auto target_version = [&ev] (const shared_ptr<available_package>& ap,
-                                     bool sys) -> const version&
+        auto target_version = [&db, &ev]
+                              (const shared_ptr<available_package>& ap,
+                               bool sys) -> const version&
         {
           if (ap == nullptr)
             return ev;
 
           if (sys)
           {
-            assert (ap->system_version () != nullptr);
-            return *ap->system_version ();
+            assert (ap->system_version (db) != nullptr);
+            return *ap->system_version (db);
           }
 
           return ap->version;
@@ -4469,7 +4475,7 @@ namespace bpkg
           string cause;
           if (*p.action == build_package::adjust)
           {
-            assert (sp != nullptr && (p.reconfigure () || p.unhold ()));
+            assert (sp != nullptr && (p.reconfigure (db) || p.unhold ()));
 
             // This is a dependent needing reconfiguration.
             //
@@ -4477,7 +4483,7 @@ namespace bpkg
             // be printed. Will flag that later when composing the list of
             // prerequisites.
             //
-            if (p.reconfigure ())
+            if (p.reconfigure (db))
             {
               act = "reconfigure";
               cause = "dependent of";
@@ -4505,21 +4511,21 @@ namespace bpkg
             //
             if (sp == nullptr)
               act = p.system ? "configure" : "new";
-            else if (sp->version == p.available_version ())
+            else if (sp->version == p.available_version (db))
             {
               // If this package is already configured and is not part of the
               // user selection (or we are only configuring), then there is
               // nothing we will be explicitly doing with it (it might still
               // get updated indirectly as part of the user selection update).
               //
-              if (!p.reconfigure () &&
+              if (!p.reconfigure (db) &&
                   sp->state == package_state::configured &&
                   (!p.user_selection () || o.configure_only ()))
                 continue;
 
               act = p.system
                 ? "reconfigure"
-                : (p.reconfigure ()
+                : (p.reconfigure (db)
                    ? (o.configure_only ()
                       ? "reconfigure"
                       : "reconfigure/update")
@@ -4529,7 +4535,7 @@ namespace bpkg
             {
               act = p.system
                 ? "reconfigure"
-                : sp->version < p.available_version ()
+                : sp->version < p.available_version (db)
                   ? "upgrade"
                   : "downgrade";
 
@@ -4539,7 +4545,7 @@ namespace bpkg
             if (p.unhold ())
               act += "/unhold";
 
-            act += ' ' + p.available_name_version ();
+            act += ' ' + p.available_name_version (db);
             cause = "required by";
           }
 
@@ -4670,7 +4676,7 @@ namespace bpkg
       {
         assert (p.action);
 
-        if (*p.action == build_package::adjust && p.reconfigure ())
+        if (*p.action == build_package::adjust && p.reconfigure (db))
           upkgs.push_back (pkg_command_vars {p.selected,
                                              strings () /* vars */,
                                              false /* cwd */});
@@ -4710,7 +4716,7 @@ namespace bpkg
       //
       assert (p.action);
 
-      if (*p.action != build_package::drop && !p.reconfigure ())
+      if (*p.action != build_package::drop && !p.reconfigure (db))
         continue;
 
       // @@ EC Switch to p.config till the end of the block.
@@ -4860,7 +4866,7 @@ namespace bpkg
         // Fetch or checkout if this is a new package or if we are
         // up/down-grading.
         //
-        if (sp == nullptr || sp->version != p.available_version ())
+        if (sp == nullptr || sp->version != p.available_version (db))
         {
           sp = nullptr; // For the directory case below.
 
@@ -4907,7 +4913,7 @@ namespace bpkg
                                 db,
                                 t,
                                 ap->id.name,
-                                p.available_version (),
+                                p.available_version (db),
                                 true /* replace */,
                                 simulate);
                 break;
@@ -4920,7 +4926,7 @@ namespace bpkg
                                      db,
                                      t,
                                      ap->id.name,
-                                     p.available_version (),
+                                     p.available_version (db),
                                      *p.checkout_root,
                                      true /* replace */,
                                      p.checkout_purge,
@@ -4930,7 +4936,7 @@ namespace bpkg
                                      db,
                                      t,
                                      ap->id.name,
-                                     p.available_version (),
+                                     p.available_version (db),
                                      true /* replace */,
                                      simulate);
                 break;
@@ -4942,7 +4948,7 @@ namespace bpkg
                                  db,
                                  t,
                                  ap->id.name,
-                                 p.available_version (),
+                                 p.available_version (db),
                                  true /* replace */,
                                  simulate);
                 break;
@@ -5086,7 +5092,10 @@ namespace bpkg
       // Note that pkg_configure() commits the transaction.
       //
       if (p.system)
-        sp = pkg_configure_system (ap->id.name, p.available_version (), db, t);
+        sp = pkg_configure_system (ap->id.name,
+                                   p.available_version (db),
+                                   db,
+                                   t);
       //
       // @@ EC:
       //

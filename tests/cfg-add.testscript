@@ -24,25 +24,33 @@ pkg_status += -d cfg
     %associated target configuration .+/acfg/%
     EOE
 
+  # Test that the path clash is discovered.
+  #
+  $* acfg 2>>/~%EOE% != 0;
+    %error: configuration with path '.+/acfg/' is already associated: shared%
+    EOE
+
+  # Test that the reverse path clash is discovered.
+  #
+  cp -pr acfg acfg2;
+
+  $* --name shared2 acfg2 2>>/~%EOE% != 0;
+    %error: current configuration '.+/cfg/' is already reverse-associated: 1%
+    EOE
+
   # Test that the name clash is discovered.
   #
-  $* acfg 2>>EOE != 0;
+  cp -pr ../acfg ./acfg3;
+
+  $* acfg3 2>>EOE != 0;
     error: configuration with name 'shared' is already associated
       info: consider specifying name explicitly with --name|-n
     EOE
 
-  # Test that the name path is discovered.
-  #
-  $* --name shared2 acfg 2>>/~%EOE% != 0;
-    %error: configuration with path '.+/acfg/' is already associated: shared%
-    EOE
-
   # Associate the second configuration.
   #
-  cp -pr acfg acfg2;
-
-  $* --name shared2 acfg2 2>>/~%EOE%;
-    %associated target configuration .+/acfg2/%
+  $* --name shared3 acfg3 2>>/~%EOE%;
+    %associated target configuration .+/acfg3/%
     EOE
 
   $pkg_status libfoo >'libfoo unknown'
