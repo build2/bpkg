@@ -16,6 +16,7 @@
 #include <bpkg/utility.hxx>
 
 #include <bpkg/diagnostics.hxx>
+#include <bpkg/system-repository.hxx>
 
 namespace bpkg
 {
@@ -31,24 +32,51 @@ namespace bpkg
   public:
     // Create main database.
     //
-    // Note that
+    // If pre-associate is not NULL, then this configration is treated as
+    // another associated configuration for schema migration purposes.
     //
     database (const dir_path& cfg,
               odb::tracer&,
               bool create = false,
-              bool sys_rep = true);
-
-    // Attach another (existing) database.
-    //
-    // @@ sys_rep ?
-    //
-    database&
-    attach (const dir_path&);
+              bool sys_rep = true,
+              const dir_path* pre_associate = nullptr);
 
     ~database ();
 
+    database (database&&) = delete;
+    database& operator= (database&&) = delete;
+
+    // Attach another (existing) database. The configuration directory should
+    // be absolute and normalized.
+    //
+    database&
+    attach (const dir_path&, bool sys_rep = true);
+
+    // Note that while attach() can be called on the attached database,
+    // detach_all() should only be called on the main database.
+    //
+    void
+    detach_all ();
+
+    // Per-configuration system repository (only loaded if sys_rep above is
+    // true).
+    //
+  public:
+    bpkg::system_repository system_repository;
+
   private:
-    class impl;
+    struct impl;
+
+    // Create attached database.
+    //
+    database (impl*,
+              const dir_path& cfg,
+              string schema,
+              bool sys_rep);
+
+    void
+    load_system_repository ();
+
     impl* impl_;
   };
 
@@ -70,7 +98,7 @@ namespace bpkg
         : db_ (db), start_ (start), t_ () // Finalized.
     {
       if (start)
-        t_.reset (db.begin ());
+        t_.reset (db.begin_exclusive ()); // See locking_mode for details.
     }
 
     void

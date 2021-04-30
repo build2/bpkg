@@ -3,13 +3,14 @@
 
 #include <bpkg/database.hxx>
 
+#include <map>
+
 #include <odb/schema-catalog.hxx>
 #include <odb/sqlite/exceptions.hxx>
 
 #include <bpkg/package.hxx>
 #include <bpkg/package-odb.hxx>
 #include <bpkg/diagnostics.hxx>
-#include <bpkg/system-repository.hxx>
 
 using namespace std;
 
@@ -49,10 +50,6 @@ namespace bpkg
     db.persist (sc);
   });
 
-  class database::impl
-  {
-  };
-
   static inline path
   cfg_path (const dir_path& d, bool create)
   {
@@ -64,85 +61,94 @@ namespace bpkg
     return f;
   }
 
-  static void
-  open (database&, const dir_path&, bool, bool);
-
   // Automatically set and clear the BPKG_OPEN_CONFIG environment variable in
   // the main database constructor and destructor.
   //
   static const string open_name ("BPKG_OPEN_CONFIG");
 
+  struct database::impl
+  {
+    sqlite::connection_ptr conn; // Main connection.
+
+    map<dir_path, database> attached_map;
+  };
+
   database::
-  database (const dir_path& d, odb::tracer& tr, bool create, bool sys_rep)
+  database (const dir_path& d,
+            odb::tracer& tr,
+            bool create,
+            bool sys_rep,
+            const dir_path* pre_assoc)
       : sqlite::database (
           cfg_path (d, create).string (),
           SQLITE_OPEN_READWRITE | (create ? SQLITE_OPEN_CREATE : 0),
           true,                  // Enable FKs.
           "",                    // Default VFS.
           unique_ptr<sqlite::connection_factory> (
-            new sqlite::single_connection_factory)) // Single connection.
-                                                    // @@ TMP serial_
+            new sqlite::serial_connection_factory)) // Single connection.
   {
-    open (*this, d, create, sys_rep);
+    bpkg::tracer trace ("database");
 
-    tracer (tr);
-
-    setenv (open_name, normalize (d, "configuration").string ());
-
-    impl_ = new impl; // Will leak if anything further throws
-  }
-
-  database::
-  ~database ()
-  {
-    // @@ TMP
-    //if (schema.empty ()) // Main database?
-    {
-      delete impl_;
-      unsetenv (open_name);
-    }
-  }
-
-  static void
-  open (database& db, const dir_path& d, bool create, bool sys_rep)
-  {
-    using odb::schema_catalog;
-
-    tracer trace ("open");
+    // Cache the (single) main connection we will be using.
+    //
+    unique_ptr ig ((impl_ = new impl {connection ()}));
 
     try
     {
-      tracer_guard tg (db, trace);
+      tracer_guard tg (*this, trace);
 
-      // Lock the database for as long as the connection is active. First
-      // we set locking_mode to EXCLUSIVE which instructs SQLite not to
-      // release any locks until the connection is closed. Then we force
-      // SQLite to acquire the write lock by starting exclusive transaction.
-      // See the locking_mode pragma documentation for details. This will
-      // also fail if the database is inaccessible (e.g., file does not
-      // exist, already used by another process, etc).
+      // Lock the database for as long as the connection is active. First we
+      // set locking_mode to EXCLUSIVE which instructs SQLite not to release
+      // any locks until the connection is closed. Then we force SQLite to
+      // acquire the write lock by starting exclusive transaction.  See the
+      // locking_mode pragma documentation for details. This will also fail if
+      // the database is inaccessible (e.g., file does not exist, already used
+      // by another process, etc).
       //
-      using sqlite::transaction; // Skip the wrapper.
-
+      // Note that here we assume that any database that is ATTACHED within an
+      // exclusive transaction gets the same treatment. @@ TODO would be good
+      // to verify somehow.
+      //
       try
       {
-        db.connection ()->execute ("PRAGMA locking_mode = EXCLUSIVE");
-        transaction t (db.begin_exclusive ());
+        using odb::schema_catalog;
+
+        impl_->conn->execute ("PRAGMA locking_mode = EXCLUSIVE");
+        sqlite::transaction t (impl_->conn->begin_exclusive ());
 
         if (create)
         {
           // Create the new schema.
           //
-          if (db.schema_version () != 0)
-            fail << db.name () << ": already has database schema";
+          if (schema_version () != 0)
+            fail << name () << ": already has database schema";
 
-          schema_catalog::create_schema (db);
+          schema_catalog::create_schema (*this);
         }
         else
         {
+          // @@ PLAN:
+          //
+          // - If migrating:
+          //
+          //     - Recursive attach and migrate all associated.
+          //     - Commit.
+          //     - Maybe change locking_mode (to be able to detach).
+          //     - Detach all.
+          //     - Maybe restore locking mode (and relock main db?)
+          //
+          //     ! Pre-association is tricky: we may not need migration
+          //       but it does!
+          //
+          // - If cfg-add:
+          //
+          //     - Pass as pre-associated.
+          //     - Add both directions.
+          //
+
           // Migrate the database if necessary.
           //
-          schema_catalog::migrate (db);
+          schema_catalog::migrate (*this);
         }
 
         t.commit ();
@@ -152,29 +158,130 @@ namespace bpkg
         fail << "configuration " << d << " is already used by another process";
       }
 
-      // Query for all the packages with the system substate and enter their
-      // versions into system_repository as non-authoritative. This way an
-      // available_package (e.g., a stub) will automatically "see" system
-      // version, if one is known.
-      //
       if (sys_rep)
-      {
-        transaction t (db.begin ());
-
-        // @@ EC GOOD We should probably have a per-configuration system
-        //    repository and switch them when crossing the config boundary?
-        //
-        for (const auto& p:
-               db.query<selected_package> (
-                 query<selected_package>::substate == "system"))
-          system_repository.insert (p.name, p.version, false);
-
-        t.commit ();
-      }
+        load_system_repository ();
     }
     catch (const sqlite::database_exception& e)
     {
-      fail << db.name () << ": " << e.message ();
+      fail << name () << ": " << e.message ();
+    }
+
+    tracer (tr);
+
+    // @@ Don't we need to keep adding to BPKG_OPEN_CONFIG as we attach (and
+    //    clear/reset in detach_all())?
+    //
+    setenv (open_name, normalize (d, "configuration").string ());
+
+    ig.release (); // Will be leaked if anything further throws.
+  }
+
+  database::
+  database (impl* i,
+            const dir_path& d,
+            string schema,
+            bool sys_rep)
+      : sqlite::database (i->conn,
+                          cfg_path (d, false /* create */).string (),
+                          move (schema))
+        impl_ (i)
+  {
+    bpkg::tracer trace ("database");
+
+    try
+    {
+      tracer_guard tg (*this, trace);
+
+      if (sys_rep)
+        load_system_repository ();
+    }
+    catch (const sqlite::database_exception& e)
+    {
+      fail << name () << ": " << e.message ();
+    }
+  }
+
+  void database::
+  load_system_repository ()
+  {
+    // Query for all the packages with the system substate and enter their
+    // versions into system_repository as non-authoritative. This way an
+    // available_package (e.g., a stub) will automatically "see" system
+    // version, if one is known.
+    //
+    transaction t (db.begin ());
+
+    for (const auto& p:
+           query<selected_package> (
+             query<selected_package>::substate == "system"))
+      system_repository.insert (p.name, p.version, false);
+
+    t.commit ();
+  }
+
+  database::
+  ~database ()
+  {
+    if (schema.empty ()) // Main database?
+    {
+      delete impl_;
+      unsetenv (open_name);
+    }
+  }
+
+  database& database::
+  attach (const dir_path& d, bool sys_rep)
+  {
+    auto& am (impl_->attached_map);
+
+    auto i (am.find (d));
+
+    if (i == am.end ())
+    {
+      // We know from the implementation that 4-character schema names are
+      // optimal. So try to come up with a unique abbreviated hash that is 4
+      // or more characters long.
+      //
+      string schema;
+      {
+        sha256 h (d.string ());
+
+        for (size_t n (4);; ++n)
+        {
+          schema = h.abbreviated_string (n);
+
+          if (find_if (... [] () {.second.schema () == schema) == end))
+            break;
+        }
+      }
+
+      // If attaching out of an exclusive transaction (all our transactions
+      // are exclusive), start one to force database locking (see the below
+      // locking_mode discussion for details).
+      //
+      sqlite::transaction t;
+      if (!sqlite::transaction::has_current ())
+        t.reset (db.begin_exclusive ());
+
+      i = am.emplace (d, impl_, d, move (schema), sys_rep).first;
+
+      if (!t.finilized ())
+        t.commit ();
+    }
+
+    return i->second;
+  }
+
+  void database::
+  detach_all ()
+  {
+    assert (schema.empty ());
+
+    for (auto i (impl_->attached_map.begin ());
+         i != impl_->attached_map.end (); )
+    {
+      i->second.detach ();
+      i = impl_->attached_map.erase (i);
     }
   }
 }
