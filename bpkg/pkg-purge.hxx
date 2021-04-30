@@ -20,6 +20,7 @@ namespace bpkg
   //
   void
   pkg_purge (const dir_path& configuration,
+             database&,
              transaction&,
              const shared_ptr<selected_package>&,
              bool simulate);
@@ -30,6 +31,7 @@ namespace bpkg
   //
   void
   pkg_purge_fs (const dir_path& configuration,
+                database&,
                 transaction&,
                 const shared_ptr<selected_package>&,
                 bool simulate,

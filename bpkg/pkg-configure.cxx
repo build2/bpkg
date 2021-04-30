@@ -20,13 +20,12 @@ namespace bpkg
 {
   package_prerequisites
   pkg_configure_prerequisites (const common_options& o,
-                               transaction& t,
+                               database& db,
+                               transaction&,
                                const dependencies& deps,
                                const package_name& package)
   {
     package_prerequisites r;
-
-    database& db (t.database ());
 
     for (const dependency_alternatives_ex& da: deps)
     {
@@ -108,6 +107,7 @@ namespace bpkg
   void
   pkg_configure (const dir_path& c,
                  const common_options& o,
+                 database& db,
                  transaction& t,
                  const shared_ptr<selected_package>& p,
                  const dependencies& deps,
@@ -119,7 +119,6 @@ namespace bpkg
     assert (p->state == package_state::unpacked);
     assert (p->src_root); // Must be set since unpacked.
 
-    database& db (t.database ());
     tracer_guard tg (db, trace);
 
     dir_path src_root (p->effective_src_root (c));
@@ -139,7 +138,7 @@ namespace bpkg
     //
     assert (p->prerequisites.empty ());
 
-    p->prerequisites = pkg_configure_prerequisites (o, t, deps, p->name);
+    p->prerequisites = pkg_configure_prerequisites (o, db, t, deps, p->name);
 
     if (!simulate)
     {
@@ -180,7 +179,7 @@ namespace bpkg
 
         // Commits the transaction.
         //
-        pkg_disfigure (c, o, t, p, true /* clean */, false /* simulate */);
+        pkg_disfigure (c, o, db, t, p, true /* clean */, false /* simulate */);
         throw;
       }
     }
@@ -199,11 +198,11 @@ namespace bpkg
   shared_ptr<selected_package>
   pkg_configure_system (const package_name& n,
                         const version& v,
+                        database& db,
                         transaction& t)
   {
     tracer trace ("pkg_configure_system");
 
-    database& db (t.database ());
     tracer_guard tg (db, trace);
 
     shared_ptr<selected_package> p (
@@ -301,7 +300,7 @@ namespace bpkg
       if (filter_one (root, db.query<available_package> (q)).first == nullptr)
         fail << "unknown package " << n;
 
-      p = pkg_configure_system (n, v.empty () ? wildcard_version : v, t);
+      p = pkg_configure_system (n, v.empty () ? wildcard_version : v, db, t);
     }
     else
     {
@@ -325,6 +324,7 @@ namespace bpkg
 
       pkg_configure (c,
                      o,
+                     db,
                      t,
                      p,
                      convert (move (m.dependencies)),

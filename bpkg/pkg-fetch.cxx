@@ -25,6 +25,7 @@ namespace bpkg
   //
   static shared_ptr<selected_package>
   pkg_fetch (dir_path c,
+             database& db,
              transaction& t,
              package_name n,
              version v,
@@ -35,7 +36,6 @@ namespace bpkg
   {
     tracer trace ("pkg_fetch");
 
-    database& db (t.database ());
     tracer_guard tg (db, trace);
 
     // Make the archive and configuration paths absolute and normalized.
@@ -55,7 +55,7 @@ namespace bpkg
       // replacing. Once this is done, there is no going back. If things
       // go badly, we can't simply abort the transaction.
       //
-      pkg_purge_fs (c, t, p, simulate);
+      pkg_purge_fs (c, db, t, p, simulate);
 
       // Note that if the package name spelling changed then we need to update
       // it, to make sure that the subsequent commands don't fail and the
@@ -114,13 +114,13 @@ namespace bpkg
   //
   static void
   pkg_fetch_check (const dir_path& c,
-                   transaction& t,
+                   database& db,
+                   transaction&,
                    const package_name& n,
                    bool replace)
   {
     tracer trace ("pkg_fetch_check");
 
-    database& db (t.database ());
     tracer_guard tg (db, trace);
 
     if (shared_ptr<selected_package> p = db.find<selected_package> (n))
@@ -146,6 +146,7 @@ namespace bpkg
   shared_ptr<selected_package>
   pkg_fetch (const common_options& co,
              const dir_path& c,
+             database& db,
              transaction& t,
              path a,
              bool replace,
@@ -170,12 +171,13 @@ namespace bpkg
 
     // Check/diagnose an already existing package.
     //
-    pkg_fetch_check (c, t, m.name, replace);
+    pkg_fetch_check (c, db, t, m.name, replace);
 
     // Use the special root repository fragment as the repository fragment of
     // this package.
     //
     return pkg_fetch (c,
+                      db,
                       t,
                       move (m.name),
                       move (m.version),
@@ -188,6 +190,7 @@ namespace bpkg
   shared_ptr<selected_package>
   pkg_fetch (const common_options& co,
              const dir_path& c,
+             database& db,
              transaction& t,
              package_name n,
              version v,
@@ -196,14 +199,13 @@ namespace bpkg
   {
     tracer trace ("pkg_fetch");
 
-    database& db (t.database ());
     tracer_guard tg (db, trace);
 
     // Check/diagnose an already existing package.
     //
-    pkg_fetch_check (c, t, n, replace);
+    pkg_fetch_check (c, db, t, n, replace);
 
-    check_any_available (c, t);
+    check_any_available (c, db, t);
 
     // Note that here we compare including the revision (unlike, say in
     // pkg-status). Which means one cannot just specify 1.0.0 and get 1.0.0+1
@@ -270,6 +272,7 @@ namespace bpkg
 
     shared_ptr<selected_package> p (
       pkg_fetch (c,
+                 db,
                  t,
                  move (n),
                  move (v),
@@ -306,6 +309,7 @@ namespace bpkg
 
       p = pkg_fetch (o,
                      c,
+                     db,
                      t,
                      path (args.next ()),
                      o.replace (),
@@ -328,6 +332,7 @@ namespace bpkg
 
       p = pkg_fetch (o,
                      c,
+                     db,
                      t,
                      move (n),
                      move (v),

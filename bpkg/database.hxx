@@ -28,6 +28,11 @@ namespace bpkg
   // Transaction wrapper that allow the creation of dummy transactions (start
   // is false) that in reality use an existing transaction.
   //
+  // Note that there can be multiple databases attached to the primary one and
+  // normally a transaction object is passed around together with a specific
+  // database object. Thus, we don't provide the database accessor function,
+  // so that the database is always chosen deliberately.
+  //
   struct transaction
   {
     using database_type = bpkg::database;
@@ -52,12 +57,6 @@ namespace bpkg
     {
       if (start_)
         t_.rollback ();
-    }
-
-    database_type&
-    database ()
-    {
-      return db_;
     }
 
     static bool

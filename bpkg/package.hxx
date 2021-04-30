@@ -842,6 +842,7 @@ namespace bpkg
   //
   void
   check_any_available (const dir_path& configuration,
+                       database&,
                        transaction&,
                        const diag_record* = nullptr);
 
@@ -1164,6 +1165,7 @@ namespace bpkg
   optional<version>
   package_iteration (const common_options&,
                      const dir_path& configuration,
+                     database&,
                      transaction&,
                      const dir_path&,
                      const package_name&,

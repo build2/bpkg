@@ -17,6 +17,7 @@ namespace bpkg
   void
   pkg_disfigure (const dir_path& c,
                  const common_options& o,
+                 database& db,
                  transaction& t,
                  const shared_ptr<selected_package>& p,
                  bool clean,
@@ -29,7 +30,6 @@ namespace bpkg
 
     l4 ([&]{trace << *p;});
 
-    database& db (t.database ());
     tracer_guard tg (db, trace);
 
     // Check that we have no dependents.
@@ -229,7 +229,7 @@ namespace bpkg
 
     // Commits the transaction.
     //
-    pkg_disfigure (c, o, t, p, !o.keep_out (), false /* simulate */);
+    pkg_disfigure (c, o, db, t, p, !o.keep_out (), false /* simulate */);
 
     assert (p->state == package_state::unpacked ||
             p->state == package_state::transient);

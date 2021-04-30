@@ -24,6 +24,7 @@ namespace bpkg
   shared_ptr<selected_package>
   pkg_fetch (const common_options&,
              const dir_path& configuration,
+             database&,
              transaction&,
              path archive,
              bool replace,
@@ -37,6 +38,7 @@ namespace bpkg
   shared_ptr<selected_package>
   pkg_fetch (const common_options&,
              const dir_path& configuration,
+             database&,
              transaction&,
              package_name,
              version,

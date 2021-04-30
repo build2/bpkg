@@ -26,6 +26,7 @@ namespace bpkg
   shared_ptr<selected_package>
   pkg_checkout (const common_options&,
                 const dir_path& configuration,
+                database&,
                 transaction&,
                 package_name,
                 version,
@@ -41,6 +42,7 @@ namespace bpkg
   shared_ptr<selected_package>
   pkg_checkout (const common_options&,
                 const dir_path& configuration,
+                database&,
                 transaction&,
                 package_name,
                 version,

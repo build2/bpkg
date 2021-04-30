@@ -3477,6 +3477,7 @@ namespace bpkg
                 if (optional<version> v =
                     package_iteration (o,
                                        c,
+                                       db,
                                        t,
                                        d,
                                        m.name,
@@ -3645,7 +3646,7 @@ namespace bpkg
             diag_record dr (fail);
 
             dr << "unknown package " << arg_string (pa, false /* options */);
-            check_any_available (c, t, &dr);
+            check_any_available (c, db, t, &dr);
           }
 
           // Save before the name move.
@@ -3785,7 +3786,7 @@ namespace bpkg
 
             // Let's help the new user out here a bit.
             //
-            check_any_available (c, t, &dr);
+            check_any_available (c, db, t, &dr);
           }
           else
           {
@@ -3907,7 +3908,7 @@ namespace bpkg
 
             // Let's help the new user out here a bit.
             //
-            check_any_available (c, t, &dr);
+            check_any_available (c, db, t, &dr);
           }
 
           // We will keep the output directory only if the external package is
@@ -4755,7 +4756,7 @@ namespace bpkg
 
       // Commits the transaction.
       //
-      pkg_disfigure (c, o, t, sp, !p.keep_out, simulate);
+      pkg_disfigure (c, o, db, t, sp, !p.keep_out, simulate);
 
       assert (sp->state == package_state::unpacked ||
               sp->state == package_state::transient);
@@ -4810,7 +4811,7 @@ namespace bpkg
             assert (!sp->system ());
 
             transaction t (db, !simulate /* start */);
-            pkg_purge (c, t, sp, simulate); // Commits the transaction.
+            pkg_purge (c, db, t, sp, simulate); // Commits the transaction.
 
             if (verbose && !o.no_result ())
               text << "purged " << *sp;
@@ -4839,7 +4840,7 @@ namespace bpkg
           if (sp != nullptr && !sp->system ())
           {
             transaction t (db, !simulate /* start */);
-            pkg_purge (c, t, sp, simulate); // Commits the transaction.
+            pkg_purge (c, db, t, sp, simulate); // Commits the transaction.
 
             if (verbose && !o.no_result ())
               text << "purged " << *sp;
@@ -4903,6 +4904,7 @@ namespace bpkg
               {
                 sp = pkg_fetch (o,
                                 c,
+                                db,
                                 t,
                                 ap->id.name,
                                 p.available_version (),
@@ -4915,6 +4917,7 @@ namespace bpkg
                 sp = p.checkout_root
                      ? pkg_checkout (o,
                                      c,
+                                     db,
                                      t,
                                      ap->id.name,
                                      p.available_version (),
@@ -4924,6 +4927,7 @@ namespace bpkg
                                      simulate)
                      : pkg_checkout (o,
                                      c,
+                                     db,
                                      t,
                                      ap->id.name,
                                      p.available_version (),
@@ -4935,6 +4939,7 @@ namespace bpkg
               {
                 sp = pkg_unpack (o,
                                  c,
+                                 db,
                                  t,
                                  ap->id.name,
                                  p.available_version (),
@@ -4953,6 +4958,7 @@ namespace bpkg
             sp = pkg_fetch (
               o,
               c,
+              db,
               t,
               pl.location, // Archive path.
               true,        // Replace
@@ -5012,7 +5018,7 @@ namespace bpkg
 
             // Commits the transaction.
             //
-            sp = pkg_unpack (o, c, t, ap->id.name, simulate);
+            sp = pkg_unpack (o, c, db, t, ap->id.name, simulate);
 
             if (verbose && !o.no_result ())
               text << "unpacked " << *sp;
@@ -5025,6 +5031,7 @@ namespace bpkg
             transaction t (db, !simulate /* start */);
             sp = pkg_unpack (o,
                              c,
+                             db,
                              t,
                              path_cast<dir_path> (pl.location),
                              true,   // Replace.
@@ -5079,7 +5086,7 @@ namespace bpkg
       // Note that pkg_configure() commits the transaction.
       //
       if (p.system)
-        sp = pkg_configure_system (ap->id.name, p.available_version (), t);
+        sp = pkg_configure_system (ap->id.name, p.available_version (), db, t);
       //
       // @@ EC:
       //
@@ -5090,7 +5097,14 @@ namespace bpkg
       //                                t);
       //
       else if (ap != nullptr)
-        pkg_configure (c, o, t, sp, ap->dependencies, p.config_vars, simulate);
+        pkg_configure (c,
+                       o,
+                       db,
+                       t,
+                       sp,
+                       ap->dependencies,
+                       p.config_vars,
+                       simulate);
       else // Dependent.
       {
         // Must be in the unpacked state since it was disfigured on the first
@@ -5105,6 +5119,7 @@ namespace bpkg
 
         pkg_configure (c,
                        o,
+                       db,
                        t,
                        sp,
                        convert (move (m.dependencies)),

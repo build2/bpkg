@@ -85,6 +85,7 @@ namespace bpkg
   static shared_ptr<selected_package>
   pkg_checkout (const common_options& o,
                 dir_path c,
+                database& db,
                 transaction& t,
                 package_name n,
                 version v,
@@ -95,7 +96,6 @@ namespace bpkg
   {
     tracer trace ("pkg_checkout");
 
-    database& db (t.database ());
     tracer_guard tg (db, trace);
 
     // See if this package already exists in this configuration.
@@ -121,7 +121,7 @@ namespace bpkg
       }
     }
 
-    check_any_available (c, t);
+    check_any_available (c, db, t);
 
     // Note that here we compare including the revision (see pkg-fetch()
     // implementation for more details).
@@ -301,7 +301,7 @@ namespace bpkg
       // replacing. Once this is done, there is no going back. If things go
       // badly, we can't simply abort the transaction.
       //
-      pkg_purge_fs (c, t, p, simulate);
+      pkg_purge_fs (c, db, t, p, simulate);
 
       // Note that if the package name spelling changed then we need to update
       // it, to make sure that the subsequent commands don't fail and the
@@ -368,6 +368,7 @@ namespace bpkg
   shared_ptr<selected_package>
   pkg_checkout (const common_options& o,
                 const dir_path& c,
+                database& db,
                 transaction& t,
                 package_name n,
                 version v,
@@ -378,6 +379,7 @@ namespace bpkg
   {
     return pkg_checkout (o,
                          c,
+                         db,
                          t,
                          move (n),
                          move (v),
@@ -390,6 +392,7 @@ namespace bpkg
   shared_ptr<selected_package>
   pkg_checkout (const common_options& o,
                 const dir_path& c,
+                database& db,
                 transaction& t,
                 package_name n,
                 version v,
@@ -398,6 +401,7 @@ namespace bpkg
   {
     return pkg_checkout (o,
                          c,
+                         db,
                          t,
                          move (n),
                          move (v),
@@ -438,6 +442,7 @@ namespace bpkg
     if (o.output_root_specified ())
       p = pkg_checkout (o,
                         c,
+                        db,
                         t,
                         move (n),
                         move (v),
@@ -448,6 +453,7 @@ namespace bpkg
     else
       p = pkg_checkout (o,
                         c,
+                        db,
                         t,
                         move (n),
                         move (v),

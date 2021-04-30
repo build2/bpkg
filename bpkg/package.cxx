@@ -334,11 +334,10 @@ namespace bpkg
 
   void
   check_any_available (const dir_path& c,
-                       transaction& t,
+                       database& db,
+                       transaction&,
                        const diag_record* dr)
   {
-    database& db (t.database ());
-
     // @@ EC GOOD
     //
     if (db.query_value<repository_count> () == 0)
@@ -416,7 +415,8 @@ namespace bpkg
   optional<version>
   package_iteration (const common_options& o,
                      const dir_path& c,
-                     transaction& t,
+                     database& db,
+                     transaction&,
                      const dir_path& d,
                      const package_name& n,
                      const version& v,
@@ -424,7 +424,6 @@ namespace bpkg
   {
     tracer trace ("package_iteration");
 
-    database& db (t.database ());
     tracer_guard tg (db, trace);
 
     if (check_external)

@@ -21,6 +21,7 @@ namespace bpkg
   //
   void
   rep_remove (const dir_path& conf,
+              database&,
               transaction&,
               const shared_ptr<repository>&);
 
@@ -29,6 +30,7 @@ namespace bpkg
   //
   void
   rep_remove_fragment (const dir_path& conf,
+                       database&,
                        transaction&,
                        const shared_ptr<repository_fragment>&);
 
@@ -59,7 +61,9 @@ namespace bpkg
   // contains. Remove packages that come from only this repository fragment.
   //
   void
-  rep_remove_package_locations (transaction&, const string& fragment_name);
+  rep_remove_package_locations (database&,
+                                transaction&,
+                                const string& fragment_name);
 }
 
 #endif // BPKG_REP_REMOVE_HXX

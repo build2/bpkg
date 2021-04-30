@@ -372,7 +372,7 @@ namespace bpkg
 
       // Commits the transaction.
       //
-      pkg_disfigure (c, o, t, p, true /* clean */, false /* simulate */);
+      pkg_disfigure (c, o, db, t, p, true /* clean */, false /* simulate */);
 
       assert (p->state == package_state::unpacked ||
               p->state == package_state::transient);
@@ -407,7 +407,7 @@ namespace bpkg
 
       // Commits the transaction, p is now transient.
       //
-      pkg_purge (c, t, p, false /* simulate */);
+      pkg_purge (c, db, t, p, false /* simulate */);
 
       if (verb && !o.no_result ())
         text << "purged " << p->name;

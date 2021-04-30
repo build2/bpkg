@@ -94,11 +94,12 @@ namespace bpkg
   }
 
   void
-  rep_remove_package_locations (transaction& t, const string& fragment_name)
+  rep_remove_package_locations (database& db,
+                                transaction&,
+                                const string& fragment_name)
   {
     tracer trace ("rep_remove_package_locations");
 
-    database& db (t.database ());
     tracer_guard tg (db, trace);
 
     using query = query<repository_fragment_package>;
@@ -142,6 +143,7 @@ namespace bpkg
 
   void
   rep_remove (const dir_path& c,
+              database& db,
               transaction& t,
               const shared_ptr<repository>& r)
   {
@@ -149,7 +151,6 @@ namespace bpkg
 
     tracer trace ("rep_remove");
 
-    database& db (t.database ());
     tracer_guard tg (db, trace);
 
     if (reachable (db, r))
@@ -164,7 +165,7 @@ namespace bpkg
     // Remove dangling repository fragments.
     //
     for (const repository::fragment_type& fr: r->fragments)
-      rep_remove_fragment (c, t, fr.fragment.load ());
+      rep_remove_fragment (c, db, t, fr.fragment.load ());
 
     // If there are no repositories stayed in the database then no repository
     // fragments should stay either.
@@ -220,12 +221,12 @@ namespace bpkg
 
   void
   rep_remove_fragment (const dir_path& c,
+                       database& db,
                        transaction& t,
                        const shared_ptr<repository_fragment>& rf)
   {
     tracer trace ("rep_remove_fragment");
 
-    database& db (t.database ());
     tracer_guard tg (db, trace);
 
     // Bail out if the repository fragment is still used.
@@ -240,7 +241,7 @@ namespace bpkg
     // it contains. Note that this must be done before the repository fragment
     // removal.
     //
-    rep_remove_package_locations (t, rf->name);
+    rep_remove_package_locations (db, t, rf->name);
 
     // Remove the repository fragment.
     //
@@ -268,7 +269,7 @@ namespace bpkg
     auto remove = [&c, &db, &t] (const lazy_weak_ptr<repository>& rp)
     {
       if (shared_ptr<repository> r = db.find<repository> (rp.object_id ()))
-        rep_remove (c, t, r);
+        rep_remove (c, db, t, r);
     };
 
     for (const lazy_weak_ptr<repository>& cr: rf->complements)
@@ -484,7 +485,7 @@ namespace bpkg
     //
     for (const lazy_shared_ptr<repository>& r: repos)
     {
-      rep_remove (c, t, r.load ());
+      rep_remove (c, db, t, r.load ());
 
       if (verb && !o.no_result ())
         text << "removed " << r.object_id ();

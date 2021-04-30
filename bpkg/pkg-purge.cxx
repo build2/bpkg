@@ -16,6 +16,7 @@ namespace bpkg
 {
   void
   pkg_purge_fs (const dir_path& c,
+                database& db,
                 transaction& t,
                 const shared_ptr<selected_package>& p,
                 bool simulate,
@@ -26,7 +27,6 @@ namespace bpkg
     assert (p->state == package_state::fetched ||
             p->state == package_state::unpacked);
 
-    database& db (t.database ());
     tracer_guard tg (db, trace);
 
     try
@@ -84,6 +84,7 @@ namespace bpkg
 
   void
   pkg_purge (const dir_path& c,
+             database& db,
              transaction& t,
              const shared_ptr<selected_package>& p,
              bool simulate)
@@ -93,11 +94,10 @@ namespace bpkg
 
     tracer trace ("pkg_purge");
 
-    database& db (t.database ());
     tracer_guard tg (db, trace);
 
     assert (!p->out_root);
-    pkg_purge_fs (c, t, p, simulate, true);
+    pkg_purge_fs (c, db, t, p, simulate, true);
 
     db.erase (p);
     t.commit ();
@@ -201,7 +201,7 @@ namespace bpkg
     else
     {
       assert (!p->out_root);
-      pkg_purge_fs (c, t, p, false /* simulate */, !o.keep ());
+      pkg_purge_fs (c, db, t, p, false /* simulate */, !o.keep ());
     }
 
     // Finally, update the database state.
