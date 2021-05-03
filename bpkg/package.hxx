@@ -27,7 +27,7 @@
 //
 #define DB_SCHEMA_VERSION_BASE 6
 
-#pragma db model version(DB_SCHEMA_VERSION_BASE, 9, open)
+#pragma db model version(DB_SCHEMA_VERSION_BASE, 10, open)
 
 namespace bpkg
 {
@@ -155,6 +155,8 @@ namespace bpkg
     //
     dir_path           path;
 
+    optional<string>   nam;
+
     // Database mapping.
     //
     #pragma db member(id) id auto
@@ -180,6 +182,42 @@ namespace bpkg
   private:
     friend class odb::access;
     configuration () = default;
+  };
+
+  // @@ TMP Is only required for migration from the schema version 8.
+  //
+  #pragma db object table("configuration") pointer(shared_ptr) session
+  class configuration8
+  {
+  public:
+    // Zero for the self configuration and is auto-assigned for associated
+    // configurations when the object is persisted.
+    //
+    optional<uint64_t> id;
+
+    optional<string>   name;
+    string             type;
+
+    // Is empty only for the self configuration.
+    //
+    dir_path           path;
+
+    // Database mapping.
+    //
+    #pragma db member(id) id auto
+    #pragma db member(path) unique
+
+  public:
+    // Create the self configuration.
+    //
+    configuration8 (optional<string> n, string t)
+        : id (0),
+          name (move (n)),
+          type (move (t)) {}
+
+  private:
+    friend class odb::access;
+    configuration8 () = default;
   };
 
   // Verify that a string is a valid configuration name, that is non-empty,

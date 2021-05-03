@@ -46,10 +46,21 @@ namespace bpkg
   {
     // Add the unnamed self configuration of the target type.
     //
-    shared_ptr<configuration> sc (
-      make_shared<configuration> (optional<string> (), "target"));
+    shared_ptr<configuration8> sc (
+      make_shared<configuration8> (optional<string> (), "target"));
 
     db.persist (sc);
+  });
+
+  static const migration_entry<10>
+  migrate_v10 ([] (odb::database& db)
+  {
+    for (shared_ptr<configuration> c:
+           pointer_result (db.query<configuration> ()))
+    {
+      c->nam = c->name;
+      db.update (c);
+    }
   });
 
   static inline path
