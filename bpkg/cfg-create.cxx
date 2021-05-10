@@ -118,9 +118,29 @@ namespace bpkg
     // Create .bpkg/ and its subdirectories.
     //
     {
-      mk (c / bpkg_dir);
+      dir_path d (c / bpkg_dir);
+
+      mk (d);
       mk (c / certs_dir);
       mk (c / repos_dir);
+
+      // Create the .gitignore file that ignores everything under .bpkg/
+      // effectively making git ignore it (this prevents people from
+      // accidentally adding this directory to a git repository).
+      //
+      path f (d / ".gitignore");
+      try
+      {
+        ofdstream os (f);
+        os << "# This directory should not be version-controlled." << '\n'
+           << "#"                                                  << '\n'
+           << "*"                                                  << '\n';
+        os.close ();
+      }
+      catch (const io_error& e)
+      {
+        fail << "unable to write to " << f << ": " << e;
+      }
     }
 
     // Initialize tmp directory.
