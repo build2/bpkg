@@ -2327,9 +2327,30 @@ namespace bpkg
       paths ls (find_symlinks (co, dir, prefix));
       vector<pair<path, path>> links; // List of the link/target path pairs.
 
+      // Mark the being replaced in the working tree links as unchanged,
+      // running git-update-index(1) for multiple links per run.
+      //
+      strings unchanged_links; // Links to mark as unchanged.
+
+      auto mark_unchanged = [&unchanged_links, &co, &dir, &failure] ()
+      {
+        if (!unchanged_links.empty ())
+        {
+          if (!run_git (co,
+                        co.git_option (),
+                        "-C", dir,
+                        "update-index",
+                        "--assume-unchanged",
+                        unchanged_links))
+            failure ("unable to mark symlinks as unchanged");
+
+          unchanged_links.clear ();
+        }
+      };
+
       // Cache/remove filesystem-agnostic symlinks.
       //
-      for (auto& l: ls)
+      for (path& l: ls)
       {
         path lp (dir / l); // Absolute or relative to the current directory.
 
@@ -2390,20 +2411,22 @@ namespace bpkg
 
         // Mark the symlink as unchanged and remove it.
         //
-        if (!run_git (co,
-                      co.git_option (),
-                      "-C", dir,
-                      "update-index",
-                      "--assume-unchanged",
-                      l))
-          failure ("unable to mark symlink '" + l.string () +
-                   "' as unchanged");
+        // Note that we restrict the batch to 100 symlinks not to exceed the
+        // Windows command line max size, which is about 32K, and assuming
+        // that _MAX_PATH is 256 characters.
+        //
+        unchanged_links.push_back (l.string ());
+
+        if (unchanged_links.size () == 100)
+          mark_unchanged ();
 
         links.emplace_back (move (l), move (t));
 
         rm (lp);
         r = true;
       }
+
+      mark_unchanged (); // Mark the rest.
 
       // Create real links (hardlinks, symlinks, and junctions).
       //
