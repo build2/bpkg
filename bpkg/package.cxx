@@ -497,12 +497,56 @@ namespace bpkg
   lazy_shared_ptr<selected_package> _selected_package_ref::
   to_ptr (odb::database& db) &&
   {
+    database& pdb (static_cast<database&> (db));
+
     // Note that if this points to a different configuration, then it should
     // already be pre-attached since it must be explicitly associated.
     //
-    return lazy_shared_ptr<selected_package> (
-      static_cast<database&> (db).find_dependency_config (configuration),
-      move (prerequisite));
+    database& ddb (pdb.find_dependency_config (configuration));
+
+    // Make sure the prerequisite exists in the explicitly associated
+    // configuration, so that a subsequent load() call will not fail. This,
+    // for example, can happen in unlikely but possible situation when the
+    // implicitly associated configuration containing a dependent was
+    // temporarily renamed before its prerequisite was dropped.
+    //
+    // Note that the diagnostics lacks information about the dependent and its
+    // configuration. However, handling this situation at all the load()
+    // function call sites where this information is available, for example by
+    // catching the odb::object_not_persistent exception, feels a bit
+    // hairy. Given the situation is not common, let's keep it simple for now
+    // and see how it goes.
+    //
+    // @@ As a side note, the following code crashes. Is this a libodb bug or
+    //    just lack of my understanding?
+    //
+#if 0
+    if (ddb != pdb)
+    {
+      shared_ptr<selected_package> p (
+        ddb.find<selected_package> (prerequisite));
+
+      if (p != nullptr)
+      {
+        lazy_shared_ptr<selected_package> lp (ddb, move (p));
+        lp.database ().string (); // Ok.
+
+        lazy_shared_ptr<selected_package> lp2 (move (lp));
+        lp2.database ().string (); // Ok.
+
+        lazy_shared_ptr<selected_package> lp3;
+
+        lp3 = move (lp2); // lp2.i_.db_ is not copied (odb/lazy-ptr-impl.ixx:83)
+        lp3.database ().string (); // Crashes since lp3.i_.db_ is NULL.
+      }
+    }
+#endif
+
+    if (ddb != pdb && ddb.find<selected_package> (prerequisite) == nullptr)
+      fail << "unable to find prerequisite package " << prerequisite
+           << " in associated configuration " << ddb.config_orig;
+
+    return lazy_shared_ptr<selected_package> (ddb, move (prerequisite));
   }
 
   pair<shared_ptr<selected_package>, database*>

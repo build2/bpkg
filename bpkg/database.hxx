@@ -143,11 +143,18 @@ namespace bpkg
 
     // By default attach and cache the implicitly associated configuration
     // databases on the first call and return them along with the self-
-    // association (comes first). If attach is false, then return an empty
-    // list if associations were not yet cached by this function's previous
-    // call.
+    // association (comes first), silently skipping the dangling
+    // associations. If attach is false, then return an empty list if
+    // associations were not yet cached by this function's previous call.
     //
-    // Note that for implicitly associated configurations the association
+    // Note that we skip dangling associations without any warning since they
+    // can be quite common. Think of a shared host configuration with a bunch
+    // of implicitly associated configurations, which are removed and
+    // potentially recreated later during the host configuration lifetime.
+    // Note however, that we remove the dangling implicit associations during
+    // migration (see migrate() on details).
+    //
+    // Also note that for implicitly associated configurations the association
     // information (id, etc) is useless, thus we only return the databases
     // rather than the association information.
     //
@@ -311,7 +318,10 @@ namespace bpkg
     //
     // Note that since the whole associated databases cluster is migrated at
     // once, it is assumed that if migration is unnecessary for this database
-    // then it is also unnecessary for its associated databases.
+    // then it is also unnecessary for its associated databases. By this
+    // reason, we also drop the dangling implicit associations rather than
+    // skip them, as we do for normal operations (see implicit_associations ()
+    // for details).
     //
     void
     migrate ();
