@@ -339,7 +339,22 @@ namespace bpkg
       schema_catalog::migrate (*this);
 
       for (auto& c: query<configuration> (odb::query<configuration>::id != 0))
-        attach (c.make_effective_path (config)).migrate ();
+      {
+        dir_path d (c.effective_path (config));
+
+        // Remove the dangling implicit association.
+        //
+        if (!c.expl && !exists (d))
+        {
+          warn << "implicit association " << c.path << " of configuration "
+               << config_orig << " does not exist, removing";
+
+          erase (c);
+          continue;
+        }
+
+        attach (d).migrate ();
+      }
     }
   }
 
@@ -516,53 +531,55 @@ namespace bpkg
     //
     if (implicit_associations_.empty () && ath)
     {
+      implicit_associations_.push_back (*this);
+
       using q = odb::query<configuration>;
 
-      // Make sure the self-association (zero id) comes first.
-      //
-      for (const auto& ac: query<configuration> ("ORDER BY" + q::id))
+      for (const auto& ac: query<configuration> (q::id != 0))
       {
-        database& db (attach (ac.effective_path (config), sys_rep));
+        dir_path d (ac.effective_path (config));
 
-        // Verify the association integrity and pre-attach its explicit
-        // associations, if required.
+        // Skip the dangling implicit association.
         //
-        if (*ac.id != 0)
+        if (!ac.expl && !exists (d))
+          continue;
+
+        database& db (attach (d, sys_rep));
+
+        // Verify the association integrity.
+        //
+        verify_association (ac, db);
+
+        // If the association is explicit, also check if it is also implicit
+        // (see cfg_add() for details) and skip if it is not.
+        //
+        if (ac.expl)
         {
-          verify_association (ac, db);
+          shared_ptr<configuration> cf (
+            db.query_one<configuration> (q::uuid == uuid.string ()));
 
-          // If the association is explicit, also check if it is also implicit
-          // (see cfg_add() for details) and skip if it is not.
+          if (cf == nullptr)
+            fail << "configuration " << db.config_orig << " is associated "
+                 << "with " << config_orig << " but latter is not "
+                 << "implicitly associated with former";
+
+          // While at it, verify the integrity of the other end of the
+          // association.
           //
-          if (ac.expl)
-          {
-            shared_ptr<configuration> cf (
-              db.query_one<configuration> (q::uuid == uuid.string ()));
+          db.verify_association (*cf, *this);
 
-            if (cf == nullptr)
-              fail << "configuration " << db.config_orig << " is associated "
-                   << "with " << config_orig << " but latter is not "
-                   << "implicitly associated with former";
-
-            // While at it, verify the integrity of the other end of the
-            // association.
-            //
-            db.verify_association (*cf, *this);
-
-            if (!cf->expl)
-              continue;
-          }
-
-          // If the explicitly associated databases are pre-attached, normally
-          // to make the selected packages loadable, then we also pre-attach
-          // explicit associations of the database being attached implicitly,
-          // by the same reason. Indeed, think of loading the package
-          // dependent from the implicitly associated database as a selected
-          // package.
-          //
-          if (!explicit_associations_.empty ())
-            db.attach_explicit (sys_rep);
+          if (!cf->expl)
+            continue;
         }
+
+        // If the explicitly associated databases are pre-attached, normally
+        // to make the selected packages loadable, then we also pre-attach
+        // explicit associations of the database being attached implicitly, by
+        // the same reason. Indeed, think of loading the package dependent
+        // from the implicitly associated database as a selected package.
+        //
+        if (!explicit_associations_.empty ())
+          db.attach_explicit (sys_rep);
 
         implicit_associations_.push_back (db);
       }

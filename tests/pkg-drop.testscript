@@ -693,4 +693,40 @@ $* libfoo/1.0.0 2>>~%EOE% != 0
 
     $pkg_status -r libbar >'libbar available 1.0.0'
   }
+
+  : skip-deleted-dependency
+  :
+  {
+    $clone_cfg;
+    cp -pr ../cfg2 ./;
+
+    $pkg_build libbar --yes >! &cfg/lib*/*** &cfg/lib*;
+
+    mv cfg cfg.tmp;
+
+    $* -d cfg2 libbaz <<EOI 2>>/~%EOE%;
+      y
+      y
+      EOI
+      following dependent packages will have to be dropped as well:
+        foo (requires libbaz)
+      %drop dependent packages\? \[y.N\]   drop foo%
+        drop libbaz
+      %continue\? \[Y.n\] disfigured foo%
+      disfigured libbaz
+      purged foo
+      purged libbaz
+      EOE
+
+    # While at it, test that we properly handle the missing prerequisite
+    # situation.
+    #
+    mv cfg.tmp cfg;
+
+    $* libbar 2>>/EOE != 0;
+      error: unable to find prerequisite package foo in associated configuration cfg2/
+      EOE
+
+    $pkg_status -d cfg2 -r 2>'info: no held packages in the configuration'
+  }
 }
