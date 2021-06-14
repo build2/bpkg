@@ -1140,12 +1140,17 @@ namespace bpkg
   }
 
   // Try to find a dependency in the dependency configurations (see
-  // database::dependency_configs() for details). Return pointers to the found
-  // package and the configuration it belongs to. Return a pair of NULLs if no
-  // package is found and issue diagnostics and fail if multiple packages (in
-  // multiple configurations) are found.
+  // database::dependency_configs() for details). Return nullopt if no package
+  // is found and issue diagnostics and fail if multiple packages (in multiple
+  // configurations) are found.
   //
-  pair<shared_ptr<selected_package>, database*>
+  struct config_selected_package
+  {
+    reference_wrapper<database>  db;
+    shared_ptr<selected_package> package;
+  };
+
+  optional<config_selected_package>
   find_dependency (database&, const package_name&, bool buildtime);
 
   // Check if the directory containing the specified package version should be

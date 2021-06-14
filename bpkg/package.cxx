@@ -549,10 +549,10 @@ namespace bpkg
     return lazy_shared_ptr<selected_package> (ddb, move (prerequisite));
   }
 
-  pair<shared_ptr<selected_package>, database*>
+  optional<config_selected_package>
   find_dependency (database& db, const package_name& pn, bool buildtime)
   {
-    pair<shared_ptr<selected_package>, database*> r;
+    optional<config_selected_package> r;
 
     for (database& adb: db.dependency_configs (buildtime))
     {
@@ -560,17 +560,14 @@ namespace bpkg
 
       if (p != nullptr)
       {
-        if (r.first == nullptr)
-        {
-          r.first = move (p);
-          r.second = &adb;
-        }
-        else
+        if (r)
         {
           fail << "package " << pn << " appears in multiple configurations" <<
-            info << r.first->state << " in " << r.second->config_orig <<
+            info << r->package->state << " in " << r->db.get ().config_orig <<
             info << p->state << " in " << adb.config_orig;
         }
+        else
+          r = config_selected_package {adb, move (p)};
       }
     }
 
@@ -601,7 +598,8 @@ namespace bpkg
                             true /* revision */,
                             false /* iteration */));
 
-      for (const auto& prf: db.query<package_repository_fragment> (q))
+      for (const auto& prf:
+             db.main_database ().query<package_repository_fragment> (q))
       {
         const shared_ptr<repository_fragment>& rf (prf.repository_fragment);
 

@@ -4728,4 +4728,559 @@ else
       $pkg_drop libfix
     }
   }
+
+  : move
+  :
+  {
+    +$clone_root_cfg && $rep_add $rep/t7a && $rep_fetch
+
+    cfg2_uuid = '18f48b4b-b5d9-4712-b98c-1930df1c4228'
+    cfg3_uuid = '28f48b4b-b5d9-4712-b98c-1930df1c4228'
+
+    +$cfg_create -d cfg2 --name cfg2 --config-uuid $cfg2_uuid &cfg2/***
+    +$cfg_add -d cfg cfg2
+
+    : build-time
+    :
+    {
+      $clone_cfg;
+      cp -pr ../cfg2 ./;
+
+      $* libbar --yes 2>!;
+
+      $cfg_create -d cfg3 --name cfg3 --type host &cfg3/***;
+      $cfg_add -d cfg cfg3;
+
+      $* ?libbaz +{ --config-name cfg3 } 2>>~%EOE% &cfg/.bpkg/host/*** != 0;
+        %error: unable to move package libbaz/1.0.0 \[cfg..bpkg.host.\] to cfg3.%
+        %  info: because package foo \[cfg..bpkg.host.\] depends on it and%
+        %  info: cfg3. is not associated with cfg..bpkg.host.%
+        EOE
+
+      $pkg_status -r >>/EOE;
+        !libbar configured 1.0.0
+          foo [cfg/.bpkg/host/] configured 1.0.0
+            libbaz [cfg/.bpkg/host/] configured 1.0.0
+          libbaz configured 1.0.0
+        EOE
+
+      $* ?foo +{ --config-name cfg3 } <<EOI 2>>~%EOE%;
+        y
+        y
+        EOI
+        %  move/reconfigure/update libbaz/1.0.0 \[cfg3.\] \(required by foo \[cfg3.\]\)%
+        %  move/reconfigure/update foo/1.0.0 \[cfg3.\]%
+        %  reconfigure libbar \(dependent of foo \[cfg..bpkg.host.\]\)%
+        continue? [Y/n] update dependent packages? [Y/n] disfigured libbar/1.0.0
+        %disfigured foo/1.0.0 \[cfg..bpkg.host.\]%
+        %disfigured libbaz/1.0.0 \[cfg..bpkg.host.\]%
+        %purged libbaz/1.0.0 \[cfg..bpkg.host.\]%
+        %fetched libbaz/1.0.0 \[cfg3.\]%
+        %unpacked libbaz/1.0.0 \[cfg3.\]%
+        %purged foo/1.0.0 \[cfg..bpkg.host.\]%
+        %fetched foo/1.0.0 \[cfg3.\]%
+        %unpacked foo/1.0.0 \[cfg3.\]%
+        %configured libbaz/1.0.0 \[cfg3.\]%
+        %configured foo/1.0.0 \[cfg3.\]%
+        configured libbar/1.0.0
+        %info: cfg3.+foo-1.0.0.+ is up to date%
+        %info: cfg.+libbar-1.0.0.+ is up to date%
+        %updated foo/1.0.0 \[cfg3.\]%
+        updated libbar/1.0.0
+        EOE
+
+      $pkg_status -r >>/EOE;
+        !libbar configured 1.0.0
+          foo [cfg3/] configured 1.0.0
+            libbaz [cfg3/] configured 1.0.0
+          libbaz configured 1.0.0
+        EOE
+
+      # While at it, test that the runtime dependency move is not confused
+      # with the build-time dependency move.
+      #
+      $* ?libbaz +{ --config-name cfg2 } <<EOI 2>>~%EOE%;
+        y
+        y
+        EOI
+        %  move/reconfigure/update libbaz/1.0.0 \[cfg2.\]%
+          reconfigure libbar (dependent of libbaz)
+        continue? [Y/n] update dependent packages? [Y/n] disfigured libbar/1.0.0
+        disfigured libbaz/1.0.0
+        purged libbaz/1.0.0
+        %fetched libbaz/1.0.0 \[cfg2.\]%
+        %unpacked libbaz/1.0.0 \[cfg2.\]%
+        %configured libbaz/1.0.0 \[cfg2.\]%
+        configured libbar/1.0.0
+        %info: cfg2.+libbaz-1.0.0.+ is up to date%
+        %info: cfg.+libbar-1.0.0.+ is up to date%
+        %updated libbaz/1.0.0 \[cfg2.\]%
+        updated libbar/1.0.0
+        EOE
+
+      $pkg_status -r >>/EOE;
+        !libbar configured 1.0.0
+          foo [cfg3/] configured 1.0.0
+            libbaz [cfg3/] configured 1.0.0
+          libbaz [cfg2/] configured 1.0.0
+        EOE
+
+      $pkg_drop libbar
+    }
+
+    : ambiguous
+    :
+    {
+      $clone_cfg;
+      cp -pr ../cfg2 ./;
+
+      $* libbar --yes 2>! &cfg/.bpkg/host/***;
+
+      $* libbar libbar +{ --config-name cfg2 } 2>>EOE != 0;
+        error: duplicate package libbar
+          info: first mentioned as libbar
+          info: second mentioned as libbar +{ --config-name cfg2 }
+        EOE
+
+      $pkg_drop libbar
+    }
+
+    : hold
+    :
+    {
+      $clone_cfg;
+      cp -pr ../cfg2 ./;
+
+      $* libbar --yes 2>! &cfg/.bpkg/host/***;
+
+      $* libbaz +{ --config-name cfg2 } <<EOI 2>>~%EOE%;
+        y
+        y
+        EOI
+        %  move/reconfigure/update libbaz/1.0.0 \[cfg2.\]%
+          reconfigure libbar (dependent of libbaz)
+        continue? [Y/n] update dependent packages? [Y/n] disfigured libbar/1.0.0
+        disfigured libbaz/1.0.0
+        purged libbaz/1.0.0
+        %fetched libbaz/1.0.0 \[cfg2.\]%
+        %unpacked libbaz/1.0.0 \[cfg2.\]%
+        %configured libbaz/1.0.0 \[cfg2.\]%
+        configured libbar/1.0.0
+        %info: cfg2.+libbaz-1.0.0.+ is up to date%
+        %info: cfg.+libbar-1.0.0.+ is up to date%
+        %updated libbaz/1.0.0 \[cfg2.\]%
+        updated libbar/1.0.0
+        EOE
+
+      $pkg_status -r >>/EOE;
+        !libbar configured 1.0.0
+          foo [cfg/.bpkg/host/] configured 1.0.0
+            libbaz [cfg/.bpkg/host/] configured 1.0.0
+          !libbaz [cfg2/] configured 1.0.0
+        !libbaz [cfg2/] configured 1.0.0
+        EOE
+
+      $* ?libbaz <<EOI 2>>~%EOE%;
+        y
+        y
+        EOI
+        %  move/reconfigure/update/unhold libbaz/1.0.0%
+        %  reconfigure libbar \(dependent of libbaz \[cfg2.\]\)%
+        continue? [Y/n] update dependent packages? [Y/n] disfigured libbar/1.0.0
+        %disfigured libbaz/1.0.0 \[cfg2.\]%
+        %purged libbaz/1.0.0 \[cfg2.\]%
+        fetched libbaz/1.0.0
+        unpacked libbaz/1.0.0
+        configured libbaz/1.0.0
+        configured libbar/1.0.0
+        %info: cfg.+libbaz-1.0.0.+ is up to date%
+        %info: cfg.+libbar-1.0.0.+ is up to date%
+        updated libbaz/1.0.0
+        updated libbar/1.0.0
+        EOE
+
+      $pkg_drop libbar
+    }
+
+    : src-sys
+    :
+    {
+      $clone_cfg;
+      cp -pr ../cfg2 ./;
+
+      $* libbar --yes 2>! &cfg/.bpkg/host/***;
+
+      $* '?sys:libbaz' +{ --config-name cfg2 } <<EOI 2>>~%EOE%;
+        y
+        y
+        EOI
+        %  move/reconfigure sys:libbaz/\* \[cfg2.\]%
+          reconfigure libbar (dependent of libbaz)
+        continue? [Y/n] update dependent packages? [Y/n] disfigured libbar/1.0.0
+        disfigured libbaz/1.0.0
+        purged libbaz/1.0.0
+        %configured sys:libbaz/\* \[cfg2.\]%
+        configured libbar/1.0.0
+        %info: cfg.+libbar-1.0.0.+ is up to date%
+        updated libbar/1.0.0
+        EOE
+
+      $pkg_status -r >>/EOE;
+        !libbar configured 1.0.0
+          foo [cfg/.bpkg/host/] configured 1.0.0
+            libbaz [cfg/.bpkg/host/] configured 1.0.0
+          libbaz [cfg2/] configured,system !* available 1.0.0
+        EOE
+
+      $pkg_drop libbar
+    }
+
+    : sys-src
+    :
+    {
+      $clone_cfg;
+      cp -pr ../cfg2 ./;
+
+      $* libbar '?sys:libbaz' --yes 2>! &cfg/.bpkg/host/***;
+
+      $* ?libbaz +{ --config-name cfg2 } <<EOI 2>>~%EOE%;
+        y
+        y
+        EOI
+        %  move/upgrade libbaz/1.0.0 \[cfg2.\]%
+          reconfigure libbar (dependent of libbaz)
+        continue? [Y/n] update dependent packages? [Y/n] disfigured libbar/1.0.0
+        purged libbaz/*
+        %fetched libbaz/1.0.0 \[cfg2.\]%
+        %unpacked libbaz/1.0.0 \[cfg2.\]%
+        %configured libbaz/1.0.0 \[cfg2.\]%
+        configured libbar/1.0.0
+        %info: cfg2.+libbaz-1.0.0.+ is up to date%
+        %info: cfg.+libbar-1.0.0.+ is up to date%
+        %updated libbaz/1.0.0 \[cfg2.\]%
+        updated libbar/1.0.0
+        EOE
+
+      $pkg_status -r >>/EOE;
+        !libbar configured 1.0.0
+          foo [cfg/.bpkg/host/] configured 1.0.0
+            libbaz [cfg/.bpkg/host/] configured 1.0.0
+          libbaz [cfg2/] configured 1.0.0
+        EOE
+
+      $pkg_drop libbar
+    }
+
+    : upgrade
+    :
+    {
+      $clone_cfg;
+      cp -pr ../cfg2 ./;
+
+      $* libbar --yes 2>! &cfg/.bpkg/host/***;
+
+      $cfg_create -d cfg3 --name cfg3 --type host &cfg3/***;
+      $cfg_add -d cfg cfg3;
+
+      $rep_add $rep/t7b && $rep_fetch;
+
+      $* libbar ?foo +{ --config-name cfg3 } ?libbaz +{ --config-name cfg2 } <<EOI 2>>~%EOE%;
+        y
+        EOI
+        %  move/upgrade libbaz/1.1.0 \[cfg3.\] \(required by foo \[cfg3.\]\)%
+        %  move/upgrade foo/1.1.0 \[cfg3.\]%
+        %  move/upgrade libbaz/1.1.0 \[cfg2.\]%
+          upgrade libbar/1.1.0
+        continue? [Y/n] disfigured libbar/1.0.0
+        disfigured libbaz/1.0.0
+        %disfigured foo/1.0.0 \[cfg..bpkg.host.\]%
+        %disfigured libbaz/1.0.0 \[cfg..bpkg.host.\]%
+        %purged libbaz/1.0.0 \[cfg..bpkg.host.\]%
+        %fetched libbaz/1.1.0 \[cfg3.\]%
+        %unpacked libbaz/1.1.0 \[cfg3.\]%
+        %purged foo/1.0.0 \[cfg..bpkg.host.\]%
+        %fetched foo/1.1.0 \[cfg3.\]%
+        %unpacked foo/1.1.0 \[cfg3.\]%
+        purged libbaz/1.0.0
+        %fetched libbaz/1.1.0 \[cfg2.\]%
+        %unpacked libbaz/1.1.0 \[cfg2.\]%
+        fetched libbar/1.1.0
+        unpacked libbar/1.1.0
+        %configured libbaz/1.1.0 \[cfg3.\]%
+        %configured foo/1.1.0 \[cfg3.\]%
+        %configured libbaz/1.1.0 \[cfg2.\]%
+        configured libbar/1.1.0
+        %info: cfg3.+foo-1.1.0.+ is up to date%
+        %info: cfg2.+libbaz-1.1.0.+ is up to date%
+        %info: cfg.+libbar-1.1.0.+ is up to date%
+        %updated foo/1.1.0 \[cfg3.\]%
+        %updated libbaz/1.1.0 \[cfg2.\]%
+        updated libbar/1.1.0
+        EOE
+
+      $pkg_status -r >>/EOE;
+        !libbar configured 1.1.0
+          foo [cfg3/] configured 1.1.0
+            libbaz [cfg3/] configured 1.1.0
+          libbaz [cfg2/] configured 1.1.0
+        EOE
+
+      $pkg_drop libbar
+    }
+
+    : dependent-dependencies
+    :
+    : Note that this is similar to the above upgrade test, but we also move
+    : the libbar dependent.
+    :
+    {
+      $clone_cfg;
+      cp -pr ../cfg2 ./;
+
+      $* libbar --yes 2>! &cfg/.bpkg/host/***;
+
+      $cfg_create -d cfg3 --name cfg3 --type host --config-uuid $cfg3_uuid &cfg3/***;
+      $cfg_add -d cfg cfg3;
+
+      $cfg_create -d cfg0 &cfg0/*** 2>!;
+      $cfg_add -d cfg0 cfg;
+
+      $rep_add -d cfg0 $rep/t7a && $rep_fetch -d cfg0;
+
+      $* -d cfg0 libbar ?libbaz +{ --config-uuid $cfg2_uuid } \
+                        ?foo    +{ --config-uuid $cfg3_uuid } <<EOI 2>>~%EOE%;
+        y
+        EOI
+        %  move/reconfigure/update libbaz/1.0.0 \[cfg2.\]%
+        %  move/reconfigure/update libbaz/1.0.0 \[cfg3.\] \(required by foo \[cfg3.\]\)%
+        %  move/reconfigure/update foo/1.0.0 \[cfg3.\]%
+          move/reconfigure/update libbar/1.0.0
+        %continue\? \[Y/n\] disfigured libbar/1.0.0 \[cfg.\]%
+        %disfigured foo/1.0.0 \[cfg..bpkg.host.\]%
+        %disfigured libbaz/1.0.0 \[cfg..bpkg.host.\]%
+        %disfigured libbaz/1.0.0 \[cfg.\]%
+        %purged libbaz/1.0.0 \[cfg.\]%
+        %fetched libbaz/1.0.0 \[cfg2.\]%
+        %unpacked libbaz/1.0.0 \[cfg2.\]%
+        %purged libbaz/1.0.0 \[cfg..bpkg.host.\]%
+        %fetched libbaz/1.0.0 \[cfg3.\]%
+        %unpacked libbaz/1.0.0 \[cfg3.\]%
+        %purged foo/1.0.0 \[cfg..bpkg.host.\]%
+        %fetched foo/1.0.0 \[cfg3.\]%
+        %unpacked foo/1.0.0 \[cfg3.\]%
+        %purged libbar/1.0.0 \[cfg.\]%
+        fetched libbar/1.0.0
+        unpacked libbar/1.0.0
+        %configured libbaz/1.0.0 \[cfg2.\]%
+        %configured libbaz/1.0.0 \[cfg3.\]%
+        %configured foo/1.0.0 \[cfg3.\]%
+        configured libbar/1.0.0
+        %info: cfg2.+libbaz-1.0.0.+ is up to date%
+        %info: cfg3.+foo-1.0.0.+ is up to date%
+        %info: cfg0.+libbar-1.0.0.+ is up to date%
+        %updated libbaz/1.0.0 \[cfg2.\]%
+        %updated foo/1.0.0 \[cfg3.\]%
+        updated libbar/1.0.0
+        EOE
+
+      $pkg_drop -d cfg0 libbar
+    }
+
+    : patch
+    :
+    {
+      $clone_cfg;
+      cp -pr ../cfg2 ./;
+
+      $* libbar --yes 2>! &cfg/.bpkg/host/***;
+
+      $rep_add $rep/t7b && $rep_fetch;
+
+      $* libbaz +{ --config-name cfg2 --patch } <<EOI 2>>~%EOE%;
+        y
+        y
+        EOI
+        %  move/reconfigure/update libbaz/1.0.0 \[cfg2.\]%
+          reconfigure libbar (dependent of libbaz)
+        continue? [Y/n] update dependent packages? [Y/n] disfigured libbar/1.0.0
+        disfigured libbaz/1.0.0
+        purged libbaz/1.0.0
+        %fetched libbaz/1.0.0 \[cfg2.\]%
+        %unpacked libbaz/1.0.0 \[cfg2.\]%
+        %configured libbaz/1.0.0 \[cfg2.\]%
+        configured libbar/1.0.0
+        %info: cfg2.+libbaz-1.0.0.+ is up to date%
+        %info: cfg.+libbar-1.0.0.+ is up to date%
+        %updated libbaz/1.0.0 \[cfg2.\]%
+        updated libbar/1.0.0
+        EOE
+
+      $pkg_status -r >>/EOE;
+        !libbar configured 1.0.0 available 1.1.0
+          foo [cfg/.bpkg/host/] configured 1.0.0 available 1.1.0
+            libbaz [cfg/.bpkg/host/] configured 1.0.0 available 1.1.0
+          !libbaz [cfg2/] configured 1.0.0 available 1.1.0
+        !libbaz [cfg2/] configured 1.0.0 available 1.1.0
+        EOE
+
+      $pkg_drop -d cfg2 libbaz --drop-dependent
+    }
+
+    #\
+    : dependency-multiple-dependents1
+    :
+    {
+      $clone_cfg;
+      cp -pr ../cfg2 ./;
+
+      $* libbar --yes 2>! &cfg/.bpkg/host/***;
+      $* libbox +{ --config-name cfg2 } --yes 2>! &cfg2/.bpkg/host/***;
+
+      # Now we have libbaz dependency configured in both cfg/ and cfg2/. The
+      # following command attempts to move it from cfg2/ over an existing one
+      # in cfg/ and fails with:
+      #
+      # error: package libbaz already exists in configuration cfg/
+      #  info: version: 1.0.0, state: configured, substate: none
+      #
+      $* libbox
+
+    }
+    #\
+
+    #\
+    : dependency-multiple-dependents2
+    :
+    {
+      $clone_cfg;
+      cp -pr ../cfg2 ./;
+
+      $* libbar libbox --yes 2>! &cfg/.bpkg/host/***;
+
+      # The following command moves libbaz from cfg/ to cfg2, and reconfigures
+      # libbar to it, which is luckily this is possible. What if this is
+      # impossible (see the below test)?
+      #
+      # Should it be trying to just build the dependency in cfg2/ and if in
+      # cfg/ it is still used then leave it, otherwise it should be
+      # automatically dropped by the refinement machinery.
+      #
+      $* libbox +{ --config-name cfg2 } <<EOI 2>>~%EOE%
+        y
+        y
+        EOI
+        EOE
+    }
+    #\
+
+    #\
+    : dependency-multiple-dependents3
+    :
+    {
+      $clone_cfg;
+      cp -pr ../cfg2 ./;
+
+      $cfg_create -d cfg3 --name cfg3 &cfg3/***;
+      $cfg_add -d cfg cfg3;
+
+      $* libbar +{ --config-name cfg2 } libbox +{ --config-name cfg2 } --yes \
+         2>| &cfg2/.bpkg/host/***;
+
+      # Here we fail as:
+      #
+      # error: unable to move package foo/1.0.0 [cfg2/.bpkg/host/] to cfg3/.bpkg/host/
+      #  info: because package libbar [cfg2/] depends on it and
+      #  info: cfg3/.bpkg/host/ is not associated with cfg2/
+      #
+      $* libbox +{ --config-name cfg3 } <<EOI 2>>~%EOE%
+        y
+        y
+        EOI
+        EOE
+    }
+    #\
+
+    : drop
+    :
+    {
+      $clone_cfg;
+      cp -pr ../cfg2 ./;
+
+      $* libbox --yes 2>! &cfg/.bpkg/host/***;
+
+      $rep_add $rep/t7b && $rep_fetch;
+
+      $* libbox ?libbaz +{ --config-name cfg2 } <<EOI 2>>~%EOE%;
+        y
+        EOI
+          drop libbaz/1.0.0 (unused)
+          upgrade libbox/1.1.0
+        continue? [Y/n] disfigured libbox/1.0.0
+        disfigured libbaz/1.0.0
+        purged libbaz/1.0.0
+        fetched libbox/1.1.0
+        unpacked libbox/1.1.0
+        configured libbox/1.1.0
+        %info: cfg.+libbox-1.1.0.+ is up to date%
+        updated libbox/1.1.0
+        EOE
+
+      $pkg_status -r >>/EOE;
+        !libbox configured 1.1.0
+          foo [cfg/.bpkg/host/] configured 1.0.0 available 1.1.0
+            libbaz [cfg/.bpkg/host/] configured 1.0.0 available 1.1.0
+        EOE
+
+      $pkg_drop libbox
+    }
+
+    : broken
+    :
+    {
+      $clone_cfg;
+      cp -pr ../cfg2 ./;
+
+      $* libbar --yes 2>! &cfg/.bpkg/host/***;
+
+      # Break the package.
+      #
+      rm -r cfg/libbar-1.0.0/buildfile;
+      $pkg_disfigure libbar 2>- != 0;
+
+      $* libbar +{ --config-name cfg2 } 2>>EOE != 0;
+        error: unable to build broken package libbar
+          info: use 'pkg-purge --force' to remove
+        EOE
+
+      rm -r cfg/libbar-1.0.0 cfg/libbar-1.0.0.tar.gz;
+      $pkg_purge --force libbar 2>!;
+
+      $pkg_drop libbaz
+    }
+
+    : fetched
+    :
+    {
+      $clone_cfg;
+      cp -pr ../cfg2 ./;
+
+      $pkg_fetch libbaz/1.0.0;
+
+      $* libbaz +{ --config-name cfg2 } <<EOI 2>>~%EOE%;
+       y
+       EOI
+        %  move/update libbaz/1.0.0 \[cfg2.\]%
+        continue? [Y/n] purged libbaz/1.0.0
+        %fetched libbaz/1.0.0 \[cfg2.\]%
+        %unpacked libbaz/1.0.0 \[cfg2.\]%
+        %configured libbaz/1.0.0 \[cfg2.\]%
+        %info: cfg2.+libbaz-1.0.0.+ is up to date%
+        %updated libbaz/1.0.0 \[cfg2.\]%
+        EOE
+
+      $pkg_status -r >/'!libbaz [cfg2/] configured 1.0.0';
+
+      $pkg_drop -d cfg2 libbaz
+    }
+  }
 }
