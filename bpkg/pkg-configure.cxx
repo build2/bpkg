@@ -58,11 +58,11 @@ namespace bpkg
           }
         }
 
-        pair<shared_ptr<selected_package>, database*> spd (
-          find_dependency (db, n, da.buildtime));
-
-        if (const shared_ptr<selected_package>& dp = spd.first)
+        if (optional<config_selected_package> spd =
+            find_dependency (db, n, da.buildtime))
         {
+          const shared_ptr<selected_package>& dp (spd->package);
+
           if (dp->state != package_state::configured)
             continue;
 
@@ -73,7 +73,7 @@ namespace bpkg
           // the map keys with the database passed.
           //
           auto p (
-            r.emplace (lazy_shared_ptr<selected_package> (*spd.second, dp),
+            r.emplace (lazy_shared_ptr<selected_package> (spd->db.get (), dp),
                        d.constraint));
 
            // Currently we can only capture a single constraint, so if we
