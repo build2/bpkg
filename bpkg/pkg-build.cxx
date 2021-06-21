@@ -331,13 +331,15 @@ namespace bpkg
     shared_ptr<bpkg::repository_fragment> repository_fragment;
 
     bool
-    move () const {return db_to != db_from;}
+    db_change () const {return db_to != db_from;}
 
     const package_name&
     name () const
     {
       return selected != nullptr ? selected->name : available->id.name;
     }
+
+    bool move;
 
     // Hold flags. Note that we only "increase" the hold_package value that is
     // already in the selected package.
@@ -452,7 +454,7 @@ namespace bpkg
                (selected->system () != system             ||
                 selected->version != available_version () ||
                 (!system && !config_vars.empty ())))  ||
-              (move () && !unhold_adjustment ()));
+              (move && !unhold_adjustment ()));
     }
 
     const version&
@@ -497,6 +499,7 @@ namespace bpkg
       // We don't merge objects from different configurations.
       //
       assert (db_from == p.db_from);
+      // assert (db_to == p.db_to); // Can differ, see collect_unhold().
 
       // We don't merge into pre-entered objects, and from/into drops.
       //
@@ -514,8 +517,8 @@ namespace bpkg
         // options and variables are only saved into the pre-entered
         // dependencies, etc.).
         //
-        if (p.move ())
-          db_to = p.db_to;
+        if (p.move)
+          this->move = p.move;
 
         if (p.keep_out)
           keep_out = p.keep_out;
@@ -802,7 +805,7 @@ namespace bpkg
            sp->state == package_state::configured   &&
            sp->substate != package_substate::system &&
            sp->version == pkg.available_version ()  &&
-           !pkg.move ()))
+           !pkg.db_change ()))
         return;
 
       // Show how we got here if things go wrong.
@@ -878,7 +881,7 @@ namespace bpkg
         // preference and configuration of an already selected package, if
         // present.
         //
-        bool dep_move (pkg.move ());
+        bool db_change (pkg.db_change ());
         database* db_to (&pdb_to);
 
         // If unable to derive it by the time of collecting the build, we will
@@ -920,9 +923,9 @@ namespace bpkg
                      << " constraint";
           }
 
-          dep_move = bp.move ();
-          db_from  = &bp.db_from.get ();
-          db_to    = &bp.db_to.get ();
+          db_change = bp.db_change ();
+          db_from   = &bp.db_from.get ();
+          db_to     = &bp.db_to.get ();
         }
 
         const dependency& d (!dep_constr
@@ -944,7 +947,7 @@ namespace bpkg
             fail << "unable to build broken package " << dn << *db_from <<
               info << "use 'pkg-purge --force' to remove";
 
-          if (!dep_move)
+          if (!db_change)
             db_to = db_from;
         }
 
@@ -962,7 +965,7 @@ namespace bpkg
         // for this dependency on the command line (using --config-*), then
         // this configuration is used as the starting point for this search.
         //
-        if (da.buildtime && (dsp == nullptr || dep_move))
+        if (da.buildtime && (dsp == nullptr || db_change))
         {
           database* hdb (nullptr);
 
@@ -1228,6 +1231,7 @@ namespace bpkg
           dsp,
           dap,
           rp.second,
+          false,                           // Move package.
           nullopt,                         // Hold package.
           nullopt,                         // Hold version.
           {},                              // Constraints.
@@ -1329,6 +1333,7 @@ namespace bpkg
         move (sp),
         nullptr,
         nullptr,
+        false,      // Move package.
         nullopt,    // Hold package.
         nullopt,    // Hold version.
         {},         // Constraints.
@@ -1346,14 +1351,26 @@ namespace bpkg
       {
         build_package& bp (i->second.package);
 
-        // Can't think of the scenario when this happens. We would start
-        // collecting from scratch (see below).
-        //
-        assert (!bp.action || *bp.action != build_package::build);
-
-        // Overwrite the existing (possibly pre-entered or adjustment) entry.
-        //
-        bp = move (p);
+        if (bp.action && *bp.action == build_package::build)
+        {
+          if (bp.db_change ())
+          {
+            bp.move = true;
+          }
+          else
+          {
+            // Can't think of the scenario when this happens. We would start
+            // collecting from scratch (see below).
+            //
+            assert (false);
+          }
+        }
+        else
+        {
+          // Overwrite the existing (possibly pre-entered or adjustment) entry.
+          //
+          bp = move (p);
+        }
       }
       else
         map_.emplace (config_package {db_from, nm},
@@ -1382,6 +1399,7 @@ namespace bpkg
           sp,
           nullptr,
           nullptr,
+          false,      // Move package.
           nullopt,    // Hold package.
           nullopt,    // Hold version.
           {},         // Constraints.
@@ -1544,7 +1562,7 @@ namespace bpkg
           // since this have already been considered in
           // collect_build_prerequisites().
           //
-          if (p.move () && !dud)
+          if (p.db_change () && !dud) // @@ AC Should it be gone?
           {
             associated_databases dbs (pdb_to.dependent_configs ());
 
@@ -1639,6 +1657,7 @@ namespace bpkg
               move (dsp),
               nullptr,                        // No available pkg/repo fragment.
               nullptr,
+              false,                          // Move package.
               nullopt,                        // Hold package.
               nullopt,                        // Hold version.
               {},                             // Constraints.
@@ -2080,6 +2099,7 @@ namespace bpkg
     shared_ptr<selected_package>      selected;
     bool                              system;
     bool                              patch;       // Only for an empty version.
+    bool                              move;
     bool                              keep_out;
     optional<dir_path>                checkout_root;
     bool                              checkout_purge;
@@ -4041,6 +4061,7 @@ namespace bpkg
                                 move (pa.selected),
                                 sys,
                                 pa.options.patch (),
+                                pa.db_to != pa.db_from,
                                 pa.options.keep_out (),
                                 (pa.options.checkout_root_specified ()
                                  ? move (pa.options.checkout_root ())
@@ -4215,6 +4236,7 @@ namespace bpkg
           move (pa.selected),
           move (ap),
           move (af),
+          pa.db_to != pa.db_from,     // Move package.
           true,                       // Hold package.
           pa.constraint.has_value (), // Hold version.
           {},                         // Constraints.
@@ -4311,6 +4333,7 @@ namespace bpkg
               move (sp),
               move (ap),
               move (apr.second),
+              false,                      // Move package.
               true,                       // Hold package.
               false,                      // Hold version.
               {},                         // Constraints.
@@ -4450,6 +4473,7 @@ namespace bpkg
               nullptr,                    // Selected package.
               nullptr,                    // Available package/repository frag.
               nullptr,
+              p.move,                     // Move package.
               false,                      // Hold package.
               p.constraint.has_value (),  // Hold version.
               {},                         // Constraints.
@@ -4536,6 +4560,7 @@ namespace bpkg
               move (sp),
               d.available,
               d.repository_fragment,
+              false,                      // Move package.
               nullopt,                    // Hold package.
               nullopt,                    // Hold version.
               {},                         // Constraints.
@@ -5002,7 +5027,7 @@ namespace bpkg
             database& pdb_from (p.db_from);
 
             if (*p.action == build_package::drop ||
-                (*p.action == build_package::build && p.move ()))
+                (*p.action == build_package::build && p.db_change ()))
             {
               assert (p.selected != nullptr);
 
@@ -5195,7 +5220,7 @@ namespace bpkg
               act = p.system ? "configure" : "new";
             else
             {
-              if (p.move ())
+              if (p.move)
               {
                 act = "move/";
                 need_prompt = true;
@@ -5371,7 +5396,7 @@ namespace bpkg
 
         if (*p.action == build_package::adjust &&
             p.reconfigure ()                   &&
-            !p.move ())
+            !p.move)
           upkgs.push_back (pkg_command_vars {db_from.config_orig,
                                              db_from.main (),
                                              p.selected,
@@ -5535,9 +5560,9 @@ namespace bpkg
         // make sure the hold state is preserved for the package being
         // reconfigured.
         //
-        if (p.system || p.move ())
+        if (p.system || p.move)
         {
-          if (sp != nullptr && (!sp->system () || p.move ()))
+          if (sp != nullptr && (!sp->system () || p.move))
           {
             transaction t (pdb_from, !simulate /* start */);
             pkg_purge (pdb_from, t, sp, simulate); // Commits the transaction.
@@ -5566,7 +5591,9 @@ namespace bpkg
         // Fetch or checkout if this is a new package or if we are
         // up/down-grading.
         //
-        if (sp == nullptr || sp->version != p.available_version ())
+        if (sp == nullptr                         ||
+            sp->version != p.available_version () ||
+            p.db_change ())
         {
           sp = nullptr; // For the directory case below.
 

@@ -4970,7 +4970,7 @@ else
 
       $pkg_drop libbar
     }
-
+#\
     : upgrade
     :
     {
@@ -5027,7 +5027,7 @@ else
 
       $pkg_drop libbar
     }
-
+#\
     : dependent-dependencies
     :
     : Note that this is similar to the above upgrade test, but we also move
