@@ -352,8 +352,8 @@ namespace bpkg
     associated_databases implicit_associations_;
   };
 
-  // NOTE: remember to update config_package comparison operators if changing
-  // the database comparison operators.
+  // NOTE: remember to update config_package comparison operators and
+  // compare_lazy_ptr if changing the database comparison operators.
   //
   // Note that here we use the database address as the database identity since
   // we don't suppose two database instances for the same configuration to

@@ -52,7 +52,7 @@ namespace bpkg
     bool cwd; // Change the working directory to the package directory.
 
     // Return the selected package name/version followed by the configuration
-    // directory, unless this is the main configuration. For example:
+    // directory, unless this is the current configuration. For example:
     //
     // libfoo/1.1.0
     // libfoo/1.1.0 [cfg/]

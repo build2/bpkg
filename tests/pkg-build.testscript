@@ -810,10 +810,10 @@ test.options += --no-progress
     $cfg_add -d cfg cfg2;
     $* libbaz ?libbar +{ --config-id 1 } libfoo/1.0.0 +{ --config-id 1 } 2>>~%EOE% != 0
       error: unable to satisfy constraints on package libfoo
-      %  info: libbar \[cfg2.\] depends on \(libfoo == 1.1.0\)%
         info: command line depends on (libfoo == 1.0.0)
-        info: available libfoo/1.1.0
+      %  info: libbar \[cfg2.\] depends on \(libfoo == 1.1.0\)%
         info: available libfoo/1.0.0
+        info: available libfoo/1.1.0
         info: explicitly specify libfoo version to manually satisfy both constraints
       %info: while satisfying libbar/1.1.0 \[cfg2.\]%
       info: while satisfying libbaz/1.1.0
@@ -2463,18 +2463,21 @@ test.options += --no-progress
         $cfg_create -d cfg2 &cfg2/***;
         $cfg_add -d cfg cfg2;
 
-        $* libbar/0.0.1 +{ --config-id 1 } 2>!;
+        $* libbar/0.0.1 2>!;
 
-        $pkg_status -d cfg2 libbaz >'libbaz configured 0.0.1';
+        $pkg_status libbaz >'libbaz configured 0.0.1 available 0.1.0 0.0.4 0.0.3';
 
-        $* ?libbaz/0.0.3 +{ --config-id 1 } 2>>~%EOE% != 0;
-          %error: package libbaz \[cfg2.\] doesn't satisfy its dependents%
-          %  info: libbaz/0.0.3 doesn't satisfy libbar/0.0.1 \[cfg2.\]%
+        $* ?libbaz/0.0.3 +{ --config-id 1 } 2>>EOE != 0;
+          error: unable to satisfy constraints on package libbaz
+            info: libbar depends on (libbaz == 0.0.1)
+            info: command line depends on (libbaz == 0.0.3)
+            info: specify libbaz version to satisfy libbar constraint
+          info: while satisfying libbar/0.0.1
           EOE
 
-        $pkg_status -d cfg2 libbaz >'libbaz configured 0.0.1';
+        $pkg_status libbaz >'libbaz configured 0.0.1 available 0.1.0 0.0.4 0.0.3';
 
-        $pkg_drop -d cfg2 libbar
+        $pkg_drop libbar
       }
     }
 
@@ -4269,7 +4272,7 @@ else
           libfoo [cfg-bar-foo/] configured 1.1.0
         EOO
 
-      $pkg_status -d cfg-bar-foo -r libbar >>EOO;
+      $pkg_status -d cfg-bar-foo -r libbar >>/EOO;
         libbar configured 1.1.0
           libfoo configured 1.1.0
         EOO
@@ -4278,7 +4281,7 @@ else
 
       $pkg_drop libbaz;
 
-      $pkg_status libbaz libbar libfoo >>EOO
+      $pkg_status libbaz libbar libfoo >>/EOO
         libbaz available 1.1.0
         libbar available [1.1.0]
         libfoo available [1.1.0] 1.0.0
@@ -4361,7 +4364,7 @@ else
         %purged libbar/1.1.0 \[cfg-bar.\]%
         EOE
 
-      $pkg_status libbar libfoo >>EOO
+      $pkg_status libbar libfoo >>/EOO
         libbar available [1.1.0]
         libfoo available [1.1.0] 1.0.0
         EOO
@@ -4377,10 +4380,10 @@ else
     :
     {
       +$clone_cfg
-      +$cfg_create -d cfg2 --type host --name alt-host &cfg2/***
+      +$cfg_create -d cfg2 --type host --name cfg2 &cfg2/***
       +$cfg_add -d cfg cfg2
 
-      : upgrade-dependency
+      : downgrade-dependency
       :
       {
         $clone_cfg;
@@ -4451,41 +4454,28 @@ else
             libbaz configured 1.0.0 available 1.1.0
           EOO
 
-        # Now upgrade libbaz in cfg/ and downgrade it in cfg2/. Note that
-        # libbaz/1.1.0 doesn't exist in the t7a repository where libbar/1.0.0
-        # belongs to, thus we build it to hold rather than a dependency.
-        #
-        # While at it, test the --config-name option.
-        #
-        $* libbar/1.0.0 libbaz/1.1.0 ?foo/1.0.0 +{ --config-name alt-host } \
+        $* libbar/1.0.0 ?foo/1.0.0 +{ --config-name cfg2 } \
            ?libbaz/1.0.0 +{ --config-id 1 } <'y' 2>>~%EOE%;
           %  downgrade libbaz/1.0.0 \[cfg2.\]%
           %  downgrade foo/1.0.0 \[cfg2.\]%
-            upgrade libbaz/1.1.0
             downgrade libbar/1.0.0
           continue? [Y/n] disfigured libbar/1.1.0
-          disfigured libbaz/1.0.0
           %disfigured foo/1.1.0 \[cfg2.\]%
           %disfigured libbaz/1.1.0 \[cfg2.\]%
           %fetched libbaz/1.0.0 \[cfg2.\]%
           %unpacked libbaz/1.0.0 \[cfg2.\]%
           %fetched foo/1.0.0 \[cfg2.\]%
           %unpacked foo/1.0.0 \[cfg2.\]%
-          fetched libbaz/1.1.0
-          unpacked libbaz/1.1.0
           fetched libbar/1.0.0
           unpacked libbar/1.0.0
           %configured libbaz/1.0.0 \[cfg2.\]%
           %configured foo/1.0.0 \[cfg2.\]%
-          configured libbaz/1.1.0
           configured libbar/1.0.0
-          %info: .+libbaz-1.0.0.+ is up to date%
-          %info: .+foo-1.0.0.+ is up to date%
-          %info: .+libbaz-1.1.0.+ is up to date%
-          %info: .+libbar-1.0.0.+ is up to date%
+          %info: cfg2.+libbaz-1.0.0.+ is up to date%
+          %info: cfg2.+foo-1.0.0.+ is up to date%
+          %info: cfg.+libbar-1.0.0.+ is up to date%
           %updated libbaz/1.0.0 \[cfg2.\]%
           %updated foo/1.0.0 \[cfg2.\]%
-          updated libbaz/1.1.0
           updated libbar/1.0.0
           EOE
 
@@ -4493,7 +4483,7 @@ else
           !libbar configured !1.0.0 available 1.1.0
             foo [cfg2/] configured !1.0.0 available 1.1.0
               libbaz [cfg2/] configured !1.0.0 available 1.1.0
-            !libbaz configured !1.1.0
+            libbaz configured 1.0.0 available 1.1.0
           EOO
 
         $pkg_drop libbar libbaz
@@ -4518,12 +4508,12 @@ else
 
         $* libbar ?foo +{ --config-id 2 } --yes 2>!;
 
-        $pkg_status -r libbar >>/EOE;
+        $pkg_status -r libbar >>/EOO;
           !libbar configured 1.0.0
             foo [cfg3/] configured 1.0.0
               libbaz [cfg3/] configured 1.0.0
             libbaz configured 1.0.0
-          EOE
+          EOO
 
         $pkg_drop libbar
       }
@@ -4555,12 +4545,12 @@ else
           updated libbar/1.0.0
           EOE
 
-        $pkg_status -r libbar >>/EOE;
+        $pkg_status -r libbar >>/EOO;
           !libbar configured 1.0.0
             foo [cfg2/] configured 1.0.0
               !libbaz [cfg3/] configured 1.0.0
             libbaz configured 1.0.0
-          EOE
+          EOO
 
         $pkg_drop libbar
       }
@@ -4654,7 +4644,7 @@ else
         updated libbar/1.0.0
         EOE
 
-      $pkg_status -r libbar >>EOO;
+      $pkg_status -r libbar >>/EOO;
         !libbar configured 1.0.0
           foo configured 1.0.0
             libbaz configured 1.0.0
@@ -4683,7 +4673,7 @@ else
         updated libbar/1.1.0
         EOE
 
-      $pkg_status -r libbar >>EOO;
+      $pkg_status -r libbar >>/EOO;
         !libbar configured 1.1.0
           foo configured 1.1.0
             libbaz configured 1.1.0
@@ -4739,14 +4729,927 @@ else
       $cfg_add -d cfg cfg3;
 
       $* libfix --yes 2>>~%EOE%;
+        fetched libfax/1.0.0
+        unpacked libfax/1.0.0
         fetched libfix/1.0.0
         unpacked libfix/1.0.0
+        configured libfax/1.0.0
         configured libfix/1.0.0
         %info: .+libfix-1.0.0.+ is up to date%
         updated libfix/1.0.0
         EOE
 
       $pkg_drop libfix
+    }
+  }
+
+  : change-config
+  :
+  {
+    : copy
+    :
+    {
+      $cfg_create -d t1 --name t1 &t1/***;
+      $cfg_create -d t2 --name t2 &t2/***;
+
+      $cfg_add -d t1 t2;
+
+      $rep_add -d t1 $rep/t7a && $rep_fetch -d t1;
+
+      $* -d t1 libbaz --yes 2>!;
+
+      $pkg_status -d t1 -r >>/EOO;
+        !libbaz configured 1.0.0
+        EOO
+
+      $* -d t1 libbaz +{ --config-name t2 } 2>>~%EOE%;
+        %fetched libbaz/1.0.0 \[t2.\]%
+        %unpacked libbaz/1.0.0 \[t2.\]%
+        %configured libbaz/1.0.0 \[t2.\]%
+        %info: t2.+libbaz-1.0.0.+ is up to date%
+        %updated libbaz/1.0.0 \[t2.\]%
+        EOE
+
+      $pkg_status -d t1 -r >>/EOO
+        !libbaz configured 1.0.0
+        !libbaz [t2/] configured 1.0.0
+        EOO
+    }
+
+    : copy-unhold
+    :
+    {
+      $cfg_create -d t1 --name t1 &t1/***;
+      $cfg_create -d t2 --name t2 &t2/***;
+
+      $cfg_add -d t1 t2;
+
+      $rep_add -d t1 $rep/t7a && $rep_fetch -d t1;
+
+      $* -d t1 libbaz --yes 2>!;
+
+      $pkg_status -d t1 -r >>/EOO;
+        !libbaz configured 1.0.0
+        EOO
+
+      $* -d t1 ?libbaz +{ --config-name t2 };
+
+      $pkg_status -d t1 -r >>/EOO
+        !libbaz configured 1.0.0
+        EOO
+    }
+
+    : copy-point
+    :
+    {
+      $cfg_create -d t1 --name t1 &t1/***;
+      $cfg_create -d t2 --name t2 &t2/***;
+
+      $cfg_add -d t1 t2;
+
+      $rep_add -d t1 $rep/t7a && $rep_fetch -d t1;
+
+      $* -d t1 libbaz --yes 2>!;
+
+      $pkg_status -d t1 -r >>/EOO;
+        !libbaz configured 1.0.0
+        EOO
+
+      $* -d t1 foo libbaz +{ --config-name t2 } 2>>~%EOE%;
+        %fetched libbaz/1.0.0 \[t2.\]%
+        %unpacked libbaz/1.0.0 \[t2.\]%
+        fetched foo/1.0.0
+        unpacked foo/1.0.0
+        %configured libbaz/1.0.0 \[t2.\]%
+        configured foo/1.0.0
+        %info: t2.+libbaz-1.0.0.+ is up to date%
+        %info: t1.+foo-1.0.0.+ is up to date%
+        %updated libbaz/1.0.0 \[t2.\]%
+        updated foo/1.0.0
+        EOE
+
+      $pkg_status -d t1 -r >>/EOO
+        !libbaz configured 1.0.0
+        !foo configured 1.0.0
+          !libbaz [t2/] configured 1.0.0
+        !libbaz [t2/] configured 1.0.0
+        EOO
+    }
+
+    : copy-unhold-point
+    :
+    {
+      $cfg_create -d t1 --name t1 &t1/***;
+      $cfg_create -d t2 --name t2 &t2/***;
+
+      $cfg_add -d t1 t2;
+
+      $rep_add -d t1 $rep/t7a && $rep_fetch -d t1;
+
+      $* -d t1 libbaz --yes 2>!;
+
+      $pkg_status -d t1 -r >>/EOO;
+        !libbaz configured 1.0.0
+        EOO
+
+      $* -d t1 foo ?libbaz +{ --config-name t2 } 2>>~%EOE%;
+        %fetched libbaz/1.0.0 \[t2.\]%
+        %unpacked libbaz/1.0.0 \[t2.\]%
+        fetched foo/1.0.0
+        unpacked foo/1.0.0
+        %configured libbaz/1.0.0 \[t2.\]%
+        configured foo/1.0.0
+        %info: t2.+libbaz-1.0.0.+ is up to date%
+        %info: t1.+foo-1.0.0.+ is up to date%
+        %updated libbaz/1.0.0 \[t2.\]%
+        updated foo/1.0.0
+        EOE
+
+      $pkg_status -d t1 -r >>/EOO
+        !libbaz configured 1.0.0
+        !foo configured 1.0.0
+          libbaz [t2/] configured 1.0.0
+        EOO
+    }
+
+    : copy-repoint
+    :
+    {
+      $cfg_create -d t1 --name t1 &t1/***;
+      $cfg_create -d t2 --name t2 &t2/***;
+
+      $cfg_create -d h1 --type host --name h1 &h1/***;
+      $cfg_create -d h2 --type host --name h2 &h2/***;
+
+      $cfg_add -d t1 h1;
+      $cfg_add -d t1 h2;
+
+      $cfg_add -d t2 h1;
+
+      $rep_add -d t1 $rep/t7a && $rep_fetch -d t1;
+      $rep_add -d t2 $rep/t7a && $rep_fetch -d t2;
+
+      $* -d t1 libbar ?foo +{ --config-name h1 } <<EOI 2>>~%EOE%;
+        y
+        EOI
+        %  new libbaz/1.0.0 \[h1.\] \(required by foo \[h1.\]\)%
+        %  new foo/1.0.0 \[h1.\]%
+          new libbaz/1.0.0 (required by libbar)
+          new libbar/1.0.0
+        %continue\? \[Y/n\] fetched libbaz/1.0.0 \[h1.\]%
+        %unpacked libbaz/1.0.0 \[h1.\]%
+        %fetched foo/1.0.0 \[h1.\]%
+        %unpacked foo/1.0.0 \[h1.\]%
+        fetched libbaz/1.0.0
+        unpacked libbaz/1.0.0
+        fetched libbar/1.0.0
+        unpacked libbar/1.0.0
+        %configured libbaz/1.0.0 \[h1.\]%
+        %configured foo/1.0.0 \[h1.\]%
+        configured libbaz/1.0.0
+        configured libbar/1.0.0
+        %info: h1.+foo-1.0.0.+ is up to date%
+        %info: t1.+libbar-1.0.0.+ is up to date%
+        %updated foo/1.0.0 \[h1.\]%
+        updated libbar/1.0.0
+        EOE
+
+      $pkg_status -d t1 -r >>/EOO;
+        !libbar configured 1.0.0
+          foo [h1/] configured 1.0.0
+            libbaz [h1/] configured 1.0.0
+          libbaz configured 1.0.0
+        EOO
+
+      $* -d t2 libbox ?foo +{ --config-name h1 } <<EOI 2>>~%EOE%;
+        y
+        EOI
+        %  update foo/1.0.0 \[h1.\]%
+          new libbaz/1.0.0 (required by libbox)
+          new libbox/1.0.0
+        continue? [Y/n] fetched libbaz/1.0.0
+        unpacked libbaz/1.0.0
+        fetched libbox/1.0.0
+        unpacked libbox/1.0.0
+        configured libbaz/1.0.0
+        configured libbox/1.0.0
+        %info: h1.+foo-1.0.0.+ is up to date%
+        %info: t2.+libbox-1.0.0.+ is up to date%
+        %updated foo/1.0.0 \[h1.\]%
+        updated libbox/1.0.0
+        EOE
+
+      $pkg_status -d t2 -r >>/EOO;
+        !libbox configured 1.0.0
+          foo [h1/] configured 1.0.0
+            libbaz [h1/] configured 1.0.0
+          libbaz configured 1.0.0
+        EOO
+
+      $* -d t1 ?foo +{ --config-name h2 } <<EOI 2>>~%EOE%;
+        y
+        y
+        EOI
+        %  new libbaz/1.0.0 \[h2.\] \(required by foo \[h2.\]\)%
+        %  new foo/1.0.0 \[h2.\]%
+        %  reconfigure libbar/1.0.0 \(dependent of foo \[h2.\]\)%
+        continue? [Y/n] update dependent packages? [Y/n] disfigured libbar/1.0.0
+        %fetched libbaz/1.0.0 \[h2.\]%
+        %unpacked libbaz/1.0.0 \[h2.\]%
+        %fetched foo/1.0.0 \[h2.\]%
+        %unpacked foo/1.0.0 \[h2.\]%
+        %configured libbaz/1.0.0 \[h2.\]%
+        %configured foo/1.0.0 \[h2.\]%
+        configured libbar/1.0.0
+        %info: h2.+foo-1.0.0.+ is up to date%
+        %info: t1.+libbar-1.0.0.+ is up to date%
+        %updated foo/1.0.0 \[h2.\]%
+        updated libbar/1.0.0
+        EOE
+
+      $pkg_status -d t1 -r >>/EOO;
+        !libbar configured 1.0.0
+          foo [h2/] configured 1.0.0
+            libbaz [h2/] configured 1.0.0
+          libbaz configured 1.0.0
+        EOO
+
+      $pkg_status -d t2 -r >>/EOO
+        !libbox configured 1.0.0
+          foo [h1/] configured 1.0.0
+            libbaz [h1/] configured 1.0.0
+          libbaz configured 1.0.0
+        EOO
+    }
+
+    : copy-repoint-drop
+    :
+    {
+      $cfg_create -d t1 --name t1 &t1/***;
+      $cfg_create -d t2 --name t2 &t2/***;
+
+      $cfg_add -d t1 t2;
+
+      $rep_add -d t1 $rep/t7a && $rep_fetch -d t1;
+
+      $* -d t1 foo --yes 2>!;
+
+      $pkg_status -d t1 -r >>/EOO;
+        !foo configured 1.0.0
+          libbaz configured 1.0.0
+        EOO
+
+      $* -d t1 libbaz +{ --config-name t2 } <<EOI 2>>~%EOE%;
+        y
+        y
+        EOI
+        %  new libbaz/1.0.0 \[t2.\]%
+          drop libbaz/1.0.0 (unused)
+        %  reconfigure foo/1.0.0 \(dependent of libbaz \[t2.\]\)%
+        continue? [Y/n] update dependent packages? [Y/n] disfigured foo/1.0.0
+        disfigured libbaz/1.0.0
+        %fetched libbaz/1.0.0 \[t2.\]%
+        %unpacked libbaz/1.0.0 \[t2.\]%
+        purged libbaz/1.0.0
+        %configured libbaz/1.0.0 \[t2.\]%
+        configured foo/1.0.0
+        %info: t2.+libbaz-1.0.0.+ is up to date%
+        %info: t1.+foo-1.0.0.+ is up to date%
+        %updated libbaz/1.0.0 \[t2.\]%
+        updated foo/1.0.0
+        EOE
+
+      $pkg_status -d t1 -r >>/EOO
+        !foo configured 1.0.0
+          !libbaz [t2/] configured 1.0.0
+        !libbaz [t2/] configured 1.0.0
+        EOO
+    }
+
+    : drop-repointed
+    :
+    {
+      $cfg_create -d t1 --name t1 &t1/***;
+      $cfg_create -d t2 --name t2 &t2/***;
+
+      $cfg_add -d t1 t2;
+
+      $rep_add -d t1 $rep/t7a && $rep_fetch -d t1;
+
+      $* -d t1 foo --yes 2>!;
+
+      $pkg_status -d t1 -r >>/EOO;
+        !foo configured 1.0.0
+          libbaz configured 1.0.0
+        EOO
+
+      $* -d t1 ?foo libbaz +{ --config-name t2 } <<EOI 2>>~%EOE%;
+        y
+        EOI
+        %  new libbaz/1.0.0 \[t2.\]%
+          drop libbaz/1.0.0 (unused)
+          drop foo/1.0.0 (unused)
+        continue? [Y/n] disfigured foo/1.0.0
+        disfigured libbaz/1.0.0
+        %fetched libbaz/1.0.0 \[t2.\]%
+        %unpacked libbaz/1.0.0 \[t2.\]%
+        purged libbaz/1.0.0
+        purged foo/1.0.0
+        %configured libbaz/1.0.0 \[t2.\]%
+        %info: t2.+libbaz-1.0.0.+ is up to date%
+        %updated libbaz/1.0.0 \[t2.\]%
+        EOE
+
+      $pkg_status -d t1 -r >>/EOO
+        !libbaz [t2/] configured 1.0.0
+        EOO
+    }
+
+    : dependency-repointed
+    :
+    {
+      $cfg_create -d h1 --type host --name h1 &h1/***;
+      $cfg_create -d h2 --type host --name h2 &h2/***;
+
+      $cfg_add -d h1 h2;
+
+      $rep_add -d h1 $rep/t7a && $rep_fetch -d h1;
+
+      $* -d h1 foo --yes 2>!;
+
+      $pkg_status -d h1 -r >>/EOO;
+        !foo configured 1.0.0
+          libbaz configured 1.0.0
+        EOO
+
+      $* -d h1 libbar libbaz +{ --config-name h2 } <<EOI 2>>~%EOE%;
+        y
+        EOI
+        %  new libbaz/1.0.0 \[h2.\]%
+          drop libbaz/1.0.0 (unused)
+          reconfigure/update foo/1.0.0 (required by libbar)
+          new libbar/1.0.0
+        continue? [Y/n] disfigured foo/1.0.0
+        disfigured libbaz/1.0.0
+        %fetched libbaz/1.0.0 \[h2.\]%
+        %unpacked libbaz/1.0.0 \[h2.\]%
+        purged libbaz/1.0.0
+        fetched libbar/1.0.0
+        unpacked libbar/1.0.0
+        %configured libbaz/1.0.0 \[h2.\]%
+        configured foo/1.0.0
+        configured libbar/1.0.0
+        %info: h2.+libbaz-1.0.0.+ is up to date%
+        %info: h1.+libbar-1.0.0.+ is up to date%
+        %updated libbaz/1.0.0 \[h2.\]%
+        updated libbar/1.0.0
+        EOE
+
+      $pkg_status -d h1 -r >>/EOO
+        !foo configured 1.0.0
+          !libbaz [h2/] configured 1.0.0
+        !libbar configured 1.0.0
+          !foo configured 1.0.0
+            !libbaz [h2/] configured 1.0.0
+          !libbaz [h2/] configured 1.0.0
+        !libbaz [h2/] configured 1.0.0
+        EOO
+    }
+
+    : dependency-repointed-system
+    :
+    {
+      $cfg_create -d h1 --type host --name h1 &h1/***;
+      $cfg_create -d h2 --type host --name h2 &h2/***;
+
+      $cfg_add -d h1 h2;
+
+      $rep_add -d h1 $rep/t7a && $rep_fetch -d h1;
+
+      $* -d h1 foo --yes 2>!;
+
+      $pkg_status -d h1 -r >>/EOO;
+        !foo configured 1.0.0
+          libbaz configured 1.0.0
+        EOO
+
+      $* -d h1 libbar '?sys:foo/1.2.0' ?libbaz +{ --config-name h2 } <<EOI 2>>~%EOE%;
+        y
+        EOI
+        %  new libbaz/1.0.0 \[h2.\]%
+          drop libbaz/1.0.0 (unused)
+          reconfigure/unhold sys:foo/1.2.0
+          new libbar/1.0.0
+        continue? [Y/n] disfigured foo/1.0.0
+        disfigured libbaz/1.0.0
+        %fetched libbaz/1.0.0 \[h2.\]%
+        %unpacked libbaz/1.0.0 \[h2.\]%
+        purged libbaz/1.0.0
+        purged foo/1.0.0
+        fetched libbar/1.0.0
+        unpacked libbar/1.0.0
+        %configured libbaz/1.0.0 \[h2.\]%
+        configured sys:foo/1.2.0
+        configured libbar/1.0.0
+        %info: h2.+libbaz-1.0.0.+ is up to date%
+        %info: h1.+libbar-1.0.0.+ is up to date%
+        %updated libbaz/1.0.0 \[h2.\]%
+        updated libbar/1.0.0
+        EOE
+
+      $pkg_status -d h1 -r >>/EOO;
+        !libbar configured 1.0.0
+          foo configured,system !1.2.0
+          libbaz [h2/] configured 1.0.0
+        EOO
+
+      $* -d h1 ?foo ?libbaz <<EOI 2>>~%EOE%;
+        y
+        y
+        EOI
+        %  drop libbaz/1.0.0 \[h2.\] \(unused\)%
+          new libbaz/1.0.0
+          downgrade foo/1.0.0
+          reconfigure libbar/1.0.0 (dependent of libbaz)
+        continue? [Y/n] update dependent packages? [Y/n] disfigured libbar/1.0.0
+        purged foo/1.2.0
+        %disfigured libbaz/1.0.0 \[h2.\]%
+        %purged libbaz/1.0.0 \[h2.\]%
+        fetched libbaz/1.0.0
+        unpacked libbaz/1.0.0
+        fetched foo/1.0.0
+        unpacked foo/1.0.0
+        configured libbaz/1.0.0
+        configured foo/1.0.0
+        configured libbar/1.0.0
+        %info: h1.+libbaz-1.0.0.+ is up to date%
+        %info: h1.+foo-1.0.0.+ is up to date%
+        %info: h1.+libbar-1.0.0.+ is up to date%
+        updated libbaz/1.0.0
+        updated foo/1.0.0
+        updated libbar/1.0.0
+        EOE
+
+      $pkg_status -d h1 -r >>/EOO
+        !libbar configured 1.0.0
+          foo configured 1.0.0
+            libbaz configured 1.0.0
+          libbaz configured 1.0.0
+        EOO
+    }
+
+    : orphan-repointed
+    :
+    {
+      $cfg_create -d h1 --type host --name h1 &h1/***;
+      $cfg_create -d h2 --type host --name h2 &h2/***;
+
+      $cfg_add -d h1 h2;
+
+      $rep_add -d h1 $rep/t7b && $rep_fetch -d h1;
+
+      $* -d h1 foo --yes 2>!;
+
+      $rep_remove -d h1 $rep/t7b;
+      $rep_add -d h1 $rep/t7a && $rep_fetch -d h1;
+
+      $* -d h1 libbaz +{ --config-name h2 } 2>>EOE != 0
+        error: package foo/1.1.0 is orphaned
+          info: explicitly upgrade it to a new version
+        info: while satisfying foo/1.1.0
+        EOE
+    }
+
+    : unhold-repointed
+    :
+    {
+      $cfg_create -d h1 --type host --name h1 &h1/***;
+      $cfg_create -d h2 --type host --name h2 &h2/***;
+
+      $cfg_add -d h1 h2;
+
+      $rep_add -d h1 $rep/t7a && $rep_fetch -d h1;
+
+      $* -d h1 foo --yes 2>!;
+
+      $pkg_status -d h1 -r >>/EOO;
+        !foo configured 1.0.0
+          libbaz configured 1.0.0
+        EOO
+
+      $* -d h1 libbar ?foo libbaz +{ --config-name h2 } <<EOI 2>>~%EOE%;
+        y
+        EOI
+        %  new libbaz/1.0.0 \[h2.\]%
+          drop libbaz/1.0.0 (unused)
+          reconfigure/update/unhold foo/1.0.0
+          new libbar/1.0.0
+        continue? [Y/n] disfigured foo/1.0.0
+        disfigured libbaz/1.0.0
+        %fetched libbaz/1.0.0 \[h2.\]%
+        %unpacked libbaz/1.0.0 \[h2.\]%
+        purged libbaz/1.0.0
+        fetched libbar/1.0.0
+        unpacked libbar/1.0.0
+        %configured libbaz/1.0.0 \[h2.\]%
+        configured foo/1.0.0
+        configured libbar/1.0.0
+        %info: h2.+libbaz-1.0.0.+ is up to date%
+        %info: h1.+foo-1.0.0.+ is up to date%
+        %info: h1.+libbar-1.0.0.+ is up to date%
+        %updated libbaz/1.0.0 \[h2.\]%
+        updated foo/1.0.0
+        updated libbar/1.0.0
+        EOE
+
+      $pkg_status -d h1 -r >>/EOO
+        !libbar configured 1.0.0
+          foo configured 1.0.0
+            !libbaz [h2/] configured 1.0.0
+          !libbaz [h2/] configured 1.0.0
+        !libbaz [h2/] configured 1.0.0
+        EOO
+    }
+
+    : satisfy
+    :
+    {
+      $cfg_create -d h1 --type host --name h1 &h1/***;
+      $cfg_create -d h2 --type host --name h2 &h2/***;
+
+      $cfg_add -d h1 h2;
+
+      $rep_add -d h2 $rep/t7b && $rep_fetch -d h2;
+      $* -d h2 foo --yes 2>!;
+
+      $rep_add -d h1 $rep/t7a && $rep_fetch -d h1;
+
+      $* -d h1 foo ?libbaz 2>>~%EOE%;
+        fetched libbaz/1.0.0
+        unpacked libbaz/1.0.0
+        fetched foo/1.0.0
+        unpacked foo/1.0.0
+        configured libbaz/1.0.0
+        configured foo/1.0.0
+        %info: h1.+libbaz-1.0.0.+ is up to date%
+        %info: h1.+foo-1.0.0.+ is up to date%
+        updated libbaz/1.0.0
+        updated foo/1.0.0
+        EOE
+
+      $pkg_status -d h1 -r >>/EOO;
+        !foo configured 1.0.0
+          libbaz configured 1.0.0
+        !foo [h2/] configured 1.1.0
+          libbaz [h2/] configured 1.1.0
+        EOO
+
+      $* -d h1 ?libbaz/1.0.0 +{ --config-name h2 } 2>>~%EOE% != 0;
+        %error: unable to downgrade package libbaz/1.1.0 \[h2.\] to 1.0.0%
+        %  info: because package foo \[h2.\] depends on \(libbaz \^1.1.0\)%
+          info: explicitly request up/downgrade of package foo
+          info: or explicitly specify package libbaz version to manually satisfy these constraints
+        EOE
+
+      $* -d h1 ?libbaz +{ --config-name h2 } <<EOI 2>>~%EOE%;
+        y
+        n
+        EOI
+        %  update libbaz/1.1.0 \[h2.\]%
+          drop libbaz/1.0.0 (unused)
+        %  reconfigure foo/1.0.0 \(dependent of libbaz \[h2.\]\)%
+        continue? [Y/n] update dependent packages? [Y/n] disfigured foo/1.0.0
+        disfigured libbaz/1.0.0
+        purged libbaz/1.0.0
+        configured foo/1.0.0
+        %info: h2.+libbaz-1.1.0.+ is up to date%
+        %updated libbaz/1.1.0 \[h2.\]%
+        EOE
+
+      $pkg_status -d h1 -r >>/EOO
+        !foo configured 1.0.0
+          libbaz [h2/] configured 1.1.0
+        !foo [h2/] configured 1.1.0
+          libbaz [h2/] configured 1.1.0
+        EOO
+    }
+
+    : upgrade-repointed
+    :
+    {
+      $cfg_create -d t1 --name t1 &t1/***;
+
+      $rep_add -d t1 $rep/t7a && $rep_fetch -d t1;
+
+      $* -d t1 libbar --yes 2>!;
+
+      $pkg_status -d t1 -r >>/EOO;
+        !libbar configured 1.0.0
+          foo [t1/.bpkg/host/] configured 1.0.0
+            libbaz [t1/.bpkg/host/] configured 1.0.0
+          libbaz configured 1.0.0
+        EOO
+
+      $cfg_create -d h1 --type host --name h1 &h1/***;
+
+      $cfg_add -d t1 h1 2>!;
+
+      $rep_add -d t1 $rep/t7b && $rep_fetch -d t1;
+
+      $* -d t1 libbar ?foo +{ --config-name h1 } <<EOI 2>>~%EOE%;
+        y
+        EOI
+        %  new libbaz/1.1.0 \[h1.\] \(required by foo \[h1.\]\)%
+        %  new foo/1.1.0 \[h1.\]%
+        %  drop libbaz/1.0.0 \[t1..bpkg.host.\] \(unused\)%
+        %  drop foo/1.0.0 \[t1..bpkg.host.\] \(unused\)%
+          upgrade libbar/1.1.0
+        continue? [Y/n] disfigured libbar/1.0.0
+        %disfigured foo/1.0.0 \[t1..bpkg.host.\]%
+        %disfigured libbaz/1.0.0 \[t1..bpkg.host.\]%
+        %fetched libbaz/1.1.0 \[h1.\]%
+        %unpacked libbaz/1.1.0 \[h1.\]%
+        %fetched foo/1.1.0 \[h1.\]%
+        %unpacked foo/1.1.0 \[h1.\]%
+        %purged libbaz/1.0.0 \[t1..bpkg.host.\]%
+        %purged foo/1.0.0 \[t1..bpkg.host.\]%
+        fetched libbar/1.1.0
+        unpacked libbar/1.1.0
+        %configured libbaz/1.1.0 \[h1.\]%
+        %configured foo/1.1.0 \[h1.\]%
+        configured libbar/1.1.0
+        %info: h1.+foo-1.1.0.+ is up to date%
+        %info: t1.+libbar-1.1.0.+ is up to date%
+        %updated foo/1.1.0 \[h1.\]%
+        updated libbar/1.1.0
+        EOE
+
+      $pkg_status -d t1 -r >>/EOO
+        !libbar configured 1.1.0
+          foo [h1/] configured 1.1.0
+            libbaz [h1/] configured 1.1.0
+          libbaz configured 1.0.0 available 1.1.0
+        EOO
+    }
+
+    : upgrade-repointed-dependency
+    :
+    {
+      $cfg_create -d h1 --type host --name h1 &h1/***;
+      $cfg_create -d h2 --type host --name h2 &h2/***;
+
+      $cfg_add -d h1 h2;
+
+      $rep_add -d h1 $rep/t7a && $rep_fetch -d h1;
+
+      $* -d h1 libbar --yes 2>!;
+
+      $pkg_status -d h1 -r >>/EOO;
+        !libbar configured 1.0.0
+          foo configured 1.0.0
+            libbaz configured 1.0.0
+          libbaz configured 1.0.0
+        EOO
+
+      $rep_add -d h1 $rep/t7b && $rep_fetch -d h1;
+
+      $* -d h1 libbar ?foo ?libbaz +{ --config-name h2 } <<EOI 2>>~%EOE%;
+        y
+        y
+        EOI
+        %  new libbaz/1.1.0 \[h2.\]%
+          drop libbaz/1.0.0 (unused)
+          upgrade foo/1.1.0
+          upgrade libbar/1.1.0
+        continue? [Y/n] disfigured libbar/1.0.0
+        disfigured foo/1.0.0
+        disfigured libbaz/1.0.0
+        %fetched libbaz/1.1.0 \[h2.\]%
+        %unpacked libbaz/1.1.0 \[h2.\]%
+        purged libbaz/1.0.0
+        fetched foo/1.1.0
+        unpacked foo/1.1.0
+        fetched libbar/1.1.0
+        unpacked libbar/1.1.0
+        %configured libbaz/1.1.0 \[h2.\]%
+        configured foo/1.1.0
+        configured libbar/1.1.0
+        %info: h2.+libbaz-1.1.0.+ is up to date%
+        %info: h1.+foo-1.1.0.+ is up to date%
+        %info: h1.+libbar-1.1.0.+ is up to date%
+        %updated libbaz/1.1.0 \[h2.\]%
+        updated foo/1.1.0
+        updated libbar/1.1.0
+        EOE
+
+      $pkg_status -d h1 -r >>/EOO
+        !libbar configured 1.1.0
+          foo configured 1.1.0
+            libbaz [h2/] configured 1.1.0
+          libbaz [h2/] configured 1.1.0
+        EOO
+    }
+
+    : upgrade-prerequisite-replacement
+    :
+    {
+      $cfg_create -d t1 --name t1 &t1/***;
+
+      $rep_add -d t1 $rep/t7a && $rep_fetch -d t1;
+
+      $* -d t1 libbar --yes 2>!;
+
+      $pkg_status -d t1 -r >>/EOO;
+        !libbar configured 1.0.0
+          foo [t1/.bpkg/host/] configured 1.0.0
+            libbaz [t1/.bpkg/host/] configured 1.0.0
+          libbaz configured 1.0.0
+        EOO
+
+      $cfg_create -d t2 --name t2 &t2/***;
+
+      $rep_add -d t2 $rep/t7a && $rep_fetch -d t2;
+
+      $* -d t2 libbaz --yes 2>!;
+
+      $cfg_add -d t1 t2 2>!;
+
+      $rep_add -d t1 $rep/t7b && $rep_fetch -d t1;
+
+      $* -d t1 libbaz +{ --config-name t2 } <<EOI 2>>~%EOE%;
+        y
+        y
+        EOI
+        %  upgrade libbaz/1.1.0 \[t2.\]%
+          drop libbaz/1.0.0 (unused)
+        %  reconfigure libbar/1.0.0 \(dependent of libbaz \[t2.\]\)%
+        continue? [Y/n] update dependent packages? [Y/n] disfigured libbar/1.0.0
+        disfigured libbaz/1.0.0
+        %disfigured libbaz/1.0.0 \[t2.\]%
+        %fetched libbaz/1.1.0 \[t2.\]%
+        %unpacked libbaz/1.1.0 \[t2.\]%
+        purged libbaz/1.0.0
+        %configured libbaz/1.1.0 \[t2.\]%
+        configured libbar/1.0.0
+        %info: t2.+libbaz-1.1.0.+ is up to date%
+        %info: t1.+libbar-1.0.0.+ is up to date%
+        %updated libbaz/1.1.0 \[t2.\]%
+        updated libbar/1.0.0
+        EOE
+
+      $pkg_status -d t1 -r >>/EOO
+        !libbar configured 1.0.0 available 1.1.0
+          foo [t1/.bpkg/host/] configured 1.0.0 available 1.1.0
+            libbaz [t1/.bpkg/host/] configured 1.0.0 available 1.1.0
+          !libbaz [t2/] configured 1.1.0
+        !libbaz [t2/] configured 1.1.0
+        EOO
+    }
+
+    : copy-upgrade-dependency-tree
+    :
+    {
+      $cfg_create -d t1 --name t1 &t1/***;
+
+      $rep_add -d t1 $rep/t7a && $rep_fetch -d t1;
+
+      $* -d t1 libbar --yes 2>!;
+
+      $pkg_status -d t1 -r >>/EOO;
+        !libbar configured 1.0.0
+          foo [t1/.bpkg/host/] configured 1.0.0
+            libbaz [t1/.bpkg/host/] configured 1.0.0
+          libbaz configured 1.0.0
+        EOO
+
+      $cfg_create -d t2 --name t2 &t2/***;
+
+      $cfg_add -d t1 t2 2>!;
+
+      $rep_add -d t1 $rep/t7b && $rep_fetch -d t1;
+
+      $* -d t1 libbar +{ --config-name t2 } <<EOI 2>>~%EOE%;
+        y
+        EOI
+        %  new libbaz/1.1.0 \[t2..bpkg.host.\] \(required by foo \[t2..bpkg.host.\]\)%
+        %  new foo/1.1.0 \[t2..bpkg.host.\] \(required by libbar \[t2.\]\)%
+        %  new libbaz/1.1.0 \[t2.\] \(required by libbar \[t2.\]\)%
+        %  new libbar/1.1.0 \[t2.\]%
+        %continue\? \[Y/n\] fetched libbaz/1.1.0 \[t2..bpkg.host.\]%
+        %unpacked libbaz/1.1.0 \[t2..bpkg.host.\]%
+        %fetched foo/1.1.0 \[t2..bpkg.host.\]%
+        %unpacked foo/1.1.0 \[t2..bpkg.host.\]%
+        %fetched libbaz/1.1.0 \[t2.\]%
+        %unpacked libbaz/1.1.0 \[t2.\]%
+        %fetched libbar/1.1.0 \[t2.\]%
+        %unpacked libbar/1.1.0 \[t2.\]%
+        %configured libbaz/1.1.0 \[t2..bpkg.host.\]%
+        %configured foo/1.1.0 \[t2..bpkg.host.\]%
+        %configured libbaz/1.1.0 \[t2.\]%
+        %configured libbar/1.1.0 \[t2.\]%
+        %info: t2.+libbar-1.1.0.+ is up to date%
+        %updated libbar/1.1.0 \[t2.\]%
+        EOE
+
+      $pkg_status -d t1 -r >>/EOO
+        !libbar configured 1.0.0 available 1.1.0
+          foo [t1/.bpkg/host/] configured 1.0.0 available 1.1.0
+            libbaz [t1/.bpkg/host/] configured 1.0.0 available 1.1.0
+          libbaz configured 1.0.0 available 1.1.0
+        !libbar [t2/] configured 1.1.0
+          foo [t2/.bpkg/host/] configured 1.1.0
+            libbaz [t2/.bpkg/host/] configured 1.1.0
+          libbaz [t2/] configured 1.1.0
+        EOO
+    }
+
+    : repointed-dependent-indirect-dependency-upgrade
+    :
+    {
+      $cfg_create -d t1 --name t1 &t1/***;
+      $cfg_create -d t2 --name t2 &t2/***;
+      $cfg_create -d h1 --name h1 --type host &h1/***;
+
+      $cfg_add -d t1 t2 2>!;
+      $cfg_add -d t1 h1 2>!;
+      $cfg_add -d t2 h1 2>!;
+
+      $rep_add -d t1 $rep/t7a && $rep_fetch -d t1;
+
+      $* -d t1 libfix --yes 2>!;
+
+      $pkg_status -d t1 -r >>/EOO;
+        !libfix configured 1.0.0
+          libbar configured 1.0.0
+            foo [h1/] configured 1.0.0
+              libbaz [h1/] configured 1.0.0
+            libbaz configured 1.0.0
+          libbox configured 1.0.0
+            foo [h1/] configured 1.0.0
+              libbaz [h1/] configured 1.0.0
+            libbaz configured 1.0.0
+          libfax configured 1.0.0
+        EOO
+
+      $rep_add -d t1 $rep/t7b && $rep_fetch -d t1;
+
+      $* -d t1 libfix libfax +{ --config-name t2 } foo +{ --config-name h1 } <<EOI 2>>~%EOE%;
+        y
+        y
+        EOI
+        %  new libfax/1.0.0 \[t2.\]%
+        %  upgrade libbaz/1.1.0 \[h1.\] \(required by foo \[h1.\]\)%
+        %  upgrade foo/1.1.0 \[h1.\]%
+        %  reconfigure libbox \(dependent of foo \[h1.\]\)%
+        %  reconfigure libbar \(dependent of foo \[h1.\]\)%
+        %  drop libfax/1.0.0 \(unused\)%
+          reconfigure/update libfix/1.0.0
+        continue? [Y/n] update dependent packages? [Y/n] disfigured libfix/1.0.0
+        disfigured libfax/1.0.0
+        disfigured libbar/1.0.0
+        disfigured libbox/1.0.0
+        %disfigured foo/1.0.0 \[h1.\]%
+        %disfigured libbaz/1.0.0 \[h1.\]%
+        %fetched libfax/1.0.0 \[t2.\]%
+        %unpacked libfax/1.0.0 \[t2.\]%
+        %fetched libbaz/1.1.0 \[h1.\]%
+        %unpacked libbaz/1.1.0 \[h1.\]%
+        %fetched foo/1.1.0 \[h1.\]%
+        %unpacked foo/1.1.0 \[h1.\]%
+        purged libfax/1.0.0
+        %configured libfax/1.0.0 \[t2.\]%
+        %configured libbaz/1.1.0 \[h1.\]%
+        %configured foo/1.1.0 \[h1.\]%
+        configured libbox/1.0.0
+        configured libbar/1.0.0
+        configured libfix/1.0.0
+        %info: t2.+libfax-1.0.0.+ is up to date%
+        %info: h1.+foo-1.1.0.+ is up to date%
+        %info: t1.+libfix-1.0.0.+ is up to date%
+        %info: t1.+libbox-1.0.0.+ is up to date%
+        %info: t1.+libbar-1.0.0.+ is up to date%
+        %updated libfax/1.0.0 \[t2.\]%
+        %updated foo/1.1.0 \[h1.\]%
+        updated libfix/1.0.0
+        updated libbox/1.0.0
+        updated libbar/1.0.0
+        EOE
+
+      $pkg_status -d t1 -r >>/EOO
+        !libfix configured 1.0.0
+          libbar configured 1.0.0 available 1.1.0
+            !foo [h1/] configured 1.1.0
+              libbaz [h1/] configured 1.1.0
+            libbaz configured 1.0.0 available 1.1.0
+          libbox configured 1.0.0 available 1.1.0
+            !foo [h1/] configured 1.1.0
+              libbaz [h1/] configured 1.1.0
+            libbaz configured 1.0.0 available 1.1.0
+          !libfax [t2/] configured 1.0.0
+        !libfax [t2/] configured 1.0.0
+        !foo [h1/] configured 1.1.0
+          libbaz [h1/] configured 1.1.0
+        EOO
     }
   }
 }

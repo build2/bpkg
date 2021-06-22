@@ -250,6 +250,27 @@ namespace bpkg
     return r;
   }
 
+  // Compare two shared pointers via the pointed-to object addresses.
+  //
+  struct compare_shared_ptr
+  {
+    template <typename P>
+    bool
+    operator() (const P& x, const P& y) const
+    {
+      return x.get () < y.get ();
+    }
+  };
+
+  // The current configuration dependents being repointed to prerequisites in
+  // other configurations, together with their replacement flags. The flag is
+  // is true for the replacement prerequisites and false for the prerequisites
+  // being replaced. The unamended prerequisites have no flag associated.
+  //
+  using repointed_dependents = map<shared_ptr<selected_package>,
+                                   map<config_package, bool>,
+                                   compare_shared_ptr>;
+
   // A "dependency-ordered" list of packages and their prerequisites.
   // That is, every package on the list only possibly depending on the
   // ones after it. In a nutshell, the usage is as follows: we first
@@ -373,10 +394,18 @@ namespace bpkg
     //
     strings config_vars;
 
-    // Set of package names that caused this package to be built or adjusted.
-    // Empty name signifies user selection.
+    // Set of packages that caused this package to be built or adjusted. Empty
+    // name signifies user selection and can be present regardless of the
+    // required_by_dependents flag value.
     //
     set<config_package> required_by;
+
+    // Required-by packages have different semantics for different actions:
+    // the dependent for regular builds and dependency for adjustments and
+    // repointed dependent reconfiguration builds. Mixing them would break
+    // prompts/diagnostics.
+    //
+    bool required_by_dependents;
 
     bool
     user_selection () const
@@ -417,6 +446,10 @@ namespace bpkg
     //
     static const uint16_t adjust_reconfigure = 0x0002;
 
+    // Set if we only need to configure this package.
+    //
+    static const uint16_t adjust_configure_only = 0x0004;
+
     bool
     reconfigure () const
     {
@@ -429,6 +462,12 @@ namespace bpkg
                (selected->system () != system             ||
                 selected->version != available_version () ||
                 (!system && !config_vars.empty ()))));
+    }
+
+    bool
+    configure_only () const
+    {
+      return (adjustments & adjust_configure_only) != 0;
     }
 
     const version&
@@ -505,12 +544,9 @@ namespace bpkg
         required_by.emplace (db.get ().main_database (), package_name ());
       }
 
-      // Required-by package names have different semantics for different
-      // actions: dependent for builds and prerequisite for adjustment. Mixing
-      // them would break prompts/diagnostics, so we copy them only if actions
-      // match.
+      // Copy the required-by package names only if semantics matches.
       //
-      if (p.action && *p.action == *action)
+      if (p.required_by_dependents == required_by_dependents)
         required_by.insert (p.required_by.begin (), p.required_by.end ());
 
       // Copy constraints.
@@ -575,9 +611,23 @@ namespace bpkg
     // version was, in fact, added to the map and NULL if it was already there
     // or the existing version was preferred. So can be used as bool.
     //
+    // Also, in the recursive mode:
+    //
+    // - Use the custom search function to find the package dependency
+    //   databases.
+    //
+    // - For the repointed dependents collect the prerequisite replacements
+    //   rather than prerequisites being replaced.
+    //
+    // - Add configurations where the private host configuration were created
+    //   into the specified database list.
+    //
     build_package*
     collect_build (const common_options& options,
                    build_package pkg,
+                   const function<find_prereq_database_function>& find_db,
+                   const repointed_dependents& rpt_depts,
+                   associated_databases& host_cfg_assocs,
                    postponed_packages* recursively = nullptr)
     {
       using std::swap; // ...and not list::swap().
@@ -751,37 +801,75 @@ namespace bpkg
       // reasoning wrong.
       //
       if (recursively != nullptr)
-        collect_build_prerequisites (options, p, recursively);
+        collect_build_prerequisites (options,
+                                     p,
+                                     recursively,
+                                     find_db,
+                                     rpt_depts,
+                                     host_cfg_assocs);
 
       return &p;
     }
 
-    // Collect prerequisites of the package being built recursively. But first
-    // "prune" this process if the package we build is a system one or is
-    // already configured since that would mean all its prerequisites are
-    // configured as well. Note that this is not merely an optimization: the
-    // package could be an orphan in which case the below logic will fail (no
-    // repository fragment in which to search for prerequisites). By skipping
-    // the prerequisite check we are able to gracefully handle configured
-    // orphans.
+    // Collect prerequisites of the package being built recursively.
+    //
+    // But first "prune" this process if the package we build is a system one
+    // or is already configured and is not a repointed dependent, since that
+    // would mean all its prerequisites are configured as well. Note that this
+    // is not merely an optimization: the package could be an orphan in which
+    // case the below logic will fail (no repository fragment in which to
+    // search for prerequisites). By skipping the prerequisite check we are
+    // able to gracefully handle configured orphans.
+    //
+    // For the repointed dependent, we still need to collect its prerequisite
+    // replacements to make sure its constraints over them are satisfied. Note
+    // that, as it was said above, we can potentially fail if the dependent is
+    // an orphan, but this is exactly what we need to do in that case, since
+    // we won't be able to be reconfigure it anyway.
     //
     void
-    collect_build_prerequisites (const common_options& options,
-                                 const build_package& pkg,
-                                 postponed_packages* postponed)
+    collect_build_prerequisites (
+      const common_options& options,
+      const build_package& pkg,
+      postponed_packages* postponed,
+      const function<find_prereq_database_function>& find_db,
+      const repointed_dependents& rpt_depts,
+      associated_databases& host_cfg_assocs)
     {
       tracer trace ("collect_build_prerequisites");
 
       assert (pkg.action && *pkg.action == build_package::build);
 
+      if (pkg.system)
+        return;
+
       const shared_ptr<selected_package>& sp (pkg.selected);
 
-      if (pkg.system ||
-          (sp != nullptr &&
-           sp->state == package_state::configured &&
-           sp->substate != package_substate::system &&
-           sp->version == pkg.available_version ()))
-        return;
+      // True if this is an up/down-grade.
+      //
+      bool ud (false);
+
+      // If this is a repointed dependent, then it points to its prerequisite
+      // replacements flag map (see repointed_dependents for details).
+      //
+      const map<config_package, bool>* rpt_prereq_flags (nullptr);
+
+      // Bail out if this is a configured non-system package and no
+      // up/down-grade nor collecting prerequisite replacements are required.
+      //
+      if (sp != nullptr                            &&
+          sp->state == package_state::configured   &&
+          sp->substate != package_substate::system)
+      {
+        ud = sp->version != pkg.available_version ();
+
+        repointed_dependents::const_iterator i (rpt_depts.find (sp));
+        if (i != rpt_depts.end ())
+          rpt_prereq_flags = &i->second;
+
+        if (!ud && rpt_prereq_flags == nullptr)
+         return;
+      }
 
       // Show how we got here if things go wrong.
       //
@@ -850,12 +938,12 @@ namespace bpkg
         //
         const version_constraint* dep_constr (nullptr);
 
-        // If the dependency package build is already in the map, then switch
-        // to its configuration.
-        //
-        database* ddb (&pdb);
+        database* ddb (find_db (pdb, dn, da.buildtime));
 
-        auto i (map_.find_dependency (pdb, dn, da.buildtime));
+        auto i (ddb != nullptr
+                ? map_.find (*ddb, dn)
+                : map_.find_dependency (pdb, dn, da.buildtime));
+
         if (i != map_.end ())
         {
           const build_package& bp (i->second.package);
@@ -888,8 +976,6 @@ namespace bpkg
                 info << "specify " << dn << " version to satisfy " << name
                      << " constraint";
           }
-
-          ddb = &bp.db.get ();
         }
 
         const dependency& d (!dep_constr
@@ -901,10 +987,22 @@ namespace bpkg
         // constraint, then we don't want to be forcing its upgrade (or,
         // worse, downgrade).
         //
-        // Search recursively in the explicitly associated configurations.
+        // If the prerequisite configuration is explicitly specified by the
+        // user, then search for the prerequisite in this specific
+        // configuration. Otherwise, search recursively in the explicitly
+        // associated configurations of the dependent configuration.
+        //
+        // Note that for the repointed dependent we will always find the
+        // prerequisite replacement rather than the prerequisite being
+        // replaced.
         //
         pair<shared_ptr<selected_package>, database*> spd (
-          find_dependency (*ddb, dn, da.buildtime));
+          ddb != nullptr
+          ? make_pair (ddb->find<selected_package> (dn), ddb)
+          : find_dependency (pdb, dn, da.buildtime));
+
+        if (ddb == nullptr)
+          ddb = &pdb;
 
         shared_ptr<selected_package>& dsp (spd.first);
 
@@ -917,19 +1015,31 @@ namespace bpkg
 
         if (dsp != nullptr)
         {
-          // Fail if we end up building a dependency that is also configured
-          // in another configuration of the same type.
-          //
-          if (i != map_.end () && *ddb != *spd.second)
-            fail << "building package " << dn << " which is already "
-                 << dsp->state << " in another configuration" <<
-              info << "building in " << ddb->config_orig <<
-              info << dsp->state << " in " << spd.second->config_orig <<
-              info << "use --config-* to select package configuration";
-
           // Switch to the selected package configuration.
           //
           ddb = spd.second;
+
+          // If we are collecting prerequisites of the repointed dependent,
+          // then only proceed further if this is either a replacement or
+          // unamended prerequisite and we are up/down-grading (only for the
+          // latter).
+          //
+          if (rpt_prereq_flags != nullptr)
+          {
+            auto i (rpt_prereq_flags->find (config_package {*ddb, dn}));
+
+            bool unamended   (i == rpt_prereq_flags->end ());
+            bool replacement (!unamended && i->second);
+
+            // We can never end up with the prerequisite being replaced, since
+            // the find_db() function should always return the replacement
+            // instead (see above).
+            //
+            assert (unamended || replacement);
+
+            if (!(replacement || (unamended && ud)))
+              continue;
+          }
 
           if (dsp->state == package_state::broken)
             fail << "unable to build broken package " << dn << *ddb <<
@@ -1047,6 +1157,11 @@ namespace bpkg
                                                    true    /* relative */,
                                                    nullopt /* name */,
                                                    true    /* sys_rep */));
+
+            // Save the parent configuration of the newly-created private host
+            // configuration for the subsequent re-association.
+            //
+            host_cfg_assocs.push_back (*ddb);
 
             hdb = &ddb->find_attached (*ac->id);
           }
@@ -1201,6 +1316,7 @@ namespace bpkg
           false,                        // Checkout purge.
           strings (),                   // Configuration variables.
           {config_package {pdb, name}}, // Required by (dependent).
+          true,                         // Required by dependents.
           0};                           // Adjustments.
 
         // Add our constraint, if we have one.
@@ -1232,7 +1348,12 @@ namespace bpkg
         // build foo ?sys:bar/2
         //
         const build_package* p (
-          collect_build (options, move (bp), postponed));
+          collect_build (options,
+                         move (bp),
+                         find_db,
+                         rpt_depts,
+                         host_cfg_assocs,
+                         postponed));
 
         if (p != nullptr && force && !dep_optional)
         {
@@ -1277,6 +1398,87 @@ namespace bpkg
       }
     }
 
+    // Collect the repointed dependents and their replaced prerequisites,
+    // recursively.
+    //
+    // If a repointed dependent is already pre-entered or collected with an
+    // action other than adjustment, then just mark it for reconfiguration
+    // unless it is already implied. Otherwise, collect the package build with
+    // the configure-only flag.
+    //
+    void
+    collect_repointed_dependents (
+      const common_options& o,
+      database& mdb,
+      const repointed_dependents& rpt_depts,
+      build_packages::postponed_packages& postponed,
+      const function<find_prereq_database_function>& find_db,
+      associated_databases& host_cfg_assocs)
+    {
+      for (const auto& rd: rpt_depts)
+      {
+        const shared_ptr<selected_package>& sp (rd.first);
+
+        auto i (map_.find (mdb, sp->name));
+        if (i != map_.end ())
+        {
+          build_package& b (i->second.package);
+
+          if (!b.action || *b.action != build_package::adjust)
+          {
+            if (!b.action ||
+                (*b.action != build_package::drop && !b.reconfigure ()))
+              b.adjustments |= build_package::adjust_reconfigure;
+
+            continue;
+          }
+        }
+
+        // The repointed dependent can be an orphan, so just create the
+        // available package from the selected package.
+        //
+        auto rp (make_available (o, mdb, sp));
+
+        // Add the prerequisite replacements as the required-by packages.
+        //
+        set<config_package> required_by;
+        for (const auto& prq: rd.second)
+        {
+          if (prq.second) // Prerequisite replacement?
+          {
+            const config_package& cp (prq.first);
+            required_by.emplace (cp.db, cp.name);
+          }
+        }
+
+        build_package p {
+          build_package::build,
+          mdb,
+          sp,
+          move (rp.first),
+          move (rp.second),
+          nullopt,                    // Hold package.
+          nullopt,                    // Hold version.
+          {},                         // Constraints.
+          sp->system (),
+          false,                      // Keep output directory.
+          nullopt,                    // Checkout root.
+          false,                      // Checkout purge.
+          strings (),                 // Configuration variables.
+          move (required_by),         // Required by (dependencies).
+          false,                      // Required by dependents.
+          (build_package::adjust_reconfigure |
+           build_package::adjust_configure_only)};
+
+        collect_build (o,
+                       move (p),
+                       find_db,
+                       rpt_depts,
+                       host_cfg_assocs,
+                       &postponed);
+      }
+    }
+
     // Collect the package being dropped.
     //
     void
@@ -1299,6 +1501,7 @@ namespace bpkg
         false,      // Checkout purge.
         strings (), // Configuration variables.
         {},         // Required by.
+        false,      // Required by dependents.
         0};         // Adjustments.
 
       auto i (map_.find (db, nm));
@@ -1307,12 +1510,8 @@ namespace bpkg
       {
         build_package& bp (i->second.package);
 
-        // Can't think of the scenario when this happens. We would start
-        // collecting from scratch (see below).
-        //
-        assert (!bp.action || *bp.action != build_package::build);
-
-        // Overwrite the existing (possibly pre-entered or adjustment) entry.
+        // Overwrite the existing (possibly pre-entered, adjustment, or
+        // repointed dependend build) entry.
         //
         bp = move (p);
       }
@@ -1351,6 +1550,7 @@ namespace bpkg
           false,      // Checkout purge.
           strings (), // Configuration variables.
           {},         // Required by.
+          false,      // Required by dependents.
           build_package::adjust_unhold};
 
         p.merge (move (bp));
@@ -1361,19 +1561,33 @@ namespace bpkg
     }
 
     void
-    collect_build_prerequisites (const common_options& o,
-                                 database& db,
-                                 const package_name& name,
-                                 postponed_packages& postponed)
+    collect_build_prerequisites (
+      const common_options& o,
+      database& db,
+      const package_name& name,
+      postponed_packages& postponed,
+      const function<find_prereq_database_function>& find_db,
+      const repointed_dependents& rpt_depts,
+      associated_databases& host_cfg_assocs)
     {
       auto mi (map_.find (db, name));
       assert (mi != map_.end ());
-      collect_build_prerequisites (o, mi->second.package, &postponed);
+
+      collect_build_prerequisites (o,
+                                   mi->second.package,
+                                   &postponed,
+                                   find_db,
+                                   rpt_depts,
+                                   host_cfg_assocs);
     }
 
     void
-    collect_build_postponed (const common_options& o,
-                             postponed_packages& pkgs)
+    collect_build_postponed (
+      const common_options& o,
+      postponed_packages& pkgs,
+      const function<find_prereq_database_function>& find_db,
+      const repointed_dependents& rpt_depts,
+      associated_databases& host_cfg_assocs)
     {
       // Try collecting postponed packages for as long as we are making
       // progress.
@@ -1383,7 +1597,12 @@ namespace bpkg
         postponed_packages npkgs;
 
         for (const build_package* p: pkgs)
-          collect_build_prerequisites (o, *p, prog ? &npkgs : nullptr);
+          collect_build_prerequisites (o,
+                                       *p,
+                                       prog ? &npkgs : nullptr,
+                                       find_db,
+                                       rpt_depts,
+                                       host_cfg_assocs);
 
         assert (prog); // collect_build_prerequisites() should have failed.
         prog = (npkgs != pkgs);
@@ -1395,8 +1614,9 @@ namespace bpkg
     // returning its positions.
     //
     // If buildtime is nullopt, then search for the specified package build in
-    // only the specified database. Otherwise, treat the package as a
-    // dependency and search for the build recursively (see
+    // only the specified configuration. Otherwise, treat the package as a
+    // dependency and use the custom search function to find its build
+    // configuration. Failed that, search for it recursively (see
     // config_package_map::find_dependency() for details).
     //
     // Recursively order the package dependencies being ordered failing if a
@@ -1407,10 +1627,11 @@ namespace bpkg
     order (database& db,
            const package_name& name,
            optional<bool> buildtime,
+           const function<find_prereq_database_function>& find_db,
            bool reorder = true)
     {
       config_package_names chain;
-      return order (db, name, buildtime, chain, reorder);
+      return order (db, name, buildtime, chain, find_db, reorder);
     }
 
     // If a configured package is being up/down-graded then that means
@@ -1429,7 +1650,7 @@ namespace bpkg
     // to also notice this.
     //
     void
-    collect_order_dependents ()
+    collect_order_dependents (const repointed_dependents& rpt_depts)
     {
       // For each package on the list we want to insert all its dependents
       // before it so that they get configured after the package on which
@@ -1450,12 +1671,13 @@ namespace bpkg
         // Dropped package may have no dependents.
         //
         if (*p.action != build_package::drop && p.reconfigure ())
-          collect_order_dependents (i);
+          collect_order_dependents (i, rpt_depts);
       }
     }
 
     void
-    collect_order_dependents (iterator pos)
+    collect_order_dependents (iterator pos,
+                              const repointed_dependents& rpt_depts)
     {
       tracer trace ("collect_order_dependents");
 
@@ -1482,24 +1704,46 @@ namespace bpkg
           package_name& dn (pd.name);
           auto i (map_.find (ddb, dn));
 
-          // First make sure the up/downgraded package still satisfies this
-          // dependent.
+          // Make sure the up/downgraded package still satisfies this
+          // dependent. But first "prune" if this is a replaced prerequisite
+          // of the repointed dependent.
+          //
+          // Note that the repointed dependents are always collected and have
+          // all their collected prerequisites ordered (including new and old
+          // ones). See collect_build_prerequisites() and order() for details.
           //
           bool check (ud != 0 && pd.constraint);
 
-          // There is one tricky aspect: the dependent could be in the process
-          // of being up/downgraded as well. In this case all we need to do is
-          // detect this situation and skip the test since all the (new)
-          // contraints of this package have been satisfied in
-          // collect_build().
-          //
-          if (check && i != map_.end () && i->second.position != end ())
+          if (i != map_.end () && i->second.position != end ())
           {
             build_package& dp (i->second.package);
 
-            check = dp.available == nullptr ||
-              (dp.selected->system () == dp.system &&
-               dp.selected->version == dp.available_version ());
+            const shared_ptr<selected_package>& dsp (dp.selected);
+
+            repointed_dependents::const_iterator j (rpt_depts.find (sp));
+
+            if (j != rpt_depts.end ())
+            {
+              const map<config_package, bool>& prereqs_flags (j->second);
+
+              auto k (prereqs_flags.find (config_package {pdb, n}));
+
+              if (k != prereqs_flags.end () && !k->second)
+                continue;
+            }
+
+            // There is one tricky aspect: the dependent could be in the
+            // process of being up/downgraded as well. In this case all we
+            // need to do is detect this situation and skip the test since all
+            // the (new) contraints of this package have been satisfied in
+            // collect_build().
+            //
+            if (check)
+            {
+              check = dp.available == nullptr ||
+                      (dsp->system () == dp.system &&
+                       dsp->version == dp.available_version ());
+            }
           }
 
           if (check)
@@ -1569,6 +1813,7 @@ namespace bpkg
                 false,                     // Checkout purge.
                 strings (),                // Configuration variables.
                 {config_package {pdb, n}}, // Required by (dependency).
+                false,                     // Required by dependents.
                 build_package::adjust_reconfigure};
           };
 
@@ -1587,7 +1832,7 @@ namespace bpkg
             build_package& dp (i->second.package);
             iterator& dpos (i->second.position);
 
-            if (!dp.action ||                         // Pre-entered.
+            if (!dp.action                         || // Pre-entered.
                 *dp.action != build_package::build || // Non-build.
                 dpos == end ())                       // Build not in the list.
             {
@@ -1640,7 +1885,7 @@ namespace bpkg
           // configured packages due to a dependency cycle (see order() for
           // details).
           //
-          collect_order_dependents (i->second.position);
+          collect_order_dependents (i->second.position, rpt_depts);
         }
       }
     }
@@ -1680,14 +1925,24 @@ namespace bpkg
            const package_name& name,
            optional<bool> buildtime,
            config_package_names& chain,
+           const function<find_prereq_database_function>& find_db,
            bool reorder)
     {
+      config_package_map::iterator mi;
+
+      if (buildtime)
+      {
+        database* ddb (find_db (db, name, *buildtime));
+
+        mi = ddb != nullptr
+             ? map_.find (*ddb, name)
+             : map_.find_dependency (db, name, *buildtime);
+      }
+      else
+        mi = map_.find (db, name);
+
       // Every package that we order should have already been collected.
       //
-      auto mi (!buildtime
-               ? map_.find (db, name)
-               : map_.find_dependency (db, name, *buildtime));
-
       assert (mi != map_.end ());
 
       build_package& p (mi->second.package);
@@ -1786,6 +2041,10 @@ namespace bpkg
       // be disfigured during the plan execution, then we must order its
       // (current) dependencies that also need to be disfigured.
       //
+      // And yet, if the package we are ordering is a repointed dependent,
+      // then we must order not only its unamended and new prerequisites but
+      // also its replaced prerequisites, which can also be disfigured.
+      //
       bool src_conf (sp != nullptr &&
                      sp->state == package_state::configured &&
                      sp->substate != package_substate::system);
@@ -1818,12 +2077,17 @@ namespace bpkg
 
             // The prerequisites may not necessarily be in the map.
             //
+            // Note that for the repointed dependent we also order its new and
+            // replaced prerequisites here, since they all are in the selected
+            // package prerequisites set.
+            //
             auto i (map_.find (db, name));
             if (i != map_.end () && i->second.package.action)
               update (order (db,
                              name,
                              nullopt /* buildtime */,
                              chain,
+                             find_db,
                              false   /* reorder */));
           }
 
@@ -1850,10 +2114,15 @@ namespace bpkg
             if (da.buildtime && (dn == "build2" || dn == "bpkg"))
               continue;
 
+            // Note that for the repointed dependent we only order its new and
+            // unamended prerequisites here. Its replaced prerequisites will
+            // be ordered below.
+            //
             update (order (pdb,
                            d.name,
                            da.buildtime,
                            chain,
+                           find_db,
                            false /* reorder */));
           }
         }
@@ -1872,11 +2141,17 @@ namespace bpkg
           //
           auto i (map_.find (db, name));
 
+          // Note that for the repointed dependent we also order its replaced
+          // and potentially new prerequisites here (see above). The latter is
+          // redundant (we may have already ordered them above) but harmless,
+          // since we do not reorder.
+          //
           if (i != map_.end () && disfigure (i->second.package))
             update (order (db,
                            name,
                            nullopt /* buildtime */,
                            chain,
+                           find_db,
                            false   /* reorder */));
         }
       }
@@ -2019,6 +2294,7 @@ namespace bpkg
   //
   struct evaluate_result
   {
+    reference_wrapper<database>           db;
     shared_ptr<available_package>         available;
     shared_ptr<bpkg::repository_fragment> repository_fragment;
     bool                                  unused;
@@ -2044,12 +2320,20 @@ namespace bpkg
                        const shared_ptr<selected_package>&,
                        const optional<version_constraint>& desired,
                        bool desired_sys,
+                       database& desired_db,
                        bool patch,
                        bool explicitly,
                        const set<shared_ptr<repository_fragment>>&,
                        const config_package_dependents&,
                        bool ignore_unsatisfiable);
 
+  // If there are no user expectations regarding this dependency, then we give
+  // no up/down-grade recommendation, unless there are no dependents in which
+  // case we recommend to drop the dependency.
+  //
+  // Note that the user expectations are only applied for dependencies that
+  // have dependents in the current configuration.
+  //
   static optional<evaluate_result>
   evaluate_dependency (database& db,
                        const shared_ptr<selected_package>& sp,
@@ -2062,37 +2346,44 @@ namespace bpkg
 
     const package_name& nm (sp->name);
 
-    // If there are no user expectations regarding this dependency, then we
-    // give no up/down-grade recommendation, unless there are no dependents
-    // in which case we recommend to drop the dependency.
-    //
-    // Note that it would be easier to check for the dependent's presence
-    // first and, if present, for the user expectations afterwords. We,
-    // however, don't want to needlessly query all the explicitly associated
-    // databases (which can be many) for dependents if we can bail out
-    // earlier.
-    //
-    auto i (find_if (
-              deps.begin (), deps.end (),
-              [&nm, &db] (const dependency_package& i)
-              {
-                return i.name == nm && i.db == db;
-              }));
+    database& mdb (db.main_database ());
 
-    bool no_rec (i == deps.end ());
+    // Only search for the user expectations regarding this dependency if it
+    // has dependents in the current configuration.
+    //
+    auto mdb_deps (query_dependents (mdb, nm, db)); // Stash not re-query.
+    bool mdb_dep  (!mdb_deps.empty ());
+
+    auto i (mdb_dep
+            ? find_if (deps.begin (), deps.end (),
+                       [&nm] (const dependency_package& i)
+                       {
+                         return i.name == nm;
+                       })
+            : deps.end ());
+
+    bool user_exp (i != deps.end () && i->db.type == db.type);
+    bool copy_dep (user_exp && i->db != db);
+
+    // If the dependency needs to be copied, then only consider it dependents
+    // in the current configuration for the version constraints, etc.
+    //
+    associated_databases dbs (copy_dep
+                              ? associated_databases ({mdb})
+                              : db.dependent_configs ());
 
     vector<pair<database&, package_dependent>> pds;
 
-    for (database& ddb: db.dependent_configs ())
+    for (database& ddb: dbs)
     {
-      auto ds (query_dependents (ddb, nm, db));
+      auto ds (ddb.main () ? move (mdb_deps) : query_dependents (ddb, nm, db));
 
       // Bail out if the dependency is used but there are no user expectations
       // regrading it.
       //
       if (!ds.empty ())
       {
-        if (no_rec)
+        if (!user_exp)
           return nullopt;
 
         for (auto& d: ds)
@@ -2106,7 +2397,8 @@ namespace bpkg
     {
       l5 ([&]{trace << *sp << db << ": unused";});
 
-      return evaluate_result {nullptr /* available */,
+      return evaluate_result {db,
+                              nullptr /* available */,
                               nullptr /* repository_fragment */,
                               true    /* unused */,
                               false   /* system */};
@@ -2122,14 +2414,17 @@ namespace bpkg
     //
     const optional<version_constraint>& dvc (i->constraint); // May be nullopt.
     bool dsys (i->system);
+    database& ddb (i->db);
 
-    if (ssys == dsys &&
-        dvc          &&
-        (ssys ? sv == *dvc->min_version : satisfies (sv, dvc)))
+    if (ssys == dsys                                           &&
+        dvc                                                    &&
+        (ssys ? sv == *dvc->min_version : satisfies (sv, dvc)) &&
+        db == ddb)
     {
       l5 ([&]{trace << *sp << db << ": unchanged";});
 
-      return evaluate_result {nullptr /* available */,
+      return evaluate_result {db,
+                              nullptr /* available */,
                               nullptr /* repository_fragment */,
                               false   /* unused */,
                               false   /* system */};
@@ -2141,8 +2436,6 @@ namespace bpkg
     //
     set<shared_ptr<repository_fragment>> repo_frags;
     config_package_dependents dependents;
-
-    database& mdb (db.main_database ());
 
     for (auto& pd: pds)
     {
@@ -2171,6 +2464,7 @@ namespace bpkg
                                 sp,
                                 dvc,
                                 dsys,
+                                ddb,
                                 i->patch,
                                 true /* explicitly */,
                                 repo_frags,
@@ -2206,6 +2500,7 @@ namespace bpkg
                        const shared_ptr<selected_package>& sp,
                        const optional<version_constraint>& dvc,
                        bool dsys,
+                       database& ddb,
                        bool patch,
                        bool explicitly,
                        const set<shared_ptr<repository_fragment>>& rfs,
@@ -2217,9 +2512,10 @@ namespace bpkg
     const package_name& nm (sp->name);
     const version&      sv (sp->version);
 
-    auto no_change = [] ()
+    auto no_change = [&db] ()
     {
-      return evaluate_result {nullptr /* available */,
+      return evaluate_result {db,
+                              nullptr /* available */,
                               nullptr /* repository_fragment */,
                               false   /* unused */,
                               false   /* system */};
@@ -2285,7 +2581,7 @@ namespace bpkg
       //
       // Note that we also handle a package stub here.
       //
-      if (!dvc && av < sv)
+      if (!dvc && av < sv && db == ddb)
       {
         assert (!dsys); // Version can't be empty for the system package.
 
@@ -2349,24 +2645,24 @@ namespace bpkg
       // match the ones of the selected package, then no package change is
       // required. Otherwise, recommend an up/down-grade.
       //
-      if (av == sv && ssys == dsys)
+      if (av == sv && ssys == dsys && db == ddb)
       {
         l5 ([&]{trace << *sp << db << ": unchanged";});
         return no_change ();
       }
 
       l5 ([&]{trace << *sp << db << ": update to "
-                    << package_string (nm, av, dsys);});
+                    << package_string (nm, av, dsys) << ddb;});
 
       return evaluate_result {
-        move (ap), move (af.second), false /* unused */, dsys};
+        ddb, move (ap), move (af.second), false /* unused */, dsys};
     }
 
     // If we aim to upgrade to the latest version, then what we currently have
     // is the only thing that we can get, and so returning the "no change"
     // result, unless we need to upgrade a package configured as system.
     //
-    if (!dvc && !ssys)
+    if (!dvc && !ssys && db == ddb)
     {
       assert (!dsys); // Version cannot be empty for the system package.
 
@@ -2381,7 +2677,7 @@ namespace bpkg
     //
     if (ignore_unsatisfiable)
     {
-      l5 ([&]{trace << package_string (nm, dvc, dsys) << db
+      l5 ([&]{trace << package_string (nm, dvc, dsys) << ddb
                     << (unsatisfiable.empty ()
                         ? ": no source"
                         : ": unsatisfiable");});
@@ -2409,7 +2705,7 @@ namespace bpkg
              << "from its dependents' repositories";
       }
       else if (!stub)
-        fail << package_string (nm, dsys ? nullopt : dvc) << db
+        fail << package_string (nm, dsys ? nullopt : dvc) << ddb
              << " is not available from its dependents' repositories";
       else // The only available package is a stub.
       {
@@ -2418,7 +2714,7 @@ namespace bpkg
         //
         assert (!dvc && !dsys && ssys);
 
-        fail << package_string (nm, dvc) << db << " is not available in "
+        fail << package_string (nm, dvc) << ddb << " is not available in "
              << "source from its dependents' repositories";
       }
     }
@@ -2426,7 +2722,7 @@ namespace bpkg
     // Issue the diagnostics and fail.
     //
     diag_record dr (fail);
-    dr << "package " << nm << db << " doesn't satisfy its dependents";
+    dr << "package " << nm << ddb << " doesn't satisfy its dependents";
 
     // Print the list of unsatisfiable versions together with dependents they
     // don't satisfy: up to three latest versions with no more than five
@@ -2606,6 +2902,7 @@ namespace bpkg
                            sp,
                            nullopt /* desired */,
                            false /*desired_sys */,
+                           db,
                            !*upgrade /* patch */,
                            false /* explicitly */,
                            repo_frags,
@@ -2621,7 +2918,10 @@ namespace bpkg
   // Return false if the plan execution was noop.
   //
   static bool
-  execute_plan (const pkg_build_options&, build_package_list&, bool simulate);
+  execute_plan (const pkg_build_options&,
+                build_package_list&,
+                bool simulate,
+                const function<find_prereq_database_function>&);
 
   using pkg_options = pkg_build_pkg_options;
 
@@ -3027,7 +3327,7 @@ namespace bpkg
 
       t.commit ();
 
-      // Fetch the repositories in the main configuration.
+      // Fetch the repositories in the current configuration.
       //
       // Note that during this build only the repositories information from
       // the main database will be used.
@@ -3546,6 +3846,10 @@ namespace bpkg
       imaginary_stubs = move (stubs);
     }
 
+    // List of packages specified on the command line.
+    //
+    vector<config_package> conf_pkgs;
+
     // Separate the packages specified on the command line into to hold and to
     // up/down-grade as dependencies, and save dependents whose dependencies
     // must be upgraded recursively.
@@ -3558,14 +3862,14 @@ namespace bpkg
       // Check if the package is a duplicate. Return true if it is but
       // harmless.
       //
-      map<config_package, pkg_arg> package_map;
+      map<package_name, pkg_arg> package_map;
 
       auto check_dup = [&package_map, &arg_string, &arg_parsed]
                        (const pkg_arg& pa) -> bool
       {
         assert (arg_parsed (pa));
 
-        auto r (package_map.emplace (config_package {pa.db, pa.name}, pa));
+        auto r (package_map.emplace (pa.name, pa));
 
         const pkg_arg& a (r.first->second);
         assert (arg_parsed (a));
@@ -3580,6 +3884,7 @@ namespace bpkg
         if (!r.second &&
             (a.scheme     != pa.scheme                ||
              a.name       != pa.name                  ||
+             a.db         != pa.db                    ||
              a.constraint != pa.constraint            ||
              !compare_options (a.options, pa.options) ||
              a.config_vars != pa.config_vars))
@@ -3914,6 +4219,8 @@ namespace bpkg
           //
           sp = pdb.find<selected_package> (pa.name);
 
+          conf_pkgs.emplace_back (pdb, pa.name);
+
           dep_pkgs.push_back (
             dependency_package {pdb,
                                 move (pa.name),
@@ -4072,8 +4379,8 @@ namespace bpkg
           assert (sp != nullptr && sp->system () == arg_sys (pa));
 
           auto rp (make_available (o, pdb, sp));
-          ap = rp.first;
-          af = rp.second; // Could be NULL (orphan).
+          ap = move (rp.first);
+          af = move (rp.second); // Could be NULL (orphan).
         }
 
         // We will keep the output directory only if the external package is
@@ -4104,6 +4411,7 @@ namespace bpkg
           pa.options.checkout_purge (),
           move (pa.config_vars),
           {config_package {mdb, ""}}, // Required by (command line).
+          false,                      // Required by dependents.
           0};                         // Adjustments.
 
         l4 ([&]{trace << "stashing held package "
@@ -4117,6 +4425,8 @@ namespace bpkg
         if (pa.constraint)
           p.constraints.emplace_back (
             mdb, "command line", move (*pa.constraint));
+
+        conf_pkgs.emplace_back (p.db, p.name ());
 
         hold_pkgs.push_back (move (p));
       }
@@ -4197,6 +4507,7 @@ namespace bpkg
               false,                      // Checkout purge.
               strings (),                 // Configuration variables.
               {config_package {mdb, ""}}, // Required by (command line).
+              false,                      // Required by dependents.
               0};                         // Adjustments.
 
           l4 ([&]{trace << "stashing held package "
@@ -4223,6 +4534,40 @@ namespace bpkg
       info << "nothing to build";
       return 0;
     }
+
+    // Search for the package prerequisite among packages specified on the
+    // command line and, if found, return its desired database. Return NULL
+    // otherwise. The `db` argument specifies the dependent database.
+    //
+    // Note that the semantics of a package specified on the command line is:
+    // build the package in the specified configuration (current by default)
+    // and repoint all dependents in the current configuration of this
+    // prerequisite to this new prerequisite. Thus, the function always
+    // returns NULL for dependents not in the current configuration.
+    //
+    // Also note that we rely on "small function object" optimization here.
+    //
+    const function<find_prereq_database_function> find_prereq_database (
+      [&conf_pkgs] (database& db,
+                    const package_name& nm,
+                    bool buildtime) -> database*
+      {
+        if (db.main ())
+        {
+          auto i (find_if (conf_pkgs.begin (), conf_pkgs.end (),
+                           [&nm] (const config_package& i)
+                           {
+                             return i.name == nm;
+                           }));
+
+          const char* tp (buildtime ? "host" : db.type.c_str ());
+
+          if (i != conf_pkgs.end () && i->db.type == tp)
+            return &i->db;
+        }
+
+        return nullptr;
+      });
 
     // Assemble the list of packages we will need to build-to-hold, still used
     // dependencies to up/down-grade, and unused dependencies to drop. We call
@@ -4284,6 +4629,58 @@ namespace bpkg
       };
       vector<dep> deps;
 
+      // Map the repointed dependents to the replacement flags (see
+      // repointed_dependents for details).
+      //
+      // Note that the overall plan is to add the replacement prerequisites to
+      // the repointed dependents prerequisites sets at the beginning of the
+      // refinement loop iteration and remove them right before the plan
+      // execution simulation. This will allow the collecting/ordering
+      // functions to see both kinds of prerequisites (being replaced and
+      // their replacements) and only consider one kind or another or both, as
+      // appropriate.
+      //
+      repointed_dependents rpt_depts;
+      {
+        transaction t (mdb);
+
+        using query = query<selected_package>;
+
+        query q (query::state == "configured");
+
+        for (shared_ptr<selected_package> sp:
+               pointer_result (mdb.query<selected_package> (q)))
+        {
+          map<config_package, bool> ps; // Old/new prerequisites.
+
+          for (const auto& p: sp->prerequisites)
+          {
+            database& db (p.first.database ());
+            const package_name& name (p.first.object_id ());
+
+            auto i (find_if (conf_pkgs.begin (), conf_pkgs.end (),
+                             [&name] (const config_package& i)
+                             {
+                               return i.name == name;
+                             }));
+
+            // Only consider a prerequisite if its new configuration is of the
+            // same type as an old one.
+            //
+            if (i != conf_pkgs.end () && i->db != db && i->db.type == db.type)
+            {
+              ps.emplace (config_package {i->db, name}, true);
+              ps.emplace (config_package {   db, name}, false);
+            }
+          }
+
+          if (!ps.empty ())
+            rpt_depts.emplace (move (sp), move (ps));
+        }
+
+        t.commit ();
+      }
+
       // Iteratively refine the plan with dependency up/down-grades/drops.
       //
       for (bool refine (true), scratch (true); refine; )
@@ -4293,13 +4690,55 @@ namespace bpkg
 
         transaction t (mdb);
 
-        // Save the total number of host configurations in the associated
-        // configurations cluster to later check if any private host
-        // configurations have been created during collection of the package
-        // builds (see below).
+        // Temporarily add the replacement prerequisites to the repointed
+        // dependent prerequisites sets and persist the changes.
         //
-        size_t host_configs (
-          mdb.dependency_configs (true /* buildtime */).size ());
+        // Note that we don't copy the prerequisite constraints into the
+        // replacements, since they are unused in the collecting/ordering
+        // logic.
+        //
+        for (auto& rd: rpt_depts)
+        {
+          const shared_ptr<selected_package>& sp (rd.first);
+
+          for (const auto& prq: rd.second)
+          {
+            if (prq.second) // Prerequisite replacement?
+            {
+              const config_package& cp (prq.first);
+
+              auto i (sp->prerequisites.emplace (
+                        lazy_shared_ptr<selected_package> (cp.db, cp.name),
+                        nullopt));
+
+              // The selected package should only contain the old
+              // prerequisites at this time, so adding a replacement should
+              // always succeed.
+              //
+              assert (i.second);
+            }
+          }
+
+          mdb.update (sp);
+        }
+
+        // Private host configurations that were created during collecting the
+        // package builds.
+        //
+        // Note that the private host configurations are associated to their
+        // parent configurations right after being created, so that the
+        // subsequent collecting, ordering, and plan execution simulation
+        // logic can use them. However, we can not easily commit these changes
+        // at some point, since there could also be some other changes made to
+        // the database which needs to be rolled back at the end of the
+        // refinement iteration.
+        //
+        // This, the plan is to collect configurations where the private host
+        // configurations were created and, after the transaction is rolled
+        // back, re-associate these configurations and persist the changes
+        // using the new transaction.
+        //
+        associated_databases host_cfg_assocs;
 
         build_packages::postponed_packages postponed;
 
@@ -4334,6 +4773,7 @@ namespace bpkg
               p.checkout_purge,
               p.config_vars,
               {config_package {mdb, ""}}, // Required by (command line).
+              false,                      // Required by dependents.
               0};                         // Adjustments.
 
             if (p.constraint)
@@ -4348,12 +4788,22 @@ namespace bpkg
           // specify packages on the command line does not matter).
           //
           for (const build_package& p: hold_pkgs)
-            pkgs.collect_build (o, p);
+            pkgs.collect_build (o,
+                                p,
+                                find_prereq_database,
+                                rpt_depts,
+                                host_cfg_assocs);
 
           // Collect all the prerequisites of the user selection.
           //
           for (const build_package& p: hold_pkgs)
-            pkgs.collect_build_prerequisites (o, p.db, p.name (), postponed);
+            pkgs.collect_build_prerequisites (o,
+                                              p.db,
+                                              p.name (),
+                                              postponed,
+                                              find_prereq_database,
+                                              rpt_depts,
+                                              host_cfg_assocs);
 
           // Note that we need to collect unheld after prerequisites, not to
           // overwrite the pre-entered entries before they are used to provide
@@ -4364,6 +4814,16 @@ namespace bpkg
             if (p.selected != nullptr && p.selected->hold_package)
               pkgs.collect_unhold (p.db, p.selected);
           }
+
+          // Collect dependents which dependencies needs to be repointed to
+          // prerequisites from different configurations.
+          //
+          pkgs.collect_repointed_dependents (o,
+                                             mdb,
+                                             rpt_depts,
+                                             postponed,
+                                             find_prereq_database,
+                                             host_cfg_assocs);
 
           scratch = false;
         }
@@ -4412,28 +4872,26 @@ namespace bpkg
               false,                      // Checkout purge.
               strings (),                 // Configuration variables.
               {config_package {mdb, ""}}, // Required by (command line).
+              false,                      // Required by dependents.
               0};                         // Adjustments.
 
-            pkgs.collect_build (o, move (p), &postponed /* recursively */);
+            pkgs.collect_build (o,
+                                move (p),
+                                find_prereq_database,
+                                rpt_depts,
+                                host_cfg_assocs,
+                                &postponed /* recursively */);
           }
         }
 
         // Handle the (combined) postponed collection.
         //
         if (!postponed.empty ())
-          pkgs.collect_build_postponed (o, postponed);
-
-        // If any private host configurations have been created while
-        // collecting the package builds, then commit the new associations and
-        // restart the transaction (there should be no changes other than
-        // that).
-        //
-        if (mdb.dependency_configs (true /* buildtime */).size () !=
-            host_configs)
-        {
-          t.commit ();
-          t.start (mdb);
-        }
+          pkgs.collect_build_postponed (o,
+                                        postponed,
+                                        find_prereq_database,
+                                        rpt_depts,
+                                        host_cfg_assocs);
 
         // Now that we have collected all the package versions that we need to
         // build, arrange them in the "dependency order", that is, with every
@@ -4451,17 +4909,28 @@ namespace bpkg
         for (const dep& d: deps)
           pkgs.order (d.db,
                       d.name,
-                      nullopt /* buildtime */,
-                      false   /* reorder */);
+                      nullopt               /* buildtime */,
+                      find_prereq_database,
+                      false                 /* reorder */);
 
         for (const build_package& p: reverse_iterate (hold_pkgs))
-          pkgs.order (p.db, p.name (), nullopt /* buildtime */);
+          pkgs.order (p.db,
+                      p.name (),
+                      nullopt /* buildtime */,
+                      find_prereq_database);
+
+        for (const auto& rd: rpt_depts)
+          pkgs.order (mdb,
+                      rd.first->name,
+                      nullopt               /* buildtime */,
+                      find_prereq_database,
+                      false                 /* reorder */);
 
         // Collect and order all the dependents that we will need to
         // reconfigure because of the up/down-grades of packages that are now
         // on the list.
         //
-        pkgs.collect_order_dependents ();
+        pkgs.collect_order_dependents (rpt_depts);
 
         // And, finally, make sure all the packages that we need to unhold
         // are on the list.
@@ -4471,8 +4940,37 @@ namespace bpkg
           if (p.selected != nullptr && p.selected->hold_package)
             pkgs.order (p.db,
                         p.name,
-                        nullopt /* buildtime */,
-                        false   /* reorder */);
+                        nullopt               /* buildtime */,
+                        find_prereq_database,
+                        false                 /* reorder */);
+        }
+
+        // Now, as we done with package builds collecting/ordering, erase the
+        // replacements from the repointed dependents prerequisite sets and
+        // persist the changes.
+        //
+        for (auto& rd: rpt_depts)
+        {
+          const shared_ptr<selected_package>& sp (rd.first);
+
+          for (const auto& prq: rd.second)
+          {
+            if (prq.second) // Prerequisite replacement?
+            {
+              const config_package& cp (prq.first);
+
+              size_t n (sp->prerequisites.erase (
+                        lazy_shared_ptr<selected_package> (cp.db, cp.name)));
+
+              // The selected package should always contain the prerequisite
+              // replacement at this time, so its removal should always
+              // succeed.
+              //
+              assert (n == 1);
+            }
+          }
+
+          mdb.update (sp);
         }
 
         // We are about to execute the plan on the database (but not on the
@@ -4512,7 +5010,10 @@ namespace bpkg
           vector<build_package> tmp (pkgs.begin (), pkgs.end ());
           build_package_list bl (tmp.begin (), tmp.end ());
 
-          changed = execute_plan (o, bl, true /* simulate */);
+          changed = execute_plan (o,
+                                  bl,
+                                  true /* simulate */,
+                                  find_prereq_database);
 
           if (changed)
           {
@@ -4533,7 +5034,7 @@ namespace bpkg
         // value covers both the "no change is required" and the "no
         // recommendation available" cases.
         //
-        auto eval_dep = [&dep_pkgs, &rec_pkgs]  (
+        auto eval_dep = [&dep_pkgs, &rec_pkgs] (
           database& db,
           const shared_ptr<selected_package>& sp,
           bool ignore_unsatisfiable = true) -> optional<evaluate_result>
@@ -4672,7 +5173,7 @@ namespace bpkg
                     continue;
 
                   if (!diag)
-                    deps.push_back (dep {adb,
+                    deps.push_back (dep {er->db,
                                          sp->name,
                                          move (er->available),
                                          move (er->repository_fragment),
@@ -4714,7 +5215,7 @@ namespace bpkg
           // also verified but not included into the resulting set.
           //
           using prerequisites = set<lazy_shared_ptr<selected_package>,
-                                    compare_lazy_ptr>;
+                                    compare_lazy_ptr_id>;
 
           map<config_package, prerequisites> cache;
           small_vector<config_selected_package, 16> chain;
@@ -4760,8 +5261,8 @@ namespace bpkg
 
             chain.push_back (csp);
 
-            // Verify all prerequisites, but only collect those that are from
-            // configurations of the same type.
+            // Verify all prerequisites, but only collect those corresponding
+            // to the runtime dependencies.
             //
             // Indeed, we don't care if an associated host configuration
             // contains a configured package that we also have configured in
@@ -4769,6 +5270,18 @@ namespace bpkg
             // dependencies from different configurations build-time depend on
             // the same package (of potentially different versions) configured
             // in different host configurations.
+            //
+            // Note, however, that we cannot easily determine if the
+            // prerequisites corresponds to the runtime or
+            // build-time dependency, since we only store the version
+            // constraint for it. The current implementation relies on the
+            // fact that the build-time dependency configuration type (host)
+            // differs from the dependent configuration type (target as a
+            // common case) and doesn't work well for the self-hosted
+            // configurations. For them it can fail erroneously. We can
+            // potentially fix that by additionally storing the build-time
+            // flag besides the version constraint. However, let's first see
+            // if it ever becomes a problem.
             //
             prerequisites r;
             const package_prerequisites& prereqs (sp->prerequisites);
@@ -4792,7 +5305,7 @@ namespace bpkg
               //
               for (const lazy_shared_ptr<selected_package>& p: ps)
               {
-                // Note: compare_lazy_ptr only considers package names.
+                // Note: compare_id_lazy_ptr only considers package names.
                 //
                 auto i (r.find (p));
 
@@ -4973,6 +5486,18 @@ namespace bpkg
             }
           }
 
+          // Re-associate the private host configurations that were created
+          // during collecting the package builds with their parent
+          // configurations. Note that these associations were lost on the
+          // previous transaction rollback.
+          //
+          for (database& db: host_cfg_assocs)
+            cfg_add (db,
+                     db.config / host_dir,
+                     true    /* relative */,
+                     nullopt /* name */,
+                     true    /* sys_rep */);
+
           t.commit ();
         }
       }
@@ -5065,13 +5590,15 @@ namespace bpkg
               //
               if (!p.reconfigure () &&
                   sp->state == package_state::configured &&
-                  (!p.user_selection () || o.configure_only ()))
+                  (!p.user_selection () ||
+                   o.configure_only ()  ||
+                   p.configure_only ()))
                 continue;
 
               act = p.system
                 ? "reconfigure"
                 : (p.reconfigure ()
-                   ? (o.configure_only ()
+                   ? (o.configure_only () || p.configure_only ()
                       ? "reconfigure"
                       : "reconfigure/update")
                    : "update");
@@ -5091,7 +5618,10 @@ namespace bpkg
               act += "/unhold";
 
             act += ' ' + p.available_name_version_db ();
-            cause = "required by";
+            cause = p.required_by_dependents ? "required by" : "dependent of";
+
+            if (p.configure_only ())
+              update_dependents = true;
           }
 
           string rb;
@@ -5178,7 +5708,7 @@ namespace bpkg
     // prerequsites got upgraded/downgraded and that the user may want to in
     // addition update (that update_dependents flag above).
     //
-    execute_plan (o, pkgs, false /* simulate */);
+    execute_plan (o, pkgs, false /* simulate */, find_prereq_database);
 
     if (o.configure_only ())
       return 0;
@@ -5196,7 +5726,7 @@ namespace bpkg
     {
       assert (p.action);
 
-      if (*p.action != build_package::build)
+      if (*p.action != build_package::build || p.configure_only ())
         continue;
 
       database& db (p.db);
@@ -5222,7 +5752,14 @@ namespace bpkg
 
         database& db (p.db);
 
-        if (*p.action == build_package::adjust && p.reconfigure ())
+        // Here we distinguish the repointed dependent reconfiguration build
+        // by the configure_only flag presence. If we ever add support for the
+        // package-specific --configure-only option, we will need to changed
+        // that (invent an additional "repointed dependent" flag or similar).
+        //
+        if ((*p.action == build_package::adjust ||
+             (*p.action == build_package::build && p.configure_only ())) &&
+            p.reconfigure ())
           upkgs.push_back (pkg_command_vars {db.config_orig,
                                              db.main (),
                                              p.selected,
@@ -5245,7 +5782,8 @@ namespace bpkg
   static bool
   execute_plan (const pkg_build_options& o,
                 build_package_list& build_pkgs,
-                bool simulate)
+                bool simulate,
+                const function<find_prereq_database_function>& find_db)
   {
     tracer trace ("execute_plan");
 
@@ -5629,6 +6167,17 @@ namespace bpkg
 
       transaction t (pdb, !simulate /* start */);
 
+      // Show how we got here if things go wrong, for example selecting a
+      // prerequisite is ambiguous due to the dependency package being
+      // configured in multiple associated configurations.
+      //
+      auto g (
+        make_exception_guard (
+          [&p] ()
+          {
+            info << "while configuring " << p.name () << p.db;
+          }));
+
       // Note that pkg_configure() commits the transaction.
       //
       if (p.system)
@@ -5643,7 +6192,8 @@ namespace bpkg
                        sp,
                        ap->dependencies,
                        p.config_vars,
-                       simulate);
+                       simulate,
+                       find_db);
       else // Dependent.
       {
         // Must be in the unpacked state since it was disfigured on the first
@@ -5662,7 +6212,8 @@ namespace bpkg
                        sp,
                        convert (move (m.dependencies)),
                        p.config_vars,
-                       simulate);
+                       simulate,
+                       find_db);
       }
 
       r = true;

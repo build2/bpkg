@@ -19,11 +19,13 @@ using namespace butl;
 namespace bpkg
 {
   package_prerequisites
-  pkg_configure_prerequisites (const common_options& o,
-                               database& db,
-                               transaction&,
-                               const dependencies& deps,
-                               const package_name& package)
+  pkg_configure_prerequisites (
+    const common_options& o,
+    database& db,
+    transaction&,
+    const dependencies& deps,
+    const package_name& package,
+    const function<find_prereq_database_function>& find_db)
   {
     package_prerequisites r;
 
@@ -58,8 +60,12 @@ namespace bpkg
           }
         }
 
+        database* ddb (find_db ? find_db (db, n, da.buildtime) : nullptr);
+
         pair<shared_ptr<selected_package>, database*> spd (
-          find_dependency (db, n, da.buildtime));
+          ddb != nullptr
+          ? make_pair (ddb->find<selected_package> (n), ddb)
+          : find_dependency (db, n, da.buildtime));
 
         if (const shared_ptr<selected_package>& dp = spd.first)
         {
@@ -115,7 +121,8 @@ namespace bpkg
                  const shared_ptr<selected_package>& p,
                  const dependencies& deps,
                  const strings& vars,
-                 bool simulate)
+                 bool simulate,
+                 const function<find_prereq_database_function>& find_db)
   {
     tracer trace ("pkg_configure");
 
@@ -142,7 +149,12 @@ namespace bpkg
     //
     assert (p->prerequisites.empty ());
 
-    p->prerequisites = pkg_configure_prerequisites (o, db, t, deps, p->name);
+    p->prerequisites = pkg_configure_prerequisites (o,
+                                                    db,
+                                                    t,
+                                                    deps,
+                                                    p->name,
+                                                    find_db);
 
     if (!simulate)
     {

@@ -165,9 +165,24 @@ namespace bpkg
     }
   };
 
+  struct compare_lazy_ptr
+  {
+    template <typename P>
+    bool
+    operator() (const P& x, const P& y) const
+    {
+      // See operator==(database, database).
+      //
+      return x.object_id () != y.object_id ()
+             ? (x.object_id () < y.object_id ())
+             : (&static_cast<typename P::base_type> (x).database () <
+                &static_cast<typename P::base_type> (y).database ());
+    }
+  };
+
   // Compare two lazy pointers via the pointed-to object ids.
   //
-  struct compare_lazy_ptr
+  struct compare_lazy_ptr_id
   {
     template <typename P>
     bool

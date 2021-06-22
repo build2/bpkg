@@ -418,7 +418,8 @@ namespace bpkg
     //
     // Also note that these point to repositories, not repository fragments.
     //
-    using dependencies = std::set<lazy_weak_ptr<repository>, compare_lazy_ptr>;
+    using dependencies = std::set<lazy_weak_ptr<repository>,
+                                  compare_lazy_ptr_id>;
 
     dependencies complements;
     dependencies prerequisites;

@@ -20,6 +20,16 @@ namespace bpkg
   int
   pkg_configure (const pkg_configure_options&, cli::scanner& args);
 
+  // The custom search function, if specified, is called by pkg_configure()
+  // and pkg_configure_prerequisites() to obtain the database to search for
+  // the prerequisite in, instead of searching for it in the associated
+  // databases, recursively. If the function returns NULL, then fallback to
+  // the recursive search through the associated databases.
+  //
+  using find_prereq_database_function = database* (database&,
+                                                   const package_name&,
+                                                   bool buildtime);
+
   // Note: all of the following functions expect the package dependency
   // constraints to be complete.
 
@@ -32,7 +42,8 @@ namespace bpkg
                  const shared_ptr<selected_package>&,
                  const dependencies&,
                  const strings& config_vars,
-                 bool simulate);
+                 bool simulate,
+                 const function<find_prereq_database_function>& = {});
 
   // Configure a system package and commit the transaction.
   //
@@ -50,11 +61,13 @@ namespace bpkg
   // Note: loads selected packages.
   //
   package_prerequisites
-  pkg_configure_prerequisites (const common_options&,
-                               database&,
-                               transaction&,
-                               const dependencies&,
-                               const package_name&);
+  pkg_configure_prerequisites (
+    const common_options&,
+    database&,
+    transaction&,
+    const dependencies&,
+    const package_name&,
+    const function<find_prereq_database_function>& = {});
 }
 
 #endif // BPKG_PKG_CONFIGURE_HXX
