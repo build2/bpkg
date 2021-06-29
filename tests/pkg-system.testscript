@@ -711,10 +711,10 @@ rep_remove += -d cfg 2>!
     #
     $pkg_build foo 'sys:libbar/1' 2>>EOE != 0;
       error: unable to satisfy constraints on package libbar
-        info: foo depends on (libbar >= 2)
         info: command line depends on (libbar == 1)
-        info: available sys:libbar/2
+        info: foo depends on (libbar >= 2)
         info: available sys:libbar/1
+        info: available sys:libbar/2
         info: explicitly specify libbar version to manually satisfy both constraints
       info: while satisfying foo/2
       EOE
