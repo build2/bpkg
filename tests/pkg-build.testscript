@@ -792,10 +792,10 @@ test.options += --no-progress
     $clone_cfg;
     $* libfoo/1.0.0 libbaz 2>>EOE != 0
       error: unable to satisfy constraints on package libfoo
-        info: libbar depends on (libfoo == 1.1.0)
         info: command line depends on (libfoo == 1.0.0)
-        info: available libfoo/1.1.0
+        info: libbar depends on (libfoo == 1.1.0)
         info: available libfoo/1.0.0
+        info: available libfoo/1.1.0
         info: explicitly specify libfoo version to manually satisfy both constraints
       info: while satisfying libbar/1.1.0
       info: while satisfying libbaz/1.1.0
@@ -2296,6 +2296,52 @@ test.options += --no-progress
           EOE
 
         $pkg_drop libbar
+      }
+
+      : sys-to-src-unhold
+      :
+      {
+        $clone_cfg;
+
+        $* 'sys:libbaz/1.2.0' 2>>EOE;
+          configured sys:libbaz/1.2.0
+          EOE
+
+        $* ?libbaz libbar/0.0.3 2>>EOE;
+          purged libbaz/1.2.0
+          fetched libbaz/0.1.0
+          unpacked libbaz/0.1.0
+          fetched libbar/0.0.3
+          unpacked libbar/0.0.3
+          configured libbaz/0.1.0
+          configured libbar/0.0.3
+          EOE
+
+        $pkg_drop libbar libbaz
+      }
+
+      : sys-to-src
+      :
+      : As above but keep held.
+      :
+      {
+        $clone_cfg;
+
+        $* 'sys:libbaz/1.2.0' 2>>EOE;
+          configured sys:libbaz/1.2.0
+          EOE
+
+        $* libbaz libbar/0.0.3 2>>EOE;
+          purged libbaz/1.2.0
+          fetched libbaz/0.1.0
+          unpacked libbaz/0.1.0
+          fetched libbar/0.0.3
+          unpacked libbar/0.0.3
+          configured libbaz/0.1.0
+          configured libbar/0.0.3
+          EOE
+
+        $pkg_drop libbar libbaz
       }
     }
 
