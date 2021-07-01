@@ -392,6 +392,18 @@ namespace bpkg
     return os;
   }
 
+  inline string
+  buildtime_dependency_config_type (const package_name& nm)
+  {
+    return nm.string ().compare (0, 10, "libbuild2-") == 0 ? "build2" : "host";
+  }
+
+  inline string
+  dependency_config_type (database& db, const package_name& nm, bool buildtime)
+  {
+    return buildtime ? buildtime_dependency_config_type (nm) : db.type;
+  }
+
   // Transaction wrapper that allow the creation of dummy transactions (start
   // is false) that in reality use an existing transaction.
   //

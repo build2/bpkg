@@ -271,6 +271,12 @@ namespace bpkg
                                    map<config_package, bool>,
                                    compare_shared_ptr>;
 
+  // List of the private configuration paths, relative to the containing
+  // configuration directories (.bpkg/host, etc), together with the containing
+  // configuration databases.
+  //
+  using private_configs = vector<pair<database&, dir_path>>;
+
   // A "dependency-ordered" list of packages and their prerequisites.
   // That is, every package on the list only possibly depending on the
   // ones after it. In a nutshell, the usage is as follows: we first
@@ -627,7 +633,7 @@ namespace bpkg
                    build_package pkg,
                    const function<find_prereq_database_function>& find_db,
                    const repointed_dependents& rpt_depts,
-                   associated_databases& host_cfg_assocs,
+                   private_configs& priv_cfgs,
                    postponed_packages* recursively = nullptr)
     {
       using std::swap; // ...and not list::swap().
@@ -806,7 +812,7 @@ namespace bpkg
                                      recursively,
                                      find_db,
                                      rpt_depts,
-                                     host_cfg_assocs);
+                                     priv_cfgs);
 
       return &p;
     }
@@ -834,7 +840,7 @@ namespace bpkg
       postponed_packages* postponed,
       const function<find_prereq_database_function>& find_db,
       const repointed_dependents& rpt_depts,
-      associated_databases& host_cfg_assocs)
+      private_configs& priv_cfgs)
     {
       tracer trace ("collect_build_prerequisites");
 
@@ -1083,15 +1089,15 @@ namespace bpkg
         }
 
         // If this is a build-time dependency and we build it for the first
-        // time, then we need to find a suitable configuration (of the host
-        // type) to build it in.
+        // time, then we need to find a suitable configuration (of the
+        // respective type) to build it in.
         //
-        // If the current configuration (ddb) is of the host type, then we use
-        // that. Otherwise, we go through its immediate explicit associations.
-        // If only one of them has the host type, then we use that. If there
-        // are multiple of them, then we fail advising the user to pick one
-        // explicitly. If there are none, then we create the private host
-        // configuration and use that.
+        // If the current configuration (ddb) is of the required type, then we
+        // use that. Otherwise, we go through its immediate explicit
+        // associations. If only one of them has the required type, then we
+        // use that. If there are multiple of them, then we fail advising the
+        // user to pick one explicitly. If there are none, then we create the
+        // private configuration and use that.
         //
         // Note that if the user has explicitly specified the configuration
         // for this dependency on the command line (using --config-*), then
@@ -1099,7 +1105,8 @@ namespace bpkg
         //
         if (da.buildtime && dsp == nullptr)
         {
-          database* hdb (nullptr);
+          database* db (nullptr);
+          string type (buildtime_dependency_config_type (dn));
 
           // Note that the first returned association is for ddb itself.
           //
@@ -1107,33 +1114,36 @@ namespace bpkg
           {
             database& adb (ac.db);
 
-            if (adb.type == "host")
+            if (adb.type == type)
             {
-              // We are done if the self-association is of the host type.
+              // We are done if the self-association is of the required type.
               //
               if (ac.id == 0)
               {
-                hdb = &adb;
+                db = &adb;
                 break;
               }
 
-              if (hdb == nullptr)
-                hdb = &adb;
+              if (db == nullptr)
+                db = &adb;
               else
-                fail << "multiple possible host configurations for build-time "
-                     << "dependency (" << dp << ")" <<
-                  info << hdb->config_orig <<
+                fail << "multiple possible " << type << " configurations for "
+                     << "build-time dependency (" << dp << ")" <<
+                  info << db->config_orig <<
                   info << adb.config_orig <<
                   info << "use --config-* to select the configuration";
             }
           }
 
-          // If no host configuration is found, then create and associate it.
+          // If no dependency configuration is found, then create and
+          // associate it.
           //
-          if (hdb == nullptr)
+          if (db == nullptr)
           {
             const strings mods {"cc"};
-            const strings vars {"config.config.load=~host"};
+            const strings vars {"config.config.load=~" + type};
+
+            dir_path cd (bpkg_dir / dir_path (type));
 
             // Wipe a potentially existing un-associated private configuration
             // left from a previous faulty run. Note that trying to reuse it
@@ -1141,32 +1151,33 @@ namespace bpkg
             // outdated database schema version, etc.
             //
             cfg_create (options,
-                        ddb->config_orig / host_dir,
-                        optional<string> ("host") /* name */,
-                        "host"                    /* type */,
+                        ddb->config_orig / cd,
+                        optional<string> (type) /* name */,
+                        type                    /* type */,
                         mods,
                         vars,
-                        false                     /* existing */,
-                        true                      /* wipe */);
+                        false                   /* existing */,
+                        true                    /* wipe */);
 
-            // Note that we will copy the host name from the configuration
-            // unless it clashes with one of the existing associations.
+            // Note that we will copy the configuration name into the new
+            // association unless it clashes with one of the existing
+            // associations.
             //
             shared_ptr<configuration> ac (cfg_add (*ddb,
-                                                   ddb->config / host_dir,
+                                                   ddb->config / cd,
                                                    true    /* relative */,
                                                    nullopt /* name */,
                                                    true    /* sys_rep */));
 
-            // Save the parent configuration of the newly-created private host
+            // Save the parent configuration of the newly-created private
             // configuration for the subsequent re-association.
             //
-            host_cfg_assocs.push_back (*ddb);
+            priv_cfgs.emplace_back (*ddb, move (cd));
 
-            hdb = &ddb->find_attached (*ac->id);
+            db = &ddb->find_attached (*ac->id);
           }
 
-          ddb = hdb; // Switch to the host configuration.
+          ddb = db; // Switch to the dependency configuration.
         }
 
         // If we didn't get the available package corresponding to the
@@ -1352,7 +1363,7 @@ namespace bpkg
                          move (bp),
                          find_db,
                          rpt_depts,
-                         host_cfg_assocs,
+                         priv_cfgs,
                          postponed));
 
         if (p != nullptr && force && !dep_optional)
@@ -1413,7 +1424,7 @@ namespace bpkg
       const repointed_dependents& rpt_depts,
       build_packages::postponed_packages& postponed,
       const function<find_prereq_database_function>& find_db,
-      associated_databases& host_cfg_assocs)
+      private_configs& priv_cfgs)
     {
       for (const auto& rd: rpt_depts)
       {
@@ -1474,7 +1485,7 @@ namespace bpkg
                        move (p),
                        find_db,
                        rpt_depts,
-                       host_cfg_assocs,
+                       priv_cfgs,
                        &postponed);
       }
     }
@@ -1568,7 +1579,7 @@ namespace bpkg
       postponed_packages& postponed,
       const function<find_prereq_database_function>& find_db,
       const repointed_dependents& rpt_depts,
-      associated_databases& host_cfg_assocs)
+      private_configs& priv_cfgs)
     {
       auto mi (map_.find (db, name));
       assert (mi != map_.end ());
@@ -1578,7 +1589,7 @@ namespace bpkg
                                    &postponed,
                                    find_db,
                                    rpt_depts,
-                                   host_cfg_assocs);
+                                   priv_cfgs);
     }
 
     void
@@ -1587,7 +1598,7 @@ namespace bpkg
       postponed_packages& pkgs,
       const function<find_prereq_database_function>& find_db,
       const repointed_dependents& rpt_depts,
-      associated_databases& host_cfg_assocs)
+      private_configs& priv_cfgs)
     {
       // Try collecting postponed packages for as long as we are making
       // progress.
@@ -1602,7 +1613,7 @@ namespace bpkg
                                        prog ? &npkgs : nullptr,
                                        find_db,
                                        rpt_depts,
-                                       host_cfg_assocs);
+                                       priv_cfgs);
 
         assert (prog); // collect_build_prerequisites() should have failed.
         prog = (npkgs != pkgs);
@@ -4722,23 +4733,23 @@ namespace bpkg
           mdb.update (sp);
         }
 
-        // Private host configurations that were created during collecting the
+        // Private configurations that were created during collecting the
         // package builds.
         //
-        // Note that the private host configurations are associated to their
-        // parent configurations right after being created, so that the
-        // subsequent collecting, ordering, and plan execution simulation
-        // logic can use them. However, we can not easily commit these changes
-        // at some point, since there could also be some other changes made to
-        // the database which needs to be rolled back at the end of the
-        // refinement iteration.
+        // Note that the private configurations are associated to their parent
+        // configurations right after being created, so that the subsequent
+        // collecting, ordering, and plan execution simulation logic can use
+        // them. However, we can not easily commit these changes at some
+        // point, since there could also be some other changes made to the
+        // database which needs to be rolled back at the end of the refinement
+        // iteration.
         //
-        // This, the plan is to collect configurations where the private host
-        // configurations were created and, after the transaction is rolled
-        // back, re-associate these configurations and persist the changes
-        // using the new transaction.
+        // Thus, the plan is to collect the private configurations during the
+        // collecting package builds and, after the transaction is rolled
+        // back, re-associate these configurations and persist the changes in
+        // the new transaction.
         //
-        associated_databases host_cfg_assocs;
+        private_configs priv_cfgs;
 
         build_packages::postponed_packages postponed;
 
@@ -4792,7 +4803,7 @@ namespace bpkg
                                 p,
                                 find_prereq_database,
                                 rpt_depts,
-                                host_cfg_assocs);
+                                priv_cfgs);
 
           // Collect all the prerequisites of the user selection.
           //
@@ -4803,7 +4814,7 @@ namespace bpkg
                                               postponed,
                                               find_prereq_database,
                                               rpt_depts,
-                                              host_cfg_assocs);
+                                              priv_cfgs);
 
           // Note that we need to collect unheld after prerequisites, not to
           // overwrite the pre-entered entries before they are used to provide
@@ -4823,7 +4834,7 @@ namespace bpkg
                                              rpt_depts,
                                              postponed,
                                              find_prereq_database,
-                                             host_cfg_assocs);
+                                             priv_cfgs);
 
           scratch = false;
         }
@@ -4879,7 +4890,7 @@ namespace bpkg
                                 move (p),
                                 find_prereq_database,
                                 rpt_depts,
-                                host_cfg_assocs,
+                                priv_cfgs,
                                 &postponed /* recursively */);
           }
         }
@@ -4891,7 +4902,7 @@ namespace bpkg
                                         postponed,
                                         find_prereq_database,
                                         rpt_depts,
-                                        host_cfg_assocs);
+                                        priv_cfgs);
 
         // Now that we have collected all the package versions that we need to
         // build, arrange them in the "dependency order", that is, with every
@@ -5486,14 +5497,14 @@ namespace bpkg
             }
           }
 
-          // Re-associate the private host configurations that were created
-          // during collecting the package builds with their parent
-          // configurations. Note that these associations were lost on the
-          // previous transaction rollback.
+          // Re-associate the private configurations that were created during
+          // collecting the package builds with the containing configurations.
+          // Note that these associations were lost on the previous
+          // transaction rollback.
           //
-          for (database& db: host_cfg_assocs)
-            cfg_add (db,
-                     db.config / host_dir,
+          for (const pair<database&, dir_path> pc: priv_cfgs)
+            cfg_add (pc.first,
+                     pc.first.config / pc.second,
                      true    /* relative */,
                      nullopt /* name */,
                      true    /* sys_rep */);

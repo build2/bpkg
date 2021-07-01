@@ -18,7 +18,7 @@
 #include <libbpkg/package-name.hxx>
 
 #include <bpkg/types.hxx>
-#include <bpkg/forward.hxx> // transaction
+#include <bpkg/forward.hxx> // database, transaction
 #include <bpkg/utility.hxx>
 
 #include <bpkg/diagnostics.hxx>
