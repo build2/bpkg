@@ -554,7 +554,7 @@ namespace bpkg
   {
     pair<shared_ptr<selected_package>, database*> r;
 
-    for (database& adb: db.dependency_configs (buildtime))
+    for (database& adb: db.dependency_configs (pn, buildtime))
     {
       shared_ptr<selected_package> p (adb.find<selected_package> (pn));
 

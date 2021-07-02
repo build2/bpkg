@@ -20,6 +20,10 @@ namespace bpkg
 {
   namespace sqlite = odb::sqlite;
 
+  const string target_config_type ("target");
+  const string host_config_type   ("host");
+  const string build2_config_type ("build2");
+
   // Register the data migration functions.
   //
   // NOTE: remember to qualify table names with \"main\". if using native
@@ -47,7 +51,7 @@ namespace bpkg
     // Add the unnamed self-association of the target type.
     //
     shared_ptr<configuration> sc (
-      make_shared<configuration> (optional<string> (), "target"));
+      make_shared<configuration> (optional<string> (), target_config_type));
 
     db.persist (sc);
     db.execute ("UPDATE selected_package_prerequisites SET configuration = '" +
@@ -621,25 +625,54 @@ namespace bpkg
   }
 
   associated_databases database::
-  dependency_configs (optional<bool> buildtime)
+  dependency_configs (optional<bool> buildtime, const std::string& type)
   {
+    if (buildtime)
+      assert (!*buildtime              ||
+              type == host_config_type ||
+              type == build2_config_type);
+    else
+      assert (type.empty ());
+
     associated_databases r;
 
+    // Allow dependency configurations of the dependent configuration own type
+    // if all or runtime dependency configurations are requested.
+    //
     bool allow_own_type  (!buildtime || !*buildtime);
-    bool allow_host_type (!buildtime || *buildtime);
+
+    // Allow dependency configurations of the host type if all or regular
+    // builtime dependency configurations are requested.
+    //
+    bool allow_host_type (!buildtime ||
+                          (*buildtime && type == host_config_type));
+
+    // Allow dependency configurations of the build2 type if all or build2
+    // system module dependency configurations are requested.
+    //
+    bool allow_build2_type (!buildtime ||
+                            (*buildtime && type == build2_config_type));
 
     // Add the associated database to the resulting list if it is of the
-    // associating database type and allow_own_type is true or if it is of the
-    // host type and allow_host_type is true. Call itself recursively for the
-    // explicitly associated configurations.
+    // associating database type and allow_own_type is true, or it is of the
+    // host type and allow_host_type is true, or it is of the build2 type and
+    // allow_build2_type is true. Call itself recursively for the explicitly
+    // associated configurations.
     //
     // Note that the associated database of the associating database type is
     // not added if allow_own_type is false but its own associated databases
-    // of the host type are added, if allow_host_type is true.
+    // of the host/build2 type are added, if allow_host_type/allow_build2_type
+    // is true.
     //
     associated_databases descended; // Note: we may not add but still descend.
-    auto add = [&r, allow_own_type, allow_host_type, &descended]
-               (database& db, const std::string& t, const auto& add)
+    auto add = [&r,
+                allow_own_type,
+                allow_host_type,
+                allow_build2_type,
+                &descended]
+               (database& db,
+                const std::string& t,
+                const auto& add)
     {
       if (std::find (descended.begin (), descended.end (), db) !=
           descended.end ())
@@ -647,13 +680,16 @@ namespace bpkg
 
       descended.push_back (db);
 
-      bool own  (db.type == t);
-      bool host (db.type == "host");
+      bool own    (db.type == t);
+      bool host   (db.type == host_config_type);
+      bool build2 (db.type == build2_config_type);
 
-      if (!own && !(allow_host_type && host))
+      if (!own && !(allow_host_type && host) && !(allow_build2_type && build2))
         return;
 
-      if ((allow_own_type && own) || (allow_host_type && host))
+      if ((allow_own_type    && own)  ||
+          (allow_host_type   && host) ||
+          (allow_build2_type && build2))
         r.push_back (db);
 
       const associated_configs& acs (db.explicit_associations ());
@@ -666,6 +702,21 @@ namespace bpkg
 
     add (*this, type, add);
     return r;
+  }
+
+  associated_databases database::
+  dependency_configs (const package_name& n, bool buildtime)
+  {
+    return dependency_configs (buildtime,
+                               buildtime
+                               ? buildtime_dependency_config_type (n)
+                               : empty_string);
+  }
+
+  associated_databases database::
+  dependency_configs ()
+  {
+    return dependency_configs (nullopt, empty_string);
   }
 
   database& database::

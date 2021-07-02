@@ -1089,8 +1089,8 @@ namespace bpkg
         }
 
         // If this is a build-time dependency and we build it for the first
-        // time, then we need to find a suitable configuration (of the
-        // respective type) to build it in.
+        // time, then we need to find a suitable configuration (of the host or
+        // build2 type) to build it in.
         //
         // If the current configuration (ddb) is of the required type, then we
         // use that. Otherwise, we go through its immediate explicit
@@ -1106,7 +1106,7 @@ namespace bpkg
         if (da.buildtime && dsp == nullptr)
         {
           database* db (nullptr);
-          string type (buildtime_dependency_config_type (dn));
+          const string& type (buildtime_dependency_config_type (dn));
 
           // Note that the first returned association is for ddb itself.
           //
@@ -2200,7 +2200,7 @@ namespace bpkg
       {
         iterator r (end ());
 
-        associated_databases adbs (db.dependency_configs (buildtime));
+        associated_databases adbs (db.dependency_configs (pn, buildtime));
 
         for (database& adb: adbs)
         {
@@ -4571,9 +4571,8 @@ namespace bpkg
                              return i.name == nm;
                            }));
 
-          const char* tp (buildtime ? "host" : db.type.c_str ());
-
-          if (i != conf_pkgs.end () && i->db.type == tp)
+          if (i != conf_pkgs.end () &&
+              i->db.type == dependency_config_type (db, nm, buildtime))
             return &i->db;
         }
 

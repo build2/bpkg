@@ -161,6 +161,8 @@ namespace bpkg
     associated_databases&
     implicit_associations (bool attach = true, bool sys_rep = false);
 
+    // @@ AC Update
+    //
     // Return configurations of potential dependencies of packages selected in
     // the current configuration.
     //
@@ -197,7 +199,10 @@ namespace bpkg
     //   included.
     //
     associated_databases
-    dependency_configs (optional<bool> buildtime = nullopt);
+    dependency_configs (const package_name& n, bool buildtime);
+
+    associated_databases
+    dependency_configs ();
 
     // Return configurations of potential dependents of packages selected in
     // the current configuration.
@@ -346,6 +351,11 @@ namespace bpkg
     void
     add_env (bool reset = false) const;
 
+    // @@ AC Describe.
+    //
+    associated_databases
+    dependency_configs (optional<bool> buildtime, const std::string& type);
+
     impl* impl_;
 
     associated_configs   explicit_associations_;
@@ -392,16 +402,30 @@ namespace bpkg
     return os;
   }
 
-  inline string
+  // The predefined configuration types.
+  //
+  extern const string target_config_type;
+  extern const string host_config_type;
+  extern const string build2_config_type;
+
+  // Return the configuration type suitable for building a build-time
+  // dependency.
+  //
+  inline const string&
   buildtime_dependency_config_type (const package_name& nm)
   {
-    return nm.string ().compare (0, 10, "libbuild2-") == 0 ? "build2" : "host";
+    return nm.string ().compare (0, 10, "libbuild2-") == 0
+           ? build2_config_type
+           : host_config_type;
   }
 
-  inline string
-  dependency_config_type (database& db, const package_name& nm, bool buildtime)
+  // Return the configuration type suitable for building a dependency of the
+  // dependent in the specified configuration.
+  //
+  inline const string&
+  dependency_config_type (database& db, const package_name& n, bool buildtime)
   {
-    return buildtime ? buildtime_dependency_config_type (nm) : db.type;
+    return buildtime ? buildtime_dependency_config_type (n) : db.type;
   }
 
   // Transaction wrapper that allow the creation of dummy transactions (start

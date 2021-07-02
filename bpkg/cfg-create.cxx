@@ -54,7 +54,7 @@ namespace bpkg
       hc = normalize (*host_config, "host configuration");
 
       database db (hc, trace, false /* pre_attach */);
-      if (db.type != "host")
+      if (db.type != host_config_type)
         fail << "host configuration " << hc << " is of '" << db.type
              << "' type";
     }
