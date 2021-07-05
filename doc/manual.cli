@@ -1047,7 +1047,8 @@ it is a \i{build-time} prerequisite. Otherwise it is \i{run-time}.
 generator, so you can think of \c{*} as the executable mark printed by
 \c{ls}. An important difference between the two kinds of dependencies is that
 in case of cross-compilation a build-time dependency must be built for the
-build machine, not the target.|
+host machine, not the target. Build system modules are also build-time
+dependencies.|
 
 Two special build-time dependency names are recognized and checked in an ad
 hoc manner: \c{build2} (the \c{build2} build system) and \c{bpkg} (the
