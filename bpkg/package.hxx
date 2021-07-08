@@ -127,13 +127,13 @@ void assert (int);
 
 namespace bpkg
 {
-  // Associated bpkg configuration.
+  // Linked bpkg configuration.
   //
-  // Association with id 0 is the special self-association which captures
-  // information about the current configuration. This information is cached
-  // in associations of other configurations.
+  // Link with id 0 is the special self-link which captures information about
+  // the current configuration. This information is cached in links of other
+  // configurations.
   //
-  // Note that associated configurations information will normally be accessed
+  // Note that linked configurations information will normally be accessed
   // through the database object functions, which load and cache this
   // information on the first call. This makes the session support for the
   // configuration class redundant. Moreover, with the session support
@@ -147,20 +147,20 @@ namespace bpkg
   public:
     using uuid_type = bpkg::uuid;
 
-    // Association id.
+    // Link id.
     //
-    // Zero for the self-association and is auto-assigned for associated
-    // configurations when the object is persisted.
+    // Zero for the self-link and is auto-assigned for linked configurations
+    // when the object is persisted.
     //
     optional_uint64_t  id;   // Object id.
 
     uuid_type          uuid;
     optional<string>   name;
     string             type;
-    dir_path           path; // Empty for the self-association.
+    dir_path           path; // Empty for the self-link.
 
-    // True if the association is created explicitly by the user rather than
-    // automatically as a reverse association.
+    // True if the link is created explicitly by the user rather than
+    // automatically as a back-link.
     //
     bool               expl;
 
@@ -173,13 +173,13 @@ namespace bpkg
     #pragma db member(expl) column("explicit")
 
   public:
-    // Create the self-association. Generate the UUID, unless specified.
+    // Create the self-link. Generate the UUID, unless specified.
     //
     configuration (optional<string> n,
                    string t,
                    optional<uuid_type> uid = nullopt);
 
-    // Create an associated configuration.
+    // Create a linked configuration.
     //
     configuration (const uuid_type& uid,
                    optional<string> n,
@@ -193,13 +193,13 @@ namespace bpkg
           expl (e) {}
 
     // If the configuration path is absolute, then return it as is. Otherwise,
-    // return it completed relative to the specified associated configuration
+    // return it completed relative to the specified linked configuration
     // directory path and then normalized. The specified directory path should
     // be absolute and normalized. Issue diagnostics and fail on the path
     // conversion error.
     //
-    // Note that the self-association object is naturally supported by this
-    // function, since its path is empty.
+    // Note that the self-link object is naturally supported by this function,
+    // since its path is empty.
     //
     dir_path
     effective_path (const dir_path&) const;
@@ -217,14 +217,6 @@ namespace bpkg
     friend class odb::access;
     configuration () = default;
   };
-
-  // Verify that a string is a valid configuration name, that is non-empty,
-  // containing only alpha-numeric characters, '_', '-' (except for the first
-  // character which can only be alphabetic or '_'). Issue diagnostics and
-  // fail if that's not the case.
-  //
-  void
-  validate_configuration_name (const string&, const char* what);
 
   // version
   //
@@ -1325,9 +1317,9 @@ namespace bpkg
   // Database and package name pair.
   //
   // It is normally used as a key for maps containing data for packages across
-  // multiple associated configurations. Assumes that the respective databases
-  // are not detached during such map lifetimes. Considers both package name
-  // and database for objects comparison.
+  // multiple linked configurations. Assumes that the respective databases are
+  // not detached during such map lifetimes. Considers both package name and
+  // database for objects comparison.
   //
   struct config_package
   {

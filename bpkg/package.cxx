@@ -41,34 +41,14 @@ namespace bpkg
     {
       dir_path r (d / path);
 
-      string what ("associated with " + d.representation () +
-                   " configuration " + (name ? *name : to_string (*id)));
+      string what ("linked with " + d.representation () + " configuration " +
+                   (name ? *name : to_string (*id)));
 
       normalize (r, what.c_str ());
       return r;
     }
     else
       return path;
-  }
-
-  void
-  validate_configuration_name (const string& s, const char* what)
-  {
-    if (s.empty ())
-      fail << "empty " << what;
-
-    if (!(alpha (s[0]) || s[0] == '_'))
-      fail << "invalid " << what << " '" << s << "': illegal first character "
-           << "(must be alphabetic or underscore)";
-
-    for (auto i (s.cbegin () + 1), e (s.cend ()); i != e; ++i)
-    {
-      char c (*i);
-
-      if (!(alnum (c) || c == '_' || c == '-'))
-        fail << "invalid " << what << " '" << s << "': illegal character "
-             << "(must be alphabetic, digit, underscore, or dash)";
-    }
   }
 
   // config_package
@@ -500,15 +480,15 @@ namespace bpkg
     database& pdb (static_cast<database&> (db));
 
     // Note that if this points to a different configuration, then it should
-    // already be pre-attached since it must be explicitly associated.
+    // already be pre-attached since it must be explicitly linked.
     //
     database& ddb (pdb.find_dependency_config (configuration));
 
-    // Make sure the prerequisite exists in the explicitly associated
+    // Make sure the prerequisite exists in the explicitly linked
     // configuration, so that a subsequent load() call will not fail. This,
     // for example, can happen in unlikely but possible situation when the
-    // implicitly associated configuration containing a dependent was
-    // temporarily renamed before its prerequisite was dropped.
+    // implicitly linked configuration containing a dependent was temporarily
+    // renamed before its prerequisite was dropped.
     //
     // Note that the diagnostics lacks information about the dependent and its
     // configuration. However, handling this situation at all the load()
@@ -519,7 +499,7 @@ namespace bpkg
     //
     if (ddb != pdb && ddb.find<selected_package> (prerequisite) == nullptr)
       fail << "unable to find prerequisite package " << prerequisite
-           << " in associated configuration " << ddb.config_orig;
+           << " in linked configuration " << ddb.config_orig;
 
     return lazy_shared_ptr<selected_package> (ddb, move (prerequisite));
   }
@@ -529,22 +509,22 @@ namespace bpkg
   {
     pair<shared_ptr<selected_package>, database*> r;
 
-    for (database& adb: db.dependency_configs (pn, buildtime))
+    for (database& ldb: db.dependency_configs (pn, buildtime))
     {
-      shared_ptr<selected_package> p (adb.find<selected_package> (pn));
+      shared_ptr<selected_package> p (ldb.find<selected_package> (pn));
 
       if (p != nullptr)
       {
         if (r.first == nullptr)
         {
           r.first = move (p);
-          r.second = &adb;
+          r.second = &ldb;
         }
         else
         {
           fail << "package " << pn << " appears in multiple configurations" <<
             info << r.first->state << " in " << r.second->config_orig <<
-            info << p->state << " in " << adb.config_orig;
+            info << p->state << " in " << ldb.config_orig;
         }
       }
     }

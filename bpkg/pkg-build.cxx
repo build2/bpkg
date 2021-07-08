@@ -20,7 +20,7 @@
 
 #include <bpkg/common-options.hxx>
 
-#include <bpkg/cfg-add.hxx>
+#include <bpkg/cfg-link.hxx>
 #include <bpkg/pkg-purge.hxx>
 #include <bpkg/pkg-fetch.hxx>
 #include <bpkg/rep-fetch.hxx>
@@ -1024,7 +1024,7 @@ namespace bpkg
         // If the prerequisite configuration is explicitly specified by the
         // user, then search for the prerequisite in this specific
         // configuration. Otherwise, search recursively in the explicitly
-        // associated configurations of the dependent configuration.
+        // linked configurations of the dependent configuration.
         //
         // Note that for the repointed dependent we will always find the
         // prerequisite replacement rather than the prerequisite being
@@ -1121,11 +1121,11 @@ namespace bpkg
         // build2 type) to build it in.
         //
         // If the current configuration (ddb) is of the suitable type, then we
-        // use that. Otherwise, we go through its immediate explicit
-        // associations. If only one of them has the suitable type, then we
-        // use that. If there are multiple of them, then we fail advising the
-        // user to pick one explicitly. If there are none, then we create the
-        // private configuration and use that.
+        // use that. Otherwise, we go through its immediate explicit links. If
+        // only one of them has the suitable type, then we use that. If there
+        // are multiple of them, then we fail advising the user to pick one
+        // explicitly. If there are none, then we create the private
+        // configuration and use that.
         //
         // Note that if the user has explicitly specified the configuration
         // for this dependency on the command line (using --config-*), then
@@ -1136,35 +1136,34 @@ namespace bpkg
           database* db (nullptr);
           const string& type (buildtime_dependency_type (dn));
 
-          // Note that the first returned association is for ddb itself.
+          // Note that the first returned link is for ddb itself.
           //
-          for (const associated_config& ac: ddb->explicit_associations ())
+          for (const linked_config& lc: ddb->explicit_links ())
           {
-            database& adb (ac.db);
+            database& ldb (lc.db);
 
-            if (adb.type == type)
+            if (ldb.type == type)
             {
-              // We are done if the self-association is of the suitable type.
+              // We are done if the self-link is of the suitable type.
               //
-              if (ac.id == 0)
+              if (lc.id == 0)
               {
-                db = &adb;
+                db = &ldb;
                 break;
               }
 
               if (db == nullptr)
-                db = &adb;
+                db = &ldb;
               else
                 fail << "multiple possible " << type << " configurations for "
                      << "build-time dependency (" << dp << ")" <<
                   info << db->config_orig <<
-                  info << adb.config_orig <<
+                  info << ldb.config_orig <<
                   info << "use --config-* to select the configuration";
             }
           }
 
-          // If no suitable configuration is found, then create and associate
-          // it.
+          // If no suitable configuration is found, then create and link it.
           //
           if (db == nullptr)
           {
@@ -1176,7 +1175,7 @@ namespace bpkg
 
             dir_path cd (bpkg_dir / dir_path (type));
 
-            // Wipe a potentially existing un-associated private configuration
+            // Wipe a potentially existing un-linked private configuration
             // left from a previous faulty run. Note that trying to reuse it
             // would be a bad idea since it can be half-prepared, with an
             // outdated database schema version, etc.
@@ -1191,21 +1190,21 @@ namespace bpkg
                         true                    /* wipe */);
 
             // Note that we will copy the name from the configuration unless
-            // it clashes with one of the existing associations.
+            // it clashes with one of the existing links.
             //
-            shared_ptr<configuration> ac (cfg_add (*ddb,
-                                                   ddb->config / cd,
-                                                   true    /* relative */,
-                                                   nullopt /* name */,
-                                                   true    /* sys_rep */));
+            shared_ptr<configuration> lc (cfg_link (*ddb,
+                                                    ddb->config / cd,
+                                                    true    /* relative */,
+                                                    nullopt /* name */,
+                                                    true    /* sys_rep */));
 
             // Save the newly-created private configuration, together with the
-            // containing configuration database, for their subsequent
-            // re-association.
+            // containing configuration database, for their subsequent re-
+            // link.
             //
             priv_cfgs.emplace_back (*ddb, move (cd));
 
-            db = &ddb->find_attached (*ac->id);
+            db = &ddb->find_attached (*lc->id);
           }
 
           ddb = db; // Switch to the dependency configuration.
@@ -2250,11 +2249,11 @@ namespace bpkg
       {
         iterator r (end ());
 
-        associated_databases adbs (db.dependency_configs (pn, buildtime));
+        linked_databases ldbs (db.dependency_configs (pn, buildtime));
 
-        for (database& adb: adbs)
+        for (database& ldb: ldbs)
         {
-          iterator i (find (adb, pn));
+          iterator i (find (ldb, pn));
           if (i != end ())
           {
             if (r == end ())
@@ -2263,7 +2262,7 @@ namespace bpkg
               fail << "building package " << pn << " in multiple "
                    << "configurations" <<
                 info << r->first.db.config_orig <<
-                info << adb.config_orig <<
+                info << ldb.config_orig <<
                 info << "use --config-* to select package configuration";
           }
         }
@@ -2429,9 +2428,9 @@ namespace bpkg
     // If the dependency needs to be copied, then only consider it dependents
     // in the current configuration for the version constraints, etc.
     //
-    associated_databases dbs (copy_dep
-                              ? associated_databases ({mdb})
-                              : db.dependent_configs ());
+    linked_databases dbs (copy_dep
+                          ? linked_databases ({mdb})
+                          : db.dependent_configs ());
 
     vector<pair<database&, package_dependent>> pds;
 
@@ -4499,7 +4498,7 @@ namespace bpkg
       // If this is just pkg-build -u|-p, then we are upgrading all held
       // packages.
       //
-      // Should we also upgrade the held packages in the explicitly associated
+      // Should we also upgrade the held packages in the explicitly linked
       // configurations, recursively? Maybe later and we probably will need a
       // command line option to enable this behavior.
       //
@@ -4793,7 +4792,7 @@ namespace bpkg
         // Private configurations that were created during collection of the
         // package builds.
         //
-        // Note that the private configurations are associated to their parent
+        // Note that the private configurations are linked to their parent
         // configurations right after being created, so that the subsequent
         // collecting, ordering, and plan execution simulation logic can use
         // them. However, we can not easily commit these changes at some
@@ -4803,8 +4802,8 @@ namespace bpkg
         //
         // Thus, the plan is to collect configurations where the private
         // configurations were created and, after the transaction is rolled
-        // back, re-associate these configurations and persist the changes
-        // using the new transaction.
+        // back, re-link these configurations and persist the changes using
+        // the new transaction.
         //
         private_configs priv_cfgs;
 
@@ -5228,16 +5227,16 @@ namespace bpkg
               q = q && !query::hold_package;
 
             // It seems right to only evaluate dependencies in the explicitly
-            // associated configurations, recursively. Indeed, we shouldn't be
+            // linked configurations, recursively. Indeed, we shouldn't be
             // up/down-grading or dropping packages in configurations that
             // only contain dependents, some of which we may only reconfigure.
             //
-            for (database& adb: mdb.dependency_configs ())
+            for (database& ldb: mdb.dependency_configs ())
             {
               for (shared_ptr<selected_package> sp:
-                     pointer_result (adb.query<selected_package> (q)))
+                     pointer_result (ldb.query<selected_package> (q)))
               {
-                if (optional<evaluate_result> er = eval_dep (adb, sp, !diag))
+                if (optional<evaluate_result> er = eval_dep (ldb, sp, !diag))
                 {
                   // Skip unused if we were instructed to keep them.
                   //
@@ -5344,9 +5343,9 @@ namespace bpkg
             // Verify all prerequisites, but only collect those corresponding
             // to the runtime dependencies.
             //
-            // Indeed, we don't care if an associated host configuration
-            // contains a configured package that we also have configured in
-            // our target configuration. It's also fine if some of our runtime
+            // Indeed, we don't care if a linked host configuration contains a
+            // configured package that we also have configured in our target
+            // configuration. It's also fine if some of our runtime
             // dependencies from different configurations build-time depend on
             // the same package (of potentially different versions) configured
             // in different host configurations.
@@ -5617,17 +5616,17 @@ namespace bpkg
             }
           }
 
-          // Re-associate the private configurations that were created during
-          // the collection of the package builds with their parent
-          // configurations. Note that these associations were lost on the
-          // previous transaction rollback.
+          // Re-link the private configurations that were created during the
+          // collection of the package builds with their parent
+          // configurations. Note that these links were lost on the previous
+          // transaction rollback.
           //
           for (const pair<database&, dir_path>& pc: priv_cfgs)
-            cfg_add (pc.first,
-                     pc.first.config / pc.second,
-                     true    /* relative */,
-                     nullopt /* name */,
-                     true    /* sys_rep */);
+            cfg_link (pc.first,
+                      pc.first.config / pc.second,
+                      true    /* relative */,
+                      nullopt /* name */,
+                      true    /* sys_rep */);
 
           t.commit ();
         }
@@ -6295,7 +6294,7 @@ namespace bpkg
 
       // Show how we got here if things go wrong, for example selecting a
       // prerequisite is ambiguous due to the dependency package being
-      // configured in multiple associated configurations.
+      // configured in multiple linked configurations.
       //
       auto g (
         make_exception_guard (

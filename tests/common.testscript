@@ -32,8 +32,8 @@ test.options += --default-options $options_guard \
 # (for example, to make sure that configuration post-test state is valid and is
 # as expected).
 #
-cfg_add       = $* cfg-add
 cfg_create    = $* cfg-create
+cfg_link      = $* cfg-link
 pkg_build     = $* pkg-build
 pkg_checkout  = $* pkg-checkout
 pkg_configure = $* pkg-configure

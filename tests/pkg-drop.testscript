@@ -50,7 +50,7 @@
 end
 
 cfg_create += 2>!
-cfg_add    += 2>!
+cfg_link   += 2>!
 pkg_build  += -d cfg --yes 2>!
 pkg_status += -d cfg
 rep_add    += -d cfg 2>!
@@ -464,7 +464,7 @@ $* libfoo/1.0.0 2>>~%EOE% != 0
   $* libfoo 2>'purged libfoo'
 }
 
-: associated-configs
+: linked-configs
 :
 {
   : 3-configs
@@ -475,8 +475,8 @@ $* libfoo/1.0.0 2>>~%EOE% != 0
     +$cfg_create -d cfg-bar &cfg-bar/***
     +$cfg_create -d cfg-foo &cfg-foo/***
 
-    +$cfg_add -d cfg     cfg-bar
-    +$cfg_add -d cfg-bar cfg-foo
+    +$cfg_link -d cfg     cfg-bar
+    +$cfg_link -d cfg-bar cfg-foo
 
     : baz
     :
@@ -520,9 +520,8 @@ $* libfoo/1.0.0 2>>~%EOE% != 0
       $pkg_build libbaz 2>!;
 
       # Make sure that dependents of a package being dropped can be found in
-      # implicitly associated configurations recursively. Note that
-      # configuring libbar as system, we make libbaz an only dependent of
-      # libfoo.
+      # implicitly linked configurations recursively. Note that configuring
+      # libbar as system, we make libbaz an only dependent of libfoo.
       #
       $pkg_build '?sys:libbar' +{ --config-id 1 } 2>!;
 
@@ -569,11 +568,11 @@ $* libfoo/1.0.0 2>>~%EOE% != 0
       cp -pr ../cfg-bar ./;
       cp -pr ../cfg-foo ./;
 
-      # Test that if we turn implicit associations into explicit, then all
-      # dependents are still discovered.
+      # Test that if we turn implicit links into explicit, then all dependents
+      # are still discovered.
       #
-      $cfg_add -d cfg-bar cfg;
-      $cfg_add -d cfg-foo cfg-bar;
+      $cfg_link -d cfg-bar cfg;
+      $cfg_link -d cfg-foo cfg-bar;
 
       $pkg_build libbar@"$rep/t4b" -d cfg-bar ?libfoo +{ --config-id 2 } --trust-yes 2>!;
       $pkg_build libbaz 2>!;
@@ -624,7 +623,7 @@ $* libfoo/1.0.0 2>>~%EOE% != 0
 {
   +$clone_cfg && $rep_add $rep/t7a && $rep_fetch
   +$cfg_create -d cfg2 --type host &cfg2/***
-  +$cfg_add -d cfg cfg2
+  +$cfg_link -d cfg cfg2
 
   : drop-dependent
   :
@@ -724,7 +723,7 @@ $* libfoo/1.0.0 2>>~%EOE% != 0
     mv cfg.tmp cfg;
 
     $* libbar 2>>/EOE != 0;
-      error: unable to find prerequisite package foo in associated configuration cfg2/
+      error: unable to find prerequisite package foo in linked configuration cfg2/
       EOE
 
     $pkg_status -d cfg2 -r 2>'info: no held packages in the configuration'

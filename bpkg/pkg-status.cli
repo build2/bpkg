@@ -35,9 +35,9 @@ namespace bpkg
      spaces. Each line starts with the package name and version (if specified)
      followed by one of the status words listed below. Some of them can be
      optionally followed by '\cb{,}' (no spaces) and a sub-status word. Lines
-     corresponding to dependencies from associated configurations will
-     additionally mention the configuration directory in square brackets
-     after the package name and version.
+     corresponding to dependencies from linked configurations will
+     additionally mention the configuration directory in square brackets after
+     the package name and version.
 
      \dl|
 

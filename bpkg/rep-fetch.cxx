@@ -1477,7 +1477,7 @@ namespace bpkg
     //
     vector<lazy_shared_ptr<repository>> repos;
 
-    // Pre-attach the explicitly associated databases since we call
+    // Pre-attach the explicitly linked databases since we call
     // package_iteration().
     //
     database db (c, trace, true /* pre_attach */);

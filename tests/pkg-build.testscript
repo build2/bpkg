@@ -176,7 +176,7 @@ end
 config_cxx = config.cxx=$quote($recall($cxx.path) $cxx.config.mode, true)
 
 cfg_create    += 2>!
-cfg_add       += 2>!
+cfg_link      += 2>!
 pkg_configure += -d cfg $config_cxx 2>!
 pkg_disfigure += -d cfg
 pkg_drop      += -d cfg --yes 2>!
@@ -438,11 +438,11 @@ test.options += --no-progress
 
   : unknown-dependency-config
   :
-  : As above but with an associated configuration.
+  : As above but with a linked configuration.
   :
   $clone_root_cfg;
   $cfg_create -d cfg2 &cfg2/***;
-  $cfg_add -d cfg cfg2;
+  $cfg_link -d cfg cfg2;
   $* $src/libbar-1.0.0.tar.gz +{ --config-id 1 } 2>>~%EOE% != 0
     %error: unknown dependency libfoo of package libbar \[cfg2.\]%
     %info: while satisfying libbar/1.0.0 \[cfg2.\]%
@@ -555,12 +555,12 @@ test.options += --no-progress
 
     : latest-config
     :
-    : As above but with an associated configuration.
+    : As above but with a linked configuration.
     :
     {
       $clone_cfg;
       $cfg_create -d cfg2 &cfg2/***;
-      $cfg_add -d cfg cfg2;
+      $cfg_link -d cfg cfg2;
 
       $* libbar/1.1.0 +{ --config-id 1 } >>~%EOO%
         %new libfoo/1.1.0\+1 \[cfg2.\] \(required by libbar \[cfg2.\]\)%
@@ -812,11 +812,11 @@ test.options += --no-progress
 
     : unable-satisfy-config
     :
-    : As above but with an associated configuration.
+    : As above but with a linked configuration.
     :
     $clone_cfg;
     $cfg_create -d cfg2 &cfg2/***;
-    $cfg_add -d cfg cfg2;
+    $cfg_link -d cfg cfg2;
     $* libbaz ?libbar +{ --config-id 1 } libfoo/1.0.0 +{ --config-id 1 } 2>>~%EOE% != 0
       error: unable to satisfy constraints on package libfoo
         info: command line depends on (libfoo == 1.0.0)
@@ -908,13 +908,13 @@ test.options += --no-progress
 
     : unable-downgrade-config
     :
-    : As above but with an associated configuration.
+    : As above but with a linked configuration.
     :
     {
       $clone_cfg;
       $cfg_create -d cfg2 &cfg2/***;
       $rep_add -d cfg2 $rep/t4c && $rep_fetch -d cfg2;
-      $cfg_add -d cfg2 cfg;
+      $cfg_link -d cfg2 cfg;
       $pkg_fetch libfoo/1.1.0 && $pkg_unpack libfoo && $pkg_configure libfoo;
       $pkg_fetch libbar/1.1.0 && $pkg_unpack libbar && $pkg_configure libbar;
 
@@ -1274,12 +1274,12 @@ test.options += --no-progress
 
     : forcing-upgrade-held-config
     :
-    : As above but with an associated configuration.
+    : As above but with a linked configuration.
     :
     {
       $clone_cfg;
       $cfg_create -d cfg2 &cfg2/***;
-      $cfg_add -d cfg cfg2;
+      $cfg_link -d cfg cfg2;
 
       $* libfoo/1.0.0 +{ --config-id 1 } 2>>~%EOE%;
         %fetched libfoo/1.0.0 \[cfg2.\]%
@@ -2465,12 +2465,12 @@ test.options += --no-progress
 
       : unsatisfied-config
       :
-      : As above but with an associated configuration.
+      : As above but with a linked configuration.
       :
       {
         $clone_cfg;
         $cfg_create -d cfg2 &cfg2/***;
-        $cfg_add -d cfg cfg2;
+        $cfg_link -d cfg cfg2;
 
         $* libbar/0.0.1 2>!;
 
@@ -3082,12 +3082,12 @@ test.options += --no-progress
 
   : direct-config
   :
-  : As above but with an associated configuration.
+  : As above but with a linked configuration.
   :
   {
     $clone_cfg;
     $cfg_create -d cfg2 &cfg2/***;
-    $cfg_add -d cfg cfg2;
+    $cfg_link -d cfg cfg2;
 
     cp -r $src/libfoo-1.1.0/ libfoo;
     echo "depends: libfoo" >+ libfoo/manifest;
@@ -3657,12 +3657,12 @@ test.options += --no-progress
 
   : no-patch-config
   :
-  : As above but with an associated configuration.
+  : As above but with a linked configuration.
   :
   {
     $clone_root_cfg;
     $cfg_create -d cfg2 &cfg2/***;
-    $cfg_add -d cfg cfg2;
+    $cfg_link -d cfg cfg2;
 
     $* "libfoo@$rep/t1" +{ --config-id 1 } --patch 2>>~%EOE%;
       %.+
@@ -4199,7 +4199,7 @@ else
   }
 }
 
-: associated-configs
+: linked-configs
 :
 {
   : 2-configs
@@ -4217,7 +4217,7 @@ else
       {
         $clone_cfg;
         $* libbaz --config-id 1 2>>/EOE != 0
-          error: no configuration with id 1 is associated with cfg/
+          error: no configuration with id 1 is linked with cfg/
           EOE
       }
 
@@ -4226,7 +4226,7 @@ else
       {
         $clone_cfg;
         $* libbaz --config-name foo 2>>/EOE != 0
-          error: no configuration with name 'foo' is associated with cfg/
+          error: no configuration with name 'foo' is linked with cfg/
           EOE
       }
 
@@ -4235,7 +4235,7 @@ else
       {
         $clone_cfg;
         $* libbaz --config-uuid '18f48b4b-b5d9-4712-b98c-1930df1c4228' 2>>/EOE != 0
-          error: no configuration with uuid 18f48b4b-b5d9-4712-b98c-1930df1c4228 is associated with cfg/
+          error: no configuration with uuid 18f48b4b-b5d9-4712-b98c-1930df1c4228 is linked with cfg/
           EOE
       }
 
@@ -4254,7 +4254,7 @@ else
     {
       $clone_cfg;
       $cfg_create -d cfg-bar-foo &cfg-bar-foo/***;
-      $cfg_add -d cfg cfg-bar-foo;
+      $cfg_link -d cfg cfg-bar-foo;
 
       $* libbaz ?libbar +{ --config-id 1 } ?libfoo +{ --config-id 1 } 2>>~%EOE%;
         %fetched libfoo/1.1.0 \[cfg-bar-foo.\]%
@@ -4312,8 +4312,8 @@ else
       $cfg_create -d cfg-bar &cfg-bar/***;
       $cfg_create -d cfg-foo --config-uuid $uuid &cfg-foo/***;
 
-      $cfg_add -d cfg     cfg-bar;
-      $cfg_add -d cfg-bar cfg-foo;
+      $cfg_link -d cfg     cfg-bar;
+      $cfg_link -d cfg-bar cfg-foo;
 
       $* libbar@"$rep/t4b" -d cfg-bar ?libfoo +{ --config-id 2 } --trust-yes 2>>~%EOE%;
         added pkg:build2.org/pkg-build/t4b
@@ -4390,7 +4390,7 @@ else
     {
       +$clone_cfg
       +$cfg_create -d cfg2 --type host --name cfg2 &cfg2/***
-      +$cfg_add -d cfg cfg2
+      +$cfg_link -d cfg cfg2
 
       : downgrade-dependency
       :
@@ -4432,7 +4432,7 @@ else
         # diagnostics.
         #
         $cfg_create -d cfg3 --type host &cfg3/***;
-        $cfg_add -d cfg cfg3;
+        $cfg_link -d cfg cfg3;
 
         $rep_add $rep/t7b && $rep_fetch;
 
@@ -4505,7 +4505,7 @@ else
         cp -pr ../cfg2 ./;
 
         $cfg_create -d cfg3 --type host &cfg3/***;
-        $cfg_add -d cfg cfg3;
+        $cfg_link -d cfg cfg3;
 
         $* libbar 2>>/~%EOE% != 0;
           error: multiple possible host configurations for build-time dependency (foo ^1.0.0)
@@ -4534,7 +4534,7 @@ else
         cp -pr ../cfg2 ./;
 
         $cfg_create -d cfg3 --type host &cfg3/***;
-        $cfg_add -d cfg2 cfg3;
+        $cfg_link -d cfg2 cfg3;
 
         $rep_add -d cfg2 $rep/t7a && $rep_fetch -d cfg2;
 
@@ -4711,8 +4711,8 @@ else
       $* -d cfg3 --yes libbox 2>!;
 
       $clone_cfg;
-      $cfg_add -d cfg cfg2;
-      $cfg_add -d cfg cfg3;
+      $cfg_link -d cfg cfg2;
+      $cfg_link -d cfg cfg3;
 
       $* libfix --yes 2>>~%EOE% != 0
         error: package libbaz indirectly required by libfix/1.0.0 is configured in multiple configurations
@@ -4734,8 +4734,8 @@ else
       $* -d cfg3 --yes libbox 2>!;
 
       $clone_cfg;
-      $cfg_add -d cfg cfg2;
-      $cfg_add -d cfg cfg3;
+      $cfg_link -d cfg cfg2;
+      $cfg_link -d cfg cfg3;
 
       $* libfix --yes 2>>~%EOE%;
         fetched libfax/1.0.0
@@ -4761,7 +4761,7 @@ else
       $cfg_create -d t1 --name t1 &t1/***;
       $cfg_create -d t2 --name t2 &t2/***;
 
-      $cfg_add -d t1 t2;
+      $cfg_link -d t1 t2;
 
       $rep_add -d t1 $rep/t7a && $rep_fetch -d t1;
 
@@ -4791,7 +4791,7 @@ else
       $cfg_create -d t1 --name t1 &t1/***;
       $cfg_create -d t2 --name t2 &t2/***;
 
-      $cfg_add -d t1 t2;
+      $cfg_link -d t1 t2;
 
       $rep_add -d t1 $rep/t7a && $rep_fetch -d t1;
 
@@ -4814,7 +4814,7 @@ else
       $cfg_create -d t1 --name t1 &t1/***;
       $cfg_create -d t2 --name t2 &t2/***;
 
-      $cfg_add -d t1 t2;
+      $cfg_link -d t1 t2;
 
       $rep_add -d t1 $rep/t7a && $rep_fetch -d t1;
 
@@ -4851,7 +4851,7 @@ else
       $cfg_create -d t1 --name t1 &t1/***;
       $cfg_create -d t2 --name t2 &t2/***;
 
-      $cfg_add -d t1 t2;
+      $cfg_link -d t1 t2;
 
       $rep_add -d t1 $rep/t7a && $rep_fetch -d t1;
 
@@ -4890,10 +4890,10 @@ else
       $cfg_create -d h1 --type host --name h1 &h1/***;
       $cfg_create -d h2 --type host --name h2 &h2/***;
 
-      $cfg_add -d t1 h1;
-      $cfg_add -d t1 h2;
+      $cfg_link -d t1 h1;
+      $cfg_link -d t1 h2;
 
-      $cfg_add -d t2 h1;
+      $cfg_link -d t2 h1;
 
       $rep_add -d t1 $rep/t7a && $rep_fetch -d t1;
       $rep_add -d t2 $rep/t7a && $rep_fetch -d t2;
@@ -4997,7 +4997,7 @@ else
       $cfg_create -d t1 --name t1 &t1/***;
       $cfg_create -d t2 --name t2 &t2/***;
 
-      $cfg_add -d t1 t2;
+      $cfg_link -d t1 t2;
 
       $rep_add -d t1 $rep/t7a && $rep_fetch -d t1;
 
@@ -5041,7 +5041,7 @@ else
       $cfg_create -d t1 --name t1 &t1/***;
       $cfg_create -d t2 --name t2 &t2/***;
 
-      $cfg_add -d t1 t2;
+      $cfg_link -d t1 t2;
 
       $rep_add -d t1 $rep/t7a && $rep_fetch -d t1;
 
@@ -5080,7 +5080,7 @@ else
       $cfg_create -d h1 --type host --name h1 &h1/***;
       $cfg_create -d h2 --type host --name h2 &h2/***;
 
-      $cfg_add -d h1 h2;
+      $cfg_link -d h1 h2;
 
       $rep_add -d h1 $rep/t7a && $rep_fetch -d h1;
 
@@ -5131,7 +5131,7 @@ else
       $cfg_create -d h1 --type host --name h1 &h1/***;
       $cfg_create -d h2 --type host --name h2 &h2/***;
 
-      $cfg_add -d h1 h2;
+      $cfg_link -d h1 h2;
 
       $rep_add -d h1 $rep/t7a && $rep_fetch -d h1;
 
@@ -5213,7 +5213,7 @@ else
       $cfg_create -d h1 --type host --name h1 &h1/***;
       $cfg_create -d h2 --type host --name h2 &h2/***;
 
-      $cfg_add -d h1 h2;
+      $cfg_link -d h1 h2;
 
       $rep_add -d h1 $rep/t7b && $rep_fetch -d h1;
 
@@ -5235,7 +5235,7 @@ else
       $cfg_create -d h1 --type host --name h1 &h1/***;
       $cfg_create -d h2 --type host --name h2 &h2/***;
 
-      $cfg_add -d h1 h2;
+      $cfg_link -d h1 h2;
 
       $rep_add -d h1 $rep/t7a && $rep_fetch -d h1;
 
@@ -5286,7 +5286,7 @@ else
       $cfg_create -d h1 --type host --name h1 &h1/***;
       $cfg_create -d h2 --type host --name h2 &h2/***;
 
-      $cfg_add -d h1 h2;
+      $cfg_link -d h1 h2;
 
       $rep_add -d h2 $rep/t7b && $rep_fetch -d h2;
       $* -d h2 foo --yes 2>!;
@@ -5361,7 +5361,7 @@ else
 
       $cfg_create -d h1 --type host --name h1 &h1/***;
 
-      $cfg_add -d t1 h1 2>!;
+      $cfg_link -d t1 h1 2>!;
 
       $rep_add -d t1 $rep/t7b && $rep_fetch -d t1;
 
@@ -5407,7 +5407,7 @@ else
       $cfg_create -d h1 --type host --name h1 &h1/***;
       $cfg_create -d h2 --type host --name h2 &h2/***;
 
-      $cfg_add -d h1 h2;
+      $cfg_link -d h1 h2;
 
       $rep_add -d h1 $rep/t7a && $rep_fetch -d h1;
 
@@ -5481,7 +5481,7 @@ else
 
       $* -d t2 libbaz --yes 2>!;
 
-      $cfg_add -d t1 t2 2>!;
+      $cfg_link -d t1 t2 2>!;
 
       $rep_add -d t1 $rep/t7b && $rep_fetch -d t1;
 
@@ -5533,7 +5533,7 @@ else
 
       $cfg_create -d t2 --name t2 &t2/***;
 
-      $cfg_add -d t1 t2 2>!;
+      $cfg_link -d t1 t2 2>!;
 
       $rep_add -d t1 $rep/t7b && $rep_fetch -d t1;
 
@@ -5579,9 +5579,9 @@ else
       $cfg_create -d t2 --name t2 &t2/***;
       $cfg_create -d h1 --name h1 --type host &h1/***;
 
-      $cfg_add -d t1 t2 2>!;
-      $cfg_add -d t1 h1 2>!;
-      $cfg_add -d t2 h1 2>!;
+      $cfg_link -d t1 t2 2>!;
+      $cfg_link -d t1 h1 2>!;
+      $cfg_link -d t2 h1 2>!;
 
       $rep_add -d t1 $rep/t7a && $rep_fetch -d t1;
 
@@ -5736,11 +5736,11 @@ else
       $clone_cfg;
 
       $cfg_create -d cfg2 --type build2 --name cfg2 &cfg2/***;
-      $cfg_add -d cfg cfg2;
+      $cfg_link -d cfg cfg2;
 
       $cfg_create -d cfg3 --type host --name cfg3 &cfg3/***;
-      $cfg_add -d cfg  cfg3;
-      $cfg_add -d cfg2 cfg3;
+      $cfg_link -d cfg  cfg3;
+      $cfg_link -d cfg2 cfg3;
 
       $* libbiz <<EOI 2>>~%EOE%;
         y
@@ -5805,11 +5805,11 @@ else
         EOE
 
       $cfg_create -d cfg2 --type build2 --name cfg2 &cfg2/***;
-      $cfg_add -d cfg cfg2;
+      $cfg_link -d cfg cfg2;
 
       $cfg_create -d cfg3 --type host --name cfg3 &cfg3/***;
-      $cfg_add -d cfg  cfg3;
-      $cfg_add -d cfg2 cfg3;
+      $cfg_link -d cfg  cfg3;
+      $cfg_link -d cfg2 cfg3;
 
       $* libbiz ?libbuild2-foo +{ --config-name cfg2 } \
                 ?libbaz +{ --config-name cfg2 } <<EOI 2>>~%EOE%;
@@ -5869,10 +5869,10 @@ else
       $rep_add $rep/t7a && $rep_fetch;
 
       $cfg_create -d cfg2 --name cfg2 &cfg2/***;
-      $cfg_add -d cfg cfg2;
+      $cfg_link -d cfg cfg2;
 
       $cfg_create -d cfg3 --name cfg3 &cfg3/***;
-      $cfg_add -d cfg cfg3;
+      $cfg_link -d cfg cfg3;
 
       $* libbiz +{ --config-name cfg2 } --yes 2>!;
       $* libbuz +{ --config-name cfg3 } --yes 2>!;

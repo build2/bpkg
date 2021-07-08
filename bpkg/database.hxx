@@ -27,23 +27,23 @@ namespace bpkg
   class configuration;
   class database;
 
-  struct associated_config
+  struct linked_config
   {
     uint64_t                    id;
     optional<string>            name;
     reference_wrapper<database> db;   // Needs to be move-assignable.
   };
 
-  // Used for the immediate explicit associations which are normally not many
-  // (one entry for the self-association).
+  // Used for the immediate explicit links which are normally not many (one
+  // entry for the self-link).
   //
-  using associated_configs = small_vector<associated_config, 2>;
+  using linked_configs = small_vector<linked_config, 2>;
 
-  // In particular, is used for implicit associations which can potentially be
-  // many. Think of a dependency in a shared configuration with dependents in
-  // multiple implicitly associated configurations.
+  // In particular, is used for implicit links which can potentially be many.
+  // Think of a dependency in a shared configuration with dependents in
+  // multiple implicitly linked configurations.
   //
-  using associated_databases = small_vector<reference_wrapper<database>, 16>;
+  using linked_databases = small_vector<reference_wrapper<database>, 16>;
 
   // Derive a custom database class that handles attaching/detaching
   // additional configurations.
@@ -55,18 +55,18 @@ namespace bpkg
 
     // Create new main database.
     //
-    // The specified self-association object is persisted and its uuid and
-    // type are cached in the database object.
+    // The specified self-link object is persisted and its uuid and type are
+    // cached in the database object.
     //
-    // If the pre-associate list is not empty, then these configurations are
-    // treated as associated configurations for schema migration purposes. If
+    // If the pre-link list is not empty, then these configurations are
+    // treated as linked configurations for schema migration purposes. If
     // specified, these paths should be absolute and normalized.
     //
     database (const dir_path& cfg,
               const shared_ptr<configuration>& self,
               odb::tracer& tr,
-              const dir_paths& pre_associate = dir_paths ())
-        : database (cfg, self.get (), tr, false, false, pre_associate)
+              const dir_paths& pre_link = dir_paths ())
+        : database (cfg, self.get (), tr, false, false, pre_link)
     {
       assert (self != nullptr);
     }
@@ -75,9 +75,9 @@ namespace bpkg
     //
     // If configured non-system selected packages can potentially be loaded
     // from this database, then pass true as the pre_attach argument to
-    // recursively pre-attach the explicitly associated configuration
-    // databases, so that package prerequisites can be loaded from the
-    // associated configurations as well (see _selected_package_ref::to_ptr()
+    // recursively pre-attach the explicitly linked configuration databases,
+    // so that package prerequisites can be loaded from the linked
+    // configurations as well (see _selected_package_ref::to_ptr()
     // implementation for details). Note that selected packages are loaded by
     // some functions internally (package_iteration(), etc). Such functions
     // are marked with the 'Note: loads selected packages.' note.
@@ -86,8 +86,8 @@ namespace bpkg
               odb::tracer& tr,
               bool pre_attach,
               bool sys_rep = false,
-              const dir_paths& pre_associate = dir_paths ())
-        : database (cfg, nullptr, tr, pre_attach, sys_rep, pre_associate) {}
+              const dir_paths& pre_link = dir_paths ())
+        : database (cfg, nullptr, tr, pre_attach, sys_rep, pre_link) {}
 
     ~database ();
 
@@ -108,7 +108,7 @@ namespace bpkg
     database&
     attach (const dir_path&, bool sys_rep = false);
 
-    // Attach databases of all the explicitly associated configurations,
+    // Attach databases of all the explicitly linked configurations,
     // recursively. Must be called inside the transaction.
     //
     void
@@ -131,92 +131,91 @@ namespace bpkg
     bool
     main ();
 
-    // Return the explicit associations and the self-association (comes first)
-    // if the main database has been created with the pre_attach flag set to
-    // true and an empty list otherwise.
+    // Return the explicit links and the self-link (comes first) if the main
+    // database has been created with the pre_attach flag set to true and an
+    // empty list otherwise.
     //
-    associated_configs&
-    explicit_associations ()
+    linked_configs&
+    explicit_links ()
     {
-      return explicit_associations_;
+      return explicit_links_;
     }
 
-    // By default attach and cache the implicitly associated configuration
-    // databases on the first call and return them along with the self-
-    // association (comes first), silently skipping the dangling
-    // associations. If attach is false, then return an empty list if
-    // associations were not yet cached by this function's previous call.
+    // By default attach and cache the implicitly linked configuration
+    // databases on the first call and return them along with the self-link
+    // (comes first), silently skipping the dangling links. If attach is
+    // false, then return an empty list if links were not yet cached by this
+    // function's previous call.
     //
-    // Note that we skip dangling associations without any warning since they
-    // can be quite common. Think of a shared host configuration with a bunch
-    // of implicitly associated configurations, which are removed and
-    // potentially recreated later during the host configuration lifetime.
-    // Note however, that we remove the dangling implicit associations during
-    // migration (see migrate() on details).
+    // Note that we skip dangling links without any warning since they can be
+    // quite common. Think of a shared host configuration with a bunch of
+    // implicitly linked configurations, which are removed and potentially
+    // recreated later during the host configuration lifetime. Note however,
+    // that we remove the dangling implicit links during migration (see
+    // migrate() on details).
     //
-    // Also note that for implicitly associated configurations the association
+    // Also note that for implicitly linked configurations the link
     // information (id, etc) is useless, thus we only return the databases
-    // rather than the association information.
+    // rather than the link information.
     //
-    associated_databases&
-    implicit_associations (bool attach = true, bool sys_rep = false);
+    linked_databases&
+    implicit_links (bool attach = true, bool sys_rep = false);
 
     // Return configurations of potential dependencies of packages selected in
     // the current configuration.
     //
-    // Specifically, return the self-association (comes first if included) and
-    // explicitly associated databases recursively, including them into the
+    // Specifically, return the self-link (comes first if included) and
+    // explicitly linked databases recursively, including them into the
     // resulting list according to the following rules:
     //
     // - If dependency name and type are not specified, then return
     //   configurations of all dependencies (runtime and build-time). In this
-    //   case include configurations of the associating configuration type and
-    //   the host and build2 types and do not descended into associations of
-    //   different types.
+    //   case include configurations of the linking configuration type and the
+    //   host and build2 types and do not descended into links of different
+    //   types.
     //
-    //   So, for example, for the following (not very sensible) association
-    //   chain only the cfg1 and cfg2 configurations are included. The cfg3
-    //   type is not host and differs from type of cfg2 which associates it
-    //   and thus it is not included.
+    //   So, for example, for the following (not very sensible) link chain
+    //   only the cfg1 and cfg2 configurations are included. The cfg3 type is
+    //   not host and differs from type of cfg2 which links it and thus it is
+    //   not included.
     //
     //   cfg1 (this, target) -> cfg2 (host) -> cfg3 (target)
     //
     // - If buildtime is false, then return configurations of only runtime
     //   dependencies, regardless of the dependency name. In this case include
-    //   configurations of only the associating configuration type and do not
-    //   descend into associations of different types.
+    //   configurations of only the linking configuration type and do not
+    //   descend into links of different types.
     //
-    //   So for the above association chain only cfg1 configuration is
-    //   included.
+    //   So for the above link chain only cfg1 configuration is included.
     //
     // - If buildtime is true, then return configurations of only build-time
     //   dependencies, suitable for building the specified dependency. In this
     //   case include configurations of only the build2 type for a build2
     //   module (named as libbuild2-*) and of the host type otherwise. Only
-    //   descend into associations of the same type and the appropriate
-    //   dependency type (host or build2, depending on the dependency name).
+    //   descend into links of the same type and the appropriate dependency
+    //   type (host or build2, depending on the dependency name).
     //
-    //   So for the above association chain only cfg2 configuration is
-    //   included for a build-time dependency foo and none for libbuild2-foo.
+    //   So for the above link chain only cfg2 configuration is included for a
+    //   build-time dependency foo and none for libbuild2-foo.
     //
-    associated_databases
+    linked_databases
     dependency_configs ();
 
-    associated_databases
+    linked_databases
     dependency_configs (const package_name& dependency_name, bool buildtime);
 
     // Return configurations of potential dependents of packages selected in
     // the current configuration.
     //
-    // Specifically, return the implicitly associated configuration databases
-    // recursively, including the self-association (comes first). Only include
-    // an associated configuration into the resulting list if it is of the
-    // same type as the associating configuration or the associating
-    // configuration is of the host or build2 type (think of searching through
-    // the target configurations for dependents of a build-time dependency in
-    // host configuration).
+    // Specifically, return the implicitly linked configuration databases
+    // recursively, including the self-link (comes first). Only include a
+    // linked configuration into the resulting list if it is of the same type
+    // as the linking configuration or the linking configuration is of the
+    // host or build2 type (think of searching through the target
+    // configurations for dependents of a build-time dependency in host
+    // configuration).
     //
-    associated_databases
+    linked_databases
     dependent_configs (bool sys_rep = false);
 
     // The following find_*() functions assume that the main database has been
@@ -224,17 +223,16 @@ namespace bpkg
     //
 
     // Return the self reference if the id is 0. Otherwise, return the
-    // database of an explicitly associated configuration with the specified
-    // association id and issue diagnostics and fail if no association is
-    // found.
+    // database of an explicitly linked configuration with the specified link
+    // id and issue diagnostics and fail if no link is found.
     //
     database&
     find_attached (uint64_t id);
 
     // Return the self reference if this is the current configuration
-    // name. Otherwise, return the database of an explicitly associated
+    // name. Otherwise, return the database of an explicitly linked
     // configuration with the specified name and issue diagnostics and fail if
-    // no association is found.
+    // no link is found.
     //
     database&
     find_attached (const std::string& name);
@@ -254,14 +252,13 @@ namespace bpkg
     std::string
     string ();
 
-    // Verify that the association information (uuid, type, etc) matches the
-    // associated configuration. Issue diagnostics and fail if that's not the
-    // case.
+    // Verify that the link information (uuid, type, etc) matches the linked
+    // configuration. Issue diagnostics and fail if that's not the case.
     //
     void
-    verify_association (const configuration&, database&);
+    verify_link (const configuration&, database&);
 
-    // Set the specified tracer for the whole associated databases cluster.
+    // Set the specified tracer for the whole linked databases cluster.
     //
     using tracer_type = odb::tracer;
 
@@ -287,7 +284,7 @@ namespace bpkg
 
     // For the main database, this is the original configuration directory
     // path as specified by the user on the command line and `./` if
-    // unspecified. For other (associated) databases, it is the absolute
+    // unspecified. For other (linked) databases, it is the absolute
     // configuration path if the main database's original configuration path
     // is absolute and the path relative to the current directory otherwise.
     // This is used in diagnostics.
@@ -309,7 +306,7 @@ namespace bpkg
               odb::tracer&,
               bool pre_attach,
               bool sys_rep,
-              const dir_paths& pre_associate);
+              const dir_paths& pre_link);
 
     // Create attached database.
     //
@@ -318,16 +315,15 @@ namespace bpkg
               std::string schema,
               bool sys_rep);
 
-    // If necessary, migrate this database and all the associated (both
-    // explicitly and implicitly) databases, recursively. Leave the associated
-    // databases attached. Must be called inside the transaction.
+    // If necessary, migrate this database and all the linked (both explicitly
+    // and implicitly) databases, recursively. Leave the linked databases
+    // attached. Must be called inside the transaction.
     //
-    // Note that since the whole associated databases cluster is migrated at
-    // once, it is assumed that if migration is unnecessary for this database
-    // then it is also unnecessary for its associated databases. By this
-    // reason, we also drop the dangling implicit associations rather than
-    // skip them, as we do for normal operations (see implicit_associations ()
-    // for details).
+    // Note that since the whole linked databases cluster is migrated at once,
+    // it is assumed that if migration is unnecessary for this database then
+    // it is also unnecessary for its linked databases. By this reason, we
+    // also drop the dangling implicit links rather than skip them, as we do
+    // for normal operations (see implicit_links () for details).
     //
     void
     migrate ();
@@ -354,13 +350,13 @@ namespace bpkg
 
     // Common implementation for the public overloads.
     //
-    associated_databases
+    linked_databases
     dependency_configs (optional<bool> buildtime, const std::string& type);
 
     impl* impl_;
 
-    associated_configs   explicit_associations_;
-    associated_databases implicit_associations_;
+    linked_configs   explicit_links_;
+    linked_databases implicit_links_;
   };
 
   // NOTE: remember to update config_package comparison operators and
@@ -402,6 +398,14 @@ namespace bpkg
 
     return os;
   }
+
+  // Verify that a string is a valid configuration name, that is non-empty,
+  // containing only alpha-numeric characters, '_', '-' (except for the first
+  // character which can only be alphabetic or '_'). Issue diagnostics and
+  // fail if that's not the case.
+  //
+  void
+  validate_configuration_name (const string&, const char* what);
 
   // The build-time dependency configuration types.
   //

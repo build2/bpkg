@@ -22,9 +22,9 @@ namespace bpkg
 
   // The custom search function. If specified, it is called by pkg_configure()
   // and pkg_configure_prerequisites() to obtain the database to search for
-  // the prerequisite in, instead of searching for it in the associated
-  // databases, recursively. If the function returns NULL, then fallback to
-  // the recursive search through the associated databases.
+  // the prerequisite in, instead of searching for it in the linked databases,
+  // recursively. If the function returns NULL, then fallback to the recursive
+  // search through the linked databases.
   //
   using find_database_function = database* (database&,
                                             const package_name&,

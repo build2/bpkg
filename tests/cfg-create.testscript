@@ -183,7 +183,7 @@ EOE
     EOE
 }
 
-: associate-host-config
+: link-config
 :
 {
   test.arguments += -d cfg

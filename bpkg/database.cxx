@@ -31,6 +31,28 @@ namespace bpkg
     return build2_module (nm) ? build2_config_type : host_config_type;
   }
 
+  // Configuration names.
+  //
+  void
+  validate_configuration_name (const string& s, const char* what)
+  {
+    if (s.empty ())
+      fail << "empty " << what;
+
+    if (!(alpha (s[0]) || s[0] == '_'))
+      fail << "invalid " << what << " '" << s << "': illegal first character "
+           << "(must be alphabetic or underscore)";
+
+    for (auto i (s.cbegin () + 1), e (s.cend ()); i != e; ++i)
+    {
+      char c (*i);
+
+      if (!(alnum (c) || c == '_' || c == '-'))
+        fail << "invalid " << what << " '" << s << "': illegal character "
+             << "(must be alphabetic, digit, underscore, or dash)";
+    }
+  }
+
   // Register the data migration functions.
   //
   // NOTE: remember to qualify table names with \"main\". if using native
@@ -55,14 +77,14 @@ namespace bpkg
   static const migration_entry<9>
   migrate_v9 ([] (odb::database& db)
   {
-    // Add the unnamed self-association of the target type.
+    // Add the unnamed self-link of the target type.
     //
-    shared_ptr<configuration> sc (
+    shared_ptr<configuration> sl (
       make_shared<configuration> (optional<string> (), "target"));
 
-    db.persist (sc);
+    db.persist (sl);
     db.execute ("UPDATE selected_package_prerequisites SET configuration = '" +
-                sc->uuid.string () + "'");
+                sl->uuid.string () + "'");
   });
 
   static inline path
@@ -101,7 +123,7 @@ namespace bpkg
             odb::tracer& tr,
             bool pre_attach,
             bool sys_rep,
-            const dir_paths& pre_assoc)
+            const dir_paths& pre_link)
       : sqlite::database (
           cfg_path (d, create != nullptr).string (),
           SQLITE_OPEN_READWRITE | (create != nullptr ? SQLITE_OPEN_CREATE : 0),
@@ -145,7 +167,7 @@ namespace bpkg
 
         if (create != nullptr)
         {
-          // Create the new schema and persist the self-association.
+          // Create the new schema and persist the self-link.
           //
           if (schema_version () != 0)
             fail << sqlite::database::name () << ": already has database "
@@ -153,7 +175,7 @@ namespace bpkg
 
           schema_catalog::create_schema (*this);
 
-          persist (*create); // Also assigns association id.
+          persist (*create); // Also assigns link id.
 
           // Cache the configuration information.
           //
@@ -161,7 +183,7 @@ namespace bpkg
         }
         else
         {
-          // Migrate the associated databases cluster.
+          // Migrate the linked databases cluster.
           //
           migrate ();
 
@@ -176,16 +198,16 @@ namespace bpkg
             load_system_repository ();
         }
 
-        // Migrate the pre-associated databases and the database clusters they
+        // Migrate the pre-linked databases and the database clusters they
         // belong to.
         //
-        for (const dir_path& d: pre_assoc)
+        for (const dir_path& d: pre_link)
           attach (d).migrate ();
 
         t.commit ();
       }
 
-      // Detach potentially attached during migration the (pre-)associated
+      // Detach potentially attached during migration the (pre-)linked
       // databases.
       //
       detach_all ();
@@ -269,7 +291,7 @@ namespace bpkg
 
     add_env ();
 
-    // Set the tracer used by the associated configurations cluster.
+    // Set the tracer used by the linked configurations cluster.
     //
     sqlite::database::tracer (mdb.tracer ());
   }
@@ -295,8 +317,8 @@ namespace bpkg
         config_orig (move (db.config_orig)),
         system_repository (move (db.system_repository)),
         impl_ (db.impl_),
-        explicit_associations_ (move (db.explicit_associations_)),
-        implicit_associations_ (move (db.implicit_associations_))
+        explicit_links_ (move (db.explicit_links_)),
+        implicit_links_ (move (db.implicit_links_))
   {
     db.impl_ = nullptr; // See ~database().
   }
@@ -344,8 +366,8 @@ namespace bpkg
       if (sv > scv)
         fail << "configuration " << config_orig << " is too new";
 
-      // Note that we need to migrate the current database before the
-      // associated ones to properly handle association cycles.
+      // Note that we need to migrate the current database before the linked
+      // ones to properly handle link cycles.
       //
       schema_catalog::migrate (*this);
 
@@ -353,11 +375,11 @@ namespace bpkg
       {
         dir_path d (c.effective_path (config));
 
-        // Remove the dangling implicit association.
+        // Remove the dangling implicit link.
         //
         if (!c.expl && !exists (d))
         {
-          warn << "implicit association " << c.path << " of configuration "
+          warn << "implicit link " << c.path << " of configuration "
                << config_orig << " no longer exists, removing";
 
           erase (c);
@@ -470,8 +492,8 @@ namespace bpkg
   {
     assert (main ());
 
-    explicit_associations_.clear ();
-    implicit_associations_.clear ();
+    explicit_links_.clear ();
+    implicit_links_.clear ();
 
     for (auto i (impl_->attached_map.begin ());
          i != impl_->attached_map.end (); )
@@ -486,26 +508,26 @@ namespace bpkg
   }
 
   void database::
-  verify_association (const configuration& ac, database& adb)
+  verify_link (const configuration& lc, database& ldb)
   {
-    const dir_path& c (adb.config_orig);
+    const dir_path& c (ldb.config_orig);
 
-    if (ac.uuid != adb.uuid)
+    if (lc.uuid != ldb.uuid)
       fail << "configuration " << c << " uuid mismatch" <<
-        info << "uuid " << adb.uuid <<
-        info << (!ac.expl ? "implicitly " : "") << "associated with "
-             << config_orig << " as " << ac.uuid;
+        info << "uuid " << ldb.uuid <<
+        info << (!lc.expl ? "implicitly " : "") << "linked with "
+           << config_orig << " as " << lc.uuid;
 
-    if (ac.type != adb.type)
+    if (lc.type != ldb.type)
       fail << "configuration " << c << " type mismatch" <<
-        info << "type " << adb.type <<
-        info << (!ac.expl ? "implicitly " : "") << "associated with "
-             << config_orig << " as " << ac.type;
+        info << "type " << ldb.type <<
+        info << (!lc.expl ? "implicitly " : "") << "linked with "
+           << config_orig << " as " << lc.type;
 
-    if (ac.effective_path (config) != adb.config)
+    if (lc.effective_path (config) != ldb.config)
       fail << "configuration " << c << " path mismatch" <<
-        info << (!ac.expl ? "implicitly " : "") << "associated with "
-           << config_orig << " as " << ac.path;
+        info << (!lc.expl ? "implicitly " : "") << "linked with "
+           << config_orig << " as " << lc.path;
   }
 
   void database::
@@ -513,108 +535,105 @@ namespace bpkg
   {
     assert (transaction::has_current ());
 
-    if (explicit_associations_.empty ())
+    if (explicit_links_.empty ())
     {
-      // Note that the self-association is implicit.
+      // Note that the self-link is implicit.
       //
-      explicit_associations_.push_back (associated_config {0, name, *this});
+      explicit_links_.push_back (linked_config {0, name, *this});
 
-      for (auto& ac: query<configuration> (odb::query<configuration>::expl))
+      for (auto& lc: query<configuration> (odb::query<configuration>::expl))
       {
-        database& db (attach (ac.effective_path (config), sys_rep));
-        verify_association (ac, db);
+        database& db (attach (lc.effective_path (config), sys_rep));
+        verify_link (lc, db);
 
-        explicit_associations_.push_back (associated_config {*ac.id,
-                                                             move (ac.name),
-                                                             db});
+        explicit_links_.push_back (linked_config {*lc.id, move (lc.name), db});
         db.attach_explicit (sys_rep);
       }
     }
   }
 
-  associated_databases& database::
-  implicit_associations (bool ath, bool sys_rep)
+  linked_databases& database::
+  implicit_links (bool attach_, bool sys_rep)
   {
     assert (transaction::has_current ());
 
-    // Note that cached implicit associations must at least contain the self-
-    // association, if the databases are already attached and cached.
+    // Note that cached implicit links must at least contain the self-link,
+    // if the databases are already attached and cached.
     //
-    if (implicit_associations_.empty () && ath)
+    if (implicit_links_.empty () && attach_)
     {
-      implicit_associations_.push_back (*this);
+      implicit_links_.push_back (*this);
 
       using q = odb::query<configuration>;
 
-      for (const auto& ac: query<configuration> (q::id != 0))
+      for (const auto& lc: query<configuration> (q::id != 0))
       {
-        dir_path d (ac.effective_path (config));
+        dir_path d (lc.effective_path (config));
 
-        // Skip the dangling implicit association.
+        // Skip the dangling implicit link.
         //
-        if (!ac.expl && !exists (d))
+        if (!lc.expl && !exists (d))
           continue;
 
         database& db (attach (d, sys_rep));
 
-        // Verify the association integrity.
+        // Verify the link integrity.
         //
-        verify_association (ac, db);
+        verify_link (lc, db);
 
-        // If the association is explicit, also check if it is also implicit
-        // (see cfg_add() for details) and skip if it is not.
+        // If the link is explicit, also check if it is also implicit (see
+        // cfg_link() for details) and skip if it is not.
         //
-        if (ac.expl)
+        if (lc.expl)
         {
           shared_ptr<configuration> cf (
             db.query_one<configuration> (q::uuid == uuid.string ()));
 
           if (cf == nullptr)
-            fail << "configuration " << db.config_orig << " is associated "
-                 << "with " << config_orig << " but latter is not "
-                 << "implicitly associated with former";
+            fail << "configuration " << db.config_orig << " is linked with "
+                 << config_orig << " but latter is not implicitly linked "
+                 << "with former";
 
-          // While at it, verify the integrity of the other end of the
-          // association.
+          // While at it, verify the integrity of the other end of the link.
           //
-          db.verify_association (*cf, *this);
+          db.verify_link (*cf, *this);
 
           if (!cf->expl)
             continue;
         }
 
-        // If the explicitly associated databases are pre-attached, normally
-        // to make the selected packages loadable, then we also pre-attach
-        // explicit associations of the database being attached implicitly, by
-        // the same reason. Indeed, think of loading the package dependent
-        // from the implicitly associated database as a selected package.
+        // If the explicitly linked databases are pre-attached, normally to
+        // make the selected packages loadable, then we also pre-attach
+        // explicit links of the database being attached implicitly, by the
+        // same reason. Indeed, think of loading the package dependent from
+        // the implicitly linked database as a selected package.
         //
-        if (!explicit_associations_.empty ())
+        if (!explicit_links_.empty ())
           db.attach_explicit (sys_rep);
 
-        implicit_associations_.push_back (db);
+        implicit_links_.push_back (db);
       }
     }
 
-    return implicit_associations_;
+    return implicit_links_;
   }
 
-  associated_databases database::
+  linked_databases database::
   dependent_configs (bool sys_rep)
   {
-    associated_databases r;
+    linked_databases r;
 
     // Note that if this configuration is of a build-time dependency type
     // (host or build2) we need to be carefull during recursion and do not
     // cross the build-time dependency type boundary. So for example, for the
-    // following implicit associations only cfg1, cfg2, and cfg3
-    // configurations are included.
+    // following implicit links only cfg1, cfg2, and cfg3 configurations are
+    // included.
     //
     // cfg1 (this, host) -> cfg2 (host) -> cfg3 (build2) -> cfg4 (target)
     //
-    // Add the associated database to the resulting list if it is of the
-    // associating database type (t) or this type (t) is of the expected
-    // build-time dependency type (bt).
+    // Add the linked database to the resulting list if it is of the linking
+    // database type (t) or this type (t) is of the expected build-time
+    // dependency type (bt).
     //
     auto add = [&r, sys_rep] (database& db,
                               const std::string& t,
@@ -627,12 +646,12 @@ namespace bpkg
 
       r.push_back (db);
 
-      const associated_databases& ads (
-        db.implicit_associations (true /* attach */, sys_rep));
+      const linked_databases& lds (db.implicit_links (true /* attach */,
+                                                      sys_rep));
 
-      // Skip the self-association.
+      // Skip the self-link.
       //
-      for (auto i (ads.begin () + 1); i != ads.end (); ++i)
+      for (auto i (lds.begin () + 1); i != lds.end (); ++i)
         add (*i, db.type, db.type == bt ? bt : empty_string, add);
     };
 
@@ -646,7 +665,7 @@ namespace bpkg
     return r;
   }
 
-  associated_databases database::
+  linked_databases database::
   dependency_configs (optional<bool> buildtime, const std::string& tp)
   {
     // The type only makes sense if build-time dependency configurations are
@@ -659,7 +678,7 @@ namespace bpkg
     else
       assert (tp.empty ());
 
-    associated_databases r;
+    linked_databases r;
 
     // Allow dependency configurations of the dependent configuration own type
     // if all or runtime dependency configurations are requested.
@@ -667,7 +686,7 @@ namespace bpkg
     bool allow_own_type  (!buildtime || !*buildtime);
 
     // Allow dependency configurations of the host type if all or regular
-    // builtime dependency configurations are requested.
+    // build-time dependency configurations are requested.
     //
     bool allow_host_type (!buildtime ||
                           (*buildtime && tp == host_config_type));
@@ -678,18 +697,18 @@ namespace bpkg
     bool allow_build2_type (!buildtime ||
                             (*buildtime && tp == build2_config_type));
 
-    // Add the associated database to the resulting list if it is of the
-    // associating database type and allow_own_type is true, or it is of the
-    // host type and allow_host_type is true, or it is of the build2 type and
+    // Add the linked database to the resulting list if it is of the linking
+    // database type and allow_own_type is true, or it is of the host type and
+    // allow_host_type is true, or it is of the build2 type and
     // allow_build2_type is true. Call itself recursively for the explicitly
-    // associated configurations.
+    // linked configurations.
     //
-    // Note that the associated database of the associating database type is
-    // not added if allow_own_type is false, however its own associated
-    // databases of the host/build2 type are added, if allow_host_type/
-    // allow_build2_type is true.
+    // Note that the linked database of the linking database type is not added
+    // if allow_own_type is false, however its own linked databases of the
+    // host/build2 type are added, if allow_host_type/ allow_build2_type is
+    // true.
     //
-    associated_databases descended; // Note: we may not add but still descend.
+    linked_databases descended; // Note: we may not add but still descend.
     auto add = [&r,
                 allow_own_type,
                 allow_host_type,
@@ -709,19 +728,23 @@ namespace bpkg
       bool host   (db.type == host_config_type);
       bool build2 (db.type == build2_config_type);
 
+      // Bail out if we are not allowed to descend.
+      //
       if (!own && !(allow_host_type && host) && !(allow_build2_type && build2))
         return;
 
+      // Add the database to the list, if allowed, and descend afterwards.
+      //
       if ((allow_own_type    && own)  ||
           (allow_host_type   && host) ||
           (allow_build2_type && build2))
         r.push_back (db);
 
-      const associated_configs& acs (db.explicit_associations ());
+      const linked_configs& lcs (db.explicit_links ());
 
-      // Skip the self-association.
+      // Skip the self-link.
       //
-      for (auto i (acs.begin () + 1); i != acs.end (); ++i)
+      for (auto i (lcs.begin () + 1); i != lcs.end (); ++i)
         add (i->db, db.type, add);
     };
 
@@ -729,7 +752,7 @@ namespace bpkg
     return r;
   }
 
-  associated_databases database::
+  linked_databases database::
   dependency_configs (const package_name& n, bool buildtime)
   {
     return dependency_configs (buildtime,
@@ -738,7 +761,7 @@ namespace bpkg
                                 : empty_string));
   }
 
-  associated_databases database::
+  linked_databases database::
   dependency_configs ()
   {
     return dependency_configs (nullopt      /* buildtime */,
@@ -748,20 +771,19 @@ namespace bpkg
   database& database::
   find_attached (uint64_t id)
   {
-    assert (!explicit_associations_.empty ());
+    assert (!explicit_links_.empty ());
 
     // Note that there shouldn't be too many databases, so the linear search
     // is OK.
     //
-    auto r (find_if (explicit_associations_.begin (),
-                     explicit_associations_.end (),
-                     [&id] (const associated_config& ac)
+    auto r (find_if (explicit_links_.begin (), explicit_links_.end (),
+                     [&id] (const linked_config& lc)
                      {
-                       return ac.id == id;
+                       return lc.id == id;
                      }));
 
-    if (r == explicit_associations_.end ())
-      fail << "no configuration with id " << id << " is associated with "
+    if (r == explicit_links_.end ())
+      fail << "no configuration with id " << id << " is linked with "
            << config_orig;
 
     return r->db;
@@ -770,18 +792,17 @@ namespace bpkg
   database& database::
   find_attached (const std::string& name)
   {
-    assert (!explicit_associations_.empty ());
+    assert (!explicit_links_.empty ());
 
-    auto r (find_if (explicit_associations_.begin (),
-                     explicit_associations_.end (),
-                     [&name] (const associated_config& ac)
+    auto r (find_if (explicit_links_.begin (), explicit_links_.end (),
+                     [&name] (const linked_config& lc)
                      {
-                       return ac.name && *ac.name == name;
+                       return lc.name && *lc.name == name;
                      }));
 
-    if (r == explicit_associations_.end ())
-      fail << "no configuration with name '" << name << "' is associated "
-           << "with " << config_orig;
+    if (r == explicit_links_.end ())
+      fail << "no configuration with name '" << name << "' is linked with "
+           << config_orig;
 
     return r->db;
   }
@@ -789,13 +810,13 @@ namespace bpkg
   database& database::
   find_dependency_config (const uuid_type& uid)
   {
-    for (database& adb: dependency_configs ())
+    for (database& ldb: dependency_configs ())
     {
-      if (uid == adb.uuid)
-        return adb;
+      if (uid == ldb.uuid)
+        return ldb;
     }
 
-    fail << "no configuration with uuid " << uid << " is associated with "
+    fail << "no configuration with uuid " << uid << " is linked with "
          << config_orig << endf;
   }
 

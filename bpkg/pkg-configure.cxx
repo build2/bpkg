@@ -157,8 +157,8 @@ namespace bpkg
 
     if (!simulate)
     {
-      // Add the config.import.* variables for prerequisites from the
-      // associated configurations.
+      // Add the config.import.* variables for prerequisites from the linked
+      // configurations.
       //
       strings imports;
 

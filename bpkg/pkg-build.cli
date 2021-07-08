@@ -157,10 +157,10 @@ namespace bpkg
                                #         also hold version 2.0.0
      \
 
-     A package can be built in one of the associated configurations instead of
-     the current (or host/build system module, for build-time dependencies)
+     A package can be built in one of the linked configurations instead of the
+     current (or host/build system module, for build-time dependencies)
      configuration by specifying one of the \cb{--config-*} options (see
-     \l{bpkg-cfg-create(1)} for background on associated configurations). For
+     \l{bpkg-cfg-create(1)} for background on linked configurations). For
      example:
 
      \
@@ -258,22 +258,22 @@ namespace bpkg
     string --config-name
     {
       "<id>",
-       "Name of the associated configuration to build this package(s) in.
-        By default, the package is built in the current configuration."
+       "Name of the linked configuration to build this package(s) in. By
+        default, the package is built in the current configuration."
     }
 
     uint64_t --config-id
     {
       "<id>",
-      "Numeric id of the associated configuration to build this package(s)
-       in. By default, the package is built in the current configuration."
+      "Numeric id of the linked configuration to build this package(s) in. By
+       default, the package is built in the current configuration."
     }
 
     uuid --config-uuid
     {
       "<uuid>",
-      "UUID of the associated configuration to build this package(s) in.
-       By default, the package is built in the current configuration."
+      "UUID of the linked configuration to build this package(s) in. By
+       default, the package is built in the current configuration."
     }
   };
 

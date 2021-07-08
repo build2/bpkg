@@ -8,7 +8,7 @@
 #include <bpkg/database.hxx>
 #include <bpkg/diagnostics.hxx>
 
-#include <bpkg/cfg-add.hxx>
+#include <bpkg/cfg-link.hxx>
 
 using namespace std;
 
@@ -175,15 +175,15 @@ namespace bpkg
                                                              move (type),
                                                              uid));
 
-    dir_paths pre_assoc;
+    dir_paths pre_link;
 
     if (hc)
-      pre_assoc.push_back (*hc);
+      pre_link.push_back (*hc);
 
     if (bc)
-      pre_assoc.push_back (*bc);
+      pre_link.push_back (*bc);
 
-    database db (c, r, trace, pre_assoc);
+    database db (c, r, trace, pre_link);
     transaction t (db);
 
     // Add the special, root repository object with empty location and
@@ -210,10 +210,10 @@ namespace bpkg
     db.persist (rep);
 
     if (hc)
-      cfg_add (db, *hc, host_config->relative (), nullopt /* name */);
+      cfg_link (db, *hc, host_config->relative (), nullopt /* name */);
 
     if (bc)
-      cfg_add (db, *bc, build2_config->relative (), nullopt /* name */);
+      cfg_link (db, *bc, build2_config->relative (), nullopt /* name */);
 
     t.commit ();
 

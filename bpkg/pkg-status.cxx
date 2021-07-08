@@ -295,14 +295,14 @@ namespace bpkg
           // dependency configurations.
           //
           bool found (false);
-          for (database& adb: db.dependency_configs ())
+          for (database& ldb: db.dependency_configs ())
           {
             shared_ptr<selected_package> sp (
-              adb.query_one<selected_package> (q));
+              ldb.query_one<selected_package> (q));
 
             if (sp != nullptr)
             {
-              pkgs.push_back (package {adb,
+              pkgs.push_back (package {ldb,
                                        pn,
                                        pv,
                                        move (sp),
@@ -326,13 +326,13 @@ namespace bpkg
         // Find all held packages in this and all the dependency
         // configurations.
         //
-        for (database& adb: db.dependency_configs ())
+        for (database& ldb: db.dependency_configs ())
         {
           for (shared_ptr<selected_package> s:
                  pointer_result (
-                   adb.query<selected_package> (query::hold_package)))
+                   ldb.query<selected_package> (query::hold_package)))
           {
-            pkgs.push_back (package {adb,
+            pkgs.push_back (package {ldb,
                                      s->name,
                                      version (),
                                      move (s),
