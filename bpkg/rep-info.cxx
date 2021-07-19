@@ -328,7 +328,6 @@ namespace bpkg
           }
           else
             serialize (cout, "stdout");
-
         }
         else
         {

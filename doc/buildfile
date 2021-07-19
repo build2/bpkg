@@ -3,6 +3,7 @@
 
 cmds =             \
 bpkg-cfg-create    \
+bpkg-cfg-info      \
 bpkg-cfg-link      \
 bpkg-help          \
 bpkg-pkg-build     \
