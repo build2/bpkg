@@ -172,6 +172,11 @@ namespace bpkg
       "\l{bpkg-cfg-create(1)} \- create configuration"
     }
 
+    bool cfg-info
+    {
+      "\l{bpkg-cfg-info(1)} \- print configuration information"
+    }
+
     bool cfg-link
     {
       "\l{bpkg-cfg-link(1)} \- link configuration"

@@ -7,9 +7,7 @@ config_cxx = config.cxx=$quote($recall($cxx.path) $cxx.config.mode, true)
 
 cfg_create += 2>!
 
-# @@ To verify the creation result use cfg-list command rather than
-#    pkg-status, when implemented.
-#
+cfg_info   += -d cfg
 pkg_status += -d cfg
 
 : non-empty
@@ -34,6 +32,13 @@ EOE
         info: type: target
       EOE
 
+    $cfg_info >>/~"%EOO%";
+      %path: .+/cfg/%
+      %uuid: .{36}%
+      type: target
+      %name: %
+      EOO
+
     $pkg_status libfoo >'libfoo unknown'
   }
 
@@ -45,6 +50,13 @@ EOE
       %  info: uuid: .{36}%
         info: type: target
       EOE
+
+    $cfg_info >>/~"%EOO%";
+      %path: .+/cfg/%
+      %uuid: .{36}%
+      type: target
+      %name: %
+      EOO
 
     $pkg_status libfoo >'libfoo unknown';
 
@@ -63,6 +75,13 @@ EOE
       %  info: uuid: .{36}%
         info: type: target
       EOE
+
+    $cfg_info >>/~"%EOO%";
+      %path: .+/cfg/%
+      %uuid: .{36}%
+      type: target
+      %name: %
+      EOO
 
     $pkg_status libfoo >'libfoo unknown';
 
@@ -84,6 +103,13 @@ EOE
         info: type: target
       EOE
 
+    $cfg_info >>/~"%EOO%";
+      %path: .+/cfg/%
+      %uuid: .{36}%
+      type: target
+      %name: %
+      EOO
+
     $pkg_status libfoo >'libfoo unknown'
   }
 
@@ -97,6 +123,13 @@ EOE
       %  info: uuid: .{36}%
         info: type: target
       EOE
+
+    $cfg_info >>/~"%EOO%";
+      %path: .+/cfg/%
+      %uuid: .{36}%
+      type: target
+      %name: %
+      EOO
 
     $pkg_status libfoo >'libfoo unknown'
   }
@@ -117,8 +150,13 @@ EOE
         info: name: foo
       EOE
 
-    # @@ To verify the result use cfg-list, when implemented.
-    #
+    $cfg_info >>/~"%EOO%";
+      %path: .+/cfg/%
+      %uuid: .{36}%
+      type: target
+      name: foo
+      EOO
+
     $pkg_status libfoo >'libfoo unknown'
   }
 
@@ -145,6 +183,13 @@ EOE
         info: type: host
       EOE
 
+    $cfg_info >>/~"%EOO%";
+      %path: .+/cfg/%
+      %uuid: .{36}%
+      type: host
+      %name: %
+      EOO
+
     $pkg_status libfoo >'libfoo unknown'
   }
 
@@ -165,11 +210,21 @@ EOE
   : valid
   :
   {
-    $* --config-uuid '18f48b4b-b5d9-4712-b98c-1930df1c4228' 2>>/~%EOE% &cfg/***;
+    uuid='18f48b4b-b5d9-4712-b98c-1930df1c4228';
+
+    $* --config-uuid $uuid --name foo 2>>/~"%EOE%" &cfg/***;
       %created new configuration in .+/cfg/%
-        info: uuid: 18f48b4b-b5d9-4712-b98c-1930df1c4228
+        info: uuid: $uuid
         info: type: target
+        info: name: foo
       EOE
+
+    $cfg_info >>/~"%EOO%";
+      %path: .+/cfg/%
+      uuid: $uuid
+      type: target
+      name: foo
+      EOO
 
     $pkg_status libfoo >'libfoo unknown'
   }
@@ -199,6 +254,13 @@ EOE
       %  info: uuid: .{36}%
         info: type: target
       EOE
+
+    $cfg_info >>/~"%EOO%";
+      %path: .+/cfg/%
+      %uuid: .{36}%
+      type: target
+      %name: %
+      EOO
 
     $pkg_status libfoo >'libfoo unknown'
   }

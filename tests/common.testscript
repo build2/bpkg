@@ -33,6 +33,7 @@ test.options += --default-options $options_guard \
 # as expected).
 #
 cfg_create    = $* cfg-create
+cfg_info      = $* cfg-info
 cfg_link      = $* cfg-link
 pkg_build     = $* pkg-build
 pkg_checkout  = $* pkg-checkout
