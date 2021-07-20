@@ -302,14 +302,14 @@ namespace bpkg
     {
       diag_record dr (text);
 
-      dr << "linked configuration " << ld <<
-        info << "uuid: " << lc->uuid <<
-        info << "type: " << lc->type;
+      dr << "linked with configuration " << ld << '\n'
+         << "  uuid: " << lc->uuid << '\n'
+         << "  type: " << lc->type << '\n';
 
       if (lc->name)
-        dr << info << "name: " << *lc->name;
+        dr << "  name: " << *lc->name << '\n';
 
-      dr << info << "id:   " << *lc->id;
+      dr << "  id:   " << *lc->id;
     }
 
     return 0;

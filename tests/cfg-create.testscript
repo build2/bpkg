@@ -28,8 +28,8 @@ EOE
   {
     $* 2>>/~%EOE%;
       %created new configuration in .+/cfg/%
-      %  info: uuid: .{36}%
-        info: type: target
+      %  uuid: .{36}%
+        type: target
       EOE
 
     $cfg_info >>/~"%EOO%";
@@ -47,8 +47,8 @@ EOE
   {
     $* "config.install.root='$~/opt'" 2>>/~%EOE%;
       %created new configuration in .+/cfg/%
-      %  info: uuid: .{36}%
-        info: type: target
+      %  uuid: .{36}%
+        type: target
       EOE
 
     $cfg_info >>/~"%EOO%";
@@ -72,8 +72,8 @@ EOE
   {
     $* cxx $config_cxx 2>>/~%EOE%;
       %created new configuration in .+/cfg/%
-      %  info: uuid: .{36}%
-        info: type: target
+      %  uuid: .{36}%
+        type: target
       EOE
 
     $cfg_info >>/~"%EOO%";
@@ -99,8 +99,8 @@ EOE
 
     $* --wipe 2>>/~%EOE%;
       %created new configuration in .+/cfg/%
-      %  info: uuid: .{36}%
-        info: type: target
+      %  uuid: .{36}%
+        type: target
       EOE
 
     $cfg_info >>/~"%EOO%";
@@ -120,8 +120,8 @@ EOE
 
     $* --existing 2>>/~%EOE%;
       %initialized existing configuration in .+/cfg/%
-      %  info: uuid: .{36}%
-        info: type: target
+      %  uuid: .{36}%
+        type: target
       EOE
 
     $cfg_info >>/~"%EOO%";
@@ -145,9 +145,9 @@ EOE
   {
     $* --name foo 2>>/~%EOE% &cfg/***;
       %created new configuration in .+/cfg/%
-      %  info: uuid: .{36}%
-        info: type: target
-        info: name: foo
+      %  uuid: .{36}%
+        type: target
+        name: foo
       EOE
 
     $cfg_info >>/~"%EOO%";
@@ -179,8 +179,8 @@ EOE
   {
     $* --type host 2>>/~%EOE% &cfg/***;
       %created new configuration in .+/cfg/%
-      %  info: uuid: .{36}%
-        info: type: host
+      %  uuid: .{36}%
+        type: host
       EOE
 
     $cfg_info >>/~"%EOO%";
@@ -214,9 +214,9 @@ EOE
 
     $* --config-uuid $uuid --name foo 2>>/~"%EOE%" &cfg/***;
       %created new configuration in .+/cfg/%
-        info: uuid: $uuid
-        info: type: target
-        info: name: foo
+        uuid: $uuid
+        type: target
+        name: foo
       EOE
 
     $cfg_info >>/~"%EOO%";
@@ -251,8 +251,8 @@ EOE
 
     $* --host-config host --build2-config build2 2>>/~%EOE% &cfg/***;
       %created new configuration in .+/cfg/%
-      %  info: uuid: .{36}%
-        info: type: target
+      %  uuid: .{36}%
+        type: target
       EOE
 
     $cfg_info >>/~"%EOO%";

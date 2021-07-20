@@ -37,11 +37,11 @@ acfg_uuid = '28f48b4b-b5d9-4712-b98c-1930df1c4228'
   # Link configuration.
   #
   $* acfg 2>>/~"%EOE%";
-    %linked configuration .+/acfg/%
-      info: uuid: $acfg_uuid
-      info: type: target
-      info: name: shared
-      info: id:   1
+    %linked with configuration .+/acfg/%
+      uuid: $acfg_uuid
+      type: target
+      name: shared
+      id:   1
     EOE
 
   $pkg_status -d cfg  libfoo >'libfoo unknown';
@@ -54,11 +54,11 @@ acfg_uuid = '28f48b4b-b5d9-4712-b98c-1930df1c4228'
 
   $* acfg 2>>/~"%EOE%";
     %warning: current configuration .+/cfg/ is already implicitly linked with .+/acfg/%
-    %linked configuration .+/acfg/%
-      info: uuid: $acfg_uuid
-      info: type: target
-      info: name: shared
-      info: id:   1
+    %linked with configuration .+/acfg/%
+      uuid: $acfg_uuid
+      type: target
+      name: shared
+      id:   1
     EOE
 
   # Test that the repeated link is reported.
@@ -88,10 +88,10 @@ acfg_uuid = '28f48b4b-b5d9-4712-b98c-1930df1c4228'
 
   $* acfg2 2>>/~%EOE%;
     warning: configuration with name shared is already linked as ../acfg/, linking as unnamed
-    %linked configuration .+/acfg2/%
-    %  info: uuid: .{36}%
-      info: type: target
-      info: id:   2
+    %linked with configuration .+/acfg2/%
+    %  uuid: .{36}%
+      type: target
+      id:   2
     EOE
 
   # Test that the integrity check fails.
@@ -127,11 +127,11 @@ acfg_uuid = '28f48b4b-b5d9-4712-b98c-1930df1c4228'
   # Make the implicit link explicit.
   #
   $* -d acfg2 cfg 2>>/~"%EOE%";
-    %linked configuration .+/cfg/%
-      info: uuid: $cfg_uuid
-      info: type: target
-      info: name: test
-      info: id:   1
+    %linked with configuration .+/cfg/%
+      uuid: $cfg_uuid
+      type: target
+      name: test
+      id:   1
     EOE
 
   $pkg_status -d cfg libfoo >'libfoo unknown';
@@ -167,11 +167,11 @@ acfg_uuid = '28f48b4b-b5d9-4712-b98c-1930df1c4228'
   $cfg_create -d cfg2 --name 'test' &cfg2/***;
 
   $* -d cfg2 acfg2 2>>/~%EOE%;
-    %linked configuration .+/acfg2/%
-    %  info: uuid: .{36}%
-      info: type: target
-      info: name: shared
-      info: id:   1
+    %linked with configuration .+/acfg2/%
+    %  uuid: .{36}%
+      type: target
+      name: shared
+      id:   1
     EOE
 
   # Test that the integrity check fails.

@@ -284,15 +284,15 @@ namespace bpkg
       diag_record dr (text);
 
       if (o.existing ())
-        dr << "initialized existing configuration in " << c;
+        dr << "initialized existing configuration in " << c << '\n';
       else
-        dr << "created new configuration in " << c;
+        dr << "created new configuration in " << c << '\n';
 
-      dr << info << "uuid: " << cf->uuid
-         << info << "type: " << cf->type;
+      dr << "  uuid: " << cf->uuid << '\n'
+         << "  type: " << cf->type;
 
       if (cf->name)
-        dr << info << "name: " << *cf->name;
+        dr << "\n  name: " << *cf->name;
     }
 
     return 0;
