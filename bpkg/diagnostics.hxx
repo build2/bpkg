@@ -16,15 +16,27 @@ namespace bpkg
 {
   using butl::diag_record;
 
-  // Throw this exception to terminate the process. The handler should
-  // assume that the diagnostics has already been issued.
+  // Throw this exception to terminate the process potentially with a custom
+  // exit code. The handler should assume that suitable diagnostics has
+  // already been issued.
   //
-  class failed: public std::exception {};
+  class failed: public std::exception
+  {
+  public:
+    uint16_t code;
+
+    explicit
+    failed (uint16_t c = 1): code (c) {}
+  };
 
   // As above but needs to be used for recoverable errors which are likely to
   // disappear on the command retry.
   //
-  class recoverable: public failed {};
+  class recoverable: public failed
+  {
+  public:
+    recoverable (): failed (2) {}
+  };
 
   // Print process commmand line. If the number of elements is specified
   // (or the second version is used), then it will print the piped multi-

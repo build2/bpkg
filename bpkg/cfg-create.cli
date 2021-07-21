@@ -119,12 +119,22 @@ namespace bpkg
        created as if by running the \l{bpkg-cfg-link(1)} command."
     }
 
+    bool --no-host-config
+    {
+      "Ignore any specified \cb{--host-config} options."
+    }
+
     dir_path --build2-config
     {
       "<dir>",
       "Link the specified build system module configuration with the
        configuration being created as if by running the \l{bpkg-cfg-link(1)}
        command."
+    }
+
+    bool --no-build2-config
+    {
+      "Ignore any specified \cb{--build2-config} options."
     }
 
     string --name

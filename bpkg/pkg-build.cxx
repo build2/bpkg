@@ -615,6 +615,9 @@ namespace bpkg
 
   using build_package_list = list<reference_wrapper<build_package>>;
 
+  using build_package_refs =
+    small_vector<reference_wrapper<const build_package>, 16>;
+
   struct build_packages: build_package_list
   {
     // Packages collection of whose prerequisites has been postponed due the
@@ -658,16 +661,21 @@ namespace bpkg
     //   private_configs for details).
     //
     build_package*
-    collect_build (const common_options& options,
+    collect_build (const pkg_build_options& options,
                    build_package pkg,
                    const function<find_database_function>& fdb,
                    const repointed_dependents& rpt_depts,
                    private_configs& priv_cfgs,
-                   postponed_packages* recursively = nullptr)
+                   postponed_packages* recursively = nullptr,
+                   build_package_refs* dep_chain = nullptr)
     {
       using std::swap; // ...and not list::swap().
 
       tracer trace ("collect_build");
+
+      // Must both be either specified or not.
+      //
+      assert ((recursively == nullptr) == (dep_chain == nullptr));
 
       // Only builds are allowed here.
       //
@@ -836,7 +844,8 @@ namespace bpkg
                                      recursively,
                                      fdb,
                                      rpt_depts,
-                                     priv_cfgs);
+                                     priv_cfgs,
+                                     *dep_chain);
 
       return &p;
     }
@@ -858,12 +867,13 @@ namespace bpkg
     // we won't be able to be reconfigure it anyway.
     //
     void
-    collect_build_prerequisites (const common_options& options,
+    collect_build_prerequisites (const pkg_build_options& options,
                                  const build_package& pkg,
                                  postponed_packages* postponed,
                                  const function<find_database_function>& fdb,
                                  const repointed_dependents& rpt_depts,
-                                 private_configs& priv_cfgs)
+                                 private_configs& priv_cfgs,
+                                 build_package_refs& dep_chain)
     {
       tracer trace ("collect_build_prerequisites");
 
@@ -900,13 +910,27 @@ namespace bpkg
          return;
       }
 
+      dep_chain.push_back (pkg);
+
       // Show how we got here if things go wrong.
+      //
+      // To suppress printing this information clear the dependency chain
+      // before throwing an exception.
       //
       auto g (
         make_exception_guard (
-          [&pkg] ()
+          [&dep_chain] ()
           {
-            info << "while satisfying " << pkg.available_name_version_db ();
+            // Note that we also need to clear the dependency chain, to
+            // prevent the caller's exception guard from printing it.
+            //
+            while (!dep_chain.empty ())
+            {
+              info << "while satisfying "
+                   << dep_chain.back ().get ().available_name_version_db ();
+
+              dep_chain.pop_back ();
+            }
           }));
 
       const shared_ptr<available_package>& ap (pkg.available);
@@ -1158,10 +1182,50 @@ namespace bpkg
             }
           }
 
-          // If no suitable configuration is found, then create and link it.
+          // If no suitable configuration is found, then create and link it,
+          // unless the --no-private-config options is specified. In the
+          // latter case, print the dependency chain to stdout and exit with
+          // the specified code.
           //
           if (db == nullptr)
           {
+            if (options.no_private_config_specified ())
+            try
+            {
+              // Note that we don't have the dependency package version yet.
+              // We could probably rearrange the code and obtain the available
+              // dependency package by now, given that it comes from the main
+              // database and may not be specified as system (we would have
+              // the configuration otherwise). However, let's not complicate
+              // the code further and instead print the package name and the
+              // constraint, if present.
+              //
+              // Also, in the future, we may still need the configuration to
+              // obtain the available dependency package for some reason (may
+              // want to fetch repositories locally, etc).
+              //
+              cout << d << '\n';
+
+              // Note that we also need to clean the dependency chain, to
+              // prevent the exception guard from printing it to stderr.
+              //
+              for (build_package_refs dc (move (dep_chain)); !dc.empty (); )
+              {
+                const build_package& p (dc.back ());
+
+                cout << p.available_name_version () << ' '
+                     << p.db.get ().config << '\n';
+
+                dc.pop_back ();
+              }
+
+              throw failed (options.no_private_config ());
+            }
+            catch (const io_error&)
+            {
+              fail << "unable to write to stdout";
+            }
+
             const strings mods {"cc"};
 
             const strings vars {
@@ -1289,7 +1353,7 @@ namespace bpkg
             if (dep_constr && !system && postponed)
             {
               postponed->insert (&pkg);
-              return;
+              break;
             }
 
             diag_record dr (fail);
@@ -1407,7 +1471,8 @@ namespace bpkg
                          fdb,
                          rpt_depts,
                          priv_cfgs,
-                         postponed));
+                         postponed,
+                         &dep_chain));
 
         if (p != nullptr && force && !dep_optional)
         {
@@ -1450,6 +1515,8 @@ namespace bpkg
           }
         }
       }
+
+      dep_chain.pop_back ();
     }
 
     // Collect the repointed dependents and their replaced prerequisites,
@@ -1462,7 +1529,7 @@ namespace bpkg
     //
     void
     collect_repointed_dependents (
-      const common_options& o,
+      const pkg_build_options& o,
       database& mdb,
       const repointed_dependents& rpt_depts,
       build_packages::postponed_packages& postponed,
@@ -1524,12 +1591,15 @@ namespace bpkg
           false,                      // Required by dependents.
           build_package::adjust_reconfigure | build_package::build_repoint};
 
+        build_package_refs dep_chain;
+
         collect_build (o,
                        move (p),
                        fdb,
                        rpt_depts,
                        priv_cfgs,
-                       &postponed);
+                       &postponed,
+                       &dep_chain);
       }
     }
 
@@ -1617,7 +1687,7 @@ namespace bpkg
     }
 
     void
-    collect_build_prerequisites (const common_options& o,
+    collect_build_prerequisites (const pkg_build_options& o,
                                  database& db,
                                  const package_name& name,
                                  postponed_packages& postponed,
@@ -1628,16 +1698,19 @@ namespace bpkg
       auto mi (map_.find (db, name));
       assert (mi != map_.end ());
 
+      build_package_refs dep_chain;
+
       collect_build_prerequisites (o,
                                    mi->second.package,
                                    &postponed,
                                    fdb,
                                    rpt_depts,
-                                   priv_cfgs);
+                                   priv_cfgs,
+                                   dep_chain);
     }
 
     void
-    collect_build_postponed (const common_options& o,
+    collect_build_postponed (const pkg_build_options& o,
                              postponed_packages& pkgs,
                              const function<find_database_function>& fdb,
                              const repointed_dependents& rpt_depts,
@@ -1651,12 +1724,17 @@ namespace bpkg
         postponed_packages npkgs;
 
         for (const build_package* p: pkgs)
+        {
+          build_package_refs dep_chain;
+
           collect_build_prerequisites (o,
                                        *p,
                                        prog ? &npkgs : nullptr,
                                        fdb,
                                        rpt_depts,
-                                       priv_cfgs);
+                                       priv_cfgs,
+                                       dep_chain);
+        }
 
         assert (prog); // collect_build_prerequisites() should have failed.
         prog = (npkgs != pkgs);
@@ -3108,6 +3186,13 @@ namespace bpkg
     const dir_path& c (o.directory ());
     l4 ([&]{trace << "configuration: " << c;});
 
+    // Make sure that potential stdout writing failures can be detected.
+    //
+    cout.exceptions (ostream::badbit | ostream::failbit);
+
+    // @@ Should we also validate the --no-private-config value, if specified
+    //    (>2 and belongs to the "usable exit code range").
+    //
     validate_options (o, ""); // Global package options.
 
     if (o.update_dependent () && o.leave_dependent ())
@@ -4034,13 +4119,15 @@ namespace bpkg
           {
             // Not a valid path so cannot be an archive.
           }
-          catch (const failed&)
+          catch (const failed& e)
           {
             // If this is a valid package archive but something went wrong
             // afterwards, then we are done.
             //
             if (package_arc)
               throw;
+
+            assert (e.code == 1);
           }
 
           // Is this a package directory?
@@ -4121,13 +4208,15 @@ namespace bpkg
             {
               // Not a valid path so cannot be a package directory.
             }
-            catch (const failed&)
+            catch (const failed& e)
             {
               // If this is a valid package directory but something went wrong
               // afterwards, then we are done.
               //
               if (package_dir)
                 throw;
+
+              assert (e.code == 1);
             }
           }
         }
@@ -4211,8 +4300,9 @@ namespace bpkg
               af = move (rp.second);
             }
           }
-          catch (const failed&)
+          catch (const failed& e)
           {
+            assert (e.code == 1);
             diag = true;
             continue;
           }
@@ -4940,12 +5030,15 @@ namespace bpkg
               false,                      // Required by dependents.
               0};                         // State flags.
 
+            build_package_refs dep_chain;
+
             pkgs.collect_build (o,
                                 move (p),
                                 find_prereq_database,
                                 rpt_depts,
                                 priv_cfgs,
-                                &postponed /* recursively */);
+                                &postponed /* recursively */,
+                                &dep_chain);
           }
         }
 

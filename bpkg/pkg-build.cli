@@ -350,6 +350,27 @@ namespace bpkg
        \cb{pkg-build} or \cb{pkg-drop} command execution if the command
        is otherwise a noop (performs no new package builds, upgrades, etc)."
     }
+
+    uint16_t --no-private-config
+    {
+      "<code>",
+
+      "If no configuration of a suitable type is linked to build a
+       build-time dependency, instead of automatically creating a private
+       configuration of this type, exit with the specified error code
+       printing to \cb{stdout} the dependency chain starting from the
+       build-time dependency (together with its constraint, if present)
+       and ending with the top-level dependent (together with their
+       configuration directories), one entry per line. For example:
+
+       \
+       yacc ^1.0.0
+       libbar/1.0.0 /path/to/libbar/cfg/
+       libfoo/1.0.0 /path/to/libfoo/cfg/
+       \
+
+       See \l{bpkg-cfg-create(1)} for details on linked configurations."
+    }
   };
 
   "

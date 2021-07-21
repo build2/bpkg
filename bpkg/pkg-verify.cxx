@@ -247,9 +247,9 @@ namespace bpkg
 
       return 0;
     }
-    catch (const failed&)
+    catch (const failed& e)
     {
-      return 1;
+      return e.code;
     }
   }
 }

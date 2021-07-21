@@ -554,16 +554,9 @@ try
     assert (false);
     fail << "unhandled command";
   }
-  // Derived from failed and so needs to be caught first.
-  //
-  catch (const recoverable&)
+  catch (const failed& e)
   {
-    r = 2;
-    break;
-  }
-  catch (const failed&)
-  {
-    r = 1;
+    r = e.code;
     break;
   }
 
@@ -585,22 +578,22 @@ try
 
   return 0;
 }
-catch (const failed&)
+catch (const failed& e)
 {
-  return 1; // Diagnostics has already been issued.
+  return e.code; // Diagnostics has already been issued.
 }
 catch (const cli::exception& e)
 {
   error << e;
   return 1;
 }
-/*
+#if 0
 catch (const std::exception& e)
 {
   error << e;
   return 1;
 }
-*/
+#endif
 
 int
 main (int argc, char* argv[])

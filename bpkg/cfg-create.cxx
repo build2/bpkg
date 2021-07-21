@@ -270,10 +270,10 @@ namespace bpkg
         o.existing (),
         o.wipe (),
         o.uuid_specified () ? o.uuid () : optional<uuid> (),
-        (o.host_config_specified ()
+        (o.host_config_specified () && !o.no_host_config ()
          ? o.host_config ()
          : optional<dir_path> ()),
-        (o.build2_config_specified ()
+        (o.build2_config_specified () && !o.no_build2_config ()
          ? o.build2_config ()
          : optional<dir_path> ())));
 
