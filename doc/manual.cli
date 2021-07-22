@@ -1320,18 +1320,24 @@ build configuration that belong to its set are added to (\c{+}), subtracted
 from (\c{-}), or intersected with (\c{&}) the current set. If the second
 character in the term is \c{!}, then its set of configuration is inverted
 against the underlying set. The term itself can be either the class name or a
-parenthesized expression. Some examples:
+parenthesized expression. Some examples (based on the
+\l{https://ci.cppget.org/?build-configs cppget.org} deployment):
 
 \
-builds: none                     ; None.
-builds: all                      ; All.
-builds: default legacy           ; Default and legacy.
-builds: -windows                 ; Default except Windows.
-builds: all : -windows           ; All except Windows.
-builds: all : &gcc               ; All with GCC only.
-builds: all : &gcc-8+            ; All with GCC 8 and up only.
-builds: gcc : -optimized         ; GCC without optimization.
-builds: gcc : &( +linux +macos ) ; GCC on Linux or Mac OS.
+builds: none                       ; None.
+builds: all                        ; All (suitable for libraries).
+builds: host                       ; All host (suitable for tools).
+builds: default                    ; All default.
+builds: host : &default            ; Host default.
+builds: default legacy             ; All default and legacy.
+builds: host: &( +default +legacy) ; Host default and legacy.
+builds: -windows                   ; Default except Windows.
+builds: all : -windows             ; All except Windows.
+builds: all : -mobile              ; All except mobile.
+builds: all : &gcc                 ; All with GCC only.
+builds: all : &gcc-8+              ; All with GCC 8 and up only.
+builds: gcc : -optimized           ; GCC without optimization.
+builds: gcc : &( +linux +macos )   ; GCC on Linux and Mac OS.
 \
 
 Notice that the colon and parentheses must be separated with spaces from both
