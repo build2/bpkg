@@ -83,8 +83,8 @@ namespace bpkg
       make_shared<configuration> (optional<string> (), "target"));
 
     db.persist (sl);
-    db.execute ("UPDATE selected_package_prerequisites SET configuration = '" +
-                sl->uuid.string () + "'");
+    db.execute (string ("UPDATE \"main\".selected_package_prerequisites ") +
+                "SET configuration = '" + sl->uuid.string () + "'");
   });
 
   static inline path
