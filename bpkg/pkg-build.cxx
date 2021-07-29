@@ -705,16 +705,12 @@ namespace bpkg
           build_package* p1 (&bp);
           build_package* p2 (&pkg);
 
-          if (p1->available_version () != p2->available_version ())
+          // Pick with the following preference order: user selection over
+          // implicit one, source package over a system one, newer version
+          // over an older one. So get the preferred into p1 and the other
+          // into p2.
+          //
           {
-            using constraint_type = build_package::constraint_type;
-
-            // If the versions differ, we have to pick one. Pick with the
-            // following preference order: user selection over implicit one,
-            // source package over a system one, newer version over an older
-            // one. So get the preferred to try into p1 and the other to try
-            // -- into p2.
-            //
             int us (p1->user_selection () - p2->user_selection ());
             int sf (p1->system - p2->system);
 
@@ -724,6 +720,14 @@ namespace bpkg
                  sf == 0 &&
                  p2->available_version () > p1->available_version ()))
               swap (p1, p2);
+          }
+
+          // If the versions differ, pick the satisfactory one and if both are
+          // satisfactory, then keep the preferred.
+          //
+          if (p1->available_version () != p2->available_version ())
+          {
+            using constraint_type = build_package::constraint_type;
 
             // See if pv's version satisfies pc's constraints. Return the
             // pointer to the unsatisfied constraint or NULL if all are
@@ -770,15 +774,6 @@ namespace bpkg
             l4 ([&]{trace << "pick " << p1->available_name_version_db ()
                           << " over " << p2->available_name_version_db ();});
           }
-          // If versions are the same, then we still need to pick the entry as
-          // one of them can build a package from source while another
-          // configure a system package. We prefer a user-selected entry (if
-          // there is one). If none of them is user-selected we prefer a
-          // source package over a system one.
-          //
-          else if (p2->user_selection () ||
-                   (!p1->user_selection () && !p2->system))
-            swap (p1, p2);
 
           // See if we are replacing the object. If not, then we don't
           // need to collect its prerequisites since that should have
