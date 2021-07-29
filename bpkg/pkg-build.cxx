@@ -5994,6 +5994,7 @@ namespace bpkg
 
     // purge, fetch/unpack|checkout
     //
+    pkg_checkout_cache checkout_cache (o);
     for (build_package& p: reverse_iterate (build_pkgs))
     {
       assert (p.action);
@@ -6125,22 +6126,24 @@ namespace bpkg
             case repository_basis::version_control:
               {
                 sp = p.checkout_root
-                     ? pkg_checkout (o,
-                                     pdb,
-                                     t,
-                                     ap->id.name,
-                                     p.available_version (),
-                                     *p.checkout_root,
-                                     true /* replace */,
-                                     p.checkout_purge,
-                                     simulate)
-                     : pkg_checkout (o,
-                                     pdb,
-                                     t,
-                                     ap->id.name,
-                                     p.available_version (),
-                                     true /* replace */,
-                                     simulate);
+                  ? pkg_checkout (checkout_cache,
+                                  o,
+                                  pdb,
+                                  t,
+                                  ap->id.name,
+                                  p.available_version (),
+                                  *p.checkout_root,
+                                  true /* replace */,
+                                  p.checkout_purge,
+                                  simulate)
+                  : pkg_checkout (checkout_cache,
+                                  o,
+                                  pdb,
+                                  t,
+                                  ap->id.name,
+                                  p.available_version (),
+                                  true /* replace */,
+                                  simulate);
                 break;
               }
             case repository_basis::directory:
@@ -6257,6 +6260,7 @@ namespace bpkg
         break; // Get out from the breakout loop.
       }
     }
+    checkout_cache.clear (); // Detect errors.
 
     // configure
     //

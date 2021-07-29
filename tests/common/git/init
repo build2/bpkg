@@ -80,7 +80,7 @@ rm -f    style-basic.git/repositories.manifest
 #
 git -C style-basic.git init
 git -C style-basic.git add '*'
-git -C style-basic.git commit -am 'Create'
+git -C style-basic.git commit -am 'Create' --no-verify
 
 # Create stable branch for style-basic.
 #
@@ -93,21 +93,21 @@ cat <<EOF >style-basic.git/repositories.manifest
 email: user@example.com
 EOF
 git -C style-basic.git add README repositories.manifest
-git -C style-basic.git commit -am 'README'
+git -C style-basic.git commit -am 'README' --no-verify
 
 # Create master branch for style.git, adding style-basic.git as a submodule.
 #
 git -C style.git init
 git -C style.git add '*'
 git -C style.git submodule add ../style-basic.git basic # The stable branch.
-git -C style.git commit -am 'Create'
+git -C style.git commit -am 'Create' --no-verify
 
 # Make style.git to refer an unadvertised reference, commiting into the stable
 # branch of style-basic.git.
 #
 touch style-basic.git/INSTALL
 git -C style-basic.git add INSTALL
-git -C style-basic.git commit -am 'INSTALL'
+git -C style-basic.git commit -am 'INSTALL' --no-verify
 git -C style-basic.git checkout master
 
 # Create master branch for libbar.git.
@@ -127,7 +127,7 @@ depends: style-basic >= $
 EOF
 
 git -C libbar.git add '*'
-git -C libbar.git commit -am 'Create'
+git -C libbar.git commit -am 'Create' --no-verify
 git -C libbar.git tag -a 'v1.0.0' -m 'Tag version 1.0.0'
 
 git -C libbar.git submodule add -b stable ../style-basic.git extras
@@ -143,7 +143,7 @@ email: pkg@example.org
 depends: style-basic >= $
 EOF
 
-git -C libbar.git commit -am 'Add extras'
+git -C libbar.git commit -am 'Add extras' --no-verify
 git -C libbar.git tag -a 'v1.0.0+1' -m 'Tag version 1.0.0+1'
 
 # Create master branch for libfoo.git, adding style.git and libbar.git as
@@ -165,7 +165,7 @@ git -C libfoo.git add '*'
 git -C libfoo.git submodule add ../style.git doc/style
 git -C libfoo.git submodule add ../libbar.git libbar
 git -C libfoo.git submodule update --init --recursive # Updates doc/style/basic.
-git -C libfoo.git commit -am 'Create'
+git -C libfoo.git commit -am 'Create' --no-verify
 git -C libfoo.git tag -a 'v0.0.1' -m 'Tag version 0.0.1'
 
 # Increase libfoo version and add tags.
@@ -180,7 +180,7 @@ url: http://example.org
 email: pkg@example.org
 EOF
 
-git -C libfoo.git commit -am 'Increase version to 1.0.0'
+git -C libfoo.git commit -am 'Increase version to 1.0.0' --no-verify
 
 git -C libfoo.git tag 'ltag'
 git -C libfoo.git tag -a 'atag'   -m 'Create annotated tag'
@@ -190,7 +190,7 @@ git -C libfoo.git tag -a 'v1.0.0' -m 'Tag version 1.0.0'
 #
 touch  libfoo.git/README
 git -C libfoo.git add README
-git -C libfoo.git commit -am 'README'
+git -C libfoo.git commit -am 'README' --no-verify
 
 # Create master branch for libfox.git, adding libbar.git as a submodule.
 #
@@ -198,7 +198,7 @@ git -C libfox.git init
 git -C libfox.git add '*'
 git -C libfox.git submodule add ../libbar.git libbar
 git -C libfox.git submodule update --init --recursive # Recursive for safety.
-git -C libfox.git commit -am 'Create'
+git -C libfox.git commit -am 'Create' --no-verify
 
 # Create master branch for links.git, adding style.git as a submodule.
 #
@@ -217,7 +217,7 @@ EOF
 git -C links.git add '*'
 git -C links.git submodule add ../style.git doc/style
 git -C links.git submodule update --init --recursive # Updates doc/style/basic.
-git -C links.git commit -am 'Create'
+git -C links.git commit -am 'Create' --no-verify
 git -C links.git tag -a 'v0.0.1' -m 'Tag version 0.0.1'
 
 # Increase links version and add symlinks.
@@ -240,7 +240,7 @@ ln -s doc/style/basic links.git/bs     # Submodule directory symlink.
 ln -s bs/page.css links.git/pg         # Symlink via submodule directory symlink.
 
 git -C links.git add '*'
-git -C links.git commit -am 'Add symlinks'
+git -C links.git commit -am 'Add symlinks' --no-verify
 git -C links.git tag -a 'v1.0.0-alpha' -m 'Tag version 1.0.0-alpha'
 
 # Increase links version and add dangling symlink.
@@ -258,7 +258,7 @@ EOF
 ln -s lc links.git/bl # Dangling symlink.
 
 git -C links.git add '*'
-git -C links.git commit -am 'Add dangling symlinks'
+git -C links.git commit -am 'Add dangling symlinks' --no-verify
 git -C links.git tag -a 'v1.0.1' -m 'Tag version 1.0.1'
 
 # Increase links version and add cyclic symlink.
@@ -276,7 +276,7 @@ EOF
 ln -s bl links.git/lc # Cyclic symlink.
 
 git -C links.git add '*'
-git -C links.git commit -am 'Add cyclic symlinks'
+git -C links.git commit -am 'Add cyclic symlinks' --no-verify
 git -C links.git tag -a 'v1.0.2' -m 'Tag version 1.0.2'
 
 
@@ -303,7 +303,7 @@ rm -f -r libbaz.git/.git
 
 git -C libbaz.git init
 git -C libbaz.git add '*'
-git -C libbaz.git commit -am 'Create'
+git -C libbaz.git commit -am 'Create' --no-verify
 
 # Sync submodule references with their new locations.
 #
@@ -315,28 +315,28 @@ done
 #
 touch  style.git/README
 git -C style.git add README
-git -C style.git commit -am 'README'
+git -C style.git commit -am 'README' --no-verify
 
 # Advance libfoo.git master branch.
 #
 git -C libfoo.git submodule update --init --remote # Pull style only.
-git -C libfoo.git commit -am 'Update style'
+git -C libfoo.git commit -am 'Update style' --no-verify
 
 git -C libfoo.git rm -r tests
-git -C libfoo.git commit -am 'Remove tests'
+git -C libfoo.git commit -am 'Remove tests' --no-verify
 
 git -C libfoo.git submodule deinit libbar
 git -C libfoo.git rm libbar
-git -C libfoo.git commit -am 'Remove libbar'
+git -C libfoo.git commit -am 'Remove libbar' --no-verify
 rm -f -r libbar.git
 
 git -C libfoo.git submodule add ../libbaz.git libbaz
 git -C libfoo.git submodule update --init libbaz
-git -C libfoo.git commit -am 'Add libbaz'
+git -C libfoo.git commit -am 'Add libbaz' --no-verify
 
 git -C libfoo.git tag -f 'ltag'
 git -C libfoo.git tag -f -a 'atag' -m 'Move annotated tag'
 
 touch  libfoo.git/INSTALL
 git -C libfoo.git add INSTALL
-git -C libfoo.git commit -am 'INSTALL'
+git -C libfoo.git commit -am 'INSTALL' --no-verify

@@ -22,6 +22,8 @@ using namespace butl;
 
 namespace bpkg
 {
+  // pkg_checkout()
+  //
   static void
   checkout (const common_options& o,
             const repository_location& rl,
@@ -59,19 +61,20 @@ namespace bpkg
   // For some platforms/repository types the working tree needs to be
   // temporary "fixed up" for the build2 operations to work properly on it.
   //
-  static bool
+  static optional<bool>
   fixup (const common_options& o,
          const repository_location& rl,
          const dir_path& dir,
-         bool revert = false)
+         bool revert = false,
+         bool ie = false)
   {
-    bool r (false);
+    optional<bool> r;
 
     switch (rl.type ())
     {
     case repository_type::git:
       {
-        r = git_fixup_worktree (o, dir, revert);
+        r = git_fixup_worktree (o, dir, revert, ie);
         break;
       }
     case repository_type::pkg:
@@ -84,7 +87,8 @@ namespace bpkg
   // Return the selected package object which may replace the existing one.
   //
   static shared_ptr<selected_package>
-  pkg_checkout (const common_options& o,
+  pkg_checkout (pkg_checkout_cache& cache,
+                const common_options& o,
                 database& db,
                 transaction& t,
                 package_name n,
@@ -177,10 +181,7 @@ namespace bpkg
     // (or interruption) the user will need to run bpkg-rep-fetch to restore
     // the missing repository.
     //
-    bool fs_changed (false);
-
     if (!simulate)
-    try
     {
       if (exists (d))
         fail << "package directory " << d << " already exists";
@@ -191,18 +192,58 @@ namespace bpkg
       dir_path sd (repository_state (rl));
       dir_path rd (mdb.config_orig / repos_dir / sd);
 
-      if (!exists (rd))
-        fail << "missing repository directory for package " << n << " " << v
-             << " in configuration " << c <<
-          info << "run 'bpkg rep-fetch' to repair";
-
-      // The repository temporary directory.
+      // Try to reuse the cached repository (moved to the temporary directory
+      // with some fragment checked out and fixed up).
       //
-      auto_rmdir rmt (temp_dir / sd);
-      const dir_path& td (rmt.path);
+      pkg_checkout_cache::state_map& cm (cache.map_);
+      auto i (cm.find (rd));
 
-      if (exists (td))
-        rm_r (td);
+      if (i == cm.end () || i->second.rl.fragment () != rl.fragment ())
+      {
+        // Restore the repository if some different fragment is checked out.
+        //
+        if (i != cm.end ())
+          cache.erase (i);
+
+        // Checkout and cache the fragment.
+        //
+        if (!exists (rd))
+          fail << "missing repository directory for package " << n << " " << v
+               << " in configuration " << c <<
+            info << "run 'bpkg rep-fetch' to repair";
+
+        // The repository temporary directory.
+        //
+        auto_rmdir rmt (temp_dir / sd);
+
+        // Move the repository to the temporary directory.
+        //
+        {
+          const dir_path& td (rmt.path);
+
+          if (exists (td))
+            rm_r (td);
+
+          mv (rd, td);
+        }
+
+        // Pre-insert the incomplete repository entry into the cache and
+        // "finalize" it by setting the fixed up value later, after the
+        // repository fragment checkout succeeds. Until then the repository
+        // may not be restored in its permanent place.
+        //
+        using state = pkg_checkout_cache::state;
+
+        i = cm.emplace (rd, state {move (rmt), rl, nullopt}).first;
+
+        // Checkout the repository fragment and fix up the working tree.
+        //
+        state& s (i->second);
+        const dir_path& td (s.rmt.path);
+
+        checkout (o, rl, td, ap, db);
+        s.fixedup = fixup (o, rl, td);
+      }
 
       // The temporary out of source directory that is required for the dist
       // meta-operation.
@@ -213,21 +254,10 @@ namespace bpkg
       if (exists (od))
         rm_r (od);
 
-      // Finally, move the repository to the temporary directory and proceed
-      // with the checkout.
-      //
-      mv (rd, td);
-      fs_changed = true;
-
-      // Checkout the repository fragment and fix up the working tree.
-      //
-      checkout (o, rl, td, ap, db);
-      bool fixedup (fixup (o, rl, td));
-
       // Calculate the package path that points into the checked out fragment
       // directory.
       //
-      dir_path pd (td / path_cast<dir_path> (pl->location));
+      dir_path pd (i->second.rmt.path / path_cast<dir_path> (pl->location));
 
       // Form the buildspec.
       //
@@ -271,32 +301,7 @@ namespace bpkg
              "config.dist.root='" + ord.representation () + "'",
              bspec);
 
-      // Revert the fix-ups.
-      //
-      if (fixedup)
-        fixup (o, rl, td, true /* revert */);
-
-      // Manipulations over the repository are now complete, so we can return
-      // it to its permanent location.
-      //
-      mv (td, rd);
-      fs_changed = false;
-
-      rmt.cancel ();
-
       mc = sha256 (o, d / manifest_file);
-    }
-    catch (const failed&)
-    {
-      if (fs_changed)
-      {
-        // We assume that the diagnostics has already been issued.
-        //
-        warn << "repository state is now broken" <<
-          info << "run 'bpkg rep-fetch' to repair";
-      }
-
-      throw;
     }
 
     if (p != nullptr)
@@ -369,7 +374,8 @@ namespace bpkg
   }
 
   shared_ptr<selected_package>
-  pkg_checkout (const common_options& o,
+  pkg_checkout (pkg_checkout_cache& cache,
+                const common_options& o,
                 database& db,
                 transaction& t,
                 package_name n,
@@ -379,7 +385,8 @@ namespace bpkg
                 bool purge,
                 bool simulate)
   {
-    return pkg_checkout (o,
+    return pkg_checkout (cache,
+                         o,
                          db,
                          t,
                          move (n),
@@ -391,7 +398,8 @@ namespace bpkg
   }
 
   shared_ptr<selected_package>
-  pkg_checkout (const common_options& o,
+  pkg_checkout (pkg_checkout_cache& cache,
+                const common_options& o,
                 database& db,
                 transaction& t,
                 package_name n,
@@ -399,7 +407,8 @@ namespace bpkg
                 bool replace,
                 bool simulate)
   {
-    return pkg_checkout (o,
+    return pkg_checkout (cache,
+                         o,
                          db,
                          t,
                          move (n),
@@ -436,10 +445,13 @@ namespace bpkg
       fail << "package version expected" <<
         info << "run 'bpkg help pkg-checkout' for more information";
 
+    pkg_checkout_cache checkout_cache (o);
+
     // Commits the transaction.
     //
     if (o.output_root_specified ())
-      p = pkg_checkout (o,
+      p = pkg_checkout (checkout_cache,
+                        o,
                         db,
                         t,
                         move (n),
@@ -449,7 +461,8 @@ namespace bpkg
                         o.output_purge (),
                         false /* simulate */);
     else
-      p = pkg_checkout (o,
+      p = pkg_checkout (checkout_cache,
+                        o,
                         db,
                         t,
                         move (n),
@@ -457,9 +470,74 @@ namespace bpkg
                         o.replace (),
                         false /* simulate */);
 
+    checkout_cache.clear (); // Detect errors.
+
     if (verb && !o.no_result ())
       text << "checked out " << *p;
 
     return 0;
+  }
+
+  // pkg_checkout_cache
+  //
+  pkg_checkout_cache::
+  ~pkg_checkout_cache ()
+  {
+    if (!map_.empty () && !clear (true /* ignore_errors */))
+    {
+      // We assume that the diagnostics has already been issued.
+      //
+      warn << "repository state is now broken" <<
+        info << "run 'bpkg rep-fetch' to repair";
+    }
+  }
+
+  bool pkg_checkout_cache::
+  clear (bool ie)
+  {
+    while (!map_.empty ())
+    {
+      if (!erase (map_.begin (), ie))
+        return false;
+    }
+
+    return true;
+  }
+
+  bool pkg_checkout_cache::
+  erase (state_map::iterator i, bool ie)
+  {
+    state& s (i->second);
+
+    // Bail out if the entry is incomplete.
+    //
+    if (!s.fixedup)
+    {
+      assert (ie); // Only makes sense in the ignore errors mode.
+      return false;
+    }
+
+    // Revert the fix-ups.
+    //
+    // But first make the entry incomplete, so on error we don't try to
+    // restore the partially restored repository later.
+    //
+    bool f (*s.fixedup);
+
+    s.fixedup = nullopt;
+
+    if (f && !fixup (options_, s.rl, s.rmt.path, true /* revert */, ie))
+      return false;
+
+    // Manipulations over the repository are now complete, so we can return it
+    // to the permanent location.
+    //
+    if (!mv (s.rmt.path, i->first, ie))
+      return false;
+
+    s.rmt.cancel ();
+
+    map_.erase (i);
+    return true;
   }
 }

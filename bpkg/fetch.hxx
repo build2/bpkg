@@ -105,15 +105,19 @@ namespace bpkg
   // Fix up or revert the fixes (including in submodules, recursively) in a
   // working tree previously checked out by git_checkout() or
   // git_checkout_submodules(). Return true if any changes have been made to
-  // the filesystem.
+  // the filesystem. On error issue diagnostics and return nullopt in the
+  // ignore errors mode and throw failed otherwise.
   //
   // Noop on POSIX. On Windows it may replace git's filesystem-agnostic
   // symlinks with hardlinks for the file targets and junctions for the
   // directory targets. Note that it still makes sure the working tree is
   // being treated by git as "clean" despite the changes.
   //
-  bool
-  git_fixup_worktree (const common_options&, const dir_path&, bool revert);
+  optional<bool>
+  git_fixup_worktree (const common_options&,
+                      const dir_path&,
+                      bool revert,
+                      bool ignore_errors = false);
 
   // Low-level fetch API (fetch.cxx).
   //

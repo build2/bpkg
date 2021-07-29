@@ -4180,22 +4180,24 @@ else
     $clone_root_cfg;
     $rep_fetch "$rep0/libbar.git#master" &cfg/.bpkg/repos/*/***;
 
-    $* libmbar --checkout-root $~ --checkout-purge 2>>~%EOE%;
+    # While at it, test the package checkout cache (thus build multiple
+    # packages from the same git repository).
+    #
+    $* libbar libmbar --checkout-root $~ --checkout-purge 2>>~%EOE%;
       %checked out style-basic/.+%
+      checked out libbar/1.0.0+1
       checked out libmbar/1.0.0
       %configured style-basic/.+%
+      configured libbar/1.0.0+1
       configured libmbar/1.0.0
-      %info: .+ is up to date%
+      %info: .+ is up to date%{2}
+      updated libbar/1.0.0+1
       updated libmbar/1.0.0
       EOE
 
     test -d libmbar-1.0.0;
 
-    $pkg_disfigure libmbar;
-    $pkg_disfigure style-basic;
-
-    $pkg_purge libmbar;
-    $pkg_purge style-basic
+    $pkg_drop libbar libmbar
   }
 }
 

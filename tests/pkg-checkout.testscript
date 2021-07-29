@@ -170,13 +170,16 @@ else
     #
     $rep_fetch "$rep/links.git#v1.0.1";
 
+    # Note that on POSIX the repository is restored in its permanent location,
+    # since the operation fails in the distribution phase. This is in contrast
+    # to Windows where the repository is lost, since the operation fails in
+    # the fix-up phase.
+    #
     if $posix
       $* links/1.0.1 2>>~%EOE% != 0
         checking out links/1.0.1
         distributing links/1.0.1
         %error: unable to stat .+%
-        warning: repository state is now broken
-          info: run 'bpkg rep-fetch' to repair
         EOE
     else
       $* links/1.0.1 2>>~%EOE% != 0
@@ -194,6 +197,8 @@ else
       $rep_fetch "$rep/links.git#v1.0.2" 2>>~%EOE% != 0
         %.*
         %error: unable to iterate over .+%
+        warning: repository state is now broken and will be cleaned up
+          info: run 'bpkg rep-fetch' to update
         EOE
     else
       $rep_fetch "$rep/links.git#v1.0.2"

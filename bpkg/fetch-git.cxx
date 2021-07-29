@@ -2152,9 +2152,13 @@ namespace bpkg
 
   // Noop on POSIX.
   //
-  bool
-  git_fixup_worktree (const common_options&, const dir_path&, bool)
+  optional<bool>
+  git_fixup_worktree (const common_options&,
+                      const dir_path&,
+                      bool revert,
+                      bool)
   {
+    assert (!revert);
     return false;
   }
 
@@ -2545,15 +2549,26 @@ namespace bpkg
     return r;
   }
 
-  bool
+  optional<bool>
   git_fixup_worktree (const common_options& co,
                       const dir_path& dir,
-                      bool revert)
+                      bool revert,
+                      bool ie)
   {
-    optional<bool> r (
-      fixup_worktree (co, dir, revert, dir_path () /* prefix */));
+    try
+    {
+      optional<bool> r (
+        fixup_worktree (co, dir, revert, dir_path () /* prefix */));
 
-    return r ? *r : false;
+      return r ? *r : false;
+    }
+    catch (const failed&)
+    {
+      if (ie)
+        return nullopt;
+
+      throw;
+    }
   }
 
 #endif
