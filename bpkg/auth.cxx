@@ -160,20 +160,31 @@ namespace bpkg
       getline (os.in, s);
       os.in.close ();
 
-      try
+      if (os.wait ())
       {
-        const size_t n (19);
-
-        if (os.wait () &&
-            s.size () > n && s.compare (0, n, "SHA256 Fingerprint=") == 0)
+        // Normally the output is:
+        //
+        //  SHA256 Fingerprint=<fingerprint>
+        //
+        // But it can be translated and SHA spelled in lower case (LC_ALL=C
+        // doesn't seem to help in some cases).
+        //
+        if (icasecmp (s, "SHA256", 6) == 0)
         {
-          string fp (s, n);
-          string ab (fingerprint_to_sha256 (fp, 16));
-          return {move (fp), move (ab)};
+          size_t p (s.find ('='));
+          if (p != string::npos)
+          {
+            try
+            {
+              string fp (s, p + 1);
+              string ab (fingerprint_to_sha256 (fp, 16));
+              return {move (fp), move (ab)};
+            }
+            catch (const invalid_argument&)
+            {
+            }
+          }
         }
-      }
-      catch (const invalid_argument&)
-      {
       }
 
       calc_failed ();
