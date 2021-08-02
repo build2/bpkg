@@ -1265,7 +1265,14 @@ namespace bpkg
       // Remove dangling repositories.
       //
       for (const shared_ptr<repository>& r: removed_repositories)
-        rep_remove (db, t, r);
+      {
+        // Prior to removing the repository we need to make sure it still
+        // exists, which may not be the case due to earlier removal of the
+        // dependent dangling repository.
+        //
+        if (db.find<repository> (r->name) != nullptr)
+          rep_remove (db, t, r);
+      }
 
       // Remove dangling repository fragments.
       //
