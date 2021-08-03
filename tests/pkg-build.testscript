@@ -782,7 +782,7 @@ test.options += --no-progress
     :
     $clone_cfg;
     $* libbaz >>EOO
-      new libfoo/1.1.0 (required by libbar libbaz)
+      new libfoo/1.1.0 (required by libbar, libbaz)
       new libbar/1.1.0 (required by libbaz)
       new libbaz/1.1.0
       EOO
@@ -844,7 +844,7 @@ test.options += --no-progress
       $pkg_fetch -e $src/libfix-0.0.1.tar.gz && $pkg_unpack libfix;
 
       $* libbaz >>EOO;
-        upgrade libfoo/1.1.0 (required by libbar libbaz)
+        upgrade libfoo/1.1.0 (required by libbar, libbaz)
         new libbar/1.1.0 (required by libbaz)
         new libbaz/1.1.0
         EOO
@@ -860,7 +860,7 @@ test.options += --no-progress
       $pkg_fetch -e $src/libfoo-1.2.0.tar.gz && $pkg_unpack libfoo;
 
       $* libbaz >>EOO;
-        downgrade libfoo/1.1.0 (required by libbar libbaz)
+        downgrade libfoo/1.1.0 (required by libbar, libbaz)
         new libbar/1.1.0 (required by libbaz)
         new libbaz/1.1.0
         EOO
@@ -967,7 +967,7 @@ test.options += --no-progress
     $* libbar >>EOO
       upgrade libfoo/1.1.0 (required by libbar)
       upgrade libbar/1.1.0
-      reconfigure libbaz (dependent of libbar libfoo)
+      reconfigure libbaz (dependent of libbar, libfoo)
       EOO
 
     : foo
@@ -976,7 +976,7 @@ test.options += --no-progress
     $* libfoo >>EOO
       upgrade libfoo/1.1.0
       reconfigure libbar (dependent of libfoo)
-      reconfigure libbaz (dependent of libbar libfoo)
+      reconfigure libbaz (dependent of libbar, libfoo)
       EOO
 
     : foo-bar
@@ -985,7 +985,7 @@ test.options += --no-progress
     $* libfoo libbar/1.0.0 >>EOO
       upgrade libfoo/1.1.0
       reconfigure/update libbar/1.0.0
-      reconfigure libbaz (dependent of libbar libfoo)
+      reconfigure libbaz (dependent of libbar, libfoo)
       EOO
 
     : bar-foo
@@ -994,7 +994,7 @@ test.options += --no-progress
     $* libbar/1.0.0 libfoo >>EOO
       upgrade libfoo/1.1.0
       reconfigure/update libbar/1.0.0
-      reconfigure libbaz (dependent of libbar libfoo)
+      reconfigure libbaz (dependent of libbar, libfoo)
       EOO
 
     : baz-foo
@@ -4639,7 +4639,7 @@ else
       $rep_add $rep/t7a && $rep_fetch;
 
       $* libbar <'y' 2>>~%EOE%;
-          new libbaz/1.0.0 (required by foo libbar)
+          new libbaz/1.0.0 (required by foo, libbar)
           new foo/1.0.0 (required by libbar)
           new libbar/1.0.0
         continue? [Y/n] fetched libbaz/1.0.0
@@ -4665,7 +4665,7 @@ else
       $rep_add $rep/t7b && $rep_fetch;
 
       $* libbar <'y' 2>>~%EOE%;
-          upgrade libbaz/1.1.0 (required by foo libbar)
+          upgrade libbaz/1.1.0 (required by foo, libbar)
           upgrade foo/1.1.0 (required by libbar)
           upgrade libbar/1.1.0
         continue? [Y/n] disfigured libbar/1.0.0
@@ -5748,7 +5748,7 @@ else
         y
         EOI
         %  new libbaz/1.0.0 \[cfg3.\] \(required by foo \[cfg3.\]\)%
-        %  new foo/1.0.0 \[cfg3.\] \(required by libbiz libbuild2-foo \[cfg2.\]\)%
+        %  new foo/1.0.0 \[cfg3.\] \(required by libbiz, libbuild2-foo \[cfg2.\]\)%
         %  new libbuild2-bar/1.0.0 \[cfg2.\] \(required by libbuild2-foo \[cfg2.\]\)%
         %  new libbaz/1.0.0 \[cfg2.\] \(required by libbuild2-foo \[cfg2.\]\)%
         %  new libbuild2-foo/1.0.0 \[cfg2.\] \(required by libbiz\)%
@@ -5818,7 +5818,7 @@ else
         y
         EOI
         %  new libbaz/1.0.0 \[cfg3.\] \(required by foo \[cfg3.\]\)%
-        %  new foo/1.0.0 \[cfg3.\] \(required by libbiz libbuild2-foo \[cfg2.\]\)%
+        %  new foo/1.0.0 \[cfg3.\] \(required by libbiz, libbuild2-foo \[cfg2.\]\)%
         %  new libbuild2-bar/1.0.0 \[cfg2.\] \(required by libbuild2-foo \[cfg2.\]\)%
         %  new libbaz/1.0.0 \[cfg2.\]%
         %  new libbuild2-foo/1.0.0 \[cfg2.\]%

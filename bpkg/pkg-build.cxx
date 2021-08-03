@@ -1827,7 +1827,7 @@ namespace bpkg
               if (!p.user_selection ())
               {
                 for (const config_package& cp: p.required_by)
-                  rb += ' ' + cp.string ();
+                  rb += (rb.empty () ? " " : ", ") + cp.string ();
               }
 
               if (!rb.empty ())
@@ -2788,18 +2788,19 @@ namespace bpkg
     {
       dr << info << package_string (nm, u.first) << " doesn't satisfy";
 
-      size_t n (0);
       const sp_set& ps (u.second);
-      for (const config_selected_package& p: ps)
-      {
-        dr << ' ' << *p.package << p.db;
 
-        if (++n == 5 && ps.size () != 6) // Printing 'and 1 more' looks stupid.
+      size_t i (0), n (ps.size ());
+      for (auto p (ps.begin ()); i != n; ++p)
+      {
+        dr << (i == 0 ? " " : ", ") << *p->package << p->db;
+
+        if (++i == 5 && n != 6) // Printing 'and 1 more' looks stupid.
           break;
       }
 
-      if (n != ps.size ())
-        dr << " and " << ps.size () - n << " more";
+      if (i != n)
+        dr << " and " << n - i << " more";
 
       if (++nv == 3 && unsatisfiable.size () != 4)
         break;
@@ -5753,7 +5754,7 @@ namespace bpkg
           if (!p.user_selection ())
           {
             for (const config_package& cp: p.required_by)
-              rb += ' ' + cp.string ();
+              rb += (rb.empty () ? " " : ", ") + cp.string ();
 
             // If not user-selected, then there should be another (implicit)
             // reason for the action.
