@@ -8,8 +8,12 @@
 #include <cassert>
 #include <utility> // move()
 
+#include <bpkg/types.hxx>
+
 namespace bpkg
 {
+  using uuid_type = uuid;
+
   enum class auth
   {
     none,

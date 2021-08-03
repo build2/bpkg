@@ -212,7 +212,7 @@ EOE
   {
     uuid='18f48b4b-b5d9-4712-b98c-1930df1c4228';
 
-    $* --config-uuid $uuid --name foo 2>>/~"%EOE%" &cfg/***;
+    $* --uuid $uuid --name foo 2>>/~"%EOE%" &cfg/***;
       %created new configuration in .+/cfg/%
         uuid: $uuid
         type: target
@@ -233,8 +233,8 @@ EOE
   :
   : Also use the short option.
   :
-  $* --config-uuid '123' 2>>EOE != 0
-    error: invalid value '123' for option '--config-uuid'
+  $* --uuid '123' 2>>EOE != 0
+    error: invalid value '123' for option '--uuid'
     EOE
 }
 

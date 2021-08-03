@@ -269,7 +269,7 @@ namespace bpkg
         vars,
         o.existing (),
         o.wipe (),
-        o.config_uuid_specified () ? o.config_uuid () : optional<uuid> (),
+        o.uuid_specified () ? o.uuid () : optional<uuid> (),
         (o.host_config_specified ()
          ? o.host_config ()
          : optional<dir_path> ()),

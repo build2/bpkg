@@ -4312,7 +4312,7 @@ else
 
       $clone_cfg;
       $cfg_create -d cfg-bar &cfg-bar/***;
-      $cfg_create -d cfg-foo --config-uuid $uuid &cfg-foo/***;
+      $cfg_create -d cfg-foo --uuid $uuid &cfg-foo/***;
 
       $cfg_link -d cfg     cfg-bar;
       $cfg_link -d cfg-bar cfg-foo;

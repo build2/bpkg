@@ -18,7 +18,7 @@ acfg_uuid = '28f48b4b-b5d9-4712-b98c-1930df1c4228'
 :
 {
   $cfg_create -d  cfg --name 'main';
-  $cfg_create -d acfg --name 'shared' --config-uuid "$acfg_uuid" &acfg/***;
+  $cfg_create -d acfg --name 'shared' --uuid "$acfg_uuid" &acfg/***;
 
   # Try to link configuration under the same name.
   #
@@ -50,7 +50,7 @@ acfg_uuid = '28f48b4b-b5d9-4712-b98c-1930df1c4228'
   # Test that the recreated configuration can be implicitly re-linked.
   #
   rm -r cfg;
-  $cfg_create -d cfg --name 'test' --config-uuid "$cfg_uuid" &cfg/***;
+  $cfg_create -d cfg --name 'test' --uuid "$cfg_uuid" &cfg/***;
 
   $* acfg 2>>/~"%EOE%";
     %warning: current configuration .+/cfg/ is already implicitly linked with .+/acfg/%
@@ -105,7 +105,7 @@ acfg_uuid = '28f48b4b-b5d9-4712-b98c-1930df1c4228'
   # Link the second configuration.
   #
   rm -r acfg;
-  $cfg_create -d acfg --name 'shared' --config-uuid "$acfg_uuid" &acfg/***;
+  $cfg_create -d acfg --name 'shared' --uuid "$acfg_uuid" &acfg/***;
 
   $pkg_status -d cfg   libfoo >'libfoo unknown';
   $pkg_status -d acfg2 libfoo >'libfoo unknown';
@@ -113,7 +113,7 @@ acfg_uuid = '28f48b4b-b5d9-4712-b98c-1930df1c4228'
   # Test that the configuration type mismatch is reported.
   #
   mv cfg cfg.tmp;
-  $cfg_create -d cfg --type host --config-uuid "$cfg_uuid";
+  $cfg_create -d cfg --type host --uuid "$cfg_uuid";
 
   $* -d acfg2 cfg 2>>/EOE != 0;
     error: configuration cfg/ type mismatch
@@ -152,7 +152,7 @@ acfg_uuid = '28f48b4b-b5d9-4712-b98c-1930df1c4228'
 
   # Test that the repeated implicit link is reported.
   #
-  $cfg_create -d cfg2 --config-uuid "$cfg_uuid";
+  $cfg_create -d cfg2 --uuid "$cfg_uuid";
 
   $* -d cfg2 acfg2 2>>/~"%EOE%" != 0;
     %error: current configuration $cfg_uuid is already linked with .+/acfg2/%
@@ -183,7 +183,7 @@ acfg_uuid = '28f48b4b-b5d9-4712-b98c-1930df1c4228'
     EOE
 
   rm -r cfg;
-  $cfg_create -d cfg --name 'test' --config-uuid "$cfg_uuid" &cfg/***;
+  $cfg_create -d cfg --name 'test' --uuid "$cfg_uuid" &cfg/***;
 
   $pkg_status -d cfg2  libfoo >'libfoo unknown';
   $pkg_status -d acfg2 libfoo >'libfoo unknown'

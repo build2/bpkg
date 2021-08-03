@@ -60,10 +60,10 @@ namespace bpkg
      build build-time dependencies.
 
      Each configuration is assigned an automatically-generated UUID unless one
-     is specified with the \cb{--config-uuid} option. This UUID is used to
-     check the integrity of configuration links. For convenience of referring
-     to linked configurations, a configuration can also be assigned a name
-     with the \cb{--name} option.
+     is specified with the \cb{--uuid} option. This UUID is used to check the
+     integrity of configuration links. For convenience of referring to linked
+     configurations, a configuration can also be assigned a name with the
+     \cb{--name} option.
 
      A configuration also has a type specified with the \cb{--type} option.
      Three predefined types are \cb{target}, \cb{host}, and \cb{build2}. If
@@ -143,7 +143,7 @@ namespace bpkg
        of type \cb{target} is created."
     }
 
-    uuid --config-uuid
+    uuid_type --uuid
     {
       "<uuid>",
       "Use the specified UUID as the configuration id instead of generating
