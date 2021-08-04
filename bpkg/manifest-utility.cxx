@@ -40,29 +40,14 @@ namespace bpkg
   package_name
   parse_package_name (const char* s, bool allow_version)
   {
-    if (!allow_version)
     try
     {
-      return package_name (s);
+      return extract_package_name (s, allow_version);
     }
     catch (const invalid_argument& e)
     {
-      fail << "invalid package name '" << s << "': " << e;
-    }
-
-    // Calculate the package name length as a length of the prefix that
-    // doesn't contain spaces, slashes and the version constraint starting
-    // characters. Note that none of them are valid package name characters.
-    //
-    size_t n (strcspn (s, " /=<>([~^"));
-
-    try
-    {
-      return package_name (string (s, n));
-    }
-    catch (const invalid_argument& e)
-    {
-      fail << "invalid package name in '" << s << "': " << e << endf;
+      fail << "invalid package name " << (allow_version ? "in " : "")
+           << "'" << s << "': " << e << endf;
     }
   }
 
@@ -83,15 +68,7 @@ namespace bpkg
 
       try
       {
-        version r (p, fold_zero_revision);
-
-        if (r.release && r.release->empty ())
-          throw invalid_argument ("earliest version");
-
-        if (r.compare (wildcard_version, true /* ignore_revision */) == 0)
-          throw invalid_argument ("stub version");
-
-        return r;
+        return extract_package_version (s, fold_zero_revision);
       }
       catch (const invalid_argument& e)
       {
