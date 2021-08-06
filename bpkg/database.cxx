@@ -312,6 +312,7 @@ namespace bpkg
   database (database&& db)
       : sqlite::database (move (db)),
         uuid (db.uuid),
+        name (move (db.name)),
         type (move (db.type)),
         config (move (db.config)),
         config_orig (move (db.config_orig)),
@@ -394,6 +395,9 @@ namespace bpkg
   void database::
   cache_config (const uuid_type& u, optional<std::string> n, std::string t)
   {
+    // NOTE: remember to update database(database&&) if changing anything
+    // here.
+    //
     uuid = u;
     name = move (n);
     type = move (t);
