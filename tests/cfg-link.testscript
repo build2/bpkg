@@ -4,10 +4,7 @@
 .include common.testscript
 
 cfg_create += 2>!
-
-# @@ To verify the linking result use cfg-list command rather than pkg-status,
-#    when implemented.
-#
+cfg_info   += --link
 
 test.arguments += -d cfg
 
@@ -43,6 +40,18 @@ acfg_uuid = '28f48b4b-b5d9-4712-b98c-1930df1c4228'
       name: shared
       id:   1
     EOE
+
+  $cfg_info -d cfg >>/~"%EOO%";
+    path: $~/cfg/
+    %uuid: .{36}%
+    type: target
+    name: main
+
+    path: $~/acfg/
+    uuid: $acfg_uuid
+    type: target
+    name: shared
+    EOO
 
   $pkg_status -d cfg  libfoo >'libfoo unknown';
   $pkg_status -d acfg libfoo >'libfoo unknown';
@@ -107,6 +116,23 @@ acfg_uuid = '28f48b4b-b5d9-4712-b98c-1930df1c4228'
   rm -r acfg;
   $cfg_create -d acfg --name 'shared' --uuid "$acfg_uuid" &acfg/***;
 
+  $cfg_info -d cfg >>/~"%EOO%";
+    path: $~/cfg/
+    %uuid: .{36}%
+    type: target
+    name: test
+
+    path: $~/acfg/
+    uuid: $acfg_uuid
+    type: target
+    name: shared
+
+    path: $~/acfg2/
+    %uuid: .{36}%
+    type: target
+    name: shared
+    EOO
+
   $pkg_status -d cfg   libfoo >'libfoo unknown';
   $pkg_status -d acfg2 libfoo >'libfoo unknown';
 
@@ -133,6 +159,18 @@ acfg_uuid = '28f48b4b-b5d9-4712-b98c-1930df1c4228'
       name: test
       id:   1
     EOE
+
+  $cfg_info -d acfg2 >>/~"%EOO%";
+    path: $~/acfg2/
+    %uuid: .{36}%
+    type: target
+    name: shared
+
+    path: $~/cfg/
+    %uuid: .{36}%
+    type: target
+    name: test
+    EOO
 
   $pkg_status -d cfg libfoo >'libfoo unknown';
   $pkg_status -d acfg2 libfoo >'libfoo unknown';

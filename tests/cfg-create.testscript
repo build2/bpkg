@@ -255,10 +255,20 @@ EOE
         type: target
       EOE
 
-    $cfg_info >>/~"%EOO%";
+    $cfg_info --link >>/~"%EOO%";
       %path: .+/cfg/%
       %uuid: .{36}%
       type: target
+      %name: %
+
+      %path: .+/host/%
+      %uuid: .{36}%
+      type: host
+      %name: %
+
+      %path: .+/build2/%
+      %uuid: .{36}%
+      type: build2
       %name: %
       EOO
 

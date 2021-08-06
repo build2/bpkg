@@ -20,16 +20,35 @@ namespace bpkg
     dir_path c (o.directory ());
     l4 ([&]{trace << "configuration: " << c;});
 
-    database db (c, trace, false /* pre_attach */);
+    database db (c, trace, o.link ());
 
     try
     {
       cout.exceptions (ostream::badbit | ostream::failbit);
 
-      cout << "path: " << db.config                 << endl
-           << "uuid: " << db.uuid                   << endl
-           << "type: " << db.type                   << endl
-           << "name: " << (db.name ? *db.name : "") << endl;
+      auto print = [] (const database& db)
+      {
+        cout << "path: " << db.config                 << endl
+             << "uuid: " << db.uuid                   << endl
+             << "type: " << db.type                   << endl
+             << "name: " << (db.name ? *db.name : "") << endl;
+      };
+
+      print (db);
+
+      // Note that there will be no explicit links loaded, unless the --link
+      // option is specified.
+      //
+      for (const linked_config& lc: db.explicit_links ())
+      {
+        // Skip the self-link.
+        //
+        if (lc.id != 0)
+        {
+          cout << endl;
+          print (lc.db);
+        }
+      }
     }
     catch (const io_error&)
     {

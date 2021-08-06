@@ -19,17 +19,30 @@ namespace bpkg
      \h|DESCRIPTION|
 
      The \cb{cfg-info} command prints the current configuration's absolute
-     path, id, type, and name. Note that the information is written to
-     \cb{stdout}, not \cb{stderr}.
+     path, id, type, and name. If the \cb{--link} option is specified then
+     this information is also printed for each linked configuration, if any.
+     Note that the information is written to \cb{stdout}, not \cb{stderr}.
 
      The output format is regular with each value printed on a separate line
-     and prefixed with the value name. For example:
+     and prefixed with the value name. If the \cb{--link} option is specified
+     then information blocks corresponding to configurations are separated
+     with blank lines. For example:
 
      \
      path: /path/to/cfg/
      uuid: 8d439f03-7342-4502-8b1c-74b173869478
      type: target
      name: foo
+
+     path: /path/to/host-cfg/
+     uuid: 7ee4dab3-07d9-4163-81c0-3779166a7213
+     type: host
+     name: tools
+
+     path: /path/to/build2-cfg/
+     uuid: d453aa2a-92c4-4066-87e4-c8672eed06e1
+     type: build2
+     name: modules
      \
      "
   }
@@ -37,6 +50,11 @@ namespace bpkg
   class cfg_info_options: configuration_options
   {
     "\h|CFG-INFO OPTIONS|"
+
+    bool --link
+    {
+      "Print linked configurations."
+    }
   };
 
   "
