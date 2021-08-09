@@ -653,10 +653,27 @@ namespace bpkg
       const linked_databases& lds (db.implicit_links (true /* attach */,
                                                       sys_rep));
 
+      // New boundary type.
+      //
+      const std::string& nbt (db.type == bt ? bt : empty_string);
+
       // Skip the self-link.
       //
       for (auto i (lds.begin () + 1); i != lds.end (); ++i)
-        add (*i, db.type, db.type == bt ? bt : empty_string, add);
+      {
+        database& ldb (*i);
+        add (ldb, db.type, nbt, add);
+
+        // If this configuration is of the build2 type, then also add the
+        // private host configurations of its implicitly linked
+        // configurations.
+        //
+        if (db.type == build2_config_type)
+        {
+          if (database* hdb = ldb.private_config (host_config_type))
+            add (*hdb, db.type, nbt, add);
+        }
+      }
     };
 
     add (*this,
@@ -750,6 +767,21 @@ namespace bpkg
       //
       for (auto i (lcs.begin () + 1); i != lcs.end (); ++i)
         add (i->db, db.type, add);
+
+      // If this is a private host configuration, then also add the parent's
+      // explicitly linked configurations of the build2 type.
+      //
+      if (db.private_ () && db.type == host_config_type)
+      {
+        const linked_configs& lcs (db.parent_config ().explicit_links ());
+
+        for (auto i (lcs.begin () + 1); i != lcs.end (); ++i)
+        {
+          database& ldb (i->db);
+          if (ldb.type == build2_config_type)
+            add (ldb, db.type, add);
+        }
+      }
     };
 
     add (*this, type, add);
@@ -822,6 +854,44 @@ namespace bpkg
 
     fail << "no configuration with uuid " << uid << " is linked with "
          << config_orig << endf;
+  }
+
+  database& database::
+  parent_config (bool sys_rep)
+  {
+    assert (private_ ());
+
+    dir_path pd (config.directory ().directory ()); // Parent configuration.
+    const linked_databases& lds (implicit_links (true /* attach */, sys_rep));
+
+    // Skip the self-link.
+    //
+    for (auto i (lds.begin () + 1); i != lds.end (); ++i)
+    {
+      if (i->get ().config == pd)
+        return *i;
+    }
+
+    // This should not happen normally and is likely to be the result of some
+    // bpkg misuse.
+    //
+    fail << "configuration " << pd << " is not linked to its private "
+         << "configuration " << config << endf;
+  }
+
+  database* database::
+  private_config (const std::string& type)
+  {
+    assert (!explicit_links_.empty ());
+
+    auto r (find_if (explicit_links_.begin () + 1, explicit_links_.end (),
+                     [&type] (const linked_config& lc)
+                     {
+                       database& db (lc.db);
+                       return db.private_ () && db.type == type;
+                     }));
+
+    return r != explicit_links_.end () ? &r->db.get () : nullptr;
   }
 
   bool database::

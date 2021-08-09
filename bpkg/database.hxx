@@ -198,6 +198,13 @@ namespace bpkg
     //   So for the above link chain only cfg2 configuration is included for a
     //   build-time dependency foo and none for libbuild2-foo.
     //
+    // - While traversing through a private configuration of the host type
+    //   consider the parent's explicitly linked configurations of the build2
+    //   type as also being explicitly linked to this private
+    //   configuration. Note that build system module dependencies of packages
+    //   in private host configurations are resolved from the parent's
+    //   explicitly linked configurations of the build2 type.
+    //
     linked_databases
     dependency_configs ();
 
@@ -214,6 +221,13 @@ namespace bpkg
     // host or build2 type (think of searching through the target
     // configurations for dependents of a build-time dependency in host
     // configuration).
+    //
+    // While traversing through a configuration of the build2 type consider
+    // private host configurations of its implicitly linked configurations as
+    // also being implicitly linked to this build2 configuration. Note that
+    // build system module dependencies of packages in private host
+    // configurations are resolved from the parent's explicitly linked
+    // configurations of the build2 type.
     //
     linked_databases
     dependent_configs (bool sys_rep = false);
@@ -242,6 +256,28 @@ namespace bpkg
     //
     database&
     find_dependency_config (const uuid_type&);
+
+    // Return true if this configuration is private (i.e. its parent directory
+    // name is `.bpkg`).
+    //
+    bool
+    private_ ()
+    {
+      return config.directory ().leaf () == bpkg_dir;
+    }
+
+    // Return the implicitly linked configuration containing this
+    // configuration and issue diagnostics and fail if not found. Assume that
+    // this configuration is private.
+    //
+    database&
+    parent_config (bool sys_rep = false);
+
+    // Return a private configuration of the specified type, if present, and
+    // NULL otherwise.
+    //
+    database*
+    private_config (const string& type);
 
     // Return an empty string for the main database and the original
     // configuration directory path in the `[<dir>]` form otherwise.

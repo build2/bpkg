@@ -1154,33 +1154,31 @@ namespace bpkg
         // only one of them has the suitable type, then we use that. If there
         // are multiple of them, then we fail advising the user to pick one
         // explicitly. If there are none, then we create the private
-        // configuration and use that.
+        // configuration and use that. If the current configuration is
+        // private, then search/create in the parent configuration instead.
         //
         // Note that if the user has explicitly specified the configuration
         // for this dependency on the command line (using --config-*), then
         // this configuration is used as the starting point for this search.
         //
-        if (da.buildtime && dsp == nullptr)
+        if (da.buildtime   &&
+            dsp == nullptr &&
+            ddb->type != buildtime_dependency_type (dn))
         {
-          database* db (nullptr);
+          database*  db (nullptr);
+          database& sdb (ddb->private_ () ? ddb->parent_config () : *ddb);
+
           const string& type (buildtime_dependency_type (dn));
 
-          // Note that the first returned link is for ddb itself.
+          // Skip the self-link.
           //
-          for (const linked_config& lc: ddb->explicit_links ())
+          const linked_configs& lcs (sdb.explicit_links ());
+          for (auto i (lcs.begin () + 1); i != lcs.end (); ++i)
           {
-            database& ldb (lc.db);
+            database& ldb (i->db);
 
             if (ldb.type == type)
             {
-              // We are done if the self-link is of the suitable type.
-              //
-              if (lc.id == 0)
-              {
-                db = &ldb;
-                break;
-              }
-
               if (db == nullptr)
                 db = &ldb;
               else
@@ -1250,7 +1248,7 @@ namespace bpkg
             // outdated database schema version, etc.
             //
             cfg_create (options,
-                        ddb->config_orig / cd,
+                        sdb.config_orig / cd,
                         optional<string> (type) /* name */,
                         type                    /* type */,
                         mods,
@@ -1261,8 +1259,8 @@ namespace bpkg
             // Note that we will copy the name from the configuration unless
             // it clashes with one of the existing links.
             //
-            shared_ptr<configuration> lc (cfg_link (*ddb,
-                                                    ddb->config / cd,
+            shared_ptr<configuration> lc (cfg_link (sdb,
+                                                    sdb.config / cd,
                                                     true    /* relative */,
                                                     nullopt /* name */,
                                                     true    /* sys_rep */));
@@ -1271,9 +1269,9 @@ namespace bpkg
             // containing configuration database, for their subsequent re-
             // link.
             //
-            priv_cfgs.emplace_back (*ddb, move (cd));
+            priv_cfgs.emplace_back (sdb, move (cd));
 
-            db = &ddb->find_attached (*lc->id);
+            db = &sdb.find_attached (*lc->id);
           }
 
           ddb = db; // Switch to the dependency configuration.
