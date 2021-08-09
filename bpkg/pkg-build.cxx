@@ -969,6 +969,16 @@ namespace bpkg
 
             continue;
           }
+          else if (pdb.type == build2_config_type)
+          {
+            // Note that the dependent is not necessarily a build system
+            // module.
+            //
+            fail << "build-time dependency " << dn << " in build system "
+                 << "module configuration" <<
+              info << "build system modules cannot have build-time "
+                   << "dependencies";
+          }
         }
 
         bool system (false);

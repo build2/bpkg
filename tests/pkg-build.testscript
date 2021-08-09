@@ -115,10 +115,9 @@
 # |
 # |-- t7a
 # |   |-- libbaz-1.0.0.tar.gz
-# |   |-- foo-1.0.0.tar.gz            -> libbaz ^1.0.0
 # |   |-- libbuild2-bar-1.0.0.tar.gz
-# |   |-- libbuild2-foo-1.0.0.tar.gz  -> libbuild2-bar ^1.0.0, * foo ^1.0.0,
-# |   |                                  libbaz ^1.0.0
+# |   |-- foo-1.0.0.tar.gz            -> * libbuild2-bar ^1.0.0, libbaz ^1.0.0
+# |   |-- libbuild2-foo-1.0.0.tar.gz  -> libbaz ^1.0.0
 # |   |-- libbiz-1.0.0.tar.gz         -> * libbuild2-foo ^1.0.0, * foo ^1.0.0,
 # |   |                                  libbaz ^1.0.0
 # |   |-- libbuz-1.0.0.tar.gz         -> * libbuild2-foo ^1.0.0, * foo ^1.0.0
@@ -4401,11 +4400,14 @@ else
         cp -pr ../cfg2 ./;
 
         $* libbar <'y' 2>>~%EOE%;
+          %  new libbuild2-bar/1.0.0 \[cfg2..bpkg.build2.\] \(required by foo \[cfg2.\]\)%
           %  new libbaz/1.0.0 \[cfg2.\] \(required by foo \[cfg2.\]\)%
           %  new foo/1.0.0 \[cfg2.\] \(required by libbar\)%
           %  new libbaz/1.0.0 \(required by libbar\)%
             new libbar/1.0.0
-          %continue\? \[Y/n\] fetched libbaz/1.0.0 \[cfg2.\]%
+          %continue\? \[Y/n\] fetched libbuild2-bar/1.0.0 \[cfg2..bpkg.build2.\]%
+          %unpacked libbuild2-bar/1.0.0 \[cfg2..bpkg.build2.\]%
+          %fetched libbaz/1.0.0 \[cfg2.\]%
           %unpacked libbaz/1.0.0 \[cfg2.\]%
           %fetched foo/1.0.0 \[cfg2.\]%
           %unpacked foo/1.0.0 \[cfg2.\]%
@@ -4413,6 +4415,7 @@ else
           unpacked libbaz/1.0.0
           fetched libbar/1.0.0
           unpacked libbar/1.0.0
+          %configured libbuild2-bar/1.0.0 \[cfg2..bpkg.build2.\]%
           %configured libbaz/1.0.0 \[cfg2.\]%
           %configured foo/1.0.0 \[cfg2.\]%
           configured libbaz/1.0.0
@@ -4425,6 +4428,7 @@ else
           !libbar configured 1.0.0
             foo [cfg2/] configured 1.0.0
               libbaz [cfg2/] configured 1.0.0
+              libbuild2-bar [cfg2/.bpkg/build2/] configured 1.0.0
             libbaz configured 1.0.0
           EOO
 
@@ -4440,13 +4444,16 @@ else
 
         $* libbar <'y' 2>>~%EOE%;
           %  upgrade libbaz/1.1.0 \[cfg2.\] \(required by foo \[cfg2.\]\)%
+          %  drop libbuild2-bar/1.0.0 \[cfg2..bpkg.build2.\] \(unused\)%
           %  upgrade foo/1.1.0 \[cfg2.\] \(required by libbar\)%
             upgrade libbar/1.1.0
           %continue\? \[Y/n\] disfigured libbar/1.0.0%
           %disfigured foo/1.0.0 \[cfg2.\]%
+          %disfigured libbuild2-bar/1.0.0 \[cfg2..bpkg.build2.\]%
           %disfigured libbaz/1.0.0 \[cfg2.\]%
           %fetched libbaz/1.1.0 \[cfg2.\]%
           %unpacked libbaz/1.1.0 \[cfg2.\]%
+          %purged libbuild2-bar/1.0.0 \[cfg2..bpkg.build2.\]%
           %fetched foo/1.1.0 \[cfg2.\]%
           %unpacked foo/1.1.0 \[cfg2.\]%
           fetched libbar/1.1.0
@@ -4466,19 +4473,23 @@ else
           EOO
 
         $* libbar/1.0.0 ?foo/1.0.0 +{ --config-name cfg2 } \
-           ?libbaz/1.0.0 +{ --config-id 1 } <'y' 2>>~%EOE%;
+           ?libbaz/1.0.0 +{ --config-id 1 } <'y' &cfg2/.bpkg/build2/*** 2>>~%EOE%;
+          %  new libbuild2-bar/1.0.0 \[cfg2..bpkg.build2.\] \(required by foo \[cfg2.\]\)%
           %  downgrade libbaz/1.0.0 \[cfg2.\]%
           %  downgrade foo/1.0.0 \[cfg2.\]%
             downgrade libbar/1.0.0
           continue? [Y/n] disfigured libbar/1.1.0
           %disfigured foo/1.1.0 \[cfg2.\]%
           %disfigured libbaz/1.1.0 \[cfg2.\]%
+          %fetched libbuild2-bar/1.0.0 \[cfg2..bpkg.build2.\]%
+          %unpacked libbuild2-bar/1.0.0 \[cfg2..bpkg.build2.\]%
           %fetched libbaz/1.0.0 \[cfg2.\]%
           %unpacked libbaz/1.0.0 \[cfg2.\]%
           %fetched foo/1.0.0 \[cfg2.\]%
           %unpacked foo/1.0.0 \[cfg2.\]%
           fetched libbar/1.0.0
           unpacked libbar/1.0.0
+          %configured libbuild2-bar/1.0.0 \[cfg2..bpkg.build2.\]%
           %configured libbaz/1.0.0 \[cfg2.\]%
           %configured foo/1.0.0 \[cfg2.\]%
           configured libbar/1.0.0
@@ -4494,6 +4505,7 @@ else
           !libbar configured !1.0.0 available 1.1.0
             foo [cfg2/] configured !1.0.0 available 1.1.0
               libbaz [cfg2/] configured !1.0.0 available 1.1.0
+              libbuild2-bar [cfg2/.bpkg/build2/] configured 1.0.0
             libbaz configured 1.0.0 available 1.1.0
           EOO
 
@@ -4523,6 +4535,7 @@ else
           !libbar configured 1.0.0
             foo [cfg3/] configured 1.0.0
               libbaz [cfg3/] configured 1.0.0
+              libbuild2-bar [cfg3/.bpkg/build2/] configured 1.0.0
             libbaz configured 1.0.0
           EOO
 
@@ -4542,13 +4555,16 @@ else
 
         $* -d cfg2 libbaz +{ --config-id 2 } 2>!;
 
-        $* libbar --yes 2>>~%EOE%;
+        $* libbar --yes &cfg2/.bpkg/build2/*** 2>>~%EOE%;
+          %fetched libbuild2-bar/1.0.0 \[cfg2..bpkg.build2.\]%
+          %unpacked libbuild2-bar/1.0.0 \[cfg2..bpkg.build2.\]%
           %fetched foo/1.0.0 \[cfg2.\]%
           %unpacked foo/1.0.0 \[cfg2.\]%
           fetched libbaz/1.0.0
           unpacked libbaz/1.0.0
           fetched libbar/1.0.0
           unpacked libbar/1.0.0
+          %configured libbuild2-bar/1.0.0 \[cfg2..bpkg.build2.\]%
           %configured foo/1.0.0 \[cfg2.\]%
           configured libbaz/1.0.0
           configured libbar/1.0.0
@@ -4560,6 +4576,7 @@ else
           !libbar configured 1.0.0
             foo [cfg2/] configured 1.0.0
               !libbaz [cfg3/] configured 1.0.0
+              libbuild2-bar [cfg2/.bpkg/build2/] configured 1.0.0
             libbaz configured 1.0.0
           EOO
 
@@ -4573,11 +4590,14 @@ else
       $clone_cfg;
 
       $* libbar <'y' 2>>~%EOE% &cfg/.bpkg/host/***;
+        %  new libbuild2-bar/1.0.0 \[cfg..bpkg.host..bpkg.build2.\] \(required by foo \[cfg..bpkg.host.\]\)%
         %  new libbaz/1.0.0 \[cfg..bpkg.host.\] \(required by foo \[cfg..bpkg.host.\]\)%
         %  new foo/1.0.0 \[cfg..bpkg.host.\] \(required by libbar\)%
         %  new libbaz/1.0.0 \(required by libbar\)%
           new libbar/1.0.0
-        %continue\? \[Y/n\] fetched libbaz/1.0.0 \[cfg..bpkg.host.\]%
+        %continue\? \[Y/n\] fetched libbuild2-bar/1.0.0 \[cfg..bpkg.host..bpkg.build2.\]%
+        %unpacked libbuild2-bar/1.0.0 \[cfg..bpkg.host..bpkg.build2.\]%
+        %fetched libbaz/1.0.0 \[cfg..bpkg.host.\]%
         %unpacked libbaz/1.0.0 \[cfg..bpkg.host.\]%
         %fetched foo/1.0.0 \[cfg..bpkg.host.\]%
         %unpacked foo/1.0.0 \[cfg..bpkg.host.\]%
@@ -4585,6 +4605,7 @@ else
         unpacked libbaz/1.0.0
         fetched libbar/1.0.0
         unpacked libbar/1.0.0
+        %configured libbuild2-bar/1.0.0 \[cfg..bpkg.host..bpkg.build2.\]%
         %configured libbaz/1.0.0 \[cfg..bpkg.host.\]%
         %configured foo/1.0.0 \[cfg..bpkg.host.\]%
         configured libbaz/1.0.0
@@ -4597,6 +4618,7 @@ else
         !libbar configured 1.0.0
           foo [cfg/.bpkg/host/] configured 1.0.0
             libbaz [cfg/.bpkg/host/] configured 1.0.0
+            libbuild2-bar [cfg/.bpkg/host/.bpkg/build2/] configured 1.0.0
           libbaz configured 1.0.0
         EOO
 
@@ -4604,13 +4626,16 @@ else
 
       $* libbar <'y' 2>>~%EOE%;
         %  upgrade libbaz/1.1.0 \[cfg..bpkg.host.\] \(required by foo \[cfg..bpkg.host.\]\)%
+        %  drop libbuild2-bar/1.0.0 \[cfg..bpkg.host..bpkg.build2.\] \(unused\)%
         %  upgrade foo/1.1.0 \[cfg..bpkg.host.\] \(required by libbar\)%
           upgrade libbar/1.1.0
         %continue\? \[Y/n\] disfigured libbar/1.0.0%
         %disfigured foo/1.0.0 \[cfg..bpkg.host.\]%
+        %disfigured libbuild2-bar/1.0.0 \[cfg..bpkg.host..bpkg.build2.\]%
         %disfigured libbaz/1.0.0 \[cfg..bpkg.host.\]%
         %fetched libbaz/1.1.0 \[cfg..bpkg.host.\]%
         %unpacked libbaz/1.1.0 \[cfg..bpkg.host.\]%
+        %purged libbuild2-bar/1.0.0 \[cfg..bpkg.host..bpkg.build2.\]%
         %fetched foo/1.1.0 \[cfg..bpkg.host.\]%
         %unpacked foo/1.1.0 \[cfg..bpkg.host.\]%
         fetched libbar/1.1.0
@@ -4639,15 +4664,19 @@ else
       $rep_add $rep/t7a && $rep_fetch;
 
       $* libbar <'y' 2>>~%EOE%;
+        %  new libbuild2-bar/1.0.0 \[cfg..bpkg.build2.\] \(required by foo\)%
           new libbaz/1.0.0 (required by foo, libbar)
           new foo/1.0.0 (required by libbar)
           new libbar/1.0.0
-        continue? [Y/n] fetched libbaz/1.0.0
+        %continue\? \[Y/n\] fetched libbuild2-bar/1.0.0 \[cfg..bpkg.build2.\]%
+        %unpacked libbuild2-bar/1.0.0 \[cfg..bpkg.build2.\]%
+        fetched libbaz/1.0.0
         unpacked libbaz/1.0.0
         fetched foo/1.0.0
         unpacked foo/1.0.0
         fetched libbar/1.0.0
         unpacked libbar/1.0.0
+        %configured libbuild2-bar/1.0.0 \[cfg..bpkg.build2.\]%
         configured libbaz/1.0.0
         configured foo/1.0.0
         configured libbar/1.0.0
@@ -4659,6 +4688,7 @@ else
         !libbar configured 1.0.0
           foo configured 1.0.0
             libbaz configured 1.0.0
+            libbuild2-bar [cfg/.bpkg/build2/] configured 1.0.0
           libbaz configured 1.0.0
         EOO
 
@@ -4666,13 +4696,16 @@ else
 
       $* libbar <'y' 2>>~%EOE%;
           upgrade libbaz/1.1.0 (required by foo, libbar)
+        %  drop libbuild2-bar/1.0.0 \[cfg..bpkg.build2.\] \(unused\)%
           upgrade foo/1.1.0 (required by libbar)
           upgrade libbar/1.1.0
         continue? [Y/n] disfigured libbar/1.0.0
         disfigured foo/1.0.0
+        %disfigured libbuild2-bar/1.0.0 \[cfg..bpkg.build2.\]%
         disfigured libbaz/1.0.0
         fetched libbaz/1.1.0
         unpacked libbaz/1.1.0
+        %purged libbuild2-bar/1.0.0 \[cfg..bpkg.build2.\]%
         fetched foo/1.1.0
         unpacked foo/1.1.0
         fetched libbar/1.1.0
@@ -4826,11 +4859,19 @@ else
         !libbaz configured 1.0.0
         EOO
 
-      $* -d t1 foo libbaz +{ --config-name t2 } 2>>~%EOE%;
+      $* -d t1 foo libbaz +{ --config-name t2 } <<EOI 2>>~%EOE%;
+        y
+        EOI
+        %  new libbuild2-bar/1.0.0 \[t1..bpkg.build2.\] \(required by foo\)%
+        %  new libbaz/1.0.0 \[t2.\]%
+          new foo/1.0.0
+        %continue\? \[Y.n\] fetched libbuild2-bar/1.0.0 \[t1..bpkg.build2.\]%
+        unpacked libbuild2-bar/1.0.0 [t1/.bpkg/build2/]
         %fetched libbaz/1.0.0 \[t2.\]%
         %unpacked libbaz/1.0.0 \[t2.\]%
         fetched foo/1.0.0
         unpacked foo/1.0.0
+        %configured libbuild2-bar/1.0.0 \[t1..bpkg.build2.\]%
         %configured libbaz/1.0.0 \[t2.\]%
         configured foo/1.0.0
         %info: t2.+libbaz-1.0.0.+ is up to date%
@@ -4843,6 +4884,7 @@ else
         !libbaz configured 1.0.0
         !foo configured 1.0.0
           !libbaz [t2/] configured 1.0.0
+          libbuild2-bar [t1/.bpkg/build2/] configured 1.0.0
         !libbaz [t2/] configured 1.0.0
         EOO
     }
@@ -4863,11 +4905,19 @@ else
         !libbaz configured 1.0.0
         EOO
 
-      $* -d t1 foo ?libbaz +{ --config-name t2 } 2>>~%EOE%;
+      $* -d t1 foo ?libbaz +{ --config-name t2 } <<EOI 2>>~%EOE%;
+        y
+        EOI
+        %  new libbuild2-bar/1.0.0 \[t1..bpkg.build2.\] \(required by foo\)%
+        %  new libbaz/1.0.0 \[t2.\]%
+        %  new foo/1.0.0%
+        %continue\? \[Y.n\] fetched libbuild2-bar/1.0.0 \[t1..bpkg.build2.\]%
+        %unpacked libbuild2-bar/1.0.0 \[t1..bpkg.build2.\]%
         %fetched libbaz/1.0.0 \[t2.\]%
         %unpacked libbaz/1.0.0 \[t2.\]%
         fetched foo/1.0.0
         unpacked foo/1.0.0
+        %configured libbuild2-bar/1.0.0 \[t1..bpkg.build2.\]%
         %configured libbaz/1.0.0 \[t2.\]%
         configured foo/1.0.0
         %info: t2.+libbaz-1.0.0.+ is up to date%
@@ -4880,6 +4930,7 @@ else
         !libbaz configured 1.0.0
         !foo configured 1.0.0
           libbaz [t2/] configured 1.0.0
+          libbuild2-bar [t1/.bpkg/build2/] configured 1.0.0
         EOO
     }
 
@@ -4903,11 +4954,14 @@ else
       $* -d t1 libbar ?foo +{ --config-name h1 } <<EOI 2>>~%EOE%;
         y
         EOI
+        %  new libbuild2-bar/1.0.0 \[h1..bpkg.build2.\] \(required by foo \[h1.\]\)%
         %  new libbaz/1.0.0 \[h1.\] \(required by foo \[h1.\]\)%
         %  new foo/1.0.0 \[h1.\]%
           new libbaz/1.0.0 (required by libbar)
           new libbar/1.0.0
-        %continue\? \[Y/n\] fetched libbaz/1.0.0 \[h1.\]%
+        %continue\? \[Y/n\] fetched libbuild2-bar/1.0.0 \[h1..bpkg.build2.\]%
+        %unpacked libbuild2-bar/1.0.0 \[h1..bpkg.build2.\]%
+        %fetched libbaz/1.0.0 \[h1.\]%
         %unpacked libbaz/1.0.0 \[h1.\]%
         %fetched foo/1.0.0 \[h1.\]%
         %unpacked foo/1.0.0 \[h1.\]%
@@ -4915,6 +4969,7 @@ else
         unpacked libbaz/1.0.0
         fetched libbar/1.0.0
         unpacked libbar/1.0.0
+        %configured libbuild2-bar/1.0.0 \[h1..bpkg.build2.\]%
         %configured libbaz/1.0.0 \[h1.\]%
         %configured foo/1.0.0 \[h1.\]%
         configured libbaz/1.0.0
@@ -4929,6 +4984,7 @@ else
         !libbar configured 1.0.0
           foo [h1/] configured 1.0.0
             libbaz [h1/] configured 1.0.0
+            libbuild2-bar [h1/.bpkg/build2/] configured 1.0.0
           libbaz configured 1.0.0
         EOO
 
@@ -4954,6 +5010,7 @@ else
         !libbox configured 1.0.0
           foo [h1/] configured 1.0.0
             libbaz [h1/] configured 1.0.0
+            libbuild2-bar [h1/.bpkg/build2/] configured 1.0.0
           libbaz configured 1.0.0
         EOO
 
@@ -4961,14 +5018,18 @@ else
         y
         y
         EOI
+        %  new libbuild2-bar/1.0.0 \[h2..bpkg.build2.\] \(required by foo \[h2.\]\)%
         %  new libbaz/1.0.0 \[h2.\] \(required by foo \[h2.\]\)%
         %  new foo/1.0.0 \[h2.\]%
         %  reconfigure libbar/1.0.0 \(dependent of foo \[h2.\]\)%
         continue? [Y/n] update dependent packages? [Y/n] disfigured libbar/1.0.0
+        %fetched libbuild2-bar/1.0.0 \[h2..bpkg.build2.\]%
+        %unpacked libbuild2-bar/1.0.0 \[h2..bpkg.build2.\]%
         %fetched libbaz/1.0.0 \[h2.\]%
         %unpacked libbaz/1.0.0 \[h2.\]%
         %fetched foo/1.0.0 \[h2.\]%
         %unpacked foo/1.0.0 \[h2.\]%
+        %configured libbuild2-bar/1.0.0 \[h2..bpkg.build2.\]%
         %configured libbaz/1.0.0 \[h2.\]%
         %configured foo/1.0.0 \[h2.\]%
         configured libbar/1.0.0
@@ -4982,6 +5043,7 @@ else
         !libbar configured 1.0.0
           foo [h2/] configured 1.0.0
             libbaz [h2/] configured 1.0.0
+            libbuild2-bar [h2/.bpkg/build2/] configured 1.0.0
           libbaz configured 1.0.0
         EOO
 
@@ -4989,6 +5051,7 @@ else
         !libbox configured 1.0.0
           foo [h1/] configured 1.0.0
             libbaz [h1/] configured 1.0.0
+            libbuild2-bar [h1/.bpkg/build2/] configured 1.0.0
           libbaz configured 1.0.0
         EOO
     }
@@ -5008,6 +5071,7 @@ else
       $pkg_status -d t1 -r >>/EOO;
         !foo configured 1.0.0
           libbaz configured 1.0.0
+          libbuild2-bar [t1/.bpkg/build2/] configured 1.0.0
         EOO
 
       $* -d t1 libbaz +{ --config-name t2 } <<EOI 2>>~%EOE%;
@@ -5033,6 +5097,7 @@ else
       $pkg_status -d t1 -r >>/EOO
         !foo configured 1.0.0
           !libbaz [t2/] configured 1.0.0
+          libbuild2-bar [t1/.bpkg/build2/] configured 1.0.0
         !libbaz [t2/] configured 1.0.0
         EOO
     }
@@ -5052,18 +5117,22 @@ else
       $pkg_status -d t1 -r >>/EOO;
         !foo configured 1.0.0
           libbaz configured 1.0.0
+          libbuild2-bar [t1/.bpkg/build2/] configured 1.0.0
         EOO
 
       $* -d t1 ?foo libbaz +{ --config-name t2 } <<EOI 2>>~%EOE%;
         y
         EOI
         %  new libbaz/1.0.0 \[t2.\]%
+        %  drop libbuild2-bar/1.0.0 \[t1..bpkg.build2.\] \(unused\)%
           drop libbaz/1.0.0 (unused)
           drop foo/1.0.0 (unused)
         continue? [Y/n] disfigured foo/1.0.0
         disfigured libbaz/1.0.0
+        %disfigured libbuild2-bar/1.0.0 \[t1..bpkg.build2.\]%
         %fetched libbaz/1.0.0 \[t2.\]%
         %unpacked libbaz/1.0.0 \[t2.\]%
+        %purged libbuild2-bar/1.0.0 \[t1..bpkg.build2.\]%
         purged libbaz/1.0.0
         purged foo/1.0.0
         %configured libbaz/1.0.0 \[t2.\]%
@@ -5091,6 +5160,7 @@ else
       $pkg_status -d h1 -r >>/EOO;
         !foo configured 1.0.0
           libbaz configured 1.0.0
+          libbuild2-bar [h1/.bpkg/build2/] configured 1.0.0
         EOO
 
       $* -d h1 libbar libbaz +{ --config-name h2 } <<EOI 2>>~%EOE%;
@@ -5119,9 +5189,11 @@ else
       $pkg_status -d h1 -r >>/EOO
         !foo configured 1.0.0
           !libbaz [h2/] configured 1.0.0
+          libbuild2-bar [h1/.bpkg/build2/] configured 1.0.0
         !libbar configured 1.0.0
           !foo configured 1.0.0
             !libbaz [h2/] configured 1.0.0
+            libbuild2-bar [h1/.bpkg/build2/] configured 1.0.0
           !libbaz [h2/] configured 1.0.0
         !libbaz [h2/] configured 1.0.0
         EOO
@@ -5142,19 +5214,23 @@ else
       $pkg_status -d h1 -r >>/EOO;
         !foo configured 1.0.0
           libbaz configured 1.0.0
+          libbuild2-bar [h1/.bpkg/build2/] configured 1.0.0
         EOO
 
       $* -d h1 libbar '?sys:foo/1.2.0' ?libbaz +{ --config-name h2 } <<EOI 2>>~%EOE%;
         y
         EOI
         %  new libbaz/1.0.0 \[h2.\]%
+        %  drop libbuild2-bar/1.0.0 \[h1..bpkg.build2.\] \(unused\)%
           drop libbaz/1.0.0 (unused)
           reconfigure/unhold sys:foo/1.2.0
           new libbar/1.0.0
         continue? [Y/n] disfigured foo/1.0.0
         disfigured libbaz/1.0.0
+        %disfigured libbuild2-bar/1.0.0 \[h1..bpkg.build2.\]%
         %fetched libbaz/1.0.0 \[h2.\]%
         %unpacked libbaz/1.0.0 \[h2.\]%
+        %purged libbuild2-bar/1.0.0 \[h1..bpkg.build2.\]%
         purged libbaz/1.0.0
         purged foo/1.0.0
         fetched libbar/1.0.0
@@ -5179,6 +5255,7 @@ else
         y
         EOI
         %  drop libbaz/1.0.0 \[h2.\] \(unused\)%
+        %  new libbuild2-bar/1.0.0 \[h1/.bpkg/build2.\] \(required by foo\)%
           new libbaz/1.0.0
           downgrade foo/1.0.0
           reconfigure libbar/1.0.0 (dependent of libbaz)
@@ -5186,10 +5263,13 @@ else
         purged foo/1.2.0
         %disfigured libbaz/1.0.0 \[h2.\]%
         %purged libbaz/1.0.0 \[h2.\]%
+        %fetched libbuild2-bar/1.0.0 \[h1..bpkg.build2.\]%
+        %unpacked libbuild2-bar/1.0.0 \[h1..bpkg.build2.\]%
         fetched libbaz/1.0.0
         unpacked libbaz/1.0.0
         fetched foo/1.0.0
         unpacked foo/1.0.0
+        %configured libbuild2-bar/1.0.0 \[h1..bpkg.build2.\]%
         configured libbaz/1.0.0
         configured foo/1.0.0
         configured libbar/1.0.0
@@ -5205,6 +5285,7 @@ else
         !libbar configured 1.0.0
           foo configured 1.0.0
             libbaz configured 1.0.0
+            libbuild2-bar [h1/.bpkg/build2/] configured 1.0.0
           libbaz configured 1.0.0
         EOO
     }
@@ -5246,6 +5327,7 @@ else
       $pkg_status -d h1 -r >>/EOO;
         !foo configured 1.0.0
           libbaz configured 1.0.0
+          libbuild2-bar [h1/.bpkg/build2/] configured 1.0.0
         EOO
 
       $* -d h1 libbar ?foo libbaz +{ --config-name h2 } <<EOI 2>>~%EOE%;
@@ -5277,6 +5359,7 @@ else
         !libbar configured 1.0.0
           foo configured 1.0.0
             !libbaz [h2/] configured 1.0.0
+            libbuild2-bar [h1/.bpkg/build2/] configured 1.0.0
           !libbaz [h2/] configured 1.0.0
         !libbaz [h2/] configured 1.0.0
         EOO
@@ -5295,11 +5378,19 @@ else
 
       $rep_add -d h1 $rep/t7a && $rep_fetch -d h1;
 
-      $* -d h1 foo ?libbaz 2>>~%EOE%;
+      $* -d h1 foo ?libbaz <<EOI 2>>~%EOE%;
+        y
+        EOI
+        %  new libbuild2-bar/1.0.0 \[h1..bpkg.build2.\] \(required by foo\)%
+        %  new libbaz/1.0.0%
+        %  new foo/1.0.0%
+        %continue\? \[Y.n\] fetched libbuild2-bar/1.0.0 \[h1..bpkg.build2.\]%
+        %unpacked libbuild2-bar/1.0.0 \[h1..bpkg.build2.\]%
         fetched libbaz/1.0.0
         unpacked libbaz/1.0.0
         fetched foo/1.0.0
         unpacked foo/1.0.0
+        %configured libbuild2-bar/1.0.0 \[h1..bpkg.build2.\]%
         configured libbaz/1.0.0
         configured foo/1.0.0
         %info: h1.+libbaz-1.0.0.+ is up to date%
@@ -5311,6 +5402,7 @@ else
       $pkg_status -d h1 -r >>/EOO;
         !foo configured 1.0.0
           libbaz configured 1.0.0
+          libbuild2-bar [h1/.bpkg/build2/] configured 1.0.0
         !foo [h2/] configured 1.1.0
           libbaz [h2/] configured 1.1.0
         EOO
@@ -5340,6 +5432,7 @@ else
       $pkg_status -d h1 -r >>/EOO
         !foo configured 1.0.0
           libbaz [h2/] configured 1.1.0
+          libbuild2-bar [h1/.bpkg/build2/] configured 1.0.0
         !foo [h2/] configured 1.1.0
           libbaz [h2/] configured 1.1.0
         EOO
@@ -5358,6 +5451,7 @@ else
         !libbar configured 1.0.0
           foo [t1/.bpkg/host/] configured 1.0.0
             libbaz [t1/.bpkg/host/] configured 1.0.0
+            libbuild2-bar [t1/.bpkg/host/.bpkg/build2/] configured 1.0.0
           libbaz configured 1.0.0
         EOO
 
@@ -5372,16 +5466,19 @@ else
         EOI
         %  new libbaz/1.1.0 \[h1.\] \(required by foo \[h1.\]\)%
         %  new foo/1.1.0 \[h1.\]%
+        %  drop libbuild2-bar/1.0.0 \[t1..bpkg.host..bpkg.build2.\] \(unused\)%
         %  drop libbaz/1.0.0 \[t1..bpkg.host.\] \(unused\)%
         %  drop foo/1.0.0 \[t1..bpkg.host.\] \(unused\)%
           upgrade libbar/1.1.0
         continue? [Y/n] disfigured libbar/1.0.0
         %disfigured foo/1.0.0 \[t1..bpkg.host.\]%
         %disfigured libbaz/1.0.0 \[t1..bpkg.host.\]%
+        %disfigured libbuild2-bar/1.0.0 \[t1..bpkg.host..bpkg.build2.\]%
         %fetched libbaz/1.1.0 \[h1.\]%
         %unpacked libbaz/1.1.0 \[h1.\]%
         %fetched foo/1.1.0 \[h1.\]%
         %unpacked foo/1.1.0 \[h1.\]%
+        %purged libbuild2-bar/1.0.0 \[t1..bpkg.host..bpkg.build2.\]%
         %purged libbaz/1.0.0 \[t1..bpkg.host.\]%
         %purged foo/1.0.0 \[t1..bpkg.host.\]%
         fetched libbar/1.1.0
@@ -5419,6 +5516,7 @@ else
         !libbar configured 1.0.0
           foo configured 1.0.0
             libbaz configured 1.0.0
+            libbuild2-bar [h1/.bpkg/build2/] configured 1.0.0
           libbaz configured 1.0.0
         EOO
 
@@ -5429,14 +5527,17 @@ else
         y
         EOI
         %  new libbaz/1.1.0 \[h2.\]%
+        %  drop libbuild2-bar/1.0.0 \[h1..bpkg.build2.\] \(unused\)%
           drop libbaz/1.0.0 (unused)
           upgrade foo/1.1.0
           upgrade libbar/1.1.0
         continue? [Y/n] disfigured libbar/1.0.0
         disfigured foo/1.0.0
         disfigured libbaz/1.0.0
+        %disfigured libbuild2-bar/1.0.0 \[h1..bpkg.build2.\]%
         %fetched libbaz/1.1.0 \[h2.\]%
         %unpacked libbaz/1.1.0 \[h2.\]%
+        %purged libbuild2-bar/1.0.0 \[h1..bpkg.build2.\]%
         purged libbaz/1.0.0
         fetched foo/1.1.0
         unpacked foo/1.1.0
@@ -5474,6 +5575,7 @@ else
         !libbar configured 1.0.0
           foo [t1/.bpkg/host/] configured 1.0.0
             libbaz [t1/.bpkg/host/] configured 1.0.0
+            libbuild2-bar [t1/.bpkg/host/.bpkg/build2/] configured 1.0.0
           libbaz configured 1.0.0
         EOO
 
@@ -5512,6 +5614,7 @@ else
         !libbar configured 1.0.0 available 1.1.0
           foo [t1/.bpkg/host/] configured 1.0.0 available 1.1.0
             libbaz [t1/.bpkg/host/] configured 1.0.0 available 1.1.0
+            libbuild2-bar [t1/.bpkg/host/.bpkg/build2/] configured 1.0.0
           !libbaz [t2/] configured 1.1.0
         !libbaz [t2/] configured 1.1.0
         EOO
@@ -5530,6 +5633,7 @@ else
         !libbar configured 1.0.0
           foo [t1/.bpkg/host/] configured 1.0.0
             libbaz [t1/.bpkg/host/] configured 1.0.0
+            libbuild2-bar [t1/.bpkg/host/.bpkg/build2/] configured 1.0.0
           libbaz configured 1.0.0
         EOO
 
@@ -5566,6 +5670,7 @@ else
         !libbar configured 1.0.0 available 1.1.0
           foo [t1/.bpkg/host/] configured 1.0.0 available 1.1.0
             libbaz [t1/.bpkg/host/] configured 1.0.0 available 1.1.0
+            libbuild2-bar [t1/.bpkg/host/.bpkg/build2/] configured 1.0.0
           libbaz configured 1.0.0 available 1.1.0
         !libbar [t2/] configured 1.1.0
           foo [t2/.bpkg/host/] configured 1.1.0
@@ -5594,10 +5699,12 @@ else
           libbar configured 1.0.0
             foo [h1/] configured 1.0.0
               libbaz [h1/] configured 1.0.0
+              libbuild2-bar [h1/.bpkg/build2/] configured 1.0.0
             libbaz configured 1.0.0
           libbox configured 1.0.0
             foo [h1/] configured 1.0.0
               libbaz [h1/] configured 1.0.0
+              libbuild2-bar [h1/.bpkg/build2/] configured 1.0.0
             libbaz configured 1.0.0
           libfax configured 1.0.0
         EOO
@@ -5610,6 +5717,7 @@ else
         EOI
         %  new libfax/1.0.0 \[t2.\]%
         %  upgrade libbaz/1.1.0 \[h1.\] \(required by foo \[h1.\]\)%
+        %  drop libbuild2-bar/1.0.0 \[h1..bpkg.build2.\] \(unused\)%
         %  upgrade foo/1.1.0 \[h1.\]%
         %  reconfigure libbox \(dependent of foo \[h1.\]\)%
         %  reconfigure libbar \(dependent of foo \[h1.\]\)%
@@ -5620,11 +5728,13 @@ else
         disfigured libbar/1.0.0
         disfigured libbox/1.0.0
         %disfigured foo/1.0.0 \[h1.\]%
+        %disfigured libbuild2-bar/1.0.0 \[h1..bpkg.build2.\]%
         %disfigured libbaz/1.0.0 \[h1.\]%
         %fetched libfax/1.0.0 \[t2.\]%
         %unpacked libfax/1.0.0 \[t2.\]%
         %fetched libbaz/1.1.0 \[h1.\]%
         %unpacked libbaz/1.1.0 \[h1.\]%
+        %purged libbuild2-bar/1.0.0 \[h1..bpkg.build2.\]%
         %fetched foo/1.1.0 \[h1.\]%
         %unpacked foo/1.1.0 \[h1.\]%
         purged libfax/1.0.0
@@ -5677,25 +5787,19 @@ else
       $* libbiz <<EOI 2>>~%EOE% &cfg/.bpkg/build2/*** &cfg/.bpkg/host/***;
         y
         EOI
+        %  new libbuild2-bar/1.0.0 \[cfg..bpkg.host..bpkg.build2.\] \(required by foo \[cfg..bpkg.host.\]\)%
         %  new libbaz/1.0.0 \[cfg..bpkg.host.\] \(required by foo \[cfg..bpkg.host.\]\)%
         %  new foo/1.0.0 \[cfg..bpkg.host.\] \(required by libbiz\)%
-        %  new libbaz/1.0.0 \[cfg..bpkg.build2..bpkg.host.\] \(required by foo \[cfg..bpkg.build2..bpkg.host.\]\)%
-        %  new foo/1.0.0 \[cfg..bpkg.build2..bpkg.host.\] \(required by libbuild2-foo \[cfg..bpkg.build2.\]\)%
-        %  new libbuild2-bar/1.0.0 \[cfg..bpkg.build2.\] \(required by libbuild2-foo \[cfg..bpkg.build2.\]\)%
         %  new libbaz/1.0.0 \[cfg..bpkg.build2.\] \(required by libbuild2-foo \[cfg..bpkg.build2.\]\)%
         %  new libbuild2-foo/1.0.0 \[cfg..bpkg.build2.\] \(required by libbiz\)%
           new libbaz/1.0.0 (required by libbiz)
           new libbiz/1.0.0
-        %continue\? \[Y/n\] fetched libbaz/1.0.0 \[cfg..bpkg.host.\]%
+        %continue\? \[Y/n\] fetched libbuild2-bar/1.0.0 \[cfg..bpkg.host..bpkg.build2.\]%
+        %unpacked libbuild2-bar/1.0.0 \[cfg..bpkg.host..bpkg.build2.\]%
+        %fetched libbaz/1.0.0 \[cfg..bpkg.host.\]%
         %unpacked libbaz/1.0.0 \[cfg..bpkg.host.\]%
         %fetched foo/1.0.0 \[cfg..bpkg.host.\]%
         %unpacked foo/1.0.0 \[cfg..bpkg.host.\]%
-        %fetched libbaz/1.0.0 \[cfg..bpkg.build2..bpkg.host.\]%
-        %unpacked libbaz/1.0.0 \[cfg..bpkg.build2..bpkg.host.\]%
-        %fetched foo/1.0.0 \[cfg..bpkg.build2..bpkg.host.\]%
-        %unpacked foo/1.0.0 \[cfg..bpkg.build2..bpkg.host.\]%
-        %fetched libbuild2-bar/1.0.0 \[cfg..bpkg.build2.\]%
-        %unpacked libbuild2-bar/1.0.0 \[cfg..bpkg.build2.\]%
         %fetched libbaz/1.0.0 \[cfg..bpkg.build2.\]%
         %unpacked libbaz/1.0.0 \[cfg..bpkg.build2.\]%
         %fetched libbuild2-foo/1.0.0 \[cfg..bpkg.build2.\]%
@@ -5704,11 +5808,9 @@ else
         unpacked libbaz/1.0.0
         fetched libbiz/1.0.0
         unpacked libbiz/1.0.0
+        %configured libbuild2-bar/1.0.0 \[cfg..bpkg.host..bpkg.build2.\]%
         %configured libbaz/1.0.0 \[cfg..bpkg.host.\]%
         %configured foo/1.0.0 \[cfg..bpkg.host.\]%
-        %configured libbaz/1.0.0 \[cfg..bpkg.build2..bpkg.host.\]%
-        %configured foo/1.0.0 \[cfg..bpkg.build2..bpkg.host.\]%
-        %configured libbuild2-bar/1.0.0 \[cfg..bpkg.build2.\]%
         %configured libbaz/1.0.0 \[cfg..bpkg.build2.\]%
         %configured libbuild2-foo/1.0.0 \[cfg..bpkg.build2.\]%
         configured libbaz/1.0.0
@@ -5721,12 +5823,10 @@ else
         !libbiz configured 1.0.0
           foo [cfg/.bpkg/host/] configured 1.0.0
             libbaz [cfg/.bpkg/host/] configured 1.0.0
+            libbuild2-bar [cfg/.bpkg/host/.bpkg/build2/] configured 1.0.0
           libbaz configured 1.0.0
           libbuild2-foo [cfg/.bpkg/build2/] configured 1.0.0
-            foo [cfg/.bpkg/build2/.bpkg/host/] configured 1.0.0
-              libbaz [cfg/.bpkg/build2/.bpkg/host/] configured 1.0.0
             libbaz [cfg/.bpkg/build2/] configured 1.0.0
-            libbuild2-bar [cfg/.bpkg/build2/] configured 1.0.0
         EOO
 
       $pkg_drop libbiz
@@ -5741,25 +5841,24 @@ else
       $cfg_link -d cfg cfg2;
 
       $cfg_create -d cfg3 --type host --name cfg3 &cfg3/***;
-      $cfg_link -d cfg  cfg3;
-      $cfg_link -d cfg2 cfg3;
+      $cfg_link -d cfg cfg3;
 
       $* libbiz <<EOI 2>>~%EOE%;
         y
         EOI
+        %  new libbuild2-bar/1.0.0 \[cfg3..bpkg.build2.\] \(required by foo \[cfg3.\]\)%
         %  new libbaz/1.0.0 \[cfg3.\] \(required by foo \[cfg3.\]\)%
-        %  new foo/1.0.0 \[cfg3.\] \(required by libbiz, libbuild2-foo \[cfg2.\]\)%
-        %  new libbuild2-bar/1.0.0 \[cfg2.\] \(required by libbuild2-foo \[cfg2.\]\)%
+        %  new foo/1.0.0 \[cfg3.\] \(required by libbiz\)%
         %  new libbaz/1.0.0 \[cfg2.\] \(required by libbuild2-foo \[cfg2.\]\)%
         %  new libbuild2-foo/1.0.0 \[cfg2.\] \(required by libbiz\)%
           new libbaz/1.0.0 (required by libbiz)
           new libbiz/1.0.0
-        %continue\? \[Y/n\] fetched libbaz/1.0.0 \[cfg3.\]%
+        %continue\? \[Y/n\] fetched libbuild2-bar/1.0.0 \[cfg3..bpkg.build2.\]%
+        %unpacked libbuild2-bar/1.0.0 \[cfg3..bpkg.build2.\]%
+        %fetched libbaz/1.0.0 \[cfg3.\]%
         %unpacked libbaz/1.0.0 \[cfg3.\]%
         %fetched foo/1.0.0 \[cfg3.\]%
         %unpacked foo/1.0.0 \[cfg3.\]%
-        %fetched libbuild2-bar/1.0.0 \[cfg2.\]%
-        %unpacked libbuild2-bar/1.0.0 \[cfg2.\]%
         %fetched libbaz/1.0.0 \[cfg2.\]%
         %unpacked libbaz/1.0.0 \[cfg2.\]%
         %fetched libbuild2-foo/1.0.0 \[cfg2.\]%
@@ -5768,9 +5867,9 @@ else
         unpacked libbaz/1.0.0
         fetched libbiz/1.0.0
         unpacked libbiz/1.0.0
+        %configured libbuild2-bar/1.0.0 \[cfg3..bpkg.build2.\]%
         %configured libbaz/1.0.0 \[cfg3.\]%
         %configured foo/1.0.0 \[cfg3.\]%
-        %configured libbuild2-bar/1.0.0 \[cfg2.\]%
         %configured libbaz/1.0.0 \[cfg2.\]%
         %configured libbuild2-foo/1.0.0 \[cfg2.\]%
         configured libbaz/1.0.0
@@ -5783,12 +5882,10 @@ else
         !libbiz configured 1.0.0
           foo [cfg3/] configured 1.0.0
             libbaz [cfg3/] configured 1.0.0
+            libbuild2-bar [cfg3/.bpkg/build2/] configured 1.0.0
           libbaz configured 1.0.0
           libbuild2-foo [cfg2/] configured 1.0.0
-            foo [cfg3/] configured 1.0.0
-              libbaz [cfg3/] configured 1.0.0
             libbaz [cfg2/] configured 1.0.0
-            libbuild2-bar [cfg2/] configured 1.0.0
         EOO
 
       $pkg_drop libbiz
@@ -5800,68 +5897,11 @@ else
       $cfg_create -d cfg --type build2 &cfg/***;
       $rep_add $rep/t7a && $rep_fetch;
 
-      $* libbiz 2>>~%EOE% != 0;
-        %error: unable to build build system module libbuild2-foo in its dependent package configuration cfg.%
-          info: use --config-* to select suitable configuration
+      $* libbiz 2>>EOE != 0
+        error: build-time dependency foo in build system module configuration
+          info: build system modules cannot have build-time dependencies
         info: while satisfying libbiz/1.0.0
         EOE
-
-      $cfg_create -d cfg2 --type build2 --name cfg2 &cfg2/***;
-      $cfg_link -d cfg cfg2;
-
-      $cfg_create -d cfg3 --type host --name cfg3 &cfg3/***;
-      $cfg_link -d cfg  cfg3;
-      $cfg_link -d cfg2 cfg3;
-
-      $* libbiz ?libbuild2-foo +{ --config-name cfg2 } \
-                ?libbaz +{ --config-name cfg2 } <<EOI 2>>~%EOE%;
-        y
-        EOI
-        %  new libbaz/1.0.0 \[cfg3.\] \(required by foo \[cfg3.\]\)%
-        %  new foo/1.0.0 \[cfg3.\] \(required by libbiz, libbuild2-foo \[cfg2.\]\)%
-        %  new libbuild2-bar/1.0.0 \[cfg2.\] \(required by libbuild2-foo \[cfg2.\]\)%
-        %  new libbaz/1.0.0 \[cfg2.\]%
-        %  new libbuild2-foo/1.0.0 \[cfg2.\]%
-          new libbiz/1.0.0
-        %continue\? \[Y/n\] fetched libbaz/1.0.0 \[cfg3.\]%
-        %unpacked libbaz/1.0.0 \[cfg3.\]%
-        %fetched foo/1.0.0 \[cfg3.\]%
-        %unpacked foo/1.0.0 \[cfg3.\]%
-        %fetched libbuild2-bar/1.0.0 \[cfg2.\]%
-        %unpacked libbuild2-bar/1.0.0 \[cfg2.\]%
-        %fetched libbaz/1.0.0 \[cfg2.\]%
-        %unpacked libbaz/1.0.0 \[cfg2.\]%
-        %fetched libbuild2-foo/1.0.0 \[cfg2.\]%
-        %unpacked libbuild2-foo/1.0.0 \[cfg2.\]%
-        fetched libbiz/1.0.0
-        unpacked libbiz/1.0.0
-        %configured libbaz/1.0.0 \[cfg3.\]%
-        %configured foo/1.0.0 \[cfg3.\]%
-        %configured libbuild2-bar/1.0.0 \[cfg2.\]%
-        %configured libbaz/1.0.0 \[cfg2.\]%
-        %configured libbuild2-foo/1.0.0 \[cfg2.\]%
-        configured libbiz/1.0.0
-        %info: cfg2.+libbaz-1.0.0.+ is up to date%
-        %info: cfg2.+libbuild2-foo-1.0.0.+ is up to date%
-        %info: cfg.+libbiz-1.0.0.+ is up to date%
-        %updated libbaz/1.0.0 \[cfg2.\]%
-        %updated libbuild2-foo/1.0.0 \[cfg2.\]%
-        updated libbiz/1.0.0
-        EOE
-
-      $pkg_status -d cfg -r >>/EOO;
-        !libbiz configured 1.0.0
-          foo [cfg3/] configured 1.0.0
-            libbaz [cfg3/] configured 1.0.0
-          libbaz [cfg2/] configured 1.0.0
-          libbuild2-foo [cfg2/] configured 1.0.0
-            foo [cfg3/] configured 1.0.0
-              libbaz [cfg3/] configured 1.0.0
-            libbaz [cfg2/] configured 1.0.0
-            libbuild2-bar [cfg2/] configured 1.0.0
-        EOO
-
-      $pkg_drop libbiz
     }
 
     : duplicates
@@ -5881,7 +5921,7 @@ else
 
       $* libbix 2>>/~%EOE% != 0
         error: building build system module libbuild2-bar in multiple configurations
-        %  info: cfg(2|3)/.bpkg/build2/%{2}
+        %  info: cfg(2|3)/.bpkg/host/.bpkg/build2/%{2}
         EOE
     }
   }

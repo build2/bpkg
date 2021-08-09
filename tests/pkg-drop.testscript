@@ -26,7 +26,8 @@
 # |
 # |-- t7a
 # |   |-- libbaz-1.0.0.tar.gz
-# |   |-- foo-1.0.0.tar.gz      -> libbaz ^1.0.0
+# |   |-- libbuild2-bar-1.0.0.tar.gz
+# |   |-- foo-1.0.0.tar.gz      -> * libbuild2-bar ^1.0.0, libbaz ^1.0.0
 # |   |-- libbar-1.0.0.tar.gz   -> * foo ^1.0.0, libbaz ^1.0.0
 # |   `-- repositories.manifest
 # |
@@ -631,7 +632,7 @@ $* libfoo/1.0.0 2>>~%EOE% != 0
     $clone_cfg;
     cp -pr ../cfg2 ./;
 
-    $pkg_build libbar --yes >!;
+    $pkg_build libbar --yes &cfg2/.bpkg/build2/*** >!;
 
     $* libbar <<EOI 2>>/~%EOE%;
       y
@@ -640,18 +641,22 @@ $* libfoo/1.0.0 2>>~%EOE% != 0
       following dependencies were automatically built but will no longer be used:
         foo [cfg2/]
         libbaz [cfg2/]
+        libbuild2-bar [cfg2/.bpkg/build2/]
         libbaz
       %drop unused packages\? \[Y.n\]   drop libbar%
         drop foo [cfg2/]
         drop libbaz [cfg2/]
+        drop libbuild2-bar [cfg2/.bpkg/build2/]
         drop libbaz
       %continue\? \[Y.n\] disfigured libbar%
       disfigured foo [cfg2/]
       disfigured libbaz [cfg2/]
+      disfigured libbuild2-bar [cfg2/.bpkg/build2/]
       disfigured libbaz
       purged libbar
       purged foo [cfg2/]
       purged libbaz [cfg2/]
+      purged libbuild2-bar [cfg2/.bpkg/build2/]
       purged libbaz
       EOE
 
@@ -664,7 +669,7 @@ $* libfoo/1.0.0 2>>~%EOE% != 0
     $clone_cfg;
     cp -pr ../cfg2 ./;
 
-    $pkg_build libbar --yes >!;
+    $pkg_build libbar --yes &cfg2/.bpkg/build2/*** >!;
 
     $* -d cfg2 libbaz <<EOI 2>>/~%EOE%;
       y
@@ -675,18 +680,22 @@ $* libfoo/1.0.0 2>>~%EOE% != 0
         foo (requires libbaz)
         libbar [cfg/] (requires foo)
       %drop dependent packages\? \[y.N\] following dependencies were automatically built but will no longer be used:%
+        libbuild2-bar [cfg2/.bpkg/build2/]
         libbaz [cfg/]
-      %drop unused packages\? \[Y.n\]   drop libbar \[cfg.\]%
+      %drop unused packages\? \[Y.n\]   drop libbar \[cfg/\]%
         drop foo
         drop libbaz
+        drop libbuild2-bar [cfg2/.bpkg/build2/]
         drop libbaz [cfg/]
-      %continue\? \[Y.n\] disfigured libbar \[cfg.\]%
+      %continue\? \[Y.n\] disfigured libbar \[cfg/\]%
       disfigured foo
       disfigured libbaz
+      disfigured libbuild2-bar [cfg2/.bpkg/build2/]
       disfigured libbaz [cfg/]
       purged libbar [cfg/]
       purged foo
       purged libbaz
+      purged libbuild2-bar [cfg2/.bpkg/build2/]
       purged libbaz [cfg/]
       EOE
 
@@ -699,22 +708,28 @@ $* libfoo/1.0.0 2>>~%EOE% != 0
     $clone_cfg;
     cp -pr ../cfg2 ./;
 
-    $pkg_build libbar --yes >! &cfg/lib*/*** &cfg/lib*;
+    $pkg_build libbar --yes >! &cfg/lib*/*** &cfg/lib* &cfg2/.bpkg/build2/***;
 
     mv cfg cfg.tmp;
 
     $* -d cfg2 libbaz <<EOI 2>>/~%EOE%;
       y
       y
+      y
       EOI
       following dependent packages will have to be dropped as well:
         foo (requires libbaz)
-      %drop dependent packages\? \[y.N\]   drop foo%
+      %drop dependent packages\? \[y.N\] following dependencies were automatically built but will no longer be used:%
+        libbuild2-bar [cfg2/.bpkg/build2/]
+      %drop unused packages\? \[Y.n\]   drop foo%
         drop libbaz
+        drop libbuild2-bar [cfg2/.bpkg/build2/]
       %continue\? \[Y.n\] disfigured foo%
       disfigured libbaz
+      disfigured libbuild2-bar [cfg2/.bpkg/build2/]
       purged foo
       purged libbaz
+      purged libbuild2-bar [cfg2/.bpkg/build2/]
       EOE
 
     # While at it, test that we properly handle the missing prerequisite
