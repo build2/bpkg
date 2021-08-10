@@ -165,9 +165,10 @@ namespace bpkg
       }
     }
 
-    // Initialize tmp directory.
+    // Initialize tmp directory, unless it is already initialized.
     //
-    init_tmp (c);
+    if (temp_dir.empty ())
+      init_tmp (c);
 
     // Create the database.
     //
