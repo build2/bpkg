@@ -177,9 +177,14 @@ namespace bpkg
       "\l{bpkg-cfg-info(1)} \- print configuration information"
     }
 
-    bool cfg-link
+    bool cfg-link|link
     {
       "\l{bpkg-cfg-link(1)} \- link configuration"
+    }
+
+    bool cfg-unlink|unlink
+    {
+      "\l{bpkg-cfg-unlink(1)} \- unlink configuration"
     }
 
     bool rep-info

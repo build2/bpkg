@@ -1,0 +1,81 @@
+// file      : bpkg/cfg-unlink.cli
+// license   : MIT; see accompanying LICENSE file
+
+include <bpkg/configuration.cli>;
+
+"\section=1"
+"\name=bpkg-cfg-unlink"
+"\summary=unlink configuration"
+
+namespace bpkg
+{
+  {
+    "<options> <dir>",
+
+    "\h|SYNOPSIS|
+
+     \c{\b{bpkg cfg-unlink} [<options>] [<dir>]\n
+        \b{bpkg cfg-unlink} [<options>] \b{--dangling}}
+
+     \h|DESCRIPTION|
+
+     The \cb{cfg-unlink} command unlinks the specified \cb{bpkg} configuration
+     from the current configuration (the first form) or removes dangling
+     implicit back-links (the second form). See \l{bpkg-cfg-create(1)} for
+     background on linked configurations.
+
+     In the first form the configuration to unlink can be specified either as
+     configuration directory (<dir>), name (\cb{--name}), id (\cb{--id}), or
+     UUID (\cb{--uuid}).
+     "
+  }
+
+  class cfg_unlink_options: configuration_options
+  {
+    "\h|CFG-UNLINK OPTIONS|"
+
+    string --name
+    {
+      "<name>",
+      "Name of the configuration to unlink."
+    }
+
+    uint64_t --id
+    {
+      "<id>",
+      "Numeric id of the configuration to unlink."
+    }
+
+    uuid_type --uuid
+    {
+      "<uuid>",
+      "UUID of the configuration to unlink."
+    }
+
+    bool --dangling
+    {
+      "Remove dangling implicit back-links."
+    }
+  };
+
+  "
+   \h|DEFAULT OPTIONS FILES|
+
+   See \l{bpkg-default-options-files(1)} for an overview of the default
+   options files. For the \cb{cfg-unlink} command the search start directory
+   is the configuration directory. The following options files are searched
+   for in each directory and, if found, loaded in the order listed:
+
+   \
+   bpkg.options
+   bpkg-cfg-unlink.options
+   \
+
+   The following \cb{cfg-unlink} command options cannot be specified in the
+   default options files:
+
+   \
+   --directory|-d
+   \
+  "
+}

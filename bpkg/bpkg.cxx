@@ -22,9 +22,10 @@
 //
 #include <bpkg/help.hxx>
 
+#include <bpkg/cfg-create.hxx>
 #include <bpkg/cfg-info.hxx>
 #include <bpkg/cfg-link.hxx>
-#include <bpkg/cfg-create.hxx>
+#include <bpkg/cfg-unlink.hxx>
 
 #include <bpkg/pkg-build.hxx>
 #include <bpkg/pkg-checkout.hxx>
@@ -530,6 +531,7 @@ try
     CFG_COMMAND (create, false); // Temp dir initialized manually.
     CFG_COMMAND (info,   true);
     CFG_COMMAND (link,   true);
+    CFG_COMMAND (unlink, true);
 
     // pkg-* commands
     //

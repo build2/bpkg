@@ -5,6 +5,7 @@ cmds =             \
 bpkg-cfg-create    \
 bpkg-cfg-info      \
 bpkg-cfg-link      \
+bpkg-cfg-unlink    \
 bpkg-help          \
 bpkg-pkg-build     \
 bpkg-pkg-checkout  \

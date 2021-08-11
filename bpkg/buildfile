@@ -18,6 +18,7 @@ bpkg-options               \
 cfg-create-options         \
 cfg-info-options           \
 cfg-link-options           \
+cfg-unlink-options         \
 common-options             \
 configuration-options      \
 help-options               \
@@ -154,6 +155,7 @@ if $cli.configured
   cli.cxx{cfg-create-options}: cli{cfg-create}
   cli.cxx{cfg-info-options}:   cli{cfg-info}
   cli.cxx{cfg-link-options}:   cli{cfg-link}
+  cli.cxx{cfg-unlink-options}: cli{cfg-unlink}
 
   # rep-* command.
   #

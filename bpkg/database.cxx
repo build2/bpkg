@@ -577,7 +577,13 @@ namespace bpkg
         // Skip the dangling implicit link.
         //
         if (!lc.expl && !exists (d))
+        {
+          if (verb > 1)
+            info << "skipping dangling implicit back-link " << lc.path <<
+              info << "use 'cfg-unlink --dangling' to clean up";
+
           continue;
+        }
 
         database& db (attach (d, sys_rep));
 
@@ -657,9 +663,7 @@ namespace bpkg
       //
       const std::string& nbt (db.type == bt ? bt : empty_string);
 
-      // Skip the self-link.
-      //
-      for (auto i (lds.begin () + 1); i != lds.end (); ++i)
+      for (auto i (lds.begin_linked ()); i != lds.end (); ++i)
       {
         database& ldb (*i);
         add (ldb, db.type, nbt, add);
@@ -763,9 +767,7 @@ namespace bpkg
 
       const linked_configs& lcs (db.explicit_links ());
 
-      // Skip the self-link.
-      //
-      for (auto i (lcs.begin () + 1); i != lcs.end (); ++i)
+      for (auto i (lcs.begin_linked ()); i != lcs.end (); ++i)
         add (i->db, db.type, add);
 
       // If this is a private host configuration, then also add the parent's
@@ -775,7 +777,7 @@ namespace bpkg
       {
         const linked_configs& lcs (db.parent_config ().explicit_links ());
 
-        for (auto i (lcs.begin () + 1); i != lcs.end (); ++i)
+        for (auto i (lcs.begin_linked ()); i != lcs.end (); ++i)
         {
           database& ldb (i->db);
           if (ldb.type == build2_config_type)
@@ -805,7 +807,7 @@ namespace bpkg
   }
 
   database& database::
-  find_attached (uint64_t id)
+  find_attached (uint64_t id, bool s)
   {
     assert (!explicit_links_.empty ());
 
@@ -818,7 +820,7 @@ namespace bpkg
                        return lc.id == id;
                      }));
 
-    if (r == explicit_links_.end ())
+    if (r == explicit_links_.end () || (!s && r == explicit_links_.begin ()))
       fail << "no configuration with id " << id << " is linked with "
            << config_orig;
 
@@ -826,7 +828,7 @@ namespace bpkg
   }
 
   database& database::
-  find_attached (const std::string& name)
+  find_attached (const std::string& name, bool s)
   {
     assert (!explicit_links_.empty ());
 
@@ -836,8 +838,44 @@ namespace bpkg
                        return lc.name && *lc.name == name;
                      }));
 
-    if (r == explicit_links_.end ())
+    if (r == explicit_links_.end () || (!s && r == explicit_links_.begin ()))
       fail << "no configuration with name '" << name << "' is linked with "
+           << config_orig;
+
+    return r->db;
+  }
+
+  database& database::
+  find_attached (const uuid_type& uid, bool s)
+  {
+    assert (!explicit_links_.empty ());
+
+    auto r (find_if (explicit_links_.begin (), explicit_links_.end (),
+                     [&uid] (const linked_config& lc)
+                     {
+                       return lc.db.get ().uuid == uid;
+                     }));
+
+    if (r == explicit_links_.end () || (!s && r == explicit_links_.begin ()))
+      fail << "no configuration with uuid " << uid << " is linked with "
+           << config_orig;
+
+    return r->db;
+  }
+
+  database& database::
+  find_attached (const dir_path& d, bool s)
+  {
+    assert (!explicit_links_.empty ());
+
+    auto r (find_if (explicit_links_.begin (), explicit_links_.end (),
+                     [&d] (const linked_config& lc)
+                     {
+                       return lc.db.get ().config == d;
+                     }));
+
+    if (r == explicit_links_.end () || (!s && r == explicit_links_.begin ()))
+      fail << "no configuration with path " << d << " is linked with "
            << config_orig;
 
     return r->db;
@@ -864,9 +902,7 @@ namespace bpkg
     dir_path pd (config.directory ().directory ()); // Parent configuration.
     const linked_databases& lds (implicit_links (true /* attach */, sys_rep));
 
-    // Skip the self-link.
-    //
-    for (auto i (lds.begin () + 1); i != lds.end (); ++i)
+    for (auto i (lds.begin_linked ()); i != lds.end (); ++i)
     {
       if (i->get ().config == pd)
         return *i;
@@ -884,7 +920,7 @@ namespace bpkg
   {
     assert (!explicit_links_.empty ());
 
-    auto r (find_if (explicit_links_.begin () + 1, explicit_links_.end (),
+    auto r (find_if (explicit_links_.begin_linked (), explicit_links_.end (),
                      [&type] (const linked_config& lc)
                      {
                        database& db (lc.db);

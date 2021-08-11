@@ -35,15 +35,60 @@ namespace bpkg
   };
 
   // Used for the immediate explicit links which are normally not many (one
-  // entry for the self-link).
+  // entry for the self-link, which normally comes first).
   //
-  using linked_configs = small_vector<linked_config, 2>;
+  class linked_configs: public small_vector<linked_config, 2>
+  {
+  public:
+    using base_type = small_vector<linked_config, 2>;
 
-  // In particular, is used for implicit links which can potentially be many.
-  // Think of a dependency in a shared configuration with dependents in
-  // multiple implicitly linked configurations.
+    using base_type::base_type;
+
+    // Skip the self-link.
+    //
+    const_iterator
+    begin_linked () const
+    {
+      assert (!empty ());
+      return begin () + 1;
+    }
+
+    iterator
+    begin_linked ()
+    {
+      assert (!empty ());
+      return begin () + 1;
+    }
+  };
+
+  // In particular, is used for implicit links which can potentially be many
+  // (with the self-link which normally comes first). Think of a dependency in
+  // a shared configuration with dependents in multiple implicitly linked
+  // configurations.
   //
-  using linked_databases = small_vector<reference_wrapper<database>, 16>;
+  class linked_databases: public small_vector<reference_wrapper<database>, 16>
+  {
+  public:
+    using base_type = small_vector<reference_wrapper<database>, 16>;
+
+    using base_type::base_type;
+
+    // Skip the self-link.
+    //
+    const_iterator
+    begin_linked () const
+    {
+      assert (!empty ());
+      return begin () + 1;
+    }
+
+    iterator
+    begin_linked ()
+    {
+      assert (!empty ());
+      return begin () + 1;
+    }
+  };
 
   // Derive a custom database class that handles attaching/detaching
   // additional configurations.
@@ -236,12 +281,16 @@ namespace bpkg
     // created with the pre_attach flag set to true.
     //
 
+    // The following find_attached() overloads include the self reference into
+    // the search by default and skip it if requested.
+    //
+
     // Return the self reference if the id is 0. Otherwise, return the
     // database of an explicitly linked configuration with the specified link
     // id and issue diagnostics and fail if no link is found.
     //
     database&
-    find_attached (uint64_t id);
+    find_attached (uint64_t id, bool self = true);
 
     // Return the self reference if this is the current configuration
     // name. Otherwise, return the database of an explicitly linked
@@ -249,7 +298,24 @@ namespace bpkg
     // no link is found.
     //
     database&
-    find_attached (const std::string& name);
+    find_attached (const std::string& name, bool self = true);
+
+    // Return the self reference if this is the current configuration
+    // uuid. Otherwise, return the database of an explicitly linked
+    // configuration with the specified uuid and issue diagnostics and fail if
+    // no link is found.
+    //
+    database&
+    find_attached (const uuid_type&, bool self = true);
+
+    // Return the self reference if this is the current configuration
+    // path. Otherwise, return the database of an explicitly linked
+    // configuration with the specified path and issue diagnostics and fail if
+    // no link is found. The configuration directory should be absolute and
+    // normalized.
+    //
+    database&
+    find_attached (const dir_path&, bool self = true);
 
     // Return the dependency configuration with the specified uuid and issue
     // diagnostics and fail if not found.

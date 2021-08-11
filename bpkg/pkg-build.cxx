@@ -1173,7 +1173,7 @@ namespace bpkg
           // Skip the self-link.
           //
           const linked_configs& lcs (sdb.explicit_links ());
-          for (auto i (lcs.begin () + 1); i != lcs.end (); ++i)
+          for (auto i (lcs.begin_linked ()); i != lcs.end (); ++i)
           {
             database& ldb (i->db);
 

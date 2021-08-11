@@ -78,7 +78,7 @@ compile "pkg-build" $o --class-doc  bpkg::pkg_build_pkg_options=exclude-base
 # NOTE: remember to update a similar list in buildfile and bpkg.cli as well as
 # the help topics sections in bpkg/buildfile and help.cxx.
 #
-pages="cfg-create cfg-info cfg-link help pkg-clean pkg-configure \
+pages="cfg-create cfg-info cfg-link cfg-unlink help pkg-clean pkg-configure \
 pkg-disfigure pkg-drop pkg-fetch pkg-checkout pkg-install pkg-purge \
 pkg-status pkg-test pkg-uninstall pkg-unpack pkg-update pkg-verify rep-add \
 rep-remove rep-list rep-create rep-fetch rep-info repository-signing \
