@@ -1314,6 +1314,12 @@ namespace bpkg
                     const package_name& dependency,
                     database& dependency_db);
 
+  // As above but cache the result in a vector. This version should be used if
+  // query_dependents*() may be called recursively.
+  //
+  vector<package_dependent>
+  query_dependents_cache (database&, const package_name&, database&);
+
   // Database and package name pair.
   //
   // It is normally used as a key for maps containing data for packages across

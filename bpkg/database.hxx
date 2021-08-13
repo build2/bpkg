@@ -21,6 +21,7 @@
 namespace bpkg
 {
   using odb::query;
+  using odb::prepared_query;
   using odb::result;
   using odb::session;
 

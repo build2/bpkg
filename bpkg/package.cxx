@@ -684,10 +684,49 @@ namespace bpkg
                     const package_name& dep,
                     database& dep_db)
   {
+    // Prepare and cache this query since it's executed a lot. Note that we
+    // have to cache one per database.
+    //
     using query = query<package_dependent>;
+    using prep_query = prepared_query<package_dependent>;
 
-    return db.query<package_dependent> (
-             "prerequisite = " + query::_val (dep.string ()) + "AND" +
-             "configuration = " + query::_val (dep_db.uuid.string ()));
+    struct params
+    {
+      string name;
+      string config;     // Configuration UUID.
+      string query_name;
+    };
+
+    params*    qp;
+    string     qn (db.uuid.string () + "-package-dependent-query");
+    prep_query pq (db.lookup_query<package_dependent> (qn.c_str (), qp));
+
+    if (!pq)
+    {
+      unique_ptr<params> p (qp = new params ());
+      p->query_name = move (qn);
+
+      query q ("prerequisite = " + query::_ref (p->name) + "AND" +
+               "configuration = " + query::_ref (p->config));
+
+      pq = db.prepare_query<package_dependent> (p->query_name.c_str (), q);
+      db.cache_query (pq, move (p));
+    }
+
+    qp->name   = dep.string ();
+    qp->config = dep_db.uuid.string ();
+
+    return pq.execute ();
+  }
+
+  vector<package_dependent>
+  query_dependents_cache (database& db,
+                          const package_name& dep,
+                          database& dep_db)
+  {
+    vector<package_dependent> r;
+    for (package_dependent& pd: query_dependents (db, dep, dep_db))
+      r.push_back (move (pd));
+    return r;
   }
 }

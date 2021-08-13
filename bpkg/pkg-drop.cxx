@@ -110,7 +110,7 @@ namespace bpkg
     {
       for (database& ddb: db.dependent_configs ())
       {
-        for (auto& pd: query_dependents (ddb, p->name, db))
+        for (auto& pd: query_dependents_cache (ddb, p->name, db))
         {
           const package_name& dn (pd.name);
 

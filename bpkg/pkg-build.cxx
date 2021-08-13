@@ -1839,7 +1839,7 @@ namespace bpkg
 
       for (database& ddb: pdb.dependent_configs ())
       {
-        for (auto& pd: query_dependents (ddb, n, pdb))
+        for (auto& pd: query_dependents_cache (ddb, n, pdb))
         {
           package_name& dn (pd.name);
           auto i (map_.find (ddb, dn));
@@ -2938,7 +2938,7 @@ namespace bpkg
 
     for (database& ddb: db.dependent_configs ())
     {
-      for (auto& pd: query_dependents (ddb, nm, db))
+      for (auto& pd: query_dependents_cache (ddb, nm, db))
       {
         // Note that we cannot end up with an infinite recursion for
         // configured packages due to a dependency cycle (see order() for
@@ -2998,7 +2998,7 @@ namespace bpkg
 
     for (database& ddb: db.dependent_configs ())
     {
-      for (auto& pd: query_dependents (ddb, sp->name, db))
+      for (auto& pd: query_dependents_cache (ddb, sp->name, db))
       {
         shared_ptr<selected_package> dsp (
           ddb.load<selected_package> (pd.name));
