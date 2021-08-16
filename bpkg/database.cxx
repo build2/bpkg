@@ -55,8 +55,8 @@ namespace bpkg
 
   // Register the data migration functions.
   //
-  // NOTE: remember to qualify table names with \"main\". if using native
-  // statements.
+  // NOTE: remember to qualify table/index names with \"main\". if using
+  // native statements.
   //
   template <odb::schema_version v>
   using migration_entry = odb::data_migration_entry<v, DB_SCHEMA_VERSION_BASE>;
@@ -85,6 +85,18 @@ namespace bpkg
     db.persist (sl);
     db.execute (string ("UPDATE \"main\".selected_package_prerequisites ") +
                 "SET configuration = '" + sl->uuid.string () + "'");
+  });
+
+  static const migration_entry<10>
+  migrate_v10 ([] (odb::database& db)
+  {
+    // Create the multi-column index for the configuration and prerequisite
+    // columns of the selected_package_prerequisites table.
+    //
+    db.execute (
+      "CREATE INDEX "
+      "\"main\".selected_package_prerequisites_configuration_prerequisite_i "
+      "ON selected_package_prerequisites (configuration, prerequisite)");
   });
 
   static inline path
@@ -174,6 +186,18 @@ namespace bpkg
                  << "schema";
 
           schema_catalog::create_schema (*this);
+
+          // To speed up the query_dependents() function create the multi-
+          // column index for the configuration and prerequisite columns of
+          // the selected_package_prerequisites table.
+          //
+          // @@ Use ODB pragma if/when support for container indexes is added.
+          //
+          execute (
+            "CREATE INDEX "
+            "selected_package_prerequisites_configuration_prerequisite_i "
+            "ON selected_package_prerequisites (configuration, "
+            "prerequisite)");
 
           persist (*create); // Also assigns link id.
 

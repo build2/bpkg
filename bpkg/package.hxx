@@ -27,7 +27,7 @@
 //
 #define DB_SCHEMA_VERSION_BASE 6
 
-#pragma db model version(DB_SCHEMA_VERSION_BASE, 9, closed)
+#pragma db model version(DB_SCHEMA_VERSION_BASE, 10, closed)
 
 namespace bpkg
 {
