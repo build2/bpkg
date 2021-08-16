@@ -95,20 +95,29 @@ namespace bpkg
   bool
   repository_name (const string&);
 
-  // Return the version of a package as provided by the build2 version module.
-  // Return nullopt if the version module is disabled for the package (or the
-  // build2 project directory doesn't contain the manifest file). Fail if the
-  // directory is not a build2 project.
+  // Return the versions of packages as provided by the build2 version module.
+  // Return nullopt for a package if the version module is disabled for it (or
+  // the build2 project directory doesn't contain the manifest file). Fail if
+  // any of the specified directories is not a build2 project.
   //
-  // Note that if the package directory is under the version control, then the
+  // Note that if a package directory is under the version control, then the
   // resulting version may be populated with the snapshot information (see
   // libbutl/standard-version.mxx for more details). Thus, this function can
-  // be used for fixing up the package manifest version.
+  // be used for fixing up the package manifest versions.
   //
   class common_options;
 
-  optional<version>
-  package_version (const common_options&, const dir_path&);
+  vector<optional<version>>
+  package_versions (const common_options&, const dir_paths&);
+
+  // As above but return the version of a single package.
+  //
+  inline optional<version>
+  package_version (const common_options& o, const dir_path& d)
+  {
+    vector<optional<version>> r (package_versions (o, dir_paths ({d})));
+    return move (r[0]);
+  }
 }
 
 #endif // BPKG_MANIFEST_UTILITY_HXX

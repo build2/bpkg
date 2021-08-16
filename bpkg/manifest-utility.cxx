@@ -272,33 +272,39 @@ namespace bpkg
     }
   }
 
-  optional<version>
-  package_version (const common_options& o, const dir_path& d)
+  vector<optional<version>>
+  package_versions (const common_options& o, const dir_paths& ds)
   {
     path b (name_b (o));
 
+    vector<b_project_info> pis;
     try
     {
-      b_project_info pi (
-        b_info (d,
-                false /* ext_mods */,
-                verb,
-                [] (const char* const args[], size_t n)
-                {
-                  if (verb >= 2)
-                    print_process (args, n);
-                },
-                b,
-                exec_dir,
-                o.build_option ()));
+      b_info (pis,
+              ds,
+              false /* ext_mods */,
+              verb,
+              [] (const char* const args[], size_t n)
+              {
+                if (verb >= 2)
+                  print_process (args, n);
+              },
+              b,
+              exec_dir,
+              o.build_option ());
 
-      optional<version> r;
+      vector<optional<version>> r;
+      r.reserve (pis.size ());
 
-      // An empty version indicates that the version module is not enabled for
-      // the project.
-      //
-      if (!pi.version.empty ())
-        r = version (pi.version.string ());
+      for (const b_project_info& pi: pis)
+      {
+        // An empty version indicates that the version module is not enabled
+        // for the project.
+        //
+        r.push_back (!pi.version.empty ()
+                     ? version (pi.version.string ())
+                     : optional<version> ());
+      }
 
       return r;
     }
@@ -307,7 +313,10 @@ namespace bpkg
       if (e.normal ())
         throw failed (); // Assume the build2 process issued diagnostics.
 
-      fail << "unable to parse project " << d << " info: " << e <<
+      diag_record dr (fail);
+      dr << "unable to parse project ";
+      if (pis.size () < ds.size ()) dr << ds[pis.size ()] << ' ';
+      dr << "info: " << e <<
         info << "produced by '" << b << "'; use --build to override" << endf;
     }
   }

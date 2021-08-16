@@ -195,76 +195,105 @@ namespace bpkg
   static vector<package_manifest>
   parse_package_manifests (const common_options& co,
                            const dir_path& repo_dir,
-                           vector<package_manifest>&& sms,
+                           vector<package_manifest>&& pms,
                            bool iu,
                            const repository_location& rl,
                            const optional<string>& fragment) // For diagnostics.
   {
-    vector<package_manifest> r;
-    r.reserve (sms.size ());
-
-    for (package_manifest& sm: sms)
+    auto package_info = [&rl, &fragment] (const package_manifest& pm,
+                                          diag_record& dr)
     {
-      assert (sm.location);
+      dr << "package ";
 
-      auto package_info = [&sm, &rl, &fragment] (diag_record& dr)
+      if (!pm.location->current ())
+        dr << "'" << pm.location->string () << "' "; // Strip trailing '/'.
+
+      dr << "in repository " << rl;
+
+      if (fragment)
+        dr << ' ' << *fragment;
+    };
+
+    // Verify that all the package directories contain the package manifest
+    // files and retrieve the package versions via the single `b info` call.
+    // While at it cache the manifest paths for the future use.
+    //
+    paths                     mfs;
+    vector<optional<version>> pvs;
+    {
+      mfs.reserve (pms.size ());
+
+      dir_paths pds;
+      pds.reserve (pms.size ());
+
+      for (const package_manifest& pm: pms)
       {
-        dr << "package ";
+        assert (pm.location);
 
-        if (!sm.location->current ())
-          dr << "'" << sm.location->string () << "' "; // Strip trailing '/'.
+        dir_path d (repo_dir / path_cast<dir_path> (*pm.location));
+        d.normalize (); // In case location is './'.
 
-        dr << "in repository " << rl;
+        path f (d / manifest_file);
+        if (!exists (f))
+        {
+          diag_record dr (fail);
+          dr << "no manifest file for ";
+          package_info (pm, dr);
+        }
 
-        if (fragment)
-          dr << ' ' << *fragment;
-      };
+        mfs.push_back (move (f));
+        pds.push_back (move (d));
+      }
 
-      auto failure = [&package_info] (const char* desc)
-      {
-        diag_record dr (fail);
-        dr << desc << " for ";
-        package_info (dr);
-      };
+      pvs = package_versions (co, pds);
+    }
 
-      dir_path d (repo_dir / path_cast<dir_path> (*sm.location));
-      d.normalize (); // In case location is './'.
+    // Parse package manifests, fixing up their versions.
+    //
+    vector<package_manifest> r;
+    r.reserve (pms.size ());
 
-      path f (d / manifest_file);
-      if (!exists (f))
-        failure ("no manifest file");
+    for (size_t i (0); i != pms.size (); ++i)
+    {
+      package_manifest& pm (pms[i]);
+
+      assert (pm.location);
+
+      const path& f (mfs[i]);
 
       try
       {
         ifdstream ifs (f);
         manifest_parser mp (ifs, f.string ());
 
+        optional<version>& pv (pvs[i]);
+
         package_manifest m (
           mp,
-          [&co, &d] (version& v)
+          [&pv] (version& v)
           {
-            if (optional<version> pv = package_version (co, d))
+            if (pv)
               v = move (*pv);
           },
           iu);
 
         // Save the package manifest, preserving its location.
         //
-        m.location = move (*sm.location);
-        sm = move (m);
+        m.location = move (*pm.location);
+        pm = move (m);
       }
       catch (const manifest_parsing& e)
       {
         diag_record dr (fail (e.name, e.line, e.column));
         dr << e.description << info;
-        package_info (dr);
+        package_info (pm, dr);
       }
       catch (const io_error& e)
       {
         fail << "unable to read from " << f << ": " << e;
       }
 
-      r.emplace_back (move (sm));
+      r.emplace_back (move (pm));
     }
 
     return r;
