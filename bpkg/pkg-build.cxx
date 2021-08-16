@@ -3203,6 +3203,17 @@ namespace bpkg
     //
     validate_options (o, ""); // Global package options.
 
+    if (o.noop_exit_specified ())
+    {
+      if (o.print_only ())
+        fail << "--noop-exit specified with --print-only";
+
+      // We can probably use build2's --structured-result to support this.
+      //
+      if (!o.configure_only ())
+        fail << "--noop-exit is only supported in --configure-only mode";
+    }
+
     if (o.update_dependent () && o.leave_dependent ())
       fail << "both --update-dependent|-U and --leave-dependent|-L "
            << "specified" <<
@@ -4693,6 +4704,9 @@ namespace bpkg
     {
       assert (rec_pkgs.empty ());
 
+      if (o.noop_exit_specified ())
+        return o.noop_exit ();
+
       info << "nothing to build";
       return 0;
     }
@@ -5935,10 +5949,13 @@ namespace bpkg
     // prerequsites got upgraded/downgraded and that the user may want to in
     // addition update (that update_dependents flag above).
     //
-    execute_plan (o, pkgs, false /* simulate */, find_prereq_database);
+    bool noop (!execute_plan (o,
+                              pkgs,
+                              false /* simulate */,
+                              find_prereq_database));
 
     if (o.configure_only ())
-      return 0;
+      return noop && o.noop_exit_specified () ? o.noop_exit () : 0;
 
     // update
     //

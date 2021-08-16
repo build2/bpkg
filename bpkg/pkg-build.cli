@@ -345,10 +345,18 @@ namespace bpkg
 
     bool --no-refinement
     {
-      "Don't try to refine the configuration by offering drop any unused
+      "Don't try to refine the configuration by offering to drop any unused
        dependencies that were potentially left behind on the previous
        \cb{pkg-build} or \cb{pkg-drop} command execution if the command
        is otherwise a noop (performs no new package builds, upgrades, etc)."
+    }
+
+    uint16_t --noop-exit
+    {
+      "<code>",
+
+      "Exit with the specified error code if the command execution is a noop
+       (performs no new package builds, upgrades, etc)."
     }
 
     uint16_t --no-private-config
