@@ -22,6 +22,41 @@ namespace bpkg
   const path signature_file    ("signature.manifest");
   const path manifest_file     ("manifest");
 
+  vector<package_info>
+  package_b_info (const common_options& o, const dir_paths& ds, bool ext_mods)
+  {
+    path b (name_b (o));
+
+    vector<package_info> r;
+    try
+    {
+      b_info (r,
+              ds,
+              ext_mods,
+              verb,
+              [] (const char* const args[], size_t n)
+              {
+                if (verb >= 2)
+                  print_process (args, n);
+              },
+              b,
+              exec_dir,
+              o.build_option ());
+      return r;
+    }
+    catch (const b_error& e)
+    {
+      if (e.normal ())
+        throw failed (); // Assume the build2 process issued diagnostics.
+
+      diag_record dr (fail);
+      dr << "unable to parse project ";
+      if (r.size () < ds.size ()) dr << ds[r.size ()] << ' ';
+      dr << "info: " << e <<
+        info << "produced by '" << b << "'; use --build to override" << endf;
+    }
+  }
+
   package_scheme
   parse_package_scheme (const char*& s)
   {
@@ -272,52 +307,54 @@ namespace bpkg
     }
   }
 
-  vector<optional<version>>
+  package_version_infos
   package_versions (const common_options& o, const dir_paths& ds)
   {
-    path b (name_b (o));
+    vector<b_project_info> pis (package_b_info (o, ds, false /* ext_mods */));
 
-    vector<b_project_info> pis;
+    package_version_infos r;
+    r.reserve (pis.size ());
+
+    for (const b_project_info& pi: pis)
+    {
+      // An empty version indicates that the version module is not enabled for
+      // the project.
+      //
+      optional<version> v (!pi.version.empty ()
+                           ? version (pi.version.string ())
+                           : optional<version> ());
+
+      r.push_back (package_version_info {move (v), move (pi)});
+    }
+
+    return r;
+  }
+
+  string
+  package_checksum (const common_options& o,
+                    const dir_path& d,
+                    const package_info* pi)
+  {
+    path f (d / manifest_file);
+
     try
     {
-      b_info (pis,
-              ds,
-              false /* ext_mods */,
-              verb,
-              [] (const char* const args[], size_t n)
-              {
-                if (verb >= 2)
-                  print_process (args, n);
-              },
-              b,
-              exec_dir,
-              o.build_option ());
+      ifdstream is (f, fdopen_mode::binary);
+      sha256 cs (is);
 
-      vector<optional<version>> r;
-      r.reserve (pis.size ());
+      const vector<package_info::subproject>& sps (
+        pi != nullptr
+        ? pi->subprojects
+        : package_b_info (o, d, false /* ext_mods */).subprojects);
 
-      for (const b_project_info& pi: pis)
-      {
-        // An empty version indicates that the version module is not enabled
-        // for the project.
-        //
-        r.push_back (!pi.version.empty ()
-                     ? version (pi.version.string ())
-                     : optional<version> ());
-      }
+      for (const package_info::subproject& sp: sps)
+        cs.append (sp.path.string ());
 
-      return r;
+      return cs.string ();
     }
-    catch (const b_error& e)
+    catch (const io_error& e)
     {
-      if (e.normal ())
-        throw failed (); // Assume the build2 process issued diagnostics.
-
-      diag_record dr (fail);
-      dr << "unable to parse project ";
-      if (pis.size () < ds.size ()) dr << ds[pis.size ()] << ' ';
-      dr << "info: " << e <<
-        info << "produced by '" << b << "'; use --build to override" << endf;
+      fail << "unable to read from " << f << ": " << e << endf;
     }
   }
 }

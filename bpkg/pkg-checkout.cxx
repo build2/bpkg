@@ -301,7 +301,7 @@ namespace bpkg
              "config.dist.root='" + ord.representation () + "'",
              bspec);
 
-      mc = sha256 (o, d / manifest_file);
+      mc = package_checksum (o, d, nullptr /* package_info */);
     }
 
     if (p != nullptr)

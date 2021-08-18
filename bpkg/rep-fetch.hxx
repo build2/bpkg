@@ -35,6 +35,12 @@ namespace bpkg
 
       vector<repository_manifest> repositories;
       vector<package_manifest>    packages;
+
+      // Empty if the build2 project info is not available for the packages.
+      // Currently we only retrieve it for the directory and version control
+      // based repositories.
+      //
+      vector<package_info>        package_infos;
     };
 
     vector<fragment> fragments;

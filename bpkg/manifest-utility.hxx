@@ -17,6 +17,20 @@ namespace bpkg
   extern const path signature_file;    // signature.manifest
   extern const path manifest_file;     // manifest
 
+  // Obtain build2 projects info for package source or output directories.
+  //
+  vector<package_info>
+  package_b_info (const common_options&, const dir_paths&, bool ext_mods);
+
+  // As above but return the info for a single package directory.
+  //
+  inline package_info
+  package_b_info (const common_options& o, const dir_path& d, bool ext_mods)
+  {
+    vector<package_info> r (package_b_info (o, dir_paths ({d}), ext_mods));
+    return move (r[0]);
+  }
+
   // Package naming schemes.
   //
   enum class package_scheme
@@ -95,10 +109,12 @@ namespace bpkg
   bool
   repository_name (const string&);
 
-  // Return the versions of packages as provided by the build2 version module.
-  // Return nullopt for a package if the version module is disabled for it (or
-  // the build2 project directory doesn't contain the manifest file). Fail if
-  // any of the specified directories is not a build2 project.
+  // Return the versions of packages as provided by the build2 version module
+  // together with the build2 project info the versions originate from (in
+  // case the caller may want to reuse it). Return nullopt as a package
+  // version if the version module is disabled for the package (or the build2
+  // project directory doesn't contain the manifest file). Fail if any of the
+  // specified directories is not a build2 project.
   //
   // Note that if a package directory is under the version control, then the
   // resulting version may be populated with the snapshot information (see
@@ -107,17 +123,37 @@ namespace bpkg
   //
   class common_options;
 
-  vector<optional<version>>
+  struct package_version_info
+  {
+    optional<bpkg::version> version;
+    package_info            info;
+  };
+
+  using package_version_infos = vector<package_version_info>;
+
+  package_version_infos
   package_versions (const common_options&, const dir_paths&);
 
   // As above but return the version of a single package.
   //
-  inline optional<version>
+  inline package_version_info
   package_version (const common_options& o, const dir_path& d)
   {
-    vector<optional<version>> r (package_versions (o, dir_paths ({d})));
+    package_version_infos r (package_versions (o, dir_paths ({d})));
     return move (r[0]);
   }
+
+  // Caclulate the checksum of the manifest file located in the package source
+  // directory and the subproject set (see package::manifest_checksum).
+  //
+  // Pass the build2 project info for the package, if available, to speed up
+  // the call and NULL otherwise (in which case it will be queried by the
+  // implementation).
+  //
+  string
+  package_checksum (const common_options&,
+                    const dir_path& src_dir,
+                    const package_info*);
 }
 
 #endif // BPKG_MANIFEST_UTILITY_HXX

@@ -1005,12 +1005,22 @@ namespace bpkg
     optional<dir_path> src_root;
     bool purge_src;
 
-    // The checksum of the manifest file located in the source directory.
+    // The checksum of the manifest file located in the source directory and
+    // the subproject set. Changes to this information should trigger the
+    // package version revision increment. In particular, new subprojects
+    // should trigger the package reconfiguration.
     //
     // Must be present if the source directory is present, unless the object
     // is created/updated during the package build simulation (see pkg-build
     // for details). Note that during the simulation the manifest may not be
     // available.
+    //
+    // @@ Currently we don't consider subprojects recursively (would most
+    //    likely require extension to b info, also could be a performance
+    //    concern).
+    //
+    // @@ We should probably rename it if/when ODB add support for that for
+    //    SQlite.
     //
     optional<std::string> manifest_checksum;
 
@@ -1153,6 +1163,10 @@ namespace bpkg
   // considered its iteration. Return the version of this iteration if that's
   // the case and nullopt otherwise.
   //
+  // Pass the build2 project info for the package, if available, to speed up
+  // the call and NULL otherwise (in which case it will be queried by the
+  // implementation).
+  //
   // Notes:
   //
   // - The package directory is considered an iteration of the package if this
@@ -1190,6 +1204,7 @@ namespace bpkg
                      const dir_path&,
                      const package_name&,
                      const version&,
+                     const package_info*,
                      bool check_external);
 
   // certificate

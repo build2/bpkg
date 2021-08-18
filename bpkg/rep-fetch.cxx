@@ -192,7 +192,7 @@ namespace bpkg
 
   // Parse package manifests referenced by the package directory manifests.
   //
-  static vector<package_manifest>
+  static pair<vector<package_manifest>, vector<package_info>>
   parse_package_manifests (const common_options& co,
                            const dir_path& repo_dir,
                            vector<package_manifest>&& pms,
@@ -200,8 +200,8 @@ namespace bpkg
                            const repository_location& rl,
                            const optional<string>& fragment) // For diagnostics.
   {
-    auto package_info = [&rl, &fragment] (const package_manifest& pm,
-                                          diag_record& dr)
+    auto add_package_info = [&rl, &fragment] (const package_manifest& pm,
+                                              diag_record& dr)
     {
       dr << "package ";
 
@@ -218,8 +218,8 @@ namespace bpkg
     // files and retrieve the package versions via the single `b info` call.
     // While at it cache the manifest paths for the future use.
     //
-    paths                     mfs;
-    vector<optional<version>> pvs;
+    paths                 mfs;
+    package_version_infos pvs;
     {
       mfs.reserve (pms.size ());
 
@@ -238,7 +238,7 @@ namespace bpkg
         {
           diag_record dr (fail);
           dr << "no manifest file for ";
-          package_info (pm, dr);
+          add_package_info (pm, dr);
         }
 
         mfs.push_back (move (f));
@@ -250,8 +250,9 @@ namespace bpkg
 
     // Parse package manifests, fixing up their versions.
     //
-    vector<package_manifest> r;
-    r.reserve (pms.size ());
+    pair<vector<package_manifest>, vector<package_info>> r;
+    r.first.reserve  (pms.size ());
+    r.second.reserve (pms.size ());
 
     for (size_t i (0); i != pms.size (); ++i)
     {
@@ -266,7 +267,7 @@ namespace bpkg
         ifdstream ifs (f);
         manifest_parser mp (ifs, f.string ());
 
-        optional<version>& pv (pvs[i]);
+        optional<version>& pv (pvs[i].version);
 
         package_manifest m (
           mp,
@@ -286,14 +287,15 @@ namespace bpkg
       {
         diag_record dr (fail (e.name, e.line, e.column));
         dr << e.description << info;
-        package_info (pm, dr);
+        add_package_info (pm, dr);
       }
       catch (const io_error& e)
       {
         fail << "unable to read from " << f << ": " << e;
       }
 
-      r.emplace_back (move (pm));
+      r.first.push_back  (move (pm));
+      r.second.push_back (move (pvs[i].info));
     }
 
     return r;
@@ -360,12 +362,16 @@ namespace bpkg
         rl,
         string () /* fragment */));
 
-    fr.packages = parse_package_manifests (co,
-                                           rd,
-                                           move (pms),
-                                           iu,
-                                           rl,
-                                           empty_string /* fragment */);
+    pair<vector<package_manifest>, vector<package_info>> pmi (
+      parse_package_manifests (co,
+                               rd,
+                               move (pms),
+                               iu,
+                               rl,
+                               empty_string /* fragment */));
+
+    fr.packages      = move (pmi.first);
+    fr.package_infos = move (pmi.second);
 
     // Expand file-referencing package manifest values.
     //
@@ -520,12 +526,16 @@ namespace bpkg
 
       // Parse package manifests.
       //
-      fr.packages = parse_package_manifests (co,
-                                             td,
-                                             move (pms),
-                                             iu,
-                                             rl,
-                                             fr.friendly_name);
+      pair<vector<package_manifest>, vector<package_info>> pmi (
+        parse_package_manifests (co,
+                                 td,
+                                 move (pms),
+                                 iu,
+                                 rl,
+                                 fr.friendly_name));
+
+      fr.packages      = move (pmi.first);
+      fr.package_infos = move (pmi.second);
 
       // Expand file-referencing package manifest values checking out
       // submodules, if required.
@@ -890,12 +900,19 @@ namespace bpkg
     if (exists && !full_fetch)
       rep_remove_package_locations (db, t, rf->name);
 
-    for (package_manifest& pm: fr.packages)
+    vector<package_manifest>&   pms (fr.packages);
+    const vector<package_info>& pis (fr.package_infos);
+
+    for (size_t i (0); i != pms.size (); ++i)
     {
+      package_manifest& pm (pms[i]);
+
       // Fix-up the external package version iteration number.
       //
       if (rl.directory_based ())
       {
+        assert (!pis.empty ());
+
         // Note that we can't check if the external package of this upstream
         // version and revision is already available in the configuration
         // until we fetch all the repositories, as some of the available
@@ -909,7 +926,8 @@ namespace bpkg
             path_cast<dir_path> (rl.path () / *pm.location),
             pm.name,
             pm.version,
-            false /* check_external */));
+            &pis[i],
+            false   /* check_external */));
 
         if (v)
           pm.version = move (*v);

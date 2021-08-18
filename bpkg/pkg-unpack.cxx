@@ -63,6 +63,7 @@ namespace bpkg
               transaction& t,
               package_name n,
               version v,
+              const package_info* pi,
               dir_path d,
               repository_location rl,
               bool purge,
@@ -75,7 +76,7 @@ namespace bpkg
     optional<string> mc;
 
     if (!simulate)
-      mc = sha256 (o, d / manifest_file);
+      mc = package_checksum (o, d, pi);
 
     // Make the package path absolute and normalized. If the package is inside
     // the configuration, use the relative path. This way we can move the
@@ -160,15 +161,22 @@ namespace bpkg
     if (!exists (d))
       fail << "package directory " << d << " does not exist";
 
+    // For better diagnostics, let's obtain the package info after
+    // pkg_verify() verifies that this is a package directory.
+    //
+    package_version_info pvi;
+
     // Verify the directory is a package and get its manifest.
     //
     package_manifest m (
       pkg_verify (d,
                   true /* ignore_unknown */,
-                  [&o, &d] (version& v)
+                  [&o, &d, &pvi] (version& v)
                   {
-                    if (optional<version> pv = package_version (o, d))
-                      v = move (*pv);
+                    pvi = package_version (o, d);
+
+                    if (pvi.version)
+                      v = move (*pvi.version);
                   }));
 
     l4 ([&]{trace << d << ": " << m.name << " " << m.version;});
@@ -179,8 +187,14 @@ namespace bpkg
 
     // Fix-up the package version.
     //
-    if (optional<version> v = package_iteration (
-          o, db, t, d, m.name, m.version, true /* check_external */))
+    if (optional<version> v = package_iteration (o,
+                                                 db,
+                                                 t,
+                                                 d,
+                                                 m.name,
+                                                 m.version,
+                                                 &pvi.info,
+                                                 true /* check_external */))
       m.version = move (*v);
 
     // Use the special root repository fragment as the repository fragment of
@@ -191,6 +205,7 @@ namespace bpkg
                        t,
                        move (m.name),
                        move (m.version),
+                       &pvi.info,
                        d,
                        repository_location (),
                        purge,
@@ -256,9 +271,10 @@ namespace bpkg
                        t,
                        move (n),
                        move (v),
+                       nullptr   /* package_info */,
                        path_cast<dir_path> (rl.path () / pl->location),
                        rl,
-                       false /* purge */,
+                       false     /* purge */,
                        simulate);
   }
 
@@ -329,7 +345,7 @@ namespace bpkg
         fail << "unable to extract " << a << " to " << c << ": " << e;
       }
 
-      mc = sha256 (co, d / manifest_file);
+      mc = package_checksum (co, d, nullptr /* package_info */);
     }
 
     p->src_root = d.leaf (); // For now assuming to be in configuration.

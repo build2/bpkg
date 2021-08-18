@@ -21,6 +21,7 @@
 
 #include <odb/lazy-ptr.hxx>
 
+#include <libbutl/b.mxx>
 #include <libbutl/url.mxx>
 #include <libbutl/path.mxx>
 #include <libbutl/uuid.hxx>
@@ -124,6 +125,10 @@ namespace bpkg
   using butl::default_options_files;
   using butl::default_options_entry;
   using butl::default_options;
+
+  // <libbutl/b.mxx>
+  //
+  using package_info = butl::b_project_info;
 
   // Derive from ODB smart pointers to return derived database (note that the
   // database() functions are defined in database.hxx).

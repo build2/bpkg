@@ -539,6 +539,7 @@ namespace bpkg
                      const dir_path& d,
                      const package_name& n,
                      const version& v,
+                     const package_info* pi,
                      bool check_external)
   {
     tracer trace ("package_iteration");
@@ -576,7 +577,7 @@ namespace bpkg
                             false /* iteration */))
       return nullopt;
 
-    string mc (sha256 (o, d / manifest_file));
+    string mc (package_checksum (o, d, pi));
 
     // The selected package must not be "simulated" (see pkg-build for
     // details).

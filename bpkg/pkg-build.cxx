@@ -4171,14 +4171,21 @@ namespace bpkg
                   info << "'" << package << "' does not appear to be a valid "
                        << "package directory: ";
 
+                // For better diagnostics, let's obtain the package info after
+                // pkg_verify() verifies that this is a package directory.
+                //
+                package_version_info pvi;
+
                 package_manifest m (
                   pkg_verify (
                     d,
                     true /* ignore_unknown */,
-                    [&o, &d] (version& v)
+                    [&o, &d, &pvi] (version& v)
                     {
-                      if (optional<version> pv = package_version (o, d))
-                        v = move (*pv);
+                      pvi = package_version (o, d);
+
+                      if (pvi.version)
+                        v = move (*pvi.version);
                     },
                     diag));
 
@@ -4208,6 +4215,7 @@ namespace bpkg
                                        d,
                                        m.name,
                                        m.version,
+                                       &pvi.info,
                                        true /* check_external */))
                   m.version = move (*v);
 
