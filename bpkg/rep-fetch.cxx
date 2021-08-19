@@ -1448,10 +1448,32 @@ namespace bpkg
             dependencies& ds (tp->dependencies);
 
             if (ds.empty () || !ds.back ().type)
-              ds.push_back (dependency_alternatives_ex (td.type));
+              ds.push_back (dependency_alternatives_ex (td.type,
+                                                        td.buildtime));
 
-            ds.back ().push_back (
-              dependency {p->id.name, version_constraint (p->version)});
+            dependency_alternatives_ex& da (ds.back ());
+
+            // Note that since we store all the primary packages as
+            // alternative dependencies (which must be all of the same
+            // dependency type) for the test package, it must either be a
+            // runtime or build-time dependency for all of them.
+            //
+            // Note that the test package alternative dependencies contain the
+            // `== <version>` constraints (see below), so we can use min
+            // version of such a constraint as the primary package version.
+            //
+            if (da.buildtime != td.buildtime)
+              fail << to_string (td.type) << " package " << td.name << " is a "
+                   << "build-time dependency for one primary package and a "
+                   << "run-time for another" <<
+                info << (da.buildtime ? "build-time for " : "run-time for ")
+                     << package_string (da[0].name,
+                                        *da[0].constraint->min_version) <<
+                info << (td.buildtime ? "build-time for " : "run-time for ")
+                     << package_string (p->id.name, p->version);
+
+            da.push_back (dependency {p->id.name,
+                                      version_constraint (p->version)});
 
             db.update (tp);
           }

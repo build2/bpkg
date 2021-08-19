@@ -1236,18 +1236,24 @@ msvc[_NU]    ; For example: msvc_14, msvc_15u3
 \h2#manifest-package-tests-examples-benchmarks|\c{tests, examples, benchmarks}|
 
 \
-[tests]: <name> [<version-constraint>]
-[examples]: <name> [<version-constraint>]
-[benchmarks]: <name> [<version-constraint>]
+[tests]: [*] <name> [<version-constraint>]
+[examples]: [*] <name> [<version-constraint>]
+[benchmarks]: [*] <name> [<version-constraint>]
 \
 
-Separate tests, examples, and benchmarks packages. These packages are built
-and tested by automated build bots together with the primary package (see the
-\c{bbot} documentation for details). This, in particular, implies that these
-packages must be available from the primary package's repository or its
-complement repositories, recursively. The recommended naming convention for
-these packages is the primary package name followed by \c{-tests},
-\c{-examples}, or \c{-benchmarks}, respectively. For example:
+Separate tests, examples, and benchmarks packages. If the value starts with
+\c{*}, then the primary package is a \i{build-time} prerequisite for the
+specified package. Otherwise it is \i{run-time}. See the
+\l{#manifest-package-depends \c{depends}} value for details on \i{build-time}
+prerequisites.
+
+These packages are built and tested by automated build bots together with the
+primary package (see the \c{bbot} documentation for details). This, in
+particular, implies that these packages must be available from the primary
+package's repository or its complement repositories, recursively. The
+recommended naming convention for these packages is the primary package name
+followed by \c{-tests}, \c{-examples}, or \c{-benchmarks}, respectively. For
+example:
 
 \
 name: hello

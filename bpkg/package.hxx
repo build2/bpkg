@@ -27,7 +27,7 @@
 //
 #define DB_SCHEMA_VERSION_BASE 6
 
-#pragma db model version(DB_SCHEMA_VERSION_BASE, 10, closed)
+#pragma db model version(DB_SCHEMA_VERSION_BASE, 11, closed)
 
 namespace bpkg
 {
@@ -557,10 +557,10 @@ namespace bpkg
 
     // Create the special test dependencies object (built incrementally).
     //
-    dependency_alternatives_ex (test_dependency_type t)
+    dependency_alternatives_ex (test_dependency_type t, bool buildtime)
         : dependency_alternatives (false /* conditional */,
-                                   false /* buildtime */,
-                                   "" /* comment */),
+                                   buildtime,
+                                   ""    /* comment */),
           type (t) {}
   };
 
@@ -579,6 +579,7 @@ namespace bpkg
   // tests
   //
   #pragma db value(test_dependency) definition
+  #pragma db member(test_dependency::buildtime) default(false)
 
   using optional_test_dependency_type = optional<test_dependency_type>;
 
