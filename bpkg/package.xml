@@ -1,4 +1,6 @@
 <changelog xmlns="http://www.codesynthesis.com/xmlns/odb/changelog" database="sqlite" version="1">
+  <changeset version="12"/>
+
   <changeset version="11">
     <alter-table name="main.available_package_tests">
       <add-column name="test_buildtime" type="INTEGER" null="true" default="0"/>

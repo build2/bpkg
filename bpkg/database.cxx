@@ -99,6 +99,75 @@ namespace bpkg
       "ON selected_package_prerequisites (configuration, prerequisite)");
   });
 
+  static const migration_entry<12>
+  migrate_v12 ([] (odb::database& d)
+  {
+    // Drop foreign key constraint for the prerequisite column of the
+    // selected_package_prerequisites table.
+    //
+    // Note that since SQLite provides no API to drop constraints we will
+    // rename the selected_package_prerequisites table, create the new table
+    // without the constraint, and copy the data into the new table.
+    //
+    // Also note that we can only perform migration of the main database,
+    // since dropping index and table in an attached database fails by some
+    // reason with the SQLITE_LOCKED error. This, however, is probably ok
+    // since the host and build system module configurations are already
+    // created without this constraint and its highly unlikely to encounter an
+    // already migrated (up to version 11) a linked target configuration.
+    //
+    database& db (static_cast<database&> (d));
+
+    if (!db.main ())
+      return;
+
+    db.execute ("ALTER TABLE \"main\".\"selected_package_prerequisites\" "
+                "RENAME TO \"selected_package_prerequisites_old\"");
+
+    db.execute ("CREATE TABLE \"main\".\"selected_package_prerequisites\" (\n"
+                "  \"package\" TEXT NULL COLLATE NOCASE,\n"
+                "  \"configuration\" TEXT NULL,\n"
+                "  \"prerequisite\" TEXT NULL COLLATE NOCASE,\n"
+                "  \"min_version_epoch\" INTEGER NULL,\n"
+                "  \"min_version_canonical_upstream\" TEXT NULL,\n"
+                "  \"min_version_canonical_release\" TEXT NULL,\n"
+                "  \"min_version_revision\" INTEGER NULL,\n"
+                "  \"min_version_iteration\" INTEGER NULL,\n"
+                "  \"min_version_upstream\" TEXT NULL,\n"
+                "  \"min_version_release\" TEXT NULL,\n"
+                "  \"max_version_epoch\" INTEGER NULL,\n"
+                "  \"max_version_canonical_upstream\" TEXT NULL,\n"
+                "  \"max_version_canonical_release\" TEXT NULL,\n"
+                "  \"max_version_revision\" INTEGER NULL,\n"
+                "  \"max_version_iteration\" INTEGER NULL,\n"
+                "  \"max_version_upstream\" TEXT NULL,\n"
+                "  \"max_version_release\" TEXT NULL,\n"
+                "  \"min_open\" INTEGER NULL,\n"
+                "  \"max_open\" INTEGER NULL,\n"
+                "  CONSTRAINT \"package_fk\"\n"
+                "    FOREIGN KEY (\"package\")\n"
+                "    REFERENCES \"selected_package\" (\"name\")\n"
+                "    ON DELETE CASCADE)");
+
+    db.execute ("INSERT INTO \"main\".\"selected_package_prerequisites\" "
+                "SELECT * "
+                "FROM \"main\".\"selected_package_prerequisites_old\"");
+
+    db.execute ("DROP TABLE \"main\".\"selected_package_prerequisites_old\"");
+
+    // Create the indexes after dropping the old table to make sure the old
+    // indexes are also dropped to date.
+    //
+    db.execute ("CREATE INDEX "
+                "\"main\".\"selected_package_prerequisites_package_i\"\n"
+                "  ON \"selected_package_prerequisites\" (\"package\")");
+
+    db.execute (
+      "CREATE INDEX "
+      "\"main\".selected_package_prerequisites_configuration_prerequisite_i "
+      "ON selected_package_prerequisites (configuration, prerequisite)");
+  });
+
   static inline path
   cfg_path (const dir_path& d, bool create)
   {
