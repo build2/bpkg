@@ -25,8 +25,7 @@ namespace bpkg
   // prerequisites. Thus we need to make sure that the repository was not
   // traversed yet.
   //
-  using repositories = set<reference_wrapper<const shared_ptr<repository>>,
-                           compare_reference_target>;
+  using repositories = set<shared_ptr<repository>>;
 
   static bool
   reachable (database& db,
