@@ -150,7 +150,26 @@ namespace bpkg
                 "    ON DELETE CASCADE)");
 
     db.execute ("INSERT INTO \"main\".\"selected_package_prerequisites\" "
-                "SELECT * "
+                "SELECT "
+                "\"package\", "
+                "\"configuration\", "
+                "\"prerequisite\", "
+                "\"min_version_epoch\", "
+                "\"min_version_canonical_upstream\", "
+                "\"min_version_canonical_release\", "
+                "\"min_version_revision\", "
+                "\"min_version_iteration\", "
+                "\"min_version_upstream\", "
+                "\"min_version_release\", "
+                "\"max_version_epoch\", "
+                "\"max_version_canonical_upstream\", "
+                "\"max_version_canonical_release\", "
+                "\"max_version_revision\", "
+                "\"max_version_iteration\", "
+                "\"max_version_upstream\", "
+                "\"max_version_release\", "
+                "\"min_open\", "
+                "\"max_open\" "
                 "FROM \"main\".\"selected_package_prerequisites_old\"");
 
     db.execute ("DROP TABLE \"main\".\"selected_package_prerequisites_old\"");
