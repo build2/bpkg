@@ -842,24 +842,22 @@ namespace bpkg
     //
     // Note that the linked database of the linking database type is not added
     // if allow_own_type is false, however its own linked databases of the
-    // host/build2 type are added, if allow_host_type/ allow_build2_type is
+    // host/build2 type are added, if allow_host_type/allow_build2_type is
     // true.
     //
-    linked_databases descended; // Note: we may not add but still descend.
+    linked_databases chain; // Note: we may not add but still descend.
     auto add = [&r,
                 allow_own_type,
                 allow_host_type,
                 allow_build2_type,
-                &descended]
+                &chain]
                (database& db,
                 const std::string& t,
                 const auto& add)
     {
-      if (std::find (descended.begin (), descended.end (), db) !=
-          descended.end ())
+      if (std::find (r.begin (),     r.end (),     db) != r.end () ||
+          std::find (chain.begin (), chain.end (), db) != chain.end ())
         return;
-
-      descended.push_back (db);
 
       bool own    (db.type == t);
       bool host   (db.type == host_config_type);
@@ -877,10 +875,13 @@ namespace bpkg
           (allow_build2_type && build2))
         r.push_back (db);
 
-      const linked_configs& lcs (db.explicit_links ());
+      chain.push_back (db);
 
-      for (auto i (lcs.begin_linked ()); i != lcs.end (); ++i)
-        add (i->db, db.type, add);
+      {
+        const linked_configs& lcs (db.explicit_links ());
+        for (auto i (lcs.begin_linked ()); i != lcs.end (); ++i)
+          add (i->db, db.type, add);
+      }
 
       // If this is a private host configuration, then also add the parent's
       // explicitly linked configurations of the build2 type.
@@ -896,6 +897,8 @@ namespace bpkg
             add (ldb, db.type, add);
         }
       }
+
+      chain.pop_back ();
     };
 
     add (*this, type, add);
