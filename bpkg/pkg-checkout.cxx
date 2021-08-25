@@ -89,7 +89,8 @@ namespace bpkg
   static shared_ptr<selected_package>
   pkg_checkout (pkg_checkout_cache& cache,
                 const common_options& o,
-                database& db,
+                database& pdb,
+                database& rdb,
                 transaction& t,
                 package_name n,
                 version v,
@@ -100,13 +101,13 @@ namespace bpkg
   {
     tracer trace ("pkg_checkout");
 
-    tracer_guard tg (db, trace);
+    tracer_guard tg (pdb, trace); // NOTE: sets tracer for the whole cluster.
 
-    const dir_path& c (db.config_orig);
+    const dir_path& c (pdb.config_orig);
 
     // See if this package already exists in this configuration.
     //
-    shared_ptr<selected_package> p (db.find<selected_package> (n));
+    shared_ptr<selected_package> p (pdb.find<selected_package> (n));
 
     if (p != nullptr)
     {
@@ -127,15 +128,13 @@ namespace bpkg
       }
     }
 
-    database& mdb (db.main_database ());
-
-    check_any_available (mdb, t);
+    check_any_available (rdb, t);
 
     // Note that here we compare including the revision (see pkg-fetch()
     // implementation for more details).
     //
     shared_ptr<available_package> ap (
-      mdb.find<available_package> (available_package_id (n, v)));
+      rdb.find<available_package> (available_package_id (n, v)));
 
     if (ap == nullptr)
       fail << "package " << n << " " << v << " is not available";
@@ -190,7 +189,7 @@ namespace bpkg
       // if the previous checkout have failed or been interrupted.
       //
       dir_path sd (repository_state (rl));
-      dir_path rd (mdb.config_orig / repos_dir / sd);
+      dir_path rd (rdb.config_orig / repos_dir / sd);
 
       // Try to reuse the cached repository (moved to the temporary directory
       // with some fragment checked out and fixed up).
@@ -209,7 +208,8 @@ namespace bpkg
         //
         if (!exists (rd))
           fail << "missing repository directory for package " << n << " " << v
-               << " in configuration " << c <<
+               << " in its repository information configuration "
+               << rdb.config_orig <<
             info << "run 'bpkg rep-fetch' to repair";
 
         // The repository temporary directory.
@@ -241,7 +241,7 @@ namespace bpkg
         state& s (i->second);
         const dir_path& td (s.rmt.path);
 
-        checkout (o, rl, td, ap, db);
+        checkout (o, rl, td, ap, pdb);
         s.fixedup = fixup (o, rl, td);
       }
 
@@ -292,7 +292,7 @@ namespace bpkg
       // build system's actual progress.
       //
       if (verb == 1 && !o.no_progress ())
-        text << "distributing " << n << '/' << v << db;
+        text << "distributing " << n << '/' << v << pdb;
 
       run_b (o,
              verb_b::progress,
@@ -310,7 +310,7 @@ namespace bpkg
       // replacing. Once this is done, there is no going back. If things go
       // badly, we can't simply abort the transaction.
       //
-      pkg_purge_fs (db, t, p, simulate);
+      pkg_purge_fs (pdb, t, p, simulate);
 
       // Note that if the package name spelling changed then we need to update
       // it, to make sure that the subsequent commands don't fail and the
@@ -319,7 +319,7 @@ namespace bpkg
       //
       if (p->name.string () != n.string ())
       {
-        db.erase (p);
+        pdb.erase (p);
         p = nullptr;
       }
     }
@@ -330,8 +330,8 @@ namespace bpkg
     //
     normalize (d, "package");
 
-    if (d.sub (db.config))
-      d = d.leaf (db.config);
+    if (d.sub (pdb.config))
+      d = d.leaf (pdb.config);
 
     if (p != nullptr)
     {
@@ -342,7 +342,7 @@ namespace bpkg
       p->purge_src = purge;
       p->manifest_checksum = move (mc);
 
-      db.update (p);
+      pdb.update (p);
     }
     else
     {
@@ -364,7 +364,7 @@ namespace bpkg
         nullopt,   // No output directory yet.
         {}});      // No prerequisites captured yet.
 
-      db.persist (p);
+      pdb.persist (p);
     }
 
     t.commit ();
@@ -376,7 +376,8 @@ namespace bpkg
   shared_ptr<selected_package>
   pkg_checkout (pkg_checkout_cache& cache,
                 const common_options& o,
-                database& db,
+                database& pdb,
+                database& rdb,
                 transaction& t,
                 package_name n,
                 version v,
@@ -387,7 +388,8 @@ namespace bpkg
   {
     return pkg_checkout (cache,
                          o,
-                         db,
+                         pdb,
+                         rdb,
                          t,
                          move (n),
                          move (v),
@@ -400,7 +402,8 @@ namespace bpkg
   shared_ptr<selected_package>
   pkg_checkout (pkg_checkout_cache& cache,
                 const common_options& o,
-                database& db,
+                database& pdb,
+                database& rdb,
                 transaction& t,
                 package_name n,
                 version v,
@@ -409,7 +412,8 @@ namespace bpkg
   {
     return pkg_checkout (cache,
                          o,
-                         db,
+                         pdb,
+                         rdb,
                          t,
                          move (n),
                          move (v),
@@ -452,7 +456,8 @@ namespace bpkg
     if (o.output_root_specified ())
       p = pkg_checkout (checkout_cache,
                         o,
-                        db,
+                        db /* pdb */,
+                        db /* rdb */,
                         t,
                         move (n),
                         move (v),
@@ -463,7 +468,8 @@ namespace bpkg
     else
       p = pkg_checkout (checkout_cache,
                         o,
-                        db,
+                        db /* pdb */,
+                        db /* rdb */,
                         t,
                         move (n),
                         move (v),

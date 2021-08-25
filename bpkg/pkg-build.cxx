@@ -43,6 +43,74 @@ namespace bpkg
   //    - Configuration vars (both passed and preserved)
   //
 
+  // Configurations to use as the repository information sources.
+  //
+  // The list contains the current configuration and configurations of the
+  // specified on the command line build-to-hold packages (ultimate
+  // dependents).
+  //
+  // For ultimate dependents we use configurations in which they are being
+  // built as a source of the repository information. For dependency packages
+  // we use configurations of their ultimate dependents.
+  //
+  static linked_databases repo_configs;
+
+  // Return the ultimate dependent configurations for packages in this
+  // configuration.
+  //
+  static linked_databases
+  dependent_repo_configs (database& db)
+  {
+    linked_databases r;
+    for (database& ddb: db.dependent_configs ())
+    {
+      if (find (repo_configs.begin (), repo_configs.end (), ddb) !=
+          repo_configs.end ())
+        r.push_back (ddb);
+    }
+
+    return r;
+  }
+
+  // Retrieve the repository fragments for the specified package from its
+  // ultimate dependent configurations and add them to the respective
+  // configuration-associated fragment lists.
+  //
+  using config_repo_fragments =
+    database_map<vector<shared_ptr<repository_fragment>>>;
+
+  static void
+  add_dependent_repo_fragments (database& db,
+                                const available_package_id& id,
+                                config_repo_fragments& r)
+  {
+    for (database& ddb: dependent_repo_configs (db))
+    {
+      shared_ptr<available_package> dap (ddb.find<available_package> (id));
+
+      if (dap != nullptr)
+      {
+        assert (!dap->locations.empty ());
+
+        config_repo_fragments::iterator i (r.find (ddb));
+
+        if (i == r.end ())
+          i = r.insert (ddb,
+                        vector<shared_ptr<repository_fragment>> ()).first;
+
+        vector<shared_ptr<repository_fragment>>& rfs (i->second);
+
+        for (const auto& pl: dap->locations)
+        {
+          shared_ptr<repository_fragment> rf (pl.repository_fragment.load ());
+
+          if (find (rfs.begin (), rfs.end (), rf) == rfs.end ())
+            rfs.push_back (move (rf));
+        }
+      }
+    }
+  }
+
   // Try to find an available stub package in the imaginary system repository.
   // Such a repository contains stubs corresponding to the system packages
   // specified by the user on the command line with version information
@@ -65,34 +133,68 @@ namespace bpkg
     return i != imaginary_stubs.end () ? *i : nullptr;
   }
 
+  // Sort the available package fragments in the package version descending
+  // order and suppress duplicate packages.
+  //
+  static void
+  sort_dedup (vector<pair<shared_ptr<available_package>,
+                          lazy_shared_ptr<repository_fragment>>>& pfs)
+  {
+    sort (pfs.begin (), pfs.end (),
+          [] (const auto& x, const auto& y)
+          {
+            return x.first->version > y.first->version;
+          });
+
+    pfs.erase (unique (pfs.begin(), pfs.end(),
+                      [] (const auto& x, const auto& y)
+                      {
+                        return x.first->version == y.first->version;
+                      }),
+               pfs.end ());
+  }
+
   // Try to find packages that optionally satisfy the specified version
-  // constraint. Return the list of packages and repository fragments in which
-  // each was found or empty list if none were found. Note that a stub
-  // satisfies any constraint.
+  // constraint in multiple databases, suppressing duplicates. Return the list
+  // of packages and repository fragments in which each was found in the
+  // package version descending or empty list if none were found. Note that a
+  // stub satisfies any constraint.
+  //
+  // Note that we return (loaded) lazy_shared_ptr in order to also convey
+  // the database to which it belongs.
   //
   static
-  vector<pair<shared_ptr<available_package>, shared_ptr<repository_fragment>>>
-  find_available (database& db,
+  vector<pair<shared_ptr<available_package>,
+              lazy_shared_ptr<repository_fragment>>>
+  find_available (const linked_databases& dbs,
                   const package_name& name,
                   const optional<version_constraint>& c)
   {
     vector<pair<shared_ptr<available_package>,
-                shared_ptr<repository_fragment>>> r;
+                lazy_shared_ptr<repository_fragment>>> r;
 
-    for (shared_ptr<available_package> ap:
-           pointer_result (query_available (db, name, c)))
+    for (database& db: dbs)
     {
-      // An available package should come from at least one fetched
-      // repository fragment.
-      //
-      assert (!ap->locations.empty ());
+      for (shared_ptr<available_package> ap:
+             pointer_result (query_available (db, name, c)))
+      {
+        // An available package should come from at least one fetched
+        // repository fragment.
+        //
+        assert (!ap->locations.empty ());
 
-      // All repository fragments the package comes from are equally good, so
-      // we pick the first one.
-      //
-      r.emplace_back (move (ap),
-                      ap->locations[0].repository_fragment.load ());
+        // All repository fragments the package comes from are equally good, so
+        // we pick the first one.
+        //
+        r.emplace_back (move (ap), ap->locations[0].repository_fragment);
+      }
     }
+
+    // If there are multiple databases specified, then sort the result in the
+    // package version descending order and suppress duplicates.
+    //
+    if (dbs.size () > 1)
+      sort_dedup (r);
 
     // Adding a stub from the imaginary system repository to the non-empty
     // results isn't necessary but may end up with a duplicate. That's why we
@@ -100,9 +202,7 @@ namespace bpkg
     //
     if (r.empty ())
     {
-      shared_ptr<available_package> ap (find_imaginary_stub (name));
-
-      if (ap != nullptr)
+      if (shared_ptr<available_package> ap = find_imaginary_stub (name))
         r.emplace_back (move (ap), nullptr);
     }
 
@@ -111,29 +211,38 @@ namespace bpkg
 
   // As above but only look for packages from the specified list of repository
   // fragments, their prerequisite repositories, and their complements,
-  // recursively (note: recursivity applies to complements, not
-  // prerequisites).
+  // recursively (note: recursivity applies to complements, not prerequisites).
   //
   static
-  vector<pair<shared_ptr<available_package>, shared_ptr<repository_fragment>>>
-  find_available (database& db,
-                  const package_name& name,
+  vector<pair<shared_ptr<available_package>,
+              lazy_shared_ptr<repository_fragment>>>
+  find_available (const package_name& name,
                   const optional<version_constraint>& c,
-                  const vector<shared_ptr<repository_fragment>>& rfs,
+                  const config_repo_fragments& rfs,
                   bool prereq = true)
   {
-    // Filter the result based on the repository fragments to which each
-    // version belongs.
-    //
     vector<pair<shared_ptr<available_package>,
-                shared_ptr<repository_fragment>>> r (
-                  filter (rfs, query_available (db, name, c), prereq));
+                lazy_shared_ptr<repository_fragment>>> r;
+
+    for (const auto& dfs: rfs)
+    {
+      database& db (dfs.first);
+      for (auto& af: filter (dfs.second,
+                             query_available (db, name, c),
+                             prereq))
+      {
+        r.emplace_back (
+          move (af.first),
+          lazy_shared_ptr<repository_fragment> (db, move (af.second)));
+      }
+    }
+
+    if (rfs.size () > 1)
+      sort_dedup (r);
 
     if (r.empty ())
     {
-      shared_ptr<available_package> ap (find_imaginary_stub (name));
-
-      if (ap != nullptr)
+      if (shared_ptr<available_package> ap = find_imaginary_stub (name))
         r.emplace_back (move (ap), nullptr);
     }
 
@@ -146,22 +255,30 @@ namespace bpkg
   // prerequisites). Return the package and the repository fragment in which
   // it was found or NULL for both if not found.
   //
-  static pair<shared_ptr<available_package>, shared_ptr<repository_fragment>>
-  find_available_one (database& db,
-                      const package_name& name,
+  // It is assumed that the repository fragment lazy pointer contains the
+  // database information.
+  //
+  static pair<shared_ptr<available_package>,
+              lazy_shared_ptr<repository_fragment>>
+  find_available_one (const package_name& name,
                       const optional<version_constraint>& c,
-                      const shared_ptr<repository_fragment>& rf,
+                      const lazy_shared_ptr<repository_fragment>& rf,
                       bool prereq = true)
   {
     // Filter the result based on the repository fragment to which each
     // version belongs.
     //
-    auto r (filter_one (rf, query_available (db, name, c), prereq));
+    database& db (rf.database ());
+    auto r (filter_one (rf.load (), query_available (db, name, c), prereq));
 
     if (r.first == nullptr)
       r.first = find_imaginary_stub (name);
 
-    return r;
+    return make_pair (r.first,
+                      (r.second != nullptr
+                       ? lazy_shared_ptr<repository_fragment> (db,
+                                                               move (r.second))
+                       : nullptr));
   }
 
   // As above but look for a single package from a list of repository
@@ -185,6 +302,31 @@ namespace bpkg
     return r;
   }
 
+  // As above but look for a single package in multiple databases from their
+  // respective root repository fragments.
+  //
+  static pair<shared_ptr<available_package>,
+              lazy_shared_ptr<repository_fragment>>
+  find_available_one (const linked_databases& dbs,
+                      const package_name& name,
+                      const optional<version_constraint>& c,
+                      bool prereq = true)
+  {
+    for (database& db: dbs)
+    {
+      auto r (filter_one (db.load<repository_fragment> (""),
+                          query_available (db, name, c),
+                          prereq));
+
+      if (r.first != nullptr)
+        return make_pair (
+          move (r.first),
+          lazy_shared_ptr<repository_fragment> (db, move (r.second)));
+    }
+
+    return make_pair (find_imaginary_stub (name), nullptr);
+  }
+
   // Create a transient (or fake, if you prefer) available_package object
   // corresponding to the specified selected object. Note that the package
   // locations list is left empty and that the returned repository fragment
@@ -195,7 +337,8 @@ namespace bpkg
   // the package moves (e.g., from testing to stable), then we will be using
   // stable to resolve its dependencies.
   //
-  static pair<shared_ptr<available_package>, shared_ptr<repository_fragment>>
+  static pair<shared_ptr<available_package>,
+              lazy_shared_ptr<repository_fragment>>
   make_available (const common_options& options,
                   database& db,
                   const shared_ptr<selected_package>& sp)
@@ -215,7 +358,7 @@ namespace bpkg
     // moment).
     //
     shared_ptr<repository_fragment> af (
-      db.main_database ().find<repository_fragment> (
+      db.find<repository_fragment> (
         sp->repository_fragment.canonical_name ()));
 
     // The package is in at least fetched state, which means we should
@@ -234,7 +377,10 @@ namespace bpkg
                     // Copy potentially fixed up version from selected package.
                     [&sp] (version& v) {v = sp->version;}));
 
-    return make_pair (make_shared<available_package> (move (m)), move (af));
+    return make_pair (make_shared<available_package> (move (m)),
+                      (af != nullptr
+                       ? lazy_shared_ptr<repository_fragment> (db, move (af))
+                       : nullptr));
   }
 
   // Return true if the version constraint represents the wildcard version.
@@ -345,9 +491,11 @@ namespace bpkg
     shared_ptr<selected_package>  selected;   // NULL if not selected.
     shared_ptr<available_package> available;  // Can be NULL, fake/transient.
 
-    // Can be NULL (orphan) or root.
+    // Can be NULL (orphan) or root. If not NULL, then loaded from the
+    // repository configuration database, which may differ from the
+    // configuration the package is being built in.
     //
-    shared_ptr<bpkg::repository_fragment> repository_fragment;
+    lazy_shared_ptr<bpkg::repository_fragment> repository_fragment;
 
     const package_name&
     name () const
@@ -934,11 +1082,10 @@ namespace bpkg
           }));
 
       const shared_ptr<available_package>& ap (pkg.available);
-      const shared_ptr<repository_fragment>& af (pkg.repository_fragment);
+      const lazy_shared_ptr<repository_fragment>& af (pkg.repository_fragment);
       const package_name& name (ap->id.name);
 
       database& pdb (pkg.db);
-      database& mdb (pdb.main_database ());
 
       for (const dependency_alternatives_ex& da: ap->dependencies)
       {
@@ -1070,7 +1217,7 @@ namespace bpkg
         shared_ptr<selected_package>& dsp (spd.first);
 
         pair<shared_ptr<available_package>,
-             shared_ptr<repository_fragment>> rp;
+             lazy_shared_ptr<repository_fragment>> rp;
 
         shared_ptr<available_package>& dap (rp.first);
 
@@ -1122,15 +1269,11 @@ namespace bpkg
             // system package we pick the latest one (its exact version
             // doesn't really matter).
             //
-            shared_ptr<repository_fragment> root (
-              mdb.load<repository_fragment> (""));
-
-            rp = system
-              ? find_available_one (mdb, dn, nullopt, root)
-              : find_available_one (mdb,
-                                    dn,
-                                    version_constraint (dsp->version),
-                                    root);
+            rp = find_available_one (dependent_repo_configs (*ddb),
+                                     dn,
+                                     (!system
+                                      ? version_constraint (dsp->version)
+                                      : optional<version_constraint> ()));
 
             // A stub satisfies any version constraint so we weed them out
             // (returning stub as an available package feels wrong).
@@ -1351,10 +1494,7 @@ namespace bpkg
           // the package is recognized. An unrecognized package means the
           // broken/stale repository (see below).
           //
-          rp = find_available_one (mdb,
-                                   dn,
-                                   !system ? d.constraint : nullopt,
-                                   af);
+          rp = find_available_one (dn, !system ? d.constraint : nullopt, af);
 
           if (dap == nullptr)
           {
@@ -1431,7 +1571,7 @@ namespace bpkg
           *ddb,
           dsp,
           dap,
-          rp.second,
+          move (rp.second),
           nullopt,                      // Hold package.
           nullopt,                      // Hold version.
           {},                           // Constraints.
@@ -2435,11 +2575,13 @@ namespace bpkg
   //
   struct evaluate_result
   {
-    reference_wrapper<database>           db;
-    shared_ptr<available_package>         available;
-    shared_ptr<bpkg::repository_fragment> repository_fragment;
-    bool                                  unused;
-    bool                                  system; // Is meaningless if unused.
+    // The system flag is meaningless if the unused flag is true.
+    //
+    reference_wrapper<database>                db;
+    shared_ptr<available_package>              available;
+    lazy_shared_ptr<bpkg::repository_fragment> repository_fragment;
+    bool                                       unused;
+    bool                                       system;
   };
 
   struct config_package_dependent
@@ -2464,7 +2606,7 @@ namespace bpkg
                        database& desired_db,
                        bool patch,
                        bool explicitly,
-                       const set<shared_ptr<repository_fragment>>&,
+                       const config_repo_fragments&,
                        const config_package_dependents&,
                        bool ignore_unsatisfiable);
 
@@ -2575,7 +2717,7 @@ namespace bpkg
     // from. Also cache the dependents and the constraints they apply to this
     // dependency.
     //
-    set<shared_ptr<repository_fragment>> repo_frags;
+    config_repo_fragments repo_frags;
     config_package_dependents dependents;
 
     for (auto& pd: pds)
@@ -2586,17 +2728,10 @@ namespace bpkg
       shared_ptr<selected_package> dsp (
         ddb.load<selected_package> (dep.name));
 
-      shared_ptr<available_package> dap (
-        mdb.find<available_package> (
-          available_package_id (dsp->name, dsp->version)));
-
-      if (dap != nullptr)
-      {
-        assert (!dap->locations.empty ());
-
-        for (const auto& pl: dap->locations)
-          repo_frags.insert (pl.repository_fragment.load ());
-      }
+      add_dependent_repo_fragments (
+        ddb,
+        available_package_id (dsp->name, dsp->version),
+        repo_frags);
 
       dependents.emplace_back (ddb, move (dsp), move (dep.constraint));
     }
@@ -2644,7 +2779,7 @@ namespace bpkg
                        database& ddb,
                        bool patch,
                        bool explicitly,
-                       const set<shared_ptr<repository_fragment>>& rfs,
+                       const config_repo_fragments& rfs,
                        const config_package_dependents& dependents,
                        bool ignore_unsatisfiable)
   {
@@ -2689,12 +2824,8 @@ namespace bpkg
       c = dvc;
 
     vector<pair<shared_ptr<available_package>,
-                shared_ptr<repository_fragment>>> afs (
-      find_available (db.main_database (),
-                      nm,
-                      c,
-                      vector<shared_ptr<repository_fragment>> (rfs.begin (),
-                                                               rfs.end ())));
+                lazy_shared_ptr<repository_fragment>>> afs (
+      find_available (nm, c, rfs));
 
     // Go through up/down-grade candidates and pick the first one that
     // satisfies all the dependents. Collect (and sort) unsatisfied dependents
@@ -2985,7 +3116,7 @@ namespace bpkg
     // Also cache the dependents and the constraints they apply to this
     // dependency.
     //
-    set<shared_ptr<repository_fragment>> repo_frags;
+    config_repo_fragments repo_frags;
     config_package_dependents dependents;
 
     // Only collect repository fragments (for best version selection) of
@@ -2993,8 +3124,6 @@ namespace bpkg
     // Note, however, that we collect constraints from all the dependents.
     //
     optional<bool> upgrade;
-
-    database& mdb (db.main_database ());
 
     for (database& ddb: db.dependent_configs ())
     {
@@ -3017,17 +3146,10 @@ namespace bpkg
         // continue to iterate over dependents, collecting the repository
         // fragments and the constraints.
         //
-        shared_ptr<available_package> dap (
-          mdb.find<available_package> (
-            available_package_id (dsp->name, dsp->version)));
-
-        if (dap != nullptr)
-        {
-          assert (!dap->locations.empty ());
-
-          for (const auto& pl: dap->locations)
-            repo_frags.insert (pl.repository_fragment.load ());
-        }
+        add_dependent_repo_fragments (
+          ddb,
+          available_package_id (dsp->name, dsp->version),
+          repo_frags);
       }
     }
 
@@ -3245,6 +3367,16 @@ namespace bpkg
     // duplicates. Note that the last repository location overrides the
     // previous ones with the same canonical name.
     //
+    // Also note that the dependency specs may not have the repository
+    // location specified, since they obtain the repository information via
+    // their ultimate dependent configurations.
+    //
+    // Also collect the databases specified on the command line for the held
+    // packages, to later use them as a repository information sources for the
+    // dependencies.
+    //
+    repo_configs.push_back (mdb);
+
     struct pkg_spec
     {
       database* db; // A pointer since we build these objects incrementally.
@@ -3299,7 +3431,7 @@ namespace bpkg
         fail << "configuration variables must be separated from packages "
              << "with '--'";
 
-      vector<repository_location> locations;
+      database_map<vector<repository_location>> locations;
 
       transaction t (mdb);
 
@@ -3366,6 +3498,16 @@ namespace bpkg
           a.erase (0, 1);
         }
 
+        database& pdb (*ps.db);
+
+        // If this is a package to hold, then add its database to the
+        // repository information source list, suppressing duplicates.
+        //
+        if (!ps.options.dependency () &&
+            find (repo_configs.begin (), repo_configs.end (), pdb) ==
+            repo_configs.end ())
+          repo_configs.push_back (pdb);
+
         // Check if the argument has the [<packages>]@<location> form or looks
         // like a URL. Find the position of <location> if that's the case and
         // set it to string::npos otherwise.
@@ -3406,6 +3548,11 @@ namespace bpkg
           if (l.empty ())
             fail << "empty repository location in '" << a << "'";
 
+          if (ps.options.dependency ())
+            fail << "unexpected repository location in '?" << a << "'" <<
+              info << "repository location cannot be specified for "
+                   << "dependencies";
+
           // Search for the repository location in the database before trying
           // to parse it. Note that the straight parsing could otherwise fail,
           // being unable to properly guess the repository type.
@@ -3444,7 +3591,7 @@ namespace bpkg
               ( query::local && u + " COLLATE nocase = " + query::_val (l)));
 #endif
 
-            auto rs (mdb.query<repository> (q));
+            auto rs (pdb.query<repository> (q));
             auto i (rs.begin ());
 
             if (i != rs.end ())
@@ -3468,17 +3615,23 @@ namespace bpkg
 
           if (!o.no_fetch ())
           {
+            auto i (locations.find (pdb));
+            if (i == locations.end ())
+              i = locations.insert (pdb,
+                                    vector<repository_location> ()).first;
+
             auto pr = [&ps] (const repository_location& i) -> bool
             {
               return i.canonical_name () == ps.location.canonical_name ();
             };
 
-            auto i (find_if (locations.begin (), locations.end (), pr));
+            vector<repository_location>& ls (i->second);
+            auto j (find_if (ls.begin (), ls.end (), pr));
 
-            if (i != locations.end ())
-              *i = ps.location;
+            if (j != ls.end ())
+              *j = ps.location;
             else
-              locations.push_back (ps.location);
+              ls.push_back (ps.location);
           }
         }
         else
@@ -3492,10 +3645,10 @@ namespace bpkg
       // Note that during this build only the repositories information from
       // the main database will be used.
       //
-      if (!locations.empty ())
+      for (const auto& l: locations)
         rep_fetch (o,
-                   mdb,
-                   locations,
+                   l.first,
+                   l.second,
                    o.fetch_shallow (),
                    string () /* reason for "fetching ..." */);
     }
@@ -3780,16 +3933,21 @@ namespace bpkg
           continue;
         }
 
+        // Use it both as the package database and the source of the
+        // repository information.
+        //
+        database& pdb (*ps.db);
+
         // Expand the [[<packages>]@]<location> spec. Fail if the repository
         // is not found in this configuration, that can be the case in the
         // presence of --no-fetch option.
         //
         shared_ptr<repository> r (
-          mdb.find<repository> (ps.location.canonical_name ()));
+          pdb.find<repository> (ps.location.canonical_name ()));
 
         if (r == nullptr)
-          fail << "repository '" << ps.location
-               << "' does not exist in this configuration";
+          fail << "repository '" << ps.location << "' does not exist in this "
+               << "configuration";
 
         // If no packages are specified explicitly (the argument starts with
         // '@' or is a URL) then we select latest versions of all the packages
@@ -3808,7 +3966,7 @@ namespace bpkg
           {
             using query = query<repository_fragment_package>;
 
-            for (const auto& rp: mdb.query<repository_fragment_package> (
+            for (const auto& rp: pdb.query<repository_fragment_package> (
                    (query::repository_fragment::name ==
                     rf.fragment.load ()->name) +
                    order_by_version_desc (query::package::id.version)))
@@ -3823,7 +3981,7 @@ namespace bpkg
               if (ps.options.patch ())
               {
                 shared_ptr<selected_package> sp (
-                  ps.db->find<selected_package> (nm));
+                  pdb.find<selected_package> (nm));
 
                 // It seems natural in the presence of --patch option to only
                 // patch the selected packages and not to build new packages if
@@ -3874,7 +4032,7 @@ namespace bpkg
               info << "package " << pv.first << " is not present in "
                    << "configuration";
             else
-              pkg_args.push_back (arg_package (*ps.db,
+              pkg_args.push_back (arg_package (pdb,
                                                package_scheme::none,
                                                pv.first,
                                                version_constraint (pv.second),
@@ -3931,8 +4089,6 @@ namespace bpkg
             optional<version_constraint> c;
             shared_ptr<selected_package> sp;
 
-            database& pdb (*ps.db);
-
             if (!sys)
             {
               if (!vc)
@@ -3954,7 +4110,7 @@ namespace bpkg
             }
 
             shared_ptr<available_package> ap (
-              find_available_one (mdb, n, c, rfs, false /* prereq */).first);
+              find_available_one (pdb, n, c, rfs, false /* prereq */).first);
 
             // Fail if no available package is found or only a stub is
             // available and we are building a source package.
@@ -3991,7 +4147,7 @@ namespace bpkg
 
             // Don't move options and variables as they may be reused.
             //
-            pkg_args.push_back (arg_package (*ps.db,
+            pkg_args.push_back (arg_package (pdb,
                                              sc,
                                              move (n),
                                              move (vc),
@@ -4057,9 +4213,6 @@ namespace bpkg
 
       transaction t (mdb);
 
-      shared_ptr<repository_fragment> root (
-        mdb.load<repository_fragment> (""));
-
       // Here is what happens here: for unparsed package args we are going to
       // try and guess whether we are dealing with a package archive, package
       // directory, or package name/version by first trying it as an archive,
@@ -4076,10 +4229,15 @@ namespace bpkg
         pkg_arg&  pa (*i);
         database& pdb (pa.db);
 
+        lazy_shared_ptr<repository_fragment> root (pdb, empty_string);
+
         // Reduce all the potential variations (archive, directory, package
         // name, package name/version) to a single available_package object.
         //
-        shared_ptr<repository_fragment> af;
+        // Note that the repository fragment is only used for the
+        // build-to-hold packages.
+        //
+        lazy_shared_ptr<repository_fragment> af;
         shared_ptr<available_package> ap;
 
         if (!arg_parsed (pa))
@@ -4322,7 +4480,8 @@ namespace bpkg
               else if (!arg_sys (pa))
                 c = pa.constraint;
 
-              auto rp (find_available_one (mdb, pa.name, c, root));
+              auto rp (find_available_one (pa.name, c, root));
+
               ap = move (rp.first);
               af = move (rp.second);
             }
@@ -4376,16 +4535,15 @@ namespace bpkg
 
           // Make sure that the package is known.
           //
-          auto apr (!pa.constraint || sys
-                    ? find_available (mdb, pa.name, nullopt)
-                    : find_available (mdb, pa.name, *pa.constraint));
+          auto apr (find_available (repo_configs,
+                                    pa.name,
+                                    !sys ? pa.constraint : nullopt));
 
           if (apr.empty ())
           {
             diag_record dr (fail);
-
             dr << "unknown package " << arg_string (pa, false /* options */);
-            check_any_available (mdb, t, &dr);
+            check_any_available (repo_configs, t, &dr);
           }
 
           // Save before the name move.
@@ -4446,10 +4604,7 @@ namespace bpkg
           if (ap == nullptr)
           {
             if (pa.constraint &&
-                find_available_one (mdb,
-                                    pa.name,
-                                    nullopt,
-                                    root).first != nullptr)
+                find_available_one (pa.name, nullopt, root).first != nullptr)
               sys_advise = true;
           }
           else if (ap->stub ())
@@ -4528,7 +4683,7 @@ namespace bpkg
 
             // Let's help the new user out here a bit.
             //
-            check_any_available (mdb, t, &dr);
+            check_any_available (pdb, t, &dr);
           }
           else
           {
@@ -4618,6 +4773,8 @@ namespace bpkg
       if (hold_pkgs.empty () && dep_pkgs.empty () &&
           (o.upgrade () || o.patch ()))
       {
+        lazy_shared_ptr<repository_fragment> root (mdb, empty_string);
+
         using query = query<selected_package>;
 
         for (shared_ptr<selected_package> sp:
@@ -4645,7 +4802,7 @@ namespace bpkg
               continue;
           }
 
-          auto apr (find_available_one (mdb, name, pc, root));
+          auto apr (find_available_one (name, pc, root));
 
           shared_ptr<available_package> ap (move (apr.first));
           if (ap == nullptr || ap->stub ())
@@ -4800,15 +4957,15 @@ namespace bpkg
     {
       struct dep
       {
-        reference_wrapper<database>           db;
-        package_name                          name; // Empty if up/down-grade.
+        reference_wrapper<database> db;
+        package_name                name; // Empty if up/down-grade.
 
         // Both are NULL if drop.
         //
-        shared_ptr<available_package>         available;
-        shared_ptr<bpkg::repository_fragment> repository_fragment;
+        shared_ptr<available_package>              available;
+        lazy_shared_ptr<bpkg::repository_fragment> repository_fragment;
 
-        bool                                  system;
+        bool system;
       };
       vector<dep> deps;
 
@@ -6130,6 +6287,7 @@ namespace bpkg
 
       shared_ptr<selected_package>& sp (p.selected);
       const shared_ptr<available_package>& ap (p.available);
+      const lazy_shared_ptr<repository_fragment>& af (p.repository_fragment);
 
       // Purge the dropped or system package, fetch/unpack or checkout the
       // other one.
@@ -6243,6 +6401,7 @@ namespace bpkg
               {
                 sp = pkg_fetch (o,
                                 pdb,
+                                af.database (),
                                 t,
                                 ap->id.name,
                                 p.available_version (),
@@ -6256,6 +6415,7 @@ namespace bpkg
                   ? pkg_checkout (checkout_cache,
                                   o,
                                   pdb,
+                                  af.database (),
                                   t,
                                   ap->id.name,
                                   p.available_version (),
@@ -6266,6 +6426,7 @@ namespace bpkg
                   : pkg_checkout (checkout_cache,
                                   o,
                                   pdb,
+                                  af.database (),
                                   t,
                                   ap->id.name,
                                   p.available_version (),
@@ -6277,6 +6438,7 @@ namespace bpkg
               {
                 sp = pkg_unpack (o,
                                  pdb,
+                                 af.database (),
                                  t,
                                  ap->id.name,
                                  p.available_version (),

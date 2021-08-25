@@ -217,13 +217,11 @@ namespace bpkg
     //
     assert (!prereq || chain.empty ());
 
-    auto i (find_if (chain.begin (), chain.end (),
-                     [&rf] (const shared_ptr<repository_fragment>& i) -> bool
-                     {
-                       return i == rf;
-                     }));
-
-    if (i != chain.end ())
+    if (find_if (chain.begin (), chain.end (),
+                 [&rf] (const shared_ptr<repository_fragment>& i) -> bool
+                 {
+                   return i == rf;
+                 }) != chain.end ())
       return nullptr;
 
     chain.emplace_back (rf);
@@ -390,24 +388,53 @@ namespace bpkg
   }
 
   void
-  check_any_available (database& db, transaction&, const diag_record* dr)
+  check_any_available (const linked_databases& dbs,
+                       transaction&,
+                       const diag_record* drp)
   {
-    const dir_path& c (db.config_orig);
-
-    if (db.query_value<repository_count> () == 0)
+    bool rep (false);
+    bool pkg (false);
+    for (database& db: dbs)
     {
-      diag_record d;
-      (dr != nullptr ? *dr << info : d << fail)
-        << "configuration " << c << " has no repositories" <<
+      if (db.query_value<repository_count> () != 0)
+      {
+        rep = true;
+
+        if (db.query_value<available_package_count> () != 0)
+        {
+          pkg = true;
+          break;
+        }
+      }
+    }
+
+    if (pkg)
+      return;
+
+    diag_record d;
+    const diag_record& dr (drp != nullptr ? *drp << info : d << fail);
+
+    if (dbs.size () == 1)
+      dr << "configuration " << dbs[0].get ().config_orig << " has ";
+    else
+      dr << "specified configurations have ";
+
+    if (!rep)
+    {
+      dr << "no repositories" <<
         info << "use 'bpkg rep-add' to add a repository";
     }
-    else if (db.query_value<available_package_count> () == 0)
+    else
     {
-      diag_record d;
-      (dr != nullptr ? *dr << info : d << fail)
-        << "configuration " << c << " has no available packages" <<
+      dr << "no available packages" <<
         info << "use 'bpkg rep-fetch' to fetch available packages list";
     }
+  }
+
+  void
+  check_any_available (database& db, transaction& t, const diag_record* dr)
+  {
+    return check_any_available (linked_databases ({db}), t, dr);
   }
 
   string

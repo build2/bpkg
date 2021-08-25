@@ -662,6 +662,45 @@ namespace bpkg
   {
     return static_cast<bpkg::database&> (base_type::database ());
   }
+
+  // Map databases to values of arbitrary types.
+  //
+  // Note that keys are stored as non-constant references (since they are
+  // normally passed around as such), but they should never be changed
+  // directly.
+  //
+  template <typename V>
+  class database_map:
+    public small_vector<pair<reference_wrapper<database>, V>, 16>
+  {
+  public:
+    using value_type = pair<reference_wrapper<database>, V>;
+    using base_type  = small_vector<value_type, 16>;
+    using iterator   = typename base_type::iterator;
+
+    using base_type::begin;
+    using base_type::end;
+
+    iterator
+    find (database& db)
+    {
+      return find_if (begin (), end (),
+                      [&db] (const value_type& i) -> bool
+                      {
+                        return i.first == db;
+                      });
+    }
+
+    pair<iterator, bool>
+    insert (database& db, V&& v)
+    {
+      iterator i (find (db));
+      if (i != end ())
+        return make_pair (i, false);
+
+      return make_pair (base_type::emplace (end (), db, move (v)), true);
+    }
+  };
 }
 
 #endif // BPKG_DATABASE_HXX

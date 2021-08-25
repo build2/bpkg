@@ -561,7 +561,7 @@ test.options += --no-progress
       $cfg_create -d cfg2 &cfg2/***;
       $cfg_link -d cfg cfg2;
 
-      $* libbar/1.1.0 +{ --config-id 1 } >>~%EOO%
+      $* "libbar/1.1.0@$rep/t4e" +{ --config-id 1 } --trust-yes >>~%EOO% 2>!
         %new libfoo/1.1.0\+1 \[cfg2.\] \(required by libbar \[cfg2.\]\)%
         %new libbar/1.1.0 \[cfg2.\]%
         EOO
@@ -816,6 +816,7 @@ test.options += --no-progress
     $clone_cfg;
     $cfg_create -d cfg2 &cfg2/***;
     $cfg_link -d cfg cfg2;
+    $rep_add -d cfg2 $rep/t4c && $rep_fetch -d cfg2;
     $* libbaz ?libbar +{ --config-id 1 } libfoo/1.0.0 +{ --config-id 1 } 2>>~%EOE% != 0
       error: unable to satisfy constraints on package libfoo
         info: command line depends on (libfoo == 1.0.0)
@@ -1279,6 +1280,7 @@ test.options += --no-progress
       $clone_cfg;
       $cfg_create -d cfg2 &cfg2/***;
       $cfg_link -d cfg cfg2;
+      $rep_fetch -d cfg2 $rep/t4c;
 
       $* libfoo/1.0.0 +{ --config-id 1 } 2>>~%EOE%;
         %fetched libfoo/1.0.0 \[cfg2.\]%
@@ -1288,7 +1290,7 @@ test.options += --no-progress
         %updated libfoo/1.0.0 \[cfg2.\]%
         EOE
 
-      $pkg_status -d cfg2 libfoo >'!libfoo configured !1.0.0';
+      $pkg_status -d cfg2 libfoo >'!libfoo configured !1.0.0 available [1.1.0]';
 
       $* libbaz ?libbar +{ --config-id 1 } 2>>~%EOE% != 0;
         %error: package libbar \[cfg2.\] dependency on \(libfoo == 1.1.0\) is forcing upgrade of libfoo/1.0.0 \[cfg2.\] to 1.1.0%
@@ -1633,7 +1635,7 @@ test.options += --no-progress
 
     $* libfoo '?sys:libhello' 2>'error: unknown package sys:libhello' != 0;
 
-    $* "?sys:libhello/2.0@$rep/t0a" --trust-yes 2>>~%EOE% != 0;
+    $* "sys:libhello/2.0@$rep/t0a" --trust-yes 2>>~%EOE% != 0;
       %.+
       %error: package sys:libhello/2\.0 is not found in .+t0a%
       EOE
@@ -3090,9 +3092,9 @@ test.options += --no-progress
 
     cp -r $src/libfoo-1.1.0/ libfoo;
     echo "depends: libfoo" >+ libfoo/manifest;
-    $rep_add libfoo --type dir;
+    $rep_add libfoo --type dir -d cfg2;
 
-    $rep_fetch;
+    $rep_fetch -d cfg2;
 
     $* libfoo +{ --config-id 1 } 2>>~%EOE% != 0
       %error: dependency cycle detected involving package libfoo \[cfg2.\]%
@@ -3775,6 +3777,38 @@ test.options += --no-progress
     $pkg_disfigure libfoo 2>'disfigured libfoo/1.1.0';
     $pkg_purge     libfoo 2>'purged libfoo/1.1.0'
   }
+
+  : preferred-config
+  :
+  : As above but with a linked configuration.
+  :
+  {
+    $clone_root_cfg;
+
+    $cfg_create -d cfg2 &cfg2/***;
+    $cfg_link -d cfg cfg2;
+
+    $rep_fetch -d cfg2 $rep/t4a;
+    $rep_add -d cfg2 $src/libfoo-1.1.0 --type dir;
+
+    d = $canonicalize([dir_path] $src/libfoo-1.1.0);
+
+    if! $posix
+      d = [dir_path] $string.lcase($d)
+    end;
+
+    $rep_fetch -d cfg2 "dir:$d";
+
+    $* libfoo +{ --config-id 1 } 2>>~%EOE%;
+      %using libfoo/1.1.0 \[cfg2.\] \(external\)%
+      %configured libfoo/1.1.0 \[cfg2.\]%
+      %info: .+ is up to date%
+      %updated libfoo/1.1.0 \[cfg2.\]%
+      EOE
+
+    $pkg_disfigure -d cfg2 libfoo 2>'disfigured libfoo/1.1.0';
+    $pkg_purge     -d cfg2 libfoo 2>'purged libfoo/1.1.0'
+  }
 }
 
 : keep-out
@@ -4119,6 +4153,38 @@ else
     $pkg_purge style-basic
   }
 
+  : prerequisite-repo-config
+  :
+  : As above but with a linked configuration.
+  :
+  {
+    $clone_root_cfg;
+    $rep_add "$rep0/libbar.git#master";
+    $rep_fetch &cfg/.bpkg/repos/*/***;
+
+    $cfg_create -d cfg2 &cfg2/***;
+    $cfg_link -d cfg cfg2;
+
+    $rep_add -d cfg2 "$rep0/style-basic.git#master";
+    $rep_fetch -d cfg2 &cfg/.bpkg/repos/*/***;
+
+    $* libmbar style-basic +{ --config-id 1 } 2>>~%EOE%;
+      %checked out style-basic/.+ \[cfg2.\]%
+      checked out libmbar/1.0.0
+      %configured style-basic/.+ \[cfg2.\]%
+      configured libmbar/1.0.0
+      %info: .+ is up to date%{2}
+      %updated style-basic/.+ \[cfg2.\]%
+      updated libmbar/1.0.0
+      EOE
+
+    $pkg_disfigure         libmbar;
+    $pkg_disfigure -d cfg2 style-basic;
+
+    $pkg_purge         libmbar;
+    $pkg_purge -d cfg2 style-basic
+  }
+
   : no-prerequisite-repos
   :
   : Dependent package repository has no prerequisites nor complements. Its
@@ -4171,6 +4237,34 @@ else
       EOE
 
     $pkg_disfigure style-basic
+  }
+
+  : build-unpacked-config
+  :
+  : As above but with a linked configuration.
+  :
+  if! $remote
+  {
+    $clone_root_cfg;
+
+    $cfg_create -d cfg2 &cfg2/***;
+    $cfg_link -d cfg cfg2;
+
+    d = $canonicalize([dir_path] $out_git/state0/style-basic.git);
+    $pkg_unpack -d cfg2 -e $d;
+
+    $* style-basic +{ --config-id 1 } 2>>~%EOE%;
+      %configured style-basic/1\.1\.0-a\.0\.\d+\..+%
+      %info: .+ is up to date%
+      %updated style-basic/1\.1\.0-a\.0\.\d+\..+%
+      EOE
+
+    $* $d +{ --config-id 1 } 2>>~%EOE%;
+      %info: .+ is up to date%
+      %updated style-basic/1\.1\.0-a\.0\.\d+\..+%
+      EOE
+
+    $pkg_disfigure -d cfg2 style-basic
   }
 
   : checkout-root
@@ -4551,7 +4645,7 @@ else
         $cfg_create -d cfg3 --type host &cfg3/***;
         $cfg_link -d cfg2 cfg3;
 
-        $rep_add -d cfg2 $rep/t7a && $rep_fetch -d cfg2;
+        $rep_add -d cfg3 $rep/t7a && $rep_fetch -d cfg3;
 
         $* -d cfg2 libbaz +{ --config-id 2 } 2>!;
 
@@ -4806,6 +4900,8 @@ else
         !libbaz configured 1.0.0
         EOO
 
+      $rep_add -d t2 $rep/t7a && $rep_fetch -d t2;
+
       $* -d t1 libbaz +{ --config-name t2 } 2>>~%EOE%;
         %fetched libbaz/1.0.0 \[t2.\]%
         %unpacked libbaz/1.0.0 \[t2.\]%
@@ -4858,6 +4954,8 @@ else
       $pkg_status -d t1 -r >>/EOO;
         !libbaz configured 1.0.0
         EOO
+
+      $rep_add -d t2 $rep/t7a && $rep_fetch -d t2;
 
       $* -d t1 foo libbaz +{ --config-name t2 } <<EOI 2>>~%EOE%;
         y
@@ -5074,6 +5172,8 @@ else
           libbuild2-bar [t1/.bpkg/build2/] configured 1.0.0
         EOO
 
+      $rep_add -d t2 $rep/t7a && $rep_fetch -d t2;
+
       $* -d t1 libbaz +{ --config-name t2 } <<EOI 2>>~%EOE%;
         y
         y
@@ -5120,6 +5220,8 @@ else
           libbuild2-bar [t1/.bpkg/build2/] configured 1.0.0
         EOO
 
+      $rep_add -d t2 $rep/t7a && $rep_fetch -d t2;
+
       $* -d t1 ?foo libbaz +{ --config-name t2 } <<EOI 2>>~%EOE%;
         y
         EOI
@@ -5162,6 +5264,8 @@ else
           libbaz configured 1.0.0
           libbuild2-bar [h1/.bpkg/build2/] configured 1.0.0
         EOO
+
+      $rep_add -d h2 $rep/t7a && $rep_fetch -d h2;
 
       $* -d h1 libbar libbaz +{ --config-name h2 } <<EOI 2>>~%EOE%;
         y
@@ -5305,6 +5409,8 @@ else
       $rep_remove -d h1 $rep/t7b;
       $rep_add -d h1 $rep/t7a && $rep_fetch -d h1;
 
+      $rep_add -d h2 $rep/t7a && $rep_fetch -d h2;
+
       $* -d h1 libbaz +{ --config-name h2 } 2>>EOE != 0
         error: package foo/1.1.0 is orphaned
           info: explicitly upgrade it to a new version
@@ -5329,6 +5435,8 @@ else
           libbaz configured 1.0.0
           libbuild2-bar [h1/.bpkg/build2/] configured 1.0.0
         EOO
+
+      $rep_add -d h2 $rep/t7a && $rep_fetch -d h2;
 
       $* -d h1 libbar ?foo libbaz +{ --config-name h2 } <<EOI 2>>~%EOE%;
         y
@@ -5587,7 +5695,7 @@ else
 
       $cfg_link -d t1 t2 2>!;
 
-      $rep_add -d t1 $rep/t7b && $rep_fetch -d t1;
+      $rep_add -d t2 $rep/t7b && $rep_fetch -d t2;
 
       $* -d t1 libbaz +{ --config-name t2 } <<EOI 2>>~%EOE%;
         y
@@ -5611,9 +5719,9 @@ else
         EOE
 
       $pkg_status -d t1 -r >>/EOO
-        !libbar configured 1.0.0 available 1.1.0
-          foo [t1/.bpkg/host/] configured 1.0.0 available 1.1.0
-            libbaz [t1/.bpkg/host/] configured 1.0.0 available 1.1.0
+        !libbar configured 1.0.0
+          foo [t1/.bpkg/host/] configured 1.0.0
+            libbaz [t1/.bpkg/host/] configured 1.0.0
             libbuild2-bar [t1/.bpkg/build2/] configured 1.0.0
           !libbaz [t2/] configured 1.1.0
         !libbaz [t2/] configured 1.1.0
@@ -5641,7 +5749,7 @@ else
 
       $cfg_link -d t1 t2 2>!;
 
-      $rep_add -d t1 $rep/t7b && $rep_fetch -d t1;
+      $rep_add -d t2 $rep/t7b && $rep_fetch -d t2;
 
       $* -d t1 libbar +{ --config-name t2 } <<EOI 2>>~%EOE%;
         y
@@ -5667,11 +5775,11 @@ else
         EOE
 
       $pkg_status -d t1 -r >>/EOO
-        !libbar configured 1.0.0 available 1.1.0
-          foo [t1/.bpkg/host/] configured 1.0.0 available 1.1.0
-            libbaz [t1/.bpkg/host/] configured 1.0.0 available 1.1.0
+        !libbar configured 1.0.0
+          foo [t1/.bpkg/host/] configured 1.0.0
+            libbaz [t1/.bpkg/host/] configured 1.0.0
             libbuild2-bar [t1/.bpkg/build2/] configured 1.0.0
-          libbaz configured 1.0.0 available 1.1.0
+          libbaz configured 1.0.0
         !libbar [t2/] configured 1.1.0
           foo [t2/.bpkg/host/] configured 1.1.0
             libbaz [t2/.bpkg/host/] configured 1.1.0
@@ -5710,6 +5818,8 @@ else
         EOO
 
       $rep_add -d t1 $rep/t7b && $rep_fetch -d t1;
+      $rep_add -d t2 $rep/t7b && $rep_fetch -d t2;
+      $rep_add -d h1 $rep/t7b && $rep_fetch -d h1;
 
       $* -d t1 libfix libfax +{ --config-name t2 } foo +{ --config-name h1 } <<EOI 2>>~%EOE%;
         y
@@ -5908,7 +6018,6 @@ else
     :
     {
       $cfg_create -d cfg &cfg/***;
-      $rep_add $rep/t7a && $rep_fetch;
 
       $cfg_create -d cfg2 --name cfg2 &cfg2/***;
       $cfg_link -d cfg cfg2;
@@ -5916,10 +6025,11 @@ else
       $cfg_create -d cfg3 --name cfg3 &cfg3/***;
       $cfg_link -d cfg cfg3;
 
-      $* libbiz +{ --config-name cfg2 } --yes 2>!;
-      $* libbuz +{ --config-name cfg3 } --yes 2>!;
+      $* "libbiz@$rep/t7a" +{ --config-name cfg2 } --yes --trust-yes 2>!;
+      $* "libbuz@$rep/t7a" +{ --config-name cfg3 } --yes --trust-yes 2>!;
 
-      $* libbix 2>>/~%EOE% != 0
+      $* "libbix@$rep/t7a" --trust-yes 2>>/~%EOE% != 0
+        %(added|fetching).+%{2}
         error: building build system module libbuild2-bar in multiple configurations
         %  info: cfg(2|3)/.bpkg/build2/%{2}
         EOE

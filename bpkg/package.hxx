@@ -18,7 +18,7 @@
 #include <libbpkg/package-name.hxx>
 
 #include <bpkg/types.hxx>
-#include <bpkg/forward.hxx> // database, transaction
+#include <bpkg/forward.hxx> // database, linked_databases, transaction
 #include <bpkg/utility.hxx>
 
 #include <bpkg/diagnostics.hxx>
@@ -826,10 +826,15 @@ namespace bpkg
               odb::result<available_package>&&,
               bool prereq = true);
 
-  // Check if there are packages available in the configuration. If that's not
-  // the case then print the info message into the diag record or, if it is
-  // NULL, print the error message and fail.
+  // Check if there are packages available in the specified configurations. If
+  // that's not the case then print the info message into the diag record or,
+  // if it is NULL, print the error message and fail.
   //
+  void
+  check_any_available (const linked_databases&,
+                       transaction&,
+                       const diag_record* = nullptr);
+
   void
   check_any_available (database&, transaction&, const diag_record* = nullptr);
 

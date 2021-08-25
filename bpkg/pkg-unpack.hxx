@@ -43,9 +43,13 @@ namespace bpkg
   // repository and commit the transaction. Return the selected package object
   // which may replace the existing one.
   //
+  // Note that both package and repository information configurations need to
+  // be passed.
+  //
   shared_ptr<selected_package>
   pkg_unpack (const common_options&,
-              database&,
+              database& pdb,
+              database& rdb,
               transaction&,
               package_name,
               version,

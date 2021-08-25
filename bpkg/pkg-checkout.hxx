@@ -76,6 +76,10 @@ namespace bpkg
     erase (state_map::iterator, bool ignore_errors = false);
   };
 
+  // Note that for the following functions both package and repository
+  // information configurations need to be passed.
+  //
+
   // Check out the package from a version control-based repository into a
   // directory other than the configuration directory and commit the
   // transaction. Return the selected package object which may replace the
@@ -84,7 +88,8 @@ namespace bpkg
   shared_ptr<selected_package>
   pkg_checkout (pkg_checkout_cache&,
                 const common_options&,
-                database&,
+                database& pdb,
+                database& rdb,
                 transaction&,
                 package_name,
                 version,
@@ -100,7 +105,8 @@ namespace bpkg
   shared_ptr<selected_package>
   pkg_checkout (pkg_checkout_cache&,
                 const common_options&,
-                database&,
+                database& pdb,
+                database& rdb,
                 transaction&,
                 package_name,
                 version,

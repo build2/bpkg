@@ -214,7 +214,8 @@ namespace bpkg
 
   shared_ptr<selected_package>
   pkg_unpack (const common_options& o,
-              database& db,
+              database& pdb,
+              database& rdb,
               transaction& t,
               package_name n,
               version v,
@@ -223,21 +224,19 @@ namespace bpkg
   {
     tracer trace ("pkg_unpack");
 
-    tracer_guard tg (db, trace);
+    tracer_guard tg (pdb, trace); // NOTE: sets tracer for the whole cluster.
 
     // Check/diagnose an already existing package.
     //
-    pkg_unpack_check (db, t, n, replace);
+    pkg_unpack_check (pdb, t, n, replace);
 
-    database& mdb (db.main_database ());
-
-    check_any_available (mdb, t);
+    check_any_available (rdb, t);
 
     // Note that here we compare including the revision (see pkg-fetch()
     // implementation for more details).
     //
     shared_ptr<available_package> ap (
-      mdb.find<available_package> (available_package_id (n, v)));
+      rdb.find<available_package> (available_package_id (n, v)));
 
     if (ap == nullptr)
       fail << "package " << n << " " << v << " is not available";
@@ -267,7 +266,7 @@ namespace bpkg
     const repository_location& rl (pl->repository_fragment->location);
 
     return pkg_unpack (o,
-                       db,
+                       pdb,
                        t,
                        move (n),
                        move (v),
@@ -417,7 +416,8 @@ namespace bpkg
       p = v.empty ()
         ? pkg_unpack (o, db, t, n, false /* simulate */)
         : pkg_unpack (o,
-                      db,
+                      db /* pdb */,
+                      db /* rdb */,
                       t,
                       move (n),
                       move (v),

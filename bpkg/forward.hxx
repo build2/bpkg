@@ -6,6 +6,10 @@
 
 namespace bpkg
 {
+  // <bpkg/database.hxx>
+  //
+  class database;
+  class linked_databases;
   class transaction;
 
   // <bpkg/package.hxx>

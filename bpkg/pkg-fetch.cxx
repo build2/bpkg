@@ -185,7 +185,8 @@ namespace bpkg
 
   shared_ptr<selected_package>
   pkg_fetch (const common_options& co,
-             database& db,
+             database& pdb,
+             database& rdb,
              transaction& t,
              package_name n,
              version v,
@@ -194,15 +195,13 @@ namespace bpkg
   {
     tracer trace ("pkg_fetch");
 
-    tracer_guard tg (db, trace);
+    tracer_guard tg (pdb, trace); // NOTE: sets tracer for the whole cluster.
 
     // Check/diagnose an already existing package.
     //
-    pkg_fetch_check (db, t, n, replace);
+    pkg_fetch_check (pdb, t, n, replace);
 
-    database& mdb (db.main_database ());
-
-    check_any_available (mdb, t);
+    check_any_available (rdb, t);
 
     // Note that here we compare including the revision (unlike, say in
     // pkg-status). Which means one cannot just specify 1.0.0 and get 1.0.0+1
@@ -210,7 +209,7 @@ namespace bpkg
     // a low-level command where some extra precision doesn't hurt.
     //
     shared_ptr<available_package> ap (
-      mdb.find<available_package> (available_package_id (n, v)));
+      rdb.find<available_package> (available_package_id (n, v)));
 
     if (ap == nullptr)
       fail << "package " << n << " " << v << " is not available";
@@ -242,7 +241,7 @@ namespace bpkg
            << "from " << pl->repository_fragment->name;
 
     auto_rmfile arm;
-    path a (db.config_orig / pl->location.leaf ());
+    path a (pdb.config_orig / pl->location.leaf ());
 
     if (!simulate)
     {
@@ -268,7 +267,7 @@ namespace bpkg
     }
 
     shared_ptr<selected_package> p (
-      pkg_fetch (db,
+      pkg_fetch (pdb,
                  t,
                  move (n),
                  move (v),
@@ -326,7 +325,8 @@ namespace bpkg
           info << "run 'bpkg help pkg-fetch' for more information";
 
       p = pkg_fetch (o,
-                     db,
+                     db /* pdb */,
+                     db /* rdb */,
                      t,
                      move (n),
                      move (v),

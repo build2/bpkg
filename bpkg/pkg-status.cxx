@@ -18,7 +18,8 @@ namespace bpkg
 {
   struct package
   {
-    database&                    db;
+    database&                    pdb;        // Package database.
+    database&                    rdb;        // Repository info database.
     package_name                 name;
     bpkg::version                version;    // Empty if unspecified.
     shared_ptr<selected_package> selected;   // NULL if none selected.
@@ -42,6 +43,9 @@ namespace bpkg
     {
       l4 ([&]{trace << "package " << p.name << "; version " << p.version;});
 
+      database& pdb (p.pdb);
+      database& rdb (p.rdb);
+
       // Can't be both.
       //
       assert (p.version.empty () || !p.constraint);
@@ -59,8 +63,6 @@ namespace bpkg
       };
       vector<apkg> apkgs;
 
-      database& mdb (p.db.main_database ());
-
       // A package with this name is known in available packages potentially
       // for build.
       //
@@ -68,13 +70,13 @@ namespace bpkg
       bool build (false);
       {
         shared_ptr<repository_fragment> root (
-          mdb.load<repository_fragment> (""));
+          rdb.load<repository_fragment> (""));
 
         using query = query<available_package>;
 
         query q (query::id.name == p.name);
         {
-          auto r (mdb.query<available_package> (q));
+          auto r (rdb.query<available_package> (q));
           known = !r.empty ();
           build = filter_one (root, move (r)).first != nullptr;
         }
@@ -109,7 +111,7 @@ namespace bpkg
           //
           for (shared_ptr<available_package> ap:
                  pointer_result (
-                   mdb.query<available_package> (q)))
+                   rdb.query<available_package> (q)))
           {
             bool build (filter (root, ap));
             apkgs.push_back (apkg {move (ap), build});
@@ -132,7 +134,7 @@ namespace bpkg
 
       // If the package name is selected, then print its exact spelling.
       //
-      cout << (s != nullptr ? s->name : p.name) << p.db;
+      cout << (s != nullptr ? s->name : p.name) << pdb;
 
       if (o.constraint () && p.constraint)
         cout << ' ' << *p.constraint;
@@ -231,6 +233,9 @@ namespace bpkg
       {
         // Collect and recurse.
         //
+        // Let's propagate the repository information source database from the
+        // dependent to its prerequisites.
+        //
         packages dpkgs;
         if (s != nullptr)
         {
@@ -239,7 +244,8 @@ namespace bpkg
             shared_ptr<selected_package> d (pair.first.load ());
             database& db (pair.first.database ());
             const optional<version_constraint>& c (pair.second);
-            dpkgs.push_back (package {db, d->name, version (), move (d), c});
+            dpkgs.push_back (
+              package {db, rdb, d->name, version (), move (d), c});
           }
         }
 
@@ -268,6 +274,13 @@ namespace bpkg
     transaction t (db);
     session s;
 
+    // Let's use as repository information source the package database for the
+    // held packages and the current database for the dependency packages.
+    //
+    // For the dependency packages we should probably use their dependent held
+    // package configurations recursively, but feels a bit hairy at the
+    // moment. So let's keep it simple for now. @@ TODO.
+    //
     packages pkgs;
     {
       using query = query<selected_package>;
@@ -303,6 +316,7 @@ namespace bpkg
             if (sp != nullptr)
             {
               pkgs.push_back (package {ldb,
+                                       sp->hold_package ? ldb : db,
                                        pn,
                                        pv,
                                        move (sp),
@@ -314,6 +328,7 @@ namespace bpkg
           if (!found)
           {
             pkgs.push_back (package {db,
+                                     db,
                                      move (pn),
                                      move (pv),
                                      nullptr  /* selected */,
@@ -333,12 +348,11 @@ namespace bpkg
                    ldb.query<selected_package> (query::hold_package)))
           {
             pkgs.push_back (package {ldb,
+                                     s->hold_package ? ldb : db,
                                      s->name,
                                      version (),
                                      move (s),
                                      nullopt /* constraint */});
-
-
           }
         }
 
