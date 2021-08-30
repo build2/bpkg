@@ -108,11 +108,21 @@ namespace bpkg
     // treated as linked configurations for schema migration purposes. If
     // specified, these paths should be absolute and normalized.
     //
+    // Optionally, specify the database string representation for use in
+    // diagnostics.
+    //
     database (const dir_path& cfg,
               const shared_ptr<configuration>& self,
               odb::tracer& tr,
-              const dir_paths& pre_link = dir_paths ())
-        : database (cfg, self.get (), tr, false, false, pre_link)
+              const dir_paths& pre_link = dir_paths (),
+              std::string str_repr = "")
+        : database (cfg,
+                    self.get (),
+                    tr,
+                    false,
+                    false,
+                    pre_link,
+                    move (str_repr))
     {
       assert (self != nullptr);
     }
@@ -132,8 +142,17 @@ namespace bpkg
               odb::tracer& tr,
               bool pre_attach,
               bool sys_rep = false,
-              const dir_paths& pre_link = dir_paths ())
-        : database (cfg, nullptr, tr, pre_attach, sys_rep, pre_link) {}
+              const dir_paths& pre_link = dir_paths (),
+              std::string str_repr = "")
+        : database (cfg,
+                    nullptr,
+                    tr,
+                    pre_attach,
+                    sys_rep,
+                    pre_link,
+                    move (str_repr))
+    {
+    }
 
     ~database ();
 
@@ -324,6 +343,11 @@ namespace bpkg
     database&
     find_dependency_config (const uuid_type&);
 
+    // As above but return NULL if not found, rather then failing.
+    //
+    database*
+    try_find_dependency_config (const uuid_type&);
+
     // Return true if this configuration is private (i.e. its parent directory
     // name is `.bpkg`).
     //
@@ -345,15 +369,6 @@ namespace bpkg
     //
     database*
     private_config (const string& type);
-
-    // Return an empty string for the main database and the original
-    // configuration directory path in the `[<dir>]` form otherwise.
-    //
-    // NOTE: remember to update pkg_command_vars::string() if changing the
-    // format.
-    //
-    std::string
-    string ();
 
     // Verify that the link information (uuid, type, etc) matches the linked
     // configuration. Issue diagnostics and fail if that's not the case.
@@ -394,6 +409,16 @@ namespace bpkg
     //
     dir_path config_orig;
 
+    // The database string representation for use in diagnostics.
+    //
+    // By default it is empty for the main database and the original
+    // configuration directory path in the `[<dir>]` form otherwise.
+    //
+    // NOTE: remember to update pkg_command_vars::string() and pkg-build.cxx
+    // if changing the format.
+    //
+    std::string string;
+
     // Per-configuration system repository (only loaded if sys_rep constructor
     // argument is true).
     //
@@ -409,7 +434,8 @@ namespace bpkg
               odb::tracer&,
               bool pre_attach,
               bool sys_rep,
-              const dir_paths& pre_link);
+              const dir_paths& pre_link,
+              std::string str_repr);
 
     // Create attached database.
     //
@@ -494,7 +520,7 @@ namespace bpkg
   inline ostream&
   operator<< (ostream& os, const database& db)
   {
-    string s (const_cast<database&> (db).string ());
+    const string& s (const_cast<database&> (db).string);
 
     if (!s.empty ())
       os << ' ' << s;

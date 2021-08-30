@@ -922,12 +922,16 @@ test.options += --no-progress
         error: unknown package libfoo-1.2.0.tar.gz
         EOE
 
-      $* -d cfg2 libfoo/1.0.0 +{ --config-id 1 } 2>>~%EOE% != 0;
+      test.arguments = $regex.apply($test.arguments, cfg, cfg2);
+
+      $* libfoo/1.0.0 +{ --config-id 1 } 2>>~%EOE% != 0;
         %error: unable to downgrade package libfoo/1.1.0 \[cfg.\] to 1.0.0%
         %  info: because package libbar \[cfg.\] depends on \(libfoo == 1.1.0\)%
           info: explicitly request up/downgrade of package libbar
           info: or explicitly specify package libfoo version to manually satisfy these constraints
         EOE
+
+      test.arguments = $regex.apply($test.arguments, cfg2, cfg);
 
       $* libfoo/1.1.0 --keep-unused >'update libfoo/1.1.0';
 
@@ -4333,15 +4337,6 @@ else
           error: no configuration with uuid 18f48b4b-b5d9-4712-b98c-1930df1c4228 is linked with cfg/
           EOE
       }
-
-      : multiple
-      :
-      {
-        $clone_cfg;
-        $* libbaz --config-id 1 --config-name foo 2>>/EOE != 0
-          error: multiple --config-* specified
-          EOE
-      }
     }
 
     : baz
@@ -4410,7 +4405,9 @@ else
       $cfg_link -d cfg     cfg-bar;
       $cfg_link -d cfg-bar cfg-foo;
 
-      $* libbar@"$rep/t4b" -d cfg-bar ?libfoo +{ --config-id 2 } --trust-yes 2>>~%EOE%;
+      test.arguments = $regex.apply($test.arguments, cfg, cfg-bar);
+
+      $* libbar@"$rep/t4b" ?libfoo +{ --config-id 2 } --trust-yes 2>>~%EOE%;
         added pkg:build2.org/pkg-build/t4b
         fetching pkg:build2.org/pkg-build/t4b
         fetching pkg:build2.org/pkg-build/t4a (prerequisite of pkg:build2.org/pkg-build/t4b)
@@ -4425,6 +4422,8 @@ else
         %updated libfoo/1.1.0 \[cfg-foo.\]%
         updated libbar/1.1.0
         EOE
+
+      test.arguments = $regex.apply($test.arguments, cfg-bar, cfg);
 
       $* libfoo --config-uuid $uuid 2>>~%EOE%;
         %info: cfg-foo.+libfoo-1.1.0.+ is up to date%
@@ -4647,7 +4646,11 @@ else
 
         $rep_add -d cfg3 $rep/t7a && $rep_fetch -d cfg3;
 
-        $* -d cfg2 libbaz +{ --config-id 2 } 2>!;
+        test.arguments = $regex.apply($test.arguments, cfg, cfg2);
+
+        $* libbaz +{ --config-id 2 } 2>!;
+
+        test.arguments = $regex.apply($test.arguments, cfg2, cfg);
 
         $* libbar --yes &cfg2/.bpkg/build2/*** 2>>~%EOE%;
           %fetched libbuild2-bar/1.0.0 \[cfg2..bpkg.build2.\]%
@@ -4836,12 +4839,19 @@ else
       $cfg_create -d cfg3 &cfg3/***;
       $rep_add -d cfg3 $rep/t7a && $rep_fetch -d cfg3;
 
-      $* -d cfg2 --yes libbar 2>!;
-      $* -d cfg3 --yes libbox 2>!;
+      test.arguments = $regex.apply($test.arguments, cfg, cfg2);
+
+      $* --yes libbar 2>!;
+
+      test.arguments = $regex.apply($test.arguments, cfg2, cfg3);
+
+      $* --yes libbox 2>!;
 
       $clone_cfg;
       $cfg_link -d cfg cfg2;
       $cfg_link -d cfg cfg3;
+
+      test.arguments = $regex.apply($test.arguments, cfg3, cfg);
 
       $* libfix --yes 2>>~%EOE% != 0
         error: package libbaz indirectly required by libfix/1.0.0 is configured in multiple configurations
@@ -4859,12 +4869,19 @@ else
       $cfg_create -d cfg3 &cfg3/***;
       $rep_add -d cfg3 $rep/t7b && $rep_fetch -d cfg3;
 
-      $* -d cfg2 --yes libbar 2>!;
-      $* -d cfg3 --yes libbox 2>!;
+      test.arguments = $regex.apply($test.arguments, cfg, cfg2);
+
+      $* --yes libbar 2>!;
+
+      test.arguments = $regex.apply($test.arguments, cfg2, cfg3);
+
+      $* --yes libbox 2>!;
 
       $clone_cfg;
       $cfg_link -d cfg cfg2;
       $cfg_link -d cfg cfg3;
+
+      test.arguments = $regex.apply($test.arguments, cfg3, cfg);
 
       $* libfix --yes 2>>~%EOE%;
         fetched libfax/1.0.0
@@ -4894,7 +4911,9 @@ else
 
       $rep_add -d t1 $rep/t7a && $rep_fetch -d t1;
 
-      $* -d t1 libbaz --yes 2>!;
+      test.arguments = $regex.apply($test.arguments, cfg, t1);
+
+      $* libbaz --yes 2>!;
 
       $pkg_status -d t1 -r >>/EOO;
         !libbaz configured 1.0.0
@@ -4902,7 +4921,7 @@ else
 
       $rep_add -d t2 $rep/t7a && $rep_fetch -d t2;
 
-      $* -d t1 libbaz +{ --config-name t2 } 2>>~%EOE%;
+      $* libbaz +{ --config-name t2 } 2>>~%EOE%;
         %fetched libbaz/1.0.0 \[t2.\]%
         %unpacked libbaz/1.0.0 \[t2.\]%
         %configured libbaz/1.0.0 \[t2.\]%
@@ -4926,13 +4945,15 @@ else
 
       $rep_add -d t1 $rep/t7a && $rep_fetch -d t1;
 
-      $* -d t1 libbaz --yes 2>!;
+      test.arguments = $regex.apply($test.arguments, cfg, t1);
+
+      $* libbaz --yes 2>!;
 
       $pkg_status -d t1 -r >>/EOO;
         !libbaz configured 1.0.0
         EOO
 
-      $* -d t1 ?libbaz +{ --config-name t2 };
+      $* ?libbaz +{ --config-name t2 };
 
       $pkg_status -d t1 -r >>/EOO
         !libbaz configured 1.0.0
@@ -4949,7 +4970,9 @@ else
 
       $rep_add -d t1 $rep/t7a && $rep_fetch -d t1;
 
-      $* -d t1 libbaz --yes 2>!;
+      test.arguments = $regex.apply($test.arguments, cfg, t1);
+
+      $* libbaz --yes 2>!;
 
       $pkg_status -d t1 -r >>/EOO;
         !libbaz configured 1.0.0
@@ -4957,7 +4980,7 @@ else
 
       $rep_add -d t2 $rep/t7a && $rep_fetch -d t2;
 
-      $* -d t1 foo libbaz +{ --config-name t2 } <<EOI 2>>~%EOE%;
+      $* foo libbaz +{ --config-name t2 } <<EOI 2>>~%EOE%;
         y
         EOI
         %  new libbuild2-bar/1.0.0 \[t1..bpkg.build2.\] \(required by foo\)%
@@ -4997,13 +5020,15 @@ else
 
       $rep_add -d t1 $rep/t7a && $rep_fetch -d t1;
 
-      $* -d t1 libbaz --yes 2>!;
+      test.arguments = $regex.apply($test.arguments, cfg, t1);
+
+      $* libbaz --yes 2>!;
 
       $pkg_status -d t1 -r >>/EOO;
         !libbaz configured 1.0.0
         EOO
 
-      $* -d t1 foo ?libbaz +{ --config-name t2 } <<EOI 2>>~%EOE%;
+      $* foo ?libbaz +{ --config-name t2 } <<EOI 2>>~%EOE%;
         y
         EOI
         %  new libbuild2-bar/1.0.0 \[t1..bpkg.build2.\] \(required by foo\)%
@@ -5049,7 +5074,9 @@ else
       $rep_add -d t1 $rep/t7a && $rep_fetch -d t1;
       $rep_add -d t2 $rep/t7a && $rep_fetch -d t2;
 
-      $* -d t1 libbar ?foo +{ --config-name h1 } <<EOI 2>>~%EOE%;
+      test.arguments = $regex.apply($test.arguments, cfg, t1);
+
+      $* libbar ?foo +{ --config-name h1 } <<EOI 2>>~%EOE%;
         y
         EOI
         %  new libbuild2-bar/1.0.0 \[h1..bpkg.build2.\] \(required by foo \[h1.\]\)%
@@ -5086,7 +5113,9 @@ else
           libbaz configured 1.0.0
         EOO
 
-      $* -d t2 libbox ?foo +{ --config-name h1 } <<EOI 2>>~%EOE%;
+      test.arguments = $regex.apply($test.arguments, t1, t2);
+
+      $* libbox ?foo +{ --config-name h1 } <<EOI 2>>~%EOE%;
         y
         EOI
         %  update foo/1.0.0 \[h1.\]%
@@ -5112,7 +5141,9 @@ else
           libbaz configured 1.0.0
         EOO
 
-      $* -d t1 ?foo +{ --config-name h2 } <<EOI 2>>~%EOE%;
+      test.arguments = $regex.apply($test.arguments, t2, t1);
+
+      $* ?foo +{ --config-name h2 } <<EOI 2>>~%EOE%;
         y
         y
         EOI
@@ -5164,7 +5195,9 @@ else
 
       $rep_add -d t1 $rep/t7a && $rep_fetch -d t1;
 
-      $* -d t1 foo --yes 2>!;
+      test.arguments = $regex.apply($test.arguments, cfg, t1);
+
+      $* foo --yes 2>!;
 
       $pkg_status -d t1 -r >>/EOO;
         !foo configured 1.0.0
@@ -5174,7 +5207,7 @@ else
 
       $rep_add -d t2 $rep/t7a && $rep_fetch -d t2;
 
-      $* -d t1 libbaz +{ --config-name t2 } <<EOI 2>>~%EOE%;
+      $* libbaz +{ --config-name t2 } <<EOI 2>>~%EOE%;
         y
         y
         EOI
@@ -5212,7 +5245,9 @@ else
 
       $rep_add -d t1 $rep/t7a && $rep_fetch -d t1;
 
-      $* -d t1 foo --yes 2>!;
+      test.arguments = $regex.apply($test.arguments, cfg, t1);
+
+      $* foo --yes 2>!;
 
       $pkg_status -d t1 -r >>/EOO;
         !foo configured 1.0.0
@@ -5222,7 +5257,7 @@ else
 
       $rep_add -d t2 $rep/t7a && $rep_fetch -d t2;
 
-      $* -d t1 ?foo libbaz +{ --config-name t2 } <<EOI 2>>~%EOE%;
+      $* ?foo libbaz +{ --config-name t2 } <<EOI 2>>~%EOE%;
         y
         EOI
         %  new libbaz/1.0.0 \[t2.\]%
@@ -5257,7 +5292,9 @@ else
 
       $rep_add -d h1 $rep/t7a && $rep_fetch -d h1;
 
-      $* -d h1 foo --yes 2>!;
+      test.arguments = $regex.apply($test.arguments, cfg, h1);
+
+      $* foo --yes 2>!;
 
       $pkg_status -d h1 -r >>/EOO;
         !foo configured 1.0.0
@@ -5267,7 +5304,7 @@ else
 
       $rep_add -d h2 $rep/t7a && $rep_fetch -d h2;
 
-      $* -d h1 libbar libbaz +{ --config-name h2 } <<EOI 2>>~%EOE%;
+      $* libbar libbaz +{ --config-name h2 } <<EOI 2>>~%EOE%;
         y
         EOI
         %  new libbaz/1.0.0 \[h2.\]%
@@ -5313,7 +5350,9 @@ else
 
       $rep_add -d h1 $rep/t7a && $rep_fetch -d h1;
 
-      $* -d h1 foo --yes 2>!;
+      test.arguments = $regex.apply($test.arguments, cfg, h1);
+
+      $* foo --yes 2>!;
 
       $pkg_status -d h1 -r >>/EOO;
         !foo configured 1.0.0
@@ -5321,7 +5360,7 @@ else
           libbuild2-bar [h1/.bpkg/build2/] configured 1.0.0
         EOO
 
-      $* -d h1 libbar '?sys:foo/1.2.0' ?libbaz +{ --config-name h2 } <<EOI 2>>~%EOE%;
+      $* libbar '?sys:foo/1.2.0' ?libbaz +{ --config-name h2 } <<EOI 2>>~%EOE%;
         y
         EOI
         %  new libbaz/1.0.0 \[h2.\]%
@@ -5354,7 +5393,7 @@ else
           libbaz [h2/] configured 1.0.0
         EOO
 
-      $* -d h1 ?foo ?libbaz <<EOI 2>>~%EOE%;
+      $* ?foo ?libbaz <<EOI 2>>~%EOE%;
         y
         y
         EOI
@@ -5404,14 +5443,16 @@ else
 
       $rep_add -d h1 $rep/t7b && $rep_fetch -d h1;
 
-      $* -d h1 foo --yes 2>!;
+      test.arguments = $regex.apply($test.arguments, cfg, h1);
+
+      $* foo --yes 2>!;
 
       $rep_remove -d h1 $rep/t7b;
       $rep_add -d h1 $rep/t7a && $rep_fetch -d h1;
 
       $rep_add -d h2 $rep/t7a && $rep_fetch -d h2;
 
-      $* -d h1 libbaz +{ --config-name h2 } 2>>EOE != 0
+      $* libbaz +{ --config-name h2 } 2>>EOE != 0
         error: package foo/1.1.0 is orphaned
           info: explicitly upgrade it to a new version
         info: while satisfying foo/1.1.0
@@ -5428,7 +5469,9 @@ else
 
       $rep_add -d h1 $rep/t7a && $rep_fetch -d h1;
 
-      $* -d h1 foo --yes 2>!;
+      test.arguments = $regex.apply($test.arguments, cfg, h1);
+
+      $* foo --yes 2>!;
 
       $pkg_status -d h1 -r >>/EOO;
         !foo configured 1.0.0
@@ -5438,7 +5481,7 @@ else
 
       $rep_add -d h2 $rep/t7a && $rep_fetch -d h2;
 
-      $* -d h1 libbar ?foo libbaz +{ --config-name h2 } <<EOI 2>>~%EOE%;
+      $* libbar ?foo libbaz +{ --config-name h2 } <<EOI 2>>~%EOE%;
         y
         EOI
         %  new libbaz/1.0.0 \[h2.\]%
@@ -5482,11 +5525,16 @@ else
       $cfg_link -d h1 h2;
 
       $rep_add -d h2 $rep/t7b && $rep_fetch -d h2;
-      $* -d h2 foo --yes 2>!;
+
+      test.arguments = $regex.apply($test.arguments, cfg, h2);
+
+      $* foo --yes 2>!;
 
       $rep_add -d h1 $rep/t7a && $rep_fetch -d h1;
 
-      $* -d h1 foo ?libbaz <<EOI 2>>~%EOE%;
+      test.arguments = $regex.apply($test.arguments, h2, h1);
+
+      $* foo ?libbaz <<EOI 2>>~%EOE%;
         y
         EOI
         %  new libbuild2-bar/1.0.0 \[h1..bpkg.build2.\] \(required by foo\)%
@@ -5515,14 +5563,14 @@ else
           libbaz [h2/] configured 1.1.0
         EOO
 
-      $* -d h1 ?libbaz/1.0.0 +{ --config-name h2 } 2>>~%EOE% != 0;
+      $* ?libbaz/1.0.0 +{ --config-name h2 } 2>>~%EOE% != 0;
         %error: unable to downgrade package libbaz/1.1.0 \[h2.\] to 1.0.0%
         %  info: because package foo \[h2.\] depends on \(libbaz \^1.1.0\)%
           info: explicitly request up/downgrade of package foo
           info: or explicitly specify package libbaz version to manually satisfy these constraints
         EOE
 
-      $* -d h1 ?libbaz +{ --config-name h2 } <<EOI 2>>~%EOE%;
+      $* ?libbaz +{ --config-name h2 } <<EOI 2>>~%EOE%;
         y
         n
         EOI
@@ -5553,7 +5601,9 @@ else
 
       $rep_add -d t1 $rep/t7a && $rep_fetch -d t1;
 
-      $* -d t1 libbar --yes 2>!;
+      test.arguments = $regex.apply($test.arguments, cfg, t1);
+
+      $* libbar --yes 2>!;
 
       $pkg_status -d t1 -r >>/EOO;
         !libbar configured 1.0.0
@@ -5569,7 +5619,7 @@ else
 
       $rep_add -d t1 $rep/t7b && $rep_fetch -d t1;
 
-      $* -d t1 libbar ?foo +{ --config-name h1 } <<EOI 2>>~%EOE%;
+      $* libbar ?foo +{ --config-name h1 } <<EOI 2>>~%EOE%;
         y
         EOI
         %  new libbaz/1.1.0 \[h1.\] \(required by foo \[h1.\]\)%
@@ -5618,7 +5668,9 @@ else
 
       $rep_add -d h1 $rep/t7a && $rep_fetch -d h1;
 
-      $* -d h1 libbar --yes 2>!;
+      test.arguments = $regex.apply($test.arguments, cfg, h1);
+
+      $* libbar --yes 2>!;
 
       $pkg_status -d h1 -r >>/EOO;
         !libbar configured 1.0.0
@@ -5630,7 +5682,7 @@ else
 
       $rep_add -d h1 $rep/t7b && $rep_fetch -d h1;
 
-      $* -d h1 libbar ?foo ?libbaz +{ --config-name h2 } <<EOI 2>>~%EOE%;
+      $* libbar ?foo ?libbaz +{ --config-name h2 } <<EOI 2>>~%EOE%;
         y
         y
         EOI
@@ -5677,7 +5729,9 @@ else
 
       $rep_add -d t1 $rep/t7a && $rep_fetch -d t1;
 
-      $* -d t1 libbar --yes 2>!;
+      test.arguments = $regex.apply($test.arguments, cfg, t1);
+
+      $* libbar --yes 2>!;
 
       $pkg_status -d t1 -r >>/EOO;
         !libbar configured 1.0.0
@@ -5691,13 +5745,17 @@ else
 
       $rep_add -d t2 $rep/t7a && $rep_fetch -d t2;
 
-      $* -d t2 libbaz --yes 2>!;
+      test.arguments = $regex.apply($test.arguments, t1, t2);
+
+      $* libbaz --yes 2>!;
 
       $cfg_link -d t1 t2 2>!;
 
       $rep_add -d t2 $rep/t7b && $rep_fetch -d t2;
 
-      $* -d t1 libbaz +{ --config-name t2 } <<EOI 2>>~%EOE%;
+      test.arguments = $regex.apply($test.arguments, t2, t1);
+
+      $* libbaz +{ --config-name t2 } <<EOI 2>>~%EOE%;
         y
         y
         EOI
@@ -5735,7 +5793,9 @@ else
 
       $rep_add -d t1 $rep/t7a && $rep_fetch -d t1;
 
-      $* -d t1 libbar --yes 2>!;
+      test.arguments = $regex.apply($test.arguments, cfg, t1);
+
+      $* libbar --yes 2>!;
 
       $pkg_status -d t1 -r >>/EOO;
         !libbar configured 1.0.0
@@ -5751,7 +5811,7 @@ else
 
       $rep_add -d t2 $rep/t7b && $rep_fetch -d t2;
 
-      $* -d t1 libbar +{ --config-name t2 } <<EOI 2>>~%EOE%;
+      $* libbar +{ --config-name t2 } <<EOI 2>>~%EOE%;
         y
         EOI
         %  new libbaz/1.1.0 \[t2..bpkg.host.\] \(required by foo \[t2..bpkg.host.\]\)%
@@ -5800,7 +5860,9 @@ else
 
       $rep_add -d t1 $rep/t7a && $rep_fetch -d t1;
 
-      $* -d t1 libfix --yes 2>!;
+      test.arguments = $regex.apply($test.arguments, cfg, t1);
+
+      $* libfix --yes 2>!;
 
       $pkg_status -d t1 -r >>/EOO;
         !libfix configured 1.0.0
@@ -5821,7 +5883,7 @@ else
       $rep_add -d t2 $rep/t7b && $rep_fetch -d t2;
       $rep_add -d h1 $rep/t7b && $rep_fetch -d h1;
 
-      $* -d t1 libfix libfax +{ --config-name t2 } foo +{ --config-name h1 } <<EOI 2>>~%EOE%;
+      $* libfix libfax +{ --config-name t2 } foo +{ --config-name h1 } <<EOI 2>>~%EOE%;
         y
         y
         EOI
@@ -6033,6 +6095,247 @@ else
         error: building build system module libbuild2-bar in multiple configurations
         %  info: cfg(2|3)/.bpkg/build2/%{2}
         EOE
+    }
+  }
+
+  : multiple-configs
+  :
+  {
+    cfg_uuid  = '18f48b4b-b5d9-4712-b98c-1930df1c4228'
+    cfg2_uuid = '28f48b4b-b5d9-4712-b98c-1930df1c4228'
+    cfg3_uuid = '38f48b4b-b5d9-4712-b98c-1930df1c4228'
+    cfg4_uuid = '48f48b4b-b5d9-4712-b98c-1930df1c4228'
+    cfg5_uuid = '58f48b4b-b5d9-4712-b98c-1930df1c4228'
+
+    : 2-current-configs
+    :
+    {
+      $cfg_create -d cfg  --uuid $cfg_uuid                &cfg/***;
+      $cfg_create -d cfg2 --uuid $cfg2_uuid               &cfg2/***;
+      $cfg_create -d cfg3 --uuid $cfg3_uuid --type build2 &cfg3/***;
+
+      $cfg_link -d cfg  cfg3;
+      $cfg_link -d cfg2 cfg3;
+
+      $rep_add         $rep/t7a && $rep_fetch;
+      $rep_add -d cfg2 $rep/t7a && $rep_fetch -d cfg2;
+
+      test.arguments += -d cfg2; # Now refers 2 current dirs: cfg/ and cfg2/.
+
+      # While at it, make sure --config-uuid is only allowed for multiple
+      # current configurations.
+      #
+      $* foo +{ --config-id 1 } 2>>EOE != 0;
+        error: --config-id specified for multiple current configurations
+          info: use --config-uuid to specify configurations in this mode
+          info: while validating options for foo
+        EOE
+
+      $* foo +{ --config-name cfg2 } 2>>EOE != 0;
+        error: --config-name specified for multiple current configurations
+          info: use --config-uuid to specify configurations in this mode
+          info: while validating options for foo
+        EOE
+
+      # While at it, make sure a package must have the configuration
+      # specified.
+      #
+      $* foo 2>>EOE != 0;
+        error: no configuration specified for foo
+          info: configuration must be explicitly specified for each package in multi-configurations mode
+          info: use --config-uuid to specify its configuration
+        EOE
+
+      # Build foo in cfg/ and cfg2/ with its libbaz dependency colocated and
+      # libbuild2-bar dependency shared in cfg3/.
+      #
+      $* foo +{ --config-uuid $cfg_uuid --config-uuid $cfg2_uuid } <<EOI 2>>~%EOE%;
+        y
+        EOI
+        %  new libbaz/1.0.0 \[cfg.\] \(required by foo \[cfg.\]\)%
+        %  new libbuild2-bar/1.0.0 \[cfg3.\] \(required by (foo \[cfg2.\], foo \[cfg.\]\)|foo \[cfg.\], foo \[cfg2.\]\))%
+        %  new foo/1.0.0 \[cfg.\]%
+        %  new libbaz/1.0.0 \[cfg2.\] \(required by foo \[cfg2.\]\)%
+        %  new foo/1.0.0 \[cfg2.\]%
+        %continue\? \[Y/n\] fetched libbaz/1.0.0 \[cfg.\]%
+        %unpacked libbaz/1.0.0 \[cfg.\]%
+        %fetched libbuild2-bar/1.0.0 \[cfg3.\]%
+        %unpacked libbuild2-bar/1.0.0 \[cfg3.\]%
+        %fetched foo/1.0.0 \[cfg.\]%
+        %unpacked foo/1.0.0 \[cfg.\]%
+        %fetched libbaz/1.0.0 \[cfg2.\]%
+        %unpacked libbaz/1.0.0 \[cfg2.\]%
+        %fetched foo/1.0.0 \[cfg2.\]%
+        %unpacked foo/1.0.0 \[cfg2.\]%
+        %configured libbaz/1.0.0 \[cfg.\]%
+        %configured libbuild2-bar/1.0.0 \[cfg3.\]%
+        %configured foo/1.0.0 \[cfg.\]%
+        %configured libbaz/1.0.0 \[cfg2.\]%
+        %configured foo/1.0.0 \[cfg2.\]%
+        %info: cfg.+foo-1.0.0.+ is up to date%
+        %info: cfg2.+foo-1.0.0.+ is up to date%
+        %updated foo/1.0.0 \[cfg.\]%
+        %updated foo/1.0.0 \[cfg2.\]%
+        EOE
+
+      $pkg_status -d cfg -r >>/EOO;
+        !foo configured 1.0.0
+          libbaz configured 1.0.0
+          libbuild2-bar [cfg3/] configured 1.0.0
+        EOO
+
+      $pkg_status -d cfg2 -r >>/EOO;
+        !foo configured 1.0.0
+          libbaz configured 1.0.0
+          libbuild2-bar [cfg3/] configured 1.0.0
+        EOO
+
+      # Move libbuild2-bar to cfg4/ and libbaz to cfg5/.
+      #
+      $cfg_create -d cfg4 --uuid $cfg4_uuid --type build2 &cfg4/***;
+      $cfg_create -d cfg5 --uuid $cfg5_uuid               &cfg5/***;
+
+      $cfg_link -d cfg  cfg4;
+      $cfg_link -d cfg2 cfg4;
+      $cfg_link -d cfg  cfg5;
+      $cfg_link -d cfg2 cfg5;
+
+      $* ?libbuild2-bar +{ --config-uuid $cfg4_uuid } \
+         ?libbaz +{ --config-uuid $cfg5_uuid } <<EOI 2>>~%EOE%;
+        y
+        y
+        EOI
+        %  new libbuild2-bar/1.0.0 \[cfg4.\]%
+        %  new libbaz/1.0.0 \[cfg5.\]%
+        %  drop libbaz/1.0.0 \[cfg2.\] \(unused\)%
+        %  drop libbuild2-bar/1.0.0 \[cfg3.\] \(unused\)%
+        %  reconfigure foo/1.0.0 \[cfg2.\] \(dependent of libbaz \[cfg5.\], libbuild2-bar \[cfg4.\]\)%
+        %  drop libbaz/1.0.0 \[cfg.\] \(unused\)%
+        %  reconfigure foo/1.0.0 \[cfg.\] \(dependent of libbaz \[cfg5.\], libbuild2-bar \[cfg4.\]\)%
+        %continue\? \[Y/n\] update dependent packages\? \[Y/n\] disfigured foo/1.0.0 \[cfg.\]%
+        %disfigured libbaz/1.0.0 \[cfg.\]%
+        %disfigured foo/1.0.0 \[cfg2.\]%
+        %disfigured libbuild2-bar/1.0.0 \[cfg3.\]%
+        %disfigured libbaz/1.0.0 \[cfg2.\]%
+        %fetched libbuild2-bar/1.0.0 \[cfg4.\]%
+        %unpacked libbuild2-bar/1.0.0 \[cfg4.\]%
+        %fetched libbaz/1.0.0 \[cfg5.\]%
+        %unpacked libbaz/1.0.0 \[cfg5.\]%
+        %purged libbaz/1.0.0 \[cfg2.\]%
+        %purged libbuild2-bar/1.0.0 \[cfg3.\]%
+        %purged libbaz/1.0.0 \[cfg.\]%
+        %configured libbuild2-bar/1.0.0 \[cfg4.\]%
+        %configured libbaz/1.0.0 \[cfg5.\]%
+        %configured foo/1.0.0 \[cfg2.\]%
+        %configured foo/1.0.0 \[cfg.\]%
+        %info: cfg4.+libbuild2-bar-1.0.0.+is up to date%
+        %info: cfg5.+libbaz-1.0.0.+ is up to date%
+        %info: cfg2.+foo-1.0.0.+ is up to date%
+        %info: cfg.+foo-1.0.0.+ is up to date%
+        %updated libbuild2-bar/1.0.0 \[cfg4.\]%
+        %updated libbaz/1.0.0 \[cfg5.\]%
+        %updated foo/1.0.0 \[cfg2.\]%
+        %updated foo/1.0.0 \[cfg.\]%
+        EOE
+
+      $pkg_status -d cfg -r >>/EOO;
+        !foo configured 1.0.0
+          libbaz [cfg5/] configured 1.0.0
+          libbuild2-bar [cfg4/] configured 1.0.0
+        EOO
+
+      $pkg_status -d cfg2 -r >>/EOO;
+        !foo configured 1.0.0
+          libbaz [cfg5/] configured 1.0.0
+          libbuild2-bar [cfg4/] configured 1.0.0
+        EOO
+
+      $rep_add $rep/t7b && $rep_fetch;
+
+      $* foo ?libbaz --config-uuid $cfg_uuid <<EOI 2>>~%EOE%;
+        y
+        EOI
+        %  new libbaz/1.1.0 \[cfg.\]%
+        %  upgrade foo/1.1.0 \[cfg.\]%
+        %continue\? \[Y/n\] disfigured foo/1.0.0 \[cfg.\]%
+        %fetched libbaz/1.1.0 \[cfg.\]%
+        %unpacked libbaz/1.1.0 \[cfg.\]%
+        %fetched foo/1.1.0 \[cfg.\]%
+        %unpacked foo/1.1.0 \[cfg.\]%
+        %configured libbaz/1.1.0 \[cfg.\]%
+        %configured foo/1.1.0 \[cfg.\]%
+        %info: cfg.+libbaz-1.1.0.+ is up to date%
+        %info: cfg.+foo-1.1.0.+ is up to date%
+        %updated libbaz/1.1.0 \[cfg.\]%
+        %updated foo/1.1.0 \[cfg.\]%
+        EOE
+
+      $pkg_status -d cfg -r >>/EOO;
+        !foo configured 1.1.0
+          libbaz configured 1.1.0
+        EOO
+
+      $pkg_status -d cfg2 -r >>/EOO;
+        !foo configured 1.0.0
+          libbaz [cfg5/] configured 1.0.0
+          libbuild2-bar [cfg4/] configured 1.0.0
+        EOO
+
+      $rep_add -d cfg2 $rep/t7b && $rep_fetch -d cfg2;
+
+      $* --no-move foo +{ --config-uuid $cfg2_uuid } \
+         ?libbaz +{ --config-uuid $cfg5_uuid } <<EOI 2>>~%EOE%;
+        y
+        EOI
+        %  upgrade libbaz/1.1.0 \[cfg5.\]%
+        %  drop libbuild2-bar/1.0.0 \[cfg4.\] \(unused\)%
+        %  upgrade foo/1.1.0 \[cfg2.\]%
+        %continue\? \[Y/n\] disfigured foo/1.0.0 \[cfg2.\]%
+        %disfigured libbuild2-bar/1.0.0 \[cfg4.\]%
+        %disfigured libbaz/1.0.0 \[cfg5.\]%
+        %fetched libbaz/1.1.0 \[cfg5.\]%
+        %unpacked libbaz/1.1.0 \[cfg5.\]%
+        %purged libbuild2-bar/1.0.0 \[cfg4.\]%
+        %fetched foo/1.1.0 \[cfg2.\]%
+        %unpacked foo/1.1.0 \[cfg2.\]%
+        %configured libbaz/1.1.0 \[cfg5.\]%
+        %configured foo/1.1.0 \[cfg2.\]%
+        %info: cfg5.+libbaz-1.1.0.+ is up to date%
+        %info: cfg2.+foo-1.1.0.+ is up to date%
+        %updated libbaz/1.1.0 \[cfg5.\]%
+        %updated foo/1.1.0 \[cfg2.\]%
+        EOE
+
+      $pkg_status -d cfg2 -r >>/EOO
+        !foo configured 1.1.0
+          libbaz [cfg5/] configured 1.1.0
+        EOO
+    }
+
+    : variable
+    :
+    {
+      $cfg_create -d cfg  --uuid $cfg_uuid              &cfg/***;
+      $cfg_create -d cfg2 --uuid $cfg2_uuid             &cfg2/***;
+      $cfg_create -d cfg3 --uuid $cfg3_uuid --type host &cfg3/***;
+
+      $cfg_link -d cfg  cfg3;
+      $cfg_link -d cfg2 cfg3;
+
+      $rep_add         $rep/t7a && $rep_fetch;
+      $rep_add -d cfg2 $rep/t7a && $rep_fetch -d cfg2;
+
+      test.arguments += -d cfg2; # Now refers 2 current dirs: cfg/ and cfg2/.
+
+      $* --configure-only \
+         { --config-uuid $cfg_uuid  config.libbaz=true }+ libbaz \
+         { --config-uuid $cfg2_uuid                    }+ libbaz 2>!;
+
+      sed -n -e 's/^config.libbaz = (.+)$/\1/p' \
+          cfg/libbaz-1.0.0/build/config.build >'true';
+
+      sed -n -e 's/^config.libbaz = (.+)$/\1/p' \
+          cfg2/libbaz-1.0.0/build/config.build >'false'
     }
   }
 }

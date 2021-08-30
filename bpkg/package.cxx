@@ -56,7 +56,7 @@ namespace bpkg
   string config_package::
   string () const
   {
-    std::string s (db.string ());
+    const std::string& s (db.string);
     return !s.empty () ? name.string () + ' ' + s : name.string ();
   }
 
@@ -490,7 +490,7 @@ namespace bpkg
   string selected_package::
   string (database& db) const
   {
-    std::string s (db.string ());
+    const std::string& s (db.string);
     return !s.empty () ? string () + ' ' + s : string ();
   }
 

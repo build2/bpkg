@@ -1,7 +1,7 @@
 // file      : bpkg/pkg-build.cli
 // license   : MIT; see accompanying LICENSE file
 
-include <bpkg/configuration.cli>;
+include <bpkg/common.cli>;
 
 "\section=1"
 "\name=bpkg-pkg-build"
@@ -255,29 +255,32 @@ namespace bpkg
        \l{bpkg-pkg-checkout(1)} for details."
     }
 
-    string --config-name
+    strings --config-name
     {
-      "<id>",
+      "<name>",
        "Name of the linked configuration to build this package(s) in. By
-        default, the package is built in the current configuration."
+        default, the package is built in the current configuration. Repeat
+        this option to specify multiple configurations."
     }
 
-    uint64_t --config-id
+    vector<uint64_t> --config-id
     {
-      "<id>",
+      "<num>",
       "Numeric id of the linked configuration to build this package(s) in. By
-       default, the package is built in the current configuration."
+       default, the package is built in the current configuration. Repeat this
+       option to specify multiple configurations."
     }
 
-    uuid --config-uuid
+    vector<uuid> --config-uuid
     {
       "<uuid>",
       "UUID of the linked configuration to build this package(s) in. By
-       default, the package is built in the current configuration."
+       default, the package is built in the current configuration. Repeat this
+       this option to specify multiple configurations."
     }
   };
 
-  class pkg_build_options: configuration_options,
+  class pkg_build_options: common_options,
                            pkg_build_pkg_options
   {
     "\h|PKG-BUILD GLOBAL OPTIONS|"
@@ -378,6 +381,22 @@ namespace bpkg
        \
 
        See \l{bpkg-cfg-create(1)} for details on linked configurations."
+    }
+
+    bool --no-move
+    {
+      "Don't move dependency packages between configurations. In this mode the
+       \cb{--config-*} options specify packages' current rather than new
+       locations."
+    }
+
+    dir_paths --directory|-d
+    {
+      "<dir>",
+      "Assume current configuration is in <dir> rather than in the current
+       working directory. Repeat this option to specify multiple current
+       configurations. If multiple configurations are specified, they must
+       belong to the same linked configuration cluster."
     }
   };
 

@@ -223,7 +223,8 @@ namespace bpkg
             odb::tracer& tr,
             bool pre_attach,
             bool sys_rep,
-            const dir_paths& pre_link)
+            const dir_paths& pre_link,
+            std::string str_repr)
       : sqlite::database (
           cfg_path (d, create != nullptr).string (),
           SQLITE_OPEN_READWRITE | (create != nullptr ? SQLITE_OPEN_CREATE : 0),
@@ -232,7 +233,8 @@ namespace bpkg
           unique_ptr<sqlite::connection_factory> (
             new sqlite::serial_connection_factory)), // Single connection.
         config (normalize (d, "configuration")),
-        config_orig (d)
+        config_orig (d),
+        string (move (str_repr))
   {
     bpkg::tracer trace ("database");
 
@@ -382,6 +384,9 @@ namespace bpkg
     else
       config_orig = config;
 
+
+    string = '[' + config_orig.representation () + ']';
+
     try
     {
       tracer_guard tg (*this, trace);
@@ -428,6 +433,7 @@ namespace bpkg
         type (move (db.type)),
         config (move (db.config)),
         config_orig (move (db.config_orig)),
+        string (move (db.string)),
         system_repository (move (db.system_repository)),
         impl_ (db.impl_),
         explicit_links_ (move (db.explicit_links_)),
@@ -996,14 +1002,23 @@ namespace bpkg
     return r->db;
   }
 
-  database& database::
-  find_dependency_config (const uuid_type& uid)
+  database* database::
+  try_find_dependency_config (const uuid_type& uid)
   {
     for (database& ldb: dependency_configs ())
     {
       if (uid == ldb.uuid)
-        return ldb;
+        return &ldb;
     }
+
+    return nullptr;
+  }
+
+  database& database::
+  find_dependency_config (const uuid_type& uid)
+  {
+    if (database* db = try_find_dependency_config (uid))
+      return *db;
 
     fail << "no configuration with uuid " << uid << " is linked with "
          << config_orig << endf;
@@ -1049,11 +1064,5 @@ namespace bpkg
   main ()
   {
     return *this == main_database ();
-  }
-
-  string database::
-  string ()
-  {
-    return main () ? empty_string : '[' + config_orig.representation () + ']';
   }
 }

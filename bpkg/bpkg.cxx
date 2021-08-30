@@ -145,6 +145,17 @@ namespace bpkg
   main (int argc, char* argv[]);
 }
 
+// Note that pkg-build command supports multiple configurations and
+// initializes multiple temporary directories itself. This function is,
+// however, required since pkg_build_options::directory() returns a vector and
+// the below template function cannot be used.
+//
+static inline const dir_path&
+cfg_dir (const pkg_build_options*)
+{
+  return empty_dir_path;
+}
+
 // Get -d|--directory value if the option class O has it and empty path
 // otherwise. Note that for some commands (like rep-info) that allow
 // specifying empty path, the returned value is a string, not a dir_path.

@@ -460,7 +460,12 @@ $* libfoo/1.0.0 2>>~%EOE% != 0
       cp -pr ../cfg-bar ./;
       cp -pr ../cfg-foo ./;
 
-      $pkg_build libbar@"$rep/t4b" -d cfg-bar ?libfoo +{ --config-id 2 } --trust-yes;
+      pkg_build = $regex.apply($pkg_build, cfg, cfg-bar);
+
+      $pkg_build libbar@"$rep/t4b" ?libfoo +{ --config-id 2 } --trust-yes;
+
+      pkg_build = $regex.apply($pkg_build, cfg-bar, cfg);
+
       $pkg_build libbaz;
 
       $pkg_build '?libbar' +{ --config-id 1 };
@@ -491,7 +496,12 @@ $* libfoo/1.0.0 2>>~%EOE% != 0
       cp -pr ../cfg-bar ./;
       cp -pr ../cfg-foo ./;
 
-      $pkg_build libbar@"$rep/t4b" -d cfg-bar ?libfoo +{ --config-id 2 } --trust-yes;
+      pkg_build = $regex.apply($pkg_build, cfg, cfg-bar);
+
+      $pkg_build libbar@"$rep/t4b" ?libfoo +{ --config-id 2 } --trust-yes;
+
+      pkg_build = $regex.apply($pkg_build, cfg-bar, cfg);
+
       $pkg_build libbaz;
 
       # Make sure that dependents of a package being dropped can be found in
@@ -549,7 +559,12 @@ $* libfoo/1.0.0 2>>~%EOE% != 0
       $cfg_link -d cfg-bar cfg;
       $cfg_link -d cfg-foo cfg-bar;
 
-      $pkg_build libbar@"$rep/t4b" -d cfg-bar ?libfoo +{ --config-id 2 } --trust-yes;
+      pkg_build = $regex.apply($pkg_build, cfg, cfg-bar);
+
+      $pkg_build libbar@"$rep/t4b" ?libfoo +{ --config-id 2 } --trust-yes;
+
+      pkg_build = $regex.apply($pkg_build, cfg-bar, cfg);
+
       $pkg_build libbaz;
 
       $pkg_status -r libbaz >>/EOO;
