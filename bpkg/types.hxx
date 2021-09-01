@@ -90,14 +90,14 @@ namespace bpkg
   using butl::basic_path;
   using butl::invalid_path;
 
-  // <libbutl/uuid.mxx>
-  //
-  using butl::uuid;
-
   using butl::path_cast;
 
   using paths = vector<path>;
   using dir_paths = vector<dir_path>;
+
+  // <libbutl/uuid.mxx>
+  //
+  using butl::uuid;
 
   // <libbutl/url.mxx>
   //
