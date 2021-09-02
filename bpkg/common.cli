@@ -96,7 +96,9 @@ namespace bpkg
     bool --no-result
     {
       "Don't print informational messages about the outcome of performing
-       a command."
+       a command or some of its parts. Note that if this option is specified,
+       then for certain long-running command parts progress is displayed
+       instead, unless suppressed with \cb{--no-progress}."
     }
 
     // When it comes to external programs (such as curl, git, etc), if stderr

@@ -109,6 +109,11 @@ namespace bpkg
   template <typename F> inline void l5 (const F& f) {if (verb >= 5) f ();}
   template <typename F> inline void l6 (const F& f) {if (verb >= 6) f ();}
 
+  // Progress reporting.
+  //
+  using butl::diag_progress;
+  using butl::diag_progress_lock;
+
   // Diagnostic facility, base infrastructure.
   //
   using butl::diag_stream;

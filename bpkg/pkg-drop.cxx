@@ -370,25 +370,47 @@ namespace bpkg
         !(o.yes () || !need_prompt || yn_prompt ("continue? [Y/n]", 'y')))
       return 1;
 
+    bool result (verb && !o.no_result ());
+    bool progress (!result && verb == 1 && !o.no_progress () && stderr_term);
+
+    size_t prog_i, prog_n, prog_percent;
+
     // All that's left to do is first disfigure configured packages and
     // then purge all of them. We do both left to right (i.e., from more
     // dependent to less dependent). For disfigure this order is required.
     // For purge, it will be the order closest to the one specified by the
     // user.
     //
-    for (const drop_package& dp: pkgs)
+    // Note: similar code in pkg-build.
+    //
+    auto disfigure_pred = [drop_prq] (const drop_package& dp)
     {
       // Skip prerequisites if we weren't instructed to drop them.
       //
       if (dp.reason == drop_reason::prerequisite && !drop_prq)
-        continue;
+        return false;
 
-      const shared_ptr<selected_package>& p (dp.package);
+      if (dp.package->state != package_state::configured)
+        return false;
 
-      if (p->state != package_state::configured)
+      return true;
+    };
+
+    if (progress)
+    {
+      prog_i = 0;
+      prog_n = static_cast<size_t> (count_if (pkgs.begin (), pkgs.end (),
+                                              disfigure_pred));
+      prog_percent = 100;
+    }
+
+    for (const drop_package& dp: pkgs)
+    {
+      if (!disfigure_pred (dp))
         continue;
 
       database& db (dp.db);
+      const shared_ptr<selected_package>& p (dp.package);
 
       // Each package is disfigured in its own transaction, so that we always
       // leave the configuration in a valid state.
@@ -402,10 +424,37 @@ namespace bpkg
       assert (p->state == package_state::unpacked ||
               p->state == package_state::transient);
 
-      if (verb && !o.no_result ())
-        text << (p->state == package_state::transient
-                 ? "purged "
-                 : "disfigured ") << p->name << db;
+      if (result || progress)
+      {
+        const char* what (p->state == package_state::transient
+                          ? "purged"
+                          : "disfigured");
+        if (result)
+          text << what << ' ' << p->name << db;
+        else if (progress)
+        {
+          size_t p ((++prog_i * 100) / prog_n);
+
+          if (prog_percent != p)
+          {
+            prog_percent = p;
+
+            diag_progress_lock pl;
+            diag_progress  = ' ';
+            diag_progress += to_string (p);
+            diag_progress += "% of packages ";
+            diag_progress += what;
+          }
+        }
+      }
+    }
+
+    // Clear the progress if shown.
+    //
+    if (progress)
+    {
+      diag_progress_lock pl;
+      diag_progress.clear ();
     }
 
     if (o.disfigure_only ())
@@ -436,7 +485,7 @@ namespace bpkg
       //
       pkg_purge (db, t, p, false /* simulate */);
 
-      if (verb && !o.no_result ())
+      if (result)
         text << "purged " << p->name << db;
     }
 

@@ -6194,18 +6194,42 @@ namespace bpkg
     l4 ([&]{trace << "simulate: " << (simulate ? "yes" : "no");});
 
     bool r (false);
-    uint16_t verbose (!simulate ? verb : 0);
+    uint16_t verb (!simulate ? bpkg::verb : 0);
+
+    bool result (verb && !o.no_result ());
+    bool progress (!result && verb == 1 && !o.no_progress () && stderr_term);
+
+    size_t prog_i, prog_n, prog_percent;
 
     // disfigure
     //
-    for (build_package& p: build_pkgs)
+    // Note: similar code in pkg-drop.
+    //
+    auto disfigure_pred = [] (const build_package& p)
     {
       // We are only interested in configured packages that are either being
       // up/down-graded, need reconfiguration (e.g., dependents), or dropped.
       //
+      if (*p.action != build_package::drop && !p.reconfigure ())
+        return false;
+
+      return true;
+    };
+
+    if (progress)
+    {
+      prog_i = 0;
+      prog_n = static_cast<size_t> (count_if (build_pkgs.begin (),
+                                              build_pkgs.end (),
+                                              disfigure_pred));
+      prog_percent = 100;
+    }
+
+    for (build_package& p: build_pkgs)
+    {
       assert (p.action);
 
-      if (*p.action != build_package::drop && !p.reconfigure ())
+      if (!disfigure_pred (p))
         continue;
 
       database& pdb (p.db);
@@ -6255,10 +6279,30 @@ namespace bpkg
       assert (sp->state == package_state::unpacked ||
               sp->state == package_state::transient);
 
-      if (verbose && !o.no_result ())
-        text << (sp->state == package_state::transient
-                 ? "purged "
-                 : "disfigured ") << *sp << pdb;
+
+      if (result || progress)
+      {
+        const char* what (sp->state == package_state::transient
+                          ? "purged"
+                          : "disfigured");
+        if (result)
+          text << what << ' ' << *sp << pdb;
+        else if (progress)
+        {
+          size_t p ((++prog_i * 100) / prog_n);
+
+          if (prog_percent != p)
+          {
+            prog_percent = p;
+
+            diag_progress_lock pl;
+            diag_progress  = ' ';
+            diag_progress += to_string (p);
+            diag_progress += "% of packages ";
+            diag_progress += what;
+          }
+        }
+      }
 
       // Selected system package is now gone from the database. Before we drop
       // the object we need to make sure the hold state is preserved in the
@@ -6274,6 +6318,14 @@ namespace bpkg
 
         sp = nullptr;
       }
+    }
+
+    // Clear the progress if shown.
+    //
+    if (progress)
+    {
+      diag_progress_lock pl;
+      diag_progress.clear ();
     }
 
     // purge, fetch/unpack|checkout
@@ -6308,7 +6360,7 @@ namespace bpkg
 
             r = true;
 
-            if (verbose && !o.no_result ())
+            if (result)
               text << "purged " << *sp << pdb;
 
             sp = nullptr;
@@ -6339,7 +6391,7 @@ namespace bpkg
 
             r = true;
 
-            if (verbose && !o.no_result ())
+            if (result)
               text << "purged " << *sp << pdb;
 
             if (!p.hold_package)
@@ -6471,7 +6523,7 @@ namespace bpkg
             assert (sp->state == package_state::fetched ||
                     sp->state == package_state::unpacked);
 
-            if (verbose && !o.no_result ())
+            if (result)
             {
               const repository_location& rl (sp->repository_fragment);
 
@@ -6520,7 +6572,7 @@ namespace bpkg
             //
             sp = pkg_unpack (o, pdb, t, ap->id.name, simulate);
 
-            if (verbose && !o.no_result ())
+            if (result)
               text << "unpacked " << *sp << pdb;
           }
           else
@@ -6537,7 +6589,7 @@ namespace bpkg
                              false,  // Don't purge; commits the transaction.
                              simulate);
 
-            if (verbose && !o.no_result ())
+            if (result)
               text << "using " << *sp << pdb << " (external)";
           }
 
@@ -6553,15 +6605,40 @@ namespace bpkg
 
     // configure
     //
+    auto configure_pred = [] (const build_package& p)
+    {
+      // Skip package drops.
+      //
+      if (*p.action == build_package::drop)
+        return false;
+
+      // We configure everything that isn't already configured.
+      //
+      if (p.selected != nullptr &&
+          p.selected->state == package_state::configured)
+        return false;
+
+      return true;
+    };
+
+    if (progress)
+    {
+      prog_i = 0;
+      prog_n = static_cast<size_t> (count_if (build_pkgs.begin (),
+                                              build_pkgs.end (),
+                                              configure_pred));
+      prog_percent = 100;
+    }
+
     for (build_package& p: reverse_iterate (build_pkgs))
     {
       assert (p.action);
 
+      if (!configure_pred (p))
+        continue;
+
       shared_ptr<selected_package>& sp (p.selected);
       const shared_ptr<available_package>& ap (p.available);
-
-      if (*p.action == build_package::drop) // Skip package drops.
-        continue;
 
       // Configure the package.
       //
@@ -6570,11 +6647,6 @@ namespace bpkg
       // one. Note that a system package gets selected as being configured.
       //
       assert (sp != nullptr || p.system);
-
-      // We configure everything that isn't already configured.
-      //
-      if (sp != nullptr && sp->state == package_state::configured)
-        continue;
 
       database& pdb (p.db);
 
@@ -6633,8 +6705,30 @@ namespace bpkg
 
       assert (sp->state == package_state::configured);
 
-      if (verbose && !o.no_result ())
+      if (result)
         text << "configured " << *sp << pdb;
+      else if (progress)
+      {
+        size_t p ((++prog_i * 100) / prog_n);
+
+        if (prog_percent != p)
+        {
+          prog_percent = p;
+
+          diag_progress_lock pl;
+          diag_progress  = ' ';
+          diag_progress += to_string (p);
+          diag_progress += "% of packages configured";
+        }
+      }
+    }
+
+    // Clear the progress if shown.
+    //
+    if (progress)
+    {
+      diag_progress_lock pl;
+      diag_progress.clear ();
     }
 
     // Update the hold state.
@@ -6677,7 +6771,7 @@ namespace bpkg
 
         r = true;
 
-        if (verbose > 1)
+        if (verb > 1)
         {
           if (hp)
             text << "holding package " << sp->name << pdb;
