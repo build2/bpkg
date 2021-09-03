@@ -4,6 +4,7 @@
 #ifndef BPKG_UTILITY_HXX
 #define BPKG_UTILITY_HXX
 
+#include <map>
 #include <memory>    // make_shared()
 #include <string>    // to_string()
 #include <cstring>   // strcmp(), strchr()
@@ -83,19 +84,20 @@ namespace bpkg
 
   // Temporary directory facility.
   //
-  // This is normally .bpkg/tmp/ but can also be some system-wide directory
-  // (e.g., /tmp/bpkg-XXX/) if there is no bpkg configuration. This directory
-  // is automatically created and cleaned up for most commands in main() so
-  // you don't need to call init_tmp() explicitly except for certain special
-  // commands (like cfg-create).
+  // An entry normally maps <cfg-dir> to <cfg-dir>/.bpkg/tmp/ but can also map
+  // an empty directory to some system-wide directory (e.g., /tmp/bpkg-XXX/)
+  // if there is no bpkg configuration. The temporary directory for the
+  // current configuration is automatically created and cleaned up for most
+  // commands in main(), so you don't need to call init_tmp() explicitly
+  // except for certain special commands (like cfg-create).
   //
-  extern dir_path temp_dir;
+  extern std::map<dir_path, dir_path> temp_dir;
 
   auto_rmfile
-  tmp_file (const string& prefix);
+  tmp_file (const dir_path& cfg, const string& prefix);
 
   auto_rmdir
-  tmp_dir (const string& prefix);
+  tmp_dir (const dir_path& cfg, const string& prefix);
 
   void
   init_tmp (const dir_path& cfg);

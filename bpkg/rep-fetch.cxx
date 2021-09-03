@@ -408,9 +408,12 @@ namespace bpkg
 
     assert (conf == nullptr || !conf->empty ());
 
+    auto i (temp_dir.find (conf != nullptr ? *conf : empty_dir_path));
+    assert (i != temp_dir.end ());
+
     dir_path sd (repository_state (rl));
 
-    auto_rmdir rm (temp_dir / sd);
+    auto_rmdir rm (i->second / sd);
     const dir_path& td (rm.path);
 
     if (exists (td))

@@ -28,20 +28,22 @@ namespace bpkg
 
   const dir_path current_dir (".");
 
-  dir_path temp_dir;
+  map<dir_path, dir_path> temp_dir;
 
   auto_rmfile
-  tmp_file (const string& p)
+  tmp_file (const dir_path& cfg, const string& p)
   {
-    assert (!temp_dir.empty ());
-    return auto_rmfile (temp_dir / path::traits_type::temp_name (p));
+    auto i (temp_dir.find (cfg));
+    assert (i != temp_dir.end ());
+    return auto_rmfile (i->second / path::traits_type::temp_name (p));
   }
 
   auto_rmdir
-  tmp_dir (const string& p)
+  tmp_dir (const dir_path& cfg, const string& p)
   {
-    assert (!temp_dir.empty ());
-    return auto_rmdir (temp_dir / dir_path (path::traits_type::temp_name (p)));
+    auto i (temp_dir.find (cfg));
+    assert (i != temp_dir.end ());
+    return auto_rmdir (i->second / dir_path (path::traits_type::temp_name (p)));
   }
 
   void
@@ -62,21 +64,26 @@ namespace bpkg
 
     mk (d); // We shouldn't need mk_p().
 
-    temp_dir = move (d);
+    temp_dir[cfg] = move (d);
   }
 
   void
   clean_tmp (bool ignore_error)
   {
-    if (!temp_dir.empty () && exists (temp_dir))
+    for (const auto& d: temp_dir)
     {
-      rm_r (temp_dir,
-            true /* dir_itself */,
-            3,
-            ignore_error ? rm_error_mode::ignore : rm_error_mode::fail);
+      const dir_path& td (d.second);
 
-      temp_dir.clear ();
+      if (exists (td))
+      {
+        rm_r (td,
+              true /* dir_itself */,
+              3,
+              ignore_error ? rm_error_mode::ignore : rm_error_mode::fail);
+      }
     }
+
+    temp_dir.clear ();
   }
 
   path&

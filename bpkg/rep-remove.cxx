@@ -129,9 +129,12 @@ namespace bpkg
   // the chances for the operation to succeed.
   //
   static void
-  rmdir (const dir_path& d)
+  rmdir (const dir_path& cfg, const dir_path& d)
   {
-    dir_path td (temp_dir / d.leaf ());
+    auto i (temp_dir.find (cfg));
+    assert (i != temp_dir.end ());
+
+    dir_path td (i->second / d.leaf ());
 
     if (exists (td))
       rm_r (td);
@@ -210,7 +213,7 @@ namespace bpkg
         }
 
         if (rm)
-          rmdir (sd);
+          rmdir (db.config_orig, sd);
       }
     }
   }
@@ -336,7 +339,7 @@ namespace bpkg
       for (const dir_entry& de: dir_iterator (rd, false /* ignore_dangling */))
       {
         if (de.ltype () == entry_type::directory)
-          rmdir (rd / path_cast<dir_path> (de.path ()));
+          rmdir (db.config_orig, rd / path_cast<dir_path> (de.path ()));
       }
     }
     catch (const system_error& e)

@@ -535,37 +535,37 @@ try
 
     // pkg-* commands
     //
-#define PKG_COMMAND(CMD, SEP) COMMAND_IMPL(pkg_, "pkg-", CMD, SEP, true)
+#define PKG_COMMAND(CMD, SEP, TMP) COMMAND_IMPL(pkg_, "pkg-", CMD, SEP, TMP)
 
     // These commands need the '--' separator to be kept in args.
     //
-    PKG_COMMAND (build,     true);
-    PKG_COMMAND (clean,     true);
-    PKG_COMMAND (configure, true);
-    PKG_COMMAND (install,   true);
-    PKG_COMMAND (test,      true);
-    PKG_COMMAND (uninstall, true);
-    PKG_COMMAND (update,    true);
+    PKG_COMMAND (build,     true, false);
+    PKG_COMMAND (clean,     true, true);
+    PKG_COMMAND (configure, true, true);
+    PKG_COMMAND (install,   true, true);
+    PKG_COMMAND (test,      true, true);
+    PKG_COMMAND (uninstall, true, true);
+    PKG_COMMAND (update,    true, true);
 
-    PKG_COMMAND (checkout,  false);
-    PKG_COMMAND (disfigure, false);
-    PKG_COMMAND (drop,      false);
-    PKG_COMMAND (fetch,     false);
-    PKG_COMMAND (purge,     false);
-    PKG_COMMAND (status,    false);
-    PKG_COMMAND (unpack,    false);
-    PKG_COMMAND (verify,    false);
+    PKG_COMMAND (checkout,  false, true);
+    PKG_COMMAND (disfigure, false, true);
+    PKG_COMMAND (drop,      false, true);
+    PKG_COMMAND (fetch,     false, true);
+    PKG_COMMAND (purge,     false, true);
+    PKG_COMMAND (status,    false, true);
+    PKG_COMMAND (unpack,    false, true);
+    PKG_COMMAND (verify,    false, true);
 
     // rep-* commands
     //
-#define REP_COMMAND(CMD) COMMAND_IMPL(rep_, "rep-", CMD, false, true)
+#define REP_COMMAND(CMD, TMP) COMMAND_IMPL(rep_, "rep-", CMD, false, TMP)
 
-    REP_COMMAND (add);
-    REP_COMMAND (create);
-    REP_COMMAND (fetch);
-    REP_COMMAND (info);
-    REP_COMMAND (list);
-    REP_COMMAND (remove);
+    REP_COMMAND (add,    true);
+    REP_COMMAND (create, true);
+    REP_COMMAND (fetch,  true);
+    REP_COMMAND (info,   false);
+    REP_COMMAND (list,   true);
+    REP_COMMAND (remove, true);
 
     assert (false);
     fail << "unhandled command";

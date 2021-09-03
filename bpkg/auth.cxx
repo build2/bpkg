@@ -713,7 +713,7 @@ namespace bpkg
 
       try
       {
-        rm = tmp_file ("cert");
+        rm = tmp_file (conf != nullptr ? *conf : empty_dir_path, "cert");
         f = rm.path;
 
         ofdstream ofs (f);

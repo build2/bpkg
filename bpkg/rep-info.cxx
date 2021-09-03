@@ -49,9 +49,24 @@ namespace bpkg
     // unknown manifest entries unless we are dumping them.
     //
     dir_path d (o.directory ());
+
+    const dir_path* conf (o.directory_specified () && d.empty ()
+                          ? nullptr
+                          : &d);
+
+    // If --directory|-d is not specified and the current working directory is
+    // a configuration directory, then initialize the temporary directory
+    // inside it, so that we can always move a version control-based
+    // repository into and out of it (see pkg_checkout() for details).
+    //
+    if (conf != nullptr && conf->empty ())
+      conf = exists (bpkg_dir) ? &current_dir : nullptr;
+
+    init_tmp (conf != nullptr ? *conf : empty_dir_path);
+
     rep_fetch_data rfd (
       rep_fetch (o,
-                 o.directory_specified () && d.empty () ? nullptr : &d,
+                 conf,
                  rl,
                  !o.manifest () /* ignore_unknow */,
                  o.deep () /* expand_values */));
