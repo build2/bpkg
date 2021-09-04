@@ -139,7 +139,7 @@ namespace bpkg
     //
     if (lcf != nullptr)
     {
-      // Verify the back-link integrity.
+      // Verify the backlink integrity.
       //
       shared_ptr<configuration> cf (
         ldb.query_one<configuration> (query::uuid == db.uuid.string ()));

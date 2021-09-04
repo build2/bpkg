@@ -697,7 +697,7 @@ namespace bpkg
         if (!lc.expl && !exists (d))
         {
           if (verb > 1)
-            info << "skipping dangling implicit back-link " << lc.path <<
+            info << "skipping dangling implicit backlink " << lc.path <<
               info << "use 'cfg-unlink --dangling' to clean up";
 
           continue;
@@ -714,17 +714,7 @@ namespace bpkg
         //
         if (lc.expl)
         {
-          shared_ptr<configuration> cf (
-            db.query_one<configuration> (q::uuid == uuid.string ()));
-
-          if (cf == nullptr)
-            fail << "configuration " << db.config_orig << " is linked with "
-                 << config_orig << " but latter is not implicitly linked "
-                 << "with former";
-
-          // While at it, verify the integrity of the other end of the link.
-          //
-          db.verify_link (*cf, *this);
+          shared_ptr<configuration> cf (backlink (db));
 
           if (!cf->expl)
             continue;
@@ -744,6 +734,25 @@ namespace bpkg
     }
 
     return implicit_links_;
+  }
+
+  shared_ptr<configuration> database::
+  backlink (database& db)
+  {
+    using q = odb::query<configuration>;
+
+    shared_ptr<configuration> cf (
+      db.query_one<configuration> (q::uuid == uuid.string ()));
+
+    if (cf == nullptr)
+      fail << "configuration " << db.config_orig << " is linked with "
+           << config_orig << " but latter is not implicitly linked "
+           << "with former";
+
+    // While at it, verify the integrity of the other end of the link.
+    //
+    db.verify_link (*cf, *this);
+    return cf;
   }
 
   linked_databases database::

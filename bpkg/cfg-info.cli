@@ -19,14 +19,22 @@ namespace bpkg
      \h|DESCRIPTION|
 
      The \cb{cfg-info} command prints the current configuration's absolute
-     path, id, type, and name. If the \cb{--link} option is specified then
-     this information is also printed for each linked configuration, if any.
+     path, id, type, and name. If the \cb{--link} and/or \cb{--backlink}
+     options are specified, then this information is also printed for each
+     linked and/or implicitly backlinked configuration, if any. Note that the
+     dangling implicit backlinks are silently skipped, unless \cb{--dangling}
+     is specified, in which case this information is also printed for them.
      Note that the information is written to \cb{stdout}, not \cb{stderr}.
 
+     If the \cb{--recursive} option is specified together with \cb{--link}
+     and/or \cb{--backlink}, then this information is printed for linked
+     and/or implicitly backlinked configuration, recursively.
+
      The output format is regular with each value printed on a separate line
-     and prefixed with the value name. If the \cb{--link} option is specified
-     then information blocks corresponding to configurations are separated
-     with blank lines. For example:
+     and prefixed with the value name. If the \cb{--link}, \cb{--backlink},
+     and/or \cb{--dangling} options are specified, then information blocks
+     corresponding to linked configurations are separated with blank
+     lines. For example:
 
      \
      path: /path/to/cfg/
@@ -54,6 +62,21 @@ namespace bpkg
     bool --link
     {
       "Print linked configurations."
+    }
+
+    bool --backlink
+    {
+      "Print implicitly backlinked configurations."
+    }
+
+    bool --dangling
+    {
+      "Print dangling implicit backlinks."
+    }
+
+    bool --recursive
+    {
+      "Print linked configurations recursively."
     }
   };
 

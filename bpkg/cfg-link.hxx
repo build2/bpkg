@@ -17,7 +17,7 @@ namespace bpkg
 
   // Link the configuration specified as the directory path with the current
   // configuration, attach the linked configuration database, and return the
-  // link. Note that it also establishes an implicit back-link of the current
+  // link. Note that it also establishes an implicit backlink of the current
   // configuration with the linked one.
   //
   // The specified configuration path must be absolute and normalized. If the

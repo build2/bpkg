@@ -20,7 +20,7 @@ namespace bpkg
 
      The \cb{cfg-link} command links the specified \cb{bpkg} configuration
      with the current configuration. Note that it also establishes an implicit
-     back-link from the specified to the current configuration. See
+     backlink from the specified to the current configuration. See
      \l{bpkg-cfg-create(1)} for background on linked configurations. To unlink
      previously linked configurations use \l{bpkg-cfg-unlink(1)}.
 

@@ -376,6 +376,13 @@ namespace bpkg
     void
     verify_link (const configuration&, database&);
 
+    // Assuming that the passed configuration is explicitly linked to the
+    // current one, return the corresponding backlink. Issue diagnostics and
+    // fail if the backlink is not found.
+    //
+    shared_ptr<configuration>
+    backlink (database&);
+
     // Set the specified tracer for the whole linked databases cluster.
     //
     using tracer_type = odb::tracer;

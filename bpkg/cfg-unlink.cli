@@ -21,7 +21,7 @@ namespace bpkg
 
      The \cb{cfg-unlink} command unlinks the specified \cb{bpkg} configuration
      from the current configuration (the first form) or removes dangling
-     implicit back-links (the second form). See \l{bpkg-cfg-create(1)} for
+     implicit backlinks (the second form). See \l{bpkg-cfg-create(1)} for
      background on linked configurations.
 
      In the first form the configuration to unlink can be specified either as
@@ -54,7 +54,7 @@ namespace bpkg
 
     bool --dangling
     {
-      "Remove dangling implicit back-links."
+      "Remove dangling implicit backlinks."
     }
   };
 

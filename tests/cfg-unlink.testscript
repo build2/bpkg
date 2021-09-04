@@ -148,7 +148,7 @@ clone_root_cfgs = cp -r $~/cfg1 $~/cfg2 ./
     $cfg_link -d cfg2 cfg1 2>!;
 
     $* -d cfg1 cfg2 2>>/"EOE";
-      info: configurations cfg2/ and cfg1/ are mutually linked, turning the link to cfg2/ into implicit back-link
+      info: configurations cfg2/ and cfg1/ are mutually linked, turning the link to cfg2/ into implicit backlink
       unlinked configuration $~/cfg2/
       EOE
 
@@ -261,8 +261,8 @@ clone_root_cfgs = cp -r $~/cfg1 $~/cfg2 ./
 
     mv cfg1 cfg3;
 
-    $* -d cfg2 --dangling 2>'removed 1 dangling implicit back-link(s)';
-    $* -d cfg2 --dangling 2>'removed 0 dangling implicit back-link(s)'
+    $* -d cfg2 --dangling 2>'removed 1 dangling implicit backlink(s)';
+    $* -d cfg2 --dangling 2>'removed 0 dangling implicit backlink(s)'
   }
 
   : error

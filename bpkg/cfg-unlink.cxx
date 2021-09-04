@@ -69,7 +69,7 @@ namespace bpkg
       // Unlink the configuration in the in-memory model, so we can evaluate
       // if the dependent configurations are still linked with it.
       //
-      // Note that we don't remove the back-link here, since this is not
+      // Note that we don't remove the backlink here, since this is not
       // required for the check.
       //
       if (!priv)
@@ -162,7 +162,7 @@ namespace bpkg
       //
       assert (uc != nullptr);
 
-      // Implicit back-link.
+      // Implicit backlink.
       //
       shared_ptr<configuration> cc (
         udb.query_one<configuration> (query::uuid == mdb.uuid.string ()));
@@ -172,7 +172,7 @@ namespace bpkg
       //
       assert (cc != nullptr);
 
-      // If the back-link turns out to be explicit, then, unless the
+      // If the backlink turns out to be explicit, then, unless the
       // configuration being unlinked is private, we just turn the explicit
       // link into an implicit one rather then remove the direct and back
       // links.
@@ -181,7 +181,7 @@ namespace bpkg
       {
         info << "configurations " << udb.config_orig << " and "
              << mdb.config_orig << " are mutually linked, turning the link "
-             << "to " << udb.config_orig << " into implicit back-link";
+             << "to " << udb.config_orig << " into implicit backlink";
 
         uc->expl = false;
         mdb.update (uc);
@@ -237,7 +237,7 @@ namespace bpkg
       if (!exists (c.effective_path (db.config)))
       {
         if (verb > 1)
-          text << "removing dangling implicit back-link " << c.path;
+          text << "removing dangling implicit backlink " << c.path;
 
         db.erase (c);
         ++count;
@@ -247,7 +247,7 @@ namespace bpkg
     t.commit ();
 
     if (verb && !o.no_result ())
-      text << "removed " << count << " dangling implicit back-link(s)";
+      text << "removed " << count << " dangling implicit backlink(s)";
 
     return 0;
   }

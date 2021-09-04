@@ -160,7 +160,7 @@ namespace bpkg
     dir_path           path; // Empty for the self-link.
 
     // True if the link is created explicitly by the user rather than
-    // automatically as a back-link.
+    // automatically as a backlink.
     //
     bool               expl;
 

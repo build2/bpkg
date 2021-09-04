@@ -1,0 +1,176 @@
+# file      : tests/cfg-info.testscript
+# license   : MIT; see accompanying LICENSE file
+
+.include common.testscript
+
+cfg_create += 2>!
+
+uuid1 = '18f48b4b-b5d9-4712-b98c-1930df1c4228'
+uuid2 = '28f48b4b-b5d9-4712-b98c-1930df1c4228'
+uuid3 = '38f48b4b-b5d9-4712-b98c-1930df1c4228'
+uuid4 = '48f48b4b-b5d9-4712-b98c-1930df1c4228'
+
++$cfg_create -d cfg1 --name 't1' --uuid "$uuid1"               &cfg1/***
++$cfg_create -d cfg2 --name 't2' --uuid "$uuid2"               &cfg2/***
++$cfg_create -d cfg3 --name 'h3' --uuid "$uuid3" --type host   &cfg3/***
++$cfg_create -d cfg4 --name 'b4' --uuid "$uuid4" --type build2 &cfg4/***
+
++$cfg_link -d cfg1 cfg3 2>!
++$cfg_link -d cfg2 cfg3 2>!
++$cfg_link -d cfg3 cfg4 2>!
+
+clone_cfgs = cp -r ../cfg1 ../cfg2 ../cfg3 ../cfg4 ./
+
+sp = ' '
+
+: self
+:
+{
+  $clone_cfgs;
+
+  $* -d cfg1 >>/"EOO"
+    path: $~/cfg1/
+    uuid: $uuid1
+    type: target
+    name: t1
+    EOO
+}
+
+: links
+:
+{
+  $clone_cfgs;
+
+  $* -d cfg1 --link >>/"EOO"
+    path: $~/cfg1/
+    uuid: $uuid1
+    type: target
+    name: t1
+
+    path: $~/cfg3/
+    uuid: $uuid3
+    type: host
+    name: h3
+    EOO
+}
+
+: links-recursive
+:
+{
+  $clone_cfgs;
+
+  $* -d cfg1 --link --recursive >>/"EOO"
+    path: $~/cfg1/
+    uuid: $uuid1
+    type: target
+    name: t1
+
+    path: $~/cfg3/
+    uuid: $uuid3
+    type: host
+    name: h3
+
+    path: $~/cfg4/
+    uuid: $uuid4
+    type: build2
+    name: b4
+    EOO
+}
+
+: backlinks
+:
+{
+  $clone_cfgs;
+
+  $* -d cfg3 --backlink >>/"EOO";
+    path: $~/cfg3/
+    uuid: $uuid3
+    type: host
+    name: h3
+
+    path: $~/cfg1/
+    uuid: $uuid1
+    type: target
+    name: t1
+
+    path: $~/cfg2/
+    uuid: $uuid2
+    type: target
+    name: t2
+    EOO
+
+  mv cfg2 cfg2.tmp;
+
+  # Make sure that dangling links are silently skipped.
+  #
+  $* -d cfg3 --backlink >>/"EOO";
+    path: $~/cfg3/
+    uuid: $uuid3
+    type: host
+    name: h3
+
+    path: $~/cfg1/
+    uuid: $uuid1
+    type: target
+    name: t1
+    EOO
+
+  # While at it, test printing dangling links.
+  #
+  $* -d cfg3 --dangling >>/"EOO";
+    path: $~/cfg3/
+    uuid: $uuid3
+    type: host
+    name: h3
+
+    path: $~/cfg2/
+    uuid: $uuid2
+    type: target
+    name:$sp
+    EOO
+
+  $* -d cfg3 --dangling --backlink >>/"EOO"
+    path: $~/cfg3/
+    uuid: $uuid3
+    type: host
+    name: h3
+
+    path: $~/cfg1/
+    uuid: $uuid1
+    type: target
+    name: t1
+
+    path: $~/cfg2/
+    uuid: $uuid2
+    type: target
+    name:$sp
+    EOO
+}
+
+: all-links-recursive
+:
+{
+  $clone_cfgs;
+
+  $* -d cfg1 --link --backlink --recursive >>/"EOO"
+    path: $~/cfg1/
+    uuid: $uuid1
+    type: target
+    name: t1
+
+    path: $~/cfg3/
+    uuid: $uuid3
+    type: host
+    name: h3
+
+    path: $~/cfg2/
+    uuid: $uuid2
+    type: target
+    name: t2
+
+    path: $~/cfg4/
+    uuid: $uuid4
+    type: build2
+    name: b4
+    EOO
+}
