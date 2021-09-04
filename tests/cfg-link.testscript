@@ -6,49 +6,61 @@
 cfg_create += 2>!
 cfg_info   += --link
 
-test.arguments += -d cfg
+uuid1 = '18f48b4b-b5d9-4712-b98c-1930df1c4228'
+uuid2 = '28f48b4b-b5d9-4712-b98c-1930df1c4228'
+uuid3 = '38f48b4b-b5d9-4712-b98c-1930df1c4228'
 
-cfg_uuid  = '18f48b4b-b5d9-4712-b98c-1930df1c4228'
-acfg_uuid = '28f48b4b-b5d9-4712-b98c-1930df1c4228'
++$cfg_create -d cfg1 --name 'main'   --uuid "$uuid1" &cfg1/***
++$cfg_create -d cfg2 --name 'shared' --uuid "$uuid2" &cfg2/***
 
-: success
+clone_cfgs = cp -r ../cfg1 ../cfg2 ./
+
+sp = ' '
+
+: self
 :
 {
-  $cfg_create -d  cfg --name 'main';
-  $cfg_create -d acfg --name 'shared' --uuid "$acfg_uuid" &acfg/***;
+  $cfg_create -d cfg1 --uuid "$uuid1" &cfg1/***;
 
-  # Try to link self configuration.
-  #
-  $* cfg 2>>/~"%EOE%" != 0;
-    %error: linking configuration .+/cfg/ with itself%
-    %  info: uuid: .{36}%
+  $* -d cfg1 cfg1 2>>/"EOE" != 0
+    error: linking configuration $~/cfg1/ with itself
+      info: uuid: $uuid1
     EOE
+}
 
-  # Try to link configuration under the same name.
-  #
-  $* acfg --name 'main' 2>>/~"%EOE%" != 0;
-    %error: linking configuration .+/acfg/ using current configuration name 'main'%
+: same-name
+:
+{
+  $cfg_create -d cfg1 --name 'main'   &cfg1/***;
+  $cfg_create -d cfg2 --name 'shared' &cfg2/***;
+
+  $* -d cfg1 cfg2 --name 'main' 2>>/"EOE" != 0
+    error: linking configuration $~/cfg2/ using current configuration name 'main'
       info: consider specifying alternative name with --name
     EOE
+}
 
-  # Link configuration.
-  #
-  $* acfg 2>>/~"%EOE%";
-    %linked with configuration .+/acfg/%
-      uuid: $acfg_uuid
+: basic
+:
+{
+  $clone_cfgs;
+
+  $* -d cfg1 cfg2 2>>/"EOE";
+    linked with configuration $~/cfg2/
+      uuid: $uuid2
       type: target
       name: shared
       id:   1
     EOE
 
-  $cfg_info -d cfg >>/~"%EOO%";
-    path: $~/cfg/
-    %uuid: .{36}%
+  $cfg_info -d cfg1 >>/"EOO";
+    path: $~/cfg1/
+    uuid: $uuid1
     type: target
     name: main
 
-    path: $~/acfg/
-    uuid: $acfg_uuid
+    path: $~/cfg2/
+    uuid: $uuid2
     type: target
     name: shared
     EOO
@@ -59,182 +71,220 @@ acfg_uuid = '28f48b4b-b5d9-4712-b98c-1930df1c4228'
     type: target
     name: shared
 
-  # Test that the recreated configuration can be implicitly re-linked.
-  #
-  rm -r cfg;
-  $cfg_create -d cfg --name 'test' --uuid "$cfg_uuid" &cfg/***;
+    path: $~/cfg1/
+    uuid: $uuid1
+    type: target
+    name: main
+    EOO
 
-  $* acfg 2>>/~"%EOE%";
-    %warning: current configuration .+/cfg/ is already implicitly linked with .+/acfg/%
-    %linked with configuration .+/acfg/%
-      uuid: $acfg_uuid
+  # While at it, test that an implicit link is unnamed.
+  #
+  mv cfg1 cfg1.tmp;
+
+  $cfg_info -d cfg2 --dangling >>/"EOO"
+    path: $~/cfg2/
+    uuid: $uuid2
+    type: target
+    name: shared
+
+    path: $~/cfg1/
+    uuid: $uuid1
+    type: target
+    name:$sp
+    EOO
+}
+
+: implicit-relink
+:
+{
+  $clone_cfgs;
+
+  $* -d cfg1 cfg2 2>!;
+
+  rm -r cfg1/;
+  $cfg_create -d cfg1 --name 'foo' --uuid "$uuid1";
+
+  $* -d cfg1 cfg2 2>>/"EOE";
+    warning: current configuration $~/cfg1/ is already implicitly linked with $~/cfg2/
+    linked with configuration $~/cfg2/
+      uuid: $uuid2
       type: target
       name: shared
       id:   1
     EOE
 
-  # Test that the repeated link is reported.
-  #
-  $* acfg 2>>/~%EOE% != 0;
-    %error: configuration with uuid .{36} is already linked as \.\./acfg/%
+  $cfg_info -d cfg1 >>/"EOO"
+    path: $~/cfg1/
+    uuid: $uuid1
+    type: target
+    name: foo
+
+    path: $~/cfg2/
+    uuid: $uuid2
+    type: target
+    name: shared
+    EOO
+}
+
+: turn-implicit-explicit
+:
+{
+  $clone_cfgs;
+
+  $* -d cfg1 cfg2 2>!;
+
+  $* -d cfg2 cfg1 2>>/"EOE";
+    linked with configuration $~/cfg1/
+      uuid: $uuid1
+      type: target
+      name: main
+      id:   1
     EOE
 
-  # Test that the integrity check fails.
+  $cfg_info -d cfg2 >>/"EOO";
+    path: $~/cfg2/
+    uuid: $uuid2
+    type: target
+    name: shared
+
+    path: $~/cfg1/
+    uuid: $uuid1
+    type: target
+    name: main
+    EOO
+
+  $cfg_info -d cfg1 >>/"EOO";
+    path: $~/cfg1/
+    uuid: $uuid1
+    type: target
+    name: main
+
+    path: $~/cfg2/
+    uuid: $uuid2
+    type: target
+    name: shared
+    EOO
+
+  # While at it, test that relink attempt is reported.
   #
-  mv acfg acfg.tmp;
-
-  $cfg_create -d acfg --name 'shared';
-
-  $pkg_status -d cfg libfoo 2>>/~"%EOE%" != 0;
-    error: configuration acfg/ uuid mismatch
-    %  info: uuid .+%
-      info: linked with cfg/ as $acfg_uuid
+  $* -d cfg2 cfg1 2>>/"EOE" != 0
+    error: configuration with uuid $uuid1 is already linked as ../cfg1/
     EOE
+}
 
-  # Test that the path clash is reported.
-  #
-  $* acfg 2>>/~%EOE% != 0;
-    %error: configuration with path .+/acfg/ is already linked%
+: uuid-clash
+:
+{
+  $clone_cfgs;
+
+  $* -d cfg1 cfg2 2>!;
+
+  $* -d cfg1 cfg2 2>>/"EOE" != 0
+    error: configuration with uuid $uuid2 is already linked as ../cfg2/
     EOE
+}
 
-  # Test that the name clash is reported.
-  #
-  $cfg_create -d acfg2 --name 'shared' &acfg2/***;
+: path-clash
+:
+{
+  $clone_cfgs;
 
-  $* acfg2 --name 'shared' 2>>/EOE != 0;
-    error: configuration with name shared is already linked as ../acfg/
+  $* -d cfg1 cfg2 2>!;
+
+  mv cfg2 cfg2.tmp;
+  $cfg_create -d cfg2 --name 'shared' --uuid "$uuid3" &cfg2/***;
+
+  $* -d cfg1 cfg2 2>>/"EOE" != 0
+    error: configuration with path $~/cfg2/ is already linked
+    EOE
+}
+
+: name-clash
+:
+{
+  $clone_cfgs;
+
+  $* -d cfg1 cfg2 2>!;
+
+  $cfg_create -d cfg3 --name 'shared' --uuid "$uuid3" &cfg3/***;
+
+  $* -d cfg1 cfg3 --name 'shared' 2>>/"EOE" != 0;
+    error: configuration with name shared is already linked as ../cfg2/
       info: consider specifying alternative name with --name
     EOE
 
-  # Link the second configuration.
-  #
-  $* acfg2 2>>/~%EOE%;
-    warning: configuration with name shared is already linked as ../acfg/, linking as unnamed
-    %linked with configuration .+/acfg2/%
-    %  uuid: .{36}%
+  $* -d cfg1 cfg3 2>>/"EOE"
+    warning: configuration with name shared is already linked as ../cfg2/, linking as unnamed
+    linked with configuration $~/cfg3/
+      uuid: $uuid3
       type: target
       id:   2
     EOE
+}
 
-  # Restore the integrity.
-  #
+: implicit-link-path-clash
+:
+{
+  $clone_cfgs;
 
-  $cfg_info -d cfg >- 2>>/~%EOE% != 0;
-    error: configuration acfg/ uuid mismatch
-    %  info: uuid .{36}%
-    %  info: linked with cfg/ as .{36}%
+  $* -d cfg1 cfg2 2>!;
+  $* -d cfg2 cfg1 2>!;
+
+  mv cfg1 cfg1.tmp;
+  $cfg_create -d cfg1 --name 'main' --uuid "$uuid3" &cfg1/***;
+
+  $* -d cfg1 cfg2 2>>/"EOE" != 0
+    error: current configuration $~/cfg1/ is already linked with $~/cfg2/
+    EOE
+}
+
+: uuid-mismatch
+:
+{
+  $clone_cfgs;
+
+  $* -d cfg1 cfg2 2>!;
+
+  mv cfg2 cfg2.tmp;
+
+  $cfg_create -d cfg2 --name 'shared' --uuid "$uuid3";
+
+  $cfg_info -d cfg1 >- 2>>/"EOE" != 0;
+    error: configuration cfg2/ uuid mismatch
+      info: uuid $uuid3
+      info: linked with cfg1/ as $uuid2
     EOE
 
-  rm -r acfg;
-  mv acfg.tmp acfg;
-
-  $cfg_info -d cfg >>/~"%EOO%";
-    path: $~/cfg/
-    %uuid: .{36}%
-    type: target
-    name: test
-
-    path: $~/acfg/
-    uuid: $acfg_uuid
-    type: target
-    name: shared
-
-    path: $~/acfg2/
-    %uuid: .{36}%
-    type: target
-    name: shared
-    EOO
-
-  $pkg_status -d cfg   libfoo >'libfoo unknown';
-  $pkg_status -d acfg2 libfoo >'libfoo unknown';
-
-  # Test that the configuration type mismatch is reported.
-  #
-  mv cfg cfg.tmp;
-  $cfg_create -d cfg --type host --uuid "$cfg_uuid";
-
-  $* -d acfg2 cfg 2>>/EOE != 0;
-    error: configuration cfg/ type mismatch
-      info: type host
-      info: implicitly linked with acfg2/ as target
-    EOE
-
-  rm -r cfg;
-  mv cfg.tmp cfg;
-
-  # Make the implicit link explicit.
-  #
-  $* -d acfg2 cfg 2>>/~"%EOE%";
-    %linked with configuration .+/cfg/%
-      uuid: $cfg_uuid
-      type: target
-      name: test
-      id:   1
-    EOE
-
-  $cfg_info -d acfg2 >>/~"%EOO%";
-    path: $~/acfg2/
-    %uuid: .{36}%
-    type: target
-    name: shared
-
-    path: $~/cfg/
-    %uuid: .{36}%
-    type: target
-    name: test
-    EOO
-
-  $pkg_status -d cfg libfoo >'libfoo unknown';
-  $pkg_status -d acfg2 libfoo >'libfoo unknown';
-
-  $* -d acfg2 cfg 2>>/~%EOE% != 0;
-    %error: configuration with uuid .{36} is already linked as \.\./cfg/%
-    EOE
-
-  # Test that the implicit link path clash is reported.
-  #
-  rm -r cfg;
-  $cfg_create -d cfg --name 'test' &cfg/***;
-
-  $* acfg2 2>>/~%EOE% != 0;
-    %error: current configuration .+/cfg/ is already linked with .+/acfg2/%
-    EOE
-
-  # Test that the repeated implicit link is reported.
-  #
-  $cfg_create -d cfg2 --uuid "$cfg_uuid";
-
-  $* -d cfg2 acfg2 2>>/~"%EOE%" != 0;
-    %error: current configuration $cfg_uuid is already linked with .+/acfg2/%
-    EOE
-
-  # Make sure that current configuration is implicitly linked as unnamed.
-  #
-  # @@ Make sure that's really the case when the cfg-list command is
-  #    implemented.
-  #
   rm -r cfg2;
-  $cfg_create -d cfg2 --name 'test' &cfg2/***;
+  mv cfg2.tmp cfg2;
 
-  $* -d cfg2 acfg2 2>>/~%EOE%;
-    %linked with configuration .+/acfg2/%
-    %  uuid: .{36}%
-      type: target
-      name: shared
-      id:   1
+  $cfg_info -d cfg1 >>/"EOO"
+    path: $~/cfg1/
+    uuid: $uuid1
+    type: target
+    name: main
+
+    path: $~/cfg2/
+    uuid: $uuid2
+    type: target
+    name: shared
+    EOO
+}
+
+: type-mismatch
+:
+{
+  $clone_cfgs;
+
+  $* -d cfg1 cfg2 2>!;
+
+  rm -r cfg2;
+
+  $cfg_create -d cfg2 --name 'shared' --uuid "$uuid2" --type 'shared';
+
+  $cfg_info -d cfg1 >- 2>>/"EOE" != 0
+    error: configuration cfg2/ type mismatch
+      info: type shared
+      info: linked with cfg1/ as target
     EOE
-
-  # Test that the integrity check fails.
-  #
-  $pkg_status -d cfg2 libfoo 2>>/~"%EOE%" != 0;
-    error: configuration cfg/ uuid mismatch
-    %  info: uuid .+%
-      info: linked with acfg2/ as $cfg_uuid
-    EOE
-
-  rm -r cfg;
-  $cfg_create -d cfg --name 'test' --uuid "$cfg_uuid" &cfg/***;
-
-  $pkg_status -d cfg2  libfoo >'libfoo unknown';
-  $pkg_status -d acfg2 libfoo >'libfoo unknown'
 }
