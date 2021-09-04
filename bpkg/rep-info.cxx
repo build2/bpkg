@@ -62,6 +62,8 @@ namespace bpkg
     if (conf != nullptr && conf->empty ())
       conf = exists (bpkg_dir) ? &current_dir : nullptr;
 
+    assert (conf == nullptr || !conf->empty ());
+
     init_tmp (conf != nullptr ? *conf : empty_dir_path);
 
     rep_fetch_data rfd (

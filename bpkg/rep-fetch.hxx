@@ -18,9 +18,8 @@ namespace bpkg
 
   // Fetch and authenticate repositories and packages manifests.
   //
-  // If conf is NULL, then assume not running in a bpkg configuration. If it
-  // is empty, then check if the bpkg configuration exists in the current
-  // working directory.
+  // If configuration directory is NULL, then assume not running in a bpkg
+  // configuration.
   //
   class certificate;
 
@@ -59,7 +58,7 @@ namespace bpkg
   //
   rep_fetch_data
   rep_fetch (const common_options&,
-             const dir_path* conf,
+             const dir_path* configuration,
              const repository_location&,
              bool ignore_unknown,
              bool expand_values);

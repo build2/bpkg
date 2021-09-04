@@ -644,11 +644,6 @@ namespace bpkg
     if (co.trust_no () && co.trust_yes ())
       fail << "--trust-yes and --trust-no are mutually exclusive";
 
-    if (conf != nullptr && conf->empty ())
-      conf = exists (bpkg_dir) ? &current_dir : nullptr;
-
-    assert (conf == nullptr || !conf->empty ());
-
     shared_ptr<certificate> r;
 
     if (conf == nullptr)
@@ -693,11 +688,6 @@ namespace bpkg
                            const repository_location& rl)
   {
     tracer trace ("authenticate_repository");
-
-    if (conf != nullptr && conf->empty ())
-      conf = exists (bpkg_dir) ? &current_dir : nullptr;
-
-    assert (conf == nullptr || !conf->empty ());
 
     path f;
     auto_rmfile rm;

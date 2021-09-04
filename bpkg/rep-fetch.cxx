@@ -403,11 +403,6 @@ namespace bpkg
                  bool iu,
                  bool ev)
   {
-    if (conf != nullptr && conf->empty ())
-      conf = exists (bpkg_dir) ? &current_dir : nullptr;
-
-    assert (conf == nullptr || !conf->empty ());
-
     auto i (temp_dir.find (conf != nullptr ? *conf : empty_dir_path));
     assert (i != temp_dir.end ());
 

@@ -15,11 +15,8 @@
 namespace bpkg
 {
   // Authenticate a repository certificate. If the configuration directory is
-  // NULL, then perform without a certificate database. If it is empty, then
-  // check if the current working directory is a configuration. If it is, then
-  // use its certificate database. Otherwise, continue as if it was NULL. All
-  // other values (including '.') are assumed to be valid configuration paths
-  // and will be diagnosed if that's not the case.
+  // NULL, then perform without a certificate database. Otherwise, use its
+  // certificate database.
   //
   // If the dependent trust fingerprint is present then try to authenticate
   // the certificate for use by the dependent prior to prompting the user.
