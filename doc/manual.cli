@@ -1232,6 +1232,19 @@ clang[_X.Y]  ; For example: clang_6, clang_3.4, clang_3.4.1
 msvc[_NU]    ; For example: msvc_14, msvc_15u3
 \
 
+The following pre-defined ids are recognized by automated build bots:
+
+\
+bootstrap
+host
+\
+
+The \c{bootstrap} value should be used to mark build system modules that
+require bootstrapping. The \c{host} value should be used to mark packages,
+such source code generators, that are normally specified as build-time
+dependencies by other packages and therefore should be built in a host
+configuration. See the \c{bbot} documentation for details.
+
 
 \h2#manifest-package-tests-examples-benchmarks|\c{tests, examples, benchmarks}|
 
