@@ -25,11 +25,12 @@ namespace bpkg
      or, if <ver> is specified, package versions. If no packages were
      specified, then \cb{pkg-status} prints the status of all the held
      packages (which are the packages that were explicitly built; see
-     \l{bpkg-pkg-build(1)}). Additionally, the status of immediate or all
-     dependencies of the above packages can be printed by specifying the
-     \c{\b{--immediate}|\b{-i}} or \c{\b{--recursive}|\b{-r}} options,
-     respectively. Note that the status is written to \cb{stdout}, not
-     \cb{stderr}.
+     \l{bpkg-pkg-build(1)}). The latter mode can be modified to print the
+     status of all the packages by specifying the \c{\b{--all}|\b{-a}} option.
+     Additionally, the status of immediate or all dependencies of the above
+     packages can be printed by specifying the \c{\b{--immediate}|\b{-i}} or
+     \c{\b{--recursive}|\b{-r}} options, respectively. Note that the status is
+     written to \cb{stdout}, not \cb{stderr}.
 
      The status output format is regular with components separated with
      spaces. Each line starts with the package name and version (if specified)
@@ -164,6 +165,16 @@ namespace bpkg
   class pkg_status_options: configuration_options
   {
     "\h|PKG-STATUS OPTIONS|"
+
+    bool --all|-a
+    {
+      "Print the status of all the packages, not just held."
+    }
+
+    bool --link
+    {
+      "Also print the status of held/all packages from linked configurations."
+    }
 
     bool --immediate|-i
     {
