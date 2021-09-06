@@ -4438,7 +4438,7 @@ else
         updated libbaz/1.1.0
         EOE
 
-      $pkg_status -r >>/EOO;
+      $pkg_status --link -r >>/EOO;
         !libbaz configured 1.1.0
           !libbar [cfg-bar/] configured !1.1.0
             !libfoo [cfg-foo/] configured 1.1.0
@@ -4929,7 +4929,7 @@ else
         %updated libbaz/1.0.0 \[t2.\]%
         EOE
 
-      $pkg_status -d t1 -r >>/EOO
+      $pkg_status -d t1 --link -r >>/EOO
         !libbaz configured 1.0.0
         !libbaz [t2/] configured 1.0.0
         EOO
@@ -5001,7 +5001,7 @@ else
         updated foo/1.0.0
         EOE
 
-      $pkg_status -d t1 -r >>/EOO
+      $pkg_status -d t1 --link -r >>/EOO
         !libbaz configured 1.0.0
         !foo configured 1.0.0
           !libbaz [t2/] configured 1.0.0
@@ -5227,7 +5227,7 @@ else
         updated foo/1.0.0
         EOE
 
-      $pkg_status -d t1 -r >>/EOO
+      $pkg_status -d t1 --link -r >>/EOO
         !foo configured 1.0.0
           !libbaz [t2/] configured 1.0.0
           libbuild2-bar [t1/.bpkg/build2/] configured 1.0.0
@@ -5277,7 +5277,7 @@ else
         %updated libbaz/1.0.0 \[t2.\]%
         EOE
 
-      $pkg_status -d t1 -r >>/EOO
+      $pkg_status -d t1 --link -r >>/EOO
         !libbaz [t2/] configured 1.0.0
         EOO
     }
@@ -5327,7 +5327,7 @@ else
         updated libbar/1.0.0
         EOE
 
-      $pkg_status -d h1 -r >>/EOO
+      $pkg_status -d h1 --link -r >>/EOO
         !foo configured 1.0.0
           !libbaz [h2/] configured 1.0.0
           libbuild2-bar [h1/.bpkg/build2/] configured 1.0.0
@@ -5506,7 +5506,7 @@ else
         updated libbar/1.0.0
         EOE
 
-      $pkg_status -d h1 -r >>/EOO
+      $pkg_status -d h1 --link -r >>/EOO
         !libbar configured 1.0.0
           foo configured 1.0.0
             !libbaz [h2/] configured 1.0.0
@@ -5555,7 +5555,7 @@ else
         updated foo/1.0.0
         EOE
 
-      $pkg_status -d h1 -r >>/EOO;
+      $pkg_status -d h1 --link -r >>/EOO;
         !foo configured 1.0.0
           libbaz configured 1.0.0
           libbuild2-bar [h1/.bpkg/build2/] configured 1.0.0
@@ -5585,7 +5585,7 @@ else
         %updated libbaz/1.1.0 \[h2.\]%
         EOE
 
-      $pkg_status -d h1 -r >>/EOO
+      $pkg_status -d h1 --link -r >>/EOO
         !foo configured 1.0.0
           libbaz [h2/] configured 1.1.0
           libbuild2-bar [h1/.bpkg/build2/] configured 1.0.0
@@ -5776,7 +5776,7 @@ else
         updated libbar/1.0.0
         EOE
 
-      $pkg_status -d t1 -r >>/EOO
+      $pkg_status -d t1 --link -r >>/EOO
         !libbar configured 1.0.0
           foo [t1/.bpkg/host/] configured 1.0.0
             libbaz [t1/.bpkg/host/] configured 1.0.0
@@ -5834,7 +5834,7 @@ else
         %updated libbar/1.1.0 \[t2.\]%
         EOE
 
-      $pkg_status -d t1 -r >>/EOO
+      $pkg_status -d t1 --link -r >>/EOO
         !libbar configured 1.0.0
           foo [t1/.bpkg/host/] configured 1.0.0
             libbaz [t1/.bpkg/host/] configured 1.0.0
@@ -5928,7 +5928,7 @@ else
         updated libbar/1.0.0
         EOE
 
-      $pkg_status -d t1 -r >>/EOO
+      $pkg_status -d t1 --link -r >>/EOO
         !libfix configured 1.0.0
           libbar configured 1.0.0 available 1.1.0
             !foo [h1/] configured 1.1.0

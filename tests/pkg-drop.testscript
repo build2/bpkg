@@ -766,6 +766,9 @@ $* libfoo/1.0.0 2>>~%EOE% != 0
       error: unable to find prerequisite package foo in linked configuration cfg2/
       EOE
 
-    $pkg_status -d cfg2 -r 2>'info: no held packages in the configuration'
+    $pkg_status -d cfg2 -r 2>>EOE
+      info: no held packages in the configuration
+        info: use --all|-a to see status of all packages
+      EOE
   }
 }

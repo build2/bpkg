@@ -338,14 +338,19 @@ namespace bpkg
       }
       else
       {
-        // Find all held packages in this and all the dependency
-        // configurations.
+        // Find held/all packages in this and, if --link specified, all the
+        // dependency configurations.
         //
+        query q;
+
+        if (!o.all ())
+          q = query::hold_package;
+
         for (database& ldb: db.dependency_configs ())
         {
           for (shared_ptr<selected_package> s:
                  pointer_result (
-                   ldb.query<selected_package> (query::hold_package)))
+                   ldb.query<selected_package> (q)))
           {
             pkgs.push_back (package {ldb,
                                      s->hold_package ? ldb : db,
@@ -354,11 +359,19 @@ namespace bpkg
                                      move (s),
                                      nullopt /* constraint */});
           }
+
+          if (!o.link ())
+            break;
         }
 
         if (pkgs.empty ())
         {
-          info << "no held packages in the configuration";
+          if (o.all ())
+            info << "no packages in the configuration";
+          else
+            info << "no held packages in the configuration" <<
+              info << "use --all|-a to see status of all packages";
+
           return 0;
         }
       }
