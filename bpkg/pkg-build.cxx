@@ -9,6 +9,7 @@
 #include <cstring>    // strlen()
 #include <iostream>   // cout
 
+#include <libbutl/sha256.mxx>
 #include <libbutl/standard-version.mxx>
 
 #include <bpkg/package.hxx>
@@ -6432,9 +6433,13 @@ namespace bpkg
     // --plan, then we print it as long as it is not empty.
     //
     string plan;
+    sha256 csum;
     bool need_prompt (false);
 
-    if (o.print_only () || !o.yes () || o.plan_specified ())
+    if (!o.yes ()           ||
+        o.print_only ()     ||
+        o.plan_specified () ||
+        o.rebuild_checksum_specified ())
     {
       bool first (true); // First entry in the plan.
 
@@ -6543,6 +6548,12 @@ namespace bpkg
           string rb;
           if (!p.user_selection ())
           {
+            // Note: if we are ever tempted to truncate this, watch out for
+            // the --rebuild-checksum functionality which uses this. But then
+            // it's not clear this information is actually important: can a
+            // dependent-dependency structure change without any of the
+            // package versions changing? Doesn't feel like it should.
+            //
             for (const config_package& cp: p.required_by)
               rb += (rb.empty () ? " " : ", ") + cp.string ();
 
@@ -6579,7 +6590,18 @@ namespace bpkg
           // Print indented for better visual separation.
           //
           plan += (plan.empty () ? "  " : "\n  ") + act;
+
+        if (o.rebuild_checksum_specified ())
+          csum.append (act);
       }
+    }
+
+    if (o.rebuild_checksum_specified ())
+    {
+      cout << csum.string () << endl;
+
+      if (o.rebuild_checksum () == csum.string ())
+        return o.noop_exit_specified () ? o.noop_exit () : 0;
     }
 
     if (o.print_only ())

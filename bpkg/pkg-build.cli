@@ -360,12 +360,30 @@ namespace bpkg
        is otherwise a noop (performs no new package builds, upgrades, etc)."
     }
 
+    bool --no-move
+    {
+      "Don't move dependency packages between configurations. In this mode the
+       \cb{--config-*} options specify packages' current rather than new
+       locations."
+    }
+
     uint16_t --noop-exit
     {
       "<code>",
 
       "Exit with the specified error code if the command execution is a noop
        (performs no new package builds, upgrades, etc)."
+    }
+
+    string --rebuild-checksum
+    {
+      "<sum>",
+
+      "Hash the names and versions of all the packages that would be built.
+       If the resulting checksum matches the specified, then exit without
+       building anything (potentially with a special error code specified
+       with the \cb{--noop-exit} option). Otherwise, proceed to build as
+       normal. In both cases, print the resulting checksum to \cb{stdout}."
     }
 
     uint16_t --no-private-config
@@ -387,13 +405,6 @@ namespace bpkg
        \
 
        See \l{bpkg-cfg-create(1)} for details on linked configurations."
-    }
-
-    bool --no-move
-    {
-      "Don't move dependency packages between configurations. In this mode the
-       \cb{--config-*} options specify packages' current rather than new
-       locations."
     }
 
     dir_paths --directory|-d
