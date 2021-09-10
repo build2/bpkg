@@ -223,8 +223,8 @@ init (const common_options& co,
 
       // Parse the next chunk of options until we reach an argument (or eos).
       //
-      if (o.parse (scan))
-        continue;
+      if (o.parse (scan) && !scan.more ())
+        break;
 
       // Fall through.
     }

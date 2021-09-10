@@ -3601,15 +3601,17 @@ namespace bpkg
         try
         {
           cli::scanner& ag (args.group ());
-          po.parse (ag, cli::unknown_mode::fail, cli::unknown_mode::stop);
 
           while (ag.more ())
           {
-            string a (ag.next ());
-            if (a.find ('=') == string::npos)
-              fail << "unexpected group argument '" << a << "'";
+            if (!po.parse (ag) || ag.more ())
+            {
+              string a (ag.next ());
+              if (a.find ('=') == string::npos)
+                fail << "unexpected group argument '" << a << "'";
 
-            cvs.push_back (move (a));
+              cvs.push_back (move (a));
+            }
           }
 
           // We have to manually merge global options into local since just
