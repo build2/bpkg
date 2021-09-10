@@ -1428,8 +1428,19 @@ namespace bpkg
         for (const package_location& pl: p->locations)
           rfs.push_back (pl.repository_fragment.load ());
 
+        bool module (build2_module (p->id.name));
+
         for (const test_dependency& td: p->tests)
         {
+          // Verify that the package has no runtime tests if it is a build
+          // system module.
+          //
+          if (module && !td.buildtime)
+            fail << "run-time " << td.type << ' ' << td.name << " for build "
+                 << "system module "
+                 << package_string (p->id.name, p->version) <<
+              info << "build system modules cannot have run-time " << td.type;
+
           vector<pair<shared_ptr<available_package>,
                       shared_ptr<repository_fragment>>> tps (
                         filter (rfs,
