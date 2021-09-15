@@ -5360,7 +5360,8 @@ else
           libbuild2-bar [h1/.bpkg/build2/] configured 1.0.0
         EOO
 
-      $* libbar '?sys:foo/1.2.0' ?libbaz +{ --config-name h2 } <<EOI 2>>~%EOE%;
+      $* libbar '?sys:foo/1.2.0' +{ --config-name h1 } \
+                 ?libbaz +{ --config-name h2 } <<EOI 2>>~%EOE%;
         y
         EOI
         %  new libbaz/1.0.0 \[h2.\]%
@@ -6336,6 +6337,398 @@ else
 
       sed -n -e 's/^config.libbaz = (.+)$/\1/p' \
           cfg2/libbaz-1.0.0/build/config.build >'false'
+    }
+
+    : system-dependency
+    :
+    {
+      $cfg_create -d cfg  --uuid $cfg_uuid              &cfg/***;
+      $cfg_create -d cfg2 --uuid $cfg2_uuid             &cfg2/***;
+      $cfg_create -d cfg3 --uuid $cfg3_uuid --type host &cfg3/***;
+
+      $cfg_link -d cfg  cfg3;
+      $cfg_link -d cfg2 cfg3;
+
+      $rep_add         $rep/t7a && $rep_fetch;
+      $rep_add -d cfg2 $rep/t7a && $rep_fetch -d cfg2;
+
+      test.arguments += -d cfg2; # Now refers 2 current dirs: cfg/ and cfg2/.
+
+      $* libbox +{ --config-uuid $cfg_uuid  --config-uuid $cfg2_uuid } \
+         '?sys:foo' <<EOI 2>>~%EOE%;
+        y
+        EOI
+        %  new libbaz/1.0.0 \[cfg.\] \(required by libbox \[cfg.\]\)%
+        %  configure sys:foo/\* \[cfg3.\]%
+        %  new libbox/1.0.0 \[cfg.\]%
+        %  new libbaz/1.0.0 \[cfg2.\] \(required by libbox \[cfg2.\]\)%
+        %  new libbox/1.0.0 \[cfg2.\]%
+        %continue\? \[Y/n\] fetched libbaz/1.0.0 \[cfg.\]%
+        %unpacked libbaz/1.0.0 \[cfg.\]%
+        %fetched libbox/1.0.0 \[cfg.\]%
+        %unpacked libbox/1.0.0 \[cfg.\]%
+        %fetched libbaz/1.0.0 \[cfg2.\]%
+        %unpacked libbaz/1.0.0 \[cfg2.\]%
+        %fetched libbox/1.0.0 \[cfg2.\]%
+        %unpacked libbox/1.0.0 \[cfg2.\]%
+        %configured libbaz/1.0.0 \[cfg.\]%
+        %configured sys:foo/\* \[cfg3.\]%
+        %configured libbox/1.0.0 \[cfg.\]%
+        %configured libbaz/1.0.0 \[cfg2.\]%
+        %configured libbox/1.0.0 \[cfg2.\]%
+        %info: cfg.+libbox-1.0.0.+ is up to date%
+        %info: cfg2.+libbox-1.0.0.+ is up to date%
+        %updated libbox/1.0.0 \[cfg.\]%
+        %updated libbox/1.0.0 \[cfg2.\]%
+        EOE
+
+      $pkg_status -d cfg -r >>/EOO;
+        !libbox configured 1.0.0
+          foo [cfg3/] configured,system !* available 1.0.0
+          libbaz configured 1.0.0
+        EOO
+
+      $pkg_status -d cfg2 -r >>/EOO
+        !libbox configured 1.0.0
+          foo [cfg3/] configured,system !* available 1.0.0
+          libbaz configured 1.0.0
+        EOO
+    }
+  }
+
+  : system
+  :
+  {
+    +$clone_root_cfg && $rep_add $rep/t7a && $rep_fetch
+
+    : no-config
+    :
+    {
+      +$clone_cfg
+
+      : linked
+      :
+      {
+        $clone_cfg;
+
+        $cfg_create -d cfg2 --type host --name cfg2 &cfg2/***;
+        $cfg_link -d cfg cfg2;
+
+        $* libbox '?sys:foo' <<EOI 2>>~%EOE%;
+          y
+          EOI
+          %  configure sys:foo/\* \[cfg2.\]%
+            new libbaz/1.0.0 (required by libbox)
+            new libbox/1.0.0
+          continue? [Y/n] fetched libbaz/1.0.0
+          unpacked libbaz/1.0.0
+          fetched libbox/1.0.0
+          unpacked libbox/1.0.0
+          %configured sys:foo/\* \[cfg2.\]%
+          configured libbaz/1.0.0
+          configured libbox/1.0.0
+          %info: cfg.+libbox-1.0.0.+ is up to date%
+          updated libbox/1.0.0
+          EOE
+
+        $pkg_status -r >>/EOO;
+          !libbox configured 1.0.0
+            foo [cfg2/] configured,system !* available 1.0.0
+            libbaz configured 1.0.0
+          EOO
+
+        $pkg_drop libbox
+      }
+
+      : private-host
+      :
+      {
+        $clone_cfg;
+
+        $* libbox '?sys:foo' &cfg/.bpkg/host/*** <<EOI 2>>~%EOE%;
+          y
+          EOI
+          %  configure sys:foo/\* \[cfg..bpkg.host.\]%
+            new libbaz/1.0.0 (required by libbox)
+            new libbox/1.0.0
+          continue? [Y/n] fetched libbaz/1.0.0
+          unpacked libbaz/1.0.0
+          fetched libbox/1.0.0
+          unpacked libbox/1.0.0
+          %configured sys:foo/\* \[cfg..bpkg.host.\]%
+          configured libbaz/1.0.0
+          configured libbox/1.0.0
+          %info: cfg.+libbox-1.0.0.+ is up to date%
+          updated libbox/1.0.0
+          EOE
+
+        $pkg_status -r >>/EOO;
+          !libbox configured 1.0.0
+            foo [cfg/.bpkg/host/] configured,system !* available 1.0.0
+            libbaz configured 1.0.0
+          EOO
+
+        $pkg_drop libbox
+      }
+
+      : private-module
+      :
+      {
+        $clone_cfg;
+
+        $* libbox '?sys:libbuild2-bar' &cfg/.bpkg/host/*** &cfg/.bpkg/build2/*** <<EOI 2>>~%EOE%;
+          y
+          EOI
+          %  configure sys:libbuild2-bar/\* \[cfg..bpkg.build2.\]%
+          %  new libbaz/1.0.0 \[cfg..bpkg.host.\] \(required by foo \[cfg..bpkg.host.\]\)%
+          %  new foo/1.0.0 \[cfg..bpkg.host.\] \(required by libbox\)%
+            new libbaz/1.0.0 (required by libbox)
+            new libbox/1.0.0
+          %continue\? \[Y/n\] fetched libbaz/1.0.0 \[cfg..bpkg.host.\]%
+          %unpacked libbaz/1.0.0 \[cfg..bpkg.host.\]%
+          %fetched foo/1.0.0 \[cfg..bpkg.host.\]%
+          %unpacked foo/1.0.0 \[cfg..bpkg.host.\]%
+          fetched libbaz/1.0.0
+          unpacked libbaz/1.0.0
+          fetched libbox/1.0.0
+          unpacked libbox/1.0.0
+          %configured sys:libbuild2-bar/\* \[cfg..bpkg.build2.\]%
+          %configured libbaz/1.0.0 \[cfg..bpkg.host.\]%
+          %configured foo/1.0.0 \[cfg..bpkg.host.\]%
+          configured libbaz/1.0.0
+          configured libbox/1.0.0
+          %info: cfg.+libbox-1.0.0.+ is up to date%
+          updated libbox/1.0.0
+          EOE
+
+        $pkg_status -r >>/EOO;
+          !libbox configured 1.0.0
+            foo [cfg/.bpkg/host/] configured 1.0.0
+              libbaz [cfg/.bpkg/host/] configured 1.0.0
+              libbuild2-bar [cfg/.bpkg/build2/] configured,system !* available 1.0.0
+            libbaz configured 1.0.0
+          EOO
+
+        $pkg_drop libbox
+      }
+    }
+
+    : config
+    :
+    {
+      +$clone_cfg
+
+      : linked
+      :
+      {
+        $clone_cfg;
+
+        $cfg_create -d cfg2 --type host --name cfg2 &cfg2/***;
+        $cfg_link -d cfg cfg2;
+
+        $cfg_create -d cfg3 --type host --name cfg3 &cfg3/***;
+        $cfg_link -d cfg cfg3;
+
+        $* libbox '?sys:foo' +{ --config-name cfg3 } <<EOI 2>>~%EOE%;
+          y
+          EOI
+          %  configure sys:foo/\* \[cfg3.\]%
+            new libbaz/1.0.0 (required by libbox)
+            new libbox/1.0.0
+          continue? [Y/n] fetched libbaz/1.0.0
+          unpacked libbaz/1.0.0
+          fetched libbox/1.0.0
+          unpacked libbox/1.0.0
+          %configured sys:foo/\* \[cfg3.\]%
+          configured libbaz/1.0.0
+          configured libbox/1.0.0
+          %info: cfg.+libbox-1.0.0.+ is up to date%
+          updated libbox/1.0.0
+          EOE
+
+        $pkg_status -r >>/EOO;
+          !libbox configured 1.0.0
+            foo [cfg3/] configured,system !* available 1.0.0
+            libbaz configured 1.0.0
+          EOO
+
+        $pkg_drop libbox
+      }
+
+      : src-sys
+      :
+      {
+        $clone_cfg;
+
+        $cfg_create -d cfg2 --type host --name cfg2 &cfg2/***;
+        $cfg_link -d cfg cfg2;
+
+        $* libbox --yes 2>!;
+
+        $pkg_status -r >>/EOO;
+          !libbox configured 1.0.0
+            foo [cfg2/] configured 1.0.0
+              libbaz [cfg2/] configured 1.0.0
+              libbuild2-bar [cfg2/.bpkg/build2/] configured 1.0.0
+            libbaz configured 1.0.0
+          EOO
+
+        $* '?sys:foo' <<EOI 2>>~%EOE%;
+          y
+          y
+          EOI
+          %  drop libbuild2-bar/1.0.0 \[cfg2..bpkg.build2.\] \(unused\)%
+          %  drop libbaz/1.0.0 \[cfg2.\] \(unused\)%
+          %  reconfigure sys:foo/\* \[cfg2.\]%
+          %  reconfigure libbox \(dependent of foo \[cfg2.\]\)%
+          continue? [Y/n] update dependent packages? [Y/n] disfigured libbox/1.0.0
+          %disfigured foo/1.0.0 \[cfg2.\]%
+          %disfigured libbaz/1.0.0 \[cfg2.\]%
+          %disfigured libbuild2-bar/1.0.0 \[cfg2..bpkg.build2.\]%
+          %purged libbuild2-bar/1.0.0 \[cfg2..bpkg.build2.\]%
+          %purged libbaz/1.0.0 \[cfg2.\]%
+          %purged foo/1.0.0 \[cfg2.\]%
+          %configured sys:foo/\* \[cfg2.\]%
+          configured libbox/1.0.0
+          %info: cfg.+libbox-1.0.0.+ is up to date%
+          updated libbox/1.0.0
+          EOE
+
+        $pkg_status -r >>/EOO;
+          !libbox configured 1.0.0
+            foo [cfg2/] configured,system !* available 1.0.0
+            libbaz configured 1.0.0
+          EOO
+
+        $pkg_drop libbox
+      }
+
+      : src-sys-upgrade
+      :
+      {
+        $clone_cfg;
+
+        $cfg_create -d cfg2 --type host --name cfg2 &cfg2/***;
+        $cfg_link -d cfg cfg2;
+
+        $* libbox --yes 2>!;
+
+        $pkg_status -r >>/EOO;
+          !libbox configured 1.0.0
+            foo [cfg2/] configured 1.0.0
+              libbaz [cfg2/] configured 1.0.0
+              libbuild2-bar [cfg2/.bpkg/build2/] configured 1.0.0
+            libbaz configured 1.0.0
+          EOO
+
+        $* '?sys:foo/1.1.0' <<EOI 2>>~%EOE%;
+          y
+          y
+          EOI
+          %  drop libbuild2-bar/1.0.0 \[cfg2..bpkg.build2.\] \(unused\)%
+          %  drop libbaz/1.0.0 \[cfg2.\] \(unused\)%
+          %  reconfigure sys:foo/1.1.0 \[cfg2.\]%
+          %  reconfigure libbox \(dependent of foo \[cfg2.\]\)%
+          continue? [Y/n] update dependent packages? [Y/n] disfigured libbox/1.0.0
+          %disfigured foo/1.0.0 \[cfg2.\]%
+          %disfigured libbaz/1.0.0 \[cfg2.\]%
+          %disfigured libbuild2-bar/1.0.0 \[cfg2..bpkg.build2.\]%
+          %purged libbuild2-bar/1.0.0 \[cfg2..bpkg.build2.\]%
+          %purged libbaz/1.0.0 \[cfg2.\]%
+          %purged foo/1.0.0 \[cfg2.\]%
+          %configured sys:foo/1.1.0 \[cfg2.\]%
+          configured libbox/1.0.0
+          %info: cfg.+libbox-1.0.0.+ is up to date%
+          updated libbox/1.0.0
+          EOE
+
+        $pkg_status -r >>/EOO;
+          !libbox configured 1.0.0
+            foo [cfg2/] configured,system !1.1.0
+            libbaz configured 1.0.0
+          EOO
+
+        $pkg_drop libbox
+      }
+
+      : src-sys-unhold
+      :
+      {
+        $clone_cfg;
+
+        $cfg_create -d cfg2 --type host --name cfg2 &cfg2/***;
+        $cfg_link -d cfg cfg2;
+
+        $rep_add -d cfg2 $rep/t7a && $rep_fetch -d cfg2;
+
+        $* libbox foo +{ --config-name cfg2 } --yes 2>!;
+
+        $pkg_status -r >>/EOO;
+          !libbox configured 1.0.0
+            !foo [cfg2/] configured 1.0.0
+              libbaz [cfg2/] configured 1.0.0
+              libbuild2-bar [cfg2/.bpkg/build2/] configured 1.0.0
+            libbaz configured 1.0.0
+          EOO
+
+        $* '?sys:foo' <<EOI 2>>~%EOE%;
+          y
+          y
+          EOI
+          %  drop libbuild2-bar/1.0.0 \[cfg2..bpkg.build2.\] \(unused\)%
+          %  drop libbaz/1.0.0 \[cfg2.\] \(unused\)%
+          %  reconfigure/unhold sys:foo/\* \[cfg2.\]%
+          %  reconfigure libbox \(dependent of foo \[cfg2.\]\)%
+          continue? [Y/n] update dependent packages? [Y/n] disfigured libbox/1.0.0
+          %disfigured foo/1.0.0 \[cfg2.\]%
+          %disfigured libbaz/1.0.0 \[cfg2.\]%
+          %disfigured libbuild2-bar/1.0.0 \[cfg2..bpkg.build2.\]%
+          %purged libbuild2-bar/1.0.0 \[cfg2..bpkg.build2.\]%
+          %purged libbaz/1.0.0 \[cfg2.\]%
+          %purged foo/1.0.0 \[cfg2.\]%
+          %configured sys:foo/\* \[cfg2.\]%
+          configured libbox/1.0.0
+          %info: cfg.+libbox-1.0.0.+ is up to date%
+          updated libbox/1.0.0
+          EOE
+
+        $pkg_status -r >>/EOO;
+          !libbox configured 1.0.0
+            foo [cfg2/] configured,system !* available 1.0.0
+            libbaz configured 1.0.0
+          EOO
+
+        $pkg_drop libbox
+      }
+
+      : sys-unhold
+      :
+      {
+        $clone_cfg;
+
+        $cfg_create -d cfg2 --type host --name cfg2 &cfg2/***;
+        $cfg_link -d cfg cfg2;
+
+        $rep_add -d cfg2 $rep/t7a && $rep_fetch -d cfg2;
+
+        $* libbox 'sys:foo' +{ --config-name cfg2 } --yes 2>!;
+
+        $pkg_status -r >>/EOO;
+          !libbox configured 1.0.0
+            !foo [cfg2/] configured,system !* available 1.0.0
+            libbaz configured 1.0.0
+          EOO
+
+        $* '?sys:foo';
+
+        $pkg_status -r >>/EOO;
+          !libbox configured 1.0.0
+            foo [cfg2/] configured,system !* available 1.0.0
+            libbaz configured 1.0.0
+          EOO
+
+        $pkg_drop libbox
+      }
     }
   }
 }

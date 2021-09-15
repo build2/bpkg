@@ -90,28 +90,28 @@ rep_remove += -d cfg 2>!
   {
     $clone_cfg;
 
-    $pkg_build 'sys:libbar' '?sys:libbar' 2>>EOE != 0;
+    $pkg_build 'sys:libbar' 'sys:libbar/1.0.0' 2>>EOE != 0;
       error: duplicate package libbar
         info: first mentioned as sys:libbar
-        info: second mentioned as ?sys:libbar
+        info: second mentioned as sys:libbar/1.0.0
       EOE
 
-    $pkg_build '?sys:libbar' 'sys:libbar' 2>>EOE != 0;
+    $pkg_build '?sys:libbar' '?sys:libbar/1.0.0' 2>>EOE != 0;
       error: duplicate package libbar
         info: first mentioned as ?sys:libbar
-        info: second mentioned as sys:libbar
+        info: second mentioned as ?sys:libbar/1.0.0
       EOE
 
-    $pkg_build '?sys:libbar' libbar 2>>EOE != 0;
+    $pkg_build 'sys:libbar' libbar 2>>EOE != 0;
       error: duplicate package libbar
-        info: first mentioned as ?sys:libbar
+        info: first mentioned as sys:libbar
         info: second mentioned as libbar
       EOE
 
-    $pkg_build libbar '?sys:libbar' 2>>EOE != 0;
+    $pkg_build ?libbar '?sys:libbar' +{ --config-id 0 } 2>>EOE != 0;
       error: duplicate package libbar
-        info: first mentioned as libbar
-        info: second mentioned as ?sys:libbar
+        info: first mentioned as ?libbar
+        info: second mentioned as ?sys:libbar +{ --config-id 0 }
       EOE
 
     $pkg_build 'sys:libbar' libbar 2>>EOE != 0;
