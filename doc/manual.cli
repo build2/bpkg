@@ -614,9 +614,9 @@ license: <licenses> [; <comment>]
 [depends]: [?][*] <alternatives> [; <comment>]
 [requires]: [?] [<alternatives>] [; <comment>]
 
-[tests]: <name> [<version-constraint>]
-[examples]: <name> [<version-constraint>]
-[benchmarks]: <name> [<version-constraint>]
+[tests]: [*] <name> [<version-constraint>]
+[examples]: [*] <name> [<version-constraint>]
+[benchmarks]: [*] <name> [<version-constraint>]
 
 [builds]: <class-expr> [; <comment>]
 [build-include]: <config>[/<target>] [; <comment>]

@@ -2724,7 +2724,7 @@ namespace bpkg
            j != deps.end ();
            ++j)
       {
-        if (j->name == nm && (i->db == nullptr || *i->db == db))
+        if (j->name == nm && (j->db == nullptr || *j->db == db))
         {
           if (i == deps.end () || i->db == nullptr)
             i = j;
