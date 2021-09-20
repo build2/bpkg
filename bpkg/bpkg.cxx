@@ -210,6 +210,11 @@ init (const common_options& co,
   {
     if (opt)
     {
+      // Parse the next chunk of options until we reach an argument (or eos).
+      //
+      if (o.parse (scan) && !scan.more ())
+        break;
+
       // If we see first "--", then we are done parsing options.
       //
       if (strcmp (scan.peek (), "--") == 0)
@@ -220,11 +225,6 @@ init (const common_options& co,
         opt = false;
         continue;
       }
-
-      // Parse the next chunk of options until we reach an argument (or eos).
-      //
-      if (o.parse (scan) && !scan.more ())
-        break;
 
       // Fall through.
     }
