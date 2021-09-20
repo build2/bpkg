@@ -1,2 +1,4 @@
-test/
-test-*/
+# Note: could be symlinks to directories (so no trailing /).
+#
+test
+test-*
