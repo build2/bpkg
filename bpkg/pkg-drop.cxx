@@ -419,7 +419,11 @@ namespace bpkg
 
       // Commits the transaction.
       //
-      pkg_disfigure (o, db, t, p, true /* clean */, false /* simulate */);
+      pkg_disfigure (o, db, t,
+                     p,
+                     true /* clean */,
+                     true /* disfigure */,
+                     false /* simulate */);
 
       assert (p->state == package_state::unpacked ||
               p->state == package_state::transient);

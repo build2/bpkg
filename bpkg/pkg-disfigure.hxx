@@ -15,11 +15,11 @@ namespace bpkg
   int
   pkg_disfigure (const pkg_disfigure_options&, cli::scanner& args);
 
-  // Disfigure the package, update its state, and commit the
-  // transaction. If the package state is broken, then this
-  // is taken to mean it hasn't been successfully configured
-  // and no clean prior to disfigure is necessary (or possible,
-  // for that matter).
+  // Disfigure the package, update its state, and commit the transaction. If
+  // the package state is broken, then this is taken to mean it hasn't been
+  // successfully configured and no clean prior to disfigure is necessary (or
+  // possible, for that matter). If disfigure is false, then don't actually
+  // disfigure the package in the build system sense.
   //
   void
   pkg_disfigure (const common_options&,
@@ -27,6 +27,7 @@ namespace bpkg
                  transaction&,
                  const shared_ptr<selected_package>&,
                  bool clean,
+                 bool disfigure,
                  bool simulate);
 }
 

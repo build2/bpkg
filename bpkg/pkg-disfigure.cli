@@ -23,9 +23,11 @@ namespace bpkg
      source code package is returned to the \cb{unpacked} state. A system
      package is removed from the configuration.
 
-     By default \cb{pkg-disfigure} will also clean the package's output
-     directory. This behavior can be suppressed with the \cb{--keep-out}
-     option, for example, if the package is to be reconfigured."
+     By default \cb{pkg-disfigure} will remove the package's build system
+     configuration (\cb{config.build}) and also clean its output directory.
+     This behavior can be suppressed with the \cb{--keep-config} and
+     \cb{--keep-out} options, respectively, for example, if the package is
+     to be reconfigured."
   }
 
   class pkg_disfigure_options: configuration_options
@@ -35,6 +37,12 @@ namespace bpkg
     bool --keep-out
     {
       "Don't clean the package's output directory."
+    }
+
+    bool --keep-config
+    {
+      "Don't remove the package's build system configuration
+       (\cb{config.build})."
     }
   };
 

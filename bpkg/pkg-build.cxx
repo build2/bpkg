@@ -5170,8 +5170,8 @@ namespace bpkg
               check_any_available (cdb, t, &dr);
             }
 
-            // We will keep the output directory only if the external package is
-            // replaced with an external one (see above for details).
+            // We will keep the output directory only if the external package
+            // is replaced with an external one (see above for details).
             //
             bool keep_out (o.keep_out () && sp->external ());
 
@@ -6728,7 +6728,8 @@ namespace bpkg
       //
       transaction t (pdb, !simulate /* start */);
 
-      // Reset the flag if the package being unpacked is not an external one.
+      // Reset the keep_out flag if the package being unpacked is not an
+      // external one.
       //
       if (p.keep_out && !simulate)
       {
@@ -6760,7 +6761,7 @@ namespace bpkg
 
       // Commits the transaction.
       //
-      pkg_disfigure (o, pdb, t, sp, !p.keep_out, simulate);
+      pkg_disfigure (o, pdb, t, sp, !p.keep_out, true, simulate);
 
       r = true;
 

@@ -232,7 +232,11 @@ namespace bpkg
 
         // Commits the transaction.
         //
-        pkg_disfigure (o, db, t, p, true /* clean */, false /* simulate */);
+        pkg_disfigure (o, db, t,
+                       p,
+                       true /* clean */,
+                       true /* disfigure */,
+                       false /* simulate */);
         throw;
       }
     }
