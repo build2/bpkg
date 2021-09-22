@@ -6728,40 +6728,67 @@ namespace bpkg
       //
       transaction t (pdb, !simulate /* start */);
 
-      // Reset the keep_out flag if the package being unpacked is not an
-      // external one.
+      // Figure out if an external package is being replaced with another
+      // external.
       //
-      if (p.keep_out && !simulate)
+      bool external (false);
+      if (!simulate)
       {
-        const shared_ptr<available_package>& ap (p.available);
-        const package_location& pl (ap->locations[0]);
-
-        if (pl.repository_fragment.object_id () == "") // Special root.
-          p.keep_out = !exists (pl.location); // Directory case.
-        else
+        if (sp->external () && *p.action != build_package::drop)
         {
-          p.keep_out = false;
+          const shared_ptr<available_package>& ap (p.available);
 
-          // See if the package comes from the directory-based repository, and
-          // so is external.
+          // If adjustment or orphan, then new and old are the same.
           //
-          // Note that such repository fragments are always preferred over
-          // others (see below).
-          //
-          for (const package_location& l: ap->locations)
+          if (ap == nullptr || ap->locations.empty ())
+            external = true;
+          else
           {
-            if (l.repository_fragment.load ()->location.directory_based ())
+            const package_location& pl (ap->locations[0]);
+
+            if (pl.repository_fragment.object_id () == "") // Special root.
+              external = !exists (pl.location); // Directory case.
+            else
             {
-              p.keep_out = true;
-              break;
+              // See if the package comes from the directory-based repository,
+              // and so is external.
+              //
+              // Note that such repository fragments are always preferred over
+              // others (see below).
+              //
+              for (const package_location& l: ap->locations)
+              {
+                if (l.repository_fragment.load ()->location.directory_based ())
+                {
+                  external = true;
+                  break;
+                }
+              }
             }
           }
         }
+
+        // Reset the keep_out flag if the package being unpacked is not
+        // external.
+        //
+        if (p.keep_out && !external)
+          p.keep_out = false;
       }
 
+      // For an external package being replaced with another external, keep
+      // the configuration unless explicitly requested not to.
+      //
+      // Note that for other cases the preservation of the configuration is
+      // still a @@ TODO (the idea is to use our config.config.{save,load}
+      // machinery).
+      //
       // Commits the transaction.
       //
-      pkg_disfigure (o, pdb, t, sp, !p.keep_out, true, simulate);
+      pkg_disfigure (o, pdb, t,
+                     sp,
+                     !p.keep_out /* clean */,
+                     !external /* disfigure */,
+                     simulate);
 
       r = true;
 
