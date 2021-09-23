@@ -3815,6 +3815,77 @@ test.options += --no-progress
   }
 }
 
+: disfigure
+:
+{
+  +$cfg_create cxx $config_cxx -d cfg &cfg/***
+
+  # Build libhello as an external package.
+  #
+  +cp -r $src/libhello-1.0.0 ./libhello
+  +cat <<EOI >+libhello/build/root.build
+    config [bool] config.libhello.develop ?= false
+    text "develop=$config.libhello.develop"
+    EOI
+  +$rep_add libhello --type dir
+  +$rep_fetch
+  +$* config.libhello.develop=true -- libhello 2>!
+
+  : without
+  :
+  : Make sure without --disfigure old configuration is preserved.
+  :
+  {
+    $clone_cfg;
+    $* libhello 2>!; # Update after output directory change.
+
+    # Use bogus configuration variable to trigger reconfiguration.
+    #
+    $* config.libhello.bogus=true -- libhello 2>>~%EOE%
+        disfigured libhello/1.0.0
+        %.*: develop=true%
+        configured libhello/1.0.0
+        %.*: develop=true%
+        %(mkdir|c\+\+|ld|ar) .+%{8}
+        updated libhello/1.0.0
+        EOE
+  }
+
+  : alone
+  :
+  : Make sure --disfigure alone causes reconfiguration.
+  :
+  {
+    $clone_cfg;
+    $* libhello 2>!; # Update after output directory change.
+
+    $* --disfigure libhello 2>>~%EOE%
+        disfigured libhello/1.0.0
+        %.*: develop=false%
+        configured libhello/1.0.0
+        %.*: develop=false%
+        %(mkdir|c\+\+|ld|ar) .+%{8}
+        updated libhello/1.0.0
+        EOE
+  }
+
+  : with-keep-out
+  :
+  {
+    $clone_cfg;
+    $* libhello 2>!; # Update after output directory change.
+
+    $* --disfigure --keep-out libhello 2>>~%EOE%
+        disfigured libhello/1.0.0
+        %.*: develop=false%
+        configured libhello/1.0.0
+        %.*: develop=false%
+        info: cfg/dir{libhello/} is up to date
+        updated libhello/1.0.0
+        EOE
+  }
+}
+
 : keep-out
 :
 {

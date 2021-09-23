@@ -239,6 +239,12 @@ namespace bpkg
        downgrades. Refer to \l{bpkg-pkg-disfigure(1)} for details."
     }
 
+    bool --disfigure
+    {
+      "Disfigure packages between upgrades and downgrades effectively
+       causing a from-scratch reconfiguration."
+    }
+
     dir_path --checkout-root
     {
       "<dir>",

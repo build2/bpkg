@@ -540,6 +540,11 @@ namespace bpkg
     //
     bool keep_out;
 
+    // If this flag is set then disfigure the package between upgrades and
+    // downgrades effectively causing a from-scratch reconfiguration.
+    //
+    bool disfigure;
+
     // If this flag is set, then don't build this package, only configure.
     //
     // Note: use configure_only() to query.
@@ -625,7 +630,7 @@ namespace bpkg
               (*action == build &&
                (selected->system () != system             ||
                 selected->version != available_version () ||
-                (!system && !config_vars.empty ()))));
+                (!system && (!config_vars.empty () || disfigure)))));
     }
 
     // Set if this build action is for repointing of prerequisite.
@@ -700,6 +705,9 @@ namespace bpkg
         //
         if (p.keep_out)
           keep_out = p.keep_out;
+
+        if (p.disfigure)
+          disfigure = p.disfigure;
 
         if (p.configure_only_)
           configure_only_ = p.configure_only_;
@@ -1592,6 +1600,7 @@ namespace bpkg
           {},                           // Constraints.
           system,
           false,                        // Keep output directory.
+          false,                        // Disfigure (from-scratch reconf).
           false,                        // Configure-only.
           nullopt,                      // Checkout root.
           false,                        // Checkout purge.
@@ -1748,6 +1757,7 @@ namespace bpkg
           {},                         // Constraints.
           sp->system (),
           false,                      // Keep output directory.
+          false,                      // Disfigure (from-scratch reconf).
           false,                      // Configure-only.
           nullopt,                    // Checkout root.
           false,                      // Checkout purge.
@@ -1786,6 +1796,7 @@ namespace bpkg
         {},         // Constraints.
         false,      // System package.
         false,      // Keep output directory.
+        false,      // Disfigure (from-scratch reconf).
         false,      // Configure-only.
         nullopt,    // Checkout root.
         false,      // Checkout purge.
@@ -1836,6 +1847,7 @@ namespace bpkg
           {},         // Constraints.
           false,      // System package.
           false,      // Keep output directory.
+          false,      // Disfigure (from-scratch reconf).
           false,      // Configure-only.
           nullopt,    // Checkout root.
           false,      // Checkout purge.
@@ -2106,6 +2118,7 @@ namespace bpkg
                 {},                        // Constraints.
                 system,
                 false,                     // Keep output directory.
+                false,                     // Disfigure (from-scratch reconf).
                 false,                     // Configure-only.
                 nullopt,                   // Checkout root.
                 false,                     // Checkout purge.
@@ -2578,6 +2591,7 @@ namespace bpkg
     bool                         system;
     bool                         patch;          // Only for an empty version.
     bool                         keep_out;
+    bool                         disfigure;
     optional<dir_path>           checkout_root;
     bool                         checkout_purge;
     strings                      config_vars;    // Only if not system.
@@ -3384,6 +3398,7 @@ namespace bpkg
 
     dst.dependency (src.dependency () || dst.dependency ());
     dst.keep_out   (src.keep_out ()   || dst.keep_out ());
+    dst.disfigure  (src.disfigure ()  || dst.disfigure ());
 
     if (!dst.checkout_root_specified () && src.checkout_root_specified ())
     {
@@ -3425,6 +3440,7 @@ namespace bpkg
   compare_options (const pkg_options& x, const pkg_options& y)
   {
     return x.keep_out ()          == y.keep_out ()          &&
+           x.disfigure ()         == y.disfigure ()         &&
            x.dependency ()        == y.dependency ()        &&
            x.upgrade ()           == y.upgrade ()           &&
            x.patch ()             == y.patch ()             &&
@@ -4008,6 +4024,7 @@ namespace bpkg
         const pkg_options& o (a.options);
 
         add_bool ("--keep-out",          o.keep_out ());
+        add_bool ("--disfigure",         o.disfigure ());
         add_bool ("--upgrade",           o.upgrade ());
         add_bool ("--patch",             o.patch ());
         add_bool ("--immediate",         o.immediate ());
@@ -4902,6 +4919,7 @@ namespace bpkg
                                 sys,
                                 pa.options.patch (),
                                 pa.options.keep_out (),
+                                pa.options.disfigure (),
                                 (pa.options.checkout_root_specified ()
                                  ? move (pa.options.checkout_root ())
                                  : optional<dir_path> ()),
@@ -5082,6 +5100,7 @@ namespace bpkg
           {},                         // Constraints.
           arg_sys (pa),
           keep_out,
+          pa.options.disfigure (),
           false,                      // Configure-only.
           (pa.options.checkout_root_specified ()
            ? move (pa.options.checkout_root ())
@@ -5189,6 +5208,7 @@ namespace bpkg
                 {},                         // Constraints.
                 false,                      // System package.
                 keep_out,
+                o.disfigure (),
                 false,                      // Configure-only.
                 nullopt,                    // Checkout root.
                 false,                      // Checkout purge.
@@ -5466,6 +5486,7 @@ namespace bpkg
             {},                         // Constraints.
             p.system,
             p.keep_out,
+            p.disfigure,
             false,                      // Configure-only.
             p.checkout_root,
             p.checkout_purge,
@@ -5672,6 +5693,7 @@ namespace bpkg
               {},                         // Constraints.
               d.system,
               keep_out,
+              o.disfigure (),
               false,                      // Configure-only.
               nullopt,                    // Checkout root.
               false,                      // Checkout purge.
@@ -6776,7 +6798,7 @@ namespace bpkg
       }
 
       // For an external package being replaced with another external, keep
-      // the configuration unless explicitly requested not to.
+      // the configuration unless requested not to with --disfigure.
       //
       // Note that for other cases the preservation of the configuration is
       // still a @@ TODO (the idea is to use our config.config.{save,load}
@@ -6787,7 +6809,7 @@ namespace bpkg
       pkg_disfigure (o, pdb, t,
                      sp,
                      !p.keep_out /* clean */,
-                     !external /* disfigure */,
+                     p.disfigure || !external /* disfigure */,
                      simulate);
 
       r = true;
