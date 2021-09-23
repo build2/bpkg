@@ -3880,7 +3880,7 @@ test.options += --no-progress
         %.*: develop=false%
         configured libhello/1.0.0
         %.*: develop=false%
-        info: cfg/dir{libhello/} is up to date
+        %info: .+ is up to date%
         updated libhello/1.0.0
         EOE
   }
