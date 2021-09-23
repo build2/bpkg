@@ -1370,13 +1370,7 @@ namespace bpkg
     }
 
     bool
-    operator< (const config_package& v) const
-    {
-      // See operator==(database, database).
-      //
-      int r (name.compare (v.name));
-      return r != 0 ? (r < 0) : (&db < &v.db);
-    }
+    operator< (const config_package&) const;
 
     std::string
     string () const;

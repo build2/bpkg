@@ -1074,4 +1074,12 @@ namespace bpkg
   {
     return *this == main_database ();
   }
+
+  // compare_lazy_ptr
+  //
+  bool compare_lazy_ptr::
+  less (const odb::database& x, const odb::database& y) const
+  {
+    return static_cast<const database&> (x) < static_cast<const database&> (y);
+  }
 }

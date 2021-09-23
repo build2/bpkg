@@ -518,10 +518,11 @@ namespace bpkg
   inline bool
   operator< (const database& x, const database& y)
   {
-    // Note that if we ever need the ordering to be consistent across runs,
-    // then we can compare the config paths or uuids.
+    // Note that we used to compare the database addresses here (as for the
+    // equality operator) until we needed the database ordering to be
+    // consistent across runs (to support --rebuild-checksum, etc).
     //
-    return &x < &y;
+    return x.config < y.config;
   }
 
   inline ostream&

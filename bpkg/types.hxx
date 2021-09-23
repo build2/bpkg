@@ -180,9 +180,15 @@ namespace bpkg
       //
       return x.object_id () != y.object_id ()
              ? (x.object_id () < y.object_id ())
-             : (&static_cast<typename P::base_type> (x).database () <
-                &static_cast<typename P::base_type> (y).database ());
+             : less (static_cast<typename P::base_type> (x).database (),
+                     static_cast<typename P::base_type> (y).database ());
     }
+
+  private:
+    // Defined in database.cxx.
+    //
+    bool
+    less (const odb::database&, const odb::database&) const;
   };
 
   // Compare two lazy pointers via the pointed-to object ids.

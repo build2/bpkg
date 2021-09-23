@@ -6225,7 +6225,7 @@ else
         y
         EOI
         %  new libbaz/1.0.0 \[cfg.\] \(required by foo \[cfg.\]\)%
-        %  new libbuild2-bar/1.0.0 \[cfg3.\] \(required by (foo \[cfg2.\], foo \[cfg.\]\)|foo \[cfg.\], foo \[cfg2.\]\))%
+        %  new libbuild2-bar/1.0.0 \[cfg3.\] \(required by foo \[cfg.\], foo \[cfg2.\]\)%
         %  new foo/1.0.0 \[cfg.\]%
         %  new libbaz/1.0.0 \[cfg2.\] \(required by foo \[cfg2.\]\)%
         %  new foo/1.0.0 \[cfg2.\]%
