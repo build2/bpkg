@@ -3,6 +3,9 @@
 
 #include <bpkg/satisfaction.hxx>
 
+#undef NDEBUG
+#include <cassert>
+
 namespace bpkg
 {
   static int
