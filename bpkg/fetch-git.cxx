@@ -5,11 +5,11 @@
 
 #include <map>
 
-#include <libbutl/git.mxx>
-#include <libbutl/filesystem.mxx>       // path_entry
-#include <libbutl/path-pattern.mxx>
-#include <libbutl/semantic-version.mxx>
-#include <libbutl/standard-version.mxx> // parse_standard_version()
+#include <libbutl/git.hxx>
+#include <libbutl/filesystem.hxx>       // path_entry
+#include <libbutl/path-pattern.hxx>
+#include <libbutl/semantic-version.hxx>
+#include <libbutl/standard-version.hxx> // parse_standard_version()
 
 #include <bpkg/diagnostics.hxx>
 
@@ -2364,7 +2364,7 @@ namespace bpkg
         //    "elevated console mode":
         //
         // - file symlinks are currently not supported (see
-        //   libbutl/filesystem.mxx for details).
+        //   libbutl/filesystem.hxx for details).
         //
         // - git creates symlinks to directories, rather than junctions. This
         //   makes things to fall apart as Windows API seems to be unable to

@@ -5,7 +5,7 @@
 
 #include <set>
 
-#include <libbutl/filesystem.mxx> // dir_iterator
+#include <libbutl/filesystem.hxx> // dir_iterator
 
 #include <bpkg/package.hxx>
 #include <bpkg/package-odb.hxx>

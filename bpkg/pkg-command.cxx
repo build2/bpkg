@@ -3,7 +3,7 @@
 
 #include <bpkg/pkg-command.hxx>
 
-#include <libbutl/path-pattern.mxx>
+#include <libbutl/path-pattern.hxx>
 
 #include <bpkg/package.hxx>
 #include <bpkg/package-odb.hxx>

@@ -21,18 +21,18 @@
 
 #include <odb/lazy-ptr.hxx>
 
-#include <libbutl/b.mxx>
-#include <libbutl/url.mxx>
-#include <libbutl/path.mxx>
+#include <libbutl/b.hxx>
+#include <libbutl/url.hxx>
+#include <libbutl/path.hxx>
 #include <libbutl/uuid.hxx>
 #include <libbutl/uuid-io.hxx>
-#include <libbutl/process.mxx>
-#include <libbutl/utility.mxx>         // icase_compare_string,
+#include <libbutl/process.hxx>
+#include <libbutl/utility.hxx>         // icase_compare_string,
                                        // compare_reference_target
-#include <libbutl/optional.mxx>
-#include <libbutl/fdstream.mxx>
-#include <libbutl/small-vector.mxx>
-#include <libbutl/default-options.mxx>
+#include <libbutl/optional.hxx>
+#include <libbutl/fdstream.hxx>
+#include <libbutl/small-vector.hxx>
+#include <libbutl/default-options.hxx>
 
 namespace bpkg
 {
@@ -56,7 +56,7 @@ namespace bpkg
   using std::weak_ptr;
 
   using std::vector;
-  using butl::small_vector; // <libbutl/small-vector.mxx>
+  using butl::small_vector; // <libbutl/small-vector.hxx>
 
   using strings = vector<string>;
   using cstrings = vector<const char*>;
@@ -73,17 +73,17 @@ namespace bpkg
   using std::system_error;
   using io_error = std::ios_base::failure;
 
-  // <libbutl/utility.mxx>
+  // <libbutl/utility.hxx>
   //
   using butl::icase_compare_string;
   using butl::compare_reference_target;
 
-  // <libbutl/optional.mxx>
+  // <libbutl/optional.hxx>
   //
   using butl::optional;
   using butl::nullopt;
 
-  // <libbutl/path.mxx>
+  // <libbutl/path.hxx>
   //
   using butl::path;
   using butl::dir_path;
@@ -95,15 +95,15 @@ namespace bpkg
   using paths = vector<path>;
   using dir_paths = vector<dir_path>;
 
-  // <libbutl/uuid.mxx>
+  // <libbutl/uuid.hxx>
   //
   using butl::uuid;
 
-  // <libbutl/url.mxx>
+  // <libbutl/url.hxx>
   //
   using butl::url;
 
-  // <libbutl/process.mxx>
+  // <libbutl/process.hxx>
   //
   using butl::process;
   using butl::process_env;
@@ -111,7 +111,7 @@ namespace bpkg
   using butl::process_exit;
   using butl::process_error;
 
-  // <libbutl/fdstream.mxx>
+  // <libbutl/fdstream.hxx>
   //
   using butl::auto_fd;
   using butl::nullfd;
@@ -120,13 +120,13 @@ namespace bpkg
   using butl::ofdstream;
   using butl::fdstream_mode;
 
-  // <libbutl/default-options.mxx>
+  // <libbutl/default-options.hxx>
   //
   using butl::default_options_files;
   using butl::default_options_entry;
   using butl::default_options;
 
-  // <libbutl/b.mxx>
+  // <libbutl/b.hxx>
   //
   using package_info = butl::b_project_info;
 

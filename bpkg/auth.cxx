@@ -7,11 +7,11 @@
 #include <limits>   // numeric_limits
 #include <iterator> // ostreambuf_iterator
 
-#include <libbutl/sha256.mxx>
-#include <libbutl/base64.mxx>
-#include <libbutl/openssl.mxx>
-#include <libbutl/timestamp.mxx>
-#include <libbutl/filesystem.mxx>
+#include <libbutl/sha256.hxx>
+#include <libbutl/base64.hxx>
+#include <libbutl/openssl.hxx>
+#include <libbutl/timestamp.hxx>
+#include <libbutl/filesystem.hxx>
 
 #include <bpkg/package.hxx>
 #include <bpkg/package-odb.hxx>

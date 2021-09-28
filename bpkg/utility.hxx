@@ -15,10 +15,10 @@
 
 #include <libbutl/ft/lang.hxx>
 
-#include <libbutl/utility.mxx>         // icasecmp(), reverse_iterate(), etc
-#include <libbutl/process.mxx>
-#include <libbutl/filesystem.mxx>
-#include <libbutl/default-options.mxx>
+#include <libbutl/utility.hxx>         // icasecmp(), reverse_iterate(), etc
+#include <libbutl/process.hxx>
+#include <libbutl/filesystem.hxx>
+#include <libbutl/default-options.hxx>
 
 #include <bpkg/types.hxx>
 #include <bpkg/version.hxx>
@@ -38,7 +38,7 @@ namespace bpkg
   using std::strcmp;
   using std::strchr;
 
-  // <libbutl/utility.mxx>
+  // <libbutl/utility.hxx>
   //
   using butl::icasecmp;
   using butl::reverse_iterate;
@@ -55,16 +55,16 @@ namespace bpkg
   using butl::setenv;
   using butl::unsetenv;
 
-  // <libbutl/process.mxx>
+  // <libbutl/process.hxx>
   //
   using butl::process_start_callback;
 
-  // <libbutl/filesystem.mxx>
+  // <libbutl/filesystem.hxx>
   //
   using butl::auto_rmfile;
   using butl::auto_rmdir;
 
-  // <libbutl/default-options.mxx>
+  // <libbutl/default-options.hxx>
   //
   using butl::load_default_options;
   using butl::merge_default_options;

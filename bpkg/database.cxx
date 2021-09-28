@@ -8,7 +8,7 @@
 #include <odb/schema-catalog.hxx>
 #include <odb/sqlite/exceptions.hxx>
 
-#include <libbutl/sha256.mxx>
+#include <libbutl/sha256.hxx>
 
 #include <bpkg/package.hxx>
 #include <bpkg/package-odb.hxx>

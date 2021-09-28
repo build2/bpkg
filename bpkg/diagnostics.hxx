@@ -8,7 +8,7 @@
 
 #include <odb/tracer.hxx>
 
-#include <libbutl/diagnostics.mxx>
+#include <libbutl/diagnostics.hxx>
 
 #include <bpkg/types.hxx> // Note: not <bpkg/utility.hxx>
 

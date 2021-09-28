@@ -3,8 +3,8 @@
 
 #include <bpkg/utility.hxx>
 
-#include <libbutl/prompt.mxx>
-#include <libbutl/fdstream.mxx>
+#include <libbutl/prompt.hxx>
+#include <libbutl/fdstream.hxx>
 
 #include <bpkg/diagnostics.hxx>
 #include <bpkg/common-options.hxx>

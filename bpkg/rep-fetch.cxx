@@ -6,7 +6,7 @@
 #include <map>
 #include <set>
 
-#include <libbutl/manifest-parser.mxx>
+#include <libbutl/manifest-parser.hxx>
 
 #include <bpkg/auth.hxx>
 #include <bpkg/fetch.hxx>

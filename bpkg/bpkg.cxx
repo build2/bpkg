@@ -10,7 +10,7 @@
 #include <exception>   // set_terminate(), terminate_handler
 #include <type_traits> // enable_if, is_base_of
 
-#include <libbutl/backtrace.mxx> // backtrace()
+#include <libbutl/backtrace.hxx> // backtrace()
 
 #include <bpkg/types.hxx>
 #include <bpkg/utility.hxx>

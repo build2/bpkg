@@ -5,8 +5,8 @@
 
 #include <map>
 
-#include <libbutl/filesystem.mxx>          // dir_iterator
-#include <libbutl/manifest-serializer.mxx>
+#include <libbutl/filesystem.hxx>          // dir_iterator
+#include <libbutl/manifest-serializer.hxx>
 
 #include <libbpkg/manifest.hxx>
 #include <libbpkg/package-name.hxx>

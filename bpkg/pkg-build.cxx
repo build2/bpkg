@@ -9,8 +9,8 @@
 #include <cstring>    // strlen()
 #include <iostream>   // cout
 
-#include <libbutl/sha256.mxx>
-#include <libbutl/standard-version.mxx>
+#include <libbutl/sha256.hxx>
+#include <libbutl/standard-version.hxx>
 
 #include <bpkg/package.hxx>
 #include <bpkg/package-odb.hxx>

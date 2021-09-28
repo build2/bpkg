@@ -5,8 +5,8 @@
 
 #include <sstream>
 
-#include <libbutl/filesystem.mxx>      // cpfile ()
-#include <libbutl/manifest-parser.mxx>
+#include <libbutl/filesystem.hxx>      // cpfile ()
+#include <libbutl/manifest-parser.hxx>
 
 #include <bpkg/checksum.hxx>
 #include <bpkg/diagnostics.hxx>

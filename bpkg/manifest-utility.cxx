@@ -5,8 +5,8 @@
 
 #include <cstring> // strcspn()
 
-#include <libbutl/b.mxx>
-#include <libbutl/sha256.mxx>
+#include <libbutl/b.hxx>
+#include <libbutl/sha256.hxx>
 
 #include <bpkg/package.hxx>        // wildcard_version
 #include <bpkg/diagnostics.hxx>

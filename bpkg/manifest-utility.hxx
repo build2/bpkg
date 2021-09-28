@@ -118,7 +118,7 @@ namespace bpkg
   //
   // Note that if a package directory is under the version control, then the
   // resulting version may be populated with the snapshot information (see
-  // libbutl/standard-version.mxx for more details). Thus, this function can
+  // libbutl/standard-version.hxx for more details). Thus, this function can
   // be used for fixing up the package manifest versions.
   //
   class common_options;

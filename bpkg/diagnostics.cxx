@@ -7,8 +7,8 @@
 
 #include <odb/statement.hxx>
 
-#include <libbutl/process.mxx>    // process_args
-#include <libbutl/process-io.mxx> // operator<<(ostream, process_*)
+#include <libbutl/process.hxx>    // process_args
+#include <libbutl/process-io.hxx> // operator<<(ostream, process_*)
 
 #include <bpkg/utility.hxx>
 

@@ -3,7 +3,7 @@
 
 #include <bpkg/help.hxx>
 
-#include <libbutl/pager.mxx>
+#include <libbutl/pager.hxx>
 
 #include <bpkg/diagnostics.hxx>
 #include <bpkg/bpkg-options.hxx>

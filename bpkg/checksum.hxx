@@ -4,7 +4,7 @@
 #ifndef BPKG_CHECKSUM_HXX
 #define BPKG_CHECKSUM_HXX
 
-#include <libbutl/sha256.mxx>
+#include <libbutl/sha256.hxx>
 
 #include <bpkg/types.hxx>
 #include <bpkg/utility.hxx>
