@@ -161,7 +161,8 @@ namespace bpkg
     M r;
     if (exists (f))
       r = parse_manifest<M> (f, iu, rl, fragment);
-    else
+
+    if (r.empty ())
       r.emplace_back (repository_manifest ()); // Add the base repository.
 
     return r;

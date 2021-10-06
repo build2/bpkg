@@ -1772,12 +1772,12 @@ The repository fragment id this repository belongs to.
 terminology and semantics.
 
 The repository list manifest (the \c{repositories.manifest} file found in the
-repository root directory) describes the repository. It is a sequence of
-repository manifests consisting of the base repository manifest (that is, the
-manifest for the repository that is being described) as well as manifests for
-its prerequisite and complement repositories. The individual repository
-manifests can appear in any order and the base repository manifest can be
-omitted.
+repository root directory) describes the repository. It starts with an
+optional header manifest optionally followed by a sequence of repository
+manifests consisting of the base repository manifest (that is, the manifest
+for the repository that is being described) as well as manifests for its
+prerequisite and complement repositories. The individual repository manifests
+can appear in any order and the base repository manifest can be omitted.
 
 The \c{fragment} values can only be present in a merged
 \c{repositories.manifest} file for a multi-fragment repository.
@@ -1789,6 +1789,8 @@ repository could look like this:
 # math/testing
 #
 : 1
+min-bpkg-version: 0.14.0
+:
 email: math-pkg@example.org
 summary: Math package repository
 :
@@ -1813,6 +1815,37 @@ Then the completement's location would be:
 \
 https://pkg.example.org/1/math/stable
 \
+
+The header manifest synopsis is presented next followed by the detailed
+description of each value in subsequent sections.
+
+\
+[min-bpkg-version]: <ver>
+[compression]: <compressions>
+\
+
+\h2#manifest-repository-list-header-min-bpkg-version|\c{min-bpkg-version}|
+
+\
+[min-bpkg-version]: <ver>
+\
+
+The earliest version of \cb{bpkg} that is compatible with this repository.
+Note that if specified, it must be the first value in the header.
+
+
+\h2#manifest-repository-list-header-compression|\c{compression}|
+
+\
+[compression]: <compressions>
+
+<compressions> = <compression> [ <compression>]*
+\
+
+Available compressed variants of the \c{packages.manifest} file. The format is
+a space-separated list of the compression methods. The \c{none} method means
+no compression. Absent \c{compression} value is equivalent to specifying it
+with the \c{none} value.
 
 
 \h#manifest-signature-pkg|Signature Manifest for \cb{pkg} Repositories|

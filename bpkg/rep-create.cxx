@@ -162,6 +162,15 @@ namespace bpkg
                                })
                   << " prerequisite repository(s)";});
 
+    optional<standard_version> rmv (
+      rms.header && rms.header->min_bpkg_version
+      ? rms.header->min_bpkg_version
+      : nullopt);
+
+    optional<standard_version> opv (o.min_bpkg_version_specified ()
+                                    ? o.min_bpkg_version ()
+                                    : optional<standard_version> ());
+
     // While we could have serialized as we go along, the order of
     // packages will be pretty much random and not reproducible. By
     // collecting all the manifests in a map we get a sorted list.
@@ -182,6 +191,16 @@ namespace bpkg
       manifests.emplace_back (move (m));
     }
 
+    // Issue a warning if --min-bpkg-version option and the repositories
+    // manifest's min-bpkg-version value are both specified and don't match.
+    // Let's issue it after the added repositories are printed to stdout, so
+    // that it doesn't go unnoticed.
+    //
+    if (opv && rmv && *opv != *rmv)
+      warn << "--min-bpkg-version option value " << *opv << " differs from "
+           << "minimum bpkg version " << *rmv << " specified in "
+           << d / repositories_file;
+
     // Serialize packages manifest, optionally generate the signature manifest.
     //
     path p (d / packages_file);
@@ -197,7 +216,7 @@ namespace bpkg
         ofdstream ofs (p, fdopen_mode::binary);
 
         manifest_serializer s (ofs, p.string ());
-        manifests.serialize (s);
+        manifests.serialize (s, opv ? opv : rmv);
         ofs.close ();
       }
 

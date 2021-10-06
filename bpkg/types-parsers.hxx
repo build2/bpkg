@@ -7,6 +7,8 @@
 #ifndef BPKG_TYPES_PARSERS_HXX
 #define BPKG_TYPES_PARSERS_HXX
 
+#include <libbutl/standard-version.hxx>
+
 #include <libbpkg/manifest.hxx>
 
 #include <bpkg/types.hxx>
@@ -56,6 +58,19 @@ namespace bpkg
 
       static void
       merge (uuid& b, const uuid& a) {b = a;}
+    };
+
+    template <>
+    struct parser<butl::standard_version>
+    {
+      static void
+      parse (butl::standard_version&, bool&, scanner&);
+
+      static void
+      merge (butl::standard_version& b, const butl::standard_version& a)
+      {
+        b = a;
+      }
     };
 
     template <>

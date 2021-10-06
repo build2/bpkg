@@ -92,6 +92,35 @@ namespace bpkg
       }
     }
 
+    void parser<butl::standard_version>::
+    parse (butl::standard_version& x, bool& xs, scanner& s)
+    {
+      using butl::standard_version;
+
+      xs = true;
+
+      const char* o (s.next ());
+
+      if (!s.more ())
+        throw missing_value (o);
+
+      const char* v (s.next ());
+
+      try
+      {
+        // Note that we allow all kinds of versions, so that the caller can
+        // restrict them as they wish after the parsing.
+        //
+        x = standard_version (v,
+                              standard_version::allow_earliest |
+                              standard_version::allow_stub);
+      }
+      catch (const invalid_argument& e)
+      {
+        throw invalid_value (o, v, e.what ());
+      }
+    }
+
     void parser<auth>::
     parse (auth& x, bool& xs, scanner& s)
     {

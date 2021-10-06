@@ -36,6 +36,17 @@ namespace bpkg
       "Ignore unknown manifest entries."
     }
 
+    butl::standard_version --min-bpkg-version
+    {
+      "<ver>",
+      "Apply backward compatibility workarounds to the generated
+       \cb{packages.manifest} file so that it can be consumed by \cb{bpkg}
+       versions greater or equal to the specified version. If unspecified,
+       then the \cb{min-bpkg-version} value from the \cb{repositories.manifest}
+       file is used, if present. If the manifest value is not specified
+       either, then no backward compatibility workarounds are applied."
+    }
+
     string --key
     {
       "<name>",
