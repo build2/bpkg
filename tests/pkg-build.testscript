@@ -6465,6 +6465,27 @@ else
           libbaz configured 1.0.0
         EOO
     }
+
+    : build2-module-different-clusters
+    :
+    : Test that the same module can successfully be built in 2 configurations
+    : if they belong to different linked configuration clusters.
+    :
+    {
+      $cfg_create -d cfg  --uuid $cfg_uuid  &cfg/***;
+      $cfg_create -d cfg2 --uuid $cfg2_uuid &cfg2/***;
+
+      test.arguments += -d cfg2; # Now refers 2 current dirs: cfg/ and cfg2/.
+
+      $* "libbiz@$rep/t7a" +{ --config-uuid $cfg_uuid  } \
+         "libbuz@$rep/t7a" +{ --config-uuid $cfg2_uuid } --yes --trust-yes 2>>~%EOE%
+        %(added|fetching) .+%{4}
+        %(fetched|unpacked) .+%{26}
+        %configured .+%{13}
+        %info: .+ is up to date%{2}
+        %updated .+%{2}
+        EOE
+    }
   }
 
   : system

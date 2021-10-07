@@ -6218,15 +6218,18 @@ namespace bpkg
                                  verify_dependencies);
 
           // Now, verify that none of the build2 modules may simultaneously be
-          // built in multiple configurations, accross all (potentially
-          // unrelated) dependency trees.
+          // built in multiple configurations which belong to the same linked
+          // configuration cluster.
           //
           // For that we use the `package_prereqs` map: its key set refers to
           // all the packages potentially involved into the build (explicitly
           // or implicitly).
           //
           {
-            map<package_name, database&> build2_mods;
+            // List of module packages together with the linked configuration
+            // clusters they belong to.
+            //
+            vector<pair<config_package, linked_databases>> build2_mods;
 
             for (const auto& pp: package_prereqs)
             {
@@ -6249,22 +6252,33 @@ namespace bpkg
                   continue;
               }
 
-              auto i (build2_mods.emplace (cp.name, cp.db));
-
-              if (!i.second)
+              // Make sure the module's database doesn't belong to any other
+              // cluster this module is also configured in.
+              //
+              for (const auto& m: build2_mods)
               {
-                database& db (i.first->second);
+                if (m.first.name != cp.name)
+                  continue;
 
                 // The `package_prereqs` map can only contain the same package
                 // twice if databases differ.
                 //
-                assert (db != cp.db);
+                assert (m.first.db != cp.db);
 
-                fail << "building build system module " << cp.name << " in "
-                     << "multiple configurations" <<
-                  info << db.config_orig <<
-                  info << cp.db.config_orig;
+                const linked_databases& lcc (m.second);
+
+                if (find (lcc.begin (), lcc.end (), cp.db) != lcc.end ())
+                {
+                  fail << "building build system module " << cp.name
+                       << " in multiple configurations" <<
+                    info << m.first.db.config_orig <<
+                    info << cp.db.config_orig;
+                }
               }
+
+              // Add the module and its cluster to the list.
+              //
+              build2_mods.emplace_back (cp, cp.db.cluster_configs ());
             }
           }
         }

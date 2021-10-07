@@ -412,7 +412,7 @@ namespace bpkg
       "<dir>",
       "Assume current configuration is in <dir> rather than in the current
        working directory. Repeat this option to specify multiple current
-       configurations. If multiple configurations are specified, they must
+       configurations. If multiple configurations are specified, they need not
        belong to the same linked configuration cluster."
     }
   };

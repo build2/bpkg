@@ -214,7 +214,7 @@ namespace bpkg
     //
     // Note that we skip dangling links without any warning since they can be
     // quite common. Think of a shared host configuration with a bunch of
-    // implicitly linked configurations, which are removed and potentially
+    // implicitly linked configurations which are removed and potentially
     // recreated later during the host configuration lifetime. Note however,
     // that we remove the dangling implicit links during migration (see
     // migrate() on details).
@@ -296,6 +296,12 @@ namespace bpkg
     //
     linked_databases
     dependent_configs (bool sys_rep = false);
+
+    // Return configurations of the linked cluster which the current
+    // configuration belongs to.
+    //
+    linked_databases
+    cluster_configs (bool sys_rep = false);
 
     // The following find_*() functions assume that the main database has been
     // created with the pre_attach flag set to true.

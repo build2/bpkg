@@ -936,6 +936,39 @@ namespace bpkg
                                empty_string /* type */);
   }
 
+  linked_databases database::
+  cluster_configs (bool sys_rep)
+  {
+    linked_databases r;
+
+    // If the database is not in the resulting list, then add it and its
+    // dependent and dependency configurations, recursively.
+    //
+    auto add = [&r, sys_rep] (database& db, const auto& add)
+    {
+      if (std::find (r.begin (), r.end (), db) != r.end ())
+        return;
+
+      r.push_back (db);
+
+      {
+        linked_databases cs (db.dependency_configs ());
+        for (auto i (cs.begin_linked ()); i != cs.end (); ++i)
+          add (*i, add);
+      }
+
+      {
+        linked_databases cs (db.dependent_configs (sys_rep));
+        for (auto i (cs.begin_linked ()); i != cs.end (); ++i)
+          add (*i, add);
+      }
+    };
+
+    add (*this, add);
+
+    return r;
+  }
+
   database& database::
   find_attached (uint64_t id, bool s)
   {
