@@ -1,3 +1,88 @@
+Version 0.14.0
+
+  * Support for configuration types, configuration linking, and build-time
+    dependencies.
+
+    Configurations can now be linked with each other to allow a package to be
+    built in one configuration while its dependencies in one or more linked
+    configurations. This can be used to create a "base" configuration with
+    common dependencies that are shared between multiple configurations.
+
+    Configurations now also have types with the three predefined types being
+    `target` (the default) `host` (used for build-time dependencies), and
+    `build2` (used for build system modules). This mechanism together with
+    configuration linking is used to provide separate configurations for
+    build-time dependencies, for example, tools that need to be executed or
+    build system modules that need to be loaded during the build.
+
+    If during dependency resolution a build-time dependency is encountered and
+    there is no build configuration of a suitable type linked with the target
+    configuration, then a private configuration of the needed type is
+    automatically created and linked.
+
+    New relevant commands: bpkg-cfg-{link,unlink,info}.
+
+    Command with relevant changes (new options, etc): bpkg-cfg-create,
+    bpkg-pkg-{build,status}.
+
+    See bpkg-cfg-create(1) for details of this functionality.
+
+  * Tests, examples, and benchmark packages (see the `tests`, `examples`, and
+    `benchmarks` package manifest values) can now also be run-time or build-
+    time.
+
+  * Two new pre-defined automated build bot requirements: `bootstrap` (package
+    is a build system modules that requires bootstrapping) and `host` (package
+    is normally used as build-time dependency and should be built in a host
+    configuration).
+
+    See the `requires` package manifest value for details.
+
+  * Configuration of an external package is now preserved between upgrades and
+    downgrades.
+
+    The same behavior for normal packages is still a TODO. The old behavior
+    can be achieved with the new --disfigure bpkg-pkg-build option that forces
+    a from-scratch reconfiguration.
+
+  * New `min-bpkg-version` repositories manifest value that allows specifying
+    minimum supported bpkg version.
+
+    See also the new --min-bpkg-version bpkg-rep-create option.
+
+  * Change of the `build-email` package manifest value semantics.
+
+    Now build result notifications are only sent if this value is explicitly
+    specified (before we used to fallback to `email`).
+
+  * New --immediate|-i and --recursive|-r bpkg-pkg-{update,clean} options.
+
+    These options can be used to additionally updating or cleaning immediate
+    or all dependencies of a package, respectively.
+
+  * New --all-pattern bpkg-pkg-{update,clean,test,install,uninstall} option.
+
+    This option can be used to perform the command on all the held packages
+    that match a wildcard patterns.
+
+  * New --rebuild-checksum bpkg-pkg-build option.
+
+    This option can be used to avoid rebuilds if the result of a dependency
+    resolution for a package has not changed.
+
+  * New --noop-exit bpkg-pkg-build option.
+
+    This option can be used to request a distinct exit code if the build is
+    a noop (performs no new package builds, upgrades, etc).
+
+  * New --output-{root,purge} bpkg-pkg-checkout and --checkout-{root,purge}
+    bpkg-pkg-build options.
+
+  * New --keep-config bpkg-pkg-disfigure option.
+
+  * New BPKG_DEF_OPT environment variable that can be used to suppress loading
+    of default options files.
+
 Version 0.13.0
 
   * The SPDX License Expression is now the default scheme for the 'license'
