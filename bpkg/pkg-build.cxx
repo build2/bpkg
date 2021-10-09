@@ -391,7 +391,8 @@ namespace bpkg
                     a->absolute () ? *a : db.config_orig / *a,
                     true /* ignore_unknown */,
                     false /* expand_values */)
-      : pkg_verify (sp->effective_src_root (db.config_orig),
+      : pkg_verify (options,
+                    sp->effective_src_root (db.config_orig),
                     true /* ignore_unknown */,
                     // Copy potentially fixed up version from selected package.
                     [&sp] (version& v) {v = sp->version;}));
@@ -1128,15 +1129,19 @@ namespace bpkg
           //
           if (dn == "build2")
           {
-            if (dp.constraint)
-              satisfy_build2 (options, name, dp);
+            if (dp.constraint && !satisfy_build2 (options, dp))
+              fail << "unable to satisfy constraint (" << dp
+                   << ") for package " << name <<
+                info << "available build2 version is " << build2_version;
 
             continue;
           }
           else if (dn == "bpkg")
           {
-            if (dp.constraint)
-              satisfy_bpkg (options, name, dp);
+            if (dp.constraint && !satisfy_bpkg (options, dp))
+              fail << "unable to satisfy constraint (" << dp
+                   << ") for package " << name <<
+                info << "available bpkg version is " << bpkg_version;
 
             continue;
           }
@@ -4592,10 +4597,6 @@ namespace bpkg
 
           const char* package (pa.value.c_str ());
 
-          // Is this a package archive?
-          //
-          bool package_arc (false);
-
           try
           {
             path a (package);
@@ -4611,14 +4612,10 @@ namespace bpkg
                             true /* ignore_unknown */,
                             false /* expand_values */,
                             true /* complete_depends */,
-                            diag));
+                            diag ? 2 : 1));
 
               // This is a package archive.
               //
-              // Note that throwing failed from here on will be fatal.
-              //
-              package_arc = true;
-
               l4 ([&]{trace << "archive '" << a << "': " << arg_string (pa);});
 
               // Supporting this would complicate things a bit, but we may add
@@ -4644,15 +4641,8 @@ namespace bpkg
           {
             // Not a valid path so cannot be an archive.
           }
-          catch (const failed& e)
+          catch (const not_package&)
           {
-            // If this is a valid package archive but something went wrong
-            // afterwards, then we are done.
-            //
-            if (package_arc)
-              throw;
-
-            assert (e.code == 1);
           }
 
           // Is this a package directory?
@@ -4666,8 +4656,6 @@ namespace bpkg
           size_t pn (strlen (package));
           if (pn != 0 && path::traits_type::is_separator (package[pn - 1]))
           {
-            bool package_dir (false);
-
             try
             {
               dir_path d (package);
@@ -4684,6 +4672,7 @@ namespace bpkg
 
                 package_manifest m (
                   pkg_verify (
+                    o,
                     d,
                     true /* ignore_unknown */,
                     [&o, &d, &pvi] (version& v)
@@ -4693,14 +4682,10 @@ namespace bpkg
                       if (pvi.version)
                         v = move (*pvi.version);
                     },
-                    diag));
+                    diag ? 2 : 1));
 
                 // This is a package directory.
                 //
-                // Note that throwing failed from here on will be fatal.
-                //
-                package_dir = true;
-
                 l4 ([&]{trace << "directory '" << d << "': "
                               << arg_string (pa);});
 
@@ -4741,15 +4726,8 @@ namespace bpkg
             {
               // Not a valid path so cannot be a package directory.
             }
-            catch (const failed& e)
+            catch (const not_package&)
             {
-              // If this is a valid package directory but something went wrong
-              // afterwards, then we are done.
-              //
-              if (package_dir)
-                throw;
-
-              assert (e.code == 1);
             }
           }
         }
@@ -7261,7 +7239,8 @@ namespace bpkg
         assert (sp->state == package_state::unpacked);
 
         package_manifest m (
-          pkg_verify (sp->effective_src_root (pdb.config_orig),
+          pkg_verify (o,
+                      sp->effective_src_root (pdb.config_orig),
                       true /* ignore_unknown */,
                       [&sp] (version& v) {v = sp->version;}));
 

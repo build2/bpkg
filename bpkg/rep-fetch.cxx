@@ -15,6 +15,7 @@
 #include <bpkg/package-odb.hxx>
 #include <bpkg/database.hxx>
 #include <bpkg/rep-remove.hxx>
+#include <bpkg/pkg-verify.hxx>
 #include <bpkg/diagnostics.hxx>
 #include <bpkg/manifest-utility.hxx>
 
@@ -219,10 +220,20 @@ namespace bpkg
     // files and retrieve the package versions via the single `b info` call.
     // While at it cache the manifest paths for the future use.
     //
-    paths                 mfs;
-    package_version_infos pvs;
+    // Note that if the package is not compatible with the toolchain, not to
+    // end up with an unfriendly build2 error message (referring a line in the
+    // bootstrap file issued by the version module), we need to verify the
+    // compatibility of the package manifests prior to calling `b info`. Also
+    // note that we cannot create the package manifest objects at this stage,
+    // since we need the package versions for that. Thus, we cache the
+    // respective name value lists instead.
+    //
+    package_version_infos               pvs;
+    paths                               mfs;
+    vector<vector<manifest_name_value>> nvs;
     {
       mfs.reserve (pms.size ());
+      nvs.reserve (pms.size ());
 
       dir_paths pds;
       pds.reserve (pms.size ());
@@ -240,6 +251,38 @@ namespace bpkg
           diag_record dr (fail);
           dr << "no manifest file for ";
           add_package_info (pm, dr);
+        }
+
+        // Provide the context if the package compatibility verification fails.
+        //
+        auto g (
+          make_exception_guard (
+            [&pm, &add_package_info] ()
+            {
+              diag_record dr (info);
+
+              dr << "while retrieving information for ";
+              add_package_info (pm, dr);
+            }));
+
+        try
+        {
+          ifdstream ifs (f);
+          manifest_parser mp (ifs, f.string ());
+
+          // Note that the package directory points to something temporary
+          // (e.g., .bpkg/tmp/6f746365314d/) and it's probably better to omit
+          // it entirely (the above exception guard will print all we've got).
+          //
+          nvs.push_back (pkg_verify (co, mp, dir_path ()));
+        }
+        catch (const manifest_parsing& e)
+        {
+          fail (e.name, e.line, e.column) << e.description;
+        }
+        catch (const io_error& e)
+        {
+          fail << "unable to read from " << f << ": " << e;
         }
 
         mfs.push_back (move (f));
@@ -261,17 +304,13 @@ namespace bpkg
 
       assert (pm.location);
 
-      const path& f (mfs[i]);
-
       try
       {
-        ifdstream ifs (f);
-        manifest_parser mp (ifs, f.string ());
-
         optional<version>& pv (pvs[i].version);
 
         package_manifest m (
-          mp,
+          mfs[i].string (),
+          move (nvs[i]),
           [&pv] (version& v)
           {
             if (pv)
@@ -289,10 +328,6 @@ namespace bpkg
         diag_record dr (fail (e.name, e.line, e.column));
         dr << e.description << info;
         add_package_info (pm, dr);
-      }
-      catch (const io_error& e)
-      {
-        fail << "unable to read from " << f << ": " << e;
       }
 
       r.first.push_back  (move (pm));

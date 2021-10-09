@@ -10,6 +10,7 @@
 
 #include <bpkg/archive.hxx>
 #include <bpkg/diagnostics.hxx>
+#include <bpkg/satisfaction.hxx>
 #include <bpkg/manifest-utility.hxx>
 
 using namespace std;
@@ -17,28 +18,144 @@ using namespace butl;
 
 namespace bpkg
 {
+  vector<manifest_name_value>
+  pkg_verify (const common_options& co,
+              manifest_parser& p,
+              const path& what,
+              int diag_level)
+  {
+    manifest_name_value nv (p.next ());
+
+    // Make sure this is the start and we support the version.
+    //
+    if (!nv.name.empty ())
+      throw manifest_parsing (p.name (), nv.name_line, nv.name_column,
+                              "start of package manifest expected");
+
+    if (nv.value != "1")
+      throw manifest_parsing (p.name (), nv.value_line, nv.value_column,
+                              "unsupported format version");
+
+    vector<manifest_name_value> r;
+
+    // For the depends name, parse the value and if it contains the build2 or
+    // bpkg constraints, verify that they are satisfied.
+    //
+    // Note that if the semantics of the depends value changes we may be
+    // unable to parse some of them before we get to build2 or bpkg and issue
+    // the user-friendly diagnostics. So we are going to ignore such depends
+    // values. But that means that if the user made a mistake in build2/bpkg
+    // then we will skip them as well. This, however, is not a problem since
+    // the pre-parsed result will then be re-parsed (e.g., by the
+    // package_manifest() constructor) which will diagnose any mistakes.
+    //
+    for (nv = p.next (); !nv.empty (); nv = p.next ())
+    {
+      if (nv.name == "depends")
+      try
+      {
+        dependency_alternatives da (nv.value);
+
+        for (dependency& d: da)
+        {
+          const package_name& dn (d.name);
+
+          if (dn != "build2" && dn != "bpkg")
+            continue;
+
+          if (!da.buildtime)
+          {
+            if (diag_level != 0)
+              error (p.name (), nv.value_line, nv.value_column)
+                << dn << " dependency must be build-time";
+
+            throw failed ();
+          }
+
+          if (da.size () != 1)
+          {
+            if (diag_level != 0)
+              error (p.name (), nv.value_line, nv.value_column)
+                << "alternatives in " << dn << " dependency";
+
+            throw failed ();
+          }
+
+          if (dn == "build2")
+          {
+            if (d.constraint && !satisfy_build2 (co, d))
+            {
+              if (diag_level != 0)
+              {
+                diag_record dr (error);
+                dr << "unable to satisfy constraint (" << d << ")";
+
+                if (!what.empty ())
+                  dr << " for package " << what;
+
+                dr << info << "available build2 version is " << build2_version;
+              }
+
+              throw failed ();
+            }
+          }
+          else
+          {
+            if (d.constraint && !satisfy_bpkg (co, d))
+            {
+              if (diag_level != 0)
+              {
+                diag_record dr (error);
+                dr << "unable to satisfy constraint (" << d << ")";
+
+                if (!what.empty ())
+                  dr << " for package " << what;
+
+                dr << "available bpkg version is " << bpkg_version;
+              }
+
+              throw failed ();
+            }
+          }
+        }
+      }
+      catch (const invalid_argument&) {} // Ignore
+
+      r.push_back (move (nv));
+    }
+
+    // Make sure this is the end.
+    //
+    nv = p.next ();
+    if (!nv.empty ())
+      throw manifest_parsing (p.name (), nv.name_line, nv.name_column,
+                              "single package manifest expected");
+
+    return r;
+  }
+
   package_manifest
   pkg_verify (const common_options& co,
               const path& af,
               bool iu,
               bool ev,
               bool cd,
-              bool diag)
+              int diag_level)
   try
   {
     dir_path pd (package_dir (af));
     path mf (pd / manifest_file);
 
-    // If diag is false, we need to make tar not print any diagnostics. There
-    // doesn't seem to be an option to suppress this and the only way is to
-    // redirect stderr to something like /dev/null.
+    // If the diag level is less than 2, we need to make tar not print any
+    // diagnostics. There doesn't seem to be an option to suppress this and
+    // the only way is to redirect stderr to something like /dev/null.
     //
     // If things go badly for tar and it starts spitting errors instead of the
     // manifest, the manifest parser will fail. But that's ok since we assume
     // that the child error is always the reason for the manifest parsing
     // failure.
     //
-    pair<process, process> pr (start_extract (co, af, mf, diag));
+    pair<process, process> pr (start_extract (co, af, mf, diag_level == 2));
 
     auto wait = [&pr] () {return pr.second.wait () && pr.first.wait ();};
 
@@ -46,7 +163,11 @@ namespace bpkg
     {
       ifdstream is (move (pr.second.in_ofd), fdstream_mode::skip);
       manifest_parser mp (is, mf.string ());
-      package_manifest m (mp, iu, cd);
+
+      package_manifest m (mp.name (),
+                          pkg_verify (co, mp, af, diag_level),
+                          iu,
+                          cd);
       is.close ();
 
       if (wait ())
@@ -57,7 +178,7 @@ namespace bpkg
 
         if (pd != ed)
         {
-          if (diag)
+          if (diag_level != 0)
             error << "package archive/directory name mismatch in " << af <<
               info << "extracted from archive '" << pd << "'" <<
               info << "expected from manifest '" << ed << "'";
@@ -70,14 +191,14 @@ namespace bpkg
         if (ev)
         {
           m.load_files (
-            [&pd, &co, &af, diag] (const string& n, const path& p)
+            [&pd, &co, &af, diag_level] (const string& n, const path& p)
             {
               path f (pd / p);
-              string s (extract (co, af, f, diag));
+              string s (extract (co, af, f, diag_level != 0));
 
               if (s.empty ())
               {
-                if (diag)
+                if (diag_level != 0)
                   error << n << " manifest value in package archive "
                         << af << " references empty file " << f;
 
@@ -101,7 +222,7 @@ namespace bpkg
     {
       if (wait ())
       {
-        if (diag)
+        if (diag_level != 0)
           error (e.name, e.line, e.column) << e.description <<
             info << "package archive " << af;
 
@@ -112,7 +233,7 @@ namespace bpkg
     {
       if (wait ())
       {
-        if (diag)
+        if (diag_level != 0)
           error << "unable to extract " << mf << " from " << af;
 
         throw failed ();
@@ -128,10 +249,10 @@ namespace bpkg
     // diagnostics, tar, specifically, doesn't mention the archive
     // name.
     //
-    if (diag)
+    if (diag_level == 2)
       error << af << " does not appear to be a bpkg package";
 
-    throw failed ();
+    throw not_package ();
   }
   catch (const process_error& e)
   {
@@ -142,10 +263,11 @@ namespace bpkg
   }
 
   package_manifest
-  pkg_verify (const dir_path& d,
+  pkg_verify (const common_options& co,
+              const dir_path& d,
               bool iu,
               const function<package_manifest::translate_function>& tf,
-              bool diag)
+              int diag_level)
   {
     // Parse the manifest.
     //
@@ -153,17 +275,21 @@ namespace bpkg
 
     if (!exists (mf))
     {
-      if (diag)
+      if (diag_level == 2)
         error << "no manifest file in package directory " << d;
 
-      throw failed ();
+      throw not_package ();
     }
 
     try
     {
       ifdstream ifs (mf);
       manifest_parser mp (ifs, mf.string ());
-      package_manifest m (mp, tf, iu);
+
+      package_manifest m (mp.name (),
+                          pkg_verify (co, mp, d, diag_level),
+                          tf,
+                          iu);
 
       // We used to verify package directory is <name>-<version> but it is
       // not clear why we should enforce it in this case (i.e., the user
@@ -173,25 +299,25 @@ namespace bpkg
       //
       // if (d.leaf () != ed)
       // {
-      //  if (diag)
-      //    error << "invalid package directory name '" << d.leaf () << "'" <<
-      //      info << "expected from manifest '" << ed << "'";
+      //   if (diag_level != 0)
+      //     error << "invalid package directory name '" << d.leaf () << "'" <<
+      //       info << "expected from manifest '" << ed << "'";
       //
-      //  throw failed ();
+      //   throw failed ();
       // }
 
       return m;
     }
     catch (const manifest_parsing& e)
     {
-      if (diag)
+      if (diag_level != 0)
         error (e.name, e.line, e.column) << e.description;
 
       throw failed ();
     }
     catch (const io_error& e)
     {
-      if (diag)
+      if (diag_level != 0)
         error << "unable to read from " << mf << ": " << e;
 
       throw failed ();
@@ -224,7 +350,7 @@ namespace bpkg
                                       o.ignore_unknown (),
                                       o.deep () /* expand_values */,
                                       o.deep () /* complete_depends */,
-                                      !o.silent ()));
+                                      o.silent () ? 0 : 2));
 
       if (o.manifest ())
       {

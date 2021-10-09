@@ -128,12 +128,10 @@ namespace bpkg
     return s;
   }
 
-  static version build2_version;
+  version build2_version;
 
-  void
-  satisfy_build2 (const common_options& o,
-                  const package_name& pkg,
-                  const dependency& d)
+  bool
+  satisfy_build2 (const common_options& o, const dependency& d)
   {
     assert (d.name == "build2");
 
@@ -180,18 +178,13 @@ namespace bpkg
         fail << "unable to determine build2 version of " << name_b (o);
     }
 
-    if (!satisfies (build2_version, d.constraint))
-      fail << "unable to satisfy constraint (" << d << ") for package "
-           << pkg <<
-        info << "available build2 version is " << build2_version;
+    return satisfies (build2_version, d.constraint);
   }
 
-  static version bpkg_version;
+  version bpkg_version;
 
-  void
-  satisfy_bpkg (const common_options&,
-                const package_name& pkg,
-                const dependency& d)
+  bool
+  satisfy_bpkg (const common_options&, const dependency& d)
   {
     assert (d.name == "bpkg");
 
@@ -200,9 +193,6 @@ namespace bpkg
     if (bpkg_version.empty ())
       bpkg_version = version (BPKG_VERSION_STR);
 
-    if (!satisfies (bpkg_version, d.constraint))
-      fail << "unable to satisfy constraint (" << d << ") for package "
-           << pkg <<
-        info << "available bpkg version is " << bpkg_version;
+    return satisfies (bpkg_version, d.constraint);
   }
 }

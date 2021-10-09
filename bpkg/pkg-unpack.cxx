@@ -169,7 +169,8 @@ namespace bpkg
     // Verify the directory is a package and get its manifest.
     //
     package_manifest m (
-      pkg_verify (d,
+      pkg_verify (o,
+                  d,
                   true /* ignore_unknown */,
                   [&o, &d, &pvi] (version& v)
                   {

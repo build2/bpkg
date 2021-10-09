@@ -43,16 +43,20 @@ namespace bpkg
           //
           if (n == "build2")
           {
-            if (d.constraint)
-              satisfy_build2 (o, package, d);
+            if (d.constraint && !satisfy_build2 (o, d))
+              fail << "unable to satisfy constraint (" << d
+                   << ") for package " << package <<
+                info << "available build2 version is " << build2_version;
 
             satisfied = true;
             break;
           }
           else if (n == "bpkg")
           {
-            if (d.constraint)
-              satisfy_bpkg (o, package, d);
+            if (d.constraint && !satisfy_bpkg (o, d))
+              fail << "unable to satisfy constraint (" << d
+                   << ") for package " << package <<
+                info << "available bpkg version is " << bpkg_version;
 
             satisfied = true;
             break;
@@ -371,7 +375,8 @@ namespace bpkg
 
       l4 ([&]{trace << *p;});
 
-      package_manifest m (pkg_verify (p->effective_src_root (c),
+      package_manifest m (pkg_verify (o,
+                                      p->effective_src_root (c),
                                       true /* ignore_unknown */,
                                       [&p] (version& v) {v = p->version;}));
 
