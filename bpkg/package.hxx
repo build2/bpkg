@@ -99,7 +99,7 @@ namespace bpkg
     string upstream;
     optional<string> release;
 
-    // @@ TMP: work around MSVC 16.2 bug.
+    // Work around MSVC 16.2 bug.
     //
     _version () = default;
     _version (uint16_t e,
@@ -343,7 +343,7 @@ namespace bpkg
     repository_url  url;
     repository_type type;
 
-    // @@ TMP: work around MSVC 16.2 bug.
+    // Work around MSVC 16.2 bug.
     //
     _repository_location () = default;
     _repository_location (repository_url u, repository_type t)
