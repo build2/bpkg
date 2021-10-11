@@ -4,7 +4,7 @@ Version 0.14.0
     dependencies.
 
     Configurations can now be linked with each other to allow a package to be
-    built in one configuration while its dependencies in one or more linked
+    built in one configuration while its dependencies -- in one or more linked
     configurations. This can be used to create a "base" configuration with
     common dependencies that are shared between multiple configurations.
 
@@ -25,14 +25,16 @@ Version 0.14.0
     Command with relevant changes (new options, etc): bpkg-cfg-create,
     bpkg-pkg-{build,status}.
 
-    See bpkg-cfg-create(1) for details of this functionality.
+    See bpkg-cfg-create(1) for details on this functionality.
 
-  * Tests, examples, and benchmark packages (see the `tests`, `examples`, and
-    `benchmarks` package manifest values) can now also be run-time or build-
+  * Tests, examples, and benchmark packages can now also be run-time or build-
     time.
 
+    See the `tests`, `examples`, and `benchmarks` package manifest values for
+    details.
+
   * Two new pre-defined automated build bot requirements: `bootstrap` (package
-    is a build system modules that requires bootstrapping) and `host` (package
+    is a build system module that requires bootstrapping) and `host` (package
     is normally used as build-time dependency and should be built in a host
     configuration).
 
@@ -46,7 +48,7 @@ Version 0.14.0
     a from-scratch reconfiguration.
 
   * New `min-bpkg-version` repositories manifest value that allows specifying
-    minimum supported bpkg version.
+    the minimum supported bpkg version.
 
     See also the new --min-bpkg-version bpkg-rep-create option.
 
@@ -57,13 +59,13 @@ Version 0.14.0
 
   * New --immediate|-i and --recursive|-r bpkg-pkg-{update,clean} options.
 
-    These options can be used to additionally updating or cleaning immediate
-    or all dependencies of a package, respectively.
+    These options can be used to additionally update or clean immediate or all
+    dependencies of a package, respectively.
 
   * New --all-pattern bpkg-pkg-{update,clean,test,install,uninstall} option.
 
     This option can be used to perform the command on all the held packages
-    that match a wildcard patterns.
+    that match a wildcard pattern.
 
   * New --rebuild-checksum bpkg-pkg-build option.
 
