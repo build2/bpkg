@@ -89,7 +89,7 @@ namespace bpkg
   version
   parse_package_version (const char* s,
                          bool allow_wildcard,
-                         bool fold_zero_revision)
+                         version::flags fl)
   {
     using traits = string::traits_type;
 
@@ -103,7 +103,7 @@ namespace bpkg
 
       try
       {
-        return extract_package_version (s, fold_zero_revision);
+        return extract_package_version (s, fl);
       }
       catch (const invalid_argument& e)
       {
@@ -118,7 +118,7 @@ namespace bpkg
   optional<version_constraint>
   parse_package_version_constraint (const char* s,
                                     bool allow_wildcard,
-                                    bool fold_zero_revision,
+                                    version::flags fl,
                                     bool version_only)
   {
     // Calculate the version specification position as a length of the prefix
@@ -139,7 +139,7 @@ namespace bpkg
     try
     {
       return version_constraint (
-        parse_package_version (s, allow_wildcard, fold_zero_revision));
+        parse_package_version (s, allow_wildcard, fl));
     }
     catch (const invalid_argument& e)
     {

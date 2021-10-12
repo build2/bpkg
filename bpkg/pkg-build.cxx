@@ -4181,13 +4181,13 @@ namespace bpkg
       // Don't fold the zero revision if building the package from source so
       // that we build the exact X+0 package revision if it is specified.
       //
-      auto fold_zero_rev = [] (package_scheme sc)
+      auto version_flags = [] (package_scheme sc)
       {
-        bool r (false);
+        version::flags r (version::none);
         switch (sc)
         {
-        case package_scheme::none: r = false; break;
-        case package_scheme::sys:  r = true;  break;
+        case package_scheme::none: r = version::none;               break;
+        case package_scheme::sys:  r = version::fold_zero_revision; break;
         }
         return r;
       };
@@ -4224,7 +4224,7 @@ namespace bpkg
 
             optional<version_constraint> vc (
               parse_package_version_constraint (
-                s, sys, fold_zero_rev (sc), version_only (sc)));
+                s, sys, version_flags (sc), version_only (sc)));
 
             // For system packages not associated with a specific repository
             // location add the stub package to the imaginary system
@@ -4387,7 +4387,7 @@ namespace bpkg
 
             optional<version_constraint> vc (
               parse_package_version_constraint (
-                s, sys, fold_zero_rev (sc), version_only (sc)));
+                s, sys, version_flags (sc), version_only (sc)));
 
             // Check if the package is present in the repository and its
             // complements, recursively. If the version is not specified then
@@ -4762,7 +4762,7 @@ namespace bpkg
                 parse_package_version_constraint (
                   package,
                   false /* allow_wildcard */,
-                  false /* fold_zero_revision */));
+                  version::none));
 
               pa = arg_package (pdb,
                                 package_scheme::none,

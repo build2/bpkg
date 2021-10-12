@@ -294,7 +294,7 @@ namespace bpkg
           package_name pn (parse_package_name (arg));
           version pv (parse_package_version (arg,
                                              false /* allow_wildcard */,
-                                             false /* fold_zero_revision */));
+                                             version::none));
 
           query q (query::name == pn);
 

@@ -62,16 +62,14 @@ namespace bpkg
   version
   parse_package_version (const char*,
                          bool allow_wildcard = false,
-                         bool fold_zero_revision = true);
+                         version::flags fl = version::fold_zero_revision);
 
   inline version
   parse_package_version (const string& s,
                          bool allow_wildcard = false,
-                         bool fold_zero_revision = true)
+                         version::flags fl = version::fold_zero_revision)
   {
-    return parse_package_version (s.c_str (),
-                                  allow_wildcard,
-                                  fold_zero_revision);
+    return parse_package_version (s.c_str (), allow_wildcard, fl);
   }
 
   // Extract the package constraint from either <name>[/<version>] or
@@ -80,10 +78,11 @@ namespace bpkg
   // the package name is specified.
   //
   optional<version_constraint>
-  parse_package_version_constraint (const char*,
-                                    bool allow_wildcard = false,
-                                    bool fold_zero_revision = true,
-                                    bool version_only = false);
+  parse_package_version_constraint (
+    const char*,
+    bool allow_wildcard = false,
+    version::flags = version::fold_zero_revision,
+    bool version_only = false);
 
   // If the passed location is a relative local path, then assume this is a
   // relative path to the repository directory and complete it based on the
