@@ -873,7 +873,7 @@ namespace bpkg
     if (i != repository_refs.end ())
       return i->second;
 
-    if (verb && !co.no_progress ())
+    if ((verb && !co.no_progress ()) || co.progress ())
       text << "querying " << url;
 
     refs rs;
@@ -1504,7 +1504,7 @@ namespace bpkg
 
         if (progress)
         {
-          if (verb == 1 && stderr_term)
+          if ((verb == 1 && stderr_term) || co.progress ())
             v.push_back ("--progress");
         }
         else
@@ -1556,7 +1556,7 @@ namespace bpkg
 
     // Print progress.
     //
-    if (verb && !co.no_progress ())
+    if ((verb && !co.no_progress ()) || co.progress ())
     {
       // Note that the clone command prints the following line prior to the
       // progress lines:
@@ -1883,7 +1883,7 @@ namespace bpkg
 
         if (u && *u == "none")
         {
-          if (verb >= 2 && !co.no_progress ())
+          if ((verb >= 2 && !co.no_progress ()) || co.progress ())
             text << "skipping submodule '" << psd << "'";
 
           // Note that the submodule can be enabled for some other snapshot we
@@ -1993,7 +1993,7 @@ namespace bpkg
       // Let's make the message match the git-submodule script output (again,
       // except for capitalization).
       //
-      if (verb && !co.no_progress ())
+      if ((verb && !co.no_progress ()) || co.progress ())
         text << "submodule path '" << psd << "': checked out '" << sm.commit
              << "'";
 

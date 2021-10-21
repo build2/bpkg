@@ -87,6 +87,7 @@ namespace bpkg
   static process
   start_wget (const path& prog,
               const optional<size_t>& timeout,
+              bool progress,
               bool no_progress,
               const strings& ops,
               const string& url,
@@ -106,12 +107,21 @@ namespace bpkg
       "-U", ua.c_str ()
     };
 
+    // Wget 1.16 introduced the --show-progress option which in the quiet mode
+    // shows a nice and tidy progress bar (if only it also showed errors, then
+    // it would have been perfect).
+    //
+    bool has_show_progress (wget_major > 1 ||
+                            (wget_major == 1 && wget_minor >= 16));
+
     // Map verbosity level. If we are running quiet or at level 1
     // and the output is stdout, then run wget quiet. If at level
     // 1 and the output is a file, then show the progress bar. At
     // level 2 and 3 run it at the default level (so we will print
     // the command line and it will display the progress, error
     // messages, etc). Higher than that -- run it with debug output.
+    // Always show the progress bar if requested explicitly, even in
+    // the quiet mode.
     //
     // In the wget world quiet means don't print anything, not even
     // error messages. There is also the -nv mode (aka "non-verbose")
@@ -122,16 +132,29 @@ namespace bpkg
     //
     if (verb < (fo ? 1 : 2))
     {
-      args.push_back ("-q");
-      no_progress = false; // Already suppressed with -q.
+      bool quiet (true);
+
+      if (progress)
+      {
+        // If --show-progress options is supported, then pass both
+        // --show-progress and -q, otherwise pass none of them and run
+        // verbose.
+        //
+        if (has_show_progress)
+          args.push_back ("--show-progress");
+        else
+          quiet = false;
+      }
+
+      if (quiet)
+      {
+        args.push_back ("-q");
+        no_progress = false; // Already suppressed with -q.
+      }
     }
     else if (fo && verb == 1)
     {
-      // Wget 1.16 introduced the --show-progress option which in the
-      // quiet mode shows a nice and tidy progress bar (if only it also
-      // showed errors, then it would have been perfect).
-      //
-      if (wget_major > 1 || (wget_major == 1 && wget_minor >= 16))
+      if (has_show_progress)
       {
         args.push_back ("-q");
 
@@ -255,6 +278,7 @@ namespace bpkg
   static process
   start_curl (const path& prog,
               const optional<size_t>& timeout,
+              bool progress,
               bool no_progress,
               const strings& ops,
               const string& url,
@@ -286,12 +310,16 @@ namespace bpkg
     // 1 and the output is a file, then show the progress bar. At
     // level 2 and 3 run it at the default level (so we will print
     // the command line and it will display its elaborate progress).
-    // Higher than that -- run it verbose.
+    // Higher than that -- run it verbose. Always show the progress
+    // bar if requested explicitly, even in the quiet mode.
     //
     if (verb < (fo ? 1 : 2))
     {
-      suppress_progress ();
-      no_progress = false; // Already suppressed.
+      if (!progress)
+      {
+        suppress_progress ();
+        no_progress = false;  // Already suppressed.
+      }
     }
     else if (fo && verb == 1)
     {
@@ -413,6 +441,7 @@ namespace bpkg
   static process
   start_fetch (const path& prog,
                const optional<size_t>& timeout,
+               bool progress,
                bool no_progress,
                const strings& ops,
                const string& url,
@@ -437,7 +466,8 @@ namespace bpkg
     // Map verbosity level. If we are running quiet then run fetch quiet.
     // If we are at level 1 and we are fetching into a file or we are at
     // level 2 or 3, then run it at the default level (so it will display
-    // the progress). Higher than that -- run it verbose.
+    // the progress). Higher than that -- run it verbose. Always show the
+    // progress bar if requested explicitly, even in the quiet mode.
     //
     // Note that the only way to suppress progress for the fetch program is to
     // run it quiet (-q). However, it prints nothing but the progress by
@@ -448,8 +478,11 @@ namespace bpkg
     //
     if (verb < (fo ? 1 : 2))
     {
-      args.push_back ("-q");
-      no_progress = false;   // Already suppressed with -q.
+      if (!progress)
+      {
+        args.push_back ("-q");
+        no_progress = false;   // Already suppressed with -q.
+      }
     }
     else if (verb > 3)
     {
@@ -616,6 +649,7 @@ namespace bpkg
     process (*f) (const path&,
                   const optional<size_t>&,
                   bool,
+                  bool,
                   const strings&,
                   const string&,
                   const path&,
@@ -700,6 +734,7 @@ namespace bpkg
 
       return f (path_,
                 timeout,
+                o.progress (),
                 o.no_progress (),
                 o.fetch_option (),
                 !http_url.empty () ? http_url : src,

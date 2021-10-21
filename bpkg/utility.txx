@@ -33,6 +33,7 @@ namespace bpkg
       // as us.
       //
       string vl;
+      bool progress    (co.progress ());
       bool no_progress (co.no_progress ());
 
       if (verb == 0)
@@ -49,7 +50,10 @@ namespace bpkg
           if (!no_progress)
           {
             if (v == verb_b::progress && stderr_term)
+            {
               ops.push_back ("--progress");
+              progress = false; // The option is already added.
+            }
           }
           else
             no_progress = false; // Already suppressed with -q.
@@ -63,6 +67,9 @@ namespace bpkg
         ops.push_back ("--verbose");
         ops.push_back (vl.c_str ());
       }
+
+      if (progress)
+        ops.push_back ("--progress");
 
       if (no_progress)
         ops.push_back ("--no-progress");

@@ -183,7 +183,11 @@ if $cli.configured
 --page-usage 'bpkg::print_$name$_' --ansi-color --include-base-last \
 --option-length 24
 
-  cli.cxx{common-options}: cli.options += --short-usage --long-usage # Both.
+  # Both --*-usage options.
+  #
+  cli.cxx{common-options}: cli.options += --short-usage --long-usage \
+--generate-modifier
+
   cli.cxx{bpkg-options}: cli.options += --short-usage --suppress-undocumented
 
   cli.options += --long-usage # All other pages -- long usage.

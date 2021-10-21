@@ -6721,7 +6721,9 @@ namespace bpkg
     uint16_t verb (!simulate ? bpkg::verb : 0);
 
     bool result (verb && !o.no_result ());
-    bool progress (!result && verb == 1 && !o.no_progress () && stderr_term);
+    bool progress (!result &&
+                   ((verb == 1 && !o.no_progress () && stderr_term) ||
+                    o.progress ()));
 
     size_t prog_i, prog_n, prog_percent;
 
