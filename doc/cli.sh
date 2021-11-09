@@ -58,7 +58,7 @@ function compile ()
 -v date="$date" \
 -v copyright="$copyright" \
 --include-base-last "${o[@]}" \
---generate-man --man-suffix .1 \
+--generate-man --man-suffix .1 --ascii-tree \
 --man-prologue-file man-prologue.1 \
 --man-epilogue-file man-epilogue.1 \
 --link-regex '%b(#.+)?%$1%' \
@@ -89,6 +89,9 @@ for p in $pages; do
 done
 
 # Manual.
+#
+
+# @@ Note that we now have --ascii-tree CLI option.
 #
 function xhtml_to_ps () # <from> <to> [<html2ps-options>]
 {
