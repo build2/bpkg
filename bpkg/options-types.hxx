@@ -73,7 +73,7 @@ namespace bpkg
     }
   };
 
-  extern const char* openssl_commands[3]; // Clang bug requres explicit size.
+  extern const char* openssl_commands[5]; // Clang bug requres explicit size.
 }
 
 #endif // BPKG_OPTIONS_TYPES_HXX

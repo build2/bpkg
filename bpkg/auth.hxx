@@ -79,15 +79,11 @@ namespace bpkg
   // openssl x509 -noout -modulus -in cert.pem
   // openssl rsa -noout -modulus -in key.pem
   //
-  // But taking into account that we need to be able to use custom engines to
-  // access keys, it seems to be impossible to provide the same additional
-  // openssl options to fit both the rsa and pkeyutl commands. The first would
-  // require "-engine pkcs11 -inform engine", while the second -- "-engine
-  // pkcs11 -keyform engine". Also it would require to enter the key password
-  // again, which is a showstopper. Maybe the easiest would be to recover the
-  // sum back from the signature using the certificate, and compare it with
-  // the original sum (like we do in authenticate_repository()). But that
-  // would require to temporarily save the certificate to file.
+  // However, it would require to enter the key password again, which is a
+  // showstopper. Maybe the easiest would be to recover the sum back from the
+  // signature using the certificate, and compare it with the original sum
+  // (like we do in authenticate_repository()). But that would require to
+  // temporarily save the certificate to file.
   //
   std::vector<char>
   sign_repository (const common_options&,

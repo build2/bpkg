@@ -193,11 +193,13 @@ just \cb{--key} as at step 4 (\c{\"SIGN key\"} is the label for the slot
 \c{9c} private key):
 
 \
-bpkg rep-create                                                   \
-  --openssl-option rsautl:-engine --openssl-option rsautl:pkcs11  \
-  --openssl-option rsautl:-keyform --openssl-option rsautl:engine \
+bpkg rep-create                                                     \
+  --openssl-option pkeyutl:-engine --openssl-option pkeyutl:pkcs11  \
+  --openssl-option pkeyutl:-keyform --openssl-option pkeyutl:engine \
   --key \"pkcs11:object=SIGN%20key\" /path/to/repository
 \
 
+Note that for \cb{openssl} versions prior to \cb{3.0.0} \cb{bpkg} uses the
+\cb{rsautl} command instead of \cb{pkeyutl} for the data signing operation.
 ||
 "

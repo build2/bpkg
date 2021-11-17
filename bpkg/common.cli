@@ -287,12 +287,16 @@ namespace bpkg
        only applicable to the specific command, for example:
 
        \
-       bpkg rep-create                     \
-         --openssl rsautl:/path/to/openssl \
-         --openssl-option rsautl:-engine   \
-         --openssl-option rsautl:pkcs11    \
+       bpkg rep-create                      \
+         --openssl pkeyutl:/path/to/openssl \
+         --openssl-option pkeyutl:-engine   \
+         --openssl-option pkeyutl:pkcs11    \
          ...
        \
+
+       Note that for \cb{openssl} versions prior to \cb{3.0.0} \cb{bpkg} uses
+       the \cb{rsautl} command instead of \cb{pkeyutl} for the data signing
+       and recovery operations.
 
        An unqualified value that contains a colon can be specified as
        qualified with an empty command, for example, \cb{--openssl

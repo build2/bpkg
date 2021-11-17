@@ -12,6 +12,7 @@
 #include <libbutl/openssl.hxx>
 #include <libbutl/timestamp.hxx>
 #include <libbutl/filesystem.hxx>
+#include <libbutl/semantic-version.hxx>
 
 #include <bpkg/package.hxx>
 #include <bpkg/package-odb.hxx>
@@ -23,10 +24,14 @@ using namespace butl;
 
 namespace bpkg
 {
-  static const string openssl_rsautl ("rsautl");
-  static const string openssl_x509   ("x509");
+  static const string openssl_version ("version");
+  static const string openssl_pkeyutl ("pkeyutl");
+  static const string openssl_rsautl  ("rsautl");
+  static const string openssl_x509    ("x509");
 
-  const char* openssl_commands[3] = {openssl_rsautl.c_str (),
+  const char* openssl_commands[5] = {openssl_version.c_str (),
+                                     openssl_pkeyutl.c_str (),
+                                     openssl_rsautl.c_str (),
                                      openssl_x509.c_str (),
                                      nullptr};
 
@@ -37,6 +42,49 @@ namespace bpkg
   {
     if (verb >= 2)
       print_process (args, n);
+  }
+
+  // Return true if the openssl version is greater or equal to 3.0.0 and so
+  // pkeyutl needs to be used instead of rsautl. Cache the result on the first
+  // function call.
+  //
+  // Note that openssl 3.0.0 deprecates rsautl in favor of pkeyutl.
+  //
+  // Also note that pkeyutl is only implemented in openssl version 1.0.0 and
+  // its -verifyrecover mode is broken in the [1.1.1 1.1.1d] version range
+  // (see the 'pkeyutl -verifyrecover error "input data too long to be a
+  // hash"' issue report for details).
+  //
+  static optional<bool> use_pkeyutl;
+
+  static bool
+  use_openssl_pkeyutl (const common_options& co)
+  {
+    if (!use_pkeyutl)
+    {
+      const path& openssl_path (co.openssl ()[openssl_version]);
+
+      try
+      {
+        optional<openssl_info> oi (
+          openssl::info (print_command, 2, openssl_path));
+
+        use_pkeyutl = oi                    &&
+                      oi->name == "OpenSSL" &&
+                      oi->version >= semantic_version {3, 0, 0};
+      }
+      catch (const process_error& e)
+      {
+        fail << "unable to execute " << openssl_path << ": " << e << endf;
+      }
+      catch (const io_error& e)
+      {
+        fail << "unable to read '" << openssl_path << "' output: " << e
+             << endf;
+      }
+    }
+
+    return *use_pkeyutl;
   }
 
   // Find the repository location prefix that ends with the version component.
@@ -829,15 +877,22 @@ namespace bpkg
         dr << ": " << *e;
     };
 
-    const path& openssl_path (co.openssl ()[openssl_rsautl]);
-    const strings& openssl_opts (co.openssl_option ()[openssl_rsautl]);
+    bool ku (use_openssl_pkeyutl (co));
+    const string& cmd (ku ? openssl_pkeyutl : openssl_rsautl);
+
+    const path& openssl_path (co.openssl ()[cmd]);
+    const strings& openssl_opts (co.openssl_option ()[cmd]);
 
     try
     {
       openssl os (print_command,
                   path ("-"), fdstream_mode::text, 2,
-                  openssl_path, openssl_rsautl,
-                  openssl_opts, "-verify", "-certin", "-inkey", f);
+                  openssl_path, cmd,
+                  openssl_opts,
+                  ku ? "-verifyrecover" : "-verify",
+                  "-certin",
+                  "-inkey",
+                  f);
 
       for (const auto& c: sm.signature)
         os.out.put (c); // Sets badbit on failure.
@@ -918,14 +973,18 @@ namespace bpkg
         dr << ": " << *e;
     };
 
-    const path& openssl_path (co.openssl ()[openssl_rsautl]);
-    const strings& openssl_opts (co.openssl_option ()[openssl_rsautl]);
+    const string& cmd (use_openssl_pkeyutl (co)
+                       ? openssl_pkeyutl
+                       : openssl_rsautl);
+
+    const path& openssl_path (co.openssl ()[cmd]);
+    const strings& openssl_opts (co.openssl_option ()[cmd]);
 
     try
     {
       openssl os (print_command,
                   fdstream_mode::text, path ("-"), 2,
-                  openssl_path, openssl_rsautl,
+                  openssl_path, cmd,
                   openssl_opts, "-sign", "-inkey", key_name);
 
       os.out << sha256sum;
