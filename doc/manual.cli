@@ -375,7 +375,7 @@ version: 2.3.4
 To disable treating of a newline as a name-value pair terminator we can escape
 it with \c{\\}. Note that \c{\\} is only treated as an escape sequence when
 followed by a newline and both are simply removed from the stream (as opposed
-to being replaced which a space). To enter a literal \c{\\} at the end of the
+to being replaced with a space). To enter a literal \c{\\} at the end of the
 value, use the \c{\\\\} sequence. For example:
 
 \
@@ -441,7 +441,7 @@ Second paragraph.
 \
 
 There are two reasons we don't do this: we don't want to close the door on
-empty values and we want a more explicit \"introductor\" for the multi-line
+empty values and we want a more explicit \"introducer\" for the multi-line
 mode since it is quite different compared to the simple mode.|
 
 Note that in the multi-line mode we can still use newline escaping to split
