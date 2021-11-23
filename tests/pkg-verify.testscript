@@ -77,12 +77,12 @@ $* --deep --ignore-unknown --manifest $src/foo-2.tar.gz >>EOO
   version: 2
   summary: The "Foo" utility
   license: MIT
-  description: \
+  description:\
   This package contains the foo utility.
 
   \
   description-type: text/plain
-  changes: \
+  changes:\
   Version 2
 
     * First public release.

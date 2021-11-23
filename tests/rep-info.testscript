@@ -129,7 +129,7 @@ $* --name $rep/testing >"pkg:build2.org/rep-info/testing ($rep/testing)"
           version: 1.0.0+1
           summary: libbar
           license: MIT
-          description: \
+          description:\
           TODO
 
           \
@@ -158,7 +158,7 @@ $* --name $rep/testing >"pkg:build2.org/rep-info/testing ($rep/testing)"
           version: 1.0.0+1
           summary: libbar
           license: MIT
-          description: \
+          description:\
           TODO
 
           \
@@ -169,7 +169,7 @@ $* --name $rep/testing >"pkg:build2.org/rep-info/testing ($rep/testing)"
           version: 1.0.0
           summary: libmbar
           license: MIT
-          description: \
+          description:\
           TODO
 
           \
