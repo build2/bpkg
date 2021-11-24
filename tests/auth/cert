@@ -33,7 +33,7 @@ openssl req -x509 -new -key key.pem -days 36500 -config self-any-openssl.cnf > \
 # To regenerate the packages and signature manifest files run bpkg rep-create
 # command, for example:
 #
-# ../../bpkg/bpkg rep-create ../rep-auth/expired --key key.pem
+# bpkg rep-create ../rep-auth/expired --key key.pem
 #
 # We cannot do it in the testscript since the certificate has expired. This is
 # also the reason why we store these auto-generated manifests in git.

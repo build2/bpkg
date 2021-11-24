@@ -1,5 +1,5 @@
 : 1
-certificate: \
+certificate:\
 -----BEGIN CERTIFICATE-----
 MIIFLzCCAxegAwIBAgIJAOx1KvcHxv3GMA0GCSqGSIb3DQEBCwUAMDMxFzAVBgNV
 BAoMDkNvZGUgU3ludGhlc2lzMRgwFgYDVQQDDA9uYW1lOmJ1aWxkMi5vcmcwHhcN

@@ -50,7 +50,7 @@
   #
   cp -r $src/unsigned $out/self-match
 
-  echo 'certificate: \'                >+$out/self-match/repositories.manifest
+  echo 'certificate:\'                 >+$out/self-match/repositories.manifest
   cat  <<<$src_base/auth/self-cert.pem >+$out/self-match/repositories.manifest
   echo '\'                             >+$out/self-match/repositories.manifest
 
@@ -62,7 +62,7 @@
   #
   cp -r $src/unsigned $out/self-any-match
 
-  echo 'certificate: \'                    >+$out/self-any-match/repositories.manifest
+  echo 'certificate:\'                     >+$out/self-any-match/repositories.manifest
   cat  <<<$src_base/auth/self-any-cert.pem >+$out/self-any-match/repositories.manifest
   echo '\'                                 >+$out/self-any-match/repositories.manifest
 
@@ -75,7 +75,7 @@
   #
   cp -r $src/unsigned $out/subdomain-match
 
-  echo 'certificate: \'                     >+$out/subdomain-match/repositories.manifest
+  echo 'certificate:\'                      >+$out/subdomain-match/repositories.manifest
   cat  <<<$src_base/auth/subdomain-cert.pem >+$out/subdomain-match/repositories.manifest
   echo '\'                                  >+$out/subdomain-match/repositories.manifest
 
@@ -87,7 +87,7 @@
   #
   cp -r $src/unsigned $out/name-mismatch
 
-  echo 'certificate: \'                    >+$out/name-mismatch/repositories.manifest
+  echo 'certificate:\'                     >+$out/name-mismatch/repositories.manifest
   cat  <<<$src_base/auth/mismatch-cert.pem >+$out/name-mismatch/repositories.manifest
   echo '\'                                 >+$out/name-mismatch/repositories.manifest
 
@@ -605,7 +605,7 @@ sc = " " # Space character to append to here-document line when required.
     {
       cp -r $src/unsigned rep;
 
-      echo 'certificate: \'                   >+rep/repositories.manifest;
+      echo 'certificate:\'                    >+rep/repositories.manifest;
       cat  <<<$src_base/auth/noemail-cert.pem >+rep/repositories.manifest;
       echo '\'                                >+rep/repositories.manifest;
 
@@ -620,7 +620,7 @@ sc = " " # Space character to append to here-document line when required.
     {
       cp -r $src/unsigned rep;
 
-      echo 'certificate: \'                   >+rep/repositories.manifest;
+      echo 'certificate:\'                    >+rep/repositories.manifest;
       cat  <<<$src_base/auth/expired-cert.pem >+rep/repositories.manifest;
       echo '\'                                >+rep/repositories.manifest;
 

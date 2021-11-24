@@ -4,7 +4,7 @@ version: 1.0.0
 summary: The "Hello World" example library
 license: MIT
 tags: c++, hello, world, example
-description: \
+description:\
 A simple library that implements the "Hello World" example in C++. Its primary
 goal is to show a canonical build2/bpkg project/package.
 \

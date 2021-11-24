@@ -17,6 +17,6 @@ cert = $src_base/auth/default-cert.pem
 # file to sign the repository.
 #
 cert_manifest = $~/cert-manifest
-+echo 'certificate: \' >=$cert_manifest
-+cat  <<<$cert         >+$cert_manifest
-+echo '\'              >+$cert_manifest
++echo 'certificate:\' >=$cert_manifest
++cat  <<<$cert        >+$cert_manifest
++echo '\'             >+$cert_manifest
