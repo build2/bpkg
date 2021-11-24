@@ -408,11 +408,10 @@ description: First line. Second line.
 
 As a result, such a sequence is \"overloaded\" to provide more useful
 functionality in two ways: Firstly, if \c{:} after the name is immediately
-followed (ignoring whitespaces) by \c{\\} and a newline, then it signals the
-start of the multi-line mode. In this mode all subsequent newlines and \c{#}
-are treated as ordinary characters rather than value terminators or comments
-until a line consisting of just \\ and a newline (the multi-line mode
-terminator). For example:
+followed by \c{\\} and a newline, then it signals the start of the multi-line
+mode. In this mode all subsequent newlines and \c{#} are treated as ordinary
+characters rather than value terminators or comments until a line consisting
+of just \\ and a newline (the multi-line mode terminator). For example:
 
 \
 description:\
