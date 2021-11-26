@@ -20,6 +20,10 @@ namespace bpkg
   // The command can also be performed recursively for all or immediate
   // dependencies of the specified or all the held packages.
   //
+  // If allow_host_type is false, then fail if the current configuration is of
+  // the host or build2 type. Also skip the build-time dependencies in the
+  // recursive mode in this case.
+  //
   // Note: loads selected packages.
   //
   int
@@ -31,6 +35,7 @@ namespace bpkg
                bool all,
                const strings& all_patterns,
                bool package_cwd,
+               bool allow_host_type,
                cli::group_scanner& args);
 
   struct pkg_command_vars

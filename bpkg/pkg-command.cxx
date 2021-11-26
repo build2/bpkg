@@ -114,10 +114,19 @@ namespace bpkg
   collect_dependencies (const shared_ptr<selected_package>& p,
                         bool recursive,
                         bool package_cwd,
-                        vector<pkg_command_vars>& ps)
+                        vector<pkg_command_vars>& ps,
+                        bool allow_host_type)
   {
     for (const auto& pr: p->prerequisites)
     {
+      if (!allow_host_type)
+      {
+        database& db (pr.first.database ());
+
+        if (db.type == host_config_type || db.type == build2_config_type)
+          continue;
+      }
+
       shared_ptr<selected_package> d (pr.first.load ());
 
       // The selected package can only be configured if all its dependencies
@@ -145,7 +154,11 @@ namespace bpkg
             package_cwd});
 
         if (recursive)
-          collect_dependencies (d, recursive, package_cwd, ps);
+          collect_dependencies (d,
+                                recursive,
+                                package_cwd,
+                                ps,
+                                allow_host_type);
       }
     }
   }
@@ -159,6 +172,7 @@ namespace bpkg
                bool all,
                const strings& all_patterns,
                bool package_cwd,
+               bool allow_host_type,
                cli::group_scanner& args)
   {
     tracer trace ("pkg_command");
@@ -254,6 +268,15 @@ namespace bpkg
     vector<pkg_command_vars> ps;
     {
       database db (c, trace, true /* pre_attach */);
+
+      if (!allow_host_type && (db.type == host_config_type ||
+                               db.type == build2_config_type))
+      {
+        fail << "unable to " << cmd << " from " << db.type
+             << " configuration" <<
+          info << "use target configuration instead";
+      }
+
       transaction t (db);
 
       // We need to suppress duplicate dependencies for the recursive command
@@ -261,7 +284,8 @@ namespace bpkg
       //
       session ses;
 
-      auto add = [&db, &ps, recursive, immediate, package_cwd] (
+      auto add =
+        [&db, &ps, allow_host_type, recursive, immediate, package_cwd] (
         const shared_ptr<selected_package>& p,
         strings vars)
       {
@@ -275,7 +299,11 @@ namespace bpkg
         // Note that it can only be recursive or immediate but not both.
         //
         if (recursive || immediate)
-          collect_dependencies (p, recursive, package_cwd, ps);
+          collect_dependencies (p,
+                                recursive,
+                                package_cwd,
+                                ps,
+                                allow_host_type);
       };
 
       if (all || !all_patterns.empty ())

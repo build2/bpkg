@@ -23,6 +23,7 @@ namespace bpkg
                         o.all (),
                         o.all_pattern (),
                         o.package_cwd (),
+                        true /* allow_host_type */,
                         args);
   }
 }

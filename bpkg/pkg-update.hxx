@@ -24,6 +24,7 @@ namespace bpkg
                         o.all (),
                         o.all_pattern (),
                         false /* package_cwd */,
+                        true /* allow_host_type */,
                         args);
   }
 

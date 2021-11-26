@@ -13,6 +13,10 @@
 
 namespace bpkg
 {
+  // Note that we disallow installing packages from the host/build2
+  // configurations. The reason for that is that otherwise we can fail, trying
+  // to build a package both for install and normally (as a dependency).
+  //
   inline int
   pkg_install (const pkg_install_options& o, cli::group_scanner& args)
   {
@@ -24,6 +28,7 @@ namespace bpkg
                         o.all (),
                         o.all_pattern (),
                         false /* package_cwd */,
+                        false /* allow_host_type */,
                         args);
   }
 }
