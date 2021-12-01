@@ -431,7 +431,7 @@ test.options += --no-progress
   :
   $clone_root_cfg;
   $* $src/libbar-1.0.0.tar.gz 2>>EOE != 0
-    error: unknown dependency libfoo of package libbar
+    error: no package available for dependency libfoo of package libbar
     info: while satisfying libbar/1.0.0
     EOE
 
@@ -443,7 +443,7 @@ test.options += --no-progress
   $cfg_create -d cfg2 &cfg2/***;
   $cfg_link -d cfg cfg2;
   $* $src/libbar-1.0.0.tar.gz +{ --config-id 1 } 2>>~%EOE% != 0
-    %error: unknown dependency libfoo of package libbar \[cfg2.\]%
+    %error: no package available for dependency libfoo of package libbar \[cfg2.\]%
     %info: while satisfying libbar/1.0.0 \[cfg2.\]%
     EOE
 
@@ -1633,7 +1633,7 @@ test.options += --no-progress
     $rep_fetch;
 
     $* libfoo 2>>~%EOE% != 0;
-      error: unknown dependency libhello >= 1.0 of package libfoo
+      error: no package available for dependency libhello of package libfoo
       %.+
       EOE
 
@@ -2052,7 +2052,8 @@ test.options += --no-progress
       $rep_fetch $rep/t0a $rep/t0c;
 
       $* libbar/1.0.0 ?libfoo/0.0.1 2>>EOE != 0
-        error: unknown dependency libfoo == 0.0.1 of package libbar
+        error: unable to satisfy dependency constraint (libfoo == 0.0.1) of package libbar
+          info: available libfoo versions: 1.0.0
         info: while satisfying libbar/1.0.0
         EOE
     }

@@ -182,9 +182,8 @@ namespace bpkg
   // Note that we return (loaded) lazy_shared_ptr in order to also convey
   // the database to which it belongs.
   //
-  static
-  vector<pair<shared_ptr<available_package>,
-              lazy_shared_ptr<repository_fragment>>>
+  static vector<pair<shared_ptr<available_package>,
+                     lazy_shared_ptr<repository_fragment>>>
   find_available (const linked_databases& dbs,
                   const package_name& name,
                   const optional<version_constraint>& c)
@@ -232,9 +231,8 @@ namespace bpkg
   // fragments, their prerequisite repositories, and their complements,
   // recursively (note: recursivity applies to complements, not prerequisites).
   //
-  static
-  vector<pair<shared_ptr<available_package>,
-              lazy_shared_ptr<repository_fragment>>>
+  static vector<pair<shared_ptr<available_package>,
+                     lazy_shared_ptr<repository_fragment>>>
   find_available (const package_name& name,
                   const optional<version_constraint>& c,
                   const config_repo_fragments& rfs,
@@ -263,6 +261,35 @@ namespace bpkg
     {
       if (shared_ptr<available_package> ap = find_imaginary_stub (name))
         r.emplace_back (move (ap), nullptr);
+    }
+
+    return r;
+  }
+
+  // As above but only look for packages from a single repository fragment,
+  // its prerequisite repositories, and its complements, recursively (note:
+  // recursivity applies to complements, not prerequisites). Doesn't provide
+  // the repository fragments the packages come from.
+  //
+  // It is assumed that the repository fragment lazy pointer contains the
+  // database information.
+  //
+  static vector<shared_ptr<available_package>>
+  find_available (const package_name& name,
+                  const optional<version_constraint>& c,
+                  const lazy_shared_ptr<repository_fragment>& rf,
+                  bool prereq = true)
+  {
+    vector<shared_ptr<available_package>> r;
+
+    database& db (rf.database ());
+    for (auto& ap: filter (rf.load (), query_available (db, name, c), prereq))
+      r.emplace_back (move (ap));
+
+    if (r.empty ())
+    {
+      if (shared_ptr<available_package> ap = find_imaginary_stub (name))
+        r.emplace_back (move (ap));
     }
 
     return r;
@@ -1534,17 +1561,45 @@ namespace bpkg
             }
 
             diag_record dr (fail);
-            dr << "unknown dependency " << dn;
 
-            // We need to be careful not to print the wildcard-based
-            // constraint.
+            // Issue diagnostics differently based on the presence of
+            // available packages for the unsatisfied dependency.
             //
-            if (d.constraint && (!dep_constr || !wildcard (*dep_constr)))
-              dr << ' ' << *d.constraint;
+            // Note that there can't be any stubs, since they satisfy any
+            // constraint and we won't be here if they were.
+            //
+            vector<shared_ptr<available_package>> aps (
+              find_available (dn, nullopt /* version_constraint */, af));
 
-            dr << " of package " << name << pdb;
+            if (!aps.empty ())
+            {
+              dr << "unable to satisfy dependency constraint (" << dn;
 
-            if (!af->location.empty () && (!dep_constr || system))
+              // We need to be careful not to print the wildcard-based
+              // constraint.
+              //
+              if (d.constraint && (!dep_constr || !wildcard (*dep_constr)))
+                dr << ' ' << *d.constraint;
+
+              dr << ") of package " << name << pdb <<
+                info << "available " << dn << " versions:";
+
+              for (const shared_ptr<available_package>& ap: aps)
+                dr << ' ' << ap->version;
+            }
+            else
+            {
+              dr << "no package available for dependency " << dn
+                 << " of package " << name << pdb;
+            }
+
+            // Avoid printing this if the dependent package is external since
+            // it's more often confusing than helpful (they are normally not
+            // fetched manually).
+            //
+            if (!af->location.empty ()           &&
+                !af->location.directory_based () &&
+                (!dep_constr || system))
               dr << info << "repository " << af->location << " appears to "
                  << "be broken" <<
                 info << "or the repository state could be stale" <<
