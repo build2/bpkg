@@ -1139,18 +1139,22 @@ namespace bpkg
       const lazy_shared_ptr<repository_fragment>& af (pkg.repository_fragment);
       const package_name& name (ap->id.name);
 
-      for (const dependency_alternatives_ex& da: ap->dependencies)
+      for (const dependency_alternatives_ex& das: ap->dependencies)
       {
-        if (da.conditional) // @@ TODO
+        if (das.conditional) // @@ TODO
           fail << "conditional dependencies are not yet supported";
 
-        if (da.size () != 1) // @@ TODO
+        if (das.size () != 1) // @@ TODO
           fail << "multiple dependency alternatives not yet supported";
 
-        const dependency& dp (da.front ());
+        const dependency_alternative& da (das.front ());
+
+        assert (da.size () == 1); // @@ DEP
+
+        const dependency& dp (da[0]);
         const package_name& dn (dp.name);
 
-        if (da.buildtime)
+        if (das.buildtime)
         {
           // Handle special names.
           //
@@ -1204,11 +1208,11 @@ namespace bpkg
         //
         const version_constraint* dep_constr (nullptr);
 
-        database* ddb (fdb (pdb, dn, da.buildtime));
+        database* ddb (fdb (pdb, dn, das.buildtime));
 
         auto i (ddb != nullptr
                 ? map_.find (*ddb, dn)
-                : map_.find_dependency (pdb, dn, da.buildtime));
+                : map_.find_dependency (pdb, dn, das.buildtime));
 
         if (i != map_.end ())
         {
@@ -1265,7 +1269,7 @@ namespace bpkg
         pair<shared_ptr<selected_package>, database*> spd (
           ddb != nullptr
           ? make_pair (ddb->find<selected_package> (dn), ddb)
-          : find_dependency (pdb, dn, da.buildtime));
+          : find_dependency (pdb, dn, das.buildtime));
 
         if (ddb == nullptr)
           ddb = &pdb;
@@ -1360,7 +1364,7 @@ namespace bpkg
         // for this dependency on the command line (using --config-*), then
         // this configuration is used as the starting point for this search.
         //
-        if (da.buildtime   &&
+        if (das.buildtime  &&
             dsp == nullptr &&
             ddb->type != buildtime_dependency_type (dn))
         {
@@ -1480,7 +1484,7 @@ namespace bpkg
         // same configuration with the build2 module it depends upon is an
         // error.
         //
-        if (da.buildtime          &&
+        if (das.buildtime         &&
             !build2_module (name) &&
             build2_module (dn)    &&
             pdb == *ddb)
@@ -2474,16 +2478,21 @@ namespace bpkg
           // be built in the order that is as close to the manifest as
           // possible.
           //
-          for (const dependency_alternatives_ex& da:
+          for (const dependency_alternatives_ex& das:
                  reverse_iterate (ap->dependencies))
           {
-            assert (!da.conditional && da.size () == 1); // @@ TODO
-            const dependency& d (da.front ());
+            assert (!das.conditional && das.size () == 1); // @@ TODO
+
+            const dependency_alternative& da (das.front ());
+
+            assert (da.size () == 1); // @@ DEP
+
+            const dependency& d (da[0]);
             const package_name& dn (d.name);
 
             // Skip special names.
             //
-            if (da.buildtime && (dn == "build2" || dn == "bpkg"))
+            if (das.buildtime && (dn == "build2" || dn == "bpkg"))
               continue;
 
             // Note that for the repointed dependent we only order its new and
@@ -2492,7 +2501,7 @@ namespace bpkg
             //
             update (order (pdb,
                            d.name,
-                           da.buildtime,
+                           das.buildtime,
                            chain,
                            fdb,
                            false /* reorder */));

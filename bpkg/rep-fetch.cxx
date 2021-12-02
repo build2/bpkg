@@ -1496,7 +1496,7 @@ namespace bpkg
               ds.push_back (dependency_alternatives_ex (td.type,
                                                         td.buildtime));
 
-            dependency_alternatives_ex& da (ds.back ());
+            dependency_alternatives_ex& das (ds.back ());
 
             // Note that since we store all the primary packages as
             // alternative dependencies (which must be all of the same
@@ -1507,18 +1507,36 @@ namespace bpkg
             // `== <version>` constraints (see below), so we can use min
             // version of such a constraint as the primary package version.
             //
-            if (da.buildtime != td.buildtime)
+            if (das.buildtime != td.buildtime)
+            {
+              // Could only be empty if we just added it, which cannot be the
+              // case since the build-time flag differs.
+              //
+              assert (!das.empty ());
+
+              const dependency_alternative& da (das[0]);
+
+              // We always add the primary package to the test package as a
+              // single-dependency alternative (see below).
+              //
+              assert (da.size () == 1);
+
               fail << to_string (td.type) << " package " << td.name << " is a "
                    << "build-time dependency for one primary package and a "
                    << "run-time for another" <<
-                info << (da.buildtime ? "build-time for " : "run-time for ")
+                info << (das.buildtime ? "build-time for " : "run-time for ")
                      << package_string (da[0].name,
                                         *da[0].constraint->min_version) <<
                 info << (td.buildtime ? "build-time for " : "run-time for ")
                      << package_string (p->id.name, p->version);
+            }
 
-            da.push_back (dependency {p->id.name,
-                                      version_constraint (p->version)});
+            dependency_alternative da;
+
+            da.push_back (
+              dependency {p->id.name, version_constraint (p->version)});
+
+            das.push_back (move (da));
 
             db.update (tp);
           }

@@ -54,18 +54,21 @@ namespace bpkg
       if (nv.name == "depends")
       try
       {
-        dependency_alternatives da (nv.value);
+        dependency_alternatives das (nv.value);
 
-        if (da.buildtime)
+        if (das.buildtime)
         {
-          for (dependency& d: da)
+          for (const dependency_alternative& da: das)
           {
+            assert (da.size () == 1); // @@ DEP
+
+            const dependency& d (da[0]);
             const package_name& dn (d.name);
 
             if (dn != "build2" && dn != "bpkg")
               continue;
 
-            if (da.size () != 1)
+            if (das.size () != 1)
             {
               if (diag_level != 0)
                 error (p.name (), nv.value_line, nv.value_column)

@@ -187,6 +187,72 @@ namespace bpkg
       "ON selected_package_prerequisites (configuration, prerequisite)");
   });
 
+  static const migration_entry<13>
+  migrate_v13 ([] (odb::database& db)
+  {
+    // Note that
+    // available_package_dependency_alternative_dependencies.alternative_index
+    // is copied from available_package_dependency_alternatives.index and
+    // available_package_dependency_alternative_dependencies.index is set to 0.
+    //
+    db.execute (
+      "INSERT INTO \"main\".\"available_package_dependency_alternative_dependencies\" "
+      "(\"name\", "
+      "\"version_epoch\", "
+      "\"version_canonical_upstream\", "
+      "\"version_canonical_release\", "
+      "\"version_revision\", "
+      "\"version_iteration\", "
+      "\"dependency_index\", "
+      "\"alternative_index\", "
+      "\"index\", "
+      "\"dep_name\", "
+      "\"dep_min_version_epoch\", "
+      "\"dep_min_version_canonical_upstream\", "
+      "\"dep_min_version_canonical_release\", "
+      "\"dep_min_version_revision\", "
+      "\"dep_min_version_iteration\", "
+      "\"dep_min_version_upstream\", "
+      "\"dep_min_version_release\", "
+      "\"dep_max_version_epoch\", "
+      "\"dep_max_version_canonical_upstream\", "
+      "\"dep_max_version_canonical_release\", "
+      "\"dep_max_version_revision\", "
+      "\"dep_max_version_iteration\", "
+      "\"dep_max_version_upstream\", "
+      "\"dep_max_version_release\", "
+      "\"dep_min_open\", "
+      "\"dep_max_open\") "
+      "SELECT "
+      "\"name\", "
+      "\"version_epoch\", "
+      "\"version_canonical_upstream\", "
+      "\"version_canonical_release\", "
+      "\"version_revision\", "
+      "\"version_iteration\", "
+      "\"dependency_index\", "
+      "\"index\", "
+      "0, "
+      "\"dep_name\", "
+      "\"dep_min_version_epoch\", "
+      "\"dep_min_version_canonical_upstream\", "
+      "\"dep_min_version_canonical_release\", "
+      "\"dep_min_version_revision\", "
+      "\"dep_min_version_iteration\", "
+      "\"dep_min_version_upstream\", "
+      "\"dep_min_version_release\", "
+      "\"dep_max_version_epoch\", "
+      "\"dep_max_version_canonical_upstream\", "
+      "\"dep_max_version_canonical_release\", "
+      "\"dep_max_version_revision\", "
+      "\"dep_max_version_iteration\", "
+      "\"dep_max_version_upstream\", "
+      "\"dep_max_version_release\", "
+      "\"dep_min_open\", "
+      "\"dep_max_open\" "
+      "FROM \"main\".\"available_package_dependency_alternatives\"");
+  });
+
   static inline path
   cfg_path (const dir_path& d, bool create)
   {

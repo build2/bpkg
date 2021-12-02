@@ -1,4 +1,79 @@
 <changelog xmlns="http://www.codesynthesis.com/xmlns/odb/changelog" database="sqlite" version="1">
+  <changeset version="13">
+    <alter-table name="main.available_package_dependency_alternatives">
+      <add-column name="enable" type="TEXT" null="true"/>
+      <drop-column name="dep_name"/>
+      <drop-column name="dep_min_version_epoch"/>
+      <drop-column name="dep_min_version_canonical_upstream"/>
+      <drop-column name="dep_min_version_canonical_release"/>
+      <drop-column name="dep_min_version_revision"/>
+      <drop-column name="dep_min_version_iteration"/>
+      <drop-column name="dep_min_version_upstream"/>
+      <drop-column name="dep_min_version_release"/>
+      <drop-column name="dep_max_version_epoch"/>
+      <drop-column name="dep_max_version_canonical_upstream"/>
+      <drop-column name="dep_max_version_canonical_release"/>
+      <drop-column name="dep_max_version_revision"/>
+      <drop-column name="dep_max_version_iteration"/>
+      <drop-column name="dep_max_version_upstream"/>
+      <drop-column name="dep_max_version_release"/>
+      <drop-column name="dep_min_open"/>
+      <drop-column name="dep_max_open"/>
+    </alter-table>
+    <add-table name="main.available_package_dependency_alternative_dependencies" kind="container">
+      <column name="name" type="TEXT" null="true" options="COLLATE NOCASE"/>
+      <column name="version_epoch" type="INTEGER" null="true"/>
+      <column name="version_canonical_upstream" type="TEXT" null="true"/>
+      <column name="version_canonical_release" type="TEXT" null="true" options="COLLATE BINARY"/>
+      <column name="version_revision" type="INTEGER" null="true"/>
+      <column name="version_iteration" type="INTEGER" null="true"/>
+      <column name="dependency_index" type="INTEGER" null="true"/>
+      <column name="alternative_index" type="INTEGER" null="true"/>
+      <column name="index" type="INTEGER" null="true"/>
+      <column name="dep_name" type="TEXT" null="true" options="COLLATE NOCASE"/>
+      <column name="dep_min_version_epoch" type="INTEGER" null="true"/>
+      <column name="dep_min_version_canonical_upstream" type="TEXT" null="true"/>
+      <column name="dep_min_version_canonical_release" type="TEXT" null="true"/>
+      <column name="dep_min_version_revision" type="INTEGER" null="true"/>
+      <column name="dep_min_version_iteration" type="INTEGER" null="true"/>
+      <column name="dep_min_version_upstream" type="TEXT" null="true"/>
+      <column name="dep_min_version_release" type="TEXT" null="true"/>
+      <column name="dep_max_version_epoch" type="INTEGER" null="true"/>
+      <column name="dep_max_version_canonical_upstream" type="TEXT" null="true"/>
+      <column name="dep_max_version_canonical_release" type="TEXT" null="true"/>
+      <column name="dep_max_version_revision" type="INTEGER" null="true"/>
+      <column name="dep_max_version_iteration" type="INTEGER" null="true"/>
+      <column name="dep_max_version_upstream" type="TEXT" null="true"/>
+      <column name="dep_max_version_release" type="TEXT" null="true"/>
+      <column name="dep_min_open" type="INTEGER" null="true"/>
+      <column name="dep_max_open" type="INTEGER" null="true"/>
+      <foreign-key name="object_id_fk" on-delete="CASCADE">
+        <column name="name"/>
+        <column name="version_epoch"/>
+        <column name="version_canonical_upstream"/>
+        <column name="version_canonical_release"/>
+        <column name="version_revision"/>
+        <column name="version_iteration"/>
+        <references table="main.available_package">
+          <column name="name"/>
+          <column name="version_epoch"/>
+          <column name="version_canonical_upstream"/>
+          <column name="version_canonical_release"/>
+          <column name="version_revision"/>
+          <column name="version_iteration"/>
+        </references>
+      </foreign-key>
+      <index name="available_package_dependency_alternative_dependencies_object_id_i">
+        <column name="name"/>
+        <column name="version_epoch"/>
+        <column name="version_canonical_upstream"/>
+        <column name="version_canonical_release"/>
+        <column name="version_revision"/>
+        <column name="version_iteration"/>
+      </index>
+    </add-table>
+  </changeset>
+
   <changeset version="12"/>
 
   <changeset version="11">

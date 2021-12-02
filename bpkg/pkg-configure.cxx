@@ -28,16 +28,19 @@ namespace bpkg
   {
     package_prerequisites r;
 
-    for (const dependency_alternatives_ex& da: deps)
+    for (const dependency_alternatives_ex& das: deps)
     {
-      assert (!da.conditional); //@@ TODO
+      assert (!das.conditional); //@@ TODO
 
       bool satisfied (false);
-      for (const dependency& d: da)
+      for (const dependency_alternative& da: das)
       {
+        assert (da.size () == 1); // @@ DEP
+
+        const dependency& d (da[0]);
         const package_name& n (d.name);
 
-        if (da.buildtime)
+        if (das.buildtime)
         {
           // Handle special names.
           //
@@ -63,12 +66,12 @@ namespace bpkg
           }
         }
 
-        database* ddb (fdb ? fdb (db, n, da.buildtime) : nullptr);
+        database* ddb (fdb ? fdb (db, n, das.buildtime) : nullptr);
 
         pair<shared_ptr<selected_package>, database*> spd (
           ddb != nullptr
           ? make_pair (ddb->find<selected_package> (n), ddb)
-          : find_dependency (db, n, da.buildtime));
+          : find_dependency (db, n, das.buildtime));
 
         if (const shared_ptr<selected_package>& dp = spd.first)
         {
@@ -111,7 +114,7 @@ namespace bpkg
       }
 
       if (!satisfied)
-        fail << "no configured package satisfies dependency on " << da;
+        fail << "no configured package satisfies dependency on " << das;
     }
 
     return r;
