@@ -1,4 +1,16 @@
 <changelog xmlns="http://www.codesynthesis.com/xmlns/odb/changelog" database="sqlite" version="1">
+  <changeset version="14">
+    <alter-table name="main.available_package_dependencies">
+      <drop-column name="conditional"/>
+    </alter-table>
+    <alter-table name="main.available_package_dependency_alternatives">
+      <add-column name="reflect" type="TEXT" null="true"/>
+      <add-column name="prefer" type="TEXT" null="true"/>
+      <add-column name="accept" type="TEXT" null="true"/>
+      <add-column name="require" type="TEXT" null="true"/>
+    </alter-table>
+  </changeset>
+
   <changeset version="13">
     <alter-table name="main.available_package_dependency_alternatives">
       <add-column name="enable" type="TEXT" null="true"/>

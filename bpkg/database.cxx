@@ -265,6 +265,21 @@ namespace bpkg
       "FROM \"main\".\"available_package_dependency_alternatives\"");
   });
 
+  // @@ Since there is no proper support for dropping table columns not in
+  //    SQLite prior to 3.35.5 nor in ODB, we will drop the
+  //    available_package_dependencies.conditional column manually. We,
+  //    however, cannot do it here since ODB will try to set the dropped
+  //    column values to NULL at the end of migration. Thus, we will do it
+  //    ad hoc after the below schema_catalog::migrate() call.
+  //
+  //    NOTE: remove the mentioned ad hoc migration when removing this
+  //    function.
+  //
+  static const migration_entry<14>
+  migrate_v14 ([] (odb::database&)
+  {
+  });
+
   static inline path
   cfg_path (const dir_path& d, bool create)
   {
@@ -609,6 +624,11 @@ namespace bpkg
           for (const char** c (cs); *c != nullptr; ++c)
             drop ("available_package_dependency_alternatives", *c);
         }
+
+        // @@ TMP See migrate_v14() for details.
+        //
+        if (sv < 14)
+          drop ("available_package_dependencies", "conditional");
       }
 
       for (auto& c: query<configuration> (odb::query<configuration>::id != 0))

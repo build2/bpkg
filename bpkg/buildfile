@@ -13,7 +13,8 @@ import libs += libbutl%lib{butl}
 import libs += libodb%lib{odb}
 import libs += libodb-sqlite%lib{odb-sqlite}
 
-# @@ TMP Only required for the database migration to schema version 13.
+# @@ TMP Only required for the database migrations to schema versions 13 and
+#    14.
 #
 import libs += libsqlite3%lib{sqlite3}
 

@@ -30,7 +30,7 @@ namespace bpkg
 
     for (const dependency_alternatives_ex& das: deps)
     {
-      assert (!das.conditional); //@@ TODO
+      assert (!das.conditional ()); //@@ TODO
 
       bool satisfied (false);
       for (const dependency_alternative& da: das)

@@ -54,7 +54,15 @@ namespace bpkg
       if (nv.name == "depends")
       try
       {
-        dependency_alternatives das (nv.value);
+        // Note that we don't have the dependent package name here (unless we
+        // bother to retrieve it from the manifest in advance). This may cause
+        // parsing of a dependency alternative to fail while verifying the
+        // reflect clause (see dependency_alternative for details). That is,
+        // however, OK since we don't expect any clauses for the build2 and
+        // bpkg constraints and we just ignore failures for other depends
+        // values (see above).
+        //
+        dependency_alternatives das (nv.value, package_name ());
 
         if (das.buildtime)
         {
@@ -117,7 +125,7 @@ namespace bpkg
           }
         }
       }
-      catch (const invalid_argument&) {} // Ignore
+      catch (const manifest_parsing&) {} // Ignore
 
       r.push_back (move (nv));
     }

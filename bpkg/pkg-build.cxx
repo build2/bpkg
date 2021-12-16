@@ -1139,7 +1139,7 @@ namespace bpkg
 
       for (const dependency_alternatives_ex& das: ap->dependencies)
       {
-        if (das.conditional) // @@ TODO
+        if (das.conditional ()) // @@ TODO
           fail << "conditional dependencies are not yet supported";
 
         if (das.size () != 1) // @@ TODO
@@ -2479,7 +2479,7 @@ namespace bpkg
           for (const dependency_alternatives_ex& das:
                  reverse_iterate (ap->dependencies))
           {
-            assert (!das.conditional && das.size () == 1); // @@ TODO
+            assert (!das.conditional () && das.size () == 1); // @@ TODO
 
             const dependency_alternative& da (das.front ());
 

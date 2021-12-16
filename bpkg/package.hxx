@@ -27,7 +27,7 @@
 //
 #define DB_SCHEMA_VERSION_BASE 7
 
-#pragma db model version(DB_SCHEMA_VERSION_BASE, 13, closed)
+#pragma db model version(DB_SCHEMA_VERSION_BASE, 14, closed)
 
 namespace bpkg
 {
@@ -559,9 +559,7 @@ namespace bpkg
     // Create the special test dependencies object (built incrementally).
     //
     dependency_alternatives_ex (test_dependency_type t, bool buildtime)
-        : dependency_alternatives (false /* conditional */,
-                                   buildtime,
-                                   ""    /* comment */),
+        : dependency_alternatives (buildtime, "" /* comment */),
           type (t) {}
   };
 
