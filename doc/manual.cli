@@ -610,8 +610,8 @@ license: <licenses> [; <comment>]
 [build-warning-email]: <email> [; <comment>]
 [build-error-email]: <email> [; <comment>]
 
-[depends]: [?][*] <alternatives> [; <comment>]
-[requires]: [?] [<alternatives>] [; <comment>]
+[depends]: [*][?] <alternatives> [; <comment>]
+[requires]: [*][?] [<alternatives>] [; <comment>]
 
 [tests]: [*] <name> [<version-constraint>]
 [examples]: [*] <name> [<version-constraint>]
@@ -1033,7 +1033,7 @@ build error notifications are sent to this email.
 \h2#manifest-package-depends|\c{depends}|
 
 \
-[depends]: [?][*] <alternatives> [; <comment>]
+[depends]: [*][?] <alternatives> [; <comment>]
 
 <alternatives> = <dependency> [ '|' <dependency>]*
 <dependency>   = <name> [<version-constraint>]
@@ -1171,7 +1171,7 @@ are treated the same):
 \h2#manifest-package-requires|\c{requires}|
 
 \
-[requires]: [?] [<alternatives>] [; <comment>]
+[requires]: [*][?] [<alternatives>] [; <comment>]
 
 <alternatives> = <requirement> [ '|' <requirement>]*
 <requirement>  = <id> | <dependency>
@@ -1181,8 +1181,8 @@ are treated the same):
 The package requirements (other than other packages). Such requirements are
 normally checked during package configuration by the build system and the only
 purpose of capturing them in the manifest is for documentation. Similar to
-\c{depends}, a value that starts with \c{?} is a conditional
-requirement. For example:
+\c{depends}, a value that starts with \c{*} is a build-time requirement and/or
+with \c{?} is a conditional requirement. For example:
 
 \
 requires: linux | windows | macos
@@ -1229,7 +1229,7 @@ windows
 \
 gcc[_X.Y.Z]  ; For example: gcc_6, gcc_4.9, gcc_5.0.0
 clang[_X.Y]  ; For example: clang_6, clang_3.4, clang_3.4.1
-msvc[_N.U]    ; For example: msvc_14, msvc_15.3
+msvc[_N.U]   ; For example: msvc_14, msvc_15.3
 \
 
 The following pre-defined ids are recognized by automated build bots:
