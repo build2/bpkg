@@ -136,6 +136,12 @@
 # |   |-- libbox-1.1.0.tar.gz   -> * foo ^1.0.0
 # |   `-- repositories.manifest
 # |
+# |-- t8a
+# |   |-- foo-1.0.0.tar.gz      -> {libbar libbaz} ^1.0.0
+# |   |-- libbar-1.0.0.tar.gz
+# |   |-- libbaz-1.0.0.tar.gz
+# |   `-- repositories.manifest
+# |
 # `-- git
 #     |-- libbar.git            -> style-basic.git (prerequisite repository)
 #     |-- libbaz.git
@@ -164,6 +170,7 @@ posix = ($cxx.target.class != 'windows')
   cp -r $src/t6  $out/t6  && $rep_create $out/t6  &$out/t6/packages.manifest
   cp -r $src/t7a $out/t7a && $rep_create $out/t7a &$out/t7a/packages.manifest
   cp -r $src/t7b $out/t7b && $rep_create $out/t7b &$out/t7b/packages.manifest
+  cp -r $src/t8a $out/t8a && $rep_create $out/t8a &$out/t8a/packages.manifest
 
   # Create git repositories.
   #
@@ -2971,6 +2978,34 @@ test.options += --no-progress
     }
 
     -$pkg_drop libbar libbaz libfoo
+  }
+
+  : alternative
+  :
+  {
+    +$clone_root_cfg && $rep_add $rep/t8a && $rep_fetch
+
+    : multiple-dependencies
+    :
+    {
+      $clone_cfg;
+
+      $* foo --yes 2>>~%EOE%;
+        fetched libbaz/1.0.0
+        unpacked libbaz/1.0.0
+        fetched libbar/1.0.0
+        unpacked libbar/1.0.0
+        fetched foo/1.0.0
+        unpacked foo/1.0.0
+        configured libbaz/1.0.0
+        configured libbar/1.0.0
+        configured foo/1.0.0
+        %info: .+foo-1.0.0.+ is up to date%
+        updated foo/1.0.0
+        EOE
+
+      $pkg_drop foo
+    }
   }
 }
 

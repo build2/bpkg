@@ -68,58 +68,67 @@ namespace bpkg
         {
           for (const dependency_alternative& da: das)
           {
-            assert (da.size () == 1); // @@ DEP
-
-            const dependency& d (da[0]);
-            const package_name& dn (d.name);
-
-            if (dn != "build2" && dn != "bpkg")
-              continue;
-
-            if (das.size () != 1)
+            for (const dependency& d: da)
             {
-              if (diag_level != 0)
-                error (p.name (), nv.value_line, nv.value_column)
-                  << "alternatives in " << dn << " dependency";
+              const package_name& dn (d.name);
 
-              throw failed ();
-            }
+              if (dn != "build2" && dn != "bpkg")
+                continue;
 
-            if (dn == "build2")
-            {
-              if (d.constraint && !satisfy_build2 (co, d))
+              if (da.size () != 1)
               {
                 if (diag_level != 0)
-                {
-                  diag_record dr (error);
-                  dr << "unable to satisfy constraint (" << d << ")";
-
-                  if (!what.empty ())
-                    dr << " for package " << what;
-
-                  dr << info << "available build2 version is "
-                     << build2_version;
-                }
+                  error (p.name (), nv.value_line, nv.value_column)
+                    << "multiple names in " << dn << " dependency";
 
                 throw failed ();
               }
-            }
-            else
-            {
-              if (d.constraint && !satisfy_bpkg (co, d))
+
+              if (das.size () != 1)
               {
                 if (diag_level != 0)
-                {
-                  diag_record dr (error);
-                  dr << "unable to satisfy constraint (" << d << ")";
-
-                  if (!what.empty ())
-                    dr << " for package " << what;
-
-                  dr << "available bpkg version is " << bpkg_version;
-                }
+                  error (p.name (), nv.value_line, nv.value_column)
+                    << "alternatives in " << dn << " dependency";
 
                 throw failed ();
+              }
+
+              if (dn == "build2")
+              {
+                if (d.constraint && !satisfy_build2 (co, d))
+                {
+                  if (diag_level != 0)
+                  {
+                    diag_record dr (error);
+                    dr << "unable to satisfy constraint (" << d << ")";
+
+                    if (!what.empty ())
+                      dr << " for package " << what;
+
+                    dr << info << "available build2 version is "
+                       << build2_version;
+                  }
+
+                  throw failed ();
+                }
+              }
+              else
+              {
+                if (d.constraint && !satisfy_bpkg (co, d))
+                {
+                  if (diag_level != 0)
+                  {
+                    diag_record dr (error);
+                    dr << "unable to satisfy constraint (" << d << ")";
+
+                    if (!what.empty ())
+                      dr << " for package " << what;
+
+                    dr << "available bpkg version is " << bpkg_version;
+                  }
+
+                  throw failed ();
+                }
               }
             }
           }

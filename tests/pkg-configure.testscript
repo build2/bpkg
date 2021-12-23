@@ -35,6 +35,9 @@
 # |   |       |-- driver.cxx
 # |   |       `-- test.out
 # |   `-- version
+# |
+# |-- t8a (see pkg-build for details)
+# |
 # `-- stable
 #     |-- libbar-1.0.0.tar.gz -> libfoo
 #     |-- libbar-1.1.0.tar.gz -> libfoo >= 1.1.0
@@ -63,6 +66,8 @@
   #
   cp -r $src/stable $out/stable
   $rep_create $out/stable &$out/stable/packages.manifest
+
+  cp -r $src/t8a $out/t8a && $rep_create $out/t8a &$out/t8a/packages.manifest
 end
 
 test.arguments += config.cxx=$quote($recall($cxx.path) $cxx.config.mode, true)
@@ -280,7 +285,7 @@ if ($posix && "$uid" != '0')
     $pkg_fetch libbar/1.0.0 && $pkg_unpack libbar;
 
     $* libbar 2>>EOE != 0;
-      error: no configured package satisfies dependency on libfoo
+      error: unable to satisfy dependency on libfoo
       EOE
 
     $pkg_status libbar/1.0.0  1>'libbar unpacked 1.0.0';
@@ -288,7 +293,7 @@ if ($posix && "$uid" != '0')
     $pkg_unpack libfoo;
 
     $* libbar 2>>EOE != 0;
-      error: no configured package satisfies dependency on libfoo
+      error: unable to satisfy dependency on libfoo
       EOE
 
     $* libfoo 2>'configured libfoo/1.0.0';
@@ -317,7 +322,7 @@ if ($posix && "$uid" != '0')
     $pkg_unpack libbar;
 
     $* libbar 2>>EOE != 0;
-      error: no configured package satisfies dependency on libfoo >= 1.1.0
+      error: unable to satisfy dependency on libfoo >= 1.1.0
       EOE
 
     $pkg_disfigure libfoo        2>'disfigured libfoo/1.0.0';
@@ -344,7 +349,7 @@ if ($posix && "$uid" != '0')
     $pkg_unpack libbar;
 
     $* libbar 2>>EOE != 0;
-      error: no configured package satisfies dependency on libfox | libfoo >= 1.2.0
+      error: unable to satisfy dependency on libfox | libfoo >= 1.2.0
       EOE
 
     $pkg_disfigure libfoo        2>'disfigured libfoo/1.1.0';
@@ -409,5 +414,41 @@ if ($posix && "$uid" != '0')
     rm -r ./libhello;
     $pkg_disfigure --keep-out libhello 2>'disfigured libhello/1.0.0';
     test -d cfg/libhello != 0
+  }
+}
+
+: dependency-alternatives
+:
+{
+  +$clone_root_cfg && $rep_add $rep/t8a && $rep_fetch --trust-yes
+
+  : multiple-dependencies
+  :
+  {
+    $clone_cfg;
+
+    $pkg_fetch foo/1.0.0 && $pkg_unpack foo;
+
+    $pkg_fetch libbar/1.0.0 && $pkg_unpack libbar;
+    $* libbar 2>!;
+
+    # Make sure that dependent configuration fails if some of the alternative
+    # dependencies is not configured.
+    #
+    $* foo 2>>EOE != 0;
+      error: unable to satisfy dependency on {libbar ^1.0.0 libbaz ^1.0.0}
+      EOE
+
+    $pkg_fetch libbaz/1.0.0 && $pkg_unpack libbaz;
+    $* libbaz 2>!;
+
+    $* foo 2>'configured foo/1.0.0';
+
+    $pkg_disfigure foo    2>!;
+    $pkg_purge     foo    2>!;
+    $pkg_disfigure libbaz 2>!;
+    $pkg_purge     libbaz 2>!;
+    $pkg_disfigure libbar 2>!;
+    $pkg_purge     libbar 2>!
   }
 }

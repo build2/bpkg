@@ -30,91 +30,125 @@ namespace bpkg
 
     for (const dependency_alternatives_ex& das: deps)
     {
-      assert (!das.conditional ()); //@@ TODO
+      // @@ DEP Currently we just pick the first alternative with dependencies
+      //    that can all be resolved to the configured packages, satisfying
+      //    the respective constraints. Later, we should also evaluate the
+      //    alternative enable conditions.
+      //
+      assert (!das.conditional ());
 
       bool satisfied (false);
       for (const dependency_alternative& da: das)
       {
-        assert (da.size () == 1); // @@ DEP
+        // Cache the selected packages which correspond to the alternative
+        // dependencies, pairing them with the respective constraints. If the
+        // alternative turns out to be fully resolvable, we will add the
+        // cached packages into the dependent's prerequisites map.
+        //
+        small_vector<
+          pair<lazy_shared_ptr<selected_package>,
+               const optional<version_constraint>&>, 1> prerequisites;
 
-        const dependency& d (da[0]);
-        const package_name& n (d.name);
+        dependency_alternative::const_iterator b (da.begin ());
+        dependency_alternative::const_iterator i (b);
+        dependency_alternative::const_iterator e (da.end ());
 
-        if (das.buildtime)
+        assert (b != e);
+
+        for (; i != e; ++i)
         {
-          // Handle special names.
-          //
-          if (n == "build2")
+          const dependency&   d (*i);
+          const package_name& n (d.name);
+
+          if (das.buildtime)
           {
-            if (d.constraint && !satisfy_build2 (o, d))
-              fail << "unable to satisfy constraint (" << d
-                   << ") for package " << package <<
-                info << "available build2 version is " << build2_version;
+            // Handle special names.
+            //
+            if (n == "build2")
+            {
+              if (d.constraint && !satisfy_build2 (o, d))
+                fail << "unable to satisfy constraint (" << d
+                     << ") for package " << package <<
+                  info << "available build2 version is " << build2_version;
 
-            satisfied = true;
-            break;
+              continue;
+            }
+            else if (n == "bpkg")
+            {
+              if (d.constraint && !satisfy_bpkg (o, d))
+                fail << "unable to satisfy constraint (" << d
+                     << ") for package " << package <<
+                  info << "available bpkg version is " << bpkg_version;
+
+              continue;
+            }
           }
-          else if (n == "bpkg")
-          {
-            if (d.constraint && !satisfy_bpkg (o, d))
-              fail << "unable to satisfy constraint (" << d
-                   << ") for package " << package <<
-                info << "available bpkg version is " << bpkg_version;
 
-            satisfied = true;
+          database* ddb (fdb ? fdb (db, n, das.buildtime) : nullptr);
+
+          pair<shared_ptr<selected_package>, database*> spd (
+            ddb != nullptr
+            ? make_pair (ddb->find<selected_package> (n), ddb)
+            : find_dependency (db, n, das.buildtime));
+
+          const shared_ptr<selected_package>& dp (spd.first);
+
+          if (dp == nullptr                          ||
+              dp->state != package_state::configured ||
+              !satisfies (dp->version, d.constraint))
             break;
-          }
-        }
-
-        database* ddb (fdb ? fdb (db, n, das.buildtime) : nullptr);
-
-        pair<shared_ptr<selected_package>, database*> spd (
-          ddb != nullptr
-          ? make_pair (ddb->find<selected_package> (n), ddb)
-          : find_dependency (db, n, das.buildtime));
-
-        if (const shared_ptr<selected_package>& dp = spd.first)
-        {
-          if (dp->state != package_state::configured)
-            continue;
-
-          if (!satisfies (dp->version, d.constraint))
-            continue;
 
           // See the package_prerequisites definition for details on creating
           // the map keys with the database passed.
           //
-          auto p (
-            r.emplace (lazy_shared_ptr<selected_package> (*spd.second, dp),
-                       d.constraint));
-
-           // Currently we can only capture a single constraint, so if we
-           // already have a dependency on this package and one constraint is
-           // not a subset of the other, complain.
-           //
-           if (!p.second)
-           {
-             auto& c (p.first->second);
-
-             bool s1 (satisfies (c, d.constraint));
-             bool s2 (satisfies (d.constraint, c));
-
-             if (!s1 && !s2)
-               fail << "multiple dependencies on package " << n <<
-                 info << n << " " << *c <<
-                 info << n << " " << *d.constraint;
-
-             if (s2 && !s1)
-               c = d.constraint;
-           }
-
-          satisfied = true;
-          break;
+          prerequisites.emplace_back (
+            lazy_shared_ptr<selected_package> (*spd.second, dp),
+            d.constraint);
         }
+
+        // Try the next alternative if there are unresolved dependencies for
+        // this alternative.
+        //
+        if (i != e)
+          continue;
+
+        // Now add the selected packages resolved for the alternative into the
+        // dependent's prerequisites map and skip the remaining alternatives.
+        //
+        for (auto& pr: prerequisites)
+        {
+          const package_name& pn (pr.first.object_id ());
+          const optional<version_constraint>& pc (pr.second);
+
+          auto p (r.emplace (pr.first, pc));
+
+          // Currently we can only capture a single constraint, so if we
+          // already have a dependency on this package and one constraint is
+          // not a subset of the other, complain.
+          //
+          if (!p.second)
+          {
+            auto& c (p.first->second);
+
+            bool s1 (satisfies (c, pc));
+            bool s2 (satisfies (pc, c));
+
+            if (!s1 && !s2)
+              fail << "multiple dependencies on package " << pn <<
+                info << pn << " " << *c <<
+                info << pn << " " << *pc;
+
+            if (s2 && !s1)
+              c = pc;
+          }
+        }
+
+        satisfied = true;
+        break;
       }
 
       if (!satisfied)
-        fail << "no configured package satisfies dependency on " << das;
+        fail << "unable to satisfy dependency on " << das;
     }
 
     return r;
