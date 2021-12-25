@@ -18,15 +18,26 @@ using namespace butl;
 
 namespace bpkg
 {
-  package_prerequisites
+  // Given dependencies of a package, return its prerequisite packages and
+  // configuration variables that resulted from selection of these
+  // prerequisites (import, reflection, etc). Fail if for some of the
+  // dependency alternative lists there is no satisfactory alternative (all
+  // its dependencies are configured and satisfy the respective constraints,
+  // etc). Note that the package argument is used for diagnostics only.
+  //
+  // Note: loads selected packages.
+  //
+  static pair<package_prerequisites, small_vector<string, 1>>
   pkg_configure_prerequisites (const common_options& o,
                                database& db,
                                transaction&,
                                const dependencies& deps,
                                const package_name& package,
+                               bool simulate,
                                const function<find_database_function>& fdb)
   {
-    package_prerequisites r;
+    package_prerequisites pps;
+    small_vector<string, 1> cvs;
 
     for (const dependency_alternatives_ex& das: deps)
     {
@@ -120,7 +131,7 @@ namespace bpkg
           const package_name& pn (pr.first.object_id ());
           const optional<version_constraint>& pc (pr.second);
 
-          auto p (r.emplace (pr.first, pc));
+          auto p (pps.emplace (pr.first, pc));
 
           // Currently we can only capture a single constraint, so if we
           // already have a dependency on this package and one constraint is
@@ -141,7 +152,53 @@ namespace bpkg
             if (s2 && !s1)
               c = pc;
           }
+
+          // If the prerequisite is configured in the linked configuration,
+          // then add the respective config.import.* variable.
+          //
+          if (!simulate)
+          {
+            database& pdb (pr.first.database ());
+
+            if (pdb != db)
+            {
+              shared_ptr<selected_package> sp (pr.first.load ());
+
+              if (!sp->system ())
+              {
+                // @@ Note that this doesn't work for build2 modules that
+                //    require bootstrap. For their dependents we need to
+                //    specify the import variable as a global override,
+                //    whenever required (configure, update, etc).
+                //
+                //    This, in particular, means that if we build a package
+                //    that doesn't have direct build2 module dependencies but
+                //    some of its (potentially indirect) dependencies do, then
+                //    we still need to specify the !config.import.* global
+                //    overrides for all of the involved build2
+                //    modules. Implementation of that feels too hairy at the
+                //    moment, so let's handle all the build2 modules uniformly
+                //    for now.
+                //
+                //    Also note that such modules are marked with `requires:
+                //    bootstrap` in their manifest.
+                //
+                dir_path od (sp->effective_out_root (pdb.config));
+                cvs.push_back ("config.import." + sp->name.variable () +
+                               "='" + od.representation () + "'");
+              }
+            }
+          }
         }
+
+        // Add the dependency alternative reflection configuration variable,
+        // if present.
+        //
+        // @@ DEP For now we assume that the reflection, if present, contains
+        //    a single configuration variable that assigns a literal value.
+        //
+        if (!simulate && da.reflect)
+          cvs.push_back (*da.reflect);
 
         satisfied = true;
         break;
@@ -151,7 +208,7 @@ namespace bpkg
         fail << "unable to satisfy dependency on " << das;
     }
 
-    return r;
+    return make_pair (move (pps), move (cvs));
   }
 
   void
@@ -189,53 +246,13 @@ namespace bpkg
     //
     assert (p->prerequisites.empty ());
 
-    p->prerequisites = pkg_configure_prerequisites (o,
-                                                    db,
-                                                    t,
-                                                    deps,
-                                                    p->name,
-                                                    fdb);
+    pair<package_prerequisites, small_vector<string, 1>> cpr (
+      pkg_configure_prerequisites (o, db, t, deps, p->name, simulate, fdb));
+
+    p->prerequisites = move (cpr.first);
 
     if (!simulate)
     {
-      // Add the config.import.* variables for prerequisites from the linked
-      // configurations.
-      //
-      strings imports;
-
-      for (const auto& pp: p->prerequisites)
-      {
-        database& pdb (pp.first.database ());
-
-        if (pdb != db)
-        {
-          shared_ptr<selected_package> sp (pp.first.load ());
-
-          if (!sp->system ())
-          {
-            // @@ Note that this doesn't work for build2 modules that require
-            //    bootstrap. For their dependents we need to specify the
-            //    import variable as a global override, whenever required
-            //    (configure, update, etc).
-            //
-            //    This, in particular, means that if we build a package that
-            //    doesn't have direct build2 module dependencies but some of
-            //    its (potentially indirect) dependencies do, then we still
-            //    need to specify the !config.import.* global overrides for
-            //    all of the involved build2 modules. Implementation of that
-            //    feels too hairy at the moment, so let's handle all the
-            //    build2 modules uniformly for now.
-            //
-            //    Also note that such modules are marked with `requires:
-            //    bootstrap` in their manifest.
-            //
-            dir_path od (sp->effective_out_root (pdb.config));
-            imports.push_back ("config.import." + sp->name.variable () +
-                               "='" + od.representation () + "'");
-          }
-        }
-      }
-
       // Form the buildspec.
       //
       string bspec;
@@ -255,7 +272,7 @@ namespace bpkg
       //
       try
       {
-        run_b (o, verb_b::quiet, imports, vars, bspec);
+        run_b (o, verb_b::quiet, cpr.second, vars, bspec);
       }
       catch (const failed&)
       {

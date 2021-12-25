@@ -21,10 +21,10 @@ namespace bpkg
   pkg_configure (const pkg_configure_options&, cli::scanner& args);
 
   // The custom search function. If specified, it is called by pkg_configure()
-  // and pkg_configure_prerequisites() to obtain the database to search for
-  // the prerequisite in, instead of searching for it in the linked databases,
-  // recursively. If the function returns NULL, then fallback to the recursive
-  // search through the linked databases.
+  // to obtain the database to search for the prerequisite in, instead of
+  // searching for it in the linked databases, recursively. If the function
+  // returns NULL, then fallback to the recursive search through the linked
+  // databases.
   //
   using find_database_function = database* (database&,
                                             const package_name&,
@@ -52,21 +52,6 @@ namespace bpkg
                         const version&,
                         database&,
                         transaction&);
-
-  // Return package prerequisites given its dependencies. Fail if some of the
-  // prerequisites are not configured or don't satisfy the package's
-  // dependency constraints. Note that the package argument is used for
-  // diagnostics only.
-  //
-  // Note: loads selected packages.
-  //
-  package_prerequisites
-  pkg_configure_prerequisites (const common_options&,
-                               database&,
-                               transaction&,
-                               const dependencies&,
-                               const package_name&,
-                               const function<find_database_function>& = {});
 }
 
 #endif // BPKG_PKG_CONFIGURE_HXX

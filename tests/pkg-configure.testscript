@@ -451,4 +451,28 @@ if ($posix && "$uid" != '0')
     $pkg_disfigure libbar 2>!;
     $pkg_purge     libbar 2>!
   }
+
+  : reflect
+  :
+  {
+    $clone_cfg;
+
+    $pkg_fetch fox/1.0.0 && $pkg_unpack fox;
+    $pkg_fetch libbaz/1.0.0 && $pkg_unpack libbaz;
+
+    $* libbaz 2>!;
+
+    $* fox 2>'configured fox/1.0.0';
+
+    cat cfg/fox-1.0.0/build/config.build >>~%EOO%;
+      %.*
+      config.fox.backend = libbaz
+      %.*
+      EOO
+
+    $pkg_disfigure fox    2>!;
+    $pkg_purge     fox    2>!;
+    $pkg_disfigure libbaz 2>!;
+    $pkg_purge     libbaz 2>!
+  }
 }

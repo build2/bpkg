@@ -138,6 +138,7 @@
 # |
 # |-- t8a
 # |   |-- foo-1.0.0.tar.gz      -> {libbar libbaz} ^1.0.0
+# |   |-- fox-1.0.0.tar.gz      -> libbar ^1.0.0 | libbaz ^1.0.0
 # |   |-- libbar-1.0.0.tar.gz
 # |   |-- libbaz-1.0.0.tar.gz
 # |   `-- repositories.manifest
