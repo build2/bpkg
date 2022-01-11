@@ -720,6 +720,11 @@ namespace bpkg
       //
       assert (action && *action != drop && (!p.action || *p.action != drop));
 
+      // We never merge two repointed dependent reconfigurations.
+      //
+      assert ((flags & build_repoint) == 0 ||
+              (p.flags & build_repoint) == 0);
+
       // Copy the user-specified options/variables.
       //
       if (p.user_selection ())
@@ -780,17 +785,10 @@ namespace bpkg
       //
       flags |= p.flags;
 
+      // Upgrade repoint to the full build.
+      //
       if (*action == build)
-      {
-        // We never merge two repointed dependent reconfigurations.
-        //
-        assert ((flags & build_repoint) == 0 ||
-                (p.flags & build_repoint) == 0);
-
-        // Upgrade repoint to the full build.
-        //
         flags &= ~build_repoint;
-      }
 
       // Note that we don't copy the build_package::system flag. If it was
       // set from the command line ("strong system") then we will also have
