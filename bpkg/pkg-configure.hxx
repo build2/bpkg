@@ -30,10 +30,11 @@ namespace bpkg
                                             const package_name&,
                                             bool buildtime);
 
-  // Note: all of the following functions expect the package dependency
-  // constraints to be complete.
-
   // Configure the package, update its state, and commit the transaction.
+  //
+  // The package dependency constraints are expected to be complete. Empty
+  // dependency alternatives lists are allowed and are ignored (see pkg-build
+  // for the use-case).
   //
   void
   pkg_configure (const common_options&,

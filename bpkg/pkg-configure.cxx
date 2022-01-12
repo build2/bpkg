@@ -20,10 +20,11 @@ namespace bpkg
 {
   // Given dependencies of a package, return its prerequisite packages and
   // configuration variables that resulted from selection of these
-  // prerequisites (import, reflection, etc). Fail if for some of the
-  // dependency alternative lists there is no satisfactory alternative (all
-  // its dependencies are configured and satisfy the respective constraints,
-  // etc). Note that the package argument is used for diagnostics only.
+  // prerequisites (import, reflection, etc). See pkg_configure() for the
+  // semantics of the dependency list. Fail if for some of the dependency
+  // alternative lists there is no satisfactory alternative (all its
+  // dependencies are configured, satisfy the respective constraints, etc).
+  // Note that the package argument is used for diagnostics only.
   //
   // Note: loads selected packages.
   //
@@ -41,16 +42,21 @@ namespace bpkg
 
     for (const dependency_alternatives_ex& das: deps)
     {
-      // @@ DEP Currently we just pick the first alternative with dependencies
-      //    that can all be resolved to the configured packages, satisfying
-      //    the respective constraints. Later, we should also evaluate the
-      //    alternative enable conditions.
-      //
-      assert (!das.conditional ());
+      if (das.empty () || toolchain_buildtime_dependency (o, das, package))
+        continue;
 
+      // Pick the first alternative with dependencies that can all be resolved
+      // to the configured packages, satisfying the respective constraints.
+      //
       bool satisfied (false);
+      bool enabled   (false); // True if there is an enabled alternative.
       for (const dependency_alternative& da: das)
       {
+        if (!evaluate_enabled (da, package))
+          continue;
+
+        enabled = true;
+
         // Cache the selected packages which correspond to the alternative
         // dependencies, pairing them with the respective constraints. If the
         // alternative turns out to be fully resolvable, we will add the
@@ -70,30 +76,6 @@ namespace bpkg
         {
           const dependency&   d (*i);
           const package_name& n (d.name);
-
-          if (das.buildtime)
-          {
-            // Handle special names.
-            //
-            if (n == "build2")
-            {
-              if (d.constraint && !satisfy_build2 (o, d))
-                fail << "unable to satisfy constraint (" << d
-                     << ") for package " << package <<
-                  info << "available build2 version is " << build2_version;
-
-              continue;
-            }
-            else if (n == "bpkg")
-            {
-              if (d.constraint && !satisfy_bpkg (o, d))
-                fail << "unable to satisfy constraint (" << d
-                     << ") for package " << package <<
-                  info << "available bpkg version is " << bpkg_version;
-
-              continue;
-            }
-          }
 
           database* ddb (fdb ? fdb (db, n, das.buildtime) : nullptr);
 
@@ -204,7 +186,7 @@ namespace bpkg
         break;
       }
 
-      if (!satisfied)
+      if (enabled && !satisfied)
         fail << "unable to satisfy dependency on " << das;
     }
 

@@ -481,12 +481,20 @@ namespace bpkg
   // than we will have on the list. This is because some of the prerequisites
   // of "upgraded" or "downgraded" packages may no longer need to be built.
   //
-  // Note also that we don't try to do exhaustive constraint satisfaction
-  // (i.e., there is no backtracking). Specifically, if we have two
-  // candidate packages each satisfying a constraint of its dependent
-  // package, then if neither of them satisfy both constraints, then we
-  // give up and ask the user to resolve this manually by explicitly
-  // specifying the version that will satisfy both constraints.
+  // Note that we don't try to do exhaustive constraint satisfaction (i.e.,
+  // there is no backtracking). Specifically, if we have two candidate
+  // packages each satisfying a constraint of its dependent package, then if
+  // neither of them satisfy both constraints, then we give up and ask the
+  // user to resolve this manually by explicitly specifying the version that
+  // will satisfy both constraints.
+  //
+  // Also note that we rule out dependency alternatives with enable constraint
+  // that evaluates to false and try to select one satisfactory alternative if
+  // there are multiple of them. In the latter case we pick the first
+  // alternative with packages that are already used (as a result of being
+  // dependencies of other package, requested by the user, or already being
+  // present in the configuration) and fail if such an alternative doesn't
+  // exist.
   //
   struct build_package
   {
@@ -535,6 +543,31 @@ namespace bpkg
     {
       return selected != nullptr ? selected->name : available->id.name;
     }
+
+    // If we end up collecting the prerequisite builds for this package, then
+    // this member stores copies of the selected dependency alternatives. The
+    // dependency alternatives for toolchain build-time dependencies and for
+    // dependencies which have all the alternatives disabled are represented
+    // as empty dependency alternatives lists. If present, it is parallel to
+    // the available package's dependencies member.
+    //
+    // Initially nullopt. Can be filled partially if the package prerequisite
+    // builds collection is postponed for any reason (see postponed_packages
+    // for possible reasons).
+    //
+    optional<bpkg::dependencies> dependencies;
+
+    // If the package prerequisite builds collection is postponed, then this
+    // member stores the references to the enabled alternatives (in available
+    // package) of a dependency being the cause of the postponement. This, in
+    // particular, allows not to re-evaluate conditions multiple times on the
+    // re-collection attempts.
+    //
+    // Note: it shouldn't be very common for a dependency to contain more than
+    // two true alternatives.
+    //
+    optional<small_vector<reference_wrapper<const dependency_alternative>, 2>>
+    postponed_dependency_alternatives;
 
     // Hold flags. Note that we only "increase" the hold_package value that is
     // already in the selected package.
@@ -809,14 +842,22 @@ namespace bpkg
 
   struct build_packages: build_package_list
   {
-    // Packages collection of whose prerequisites has been postponed due the
-    // inability to find a version satisfying the pre-entered constraint from
-    // repositories available to this package. The idea is that this
-    // constraint could still be satisfied from a repository fragment of some
-    // other package (that we haven't processed yet) that also depends on this
-    // prerequisite.
+    // Packages with postponed prerequisites collection, for one of the
+    // following reasons:
     //
-    using postponed_packages = set<const build_package*>;
+    // - Postponed due to the inability to find a version satisfying the pre-
+    //   entered constraint from repositories available to this package. The
+    //   idea is that this constraint could still be satisfied from a
+    //   repository fragment of some other package (that we haven't processed
+    //   yet) that also depends on this prerequisite.
+    //
+    // - Postponed due to the inability to choose between two dependency
+    //   alternatives, both having dependency packages which are not yet
+    //   selected in the configuration nor being built. The idea is that this
+    //   ambiguity could still be resolved after some of those dependency
+    //   packages get built via some other dependents.
+    //
+    using postponed_packages = set<build_package*>;
 
     // Pre-enter a build_package without an action. No entry for this package
     // may already exists.
@@ -845,7 +886,7 @@ namespace bpkg
     // version was, in fact, added to the map and NULL if it was already there
     // or the existing version was preferred. So can be used as bool.
     //
-    // Also, in the recursive mode:
+    // Also, in the recursive mode (dep_chain is not NULL):
     //
     // - Use the custom search function to find the package dependency
     //   databases.
@@ -857,22 +898,27 @@ namespace bpkg
     //   containing configuration databases, into the specified list (see
     //   private_configs for details).
     //
+    // Note that postponed_* and dep_chain arguments must all be either
+    // specified or not.
+    //
     build_package*
     collect_build (const pkg_build_options& options,
                    build_package pkg,
                    const function<find_database_function>& fdb,
                    const repointed_dependents& rpt_depts,
                    const function<add_priv_cfg_function>& apc,
-                   postponed_packages* recursively = nullptr,
+                   postponed_packages* postponed_repo = nullptr,
+                   postponed_packages* postponed_alts = nullptr,
                    build_package_refs* dep_chain = nullptr)
     {
       using std::swap; // ...and not list::swap().
 
       tracer trace ("collect_build");
 
-      // Must both be either specified or not.
+      // Must all be either specified or not.
       //
-      assert ((recursively == nullptr) == (dep_chain == nullptr));
+      assert ((dep_chain == nullptr) == (postponed_repo == nullptr));
+      assert ((postponed_repo == nullptr) == (postponed_alts == nullptr));
 
       // Only builds are allowed here.
       //
@@ -1035,13 +1081,15 @@ namespace bpkg
       // replaced once. So let's wait until some real use case proves this
       // reasoning wrong.
       //
-      if (recursively != nullptr)
+      if (dep_chain != nullptr)
         collect_build_prerequisites (options,
                                      p,
-                                     recursively,
                                      fdb,
                                      rpt_depts,
                                      apc,
+                                     postponed_repo,
+                                     postponed_alts,
+                                     0 /* max_alt_index */,
                                      *dep_chain);
 
       return &p;
@@ -1063,13 +1111,28 @@ namespace bpkg
     // an orphan, but this is exactly what we need to do in that case, since
     // we won't be able to be reconfigure it anyway.
     //
+    // Only a single true dependency alternative can be selected per function
+    // call. Such an alternative can only be selected if its index in the
+    // postponed alternatives list is less than the specified maximum (used by
+    // the heuristics that determines in which order to process packages with
+    // alternatives; if 0 is passed, then no true alternative will be
+    // selected).
+    //
+    // The idea here is to postpone the true alternatives selection till the
+    // end of the packages collection and then try to optimize the overall
+    // resulting selection (over all the dependents) by selecting alternatives
+    // with the lower indexes first (see collect_build_postponed() for
+    // details).
+    //
     void
     collect_build_prerequisites (const pkg_build_options& options,
-                                 const build_package& pkg,
-                                 postponed_packages* postponed,
+                                 build_package& pkg,
                                  const function<find_database_function>& fdb,
                                  const repointed_dependents& rpt_depts,
                                  const function<add_priv_cfg_function>& apc,
+                                 postponed_packages* postponed_repo,
+                                 postponed_packages* postponed_alts,
+                                 size_t max_alt_index,
                                  build_package_refs& dep_chain)
     {
       tracer trace ("collect_build_prerequisites");
@@ -1079,8 +1142,9 @@ namespace bpkg
       if (pkg.system)
         return;
 
-      database& pdb (pkg.db);
+      const shared_ptr<available_package>& ap (pkg.available);
       const shared_ptr<selected_package>& sp (pkg.selected);
+      database& pdb (pkg.db);
 
       // True if this is an up/down-grade.
       //
@@ -1107,10 +1171,35 @@ namespace bpkg
           rpt_prereq_flags = &i->second;
 
         if (!ud && rpt_prereq_flags == nullptr)
-         return;
+          return;
       }
 
-      dep_chain.push_back (pkg);
+      assert (ap != nullptr);
+
+      // Iterate over dependencies, trying to unambiguously select a
+      // satisfactory dependency alternative for each of them. Fail or
+      // postpone the collection if unable to do so.
+      //
+      const dependencies& deps (ap->dependencies);
+
+      // Note that the selected alternatives list can be filled partially (see
+      // build_package::dependencies for details). In this case we continue
+      // collecting where we stopped previously.
+      //
+      if (!pkg.dependencies)
+      {
+        pkg.dependencies = dependencies ();
+
+        if (size_t n = deps.size ())
+          pkg.dependencies->reserve (n);
+      }
+
+      dependencies& sdeps (*pkg.dependencies);
+
+      // Check if there is nothing to collect anymore.
+      //
+      if (sdeps.size () == deps.size ())
+        return;
 
       // Show how we got here if things go wrong.
       //
@@ -1133,47 +1222,141 @@ namespace bpkg
             }
           }));
 
-      const shared_ptr<available_package>& ap (pkg.available);
-      const lazy_shared_ptr<repository_fragment>& af (pkg.repository_fragment);
-      const package_name& name (ap->id.name);
+      dep_chain.push_back (pkg);
 
-      for (const dependency_alternatives_ex& das: ap->dependencies)
+      assert (sdeps.size () < deps.size ());
+
+      for (size_t i (sdeps.size ()); i != deps.size (); ++i)
       {
-        if (das.conditional ()) // @@ DEP
-          fail << "conditional dependencies are not yet supported";
+        const dependency_alternatives_ex& das (deps[i]);
 
-        if (das.size () != 1) // @@ DEP
-          fail << "multiple dependency alternatives not yet supported";
+        // Add an empty alternatives list into the selected dependency list if
+        // this is a toolchain build-time dependency.
+        //
+        dependency_alternatives_ex sdas (das.buildtime, das.comment);
 
-        bool postpone (false);
-        for (const dependency& dp: das.front ())
+        if (toolchain_buildtime_dependency (options, das, pkg.name ()))
         {
-          const package_name& dn (dp.name);
+          sdeps.push_back (move (sdas));
+          continue;
+        }
 
-          if (das.buildtime)
+        // Evaluate alternative conditions and filter enabled alternatives.
+        // Add an empty alternatives list into the selected dependency list if
+        // there are none.
+        //
+        small_vector<reference_wrapper<const dependency_alternative>, 2> edas;
+
+        if (pkg.postponed_dependency_alternatives)
+        {
+          edas = move (*pkg.postponed_dependency_alternatives);
+          pkg.postponed_dependency_alternatives = nullopt;
+        }
+        else
+        {
+          for (const dependency_alternative& da: das)
           {
-            // Handle special names.
-            //
-            if (dn == "build2")
-            {
-              if (dp.constraint && !satisfy_build2 (options, dp))
-                fail << "unable to satisfy constraint (" << dp
-                     << ") for package " << name <<
-                  info << "available build2 version is " << build2_version;
+            if (evaluate_enabled (da, pkg.name ()))
+              edas.push_back (da);
+          }
+        }
 
-              continue;
-            }
-            else if (dn == "bpkg")
-            {
-              if (dp.constraint && !satisfy_bpkg (options, dp))
-                fail << "unable to satisfy constraint (" << dp
-                     << ") for package " << name <<
-                  info << "available bpkg version is " << bpkg_version;
+        if (edas.empty ())
+        {
+          sdeps.push_back (move (sdas));
+          continue;
+        }
 
-              continue;
-            }
-            else if (pdb.type == build2_config_type)
+        // Try to pre-collect build information (pre-builds) for the
+        // dependencies of an alternative. Optionally, issue diagnostics into
+        // the specified diag record.
+        //
+        // Note that rather than considering an alternative as unsatisfactory
+        // (returning no pre-builds) the function can fail in some cases
+        // (multiple possible configurations for a build-time dependency,
+        // orphan or broken selected package, etc). The assumption here is
+        // that the user would prefer to fix a dependency-related issue first
+        // instead of proceeding with the build which can potentially end up
+        // with some less preferable dependency alternative.
+        //
+        struct prebuild
+        {
+          bpkg::dependency                           dependency;
+          reference_wrapper<database>                db;
+          shared_ptr<selected_package>               selected;
+          shared_ptr<available_package>              available;
+          lazy_shared_ptr<bpkg::repository_fragment> repository_fragment;
+          bool                                       system;
+          bool                                       specified;
+          bool                                       force;
+
+          // True if the dependency package is either selected in the
+          // configuration or is already being built.
+          //
+          bool                                       reused;
+        };
+        using prebuilds = small_vector<prebuild, 1>;
+
+        class precollect_result
+        {
+        public:
+          // Nullopt if some dependencies cannot be resolved.
+          //
+          optional<prebuilds> builds;
+
+          // True if dependencies can all be resolved (builds is present) and
+          // are all reused (see above).
+          //
+          bool reused;
+
+          // True if some of the dependencies cannot be resolved (builds is
+          // nullopt) and the dependent package prerequisites collection needs
+          // to be postponed due to inability to find a version satisfying the
+          // pre-entered constraint from repositories available to the
+          // dependent package.
+          //
+          bool repo_postpone;
+
+          // Create precollect result containing dependency builds.
+          //
+          precollect_result (prebuilds&& bs, bool r)
+              : builds (move (bs)), reused (r), repo_postpone (false) {}
+
+          // Create precollect result without builds (some dependency can't be
+          // satisfied, etc).
+          //
+          explicit
+          precollect_result (bool p): reused (false), repo_postpone (p) {}
+        };
+        auto precollect = [&options,
+                           &pkg,
+                           &pdb,
+                           ud,
+                           &fdb,
+                           rpt_prereq_flags,
+                           &apc,
+                           postponed_repo,
+                           &dep_chain,
+                           this]
+                          (const dependency_alternative& da,
+                           bool buildtime,
+                           diag_record* dr = nullptr)
+          -> precollect_result
+        {
+          prebuilds r;
+          bool reused (true);
+
+          const lazy_shared_ptr<repository_fragment>& af (
+            pkg.repository_fragment);
+
+          for (const dependency& dp: da)
+          {
+            const package_name& dn (dp.name);
+
+            if (buildtime && pdb.type == build2_config_type)
             {
+              assert (dr == nullptr); // Should fail on the "silent" run.
+
               // Note that the dependent is not necessarily a build system
               // module.
               //
@@ -1182,578 +1365,907 @@ namespace bpkg
                 info << "build system modules cannot have build-time "
                      << "dependencies";
             }
-          }
 
-          bool system (false);
-          bool dep_optional (false);
+            bool system    (false);
+            bool specified (false);
 
-          // If the user specified the desired dependency version constraint,
-          // then we will use it to overwrite the constraint imposed by the
-          // dependent package, checking that it is still satisfied.
-          //
-          // Note that we can't just rely on the execution plan refinement
-          // that will pick up the proper dependency version at the end of the
-          // day.  We may just not get to the plan execution simulation,
-          // failing due to inability for dependency versions collected by two
-          // dependents to satisfy each other constraints (for an example see
-          // the pkg-build/dependency/apply-constraints/resolve-conflict{1,2}
-          // tests).
-
-          // Points to the desired dependency version constraint, if
-          // specified, and is NULL otherwise. Can be used as boolean flag.
-          //
-          const version_constraint* dep_constr (nullptr);
-
-          database* ddb (fdb (pdb, dn, das.buildtime));
-
-          auto i (ddb != nullptr
-                  ? map_.find (*ddb, dn)
-                  : map_.find_dependency (pdb, dn, das.buildtime));
-
-          if (i != map_.end ())
-          {
-            const build_package& bp (i->second.package);
-
-            dep_optional = !bp.action; // Is pre-entered.
-
-            if (dep_optional &&
-                //
-                // The version constraint is specified,
-                //
-                bp.hold_version && *bp.hold_version)
-            {
-              assert (bp.constraints.size () == 1);
-
-              const build_package::constraint_type& c (bp.constraints[0]);
-
-              dep_constr = &c.value;
-              system = bp.system;
-
-              // If the user-specified dependency constraint is the wildcard
-              // version, then it satisfies any dependency constraint.
-              //
-              if (!wildcard (*dep_constr) &&
-                  !satisfies (*dep_constr, dp.constraint))
-                fail << "unable to satisfy constraints on package " << dn <<
-                  info << name << pdb << " depends on (" << dn << " "
-                     << *dp.constraint << ")" <<
-                  info << c.dependent << c.db << " depends on (" << dn << " "
-                     << c.value << ")" <<
-                  info << "specify " << dn << " version to satisfy " << name
-                     << " constraint";
-            }
-          }
-
-          const dependency& d (!dep_constr
-                               ? dp
-                               : dependency {dn, *dep_constr});
-
-          // First see if this package is already selected. If we already have
-          // it in the configuration and it satisfies our dependency version
-          // constraint, then we don't want to be forcing its upgrade (or,
-          // worse, downgrade).
-          //
-          // If the prerequisite configuration is explicitly specified by the
-          // user, then search for the prerequisite in this specific
-          // configuration. Otherwise, search recursively in the explicitly
-          // linked configurations of the dependent configuration.
-          //
-          // Note that for the repointed dependent we will always find the
-          // prerequisite replacement rather than the prerequisite being
-          // replaced.
-          //
-          pair<shared_ptr<selected_package>, database*> spd (
-            ddb != nullptr
-            ? make_pair (ddb->find<selected_package> (dn), ddb)
-            : find_dependency (pdb, dn, das.buildtime));
-
-          if (ddb == nullptr)
-            ddb = &pdb;
-
-          shared_ptr<selected_package>& dsp (spd.first);
-
-          pair<shared_ptr<available_package>,
-               lazy_shared_ptr<repository_fragment>> rp;
-
-          shared_ptr<available_package>& dap (rp.first);
-
-          bool force (false);
-
-          if (dsp != nullptr)
-          {
-            // Switch to the selected package configuration.
+            // If the user specified the desired dependency version constraint,
+            // then we will use it to overwrite the constraint imposed by the
+            // dependent package, checking that it is still satisfied.
             //
-            ddb = spd.second;
+            // Note that we can't just rely on the execution plan refinement
+            // that will pick up the proper dependency version at the end of
+            // the day. We may just not get to the plan execution simulation,
+            // failing due to inability for dependency versions collected by
+            // two dependents to satisfy each other constraints (for an
+            // example see the
+            // pkg-build/dependency/apply-constraints/resolve-conflict{1,2}
+            // tests).
 
-            // If we are collecting prerequisites of the repointed dependent,
-            // then only proceed further if this is either a replacement or
-            // unamended prerequisite and we are up/down-grading (only for the
-            // latter).
+            // Points to the desired dependency version constraint, if
+            // specified, and is NULL otherwise. Can be used as boolean flag.
             //
-            if (rpt_prereq_flags != nullptr)
+            const version_constraint* dep_constr (nullptr);
+
+            database* ddb (fdb (pdb, dn, buildtime));
+
+            auto i (ddb != nullptr
+                    ? map_.find (*ddb, dn)
+                    : map_.find_dependency (pdb, dn, buildtime));
+
+            if (i != map_.end ())
             {
-              auto i (rpt_prereq_flags->find (config_package {*ddb, dn}));
+              const build_package& bp (i->second.package);
 
-              bool unamended   (i == rpt_prereq_flags->end ());
-              bool replacement (!unamended && i->second);
+              specified = !bp.action; // Is pre-entered.
 
-              // We can never end up with the prerequisite being replaced,
-              // since the fdb() function should always return the replacement
-              // instead (see above).
-              //
-              assert (unamended || replacement);
-
-              if (!(replacement || (unamended && ud)))
-                continue;
-            }
-
-            if (dsp->state == package_state::broken)
-              fail << "unable to build broken package " << dn << *ddb <<
-                info << "use 'pkg-purge --force' to remove";
-
-            // If the constraint is imposed by the user we also need to make
-            // sure that the system flags are the same.
-            //
-            if (satisfies (dsp->version, d.constraint) &&
-                (!dep_constr || dsp->system () == system))
-            {
-              system = dsp->system ();
-
-              // First try to find an available package for this exact
-              // version. In particular, this handles the case where a package
-              // moves from one repository to another (e.g., from testing to
-              // stable). For a system package we pick the latest one (its
-              // exact version doesn't really matter).
-              //
-              rp = find_available_one (dependent_repo_configs (*ddb),
-                                       dn,
-                                       (!system
-                                        ? version_constraint (dsp->version)
-                                        : optional<version_constraint> ()));
-
-              // A stub satisfies any version constraint so we weed them out
-              // (returning stub as an available package feels wrong).
-              //
-              if (dap == nullptr || dap->stub ())
-                rp = make_available (options, *ddb, dsp);
-            }
-            else
-              // Remember that we may be forcing up/downgrade; we will deal
-              // with it below.
-              //
-              force = true;
-          }
-
-          // If this is a build-time dependency and we build it for the first
-          // time, then we need to find a suitable configuration (of the host
-          // or build2 type) to build it in.
-          //
-          // If the current configuration (ddb) is of the suitable type, then
-          // we use that. Otherwise, we go through its immediate explicit
-          // links. If only one of them has the suitable type, then we use
-          // that. If there are multiple of them, then we fail advising the
-          // user to pick one explicitly. If there are none, then we create
-          // the private configuration and use that. If the current
-          // configuration is private, then search/create in the parent
-          // configuration instead.
-          //
-          // Note that if the user has explicitly specified the configuration
-          // for this dependency on the command line (using --config-*), then
-          // this configuration is used as the starting point for this search.
-          //
-          if (das.buildtime  &&
-              dsp == nullptr &&
-              ddb->type != buildtime_dependency_type (dn))
-          {
-            database*  db (nullptr);
-            database& sdb (ddb->private_ () ? ddb->parent_config () : *ddb);
-
-            const string& type (buildtime_dependency_type (dn));
-
-            // Skip the self-link.
-            //
-            const linked_configs& lcs (sdb.explicit_links ());
-            for (auto i (lcs.begin_linked ()); i != lcs.end (); ++i)
-            {
-              database& ldb (i->db);
-
-              if (ldb.type == type)
+              if (specified &&
+                  //
+                  // The version constraint is specified,
+                  //
+                  bp.hold_version && *bp.hold_version)
               {
-                if (db == nullptr)
-                  db = &ldb;
-                else
-                  fail << "multiple possible " << type << " configurations for "
-                       << "build-time dependency (" << dp << ")" <<
-                    info << db->config_orig <<
-                    info << ldb.config_orig <<
-                    info << "use --config-* to select the configuration";
+                assert (bp.constraints.size () == 1);
+
+                const build_package::constraint_type& c (bp.constraints[0]);
+
+                dep_constr = &c.value;
+                system = bp.system;
+
+                // If the user-specified dependency constraint is the wildcard
+                // version, then it satisfies any dependency constraint.
+                //
+                if (!wildcard (*dep_constr) &&
+                    !satisfies (*dep_constr, dp.constraint))
+                {
+                  if (dr != nullptr)
+                    *dr << error << "unable to satisfy constraints on package "
+                        << dn <<
+                      info << pkg.name () << pdb << " depends on (" << dn
+                           << " " << *dp.constraint << ")" <<
+                      info << c.dependent << c.db << " depends on (" << dn
+                           << " " << c.value << ")" <<
+                      info << "specify " << dn << " version to satisfy "
+                           << pkg.name () << " constraint";
+
+                  return precollect_result (false /* postpone */);
+                }
               }
             }
 
-            // If no suitable configuration is found, then create and link it,
-            // unless the --no-private-config options is specified. In the
-            // latter case, print the dependency chain to stdout and exit with
-            // the specified code.
+            const dependency& d (!dep_constr
+                                 ? dp
+                                 : dependency {dn, *dep_constr});
+
+            // First see if this package is already selected. If we already
+            // have it in the configuration and it satisfies our dependency
+            // version constraint, then we don't want to be forcing its
+            // upgrade (or, worse, downgrade).
             //
-            if (db == nullptr)
+            // If the prerequisite configuration is explicitly specified by the
+            // user, then search for the prerequisite in this specific
+            // configuration. Otherwise, search recursively in the explicitly
+            // linked configurations of the dependent configuration.
+            //
+            // Note that for the repointed dependent we will always find the
+            // prerequisite replacement rather than the prerequisite being
+            // replaced.
+            //
+            pair<shared_ptr<selected_package>, database*> spd (
+              ddb != nullptr
+              ? make_pair (ddb->find<selected_package> (dn), ddb)
+              : find_dependency (pdb, dn, buildtime));
+
+            if (ddb == nullptr)
+              ddb = &pdb;
+
+            shared_ptr<selected_package>& dsp (spd.first);
+
+            pair<shared_ptr<available_package>,
+                 lazy_shared_ptr<repository_fragment>> rp;
+
+            shared_ptr<available_package>& dap (rp.first);
+
+            bool force (false);
+
+            if (dsp != nullptr)
             {
-              if (options.no_private_config_specified ())
-              try
+              // Switch to the selected package configuration.
+              //
+              ddb = spd.second;
+
+              // If we are collecting prerequisites of the repointed
+              // dependent, then only proceed further if this is either a
+              // replacement or unamended prerequisite and we are
+              // up/down-grading (only for the latter).
+              //
+              if (rpt_prereq_flags != nullptr)
               {
-                // Note that we don't have the dependency package version yet.
-                // We could probably rearrange the code and obtain the
-                // available dependency package by now, given that it comes
-                // from the main database and may not be specified as system
-                // (we would have the configuration otherwise). However, let's
-                // not complicate the code further and instead print the
-                // package name and the constraint, if present.
-                //
-                // Also, in the future, we may still need the configuration to
-                // obtain the available dependency package for some reason
-                // (may want to fetch repositories locally, etc).
-                //
-                cout << d << '\n';
+                auto i (rpt_prereq_flags->find (config_package {*ddb, dn}));
 
-                // Note that we also need to clean the dependency chain, to
-                // prevent the exception guard from printing it to stderr.
+                bool unamended   (i == rpt_prereq_flags->end ());
+                bool replacement (!unamended && i->second);
+
+                // We can never end up with the prerequisite being replaced,
+                // since the fdb() function should always return the
+                // replacement instead (see above).
                 //
-                for (build_package_refs dc (move (dep_chain)); !dc.empty (); )
+                assert (unamended || replacement);
+
+                if (!(replacement || (unamended && ud)))
+                  continue;
+              }
+
+              if (dsp->state == package_state::broken)
+              {
+                assert (dr == nullptr); // Should fail on the "silent" run.
+
+                fail << "unable to build broken package " << dn << *ddb <<
+                  info << "use 'pkg-purge --force' to remove";
+              }
+
+              // If the constraint is imposed by the user we also need to make
+              // sure that the system flags are the same.
+              //
+              if (satisfies (dsp->version, d.constraint) &&
+                  (!dep_constr || dsp->system () == system))
+              {
+                system = dsp->system ();
+
+                // First try to find an available package for this exact
+                // version. In particular, this handles the case where a
+                // package moves from one repository to another (e.g., from
+                // testing to stable). For a system package we pick the latest
+                // one (its exact version doesn't really matter).
+                //
+                rp = find_available_one (dependent_repo_configs (*ddb),
+                                         dn,
+                                         (!system
+                                          ? version_constraint (dsp->version)
+                                          : optional<version_constraint> ()));
+
+                // A stub satisfies any version constraint so we weed them out
+                // (returning stub as an available package feels wrong).
+                //
+                if (dap == nullptr || dap->stub ())
+                  rp = make_available (options, *ddb, dsp);
+              }
+              else
+                // Remember that we may be forcing up/downgrade; we will deal
+                // with it below.
+                //
+                force = true;
+            }
+
+            // If this is a build-time dependency and we build it for the
+            // first time, then we need to find a suitable configuration (of
+            // the host or build2 type) to build it in.
+            //
+            // If the current configuration (ddb) is of the suitable type,
+            // then we use that. Otherwise, we go through its immediate
+            // explicit links. If only one of them has the suitable type, then
+            // we use that. If there are multiple of them, then we fail
+            // advising the user to pick one explicitly. If there are none,
+            // then we create the private configuration and use that. If the
+            // current configuration is private, then search/create in the
+            // parent configuration instead.
+            //
+            // Note that if the user has explicitly specified the
+            // configuration for this dependency on the command line (using
+            // --config-*), then this configuration is used as the starting
+            // point for this search.
+            //
+            if (buildtime      &&
+                dsp == nullptr &&
+                ddb->type != buildtime_dependency_type (dn))
+            {
+              database*  db (nullptr);
+              database& sdb (ddb->private_ () ? ddb->parent_config () : *ddb);
+
+              const string& type (buildtime_dependency_type (dn));
+
+              // Skip the self-link.
+              //
+              const linked_configs& lcs (sdb.explicit_links ());
+              for (auto i (lcs.begin_linked ()); i != lcs.end (); ++i)
+              {
+                database& ldb (i->db);
+
+                if (ldb.type == type)
                 {
-                  const build_package& p (dc.back ());
+                  if (db == nullptr)
+                    db = &ldb;
+                  else
+                  {
+                    assert (dr == nullptr); // Should fail on the "silent" run.
 
-                  cout << p.available_name_version () << ' '
-                       << p.db.get ().config << '\n';
+                    fail << "multiple possible " << type << " configurations "
+                         << "for build-time dependency (" << dp << ")" <<
+                      info << db->config_orig <<
+                      info << ldb.config_orig <<
+                      info << "use --config-* to select the configuration";
+                  }
+                }
+              }
 
-                  dc.pop_back ();
+              // If no suitable configuration is found, then create and link
+              // it, unless the --no-private-config options is specified. In
+              // the latter case, print the dependency chain to stdout and
+              // exit with the specified code.
+              //
+              if (db == nullptr)
+              {
+                // The private config should be created on the "silent" run
+                // and so there always should be a suitable configuration on
+                // the diagnostics run.
+                //
+                assert (dr == nullptr);
+
+                if (options.no_private_config_specified ())
+                try
+                {
+                  // Note that we don't have the dependency package version
+                  // yet. We could probably rearrange the code and obtain the
+                  // available dependency package by now, given that it comes
+                  // from the main database and may not be specified as system
+                  // (we would have the configuration otherwise). However,
+                  // let's not complicate the code further and instead print
+                  // the package name and the constraint, if present.
+                  //
+                  // Also, in the future, we may still need the configuration
+                  // to obtain the available dependency package for some
+                  // reason (may want to fetch repositories locally, etc).
+                  //
+                  cout << d << '\n';
+
+                  // Note that we also need to clean the dependency chain, to
+                  // prevent the exception guard from printing it to stderr.
+                  //
+                  for (build_package_refs dc (move (dep_chain));
+                       !dc.empty (); )
+                  {
+                    const build_package& p (dc.back ());
+
+                    cout << p.available_name_version () << ' '
+                         << p.db.get ().config << '\n';
+
+                    dc.pop_back ();
+                  }
+
+                  throw failed (options.no_private_config ());
+                }
+                catch (const io_error&)
+                {
+                  fail << "unable to write to stdout";
                 }
 
-                throw failed (options.no_private_config ());
+                const strings mods {"cc"};
+
+                const strings vars {
+                  "config.config.load=~" + type,
+                    "config.config.persist+='config.*'@unused=drop"};
+
+                dir_path cd (bpkg_dir / dir_path (type));
+
+                // Wipe a potentially existing un-linked private configuration
+                // left from a previous faulty run. Note that trying to reuse
+                // it would be a bad idea since it can be half-prepared, with
+                // an outdated database schema version, etc.
+                //
+                cfg_create (options,
+                            sdb.config_orig / cd,
+                            optional<string> (type) /* name */,
+                            type                    /* type */,
+                            mods,
+                            vars,
+                            false                   /* existing */,
+                            true                    /* wipe */);
+
+                // Note that we will copy the name from the configuration
+                // unless it clashes with one of the existing links.
+                //
+                shared_ptr<configuration> lc (
+                  cfg_link (sdb,
+                            sdb.config / cd,
+                            true    /* relative */,
+                            nullopt /* name */,
+                            true    /* sys_rep */));
+
+                // Save the newly-created private configuration, together with
+                // the containing configuration database, for their subsequent
+                // re-link.
+                //
+                apc (sdb, move (cd));
+
+                db = &sdb.find_attached (*lc->id);
               }
-              catch (const io_error&)
-              {
-                fail << "unable to write to stdout";
-              }
 
-              const strings mods {"cc"};
-
-              const strings vars {
-                "config.config.load=~" + type,
-                  "config.config.persist+='config.*'@unused=drop"};
-
-              dir_path cd (bpkg_dir / dir_path (type));
-
-              // Wipe a potentially existing un-linked private configuration
-              // left from a previous faulty run. Note that trying to reuse it
-              // would be a bad idea since it can be half-prepared, with an
-              // outdated database schema version, etc.
-              //
-              cfg_create (options,
-                          sdb.config_orig / cd,
-                          optional<string> (type) /* name */,
-                          type                    /* type */,
-                          mods,
-                          vars,
-                          false                   /* existing */,
-                          true                    /* wipe */);
-
-              // Note that we will copy the name from the configuration unless
-              // it clashes with one of the existing links.
-              //
-              shared_ptr<configuration> lc (cfg_link (sdb,
-                                                      sdb.config / cd,
-                                                      true    /* relative */,
-                                                      nullopt /* name */,
-                                                      true    /* sys_rep */));
-
-              // Save the newly-created private configuration, together with
-              // the containing configuration database, for their subsequent
-              // re- link.
-              //
-              apc (sdb, move (cd));
-
-              db = &sdb.find_attached (*lc->id);
+              ddb = db; // Switch to the dependency configuration.
             }
 
-            ddb = db; // Switch to the dependency configuration.
-          }
+            // Note that building a dependent which is not a build2 module in
+            // the same configuration with the build2 module it depends upon
+            // is an error.
+            //
+            if (buildtime                    &&
+                !build2_module (pkg.name ()) &&
+                build2_module (dn)           &&
+                pdb == *ddb)
+            {
+              assert (dr == nullptr); // Should fail on the "silent" run.
 
-          // Note that building a dependent which is not a build2 module in
-          // the same configuration with the build2 module it depends upon is
-          // an error.
-          //
-          if (das.buildtime         &&
-              !build2_module (name) &&
-              build2_module (dn)    &&
-              pdb == *ddb)
-          {
-            // Note that the dependent package information is printed by the
-            // above exception guard.
-            //
-            fail << "unable to build build system module " << dn << " in its "
-                 << "dependent package configuration " << pdb.config_orig <<
-              info << "use --config-* to select suitable configuration";
-          }
+              // Note that the dependent package information is printed by the
+              // above exception guard.
+              //
+              fail << "unable to build build system module " << dn
+                   << " in its dependent package configuration "
+                   << pdb.config_orig <<
+                info << "use --config-* to select suitable configuration";
+            }
 
-          // If we didn't get the available package corresponding to the
-          // selected package, look for any that satisfies the constraint.
-          //
-          if (dap == nullptr)
-          {
-            // And if we have no repository fragment to look in, then that
-            // means the package is an orphan (we delay this check until we
-            // actually need the repository fragment to allow orphans without
-            // prerequisites).
+            // If we didn't get the available package corresponding to the
+            // selected package, look for any that satisfies the constraint.
             //
-            if (af == nullptr)
-              fail << "package " << pkg.available_name_version_db ()
-                   << " is orphaned" <<
-                info << "explicitly upgrade it to a new version";
-
-            // We look for prerequisites only in the repositories of this
-            // package (and not in all the repositories of this
-            // configuration).  At first this might look strange, but it also
-            // kind of makes sense: we only use repositories "approved" for
-            // this package version. Consider this scenario as an example:
-            // hello/1.0.0 and libhello/1.0.0 in stable and libhello/2.0.0 in
-            // testing. As a prerequisite of hello, which version should
-            // libhello resolve to?  While one can probably argue either way,
-            // resolving it to 1.0.0 is the conservative choice and the user
-            // can always override it by explicitly building libhello.
-            //
-            // Note though, that if this is a test package, then its special
-            // test dependencies (main packages that refer to it) should be
-            // searched upstream through the complement repositories
-            // recursively, since the test packages may only belong to the main
-            // package's repository and its complements.
-            //
-            // @@ Currently we don't implement the reverse direction search for
-            //    the test dependencies, effectively only supporting the common
-            //    case where the main and test packages belong to the same
-            //    repository. Will need to fix this eventually.
-            //
-            // Note that this logic (naturally) does not apply if the package
-            // is already selected by the user (see above).
-            //
-            // Also note that for the user-specified dependency version
-            // constraint we rely on the satisfying package version be present
-            // in repositories of the first dependent met. As a result, we may
-            // fail too early if such package version doesn't belong to its
-            // repositories, but belongs to the ones of some dependent that
-            // we haven't met yet. Can we just search all repositories for an
-            // available package of the appropriate version and just take it,
-            // if present? We could, but then which repository should we pick?
-            // The wrong choice can introduce some unwanted repositories and
-            // package versions into play. So instead, we will postpone
-            // collecting the problematic dependent, expecting that some other
-            // one will find the appropriate version in its repositories.
-            //
-            // For a system package we pick the latest version just to make
-            // sure the package is recognized. An unrecognized package means
-            // the broken/stale repository (see below).
-            //
-            rp = find_available_one (dn, !system ? d.constraint : nullopt, af);
-
             if (dap == nullptr)
             {
-              if (dep_constr && !system && postponed)
+              // And if we have no repository fragment to look in, then that
+              // means the package is an orphan (we delay this check until we
+              // actually need the repository fragment to allow orphans
+              // without prerequisites).
+              //
+              if (af == nullptr)
               {
-                postponed->insert (&pkg);
-                postpone = true;
-                break;
+                assert (dr == nullptr); // Should fail on the "silent" run.
+
+                fail << "package " << pkg.available_name_version_db ()
+                     << " is orphaned" <<
+                  info << "explicitly upgrade it to a new version";
               }
 
-              diag_record dr (fail);
-
-              // Issue diagnostics differently based on the presence of
-              // available packages for the unsatisfied dependency.
+              // We look for prerequisites only in the repositories of this
+              // package (and not in all the repositories of this
+              // configuration). At first this might look strange, but it
+              // also kind of makes sense: we only use repositories "approved"
+              // for this package version. Consider this scenario as an
+              // example: hello/1.0.0 and libhello/1.0.0 in stable and
+              // libhello/2.0.0 in testing. As a prerequisite of hello, which
+              // version should libhello resolve to?  While one can probably
+              // argue either way, resolving it to 1.0.0 is the conservative
+              // choice and the user can always override it by explicitly
+              // building libhello.
               //
-              // Note that there can't be any stubs, since they satisfy any
-              // constraint and we won't be here if they were.
+              // Note though, that if this is a test package, then its special
+              // test dependencies (main packages that refer to it) should be
+              // searched upstream through the complement repositories
+              // recursively, since the test packages may only belong to the
+              // main package's repository and its complements.
               //
-              vector<shared_ptr<available_package>> aps (
-                find_available (dn, nullopt /* version_constraint */, af));
+              // @@ Currently we don't implement the reverse direction search
+              //    for the test dependencies, effectively only supporting the
+              //    common case where the main and test packages belong to the
+              //    same repository. Will need to fix this eventually.
+              //
+              // Note that this logic (naturally) does not apply if the
+              // package is already selected by the user (see above).
+              //
+              // Also note that for the user-specified dependency version
+              // constraint we rely on the satisfying package version be
+              // present in repositories of the first dependent met. As a
+              // result, we may fail too early if such package version doesn't
+              // belong to its repositories, but belongs to the ones of some
+              // dependent that we haven't met yet. Can we just search all
+              // repositories for an available package of the appropriate
+              // version and just take it, if present? We could, but then
+              // which repository should we pick? The wrong choice can
+              // introduce some unwanted repositories and package versions
+              // into play. So instead, we will postpone collecting the
+              // problematic dependent, expecting that some other one will
+              // find the appropriate version in its repositories.
+              //
+              // For a system package we pick the latest version just to make
+              // sure the package is recognized. An unrecognized package means
+              // the broken/stale repository (see below).
+              //
+              rp = find_available_one (dn,
+                                       !system ? d.constraint : nullopt,
+                                       af);
 
-              if (!aps.empty ())
+              if (dap == nullptr)
               {
-                dr << "unable to satisfy dependency constraint (" << dn;
+                if (dep_constr && !system && postponed_repo != nullptr)
+                {
+                  // We shouldn't be called in the diag mode for the postponed
+                  // package builds.
+                  //
+                  assert (dr == nullptr);
 
-                // We need to be careful not to print the wildcard-based
-                // constraint.
+                  postponed_repo->insert (&pkg);
+                  return precollect_result (true /* postpone */);
+                }
+
+                if (dr != nullptr)
+                {
+                  *dr << error;
+
+                  // Issue diagnostics differently based on the presence of
+                  // available packages for the unsatisfied dependency.
+                  //
+                  // Note that there can't be any stubs, since they satisfy
+                  // any constraint and we won't be here if they were.
+                  //
+                  vector<shared_ptr<available_package>> aps (
+                    find_available (dn, nullopt /* version_constraint */, af));
+
+                  if (!aps.empty ())
+                  {
+                    *dr << "unable to satisfy dependency constraint (" << dn;
+
+                    // We need to be careful not to print the wildcard-based
+                    // constraint.
+                    //
+                    if (d.constraint &&
+                        (!dep_constr || !wildcard (*dep_constr)))
+                      *dr << ' ' << *d.constraint;
+
+                    *dr << ") of package " << pkg.name () << pdb <<
+                      info << "available " << dn << " versions:";
+
+                    for (const shared_ptr<available_package>& ap: aps)
+                      *dr << ' ' << ap->version;
+                  }
+                  else
+                  {
+                    *dr << "no package available for dependency " << dn
+                        << " of package " << pkg.name () << pdb;
+                  }
+
+                  // Avoid printing this if the dependent package is external
+                  // since it's more often confusing than helpful (they are
+                  // normally not fetched manually).
+                  //
+                  if (!af->location.empty ()           &&
+                      !af->location.directory_based () &&
+                      (!dep_constr || system))
+                    *dr << info << "repository " << af->location << " appears "
+                        << "to be broken" <<
+                      info << "or the repository state could be stale" <<
+                      info << "run 'bpkg rep-fetch' to update";
+                }
+
+                return precollect_result (false /* postpone */);
+              }
+
+              // If all that's available is a stub then we need to make sure
+              // the package is present in the system repository and it's
+              // version satisfies the constraint. If a source package is
+              // available but there is a system package specified on the
+              // command line and it's version satisfies the constraint then
+              // the system package should be preferred. To recognize such a
+              // case we just need to check if the authoritative system
+              // version is set and it satisfies the constraint. If the
+              // corresponding system package is non-optional it will be
+              // preferred anyway.
+              //
+              if (dap->stub ())
+              {
+                // Note that the constraint can safely be printed as it can't
+                // be a wildcard (produced from the user-specified dependency
+                // version constraint). If it were, then the system version
+                // wouldn't be NULL and would satisfy itself.
                 //
-                if (d.constraint && (!dep_constr || !wildcard (*dep_constr)))
-                  dr << ' ' << *d.constraint;
+                if (dap->system_version (*ddb) == nullptr)
+                {
+                  if (dr != nullptr)
+                    *dr << error << "dependency " << d << " of package "
+                        << pkg.name () << " is not available in source" <<
+                      info << "specify ?sys:" << dn << " if it is available "
+                           << "from the system";
 
-                dr << ") of package " << name << pdb <<
-                  info << "available " << dn << " versions:";
+                  return precollect_result (false /* postpone */);
+                }
 
-                for (const shared_ptr<available_package>& ap: aps)
-                  dr << ' ' << ap->version;
+                if (!satisfies (*dap->system_version (*ddb), d.constraint))
+                {
+                  if (dr != nullptr)
+                    *dr << error << "dependency " << d << " of package "
+                        << pkg.name () << " is not available in source" <<
+                      info << package_string (dn,
+                                              *dap->system_version (*ddb),
+                                              true /* system */)
+                        << " does not satisfy the constrains";
+
+                  return precollect_result (false /* postpone */);
+                }
+
+                system = true;
               }
               else
               {
-                dr << "no package available for dependency " << dn
-                   << " of package " << name << pdb;
+                auto p (dap->system_version_authoritative (*ddb));
+
+                if (p.first != nullptr &&
+                    p.second && // Authoritative.
+                    satisfies (*p.first, d.constraint))
+                  system = true;
               }
-
-              // Avoid printing this if the dependent package is external
-              // since it's more often confusing than helpful (they are
-              // normally not fetched manually).
-              //
-              if (!af->location.empty ()           &&
-                  !af->location.directory_based () &&
-                  (!dep_constr || system))
-                dr << info << "repository " << af->location << " appears to "
-                   << "be broken" <<
-                  info << "or the repository state could be stale" <<
-                  info << "run 'bpkg rep-fetch' to update";
             }
 
-            // If all that's available is a stub then we need to make sure the
-            // package is present in the system repository and it's version
-            // satisfies the constraint. If a source package is available but
-            // there is a system package specified on the command line and
-            // it's version satisfies the constraint then the system package
-            // should be preferred. To recognize such a case we just need to
-            // check if the authoritative system version is set and it
-            // satisfies the constraint. If the corresponding system package
-            // is non-optional it will be preferred anyway.
-            //
-            if (dap->stub ())
-            {
-              // Note that the constraint can safely be printed as it can't be
-              // a wildcard (produced from the user-specified dependency
-              // version constraint). If it were, then the system version
-              // wouldn't be NULL and would satisfy itself.
-              //
-              if (dap->system_version (*ddb) == nullptr)
-                fail << "dependency " << d << " of package " << name << " is "
-                     << "not available in source" <<
-                  info << "specify ?sys:" << dn << " if it is available from "
-                     << "the system";
+            bool ru (i != map_.end () || dsp != nullptr);
 
-              if (!satisfies (*dap->system_version (*ddb), d.constraint))
-                fail << "dependency " << d << " of package " << name << " is "
-                     << "not available in source" <<
-                  info << package_string (dn,
-                                          *dap->system_version (*ddb),
-                                          true /* system */)
-                     << " does not satisfy the constrains";
+            if (!ru)
+              reused = false;
 
-              system = true;
-            }
-            else
-            {
-              auto p (dap->system_version_authoritative (*ddb));
-
-              if (p.first != nullptr &&
-                  p.second && // Authoritative.
-                  satisfies (*p.first, d.constraint))
-                system = true;
-            }
+            r.push_back (prebuild {d,
+                                   *ddb,
+                                   move (dsp),
+                                   move (dap),
+                                   move (rp.second),
+                                   system,
+                                   specified,
+                                   force,
+                                   ru});
           }
 
-          build_package bp {
-            build_package::build,
-            *ddb,
-            dsp,
-            dap,
-            move (rp.second),
-            nullopt,                      // Hold package.
-            nullopt,                      // Hold version.
-            {},                           // Constraints.
-            system,
-            false,                        // Keep output directory.
-            false,                        // Disfigure (from-scratch reconf).
-            false,                        // Configure-only.
-            nullopt,                      // Checkout root.
-            false,                        // Checkout purge.
-            strings (),                   // Configuration variables.
-            {config_package {pdb, name}}, // Required by (dependent).
-            true,                         // Required by dependents.
-            0};                           // State flags.
+          return precollect_result (move (r), reused);
+        };
 
-          // Add our constraint, if we have one.
-          //
-          // Note that we always add the constraint implied by the dependent.
-          // The user-implied constraint, if present, will be added when
-          // merging from the pre-entered entry. So we will have both
-          // constraints for completeness.
-          //
-          if (dp.constraint)
-            bp.constraints.emplace_back (pdb, name.string (), *dp.constraint);
-
-          // Now collect this prerequisite. If it was actually collected
-          // (i.e., it wasn't already there) and we are forcing a downgrade or
-          // upgrade, then refuse for a held version, warn for a held package,
-          // and print the info message otherwise, unless the verbosity level
-          // is less than two.
-          //
-          // Note though that while the prerequisite was collected it could
-          // have happen because it is an optional package and so not being
-          // pre-collected earlier. Meanwhile the package was specified
-          // explicitly and we shouldn't consider that as a dependency-driven
-          // up/down-grade enforcement.
-          //
-          // Here is an example of the situation we need to handle properly:
-          //
-          // repo: foo/2(->bar/2), bar/0+1
-          // build sys:bar/1
-          // build foo ?sys:bar/2
-          //
-          const build_package* p (
-            collect_build (options,
-                           move (bp),
-                           fdb,
-                           rpt_depts,
-                           apc,
-                           postponed,
-                           &dep_chain));
-
-          if (p != nullptr && force && !dep_optional)
+        // Collect the previously collected pre-builds.
+        //
+        auto collect = [&options,
+                        &pkg,
+                        &pdb,
+                        &fdb,
+                        &rpt_depts,
+                        &apc,
+                        postponed_repo,
+                        postponed_alts,
+                        &dep_chain,
+                        this]
+                       (prebuilds&& bs)
+        {
+          for (prebuild& b: bs)
           {
-            // Fail if the version is held. Otherwise, warn if the package is
-            // held.
+            build_package bp {
+              build_package::build,
+              b.db,
+              b.selected,
+              b.available,
+              move (b.repository_fragment),
+              nullopt,                             // Dependencies.
+              nullopt,                             // Enabled dependency alternatives.
+              nullopt,                             // Hold package.
+              nullopt,                             // Hold version.
+              {},                                  // Constraints.
+              b.system,
+              false,                               // Keep output directory.
+              false,                               // Disfigure (from-scratch reconf).
+              false,                               // Configure-only.
+              nullopt,                             // Checkout root.
+              false,                               // Checkout purge.
+              strings (),                          // Configuration variables.
+              {config_package {pdb, pkg.name ()}}, // Required by (dependent).
+              true,                                // Required by dependents.
+              0};                                  // State flags.
+
+            const optional<version_constraint>& constraint (
+              b.dependency.constraint);
+
+            // Add our constraint, if we have one.
             //
-            bool f (dsp->hold_version);
-            bool w (!f && dsp->hold_package);
+            // Note that we always add the constraint implied by the dependent.
+            // The user-implied constraint, if present, will be added when
+            // merging from the pre-entered entry. So we will have both
+            // constraints for completeness.
+            //
+            if (constraint)
+              bp.constraints.emplace_back (pdb,
+                                           pkg.name ().string (),
+                                           *constraint);
 
-            if (f || w || verb >= 2)
+            // Now collect this prerequisite. If it was actually collected
+            // (i.e., it wasn't already there) and we are forcing a downgrade
+            // or upgrade, then refuse for a held version, warn for a held
+            // package, and print the info message otherwise, unless the
+            // verbosity level is less than two.
+            //
+            // Note though that while the prerequisite was collected it could
+            // have happen because it is an optional package and so not being
+            // pre-collected earlier. Meanwhile the package was specified
+            // explicitly and we shouldn't consider that as a
+            // dependency-driven up/down-grade enforcement.
+            //
+            // Here is an example of the situation we need to handle properly:
+            //
+            // repo: foo/2(->bar/2), bar/0+1
+            // build sys:bar/1
+            // build foo ?sys:bar/2
+            //
+            // Note: recursive.
+            //
+            const build_package* p (
+              collect_build (options,
+                             move (bp),
+                             fdb,
+                             rpt_depts,
+                             apc,
+                             postponed_repo,
+                             postponed_alts,
+                             &dep_chain));
+
+            if (p != nullptr && b.force && !b.specified)
             {
-              const version& av (p->available_version ());
-
-              bool u (av > dsp->version);
-              bool c (d.constraint);
-
-              diag_record dr;
-
-              (f ? dr << fail :
-               w ? dr << warn :
-                   dr << info)
-                << "package " << name << pdb << " dependency on "
-                << (c ? "(" : "") << d << (c ? ")" : "") << " is forcing "
-                << (u ? "up" : "down") << "grade of " << *dsp << *ddb
-                << " to ";
-
-              // Print both (old and new) package names in full if the system
-              // attribution changes.
+              // Fail if the version is held. Otherwise, warn if the package is
+              // held.
               //
-              if (dsp->system ())
-                dr << p->available_name_version ();
-              else
-                dr << av; // Can't be a system version so is never wildcard.
+              bool f (b.selected->hold_version);
+              bool w (!f && b.selected->hold_package);
 
-              if (dsp->hold_version)
-                dr << info << "package version " << *dsp << *ddb << " is held";
+              if (f || w || verb >= 2)
+              {
+                const version& av (p->available_version ());
 
-              if (f)
-                dr << info << "explicitly request version "
-                   << (u ? "up" : "down") << "grade to continue";
+                bool u (av > b.selected->version);
+                bool c (constraint);
+
+                diag_record dr;
+
+                (f ? dr << fail :
+                 w ? dr << warn :
+                 dr << info)
+                  << "package " << pkg.name () << pdb << " dependency on "
+                  << (c ? "(" : "") << b.dependency << (c ? ")" : "")
+                  << " is forcing " << (u ? "up" : "down") << "grade of "
+                  << *b.selected << b.db << " to ";
+
+                // Print both (old and new) package names in full if the system
+                // attribution changes.
+                //
+                if (b.selected->system ())
+                  dr << p->available_name_version ();
+                else
+                  dr << av; // Can't be a system version so is never wildcard.
+
+                if (b.selected->hold_version)
+                  dr << info << "package version " << *b.selected << b.db
+                     << " is held";
+
+                if (f)
+                  dr << info << "explicitly request version "
+                     << (u ? "up" : "down") << "grade to continue";
+              }
+            }
+          }
+        };
+
+        // Select a dependency alternative, copying it alone into the
+        // resulting dependencies list and collecting its dependency builds.
+        //
+        bool selected (false);
+        auto select = [&sdeps, &sdas, &collect, &selected]
+                      (const dependency_alternative& da,
+                       prebuilds&& bs)
+        {
+          assert (sdas.empty ());
+          sdas.push_back (da);
+
+          // Make sure that the alternative's enable condition is not
+          // evaluated repeatedly.
+          //
+          sdas.back ().enable = nullopt;
+          sdeps.push_back (move (sdas));
+
+          collect (move (bs));
+
+          selected = true;
+        };
+
+        // Postpone the prerequisite builds collection, optionally inserting
+        // the package to the postpones set (can potentially already be there)
+        // and saving the enabled alternatives.
+        //
+        bool postponed (false);
+        auto postpone = [&pkg, &edas, &postponed]
+                        (postponed_packages* postpones)
+        {
+          if (postpones != nullptr)
+            postpones->insert (&pkg);
+
+          pkg.postponed_dependency_alternatives = move (edas);
+          postponed = true;
+        };
+
+        // Iterate over the enabled dependencies and try to select a
+        // satisfactory alternative.
+        //
+        // The index and pre-collection result of the first satisfactory
+        // alternative.
+        //
+        optional<pair<size_t, precollect_result>> first_alt;
+
+        // The number of satisfactory alternatives.
+        //
+        size_t alts_num (0);
+
+        for (size_t i (0); i != edas.size (); ++i)
+        {
+          const dependency_alternative& da (edas[i]);
+
+          precollect_result r (precollect (da, das.buildtime));
+
+          // If we didn't come up with satisfactory dependency builds, then
+          // skip this alternative and try the next one, unless the collecting
+          // is postponed in which case just bail out.
+          //
+          // Should we skip alternatives for which we are unable to satisfy
+          // the constraint? On one hand, this could be a user error: there is
+          // no package available from dependent's repositories that satisfies
+          // the constraint. On the other hand, it could be that it's other
+          // dependent's constraints that we cannot satisfy together with
+          // others. And in this case we may want some other alternative.
+          // Consider, as an example, something like this:
+          //
+          // depends: libfoo >= 2.0.0 | libfoo >= 1.0.0 libbar
+          //
+          if (!r.builds)
+          {
+            if (r.repo_postpone)
+            {
+              postpone (nullptr); // Already inserted into postponed_repo.
+              break;
+            }
+
+            continue;
+          }
+
+          ++alts_num;
+
+          // Note that when we see the first satisfactory alternative, we
+          // don't know yet if it is a single alternative or the first of the
+          // (multiple) true alternatives (those are handled differently).
+          // Thus, we postpone its processing until the second satisfactory
+          // alternative is encountered or the end of the alternatives list is
+          // reached.
+          //
+          if (!first_alt)
+          {
+            first_alt = make_pair (i, move (r));
+            continue;
+          }
+
+          // Try to select a true alternative, returning true if the
+          // alternative is selected or the selection is postponed. Return
+          // false if the alternative is ignored (not postponed and not all of
+          // it dependencies are reused).
+          //
+          auto try_select = [postponed_alts, &max_alt_index,
+                             &edas,
+                             &postpone, &select]
+                             (size_t index, precollect_result&& r)
+          {
+            // Postpone the collection if the alternatives maximum index is
+            // reached.
+            //
+            if (postponed_alts != nullptr && index >= max_alt_index)
+            {
+              postpone (postponed_alts);
+              return true;
+            }
+
+            // Select this alternative if all its dependencies are reused and
+            // do nothing about it otherwise.
+            //
+            if (r.reused)
+            {
+              // On the diagnostics run there shouldn't be any alternatives
+              // that we could potentially select.
+              //
+              assert (postponed_alts != nullptr);
+
+              select (edas[index], move (*r.builds));
+
+              // Make sure no more true alternatives are selected during this
+              // function call.
+              //
+              max_alt_index = 0;
+              return true;
+            }
+            else
+              return false;
+          };
+
+          // If we encountered the second satisfactory alternative, then this
+          // is the `multiple true alternatives` case. In this case we also
+          // need to process the first satisfactory alternative, which
+          // processing was delayed.
+          //
+          if (alts_num == 2)
+          {
+            assert (first_alt);
+
+            if (try_select (first_alt->first, move (first_alt->second)))
+              break;
+          }
+
+          if (try_select (i, move (r)))
+            break;
+
+          // Not all of the alternative dependencies are reused, so go to the
+          // next alternative.
+        }
+
+        // Bail out if the collection is postponed for any reason.
+        //
+        if (postponed)
+          break;
+
+        // Select the single satisfactory alternative (regardless of its
+        // dependencies reuse).
+        //
+        if (!selected && alts_num == 1)
+        {
+          assert (first_alt && first_alt->second.builds);
+
+          select (edas[first_alt->first], move (*first_alt->second.builds));
+        }
+
+        // Fail or postpone the collection if no alternative is selected.
+        //
+        if (!selected)
+        {
+          // Issue diagnostics and fail if there are no satisfactory
+          // alternatives.
+          //
+          if (alts_num == 0)
+          {
+            diag_record dr;
+            for (const dependency_alternative& da: edas)
+              precollect (da, das.buildtime, &dr);
+
+            assert (!dr.empty ());
+
+            dr.flush ();
+            throw failed ();
+          }
+
+          // Issue diagnostics and fail if there are multiple alternatives
+          // with non-reused dependencies, unless the failure needs to be
+          // postponed.
+          //
+          assert (alts_num > 1);
+
+          if (postponed_alts != nullptr)
+          {
+            postpone (postponed_alts);
+            break;
+          }
+
+          diag_record dr (fail);
+          dr << "unable to select dependency alternative for package "
+             << pkg.available_name_version_db () <<
+            info << "explicitly specify dependency packages to manually "
+             << "select the alternative";
+
+          for (const dependency_alternative& da: edas)
+          {
+            precollect_result r (precollect (da, das.buildtime));
+
+            if (r.builds)
+            {
+              assert (!r.reused); // We shouldn't be failing otherwise.
+
+              dr << info << "alternative:";
+
+              // Only print the non-reused dependencies, which needs to be
+              // explicitly specified by the user.
+              //
+              for (const prebuild& b: *r.builds)
+              {
+                if (!b.reused)
+                  dr << ' ' << b.dependency.name;
+              }
             }
           }
         }
-
-        if (postpone)
-          break;
       }
 
       dep_chain.pop_back ();
@@ -1771,7 +2283,8 @@ namespace bpkg
     collect_repointed_dependents (
       const pkg_build_options& o,
       const repointed_dependents& rpt_depts,
-      build_packages::postponed_packages& postponed,
+      build_packages::postponed_packages& postponed_repo,
+      build_packages::postponed_packages& postponed_alts,
       const function<find_database_function>& fdb,
       const function<add_priv_cfg_function>& apc)
     {
@@ -1820,6 +2333,8 @@ namespace bpkg
           sp,
           move (rp.first),
           move (rp.second),
+          nullopt,                    // Dependencies.
+          nullopt,                    // Enabled dependency alternatives.
           nullopt,                    // Hold package.
           nullopt,                    // Hold version.
           {},                         // Constraints.
@@ -1836,12 +2351,15 @@ namespace bpkg
 
         build_package_refs dep_chain;
 
+        // Note: recursive.
+        //
         collect_build (o,
                        move (p),
                        fdb,
                        rpt_depts,
                        apc,
-                       &postponed,
+                       &postponed_repo,
+                       &postponed_alts,
                        &dep_chain);
       }
     }
@@ -1859,6 +2377,8 @@ namespace bpkg
         move (sp),
         nullptr,
         nullptr,
+        nullopt,    // Dependencies.
+        nullopt,    // Enable dependency alternatives.
         nullopt,    // Hold package.
         nullopt,    // Hold version.
         {},         // Constraints.
@@ -1910,6 +2430,8 @@ namespace bpkg
           sp,
           nullptr,
           nullptr,
+          nullopt,    // Dependencies.
+          nullopt,    // Enabled dependency alternatives.
           nullopt,    // Hold package.
           nullopt,    // Hold version.
           {},         // Constraints.
@@ -1935,7 +2457,9 @@ namespace bpkg
     collect_build_prerequisites (const pkg_build_options& o,
                                  database& db,
                                  const package_name& name,
-                                 postponed_packages& postponed,
+                                 postponed_packages& postponed_repo,
+                                 postponed_packages& postponed_alts,
+                                 size_t max_alt_index,
                                  const function<find_database_function>& fdb,
                                  const repointed_dependents& rpt_depts,
                                  const function<add_priv_cfg_function>& apc)
@@ -1947,16 +2471,19 @@ namespace bpkg
 
       collect_build_prerequisites (o,
                                    mi->second.package,
-                                   &postponed,
                                    fdb,
                                    rpt_depts,
                                    apc,
+                                   &postponed_repo,
+                                   &postponed_alts,
+                                   max_alt_index,
                                    dep_chain);
     }
 
     void
     collect_build_postponed (const pkg_build_options& o,
-                             postponed_packages& pkgs,
+                             postponed_packages& postponed_repo,
+                             postponed_packages& postponed_alts,
                              const function<find_database_function>& fdb,
                              const repointed_dependents& rpt_depts,
                              const function<add_priv_cfg_function>& apc)
@@ -1964,26 +2491,182 @@ namespace bpkg
       // Try collecting postponed packages for as long as we are making
       // progress.
       //
-      for (bool prog (true); !pkgs.empty (); )
-      {
-        postponed_packages npkgs;
+      vector<build_package*> spas; // Reuse.
 
-        for (const build_package* p: pkgs)
+      for (bool prog (!postponed_repo.empty () || !postponed_alts.empty ());
+           prog; )
+      {
+        postponed_packages prs;
+        postponed_packages pas;
+
+        // Try to collect the repository-related postponments first.
+        //
+        for (build_package* p: postponed_repo)
         {
           build_package_refs dep_chain;
 
           collect_build_prerequisites (o,
                                        *p,
-                                       prog ? &npkgs : nullptr,
                                        fdb,
                                        rpt_depts,
                                        apc,
+                                       &prs,
+                                       &pas,
+                                       0 /* max_alt_index */,
                                        dep_chain);
         }
 
-        assert (prog); // collect_build_prerequisites() should have failed.
-        prog = (npkgs != pkgs);
-        pkgs.swap (npkgs);
+        // Save the potential new dependency alternative-related postpones.
+        //
+        postponed_alts.insert (pas.begin (), pas.end ());
+
+        prog = (prs != postponed_repo);
+
+        if (prog)
+        {
+          postponed_repo.swap (prs);
+          continue;
+        }
+
+        // Now, as there is no more progress made in collecting repository-
+        // related postpones, try to collect the dependency alternative-
+        // related postpones.
+        //
+        if (!postponed_alts.empty ())
+        {
+          // Sort the postpones in the unprocessed dependencies count
+          // descending order.
+          //
+          // The idea here is to preferably handle those postponed packages
+          // first, which have a higher probability to affect the dependency
+          // alternative selection for other packages.
+          //
+          spas.assign (postponed_alts.begin (), postponed_alts.end ());
+
+          std::sort (spas.begin (), spas.end (),
+                     [] (build_package* x, build_package* y)
+                     {
+                       size_t xt (x->available->dependencies.size () -
+                                  x->dependencies->size ());
+
+                       size_t yt (y->available->dependencies.size () -
+                                  y->dependencies->size ());
+
+                       if (xt != yt)
+                         return xt > yt ? -1 : 1;
+
+                       // Also factor the package name and configuration path
+                       // into the ordering to achieve a stable result.
+                       //
+                       int r (x->name ().compare (y->name ()));
+                       return r != 0
+                         ? r
+                         : x->db.get ().config.compare (y->db.get ().config);
+                     });
+
+          // Calculate the maximum number of the enabled dependency
+          // alternatives.
+          //
+          size_t max_enabled_count (0);
+
+          for (build_package* p: spas)
+          {
+            assert (p->postponed_dependency_alternatives);
+
+            size_t n (p->postponed_dependency_alternatives->size ());
+
+            if (max_enabled_count < n)
+              max_enabled_count = n;
+          }
+
+          assert (max_enabled_count != 0); // Wouldn't be here otherwise.
+
+          // Try to select a dependency alternative with the lowest index,
+          // preferring postponed packages with the longer tail of unprocessed
+          // dependencies (see above for the reasoning).
+          //
+          for (size_t i (1); i <= max_enabled_count && !prog; ++i)
+          {
+            for (build_package* p: spas)
+            {
+              prs.clear ();
+              pas.clear ();
+
+              size_t ndep (p->dependencies->size ());
+
+              build_package_refs dep_chain;
+
+              collect_build_prerequisites (o,
+                                           *p,
+                                           fdb,
+                                           rpt_depts,
+                                           apc,
+                                           &prs,
+                                           &pas,
+                                           i,
+                                           dep_chain);
+
+              prog = (ndep != p->dependencies->size ());
+
+              // Save the potential new postpones.
+              //
+              if (prog)
+              {
+                postponed_alts.erase (p);
+                postponed_alts.insert (pas.begin (), pas.end ());
+              }
+
+              size_t npr (postponed_repo.size ());
+              postponed_repo.insert (prs.begin (), prs.end ());
+
+              // Note that not collecting any alternative-relative postpones
+              // but producing new repository-related postpones is progress
+              // nevertheless.
+              //
+              if (!prog)
+                prog = (npr != postponed_repo.size ());
+
+              if (prog)
+                break;
+            }
+          }
+        }
+      }
+
+      // If any postponed builds remained, then perform the diagnostics run.
+      //
+      if (!postponed_repo.empty ())
+      {
+        build_package_refs dep_chain;
+
+        collect_build_prerequisites (o,
+                                     **postponed_repo.begin (),
+                                     fdb,
+                                     rpt_depts,
+                                     apc,
+                                     nullptr,
+                                     nullptr,
+                                     0,
+                                     dep_chain);
+
+        assert (false); // Can't be here.
+      }
+
+      if (!postponed_alts.empty ())
+      {
+        build_package_refs dep_chain;
+
+        collect_build_prerequisites (o,
+                                     **postponed_alts.begin (),
+                                     fdb,
+                                     rpt_depts,
+                                     apc,
+                                     nullptr,
+                                     nullptr,
+                                     0,
+                                     dep_chain);
+
+        assert (false); // Can't be here.
       }
     }
 
@@ -2181,6 +2864,8 @@ namespace bpkg
                 move (dsp),
                 nullptr,                   // No available pkg/repo fragment.
                 nullptr,
+                nullopt,                   // Dependencies.
+                nullopt,                   // Enabled dependency alternatives.
                 nullopt,                   // Hold package.
                 nullopt,                   // Hold version.
                 {},                        // Constraints.
@@ -2476,25 +3161,32 @@ namespace bpkg
         }
         else
         {
+          // The package prerequisites builds must already be collected and
+          // thus the resulting dependency list is complete.
+          //
+          assert (p.dependencies &&
+                  p.dependencies->size () == ap->dependencies.size ());
+
           // We are iterating in reverse so that when we iterate over
           // the dependency list (also in reverse), prerequisites will
           // be built in the order that is as close to the manifest as
           // possible.
           //
           for (const dependency_alternatives_ex& das:
-                 reverse_iterate (ap->dependencies))
+                 reverse_iterate (*p.dependencies))
           {
-            assert (!das.conditional () && das.size () == 1); // @@ DEP
+            // The specific dependency alternative must already be selected,
+            // unless this is a toolchain build-time dependency or all the
+            // alternatives are disabled in which case the alternatives list
+            // is empty.
+            //
+            if (das.empty ())
+              continue;
+
+            assert (das.size () == 1);
 
             for (const dependency& d: das.front ())
             {
-              const package_name& dn (d.name);
-
-              // Skip special names.
-              //
-              if (das.buildtime && (dn == "build2" || dn == "bpkg"))
-                continue;
-
               // Note that for the repointed dependent we only order its new
               // and unamended prerequisites here. Its replaced prerequisites
               // will be ordered below.
@@ -5139,6 +5831,8 @@ namespace bpkg
           move (sp),
           move (ap),
           move (af),
+          nullopt,                    // Dependencies.
+          nullopt,                    // Enabled dependency alternatives.
           true,                       // Hold package.
           pa.constraint.has_value (), // Hold version.
           {},                         // Constraints.
@@ -5247,6 +5941,8 @@ namespace bpkg
                 move (sp),
                 move (ap),
                 move (apr.second),
+                nullopt,                    // Dependencies.
+                nullopt,                    // Enabled dependency alternatives.
                 true,                       // Hold package.
                 false,                      // Hold version.
                 {},                         // Constraints.
@@ -5525,6 +6221,8 @@ namespace bpkg
             nullptr,                    // Selected package.
             nullptr,                    // Available package/repo fragment.
             nullptr,
+            nullopt,                    // Dependencies.
+            nullopt,                    // Enabled dependency alternatives.
             false,                      // Hold package.
             p.constraint.has_value (),  // Hold version.
             {},                         // Constraints.
@@ -5605,7 +6303,8 @@ namespace bpkg
             }
           });
 
-        build_packages::postponed_packages postponed;
+        build_packages::postponed_packages postponed_repo;
+        build_packages::postponed_packages postponed_alts;
 
         if (scratch)
         {
@@ -5652,7 +6351,9 @@ namespace bpkg
             pkgs.collect_build_prerequisites (o,
                                               p.db,
                                               p.name (),
-                                              postponed,
+                                              postponed_repo,
+                                              postponed_alts,
+                                              0 /* max_alt_index */,
                                               find_prereq_database,
                                               rpt_depts,
                                               add_priv_cfg);
@@ -5690,7 +6391,8 @@ namespace bpkg
           //
           pkgs.collect_repointed_dependents (o,
                                              rpt_depts,
-                                             postponed,
+                                             postponed_repo,
+                                             postponed_alts,
                                              find_prereq_database,
                                              add_priv_cfg);
 
@@ -5732,6 +6434,8 @@ namespace bpkg
               move (sp),
               d.available,
               d.repository_fragment,
+              nullopt,                    // Dependencies.
+              nullopt,                    // Enabled dependency alternatives.
               nullopt,                    // Hold package.
               nullopt,                    // Hold version.
               {},                         // Constraints.
@@ -5748,21 +6452,25 @@ namespace bpkg
 
             build_package_refs dep_chain;
 
+            // Note: recursive.
+            //
             pkgs.collect_build (o,
                                 move (p),
                                 find_prereq_database,
                                 rpt_depts,
                                 add_priv_cfg,
-                                &postponed /* recursively */,
+                                &postponed_repo,
+                                &postponed_alts,
                                 &dep_chain);
           }
         }
 
         // Handle the (combined) postponed collection.
         //
-        if (!postponed.empty ())
+        if (!postponed_repo.empty () || !postponed_alts.empty ())
           pkgs.collect_build_postponed (o,
-                                        postponed,
+                                        postponed_repo,
+                                        postponed_alts,
                                         find_prereq_database,
                                         rpt_depts,
                                         add_priv_cfg);
@@ -7290,14 +7998,25 @@ namespace bpkg
                                    pdb,
                                    t);
       else if (ap != nullptr)
+      {
+        // If the package prerequisites builds are collected, then use the
+        // resulting dependency list for optimization (not to re-evaluate
+        // enable conditions, etc).
+        //
+        // @@ Note that if we ever allow the user to override the alternative
+        //    selection, this will break (and also if the user re-configures
+        //    the package manually). Maybe that a good reason not to allow
+        //    this? Or we could store this information in the database.
+        //
         pkg_configure (o,
                        pdb,
                        t,
                        sp,
-                       ap->dependencies,
+                       p.dependencies ? *p.dependencies : ap->dependencies,
                        p.config_vars,
                        simulate,
                        fdb);
+      }
       else // Dependent.
       {
         // Must be in the unpacked state since it was disfigured on the first
@@ -7311,6 +8030,11 @@ namespace bpkg
                       true /* ignore_unknown */,
                       [&sp] (version& v) {v = sp->version;}));
 
+        // @@ Note that on reconfiguration the dependent looses the potential
+        //    configuration variables specified by the user on some previous
+        //    build, which can be quite surprising. Should we store this
+        //    information in the database?
+        //
         pkg_configure (o,
                        p.db,
                        t,

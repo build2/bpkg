@@ -7,6 +7,7 @@
 #include <bpkg/database.hxx>
 #include <bpkg/checksum.hxx>
 #include <bpkg/diagnostics.hxx>
+#include <bpkg/satisfaction.hxx>
 #include <bpkg/manifest-utility.hxx>
 
 using namespace std;
@@ -763,5 +764,59 @@ namespace bpkg
     for (package_dependent& pd: query_dependents (db, dep, dep_db))
       r.push_back (move (pd));
     return r;
+  }
+
+  bool
+  toolchain_buildtime_dependency (const common_options& o,
+                                  const dependency_alternatives_ex& das,
+                                  const package_name& pkg)
+  {
+    if (das.buildtime)
+    {
+      for (const dependency_alternative& da: das)
+      {
+        for (const dependency& d: da)
+        {
+          const package_name& dn (d.name);
+
+          if (dn == "build2")
+          {
+            if (d.constraint && !satisfy_build2 (o, d))
+            {
+              fail << "unable to satisfy constraint (" << d << ") for "
+                   << "package " << pkg <<
+                info << "available build2 version is " << build2_version;
+            }
+
+            return true;
+          }
+          else if (dn == "bpkg")
+          {
+            if (d.constraint && !satisfy_bpkg (o, d))
+            {
+              fail << "unable to satisfy constraint (" << d << ") for "
+                   << "package " << pkg <<
+                info << "available bpkg version is " << bpkg_version;
+            }
+
+            return true;
+          }
+        }
+      }
+    }
+
+    return false;
+  }
+
+  bool
+  evaluate_enabled (const dependency_alternative& da, const package_name& pkg)
+  {
+    // @@ DEP TMP
+    //
+    if (da.enable)
+      fail << "conditional dependency for package " << pkg <<
+        info << "conditional dependencies are not yet supported";
+
+    return true;
   }
 }

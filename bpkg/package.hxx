@@ -556,6 +556,11 @@ namespace bpkg
     dependency_alternatives_ex (dependency_alternatives da)
         : dependency_alternatives (move (da)) {}
 
+    // As above but built incrementally.
+    //
+    dependency_alternatives_ex (bool b, std::string c)
+        : dependency_alternatives (b, move (c)) {}
+
     // Create the special test dependencies object (built incrementally).
     //
     dependency_alternatives_ex (test_dependency_type t, bool buildtime)
@@ -574,6 +579,29 @@ namespace bpkg
     return dependencies (make_move_iterator (das.begin ()),
                          make_move_iterator (das.end ()));
   }
+
+  // If this is a toolchain build-time dependency, then verify its constraint
+  // returning true if it is satisfied and failing otherwise. Return false for
+  // a regular dependency. Note that the package argument is used for
+  // diagnostics only.
+  //
+  class common_options;
+
+  bool
+  toolchain_buildtime_dependency (const common_options&,
+                                  const dependency_alternatives_ex&,
+                                  const package_name&);
+
+  // Return true if the dependency alternative enable condition is not
+  // specified or evaluates to true. Note that the package argument is used
+  // for diagnostics only.
+  //
+  // @@ DEP We will also need to pass some additional information here for
+  //    the actual evaluation (bootstrap/root buildfiles, reflect clauses of
+  //    already selected dependency alternatives, etc).
+  //
+  bool
+  evaluate_enabled (const dependency_alternative&, const package_name&);
 
   // tests
   //
@@ -1225,8 +1253,6 @@ namespace bpkg
   // - The manifest file located in the specified directory is not parsed, and
   //   so is not checked to match the specified package name and version.
   //
-  class common_options;
-
   // Note: loads selected packages.
   //
   optional<version>

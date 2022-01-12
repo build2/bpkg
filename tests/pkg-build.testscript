@@ -139,8 +139,10 @@
 # |-- t8a
 # |   |-- foo-1.0.0.tar.gz      -> {libbar libbaz} ^1.0.0
 # |   |-- fox-1.0.0.tar.gz      -> libbar ^1.0.0 | libbaz ^1.0.0
+# |   |-- fix-1.0.0.tar.gz      -> libbaz ^1.0.0 | libbar ^1.0.0
 # |   |-- libbar-1.0.0.tar.gz
 # |   |-- libbaz-1.0.0.tar.gz
+# |   |-- libbaz-1.1.0.tar.gz
 # |   `-- repositories.manifest
 # |
 # `-- git
@@ -2992,13 +2994,13 @@ test.options += --no-progress
       $clone_cfg;
 
       $* foo --yes 2>>~%EOE%;
-        fetched libbaz/1.0.0
-        unpacked libbaz/1.0.0
+        fetched libbaz/1.1.0
+        unpacked libbaz/1.1.0
         fetched libbar/1.0.0
         unpacked libbar/1.0.0
         fetched foo/1.0.0
         unpacked foo/1.0.0
-        configured libbaz/1.0.0
+        configured libbaz/1.1.0
         configured libbar/1.0.0
         configured foo/1.0.0
         %info: .+foo-1.0.0.+ is up to date%
@@ -3006,6 +3008,228 @@ test.options += --no-progress
         EOE
 
       $pkg_drop foo
+    }
+
+    : multiple-alternatives
+    :
+    {
+      +$clone_cfg
+
+      : ambiguity
+      :
+      {
+        $clone_cfg;
+
+        $* fox 2>>EOE != 0
+          error: unable to select dependency alternative for package fox/1.0.0
+            info: explicitly specify dependency packages to manually select the alternative
+            info: alternative: libbar
+            info: alternative: libbaz
+          info: while satisfying fox/1.0.0
+          EOE
+      }
+
+      : reuse
+      :
+      {
+        +$clone_cfg
+
+        : specified-dep-build
+        :
+        {
+          $clone_cfg;
+
+          $* fox ?libbaz 2>>~%EOE%;
+            fetched libbaz/1.1.0
+            unpacked libbaz/1.1.0
+            fetched fox/1.0.0
+            unpacked fox/1.0.0
+            configured libbaz/1.1.0
+            configured fox/1.0.0
+            %info: .+libbaz-1.1.0.+ is up to date%
+            %info: .+fox-1.0.0.+ is up to date%
+            updated libbaz/1.1.0
+            updated fox/1.0.0
+            EOE
+
+          $pkg_drop fox
+        }
+
+        : hold-build
+        :
+        {
+          $clone_cfg;
+
+          $* fox libbaz 2>>~%EOE%;
+            fetched libbaz/1.1.0
+            unpacked libbaz/1.1.0
+            fetched fox/1.0.0
+            unpacked fox/1.0.0
+            configured libbaz/1.1.0
+            configured fox/1.0.0
+            %info: .+libbaz-1.1.0.+ is up to date%
+            %info: .+fox-1.0.0.+ is up to date%
+            updated libbaz/1.1.0
+            updated fox/1.0.0
+            EOE
+
+          $pkg_drop fox;
+          $pkg_drop libbaz
+        }
+
+        : configured
+        :
+        {
+          $clone_cfg;
+
+          $* libbaz 2>!;
+
+          $* fox 2>>~%EOE%;
+            fetched fox/1.0.0
+            unpacked fox/1.0.0
+            configured fox/1.0.0
+            %info: .+fox-1.0.0.+ is up to date%
+            updated fox/1.0.0
+            EOE
+
+          $pkg_drop fox;
+          $pkg_drop libbaz
+        }
+
+        : fetched
+        :
+        {
+          $clone_cfg;
+
+          $pkg_fetch libbaz/1.0.0;
+
+          $* fox --yes 2>>~%EOE%;
+            unpacked libbaz/1.0.0
+            fetched fox/1.0.0
+            unpacked fox/1.0.0
+            configured libbaz/1.0.0
+            configured fox/1.0.0
+            %info: .+fox-1.0.0.+ is up to date%
+            updated fox/1.0.0
+            EOE
+
+          $pkg_drop fox
+        }
+      }
+
+      : postpone
+      :
+      {
+        +$clone_cfg
+
+        : basic
+        :
+        {
+          $clone_cfg;
+
+          $* fox foo --yes 2>>~%EOE%;
+            fetched libbaz/1.1.0
+            unpacked libbaz/1.1.0
+            fetched libbar/1.0.0
+            unpacked libbar/1.0.0
+            fetched fox/1.0.0
+            unpacked fox/1.0.0
+            fetched foo/1.0.0
+            unpacked foo/1.0.0
+            configured libbaz/1.1.0
+            configured libbar/1.0.0
+            configured fox/1.0.0
+            configured foo/1.0.0
+            %info: .+fox-1.0.0.+ is up to date%
+            %info: .+foo-1.0.0.+ is up to date%
+            updated fox/1.0.0
+            updated foo/1.0.0
+            EOE
+
+          $pkg_drop fox;
+          $pkg_drop foo
+        }
+
+        : pick-libbaz
+        :
+        {
+          $clone_cfg;
+
+          $* baz fox bar --yes 2>>~%EOE%;
+            fetched libbaz/1.1.0
+            unpacked libbaz/1.1.0
+            fetched baz/1.0.0
+            unpacked baz/1.0.0
+            fetched libbar/1.0.0
+            unpacked libbar/1.0.0
+            fetched fox/1.0.0
+            unpacked fox/1.0.0
+            fetched bar/1.0.0
+            unpacked bar/1.0.0
+            configured libbaz/1.1.0
+            configured baz/1.0.0
+            configured libbar/1.0.0
+            configured fox/1.0.0
+            configured bar/1.0.0
+            %info: .+baz-1.0.0.+ is up to date%
+            %info: .+fox-1.0.0.+ is up to date%
+            %info: .+bar-1.0.0.+ is up to date%
+            updated baz/1.0.0
+            updated fox/1.0.0
+            updated bar/1.0.0
+            EOE
+
+          cat cfg/fox-1.0.0/build/config.build >>~%EOO%;
+            %.*
+            config.fox.backend = libbar
+            %.*
+            EOO
+
+          $pkg_drop fox;
+          $pkg_drop bar;
+          $pkg_drop baz
+        }
+      }
+
+      : reconfigure-dependent
+      :
+      {
+        $clone_cfg;
+
+        $* fox ?libbaz/1.0.0 2>>~%EOE%;
+          fetched libbaz/1.0.0
+          unpacked libbaz/1.0.0
+          fetched fox/1.0.0
+          unpacked fox/1.0.0
+          configured libbaz/1.0.0
+          configured fox/1.0.0
+          %info: .+libbaz-1.0.0.+ is up to date%
+          %info: .+fox-1.0.0.+ is up to date%
+          updated libbaz/1.0.0
+          updated fox/1.0.0
+          EOE
+
+        $* ?libbaz --yes 2>>~%EOE%;
+          disfigured fox/1.0.0
+          disfigured libbaz/1.0.0
+          fetched libbaz/1.1.0
+          unpacked libbaz/1.1.0
+          configured libbaz/1.1.0
+          configured fox/1.0.0
+          %info: .+libbaz-1.1.0.+ is up to date%
+          %info: .+fox-1.0.0.+ is up to date%
+          updated libbaz/1.1.0
+          updated fox/1.0.0
+          EOE
+
+        cat cfg/fox-1.0.0/build/config.build >>~%EOO%;
+          %.*
+          config.fox.backend = libbaz
+          %.*
+          EOO
+
+        $pkg_drop fox
+      }
     }
   }
 }
