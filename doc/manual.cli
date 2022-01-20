@@ -1315,9 +1315,9 @@ builds: -windows
 
 Build configurations can belong to multiple classes with their names and
 semantics varying between different build bot deployments. However, the
-pre-defined \c{none}, \c{default}, and \c{all} classes are always provided. If
-no \c{builds} value is specified in the package manifest, then the \c{default}
-class is assumed.
+pre-defined \c{none}, \c{default}, \c{all}, \c{host}, and \c{build2} classes
+are always provided. If no \c{builds} value is specified in the package
+manifest, then the \c{default} class is assumed.
 
 \N|A build configuration class can also derive from another class in which
 case configurations that belong to the derived class are treated as also
