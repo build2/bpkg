@@ -27,3 +27,7 @@ cxx.poptions =+ "-I$out_root" "-I$src_root"
 # be there unless the module is configured).
 #
 using? cli
+
+# Disable build2 libraries importation using the built-in path.
+#
+import.build2 = [null]

@@ -23,3 +23,4 @@ depends: libodb-sqlite [2.5.0-b.22.1 2.5.0-b.23)
 depends: libsqlite3 ^3.21.0 ; ATTACH in transaction
 depends: libbutl [0.15.0-a.0.1 0.15.0-a.1)
 depends: libbpkg [0.15.0-a.0.1 0.15.0-a.1)
+depends: build2 [0.15.0-a.0.1 0.15.0-a.1)
