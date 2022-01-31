@@ -389,19 +389,17 @@ init (const common_options& co,
   // @@ TODO: perhaps we should only do it for commands that need it?
   //
   {
-    using namespace build2;
-
     // @@ TMP: pass proper values instead of dummies.
     //
-    init_diag (1);
-    init (nullptr, "bpkg" /*argv[0]*/);
+    build2::init_diag (1);
+    build2::init (nullptr, "bpkg" /*argv[0]*/);
 
-    bin::build2_bin_load ();
-    cc::build2_cc_load ();
-    c::build2_c_load ();
-    cxx::build2_cxx_load ();
-    version::build2_version_load ();
-    in::build2_in_load ();
+    build2::bin::build2_bin_load ();
+    build2::cc::build2_cc_load ();
+    build2::c::build2_c_load ();
+    build2::cxx::build2_cxx_load ();
+    build2::version::build2_version_load ();
+    build2::in::build2_in_load ();
   }
 
   return o;
