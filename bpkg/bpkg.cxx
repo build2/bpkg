@@ -12,6 +12,19 @@
 
 #include <libbutl/backtrace.hxx> // backtrace()
 
+// Embedded build system driver.
+//
+#include <libbuild2/types.hxx>
+#include <libbuild2/utility.hxx>
+
+#include <libbuild2/in/init.hxx>
+#include <libbuild2/bin/init.hxx>
+#include <libbuild2/c/init.hxx>
+#include <libbuild2/cc/init.hxx>
+#include <libbuild2/cxx/init.hxx>
+#include <libbuild2/bash/init.hxx>
+#include <libbuild2/version/init.hxx>
+
 #include <bpkg/types.hxx>
 #include <bpkg/utility.hxx>
 
@@ -370,6 +383,26 @@ init (const common_options& co,
   //
   if (tmp)
     init_tmp (dir_path (cfg_dir (&o)));
+
+  // Build system driver.
+  //
+  // @@ TODO: perhaps we should only do it for commands that need it?
+  //
+  {
+    using namespace build2;
+
+    // @@ TMP: pass proper values instead of dummies.
+    //
+    init_diag (1);
+    init (nullptr, "bpkg" /*argv[0]*/);
+
+    bin::build2_bin_load ();
+    cc::build2_cc_load ();
+    c::build2_c_load ();
+    cxx::build2_cxx_load ();
+    version::build2_version_load ();
+    in::build2_in_load ();
+  }
 
   return o;
 }
