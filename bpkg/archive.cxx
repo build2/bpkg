@@ -31,9 +31,13 @@ namespace bpkg
   }
 #endif
 
+  // Only the extract ('x') and list ('t') operations are supported.
+  //
   static pair<cstrings, size_t>
-  start_extract (const common_options& co, const path& a)
+  start (const common_options& co, char op, const path& a)
   {
+    assert (op == 'x' || op == 't');
+
     cstrings args;
 
     // On Windows we default to libarchive's bsdtar with auto-decompression
@@ -91,7 +95,7 @@ namespace bpkg
       args.push_back ("--force-local");
 #endif
 
-    args.push_back ("-xf");
+    args.push_back (op == 'x' ? "-xf" : "-tf");
     args.push_back (i == 0 ? a.string ().c_str () : "-");
 
     return make_pair (move (args), i);
@@ -100,7 +104,7 @@ namespace bpkg
   pair<process, process>
   start_extract (const common_options& co, const path& a, const dir_path& d)
   {
-    pair<cstrings, size_t> args_i (start_extract (co, a));
+    pair<cstrings, size_t> args_i (start (co, 'x', a));
     cstrings& args (args_i.first);
     size_t i (args_i.second);
 
@@ -171,31 +175,20 @@ namespace bpkg
     }
   }
 
-  pair<process, process>
-  start_extract (const common_options& co,
-                 const path& a,
-                 const path& f,
-                 bool diag)
+  // Only the extract ('x') and list ('t') operations are supported.
+  //
+  static pair<process, process>
+  start (const common_options& co,
+         char op,
+         const path& a,
+         const cstrings& tar_args,
+         bool diag)
   {
-    assert (!f.empty () && f.relative ());
-
-    pair<cstrings, size_t> args_i (start_extract (co, a));
+    pair<cstrings, size_t> args_i (start (co, op, a));
     cstrings& args (args_i.first);
     size_t i (args_i.second);
 
-    // -O/--to-stdout -- extract to stdout.
-    //
-    args.push_back ("-O");
-
-    // On Windows neither MSYS GNU tar nor BSD tar will find the archived file
-    // if its path is provided in the Windows notation.
-    //
-#ifdef _WIN32
-    string fs (f.posix_string ());
-    args.push_back (fs.c_str ());
-#else
-    args.push_back (f.string ().c_str ());
-#endif
+    args.insert (args.end (), tar_args.begin (), tar_args.end ());
 
     args.push_back (nullptr);
     args.push_back (nullptr); // Pipe end.
@@ -245,6 +238,34 @@ namespace bpkg
     }
   }
 
+  pair<process, process>
+  start_extract (const common_options& co,
+                 const path& a,
+                 const path& f,
+                 bool diag)
+  {
+    assert (!f.empty () && f.relative ());
+
+    cstrings args;
+    args.reserve (2);
+
+    // -O/--to-stdout -- extract to stdout.
+    //
+    args.push_back ("-O");
+
+    // On Windows neither MSYS GNU tar nor BSD tar will find the archived file
+    // if its path is provided in the Windows notation.
+    //
+#ifdef _WIN32
+    string fs (f.posix_string ());
+    args.push_back (fs.c_str ());
+#else
+    args.push_back (f.string ().c_str ());
+#endif
+
+    return start (co, 'x', a, args, diag);
+  }
+
   string
   extract (const common_options& o, const path& a, const path& f, bool diag)
   try
@@ -253,7 +274,7 @@ namespace bpkg
 
     try
     {
-      // Do not throw when eofbit is set (end of stream reached), and
+      // Do not throw when eofbit is set (end of stream is reached), and
       // when failbit is set (getline() failed to extract any character).
       //
       ifdstream is (move (pr.second.in_ofd), ifdstream::badbit);
@@ -289,5 +310,70 @@ namespace bpkg
     // Note: this is not a "file can't be extracted" case, so no diag check.
     //
     fail << "unable to extract " << f << " from " << a << ": " << e << endf;
+  }
+
+  paths
+  archive_contents (const common_options& o, const path& a, bool diag)
+  try
+  {
+    pair<process, process> pr (start (o, 't', a, cstrings (), diag));
+
+    try
+    {
+      paths r;
+
+      // Do not throw when eofbit is set (end of stream reached), and
+      // when failbit is set (getline() failed to extract any character).
+      //
+      ifdstream is (move (pr.second.in_ofd), ifdstream::badbit);
+
+      for (string l; !eof (getline (is, l)); )
+        r.emplace_back (move (l));
+
+      is.close ();
+
+      if (pr.second.wait () && pr.first.wait ())
+        return r;
+
+      // Fall through.
+    }
+    catch (const invalid_path& e)
+    {
+      // Just fall through if the pipeline has failed.
+      //
+      if (pr.second.wait () && pr.first.wait ())
+      {
+        if (diag)
+          error << "unable to obtain contents for " << a
+                << ": invalid path '" << e.path << "'";
+
+        throw failed ();
+      }
+
+      // Fall through.
+    }
+    catch (const io_error&)
+    {
+      // Child exit status doesn't matter. Just wait for the process
+      // completion and fall through.
+      //
+      pr.second.wait (); pr.first.wait (); // Check throw.
+    }
+
+    // While it is reasonable to assuming the child process issued diagnostics
+    // if exited with an error status, tar, specifically, doesn't mention the
+    // archive name. So print the error message whatever the child exit status
+    // is, if the diagnostics is requested.
+    //
+    if (diag)
+      error << "unable to obtain contents for " << a;
+
+    throw failed ();
+  }
+  catch (const process_error& e)
+  {
+    // Note: this is not a tar error, so no diag check.
+    //
+    fail << "unable to obtain contents for " << a << ": " << e << endf;
   }
 }

@@ -42,6 +42,8 @@ namespace bpkg
                  transaction&,
                  const shared_ptr<selected_package>&,
                  const dependencies&,
+                 const string& bootstrap_build,
+                 const optional<string>& root_build,
                  const strings& config_vars,
                  bool simulate,
                  const function<find_database_function>& = {});

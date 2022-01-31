@@ -53,15 +53,18 @@ namespace bpkg
   // If requested, expand the file-referencing package manifest values
   // (description, changes, etc), setting them to the contents of files they
   // refer to and set the potentially absent description-type value to the
-  // effective description type (see libbpkg/manifest.hxx). Note that for pkg
-  // repositories such values are expanded at the repository creation time.
+  // effective description type (see libbpkg/manifest.hxx) and load the
+  // bootstrap and root buildfiles into the respective *-build values. Note
+  // that for pkg repositories such values are expanded/loaded at the
+  // repository creation time.
   //
   rep_fetch_data
   rep_fetch (const common_options&,
              const dir_path* configuration,
              const repository_location&,
              bool ignore_unknown,
-             bool expand_values);
+             bool expand_values,
+             bool load_buildfiles);
 
   // Add (or update) repository locations to the configuration and fetch
   // them. If shallow is true, then don't fetch their prerequisite and/or

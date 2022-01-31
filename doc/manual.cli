@@ -620,6 +620,9 @@ license: <licenses> [; <comment>]
 [builds]: <class-expr> [; <comment>]
 [build-include]: <config>[/<target>] [; <comment>]
 [build-exclude]: <config>[/<target>] [; <comment>]
+
+[bootstrap-build]: <text>
+[root-build]: <text>
 \
 
 \h2#manifest-package-name|\c{name}|
@@ -1434,6 +1437,19 @@ Note that the comment of the matching exclusion is used by the web interface
 (\c{brep}) to display the reason for the build configuration exclusion.
 
 
+\h2#manifest-package-bootstrap-root-build|\c{{bootstrap,root\}-build}|
+
+\
+[bootstrap-build]: <text>
+[root-build]: <text>
+\
+
+The contents of the mandatory \c{bootstrap.build} and optional \c{root.build}
+files in the package's \c{build/} (or their alternative names) subdirectory.
+If unspecified, then they will be automatically added, for example, when the
+\l{#manifest-package-list-pkg package list manifest} is created.
+
+
 \h#manifest-package-list-pkg|Package List Manifest for \cb{pkg} Repositories|
 
 The package list manifest (the \c{packages.manifest} file found in the
@@ -1450,7 +1466,8 @@ After the list manifest comes a (potentially empty) sequence of package
 manifests. These manifests shall not contain any \c{*-file} or incomplete
 \l{#manifest-package-depends \c{depends}} values (such values should be
 converted to their inline versions or completed, respectively) but must
-contain the following additional (to package manifest) values:
+contain the \c{*-build} values (unless the corresponding files are absent) and
+the following additional (to package manifest) values:
 
 \
 location: <path>

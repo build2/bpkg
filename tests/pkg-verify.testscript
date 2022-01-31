@@ -91,6 +91,10 @@ $* --deep --ignore-unknown --manifest $src/foo-2.tar.gz >>EOO
   url: http://www.example.org/foo
   email: foo-users@example.org
   depends: bar == 2
+  bootstrap-build:\
+  project = foo
+
+  \
   EOO
 
 : incomplete-dependency
@@ -107,3 +111,28 @@ $* --ignore-unknown --manifest $src/foo-2.tar.gz >>EOO
   email: foo-users@example.org
   depends: bar == $
   EOO
+
+: no-bootstrap-build
+:
+{
+  : no-deep
+  :
+  $* --manifest $src/foo-3.tar.gz >>EOO
+    : 1
+    name: foo
+    version: 3
+    summary: The "Foo" utility
+    license: MIT
+    description-file: README
+    changes-file: NEWS
+    url: http://www.example.org/foo
+    email: foo-users@example.org
+    depends: bar == $
+    EOO
+
+  : deep
+  :
+  $* --deep --manifest $src/foo-3.tar.gz 2>>/~%EOE% != 0
+    %error: unable to find bootstrap.build file in package archive .+/foo-3.tar.gz%
+    EOE
+}

@@ -45,6 +45,17 @@ namespace bpkg
            const path& archive,
            const path& file,
            bool diag = true);
+
+  // Start the processes similar to the above functions but execute tar in the
+  // archive contents listing mode (-t) and then parse its stdout as a list of
+  // paths (one per line). If diag is false, then don't issue diagnostics
+  // about the reason why the contents can't be obtained (the archive is
+  // broken, etc).
+  //
+  paths
+  archive_contents (const common_options&,
+                    const path& archive,
+                    bool diag = true);
 }
 
 #endif // BPKG_ARCHIVE_HXX

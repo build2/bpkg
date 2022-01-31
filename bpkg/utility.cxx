@@ -26,6 +26,14 @@ namespace bpkg
   const dir_path certs_dir (dir_path (bpkg_dir) /= "certs");
   const dir_path repos_dir (dir_path (bpkg_dir) /= "repos");
 
+  const dir_path std_build_dir      ("build");
+  const path     std_bootstrap_file (dir_path (std_build_dir) /= "bootstrap.build");
+  const path     std_root_file      (dir_path (std_build_dir) /= "root.build");
+
+  const dir_path alt_build_dir      ("build2");
+  const path     alt_bootstrap_file (dir_path (alt_build_dir) /= "bootstrap.build2");
+  const path     alt_root_file      (dir_path (alt_build_dir) /= "root.build2");
+
   const dir_path current_dir (".");
 
   map<dir_path, dir_path> temp_dir;

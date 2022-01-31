@@ -23,8 +23,9 @@ namespace bpkg
      the top-level directory inside the archive match the canonical
      \c{\i{name}\b{-}\i{version}} form and that there is a valid manifest file
      in that top-level directory. Additionally, if the \cb{--deep} option is
-     specified, it also checks that the files referenced by the \cb{*-file}
-     manifest values are present in the archive and are not empty."
+     specified, it also checks that the required \c{*-build} values/files are
+     present in the manifest/archive and the files referenced by the
+     \cb{*-file} manifest values are present in the archive and are not empty."
   }
 
   class pkg_verify_options: common_options
@@ -39,7 +40,8 @@ namespace bpkg
 
     bool --deep
     {
-      "Verify files referenced by the \cb{*-file} manifest values."
+      "Verify the presence of the required \c{*-build} values/files and
+       the validity of files referenced by the \cb{*-file} manifest values."
     }
 
     bool --ignore-unknown
@@ -55,7 +57,9 @@ namespace bpkg
        human-readable form, dump the package manifest to \cb{stdout}. If the
        \cb{--deep} option is specified, then in the resulting manifest the
        \cb{*-file} values are replaced with the contents of the referenced
-       files and the package dependency constraints are completed."
+       files, the \c{*-build} values are automatically added (unless the
+       corresponding files are absent), and the package dependency constraints
+       are completed."
     }
   };
 

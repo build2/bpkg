@@ -98,7 +98,11 @@ namespace bpkg
       path a (d / p);
 
       package_manifest m (
-        pkg_verify (o, a, o.ignore_unknown (), true /* expand_values */));
+        pkg_verify (o,
+                    a,
+                    o.ignore_unknown (),
+                    true /* expand_values */,
+                    true /* load_buildfiles */));
 
       // Calculate its checksum.
       //

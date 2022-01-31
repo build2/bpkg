@@ -71,7 +71,8 @@ namespace bpkg
                  conf,
                  rl,
                  !o.manifest () /* ignore_unknow */,
-                 o.deep () /* expand_values */));
+                 o.deep () /* expand_values */,
+                 o.deep () /* load_buildfiles */));
 
     // Now print.
     //

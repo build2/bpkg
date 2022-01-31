@@ -77,10 +77,19 @@ namespace bpkg
 
   // Widely-used paths.
   //
-  extern const dir_path bpkg_dir;    // .bpkg/
-  extern const dir_path certs_dir;   // .bpkg/certs/
-  extern const dir_path repos_dir;   // .bpkg/repos/
-  extern const dir_path current_dir; // ./
+  extern const dir_path bpkg_dir;           // .bpkg/
+  extern const dir_path certs_dir;          // .bpkg/certs/
+  extern const dir_path repos_dir;          // .bpkg/repos/
+
+  extern const dir_path std_build_dir;      // build/
+  extern const path     std_bootstrap_file; // build/bootstrap.build
+  extern const path     std_root_file;      // build/root.build
+
+  extern const dir_path alt_build_dir;      // build2/
+  extern const path     alt_bootstrap_file; // build2/bootstrap.build2
+  extern const path     alt_root_file;      // build2/root.build2
+
+  extern const dir_path current_dir;        // ./
 
   // Temporary directory facility.
   //

@@ -154,6 +154,7 @@ namespace bpkg
               const path& af,
               bool iu,
               bool ev,
+              bool lb,
               bool cd,
               int diag_level)
   try
@@ -225,6 +226,52 @@ namespace bpkg
             iu);
         }
 
+        // Extract the bootstrap/root buildfiles into the respective *-build
+        // values, if requested and are not already specified in the manifest.
+        //
+        // Note that we don't verify that the files are not empty.
+        //
+        if (lb && (!m.bootstrap_build || !m.root_build))
+        {
+          paths ps (archive_contents (co, af, diag_level != 0));
+
+          auto contains = [&ps] (const path& p)
+          {
+            return find (ps.begin (), ps.end (), p) != ps.end ();
+          };
+
+          auto extract_buildfiles = [&m, &co, &af, diag_level, &contains]
+                                    (const path& b, const path& r)
+          {
+            if (!m.bootstrap_build)
+              m.bootstrap_build = extract (co, af, b, diag_level != 0);
+
+            if (!m.root_build && contains (r))
+              m.root_build = extract (co, af, r, diag_level != 0);
+          };
+
+          // Check the alternative bootstrap file first since it is more
+          // specific.
+          //
+          path bf;
+          if (contains (bf = pd / alt_bootstrap_file))
+          {
+            extract_buildfiles (bf, pd / alt_root_file);
+          }
+          else if (contains (bf = pd / std_bootstrap_file))
+          {
+            extract_buildfiles (bf, pd / std_root_file);
+          }
+          else
+          {
+            if (diag_level != 0)
+              error << "unable to find bootstrap.build file in package "
+                    << "archive " << af;
+
+            throw failed ();
+          }
+        }
+
         return m;
       }
 
@@ -281,6 +328,7 @@ namespace bpkg
   pkg_verify (const common_options& co,
               const dir_path& d,
               bool iu,
+              bool lb,
               const function<package_manifest::translate_function>& tf,
               int diag_level)
   {
@@ -305,6 +353,63 @@ namespace bpkg
                           pkg_verify (co, mp, d, diag_level),
                           tf,
                           iu);
+
+      // Load the bootstrap/root buildfiles into the respective *-build
+      // values, if requested and if they are not already specified in the
+      // manifest.
+      //
+      // Note that we don't verify that the files are not empty.
+      //
+      if (lb && (!m.bootstrap_build || !m.root_build))
+      {
+        auto load_buildfiles = [&m, diag_level] (const path& b, const path& r)
+        {
+          auto load = [diag_level] (const path& f)
+          {
+            try
+            {
+              ifdstream ifs (f);
+              string r (ifs.read_text ());
+              ifs.close ();
+              return r;
+            }
+            catch (const io_error& e)
+            {
+              if (diag_level != 0)
+                error << "unable to read from " << f << ": " << e;
+
+              throw failed ();
+            }
+          };
+
+          if (!m.bootstrap_build)
+            m.bootstrap_build = load (b);
+
+          if (!m.root_build && exists (r))
+            m.root_build = load (r);
+        };
+
+        // Check the alternative bootstrap file first since it is more
+        // specific.
+        //
+        path bf;
+        if (exists (bf = d / alt_bootstrap_file))
+        {
+          load_buildfiles (bf, d / alt_root_file);
+        }
+        else if (exists (bf = d / std_bootstrap_file))
+        {
+          load_buildfiles (bf, d / std_root_file);
+        }
+        else
+        {
+          if (diag_level != 0)
+            error << "unable to find bootstrap.build file in package "
+                  << "directory " << d;
+
+          throw failed ();
+        }
+      }
 
       // We used to verify package directory is <name>-<version> but it is
       // not clear why we should enforce it in this case (i.e., the user
@@ -364,6 +469,7 @@ namespace bpkg
                                       a,
                                       o.ignore_unknown (),
                                       o.deep () /* expand_values */,
+                                      o.deep () /* load_buildfiles */,
                                       o.deep () /* complete_depends */,
                                       o.silent () ? 0 : 2));
 

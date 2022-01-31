@@ -41,8 +41,12 @@
       url: http://www.example.org/bar
       email: bar-users@example.org
       depends: foo == 1
+      bootstrap-build:\
+      project = bar
+
+      \
       location: bar-1.tar.gz
-      sha256sum: 514a99f5fadb94f946f8abff59caa9c3cc442cd4f30d4383a1cf6d26ca058036
+      sha256sum: 56528e387d1b8e18e3ee7e8510916afdb65f881acfd49d959fae6f434c3bab3c
       :
       name: foo
       version: 1
@@ -50,8 +54,12 @@
       license: MIT
       url: http://www.example.org/foo
       email: foo-users@example.org
+      bootstrap-build:\
+      project = foo
+
+      \
       location: foo-1.tar.gz
-      sha256sum: fee330a362a4f87ff42a954aa305b6446d541b7b60000ebcd2fbf68f2b1ae58e
+      sha256sum: 1d88df336611286cdbd84f5c1d87bedc774bc833e200de675e34d9b219c66cfc
       EOO
   }
 
@@ -78,8 +86,12 @@
       url: http://www.example.org/bar
       email: bar-users@example.org
       depends: foo == 1
+      bootstrap-build:\
+      project = bar
+
+      \
       location: bar-1.tar.gz
-      sha256sum: 514a99f5fadb94f946f8abff59caa9c3cc442cd4f30d4383a1cf6d26ca058036
+      sha256sum: 56528e387d1b8e18e3ee7e8510916afdb65f881acfd49d959fae6f434c3bab3c
       :
       name: foo
       version: 1
@@ -87,8 +99,12 @@
       license: MIT
       url: http://www.example.org/foo
       email: foo-users@example.org
+      bootstrap-build:\
+      project = foo
+
+      \
       location: foo-1.tar.gz
-      sha256sum: fee330a362a4f87ff42a954aa305b6446d541b7b60000ebcd2fbf68f2b1ae58e
+      sha256sum: 1d88df336611286cdbd84f5c1d87bedc774bc833e200de675e34d9b219c66cfc
       EOO
   }
 }
@@ -132,8 +148,12 @@
       url: http://www.example.org/bar
       email: bar-users@example.org
       depends: foo == 1
+      bootstrap-build:\\
+      project = bar
+
+      \\
       location: bar-1.tar.gz
-      sha256sum: 514a99f5fadb94f946f8abff59caa9c3cc442cd4f30d4383a1cf6d26ca058036
+      sha256sum: 56528e387d1b8e18e3ee7e8510916afdb65f881acfd49d959fae6f434c3bab3c
       :
       name: foo
       version: 1
@@ -141,8 +161,12 @@
       license: MIT
       url: http://www.example.org/foo
       email: foo-users@example.org
+      bootstrap-build:\\
+      project = foo
+
+      \\
       location: foo-1.tar.gz
-      sha256sum: fee330a362a4f87ff42a954aa305b6446d541b7b60000ebcd2fbf68f2b1ae58e
+      sha256sum: 1d88df336611286cdbd84f5c1d87bedc774bc833e200de675e34d9b219c66cfc
       EOO
   }
 

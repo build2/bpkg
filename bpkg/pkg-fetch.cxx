@@ -162,7 +162,8 @@ namespace bpkg
     package_manifest m (pkg_verify (co,
                                     a,
                                     true /* ignore_unknown */,
-                                    false /* expand_values */));
+                                    false /* expand_values */,
+                                    false /* load_buildfiles */));
 
     l4 ([&]{trace << m.name << " " << m.version;});
 

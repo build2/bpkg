@@ -33,6 +33,8 @@ namespace bpkg
                                database& db,
                                transaction&,
                                const dependencies& deps,
+                               const string& bootstrap_build,
+                               const optional<string>& root_build,
                                const package_name& package,
                                bool simulate,
                                const function<find_database_function>& fdb)
@@ -52,7 +54,7 @@ namespace bpkg
       bool enabled   (false); // True if there is an enabled alternative.
       for (const dependency_alternative& da: das)
       {
-        if (!evaluate_enabled (da, package))
+        if (!evaluate_enabled (da, bootstrap_build, root_build, package))
           continue;
 
         enabled = true;
@@ -199,6 +201,8 @@ namespace bpkg
                  transaction& t,
                  const shared_ptr<selected_package>& p,
                  const dependencies& deps,
+                 const string& bootstrap_build,
+                 const optional<string>& root_build,
                  const strings& vars,
                  bool simulate,
                  const function<find_database_function>& fdb)
@@ -229,7 +233,15 @@ namespace bpkg
     assert (p->prerequisites.empty ());
 
     pair<package_prerequisites, small_vector<string, 1>> cpr (
-      pkg_configure_prerequisites (o, db, t, deps, p->name, simulate, fdb));
+      pkg_configure_prerequisites (o,
+                                   db,
+                                   t,
+                                   deps,
+                                   bootstrap_build,
+                                   root_build,
+                                   p->name,
+                                   simulate,
+                                   fdb));
 
     p->prerequisites = move (cpr.first);
 
@@ -414,6 +426,7 @@ namespace bpkg
       package_manifest m (pkg_verify (o,
                                       p->effective_src_root (c),
                                       true /* ignore_unknown */,
+                                      true /* load_buildfiles */,
                                       [&p] (version& v) {v = p->version;}));
 
       pkg_configure (o,
@@ -421,6 +434,8 @@ namespace bpkg
                      t,
                      p,
                      convert (move (m.dependencies)),
+                     *m.bootstrap_build,
+                     m.root_build,
                      vars,
                      false /* simulate */);
     }

@@ -199,6 +199,7 @@ namespace bpkg
                            const dir_path& repo_dir,
                            vector<package_manifest>&& pms,
                            bool iu,
+                           bool lb,
                            const repository_location& rl,
                            const optional<string>& fragment) // For diagnostics.
   {
@@ -230,12 +231,12 @@ namespace bpkg
     //
     package_version_infos               pvs;
     paths                               mfs;
+    dir_paths                           pds;
     vector<vector<manifest_name_value>> nvs;
     {
       mfs.reserve (pms.size ());
       nvs.reserve (pms.size ());
 
-      dir_paths pds;
       pds.reserve (pms.size ());
 
       for (const package_manifest& pm: pms)
@@ -321,6 +322,70 @@ namespace bpkg
         // Save the package manifest, preserving its location.
         //
         m.location = move (*pm.location);
+
+        // Load the bootstrap/root buildfiles into the respective *-build
+        // values, if requested and if they are not already specified in the
+        // manifest.
+        //
+        if (lb && (!m.bootstrap_build || !m.root_build))
+        {
+          const dir_path& d (pds[i]);
+
+          // Note that the paths relative to the package directory (last two
+          // arguments) are used for diagnostics only.
+          //
+          auto load_buildfiles = [&m, &add_package_info] (const path& bf,
+                                                          const path& rf,
+                                                          const path& bfr,
+                                                          const path& rfr)
+          {
+            auto load = [&m, &add_package_info] (const path& f, const path& fr)
+            {
+              try
+              {
+                ifdstream ifs (f);
+                string r (ifs.read_text ());
+                ifs.close ();
+                return r;
+              }
+              catch (const io_error& e)
+              {
+                diag_record dr (fail);
+                dr << "unable to read from " << fr << ": " << e;
+                add_package_info (m, dr);
+                dr << endf;
+              }
+            };
+
+            if (!m.bootstrap_build)
+              m.bootstrap_build = load (bf, bfr);
+
+            if (!m.root_build && exists (rf))
+              m.root_build = load (rf, rfr);
+          };
+
+          // Check the alternative bootstrap file first since it is more
+          // specific.
+          //
+          path bf;
+          if (exists (bf = d / alt_bootstrap_file))
+          {
+            load_buildfiles (bf, d / alt_root_file,
+                             alt_bootstrap_file, alt_root_file);
+          }
+          else if (exists (bf = d / std_bootstrap_file))
+          {
+            load_buildfiles (bf, d / std_root_file,
+                             std_bootstrap_file, std_root_file);
+          }
+          else
+          {
+            diag_record dr (fail);
+            dr << "unable to find bootstrap.build file";
+            add_package_info (m, dr);
+          }
+        }
+
         pm = move (m);
       }
       catch (const manifest_parsing& e)
@@ -377,7 +442,8 @@ namespace bpkg
   rep_fetch_dir (const common_options& co,
                  const repository_location& rl,
                  bool iu,
-                 bool ev)
+                 bool ev,
+                 bool lb)
   {
     assert (rl.absolute ());
 
@@ -403,6 +469,7 @@ namespace bpkg
                                rd,
                                move (pms),
                                iu,
+                               lb,
                                rl,
                                empty_string /* fragment */));
 
@@ -437,7 +504,8 @@ namespace bpkg
                  const dir_path* conf,
                  const repository_location& rl,
                  bool iu,
-                 bool ev)
+                 bool ev,
+                 bool lb)
   {
     auto i (temp_dir.find (conf != nullptr ? *conf : empty_dir_path));
     assert (i != temp_dir.end ());
@@ -565,6 +633,7 @@ namespace bpkg
                                  td,
                                  move (pms),
                                  iu,
+                                 lb,
                                  rl,
                                  fr.friendly_name));
 
@@ -634,13 +703,14 @@ namespace bpkg
              const repository_location& rl,
              const optional<string>& dt,
              bool iu,
-             bool ev)
+             bool ev,
+             bool lb)
   {
     switch (rl.type ())
     {
     case repository_type::pkg: return rep_fetch_pkg (co, conf, db, rl, dt, iu);
-    case repository_type::dir: return rep_fetch_dir (co, rl, iu, ev);
-    case repository_type::git: return rep_fetch_git (co, conf, rl, iu, ev);
+    case repository_type::dir: return rep_fetch_dir (co, rl, iu, ev, lb);
+    case repository_type::git: return rep_fetch_git (co, conf, rl, iu, ev, lb);
     }
 
     assert (false); // Can't be here.
@@ -652,7 +722,8 @@ namespace bpkg
              const dir_path* conf,
              const repository_location& rl,
              bool iu,
-             bool ev)
+             bool ev,
+             bool lb)
   {
     return rep_fetch (co,
                       conf,
@@ -660,7 +731,8 @@ namespace bpkg
                       rl,
                       nullopt /* dependent_trust */,
                       iu,
-                      ev);
+                      ev,
+                      lb);
   }
 
   // Return an existing repository fragment or create a new one. Update the
@@ -1152,7 +1224,8 @@ namespace bpkg
                  rl,
                  dependent_trust,
                  true /* ignore_unknow */,
-                 false /* expand_values */));
+                 false /* expand_values */,
+                 true /* load_buildfiles */));
 
     // Save for subsequent certificate authentication for repository use by
     // its dependents.

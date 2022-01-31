@@ -109,8 +109,12 @@ $* --name $rep/testing >"pkg:build2.org/rep-info/testing ($rep/testing)"
       license: MIT
       url: http://www.example.org/foo
       email: foo-users@example.org
+      bootstrap-build:\
+      project = foo
+
+      \
       location: foo-1.tar.gz
-      sha256sum: fee330a362a4f87ff42a954aa305b6446d541b7b60000ebcd2fbf68f2b1ae58e
+      sha256sum: 1d88df336611286cdbd84f5c1d87bedc774bc833e200de675e34d9b219c66cfc
       EOO
 
     : deep
@@ -134,6 +138,15 @@ $* --name $rep/testing >"pkg:build2.org/rep-info/testing ($rep/testing)"
 
           \
           description-type: text/plain
+          %.+
+          bootstrap-build:\
+          project = libbar
+
+          using config
+          using version
+          using dist
+
+          \
           %.+
           EOO
 
@@ -164,6 +177,15 @@ $* --name $rep/testing >"pkg:build2.org/rep-info/testing ($rep/testing)"
           \
           description-type: text/plain
           %.+
+          bootstrap-build:\
+          project = libbar
+
+          using config
+          using version
+          using dist
+
+          \
+          %.+
           :
           name: libmbar
           version: 1.0.0
@@ -174,6 +196,15 @@ $* --name $rep/testing >"pkg:build2.org/rep-info/testing ($rep/testing)"
 
           \
           description-type: text/plain
+          %.+
+          bootstrap-build:\
+          project = libmbar
+
+          using config
+          using version
+          using dist
+
+          \
           %.+
           EOO
       }
@@ -203,8 +234,12 @@ $* --name $rep/testing >"pkg:build2.org/rep-info/testing ($rep/testing)"
         license: MIT
         url: http://www.example.org/foo
         email: foo-users@example.org
+        bootstrap-build:\
+        project = foo
+
+        \
         location: foo-1.tar.gz
-        sha256sum: fee330a362a4f87ff42a954aa305b6446d541b7b60000ebcd2fbf68f2b1ae58e
+        sha256sum: 1d88df336611286cdbd84f5c1d87bedc774bc833e200de675e34d9b219c66cfc
         EOO
     }
   }

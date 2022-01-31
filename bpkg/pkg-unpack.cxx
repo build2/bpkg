@@ -172,6 +172,7 @@ namespace bpkg
       pkg_verify (o,
                   d,
                   true /* ignore_unknown */,
+                  false /* load_buildfiles */,
                   [&o, &d, &pvi] (version& v)
                   {
                     pvi = package_version (o, d);

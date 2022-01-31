@@ -22,7 +22,8 @@ namespace bpkg
   // expand the file-referencing manifest values (description, changes, etc),
   // setting them to the contents of files they refer to, set the potentially
   // absent description-type value to the effective description type (see
-  // libbpkg/manifest.hxx), and complete the dependency constraints.
+  // libbpkg/manifest.hxx), load the bootstrap and root buildfiles into the
+  // respective *-build values, and complete the dependency constraints.
   //
   // Throw not_package (derived from failed) if this doesn't look like a
   // package. Throw plain failed if this does looks like a package but
@@ -41,6 +42,7 @@ namespace bpkg
               const path& archive,
               bool ignore_unknown,
               bool expand_values,
+              bool load_buildfiles,
               bool complete_depends = true,
               int diag_level = 2);
 
@@ -54,6 +56,7 @@ namespace bpkg
   pkg_verify (const common_options&,
               const dir_path& source,
               bool ignore_unknown,
+              bool load_buildfiles,
               const function<package_manifest::translate_function>&,
               int diag_level = 2);
 

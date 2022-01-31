@@ -417,10 +417,12 @@ namespace bpkg
       ? pkg_verify (options,
                     a->absolute () ? *a : db.config_orig / *a,
                     true /* ignore_unknown */,
-                    false /* expand_values */)
+                    false /* expand_values */,
+                    true /* load_buildfiles */)
       : pkg_verify (options,
                     sp->effective_src_root (db.config_orig),
                     true /* ignore_unknown */,
+                    true /* load_buildfiles */,
                     // Copy potentially fixed up version from selected package.
                     [&sp] (version& v) {v = sp->version;}));
 
@@ -1256,7 +1258,11 @@ namespace bpkg
         {
           for (const dependency_alternative& da: das)
           {
-            if (evaluate_enabled (da, pkg.name ()))
+            assert (ap->bootstrap_build); // Can't be a stub.
+
+            if (evaluate_enabled (da,
+                                  *ap->bootstrap_build, ap->root_build,
+                                  pkg.name ()))
               edas.push_back (da);
           }
         }
@@ -5368,6 +5374,7 @@ namespace bpkg
                             a,
                             true /* ignore_unknown */,
                             false /* expand_values */,
+                            true /* load_buildfiles */,
                             true /* complete_depends */,
                             diag ? 2 : 1));
 
@@ -5432,6 +5439,7 @@ namespace bpkg
                     o,
                     d,
                     true /* ignore_unknown */,
+                    true /* load_buildfiles */,
                     [&o, &d, &pvi] (version& v)
                     {
                       pvi = package_version (o, d);
@@ -8008,11 +8016,14 @@ namespace bpkg
         //    the package manually). Maybe that a good reason not to allow
         //    this? Or we could store this information in the database.
         //
+        assert (ap->bootstrap_build); // Can't be a stub.
+
         pkg_configure (o,
                        pdb,
                        t,
                        sp,
                        p.dependencies ? *p.dependencies : ap->dependencies,
+                       *ap->bootstrap_build, ap->root_build,
                        p.config_vars,
                        simulate,
                        fdb);
@@ -8028,6 +8039,7 @@ namespace bpkg
           pkg_verify (o,
                       sp->effective_src_root (pdb.config_orig),
                       true /* ignore_unknown */,
+                      true /* load_buildfiles */,
                       [&sp] (version& v) {v = sp->version;}));
 
         // @@ Note that on reconfiguration the dependent looses the potential
@@ -8040,6 +8052,8 @@ namespace bpkg
                        t,
                        sp,
                        convert (move (m.dependencies)),
+                       *m.bootstrap_build,
+                       m.root_build,
                        p.config_vars,
                        simulate,
                        fdb);

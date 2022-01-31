@@ -809,7 +809,10 @@ namespace bpkg
   }
 
   bool
-  evaluate_enabled (const dependency_alternative& da, const package_name& pkg)
+  evaluate_enabled (const dependency_alternative& da,
+                    const string& /* bootstrap_build */,
+                    const optional<string>& /* root_build */,
+                    const package_name& pkg)
   {
     // @@ DEP TMP
     //

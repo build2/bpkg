@@ -27,7 +27,7 @@
 //
 #define DB_SCHEMA_VERSION_BASE 7
 
-#pragma db model version(DB_SCHEMA_VERSION_BASE, 14, closed)
+#pragma db model version(DB_SCHEMA_VERSION_BASE, 15, closed)
 
 namespace bpkg
 {
@@ -596,16 +596,23 @@ namespace bpkg
   // specified or evaluates to true. Note that the package argument is used
   // for diagnostics only.
   //
-  // @@ DEP We will also need to pass some additional information here for
-  //    the actual evaluation (bootstrap/root buildfiles, reflect clauses of
-  //    already selected dependency alternatives, etc).
+  // @@ DEP We will also need to pass some additional information here for the
+  //    actual evaluation (reflect clauses of already selected dependency
+  //    alternatives, etc).
   //
   bool
-  evaluate_enabled (const dependency_alternative&, const package_name&);
+  evaluate_enabled (const dependency_alternative&,
+                    const string& bootstrap_build,
+                    const optional<string>& root_build,
+                    const package_name&);
 
   // tests
   //
   #pragma db value(test_dependency) definition
+
+  // @@ TMP Drop when database migration to the schema version 11 is no longer
+  //    supported.
+  //
   #pragma db member(test_dependency::buildtime) default(false)
 
   using optional_test_dependency_type = optional<test_dependency_type>;
@@ -679,6 +686,14 @@ namespace bpkg
 
     small_vector<test_dependency, 1> tests;
 
+    // Note that while the bootstrap buildfile is always present for stub
+    // packages, we don't save bootstrap/root buildfiles for stubs of any kind
+    // (can come from repository, be based on system selected package, etc),
+    // leaving *_build as nullopt.
+    //
+    optional<string> bootstrap_build;
+    optional<string> root_build;
+
     // Present for non-transient objects only (and only for certain repository
     // types).
     //
@@ -689,14 +704,24 @@ namespace bpkg
     mutable optional<version_type> system_version_;
 
   public:
-    // Note: version constraints must be complete.
+    // Note: version constraints must be complete and the bootstrap build must
+    // be present, unless this is a stub.
     //
     available_package (package_manifest&& m)
         : id (move (m.name), m.version),
           version (move (m.version)),
           dependencies (convert (move (m.dependencies))),
           tests (move (m.tests)),
-          sha256sum (move (m.sha256sum)) {}
+          sha256sum (move (m.sha256sum))
+    {
+      if (!stub ())
+      {
+        assert (m.bootstrap_build.has_value ());
+
+        bootstrap_build = move (m.bootstrap_build);
+        root_build = move (m.root_build);
+      }
+    }
 
     // Create available stub package.
     //
@@ -784,6 +809,20 @@ namespace bpkg
     // tests
     //
     #pragma db member(tests) id_column("") value_column("test_")
+
+    // *_build
+    //
+    // @@ TMP Drop when database migration to the schema version 15 is no
+    //    longer supported.
+    //
+    //    Note that since no real packages use conditional dependencies yet,
+    //    we can just set bootstrap_build to the empty string during migration
+    //    to the database schema version 15. Also we never rely on
+    //    bootstrap_build to be nullopt for the stub packages, so let's not
+    //    complicate things and set bootstrap_build to the empty string for
+    //    them either.
+    //
+    #pragma db member(bootstrap_build) default("")
 
   private:
     friend class odb::access;
