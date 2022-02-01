@@ -201,7 +201,8 @@ static const size_t args_pos (numeric_limits<size_t>::max () / 2);
 //
 template <typename O>
 static O
-init (const common_options& co,
+init (const char* argv0,
+      const common_options& co,
       cli::group_scanner& scan,
       strings& args, cli::vector_scanner& args_scan,
       const char* cmd,
@@ -392,7 +393,7 @@ init (const common_options& co,
     // @@ TMP: pass proper values instead of dummies.
     //
     build2::init_diag (1);
-    build2::init (nullptr, "bpkg" /*argv[0]*/);
+    build2::init (nullptr, argv0);
 
     build2::bin::build2_bin_load ();
     build2::cc::build2_cc_load ();
@@ -490,7 +491,8 @@ try
   const common_options& co (o);
 
   if (o.help ())
-    return help (init<help_options> (co,
+    return help (init<help_options> (argv[0],
+                                     co,
                                      scan,
                                      argsv, scanv,
                                      "help",
@@ -523,7 +525,8 @@ try
 
   if (h)
   {
-    ho = init<help_options> (co,
+    ho = init<help_options> (argv[0],
+                             co,
                              scan,
                              argsv, scanv,
                              "help",
@@ -571,7 +574,8 @@ try
     //   if (h)
     //     r = help (ho, "pkg-verify", print_bpkg_pkg_verify_usage);
     //   else
-    //     r = pkg_verify (init<pkg_verify_options> (co,
+    //     r = pkg_verify (init<pkg_verify_options> (argv[0],
+    //                                               co,
     //                                               scan,
     //                                               argsv,
     //                                               scanv,
@@ -589,7 +593,8 @@ try
       if (h)                                                 \
         r = help (ho, SP#CMD, print_bpkg_##NP##CMD##_usage); \
       else                                                   \
-        r = NP##CMD (init<NP##CMD##_options> (co,            \
+        r = NP##CMD (init<NP##CMD##_options> (argv[0],       \
+                                              co,            \
                                               scan,          \
                                               argsv,         \
                                               scanv,         \
