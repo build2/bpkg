@@ -14,7 +14,6 @@
 
 // Embedded build system driver.
 //
-#if 0
 #include <libbuild2/types.hxx>
 #include <libbuild2/utility.hxx>
 
@@ -25,7 +24,6 @@
 #include <libbuild2/cxx/init.hxx>
 #include <libbuild2/bash/init.hxx>
 #include <libbuild2/version/init.hxx>
-#endif
 
 #include <bpkg/types.hxx>
 #include <bpkg/utility.hxx>
@@ -203,7 +201,7 @@ static const size_t args_pos (numeric_limits<size_t>::max () / 2);
 //
 template <typename O>
 static O
-init (const char* /*argv0*/,
+init (const char* argv0,
       const common_options& co,
       cli::group_scanner& scan,
       strings& args, cli::vector_scanner& args_scan,
@@ -391,7 +389,6 @@ init (const char* /*argv0*/,
   //
   // @@ TODO: perhaps we should only do it for commands that need it?
   //
-#if 0
   {
     // @@ TMP: pass proper values instead of dummies.
     //
@@ -405,7 +402,6 @@ init (const char* /*argv0*/,
     build2::version::build2_version_load ();
     build2::in::build2_in_load ();
   }
-#endif
 
   return o;
 }

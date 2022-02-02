@@ -8,16 +8,12 @@
 define xml: file
 xml{*}: extension = xml
 
-libs =
-
-# @@ TMP
-#
-#import libs = build2%lib{build2}
+import libs = build2%lib{build2}
 
 # NOTE: see also module loading in bpkg.cxx if adding anything here.
 #
-#for m: bin c cc cxx in version
-#  import libs += build2%lib{build2-$m}
+for m: bin c cc cxx in version
+  import libs += build2%lib{build2-$m}
 
 import libs += libbpkg%lib{bpkg}
 import libs += libbutl%lib{butl}
