@@ -403,9 +403,23 @@ namespace bpkg
     // root repository fragment but that feels a bit too drastic at the
     // moment).
     //
-    shared_ptr<repository_fragment> af (
-      db.find<repository_fragment> (
-        sp->repository_fragment.canonical_name ()));
+    // Also note that the repository information for this selected package can
+    // potentially be in one of the ultimate dependent configurations as
+    // determined at the time of the run when the package was configured. This
+    // configurations set may differ from the current one, but let's try
+    // anyway.
+    //
+    lazy_shared_ptr<repository_fragment> rf;
+
+    for (database& ddb: dependent_repo_configs (db))
+    {
+      if (shared_ptr<repository_fragment> f = ddb.find<repository_fragment> (
+            sp->repository_fragment.canonical_name ()))
+      {
+        rf = lazy_shared_ptr<repository_fragment> (ddb, move (f));
+        break;
+      }
+    }
 
     // The package is in at least fetched state, which means we should
     // be able to get its manifest.
@@ -426,10 +440,7 @@ namespace bpkg
                     // Copy potentially fixed up version from selected package.
                     [&sp] (version& v) {v = sp->version;}));
 
-    return make_pair (make_shared<available_package> (move (m)),
-                      (af != nullptr
-                       ? lazy_shared_ptr<repository_fragment> (db, move (af))
-                       : nullptr));
+    return make_pair (make_shared<available_package> (move (m)), move (rf));
   }
 
   // Return true if the version constraint represents the wildcard version.
