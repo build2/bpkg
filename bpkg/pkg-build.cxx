@@ -712,6 +712,58 @@ namespace bpkg
         (*action == build && (flags & build_repoint) != 0);
     }
 
+    // Return true if this build replaces an external package with another
+    // external.
+    //
+    bool
+    external () const
+    {
+      if (selected == nullptr || !selected->external ())
+        return false;
+
+      assert (action);
+
+      if (*action == build_package::drop)
+        return false;
+
+      bool r (false);
+
+      // If adjustment or orphan, then new and old are the same.
+      //
+      if (available == nullptr || available->locations.empty ())
+      {
+        r = true;
+      }
+      else
+      {
+        const package_location& pl (available->locations[0]);
+
+        if (pl.repository_fragment.object_id () == "") // Special root.
+        {
+          r = !exists (pl.location); // Directory case.
+        }
+        else
+        {
+          // See if the package comes from the directory-based repository, and
+          // so is external.
+          //
+          // Note that such repository fragments are always preferred over
+          // others (see below).
+          //
+          for (const package_location& l: available->locations)
+          {
+            if (l.repository_fragment.load ()->location.directory_based ())
+            {
+              r = true;
+              break;
+            }
+          }
+        }
+      }
+
+      return r;
+    }
+
     const version&
     available_version () const
     {
@@ -774,6 +826,20 @@ namespace bpkg
         // options and variables are only saved into the pre-entered
         // dependencies, etc.).
         //
+        // Note that configuration can only be specified for packages on the
+        // command line and such packages get collected/pre-entered early,
+        // before any prerequisites get collected. Thus, it doesn't seem
+        // possible that a package configuration/options may change after we
+        // have created the package skeleton.
+        //
+        // Also note that if it wouldn't be true, we would potentially need to
+        // re-collect the package prerequisites, since configuration change
+        // could affect the enable condition evaluation and, as a result, the
+        // dependency alternative choice.
+        //
+        assert (!skeleton ||
+                (p.config_vars == config_vars && p.disfigure == disfigure));
+
         if (p.keep_out)
           keep_out = p.keep_out;
 
@@ -788,19 +854,6 @@ namespace bpkg
 
         if (p.checkout_purge)
           checkout_purge = p.checkout_purge;
-
-        // Note that configuration can only be specified for packages on the
-        // command line and such packages get collected/pre-entered early,
-        // before any prerequisites get collected. Thus, it doesn't seem
-        // possible that a package configuration may change after we have
-        // created the package skeleton.
-        //
-        // Also note that if it wouldn't be true, we would potentially need to
-        // re-collect the package prerequisites, since configuration change
-        // could affect the enable condition evaluation and, as a result, the
-        // dependency alternative choice.
-        //
-        assert (!skeleton || p.config_vars == config_vars);
 
         if (!p.config_vars.empty ())
           config_vars = move (p.config_vars);
@@ -1214,7 +1267,14 @@ namespace bpkg
         if (size_t n = deps.size ())
           pkg.dependencies->reserve (n);
 
-        pkg.skeleton = package_skeleton (pdb, *ap, pkg.config_vars);
+        optional<dir_path> src_root;
+        if (pkg.external () && !pkg.disfigure)
+          src_root = sp->src_root;
+
+        pkg.skeleton = package_skeleton (pdb,
+                                         *ap,
+                                         pkg.config_vars,
+                                         move (src_root));
       }
 
       dependencies& sdeps (*pkg.dependencies);
@@ -7589,39 +7649,7 @@ namespace bpkg
       bool external (false);
       if (!simulate)
       {
-        if (sp->external () && *p.action != build_package::drop)
-        {
-          const shared_ptr<available_package>& ap (p.available);
-
-          // If adjustment or orphan, then new and old are the same.
-          //
-          if (ap == nullptr || ap->locations.empty ())
-            external = true;
-          else
-          {
-            const package_location& pl (ap->locations[0]);
-
-            if (pl.repository_fragment.object_id () == "") // Special root.
-              external = !exists (pl.location); // Directory case.
-            else
-            {
-              // See if the package comes from the directory-based repository,
-              // and so is external.
-              //
-              // Note that such repository fragments are always preferred over
-              // others (see below).
-              //
-              for (const package_location& l: ap->locations)
-              {
-                if (l.repository_fragment.load ()->location.directory_based ())
-                {
-                  external = true;
-                  break;
-                }
-              }
-            }
-          }
-        }
+        external = p.external ();
 
         // Reset the keep_out flag if the package being unpacked is not
         // external.
@@ -8071,7 +8099,11 @@ namespace bpkg
         }
         else
         {
-          package_skeleton ps (pdb, *ap, p.config_vars);
+          optional<dir_path> src_root;
+          if (p.external () && !p.disfigure)
+            src_root = sp->src_root;
+
+          package_skeleton ps (pdb, *ap, p.config_vars, move (src_root));
 
           pkg_configure (o,
                          pdb,
@@ -8102,7 +8134,11 @@ namespace bpkg
         if (dap == nullptr)
           dap = make_available (o, pdb, sp);
 
-        package_skeleton ps (pdb, *dap, p.config_vars);
+        optional<dir_path> src_root;
+        if (p.external () && !p.disfigure)
+          src_root = sp->src_root;
+
+        package_skeleton ps (pdb, *dap, p.config_vars, move (src_root));
 
         // @@ Note that on reconfiguration the dependent looses the potential
         //    configuration variables specified by the user on some previous

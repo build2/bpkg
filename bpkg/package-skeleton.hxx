@@ -17,6 +17,14 @@ namespace bpkg
   class package_skeleton
   {
   public:
+    // If the package is external and will not be disfigured, then the
+    // existing package source root directory needs to be specified. In this
+    // case this source directory and the automatically deduced potentially
+    // non-existing out root directory will be used for build2 state loading
+    // instead of the newly created skeleton directory. This, in particular,
+    // allows to consider existing configuration variables while evaluating
+    // the dependency clauses.
+    //
     // Note that the database and available_package are expected to outlive
     // this object.
     //
@@ -32,10 +40,10 @@ namespace bpkg
     //    configuration from it, etc). Let's however keep it simple for now
     //    and just copy the configuration.
     //
-    package_skeleton (database& db,
-                      const available_package& ap,
-                      const strings& cvs)
-        : db_ (db), available_ (ap), config_vars_ (cvs) {}
+    package_skeleton (database&,
+                      const available_package&,
+                      const strings& cvs,
+                      optional<dir_path> src_root);
 
     // Evaluate the enable clause.
     //
@@ -91,27 +99,7 @@ namespace bpkg
     // Call this function before evaluating every clause.
     //
     void
-    load ()
-    {
-      if (loaded_ && !dirty_)
-        return;
-
-      // Plan:
-      //
-      // 0. Create filesystem state if necessary (could have been created by
-      //    another instance, e.g., during simulation).
-      //
-      //    @@ build/ vs build2/ -- probably doesn't matter unless in the
-      //    future we allow specifying additional files.
-      //
-      // 1. If loaded but dirty, save the accumulated reflect state, and
-      //    destroy the old state.
-      //
-      // 2. Load the state potentially with accumulated reflect state.
-
-      loaded_ = true;
-      dirty_ = false;
-    }
+    load ();
 
     // Mark the build system state as needing reloading.
     //
@@ -128,6 +116,9 @@ namespace bpkg
     reference_wrapper<database> db_;
     reference_wrapper<const available_package> available_;
     strings config_vars_;
+
+    optional<dir_path> src_root_;
+    optional<dir_path> out_root_;
 
     bool loaded_ = false;
     bool dirty_ = false;
