@@ -24,27 +24,24 @@ namespace bpkg
   // semantics of the dependency list. Fail if for some of the dependency
   // alternative lists there is no satisfactory alternative (all its
   // dependencies are configured, satisfy the respective constraints, etc).
-  // Note that the package argument is used for diagnostics only.
   //
   // Note: loads selected packages.
   //
-  static pair<package_prerequisites, small_vector<string, 1>>
+  static pair<package_prerequisites, vector<string>>
   pkg_configure_prerequisites (const common_options& o,
                                database& db,
                                transaction&,
                                const dependencies& deps,
-                               const string& bootstrap_build,
-                               const optional<string>& root_build,
-                               const package_name& package,
+                               package_skeleton& ps,
                                bool simulate,
                                const function<find_database_function>& fdb)
   {
     package_prerequisites pps;
-    small_vector<string, 1> cvs;
+    vector<string> cvs;
 
     for (const dependency_alternatives_ex& das: deps)
     {
-      if (das.empty () || toolchain_buildtime_dependency (o, das, package))
+      if (das.empty () || toolchain_buildtime_dependency (o, das, ps.name ()))
         continue;
 
       // Pick the first alternative with dependencies that can all be resolved
@@ -54,7 +51,7 @@ namespace bpkg
       bool enabled   (false); // True if there is an enabled alternative.
       for (const dependency_alternative& da: das)
       {
-        if (!evaluate_enabled (da, bootstrap_build, root_build, package))
+        if (da.enable && !ps.evaluate_enable (*da.enable))
           continue;
 
         enabled = true;
@@ -175,14 +172,10 @@ namespace bpkg
           }
         }
 
-        // Add the dependency alternative reflection configuration variable,
-        // if present.
+        // Evaluate the dependency alternative reflect clause, if present.
         //
-        // @@ DEP For now we assume that the reflection, if present, contains
-        //    a single configuration variable that assigns a literal value.
-        //
-        if (!simulate && da.reflect)
-          cvs.push_back (*da.reflect);
+        if (da.reflect)
+          ps.evaluate_reflect (*da.reflect);
 
         satisfied = true;
         break;
@@ -190,6 +183,15 @@ namespace bpkg
 
       if (enabled && !satisfied)
         fail << "unable to satisfy dependency on " << das;
+    }
+
+    // Add the configuration variables collected from the reflect clauses, if
+    // any.
+    //
+    if (!simulate)
+    {
+      for (string& cv: ps.collect_reflect ())
+        cvs.push_back (move (cv));
     }
 
     return make_pair (move (pps), move (cvs));
@@ -201,8 +203,7 @@ namespace bpkg
                  transaction& t,
                  const shared_ptr<selected_package>& p,
                  const dependencies& deps,
-                 const string& bootstrap_build,
-                 const optional<string>& root_build,
+                 package_skeleton& ps,
                  const strings& vars,
                  bool simulate,
                  const function<find_database_function>& fdb)
@@ -232,14 +233,12 @@ namespace bpkg
     //
     assert (p->prerequisites.empty ());
 
-    pair<package_prerequisites, small_vector<string, 1>> cpr (
+    pair<package_prerequisites, vector<string>> cpr (
       pkg_configure_prerequisites (o,
                                    db,
                                    t,
                                    deps,
-                                   bootstrap_build,
-                                   root_build,
-                                   p->name,
+                                   ps,
                                    simulate,
                                    fdb));
 
@@ -423,19 +422,21 @@ namespace bpkg
 
       l4 ([&]{trace << *p;});
 
-      package_manifest m (pkg_verify (o,
-                                      p->effective_src_root (c),
-                                      true /* ignore_unknown */,
-                                      true /* load_buildfiles */,
-                                      [&p] (version& v) {v = p->version;}));
+      // Let's not bother trying to find an available package for this
+      // selected package, which may potentially not be present in this
+      // configuration (but instead be present in the configuration we are
+      // linked to, etc) and create a transient available package outright.
+      //
+      shared_ptr<available_package> ap (make_available (o, db, p));
+
+      package_skeleton ps (db, *ap, vars);
 
       pkg_configure (o,
                      db,
                      t,
                      p,
-                     convert (move (m.dependencies)),
-                     *m.bootstrap_build,
-                     m.root_build,
+                     ap->dependencies,
+                     ps,
                      vars,
                      false /* simulate */);
     }

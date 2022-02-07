@@ -13,6 +13,7 @@
 
 #include <bpkg/package.hxx>               // package_prerequisites,
                                           // dependencies.
+#include <bpkg/package-skeleton.hxx>
 #include <bpkg/pkg-configure-options.hxx>
 
 namespace bpkg
@@ -42,8 +43,7 @@ namespace bpkg
                  transaction&,
                  const shared_ptr<selected_package>&,
                  const dependencies&,
-                 const string& bootstrap_build,
-                 const optional<string>& root_build,
+                 package_skeleton&,
                  const strings& config_vars,
                  bool simulate,
                  const function<find_database_function>& = {});

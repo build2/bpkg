@@ -6,6 +6,7 @@
 
 #include <bpkg/database.hxx>
 #include <bpkg/checksum.hxx>
+#include <bpkg/pkg-verify.hxx>
 #include <bpkg/diagnostics.hxx>
 #include <bpkg/satisfaction.hxx>
 #include <bpkg/manifest-utility.hxx>
@@ -537,6 +538,38 @@ namespace bpkg
            << " in linked configuration " << ddb.config_orig;
 
     return lazy_shared_ptr<selected_package> (ddb, move (prerequisite));
+  }
+
+  shared_ptr<available_package>
+  make_available (const common_options& options,
+                  database& db,
+                  const shared_ptr<selected_package>& sp)
+  {
+    assert (sp != nullptr && sp->state != package_state::broken);
+
+    if (sp->system ())
+      return make_shared<available_package> (sp->name, sp->version);
+
+    // The package is in at least fetched state, which means we should
+    // be able to get its manifest.
+    //
+    const optional<path>& a (sp->archive);
+
+    package_manifest m (
+      sp->state == package_state::fetched
+      ? pkg_verify (options,
+                    a->absolute () ? *a : db.config_orig / *a,
+                    true /* ignore_unknown */,
+                    false /* expand_values */,
+                    true /* load_buildfiles */)
+      : pkg_verify (options,
+                    sp->effective_src_root (db.config_orig),
+                    true /* ignore_unknown */,
+                    true /* load_buildfiles */,
+                    // Copy potentially fixed up version from selected package.
+                    [&sp] (version& v) {v = sp->version;}));
+
+    return make_shared<available_package> (move (m));
   }
 
   pair<shared_ptr<selected_package>, database*>

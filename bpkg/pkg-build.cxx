@@ -32,6 +32,7 @@
 #include <bpkg/pkg-checkout.hxx>
 #include <bpkg/pkg-configure.hxx>
 #include <bpkg/pkg-disfigure.hxx>
+#include <bpkg/package-skeleton.hxx>
 #include <bpkg/system-repository.hxx>
 
 using namespace std;
@@ -378,22 +379,21 @@ namespace bpkg
   // locations list is left empty and that the returned repository fragment
   // could be NULL if the package is an orphan.
   //
-  // Note also that in our model we assume that make_available() is only
-  // called if there is no real available_package. This makes sure that if
-  // the package moves (e.g., from testing to stable), then we will be using
-  // stable to resolve its dependencies.
+  // Note also that in our model we assume that make_available_fragment() is
+  // only called if there is no real available_package. This makes sure that
+  // if the package moves (e.g., from testing to stable), then we will be
+  // using stable to resolve its dependencies.
   //
   static pair<shared_ptr<available_package>,
               lazy_shared_ptr<repository_fragment>>
-  make_available (const common_options& options,
-                  database& db,
-                  const shared_ptr<selected_package>& sp)
+  make_available_fragment (const common_options& options,
+                           database& db,
+                           const shared_ptr<selected_package>& sp)
   {
-    assert (sp != nullptr && sp->state != package_state::broken);
+    shared_ptr<available_package> ap (make_available (options, db, sp));
 
     if (sp->system ())
-      return make_pair (make_shared<available_package> (sp->name, sp->version),
-                        nullptr);
+      return make_pair (move (ap), nullptr);
 
     // First see if we can find its repository fragment.
     //
@@ -421,26 +421,7 @@ namespace bpkg
       }
     }
 
-    // The package is in at least fetched state, which means we should
-    // be able to get its manifest.
-    //
-    const optional<path>& a (sp->archive);
-
-    package_manifest m (
-      sp->state == package_state::fetched
-      ? pkg_verify (options,
-                    a->absolute () ? *a : db.config_orig / *a,
-                    true /* ignore_unknown */,
-                    false /* expand_values */,
-                    true /* load_buildfiles */)
-      : pkg_verify (options,
-                    sp->effective_src_root (db.config_orig),
-                    true /* ignore_unknown */,
-                    true /* load_buildfiles */,
-                    // Copy potentially fixed up version from selected package.
-                    [&sp] (version& v) {v = sp->version;}));
-
-    return make_pair (make_shared<available_package> (move (m)), move (rf));
+    return make_pair (move (ap), move (rf));
   }
 
   // Return true if the version constraint represents the wildcard version.
@@ -569,6 +550,16 @@ namespace bpkg
     // for possible reasons).
     //
     optional<bpkg::dependencies> dependencies;
+
+    // If we end up collecting the prerequisite builds for this package, then
+    // this member stores the skeleton of the package being built.
+    //
+    // Initially nullopt. Can potentially be loaded but with the reflection
+    // configuration variables collected only partially if the package
+    // prerequisite builds collection is postponed for any reason. Can also be
+    // unloaded if the package has no conditional dependencies.
+    //
+    optional<package_skeleton> skeleton;
 
     // If the package prerequisite builds collection is postponed, then this
     // member stores the references to the enabled alternatives (in available
@@ -797,6 +788,19 @@ namespace bpkg
 
         if (p.checkout_purge)
           checkout_purge = p.checkout_purge;
+
+        // Note that configuration can only be specified for packages on the
+        // command line and such packages get collected/pre-entered early,
+        // before any prerequisites get collected. Thus, it doesn't seem
+        // possible that a package configuration may change after we have
+        // created the package skeleton.
+        //
+        // Also note that if it wouldn't be true, we would potentially need to
+        // re-collect the package prerequisites, since configuration change
+        // could affect the enable condition evaluation and, as a result, the
+        // dependency alternative choice.
+        //
+        assert (!skeleton || p.config_vars == config_vars);
 
         if (!p.config_vars.empty ())
           config_vars = move (p.config_vars);
@@ -1195,6 +1199,10 @@ namespace bpkg
       //
       const dependencies& deps (ap->dependencies);
 
+      // Must both be either present or not.
+      //
+      assert (pkg.dependencies.has_value () == pkg.skeleton.has_value ());
+
       // Note that the selected alternatives list can be filled partially (see
       // build_package::dependencies for details). In this case we continue
       // collecting where we stopped previously.
@@ -1205,6 +1213,8 @@ namespace bpkg
 
         if (size_t n = deps.size ())
           pkg.dependencies->reserve (n);
+
+        pkg.skeleton = package_skeleton (pdb, *ap, pkg.config_vars);
       }
 
       dependencies& sdeps (*pkg.dependencies);
@@ -1239,6 +1249,8 @@ namespace bpkg
 
       assert (sdeps.size () < deps.size ());
 
+      package_skeleton& skel (*pkg.skeleton);
+
       for (size_t i (sdeps.size ()); i != deps.size (); ++i)
       {
         const dependency_alternatives_ex& das (deps[i]);
@@ -1269,11 +1281,7 @@ namespace bpkg
         {
           for (const dependency_alternative& da: das)
           {
-            assert (ap->bootstrap_build); // Can't be a stub.
-
-            if (evaluate_enabled (da,
-                                  *ap->bootstrap_build, ap->root_build,
-                                  pkg.name ()))
+            if (!da.enable || skel.evaluate_enable (*da.enable))
               edas.push_back (da);
           }
         }
@@ -1545,7 +1553,7 @@ namespace bpkg
                 // (returning stub as an available package feels wrong).
                 //
                 if (dap == nullptr || dap->stub ())
-                  rp = make_available (options, *ddb, dsp);
+                  rp = make_available_fragment (options, *ddb, dsp);
               }
               else
                 // Remember that we may be forcing up/downgrade; we will deal
@@ -1949,6 +1957,7 @@ namespace bpkg
               b.available,
               move (b.repository_fragment),
               nullopt,                             // Dependencies.
+              nullopt,                             // Package skeleton.
               nullopt,                             // Enabled dependency alternatives.
               nullopt,                             // Hold package.
               nullopt,                             // Hold version.
@@ -2055,21 +2064,29 @@ namespace bpkg
         };
 
         // Select a dependency alternative, copying it alone into the
-        // resulting dependencies list and collecting its dependency builds.
+        // resulting dependencies list, evaluating its reflect clause, if
+        // present, and collecting its dependency builds.
         //
         bool selected (false);
-        auto select = [&sdeps, &sdas, &collect, &selected]
+        auto select = [&sdeps, &sdas, &skel, &collect, &selected]
                       (const dependency_alternative& da,
                        prebuilds&& bs)
         {
           assert (sdas.empty ());
-          sdas.push_back (da);
 
-          // Make sure that the alternative's enable condition is not
-          // evaluated repeatedly.
+          // Avoid copying enable/reflect not to evaluate them repeatedly.
           //
-          sdas.back ().enable = nullopt;
+          sdas.emplace_back (nullopt /* enable */,
+                             nullopt /* reflect */,
+                             da.prefer,
+                             da.accept,
+                             da.require,
+                             da /* dependencies */);
+
           sdeps.push_back (move (sdas));
+
+          if (da.reflect)
+            skel.evaluate_reflect (*da.reflect);
 
           collect (move (bs));
 
@@ -2330,7 +2347,7 @@ namespace bpkg
         // The repointed dependent can be an orphan, so just create the
         // available package from the selected package.
         //
-        auto rp (make_available (o, db, sp));
+        auto rp (make_available_fragment (o, db, sp));
 
         // Add the prerequisite replacements as the required-by packages.
         //
@@ -2351,6 +2368,7 @@ namespace bpkg
           move (rp.first),
           move (rp.second),
           nullopt,                    // Dependencies.
+          nullopt,                    // Package skeleton.
           nullopt,                    // Enabled dependency alternatives.
           nullopt,                    // Hold package.
           nullopt,                    // Hold version.
@@ -2395,6 +2413,7 @@ namespace bpkg
         nullptr,
         nullptr,
         nullopt,    // Dependencies.
+        nullopt,    // Package skeleton.
         nullopt,    // Enable dependency alternatives.
         nullopt,    // Hold package.
         nullopt,    // Hold version.
@@ -2448,6 +2467,7 @@ namespace bpkg
           nullptr,
           nullptr,
           nullopt,    // Dependencies.
+          nullopt,    // Package skeleton.
           nullopt,    // Enabled dependency alternatives.
           nullopt,    // Hold package.
           nullopt,    // Hold version.
@@ -2882,6 +2902,7 @@ namespace bpkg
                 nullptr,                   // No available pkg/repo fragment.
                 nullptr,
                 nullopt,                   // Dependencies.
+                nullopt,                   // Package skeleton.
                 nullopt,                   // Enabled dependency alternatives.
                 nullopt,                   // Hold package.
                 nullopt,                   // Hold version.
@@ -5825,7 +5846,7 @@ namespace bpkg
         {
           assert (sp != nullptr && sp->system () == arg_sys (pa));
 
-          auto rp (make_available (o, *pdb, sp));
+          auto rp (make_available_fragment (o, *pdb, sp));
           ap = move (rp.first);
           af = move (rp.second); // Could be NULL (orphan).
         }
@@ -5851,6 +5872,7 @@ namespace bpkg
           move (ap),
           move (af),
           nullopt,                    // Dependencies.
+          nullopt,                    // Package skeleton.
           nullopt,                    // Enabled dependency alternatives.
           true,                       // Hold package.
           pa.constraint.has_value (), // Hold version.
@@ -5961,6 +5983,7 @@ namespace bpkg
                 move (ap),
                 move (apr.second),
                 nullopt,                    // Dependencies.
+                nullopt,                    // Package skeleton.
                 nullopt,                    // Enabled dependency alternatives.
                 true,                       // Hold package.
                 false,                      // Hold version.
@@ -6241,6 +6264,7 @@ namespace bpkg
             nullptr,                    // Available package/repo fragment.
             nullptr,
             nullopt,                    // Dependencies.
+            nullopt,                    // Package skeleton.
             nullopt,                    // Enabled dependency alternatives.
             false,                      // Hold package.
             p.constraint.has_value (),  // Hold version.
@@ -6454,6 +6478,7 @@ namespace bpkg
               d.available,
               d.repository_fragment,
               nullopt,                    // Dependencies.
+              nullopt,                    // Package skeleton.
               nullopt,                    // Enabled dependency alternatives.
               nullopt,                    // Hold package.
               nullopt,                    // Hold version.
@@ -8012,32 +8037,52 @@ namespace bpkg
       // Note that pkg_configure() commits the transaction.
       //
       if (p.system)
+      {
         sp = pkg_configure_system (ap->id.name,
                                    p.available_version (),
                                    pdb,
                                    t);
+      }
       else if (ap != nullptr)
       {
         // If the package prerequisites builds are collected, then use the
-        // resulting dependency list for optimization (not to re-evaluate
-        // enable conditions, etc).
+        // resulting package skeleton and dependency list for optimization
+        // (not to re-evaluate enable conditions, etc).
         //
         // @@ Note that if we ever allow the user to override the alternative
         //    selection, this will break (and also if the user re-configures
         //    the package manually). Maybe that a good reason not to allow
         //    this? Or we could store this information in the database.
         //
-        assert (ap->bootstrap_build); // Can't be a stub.
 
-        pkg_configure (o,
-                       pdb,
-                       t,
-                       sp,
-                       p.dependencies ? *p.dependencies : ap->dependencies,
-                       *ap->bootstrap_build, ap->root_build,
-                       p.config_vars,
-                       simulate,
-                       fdb);
+        if (p.skeleton)
+        {
+          assert (p.dependencies);
+
+          pkg_configure (o,
+                         pdb,
+                         t,
+                         sp,
+                         *p.dependencies,
+                         *p.skeleton,
+                         p.config_vars,
+                         simulate,
+                         fdb);
+        }
+        else
+        {
+          package_skeleton ps (pdb, *ap, p.config_vars);
+
+          pkg_configure (o,
+                         pdb,
+                         t,
+                         sp,
+                         ap->dependencies,
+                         ps,
+                         p.config_vars,
+                         simulate,
+                         fdb);
+        }
       }
       else // Dependent.
       {
@@ -8046,12 +8091,18 @@ namespace bpkg
         //
         assert (sp->state == package_state::unpacked);
 
-        package_manifest m (
-          pkg_verify (o,
-                      sp->effective_src_root (pdb.config_orig),
-                      true /* ignore_unknown */,
-                      true /* load_buildfiles */,
-                      [&sp] (version& v) {v = sp->version;}));
+        // First try to find an existing available package for the selected
+        // package and, if not found, create a transient one.
+        //
+        shared_ptr<available_package> dap (
+          find_available_one (dependent_repo_configs (pdb),
+                              sp->name,
+                              version_constraint (sp->version)).first);
+
+        if (dap == nullptr)
+          dap = make_available (o, pdb, sp);
+
+        package_skeleton ps (pdb, *dap, p.config_vars);
 
         // @@ Note that on reconfiguration the dependent looses the potential
         //    configuration variables specified by the user on some previous
@@ -8059,12 +8110,11 @@ namespace bpkg
         //    information in the database?
         //
         pkg_configure (o,
-                       p.db,
+                       pdb,
                        t,
                        sp,
-                       convert (move (m.dependencies)),
-                       *m.bootstrap_build,
-                       m.root_build,
+                       dap->dependencies,
+                       ps,
                        p.config_vars,
                        simulate,
                        fdb);

@@ -592,20 +592,6 @@ namespace bpkg
                                   const dependency_alternatives_ex&,
                                   const package_name&);
 
-  // Return true if the dependency alternative enable condition is not
-  // specified or evaluates to true. Note that the package argument is used
-  // for diagnostics only.
-  //
-  // @@ DEP We will also need to pass some additional information here for the
-  //    actual evaluation (reflect clauses of already selected dependency
-  //    alternatives, etc).
-  //
-  bool
-  evaluate_enabled (const dependency_alternative&,
-                    const string& bootstrap_build,
-                    const optional<string>& root_build,
-                    const package_name&);
-
   // tests
   //
   #pragma db value(test_dependency) definition
@@ -1248,6 +1234,16 @@ namespace bpkg
   {
     return os << p.string ();
   }
+
+  // Create a transient (or fake, if you prefer) available_package object
+  // corresponding to the specified selected object, which is expected to not
+  // be in the broken state. Note that the package locations list is left
+  // empty.
+  //
+  shared_ptr<available_package>
+  make_available (const common_options&,
+                  database&,
+                  const shared_ptr<selected_package>&);
 
   // Try to find a dependency in the dependency configurations (see
   // database::dependency_configs() for details). Return pointers to the found
