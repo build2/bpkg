@@ -206,11 +206,8 @@ namespace bpkg
   //
   extern dir_path exec_dir;
 
-  // Run build2, mapping verbosity levels. If quiet is true, then run build2
-  // quiet if our verbosity level is 1.
+  // Run build2, mapping verbosity levels.
   //
-  const char*
-  name_b (const common_options&);
 
   // Verbosity level 1 mapping.
   //
@@ -220,6 +217,9 @@ namespace bpkg
     progress, // Run quiet but (potentially) with progress.
     normal    // Run normally (at verbosity 1).
   };
+
+  const char*
+  name_b (const common_options&);
 
   template <typename O, typename E, typename... A>
   process

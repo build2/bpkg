@@ -16,6 +16,9 @@
 //
 #include <libbuild2/types.hxx>
 #include <libbuild2/utility.hxx>
+#include <libbuild2/context.hxx>
+#include <libbuild2/scheduler.hxx>
+#include <libbuild2/file-cache.hxx>
 
 #include <libbuild2/in/init.hxx>
 #include <libbuild2/bin/init.hxx>
@@ -69,6 +72,33 @@ using namespace bpkg;
 
 namespace bpkg
 {
+  // Print backtrace if terminating due to an unhandled exception. Note that
+  // custom_terminate is non-static and not a lambda to reduce the noise.
+  //
+  static terminate_handler default_terminate;
+
+  void
+  custom_terminate ()
+  {
+    *diag_stream << backtrace ();
+
+    if (default_terminate != nullptr)
+      default_terminate ();
+  }
+
+  static void
+  build2_terminate (bool trace)
+  {
+    if (!trace)
+      set_terminate (default_terminate);
+
+    std::terminate ();
+  }
+
+  build2::scheduler      build2_sched;
+  build2::global_mutexes build2_mutexes;
+  build2::file_cache     build2_fcache;
+
   // Deduce the default options files and the directory to start searching
   // from based on the command line options and arguments.
   //
@@ -207,7 +237,8 @@ init (const char* argv0,
       strings& args, cli::vector_scanner& args_scan,
       const char* cmd,
       bool keep_sep,
-      bool tmp)
+      bool tmp,
+      bool bsys)
 {
   using bpkg::optional;
   using bpkg::getenv;
@@ -387,13 +418,30 @@ init (const char* argv0,
 
   // Build system driver.
   //
-  // @@ TODO: perhaps we should only do it for commands that need it?
-  //
+  if (bsys)
   {
-    // @@ TMP: pass proper values instead of dummies.
+    // For now we use the same verbosity as us (equivalent to start_b() with
+    // verb_b::normal).
     //
-    build2::init_diag (1);
-    build2::init (nullptr, argv0);
+    build2::init_diag (verb,
+                       false /* silent */,
+                       (o.progress ()    ? optional<bool> (true) :
+                        o.no_progress () ? optional<bool> (false) :
+                        nullopt),
+                       false /* no_lines */,
+                       false /* no_columns */,
+                       stderr_term);
+
+    build2::init (&build2_terminate,
+                  argv0,
+                  //
+                  // @@ Should we try to parse --build-option and extract
+                  //    these (having config_* is plausible)? Also
+                  //    --file-cache below.
+                  //
+                  nullopt /* mtime_check */,
+                  nullopt /* config_sub */,
+                  nullopt /* config_guess */);
 
     build2::bin::build2_bin_load ();
     build2::cc::build2_cc_load ();
@@ -401,23 +449,20 @@ init (const char* argv0,
     build2::cxx::build2_cxx_load ();
     build2::version::build2_version_load ();
     build2::in::build2_in_load ();
+
+    // Serial execution.
+    //
+    // Note: starting up serial scheduler is cheap (but not parallel).
+    //
+    // @@ What if, as part of the package skeleton load, we need to update
+    //    a module that it loads? Wouldn't we want to do this in parallel?
+    //
+    build2_sched.startup (1);
+    build2_mutexes.init (build2_sched.shard_size ());
+    build2_fcache.init (true);
   }
 
   return o;
-}
-
-// Print backtrace if terminating due to an unhandled exception. Note that
-// custom_terminate is non-static and not a lambda to reduce the noise.
-//
-static terminate_handler default_terminate;
-
-void
-custom_terminate ()
-{
-  *diag_stream << backtrace ();
-
-  if (default_terminate != nullptr)
-    default_terminate ();
 }
 
 int bpkg::
@@ -497,7 +542,8 @@ try
                                      argsv, scanv,
                                      "help",
                                      false /* keep_sep */,
-                                     false /* tmp */),
+                                     false /* tmp */,
+                                     false /* bsys */),
                  "",
                  nullptr);
 
@@ -531,7 +577,8 @@ try
                              argsv, scanv,
                              "help",
                              false /* keep_sep */,
-                             false /* tmp */);
+                             false /* tmp */,
+                             false /* bsys */);
 
     if (args.more ())
     {
@@ -581,13 +628,14 @@ try
     //                                               scanv,
     //                                               "pkg-verify",
     //                                               false /* keep_sep */,
-    //                                               true  /* tmp */),
+    //                                               true  /* tmp */,
+    //                                               false /* bsys */),
     //                     args);
     //
     //  break;
     // }
     //
-#define COMMAND_IMPL(NP, SP, CMD, SEP, TMP)                  \
+#define COMMAND_IMPL(NP, SP, CMD, SEP, TMP, BSYS)            \
     if (cmd.NP##CMD ())                                      \
     {                                                        \
       if (h)                                                 \
@@ -600,7 +648,8 @@ try
                                               scanv,         \
                                               SP#CMD,        \
                                               SEP,           \
-                                              TMP),          \
+                                              TMP,           \
+                                              BSYS),         \
                      args);                                  \
                                                              \
       break;                                                 \
@@ -608,7 +657,8 @@ try
 
     // cfg-* commands
     //
-#define CFG_COMMAND(CMD, TMP) COMMAND_IMPL(cfg_, "cfg-", CMD, false, TMP)
+#define CFG_COMMAND(CMD, TMP) \
+  COMMAND_IMPL(cfg_, "cfg-", CMD, false, TMP, false)
 
     CFG_COMMAND (create, false); // Temp dir initialized manually.
     CFG_COMMAND (info,   true);
@@ -617,30 +667,32 @@ try
 
     // pkg-* commands
     //
-#define PKG_COMMAND(CMD, SEP, TMP) COMMAND_IMPL(pkg_, "pkg-", CMD, SEP, TMP)
+#define PKG_COMMAND(CMD, SEP, TMP, BSYS) \
+  COMMAND_IMPL(pkg_, "pkg-", CMD, SEP, TMP, BSYS)
 
     // These commands need the '--' separator to be kept in args.
     //
-    PKG_COMMAND (build,     true, false);
-    PKG_COMMAND (clean,     true, true);
-    PKG_COMMAND (configure, true, true);
-    PKG_COMMAND (install,   true, true);
-    PKG_COMMAND (test,      true, true);
-    PKG_COMMAND (uninstall, true, true);
-    PKG_COMMAND (update,    true, true);
+    PKG_COMMAND (build,     true,  false, true);
+    PKG_COMMAND (clean,     true,  true,  false);
+    PKG_COMMAND (configure, true,  true,  true);
+    PKG_COMMAND (install,   true,  true,  false);
+    PKG_COMMAND (test,      true,  true,  false);
+    PKG_COMMAND (uninstall, true,  true,  false);
+    PKG_COMMAND (update,    true,  true,  false);
 
-    PKG_COMMAND (checkout,  false, true);
-    PKG_COMMAND (disfigure, false, true);
-    PKG_COMMAND (drop,      false, true);
-    PKG_COMMAND (fetch,     false, true);
-    PKG_COMMAND (purge,     false, true);
-    PKG_COMMAND (status,    false, true);
-    PKG_COMMAND (unpack,    false, true);
-    PKG_COMMAND (verify,    false, true);
+    PKG_COMMAND (checkout,  false, true,  false);
+    PKG_COMMAND (disfigure, false, true,  false);
+    PKG_COMMAND (drop,      false, true,  false);
+    PKG_COMMAND (fetch,     false, true,  false);
+    PKG_COMMAND (purge,     false, true,  false);
+    PKG_COMMAND (status,    false, true,  false);
+    PKG_COMMAND (unpack,    false, true,  false);
+    PKG_COMMAND (verify,    false, true,  false);
 
     // rep-* commands
     //
-#define REP_COMMAND(CMD, TMP) COMMAND_IMPL(rep_, "rep-", CMD, false, TMP)
+#define REP_COMMAND(CMD, TMP) \
+  COMMAND_IMPL(rep_, "rep-", CMD, false, TMP, false)
 
     REP_COMMAND (add,    true);
     REP_COMMAND (create, true);
