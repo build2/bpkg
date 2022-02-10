@@ -4,6 +4,8 @@
 #ifndef BPKG_PACKAGE_SKELETON_HXX
 #define BPKG_PACKAGE_SKELETON_HXX
 
+#include <libbuild2/forward.hxx> // build2::context
+
 #include <bpkg/types.hxx>
 #include <bpkg/utility.hxx>
 
@@ -79,7 +81,10 @@ namespace bpkg
       //
       reflect_.push_back (r);
 
-      dirty ();
+      // Mark the build system state as needing reloading since some computed
+      // values in root.build may depend on the new configuration values.
+      //
+      dirty_ = true;
     }
 
     // Return the accumulated reflect values.
@@ -93,6 +98,18 @@ namespace bpkg
     const package_name&
     name () const {return available_.get ().id.name;}
 
+    // Implementation details.
+    //
+    // We have to define these because context is forward-declared. Also, copy
+    // constructor has some special logic.
+    //
+    ~package_skeleton ();
+    package_skeleton (package_skeleton&&);
+    package_skeleton& operator= (package_skeleton&&);
+
+    package_skeleton (const package_skeleton&);
+    package_skeleton& operator= (package_skeleton&) = delete;
+
   private:
     // Create the skeleton if necessary and (re)load the build system state.
     //
@@ -101,18 +118,9 @@ namespace bpkg
     void
     load ();
 
-    // Mark the build system state as needing reloading.
-    //
-    // Call this function after evaluating the reflect clause (since some
-    // computed values in root.build may depend on the new value).
-    //
-    void
-    dirty ()
-    {
-      dirty_ = true;
-    }
-
   private:
+    // NOTE: remember to update move/copy constructors!
+    //
     reference_wrapper<database> db_;
     reference_wrapper<const available_package> available_;
     strings config_vars_;
@@ -120,7 +128,8 @@ namespace bpkg
     optional<dir_path> src_root_;
     optional<dir_path> out_root_;
 
-    bool loaded_ = false;
+    unique_ptr<build2::context> ctx_;
+    bool created_ = false;
     bool dirty_ = false;
 
     strings reflect_;

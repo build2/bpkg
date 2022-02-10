@@ -4160,7 +4160,7 @@ namespace bpkg
       evaluate_dependency (db,
                            sp,
                            nullopt /* desired */,
-                           false /*desired_sys */,
+                           false /* desired_sys */,
                            db,
                            sp,
                            !*upgrade /* patch */,
