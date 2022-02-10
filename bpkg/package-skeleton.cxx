@@ -83,17 +83,17 @@ namespace bpkg
                     const available_package& ap,
                     const strings& cvs,
                     optional<dir_path> src_root)
-      : db_ (db),
-        available_ (ap),
-        config_vars_ (cvs),
-        src_root_ (move (src_root))
+      : db_ (db), available_ (ap), config_vars_ (cvs)
   {
     // Should not be created for stubs.
     //
     assert (available_.get ().bootstrap_build);
 
-    if (src_root_)
+    if (src_root)
+    {
+      src_root_ = move (*src_root);
       out_root_ = dir_path (db_.get ().config_orig) /= name ().string ();
+    }
   }
 
   void package_skeleton::
@@ -123,7 +123,7 @@ namespace bpkg
       // they never clash with other temporary subdirectories (git
       // repositories, etc).
       //
-      if (!src_root_)
+      if (src_root_.empty ())
       {
         auto i (temp_dir.find (db_.get ().config_orig));
         assert (i != temp_dir.end ());
@@ -132,11 +132,10 @@ namespace bpkg
         d /= "skeletons";
         d /= name ().string () + '-' + ap.version.string ();
 
-        src_root_ = d;
-        out_root_ = move (d);
+        src_root_ = move (d); // out_root_ is the same.
       }
 
-      if (!exists (*src_root_))
+      if (!exists (src_root_))
       {
         // Create the buildfiles.
         //
@@ -145,7 +144,7 @@ namespace bpkg
         // additional files.
         //
         {
-          path bf (*src_root_ / std_bootstrap_file);
+          path bf (src_root_ / std_bootstrap_file);
 
           mk_p (bf.directory ());
 
@@ -168,11 +167,12 @@ namespace bpkg
           save (*ap.bootstrap_build, bf);
 
           if (ap.root_build)
-            save (*ap.root_build, *src_root_ / std_root_file);
+            save (*ap.root_build, src_root_ / std_root_file);
         }
 
         // Create the manifest file containing the bare minimum of values
-        // which can potentially be required to load the build system state.
+        // which can potentially be required to load the build system state
+        // (i.e., either via the version module or manual version extraction).
         //
         {
           package_manifest m;
@@ -181,11 +181,8 @@ namespace bpkg
 
           // Note that there is no guarantee that the potential build2
           // constraint has already been verified. Thus, we also serialize the
-          // depends value, delegating the constraint verification to the
-          // version module. Also note that normally the toolchain build-time
-          // dependencies are specified first and, if that's the case, their
-          // constraints are already verified at this point and so build2 will
-          // not fail due to the constraint violation.
+          // build2 dependency value, letting the version module verify the
+          // constraint.
           //
           // Also note that the resulting file is not quite a valid package
           // manifest, since it doesn't contain all the required values
@@ -201,7 +198,7 @@ namespace bpkg
               m.dependencies.push_back (das);
           }
 
-          path mf (*src_root_ / manifest_file);
+          path mf (src_root_ / manifest_file);
 
           try
           {
@@ -210,12 +207,14 @@ namespace bpkg
             m.serialize (s);
             os.close ();
           }
-          catch (const manifest_serialization&)
+          catch (const manifest_serialization& e)
           {
             // We shouldn't be creating a non-serializable manifest, since
             // it's crafted from the parsed values.
             //
             assert (false);
+
+            fail << "unable to serialize " << mf << ": " << e.description;
           }
           catch (const io_error& e)
           {

@@ -1267,14 +1267,12 @@ namespace bpkg
         if (size_t n = deps.size ())
           pkg.dependencies->reserve (n);
 
-        optional<dir_path> src_root;
-        if (pkg.external () && !pkg.disfigure)
-          src_root = sp->src_root;
-
         pkg.skeleton = package_skeleton (pdb,
                                          *ap,
                                          pkg.config_vars,
-                                         move (src_root));
+                                         (pkg.external () && !pkg.disfigure
+                                          ? sp->src_root
+                                          : nullopt));
       }
 
       dependencies& sdeps (*pkg.dependencies);
@@ -7663,7 +7661,7 @@ namespace bpkg
       //
       // Note that for other cases the preservation of the configuration is
       // still a @@ TODO (the idea is to use our config.config.{save,load}
-      // machinery).
+      // machinery). Also see "parallel" logic in package_skeleton.
       //
       // Commits the transaction.
       //
@@ -8099,11 +8097,12 @@ namespace bpkg
         }
         else
         {
-          optional<dir_path> src_root;
-          if (p.external () && !p.disfigure)
-            src_root = sp->src_root;
-
-          package_skeleton ps (pdb, *ap, p.config_vars, move (src_root));
+          package_skeleton ps (pdb,
+                               *ap,
+                               p.config_vars,
+                               (p.external () && !p.disfigure
+                                ? sp->src_root
+                                : nullopt));
 
           pkg_configure (o,
                          pdb,
@@ -8134,11 +8133,12 @@ namespace bpkg
         if (dap == nullptr)
           dap = make_available (o, pdb, sp);
 
-        optional<dir_path> src_root;
-        if (p.external () && !p.disfigure)
-          src_root = sp->src_root;
-
-        package_skeleton ps (pdb, *dap, p.config_vars, move (src_root));
+        package_skeleton ps (pdb,
+                             *dap,
+                             p.config_vars,
+                             (p.external () && !p.disfigure
+                              ? sp->src_root
+                              : nullopt));
 
         // @@ Note that on reconfiguration the dependent looses the potential
         //    configuration variables specified by the user on some previous

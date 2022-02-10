@@ -429,11 +429,10 @@ namespace bpkg
       //
       shared_ptr<available_package> ap (make_available (o, db, p));
 
-      optional<dir_path> src_root;
-      if (p->external ())
-        src_root = p->src_root;
-
-      package_skeleton ps (db, *ap, vars, move (src_root));
+      package_skeleton ps (db,
+                           *ap,
+                           vars,
+                           p->external () ? p->src_root : nullopt);
 
       pkg_configure (o,
                      db,

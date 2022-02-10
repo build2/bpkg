@@ -22,10 +22,11 @@ namespace bpkg
     // If the package is external and will not be disfigured, then the
     // existing package source root directory needs to be specified. In this
     // case this source directory and the automatically deduced potentially
-    // non-existing out root directory will be used for build2 state loading
+    // non-existent out root directory will be used for build2 state loading
     // instead of the newly created skeleton directory. This, in particular,
-    // allows to consider existing configuration variables while evaluating
-    // the dependency clauses.
+    // makes sure we take into account the existing configuration variables
+    // while evaluating the dependency clauses (this logic is "parallel" to
+    // the configuration preservation in pkg-build.cxx).
     //
     // Note that the database and available_package are expected to outlive
     // this object.
@@ -125,8 +126,8 @@ namespace bpkg
     reference_wrapper<const available_package> available_;
     strings config_vars_;
 
-    optional<dir_path> src_root_;
-    optional<dir_path> out_root_;
+    dir_path src_root_;
+    dir_path out_root_; // If empty, the same as src_root_.
 
     unique_ptr<build2::context> ctx_;
     bool created_ = false;
