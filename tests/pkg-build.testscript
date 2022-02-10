@@ -21,6 +21,13 @@
 # |   |-- buildfile
 # |   `-- manifest
 # |
+# |-- libhello-1.0.0
+# |   |-- build
+# |   |   |-- bootstrap.build
+# |   |   |-- export.build
+# |   |   `-- root.build
+# |   `-- *
+# |
 # |-- libfoo-1.1.0.tar.gz
 # |-- libfoo-1.2.0.tar.gz
 # |
@@ -106,13 +113,6 @@
 # |   |-- libBar-2.0.0.tar.gz
 # |   `-- repositories.manifest
 # |
-# |-- libhello-1.0.0
-# |   |-- build
-# |   |   |-- bootstrap.build
-# |   |   |-- export.build
-# |   |   `-- root.build
-# |   `-- *
-# |
 # |-- t7a
 # |   |-- libbaz-1.0.0.tar.gz
 # |   |-- libbuild2-bar-1.0.0.tar.gz
@@ -145,6 +145,13 @@
 # |   |-- libbaz-1.1.0.tar.gz
 # |   `-- repositories.manifest
 # |
+# |-- t9
+# |   |-- libbar-1.0.0.tar.gz
+# |   |-- libbaz-1.0.0.tar.gz   -> libbar ^1.0.0
+# |   |-- libbox-1.0.0.tar.gz   -> libbar ^1.0.0
+# |   |-- foo-1.0.0.tar.gz      -> libbaz, libbox
+# |   `-- repositories.manifest
+# |
 # `-- git
 #     |-- libbar.git            -> style-basic.git (prerequisite repository)
 #     |-- libbaz.git
@@ -174,6 +181,7 @@ posix = ($cxx.target.class != 'windows')
   cp -r $src/t7a $out/t7a && $rep_create $out/t7a &$out/t7a/packages.manifest
   cp -r $src/t7b $out/t7b && $rep_create $out/t7b &$out/t7b/packages.manifest
   cp -r $src/t8a $out/t8a && $rep_create $out/t8a &$out/t8a/packages.manifest
+  cp -r $src/t9  $out/t9  && $rep_create $out/t9  &$out/t9/packages.manifest
 
   # Create git repositories.
   #
@@ -1477,6 +1485,345 @@ test.options += --no-progress
       EOE
 
     $pkg_drop libbar
+  }
+
+  : foo-baz-box-bar
+  :
+  : Test build scenarios described in
+  : https://github.com/conan-io/conan/issues/9547.
+  :
+  : Note: using tar on Windows is a bit hairy (needs --force-local, etc), so
+  : we do not run this test on Windows.
+  :
+  if ($posix && !$remote)
+  {
+    +mkdir 1/
+
+    # Repository state 0: initial (see the above t9 directory tree for details).
+
+    # Repository state 1: libbar/2.0.0 is released.
+    #
+    r = 1/t9-1
+    +cp -r $rep/t9 $r && \
+     tar xf $r/libbar-1.0.0.tar.gz -C $r && \
+     mv $r/libbar-1.0.0 $r/libbar-2.0.0 && \
+     sed -i -e 's/(version:).+/\1 2.0.0/' $r/libbar-2.0.0/manifest && \
+     tar cfz $r/libbar-2.0.0.tar.gz -C $r libbar-2.0.0 &$r/libbar-2.0.0.tar.gz && \
+     rm -r $r/libbar-2.0.0 && \
+     $rep_create $r &$r/packages.manifest
+
+    # Repository state 2: libbaz/2.0.0 is released, which depends on
+    #                     libbar ^2.0.0.
+    #
+    r = 1/t9-2
+    +cp -r 1/t9-1 $r && \
+     tar xf $r/libbaz-1.0.0.tar.gz -C $r && \
+     mv $r/libbaz-1.0.0 $r/libbaz-2.0.0 && \
+     sed -i -e 's/(version:).+/\1 2.0.0/' -e 's/(depends: libbar).+/\1 ^2.0.0/' $r/libbaz-2.0.0/manifest && \
+     tar cfz $r/libbaz-2.0.0.tar.gz -C $r libbaz-2.0.0 &$r/libbaz-2.0.0.tar.gz && \
+     rm -r $r/libbaz-2.0.0 && \
+     $rep_create $r &$r/packages.manifest
+
+    # Repository state 3: libbox/1.1.0 is released, which still depends on
+    #                     libbar ^1.0.0.
+    #
+    r = 1/t9-3
+    +cp -r 1/t9-2 $r && \
+     tar xf $r/libbox-1.0.0.tar.gz -C $r && \
+     mv $r/libbox-1.0.0 $r/libbox-1.1.0 && \
+     sed -i -e 's/(version:).+/\1 1.1.0/' $r/libbox-1.1.0/manifest && \
+     tar cfz $r/libbox-1.1.0.tar.gz -C $r libbox-1.1.0 &$r/libbox-1.1.0.tar.gz && \
+     rm -r $r/libbox-1.1.0 && \
+     $rep_create $r &$r/packages.manifest
+
+    : repo-state-1
+    :
+    {
+      : build
+      :
+      {
+        $clone_root_cfg;
+        $rep_add ../../1/t9-1 && $rep_fetch;
+
+        $* foo 2>!;
+        $pkg_status -r >>EOO;
+          !foo configured 1.0.0
+            libbaz configured 1.0.0
+              libbar configured 1.0.0 available 2.0.0
+            libbox configured 1.0.0
+              libbar configured 1.0.0 available 2.0.0
+          EOO
+
+        $pkg_drop foo
+      }
+
+      : upgrade
+      :
+      : Test upgrade of packages (initially built from the repository state 0)
+      : after the state 1 is fetched.
+      :
+      {
+        $clone_root_cfg;
+
+        mkdir 1/;
+        ln -s $rep/t9 1/repo;
+        $rep_add 1/repo && $rep_fetch;
+
+        $* foo 2>!;
+        $pkg_status -r >>EOO;
+          !foo configured 1.0.0
+            libbaz configured 1.0.0
+              libbar configured 1.0.0
+            libbox configured 1.0.0
+              libbar configured 1.0.0
+          EOO
+
+        rm 1/repo;
+        ln -s ../../../1/t9-1 1/repo;
+
+        $rep_fetch;
+
+        $* foo 2>!; # Noop.
+        $pkg_status -r >>EOO;
+          !foo configured 1.0.0
+            libbaz configured 1.0.0
+              libbar configured 1.0.0 available 2.0.0
+            libbox configured 1.0.0
+              libbar configured 1.0.0 available 2.0.0
+          EOO
+
+        $* ?libbar 2>!; # Noop.
+        $pkg_status -r >>EOO;
+          !foo configured 1.0.0
+            libbaz configured 1.0.0
+              libbar configured 1.0.0 available 2.0.0
+            libbox configured 1.0.0
+              libbar configured 1.0.0 available 2.0.0
+          EOO
+
+        $* ?libbaz 2>!; # Noop.
+        $pkg_status -r >>EOO;
+          !foo configured 1.0.0
+            libbaz configured 1.0.0
+              libbar configured 1.0.0 available 2.0.0
+            libbox configured 1.0.0
+              libbar configured 1.0.0 available 2.0.0
+          EOO
+
+        $pkg_drop foo
+      }
+    }
+
+    : repo-state-2
+    :
+    {
+      : build
+      :
+      {
+        $clone_root_cfg;
+        $rep_add ../../1/t9-2 && $rep_fetch;
+
+        # Picks up the latest libbaz (2.0.0) as a prerequisite for foo, which
+        # leads to the conflict between libbaz/2.0.0 and libbox/1.0.0 about
+        # prerequisite libbar because of the incompatible version constraints.
+        #
+        $* foo 2>>EOE != 0;
+          error: unable to satisfy constraints on package libbar
+            info: libbaz depends on (libbar ^2.0.0)
+            info: libbox depends on (libbar ^1.0.0)
+            info: available libbar/2.0.0
+            info: available libbar/1.0.0
+            info: explicitly specify libbar version to manually satisfy both constraints
+          info: while satisfying libbox/1.0.0
+          info: while satisfying foo/1.0.0
+          EOE
+
+        $* foo ?libbaz/1.0.0 2>!;
+        $pkg_status -r >>EOO;
+          !foo configured 1.0.0
+            libbaz configured !1.0.0 available 2.0.0
+              libbar configured 1.0.0 available 2.0.0
+            libbox configured 1.0.0
+              libbar configured 1.0.0 available 2.0.0
+          EOO
+
+        $pkg_drop foo
+      }
+
+      : upgrade
+      :
+      : Test upgrade of packages (initially built from the repository state 0)
+      : after the state 2 is fetched.
+      :
+      {
+        $clone_root_cfg;
+
+        mkdir 1/;
+        ln -s $rep/t9 1/repo;
+        $rep_add 1/repo && $rep_fetch;
+
+        $* foo 2>!;
+        $pkg_status -r >>EOO;
+          !foo configured 1.0.0
+            libbaz configured 1.0.0
+              libbar configured 1.0.0
+            libbox configured 1.0.0
+              libbar configured 1.0.0
+          EOO
+
+        rm 1/repo;
+        ln -s ../../../1/t9-2 1/repo;
+
+        $rep_fetch;
+
+        $* foo 2>!; # Noop.
+        $pkg_status -r >>EOO;
+          !foo configured 1.0.0
+            libbaz configured 1.0.0 available 2.0.0
+              libbar configured 1.0.0 available 2.0.0
+            libbox configured 1.0.0
+              libbar configured 1.0.0 available 2.0.0
+          EOO
+
+        $* ?libbar 2>!; # Noop.
+        $pkg_status -r >>EOO;
+          !foo configured 1.0.0
+            libbaz configured 1.0.0 available 2.0.0
+              libbar configured 1.0.0 available 2.0.0
+            libbox configured 1.0.0
+              libbar configured 1.0.0 available 2.0.0
+          EOO
+
+        # Unable to satisfy the dependent libbox with an upgraded (due to
+        # libbaz 2.0.0) prerequisite libbar/2.0.0.
+        #
+        $* ?libbaz 2>>EOE != 0;
+          error: unable to upgrade package libbar/1.0.0 to 2.0.0
+            info: because package libbox depends on (libbar ^1.0.0)
+            info: package libbar/2.0.0 required by libbaz
+            info: explicitly request up/downgrade of package libbox
+            info: or explicitly specify package libbar version to manually satisfy these constraints
+          EOE
+
+        $pkg_drop foo
+      }
+    }
+
+    : repo-state-3
+    :
+    {
+      : build
+      :
+      {
+        $clone_root_cfg;
+        $rep_add ../../1/t9-3 && $rep_fetch;
+
+        # Similar to the repository state 2, picks up the latest libbaz (2.0.0)
+        # as a prerequisite for foo, which leads to the conflict.
+        #
+        $* foo 2>>EOE != 0;
+          error: unable to satisfy constraints on package libbar
+            info: libbaz depends on (libbar ^2.0.0)
+            info: libbox depends on (libbar ^1.0.0)
+            info: available libbar/2.0.0
+            info: available libbar/1.0.0
+            info: explicitly specify libbar version to manually satisfy both constraints
+          info: while satisfying libbox/1.1.0
+          info: while satisfying foo/1.0.0
+          EOE
+
+        $* foo ?libbaz/1.0.0 2>!;
+        $pkg_status -r >>EOO;
+          !foo configured 1.0.0
+            libbaz configured !1.0.0 available 2.0.0
+              libbar configured 1.0.0 available 2.0.0
+            libbox configured 1.1.0
+              libbar configured 1.0.0 available 2.0.0
+          EOO
+
+        $pkg_drop foo
+      }
+
+      : upgrade
+      :
+      : Test upgrade of packages (initially built from the repository state 0)
+      : after the state 3 is fetched.
+      :
+      {
+        $clone_root_cfg;
+
+        mkdir 1/;
+        ln -s $rep/t9 1/repo;
+        $rep_add 1/repo && $rep_fetch;
+
+        $* foo 2>!;
+        $pkg_status -r >>EOO;
+          !foo configured 1.0.0
+            libbaz configured 1.0.0
+              libbar configured 1.0.0
+            libbox configured 1.0.0
+              libbar configured 1.0.0
+          EOO
+
+        rm 1/repo;
+        ln -s ../../../1/t9-3 1/repo;
+
+        $rep_fetch;
+
+        $* foo 2>!; # Noop.
+        $pkg_status -r >>EOO;
+          !foo configured 1.0.0
+            libbaz configured 1.0.0 available 2.0.0
+              libbar configured 1.0.0 available 2.0.0
+            libbox configured 1.0.0 available 1.1.0
+              libbar configured 1.0.0 available 2.0.0
+          EOO
+
+        $* ?libbar 2>!; # Noop.
+        $pkg_status -r >>EOO;
+          !foo configured 1.0.0
+            libbaz configured 1.0.0 available 2.0.0
+              libbar configured 1.0.0 available 2.0.0
+            libbox configured 1.0.0 available 1.1.0
+              libbar configured 1.0.0 available 2.0.0
+          EOO
+
+        # Unable to satisfy the dependent libbox with an upgraded (due to
+        # libbaz 2.0.0) prerequisite libbar/2.0.0.
+        #
+        $* foo ?libbaz 2>>EOE != 0;
+          error: unable to upgrade package libbar/1.0.0 to 2.0.0
+            info: because package libbox depends on (libbar ^1.0.0)
+            info: package libbar/2.0.0 required by libbaz
+            info: explicitly request up/downgrade of package libbox
+            info: or explicitly specify package libbar version to manually satisfy these constraints
+          EOE
+
+        # libbar/2.0.0 is still unsatisfactory as a prerequisite for libbox,
+        # even after libbox upgrade is requested on the command line.
+        #
+        $* foo ?libbaz ?libbox 2>>EOE != 0;
+          error: unable to satisfy constraints on package libbar
+            info: libbaz depends on (libbar ^2.0.0)
+            info: libbox depends on (libbar ^1.0.0)
+            info: available libbar/2.0.0
+            info: available libbar/1.0.0
+            info: explicitly specify libbar version to manually satisfy both constraints
+          info: while satisfying libbox/1.1.0
+          EOE
+
+        $* ?libbox 2>!;
+        $pkg_status -r >>EOO;
+          !foo configured 1.0.0
+            libbaz configured 1.0.0 available 2.0.0
+              libbar configured 1.0.0 available 2.0.0
+            libbox configured 1.1.0
+              libbar configured 1.0.0 available 2.0.0
+          EOO
+
+        $pkg_drop foo
+      }
+    }
   }
 }
 
