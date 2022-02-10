@@ -109,7 +109,7 @@ namespace bpkg
     package_skeleton& operator= (package_skeleton&&);
 
     package_skeleton (const package_skeleton&);
-    package_skeleton& operator= (package_skeleton&) = delete;
+    package_skeleton& operator= (const package_skeleton&) = delete;
 
   private:
     // Create the skeleton if necessary and (re)load the build system state.
