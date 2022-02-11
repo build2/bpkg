@@ -152,6 +152,12 @@
 # |   |-- foo-1.0.0.tar.gz      -> libbaz, libbox
 # |   `-- repositories.manifest
 # |
+# |-- t10
+# |   |-- libfoo-bar-1.0.0.tar.gz   -> libfoo-tests
+# |   |-- libfoo-baz-1.0.0.tar.gz   -> libfoo-tests
+# |   |-- libfoo-tests-1.0.0.tar.gz
+# |   `-- repositories.manifest
+# |
 # `-- git
 #     |-- libbar.git            -> style-basic.git (prerequisite repository)
 #     |-- libbaz.git
@@ -182,6 +188,7 @@ posix = ($cxx.target.class != 'windows')
   cp -r $src/t7b $out/t7b && $rep_create $out/t7b &$out/t7b/packages.manifest
   cp -r $src/t8a $out/t8a && $rep_create $out/t8a &$out/t8a/packages.manifest
   cp -r $src/t9  $out/t9  && $rep_create $out/t9  &$out/t9/packages.manifest
+  cp -r $src/t10 $out/t10 && $rep_create $out/t10 &$out/t10/packages.manifest
 
   # Create git repositories.
   #
@@ -3578,6 +3585,84 @@ test.options += --no-progress
         $pkg_drop fox
       }
     }
+  }
+}
+
+: test-dependency
+:
+{
+  +$clone_cfg
+  +$rep_add $rep/t10 && $rep_fetch
+
+  : simultaneously
+  :
+  {
+    $clone_cfg;
+
+    $* libfoo-bar libfoo-tests 2>>~%EOE%;
+      fetched libfoo-bar/1.0.0
+      unpacked libfoo-bar/1.0.0
+      fetched libfoo-tests/1.0.0
+      unpacked libfoo-tests/1.0.0
+      configured libfoo-bar/1.0.0
+      configured libfoo-tests/1.0.0
+      %info: .+libfoo-bar-1.0.0.+ is up to date%
+      %info: .+libfoo-tests-1.0.0.+ is up to date%
+      updated libfoo-bar/1.0.0
+      updated libfoo-tests/1.0.0
+      EOE
+
+    cat cfg/libfoo-tests-1.0.0/build/config.build >>~%EOO%;
+      %.*
+      config.libfoo_tests.test = libfoo-bar
+      %.*
+      EOO
+
+    $pkg_drop libfoo-bar libfoo-tests
+  }
+
+  : sequentially
+  :
+  {
+    $clone_cfg;
+
+    $* libfoo-baz 2>>~%EOE%;
+      fetched libfoo-baz/1.0.0
+      unpacked libfoo-baz/1.0.0
+      configured libfoo-baz/1.0.0
+      %info: .+libfoo-baz-1.0.0.+ is up to date%
+      updated libfoo-baz/1.0.0
+      EOE
+
+    $* libfoo-tests 2>>~%EOE%;
+      fetched libfoo-tests/1.0.0
+      unpacked libfoo-tests/1.0.0
+      configured libfoo-tests/1.0.0
+      %info: .+libfoo-tests-1.0.0.+ is up to date%
+      updated libfoo-tests/1.0.0
+      EOE
+
+    cat cfg/libfoo-tests-1.0.0/build/config.build >>~%EOO%;
+      %.*
+      config.libfoo_tests.test = libfoo-baz
+      %.*
+      EOO
+
+    $pkg_drop libfoo-baz libfoo-tests
+  }
+
+  : tests-only
+  :
+  {
+    $clone_cfg;
+
+    $* libfoo-tests 2>>~%EOE% != 0
+      error: unable to select dependency alternative for package libfoo-tests/1.0.0
+        info: explicitly specify dependency packages to manually select the alternative
+        info: alternative: libfoo-bar
+        info: alternative: libfoo-baz
+      info: while satisfying libfoo-tests/1.0.0
+      EOE
   }
 }
 

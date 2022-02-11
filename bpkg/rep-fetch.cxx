@@ -1604,7 +1604,11 @@ namespace bpkg
                      << package_string (p->id.name, p->version);
             }
 
-            dependency_alternative da;
+            dependency_alternative da (nullopt /* enable */,
+                                       td.reflect,
+                                       nullopt /* prefer */,
+                                       nullopt /* accept */,
+                                       nullopt /* require */);
 
             da.push_back (
               dependency {p->id.name, version_constraint (p->version)});
