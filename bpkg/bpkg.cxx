@@ -16,16 +16,21 @@
 //
 #include <libbuild2/types.hxx>
 #include <libbuild2/utility.hxx>
+#include <libbuild2/module.hxx>
 #include <libbuild2/context.hxx>
 #include <libbuild2/scheduler.hxx>
 #include <libbuild2/file-cache.hxx>
+
+#include <libbuild2/dist/init.hxx>
+#include <libbuild2/test/init.hxx>
+#include <libbuild2/config/init.hxx>
+#include <libbuild2/install/init.hxx>
 
 #include <libbuild2/in/init.hxx>
 #include <libbuild2/bin/init.hxx>
 #include <libbuild2/c/init.hxx>
 #include <libbuild2/cc/init.hxx>
 #include <libbuild2/cxx/init.hxx>
-#include <libbuild2/bash/init.hxx>
 #include <libbuild2/version/init.hxx>
 
 #include <bpkg/types.hxx>
@@ -419,6 +424,7 @@ init (const char* argv0,
   // Build system driver.
   //
   if (bsys)
+  try
   {
     // For now we use the same verbosity as us (equivalent to start_b() with
     // verb_b::normal).
@@ -443,12 +449,19 @@ init (const char* argv0,
                   nullopt /* config_sub */,
                   nullopt /* config_guess */);
 
-    build2::bin::build2_bin_load ();
-    build2::cc::build2_cc_load ();
-    build2::c::build2_c_load ();
-    build2::cxx::build2_cxx_load ();
-    build2::version::build2_version_load ();
-    build2::in::build2_in_load ();
+    using build2::load_builtin_module;
+
+    load_builtin_module (&build2::config::build2_config_load);
+    load_builtin_module (&build2::dist::build2_dist_load);
+    load_builtin_module (&build2::test::build2_test_load);
+    load_builtin_module (&build2::install::build2_install_load);
+
+    load_builtin_module (&build2::bin::build2_bin_load);
+    load_builtin_module (&build2::cc::build2_cc_load);
+    load_builtin_module (&build2::c::build2_c_load);
+    load_builtin_module (&build2::cxx::build2_cxx_load);
+    load_builtin_module (&build2::version::build2_version_load);
+    load_builtin_module (&build2::in::build2_in_load);
 
     // Serial execution.
     //
@@ -460,6 +473,10 @@ init (const char* argv0,
     build2_sched.startup (1);
     build2_mutexes.init (build2_sched.shard_size ());
     build2_fcache.init (true);
+  }
+  catch (const build2::failed&)
+  {
+    throw failed (); // Assume the diagnostics has already been issued.
   }
 
   return o;

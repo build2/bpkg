@@ -32,15 +32,17 @@ namespace bpkg
                                database& db,
                                transaction&,
                                const dependencies& deps,
-                               package_skeleton& ps,
+                               package_skeleton&& ps,
                                bool simulate,
                                const function<find_database_function>& fdb)
   {
     package_prerequisites pps;
     vector<string> cvs;
 
-    for (const dependency_alternatives_ex& das: deps)
+    for (size_t di (0); di != deps.size (); ++di)
     {
+      const dependency_alternatives_ex& das (deps[di]);
+
       if (das.empty () || toolchain_buildtime_dependency (o, das, ps.name ()))
         continue;
 
@@ -51,7 +53,7 @@ namespace bpkg
       bool enabled   (false); // True if there is an enabled alternative.
       for (const dependency_alternative& da: das)
       {
-        if (da.enable && !ps.evaluate_enable (*da.enable))
+        if (da.enable && !ps.evaluate_enable (*da.enable, di))
           continue;
 
         enabled = true;
@@ -175,7 +177,7 @@ namespace bpkg
         // Evaluate the dependency alternative reflect clause, if present.
         //
         if (da.reflect)
-          ps.evaluate_reflect (*da.reflect);
+          ps.evaluate_reflect (*da.reflect, di);
 
         satisfied = true;
         break;
@@ -190,8 +192,15 @@ namespace bpkg
     //
     if (!simulate)
     {
-      for (string& cv: ps.collect_reflect ())
-        cvs.push_back (move (cv));
+      strings rvs (move (ps).collect_reflect ());
+
+      if (cvs.empty ())
+        cvs = move (rvs);
+      else
+      {
+        for (string& cv: rvs)
+          cvs.push_back (move (cv));
+      }
     }
 
     return make_pair (move (pps), move (cvs));
@@ -203,8 +212,7 @@ namespace bpkg
                  transaction& t,
                  const shared_ptr<selected_package>& p,
                  const dependencies& deps,
-                 package_skeleton& ps,
-                 const strings& vars,
+                 package_skeleton&& ps,
                  bool simulate,
                  const function<find_database_function>& fdb)
   {
@@ -238,7 +246,7 @@ namespace bpkg
                                    db,
                                    t,
                                    deps,
-                                   ps,
+                                   move (ps),
                                    simulate,
                                    fdb));
 
@@ -265,7 +273,7 @@ namespace bpkg
       //
       try
       {
-        run_b (o, verb_b::quiet, cpr.second, vars, bspec);
+        run_b (o, verb_b::quiet, cpr.second, bspec);
       }
       catch (const failed&)
       {
@@ -429,18 +437,22 @@ namespace bpkg
       //
       shared_ptr<available_package> ap (make_available (o, db, p));
 
-      package_skeleton ps (db,
-                           *ap,
-                           vars,
-                           p->external () ? p->src_root : nullopt);
+      optional<dir_path> src_root (p->external () ? p->src_root : nullopt);
+
+      optional<dir_path> out_root (src_root
+                                   ? dir_path (db.config) /= p->name.string ()
+                                   : optional<dir_path> ());
 
       pkg_configure (o,
                      db,
                      t,
                      p,
                      ap->dependencies,
-                     ps,
-                     vars,
+                     package_skeleton (db,
+                                       *ap,
+                                       move (vars),
+                                       move (src_root),
+                                       move (out_root)),
                      false /* simulate */);
     }
 

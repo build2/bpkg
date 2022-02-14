@@ -137,12 +137,18 @@
 # |   `-- repositories.manifest
 # |
 # |-- t8a
-# |   |-- foo-1.0.0.tar.gz      -> {libbar libbaz} ^1.0.0
-# |   |-- fox-1.0.0.tar.gz      -> libbar ^1.0.0 | libbaz ^1.0.0
-# |   |-- fix-1.0.0.tar.gz      -> libbaz ^1.0.0 | libbar ^1.0.0
 # |   |-- libbar-1.0.0.tar.gz
 # |   |-- libbaz-1.0.0.tar.gz
 # |   |-- libbaz-1.1.0.tar.gz
+# |   |-- libbiz-1.0.0.tar.gz
+# |   |-- libbox-1.0.0.tar.gz
+# |   |-- foo-1.0.0.tar.gz      -> {libbar libbaz} ^1.0.0
+# |   |-- fox-1.0.0.tar.gz      -> libbar ^1.0.0 | libbaz ^1.0.0
+# |   |-- fix-1.0.0.tar.gz      -> libbaz ^1.0.0 | libbar ^1.0.0
+# |   |-- fax-1.0.0.tar.gz      -> libbar ^1.0.0 ? ($cxx.target.class == 'windows') config.fax.backend=libbar |
+# |   |                            libbaz ^1.0.0 ? ($cxx.target.class != 'windows') config.fax.backend=libbaz,
+# |   |                            libbiz ? ($config.fax.libbiz) config.fax.extras='[b\i$z]',
+# |   |                            libbox ? ($config.fax.libbox && $config.fax.backend == libbaz && $config.fax.extras == '[b\i$z]')
 # |   `-- repositories.manifest
 # |
 # |-- t9
@@ -3583,6 +3589,217 @@ test.options += --no-progress
           EOO
 
         $pkg_drop fox
+      }
+    }
+
+    : enable-condition
+    :
+    {
+      +$cfg_create cxx $config_cxx -d cfg &cfg/***
+      +$rep_add $rep/t8a && $rep_fetch
+
+      test.arguments += --yes
+
+      backend            = ($posix ? 'libbaz' : 'libbar')
+      backend_dep        = ($posix ? 'libbaz/1.1.0' : 'libbar/1.0.0')
+      backend_configured = ($posix ? 'libbaz configured 1.1.0' : 'libbar configured 1.0.0')
+
+      : cxx-target
+      :
+      {
+        $clone_cfg;
+
+        $* fax 2>>~"%EOE%";
+          fetched $backend_dep
+          unpacked $backend_dep
+          fetched fax/1.0.0
+          unpacked fax/1.0.0
+          configured $backend_dep
+          configured fax/1.0.0
+          %info: .+fax-1.0.0.+ is up to date%
+          updated fax/1.0.0
+          EOE
+
+        $pkg_status -r >>"EOO";
+          !fax configured 1.0.0
+            $backend_configured
+          EOO
+
+        cat cfg/fax-1.0.0/build/config.build >>~"%EOO%";
+          %.*
+          config.fax.backend = $backend
+          config.fax.libbiz = false
+          %.*
+          EOO
+
+        $pkg_drop fax
+      }
+
+      : config-var
+      :
+      {
+        $clone_cfg;
+
+        $* config.fax.libbiz=true -- fax 2>>~"%EOE%";
+          fetched $backend_dep
+          unpacked $backend_dep
+          fetched libbiz/1.0.0
+          unpacked libbiz/1.0.0
+          fetched fax/1.0.0
+          unpacked fax/1.0.0
+          configured $backend_dep
+          configured libbiz/1.0.0
+          configured fax/1.0.0
+          %info: .+fax-1.0.0.+ is up to date%
+          updated fax/1.0.0
+          EOE
+
+        $pkg_status -r >>"EOO";
+          !fax configured 1.0.0
+            $backend_configured
+            libbiz configured 1.0.0
+          EOO
+
+        cat cfg/fax-1.0.0/build/config.build >>~"%EOO%";
+          %.*
+          config.fax.backend = $backend
+          config.fax.libbiz = true
+          %.*
+          EOO
+
+        $pkg_drop fax
+      }
+
+      : external-package
+      :
+      {
+        $clone_cfg;
+
+        tar (!$posix ? --force-local : ) -xf $src/t8a/fax-1.0.0.tar.gz &fax-1.0.0/***;
+        mv fax-1.0.0 fax;
+
+        $* config.fax.libbiz=true -- fax/ 2>>~"%EOE%";
+          fetched $backend_dep
+          unpacked $backend_dep
+          fetched libbiz/1.0.0
+          unpacked libbiz/1.0.0
+          using fax/1.0.0 \(external\)
+          configured $backend_dep
+          configured libbiz/1.0.0
+          configured fax/1.0.0
+          %info: .+fax.+ is up to date%
+          updated fax/1.0.0
+          EOE
+
+        $pkg_status -r >>"EOO";
+          !fax configured !1.0.0
+            $backend_configured
+            libbiz configured 1.0.0
+          EOO
+
+        cat cfg/fax/build/config.build >>~"%EOO%";
+          %.*
+          config.fax.backend = $backend
+          config.fax.libbiz = true
+          %.*
+          EOO
+
+        # Upgrade the external package after changing its manifest and make
+        # sure the configuration is preserved.
+        #
+        echo '' >+fax/manifest;
+
+        $* fax/ 2>>~%EOE%;
+          disfigured fax/1.0.0
+          using fax/1.0.0#1 (external)
+          configured fax/1.0.0#1
+          %info: .+fax.+ is up to date%
+          updated fax/1.0.0#1
+          EOE
+
+        $pkg_status -r >>"EOO";
+          !fax configured !1.0.0#1
+            $backend_configured
+            libbiz configured 1.0.0
+          EOO
+
+        cat cfg/fax/build/config.build >>~"%EOO%";
+          %.*
+          config.fax.backend = $backend
+          config.fax.libbiz = true
+          %.*
+          EOO
+
+        # While at it, test that it's ok for out root directory to not exist.
+        #
+        # Note that this testing is only meaningful when we replace an
+        # external package with another external (see build_package::external()
+        # for details).
+        #
+        echo '' >+fax/manifest;
+
+        rm -r cfg/fax/;
+
+        $* fax/ 2>>~%EOE%;
+          disfigured fax/1.0.0#1
+          disfigured libbiz/1.0.0
+          purged libbiz/1.0.0
+          using fax/1.0.0#2 (external)
+          configured fax/1.0.0#2
+          %info: .+fax.+ is up to date%
+          updated fax/1.0.0#2
+          EOE
+
+        $pkg_status -r >>"EOO";
+          !fax configured !1.0.0#2
+            $backend_configured
+          EOO
+
+        cat cfg/fax/build/config.build >>~"%EOO%";
+          %.*
+          config.fax.backend = $backend
+          config.fax.libbiz = false
+          %.*
+          EOO
+
+        # Also tests that the depends value location is printed on the enable
+        # condition evaluation failure for an external package.
+        #
+        sed -i -e 's/(depends: libbiz).+/\1 ? (config.fax.libbiz = true)/' fax/manifest;
+
+        $* fax/ 2>>~%EOE% != 0;
+          <depends-enable-clause>:1: error: invalid bool value: multiple names
+            info: enable condition: (config.fax.libbiz = true)
+          %  .+fax.manifest:10:10: info: depends value defined here%
+          info: while satisfying fax/1.0.0#3
+          EOE
+
+        $pkg_drop fax
+      }
+
+      : evaluate-reflect-vars
+      :
+      {
+        $clone_cfg;
+
+        $* config.fax.libbox=true config.fax.libbiz=true -- fax 2>!;
+
+        if $posix
+          $pkg_status -r >>EOO
+            !fax configured 1.0.0
+              libbaz configured 1.1.0
+              libbiz configured 1.0.0
+              libbox configured 1.0.0
+            EOO
+        else
+          $pkg_status -r >>EOO
+            !fax configured 1.0.0
+              libbar configured 1.0.0
+              libbiz configured 1.0.0
+            EOO
+        end;
+
+        $pkg_drop fax
       }
     }
   }

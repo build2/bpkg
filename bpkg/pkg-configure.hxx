@@ -43,8 +43,7 @@ namespace bpkg
                  transaction&,
                  const shared_ptr<selected_package>&,
                  const dependencies&,
-                 package_skeleton&,
-                 const strings& config_vars,
+                 package_skeleton&&,
                  bool simulate,
                  const function<find_database_function>& = {});
 

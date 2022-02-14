@@ -712,35 +712,47 @@ namespace bpkg
         (*action == build && (flags & build_repoint) != 0);
     }
 
-    // Return true if this build replaces an external package with another
-    // external.
+    // Return true if the resulting package will be configured as external.
+    // Optionally, if the package is external, return its absolute and
+    // normalized source root directory path.
     //
     bool
-    external () const
+    external (dir_path* d = nullptr) const
     {
-      if (selected == nullptr || !selected->external ())
-        return false;
-
       assert (action);
 
       if (*action == build_package::drop)
         return false;
 
-      bool r (false);
-
       // If adjustment or orphan, then new and old are the same.
       //
       if (available == nullptr || available->locations.empty ())
       {
-        r = true;
+        assert (selected != nullptr);
+
+        if (selected->external ())
+        {
+          assert (selected->src_root);
+
+          if (d != nullptr)
+            *d = *selected->src_root;
+
+          return true;
+        }
       }
       else
       {
         const package_location& pl (available->locations[0]);
 
-        if (pl.repository_fragment.object_id () == "") // Special root.
+        if (pl.repository_fragment.object_id () == "") // Special root?
         {
-          r = !exists (pl.location); // Directory case.
+          if (!exists (pl.location))                   // Directory case?
+          {
+            if (d != nullptr)
+              *d = normalize (path_cast<dir_path> (pl.location), "package");
+
+            return true;
+          }
         }
         else
         {
@@ -750,18 +762,40 @@ namespace bpkg
           // Note that such repository fragments are always preferred over
           // others (see below).
           //
-          for (const package_location& l: available->locations)
+          for (const package_location& pl: available->locations)
           {
-            if (l.repository_fragment.load ()->location.directory_based ())
+            const repository_location& rl (
+              pl.repository_fragment.load ()->location);
+
+            if (rl.directory_based ())
             {
-              r = true;
-              break;
+              // Note that the repository location path is always absolute for
+              // the directory-based repositories but the package location may
+              // potentially not be normalized. Thus, we normalize the
+              // resulting path, if requested.
+              //
+              if (d != nullptr)
+                *d = normalize (path_cast<dir_path> (rl.path () / pl.location),
+                                "package");
+
+              return true;
             }
           }
         }
       }
 
-      return r;
+      return false;
+    }
+
+    // If the resulting package will be configured as external, then return
+    // its absolute and normalized source root directory path and nullopt
+    // otherwise.
+    //
+    optional<dir_path>
+    external_dir () const
+    {
+      dir_path r;
+      return external (&r) ? optional<dir_path> (move (r)) : nullopt;
     }
 
     const version&
@@ -1267,12 +1301,18 @@ namespace bpkg
         if (size_t n = deps.size ())
           pkg.dependencies->reserve (n);
 
+        optional<dir_path> src_root (pkg.external_dir ());
+
+        optional<dir_path> out_root (
+          src_root && !pkg.disfigure
+          ? dir_path (pdb.config) /= pkg.name ().string ()
+          : optional<dir_path> ());
+
         pkg.skeleton = package_skeleton (pdb,
                                          *ap,
                                          pkg.config_vars,
-                                         (pkg.external () && !pkg.disfigure
-                                          ? sp->src_root
-                                          : nullopt));
+                                         move (src_root),
+                                         move (out_root));
       }
 
       dependencies& sdeps (*pkg.dependencies);
@@ -1309,9 +1349,9 @@ namespace bpkg
 
       package_skeleton& skel (*pkg.skeleton);
 
-      for (size_t i (sdeps.size ()); i != deps.size (); ++i)
+      for (size_t di (sdeps.size ()); di != deps.size (); ++di)
       {
-        const dependency_alternatives_ex& das (deps[i]);
+        const dependency_alternatives_ex& das (deps[di]);
 
         // Add an empty alternatives list into the selected dependency list if
         // this is a toolchain build-time dependency.
@@ -1339,7 +1379,7 @@ namespace bpkg
         {
           for (const dependency_alternative& da: das)
           {
-            if (!da.enable || skel.evaluate_enable (*da.enable))
+            if (!da.enable || skel.evaluate_enable (*da.enable, di))
               edas.push_back (da);
           }
         }
@@ -2126,7 +2166,7 @@ namespace bpkg
         // present, and collecting its dependency builds.
         //
         bool selected (false);
-        auto select = [&sdeps, &sdas, &skel, &collect, &selected]
+        auto select = [&sdeps, &sdas, &skel, di, &collect, &selected]
                       (const dependency_alternative& da,
                        prebuilds&& bs)
         {
@@ -2144,7 +2184,7 @@ namespace bpkg
           sdeps.push_back (move (sdas));
 
           if (da.reflect)
-            skel.evaluate_reflect (*da.reflect);
+            skel.evaluate_reflect (*da.reflect, di);
 
           collect (move (bs));
 
@@ -7647,7 +7687,7 @@ namespace bpkg
       bool external (false);
       if (!simulate)
       {
-        external = p.external ();
+        external = sp != nullptr && sp->external () && p.external ();
 
         // Reset the keep_out flag if the package being unpacked is not
         // external.
@@ -8090,27 +8130,29 @@ namespace bpkg
                          t,
                          sp,
                          *p.dependencies,
-                         *p.skeleton,
-                         p.config_vars,
+                         move (*p.skeleton),
                          simulate,
                          fdb);
         }
         else
         {
-          package_skeleton ps (pdb,
-                               *ap,
-                               p.config_vars,
-                               (p.external () && !p.disfigure
-                                ? sp->src_root
-                                : nullopt));
+          optional<dir_path> src_root (p.external_dir ());
+
+          optional<dir_path> out_root (
+            src_root && !p.disfigure
+            ? dir_path (pdb.config) /= p.name ().string ()
+            : optional<dir_path> ());
 
           pkg_configure (o,
                          pdb,
                          t,
                          sp,
                          ap->dependencies,
-                         ps,
-                         p.config_vars,
+                         package_skeleton (pdb,
+                                           *ap,
+                                           move (p.config_vars),
+                                           move (src_root),
+                                           move (out_root)),
                          simulate,
                          fdb);
         }
@@ -8133,12 +8175,12 @@ namespace bpkg
         if (dap == nullptr)
           dap = make_available (o, pdb, sp);
 
-        package_skeleton ps (pdb,
-                             *dap,
-                             p.config_vars,
-                             (p.external () && !p.disfigure
-                              ? sp->src_root
-                              : nullopt));
+        optional<dir_path> src_root (p.external_dir ());
+
+        optional<dir_path> out_root (
+          src_root && !p.disfigure
+          ? dir_path (pdb.config) /= p.name ().string ()
+          : optional<dir_path> ());
 
         // @@ Note that on reconfiguration the dependent looses the potential
         //    configuration variables specified by the user on some previous
@@ -8150,8 +8192,11 @@ namespace bpkg
                        t,
                        sp,
                        dap->dependencies,
-                       ps,
-                       p.config_vars,
+                       package_skeleton (pdb,
+                                         *dap,
+                                         move (p.config_vars),
+                                         move (src_root),
+                                         move (out_root)),
                        simulate,
                        fdb);
       }
