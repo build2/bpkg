@@ -99,7 +99,8 @@ namespace bpkg
   {
     try
     {
-      f.complete ().normalize ();
+      if (!f.complete ().normalized ())
+        f.normalize ();
     }
     catch (const invalid_path& e)
     {
@@ -118,7 +119,8 @@ namespace bpkg
   {
     try
     {
-      d.complete ().normalize ();
+      if (!d.complete ().normalized ())
+        d.normalize ();
     }
     catch (const invalid_path& e)
     {
