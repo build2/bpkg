@@ -463,14 +463,32 @@ init (const char* argv0,
     load_builtin_module (&build2::version::build2_version_load);
     load_builtin_module (&build2::in::build2_in_load);
 
-    // Serial execution.
+    // Note that while all we need is serial execution (all we do is load), we
+    // may need to update some build system modules (while we only support
+    // built-in and standard pre-installed modules here, we may need to build
+    // the latter during development). At the same time, this is an unlikely
+    // case and starting a parallel scheduler is not cheap. So what we will do
+    // is start a parallel scheduler pre-tuned to serial execution, which is
+    // relatively cheap. The module building logic will then re-tune it to
+    // parallel if and when necessary.
     //
-    // Note: starting up serial scheduler is cheap (but not parallel).
+    // @@ TODO: options (scheduler values).
     //
-    // @@ What if, as part of the package skeleton load, we need to update
-    //    a module that it loads? Wouldn't we want to do this in parallel?
-    //
-    build2_sched.startup (1);
+    size_t jobs (0);
+
+    if (jobs == 0)
+      jobs = build2::scheduler::hardware_concurrency ();
+
+    if (jobs == 0)
+      jobs = 1;
+
+    build2_sched.startup (1       /* max_active */,
+                          1       /* init_active */,
+                          0       /* max_jobs */,
+                          0       /* queue_depth */,
+                          nullopt /* max_stack */,
+                          jobs    /* orig_max_active */);
+
     build2_mutexes.init (build2_sched.shard_size ());
     build2_fcache.init (true);
   }
@@ -728,6 +746,9 @@ try
   }
 
   clean_tmp (true /* ignore_error */);
+
+  if (build2_sched.started ())
+    build2_sched.shutdown ();
 
   if (r != 0)
     return r;
