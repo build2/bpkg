@@ -762,7 +762,9 @@ namespace bpkg
 
       gs.assign (ctx.var_build_meta_operation) = ctx.current_mname;
 
-      // @@ TODO: need to set a variable indicating this is a skeleton load.
+      // Use the build mode to signal this is a package skeleton load.
+      //
+      gs.assign (*ctx.var_pool.find ("build.mode")) = "skeleton";
 
       // Note that it's ok for out_root to not exist (external package).
       //
