@@ -1144,7 +1144,10 @@ namespace bpkg
 
         // pkg-unpack --existing <dir>
         //
-        (repository_fragment.empty () && !archive);
+        // Note that the system package can have no repository associated (see
+        // imaginary system repository in pkg-build.cxx for details).
+        //
+        (repository_fragment.empty () && !archive && !system ());
     }
 
     // Represent the wildcard version with the "*" string. Represent naturally
