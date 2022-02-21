@@ -1,10 +1,6 @@
 // file      : bpkg/bpkg.cxx -*- C++ -*-
 // license   : MIT; see accompanying LICENSE file
 
-#ifndef _WIN32
-#  include <signal.h> // signal()
-#endif
-
 #include <limits>
 #include <iostream>
 #include <exception>   // set_terminate(), terminate_handler
@@ -172,8 +168,13 @@ namespace bpkg
                  bo.no_column (),
                  bpkg::stderr_term);
 
+      // Note that we pretend to be in the serial-stop mode even though we may
+      // build build system modules in parallel in order to get better
+      // diagnostics for the common case.
+      //
       init (&build2_terminate,
             build2_argv0,
+            true /* serial_stop */,
             bc.mtime_check,
             bc.config_sub,
             bc.config_guess);
@@ -545,40 +546,10 @@ try
   exec_dir = path (argv[0]).directory ();
   build2_argv0 = argv[0];
 
-  // This is a little hack to make our baseutils for Windows work when called
-  // with absolute path. In a nutshell, MSYS2's exec*p() doesn't search in the
-  // parent's executable directory, only in PATH. And since we are running
-  // without a shell (that would read /etc/profile which sets PATH to some
-  // sensible values), we are only getting Win32 PATH values. And MSYS2 /bin
-  // is not one of them. So what we are going to do is add /bin at the end of
-  // PATH (which will be passed as is by the MSYS2 machinery). This will make
-  // MSYS2 search in /bin (where our baseutils live). And for everyone else
-  // this should be harmless since it is not a valid Win32 path.
+  // Note that this call sets PATH to include our baseutils /bin on Windows
+  // and ignores SIGPIPE.
   //
-#ifdef _WIN32
-  {
-    string mp;
-    if (optional<string> p = getenv ("PATH"))
-    {
-      mp = move (*p);
-      mp += ';';
-    }
-    mp += "/bin";
-
-    setenv ("PATH", mp);
-  }
-#endif
-
-  // On POSIX ignore SIGPIPE which is signaled to a pipe-writing process if
-  // the pipe reading end is closed. Note that by default this signal
-  // terminates a process. Also note that there is no way to disable this
-  // behavior on a file descriptor basis or for the write() function call.
-  //
-#ifndef _WIN32
-  if (signal (SIGPIPE, SIG_IGN) == SIG_ERR)
-    fail << "unable to ignore broken pipe (SIGPIPE) signal: "
-         << system_error (errno, generic_category ()); // Sanitize.
-#endif
+  build2::init_process ();
 
   argv_file_scanner argv_scan (argc, argv, "--options-file", false, args_pos);
   group_scanner scan (argv_scan);
