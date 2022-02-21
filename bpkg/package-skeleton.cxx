@@ -31,6 +31,7 @@ namespace bpkg
 {
   // These are defined in bpkg.cxx and initialized in main().
   //
+  extern strings                build2_cmd_vars;
   extern build2::scheduler      build2_sched;
   extern build2::global_mutexes build2_mutexes;
   extern build2::file_cache     build2_fcache;
@@ -59,6 +60,7 @@ namespace bpkg
       created_ = v.created_;
       ctx_ = move (v.ctx_);
       rs_ = v.rs_;
+      cmd_vars_ = move (v.cmd_vars_);
       reflect_names_ = move (v.reflect_names_);
       reflect_vars_ = move (v.reflect_vars_);
       reflect_frag_ = move (v.reflect_frag_);
@@ -78,6 +80,7 @@ namespace bpkg
         src_root_ (v.src_root_),
         out_root_ (v.out_root_),
         created_ (v.created_),
+        cmd_vars_ (v.cmd_vars_),
         reflect_names_ (v.reflect_names_),
         reflect_vars_ (v.reflect_vars_),
         reflect_frag_ (v.reflect_frag_)
@@ -720,22 +723,30 @@ namespace bpkg
 
       // Create build context.
       //
-      // @@ BUILD2_VAR_OVR, environment/default options files? E.g., !config
-      //    to find module... Can't we make it reusable in build2?
-      //
-      // @@ What is our story about build system modules? It seems we will
-      //    only support built-in and standard pre-installed modules here
-      //    (otherwise we would need to build all the module dependencies
-      //    before we can evaluate any of this). Which means they cannot be
-      //    built except during development. Maybe start parallel scheduler
-      //    if dev build? But is it not possible someone will use installed
-      //    bpkg to develop a module? Why don't we just start a parallel
-      //    scheduler always (though that would be wasted overhead most of
-      //    the time)? Or maybe provide a command line option?
-
       // We can reasonably assume reflect cannot have global or absolute scope
       // variable overrides so we don't need to pass them to context.
+
+      // Merge variable overrides (note that the order is important).
       //
+      strings* cmd_vars;
+      {
+        strings& v1 (build2_cmd_vars);
+        strings& v2 (config_vars_);
+
+        cmd_vars = (v2.empty () ? &v1 : v1.empty () ? &v2 : nullptr);
+
+        if (cmd_vars == nullptr)
+        {
+          if (cmd_vars_.empty ()) // Cached.
+          {
+            cmd_vars_.reserve (v1.size () + v2.size ());
+            cmd_vars_.assign (v1.begin (), v1.end ());
+            cmd_vars_.insert (cmd_vars_.end (), v2.begin (), v2.end ());
+          }
+
+          cmd_vars = &cmd_vars_;
+        }
+      }
 
       ctx_.reset (
         new context (build2_sched,
@@ -745,7 +756,7 @@ namespace bpkg
                      false /* no_external_modules */,
                      false /* dry_run */,             // Shouldn't matter.
                      false /* keep_going */,          // Shouldnt' matter.
-                     config_vars_));
+                     *cmd_vars));
 
       context& ctx (*ctx_);
 

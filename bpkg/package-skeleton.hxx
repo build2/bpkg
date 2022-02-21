@@ -100,6 +100,7 @@ namespace bpkg
     bool created_ = false;
     unique_ptr<build2::context> ctx_;
     build2::scope* rs_ = nullptr;
+    strings cmd_vars_; // Storage for merged build2_cmd_vars and config_vars_.
 
     strings reflect_names_; // Reflect configuration variable names.
     strings reflect_vars_;  // Reflect configuration variable overrides.

@@ -21,6 +21,9 @@
 #include <libbuild2/scheduler.hxx>
 #include <libbuild2/file-cache.hxx>
 
+#include <libbuild2/cmdline.hxx>
+#include <libbuild2/b-options.hxx>
+
 #include <libbuild2/dist/init.hxx>
 #include <libbuild2/test/init.hxx>
 #include <libbuild2/config/init.hxx>
@@ -100,6 +103,7 @@ namespace bpkg
     std::terminate ();
   }
 
+  strings                build2_cmd_vars;
   build2::scheduler      build2_sched;
   build2::global_mutexes build2_mutexes;
   build2::file_cache     build2_fcache;
@@ -426,30 +430,66 @@ init (const char* argv0,
   if (bsys)
   try
   {
-    // For now we use the same verbosity as us (equivalent to start_b() with
-    // verb_b::normal).
+    using namespace build2;
+    using build2::fail;
+    using build2::endf;
+
+    build2::tracer trace ("init");
+
+    // Parse --build-option values as the build2 driver command line.
     //
-    build2::init_diag (verb,
-                       false /* silent */,
-                       (o.progress ()    ? optional<bool> (true) :
-                        o.no_progress () ? optional<bool> (false) :
-                        nullopt),
-                       false /* no_lines */,
-                       false /* no_columns */,
-                       stderr_term);
+    // With things like verbosity, progress, etc., we use values from
+    // --build-option if specified, falling back to equivalent bpkg values
+    // otherwise.
+    //
+    build2::options bo;
+    cmdline bc;
+    {
+      small_vector<char*, 1> argv {const_cast<char*> (argv0)};
 
-    build2::init (&build2_terminate,
-                  argv0,
-                  //
-                  // @@ Should we try to parse --build-option and extract
-                  //    these (having config_* is plausible)? Also
-                  //    --file-cache below.
-                  //
-                  nullopt /* mtime_check */,
-                  nullopt /* config_sub */,
-                  nullopt /* config_guess */);
+      if (size_t n = o.build_option ().size ())
+      {
+        argv.reserve (n + 1);
 
-    using build2::load_builtin_module;
+        for (const string& a: o.build_option ())
+          argv.push_back (const_cast<char*> (a.c_str ()));
+      }
+
+      // Note that this function also parses the default options files and
+      // gets/sets the relevant environment variables.
+      //
+      // For now we use the same default verbosity as us (equivalent to
+      // start_b() with verb_b::normal).
+      //
+      bc = parse_cmdline (trace,
+                          static_cast<int> (argv.size ()), argv.data (),
+                          bo,
+                          bpkg::verb,
+                          o.jobs_specified () ? o.jobs () : 0);
+
+      if (!bc.buildspec.empty ())
+        fail << "argument specified with --build-option";
+
+      if (bo.help () || bo.version ())
+        fail << "--help or --version specified with --build-option";
+    }
+
+    build2_cmd_vars = move (bc.cmd_vars);
+
+    init_diag (bc.verbosity,
+               bo.silent (),
+               (bc.progress      ? bc.progress :
+                o.progress ()    ? optional<bool> (true) :
+                o.no_progress () ? optional<bool> (false) : nullopt),
+               bo.no_line (),
+               bo.no_column (),
+               bpkg::stderr_term);
+
+    init (&build2_terminate,
+          argv0,
+          bc.mtime_check,
+          bc.config_sub,
+          bc.config_guess);
 
     load_builtin_module (&build2::config::build2_config_load);
     load_builtin_module (&build2::dist::build2_dist_load);
@@ -472,25 +512,15 @@ init (const char* argv0,
     // relatively cheap. The module building logic will then re-tune it to
     // parallel if and when necessary.
     //
-    // @@ TODO: options (scheduler values).
-    //
-    size_t jobs (0);
-
-    if (jobs == 0)
-      jobs = build2::scheduler::hardware_concurrency ();
-
-    if (jobs == 0)
-      jobs = 1;
-
-    build2_sched.startup (1       /* max_active */,
-                          1       /* init_active */,
-                          0       /* max_jobs */,
-                          0       /* queue_depth */,
-                          nullopt /* max_stack */,
-                          jobs    /* orig_max_active */);
+    build2_sched.startup (1 /* max_active */,
+                          1 /* init_active */,
+                          bc.max_jobs,
+                          bc.jobs * bo.queue_depth (),
+                          bc.max_stack,
+                          bc.jobs);
 
     build2_mutexes.init (build2_sched.shard_size ());
-    build2_fcache.init (true);
+    build2_fcache.init (bc.fcache_compress);
   }
   catch (const build2::failed&)
   {
