@@ -1,4 +1,10 @@
 <changelog xmlns="http://www.codesynthesis.com/xmlns/odb/changelog" database="sqlite" version="1">
+  <changeset version="17">
+    <alter-table name="main.selected_package">
+      <add-column name="buildfiles_checksum" type="TEXT" null="true"/>
+    </alter-table>
+  </changeset>
+
   <changeset version="16">
     <alter-table name="main.available_package_tests">
       <add-column name="test_reflect" type="TEXT" null="true"/>

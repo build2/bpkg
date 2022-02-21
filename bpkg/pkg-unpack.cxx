@@ -58,26 +58,18 @@ namespace bpkg
   // package object which may replace the existing one.
   //
   static shared_ptr<selected_package>
-  pkg_unpack (const common_options& o,
-              database& db,
+  pkg_unpack (database& db,
               transaction& t,
-              package_name n,
-              version v,
-              const package_info* pi,
-              dir_path d,
-              repository_location rl,
+              package_name&& n,
+              version&& v,
+              dir_path&& d,
+              repository_location&& rl,
+              shared_ptr<selected_package>&& p,
+              optional<string>&& mc,
+              optional<string>&& bc,
               bool purge,
               bool simulate)
   {
-    tracer trace ("pkg_unpack");
-
-    tracer_guard tg (db, trace);
-
-    optional<string> mc;
-
-    if (!simulate)
-      mc = package_checksum (o, d, pi);
-
     // Make the package path absolute and normalized. If the package is inside
     // the configuration, use the relative path. This way we can move the
     // configuration around.
@@ -86,8 +78,6 @@ namespace bpkg
 
     if (d.sub (db.config))
       d = d.leaf (db.config);
-
-    shared_ptr<selected_package> p (db.find<selected_package> (n));
 
     if (p != nullptr)
     {
@@ -117,6 +107,7 @@ namespace bpkg
       p->src_root = move (d);
       p->purge_src = purge;
       p->manifest_checksum = move (mc);
+      p->buildfiles_checksum = move (bc);
 
       db.update (p);
     }
@@ -135,6 +126,7 @@ namespace bpkg
         move (d),
         purge,
         move (mc),
+        move (bc),
         nullopt,    // No output directory yet.
         {}});       // No prerequisites captured yet.
 
@@ -144,7 +136,59 @@ namespace bpkg
     assert (p->external ());
 
     t.commit ();
-    return p;
+    return move (p);
+  }
+
+  template <typename T>
+  static shared_ptr<selected_package>
+  pkg_unpack (const common_options& o,
+              database& db,
+              transaction& t,
+              package_name n,
+              version v,
+              const vector<T>& deps,
+              const package_info* pi,
+              dir_path d,
+              repository_location rl,
+              bool purge,
+              bool simulate)
+  {
+    tracer trace ("pkg_unpack");
+
+    tracer_guard tg (db, trace);
+
+    shared_ptr<selected_package> p (db.find<selected_package> (n));
+
+    optional<string> mc;
+    optional<string> bc;
+
+    if (!simulate)
+    {
+      mc = package_checksum (o, d, pi);
+
+      // Calculate the buildfiles checksum if the package has any buildfile
+      // clauses in the dependencies. Always calculate it over the buildfiles
+      // since the package is external.
+      //
+      if ((p != nullptr && p->manifest_checksum == mc)
+          ? p->buildfiles_checksum.has_value ()
+          : has_buildfile_clause (deps))
+        bc = package_buildfiles_checksum (nullopt /* bootstrap_build */,
+                                          nullopt /* root_build */,
+                                          d);
+    }
+
+    return pkg_unpack (db,
+                       t,
+                       move (n),
+                       move (v),
+                       move (d),
+                       move (rl),
+                       move (p),
+                       move (mc),
+                       move (bc),
+                       purge,
+                       simulate);
   }
 
   shared_ptr<selected_package>
@@ -207,6 +251,7 @@ namespace bpkg
                        t,
                        move (m.name),
                        move (m.version),
+                       m.dependencies,
                        &pvi.info,
                        d,
                        repository_location (),
@@ -272,6 +317,7 @@ namespace bpkg
                        t,
                        move (n),
                        move (v),
+                       ap->dependencies,
                        nullptr   /* package_info */,
                        path_cast<dir_path> (rl.path () / pl->location),
                        rl,
@@ -282,6 +328,7 @@ namespace bpkg
   shared_ptr<selected_package>
   pkg_unpack (const common_options& co,
               database& db,
+              database& rdb,
               transaction& t,
               const package_name& name,
               bool simulate)
@@ -309,13 +356,17 @@ namespace bpkg
     // Also, since we must have verified the archive during fetch,
     // here we can just assume what the resulting directory will be.
     //
-    dir_path d (c / dir_path (p->name.string () + '-' + p->version.string ()));
+    const package_name& n (p->name);
+    const version& v (p->version);
+
+    dir_path d (c / dir_path (n.string () + '-' + v.string ()));
 
     if (exists (d))
       fail << "package directory " << d << " already exists";
 
     auto_rmdir arm;
     optional<string> mc;
+    optional<string> bc;
 
     if (!simulate)
     {
@@ -347,12 +398,52 @@ namespace bpkg
       }
 
       mc = package_checksum (co, d, nullptr /* package_info */);
+
+      // Calculate the buildfiles checksum if the package has any buildfile
+      // clauses in the dependencies.
+      //
+      // Note that we may not have the available package (e.g., fetched as an
+      // existing package archive rather than from an archive repository), in
+      // which case we need to parse the manifest to retrieve the
+      // dependencies. This is unfortunate, but is probably not a big deal
+      // performance-wise given that this is not too common and we are running
+      // an archive unpacking process anyway.
+      //
+      shared_ptr<available_package> ap (
+        rdb.find<available_package> (available_package_id (n, v)));
+
+      if (ap != nullptr)
+      {
+        if (has_buildfile_clause (ap->dependencies))
+          bc = package_buildfiles_checksum (ap->bootstrap_build,
+                                            ap->root_build,
+                                            d);
+      }
+      else
+      {
+        // Note that we don't need to translate the package version here since
+        // the manifest comes from an archive and so has a proper version
+        // already.
+        //
+        package_manifest m (
+          pkg_verify (co,
+                      d,
+                      true  /* ignore_unknown */,
+                      false /* load_buildfiles */,
+                      function<package_manifest::translate_function> ()));
+
+        if (has_buildfile_clause (m.dependencies))
+          bc = package_buildfiles_checksum (m.bootstrap_build,
+                                            m.root_build,
+                                            d);
+      }
     }
 
     p->src_root = d.leaf (); // For now assuming to be in configuration.
     p->purge_src = true;
 
     p->manifest_checksum = move (mc);
+    p->buildfiles_checksum = move (bc);
 
     p->state = package_state::unpacked;
 
@@ -416,7 +507,12 @@ namespace bpkg
       // "unpack" it from the directory-based repository.
       //
       p = v.empty ()
-        ? pkg_unpack (o, db, t, n, false /* simulate */)
+        ? pkg_unpack (o,
+                      db /* pdb */,
+                      db /* rdb */,
+                      t,
+                      n,
+                      false /* simulate */)
         : pkg_unpack (o,
                       db /* pdb */,
                       db /* rdb */,

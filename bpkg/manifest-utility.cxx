@@ -357,4 +357,64 @@ namespace bpkg
       fail << "unable to read from " << f << ": " << e << endf;
     }
   }
+
+  string
+  package_buildfiles_checksum (const optional<string>& bb,
+                               const optional<string>& rb,
+                               const dir_path& d)
+  {
+    if (bb && rb)
+    {
+      sha256 cs (*bb);
+      cs.append (*rb);
+      return cs.string ();
+    }
+
+    auto checksum = [&bb, &rb] (const path& b, const path& r)
+    {
+      sha256 cs;
+
+      auto append_file = [&cs] (const path& f)
+      {
+        try
+        {
+          // Open the buildfile in the text mode and hash the NULL character
+          // at the end to calculate the checksum over files consistently with
+          // calculating it over the *-build manifest values.
+          //
+          ifdstream ifs (f);
+          cs.append (ifs);
+          cs.append ('\0');
+        }
+        catch (const io_error& e)
+        {
+          fail << "unable to read from " << f << ": " << e;
+        }
+      };
+
+      if (bb)
+        cs.append (*bb);
+      else
+        append_file (b);
+
+      if (rb)
+        cs.append (*rb);
+      else if (exists (r))
+        append_file (r);
+
+      return string (cs.string ());
+    };
+
+    // Check the alternative bootstrap file first since it is more
+    // specific.
+    //
+    path bf;
+    if (exists (bf = d / alt_bootstrap_file))
+      return checksum (bf, d / alt_root_file);
+    else if (exists (bf = d / std_bootstrap_file))
+      return checksum (bf, d / std_root_file);
+    else
+      fail << "unable to find bootstrap.build file in package directory "
+           << d << endf;
+  }
 }

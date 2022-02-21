@@ -654,7 +654,21 @@ namespace bpkg
 
     bool changed (mc != *p->manifest_checksum);
 
-    // If the manifest didn't changed but the selected package points to an
+    // If the manifest hasn't changed and the package has buildfile clauses in
+    // the dependencies, then check if the buildfiles haven't changed either.
+    //
+    if (!changed && p->buildfiles_checksum)
+    {
+      // Always calculate the checksum over the buildfiles since the package
+      // is external.
+      //
+      changed = package_buildfiles_checksum (
+        nullopt /* bootstrap_build */,
+        nullopt /* root_build */,
+        d) != *p->buildfiles_checksum;
+    }
+
+    // If the manifest hasn't changed but the selected package points to an
     // external source directory, then we also check if the directory have
     // moved.
     //
@@ -839,20 +853,5 @@ namespace bpkg
     }
 
     return false;
-  }
-
-  bool
-  evaluate_enabled (const dependency_alternative& da,
-                    const string& /* bootstrap_build */,
-                    const optional<string>& /* root_build */,
-                    const package_name& pkg)
-  {
-    // @@ DEP TMP
-    //
-    if (da.enable)
-      fail << "conditional dependency for package " << pkg <<
-        info << "conditional dependencies are not yet supported";
-
-    return true;
   }
 }

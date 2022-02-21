@@ -32,9 +32,13 @@ namespace bpkg
 
   // Unpack the fetched package and commit the transaction.
   //
+  // Note that both package and repository information configurations need to
+  // be passed.
+  //
   shared_ptr<selected_package>
   pkg_unpack (const common_options&,
-              database&,
+              database& pdb,
+              database& rdb,
               transaction&,
               const package_name&,
               bool simulate);

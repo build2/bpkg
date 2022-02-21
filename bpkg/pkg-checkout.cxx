@@ -169,6 +169,7 @@ namespace bpkg
 
     auto_rmdir rmd;
     optional<string> mc;
+    optional<string> bc;
 
     const dir_path& ord (output_root ? *output_root : c);
     dir_path d (ord / dir_path (n.string () + '-' + v.string ()));
@@ -311,6 +312,16 @@ namespace bpkg
              bspec);
 
       mc = package_checksum (o, d, nullptr /* package_info */);
+
+      // Calculate the buildfiles checksum if the package has any buildfile
+      // clauses in the dependencies.
+      //
+      if ((p != nullptr && p->manifest_checksum == mc)
+          ? p->buildfiles_checksum.has_value ()
+          : has_buildfile_clause (ap->dependencies))
+        bc = package_buildfiles_checksum (ap->bootstrap_build,
+                                          ap->root_build,
+                                          d);
     }
 
     if (p != nullptr)
@@ -350,6 +361,7 @@ namespace bpkg
       p->src_root = move (d);
       p->purge_src = purge;
       p->manifest_checksum = move (mc);
+      p->buildfiles_checksum = move (bc);
 
       pdb.update (p);
     }
@@ -370,6 +382,7 @@ namespace bpkg
         move (d),  // Source root.
         purge,     // Purge directory.
         move (mc),
+        move (bc),
         nullopt,   // No output directory yet.
         {}});      // No prerequisites captured yet.
 

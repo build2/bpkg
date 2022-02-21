@@ -331,6 +331,7 @@ namespace bpkg
         nullopt,                   // No source directory.
         false,
         nullopt,                   // No manifest checksum.
+        nullopt,                   // No buildfiles checksum.
         nullopt,                   // No output directory.
         {}});                      // No prerequisites.
 

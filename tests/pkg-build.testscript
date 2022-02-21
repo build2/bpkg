@@ -3672,109 +3672,264 @@ test.options += --no-progress
 
       : external-package
       :
+      if! $remote
       {
-        $clone_cfg;
+        +$clone_cfg
 
-        tar (!$posix ? --force-local : ) -xf $src/t8a/fax-1.0.0.tar.gz &fax-1.0.0/***;
-        mv fax-1.0.0 fax;
+        +tar (!$posix ? --force-local : ) -xf $src/t8a/fax-1.0.0.tar.gz &fax-1.0.0/***
+        +mv fax-1.0.0 fax
 
-        $* config.fax.libbiz=true -- fax/ 2>>~"%EOE%";
-          fetched $backend_dep
-          unpacked $backend_dep
-          fetched libbiz/1.0.0
-          unpacked libbiz/1.0.0
-          using fax/1.0.0 \(external\)
-          configured $backend_dep
-          configured libbiz/1.0.0
-          configured fax/1.0.0
-          %info: .+fax.+ is up to date%
-          updated fax/1.0.0
-          EOE
+        : change-manifest
+        :
+        {
+          $clone_cfg;
+          cp -rp ../fax/ ./;
 
-        $pkg_status -r >>"EOO";
-          !fax configured !1.0.0
-            $backend_configured
-            libbiz configured 1.0.0
-          EOO
+          $* config.fax.libbiz=true -- fax/ 2>>~"%EOE%";
+            fetched $backend_dep
+            unpacked $backend_dep
+            fetched libbiz/1.0.0
+            unpacked libbiz/1.0.0
+            using fax/1.0.0 \(external\)
+            configured $backend_dep
+            configured libbiz/1.0.0
+            configured fax/1.0.0
+            %info: .+fax.+ is up to date%
+            updated fax/1.0.0
+            EOE
 
-        cat cfg/fax/build/config.build >>~"%EOO%";
-          %.*
-          config.fax.backend = $backend
-          config.fax.libbiz = true
-          %.*
-          EOO
+          $pkg_status -r >>"EOO";
+            !fax configured !1.0.0
+              $backend_configured
+              libbiz configured 1.0.0
+            EOO
 
-        # Upgrade the external package after changing its manifest and make
-        # sure the configuration is preserved.
-        #
-        echo '' >+fax/manifest;
+          cat cfg/fax/build/config.build >>~"%EOO%";
+            %.*
+            config.fax.backend = $backend
+            config.fax.libbiz = true
+            %.*
+            EOO
 
-        $* fax/ 2>>~%EOE%;
-          disfigured fax/1.0.0
-          using fax/1.0.0#1 (external)
-          configured fax/1.0.0#1
-          %info: .+fax.+ is up to date%
-          updated fax/1.0.0#1
-          EOE
+          # Upgrade the external package after changing its manifest and make
+          # sure the configuration is preserved.
+          #
+          echo '' >+fax/manifest;
 
-        $pkg_status -r >>"EOO";
-          !fax configured !1.0.0#1
-            $backend_configured
-            libbiz configured 1.0.0
-          EOO
+          $* fax/ 2>>~%EOE%;
+            disfigured fax/1.0.0
+            using fax/1.0.0#1 (external)
+            configured fax/1.0.0#1
+            %info: .+fax.+ is up to date%
+            updated fax/1.0.0#1
+            EOE
 
-        cat cfg/fax/build/config.build >>~"%EOO%";
-          %.*
-          config.fax.backend = $backend
-          config.fax.libbiz = true
-          %.*
-          EOO
+          $pkg_status -r >>"EOO";
+            !fax configured !1.0.0#1
+              $backend_configured
+              libbiz configured 1.0.0
+            EOO
 
-        # While at it, test that it's ok for out root directory to not exist.
-        #
-        # Note that this testing is only meaningful when we replace an
-        # external package with another external (see build_package::external()
-        # for details).
-        #
-        echo '' >+fax/manifest;
+          cat cfg/fax/build/config.build >>~"%EOO%";
+            %.*
+            config.fax.backend = $backend
+            config.fax.libbiz = true
+            %.*
+            EOO
 
-        rm -r cfg/fax/;
+          # While at it, test that it's ok for out root directory to not
+          # exist.
+          #
+          # Note that this testing is only meaningful when we replace an
+          # external package with another external (see
+          # build_package::external() for details).
+          #
+          echo '' >+fax/manifest;
 
-        $* fax/ 2>>~%EOE%;
-          disfigured fax/1.0.0#1
-          disfigured libbiz/1.0.0
-          purged libbiz/1.0.0
-          using fax/1.0.0#2 (external)
-          configured fax/1.0.0#2
-          %info: .+fax.+ is up to date%
-          updated fax/1.0.0#2
-          EOE
+          rm -r cfg/fax/;
 
-        $pkg_status -r >>"EOO";
-          !fax configured !1.0.0#2
-            $backend_configured
-          EOO
+          $* fax/ 2>>~%EOE%;
+            disfigured fax/1.0.0#1
+            disfigured libbiz/1.0.0
+            purged libbiz/1.0.0
+            using fax/1.0.0#2 (external)
+            configured fax/1.0.0#2
+            %info: .+fax.+ is up to date%
+            updated fax/1.0.0#2
+            EOE
 
-        cat cfg/fax/build/config.build >>~"%EOO%";
-          %.*
-          config.fax.backend = $backend
-          config.fax.libbiz = false
-          %.*
-          EOO
+          $pkg_status -r >>"EOO";
+            !fax configured !1.0.0#2
+              $backend_configured
+            EOO
 
-        # Also tests that the depends value location is printed on the enable
-        # condition evaluation failure for an external package.
-        #
-        sed -i -e 's/(depends: libbiz).+/\1 ? (config.fax.libbiz = true)/' fax/manifest;
+          cat cfg/fax/build/config.build >>~"%EOO%";
+            %.*
+            config.fax.backend = $backend
+            config.fax.libbiz = false
+            %.*
+            EOO
 
-        $* fax/ 2>>~%EOE% != 0;
-          <depends-enable-clause>:1: error: invalid bool value: multiple names
-            info: enable condition: (config.fax.libbiz = true)
-          %  .+fax.manifest:10:10: info: depends value defined here%
-          info: while satisfying fax/1.0.0#3
-          EOE
+          # Also tests that the depends value location is printed on the
+          # enable condition evaluation failure for an external package.
+          #
+          sed -i -e 's/(depends: libbiz).+/\1 ? (config.fax.libbiz = true)/' fax/manifest;
 
-        $pkg_drop fax
+          $* fax/ 2>>~%EOE% != 0;
+            <depends-enable-clause>:1: error: invalid bool value: multiple names
+              info: enable condition: (config.fax.libbiz = true)
+            %  .+fax.manifest:10:10: info: depends value defined here%
+            info: while satisfying fax/1.0.0#3
+            EOE
+
+          $pkg_drop fax
+        }
+
+        : change-buildfile
+        :
+        {
+          +$clone_cfg
+
+          : package-directory
+          :
+          {
+            $clone_cfg;
+            cp -rp ../../fax/ ./;
+
+            $* fax 2>>~"%EOE%";
+              fetched $backend_dep
+              unpacked $backend_dep
+              fetched fax/1.0.0
+              unpacked fax/1.0.0
+              configured $backend_dep
+              configured fax/1.0.0
+              %info: .+fax-1.0.0.+ is up to date%
+              updated fax/1.0.0
+              EOE
+
+            $pkg_status -r >>"EOO";
+              !fax configured 1.0.0
+                $backend_configured
+              EOO
+
+            # No upgrade after turning a package from the archive-based repo
+            # into an external package.
+            #
+            $* fax/ 2>>~%EOE%;
+              %info: .+fax-1.0.0.+ is up to date%
+              updated fax/1.0.0
+              EOE
+
+            $pkg_status -r >>"EOO";
+              !fax configured !1.0.0
+                $backend_configured
+              EOO
+
+            # Upgrade after the package' buildfile is edited.
+            #
+            echo '' >+fax/build/root.build;
+
+            $* fax/ 2>>~%EOE%;
+              disfigured fax/1.0.0
+              using fax/1.0.0#1 (external)
+              configured fax/1.0.0#1
+              %info: .+fax.+ is up to date%
+              updated fax/1.0.0#1
+              EOE
+
+            $pkg_status -r >>"EOO";
+              !fax configured !1.0.0#1
+                $backend_configured
+              EOO
+
+            # No upgrade if the buildfile is not edited.
+            #
+            $* fax/ 2>>~%EOE%;
+              %info: .+fax.+ is up to date%
+              updated fax/1.0.0#1
+              EOE
+
+            $pkg_status -r >>"EOO";
+              !fax configured !1.0.0#1
+                $backend_configured
+              EOO
+
+            $pkg_drop fax
+          }
+
+          : directory-repo
+          :
+          {
+            $clone_cfg;
+            cp -rp ../../fax/ ./;
+
+            $* fax 2>>~"%EOE%";
+              fetched $backend_dep
+              unpacked $backend_dep
+              fetched fax/1.0.0
+              unpacked fax/1.0.0
+              configured $backend_dep
+              configured fax/1.0.0
+              %info: .+fax-1.0.0.+ is up to date%
+              updated fax/1.0.0
+              EOE
+
+            $pkg_status -r >>"EOO";
+              !fax configured 1.0.0
+                $backend_configured
+              EOO
+
+            # No upgrade after turning a package from the archive-based repo
+            # into an external package.
+            #
+            $rep_add --type dir fax/ && $rep_fetch;
+
+            $* fax 2>>~%EOE%;
+              %info: .+fax-1.0.0.+ is up to date%
+              updated fax/1.0.0
+              EOE
+
+            $pkg_status -r >>"EOO";
+              !fax configured 1.0.0
+                $backend_configured
+              EOO
+
+            # Upgrade after the package' buildfile is edited.
+            #
+            echo '' >+fax/build/root.build;
+
+            $rep_fetch;
+
+            $* fax 2>>~%EOE%;
+              disfigured fax/1.0.0
+              using fax/1.0.0#1 (external)
+              configured fax/1.0.0#1
+              %info: .+fax.+ is up to date%
+              updated fax/1.0.0#1
+              EOE
+
+            $pkg_status -r >>"EOO";
+              !fax configured 1.0.0#1
+                $backend_configured
+              EOO
+
+            # No upgrade if the buildfile is not edited.
+            #
+            $rep_fetch;
+
+            $* fax 2>>~%EOE%;
+              %info: .+fax.+ is up to date%
+              updated fax/1.0.0#1
+              EOE
+
+            $pkg_status -r >>"EOO";
+              !fax configured 1.0.0#1
+                $backend_configured
+              EOO
+
+            $pkg_drop fax
+          }
+        }
       }
 
       : evaluate-reflect-vars

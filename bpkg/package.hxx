@@ -27,7 +27,7 @@
 //
 #define DB_SCHEMA_VERSION_BASE 7
 
-#pragma db model version(DB_SCHEMA_VERSION_BASE, 16, closed)
+#pragma db model version(DB_SCHEMA_VERSION_BASE, 17, closed)
 
 namespace bpkg
 {
@@ -592,6 +592,13 @@ namespace bpkg
                                   const dependency_alternatives_ex&,
                                   const package_name&);
 
+  // Return true if some clause that is a buildfile fragment is specified for
+  // any of the dependencies.
+  //
+  template <typename T>
+  bool
+  has_buildfile_clause (const vector<T>& dependencies);
+
   // tests
   //
   #pragma db value(test_dependency) definition
@@ -1109,6 +1116,16 @@ namespace bpkg
     //
     optional<std::string> manifest_checksum;
 
+    // Absent if the package has no buildfile clauses in the dependencies.
+    // Otherwise, the checksum of the buildfiles calculated over the *-build
+    // manifest values or, if unspecified, the files in the package source
+    // directory.
+    //
+    // Note that for external packages the checksum is always calculated over
+    // the files. This is "parallel" to the package skeleton logic.
+    //
+    optional<std::string> buildfiles_checksum;
+
     // Path to the output directory of this package, if any. It is
     // always relative to the configuration directory, and is <name>
     // for external packages and <name>-<version> for others. It is
@@ -1210,6 +1227,7 @@ namespace bpkg
                       optional<dir_path> sr,
                       bool ps,
                       optional<std::string> mc,
+                      optional<std::string> bc,
                       optional<dir_path> o,
                       package_prerequisites pps)
     : name (move (n)),
@@ -1224,6 +1242,7 @@ namespace bpkg
       src_root (move (sr)),
       purge_src (ps),
       manifest_checksum (move (mc)),
+      buildfiles_checksum (move (bc)),
       out_root (move (o)),
       prerequisites (move (pps)) {}
 

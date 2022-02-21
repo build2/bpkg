@@ -153,6 +153,15 @@ namespace bpkg
   package_checksum (const common_options&,
                     const dir_path& src_dir,
                     const package_info*);
+
+  // Caclulate the checksum of the buildfiles using the *-build manifest
+  // values, unless unspecified in which case use the files in the package
+  // source directory.
+  //
+  string
+  package_buildfiles_checksum (const optional<string>& bootstrap_build,
+                               const optional<string>& root_build,
+                               const dir_path& src_dir);
 }
 
 #endif // BPKG_MANIFEST_UTILITY_HXX
