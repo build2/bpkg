@@ -36,6 +36,9 @@ namespace bpkg
   extern build2::global_mutexes build2_mutexes;
   extern build2::file_cache     build2_fcache;
 
+  void
+  build2_init (const common_options&);
+
   package_skeleton::
   ~package_skeleton ()
   {
@@ -52,6 +55,7 @@ namespace bpkg
   {
     if (this != &v)
     {
+      co_ = v.co_;
       db_ = v.db_;
       available_ = v.available_;
       config_vars_ = move (v.config_vars_);
@@ -74,7 +78,8 @@ namespace bpkg
 
   package_skeleton::
   package_skeleton (const package_skeleton& v)
-      : db_ (v.db_),
+      : co_ (v.co_),
+        db_ (v.db_),
         available_ (v.available_),
         config_vars_ (v.config_vars_),
         src_root_ (v.src_root_),
@@ -90,12 +95,13 @@ namespace bpkg
   }
 
   package_skeleton::
-  package_skeleton (database& db,
+  package_skeleton (const common_options& co,
+                    database& db,
                     const available_package& ap,
                     strings cvs,
                     optional<dir_path> src_root,
                     optional<dir_path> out_root)
-      : db_ (&db), available_ (&ap), config_vars_ (move (cvs))
+      : co_ (&co), db_ (&db), available_ (&ap), config_vars_ (move (cvs))
   {
     // Should not be created for stubs.
     //
@@ -714,6 +720,11 @@ namespace bpkg
 
       created_ = true;
     }
+
+    // Initialize the build system.
+    //
+    if (!build2_sched.started ())
+      build2_init (*co_);
 
     try
     {

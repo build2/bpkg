@@ -10,6 +10,7 @@
 #include <bpkg/utility.hxx>
 
 #include <bpkg/package.hxx>
+#include <bpkg/common-options.hxx>
 
 namespace bpkg
 {
@@ -28,13 +29,14 @@ namespace bpkg
     // If the package is not external, then none of the root directories
     // should be specified.
     //
-    // Note that the database and available_package are expected to outlive
-    // this object.
+    // Note that the options, database, and available_package are expected to
+    // outlive this object.
     //
     // Note also that this creates an "unloaded" skeleton and is therefore
-    // cheap.
+    // relatively cheap.
     //
-    package_skeleton (database&,
+    package_skeleton (const common_options& co,
+                      database&,
                       const available_package&,
                       strings config_vars,
                       optional<dir_path> src_root,
@@ -90,6 +92,7 @@ namespace bpkg
   private:
     // NOTE: remember to update move/copy constructors!
     //
+    const common_options* co_;
     database* db_;
     const available_package* available_;
     strings config_vars_;

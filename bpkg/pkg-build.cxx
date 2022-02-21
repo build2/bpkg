@@ -1308,7 +1308,8 @@ namespace bpkg
           ? dir_path (pdb.config) /= pkg.name ().string ()
           : optional<dir_path> ());
 
-        pkg.skeleton = package_skeleton (pdb,
+        pkg.skeleton = package_skeleton (options,
+                                         pdb,
                                          *ap,
                                          pkg.config_vars,
                                          move (src_root),
@@ -8148,7 +8149,8 @@ namespace bpkg
                          t,
                          sp,
                          ap->dependencies,
-                         package_skeleton (pdb,
+                         package_skeleton (o,
+                                           pdb,
                                            *ap,
                                            move (p.config_vars),
                                            move (src_root),
@@ -8192,7 +8194,8 @@ namespace bpkg
                        t,
                        sp,
                        dap->dependencies,
-                       package_skeleton (pdb,
+                       package_skeleton (o,
+                                         pdb,
                                          *dap,
                                          move (p.config_vars),
                                          move (src_root),

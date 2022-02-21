@@ -108,6 +108,113 @@ namespace bpkg
   build2::global_mutexes build2_mutexes;
   build2::file_cache     build2_fcache;
 
+  static const char*     build2_argv0;
+
+  // Use build2_sched.started() to check if already initialized.
+  //
+  void
+  build2_init (const common_options& co)
+  {
+    try
+    {
+      using namespace build2;
+      using build2::fail;
+      using build2::endf;
+
+      build2::tracer trace ("build2_init");
+
+      // Parse --build-option values as the build2 driver command line.
+      //
+      // With things like verbosity, progress, etc., we use values from
+      // --build-option if specified, falling back to equivalent bpkg values
+      // otherwise.
+      //
+      build2::options bo;
+      cmdline bc;
+      {
+        small_vector<char*, 1> argv {const_cast<char*> (build2_argv0)};
+
+        if (size_t n = co.build_option ().size ())
+        {
+          argv.reserve (n + 1);
+
+          for (const string& a: co.build_option ())
+            argv.push_back (const_cast<char*> (a.c_str ()));
+        }
+
+        // Note that this function also parses the default options files and
+        // gets/sets the relevant environment variables.
+        //
+        // For now we use the same default verbosity as us (equivalent to
+        // start_b() with verb_b::normal).
+        //
+        bc = parse_cmdline (trace,
+                            static_cast<int> (argv.size ()), argv.data (),
+                            bo,
+                            bpkg::verb,
+                            co.jobs_specified () ? co.jobs () : 0);
+
+        if (!bc.buildspec.empty ())
+          fail << "argument specified with --build-option";
+
+        if (bo.help () || bo.version ())
+          fail << "--help or --version specified with --build-option";
+      }
+
+      build2_cmd_vars = move (bc.cmd_vars);
+
+      init_diag (bc.verbosity,
+                 bo.silent (),
+                 (bc.progress       ? bc.progress :
+                  co.progress ()    ? optional<bool> (true) :
+                  co.no_progress () ? optional<bool> (false) : nullopt),
+                 bo.no_line (),
+                 bo.no_column (),
+                 bpkg::stderr_term);
+
+      init (&build2_terminate,
+            build2_argv0,
+            bc.mtime_check,
+            bc.config_sub,
+            bc.config_guess);
+
+      load_builtin_module (&build2::config::build2_config_load);
+      load_builtin_module (&build2::dist::build2_dist_load);
+      load_builtin_module (&build2::test::build2_test_load);
+      load_builtin_module (&build2::install::build2_install_load);
+
+      load_builtin_module (&build2::bin::build2_bin_load);
+      load_builtin_module (&build2::cc::build2_cc_load);
+      load_builtin_module (&build2::c::build2_c_load);
+      load_builtin_module (&build2::cxx::build2_cxx_load);
+      load_builtin_module (&build2::version::build2_version_load);
+      load_builtin_module (&build2::in::build2_in_load);
+
+      // Note that while all we need is serial execution (all we do is load),
+      // in the process we may need to update some build system modules (while
+      // we only support built-in and standard pre-installed modules here, we
+      // may need to build the latter during development). At the same time,
+      // this is an unlikely case and starting a parallel scheduler is not
+      // cheap. So what we will do is start a parallel scheduler pre-tuned to
+      // serial execution, which is relatively cheap. The module building
+      // logic will then re-tune it to parallel if and when necessary.
+      //
+      build2_sched.startup (1 /* max_active */,
+                            1 /* init_active */,
+                            bc.max_jobs,
+                            bc.jobs * bo.queue_depth (),
+                            bc.max_stack,
+                            bc.jobs);
+
+      build2_mutexes.init (build2_sched.shard_size ());
+      build2_fcache.init (bc.fcache_compress);
+    }
+    catch (const build2::failed&)
+    {
+      throw failed (); // Assume the diagnostics has already been issued.
+    }
+  }
+
   // Deduce the default options files and the directory to start searching
   // from based on the command line options and arguments.
   //
@@ -240,14 +347,12 @@ static const size_t args_pos (numeric_limits<size_t>::max () / 2);
 //
 template <typename O>
 static O
-init (const char* argv0,
-      const common_options& co,
+init (const common_options& co,
       cli::group_scanner& scan,
       strings& args, cli::vector_scanner& args_scan,
       const char* cmd,
       bool keep_sep,
-      bool tmp,
-      bool bsys)
+      bool tmp)
 {
   using bpkg::optional;
   using bpkg::getenv;
@@ -425,108 +530,6 @@ init (const char* argv0,
   if (tmp)
     init_tmp (dir_path (cfg_dir (&o)));
 
-  // Build system driver.
-  //
-  if (bsys)
-  try
-  {
-    using namespace build2;
-    using build2::fail;
-    using build2::endf;
-
-    build2::tracer trace ("init");
-
-    // Parse --build-option values as the build2 driver command line.
-    //
-    // With things like verbosity, progress, etc., we use values from
-    // --build-option if specified, falling back to equivalent bpkg values
-    // otherwise.
-    //
-    build2::options bo;
-    cmdline bc;
-    {
-      small_vector<char*, 1> argv {const_cast<char*> (argv0)};
-
-      if (size_t n = o.build_option ().size ())
-      {
-        argv.reserve (n + 1);
-
-        for (const string& a: o.build_option ())
-          argv.push_back (const_cast<char*> (a.c_str ()));
-      }
-
-      // Note that this function also parses the default options files and
-      // gets/sets the relevant environment variables.
-      //
-      // For now we use the same default verbosity as us (equivalent to
-      // start_b() with verb_b::normal).
-      //
-      bc = parse_cmdline (trace,
-                          static_cast<int> (argv.size ()), argv.data (),
-                          bo,
-                          bpkg::verb,
-                          o.jobs_specified () ? o.jobs () : 0);
-
-      if (!bc.buildspec.empty ())
-        fail << "argument specified with --build-option";
-
-      if (bo.help () || bo.version ())
-        fail << "--help or --version specified with --build-option";
-    }
-
-    build2_cmd_vars = move (bc.cmd_vars);
-
-    init_diag (bc.verbosity,
-               bo.silent (),
-               (bc.progress      ? bc.progress :
-                o.progress ()    ? optional<bool> (true) :
-                o.no_progress () ? optional<bool> (false) : nullopt),
-               bo.no_line (),
-               bo.no_column (),
-               bpkg::stderr_term);
-
-    init (&build2_terminate,
-          argv0,
-          bc.mtime_check,
-          bc.config_sub,
-          bc.config_guess);
-
-    load_builtin_module (&build2::config::build2_config_load);
-    load_builtin_module (&build2::dist::build2_dist_load);
-    load_builtin_module (&build2::test::build2_test_load);
-    load_builtin_module (&build2::install::build2_install_load);
-
-    load_builtin_module (&build2::bin::build2_bin_load);
-    load_builtin_module (&build2::cc::build2_cc_load);
-    load_builtin_module (&build2::c::build2_c_load);
-    load_builtin_module (&build2::cxx::build2_cxx_load);
-    load_builtin_module (&build2::version::build2_version_load);
-    load_builtin_module (&build2::in::build2_in_load);
-
-    // Note that while all we need is serial execution (all we do is load), we
-    // may need to update some build system modules (while we only support
-    // built-in and standard pre-installed modules here, we may need to build
-    // the latter during development). At the same time, this is an unlikely
-    // case and starting a parallel scheduler is not cheap. So what we will do
-    // is start a parallel scheduler pre-tuned to serial execution, which is
-    // relatively cheap. The module building logic will then re-tune it to
-    // parallel if and when necessary.
-    //
-    build2_sched.startup (1 /* max_active */,
-                          1 /* init_active */,
-                          bc.max_jobs,
-                          bc.jobs * bo.queue_depth (),
-                          bc.max_stack,
-                          bc.jobs);
-
-    build2_mutexes.init (build2_sched.shard_size ());
-    build2_fcache.init (bc.fcache_compress);
-  }
-  catch (const build2::failed&)
-  {
-    throw failed (); // Assume the diagnostics has already been issued.
-  }
-
   return o;
 }
 
@@ -540,6 +543,7 @@ try
 
   stderr_term = fdterm (stderr_fd ());
   exec_dir = path (argv[0]).directory ();
+  build2_argv0 = argv[0];
 
   // This is a little hack to make our baseutils for Windows work when called
   // with absolute path. In a nutshell, MSYS2's exec*p() doesn't search in the
@@ -601,14 +605,12 @@ try
   const common_options& co (o);
 
   if (o.help ())
-    return help (init<help_options> (argv[0],
-                                     co,
+    return help (init<help_options> (co,
                                      scan,
                                      argsv, scanv,
                                      "help",
                                      false /* keep_sep */,
-                                     false /* tmp */,
-                                     false /* bsys */),
+                                     false /* tmp */),
                  "",
                  nullptr);
 
@@ -636,14 +638,12 @@ try
 
   if (h)
   {
-    ho = init<help_options> (argv[0],
-                             co,
+    ho = init<help_options> (co,
                              scan,
                              argsv, scanv,
                              "help",
                              false /* keep_sep */,
-                             false /* tmp */,
-                             false /* bsys */);
+                             false /* tmp */);
 
     if (args.more ())
     {
@@ -686,35 +686,31 @@ try
     //   if (h)
     //     r = help (ho, "pkg-verify", print_bpkg_pkg_verify_usage);
     //   else
-    //     r = pkg_verify (init<pkg_verify_options> (argv[0],
-    //                                               co,
+    //     r = pkg_verify (init<pkg_verify_options> (co,
     //                                               scan,
     //                                               argsv,
     //                                               scanv,
     //                                               "pkg-verify",
     //                                               false /* keep_sep */,
-    //                                               true  /* tmp */,
-    //                                               false /* bsys */),
+    //                                               true  /* tmp */),
     //                     args);
     //
     //  break;
     // }
     //
-#define COMMAND_IMPL(NP, SP, CMD, SEP, TMP, BSYS)            \
+#define COMMAND_IMPL(NP, SP, CMD, SEP, TMP)                  \
     if (cmd.NP##CMD ())                                      \
     {                                                        \
       if (h)                                                 \
         r = help (ho, SP#CMD, print_bpkg_##NP##CMD##_usage); \
       else                                                   \
-        r = NP##CMD (init<NP##CMD##_options> (argv[0],       \
-                                              co,            \
+        r = NP##CMD (init<NP##CMD##_options> (co,            \
                                               scan,          \
                                               argsv,         \
                                               scanv,         \
                                               SP#CMD,        \
                                               SEP,           \
-                                              TMP,           \
-                                              BSYS),         \
+                                              TMP),          \
                      args);                                  \
                                                              \
       break;                                                 \
@@ -722,8 +718,7 @@ try
 
     // cfg-* commands
     //
-#define CFG_COMMAND(CMD, TMP) \
-  COMMAND_IMPL(cfg_, "cfg-", CMD, false, TMP, false)
+#define CFG_COMMAND(CMD, TMP) COMMAND_IMPL(cfg_, "cfg-", CMD, false, TMP)
 
     CFG_COMMAND (create, false); // Temp dir initialized manually.
     CFG_COMMAND (info,   true);
@@ -732,32 +727,30 @@ try
 
     // pkg-* commands
     //
-#define PKG_COMMAND(CMD, SEP, TMP, BSYS) \
-  COMMAND_IMPL(pkg_, "pkg-", CMD, SEP, TMP, BSYS)
+#define PKG_COMMAND(CMD, SEP, TMP) COMMAND_IMPL(pkg_, "pkg-", CMD, SEP, TMP)
 
     // These commands need the '--' separator to be kept in args.
     //
-    PKG_COMMAND (build,     true,  false, true);
-    PKG_COMMAND (clean,     true,  true,  false);
-    PKG_COMMAND (configure, true,  true,  true);
-    PKG_COMMAND (install,   true,  true,  false);
-    PKG_COMMAND (test,      true,  true,  false);
-    PKG_COMMAND (uninstall, true,  true,  false);
-    PKG_COMMAND (update,    true,  true,  false);
+    PKG_COMMAND (build,     true,  false);
+    PKG_COMMAND (clean,     true,  true);
+    PKG_COMMAND (configure, true,  true);
+    PKG_COMMAND (install,   true,  true);
+    PKG_COMMAND (test,      true,  true);
+    PKG_COMMAND (uninstall, true,  true);
+    PKG_COMMAND (update,    true,  true);
 
-    PKG_COMMAND (checkout,  false, true,  false);
-    PKG_COMMAND (disfigure, false, true,  false);
-    PKG_COMMAND (drop,      false, true,  false);
-    PKG_COMMAND (fetch,     false, true,  false);
-    PKG_COMMAND (purge,     false, true,  false);
-    PKG_COMMAND (status,    false, true,  false);
-    PKG_COMMAND (unpack,    false, true,  false);
-    PKG_COMMAND (verify,    false, true,  false);
+    PKG_COMMAND (checkout,  false, true);
+    PKG_COMMAND (disfigure, false, true);
+    PKG_COMMAND (drop,      false, true);
+    PKG_COMMAND (fetch,     false, true);
+    PKG_COMMAND (purge,     false, true);
+    PKG_COMMAND (status,    false, true);
+    PKG_COMMAND (unpack,    false, true);
+    PKG_COMMAND (verify,    false, true);
 
     // rep-* commands
     //
-#define REP_COMMAND(CMD, TMP) \
-  COMMAND_IMPL(rep_, "rep-", CMD, false, TMP, false)
+#define REP_COMMAND(CMD, TMP) COMMAND_IMPL(rep_, "rep-", CMD, false, TMP)
 
     REP_COMMAND (add,    true);
     REP_COMMAND (create, true);
@@ -775,10 +768,12 @@ try
     break;
   }
 
-  clean_tmp (true /* ignore_error */);
-
+  // Shutdown the build2 scheduler if it was initialized.
+  //
   if (build2_sched.started ())
     build2_sched.shutdown ();
+
+  clean_tmp (true /* ignore_error */);
 
   if (r != 0)
     return r;
