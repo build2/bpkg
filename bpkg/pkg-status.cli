@@ -33,12 +33,11 @@ namespace bpkg
      written to \cb{stdout}, not \cb{stderr}.
 
      The status output format is regular with components separated with
-     spaces. Each line starts with the package name and version (if specified)
-     followed by one of the status words listed below. Some of them can be
-     optionally followed by '\cb{,}' (no spaces) and a sub-status word. Lines
-     corresponding to dependencies from linked configurations will
-     additionally mention the configuration directory in square brackets after
-     the package name and version.
+     spaces. Each line starts with the package name followed by one of the
+     status words listed below. Some of them can be optionally followed by
+     '\cb{,}' (no spaces) and a sub-status word. Lines corresponding to
+     dependencies from linked configurations will additionally mention the
+     configuration directory in square brackets after the package name.
 
      \dl|
 
@@ -84,13 +83,15 @@ namespace bpkg
      package may or may not be available from the system and that its version
      is unknown.
 
-     Similarly, if only the package name was specified, then the \cb{fetched},
-     \cb{unpacked}, \cb{configured}, and \cb{broken} status words are followed
-     by the version of the package. If newer versions are available, then the
-     package version is followed by the \cb{available} status word and the
-     list of newer versions. To instead see a list of all versions, including
-     the older ones, specify the \c{\b{--old-available}|\b{-o}} option. In
-     this case the currently selected version is printed in '\cb{()}'.
+     If the package version was specified, then the status word is always
+     followed by this version (or its revision).
+
+     If the status is \cb{fetched}, \cb{unpacked}, \cb{configured}, or
+     \cb{broken} and newer versions are available, then this version is
+     followed by the \cb{available} status word and the list of newer
+     versions. To instead see a list of all versions, including the older
+     ones, specify the \c{\b{--old-available}|\b{-o}} option. In this case the
+     currently selected version is printed in '\cb{()}'.
 
      If the package name was specified with the version, then only the status
      (such as, \cb{configured}, \cb{available}, etc.) of this version is
@@ -112,22 +113,22 @@ namespace bpkg
      libbar unknown
 
      bpkg status libbar/1.0.0
-     libbar/1.0.0 unknown
+     libbar unknown 1.0.0
 
      bpkg status libfoo/1.0.0
-     !libfoo/1.0.0 configured !1.0.0
+     !libfoo configured !1.0.0
 
      bpkg status libfoo/1.1.0
-     libfoo/1.1.0 available 1.1.0
+     libfoo available 1.1.0
 
      bpkg status --system libfoo/1.1.0
-     libfoo/1.1.0 available 1.1.0 sys:1.1.0
+     libfoo available 1.1.0 sys:1.1.0
 
      bpkg status libfoo
      !libfoo configured !1.0.0 available 1.1.0 1.1.1
 
      bpkg status libfoo/1.1.1 libbar
-     libfoo/1.1.1 available 1.1.1
+     libfoo available 1.1.1
      libbar unknown
      \
 
@@ -135,7 +136,7 @@ namespace bpkg
 
      \
      bpkg status libfoo/1.0.0
-     libfoo/1.0.0 unknown
+     libfoo unknown 1.0.0
 
      bpkg status libfoo
      libfoo available 1.1.0 1.1.1
@@ -146,7 +147,7 @@ namespace bpkg
 
      \
      bpkg status libfoo
-     !libfoo configured,system * available 1.1.0 1.1.1
+     !libfoo configured,system !* available 1.1.0 1.1.1
      \
 
      Another example of the status output this time including dependencies:
