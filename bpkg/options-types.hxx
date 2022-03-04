@@ -21,6 +21,12 @@ namespace bpkg
     all
   };
 
+  enum class stdout_format
+  {
+    lines,
+    json
+  };
+
   // Qualified options.
   //
   // An option that uses this type can have its values qualified using the

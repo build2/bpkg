@@ -84,6 +84,16 @@ namespace bpkg
     };
 
     template <>
+    struct parser<stdout_format>
+    {
+      static void
+      parse (stdout_format&, bool&, scanner&);
+
+      static void
+      merge (stdout_format& b, const stdout_format& a) {b = a;}
+    };
+
+    template <>
     struct parser<repository_type>
     {
       static void

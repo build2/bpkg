@@ -141,6 +141,24 @@ namespace bpkg
         throw invalid_value (o, v);
     }
 
+    void parser<stdout_format>::
+    parse (stdout_format& x, bool& xs, scanner& s)
+    {
+      xs = true;
+      const char* o (s.next ());
+
+      if (!s.more ())
+        throw missing_value (o);
+
+      const string v (s.next ());
+      if (v == "lines")
+        x = stdout_format::lines;
+      else if (v == "json")
+        x = stdout_format::json;
+      else
+        throw invalid_value (o, v);
+    }
+
     void parser<repository_type>::
     parse (repository_type& x, bool& xs, scanner& s)
     {

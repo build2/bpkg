@@ -54,14 +54,215 @@
   $git_extract $src/git/style-basic.tar &$out_git/state0/***
 end
 
-pkg_fetch  += 2>!
-pkg_purge  += -d cfg 2>!
 rep_add    += -d cfg 2>!
 rep_fetch  += -d cfg --auth all --trust-yes 2>!
+pkg_fetch  += 2>!
+pkg_build  += -d cfg --yes 2>!
+pkg_purge  += -d cfg 2>!
+pkg_drop   += -d cfg --yes 2>!
 
-: basics
+: lines
 :
 {
+  +$clone_cfg
+
+  : basics
+  :
+  {
+    +$clone_cfg
+
+    : not-fetched
+    :
+    {
+      +$clone_cfg
+
+      : libfoo-1.0.0
+      :
+      $clone_cfg;
+      $* libfoo/1.0.0 >'libfoo unknown 1.0.0'
+
+      : libfoo
+      :
+      $clone_cfg;
+      $* libfoo >'libfoo unknown'
+    }
+
+    : rep-fetched
+    :
+    {
+      +$clone_cfg && $rep_add $rep/stable && $rep_fetch
+
+      +cp -r cfg ./fetched
+      +$pkg_fetch libfoo/1.0.0 -d fetched &fetched/libfoo-1.0.0.tar.gz
+
+      : libfoo-1.0.0
+      :
+      $clone_cfg;
+      $* libfoo/1.0.0 >'libfoo available 1.0.0'
+
+      : libfoo-1.0.0+0
+      :
+      $clone_cfg;
+      $* libfoo/1.0.0+0 >'libfoo available 1.0.0'
+
+      : libfoo
+      :
+      $clone_cfg;
+      $* libfoo >'libfoo available 1.0.0'
+
+      : pkg-fetched
+      :
+      {
+        clone_cfg = cp -r ../../fetched cfg
+
+        : libfoo-1.0.0
+        :
+        $clone_cfg;
+        $* libfoo/1.0.0 >'libfoo fetched 1.0.0'
+
+        : libfoo
+        :
+        $clone_cfg;
+        $* libfoo >'libfoo fetched 1.0.0'
+      }
+    }
+  }
+
+  : multiple-versions
+  {
+    # Prepare the nested tests to copy the root configuration. Note that they
+    # must provide the destination directory name as an argument.
+    #
+    clone_cfg = cp -r $~/../cfg
+
+    : extra
+    :
+    {
+      # Here we, first, prepare 2 configurations that derive from each other,
+      # and then spawn 2 tests on them.
+      #
+      +$clone_cfg extra && $rep_add -d extra $rep/extra && $rep_fetch -d extra
+
+      +cp -r extra extra-stable
+      +$rep_add -d extra-stable $rep/stable && $rep_fetch -d extra-stable
+
+      : libbar
+      :
+      $* -d ../extra libbar >'libbar available 1.1.0+1 [1.0.0]'
+
+      : libbar-stable
+      :
+      $* -d ../extra-stable libbar >'libbar available 1.1.0+1 1.0.0'
+    }
+
+    : testing
+    :
+    {
+      +$clone_cfg ./ && $rep_add $rep/testing && $rep_fetch
+
+      clone_cfg = cp -r ../cfg ./
+
+      : no-version
+      :
+      {
+        $clone_cfg;
+        $* libbar >'libbar available [1.1.0+1] 1.1.0 1.0.0+1 1.0.0'
+      }
+
+      : no-revision
+      :
+      {
+        $clone_cfg;
+        $* libbar/1.0.0 >'libbar available 1.0.0+1 1.0.0'
+      }
+
+      : zero-revision
+      :
+      {
+        $clone_cfg;
+        $* libbar/1.0.0+0 >'libbar available 1.0.0'
+      }
+
+      : recursive
+      :
+      {
+        $clone_cfg;
+
+        $pkg_build libbar;
+
+        $* libbar --recursive >>EOO;
+          !libbar configured 1.1.0 available [1.1.0+1]
+            libbaz configured 1.0.0
+          EOO
+
+        $pkg_drop libbar
+      }
+    }
+
+    : unstable
+    :
+    {
+      # Here we, first, prepare 3 configurations that derive from each other,
+      # and then spawn 3 tests on them.
+      #
+      +$clone_cfg ./ && $rep_add $rep/unstable && $rep_fetch
+
+      +cp -r cfg fetched1
+      +$pkg_fetch libbar/1.0.0+1 -d fetched1 &fetched1/libbar-1.0.0+1.tar.gz
+
+      +cp -r fetched1 fetched2
+      +$pkg_purge -d fetched2 libbar &!fetched2/libbar-1.0.0+1.tar.gz
+      +$pkg_fetch libbar/2.0.0 -d fetched2 &fetched2/libbar-2.0.0.tar.gz
+
+      : not-fetched
+      :
+      $* -d ../cfg libbar >'libbar available 2.0.0 [1.1.0+1] 1.1.0 1.0.0+1 1.0.0'
+
+      : fetched-1
+      :
+      $* -d ../fetched1 libbar >'libbar fetched 1.0.0+1 available 2.0.0 [1.1.0+1] 1.1.0'
+
+      : fetched-2
+      :
+      $* -d ../fetched2 libbar >'libbar fetched 2.0.0'
+    }
+  }
+
+  : git-rep
+  :
+  if! $git_supported
+  {
+    # Skip git repository tests.
+    #
+  }
+  else
+  {
+    rep = "$rep_git/state0"
+    test.cleanups += &cfg/.bpkg/repos/*/***
+
+    : complement-cycle
+    :
+    : Make sure that we properly handle the root<->style repository dependency
+    : cycle while searching for the style-basic package, that is an available
+    : package but not from the user-added repository (or its complement), and
+    : so is not detected as buildable by the status command. Note that the root
+    : repository is the default complement for git repositories (see
+    : rep_fetch() implementation for the reasoning).
+    :
+    $clone_root_cfg;
+    $rep_add "$rep/libbar.git#master" && $rep_add "$rep/style.git#master";
+
+    $rep_fetch 2>!;
+
+    $* style-basic >~'%style-basic available \[1\.1\.0-a\.0\..+\]%'
+  }
+}
+
+: json
+:
+{
+  test.arguments += --stdout-format json
+
   +$clone_cfg
 
   : not-fetched
@@ -72,165 +273,69 @@ rep_fetch  += -d cfg --auth all --trust-yes 2>!
     : libfoo-1.0.0
     :
     $clone_cfg;
-    $* libfoo/1.0.0 >'libfoo unknown 1.0.0'
+    $* libfoo/1.0.0 >>EOO
+      [
+        {
+          "name": "libfoo",
+          "status": "unknown",
+          "version": "1.0.0"
+        }
+      ]
+      EOO
 
     : libfoo
     :
     $clone_cfg;
-    $* libfoo >'libfoo unknown'
+    $* libfoo >>EOO
+      [
+        {
+          "name": "libfoo",
+          "status": "unknown"
+        }
+      ]
+      EOO
   }
 
-  : rep-fetched
+  : fetched
   :
   {
-    +$clone_cfg && $rep_add $rep/stable && $rep_fetch
+    +$clone_cfg
 
-    +cp -r cfg ./fetched
-    +$pkg_fetch libfoo/1.0.0 -d fetched &fetched/libfoo-1.0.0.tar.gz
+    +$rep_add $rep/testing && $rep_fetch
 
-    : libfoo-1.0.0
-    :
-    $clone_cfg;
-    $* libfoo/1.0.0 >'libfoo available 1.0.0'
-
-    : libfoo-1.0.0+0
-    :
-    $clone_cfg;
-    $* libfoo/1.0.0+0 >'libfoo available 1.0.0'
-
-    : libfoo
-    :
-    $clone_cfg;
-    $* libfoo >'libfoo available 1.0.0'
-
-    : pkg-fetched
-    :
-    {
-      clone_cfg = cp -r ../../fetched cfg
-
-      : libfoo-1.0.0
-      :
-      $clone_cfg;
-      $* libfoo/1.0.0 >'libfoo fetched 1.0.0'
-
-      : libfoo
-      :
-      $clone_cfg;
-      $* libfoo >'libfoo fetched 1.0.0'
-    }
-  }
-}
-
-: multiple-versions
-{
-  # Prepare the nested tests to copy the root configuration. Note that they
-  # must provide the destination directory name as an argument.
-  #
-  clone_cfg = cp -r $~/../cfg
-
-  : extra
-  :
-  {
-    # Here we, first, prepare 2 configurations that derive from each other, and
-    # then spawn 2 tests on them.
-    #
-    +$clone_cfg extra && $rep_add -d extra $rep/extra && $rep_fetch -d extra
-
-    +cp -r extra extra-stable
-    +$rep_add -d extra-stable $rep/stable && $rep_fetch -d extra-stable
-
-    : libbar
-    :
-    $* -d ../extra libbar >'libbar available 1.1.0+1 [1.0.0]'
-
-    : libbar-stable
-    :
-    $* -d ../extra-stable libbar >'libbar available 1.1.0+1 1.0.0'
-  }
-
-  : testing
-  :
-  {
-    +$clone_cfg ./ && $rep_add $rep/testing && $rep_fetch
-
-    clone_cfg = cp -r ../cfg ./
-
-    : no-version
+    : recursive
     :
     {
       $clone_cfg;
-      $* libbar >'libbar available [1.1.0+1] 1.1.0 1.0.0+1 1.0.0'
-    }
 
-    : no-revision
-    :
-    {
-      $clone_cfg;
-      $* libbar/1.0.0 >'libbar available 1.0.0+1 1.0.0'
-    }
+      $pkg_build libbar;
 
-    : zero-revision
-    :
-    {
-      $clone_cfg;
-      $* libbar/1.0.0+0 >'libbar available 1.0.0'
+      $* libbar --recursive --constraint >>EOO;
+        [
+          {
+            "name": "libbar",
+            "status": "configured",
+            "version": "1.1.0",
+            "hold_package": true,
+            "available_versions": [
+              {
+                "version": "1.1.0+1",
+                "dependency": true
+              }
+            ],
+            "dependencies": [
+              {
+                "name": "libbaz",
+                "constraint": "^1.0.0",
+                "status": "configured",
+                "version": "1.0.0"
+              }
+            ]
+          }
+        ]
+        EOO
+
+      $pkg_drop libbar
     }
   }
-
-  : unstable
-  :
-  {
-    # Here we, first, prepare 3 configurations that derive from each other, and
-    # then spawn 3 tests on them.
-    #
-    +$clone_cfg ./ && $rep_add $rep/unstable && $rep_fetch
-
-    +cp -r cfg fetched1
-    +$pkg_fetch libbar/1.0.0+1 -d fetched1 &fetched1/libbar-1.0.0+1.tar.gz
-
-    +cp -r fetched1 fetched2
-    +$pkg_purge -d fetched2 libbar &!fetched2/libbar-1.0.0+1.tar.gz
-    +$pkg_fetch libbar/2.0.0 -d fetched2 &fetched2/libbar-2.0.0.tar.gz
-
-    : not-fetched
-    :
-    $* -d ../cfg libbar >'libbar available 2.0.0 [1.1.0+1] 1.1.0 1.0.0+1 1.0.0'
-
-    : fetched-1
-    :
-    $* -d ../fetched1 libbar >'libbar fetched 1.0.0+1 available 2.0.0 [1.1.0+1] 1.1.0'
-
-    : fetched-2
-    :
-    $* -d ../fetched2 libbar >'libbar fetched 2.0.0'
-  }
-}
-
-: git-rep
-:
-if! $git_supported
-{
-  # Skip git repository tests.
-  #
-}
-else
-{
-  rep = "$rep_git/state0"
-  test.cleanups += &cfg/.bpkg/repos/*/***
-
-  : complement-cycle
-  :
-  : Make sure that we properly handle the root<->style repository dependency
-  : cycle while searching for the style-basic package, that is an available
-  : package but not from the user-added repository (or its complement), and so
-  : is not detected as buildable by the status command. Note that the root
-  : repository is the default complement for git repositories (see rep_fetch()
-  : implementation for the reasoning).
-  :
-  $clone_root_cfg;
-  $rep_add "$rep/libbar.git#master" && $rep_add "$rep/style.git#master";
-
-  $rep_fetch 2>!;
-
-  $* style-basic >~'%style-basic available \[1\.1\.0-a\.0\..+\]%'
 }

@@ -32,12 +32,13 @@ namespace bpkg
      \c{\b{--recursive}|\b{-r}} options, respectively. Note that the status is
      written to \cb{stdout}, not \cb{stderr}.
 
-     The status output format is regular with components separated with
-     spaces. Each line starts with the package name followed by one of the
-     status words listed below. Some of them can be optionally followed by
-     '\cb{,}' (no spaces) and a sub-status word. Lines corresponding to
-     dependencies from linked configurations will additionally mention the
-     configuration directory in square brackets after the package name.
+     The default output format (see the \cb{--stdout-format} common option) is
+     regular with components separated with spaces. Each line starts with the
+     package name followed by one of the status words listed below. Some of
+     them can be optionally followed by '\cb{,}' (no spaces) and a sub-status
+     word. Lines corresponding to dependencies from linked configurations will
+     additionally mention the configuration directory in square brackets after
+     the package name.
 
      \dl|
 
@@ -83,11 +84,13 @@ namespace bpkg
      package may or may not be available from the system and that its version
      is unknown.
 
-     If the package version was specified, then the status word is always
-     followed by this version (or its revision).
+     The \cb{fetched}, \cb{unpacked}, \cb{configured}, and \cb{broken} status
+     words are followed by the version of the package. If the package version
+     was specified, then the \cb{unknown} status word is also followed by the
+     version.
 
      If the status is \cb{fetched}, \cb{unpacked}, \cb{configured}, or
-     \cb{broken} and newer versions are available, then this version is
+     \cb{broken} and newer versions are available, then the package version is
      followed by the \cb{available} status word and the list of newer
      versions. To instead see a list of all versions, including the older
      ones, specify the \c{\b{--old-available}|\b{-o}} option. In this case the
@@ -160,6 +163,80 @@ namespace bpkg
        libbar configured 2.0.0
      \
 
+     If the output format is \cb{json}, then the output is a JSON array of
+     objects which are the serialized representation of the following C++
+     \cb{struct} \cb{package_status}:
+
+     \
+     struct available_version
+     {
+       string version;
+       bool   system;
+       bool   dependency;
+     };
+
+     struct package_status
+     {
+       string                    name;
+       optional<string>          configuration;
+       optional<string>          constraint;
+       string                    status;
+       optional<string>          sub_status;
+       optional<string>          version;
+       bool                      hold_package;
+       bool                      hold_version;
+       vector<available_version> available_versions;
+       vector<package_status>    dependencies;
+     };
+     \
+
+     For example:
+
+     \
+     [
+       {
+         \"name\": \"hello\",
+         \"status\": \"configured\",
+         \"version\": \"1.0.0\",
+         \"hold_package\": true,
+         \"available_versions\": [
+           {
+             \"version\": \"1.0.1\"
+           },
+           {
+             \"version\": \"2.0.0\"
+           }
+         ],
+         \"dependencies\": [
+           {
+             \"name\": \"libhello\",
+             \"status\": \"configured\",
+             \"version\": \"1.0.2\",
+           }
+         ]
+       }
+     ]
+     \
+
+     See the JSON OUTPUT section in \l{bdep-common-options(1)} for details on
+     the overall properties of this format and the semantics of the
+     \cb{struct} serialization.
+
+     In \cb{package_status}, the \cb{configuration} member contains the
+     absolute directory of a linked configuration if this package resides in a
+     linked configuration. The \cb{constraint} member is present only if the
+     \cb{--constraint} option is specified. The \cb{version} member is absent
+     if the \cb{status} member is \cb{unknown} or \cb{available} and no
+     package version is specified on the command line. If the \cb{sub_status}
+     member is \cb{system}, then the \cb{version} member can be special
+     \cb{*}. The \cb{dependencies} member is present only if the
+     \cb{--immediate|-i} or \cb{--recursive|-r} options are specified.
+
+     In \cb{available_version}, if the \cb{system} member is \cb{true}, then
+     this version is available from the system, in which case the \cb{version}
+     member can be special \cb{?} or \cb{*}. If the \cb{dependency} member is
+     \cb{true}, then this version is only available as a dependency from
+     prerequisite repositories of other repositories.
      "
   }
 
