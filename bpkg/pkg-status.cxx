@@ -340,7 +340,7 @@ namespace bpkg
         //
         if (s != nullptr || p.version.empty ())
         {
-          ss.member_name ("available_versions");
+          ss.member_name ("available_versions", false /* check */);
 
           // Serialize an available package version.
           //
@@ -400,7 +400,7 @@ namespace bpkg
 
           if (!dpkgs.empty ())
           {
-            ss.member_name ("dependencies");
+            ss.member_name ("dependencies", false /* check */);
             pkg_status_json (o, dpkgs, ss, recursive, false /* immediate */);
           }
         }
