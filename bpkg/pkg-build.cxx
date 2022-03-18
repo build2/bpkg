@@ -1202,18 +1202,29 @@ namespace bpkg
     // Collect prerequisites of the package being built recursively.
     //
     // But first "prune" this process if the package we build is a system one
-    // or is already configured and is not a repointed dependent, since that
-    // would mean all its prerequisites are configured as well. Note that this
-    // is not merely an optimization: the package could be an orphan in which
-    // case the below logic will fail (no repository fragment in which to
-    // search for prerequisites). By skipping the prerequisite check we are
-    // able to gracefully handle configured orphans.
+    // or is already configured, since that would mean all its prerequisites
+    // are configured as well. Note that this is not merely an optimization:
+    // the package could be an orphan in which case the below logic will fail
+    // (no repository fragment in which to search for prerequisites). By
+    // skipping the prerequisite check we are able to gracefully handle
+    // configured orphans.
     //
-    // For the repointed dependent, we still need to collect its prerequisite
-    // replacements to make sure its constraints over them are satisfied. Note
-    // that, as it was said above, we can potentially fail if the dependent is
-    // an orphan, but this is exactly what we need to do in that case, since
-    // we won't be able to be reconfigure it anyway.
+    // There are, however, some cases when we still need to re-collect
+    // prerequisites of a configured package:
+    //
+    // - For the repointed dependent we still need to collect its prerequisite
+    //   replacements to make sure its dependency constraints are satisfied.
+    //
+    // - If configuration variables are specified for the dependent which has
+    //   any buildfile clauses in the dependencies, then we need to
+    //   re-evaluate them. This can result in a different set of dependencies
+    //   required by this dependent (due to conditional dependencies, etc)
+    //   and, potentially, for its reconfigured existing prerequisites,
+    //   recursively.
+    //
+    // Note that for these cases, as it was said above, we can potentially
+    // fail if the dependent is an orphan, but this is exactly what we need to
+    // do in that case, since we won't be able to re-collect its dependencies.
     //
     // Only a single true dependency alternative can be selected per function
     // call. Such an alternative can only be selected if its index in the
@@ -1259,6 +1270,8 @@ namespace bpkg
       //
       const map<config_package, bool>* rpt_prereq_flags (nullptr);
 
+      assert (ap != nullptr);
+
       // Bail out if this is a configured non-system package and no
       // up/down-grade nor collecting prerequisite replacements are required.
       //
@@ -1274,11 +1287,12 @@ namespace bpkg
         if (i != rpt_depts.end ())
           rpt_prereq_flags = &i->second;
 
-        if (!ud && rpt_prereq_flags == nullptr)
+        if (!ud                         &&
+            rpt_prereq_flags == nullptr &&
+            (pkg.config_vars.empty () ||
+             !has_buildfile_clause (ap->dependencies)))
           return;
       }
-
-      assert (ap != nullptr);
 
       // Iterate over dependencies, trying to unambiguously select a
       // satisfactory dependency alternative for each of them. Fail or
@@ -3269,7 +3283,10 @@ namespace bpkg
         // not as a system package, then that means we can use its
         // prerequisites list. Otherwise, we use the manifest data.
         //
-        if (src_conf && sp->version == p.available_version ())
+        if (src_conf                              &&
+            sp->version == p.available_version () &&
+            (p.config_vars.empty () ||
+             !has_buildfile_clause (ap->dependencies)))
         {
           for (const auto& p: sp->prerequisites)
           {

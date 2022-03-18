@@ -140,6 +140,7 @@
 # |   |-- libbar-1.0.0.tar.gz
 # |   |-- libbaz-1.0.0.tar.gz
 # |   |-- libbaz-1.1.0.tar.gz
+# |   |-- libbiz-0.1.0.tar.gz
 # |   |-- libbiz-1.0.0.tar.gz
 # |   |-- libbox-1.0.0.tar.gz
 # |   |-- foo-1.0.0.tar.gz      -> {libbar libbaz} ^1.0.0
@@ -149,6 +150,7 @@
 # |   |                            libbaz ^1.0.0 ? ($cxx.target.class != 'windows') config.fax.backend=libbaz,
 # |   |                            libbiz ? ($config.fax.libbiz) config.fax.extras='[b\i$z]',
 # |   |                            libbox ? ($config.fax.libbox && $config.fax.backend == libbaz && $config.fax.extras == '[b\i$z]')
+# |   |-- fux                   -> libbiz ? (!$config.fux.libbiz_old) | libbiz ^0.1.0 ? ($config.fux.libbiz_old)
 # |   `-- repositories.manifest
 # |
 # |-- t9
@@ -3668,6 +3670,125 @@ test.options += --no-progress
           EOO
 
         $pkg_drop fax
+      }
+
+      : reevaluate-alternatives
+      :
+      {
+        +$clone_cfg
+
+        : add-dependency
+        :
+        {
+          $clone_cfg;
+
+          $* fax 2>!;
+
+          $pkg_status -r >>"EOO";
+            !fax configured 1.0.0
+              $backend_configured
+            EOO
+
+          $* config.fax.libbiz=true -- fax 2>>~%EOE%;
+            disfigured fax/1.0.0
+            fetched libbiz/1.0.0
+            unpacked libbiz/1.0.0
+            configured libbiz/1.0.0
+            configured fax/1.0.0
+            %info: .+fax-1.0.0.+ is up to date%
+            updated fax/1.0.0
+            EOE
+
+          $pkg_status -r >>"EOO";
+            !fax configured 1.0.0
+              $backend_configured
+              libbiz configured 1.0.0
+            EOO
+
+          # While at it, tests that the dependency is properly removed.
+          #
+          $* config.fax.libbiz=false -- fax 2>>~%EOE%;
+            disfigured fax/1.0.0
+            disfigured libbiz/1.0.0
+            purged libbiz/1.0.0
+            configured fax/1.0.0
+            %info: .+fax-1.0.0.+ is up to date%
+            updated fax/1.0.0
+            EOE
+
+          $pkg_status -r >>"EOO";
+            !fax configured 1.0.0
+              $backend_configured
+            EOO
+
+          $pkg_drop fax
+        }
+
+        : downgrade-dependency
+        :
+        {
+          $clone_cfg;
+
+          $* fux 2>!;
+
+          $pkg_status -r >>"EOO";
+            !fux configured 1.0.0
+              libbiz configured 1.0.0
+            EOO
+
+          $* config.fux.libbiz_old=true -- fux 2>>~%EOE%;
+            disfigured fux/1.0.0
+            disfigured libbiz/1.0.0
+            fetched libbiz/0.1.0
+            unpacked libbiz/0.1.0
+            configured libbiz/0.1.0
+            configured fux/1.0.0
+            %info: .+fux-1.0.0.+ is up to date%
+            updated fux/1.0.0
+            EOE
+
+          $pkg_status -r >>"EOO";
+            !fux configured 1.0.0
+              libbiz configured 0.1.0 available 1.0.0
+            EOO
+
+          # While at it, test that the dependency is properly upgraded.
+          #
+          # Note that, unless requested, libbiz is not upgraded, since 0.1.0
+          # is still good for the selected alternative.
+          #
+          $* config.fux.libbiz_old=false -- fux 2>>~%EOE%;
+            disfigured fux/1.0.0
+            configured fux/1.0.0
+            %info: .+fux-1.0.0.+ is up to date%
+            updated fux/1.0.0
+            EOE
+
+          $pkg_status -r >>"EOO";
+            !fux configured 1.0.0
+              libbiz configured 0.1.0 available 1.0.0
+            EOO
+
+          $* fux +{ config.fux.libbiz_old=false } ?libbiz 2>>~%EOE%;
+            disfigured fux/1.0.0
+            disfigured libbiz/0.1.0
+            fetched libbiz/1.0.0
+            unpacked libbiz/1.0.0
+            configured libbiz/1.0.0
+            configured fux/1.0.0
+            %info: .+libbiz-1.0.0.+ is up to date%
+            %info: .+fux-1.0.0.+ is up to date%
+            updated libbiz/1.0.0
+            updated fux/1.0.0
+            EOE
+
+          $pkg_status -r >>"EOO";
+            !fux configured 1.0.0
+              libbiz configured 1.0.0
+            EOO
+
+          $pkg_drop fux
+        }
       }
 
       : external-package
