@@ -310,13 +310,17 @@ namespace bpkg
   find_available_one (const package_name& name,
                       const optional<version_constraint>& c,
                       const lazy_shared_ptr<repository_fragment>& rf,
-                      bool prereq = true)
+                      bool prereq = true,
+                      bool revision = false)
   {
     // Filter the result based on the repository fragment to which each
     // version belongs.
     //
     database& db (rf.database ());
-    auto r (filter_one (rf.load (), query_available (db, name, c), prereq));
+    auto r (
+      filter_one (rf.load (),
+                  query_available (db, name, c, true /* order */, revision),
+                  prereq));
 
     if (r.first == nullptr)
       r.first = find_imaginary_stub (name);
@@ -336,12 +340,16 @@ namespace bpkg
                       const package_name& name,
                       const optional<version_constraint>& c,
                       const vector<shared_ptr<repository_fragment>>& rfs,
-                      bool prereq = true)
+                      bool prereq = true,
+                      bool revision = false)
   {
     // Filter the result based on the repository fragments to which each
     // version belongs.
     //
-    auto r (filter_one (rfs, query_available (db, name, c), prereq));
+    auto r (
+      filter_one (rfs,
+                  query_available (db, name, c, true /* order */, revision),
+                  prereq));
 
     if (r.first == nullptr)
       r.first = find_imaginary_stub (name);
@@ -357,13 +365,15 @@ namespace bpkg
   find_available_one (const linked_databases& dbs,
                       const package_name& name,
                       const optional<version_constraint>& c,
-                      bool prereq = true)
+                      bool prereq = true,
+                      bool revision = false)
   {
     for (database& db: dbs)
     {
-      auto r (filter_one (db.load<repository_fragment> (""),
-                          query_available (db, name, c),
-                          prereq));
+      auto r (
+        filter_one (db.load<repository_fragment> (""),
+                    query_available (db, name, c, true /* order */, revision),
+                    prereq));
 
       if (r.first != nullptr)
         return make_pair (
@@ -1650,17 +1660,51 @@ namespace bpkg
               {
                 system = dsp->system ();
 
+                optional<version_constraint> vc (
+                  !system
+                  ? version_constraint (dsp->version)
+                  : optional<version_constraint> ());
+
                 // First try to find an available package for this exact
-                // version. In particular, this handles the case where a
+                // version, falling back to ignoring version revision and
+                // iteration. In particular, this handles the case where a
                 // package moves from one repository to another (e.g., from
                 // testing to stable). For a system package we pick the latest
                 // one (its exact version doesn't really matter).
                 //
-                rp = find_available_one (dependent_repo_configs (*ddb),
-                                         dn,
-                                         (!system
-                                          ? version_constraint (dsp->version)
-                                          : optional<version_constraint> ()));
+                // It seems reasonable to search for the package in the
+                // repositories explicitly added by the user if the selected
+                // package was explicitly specified on command line, and in
+                // the repository (and its complements/prerequisites) of the
+                // dependent being currently built otherwise.
+                //
+                if (dsp->hold_package)
+                {
+                  linked_databases dbs (dependent_repo_configs (*ddb));
+
+                  rp = find_available_one (dbs,
+                                           dn,
+                                           vc,
+                                           true /* prereq */,
+                                           true /* revision */);
+
+                  // Note: constraint is not present for the system package,
+                  // so there is no sense to repeat the attempt.
+                  //
+                  if (dap == nullptr && !system)
+                    rp = find_available_one (dbs, dn, vc);
+                }
+                else if (af != nullptr)
+                {
+                  rp = find_available_one (dn,
+                                           vc,
+                                           af,
+                                           true /* prereq */,
+                                           true /* revision */);
+
+                  if (dap == nullptr && !system)
+                    rp = find_available_one (dn, vc, af);
+                }
 
                 // A stub satisfies any version constraint so we weed them out
                 // (returning stub as an available package feels wrong).

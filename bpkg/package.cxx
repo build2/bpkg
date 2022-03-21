@@ -120,7 +120,8 @@ namespace bpkg
   query_available (database& db,
                    const package_name& name,
                    const optional<version_constraint>& c,
-                   bool order)
+                   bool order,
+                   bool revision)
   {
     using query = query<available_package>;
 
@@ -134,18 +135,6 @@ namespace bpkg
     {
       assert (c->complete ());
 
-      // If the revision is not explicitly specified, then compare ignoring the
-      // revision. The idea is that when the user runs 'bpkg build libfoo/1'
-      // and there is 1+1 available, it should just work. The user shouldn't
-      // have to spell the revision explicitly. Similarly, when we have
-      // 'depends: libfoo == 1', then it would be strange if 1+1 did not
-      // satisfy this constraint. The same for libfoo <= 1 -- 1+1 should
-      // satisfy.
-      //
-      // Note that we always compare ignoring the iteration, as it can not be
-      // specified in the manifest/command line. This way the latest iteration
-      // will always be picked up.
-      //
       query qs (compare_version_eq (vm,
                                     canonical_version (wildcard_version),
                                     false /* revision */,
@@ -160,8 +149,8 @@ namespace bpkg
         q = q &&
             (compare_version_eq (vm,
                                  canonical_version (v),
-                                 v.revision.has_value (),
-                                 false /* iteration */) ||
+                                 revision || v.revision.has_value (),
+                                 revision /* iteration */) ||
              qs);
       }
       else
@@ -172,24 +161,24 @@ namespace bpkg
         {
           const version& v (*c->min_version);
           canonical_version cv (v);
-          bool rv (v.revision);
+          bool rv (revision || v.revision);
 
           if (c->min_open)
-            qr = compare_version_gt (vm, cv, rv, false /* iteration */);
+            qr = compare_version_gt (vm, cv, rv, revision /* iteration */);
           else
-            qr = compare_version_ge (vm, cv, rv, false /* iteration */);
+            qr = compare_version_ge (vm, cv, rv, revision /* iteration */);
         }
 
         if (c->max_version)
         {
           const version& v (*c->max_version);
           canonical_version cv (v);
-          bool rv (v.revision);
+          bool rv (revision || v.revision);
 
           if (c->max_open)
-            qr = qr && compare_version_lt (vm, cv, rv, false /* iteration */);
+            qr = qr && compare_version_lt (vm, cv, rv, revision);
           else
-            qr = qr && compare_version_le (vm, cv, rv, false /* iteration */);
+            qr = qr && compare_version_le (vm, cv, rv, revision);
         }
 
         q = q && (qr || qs);
