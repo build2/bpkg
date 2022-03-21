@@ -384,7 +384,10 @@ namespace bpkg
       //
       reflect_names_.clear ();
       reflect_frag_.clear ();
+
 #if 0
+      // NOTE: see also collect_config() if enabling this.
+      //
       reflect_vars_.clear ();
 #else
       reflect_vars_ = config_vars_;
@@ -547,7 +550,7 @@ namespace bpkg
       // TODO: copy over config_vars_ that are not in the map (case #1).
 #endif
 
-      // Drop the build system state since it needd reloading (some computed
+      // Drop the build system state since it needs reloading (some computed
       // values in root.build may depend on the new configuration values).
       //
       ctx_ = nullptr;
@@ -558,9 +561,53 @@ namespace bpkg
     }
   }
 
-  strings package_skeleton::
-  collect_reflect () &&
+  pair<strings, vector<optional<config_source>>> package_skeleton::
+  collect_config () &&
   {
+    // Note that if the reflect variables list is not empty, then it also
+    // contains the user-specified configuration variables, which all come
+    // first (see above).
+    //
+    size_t nc (config_vars_.size ());
+
+    strings vars (reflect_vars_.empty ()
+                  ? move (config_vars_)
+                  : move (reflect_vars_));
+
+    vector<optional<config_source>> sources;
+
+    if (!vars.empty ())
+    {
+      sources.reserve (vars.size ());
+
+      // Assign the user source to only those user-specified configuration
+      // variables which are project variables (i.e., names start with
+      // config.<project>). Assign the reflect source to all variables that
+      // follow the user-specified configuration variables (which can only be
+      // project variables).
+      //
+      // Note that some user-specified variables may have qualifications
+      // (global, scope, etc) but there is no reason to expect any project
+      // configuration variables to use such qualifications (since they can
+      // only apply to one project). So we skip all qualified variables.
+      //
+      string p ("config." + name ().variable ());
+      size_t n (p.size ());
+
+      for (const string& v: vars)
+      {
+        if (sources.size () < nc)
+        {
+          if (v.compare (0, n, p) == 0 && strchr (".=+ \t", v[n]) != nullptr)
+            sources.push_back (config_source::user);
+          else
+            sources.push_back (nullopt);
+        }
+        else
+          sources.push_back (config_source::reflect);
+      }
+    }
+
     assert (db_ != nullptr);
 
     ctx_ = nullptr; // In case we only had conditions.
@@ -568,9 +615,7 @@ namespace bpkg
     db_ = nullptr;
     available_ = nullptr;
 
-    return reflect_vars_.empty ()
-      ? move (config_vars_)
-      : move (reflect_vars_);
+    return make_pair (move (vars), move (sources));
   }
 
   build2::scope& package_skeleton::

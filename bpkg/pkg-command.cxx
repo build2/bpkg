@@ -213,7 +213,7 @@ namespace bpkg
         if (args.group ().more ())
           fail << "unexpected options group for variable '" << a << "'";
 
-        cvars.push_back (move (a));
+        cvars.push_back (move (trim (a)));
       }
       else
       {
@@ -228,7 +228,7 @@ namespace bpkg
           if (a.find ('=') == string::npos)
             fail << "unexpected group argument '" << a << "'";
 
-          vars.push_back (move (a));
+          vars.push_back (move (trim (a)));
         }
 
         pkg_args.push_back (pkg_arg {move (n), move (vars)});

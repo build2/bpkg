@@ -27,7 +27,7 @@
 //
 #define DB_SCHEMA_VERSION_BASE 7
 
-#pragma db model version(DB_SCHEMA_VERSION_BASE, 17, closed)
+#pragma db model version(DB_SCHEMA_VERSION_BASE, 18, closed)
 
 namespace bpkg
 {
@@ -1066,6 +1066,30 @@ namespace bpkg
     to(bpkg::_selected_package_ref (?))           \
     from(std::move (?).to_ptr (*db))
 
+  enum class config_source
+  {
+    user,      // User configuration specified on command line.
+    dependent, // Dependent-imposed configuration from prefer/require clauses.
+    reflect    // Package-reflected configuration from reflect clause.
+  };
+
+  string
+  to_string (config_source);
+
+  config_source
+  to_config_source (const string&); // May throw std::invalid_argument.
+
+  #pragma db map type(config_source) as(string) \
+    to(to_string (?))                           \
+    from(bpkg::to_config_source (?))
+
+  #pragma db value
+  struct config_variable
+  {
+    string        name;
+    config_source source;
+  };
+
   #pragma db object pointer(shared_ptr) session
   class selected_package
   {
@@ -1154,6 +1178,8 @@ namespace bpkg
 
     package_prerequisites prerequisites;
 
+    vector<config_variable> config_variables;
+
   public:
     bool
     system () const
@@ -1228,6 +1254,8 @@ namespace bpkg
 
     #pragma db member(prerequisites) id_column("package") \
       key_column("") value_column("")
+
+    #pragma db member(config_variables) id_column("package") value_column("")
 
     // Explicit aggregate initialization for C++20 (private default ctor).
     //

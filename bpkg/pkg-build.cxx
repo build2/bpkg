@@ -4578,7 +4578,7 @@ namespace bpkg
           fail << "unexpected options group for configuration variable '"
                << v << "'";
 
-        cvars.push_back (move (v));
+        cvars.push_back (move (trim (v)));
       }
 
       if (!cvars.empty () && !sep)
@@ -4619,7 +4619,7 @@ namespace bpkg
               if (a.find ('=') == string::npos)
                 fail << "unexpected group argument '" << a << "'";
 
-              cvs.push_back (move (a));
+              cvs.push_back (move (trim (a)));
             }
           }
 
@@ -8177,12 +8177,21 @@ namespace bpkg
         // resulting package skeleton and dependency list for optimization
         // (not to re-evaluate enable conditions, etc).
         //
+        // Note that we may not collect the package prerequisites builds if
+        // the package is already configured but we still need to reconfigure
+        // it due, for example, to an upgrade of its dependency. In this case
+        // we pass to pkg_configure() the newly created package skeleton which
+        // contains the package configuration variables specified on the
+        // command line but (naturally) no reflection configuration variables.
+        // Note, however, that in this case pkg_configure() call will evaluate
+        // the reflect clauses itself and so the proper reflection variables
+        // will still end up in the package configuration.
+        //
         // @@ Note that if we ever allow the user to override the alternative
         //    selection, this will break (and also if the user re-configures
         //    the package manually). Maybe that a good reason not to allow
         //    this? Or we could store this information in the database.
         //
-
         if (p.skeleton)
         {
           assert (p.dependencies);
@@ -8198,6 +8207,8 @@ namespace bpkg
         }
         else
         {
+          assert (sp != nullptr); // See above.
+
           optional<dir_path> src_root (p.external_dir ());
 
           optional<dir_path> out_root (

@@ -4051,6 +4051,95 @@ test.options += --no-progress
             $pkg_drop fax
           }
         }
+
+        : reconfigure-reflect-vars
+        :
+        {
+          $clone_cfg;
+          cp -rp ../fax/ ./;
+
+          $* config.fax.libbiz=true -- fax/ 2>>~"%EOE%";
+            fetched $backend_dep
+            unpacked $backend_dep
+            fetched libbiz/1.0.0
+            unpacked libbiz/1.0.0
+            using fax/1.0.0 \(external\)
+            configured $backend_dep
+            configured libbiz/1.0.0
+            configured fax/1.0.0
+            %info: .+fax.+ is up to date%
+            updated fax/1.0.0
+            EOE
+
+          $pkg_status -r >>"EOO";
+            !fax configured !1.0.0
+              $backend_configured
+              libbiz configured 1.0.0
+            EOO
+
+          cat cfg/fax/build/config.build >>~"%EOO%";
+            %.*
+            config.fax.backend = $backend
+            config.fax.libbiz = true
+            %config.fax.extras = '.+'%
+            config.fax.libbox = false
+            EOO
+
+          # While at it, make sure none of the reflect variables are
+          # unexpectedly wiped out on reconfiguration due to the dependency
+          # upgrade.
+          #
+          $* fax/ "?sys:$backend/*" 2>>~"%EOE%";
+            disfigured fax/1.0.0
+            %disfigured $backend/.+%
+            %purged $backend/.+%
+            configured sys:$backend/*
+            configured fax/1.0.0
+            %info: .+fax.+ is up to date%
+            updated fax/1.0.0
+            EOE
+
+          $pkg_status -r >>~"%EOO%";
+            !fax configured !1.0.0
+            %  $backend configured,system .+%
+              libbiz configured 1.0.0
+            EOO
+
+          cat cfg/fax/build/config.build >>~"%EOO%";
+            %.*
+            config.fax.backend = $backend
+            config.fax.libbiz = true
+            %config.fax.extras = '.+'%
+            config.fax.libbox = false
+            EOO
+
+          # Now make sure that dependency clauses re-evaluation is properly
+          # reflected in the configuration.
+          #
+          $* config.fax.libbiz=false -- fax/ 2>>~"%EOE%";
+            disfigured fax/1.0.0
+            disfigured libbiz/1.0.0
+            purged libbiz/1.0.0
+            configured fax/1.0.0
+            %info: .+fax.+ is up to date%
+            updated fax/1.0.0
+            EOE
+
+          $pkg_status -r >>~"%EOO%";
+            !fax configured !1.0.0
+            %  $backend configured,system .+%
+            EOO
+
+          cat cfg/fax/build/config.build >>~"%EOO%";
+            %.*
+            config.fax.backend = $backend
+            config.fax.libbiz = false
+            config.fax.extras = [null]
+            config.fax.libbox = false
+            EOO
+
+          $pkg_drop fax
+        }
       }
 
       : evaluate-reflect-vars

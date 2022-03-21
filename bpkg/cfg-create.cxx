@@ -11,6 +11,7 @@
 #include <bpkg/cfg-link.hxx>
 
 using namespace std;
+using namespace butl;
 
 namespace bpkg
 {
@@ -249,7 +250,7 @@ namespace bpkg
       string a (args.next ());
 
       if (a.find ('=') != string::npos)
-        vars.push_back (move (a));
+        vars.push_back (move (trim (a)));
       else if (!a.empty ())
         mods.push_back (move (a));
       else

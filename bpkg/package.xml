@@ -1,4 +1,25 @@
 <changelog xmlns="http://www.codesynthesis.com/xmlns/odb/changelog" database="sqlite" version="1">
+  <changeset version="18">
+    <add-table name="main.selected_package_config_variables" kind="container">
+      <column name="package" type="TEXT" null="true" options="COLLATE NOCASE"/>
+      <column name="index" type="INTEGER" null="true"/>
+      <column name="name" type="TEXT" null="true"/>
+      <column name="source" type="TEXT" null="true"/>
+      <foreign-key name="package_fk" on-delete="CASCADE">
+        <column name="package"/>
+        <references table="main.selected_package">
+          <column name="name"/>
+        </references>
+      </foreign-key>
+      <index name="selected_package_config_variables_package_i">
+        <column name="package"/>
+      </index>
+      <index name="selected_package_config_variables_index_i">
+        <column name="index"/>
+      </index>
+    </add-table>
+  </changeset>
+
   <changeset version="17">
     <alter-table name="main.selected_package">
       <add-column name="buildfiles_checksum" type="TEXT" null="true"/>

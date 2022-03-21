@@ -529,6 +529,28 @@ namespace bpkg
     return lazy_shared_ptr<selected_package> (ddb, move (prerequisite));
   }
 
+  string
+  to_string (config_source s)
+  {
+    switch (s)
+    {
+    case config_source::user:      return "user";
+    case config_source::dependent: return "dependent";
+    case config_source::reflect:   return "reflect";
+    }
+
+    return string (); // Should never reach.
+  }
+
+  config_source
+  to_config_source (const string& s)
+  {
+         if (s == "user")      return config_source::user;
+    else if (s == "dependent") return config_source::dependent;
+    else if (s == "reflect")   return config_source::reflect;
+    else throw invalid_argument ("invalid config source '" + s + "'");
+  }
+
   shared_ptr<available_package>
   make_available (const common_options& options,
                   database& db,

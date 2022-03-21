@@ -18,16 +18,32 @@ using namespace butl;
 
 namespace bpkg
 {
-  // Given dependencies of a package, return its prerequisite packages and
+  // Given dependencies of a package, return its prerequisite packages,
   // configuration variables that resulted from selection of these
-  // prerequisites (import, reflection, etc). See pkg_configure() for the
-  // semantics of the dependency list. Fail if for some of the dependency
-  // alternative lists there is no satisfactory alternative (all its
-  // dependencies are configured, satisfy the respective constraints, etc).
+  // prerequisites (import, reflection, etc), and sources of the configuration
+  // variables resulted from evaluating the reflect clauses. See
+  // pkg_configure() for the semantics of the dependency list. Fail if for
+  // some of the dependency alternative lists there is no satisfactory
+  // alternative (all its dependencies are configured, satisfy the respective
+  // constraints, etc).
   //
+  struct configure_prerequisites_result
+  {
+    package_prerequisites   prerequisites;
+    strings                 config_variables; // Note: name and value.
+
+    // Only contains sources of configuration variables collected using the
+    // package skeleton, excluding those user-specified variables which are
+    // not the project variables for the specified package (module
+    // configuration variables, etc). Thus, it is not parallel to the
+    // variables member.
+    //
+    vector<config_variable> config_sources; // Note: name and source.
+  };
+
   // Note: loads selected packages.
   //
-  static pair<package_prerequisites, vector<string>>
+  static configure_prerequisites_result
   pkg_configure_prerequisites (const common_options& o,
                                database& db,
                                transaction&,
@@ -36,8 +52,9 @@ namespace bpkg
                                bool simulate,
                                const function<find_database_function>& fdb)
   {
-    package_prerequisites pps;
-    vector<string> cvs;
+    package_prerequisites   prereqs;
+    strings                 vars;
+    vector<config_variable> srcs;
 
     for (size_t di (0); di != deps.size (); ++di)
     {
@@ -114,7 +131,7 @@ namespace bpkg
           const package_name& pn (pr.first.object_id ());
           const optional<version_constraint>& pc (pr.second);
 
-          auto p (pps.emplace (pr.first, pc));
+          auto p (prereqs.emplace (pr.first, pc));
 
           // Currently we can only capture a single constraint, so if we
           // already have a dependency on this package and one constraint is
@@ -167,8 +184,8 @@ namespace bpkg
                 //    bootstrap` in their manifest.
                 //
                 dir_path od (sp->effective_out_root (pdb.config));
-                cvs.push_back ("config.import." + sp->name.variable () +
-                               "='" + od.representation () + "'");
+                vars.push_back ("config.import." + sp->name.variable () +
+                                "='" + od.representation () + "'");
               }
             }
           }
@@ -192,18 +209,36 @@ namespace bpkg
     //
     if (!simulate)
     {
-      strings rvs (move (ps).collect_reflect ());
+      auto rvs (move (ps).collect_config ());
 
-      if (cvs.empty ())
-        cvs = move (rvs);
-      else
+      strings&                         vs (rvs.first);
+      vector<optional<config_source>>& ss (rvs.second);
+
+      if (!vs.empty ())
       {
-        for (string& cv: rvs)
-          cvs.push_back (move (cv));
+        vars.reserve (vars.size () + vs.size ());
+
+        for (size_t i (0); i != vs.size (); ++i)
+        {
+          string&                        v (vs[i]);
+          const optional<config_source>& s (ss[i]);
+
+          if (s)
+          {
+            size_t p (v.find_first_of ("=+ \t"));
+            assert (p != string::npos);
+
+            srcs.push_back (config_variable {string (v, 0, p), *s});
+          }
+
+          vars.push_back (move (v));
+        }
       }
     }
 
-    return make_pair (move (pps), move (cvs));
+    return configure_prerequisites_result {move (prereqs),
+                                           move (vars),
+                                           move (srcs)};
   }
 
   void
@@ -241,7 +276,7 @@ namespace bpkg
     //
     assert (p->prerequisites.empty ());
 
-    pair<package_prerequisites, vector<string>> cpr (
+    configure_prerequisites_result cpr (
       pkg_configure_prerequisites (o,
                                    db,
                                    t,
@@ -250,7 +285,7 @@ namespace bpkg
                                    simulate,
                                    fdb));
 
-    p->prerequisites = move (cpr.first);
+    p->prerequisites = move (cpr.prerequisites);
 
     if (!simulate)
     {
@@ -269,11 +304,42 @@ namespace bpkg
 
       l4 ([&]{trace << "buildspec: " << bspec;});
 
+      // Deduce the configuration variables which are not reflected anymore
+      // and disfigure them.
+      //
+      string dvar;
+      for (const config_variable& cv: p->config_variables)
+      {
+        if (cv.source == config_source::reflect)
+        {
+          const vector<config_variable>& ss (cpr.config_sources);
+          auto i (find_if (ss.begin (), ss.end (),
+                           [&cv] (const config_variable& v)
+                           {
+                             return v.name == cv.name;
+                           }));
+
+          if (i == ss.end ())
+          {
+            if (dvar.empty ())
+              dvar = "config.config.disfigure=";
+            else
+              dvar += ' ';
+
+            dvar += cv.name;
+          }
+        }
+      }
+
       // Configure.
       //
       try
       {
-        run_b (o, verb_b::quiet, cpr.second, bspec);
+        run_b (o,
+               verb_b::quiet,
+               cpr.config_variables,
+               (!dvar.empty () ? dvar.c_str () : nullptr),
+               bspec);
       }
       catch (const failed&)
       {
@@ -298,6 +364,8 @@ namespace bpkg
                        false /* simulate */);
         throw;
       }
+
+      p->config_variables = move (cpr.config_sources);
     }
 
     p->out_root = out_root.leaf ();
@@ -368,7 +436,7 @@ namespace bpkg
       }
 
       if (!sep && a.find ('=') != string::npos)
-        vars.push_back (move (a));
+        vars.push_back (move (trim (a)));
       else if (n.empty ())
         n = move (a);
       else

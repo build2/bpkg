@@ -56,15 +56,17 @@ namespace bpkg
     void
     evaluate_reflect (const string&, size_t depends_index);
 
-    // Return the accumulated reflect values.
+    // Return the accumulated reflect values together with their sources (the
+    // resulting vectors are parallel).
     //
-    // Note that the result is merged with config_vars and you should be used
-    // instead rather than in addition to config_vars.
+    // Note that the result is merged with config_vars and should be used
+    // instead rather than in addition to config_vars. The source of
+    // configuration variables which are not the project variables is absent.
     //
     // Note also that this should be the final call on this object.
     //
-    strings
-    collect_reflect () &&;
+    pair<strings, vector<optional<config_source>>>
+    collect_config () &&;
 
     const package_name&
     name () const {return available_->id.name;}

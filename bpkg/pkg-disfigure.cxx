@@ -198,6 +198,9 @@ namespace bpkg
              << "use 'pkg-purge' to remove";
         throw;
       }
+
+      if (disfigure)
+        p->config_variables.clear ();
     }
 
     p->out_root = nullopt;
