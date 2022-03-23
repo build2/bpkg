@@ -8238,13 +8238,27 @@ namespace bpkg
         //
         assert (sp->state == package_state::unpacked);
 
-        // First try to find an existing available package for the selected
-        // package and, if not found, create a transient one.
+        // First try to avoid the package manifest parsing, searching for an
+        // existing available package for the selected package and, if not
+        // found, create a transient one.
         //
-        shared_ptr<available_package> dap (
-          find_available_one (dependent_repo_configs (pdb),
-                              sp->name,
-                              version_constraint (sp->version)).first);
+        // Note that we don't use find_available*() here since we don't care
+        // about the repository fragment the package comes from and only need
+        // its manifest information.
+        //
+        shared_ptr<available_package> dap;
+
+        available_package_id pid (sp->name, sp->version);
+        for (database& db: dependent_repo_configs (pdb))
+        {
+          shared_ptr<available_package> ap (db.find<available_package> (pid));
+
+          if (ap != nullptr && !ap->stub ())
+          {
+            dap = move (ap);
+            break;
+          }
+        }
 
         if (dap == nullptr)
           dap = make_available (o, pdb, sp);
