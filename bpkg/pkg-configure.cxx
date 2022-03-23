@@ -49,6 +49,7 @@ namespace bpkg
                                transaction&,
                                const dependencies& deps,
                                package_skeleton&& ps,
+                               const vector<package_name>* prev_prereqs,
                                bool simulate,
                                const function<find_database_function>& fdb)
   {
@@ -58,150 +59,189 @@ namespace bpkg
 
     for (size_t di (0); di != deps.size (); ++di)
     {
+      // Skip the toolchain build-time dependencies and dependencies without
+      // enabled alternatives.
+      //
       const dependency_alternatives_ex& das (deps[di]);
 
       if (das.empty () || toolchain_buildtime_dependency (o, das, ps.name ()))
         continue;
 
+      small_vector<reference_wrapper<const dependency_alternative>, 2> edas;
+
+      for (const dependency_alternative& da: das)
+      {
+        if (!da.enable || ps.evaluate_enable (*da.enable, di))
+          edas.push_back (da);
+      }
+
+      if (edas.empty ())
+        continue;
+
       // Pick the first alternative with dependencies that can all be resolved
       // to the configured packages, satisfying the respective constraints.
       //
-      bool satisfied (false);
-      bool enabled   (false); // True if there is an enabled alternative.
-      for (const dependency_alternative& da: das)
+      // If the list of the former prerequisites is specified, then first try
+      // to select an alternative in the "recreate dependency decisions" mode,
+      // filtering out alternatives where dependencies do not all belong to
+      // this list. If we end up with no alternative selected, then retry in
+      // the "make dependency decisions" mode and select the alternative
+      // regardless of the former prerequisites.
+      //
+      for (const vector<package_name>* pps (prev_prereqs);;)
       {
-        if (da.enable && !ps.evaluate_enable (*da.enable, di))
-          continue;
-
-        enabled = true;
-
-        // Cache the selected packages which correspond to the alternative
-        // dependencies, pairing them with the respective constraints. If the
-        // alternative turns out to be fully resolvable, we will add the
-        // cached packages into the dependent's prerequisites map.
-        //
-        small_vector<
-          pair<lazy_shared_ptr<selected_package>,
-               const optional<version_constraint>&>, 1> prerequisites;
-
-        dependency_alternative::const_iterator b (da.begin ());
-        dependency_alternative::const_iterator i (b);
-        dependency_alternative::const_iterator e (da.end ());
-
-        assert (b != e);
-
-        for (; i != e; ++i)
+        bool satisfied (false);
+        for (const dependency_alternative& da: edas)
         {
-          const dependency&   d (*i);
-          const package_name& n (d.name);
-
-          database* ddb (fdb ? fdb (db, n, das.buildtime) : nullptr);
-
-          pair<shared_ptr<selected_package>, database*> spd (
-            ddb != nullptr
-            ? make_pair (ddb->find<selected_package> (n), ddb)
-            : find_dependency (db, n, das.buildtime));
-
-          const shared_ptr<selected_package>& dp (spd.first);
-
-          if (dp == nullptr                          ||
-              dp->state != package_state::configured ||
-              !satisfies (dp->version, d.constraint))
-            break;
-
-          // See the package_prerequisites definition for details on creating
-          // the map keys with the database passed.
+          // Cache the selected packages which correspond to the alternative
+          // dependencies, pairing them with the respective constraints. If
+          // the alternative turns out to be fully resolvable, we will add the
+          // cached packages into the dependent's prerequisites map.
           //
-          prerequisites.emplace_back (
-            lazy_shared_ptr<selected_package> (*spd.second, dp),
-            d.constraint);
-        }
+          small_vector<
+            pair<lazy_shared_ptr<selected_package>,
+                 const optional<version_constraint>&>, 1> prerequisites;
 
-        // Try the next alternative if there are unresolved dependencies for
-        // this alternative.
-        //
-        if (i != e)
-          continue;
+          dependency_alternative::const_iterator b (da.begin ());
+          dependency_alternative::const_iterator i (b);
+          dependency_alternative::const_iterator e (da.end ());
 
-        // Now add the selected packages resolved for the alternative into the
-        // dependent's prerequisites map and skip the remaining alternatives.
-        //
-        for (auto& pr: prerequisites)
-        {
-          const package_name& pn (pr.first.object_id ());
-          const optional<version_constraint>& pc (pr.second);
+          assert (b != e);
 
-          auto p (prereqs.emplace (pr.first, pc));
-
-          // Currently we can only capture a single constraint, so if we
-          // already have a dependency on this package and one constraint is
-          // not a subset of the other, complain.
-          //
-          if (!p.second)
+          for (; i != e; ++i)
           {
-            auto& c (p.first->second);
+            const dependency&   d (*i);
+            const package_name& n (d.name);
 
-            bool s1 (satisfies (c, pc));
-            bool s2 (satisfies (pc, c));
+            database* ddb (fdb ? fdb (db, n, das.buildtime) : nullptr);
 
-            if (!s1 && !s2)
-              fail << "multiple dependencies on package " << pn <<
-                info << pn << " " << *c <<
-                info << pn << " " << *pc;
+            pair<shared_ptr<selected_package>, database*> spd (
+              ddb != nullptr
+              ? make_pair (ddb->find<selected_package> (n), ddb)
+              : find_dependency (db, n, das.buildtime));
 
-            if (s2 && !s1)
-              c = pc;
+            const shared_ptr<selected_package>& dp (spd.first);
+
+            if (dp == nullptr                          ||
+                dp->state != package_state::configured ||
+                !satisfies (dp->version, d.constraint) ||
+                (pps != nullptr &&
+                 find (pps->begin (), pps->end (), dp->name) == pps->end ()))
+              break;
+
+            // See the package_prerequisites definition for details on
+            // creating the map keys with the database passed.
+            //
+            prerequisites.emplace_back (
+              lazy_shared_ptr<selected_package> (*spd.second, dp),
+              d.constraint);
           }
 
-          // If the prerequisite is configured in the linked configuration,
-          // then add the respective config.import.* variable.
+          // Try the next alternative if there are unresolved dependencies for
+          // this alternative.
           //
-          if (!simulate)
+          if (i != e)
+            continue;
+
+          // Now add the selected packages resolved for the alternative into
+          // the dependent's prerequisites map and skip the remaining
+          // alternatives.
+          //
+          for (auto& pr: prerequisites)
           {
-            database& pdb (pr.first.database ());
+            const package_name& pn (pr.first.object_id ());
+            const optional<version_constraint>& pc (pr.second);
 
-            if (pdb != db)
+            auto p (prereqs.emplace (pr.first, pc));
+
+            // Currently we can only capture a single constraint, so if we
+            // already have a dependency on this package and one constraint is
+            // not a subset of the other, complain.
+            //
+            if (!p.second)
             {
-              shared_ptr<selected_package> sp (pr.first.load ());
+              auto& c (p.first->second);
 
-              if (!sp->system ())
+              bool s1 (satisfies (c, pc));
+              bool s2 (satisfies (pc, c));
+
+              if (!s1 && !s2)
+                fail << "multiple dependencies on package " << pn <<
+                  info << pn << " " << *c <<
+                  info << pn << " " << *pc;
+
+              if (s2 && !s1)
+                c = pc;
+            }
+
+            // If the prerequisite is configured in the linked configuration,
+            // then add the respective config.import.* variable.
+            //
+            if (!simulate)
+            {
+              database& pdb (pr.first.database ());
+
+              if (pdb != db)
               {
-                // @@ Note that this doesn't work for build2 modules that
-                //    require bootstrap. For their dependents we need to
-                //    specify the import variable as a global override,
-                //    whenever required (configure, update, etc).
-                //
-                //    This, in particular, means that if we build a package
-                //    that doesn't have direct build2 module dependencies but
-                //    some of its (potentially indirect) dependencies do, then
-                //    we still need to specify the !config.import.* global
-                //    overrides for all of the involved build2
-                //    modules. Implementation of that feels too hairy at the
-                //    moment, so let's handle all the build2 modules uniformly
-                //    for now.
-                //
-                //    Also note that such modules are marked with `requires:
-                //    bootstrap` in their manifest.
-                //
-                dir_path od (sp->effective_out_root (pdb.config));
-                vars.push_back ("config.import." + sp->name.variable () +
-                                "='" + od.representation () + "'");
+                shared_ptr<selected_package> sp (pr.first.load ());
+
+                if (!sp->system ())
+                {
+                  // @@ Note that this doesn't work for build2 modules that
+                  //    require bootstrap. For their dependents we need to
+                  //    specify the import variable as a global override,
+                  //    whenever required (configure, update, etc).
+                  //
+                  //    This, in particular, means that if we build a package
+                  //    that doesn't have direct build2 module dependencies
+                  //    but some of its (potentially indirect) dependencies
+                  //    do, then we still need to specify the !config.import.*
+                  //    global overrides for all of the involved build2
+                  //    modules. Implementation of that feels too hairy at the
+                  //    moment, so let's handle all the build2 modules
+                  //    uniformly for now.
+                  //
+                  //    Also note that such modules are marked with `requires:
+                  //    bootstrap` in their manifest.
+                  //
+                  dir_path od (sp->effective_out_root (pdb.config));
+                  vars.push_back ("config.import." + sp->name.variable () +
+                                  "='" + od.representation () + "'");
+                }
               }
             }
           }
+
+          // Evaluate the dependency alternative reflect clause, if present.
+          //
+          if (da.reflect)
+            ps.evaluate_reflect (*da.reflect, di);
+
+          satisfied = true;
+          break;
         }
 
-        // Evaluate the dependency alternative reflect clause, if present.
+        // Fail if no dependency alternative is selected, unless we are in the
+        // "recreate dependency decisions" mode. In the latter case fall back
+        // to the "make dependency decisions" mode and retry.
         //
-        if (da.reflect)
-          ps.evaluate_reflect (*da.reflect, di);
+        if (!satisfied)
+        {
+          if (pps != nullptr)
+          {
+            pps = nullptr;
+            continue;
+          }
 
-        satisfied = true;
+          fail << "unable to satisfy dependency on " << das;
+        }
+
+        // The dependency alternative is selected and its dependencies are
+        // resolved to the selected packages. So proceed to the next depends
+        // value.
+        //
         break;
       }
-
-      if (enabled && !satisfied)
-        fail << "unable to satisfy dependency on " << das;
     }
 
     // Add the configuration variables collected from the reflect clauses, if
@@ -248,6 +288,7 @@ namespace bpkg
                  const shared_ptr<selected_package>& p,
                  const dependencies& deps,
                  package_skeleton&& ps,
+                 const vector<package_name>* pps,
                  bool simulate,
                  const function<find_database_function>& fdb)
   {
@@ -282,6 +323,7 @@ namespace bpkg
                                    t,
                                    deps,
                                    move (ps),
+                                   pps,
                                    simulate,
                                    fdb));
 
@@ -523,6 +565,7 @@ namespace bpkg
                                        move (vars),
                                        move (src_root),
                                        move (out_root)),
+                     nullptr /* prerequisites */,
                      false /* simulate */);
     }
 

@@ -1285,9 +1285,14 @@ namespace bpkg
       // Bail out if this is a configured non-system package and no
       // up/down-grade nor collecting prerequisite replacements are required.
       //
-      if (sp != nullptr                            &&
-          sp->state == package_state::configured   &&
-          sp->substate != package_substate::system)
+      // NOTE: remember to update the check condition in
+      // collect_order_dependents() if changing anything here.
+      //
+      bool src_conf (sp != nullptr &&
+                     sp->state == package_state::configured &&
+                     sp->substate != package_substate::system);
+
+      if (src_conf)
       {
         ud = sp->version != pkg.available_version ();
 
@@ -1435,7 +1440,7 @@ namespace bpkg
           shared_ptr<available_package>              available;
           lazy_shared_ptr<bpkg::repository_fragment> repository_fragment;
           bool                                       system;
-          bool                                       specified;
+          bool                                       specified_dependency;
           bool                                       force;
 
           // True if the dependency package is either selected in the
@@ -1488,6 +1493,7 @@ namespace bpkg
                            this]
                           (const dependency_alternative& da,
                            bool buildtime,
+                           const package_prerequisites* prereqs,
                            diag_record* dr = nullptr)
           -> precollect_result
         {
@@ -1608,6 +1614,15 @@ namespace bpkg
               ddb = &pdb;
 
             shared_ptr<selected_package>& dsp (spd.first);
+
+            if (prereqs != nullptr &&
+                (dsp == nullptr ||
+                 find_if (prereqs->begin (), prereqs->end (),
+                          [&dsp] (const auto& v)
+                          {
+                            return v.first.object_id () == dsp->name;
+                          }) == prereqs->end ()))
+              return precollect_result (false /* postpone */);
 
             pair<shared_ptr<available_package>,
                  lazy_shared_ptr<repository_fragment>> rp;
@@ -2072,6 +2087,70 @@ namespace bpkg
               }
             }
 
+            // If the dependency package of a different version is already
+            // being built, then we also need to make sure that we will be
+            // able to choose one of them (either existing or new) which
+            // satisfies all the dependents.
+            //
+            // Note that collect_build() also performs this check but
+            // postponing it till then can end up in failing instead of
+            // selecting some other dependency alternative.
+            //
+            assert (dap != nullptr); // Otherwise we would fail earlier.
+
+            if (i != map_.end () && d.constraint)
+            {
+              const build_package& bp (i->second.package);
+
+              if (bp.action && *bp.action == build_package::build)
+              {
+                const version& v1 (system
+                                   ? *dap->system_version (*ddb)
+                                   : dap->version);
+
+                const version& v2 (bp.available_version ());
+
+                if (v1 != v2)
+                {
+                  using constraint_type = build_package::constraint_type;
+
+                  constraint_type c1 {
+                    pkg.db, pkg.name ().string (), *d.constraint};
+
+                  if (!satisfies (v2, c1.value))
+                  {
+                    for (const constraint_type& c2: bp.constraints)
+                    {
+                      if (!satisfies (v1, c2.value))
+                      {
+                        if (dr != nullptr)
+                        {
+                          const package_name& n  (d.name);
+                          const string&       d1 (c1.dependent);
+                          const string&       d2 (c2.dependent);
+
+                          *dr << error << "unable to satisfy constraints on "
+                                       << "package " << n <<
+                            info << d2 << c2.db << " depends on (" << n << ' '
+                                 << c2.value << ")" <<
+                            info << d1 << c1.db << " depends on (" << n << ' '
+                                 << c1.value << ")" <<
+                            info << "available "
+                                 << bp.available_name_version () <<
+                            info << "available "
+                                 << package_string (n, v1, system) <<
+                            info << "explicitly specify " << n << " version "
+                                 << "to manually satisfy both constraints";
+                        }
+
+                        return precollect_result (false /* postpone */);
+                      }
+                    }
+                  }
+                }
+              }
+            }
+
             bool ru (i != map_.end () || dsp != nullptr);
 
             if (!ru)
@@ -2115,7 +2194,7 @@ namespace bpkg
               move (b.repository_fragment),
               nullopt,                             // Dependencies.
               nullopt,                             // Package skeleton.
-              nullopt,                             // Enabled dependency alternatives.
+              nullopt,                             // Postponed dependency alternatives.
               nullopt,                             // Hold package.
               nullopt,                             // Hold version.
               {},                                  // Constraints.
@@ -2175,7 +2254,7 @@ namespace bpkg
                              postponed_alts,
                              &dep_chain));
 
-            if (p != nullptr && b.force && !b.specified)
+            if (p != nullptr && b.force && !b.specified_dependency)
             {
               // Fail if the version is held. Otherwise, warn if the package is
               // held.
@@ -2268,141 +2347,169 @@ namespace bpkg
         // Iterate over the enabled dependencies and try to select a
         // satisfactory alternative.
         //
-        // The index and pre-collection result of the first satisfactory
-        // alternative.
+        // If the package is already configured as source and is not
+        // up/downgraded, then we will try to resolve its dependencies to the
+        // current prerequisites. To achieve this we will first try to select
+        // an alternative in the "recreate dependency decisions" mode,
+        // filtering out all the alternatives where dependencies do not all
+        // belong to the list of current prerequisites. If we end up with no
+        // alternative selected, then we retry in the "make dependency
+        // decisions" mode and select the alternative ignoring the current
+        // prerequisites.
         //
-        optional<pair<size_t, precollect_result>> first_alt;
+        const package_prerequisites* prereqs (src_conf && !ud
+                                              ? &sp->prerequisites
+                                              : nullptr);
 
-        // The number of satisfactory alternatives.
-        //
-        size_t alts_num (0);
-
-        for (size_t i (0); i != edas.size (); ++i)
+        for (;;)
         {
-          const dependency_alternative& da (edas[i]);
+          // The index and pre-collection result of the first satisfactory
+          // alternative.
+          //
+          optional<pair<size_t, precollect_result>> first_alt;
 
-          precollect_result r (precollect (da, das.buildtime));
+          // The number of satisfactory alternatives.
+          //
+          size_t alts_num (0);
 
-          // If we didn't come up with satisfactory dependency builds, then
-          // skip this alternative and try the next one, unless the collecting
-          // is postponed in which case just bail out.
-          //
-          // Should we skip alternatives for which we are unable to satisfy
-          // the constraint? On one hand, this could be a user error: there is
-          // no package available from dependent's repositories that satisfies
-          // the constraint. On the other hand, it could be that it's other
-          // dependent's constraints that we cannot satisfy together with
-          // others. And in this case we may want some other alternative.
-          // Consider, as an example, something like this:
-          //
-          // depends: libfoo >= 2.0.0 | libfoo >= 1.0.0 libbar
-          //
-          if (!r.builds)
+          for (size_t i (0); i != edas.size (); ++i)
           {
-            if (r.repo_postpone)
-            {
-              postpone (nullptr); // Already inserted into postponed_repo.
-              break;
-            }
+            const dependency_alternative& da (edas[i]);
 
-            continue;
-          }
+            precollect_result r (precollect (da, das.buildtime, prereqs));
 
-          ++alts_num;
-
-          // Note that when we see the first satisfactory alternative, we
-          // don't know yet if it is a single alternative or the first of the
-          // (multiple) true alternatives (those are handled differently).
-          // Thus, we postpone its processing until the second satisfactory
-          // alternative is encountered or the end of the alternatives list is
-          // reached.
-          //
-          if (!first_alt)
-          {
-            first_alt = make_pair (i, move (r));
-            continue;
-          }
-
-          // Try to select a true alternative, returning true if the
-          // alternative is selected or the selection is postponed. Return
-          // false if the alternative is ignored (not postponed and not all of
-          // it dependencies are reused).
-          //
-          auto try_select = [postponed_alts, &max_alt_index,
-                             &edas,
-                             &postpone, &select]
-                             (size_t index, precollect_result&& r)
-          {
-            // Postpone the collection if the alternatives maximum index is
-            // reached.
+            // If we didn't come up with satisfactory dependency builds, then
+            // skip this alternative and try the next one, unless the
+            // collecting is postponed in which case just bail out.
             //
-            if (postponed_alts != nullptr && index >= max_alt_index)
-            {
-              postpone (postponed_alts);
-              return true;
-            }
-
-            // Select this alternative if all its dependencies are reused and
-            // do nothing about it otherwise.
+            // Should we skip alternatives for which we are unable to satisfy
+            // the constraint? On one hand, this could be a user error: there
+            // is no package available from dependent's repositories that
+            // satisfies the constraint. On the other hand, it could be that
+            // it's other dependent's constraints that we cannot satisfy
+            // together with others. And in this case we may want some other
+            // alternative.  Consider, as an example, something like this:
             //
-            if (r.reused)
+            // depends: libfoo >= 2.0.0 | libfoo >= 1.0.0 libbar
+            //
+            if (!r.builds)
             {
-              // On the diagnostics run there shouldn't be any alternatives
-              // that we could potentially select.
-              //
-              assert (postponed_alts != nullptr);
+              if (r.repo_postpone)
+              {
+                postpone (nullptr); // Already inserted into postponed_repo.
+                break;
+              }
 
-              select (edas[index], move (*r.builds));
-
-              // Make sure no more true alternatives are selected during this
-              // function call.
-              //
-              max_alt_index = 0;
-              return true;
+              continue;
             }
-            else
-              return false;
-          };
 
-          // If we encountered the second satisfactory alternative, then this
-          // is the `multiple true alternatives` case. In this case we also
-          // need to process the first satisfactory alternative, which
-          // processing was delayed.
-          //
-          if (alts_num == 2)
-          {
-            assert (first_alt);
+            ++alts_num;
 
-            if (try_select (first_alt->first, move (first_alt->second)))
+            // Note that when we see the first satisfactory alternative, we
+            // don't know yet if it is a single alternative or the first of
+            // the (multiple) true alternatives (those are handled
+            // differently).  Thus, we postpone its processing until the
+            // second satisfactory alternative is encountered or the end of
+            // the alternatives list is reached.
+            //
+            if (!first_alt)
+            {
+              first_alt = make_pair (i, move (r));
+              continue;
+            }
+
+            // Try to select a true alternative, returning true if the
+            // alternative is selected or the selection is postponed. Return
+            // false if the alternative is ignored (not postponed and not all
+            // of it dependencies are reused).
+            //
+            auto try_select = [postponed_alts, &max_alt_index,
+                               &edas,
+                               &postpone, &select]
+                               (size_t index, precollect_result&& r)
+            {
+              // Postpone the collection if the alternatives maximum index is
+              // reached.
+              //
+              if (postponed_alts != nullptr && index >= max_alt_index)
+              {
+                postpone (postponed_alts);
+                return true;
+              }
+
+              // Select this alternative if all its dependencies are reused
+              // and do nothing about it otherwise.
+              //
+              if (r.reused)
+              {
+                // On the diagnostics run there shouldn't be any alternatives
+                // that we could potentially select.
+                //
+                assert (postponed_alts != nullptr);
+
+                select (edas[index], move (*r.builds));
+
+                // Make sure no more true alternatives are selected during
+                // this function call.
+                //
+                max_alt_index = 0;
+                return true;
+              }
+              else
+                return false;
+            };
+
+            // If we encountered the second satisfactory alternative, then
+            // this is the "multiple true alternatives" case. In this case we
+            // also need to process the first satisfactory alternative, which
+            // processing was delayed.
+            //
+            if (alts_num == 2)
+            {
+              assert (first_alt);
+
+              if (try_select (first_alt->first, move (first_alt->second)))
+                break;
+            }
+
+            if (try_select (i, move (r)))
               break;
+
+            // Not all of the alternative dependencies are reused, so go to
+            // the next alternative.
           }
 
-          if (try_select (i, move (r)))
+          // Bail out if the collection is postponed for any reason.
+          //
+          if (postponed)
             break;
 
-          // Not all of the alternative dependencies are reused, so go to the
-          // next alternative.
-        }
+          // Select the single satisfactory alternative (regardless of its
+          // dependencies reuse).
+          //
+          if (!selected && alts_num == 1)
+          {
+            assert (first_alt && first_alt->second.builds);
 
-        // Bail out if the collection is postponed for any reason.
-        //
-        if (postponed)
-          break;
+            select (edas[first_alt->first], move (*first_alt->second.builds));
+          }
 
-        // Select the single satisfactory alternative (regardless of its
-        // dependencies reuse).
-        //
-        if (!selected && alts_num == 1)
-        {
-          assert (first_alt && first_alt->second.builds);
+          // If an alternative is selected, then we are done.
+          //
+          if (selected)
+            break;
 
-          select (edas[first_alt->first], move (*first_alt->second.builds));
-        }
+          // Fail or postpone the collection if no alternative is selected,
+          // unless we are in the "recreate dependency decisions" mode. In the
+          // latter case fall back to the "make dependency decisions" mode and
+          // retry.
+          //
+          if (prereqs != nullptr)
+          {
+            prereqs = nullptr;
+            continue;
+          }
 
-        // Fail or postpone the collection if no alternative is selected.
-        //
-        if (!selected)
-        {
           // Issue diagnostics and fail if there are no satisfactory
           // alternatives.
           //
@@ -2410,7 +2517,7 @@ namespace bpkg
           {
             diag_record dr;
             for (const dependency_alternative& da: edas)
-              precollect (da, das.buildtime, &dr);
+              precollect (da, das.buildtime, nullptr /* prereqs */, &dr);
 
             assert (!dr.empty ());
 
@@ -2438,7 +2545,8 @@ namespace bpkg
 
           for (const dependency_alternative& da: edas)
           {
-            precollect_result r (precollect (da, das.buildtime));
+            precollect_result r (
+              precollect (da, das.buildtime, nullptr /* prereqs */));
 
             if (r.builds)
             {
@@ -2457,6 +2565,9 @@ namespace bpkg
             }
           }
         }
+
+        if (postponed)
+          break;
       }
 
       dep_chain.pop_back ();
@@ -2526,7 +2637,7 @@ namespace bpkg
           move (rp.second),
           nullopt,                    // Dependencies.
           nullopt,                    // Package skeleton.
-          nullopt,                    // Enabled dependency alternatives.
+          nullopt,                    // Postponed dependency alternatives.
           nullopt,                    // Hold package.
           nullopt,                    // Hold version.
           {},                         // Constraints.
@@ -2571,7 +2682,7 @@ namespace bpkg
         nullptr,
         nullopt,    // Dependencies.
         nullopt,    // Package skeleton.
-        nullopt,    // Enable dependency alternatives.
+        nullopt,    // Postponed dependency alternatives.
         nullopt,    // Hold package.
         nullopt,    // Hold version.
         {},         // Constraints.
@@ -2625,7 +2736,7 @@ namespace bpkg
           nullptr,
           nullopt,    // Dependencies.
           nullopt,    // Package skeleton.
-          nullopt,    // Enabled dependency alternatives.
+          nullopt,    // Postponed dependency alternatives.
           nullopt,    // Hold package.
           nullopt,    // Hold version.
           {},         // Constraints.
@@ -2996,7 +3107,10 @@ namespace bpkg
             {
               check = dp.available == nullptr ||
                       (dsp->system () == dp.system &&
-                       dsp->version == dp.available_version ());
+                       dsp->version == dp.available_version () &&
+                       (dp.system               ||
+                        dp.config_vars.empty () ||
+                        !has_buildfile_clause (dp.available->dependencies)));
             }
           }
 
@@ -3060,7 +3174,7 @@ namespace bpkg
                 nullptr,
                 nullopt,                   // Dependencies.
                 nullopt,                   // Package skeleton.
-                nullopt,                   // Enabled dependency alternatives.
+                nullopt,                   // Postponed dependency alternatives.
                 nullopt,                   // Hold package.
                 nullopt,                   // Hold version.
                 {},                        // Constraints.
@@ -6033,7 +6147,7 @@ namespace bpkg
           move (af),
           nullopt,                    // Dependencies.
           nullopt,                    // Package skeleton.
-          nullopt,                    // Enabled dependency alternatives.
+          nullopt,                    // Postponed dependency alternatives.
           true,                       // Hold package.
           pa.constraint.has_value (), // Hold version.
           {},                         // Constraints.
@@ -6144,7 +6258,7 @@ namespace bpkg
                 move (apr.second),
                 nullopt,                    // Dependencies.
                 nullopt,                    // Package skeleton.
-                nullopt,                    // Enabled dependency alternatives.
+                nullopt,                    // Postponed dependency alternatives.
                 true,                       // Hold package.
                 false,                      // Hold version.
                 {},                         // Constraints.
@@ -6425,7 +6539,7 @@ namespace bpkg
             nullptr,
             nullopt,                    // Dependencies.
             nullopt,                    // Package skeleton.
-            nullopt,                    // Enabled dependency alternatives.
+            nullopt,                    // Postponed dependency alternatives.
             false,                      // Hold package.
             p.constraint.has_value (),  // Hold version.
             {},                         // Constraints.
@@ -6639,7 +6753,7 @@ namespace bpkg
               d.repository_fragment,
               nullopt,                    // Dependencies.
               nullopt,                    // Package skeleton.
-              nullopt,                    // Enabled dependency alternatives.
+              nullopt,                    // Postponed dependency alternatives.
               nullopt,                    // Hold package.
               nullopt,                    // Hold version.
               {},                         // Constraints.
@@ -7728,6 +7842,15 @@ namespace bpkg
       prog_percent = 100;
     }
 
+    // On the package reconfiguration we will try to resolve dependencies to
+    // the same prerequisites (see pkg_configure() for details). For that, we
+    // will save prerequisites before disfiguring the dependents. Note,
+    // though, that this is not required for dependents with the collected
+    // prerequisites builds since the dependency alternatives are already
+    // selected for them.
+    //
+    map<const build_package*, vector<package_name>> previous_prerequisites;
+
     for (build_package& p: build_pkgs)
     {
       assert (p.action);
@@ -7756,6 +7879,18 @@ namespace bpkg
         //
         if (p.keep_out && !external)
           p.keep_out = false;
+      }
+
+      if (*p.action != build_package::drop &&
+          !p.skeleton                      &&
+          !sp->prerequisites.empty ())
+      {
+        vector<package_name>& ps (previous_prerequisites[&p]);
+
+        ps.reserve (sp->prerequisites.size ());
+
+        for (const auto& pp: sp->prerequisites)
+          ps.push_back (pp.first.object_id ());
       }
 
       // For an external package being replaced with another external, keep
@@ -8162,6 +8297,12 @@ namespace bpkg
             info << "while configuring " << p.name () << p.db;
           }));
 
+      auto prereqs = [&p, &previous_prerequisites] ()
+      {
+        auto i (previous_prerequisites.find (&p));
+        return i != previous_prerequisites.end () ? &i->second : nullptr;
+      };
+
       // Note that pkg_configure() commits the transaction.
       //
       if (p.system)
@@ -8202,6 +8343,7 @@ namespace bpkg
                          sp,
                          *p.dependencies,
                          move (*p.skeleton),
+                         nullptr /* previous_prerequisites */,
                          simulate,
                          fdb);
         }
@@ -8227,6 +8369,7 @@ namespace bpkg
                                            move (p.config_vars),
                                            move (src_root),
                                            move (out_root)),
+                         prereqs (),
                          simulate,
                          fdb);
         }
@@ -8286,6 +8429,7 @@ namespace bpkg
                                          move (p.config_vars),
                                          move (src_root),
                                          move (out_root)),
+                       prereqs (),
                        simulate,
                        fdb);
       }

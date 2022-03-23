@@ -142,6 +142,8 @@
 # |   |-- libbaz-1.1.0.tar.gz
 # |   |-- libbiz-0.1.0.tar.gz
 # |   |-- libbiz-1.0.0.tar.gz
+# |   |-- libbox-0.1.0.tar.gz
+# |   |-- libbox-0.1.1.tar.gz
 # |   |-- libbox-1.0.0.tar.gz
 # |   |-- foo-1.0.0.tar.gz      -> {libbar libbaz} ^1.0.0
 # |   |-- fox-1.0.0.tar.gz      -> libbar ^1.0.0 | libbaz ^1.0.0
@@ -151,6 +153,9 @@
 # |   |                            libbiz ? ($config.fax.libbiz) config.fax.extras='[b\i$z]',
 # |   |                            libbox ? ($config.fax.libbox && $config.fax.backend == libbaz && $config.fax.extras == '[b\i$z]')
 # |   |-- fux                   -> libbiz ? (!$config.fux.libbiz_old) | libbiz ^0.1.0 ? ($config.fux.libbiz_old)
+# |   |-- box                   -> libbiz ^1.0.0 config.box.backend=libbiz |
+# |   |                            libbox >= 0.1.1 config.box.backend=libbox,
+# |   |                            libbaz
 # |   `-- repositories.manifest
 # |
 # |-- t9
@@ -2309,10 +2314,10 @@ test.options += --no-progress
 
         $* libbiz 2>>EOE != 0;
           error: unable to satisfy constraints on package libfoo
-            info: libbox depends on (libfoo == 1.0.0)
             info: libfox depends on (libfoo == 0.0.1)
-            info: available libfoo/1.0.0
+            info: libbox depends on (libfoo == 1.0.0)
             info: available libfoo/0.0.1
+            info: available libfoo/1.0.0
             info: explicitly specify libfoo version to manually satisfy both constraints
           info: while satisfying libbox/0.0.2
           info: while satisfying libbiz/0.0.1
@@ -3377,6 +3382,8 @@ test.options += --no-progress
     {
       +$clone_cfg
 
+      test.arguments += --yes
+
       : ambiguity
       :
       {
@@ -3465,7 +3472,7 @@ test.options += --no-progress
 
           $pkg_fetch libbaz/1.0.0;
 
-          $* fox --yes 2>>~%EOE%;
+          $* fox 2>>~%EOE%;
             unpacked libbaz/1.0.0
             fetched fox/1.0.0
             unpacked fox/1.0.0
@@ -3489,7 +3496,7 @@ test.options += --no-progress
         {
           $clone_cfg;
 
-          $* fox foo --yes 2>>~%EOE%;
+          $* fox foo 2>>~%EOE%;
             fetched libbaz/1.1.0
             unpacked libbaz/1.1.0
             fetched libbar/1.0.0
@@ -3517,7 +3524,7 @@ test.options += --no-progress
         {
           $clone_cfg;
 
-          $* baz fox bar --yes 2>>~%EOE%;
+          $* baz fox bar 2>>~%EOE%;
             fetched libbaz/1.1.0
             unpacked libbaz/1.1.0
             fetched baz/1.0.0
@@ -3571,7 +3578,7 @@ test.options += --no-progress
           updated fox/1.0.0
           EOE
 
-        $* ?libbaz --yes 2>>~%EOE%;
+        $* ?libbaz 2>>~%EOE%;
           disfigured fox/1.0.0
           disfigured libbaz/1.0.0
           fetched libbaz/1.1.0
@@ -3591,6 +3598,234 @@ test.options += --no-progress
           EOO
 
         $pkg_drop fox
+      }
+
+      : recreate-decision
+      :
+      {
+        +$clone_cfg
+
+        : reevaluate-alternatives
+        :
+        {
+          +$clone_cfg
+
+          : preserve
+          :
+          : Test that the existing libbox dependency is preserved even though
+          : libbiz is more preferable as a dependency.
+          :
+          {
+            $clone_cfg;
+
+            $* box libbox 2>!;
+
+            $* box +{ config.box.extras=true } ?libbiz 2>>~%EOE%;
+              disfigured box/1.0.0
+              configured box/1.0.0
+              %info: .+box-1.0.0.+ is up to date%
+              updated box/1.0.0
+              EOE
+
+            $* box +{ config.box.extras=false } libbiz 2>>~%EOE%;
+              disfigured box/1.0.0
+              fetched libbiz/1.0.0
+              unpacked libbiz/1.0.0
+              configured box/1.0.0
+              configured libbiz/1.0.0
+              %info: .+box-1.0.0.+ is up to date%
+              %info: .+libbiz-1.0.0.+ is up to date%
+              updated box/1.0.0
+              updated libbiz/1.0.0
+              EOE
+
+            $pkg_status -r box >>EOO;
+              !box configured 1.0.0
+                libbaz configured 1.1.0
+                !libbox configured 1.0.0
+              EOO
+
+            cat cfg/box-1.0.0/build/config.build >>~%EOO%;
+              %.*
+              config.box.backend = libbox
+              EOO
+
+            $pkg_drop box;
+            $pkg_drop libbox;
+            $pkg_drop libbiz
+          }
+
+          : change-downgraded-depenency
+          :
+          : Test that libbiz is selected as a dependency since the existing
+          : dependency decision cannot be preserved (libbox is downgraded to
+          : 0.1.0 and becomes unsatisfactory for box).
+          :
+          {
+            $clone_cfg;
+
+            $* box libbox 2>!;
+
+            $* box +{ config.box.extras=true } ?libbox/0.1.0 2>>~%EOE%;
+              disfigured box/1.0.0
+              disfigured libbox/1.0.0
+              fetched libbiz/1.0.0
+              unpacked libbiz/1.0.0
+              purged libbox/1.0.0
+              configured libbiz/1.0.0
+              configured box/1.0.0
+              %info: .+box-1.0.0.+ is up to date%
+              updated box/1.0.0
+              EOE
+
+            $pkg_status -r box >>EOO;
+              !box configured 1.0.0
+                libbaz configured 1.1.0
+                libbiz configured 1.0.0
+              EOO
+
+            cat cfg/box-1.0.0/build/config.build >>~%EOO%;
+              %.*
+              config.box.backend = libbiz
+              EOO
+
+            $pkg_drop box
+          }
+
+          : change-downgraded-hold
+          :
+          : As above but libbox is downgraded to hold.
+          :
+          {
+            $clone_cfg;
+
+            $* box libbox 2>!;
+
+            $* box +{ config.box.extras=true } libbox/0.1.0 2>>~%EOE%;
+              disfigured box/1.0.0
+              disfigured libbox/1.0.0
+              fetched libbiz/1.0.0
+              unpacked libbiz/1.0.0
+              fetched libbox/0.1.0
+              unpacked libbox/0.1.0
+              configured libbiz/1.0.0
+              configured libbox/0.1.0
+              configured box/1.0.0
+              %info: .+libbox-0.1.0.+ is up to date%
+              %info: .+box-1.0.0.+ is up to date%
+              updated libbox/0.1.0
+              updated box/1.0.0
+              EOE
+
+            $pkg_status -r box >>EOO;
+              !box configured 1.0.0
+                libbaz configured 1.1.0
+                libbiz configured 1.0.0
+              EOO
+
+            cat cfg/box-1.0.0/build/config.build >>~%EOO%;
+              %.*
+              config.box.backend = libbiz
+              EOO
+
+            $pkg_drop box;
+            $pkg_drop libbox
+          }
+        }
+
+        : reconfigure
+        :
+        {
+          $clone_cfg;
+
+          $* box ?libbiz/0.1.0 2>>~%EOE%;
+            fetched libbox/1.0.0
+            unpacked libbox/1.0.0
+            fetched libbaz/1.1.0
+            unpacked libbaz/1.1.0
+            fetched box/1.0.0
+            unpacked box/1.0.0
+            configured libbox/1.0.0
+            configured libbaz/1.1.0
+            configured box/1.0.0
+            %info: .+box-1.0.0.+ is up to date%
+            updated box/1.0.0
+            EOE
+
+          $pkg_status -r >>EOO;
+            !box configured 1.0.0
+              libbaz configured 1.1.0
+              libbox configured 1.0.0
+            EOO
+
+          cat cfg/box-1.0.0/build/config.build >>~%EOO%;
+            %.*
+            config.box.backend = libbox
+            EOO
+
+          # Downgrade libbaz to reconfigure box and make sure we still keep
+          # libbox as a prerequisite of box.
+          #
+          $* libbiz ?libbaz/1.0.0 2>>~%EOE%;
+            disfigured box/1.0.0
+            disfigured libbaz/1.1.0
+            fetched libbiz/1.0.0
+            unpacked libbiz/1.0.0
+            fetched libbaz/1.0.0
+            unpacked libbaz/1.0.0
+            configured libbiz/1.0.0
+            configured libbaz/1.0.0
+            configured box/1.0.0
+            %info: .+libbiz-1.0.0.+ is up to date%
+            %info: .+libbaz-1.0.0.+ is up to date%
+            %info: .+box-1.0.0.+ is up to date%
+            updated libbiz/1.0.0
+            updated libbaz/1.0.0
+            updated box/1.0.0
+            EOE
+
+          $pkg_status -r >>EOO;
+            !box configured 1.0.0
+              libbaz configured !1.0.0 available 1.1.0
+              libbox configured 1.0.0
+            !libbiz configured 1.0.0
+            EOO
+
+          cat cfg/box-1.0.0/build/config.build >>~%EOO%;
+            %.*
+            config.box.backend = libbox
+            EOO
+
+          # Make sure the decision is hold for downgraded dependency either.
+          #
+          $* ?libbox/0.1.1 2>>~%EOE%;
+            disfigured box/1.0.0
+            disfigured libbox/1.0.0
+            fetched libbox/0.1.1
+            unpacked libbox/0.1.1
+            configured libbox/0.1.1
+            configured box/1.0.0
+            %info: .+libbox-0.1.1.+ is up to date%
+            %info: .+box-1.0.0.+ is up to date%
+            updated libbox/0.1.1
+            updated box/1.0.0
+            EOE
+
+          $pkg_status -r >>EOO;
+            !box configured 1.0.0
+              libbaz configured !1.0.0 available 1.1.0
+              libbox configured !0.1.1 available 1.0.0
+            !libbiz configured 1.0.0
+            EOO
+
+          cat cfg/box-1.0.0/build/config.build >>~%EOO%;
+            %.*
+            config.box.backend = libbox
+            EOO
+
+          $pkg_drop box;
+          $pkg_drop libbiz
+        }
       }
     }
 

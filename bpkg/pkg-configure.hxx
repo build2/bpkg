@@ -37,6 +37,12 @@ namespace bpkg
   // dependency alternatives lists are allowed and are ignored (see pkg-build
   // for the use-case).
   //
+  // If prerequisites corresponding to the previous configured state of the
+  // package are specified, then for each depends value try to select an
+  // alternative where dependencies all belong to this list (the "recreate
+  // dependency decisions" mode). Failed that, select an alternative as if no
+  // prerequisites are specified (the "make dependency decisions" mode).
+  //
   void
   pkg_configure (const common_options&,
                  database&,
@@ -44,6 +50,7 @@ namespace bpkg
                  const shared_ptr<selected_package>&,
                  const dependencies&,
                  package_skeleton&&,
+                 const vector<package_name>* prerequisites,
                  bool simulate,
                  const function<find_database_function>& = {});
 
