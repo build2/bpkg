@@ -114,6 +114,8 @@ namespace bpkg
         else
           bspec = "disfigure('" + src_root.representation () + "'@'" + rep +
                   "')";
+
+        disfigure = true; // Make sure the flag matches the behavior.
       }
 
       // Clean and/or disfigure.
