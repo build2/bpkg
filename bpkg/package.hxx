@@ -27,7 +27,7 @@
 //
 #define DB_SCHEMA_VERSION_BASE 7
 
-#pragma db model version(DB_SCHEMA_VERSION_BASE, 18, closed)
+#pragma db model version(DB_SCHEMA_VERSION_BASE, 19, closed)
 
 namespace bpkg
 {
@@ -580,17 +580,27 @@ namespace bpkg
                          make_move_iterator (das.end ()));
   }
 
-  // If this is a toolchain build-time dependency, then verify its constraint
-  // returning true if it is satisfied and failing otherwise. Return false for
-  // a regular dependency. Note that the package argument is used for
-  // diagnostics only.
+  // Return true if this is a toolchain build-time dependency. If the package
+  // argument is specified and this is a toolchain build-time dependency then
+  // also verify its constraint and fail if it is unsatisfied. Note that the
+  // package argument is used for diagnostics only.
   //
   class common_options;
 
   bool
   toolchain_buildtime_dependency (const common_options&,
                                   const dependency_alternatives_ex&,
-                                  const package_name&);
+                                  const package_name*);
+
+  // Return true if any dependency other than toolchain build-time
+  // dependencies is specified. Optionally, verify toolchain build-time
+  // dependencies specifying the package argument which will be used for
+  // diagnostics only.
+  //
+  bool
+  has_dependencies (const common_options&,
+                    const dependencies&,
+                    const package_name* = nullptr);
 
   // Return true if some clause that is a buildfile fragment is specified for
   // any of the dependencies.
@@ -1022,21 +1032,63 @@ namespace bpkg
   }
 
   // A map of "effective" prerequisites (i.e., pointers to other selected
-  // packages) to optional version constraint. Note that because it is a
-  // single constraint, we don't support multiple dependencies on the same
-  // package (e.g., two ranges of versions). See pkg_configure().
+  // packages) to optional version constraint (plus some other info). Note
+  // that because it is a single constraint, we don't support multiple
+  // dependencies on the same package (e.g., two ranges of versions). See
+  // pkg_configure().
   //
   // Note also that the pointer can refer to a selected package in another
   // database.
   //
   class selected_package;
 
+  #pragma db value
+  struct prerequisite_info
+  {
+    // The "tightest" version constraint among all dependencies resolved to
+    // this prerequisite.
+    //
+    optional<version_constraint> constraint;
+
+    // Position of the first dependency alternative with a configuration
+    // clause, if any.
+    //
+    // Specifically, if there is such an alternative then this is a pair of
+    // 1-based indexes of the respective depends value (first) and the
+    // dependency alternative (second) in the dependent's manifest. Otherwise,
+    // this is a pair of zeros.
+    //
+    // For example, for the following dependent the position for libfoo/1.2.0
+    // prerequisite will be {2,2}:
+    //
+    // libbar: depends: libfoo >= 1.1.0
+    //         depends: libfox | libfoo >= 1.2.0 {require {...}}
+    //
+    pair<size_t, size_t> config_position;
+
+    // Database mapping.
+    //
+    #pragma db member(constraint) column("")
+
+    #pragma db member(config_position) transient
+
+    #pragma db member(config_dependency_index) \
+      virtual(size_t)                          \
+      access(config_position.first)            \
+      default(0)
+
+    #pragma db member(config_alternative_index) \
+      virtual(size_t)                           \
+      access(config_position.second)            \
+      default(0)
+  };
+
   // Note that the keys for this map need to be created with the database
   // passed to their constructor, which is required for persisting them (see
   // _selected_package_ref() implementation for details).
   //
   using package_prerequisites = std::map<lazy_shared_ptr<selected_package>,
-                                         optional<version_constraint>,
+                                         prerequisite_info,
                                          compare_lazy_ptr>;
 
   // Database mapping for lazy_shared_ptr<selected_package> to configuration
@@ -1476,6 +1528,21 @@ namespace bpkg
     #pragma db column("pp.package")
     package_name name;
 
+    #pragma db transient
+    pair<size_t, size_t> config_position;
+
+    #pragma db member(config_dependency_index) \
+      column("pp.config_dependency_index")     \
+      virtual(size_t)                          \
+      access(config_position.first)            \
+      default(0)
+
+    #pragma db member(config_alternative_index) \
+      column("pp.config_alternative_index")     \
+      virtual(size_t)                           \
+      access(config_position.second)            \
+      default(0)
+
     #pragma db column("pp.")
     optional<version_constraint> constraint;
   };
@@ -1501,33 +1568,49 @@ namespace bpkg
   // not detached during such map lifetimes. Considers both package name and
   // database for objects comparison.
   //
-  struct config_package
+  struct package_key
   {
-    database&    db;
-    package_name name;
+    reference_wrapper<database> db;
+    package_name                name;
 
-    config_package (database& d, package_name n): db (d), name (move (n)) {}
+    package_key (database& d, package_name n): db (d), name (move (n)) {}
 
     // Create a pseudo-package (command line as a dependent, etc).
     //
-    config_package (database& d, string n)
+    package_key (database& d, string n)
         : db (d),
           name (n.empty () ? package_name () : package_name (move (n))) {}
 
     bool
-    operator== (const config_package& v) const
+    operator== (const package_key& v) const
     {
       // See operator==(database, database).
       //
-      return name == v.name && &db == &v.db;
+      return name == v.name && &db.get () == &v.db.get ();
     }
 
     bool
-    operator< (const config_package&) const;
+    operator!= (const package_key& v) const
+    {
+      return !(*this == v);
+    }
 
+    bool
+    operator< (const package_key&) const;
+
+    // Return the package string representation in the form:
+    //
+    // <name>[ <config-dir>]
+    //
     std::string
     string () const;
   };
+
+  inline ostream&
+  operator<< (ostream& os, const package_key& p)
+  {
+    return os << p.string ();
+  }
 
   // Return a count of repositories that contain this repository fragment.
   //

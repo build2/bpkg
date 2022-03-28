@@ -256,12 +256,12 @@ namespace bpkg
       //
       assert (ap->sha256sum);
 
-      const string& sha256sum (sha256 (co, a));
-      if (sha256sum != *ap->sha256sum)
+      const string& cs (sha256sum (co, a));
+      if (cs != *ap->sha256sum)
       {
         fail << "checksum mismatch for " << n << " " << v <<
           info << pl->repository_fragment->name << " has " << *ap->sha256sum <<
-          info << "fetched archive has " << sha256sum <<
+          info << "fetched archive has " << cs <<
           info << "consider re-fetching package list and trying again" <<
           info << "if problem persists, consider reporting this to "
                << "the repository maintainer";

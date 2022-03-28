@@ -24,7 +24,7 @@ using namespace butl;
 
 namespace bpkg
 {
-  struct package_key
+  struct package_version_key
   {
     package_name name;
     bpkg::version version;
@@ -34,20 +34,20 @@ namespace bpkg
     // revision.
     //
     bool
-    operator< (const package_key& y) const
+    operator< (const package_version_key& y) const
     {
       int r (name.compare (y.name));
       return r < 0 || (r == 0 && version.compare (y.version, true) < 0);
     }
   };
 
-  struct package_data
+  struct package_version_data
   {
     path archive;
     package_manifest manifest;
   };
 
-  using package_map = map<package_key, package_data>;
+  using package_map = map<package_version_key, package_version_data>;
 
   static void
   collect (const rep_create_options& o,
@@ -106,7 +106,7 @@ namespace bpkg
 
       // Calculate its checksum.
       //
-      m.sha256sum = sha256 (o, a);
+      m.sha256sum = sha256sum (o, a);
 
       l4 ([&]{trace << m.name << " " << m.version << " in " << a
                     << " sha256sum " << *m.sha256sum;});
@@ -115,8 +115,8 @@ namespace bpkg
       //
       m.location = a.leaf (root);
 
-      package_key k {m.name, m.version}; // Argument evaluation order.
-      auto r (map.emplace (move (k), package_data {a, move (m)}));
+      package_version_key k {m.name, m.version}; // Argument evaluation order.
+      auto r (map.emplace (move (k), package_version_data {a, move (m)}));
 
       // Diagnose duplicates.
       //
@@ -183,7 +183,7 @@ namespace bpkg
     collect (o, pm, d, d);
 
     pkg_package_manifests manifests;
-    manifests.sha256sum = sha256 (o, path (d / repositories_file));
+    manifests.sha256sum = sha256sum (o, path (d / repositories_file));
 
     for (auto& p: pm)
     {
@@ -235,7 +235,7 @@ namespace bpkg
             info << "run 'bpkg help rep-create' for more information";
 
         signature_manifest m;
-        m.sha256sum = sha256 (o, p);
+        m.sha256sum = sha256sum (o, p);
         m.signature = sign_repository (o, m.sha256sum, key, *cert, d);
 
         p = path (d / signature_file);

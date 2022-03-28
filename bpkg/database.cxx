@@ -10,8 +10,6 @@
 #include <odb/schema-catalog.hxx>
 #include <odb/sqlite/exceptions.hxx>
 
-#include <libbutl/sha256.hxx>
-
 #include <bpkg/package.hxx>
 #include <bpkg/package-odb.hxx>
 #include <bpkg/diagnostics.hxx>
@@ -706,7 +704,7 @@ namespace bpkg
       //
       std::string schema;
       {
-        butl::sha256 h (d.string ());
+        sha256 h (d.string ());
 
         for (size_t n (4);; ++n)
         {

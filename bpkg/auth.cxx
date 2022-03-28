@@ -7,7 +7,6 @@
 #include <limits>   // numeric_limits
 #include <iterator> // ostreambuf_iterator
 
-#include <libbutl/sha256.hxx>
 #include <libbutl/base64.hxx>
 #include <libbutl/openssl.hxx>
 #include <libbutl/timestamp.hxx>

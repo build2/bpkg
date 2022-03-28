@@ -53,17 +53,17 @@ namespace bpkg
       return path;
   }
 
-  // config_package
+  // package_key
   //
-  string config_package::
+  string package_key::
   string () const
   {
-    const std::string& s (db.string);
+    const std::string& s (db.get ().string);
     return !s.empty () ? name.string () + ' ' + s : name.string ();
   }
 
-  bool config_package::
-  operator< (const config_package& v) const
+  bool package_key::
+  operator< (const package_key& v) const
   {
     int r (name.compare (v.name));
     return r != 0 ? (r < 0) : (db < v.db);
@@ -827,7 +827,7 @@ namespace bpkg
   bool
   toolchain_buildtime_dependency (const common_options& o,
                                   const dependency_alternatives_ex& das,
-                                  const package_name& pkg)
+                                  const package_name* pkg)
   {
     if (das.buildtime)
     {
@@ -839,10 +839,10 @@ namespace bpkg
 
           if (dn == "build2")
           {
-            if (d.constraint && !satisfy_build2 (o, d))
+            if (pkg != nullptr && d.constraint && !satisfy_build2 (o, d))
             {
               fail << "unable to satisfy constraint (" << d << ") for "
-                   << "package " << pkg <<
+                   << "package " << *pkg <<
                 info << "available build2 version is " << build2_version;
             }
 
@@ -850,10 +850,10 @@ namespace bpkg
           }
           else if (dn == "bpkg")
           {
-            if (d.constraint && !satisfy_bpkg (o, d))
+            if (pkg != nullptr && d.constraint && !satisfy_bpkg (o, d))
             {
               fail << "unable to satisfy constraint (" << d << ") for "
-                   << "package " << pkg <<
+                   << "package " << *pkg <<
                 info << "available bpkg version is " << bpkg_version;
             }
 
@@ -861,6 +861,20 @@ namespace bpkg
           }
         }
       }
+    }
+
+    return false;
+  }
+
+  bool
+  has_dependencies (const common_options& o,
+                    const dependencies& deps,
+                    const package_name* pkg)
+  {
+    for (const auto& das: deps)
+    {
+      if (!toolchain_buildtime_dependency (o, das, pkg))
+        return true;
     }
 
     return false;

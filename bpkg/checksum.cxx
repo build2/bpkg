@@ -331,7 +331,7 @@ namespace bpkg
   }
 
   string
-  sha256 (const common_options& o, const path& f)
+  sha256sum (const common_options& o, const path& f)
   {
     if (!exists (f))
       fail << "file " << f << " does not exist";

@@ -77,7 +77,7 @@ namespace bpkg
              drop_reason r = drop_reason::user)
     {
       package_name n (p->name); // Because of move(p) below.
-      return map_.emplace (config_package {db, move (n)},
+      return map_.emplace (package_key {db, move (n)},
                            data_type {end (), {db, move (p), r}}).second;
     }
 
@@ -278,7 +278,7 @@ namespace bpkg
           if (!keep)
           {
             i = erase (i);
-            map_.erase (config_package {db, p->name});
+            map_.erase (package_key {db, p->name});
             continue;
           }
 
@@ -298,18 +298,18 @@ namespace bpkg
       drop_package package;
     };
 
-    class config_package_map: public map<config_package, data_type>
+    class package_map: public map<package_key, data_type>
     {
     public:
-      using base_type = map<config_package, data_type>;
+      using base_type = map<package_key, data_type>;
 
       iterator
       find (database& db, const package_name& pn)
       {
-        return base_type::find (config_package {db, pn});
+        return base_type::find (package_key {db, pn});
       }
     };
-    config_package_map map_;
+    package_map map_;
   };
 
   // Drop ordered list of packages.

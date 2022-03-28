@@ -48,6 +48,10 @@ namespace bpkg
   using butl::digit;
   using butl::xdigit;
 
+  using butl::trim;
+  using butl::trim_left;
+  using butl::trim_right;
+
   using butl::make_guard;
   using butl::make_exception_guard;
 

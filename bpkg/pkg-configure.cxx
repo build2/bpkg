@@ -36,7 +36,7 @@ namespace bpkg
     // package skeleton, excluding those user-specified variables which are
     // not the project variables for the specified package (module
     // configuration variables, etc). Thus, it is not parallel to the
-    // variables member.
+    // config_variables member.
     //
     vector<config_variable> config_sources; // Note: name and source.
   };
@@ -48,14 +48,19 @@ namespace bpkg
                                database& db,
                                transaction&,
                                const dependencies& deps,
+                               const vector<size_t>* alts,
                                package_skeleton&& ps,
                                const vector<package_name>* prev_prereqs,
                                bool simulate,
                                const function<find_database_function>& fdb)
   {
-    package_prerequisites   prereqs;
-    strings                 vars;
-    vector<config_variable> srcs;
+    package_prerequisites prereqs;
+    strings               vars;
+
+    // Alternatives argument must be parallel to the dependencies argument if
+    // specified.
+    //
+    assert (alts == nullptr || alts->size () == deps.size ());
 
     for (size_t di (0); di != deps.size (); ++di)
     {
@@ -64,19 +69,55 @@ namespace bpkg
       //
       const dependency_alternatives_ex& das (deps[di]);
 
-      if (das.empty () || toolchain_buildtime_dependency (o, das, ps.name ()))
+      if (das.empty ())
         continue;
 
-      small_vector<reference_wrapper<const dependency_alternative>, 2> edas;
+      small_vector<pair<reference_wrapper<const dependency_alternative>,
+                        size_t>,
+                   2> edas;
 
-      for (const dependency_alternative& da: das)
+      // If the dependency alternatives are not pre-selected, then evaluate
+      // the enable clauses.
+      //
+      // Note that evaluating the require and prefer clauses in this case is
+      // meaningless since we don't reconfigure the dependencies nor negotiate
+      // configurations with other dependents. What we should probably do is
+      // load configurations of the dependencies and use them while evaluating
+      // the dependent's enable and reflect clauses as we go along. Probably
+      // we should still evaluate the accept clauses to make sure that the
+      // dependency is configured acceptably for the dependent. For now we
+      // fail and will support this maybe later.
+      //
+      if (alts == nullptr)
       {
-        if (!da.enable || ps.evaluate_enable (*da.enable, di))
-          edas.push_back (da);
-      }
+        if (toolchain_buildtime_dependency (o, das, &ps.package.name))
+          continue;
 
-      if (edas.empty ())
-        continue;
+        for (size_t i (0); i != das.size (); ++i)
+        {
+          const dependency_alternative& da (das[i]);
+
+          if (!da.enable || ps.evaluate_enable (*da.enable, make_pair (di, i)))
+          {
+            if (da.prefer || da.require)
+              fail << "manual configuration of dependents with prefer or "
+                   << "require clauses is not yet supported";
+
+            edas.push_back (make_pair (ref (da), i));
+          }
+        }
+
+        if (edas.empty ())
+          continue;
+      }
+      else
+      {
+        // Must only contain the selected alternative.
+        //
+        assert (das.size () == 1);
+
+        edas.push_back (make_pair (ref (das.front ()), (*alts)[di]));
+      }
 
       // Pick the first alternative with dependencies that can all be resolved
       // to the configured packages, satisfying the respective constraints.
@@ -91,16 +132,19 @@ namespace bpkg
       for (const vector<package_name>* pps (prev_prereqs);;)
       {
         bool satisfied (false);
-        for (const dependency_alternative& da: edas)
+        for (const auto& eda: edas)
         {
+          const dependency_alternative& da (eda.first);
+          size_t dai (eda.second);
+
           // Cache the selected packages which correspond to the alternative
           // dependencies, pairing them with the respective constraints. If
           // the alternative turns out to be fully resolvable, we will add the
           // cached packages into the dependent's prerequisites map.
           //
           small_vector<
-            pair<lazy_shared_ptr<selected_package>,
-                 const optional<version_constraint>&>, 1> prerequisites;
+            pair<lazy_shared_ptr<selected_package>, prerequisite_info>,
+            1> prerequisites;
 
           dependency_alternative::const_iterator b (da.begin ());
           dependency_alternative::const_iterator i (b);
@@ -132,9 +176,13 @@ namespace bpkg
             // See the package_prerequisites definition for details on
             // creating the map keys with the database passed.
             //
+            bool conf (da.prefer || da.require);
+
             prerequisites.emplace_back (
               lazy_shared_ptr<selected_package> (*spd.second, dp),
-              d.constraint);
+              prerequisite_info {d.constraint,
+                                 make_pair (conf ? di  + 1 : 0,
+                                            conf ? dai + 1 : 0)});
           }
 
           // Try the next alternative if there are unresolved dependencies for
@@ -150,9 +198,9 @@ namespace bpkg
           for (auto& pr: prerequisites)
           {
             const package_name& pn (pr.first.object_id ());
-            const optional<version_constraint>& pc (pr.second);
+            const prerequisite_info& pi (pr.second);
 
-            auto p (prereqs.emplace (pr.first, pc));
+            auto p (prereqs.emplace (pr.first, pi));
 
             // Currently we can only capture a single constraint, so if we
             // already have a dependency on this package and one constraint is
@@ -160,18 +208,28 @@ namespace bpkg
             //
             if (!p.second)
             {
-              auto& c (p.first->second);
+              auto& c1 (p.first->second.constraint);
+              auto& c2 (pi.constraint);
 
-              bool s1 (satisfies (c, pc));
-              bool s2 (satisfies (pc, c));
+              bool s1 (satisfies (c1, c2));
+              bool s2 (satisfies (c2, c1));
 
               if (!s1 && !s2)
                 fail << "multiple dependencies on package " << pn <<
-                  info << pn << " " << *c <<
-                  info << pn << " " << *pc;
+                  info << pn << " " << *c1 <<
+                  info << pn << " " << *c2;
 
               if (s2 && !s1)
-                c = pc;
+                c1 = c2;
+
+              // Keep position of the first dependency alternative with a
+              // configuration clause.
+              //
+              pair<size_t, size_t>& p1 (p.first->second.config_position);
+              pair<size_t, size_t>  p2 (pi.config_position);
+
+              if (p1.first == 0 && p2.first != 0)
+                p1 = p2;
             }
 
             // If the prerequisite is configured in the linked configuration,
@@ -215,7 +273,7 @@ namespace bpkg
           // Evaluate the dependency alternative reflect clause, if present.
           //
           if (da.reflect)
-            ps.evaluate_reflect (*da.reflect, di);
+            ps.evaluate_reflect (*da.reflect, make_pair (di, dai));
 
           satisfied = true;
           break;
@@ -244,34 +302,28 @@ namespace bpkg
       }
     }
 
-    // Add the configuration variables collected from the reflect clauses, if
-    // any.
+    // Add the rest of the configuration variables (user overrides, reflects,
+    // etc) as well as their sources.
     //
+    vector<config_variable> srcs;
+
     if (!simulate)
     {
-      auto rvs (move (ps).collect_config ());
+      pair<strings, vector<config_variable>> rvs (move (ps).collect_config ());
 
-      strings&                         vs (rvs.first);
-      vector<optional<config_source>>& ss (rvs.second);
+      strings& vs (rvs.first);
+      srcs = move (rvs.second);
 
       if (!vs.empty ())
       {
-        vars.reserve (vars.size () + vs.size ());
-
-        for (size_t i (0); i != vs.size (); ++i)
+        if (vars.empty ())
+          vars = move (vs);
+        else
         {
-          string&                        v (vs[i]);
-          const optional<config_source>& s (ss[i]);
+          vars.reserve (vars.size () + vs.size ());
 
-          if (s)
-          {
-            size_t p (v.find_first_of ("=+ \t"));
-            assert (p != string::npos);
-
-            srcs.push_back (config_variable {string (v, 0, p), *s});
-          }
-
-          vars.push_back (move (v));
+          for (string& v: vs)
+            vars.push_back (move (v));
         }
       }
     }
@@ -287,8 +339,10 @@ namespace bpkg
                  transaction& t,
                  const shared_ptr<selected_package>& p,
                  const dependencies& deps,
+                 const vector<size_t>* alts,
                  package_skeleton&& ps,
                  const vector<package_name>* pps,
+                 bool disfigured,
                  bool simulate,
                  const function<find_database_function>& fdb)
   {
@@ -322,6 +376,7 @@ namespace bpkg
                                    db,
                                    t,
                                    deps,
+                                   alts,
                                    move (ps),
                                    pps,
                                    simulate,
@@ -346,31 +401,26 @@ namespace bpkg
 
       l4 ([&]{trace << "buildspec: " << bspec;});
 
-      // Deduce the configuration variables which are not reflected anymore
-      // and disfigure them.
+      // Unless this package has been completely disfigured, disfigure all the
+      // package configuration variables to reset all the old values to
+      // defaults (all the new user/dependent/reflec values, including old
+      // user, are returned by collect_config() and specified as overrides).
+      // Note that this semantics must be consistent with how we load things
+      // in the package skeleton during configuration negotiation.
+      //
+      // Note also that this means we don't really use the dependent and
+      // reflect sources that we save in the database. But let's keep them
+      // for the completeness of information (maybe could be useful during
+      // configuration reset or some such).
       //
       string dvar;
-      for (const config_variable& cv: p->config_variables)
+      if (!disfigured)
       {
-        if (cv.source == config_source::reflect)
-        {
-          const vector<config_variable>& ss (cpr.config_sources);
-          auto i (find_if (ss.begin (), ss.end (),
-                           [&cv] (const config_variable& v)
-                           {
-                             return v.name == cv.name;
-                           }));
-
-          if (i == ss.end ())
-          {
-            if (dvar.empty ())
-              dvar = "config.config.disfigure=";
-            else
-              dvar += ' ';
-
-            dvar += cv.name;
-          }
-        }
+        // Note: must be quoted to preserve the pattern.
+        //
+        dvar = "config.config.disfigure='config.";
+        dvar += p->name.variable ();
+        dvar += "**'";
       }
 
       // Configure.
@@ -554,18 +604,30 @@ namespace bpkg
                                    ? dir_path (db.config) /= p->name.string ()
                                    : optional<dir_path> ());
 
+      // Note on the disfigure logic: while we don't know whether the package
+      // has been disfigured with --keep-config or not, it has already been
+      // done physically and if without --keep-config, then config.build has
+      // been removed and config_variables cleaned. As a result, we can just
+      // proceed as disfigure=false and disfigure=true will be taken care
+      // automatically (because then things have been removed/cleaned).
+      //
       pkg_configure (o,
                      db,
                      t,
                      p,
                      ap->dependencies,
+                     nullptr /* alternatives */,
                      package_skeleton (o,
-                                       db,
-                                       *ap,
+                                       package_key (db, ap->id.name),
+                                       false /* system */,
+                                       ap,
                                        move (vars),
+                                       false /* disfigure */,
+                                       &p->config_variables,
                                        move (src_root),
                                        move (out_root)),
                      nullptr /* prerequisites */,
+                     false /* disfigured */,
                      false /* simulate */);
     }
 
