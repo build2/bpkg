@@ -1503,8 +1503,8 @@ namespace bpkg
   //
   struct config_package
   {
-    database&    db;
-    package_name name;
+    reference_wrapper<database> db;
+    package_name                name;
 
     config_package (database& d, package_name n): db (d), name (move (n)) {}
 
@@ -1519,15 +1519,25 @@ namespace bpkg
     {
       // See operator==(database, database).
       //
-      return name == v.name && &db == &v.db;
+      return name == v.name && &db.get () == &v.db.get ();
     }
 
     bool
     operator< (const config_package&) const;
 
+    // Return the package string representation in the form:
+    //
+    // <name>[ <config-dir>]
+    //
     std::string
     string () const;
   };
+
+  inline ostream&
+  operator<< (ostream& os, const config_package& p)
+  {
+    return os << p.string ();
+  }
 
   // Return a count of repositories that contain this repository fragment.
   //
