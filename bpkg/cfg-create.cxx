@@ -122,7 +122,7 @@ namespace bpkg
     {
       // Assemble the build2 create meta-operation parameters.
       //
-      string params ("'" + c.representation () + "'");
+      string params ('\'' + c.representation () + '\'');
       if (!mods.empty ())
       {
         params += ',';

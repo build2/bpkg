@@ -117,7 +117,7 @@ namespace bpkg
       // the user did specify the version.
       //
       if (o.system ())
-        r.system_package_version = "?";
+        r.system_package_version = '?';
 
       // Get rid of stubs.
       //
