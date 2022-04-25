@@ -17,8 +17,8 @@
 #include <libbuild2/scheduler.hxx>
 #include <libbuild2/file-cache.hxx>
 
-#include <libbuild2/cmdline.hxx>
 #include <libbuild2/b-options.hxx>
+#include <libbuild2/b-cmdline.hxx>
 
 #include <libbuild2/dist/init.hxx>
 #include <libbuild2/test/init.hxx>
@@ -125,8 +125,8 @@ namespace bpkg
       // --build-option if specified, falling back to equivalent bpkg values
       // otherwise.
       //
-      build2::options bo;
-      cmdline bc;
+      b_options bo;
+      b_cmdline bc;
       {
         small_vector<char*, 1> argv {const_cast<char*> (build2_argv0)};
 
@@ -144,11 +144,11 @@ namespace bpkg
         // For now we use the same default verbosity as us (equivalent to
         // start_b() with verb_b::normal).
         //
-        bc = parse_cmdline (trace,
-                            static_cast<int> (argv.size ()), argv.data (),
-                            bo,
-                            bpkg::verb,
-                            co.jobs_specified () ? co.jobs () : 0);
+        bc = parse_b_cmdline (trace,
+                              static_cast<int> (argv.size ()), argv.data (),
+                              bo,
+                              bpkg::verb,
+                              co.jobs_specified () ? co.jobs () : 0);
 
         if (!bc.buildspec.empty ())
           fail << "argument specified with --build-option";
