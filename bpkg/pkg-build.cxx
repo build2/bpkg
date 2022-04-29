@@ -2146,10 +2146,8 @@ namespace bpkg
       const map<config_package, bool>* rpt_prereq_flags (nullptr);
 
       // Bail out if this is a configured non-system package and no
-      // up/down-grade nor collecting prerequisite replacements are required.
-      //
-      // NOTE: remember to update the check condition in
-      // collect_order_dependents() if changing anything here.
+      // up/down-grade, reconfiguration, nor collecting prerequisite
+      // replacements are required.
       //
       bool src_conf (sp != nullptr &&
                      sp->state == package_state::configured &&
@@ -4720,8 +4718,8 @@ namespace bpkg
           auto i (map_.find (ddb, dn));
 
           // Make sure the up/downgraded package still satisfies this
-          // dependent. But first "prune" if this is a replaced prerequisite
-          // of the repointed dependent.
+          // dependent. But first "prune" if the dependent is being dropped or
+          // this is a replaced prerequisite of the repointed dependent.
           //
           // Note that the repointed dependents are always collected and have
           // all their collected prerequisites ordered (including new and old
@@ -4731,6 +4729,13 @@ namespace bpkg
 
           if (i != map_.end () && i->second.position != end ())
           {
+            build_package& dp (i->second.package);
+
+            // Skip the droped dependent.
+            //
+            if (dp.action && *dp.action == build_package::drop)
+              continue;
+
             repointed_dependents::const_iterator j (
               rpt_depts.find (config_package {ddb, dn}));
 
@@ -4744,24 +4749,14 @@ namespace bpkg
                 continue;
             }
 
-            build_package& dp (i->second.package);
-            const shared_ptr<selected_package>& dsp (dp.selected);
-
             // There is one tricky aspect: the dependent could be in the
-            // process of being up/downgraded as well. In this case all we
-            // need to do is detect this situation and skip the test since all
-            // the (new) contraints of this package have been satisfied in
-            // collect_build().
+            // process of being reconfigured or up/downgraded as well. In this
+            // case all we need to do is detect this situation and skip the
+            // test since all the (new) constraints of this package have been
+            // satisfied in collect_build().
             //
             if (check)
-            {
-              check = dp.available == nullptr ||
-                      (dsp->system () == dp.system &&
-                       dsp->version == dp.available_version () &&
-                       (dp.system               ||
-                        dp.config_vars.empty () ||
-                        !has_buildfile_clause (dp.available->dependencies)));
-            }
+              check = !dp.dependencies;
           }
 
           if (check)
@@ -4845,11 +4840,10 @@ namespace bpkg
           // list, the package is in the map (but not on the list) and it
           // is in neither.
           //
-          // If the existing entry is a drop, then we skip it. If it is
-          // pre-entered, is an adjustment, or is a build that is not supposed
-          // to be built (not in the list), then we merge it into the new
-          // adjustment entry. Otherwise (is a build in the list), we just add
-          // the reconfigure adjustment flag to it.
+          // If the existing entry is pre-entered, is an adjustment, or is a
+          // build that is not supposed to be built (not in the list), then we
+          // merge it into the new adjustment entry. Otherwise (is a build in
+          // the list), we just add the reconfigure adjustment flag to it.
           //
           if (i != map_.end ())
           {
@@ -4860,11 +4854,6 @@ namespace bpkg
                 *dp.action != build_package::build || // Non-build.
                 dpos == end ())                       // Build not in the list.
             {
-              // Skip the droped package.
-              //
-              if (dp.action && *dp.action == build_package::drop)
-                continue;
-
               build_package bp (adjustment ());
               bp.merge (move (dp));
               dp = move (bp);
