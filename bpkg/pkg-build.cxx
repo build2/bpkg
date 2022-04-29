@@ -2146,10 +2146,8 @@ namespace bpkg
       const map<config_package, bool>* rpt_prereq_flags (nullptr);
 
       // Bail out if this is a configured non-system package and no
-      // up/down-grade nor collecting prerequisite replacements are required.
-      //
-      // NOTE: remember to update the check condition in
-      // collect_order_dependents() if changing anything here.
+      // up/down-grade, reconfiguration, nor collecting prerequisite
+      // replacements are required.
       //
       bool src_conf (sp != nullptr &&
                      sp->state == package_state::configured &&
@@ -4745,23 +4743,15 @@ namespace bpkg
             }
 
             build_package& dp (i->second.package);
-            const shared_ptr<selected_package>& dsp (dp.selected);
 
             // There is one tricky aspect: the dependent could be in the
-            // process of being up/downgraded as well. In this case all we
-            // need to do is detect this situation and skip the test since all
-            // the (new) contraints of this package have been satisfied in
-            // collect_build().
+            // process of being reconfigured or up/downgraded as well. In this
+            // case all we need to do is detect this situation and skip the
+            // test since all the (new) constraints of this package have been
+            // satisfied in collect_build().
             //
             if (check)
-            {
-              check = dp.available == nullptr ||
-                      (dsp->system () == dp.system &&
-                       dsp->version == dp.available_version () &&
-                       (dp.system               ||
-                        dp.config_vars.empty () ||
-                        !has_buildfile_clause (dp.available->dependencies)));
-            }
+              check = !dp.dependencies;
           }
 
           if (check)
