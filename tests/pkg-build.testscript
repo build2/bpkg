@@ -227,8 +227,11 @@
 # |-- t12b                      -> t12b (prerequisite repository)
 # |   |-- libbaz-0.1.0.tar.gz
 # |   |-- libbar-1.0.0.tar.gz   -> libbaz == 0.1.0
+# |   |-- foo-0.1.0.tar.gz
 # |   |-- foo-1.0.0.tar.gz      -> libbar
 # |   |-- bar-1.0.0.tar.gz      -> libbar == 0.1.0
+# |   |-- baz-0.1.0.tar.gz      -> libbaz
+# |   |-- baz-1.0.0.tar.gz      -> libbaz == 1.0.0
 # |   `-- repositories.manifest
 # |
 # `-- git
@@ -4627,6 +4630,80 @@ test.options += --no-progress
         EOO
 
       $pkg_drop libbaz libbar
+    }
+  }
+
+  : drop-dependent
+  :
+  {
+    +$clone_root_cfg && $rep_add $rep/t12b && $rep_fetch
+
+    test.arguments += --yes
+
+    : unhold
+    :
+    : Test that the being dropped dependent does not constrain a dependency
+    : anymore.
+    :
+    {
+      $clone_cfg;
+
+      $* libbar 2>!;
+
+      $pkg_status -r >>EOO;
+        !libbar configured 1.0.0
+          libbaz configured 0.1.0 available [1.0.0]
+        EOO
+
+      $* baz/0.1.0 ?libbar ?libbaz 2>!;
+
+      $pkg_status -r >>EOO;
+        !baz configured !0.1.0 available 1.0.0
+          libbaz configured 1.0.0
+        EOO
+
+      $pkg_drop baz
+    }
+
+    : unuse
+    :
+    : Unlike the previous test, at the time we check the constraint applied
+    : by libbar on libbaz (== 0.1.0) there is no evidence that libbar will be
+    : dropped, which will happen some later execution plan refinement
+    : iteration.
+    :
+    : @@ This scenario is not supported yet and fails with:
+    :
+    :    error: unable to upgrade package libbaz/0.1.0 to 1.0.0
+    :      info: because package libbar depends on (libbaz == 0.1.0)
+    :      info: package libbaz/1.0.0 required by baz
+    :      info: explicitly request up/downgrade of package libbar
+    :      info: or explicitly specify package libbaz version to manually satisfy these constraints
+    :
+    :    We could probably fix this postponing the constraints check in
+    :    collect_order_dependents() until the final execution plan is produced
+    :    (after all that refinement iterations). We could have an additional
+    :    iteration after all the refinements which would enable the constraint
+    :    check in collect_order_dependents().
+    :
+    if false
+    {
+      $clone_cfg;
+
+      $* foo 2>!;
+
+      $pkg_status -r >>EOO;
+        !foo configured 1.0.0
+          libbar configured 1.0.0
+            libbaz configured 0.1.0 available [1.0.0]
+        EOO
+
+      $* baz foo/0.1.0 2>|;
+
+      $pkg_status -r >>EOO;
+        EOO
+
+      $pkg_drop foo
     }
   }
 
