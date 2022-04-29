@@ -6,6 +6,7 @@
 #include <map>
 #include <set>
 #include <list>
+#include <limits>
 #include <cstring>      // strlen()
 #include <iostream>     // cout
 #include <functional>   // ref()
@@ -1242,6 +1243,13 @@ namespace bpkg
 #endif
     }
 
+    bool
+    existing_dependent (const config_package& cp) const
+    {
+      auto i (dependents.find (cp));
+      return i != dependents.end () && i->second.existing;
+    }
+
     // Return the postponed configuration string representation in the form:
     //
     // {<dependent>[ <dependent>]* | <dependency>[ <dependency>]*}
@@ -1448,6 +1456,18 @@ namespace bpkg
 
       return true;
     }
+
+    bool
+    existing_dependent (const config_package& cp) const
+    {
+      for (const postponed_configuration& cfg: *this)
+      {
+        if (cfg.existing_dependent (cp))
+          return true;
+      }
+
+      return false;
+    }
   };
 
   static ostream&
@@ -1591,6 +1611,10 @@ namespace bpkg
     postpone (const config_package& cp,
               const postponed_configurations& postponed_cfgs)
     {
+      // @@ DPT
+      //
+      return false;
+
       auto i (find (cp));
 
       if (i == end ())
@@ -2258,8 +2282,10 @@ namespace bpkg
             rpt_prereq_flags == nullptr                &&
             (pkg.config_vars.empty () ||
              !has_buildfile_clause (ap->dependencies)) &&
-            ((i = postponed_dpts.find (cp)) == postponed_dpts.end () ||
-             !i->second.config))
+// @@ DPT
+//            ((i = postponed_dpts.find (cp)) == postponed_dpts.end () ||
+//             !i->second.config))
+            !postponed_cfgs.existing_dependent (cp))
         {
           l5 ([&]{trace << "skip configured "
                         << pkg.available_name_version_db ();});
@@ -3386,6 +3412,11 @@ namespace bpkg
                 }
                 else if (bp->recursive_collection)
                 {
+                  // @@ DPT
+                  //
+                  bool existing (cfg != nullptr &&
+                                 cfg->existing_dependent (cp));
+
                   // The possible reason we ended up here is the configuration
                   // cycle.
                   //
@@ -3423,12 +3454,20 @@ namespace bpkg
                   //   original package, and their common direct dependent.
                   //
                   {
-                    l5 ([&]{trace << "cannot cfg-postpone dependency "
-                                  << bp->available_name_version_db ()
-                                  << " of dependent "
-                                  << pkg.available_name_version_db ()
-                                  << " (collected prematurely), checking for "
-                                  << "configuration cycle";});
+                    if (!existing)
+                      l5 ([&]{trace << "cannot cfg-postpone dependency "
+                                    << bp->available_name_version_db ()
+                                    << " of dependent "
+                                    << pkg.available_name_version_db ()
+                                    << " (collected prematurely), checking for "
+                                    << "configuration cycle";});
+                    else
+                      l5 ([&]{trace << "dependency "
+                                    << bp->available_name_version_db ()
+                                    << " of existing dependent "
+                                    << pkg.available_name_version_db ()
+                                    << " is already collected, checking for "
+                                    << "configuration cycle";});
 
                     // Create a temporary clusters list.
                     //
@@ -3446,11 +3485,12 @@ namespace bpkg
                       }
                     }
 
-                    cfgs.add (cp,
-                              false /* existing */,
-                              di + 1,
-                              postponed_configuration::packages ({dcp}),
-                              true /* allow_negotiated */);
+                    if (!existing) // @@ DPT
+                      cfgs.add (cp,
+                                false /* existing */,
+                                di + 1,
+                                postponed_configuration::packages ({dcp}),
+                                true /* allow_negotiated */);
 
                     // Iterate over the clusters.
                     //
@@ -3617,13 +3657,19 @@ namespace bpkg
                     }
                   }
 
-                  l5 ([&]{trace << "no configuration cycle, throwing";});
+                  if (!existing) // @@ DPT
+                  {
+                    l5 ([&]{trace << "no configuration cycle, throwing";});
 
-                  // Don't print the "while satisfying..." chain.
-                  //
-                  dep_chain.clear ();
+                    // Don't print the "while satisfying..." chain.
+                    //
+                    dep_chain.clear ();
 
-                  throw postpone_dependency (move (dcp));
+                    throw postpone_dependency (move (dcp));
+                  }
+                  else
+                    l5 ([&]{trace << "no configuration cycle, skipping "
+                                  << "collected dependency";});
                 }
                 else
                 {
@@ -4418,7 +4464,7 @@ namespace bpkg
 
           if (!dependents.empty ())
           {
-            l5 ([&]{trace << "re-evaluate existing dependents";});
+            l5 ([&]{trace << "re-evaluate existing dependents for " << *pcfg;});
 
             for (auto& d: dependents)
             {
@@ -4449,8 +4495,17 @@ namespace bpkg
                 set<config_package> (
                   ds.begin (), ds.end ()),  // Required by (dependency).
                 false,                      // Required by dependents.
-                0};                         // State flags.
+                build_package::adjust_reconfigure}; // State flags. // @@ DPT
 
+              // @@ DPT What to do if the version replacement occurred in this
+              //    function call? We could theoretically incorporate the
+              //    version replacement check into
+              //    query_configuring_dependents() and skip such dependents,
+              //    but what if such replacement entry will turn out to be
+              //    bogus and we will end up not considering this dependent
+              //    for negotiation. Do we need to throw on bogus negotiations
+              //    or some such?
+              //
               collect_build (o,
                              move (p),
                              fdb,
@@ -4518,15 +4573,17 @@ namespace bpkg
 
         for (const auto& p: pcfg->dependents)
         {
+          // @@ DPT (commented out the below code)
+          //
           // @@ TMP Re-evaluated existing dependents should not be
           //    distingushed from others here (they will also have
           //    postponed_dependency_alternatives present, etc).
           //
-          if (p.second.existing)
-            continue;
+          //if (p.second.existing)
+          //  continue;
 
           build_package* b (this->entered_build (p.first));
-          assert (b != nullptr && b->postponed_dependency_alternatives);
+          assert (b != nullptr);
 
           build_package_refs dep_chain;
 
@@ -4543,7 +4600,7 @@ namespace bpkg
             dep_chain,
             &postponed_repo,
             &postponed_alts,
-            b->postponed_dependency_alternatives->size (),
+            numeric_limits<size_t>::max (),
             postponed_deps);
         }
 
