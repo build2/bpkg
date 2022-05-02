@@ -1009,10 +1009,11 @@ namespace bpkg
   };
 
   // Map of packages which need to be re-collected with the different version
-  // and/or system flag.
+  // and/or system flag or dropped.
   //
   // Note that the initial package version may be adjusted to satisfy
-  // constraints of dependents discovered during the packages collection.
+  // constraints of dependents discovered during the packages collection. It
+  // may also be dropped if this is a dependency which turns out to be unused.
   // However, it may not always be possible to perform such an adjustment
   // in-place since the intermediate package version could already apply some
   // constraints and/or configuration to its own dependencies. Thus, we may
@@ -1022,13 +1023,20 @@ namespace bpkg
   // Also note that during re-collection such a desired version may turn out
   // to not be a final version and the adjustment/re-collection can repeat.
   //
+  // And yet, it doesn't seem plausible to ever create a replacement for the
+  // drop: replacing one drop with another is meaningless (all drops are the
+  // same) and replacing the package drop with a package version build can
+  // always been handled in-place.
+  //
   struct replaced_version
   {
     // Desired package version, repository fragment, and system flag.
     //
+    // Both are NULL for the replacement with the drop.
+    //
     shared_ptr<available_package> available;
     lazy_shared_ptr<bpkg::repository_fragment> repository_fragment;
-    bool system;
+    bool system; // Meaningless for the drop.
 
     // True if the entry has been inserted or used for the replacement during
     // the current (re-)collection iteration. Used to keep track of "bogus"
@@ -1036,6 +1044,8 @@ namespace bpkg
     //
     bool replaced;
 
+    // Create replacement with the different version.
+    //
     replaced_version (shared_ptr<available_package> a,
                       lazy_shared_ptr<bpkg::repository_fragment> f,
                       bool s)
@@ -1043,6 +1053,10 @@ namespace bpkg
           repository_fragment (move (f)),
           system (s),
           replaced (true) {}
+
+    // Create replacement with the drop.
+    //
+    replaced_version (): system (false), replaced (true) {}
   };
 
   using replaced_versions = map<config_package, replaced_version>;
@@ -1620,9 +1634,11 @@ namespace bpkg
     // version was, in fact, added to the map and NULL if it was already there
     // or the existing version was preferred. So can be used as bool.
     //
-    // Add entry to replaced_vers and throw replace_version if the existing
-    // version needs to be replaced but the new version cannot be re-collected
-    // recursively in-place (see replaced_versions for details).
+    // Consult replaced_vers for an existing version replacement entry and
+    // follow it, if present, potentially collecting the package drop
+    // instead. Add entry to replaced_vers and throw replace_version if the
+    // existing version needs to be replaced but the new version cannot be
+    // re-collected recursively in-place (see replaced_versions for details).
     //
     // Optionally, pass the function which verifies the chosen package
     // version. It is called before replace_version is potentially thrown or
@@ -1699,13 +1715,27 @@ namespace bpkg
                       << pkg.available_name_version_db ();});
 
         replaced_version& v (vi->second);
-        pkg.available = v.available;
-        pkg.repository_fragment = v.repository_fragment;
-        pkg.system = v.system;
 
         v.replaced = true;
 
-        l5 ([&]{trace << "replacement: " << pkg.available_name_version_db ();});
+        if (v.available != nullptr)
+        {
+          pkg.available = v.available;
+          pkg.repository_fragment = v.repository_fragment;
+          pkg.system = v.system;
+
+          l5 ([&]{trace << "replacement: "
+                        << pkg.available_name_version_db ();});
+        }
+        else
+        {
+          l5 ([&]{trace << "replacement: drop";});
+
+          assert (pkg.selected != nullptr);
+
+          collect_drop (options, pkg.db, pkg.selected, replaced_vers);
+          return nullptr;
+        }
       }
 
       auto i (map_.find (cp));
@@ -1713,9 +1743,10 @@ namespace bpkg
       // If we already have an entry for this package name, then we have to
       // pick one over the other.
       //
-      // If the existing entry is a pre-entered or is non-build one, then we
-      // merge it into the new build entry. Otherwise (both are builds), we
-      // pick one and merge the other into it.
+      // If the existing entry is a drop, then we override it. If the existing
+      // entry is a pre-entered or is non-build one, then we merge it into the
+      // new build entry. Otherwise (both are builds), we pick one and merge
+      // the other into it.
       //
       if (i != map_.end ())
       {
@@ -1724,14 +1755,23 @@ namespace bpkg
         // Can't think of the scenario when this happens. We would start
         // collecting from scratch (see below).
         //
-        assert (!bp.action || *bp.action != build_package::drop);
 
-        if (!bp.action || *bp.action != build_package::build) // Non-build.
+        // Note that we used to think that the scenario when the build could
+        // replace drop could never happen since we would start collecting
+        // from scratch. This has changed when we introduced replaced_versions
+        // for collecting drops.
+        //
+        //
+        if (bp.action && *bp.action == build_package::drop)        // Drop.
+        {
+          bp = move (pkg);
+        }
+        else if (!bp.action || *bp.action != build_package::build) // Non-build.
         {
           pkg.merge (move (bp));
           bp = move (pkg);
         }
-        else                                                  // Build.
+        else                                                       // Build.
         {
           // At the end we want p1 to point to the object that we keep
           // and p2 to the object that we merge from.
@@ -1846,23 +1886,16 @@ namespace bpkg
               // constraint and removing it from the dependency build_package.
               // Maybe/later.
               //
+              // NOTE: remember to update collect_drop() if changing anything
+              // here.
+              //
               bool scratch (true);
 
               // While checking if the package has any dependencies skip the
               // toolchain build-time dependencies since they should be quite
               // common.
               //
-              bool has_deps (false);
-              for (const auto& das: p2->available->dependencies)
-              {
-                if (!toolchain_buildtime_dependency (options, das, cp.name))
-                {
-                  has_deps = true;
-                  break;
-                }
-              }
-
-              if (!has_deps)
+              if (!has_dependencies (options, p2->available->dependencies))
                 scratch = false;
 
               l5 ([&]{trace << p2->available_name_version_db ()
@@ -2257,7 +2290,7 @@ namespace bpkg
         //
         dependency_alternatives_ex sdas (das.buildtime, das.comment);
 
-        if (toolchain_buildtime_dependency (options, das, nm))
+        if (toolchain_buildtime_dependency (options, das, &nm))
         {
           sdeps.push_back (move (sdas));
           continue;
@@ -3996,10 +4029,45 @@ namespace bpkg
 
     // Collect the package being dropped.
     //
+    // Add entry to replaced_vers and throw replace_version if the existing
+    // version needs to be dropped but this can't be done in-place (see
+    // replaced_versions for details).
+    //
     void
-    collect_drop (database& db, shared_ptr<selected_package> sp)
+    collect_drop (const pkg_build_options& options,
+                  database& db,
+                  shared_ptr<selected_package> sp,
+                  replaced_versions& replaced_vers)
     {
       const package_name& nm (sp->name);
+
+      // If there is an entry for building specific version of the package
+      // (the available member is not NULL), then it wasn't created to prevent
+      // out drop (see replaced_versions for details). This rather mean that
+      // the replacement version is not being built anymore due to the plan
+      // refinement. Thus, just erase the entry in this case and continue.
+      //
+      auto vi (replaced_vers.find (cp));
+      if (vi != replaced_vers.end () && !vi->second.replaced)
+      {
+        replaced_version& v (vi->second);
+        const shared_ptr<available_package>& ap (v.available);
+
+        if (ap != nullptr)
+        {
+          if (verb >= 5)
+          {
+            bool s (v.system);
+            const version& av (s ? *ap->system_version (db) : ap->version);
+
+            l5 ([&]{trace << "drop version replacement for "
+                          << package_string (ap->id.name, av, s) << db;});
+          }
+
+          replaced_vers.erase (vi);
+          vi = replaced_vers.end (); // Keep it valid for the below check.
+        }
+      }
 
       build_package p {
         build_package::drop,
@@ -4030,6 +4098,36 @@ namespace bpkg
       if (i != map_.end ())
       {
         build_package& bp (i->second.package);
+
+        if (bp.available != nullptr)
+        {
+          // Similar to the version replacement in collect_build(), see if
+          // in-place drop is possible (no dependencies, etc) and set scratch
+          // to false if that's the case.
+          //
+          bool scratch (true);
+
+          // While checking if the package has any dependencies skip the
+          // toolchain build-time dependencies since they should be quite
+          // common.
+          //
+          if (!has_dependencies (options, bp.available->dependencies))
+            scratch = false;
+
+          l5 ([&]{trace << bp.available_name_version_db ()
+                        << " package version needs to be replaced "
+                        << (!scratch ? "in-place " : "") << "with drop";});
+
+          if (scratch)
+          {
+            if (vi != replaced_vers.end ())
+              vi->second = replaced_version ();
+            else
+              replaced_vers.emplace (move (cp), replaced_version ());
+
+            throw replace_version ();
+          }
+        }
 
         // Overwrite the existing (possibly pre-entered, adjustment, or
         // repoint) entry.
@@ -8480,7 +8578,10 @@ namespace bpkg
 
             if (d.available == nullptr)
             {
-              pkgs.collect_drop (ddb, ddb.load<selected_package> (d.name));
+              pkgs.collect_drop (o,
+                                 ddb,
+                                 ddb.load<selected_package> (d.name),
+                                 replaced_vers);
             }
             else
             {
