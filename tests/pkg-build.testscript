@@ -10680,24 +10680,76 @@ else
 
       $rep_add -d t2 $rep/t7a && $rep_fetch -d t2;
 
-      $* ?foo libbaz +{ --config-name t2 } <<EOI 2>>~%EOE%;
+      $* ?foo libbaz +{ --config-name t2 } --verbose 5 <<EOI 2>>~%EOE%;
         y
         EOI
+        %.*
+        trace: pkg_build: refine package collection/plan execution from scratch
+        %.*
+        trace: collect_build: add libbaz/1.0.0 [t2/]
+        trace: collect_build_prerequisites: begin libbaz/1.0.0 [t2/]
+        trace: collect_build_prerequisites: end libbaz/1.0.0 [t2/]
+        %.*
+        trace: collect_build_prerequisites: begin foo/1.0.0
+        %.*
+        trace: collect_build_prerequisites: recursively collect dependency libbaz/1.0.0 [t2/] of dependent foo/1.0.0
+        trace: collect_build_prerequisites: end foo/1.0.0
+        %.*
+        trace: execute_plan: simulate: yes
+        %.*
+        trace: evaluate_dependency: libbaz/1.0.0: unused
+        %.*
+        trace: evaluate_dependency: foo/1.0.0: unused
+        %.*
+        trace: pkg_build: refine package collection/plan execution
+        %.*
+        trace: collect_drop: foo/1.0.0 package version needs to be replaced with drop
+        trace: pkg_build: collection failed due to package version replacement, retry from scratch
+        %.*
+        trace: pkg_build: refine package collection/plan execution from scratch
+        %.*
+        trace: collect_build: add libbaz/1.0.0 [t2/]
+        trace: collect_build_prerequisites: begin libbaz/1.0.0 [t2/]
+        trace: collect_build_prerequisites: end libbaz/1.0.0 [t2/]
+        trace: collect_build: apply version replacement for foo/1.0.0
+        trace: collect_build: replacement: drop
+        %.*
+        trace: execute_plan: simulate: yes
+        %.*
+        trace: evaluate_dependency: libbuild2-bar/1.0.0 [t1/.bpkg/build2/]: unused
+        %.*
+        trace: pkg_build: refine package collection/plan execution
+        %.*
+        trace: execute_plan: simulate: yes
+        %.*
         %  new libbaz/1.0.0 \[t2.\]%
         %  drop libbuild2-bar/1.0.0 \[t1..bpkg.build2.\] \(unused\)%
           drop libbaz/1.0.0 (unused)
           drop foo/1.0.0 (unused)
-        continue? [Y/n] disfigured foo/1.0.0
+        continue? [Y/n] trace: execute_plan: simulate: no
+        %.*
+        disfigured foo/1.0.0
+        %.*
         disfigured libbaz/1.0.0
+        %.*
         %disfigured libbuild2-bar/1.0.0 \[t1..bpkg.build2.\]%
+        %.*
         %fetched libbaz/1.0.0 \[t2.\]%
+        %.*
         %unpacked libbaz/1.0.0 \[t2.\]%
+        %.*
         %purged libbuild2-bar/1.0.0 \[t1..bpkg.build2.\]%
+        %.*
         purged libbaz/1.0.0
+        %.*
         purged foo/1.0.0
+        %.*
         %configured libbaz/1.0.0 \[t2.\]%
-        %info: t2.+libbaz-1.0.0.+ is up to date%
+        %.*
+        %info: .+t2.+libbaz-1.0.0.+ is up to date%
+        %.*
         %updated libbaz/1.0.0 \[t2.\]%
+        %.*
         EOE
 
       $pkg_status -d t1 --link -r >>/EOO

@@ -64,7 +64,7 @@ namespace bpkg
       //
       const dependency_alternatives_ex& das (deps[di]);
 
-      if (das.empty () || toolchain_buildtime_dependency (o, das, ps.name ()))
+      if (das.empty () || toolchain_buildtime_dependency (o, das, &ps.name ()))
         continue;
 
       small_vector<reference_wrapper<const dependency_alternative>, 2> edas;
