@@ -580,17 +580,27 @@ namespace bpkg
                          make_move_iterator (das.end ()));
   }
 
-  // If this is a toolchain build-time dependency, then verify its constraint
-  // returning true if it is satisfied and failing otherwise. Return false for
-  // a regular dependency. Note that the package argument is used for
-  // diagnostics only.
+  // Return true if this is a toolchain build-time dependency. If the package
+  // argument is specified and this is a toolchain build-time dependency then
+  // also verify its constraint and fail if it is unsatisfied. Note that the
+  // package argument is used for diagnostics only.
   //
   class common_options;
 
   bool
   toolchain_buildtime_dependency (const common_options&,
                                   const dependency_alternatives_ex&,
-                                  const package_name&);
+                                  const package_name*);
+
+  // Return true if any dependency other than toolchain build-time
+  // dependencies is specified. Optionally, verify toolchain build-time
+  // dependencies specifying the package argument which will be used for
+  // diagnostics only.
+  //
+  bool
+  has_dependencies (const common_options&,
+                    const dependencies&,
+                    const package_name* = nullptr);
 
   // Return true if some clause that is a buildfile fragment is specified for
   // any of the dependencies.
