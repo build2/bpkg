@@ -3653,6 +3653,9 @@ namespace bpkg
                     //
                     dep_chain.clear ();
 
+                    // @@ Only throw this if dependency is collected but no
+                    // cluster (from-scratch).
+                    //
                     throw postpone_dependency (move (dcp));
                   }
                   else
@@ -4730,6 +4733,7 @@ namespace bpkg
 
           postponed_configuration c (cfg);
 
+          for (;;) // Either return or retry the same cluster.
           try
           {
             collect_build_postponed (o,
@@ -4756,8 +4760,14 @@ namespace bpkg
 
             return;
           }
-          catch (const postpone_dependency& e)
+          // @@ Note: we still need to keep postpone_dependency for the
+          //    from-scratch case.
+          //
+          catch (const postpone_dependency& e) // @@ retry_configuration
           {
+            // @@ TODO: use depth of the outermost merged cluster (that
+            //    is being/has been negotiated).
+            //
             // If this is not "our problem", then keep looking.
             //
             if (!c.contains_dependency (e.package))
@@ -4774,7 +4784,17 @@ namespace bpkg
                        postponed_deps,
                        postponed_cfgs);
 
-            continue; // Try next.
+            // @@ TODO: we need to somehow record the dependent/dependencies
+            //    that triggered this (included in the exception, presumably)
+            //    so that we don't repeat this up-negotiate/throw/catch dance.
+            //    Note clear if we should just add it to the cluster (we could
+            //    do it with proper depends position, etc) or somewhere on the
+            //    side. We will also need to have a corresponding check in the
+            //    throw side when we re-visit.
+            //
+            //    But there is also a possibility of having a bogus
+            //    dependent/dependencies (i.e., we add them to the cluster
+            //    but they never get re-visited).
           }
         }
 
