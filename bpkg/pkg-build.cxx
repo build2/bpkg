@@ -632,8 +632,12 @@ namespace bpkg
     // Note: it shouldn't be very common for a dependency to contain more than
     // two true alternatives.
     //
-    optional<small_vector<reference_wrapper<const dependency_alternative>, 2>>
-    postponed_dependency_alternatives;
+    using dependency_alternatives_refs =
+      small_vector<pair<reference_wrapper<const dependency_alternative>,
+                        size_t>,
+                   2>;
+
+    optional<dependency_alternatives_refs> postponed_dependency_alternatives;
 
     // True if the recursive collection of the package has been started or
     // performed.
@@ -1195,16 +1199,29 @@ namespace bpkg
     class dependency: public packages
     {
     public:
-      size_t position;
+      pair<size_t, size_t> position;
 
-      dependency (size_t p, packages deps)
-          : packages (move (deps)), position (p) {}
+      dependency (const pair<size_t, size_t>& pos, packages deps)
+          : packages (move (deps)), position (pos) {}
     };
 
-    struct dependent_info
+    class dependent_info
     {
+    public:
       bool existing;
-      vector<dependency> dependencies;
+      small_vector<dependency, 1> dependencies;
+
+      const dependency*
+      find_dependency (const pair<size_t, size_t>& pos) const
+      {
+        auto i (find_if (dependencies.begin (),
+                         dependencies.end (),
+                         [&pos] (const dependency& d)
+                         {
+                           return d.position == pos;
+                         }));
+        return i != dependencies.end () ? &*i : nullptr;
+      }
     };
 
     using dependents_map   = map<config_package, dependent_info>;
@@ -1216,6 +1233,12 @@ namespace bpkg
     dependents_map   dependents;
     dependencies_set dependencies;
 
+    using positions = small_vector<pair<size_t, size_t>, 1>;
+    using shadow_dependents_map = map<config_package, positions>;
+
+    shadow_dependents_map shadow_dependents;
+    shadow_dependents_map shadow_cluster;
+
     // Absent -- not negotiated yet, false -- being negotiated, true -- has
     // been negotiated.
     //
@@ -1226,20 +1249,18 @@ namespace bpkg
     //
     size_t depth = 0;
 
-    dependents_map shadow_dependents;
-
     // Add dependencies of a new dependent.
     //
     postponed_configuration (config_package&& dependent,
                              bool existing,
-                             size_t position,
+                             const pair<size_t, size_t>& position,
                              packages&& deps)
     {
-      assert (position != 0);
+      assert (position.first != 0 && position.second != 0);
 
       dependencies.insert (deps.begin (), deps.end ());
 
-      vector<dependency> ds ({dependency (position, move (deps))});
+      small_vector<dependency, 1> ds ({dependency (position, move (deps))});
 
       dependents.emplace (move (dependent),
                           dependent_info {existing, move (ds)});
@@ -1291,9 +1312,13 @@ namespace bpkg
       return false;
     }
 
+    // Note: doesn't change the negotiate member of this configuration.
+    //
     void
     merge (postponed_configuration&& c)
     {
+      // Merge dependents.
+      //
       for (auto& d: c.dependents)
       {
         auto i (dependents.find (d.first));
@@ -1305,25 +1330,14 @@ namespace bpkg
 
           for (dependency& sd: sdi.dependencies)
           {
-            auto i (find_if (ddi.dependencies.begin (),
-                             ddi.dependencies.end (),
-                             [&sd] (const dependency& dd)
-                             {
-                               return dd.position == sd.position;
-                             }));
+            const dependency* dep (ddi.find_dependency (sd.position));
 
-            if (i != ddi.dependencies.end ())
-            {
-              dependency& dd (*i);
-
-              for (config_package& p: sd)
-              {
-                if (find (dd.begin (), dd.end (), p) == dd.end ())
-                  dd.push_back (move (p));
-              }
-            }
-            else
+            if (dep == nullptr)
               ddi.dependencies.push_back (move (sd));
+            else
+              // If present, must contain the same dependency packages.
+              //
+              assert (static_cast<const packages&> (*dep) == sd);
           }
 
           if (!ddi.existing)
@@ -1333,6 +1347,8 @@ namespace bpkg
           dependents.emplace (d.first, move (d.second));
       }
 
+      // Merge dependencies.
+      //
       // Looks like C++17 set::merge() is what we need. Note, however, that
       // some older standard libraries (for example libc++ 7.0.0) don't
       // support this function. Thus, let's enable its use based on the
@@ -1355,64 +1371,90 @@ namespace bpkg
       else
         depth = c.depth;
 
-      // Merging negotiated configurations results in a non-negotiated one.
-      //
-      // @@ On the shadow dependent perhaps, but probably not on the shadow
-      //    cluster.
-      //
-      negotiated = nullopt;
-
       // Merge shadow dependents.
       //
       // This is only necessary if all the merged non-shadow configurations
       // have already been negotiated (otherwise we throw and replace the
       // shadow with newly merged non-shadow).
       //
-      for (auto& d: shadow_dependents)
+      for (auto& d: c.shadow_dependents)
       {
-        for (dependency& p: d.second.dependencies)
-          add_shadow (d.first, p.position, move (p));
+        auto i (shadow_dependents.find (d.first));
+
+        if (i != shadow_dependents.end ())
+        {
+          const positions& sps (d.second);
+          positions& dps (i->second);
+
+          for (const auto& sp: sps)
+          {
+            if (find (dps.begin (), dps.end (), sp) == dps.end ())
+              dps.push_back (sp);
+          }
+        }
+        else
+          shadow_dependents.emplace (d.first, move (d.second));
       }
     }
 
     void
-    add_shadow (config_package dependent,
-                size_t position,
-                packages deps)
+    add_shadow (config_package dependent, const pair<size_t, size_t> pos)
     {
       auto i (shadow_dependents.find (dependent));
 
       if (i != shadow_dependents.end ())
       {
-        vector<dependency>& dds (i->second.dependencies);
-
-        auto i (find_if (dds.begin (), dds.end (),
-                         [position] (const dependency& d)
-                         {
-                           return d.position == position;
-                         }));
-
-        if (i != dds.end ())
-        {
-          dependency& d (*i);
-
-          for (config_package& p: deps)
-          {
-            if (find (d.begin (), d.end (), p) == d.end ())
-              d.push_back (move (p));
-          }
-        }
-        else
-          dds.push_back (dependency (position, move (deps)));
+        positions& ps (i->second);
+        if (find (ps.begin (), ps.end (), pos) == ps.end ())
+          ps.push_back (pos);
       }
       else
-      {
-        vector<dependency> ds ({dependency (position, move (deps))});
+        shadow_dependents.emplace (move (dependent), positions ({pos}));
+    }
 
-        shadow_dependents.emplace (move (dependent),
-                                         dependent_info {false /* existing */,
-                                                         move (ds)});
+    bool
+    contains_shadow_dependent (config_package dependent,
+                               const pair<size_t, size_t> pos) const
+    {
+      auto i (shadow_dependents.find (dependent));
+
+      if (i != shadow_dependents.end ())
+      {
+        const positions& ps (i->second);
+        return find (ps.begin (), ps.end (), pos) != ps.end ();
       }
+      else
+        return false;
+    }
+
+    void
+    shadow (postponed_configuration&& c)
+    {
+      shadow_cluster.clear ();
+
+      for (auto& dt: c.dependents)
+      {
+        positions ps;
+        for (auto& d: dt.second.dependencies)
+          ps.push_back (d.position);
+
+        shadow_cluster.emplace (dt.first, move (ps));
+      }
+    }
+
+    bool
+    contains_shadow_cluster (config_package dependent,
+                             const pair<size_t, size_t> pos) const
+    {
+      auto i (shadow_cluster.find (dependent));
+
+      if (i != shadow_cluster.end ())
+      {
+        const positions& ps (i->second);
+        return find (ps.begin (), ps.end (), pos) != ps.end ();
+      }
+      else
+        return false;
     }
 
     bool
@@ -1436,8 +1478,11 @@ namespace bpkg
     // '^' character that may follow a dependent indicates that this is an
     // existing dependent.
     //
-    // <position> is the 1-based serial number of the respective depends value
-    // in the dependent's manifest.
+    // <position> = <depends-index>','<alternative-index>
+    //
+    // <depends-index> and <alternative-index> are the 1-based serial numbers
+    // of the respective depends value and the dependency alternative in the
+    // dependent's manifest.
     //
     // See config_package for details on <package>.
     //
@@ -1484,7 +1529,9 @@ namespace bpkg
 
               r += dt.first.string ();
               r += '/';
-              r += to_string (dp.position);
+              r += to_string (dp.position.first);
+              r += ',';
+              r += to_string (dp.position.second);
             }
           }
         }
@@ -1505,10 +1552,14 @@ namespace bpkg
   //
   struct retry_configuration
   {
-    size_t                            depth;
-    config_package                    dependent;
-    size_t                            position;
-    postponed_configuration::packages dependencies;
+    size_t               depth;
+    config_package       dependent;
+    pair<size_t, size_t> position;
+  };
+
+  struct merge_configuration
+  {
+    size_t depth;
   };
 
   // Note that we could be adding new/merging existing entries while
@@ -1529,23 +1580,155 @@ namespace bpkg
     pair<postponed_configuration&, bool>
     add (config_package dependent,
          bool existing,
-         size_t position,
+         const pair<size_t, size_t>& position,
          postponed_configuration::packages dependencies)
     {
       tracer trace ("postponed_configurations::add");
 
       assert (!dependencies.empty ());
 
-      // The plan is to add the specified dependent/dependencies to the first
-      // found dependency-intersecting cluster, if present, and then merge
-      // into it all other intersecting clusters. If no intersection is found,
-      // then add the new cluster.
+      // The plan is to first go through the existing clusters and check if
+      // any of them contain this dependent/dependencies in their shadow
+      // clusters. If such a cluster is found, then force-add them to
+      // it. Otherwise, add the specified dependent/dependencies to the first
+      // found dependency-intersecting cluster, if present, and add the new
+      // cluster otherwise. Afterwards, merge into the resulting cluster other
+      // dependency-intersecting clusters.
       //
+      iterator ri;
+      bool rb;
+
       // Note that if a single dependency is added, then it can only belong to
-      // a single existing cluster and so no clusters merge can happen.  Let's
-      // optimize for the common case based on this fact.
+      // a single existing cluster and so no clusters merge can happen, unless
+      // we are force-adding. In the later case we can only merge once for a
+      // single dependency.
+      //
+      // Let's optimize for the common case based on these facts.
       //
       bool single (dependencies.size () == 1);
+
+      // Merge dependency-intersecting clusters in the specified range into
+      // the resulting cluster. Return true if any clusters have been merged.
+      //
+      // The iterator arguments refer to entries before and after the range
+      // endpoints, respectively.
+      //
+      auto merge = [&trace, &ri, &rb, single, this] (iterator i,
+                                                     iterator e,
+                                                     bool shadow_based)
+      {
+        postponed_configuration& c1 (*ri);
+
+        bool r (false);
+        iterator j (i);
+
+        // Merge the intersecting configurations.
+        //
+        for (++i; i != e; ++i)
+        {
+          postponed_configuration& c2 (*i);
+
+          if (c2.contains_dependency (c1))
+          {
+            if (!c2.negotiated || !*c2.negotiated)
+              rb = false;
+
+            // Merge into the outermost-depth negotiated configuration of
+            // the two, unless we are force-merging into the shadow-matching
+            // cluster.
+            //
+            if (!shadow_based &&
+                c2.depth != 0 &&
+                (c1.depth == 0 || c1.depth > c2.depth))
+            {
+              l5 ([&]{trace << "merge " << c1 << " into " << c2;});
+              c2.merge (move (c1));
+
+              // Mark configuration as the one being moved from for
+              // subsequent erasing from the list.
+              //
+              c1.dependencies.clear ();
+
+              ri = i;
+            }
+            else
+            {
+              l5 ([&]{trace << "merge " << c2 << " into " << c1;});
+
+              assert (!shadow_based || (c2.negotiated && *c2.negotiated));
+
+              c1.merge (move (c2));
+              c2.dependencies.clear (); // Mark as moved from (see above).
+            }
+
+            r = true;
+
+            if (single)
+              break;
+          }
+        }
+
+        // Erase configurations which we have merged from.
+        //
+        if (r)
+        {
+          i = j;
+
+          for (++i; i != end (); )
+          {
+            if (!i->dependencies.empty ())
+            {
+              ++i;
+              ++j;
+            }
+            else
+              i = erase_after (j);
+          }
+        }
+
+        return r;
+      };
+
+      // Try to add based on the shadow cluster.
+      //
+      {
+        auto i (begin ());
+        auto j (before_begin ()); // Precedes iterator i.
+
+        for (; i != end (); ++i, ++j)
+        {
+          postponed_configuration& c (*i);
+
+          if (c.contains_shadow_cluster (dependent, position))
+          {
+            postponed_configuration tc (move (dependent),
+                                        existing,
+                                        position,
+                                        move (dependencies));
+
+            l5 ([&]{trace << "add " << tc << " to " << c << " (shadow)";});
+
+            c.merge (move (tc));
+            break;
+          }
+        }
+
+        if (i != end ())
+        {
+          ri = i;
+
+          // @@ This can end up cycling with continuous throwing
+          //    merge_configuration.
+          //
+          rb = (i->negotiated && *i->negotiated);
+          //rb = true;
+
+          if (!merge (before_begin (), i, true /* shadow_based */) || !single)
+            merge (i, end (), true /* shadow_based */);
+
+          return make_pair (ref (*ri), rb);
+        }
+      }
 
       auto i (begin ());
       auto j (before_begin ()); // Precedes iterator i.
@@ -1568,19 +1751,16 @@ namespace bpkg
         }
       }
 
-      iterator ri;
-      bool rb;
-
       if (i == end ())
       {
         // Insert after the last element.
         //
         ri = insert_after (j,
-                          postponed_configuration (
-                            move (dependent),
-                            existing,
-                            position,
-                            move (dependencies)));
+                           postponed_configuration (
+                             move (dependent),
+                             existing,
+                             position,
+                             move (dependencies)));
 
         rb = false;
 
@@ -1592,59 +1772,7 @@ namespace bpkg
         rb = (i->negotiated && *i->negotiated);
 
         if (!single)
-        {
-          // Merge the intersecting configurations.
-          //
-          for (++i; i != end (); ++i)
-          {
-            postponed_configuration& c1 (*ri);
-            postponed_configuration& c2 (*i);
-
-            if (c1.contains_dependency (c2))
-            {
-              if (!c2.negotiated || !*c2.negotiated)
-                rb = false;
-
-              // Merge into the outermost-depth negotiated configuration of
-              // the two.
-              //
-              if (c2.depth != 0 && (c1.depth == 0 || c1.depth > c2.depth))
-              {
-                l5 ([&]{trace << "merge " << c1 << " into " << c2;});
-                c2.merge (move (c1));
-
-                // Mark configuration as the one being moved from for
-                // subsequent erasing from the list.
-                //
-                c1.dependencies.clear ();
-
-                ri = i;
-              }
-              else
-              {
-                l5 ([&]{trace << "merge " << c2 << " into " << c1;});
-
-                c1.merge (move (c2));
-                c2.dependencies.clear (); // Mark as moved from (see above).
-              }
-            }
-          }
-
-          // Erase configurations which are merged from.
-          //
-          i = j;
-
-          for (++i; i != end (); )
-          {
-            if (!i->dependencies.empty ())
-            {
-              ++i;
-              ++j;
-            }
-            else
-              i = erase_after (j);
-          }
-        }
+          merge (i, end (), false /* shadow_based */);
       }
 
       return make_pair (ref (*ri), rb);
@@ -2580,7 +2708,7 @@ namespace bpkg
         // Add an empty alternatives list into the selected dependency list if
         // there are none.
         //
-        small_vector<reference_wrapper<const dependency_alternative>, 2> edas;
+        build_package::dependency_alternatives_refs edas;
 
         if (pkg.postponed_dependency_alternatives)
         {
@@ -2589,10 +2717,12 @@ namespace bpkg
         }
         else
         {
-          for (const dependency_alternative& da: das)
+          for (size_t i (0); i != das.size (); ++i)
           {
+            const dependency_alternative& da (das[i]);
+
             if (!da.enable || skel.evaluate_enable (*da.enable, di))
-              edas.push_back (da);
+              edas.push_back (make_pair (ref (da), i));
           }
         }
 
@@ -3382,8 +3512,14 @@ namespace bpkg
                         &di,
                         &trace,
                         this]
-                       (const dependency_alternative& da, prebuilds&& bs)
+                       (const dependency_alternative& da,
+                        size_t dai,
+                        prebuilds&& bs)
         {
+          // Dependency alternative position.
+          //
+          pair<size_t, size_t> dp (di + 1, dai + 1);
+
           postponed_configuration::packages cfg_deps;
 
           for (prebuild& b: bs)
@@ -3644,7 +3780,7 @@ namespace bpkg
                                            postponed_cfgs);
           }
 
-          // If this dependent has any dependencies with configruations
+          // If this dependent has any dependencies with configurations
           // clauses, then we need to deal with that.
           //
           if (!cfg_deps.empty ())
@@ -3672,10 +3808,7 @@ namespace bpkg
             // constructing exception.
             //
             pair<postponed_configuration&, bool> r (
-              postponed_cfgs.add (cp,
-                                  false /* existing */,
-                                  di + 1,
-                                  cfg_deps));
+              postponed_cfgs.add (cp, false /* existing */, dp, cfg_deps));
 
             // Up-negotiate this dependent and re-negotiate (refine) postponed
             // if any (being) negotiated configurations were involved into the
@@ -3687,7 +3820,7 @@ namespace bpkg
               return false; // Cases (1) or (2).
             else
             {
-              // Cases (3).
+              // Case (3).
               //
               // If this is the first time we are here (see below), then we
               // up-negotiate the configuration and throw retry_configuration
@@ -3701,14 +3834,11 @@ namespace bpkg
               // cluster contains the shadow dependents map (see the catch
               // site for details).
               //
-              // @@ Feels like we need dependency alternative position rather
-              //    that cfg_deps to track this.
-              //
-              if (!cfg.contains_shadow (cp, di + 1, cfg_deps))
+              if (!cfg.contains_shadow_dependent (cp, dp))
               {
                 // The "first time" case.
                 //
-                l5 ([&]{trace << "adding cfg-postponing dependent "
+                l5 ([&]{trace << "cfg-postponing dependent "
                               << pkg.available_name_version_db ()
                               << " involves negotiated configurations and "
                               << "results in " << cfg
@@ -3716,8 +3846,11 @@ namespace bpkg
 
                 // up_negotiate (...);
 
-                throw retry_configuration {
-                  cfg.depth, move (cp), di + 1, move (cfg_deps)};
+                // Don't print the "while satisfying..." chain.
+                //
+                dep_chain.clear ();
+
+                throw retry_configuration {cfg.depth, move (cp), dp};
               }
               else
               {
@@ -3734,8 +3867,54 @@ namespace bpkg
                 // being in the middle of negotiation, then we need to get
                 // this cluster into the fully negotiated state.
                 //
+                l5 ([&]{trace << "dependent "
+                              << pkg.available_name_version_db ()
+                              << " is a shadow dependent for " << cfg;});
+
                 if (r.second)
-                  return true; // The everything already negotiated case.
+                {
+                  // The everything already negotiated case.
+                  //
+                  l5 ([&]{trace << "configuration for cfg-postponed "
+                                << "dependencies of dependent "
+                                << pkg.available_name_version_db ()
+                                << " is negotiated";});
+
+                  // Note that we still need to recursively collect the not
+                  // yet collected dependencies before indicating to the
+                  // caller (returning true) that we are done with this
+                  // depends value and the dependent is not postponed.
+                  //
+                  for (const config_package& p: cfg_deps)
+                  {
+                    build_package* b (entered_build (p));
+                    assert (b != nullptr); // @@ TMP
+
+                    if (!b->recursive_collection)
+                    {
+                      l5 ([&]{trace << "collecting cfg-postponed dependency "
+                                    << b->available_name_version_db ()
+                                    << " of dependent "
+                                    << pkg.available_name_version_db ();});
+
+                      collect_build_prerequisites (options,
+                                                   *b,
+                                                   fdb,
+                                                   rpt_depts,
+                                                   apc,
+                                                   initial_collection,
+                                                   replaced_vers,
+                                                   dep_chain,
+                                                   postponed_repo,
+                                                   postponed_alts,
+                                                   0 /* max_alt_index */,
+                                                   postponed_deps,
+                                                   postponed_cfgs);
+                    }
+                  }
+
+                  return true;
+                }
                 else
                 {
                   // The partially negotiated case.
@@ -3754,13 +3933,13 @@ namespace bpkg
                   //
                   // So the approach we will use is the "shadow" idea but for
                   // merging clusters rather than up-negotiating a
-                  // configuration. Specifically, we throw retry_configuration
+                  // configuration. Specifically, we throw merge_configuration
                   // to the outer try/catch. At the catch site we make the
                   // newly merged cluster a shadow of the restored cluster and
                   // retry the same steps similar to retry_configuration. As
                   // we redo these steps, we consult the shadow cluster and if
                   // the dependent/dependency entry is there, then instead of
-                  // adding it to another (new/exsiting) cluster that would
+                  // adding it to another (new/existing) cluster that would
                   // later be merged into this non-shadow cluster, we add it
                   // directly to the non-shadow cluster (potentially merging
                   // other cluster which it feels like by definition should
@@ -3770,10 +3949,17 @@ namespace bpkg
                   //
                   // The shadow check is part of postponed_configs::add().
                   //
-                  // @@ Add assert() that shadow-based merge always results in
-                  //    fully negotiated cluster.
+                  l5 ([&]{trace << "cfg-postponing dependent "
+                                << pkg.available_name_version_db ()
+                                << " involves non-negotiated configurations "
+                                << "and results in " << cfg << ", throwing "
+                                << "merge_configuration";});
+
+                  // Don't print the "while satisfying..." chain.
                   //
-                  throw retry_configuration {cfg.depth};
+                  dep_chain.clear ();
+
+                  throw merge_configuration {cfg.depth};
                 }
               }
             }
@@ -3853,7 +4039,7 @@ namespace bpkg
 
           for (size_t i (0); i != edas.size (); ++i)
           {
-            const dependency_alternative& da (edas[i]);
+            const dependency_alternative& da (edas[i].first);
 
             precollect_result r (precollect (da, das.buildtime, prereqs));
 
@@ -3908,7 +4094,9 @@ namespace bpkg
                                &postpone, &collect, &select]
                                (size_t index, precollect_result&& r)
             {
-              const dependency_alternative& da (edas[index]);
+              const auto& eda (edas[index]);
+              const dependency_alternative& da (eda.first);
+              size_t dai (eda.second);
 
               // Postpone the collection if the alternatives maximum index is
               // reached.
@@ -3918,7 +4106,7 @@ namespace bpkg
                 l5 ([&]{trace << "alt-postpone dependent "
                               << pkg.available_name_version_db ()
                               << " since max index is reached: " << index <<
-                          info << "dependency alternative: " << da.string ();});
+                          info << "dependency alternative: " << da;});
 
                 postpone (postponed_alts);
                 return true;
@@ -3934,7 +4122,7 @@ namespace bpkg
                 //
                 assert (postponed_alts != nullptr);
 
-                if (!collect (da, move (*r.builds)))
+                if (!collect (da, dai, move (*r.builds)))
                 {
                   postpone (nullptr); // Already inserted into postponed_cfgs.
                   return true;
@@ -3984,9 +4172,11 @@ namespace bpkg
           {
             assert (first_alt && first_alt->second.builds);
 
-            const dependency_alternative& da (edas[first_alt->first]);
+            const auto& eda (edas[first_alt->first]);
+            const dependency_alternative& da (eda.first);
+            size_t dai (eda.second);
 
-            if (!collect (da, move (*first_alt->second.builds)))
+            if (!collect (da, dai, move (*first_alt->second.builds)))
             {
               postpone (nullptr); // Already inserted into postponed_cfgs.
               break;
@@ -4017,8 +4207,8 @@ namespace bpkg
           if (alts_num == 0)
           {
             diag_record dr;
-            for (const dependency_alternative& da: edas)
-              precollect (da, das.buildtime, nullptr /* prereqs */, &dr);
+            for (const auto& da: edas)
+              precollect (da.first, das.buildtime, nullptr /* prereqs */, &dr);
 
             assert (!dr.empty ());
 
@@ -4041,8 +4231,8 @@ namespace bpkg
                  << pkg.available_name_version_db ()
                  << " due to ambiguous alternatives";
 
-              for (const dependency_alternative& da: edas)
-                dr << info << "alternative: " << da.string ();
+              for (const auto& da: edas)
+                dr << info << "alternative: " << da.first;
             }
 
             postpone (postponed_alts);
@@ -4055,10 +4245,10 @@ namespace bpkg
             info << "explicitly specify dependency packages to manually "
              << "select the alternative";
 
-          for (const dependency_alternative& da: edas)
+          for (const auto& da: edas)
           {
             precollect_result r (
-              precollect (da, das.buildtime, nullptr /* prereqs */));
+              precollect (da.first, das.buildtime, nullptr /* prereqs */));
 
             if (r.builds)
             {
@@ -4483,6 +4673,8 @@ namespace bpkg
 
       if (pcfg != nullptr)
       {
+        using packages = postponed_configuration::packages;
+
         // @@ TODO Negotiate the config.
         //
         //    Notes:
@@ -4498,6 +4690,16 @@ namespace bpkg
         //      clusters.
         //
         assert (!pcfg->negotiated);
+
+        // @@ Before negotiating the cluster we should look if there is a
+        //    shadow cluster which fully contains this cluster. (Question: can
+        //    we end up with multiple shadow clusters? Probably we don't
+        //    expect this, so assert.) If that's the case it actually needs to
+        //    be force-merged into the cluster containing the shadow instead
+        //    of negotiating it here. Should we just merge-force on the
+        //    merge_configuration catch site all those non-negotiated clusters
+        //    which are fully contained in the shadow cluster.
+        //
 
         // Re-evaluate existing dependents with configuration clause of this
         // config dependencies up to these dependencies. Omit dependents which
@@ -4524,7 +4726,7 @@ namespace bpkg
             shared_ptr<selected_package>               selected;
             shared_ptr<available_package>              available;
             lazy_shared_ptr<bpkg::repository_fragment> repository_fragment;
-            postponed_configuration::packages          dependencies;
+            packages                                   dependencies;
           };
 
           map<config_package, dependent_info> dependents;
@@ -4599,9 +4801,11 @@ namespace bpkg
 
               // @@ Re-evaluate up-to the cluster's dependencies.
 
+              // @@ TMP
+              //
               postponed_cfgs.add (move (cp),
                                   true /* existing */,
-                                  1,
+                                  make_pair (1, 1),
                                   move (ds));
             }
           }
@@ -4622,6 +4826,20 @@ namespace bpkg
         //
         pcfg->negotiated = false;
 
+        // Note that we can be adding new packages to the being negotiated
+        // cluster by calling collect_build_prerequisites() for its
+        // dependencies and dependents. Thus, we need to stash the current
+        // list of dependencies and dependents and iterate over them.
+        //
+        packages dependencies (pcfg->dependencies.begin (),
+                               pcfg->dependencies.end ());
+
+        packages dependents;
+        dependents.reserve (pcfg->dependents.size ());
+
+        for (const auto& p: pcfg->dependents)
+          dependents.push_back (p.first);
+
         // Process dependencies recursively with this config.
         //
         // Note that there could be inter-dependecies between these packages,
@@ -4629,51 +4847,50 @@ namespace bpkg
         //
         l5 ([&]{trace << "recursively collect cfg-negotiated dependencies";});
 
-        for (const config_package& p: pcfg->dependencies)
+        for (const config_package& p: dependencies)
         {
-          // Workaround GCC 4.9 'cannot call member function without object'
-          // error.
-          //
-          build_package* b (this->entered_build (p));
+          build_package* b (entered_build (p));
           assert (b != nullptr);
 
-          build_package_refs dep_chain;
+          // Skip the dependencies which are already collected recursively.
+          //
+          if (!b->recursive_collection)
+          {
+            build_package_refs dep_chain;
 
-          this->collect_build_prerequisites (o,
-                                             *b,
-                                             fdb,
-                                             rpt_depts,
-                                             apc,
-                                             false /* initial_collection */,
-                                             replaced_vers,
-                                             dep_chain,
-                                             &postponed_repo,
-                                             &postponed_alts,
-                                             0 /* max_alt_index */,
-                                             postponed_deps,
-                                             postponed_cfgs);
+            collect_build_prerequisites (o,
+                                         *b,
+                                         fdb,
+                                         rpt_depts,
+                                         apc,
+                                         false /* initial_collection */,
+                                         replaced_vers,
+                                         dep_chain,
+                                         &postponed_repo,
+                                         &postponed_alts,
+                                         0 /* max_alt_index */,
+                                         postponed_deps,
+                                         postponed_cfgs);
+          }
+          else
+            l5 ([&]{trace << "dependency " << b->available_name_version_db ()
+                          << " is already (being) recursively collected, "
+                          << "skipping";});
         }
 
         // Continue processing dependents with this config.
         //
         l5 ([&]{trace << "recursively collect cfg-negotiated dependents";});
 
-        for (const auto& p: pcfg->dependents)
+        for (const auto& p: dependents)
         {
-          // Note that re-evaluated existing dependents should be treated as
-          // other dependents at this point (they also have
-          // postponed_dependency_alternatives present, etc).
-          //
-          //if (p.second.existing)
-          //  continue;
-
-          build_package* b (this->entered_build (p.first));
+          build_package* b (entered_build (p));
           assert (b != nullptr); // @@ TMP
           //assert (b != nullptr && b->postponed_dependency_alternatives);
 
           build_package_refs dep_chain;
 
-          this->collect_build_prerequisites (
+          collect_build_prerequisites (
             o,
             *b,
             fdb,
@@ -4722,19 +4939,19 @@ namespace bpkg
 
           build_package_refs dep_chain;
 
-          this->collect_build_prerequisites (o,
-                                             *p,
-                                             fdb,
-                                             rpt_depts,
-                                             apc,
-                                             false /* initial_collection */,
-                                             replaced_vers,
-                                             dep_chain,
-                                             &prs,
-                                             &pas,
-                                             0 /* max_alt_index */,
-                                             postponed_deps,
-                                             postponed_cfgs);
+          collect_build_prerequisites (o,
+                                       *p,
+                                       fdb,
+                                       rpt_depts,
+                                       apc,
+                                       false /* initial_collection */,
+                                       replaced_vers,
+                                       dep_chain,
+                                       &prs,
+                                       &pas,
+                                       0 /* max_alt_index */,
+                                       postponed_deps,
+                                       postponed_cfgs);
         }
 
         // Save the potential new dependency alternative-related postpones.
@@ -4773,107 +4990,113 @@ namespace bpkg
           size_t pcd (depth + 1);
           pc->depth = pcd;
 
-          // First assume we can negotiate this configuration rolling back if
-          // this doesn't pan out.
-          //
-          snapshot s (*this,
-                      postponed_repo,
-                      postponed_alts,
-                      postponed_deps,
-                      postponed_cfgs);
-
           for (;;) // Either return or retry the same cluster.
-          try
           {
-            collect_build_postponed (o,
-                                     replaced_vers,
-                                     postponed_repo,
-                                     postponed_alts,
-                                     postponed_deps,
-                                     postponed_cfgs,
-                                     fdb,
-                                     rpt_depts,
-                                     apc,
-                                     pc);
-
-            // If collect() returns (instead of throwing), this means it
-            // processed everything that was postponed.
+            // First assume we can negotiate this configuration rolling back
+            // if this doesn't pan out.
             //
-            assert (postponed_repo.empty ()      &&
-                    postponed_cfgs.negotiated () &&
-                    postponed_alts.empty ()      &&
-                    !postponed_deps.has_bogus ());
+            snapshot s (*this,
+                        postponed_repo,
+                        postponed_alts,
+                        postponed_deps,
+                        postponed_cfgs);
 
-            l5 ([&]{trace << "end";});
+            try
+            {
+              collect_build_postponed (o,
+                                       replaced_vers,
+                                       postponed_repo,
+                                       postponed_alts,
+                                       postponed_deps,
+                                       postponed_cfgs,
+                                       fdb,
+                                       rpt_depts,
+                                       apc,
+                                       pc);
 
-            return;
-          }
-          catch (retry_configuration& e)
-          {
-            // If this is not "our problem", then keep looking.
-            //
-            if (e.depth != pcd)
-              throw;
+              // If collect() returns (instead of throwing), this means it
+              // processed everything that was postponed.
+              //
+              assert (postponed_repo.empty ()      &&
+                      postponed_cfgs.negotiated () &&
+                      postponed_alts.empty ()      &&
+                      !postponed_deps.has_bogus ());
 
-            // Restore the state from snapshot.
-            //
-            // Note: postponed_cfgs is re-assigned.
-            //
-            s.restore (*this,
-                       postponed_repo,
-                       postponed_alts,
-                       postponed_deps,
-                       postponed_cfgs);
+              l5 ([&]{trace << "end";});
 
-            pc = &postponed_cfgs[i];
+              return;
+            }
+            catch (retry_configuration& e)
+            {
+              // If this is not "our problem", then keep looking.
+              //
+              if (e.depth != pcd)
+                throw;
 
-            l5 ([&]{trace << "cfg-negotiation of " << *pc << " failed due to "
-                          << "dependent " << e.dependent
-                          << ", re-negotiating";});
+              // Restore the state from snapshot.
+              //
+              // Note: postponed_cfgs is re-assigned.
+              //
+              s.restore (*this,
+                         postponed_repo,
+                         postponed_alts,
+                         postponed_deps,
+                         postponed_cfgs);
 
-            // Record the dependent/dependencies/position that triggered this
-            // so that we don't repeat this up-negotiate/throw/catch dance
-            // when we retry collect_build_postponed().
-            //
-            // Note that there is also a possibility of having a "bogus"
-            // dependent/dependencies (i.e., we add them to the cluster but
-            // they never get re-visited). @@ While seems harmless, maybe we
-            // need to prune the part of the configuration that was added
-            // by them?
-            //
-            pc->add_shadow (move (e.dependent),
-                            e.position,
-                            move (e.dependencies));
-          }
-          catch (merge_configuration& e)
-          {
-            // If this is not "our problem", then keep looking.
-            //
-            if (e.depth != pcd)
-              throw;
+              pc = &postponed_cfgs[i];
 
-            postponed_configuration shadow (move (*pc));
+              l5 ([&]{trace << "cfg-negotiation of " << *pc << " failed due "
+                            << "to dependent " << e.dependent << ", adding "
+                            << "shadow dependent and re-negotiating";});
 
-            // Restore the state from snapshot.
-            //
-            // Note: postponed_cfgs is re-assigned.
-            //
-            s.restore (*this,
-                       postponed_repo,
-                       postponed_alts,
-                       postponed_deps,
-                       postponed_cfgs);
+              // Record the dependent/dependencies/position that triggered this
+              // so that we don't repeat this up-negotiate/throw/catch dance
+              // when we retry collect_build_postponed().
+              //
+              // Note that there is also a possibility of having a "bogus"
+              // dependent/dependencies (i.e., we add them to the cluster but
+              // they never get re-visited). @@ While seems harmless, maybe we
+              // need to prune the part of the configuration that was added
+              // by them?
+              //
+              pc->add_shadow (move (e.dependent), e.position);
+            }
+            catch (merge_configuration& e)
+            {
+              // If this is not "our problem", then keep looking.
+              //
+              if (e.depth != pcd)
+                throw;
 
-            pc = &postponed_cfgs[i];
+              postponed_configuration shadow (move (*pc));
 
-            // @@ TODO
-            /*
-            l5 ([&]{trace << "cfg-negotiation of " << *pc << " failed due to "
-                          << "dependent " << e.dependent
-                          << ", re-negotiating";});
-            */
+              // Restore the state from snapshot.
+              //
+              // Note: postponed_cfgs is re-assigned.
+              //
+              s.restore (*this,
+                         postponed_repo,
+                         postponed_alts,
+                         postponed_deps,
+                         postponed_cfgs);
 
-            pc->shadow = move (shadow); // @@ Try optional<>.
+              pc = &postponed_cfgs[i];
+
+              l5 ([&]{trace << "cfg-negotiation of " << *pc << " failed due "
+                            << "to non-negotiated clusters, force-merging "
+                            << "based on shadow cluster " << shadow;});
+
+              pc->shadow (move (shadow));
+
+              // @@ TODO: Here we also need to go through all the
+              //    non-negotiated clusters (the negotiated member is absent)
+              //    and force-merge into this cluster those of them, which are
+              //    subsets of the shadow cluster. Being a subset means that
+              //    each its dependent is present in the shadow cluster with
+              //    all its dependency positions being a subset of those for
+              //    the respective dependent in the shadow cluster.
+              //
+            }
           }
         }
 
@@ -4949,19 +5172,19 @@ namespace bpkg
               l5 ([&]{trace << "index " << i << " collect alt-postponed "
                             << p->available_name_version_db ();});
 
-              this->collect_build_prerequisites (o,
-                                                 *p,
-                                                 fdb,
-                                                 rpt_depts,
-                                                 apc,
-                                                 false /* initial_collection */,
-                                                 replaced_vers,
-                                                 dep_chain,
-                                                 &prs,
-                                                 &pas,
-                                                 i,
-                                                 postponed_deps,
-                                                 postponed_cfgs);
+              collect_build_prerequisites (o,
+                                           *p,
+                                           fdb,
+                                           rpt_depts,
+                                           apc,
+                                           false /* initial_collection */,
+                                           replaced_vers,
+                                           dep_chain,
+                                           &prs,
+                                           &pas,
+                                           i,
+                                           postponed_deps,
+                                           postponed_cfgs);
 
               prog = (pas.find (p) == pas.end () ||
                       ndep != p->dependencies->size ());
@@ -5016,19 +5239,19 @@ namespace bpkg
       {
         build_package_refs dep_chain;
 
-        this->collect_build_prerequisites (o,
-                                           **postponed_repo.begin (),
-                                           fdb,
-                                           rpt_depts,
-                                           apc,
-                                           false /* initial_collection */,
-                                           replaced_vers,
-                                           dep_chain,
-                                           nullptr,
-                                           nullptr,
-                                           0,
-                                           postponed_deps,
-                                           postponed_cfgs);
+        collect_build_prerequisites (o,
+                                     **postponed_repo.begin (),
+                                     fdb,
+                                     rpt_depts,
+                                     apc,
+                                     false /* initial_collection */,
+                                     replaced_vers,
+                                     dep_chain,
+                                     nullptr,
+                                     nullptr,
+                                     0,
+                                     postponed_deps,
+                                     postponed_cfgs);
 
         assert (false); // Can't be here.
       }
@@ -5037,19 +5260,19 @@ namespace bpkg
       {
         build_package_refs dep_chain;
 
-        this->collect_build_prerequisites (o,
-                                           **postponed_alts.begin (),
-                                           fdb,
-                                           rpt_depts,
-                                           apc,
-                                           false /* initial_collection */,
-                                           replaced_vers,
-                                           dep_chain,
-                                           nullptr,
-                                           nullptr,
-                                           0,
-                                           postponed_deps,
-                                           postponed_cfgs);
+        collect_build_prerequisites (o,
+                                     **postponed_alts.begin (),
+                                     fdb,
+                                     rpt_depts,
+                                     apc,
+                                     false /* initial_collection */,
+                                     replaced_vers,
+                                     dep_chain,
+                                     nullptr,
+                                     nullptr,
+                                     0,
+                                     postponed_deps,
+                                     postponed_cfgs);
 
         assert (false); // Can't be here.
       }
