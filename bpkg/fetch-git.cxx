@@ -639,7 +639,7 @@ namespace bpkg
         ? capabilities::smart
         : capabilities::dumb);
 
-      // If the transport is smart let's see it the server also supports
+      // If the transport is smart let's see if the server also supports
       // unadvertised refs fetch.
       //
       if (r == capabilities::smart && !is.eof ())
@@ -1580,7 +1580,7 @@ namespace bpkg
         dr << "from " << url ();
 
         if (verb >= 2)
-          dr << " in '" << dir.posix_string () << "'"; // Is used by tests.
+          dr << " in '" << dir.string () << "'"; // Used by tests.
       }
 
       // Print information messages prior to the deep fetching.
