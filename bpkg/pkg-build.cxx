@@ -1199,7 +1199,7 @@ namespace bpkg
     class dependency: public packages
     {
     public:
-      pair<size_t, size_t> position;
+      pair<size_t, size_t> position; // depends + alternative
 
       dependency (const pair<size_t, size_t>& pos, packages deps)
           : packages (move (deps)), position (pos) {}
@@ -1236,6 +1236,8 @@ namespace bpkg
     using positions = small_vector<pair<size_t, size_t>, 1>;
     using shadow_dependents_map = map<config_package, positions>;
 
+    // See the collect lambda in collect_build_prerequisites() for details.
+    //
     shadow_dependents_map shadow_dependents;
     shadow_dependents_map shadow_cluster;
 
@@ -1398,7 +1400,7 @@ namespace bpkg
     }
 
     void
-    add_shadow (config_package dependent, const pair<size_t, size_t> pos)
+    add_shadow (config_package dependent, pair<size_t, size_t> pos)
     {
       auto i (shadow_dependents.find (dependent));
 
@@ -1414,7 +1416,7 @@ namespace bpkg
 
     bool
     contains_shadow_dependent (config_package dependent,
-                               const pair<size_t, size_t> pos) const
+                               pair<size_t, size_t> pos) const
     {
       auto i (shadow_dependents.find (dependent));
 
@@ -1428,7 +1430,7 @@ namespace bpkg
     }
 
     void
-    shadow (postponed_configuration&& c)
+    set_shadow_cluster (postponed_configuration&& c)
     {
       shadow_cluster.clear ();
 
@@ -1443,8 +1445,8 @@ namespace bpkg
     }
 
     bool
-    contains_shadow_cluster (config_package dependent,
-                             const pair<size_t, size_t> pos) const
+    contains_in_shadow_cluster (config_package dependent,
+                                pair<size_t, size_t> pos) const
     {
       auto i (shadow_cluster.find (dependent));
 
@@ -1569,18 +1571,20 @@ namespace bpkg
   {
   public:
     // Return the configuration the dependent is added to (after all the
-    // potential configuration merges, etc). Also return the indication if the
-    // all the merge-involved configurations are negotiated (the negotiated
-    // member is true for all of them).
+    // potential configuration merges, etc). Also return in second absent if
+    // the merge happenned due to the shadow cluster logic (in which case the
+    // cluster was/is being negotitated) and true/false indicating whether all
+    // the merge-involved configurations are negotiated (the negotiated member
+    // is true for all of them).
     //
     // If some configurations needs to be merged and this involves the (being)
     // negotiated configurations, then merge into the outermost-depth
     // negotiated configuration (with minimum non-zero depth).
     //
-    pair<postponed_configuration&, bool>
+    pair<postponed_configuration&, optional<bool>>
     add (config_package dependent,
          bool existing,
-         const pair<size_t, size_t>& position,
+         pair<size_t, size_t> position,
          postponed_configuration::packages dependencies)
     {
       tracer trace ("postponed_configurations::add");
@@ -1593,7 +1597,11 @@ namespace bpkg
       // it. Otherwise, add the specified dependent/dependencies to the first
       // found dependency-intersecting cluster, if present, and add the new
       // cluster otherwise. Afterwards, merge into the resulting cluster other
-      // dependency-intersecting clusters.
+      // dependency-intersecting clusters. Note that in case of shadow, this
+      // should normally not happen because such a cluster should have been
+      // either pre-merged or its dependents should be in the cluster. But
+      // it feels like it may still happen if things change, in which case
+      // we will throw again (admittedly a bit fuzzy).
       //
       iterator ri;
       bool rb;
@@ -1693,9 +1701,7 @@ namespace bpkg
       //
       {
         auto i (begin ());
-        auto j (before_begin ()); // Precedes iterator i.
-
-        for (; i != end (); ++i, ++j)
+        for (; i != end (); ++i)
         {
           postponed_configuration& c (*i);
 
@@ -1715,18 +1721,17 @@ namespace bpkg
 
         if (i != end ())
         {
+          // Note that the cluster with a shadow cluster is by definition
+          // either being negotiated or has been negotiated.
+          //
+          assert (i->negotiated);
+
           ri = i;
 
-          // @@ This can end up cycling with continuous throwing
-          //    merge_configuration.
-          //
-          rb = (i->negotiated && *i->negotiated);
-          //rb = true;
+          merge (before_begin (), i, true /* shadow_based */);
+          merge (i, end (), true /* shadow_based */);
 
-          if (!merge (before_begin (), i, true /* shadow_based */) || !single)
-            merge (i, end (), true /* shadow_based */);
-
-          return make_pair (ref (*ri), rb);
+          return make_pair (ref (*ri), optional<bool> ());
         }
       }
 
@@ -1753,7 +1758,7 @@ namespace bpkg
 
       if (i == end ())
       {
-        // Insert after the last element.
+        // New cluster. Insert after the last element.
         //
         ri = insert_after (j,
                            postponed_configuration (
@@ -1771,11 +1776,14 @@ namespace bpkg
         ri = i;
         rb = (i->negotiated && *i->negotiated);
 
+        // We know no cluster we have already examined could end up being
+        // merged.
+        //
         if (!single)
-          merge (i, end (), false /* shadow_based */);
+          merge (i, end (), false /* shadow_based */); // Note: updates rb.
       }
 
-      return make_pair (ref (*ri), rb);
+      return make_pair (ref (*ri), optional<bool> (rb));
     }
 
     // Add new postponed configuration cluster with a single dependency and no
@@ -3807,7 +3815,7 @@ namespace bpkg
             // Note: don't move the argument from since may be needed for
             // constructing exception.
             //
-            pair<postponed_configuration&, bool> r (
+            pair<postponed_configuration&, optional<bool>> r (
               postponed_cfgs.add (cp, false /* existing */, dp, cfg_deps));
 
             // Up-negotiate this dependent and re-negotiate (refine) postponed
@@ -3834,7 +3842,10 @@ namespace bpkg
               // cluster contains the shadow dependents map (see the catch
               // site for details).
               //
-              if (!cfg.contains_shadow_dependent (cp, dp))
+              // Note: skip this test if the dependent was added via the
+              // shadow cluster logic (see below).
+              //
+              if (r.second && !cfg.contains_shadow_dependent (cp, dp))
               {
                 // The "first time" case.
                 //
@@ -3871,9 +3882,10 @@ namespace bpkg
                               << pkg.available_name_version_db ()
                               << " is a shadow dependent for " << cfg;});
 
-                if (r.second)
+                if (!r.second || // Shadow cluster was/is being negotiated.
+                    *r.second)   // Everything already negotiated.
                 {
-                  // The everything already negotiated case.
+                  // The everything already negotiated (sort of) case.
                   //
                   l5 ([&]{trace << "configuration for cfg-postponed "
                                 << "dependencies of dependent "
@@ -4831,6 +4843,10 @@ namespace bpkg
         // dependencies and dependents. Thus, we need to stash the current
         // list of dependencies and dependents and iterate over them.
         //
+        // Note that whomever is adding new packages is expected to process
+        // them (they may also process existing packages, which we are
+        // prepared to ignore).
+        //
         packages dependencies (pcfg->dependencies.begin (),
                                pcfg->dependencies.end ());
 
@@ -4884,11 +4900,19 @@ namespace bpkg
 
         for (const auto& p: dependents)
         {
+          // @@ Can't we use the fact that we are past the last depends value
+          //    to skip?
+
           build_package* b (entered_build (p));
           assert (b != nullptr); // @@ TMP
           //assert (b != nullptr && b->postponed_dependency_alternatives);
 
           build_package_refs dep_chain;
+
+          // @@ Need to evaluate reflects for the current position.
+
+          // @@ Need to continue collecting this dependent from the next
+          //    depends position. Increment something in build package.
 
           collect_build_prerequisites (
             o,
@@ -5095,7 +5119,6 @@ namespace bpkg
               //    each its dependent is present in the shadow cluster with
               //    all its dependency positions being a subset of those for
               //    the respective dependent in the shadow cluster.
-              //
             }
           }
         }
