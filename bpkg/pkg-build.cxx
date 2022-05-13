@@ -1194,6 +1194,12 @@ namespace bpkg
 
   struct postponed_configuration
   {
+    // The id of the cluster plus the ids of all the clusters that have been
+    // merged into it.
+    //
+    size_t id;
+    small_vector<size_t, 1> merged_ids;
+
     using packages = small_vector<config_package, 1>;
 
     class dependency: public packages
@@ -1896,6 +1902,9 @@ namespace bpkg
       for (auto i (begin ()); i != end (); ++i, ++r) ;
       return r;
     }
+
+  private:
+    size_t next_id_ = 1;
   };
 
   static ostream&
@@ -4850,7 +4859,7 @@ namespace bpkg
 
               // @@ Re-evaluate up-to the cluster's dependencies.
 
-              // @@ TMP
+              // @@ TMP: need proper implementation.
               //
               {
                 b->dependencies = dependencies ();
@@ -5005,9 +5014,7 @@ namespace bpkg
             assert (i != pcfg->dependents.end () &&
                     i->second.dependencies.size () == 1);
 
-            const pair<size_t, size_t>& dp (
-              i->second.dependencies[0].position);
-
+            pair<size_t, size_t> dp (i->second.dependencies[0].position);
             assert (dp.first == sdeps.size () + 1);
 
             build_package::dependency_alternatives_refs pdas (
@@ -5249,8 +5256,10 @@ namespace bpkg
 
               pc->set_shadow_cluster (move (shadow));
 
-              // Force-merge into this cluster those non-negotiated clusters
+              // Pre-merge into this cluster those non-negotiated clusters
               // which are subsets of the shadow cluster.
+              //
+              // @@ TODO: use cluster ids instead.
               //
               for (postponed_configuration& c: postponed_cfgs)
               {
