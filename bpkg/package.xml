@@ -1,4 +1,11 @@
 <changelog xmlns="http://www.codesynthesis.com/xmlns/odb/changelog" database="sqlite" version="1">
+  <changeset version="19">
+    <alter-table name="main.selected_package_prerequisites">
+      <add-column name="config_dependency_index" type="INTEGER" null="true" default="0"/>
+      <add-column name="config_alternative_index" type="INTEGER" null="true" default="0"/>
+    </alter-table>
+  </changeset>
+
   <changeset version="18">
     <add-table name="main.selected_package_config_variables" kind="container">
       <column name="package" type="TEXT" null="true" options="COLLATE NOCASE"/>

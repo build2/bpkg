@@ -48,6 +48,7 @@ namespace bpkg
                                database& db,
                                transaction&,
                                const dependencies& deps,
+                               const vector<size_t>* alts,
                                package_skeleton&& ps,
                                const vector<package_name>* prev_prereqs,
                                bool simulate,
@@ -57,6 +58,11 @@ namespace bpkg
     strings                 vars;
     vector<config_variable> srcs;
 
+    // Alternatives argument must be parallel to the dependencies argument if
+    // specified.
+    //
+    assert (alts == nullptr || alts->size () == deps.size ());
+
     for (size_t di (0); di != deps.size (); ++di)
     {
       // Skip the toolchain build-time dependencies and dependencies without
@@ -64,19 +70,38 @@ namespace bpkg
       //
       const dependency_alternatives_ex& das (deps[di]);
 
-      if (das.empty () || toolchain_buildtime_dependency (o, das, &ps.name ()))
+      if (das.empty ())
         continue;
 
-      small_vector<reference_wrapper<const dependency_alternative>, 2> edas;
+      small_vector<pair<reference_wrapper<const dependency_alternative>,
+                        size_t>,
+                   2> edas;
 
-      for (const dependency_alternative& da: das)
+      if (alts == nullptr)
       {
-        if (!da.enable || ps.evaluate_enable (*da.enable, di))
-          edas.push_back (da);
+        if (toolchain_buildtime_dependency (o, das, &ps.name ()))
+          continue;
+
+        for (size_t i (0); i != das.size (); ++i)
+        {
+          const dependency_alternative& da (das[i]);
+
+          if (!da.enable || ps.evaluate_enable (*da.enable, di))
+            edas.push_back (make_pair (ref (da), i));
+        }
+
+        if (edas.empty ())
+          continue;
+      }
+      else
+      {
+        // Must only contain the selected alternative.
+        //
+        assert (das.size () == 1);
+
+        edas.push_back (make_pair (ref (das.front ()), (*alts)[di]));
       }
 
-      if (edas.empty ())
-        continue;
 
       // Pick the first alternative with dependencies that can all be resolved
       // to the configured packages, satisfying the respective constraints.
@@ -91,16 +116,19 @@ namespace bpkg
       for (const vector<package_name>* pps (prev_prereqs);;)
       {
         bool satisfied (false);
-        for (const dependency_alternative& da: edas)
+        for (const auto& eda: edas)
         {
+          const dependency_alternative& da (eda.first);
+          size_t dai (eda.second);
+
           // Cache the selected packages which correspond to the alternative
           // dependencies, pairing them with the respective constraints. If
           // the alternative turns out to be fully resolvable, we will add the
           // cached packages into the dependent's prerequisites map.
           //
           small_vector<
-            pair<lazy_shared_ptr<selected_package>,
-                 const optional<version_constraint>&>, 1> prerequisites;
+            pair<lazy_shared_ptr<selected_package>, prerequisite_info>,
+            1> prerequisites;
 
           dependency_alternative::const_iterator b (da.begin ());
           dependency_alternative::const_iterator i (b);
@@ -132,9 +160,13 @@ namespace bpkg
             // See the package_prerequisites definition for details on
             // creating the map keys with the database passed.
             //
+            bool conf (da.prefer || da.require);
+
             prerequisites.emplace_back (
               lazy_shared_ptr<selected_package> (*spd.second, dp),
-              d.constraint);
+              prerequisite_info {d.constraint,
+                                 make_pair (conf ? di  + 1 : 0,
+                                            conf ? dai + 1 : 0)});
           }
 
           // Try the next alternative if there are unresolved dependencies for
@@ -150,9 +182,9 @@ namespace bpkg
           for (auto& pr: prerequisites)
           {
             const package_name& pn (pr.first.object_id ());
-            const optional<version_constraint>& pc (pr.second);
+            const prerequisite_info& pi (pr.second);
 
-            auto p (prereqs.emplace (pr.first, pc));
+            auto p (prereqs.emplace (pr.first, pi));
 
             // Currently we can only capture a single constraint, so if we
             // already have a dependency on this package and one constraint is
@@ -160,18 +192,28 @@ namespace bpkg
             //
             if (!p.second)
             {
-              auto& c (p.first->second);
+              auto& c1 (p.first->second.constraint);
+              auto& c2 (pi.constraint);
 
-              bool s1 (satisfies (c, pc));
-              bool s2 (satisfies (pc, c));
+              bool s1 (satisfies (c1, c2));
+              bool s2 (satisfies (c2, c1));
 
               if (!s1 && !s2)
                 fail << "multiple dependencies on package " << pn <<
-                  info << pn << " " << *c <<
-                  info << pn << " " << *pc;
+                  info << pn << " " << *c1 <<
+                  info << pn << " " << *c2;
 
               if (s2 && !s1)
-                c = pc;
+                c1 = c2;
+
+              // Keep position of the first dependency alternative with a
+              // configuration clause.
+              //
+              pair<size_t, size_t>& p1 (p.first->second.config_position);
+              pair<size_t, size_t>  p2 (pi.config_position);
+
+              if (p1.first == 0 && p2.first != 0)
+                p1 = p2;
             }
 
             // If the prerequisite is configured in the linked configuration,
@@ -287,6 +329,7 @@ namespace bpkg
                  transaction& t,
                  const shared_ptr<selected_package>& p,
                  const dependencies& deps,
+                 const vector<size_t>* alts,
                  package_skeleton&& ps,
                  const vector<package_name>* pps,
                  bool simulate,
@@ -322,6 +365,7 @@ namespace bpkg
                                    db,
                                    t,
                                    deps,
+                                   alts,
                                    move (ps),
                                    pps,
                                    simulate,
@@ -559,6 +603,7 @@ namespace bpkg
                      t,
                      p,
                      ap->dependencies,
+                     nullptr /* alternatives */,
                      package_skeleton (o,
                                        db,
                                        *ap,

@@ -613,6 +613,11 @@ namespace bpkg
     //
     optional<bpkg::dependencies> dependencies;
 
+    // Indexes of the selected dependency alternatives stored in the above
+    // dependencies member.
+    //
+    optional<vector<size_t>> alternatives;
+
     // If we end up collecting the prerequisite builds for this package, then
     // this member stores the skeleton of the package being built.
     //
@@ -2713,9 +2718,10 @@ namespace bpkg
       //
       const dependencies& deps (ap->dependencies);
 
-      // Must both be either present or not.
+      // Must all be either present or not.
       //
-      assert (pkg.dependencies.has_value () == pkg.skeleton.has_value ());
+      assert (pkg.dependencies.has_value () == pkg.skeleton.has_value () &&
+              pkg.dependencies.has_value () == pkg.alternatives.has_value ());
 
       // Note that the selected alternatives list can be filled partially (see
       // build_package::dependencies for details). In this case we continue
@@ -2726,9 +2732,13 @@ namespace bpkg
         l5 ([&]{trace << "begin " << pkg.available_name_version_db ();});
 
         pkg.dependencies = dependencies ();
+        pkg.alternatives = vector<size_t> ();
 
         if (size_t n = deps.size ())
+        {
           pkg.dependencies->reserve (n);
+          pkg.alternatives->reserve (n);
+        }
 
         optional<dir_path> src_root (pkg.external_dir ());
 
@@ -2746,7 +2756,10 @@ namespace bpkg
       else
         l5 ([&]{trace << "resume " << pkg.available_name_version_db ();});
 
-      dependencies& sdeps (*pkg.dependencies);
+      dependencies&   sdeps (*pkg.dependencies);
+      vector<size_t>& salts (*pkg.alternatives);
+
+      assert (sdeps.size () == salts.size ()); // Must be parallel.
 
       // Check if there is nothing to collect anymore.
       //
@@ -2796,6 +2809,7 @@ namespace bpkg
         if (toolchain_buildtime_dependency (options, das, &nm))
         {
           sdeps.push_back (move (sdas));
+          salts.push_back (0);           // Keep parallel to sdeps.
           continue;
         }
 
@@ -2824,6 +2838,7 @@ namespace bpkg
         if (edas.empty ())
         {
           sdeps.push_back (move (sdas));
+          salts.push_back (0);           // Keep parallel to sdeps.
           continue;
         }
 
@@ -3626,6 +3641,7 @@ namespace bpkg
               b.available,
               move (b.repository_fragment),
               nullopt,                    // Dependencies.
+              nullopt,                    // Dependencies alternatives.
               nullopt,                    // Package skeleton.
               nullopt,                    // Postponed dependency alternatives.
               false,                      // Recursive collection.
@@ -4079,8 +4095,8 @@ namespace bpkg
         // present.
         //
         bool selected (false);
-        auto select = [&sdeps, &sdas, &skel, di, &selected]
-                      (const dependency_alternative& da)
+        auto select = [&sdeps, &salts, &sdas, &skel, di, &selected]
+                      (const dependency_alternative& da, size_t dai)
         {
           assert (sdas.empty ());
 
@@ -4094,6 +4110,7 @@ namespace bpkg
                              da /* dependencies */);
 
           sdeps.push_back (move (sdas));
+          salts.push_back (dai);
 
           if (da.reflect)
             skel.evaluate_reflect (*da.reflect, di);
@@ -4234,7 +4251,7 @@ namespace bpkg
                   return true;
                 }
 
-                select (da);
+                select (da, dai);
 
                 // Make sure no more true alternatives are selected during
                 // this function call.
@@ -4288,7 +4305,7 @@ namespace bpkg
               break;
             }
 
-            select (da);
+            select (da, dai);
           }
 
           // If an alternative is selected, then we are done.
@@ -4450,6 +4467,7 @@ namespace bpkg
           move (rp.first),
           move (rp.second),
           nullopt,                    // Dependencies.
+          nullopt,                    // Dependencies alternatives.
           nullopt,                    // Package skeleton.
           nullopt,                    // Postponed dependency alternatives.
           false,                      // Recursive collection.
@@ -4537,6 +4555,7 @@ namespace bpkg
         nullptr,
         nullptr,
         nullopt,    // Dependencies.
+        nullopt,    // Dependencies alternatives.
         nullopt,    // Package skeleton.
         nullopt,    // Postponed dependency alternatives.
         false,      // Recursive collection.
@@ -4627,6 +4646,7 @@ namespace bpkg
           nullptr,
           nullptr,
           nullopt,    // Dependencies.
+          nullopt,    // Dependencies alternatives.
           nullopt,    // Package skeleton.
           nullopt,    // Postponed dependency alternatives.
           false,      // Recursive collection.
@@ -4882,6 +4902,7 @@ namespace bpkg
                 move (di.available),
                 move (di.repository_fragment),
                 nullopt,                    // Dependencies.
+                nullopt,                    // Dependencies alternatives.
                 nullopt,                    // Package skeleton.
                 nullopt,                    // Postponed dependency alternatives.
                 false,                      // Recursive collection.
@@ -4952,6 +4973,7 @@ namespace bpkg
                 b->recursive_collection = true;
 
                 b->dependencies = dependencies ();
+                b->alternatives = vector<size_t> ();
 
                 optional<dir_path> src_root (b->external_dir ());
 
@@ -5083,6 +5105,7 @@ namespace bpkg
           {
             const bpkg::dependencies& deps (b->available->dependencies);
             bpkg::dependencies& sdeps (*b->dependencies);
+            vector<size_t>&     salts (*b->alternatives);
 
             size_t di (sdeps.size ());
 
@@ -5121,6 +5144,7 @@ namespace bpkg
             assert (j != pdas.end ());
 
             const dependency_alternative& da (j->first);
+            size_t dai (j->second);
 
             // Select the dependency alternative and position to the next
             // depends value.
@@ -5136,6 +5160,7 @@ namespace bpkg
                                da /* dependencies */);
 
             sdeps.push_back (move (sdas));
+            salts.push_back (dai);
 
             // Evaluate reflect, if present.
             //
@@ -5771,6 +5796,7 @@ namespace bpkg
                 nullptr,                   // No available pkg/repo fragment.
                 nullptr,
                 nullopt,                   // Dependencies.
+                nullopt,                   // Dependencies alternatives.
                 nullopt,                   // Package skeleton.
                 nullopt,                   // Postponed dependency alternatives.
                 false,                     // Recursive collection.
@@ -8914,6 +8940,7 @@ namespace bpkg
           move (ap),
           move (af),
           nullopt,                    // Dependencies.
+          nullopt,                    // Dependencies alternatives.
           nullopt,                    // Package skeleton.
           nullopt,                    // Postponed dependency alternatives.
           false,                      // Recursive collection.
@@ -9026,6 +9053,7 @@ namespace bpkg
                 move (ap),
                 move (apr.second),
                 nullopt,                    // Dependencies.
+                nullopt,                    // Dependencies alternatives.
                 nullopt,                    // Package skeleton.
                 nullopt,                    // Postponed dependency alternatives.
                 false,                      // Recursive collection.
@@ -9271,9 +9299,8 @@ namespace bpkg
         // Temporarily add the replacement prerequisites to the repointed
         // dependent prerequisites sets and persist the changes.
         //
-        // Note that we don't copy the prerequisite constraints into the
-        // replacements, since they are unused in the collecting/ordering
-        // logic.
+        // Note that we don't copy the prerequisite information into the
+        // replacements, since it is unused in the collecting/ordering logic.
         //
         for (auto& rd: rpt_depts)
         {
@@ -9291,7 +9318,7 @@ namespace bpkg
               auto i (sp->prerequisites.emplace (
                         lazy_shared_ptr<selected_package> (cp.db.get (),
                                                            cp.name),
-                        nullopt));
+                        prerequisite_info {nullopt, make_pair (0, 0)}));
 
               // The selected package should only contain the old
               // prerequisites at this time, so adding a replacement should
@@ -9358,6 +9385,7 @@ namespace bpkg
             nullptr,                    // Available package/repo fragment.
             nullptr,
             nullopt,                    // Dependencies.
+            nullopt,                    // Dependencies alternatives.
             nullopt,                    // Package skeleton.
             nullopt,                    // Postponed dependency alternatives.
             false,                      // Recursive collection.
@@ -9636,6 +9664,7 @@ namespace bpkg
                 d.available,
                 d.repository_fragment,
                 nullopt,                    // Dependencies.
+                nullopt,                    // Dependencies alternatives.
                 nullopt,                    // Package skeleton.
                 nullopt,                    // Postponed dependency alternatives.
                 false,                      // Recursive collection.
@@ -11307,6 +11336,7 @@ namespace bpkg
                          t,
                          sp,
                          *p.dependencies,
+                         &*p.alternatives,
                          move (*p.skeleton),
                          nullptr /* previous_prerequisites */,
                          simulate,
@@ -11328,6 +11358,7 @@ namespace bpkg
                          t,
                          sp,
                          ap->dependencies,
+                         nullptr /* alternatives */,
                          package_skeleton (o,
                                            pdb,
                                            *ap,
@@ -11369,6 +11400,7 @@ namespace bpkg
                        t,
                        sp,
                        dap->dependencies,
+                       nullptr /* alternatives */,
                        package_skeleton (o,
                                          pdb,
                                          *dap,

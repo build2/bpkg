@@ -27,7 +27,7 @@
 //
 #define DB_SCHEMA_VERSION_BASE 7
 
-#pragma db model version(DB_SCHEMA_VERSION_BASE, 18, closed)
+#pragma db model version(DB_SCHEMA_VERSION_BASE, 19, closed)
 
 namespace bpkg
 {
@@ -1032,21 +1032,63 @@ namespace bpkg
   }
 
   // A map of "effective" prerequisites (i.e., pointers to other selected
-  // packages) to optional version constraint. Note that because it is a
-  // single constraint, we don't support multiple dependencies on the same
-  // package (e.g., two ranges of versions). See pkg_configure().
+  // packages) to optional version constraint (plus some other info). Note
+  // that because it is a single constraint, we don't support multiple
+  // dependencies on the same package (e.g., two ranges of versions). See
+  // pkg_configure().
   //
   // Note also that the pointer can refer to a selected package in another
   // database.
   //
   class selected_package;
 
+  #pragma db value
+  struct prerequisite_info
+  {
+    // The "tightest" version constraint among all dependencies resolved to
+    // this prerequisite.
+    //
+    optional<version_constraint> constraint;
+
+    // Position of the first dependency alternative with a configuration
+    // clause, if any.
+    //
+    // Specifically, if there is such an alternative then this is a pair of
+    // 1-based indexes of the respective depends value (first) and the
+    // dependency alternative (second) in the dependent's manifest. Otherwise,
+    // this is a pair of zeros.
+    //
+    // For example, for the following dependent the position for libfoo/1.2.0
+    // prerequisite will be {2,2}:
+    //
+    // libbar: depends: libfoo >= 1.1.0
+    //         depends: libfox | libfoo >= 1.2.0 {require {...}}
+    //
+    pair<size_t, size_t> config_position;
+
+    // Database mapping.
+    //
+    #pragma db member(constraint) column("")
+
+    #pragma db member(config_position) transient
+
+    #pragma db member(config_dependency_index) \
+      virtual(size_t)                          \
+      access(config_position.first)            \
+      default(0)
+
+    #pragma db member(config_alternative_index) \
+      virtual(size_t)                           \
+      access(config_position.second)            \
+      default(0)
+  };
+
   // Note that the keys for this map need to be created with the database
   // passed to their constructor, which is required for persisting them (see
   // _selected_package_ref() implementation for details).
   //
   using package_prerequisites = std::map<lazy_shared_ptr<selected_package>,
-                                         optional<version_constraint>,
+                                         prerequisite_info,
                                          compare_lazy_ptr>;
 
   // Database mapping for lazy_shared_ptr<selected_package> to configuration
@@ -1485,6 +1527,21 @@ namespace bpkg
   {
     #pragma db column("pp.package")
     package_name name;
+
+    #pragma db transient
+    pair<size_t, size_t> config_position;
+
+    #pragma db member(config_dependency_index) \
+      column("pp.config_dependency_index")     \
+      virtual(size_t)                          \
+      access(config_position.first)            \
+      default(0)
+
+    #pragma db member(config_alternative_index) \
+      column("pp.config_alternative_index")     \
+      virtual(size_t)                           \
+      access(config_position.second)            \
+      default(0)
 
     #pragma db column("pp.")
     optional<version_constraint> constraint;
