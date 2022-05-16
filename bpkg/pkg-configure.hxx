@@ -33,9 +33,16 @@ namespace bpkg
 
   // Configure the package, update its state, and commit the transaction.
   //
-  // The package dependency constraints are expected to be complete. Empty
-  // dependency alternatives lists are allowed and are ignored (see pkg-build
-  // for the use-case).
+  // The package dependency constraints are expected to be complete.
+  //
+  // The dependencies argument may contain pre-selected dependency
+  // alternatives (with the potential empty entries for the toolchain
+  // build-time dependencies or for dependencies with all the alternatives
+  // disabled; see pkg-build for the use-case). In this case the number of
+  // dependency alternatives for each dependency must be 1 (or 0) and the
+  // alternatives argument must be specified. The alternatives argument must
+  // be parallel to the dependencies argument and specify indexes of the
+  // selected alternatives.
   //
   // If prerequisites corresponding to the previous configured state of the
   // package are specified, then for each depends value try to select an
@@ -49,6 +56,7 @@ namespace bpkg
                  transaction&,
                  const shared_ptr<selected_package>&,
                  const dependencies&,
+                 const vector<size_t>* alternatives,
                  package_skeleton&&,
                  const vector<package_name>* prerequisites,
                  bool simulate,

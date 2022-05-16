@@ -144,7 +144,7 @@ namespace bpkg
     {
       shared_ptr<selected_package> d (pair.first.load ());
       database& db (pair.first.database ());
-      const optional<version_constraint>& c (pair.second);
+      const optional<version_constraint>& c (pair.second.constraint);
       r.push_back (package {db, rdb, d->name, version (), move (d), c});
     }
     return r;
