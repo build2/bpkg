@@ -1240,6 +1240,7 @@ namespace bpkg
 
     // Note that for a cluster based on an existing dependent, only
     // dependencies will contain elements with dependents being empty.
+    // @@ TODO: probably no longer the case.
     //
     dependents_map   dependents;
     dependencies_set dependencies;
@@ -1300,6 +1301,9 @@ namespace bpkg
 
         const dependency* dep (ddi.find_dependency (position));
 
+        // @@ Feels like that for existing we may accumulate them one by one
+        //    (and below).
+        //
         if (dep == nullptr)
           ddi.dependencies.push_back (dependency (position, move (deps)));
         else
@@ -1307,8 +1311,11 @@ namespace bpkg
           //
           assert (static_cast<const packages&> (*dep) == deps);
 
-        if (!ddi.existing)
-          ddi.existing = existing;
+        // Conceptually we can only move from existing to non-existing (e.g.,
+        // due to a upgrade/downgrade later). But that case is handled via
+        // the version replacement rollback.
+        //
+        assert (ddi.existing == existing);
       }
       else
       {
@@ -1382,6 +1389,9 @@ namespace bpkg
           {
             const dependency* dep (ddi.find_dependency (sd.position));
 
+            // @@ Feels like that for existing we may accumulate them one by
+            // one (and above).
+            //
             if (dep == nullptr)
               ddi.dependencies.push_back (move (sd));
             else
@@ -1390,8 +1400,9 @@ namespace bpkg
               assert (static_cast<const packages&> (*dep) == sd);
           }
 
-          if (!ddi.existing)
-            ddi.existing = sdi.existing;
+          // As in add() above.
+          //
+          assert (ddi.existing == existing);
         }
         else
           dependents.emplace (d.first, move (d.second));
@@ -4787,9 +4798,6 @@ namespace bpkg
         postponed_configurations postponed_cfgs_;
       };
 
-      // @@ Is this logic correct: can we end up revisiting the same depth
-      //    (seems so) and if so, is it harmless (likely so).
-      //
       size_t depth (pcfg != nullptr ? pcfg->depth : 0);
 
       string t ("collect_build_postponed (" + to_string (depth) + ")");
@@ -4996,6 +5004,9 @@ namespace bpkg
 
                 b->postponed_dependency_alternatives = move (edas);
 
+                // @@ TODO: may already exist in the map. Could it be that
+                //    the positions are different?
+                //
                 postponed_cfgs.add (move (cp),
                                     true /* existing */,
                                     make_pair (1, 1),
