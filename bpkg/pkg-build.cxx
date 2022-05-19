@@ -6,7 +6,7 @@
 #include <map>
 #include <set>
 #include <list>
-#include <limits>       // @@ TMP
+#include <limits>       // numeric_limits
 #include <cstring>      // strlen()
 #include <iostream>     // cout
 #include <functional>   // ref()
@@ -2633,7 +2633,10 @@ namespace bpkg
                                  //
                                  // @@ TMP This will probably be gone (see below).
                                  //
-                                 bool force_configured = false)
+                                 bool force_configured = false,
+
+                                 pair<size_t, size_t> reeval_pos =
+                                   make_pair(0, 0))
     {
       // NOTE: don't forget to update collect_build_postponed() if changing
       // anything in this function.
@@ -2650,12 +2653,21 @@ namespace bpkg
       database& pdb (pkg.db);
       config_package cp (pdb, nm);
 
-      // If this package is not yet collected recursively, needs to be
-      // reconfigured, and is not yet postponed, then check if it is a
-      // dependency of any dependent with configuration clause and postpone
-      // the collection if that's the case.
+      bool reeval (reeval_pos.first != 0);
+
+      // The being re-evaluated dependent cannot be recursively collected yet.
+      // Also, we don't expect it being configured as system.
       //
-      if (!pkg.recursive_collection &&
+      assert (!reeval ||
+              (!pkg.recursive_collection && !pkg.skeleton && !pkg.system));
+
+      // If this package is not being re-evaluated, is not yet collected
+      // recursively, needs to be reconfigured, and is not yet postponed, then
+      // check if it is a dependency of any dependent with configuration
+      // clause and postpone the collection if that's the case.
+      //
+      if (!reeval                   &&
+          !pkg.recursive_collection &&
           pkg.reconfigure ()        &&
           postponed_cfgs.find_dependency (cp) == nullptr)
       {
@@ -2737,6 +2749,12 @@ namespace bpkg
                      sp->state == package_state::configured &&
                      sp->substate != package_substate::system);
 
+      // The being re-evaluated dependent must be configured as a source
+      // package and should not be collected recursively (due to upgrade,
+      // etc).
+      //
+      assert (!reeval || (src_conf && !pkg.recollect_recursively (rpt_depts)));
+
       if (src_conf)
       {
         repointed_dependents::const_iterator i (rpt_depts.find (cp));
@@ -2744,7 +2762,9 @@ namespace bpkg
         if (i != rpt_depts.end ())
           rpt_prereq_flags = &i->second;
 
-        if (!force_configured && !pkg.recollect_recursively (rpt_depts))
+        if (!force_configured &&
+            !reeval           &&
+            !pkg.recollect_recursively (rpt_depts))
         {
           l5 ([&]{trace << "skip configured "
                         << pkg.available_name_version_db ();});
@@ -2769,7 +2789,8 @@ namespace bpkg
       //
       if (!pkg.dependencies)
       {
-        l5 ([&]{trace << "begin " << pkg.available_name_version_db ();});
+        l5 ([&]{trace << (reeval ? "reeval " : "begin ")
+                      << pkg.available_name_version_db ();});
 
         pkg.dependencies = dependencies ();
         pkg.alternatives = vector<size_t> ();
@@ -2839,9 +2860,23 @@ namespace bpkg
 
       package_skeleton& skel (*pkg.skeleton);
 
+      auto fail_reeval = [&pkg] ()
+      {
+        fail << "re-evaluation of configured dependent "
+             << pkg.available_name_version_db ()
+             << " failed due to some environmental changes";
+      };
+
       bool postponed (false);
+      bool reevaluated (false);
+
       for (size_t di (sdeps.size ()); di != deps.size (); ++di)
       {
+        // Fail if we missed re-evaluation position by any reason.
+        //
+        if (reeval && di == reeval_pos.first)
+          fail_reeval ();
+
         const dependency_alternatives_ex& das (deps[di]);
 
         // Add an empty alternatives list into the selected dependency list if
@@ -3663,6 +3698,10 @@ namespace bpkg
                         &postponed_deps,
                         &postponed_cfgs,
                         &di,
+                        reeval,
+                        &reeval_pos,
+                        &reevaluated,
+                        &fail_reeval,
                         &trace,
                         this]
                        (const dependency_alternative& da,
@@ -3672,6 +3711,11 @@ namespace bpkg
           // Dependency alternative position.
           //
           pair<size_t, size_t> dp (di + 1, dai + 1);
+
+          if (reeval                        &&
+              dp.first  == reeval_pos.first &&
+              dp.second != reeval_pos.second)
+            fail_reeval ();
 
           postponed_configuration::packages cfg_deps;
 
@@ -3819,6 +3863,21 @@ namespace bpkg
                              nullptr /* postponed_cfgs */,
                              verify));
 
+            config_package dcp (b.db, b.available->id.name);
+
+            // Do not collect prerequisites recursively for dependent
+            // re-evaluation. Instead, if the re-evaluation position is
+            // reached, collect the dependency packages to add them to the
+            // existing dependent's cluster
+            //
+            if (reeval)
+            {
+              if (dp == reeval_pos)
+                cfg_deps.push_back (move (dcp));
+
+              continue;
+            }
+
             // Do not recursively collect a dependency of a dependent with
             // configuration clauses, which could be this or some other
             // (indicated by the presence in postponed_deps) dependent. In the
@@ -3832,8 +3891,6 @@ namespace bpkg
             bool collect_prereqs (p != nullptr);
 
             {
-              config_package dcp (b.db, b.available->id.name);
-
               build_package* bp (entered_build (dcp));
               assert (bp != nullptr);
 
@@ -3939,6 +3996,36 @@ namespace bpkg
           //
           if (!cfg_deps.empty ())
           {
+            if (reeval)
+            {
+              reevaluated = true;
+
+              // Note: the dependent may already exist in the cluster with a
+              // subset of dependencies.
+              //
+              // @@ Can we merge clusters as a result?
+              //
+              // @@ It seems that we need to make sure that we are adding into
+              //    that specific cluster we were about to negotiate when we
+              //    called collect_build_prerequisites() and merge the
+              //    intersecting clusters into it (similar to shadow-based
+              //    merge).
+              //
+              // @@ What if some of the merged clusters are already
+              //    negotiated?
+              //
+              pair<postponed_configuration&, optional<bool>> r (
+                postponed_cfgs.add (cp, true /* existing */, dp, cfg_deps));
+
+              l5 ([&]{trace << "re-evaluating dependent "
+                            << pkg.available_name_version_db ()
+                            << " results in " << r.first;});
+
+              assert (r.second && !*r.second);
+
+              return false;
+            }
+
             // As a first step add this dependent/dependencies to one of the
             // new/existing postponed_configuration clusters, which could
             // potentially cause some of them to be merged. Here are the
@@ -4166,7 +4253,7 @@ namespace bpkg
         // the package to the postpones set (can potentially already be there)
         // and saving the enabled alternatives.
         //
-        auto postpone = [&pkg, &edas, &postponed]
+        auto postpone = [&pkg, &edas, reeval, &postponed]
                         (postponed_packages* postpones)
         {
           if (postpones != nullptr)
@@ -4189,9 +4276,18 @@ namespace bpkg
         // decisions" mode and select the alternative ignoring the current
         // prerequisites.
         //
+        // Note though, that if we are re-evaluating an existing dependent
+        // then we fail if we didn't succeed in the "recreate dependency
+        // decisions" mode.
+        //
         const package_prerequisites* prereqs (src_conf && !ud
                                               ? &sp->prerequisites
                                               : nullptr);
+
+        // During the dependent re-evaluation we always try to reproduce the
+        // existing setup.
+        //
+        assert (!reeval || prereqs != nullptr);
 
         for (;;)
         {
@@ -4228,6 +4324,9 @@ namespace bpkg
             {
               if (r.repo_postpone)
               {
+                if (reeval)
+                  fail_reeval ();
+
                 postpone (nullptr); // Already inserted into postponed_repo.
                 break;
               }
@@ -4257,6 +4356,7 @@ namespace bpkg
             //
             auto try_select = [postponed_alts, &max_alt_index,
                                &edas, &pkg,
+                               reeval,
                                &trace,
                                &postpone, &collect, &select]
                                (size_t index, precollect_result&& r)
@@ -4270,6 +4370,11 @@ namespace bpkg
               //
               if (postponed_alts != nullptr && index >= max_alt_index)
               {
+                // For a dependent re-evaluation max_alt_index is expected to
+                // be max size_t.
+                //
+                assert (!reeval);
+
                 l5 ([&]{trace << "alt-postpone dependent "
                               << pkg.available_name_version_db ()
                               << " since max index is reached: " << index <<
@@ -4298,9 +4403,11 @@ namespace bpkg
                 select (da, dai);
 
                 // Make sure no more true alternatives are selected during
-                // this function call.
+                // this function call unless we are re-evaluating a dependent.
                 //
-                max_alt_index = 0;
+                if (!reeval)
+                  max_alt_index = 0;
+
                 return true;
               }
               else
@@ -4358,12 +4465,16 @@ namespace bpkg
             break;
 
           // Fail or postpone the collection if no alternative is selected,
-          // unless we are in the "recreate dependency decisions" mode. In the
-          // latter case fall back to the "make dependency decisions" mode and
-          // retry.
+          // unless we are re-evaluating a dependent or are in the "recreate
+          // dependency decisions" mode. In the latter case fail for
+          // re-evaluation and fall back to the "make dependency decisions"
+          // mode and retry otherwise.
           //
           if (prereqs != nullptr)
           {
+            if (reeval)
+              fail_reeval ();
+
             prereqs = nullptr;
             continue;
           }
@@ -4439,9 +4550,19 @@ namespace bpkg
           break;
       }
 
+      if (reeval)
+      {
+        if (!reevaluated)
+          fail_reeval ();
+
+        assert (postponed);
+      }
+
       dep_chain.pop_back ();
 
-      l5 ([&]{trace << (!postponed ? "end " : "postpone ")
+      l5 ([&]{trace << (!postponed ? "end "         :
+                        reeval     ? "reevaluated " :
+                                     "postpone ")
                     << pkg.available_name_version_db ();});
     }
 
@@ -5021,104 +5142,27 @@ namespace bpkg
               build_package* b (entered_build (cp));
               assert (b != nullptr);
 
-              // @@ Re-evaluate up-to the earliest position.
-
-              // @@ TMP: need proper implementation.
+              // Re-evaluate up-to the earliest position.
               //
-              // @@ TODO: fail if we do not "arrive" at this position.
-              //
-              {
-                // @@ This emulates collect_build_prerequisites() called for
-                //    the first time and postponing the first dependency
-                //    alternative. See collect_build_prerequisites() for
-                //    details.
-                //
-                if (postponed_cfgs.find_dependency (cp) == nullptr)
-                {
-                  vector<existing_dependent> eds (
-                    query_existing_dependents (trace,
-                                               b->db,
-                                               b->name (),
-                                               replaced_vers,
-                                               rpt_depts));
+              assert (ed.dependency_position.first != 0);
 
-                  if (!eds.empty ())
-                  {
-                    // @@ NOTE: doesn't really repeat the latest
-                    //    implementation in collect_build_prerequisites().
-                    //
-                    existing_dependent& ed (eds.front ());
+              build_package_refs dep_chain;
 
-                    l5 ([&]{trace << "cfg-postpone dependency "
-                                  << b->available_name_version_db ()
-                                  << " of existing dependent " << *ed.selected
-                                  << ed.db;});
-
-                    postponed_cfgs.add (
-                      config_package (ed.db, ed.selected->name),
-                      ed.dependency_position,
-                      cp);
-
-                    // @@ Note that collect_build_prerequisites() returns here
-                    //    while we continue. Is that right?
-                    //
-                    //return;
-                  }
-                }
-
-                b->recursive_collection = true;
-
-                b->dependencies = dependencies ();
-                b->alternatives = vector<size_t> ();
-
-                optional<dir_path> src_root (b->external_dir ());
-
-                optional<dir_path> out_root (
-                  src_root && !b->disfigure
-                  ? dir_path (b->db.get ().config) /= b->name ().string ()
-                  : optional<dir_path> ());
-
-                const shared_ptr<available_package>& ap (b->available);
-
-                b->skeleton =
-                  package_skeleton (o,
-                                    b->db,
-                                    *ap,
-                                    b->config_vars,
-                                    nullptr /* config_srcs */, // @@ TMP
-                                    move (src_root),
-                                    move (out_root));
-
-                const auto& pos (ed.dependency_position);
-
-                assert (pos.first != 0 && pos.second != 0);
-
-                size_t di  (pos.first - 1);
-                size_t dai (pos.second - 1);
-
-                assert (di  < ap->dependencies.size () &&
-                        dai < ap->dependencies[di].size ());
-
-                const dependency_alternative& da (ap->dependencies[di][dai]);
-
-                build_package::dependency_alternatives_refs edas;
-                edas.push_back (make_pair (ref (da), dai));
-
-                b->postponed_dependency_alternatives = move (edas);
-
-                // Note: the dependent may already exist in the cluster
-                // with a subset of dependencies.
-                //
-                // @@ TODO: we actually need to pass packages from da (all
-                //    dependencies) instead of ds (only postponed
-                //    dependencies). That's not easy to emulate at the moment
-                //    so let's do as a part of the proper implementation.
-                //
-                postponed_cfgs.add (move (cp),
-                                    true /* existing */,
-                                    pos,
-                                    move (ds));
-              }
+              collect_build_prerequisites (o,
+                                           *b,
+                                           fdb,
+                                           rpt_depts,
+                                           apc,
+                                           false /* initial_collection */,
+                                           replaced_vers,
+                                           dep_chain,
+                                           &postponed_repo,
+                                           &postponed_alts,
+                                           numeric_limits<size_t>::max (),
+                                           postponed_deps,
+                                           postponed_cfgs,
+                                           false /* force_configured */,
+                                           ed.dependency_position);
             }
           }
         }
@@ -5231,8 +5275,12 @@ namespace bpkg
             // package's dependency or some such.
             //
             if (di == deps.size ())
+            {
               l5 ([&]{trace << "dependent " << b->available_name_version_db ()
                             << " is already recursively collected, skipping";});
+
+              continue;
+            }
 
             l5 ([&]{trace << "select cfg-negotiated dependency alternative "
                           << "for dependent "
@@ -6095,7 +6143,7 @@ namespace bpkg
             {
               bool build;
               if (((build = *p->action == build_package::build) &&
-                   p->recollect_recursively (rpt_depts)) ||
+                   (p->system || p->recollect_recursively (rpt_depts))) ||
                   *p->action == build_package::drop)
               {
                 l5 ([&]{trace << "skip being " << (build ? "built" : "dropped")
