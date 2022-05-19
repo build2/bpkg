@@ -59,6 +59,7 @@ namespace bpkg
       db_ = v.db_;
       available_ = v.available_;
       config_vars_ = move (v.config_vars_);
+      config_srcs_ = v.config_srcs_;
       src_root_ = move (v.src_root_);
       out_root_ = move (v.out_root_);
       created_ = v.created_;
@@ -82,6 +83,7 @@ namespace bpkg
         db_ (v.db_),
         available_ (v.available_),
         config_vars_ (v.config_vars_),
+        config_srcs_ (v.config_srcs_),
         src_root_ (v.src_root_),
         out_root_ (v.out_root_),
         created_ (v.created_),
@@ -99,13 +101,21 @@ namespace bpkg
                     database& db,
                     const available_package& ap,
                     strings cvs,
+                    /*const vector<config_variable>* css,*/ // @@ TMP
                     optional<dir_path> src_root,
                     optional<dir_path> out_root)
-      : co_ (&co), db_ (&db), available_ (&ap), config_vars_ (move (cvs))
+      : co_ (&co),
+        db_ (&db),
+        available_ (&ap),
+        config_vars_ (move (cvs)),
+        config_srcs_ (/*css*/ nullptr) // @@ TMP
   {
     // Should not be created for stubs.
     //
     assert (available_->bootstrap_build);
+
+    if (config_srcs_ != nullptr && config_srcs_->empty ())
+      config_srcs_ = nullptr;
 
     if (src_root)
     {
@@ -561,61 +571,140 @@ namespace bpkg
     }
   }
 
-  pair<strings, vector<optional<config_source>>> package_skeleton::
+  pair<strings, vector<config_variable>> package_skeleton::
   collect_config () &&
   {
-    // Note that if the reflect variables list is not empty, then it also
-    // contains the user-specified configuration variables, which all come
-    // first (see above).
+    assert (db_ != nullptr); // Must be called only once.
+
+    strings vars;
+    vector<config_variable> srcs;
+
+    // Check whether the user-specified configuration variable is a project
+    // variables (i.e., its name start with config.<project>).
     //
-    size_t nc (config_vars_.size ());
-
-    strings vars (reflect_vars_.empty ()
-                  ? move (config_vars_)
-                  : move (reflect_vars_));
-
-    vector<optional<config_source>> sources;
-
-    if (!vars.empty ())
+    // Note that some user-specified variables may have qualifications
+    // (global, scope, etc) but there is no reason to expect any project
+    // configuration variables to use such qualifications (since they can only
+    // apply to one project). So we ignore all qualified variables.
+    //
+    auto prj_var = [this, p = optional<string> ()] (const string& v) mutable
     {
-      sources.reserve (vars.size ());
+      if (!p)
+        p = "config." + name ().variable ();
 
-      // Assign the user source to only those user-specified configuration
-      // variables which are project variables (i.e., names start with
-      // config.<project>). Assign the reflect source to all variables that
-      // follow the user-specified configuration variables (which can only be
-      // project variables).
-      //
-      // Note that some user-specified variables may have qualifications
-      // (global, scope, etc) but there is no reason to expect any project
-      // configuration variables to use such qualifications (since they can
-      // only apply to one project). So we skip all qualified variables.
-      //
-      string p ("config." + name ().variable ());
-      size_t n (p.size ());
+      size_t n (p->size ());
 
-      for (const string& v: vars)
+      return v.compare (0, n, *p) == 0 && strchr (".=+ \t", v[n]) != nullptr;
+    };
+
+    if (!reflect_vars_.empty ())
+    {
+      assert (config_srcs_ == nullptr); // Should have been merged.
+
+      vars = move (reflect_vars_);
+
+      // Note that if the reflect variables list is not empty, then it also
+      // contains the user-specified configuration variables, which all come
+      // first (see above).
+      //
+      size_t nc (config_vars_.size ());
+
+      if (!vars.empty ())
       {
-        if (sources.size () < nc)
+        srcs.reserve (vars.size ()); // At most that many.
+
+        // Assign the user source only to user-specified configuration
+        // variables which are project variables (i.e., names start with
+        // config.<project>). Assign the reflect source to all variables that
+        // follow the user-specified configuration variables (which can only
+        // be project variables).
+        //
+        for (size_t j (0); j != vars.size (); ++j)
         {
-          if (v.compare (0, n, p) == 0 && strchr (".=+ \t", v[n]) != nullptr)
-            sources.push_back (config_source::user);
+          const string& v (vars[j]);
+
+          config_source s;
+
+          if (j < nc)
+          {
+            if (prj_var (v))
+              s = config_source::user;
+            else
+              continue;
+          }
           else
-            sources.push_back (nullopt);
+            s = config_source::reflect;
+
+          size_t p (v.find_first_of ("=+ \t"));
+          assert (p != string::npos);
+
+          string n (v, 0, p);
+
+          // Check for a duplicate.
+          //
+          auto i (find_if (srcs.begin (), srcs.end (),
+                           [&n] (const config_variable& cv)
+                           {
+                             return cv.name == n;
+                           }));
+
+          if (i != srcs.end ())
+            assert (i->source == s); // See evaluate_reflect() for details.
+          else
+            srcs.push_back (config_variable {move (n), s});
         }
-        else
-          sources.push_back (config_source::reflect);
+      }
+    }
+    else
+    {
+      vars = move (config_vars_);
+
+      // If we don't have any reflect variables, then we don't really need to
+      // load user variables from config.build (or equivalent) and add them to
+      // config_vars since there is nothing for them to possibly override. So
+      // all we need to do is to add user variables from config_vars.
+      //
+      if (!vars.empty () || config_srcs_ != nullptr)
+      {
+        srcs.reserve ((config_srcs_ != nullptr ? config_srcs_->size () : 0)
+                      + vars.size ()); // At most that many.
+
+        if (config_srcs_ != nullptr)
+          for (const config_variable& v: *config_srcs_)
+            if (v.source == config_source::user)
+              srcs.push_back (v);
+
+        for (const string& v: vars)
+        {
+          // Similar logic to the above case.
+          //
+          if (prj_var (v))
+          {
+            size_t p (v.find_first_of ("=+ \t"));
+            assert (p != string::npos);
+
+            string n (v, 0, p);
+
+            // Check for a duplicate.
+            //
+            auto i (find_if (srcs.begin (), srcs.end (),
+                             [&n] (const config_variable& cv)
+                             {
+                               return cv.name == n;
+                             }));
+
+            if (i == srcs.end ())
+              srcs.push_back (config_variable {move (n), config_source::user});
+          }
+        }
       }
     }
 
-    assert (db_ != nullptr);
-
     ctx_ = nullptr; // In case we only had conditions.
-
     db_ = nullptr;
     available_ = nullptr;
 
-    return make_pair (move (vars), move (sources));
+    return make_pair (move (vars), move (srcs));
   }
 
   build2::scope& package_skeleton::
