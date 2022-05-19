@@ -101,14 +101,14 @@ namespace bpkg
                     database& db,
                     const available_package& ap,
                     strings cvs,
-                    /*const vector<config_variable>* css,*/ // @@ TMP
+                    const vector<config_variable>* css,
                     optional<dir_path> src_root,
                     optional<dir_path> out_root)
       : co_ (&co),
         db_ (&db),
         available_ (&ap),
         config_vars_ (move (cvs)),
-        config_srcs_ (/*css*/ nullptr) // @@ TMP
+        config_srcs_ (css)
   {
     // Should not be created for stubs.
     //
@@ -599,7 +599,9 @@ namespace bpkg
 
     if (!reflect_vars_.empty ())
     {
-      assert (config_srcs_ == nullptr); // Should have been merged.
+      // @@ TMP Uncomment when the merge is implemented.
+      //
+      //assert (config_srcs_ == nullptr); // Should have been merged.
 
       vars = move (reflect_vars_);
 

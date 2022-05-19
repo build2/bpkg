@@ -2790,6 +2790,9 @@ namespace bpkg
                                          pdb,
                                          *ap,
                                          pkg.config_vars,
+                                         (sp != nullptr && !pkg.disfigure
+                                          ? &sp->config_variables
+                                          : nullptr),
                                          move (src_root),
                                          move (out_root));
       }
@@ -5077,12 +5080,14 @@ namespace bpkg
 
                 const shared_ptr<available_package>& ap (b->available);
 
-                b->skeleton = package_skeleton (o,
-                                                b->db,
-                                                *ap,
-                                                b->config_vars,
-                                                move (src_root),
-                                                move (out_root));
+                b->skeleton =
+                  package_skeleton (o,
+                                    b->db,
+                                    *ap,
+                                    b->config_vars,
+                                    nullptr /* config_srcs */, // @@ TMP
+                                    move (src_root),
+                                    move (out_root));
 
                 const auto& pos (ed.dependency_position);
 
@@ -11413,6 +11418,9 @@ namespace bpkg
                                            pdb,
                                            *ap,
                                            move (p.config_vars),
+                                           (!p.disfigure
+                                            ? &sp->config_variables
+                                            : nullptr),
                                            move (src_root),
                                            move (out_root)),
                          prereqs (),
@@ -11427,9 +11435,8 @@ namespace bpkg
         //
         assert (sp->state == package_state::unpacked);
 
-        // Note that we don't use find_available*() here since we don't care
-        // about the repository fragment the package comes from and only need
-        // its manifest information.
+        // Note that here we don't care about the repository fragment the
+        // package comes from and only need its manifest information.
         //
         shared_ptr<available_package> dap (find_available (o, pdb, sp));
 
@@ -11455,6 +11462,9 @@ namespace bpkg
                                          pdb,
                                          *dap,
                                          move (p.config_vars),
+                                         (!p.disfigure
+                                          ? &sp->config_variables
+                                          : nullptr),
                                          move (src_root),
                                          move (out_root)),
                        prereqs (),
