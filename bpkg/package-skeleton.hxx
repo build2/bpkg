@@ -54,7 +54,7 @@ namespace bpkg
                       database&,
                       const available_package&,
                       strings config_vars,
-                      /*const vector<config_variable>* config_srcs,*/ // @@ TMP
+                      const vector<config_variable>* config_srcs,
                       optional<dir_path> src_root,
                       optional<dir_path> out_root);
 
