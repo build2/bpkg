@@ -29,8 +29,23 @@ namespace bpkg
     // If the package is not external, then none of the root directories
     // should be specified.
     //
-    // Note that the options, database, and available_package are expected to
-    // outlive this object.
+    // Note that the options, database, available_package, and config_srcs are
+    // expected to outlive this object.
+    //
+    // The config_vars argument contains configuration variables specified by
+    // the user in this bpkg execution. Optional config_srcs is used to
+    // extract (from config.build or equivalent) configuration variables
+    // specified by the user in previous bpkg executions. It should be NULL if
+    // this is the first build of the package or if it is being disfigured.
+    // The extracted variables are merged with config_vars and the combined
+    // result is returned by collect_config() below.
+    //
+    // @@ TODO: speaking of the "config.build or equivalent" part, the
+    //    equivalent is likely to be extracted configuration (probably saved
+    //    to file in tmp somewhere) that we will load with config.config.load.
+    //    It doesn't seem like a good idea to pass it as part of config_vars
+    //    (because sometimes we may need to omit it) so most likely it will be
+    //    passed as a separate arguments (likely a file path).
     //
     // Note also that this creates an "unloaded" skeleton and is therefore
     // relatively cheap.
@@ -39,6 +54,7 @@ namespace bpkg
                       database&,
                       const available_package&,
                       strings config_vars,
+                      /*const vector<config_variable>* config_srcs,*/ // @@ TMP
                       optional<dir_path> src_root,
                       optional<dir_path> out_root);
 
@@ -56,16 +72,16 @@ namespace bpkg
     void
     evaluate_reflect (const string&, size_t depends_index);
 
-    // Return the accumulated reflect values together with their sources (the
-    // resulting vectors are parallel).
+    // Return the accumulated configuration variables (first) and project
+    // configuration variable sources (second). Note that the arrays are
+    // not necessarily parallel.
     //
-    // Note that the result is merged with config_vars and should be used
-    // instead rather than in addition to config_vars. The source of
-    // configuration variables which are not the project variables is absent.
+    // Note that the reflect variables are merged with config_vars/config_srcs
+    // and should be used instead rather than in addition to config_vars.
     //
     // Note also that this should be the final call on this object.
     //
-    pair<strings, vector<optional<config_source>>>
+    pair<strings, vector<config_variable>>
     collect_config () &&;
 
     const package_name&
@@ -97,7 +113,10 @@ namespace bpkg
     const common_options* co_;
     database* db_;
     const available_package* available_;
+
     strings config_vars_;
+    const vector<config_variable>* config_srcs_; // NULL if nothing to do or
+                                                 // already done.
 
     dir_path src_root_; // Must be absolute and normalized.
     dir_path out_root_; // If empty, the same as src_root_.

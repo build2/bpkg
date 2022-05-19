@@ -36,7 +36,7 @@ namespace bpkg
     // package skeleton, excluding those user-specified variables which are
     // not the project variables for the specified package (module
     // configuration variables, etc). Thus, it is not parallel to the
-    // variables member.
+    // config_variables member.
     //
     vector<config_variable> config_sources; // Note: name and source.
   };
@@ -54,9 +54,8 @@ namespace bpkg
                                bool simulate,
                                const function<find_database_function>& fdb)
   {
-    package_prerequisites   prereqs;
-    strings                 vars;
-    vector<config_variable> srcs;
+    package_prerequisites prereqs;
+    strings               vars;
 
     // Alternatives argument must be parallel to the dependencies argument if
     // specified.
@@ -286,34 +285,28 @@ namespace bpkg
       }
     }
 
-    // Add the configuration variables collected from the reflect clauses, if
-    // any.
+    // Add the rest of the configuration variables (user overrides, reflects,
+    // etc) as well as their sources.
     //
+    vector<config_variable> srcs;
+
     if (!simulate)
     {
-      auto rvs (move (ps).collect_config ());
+      pair<strings, vector<config_variable>> rvs (move (ps).collect_config ());
 
-      strings&                         vs (rvs.first);
-      vector<optional<config_source>>& ss (rvs.second);
+      strings& vs (rvs.first);
+      srcs = move (rvs.second);
 
       if (!vs.empty ())
       {
-        vars.reserve (vars.size () + vs.size ());
-
-        for (size_t i (0); i != vs.size (); ++i)
+        if (vars.empty ())
+          vars = move (vs);
+        else
         {
-          string&                        v (vs[i]);
-          const optional<config_source>& s (ss[i]);
+          vars.reserve (vars.size () + vs.size ());
 
-          if (s)
-          {
-            size_t p (v.find_first_of ("=+ \t"));
-            assert (p != string::npos);
-
-            srcs.push_back (config_variable {string (v, 0, p), *s});
-          }
-
-          vars.push_back (move (v));
+          for (string& v: vs)
+            vars.push_back (move (v));
         }
       }
     }
