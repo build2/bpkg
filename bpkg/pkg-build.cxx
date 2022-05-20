@@ -2666,6 +2666,11 @@ namespace bpkg
       // check if it is a dependency of any dependent with configuration
       // clause and postpone the collection if that's the case.
       //
+      // The reason why we don't need to do this for the re-evaluated case is
+      // as follows: this logic is used for an existing dependent that is not
+      // otherwise built (e.g., reconfigured) which means its externally-
+      // imposed configuration (user, dependents) is not being changed.
+      //
       if (!reeval                   &&
           !pkg.recursive_collection &&
           pkg.reconfigure ()        &&
@@ -2862,9 +2867,10 @@ namespace bpkg
 
       auto fail_reeval = [&pkg] ()
       {
-        fail << "re-evaluation of configured dependent "
-             << pkg.available_name_version_db ()
-             << " failed due to some environmental changes";
+        fail << "unable to re-create dependency information of already "
+             << "configured package " << pkg.available_name_version_db () <<
+          info << "likely cause is change in external environment" <<
+          info << "consider resetting the build configuration";
       };
 
       bool postponed (false);
@@ -2872,9 +2878,9 @@ namespace bpkg
 
       for (size_t di (sdeps.size ()); di != deps.size (); ++di)
       {
-        // Fail if we missed re-evaluation position by any reason.
+        // Fail if we missed the re-evaluation target position for any reason.
         //
-        if (reeval && di == reeval_pos.first)
+        if (reeval && di == reeval_pos.first) // Note: reeval_pos is 1-based.
           fail_reeval ();
 
         const dependency_alternatives_ex& das (deps[di]);
@@ -3996,6 +4002,9 @@ namespace bpkg
           //
           if (!cfg_deps.empty ())
           {
+            // Re-evaluation is a special case (it happens during cluster
+            // negotiation; see collect_build_postponed()).
+            //
             if (reeval)
             {
               reevaluated = true;
@@ -4003,19 +4012,33 @@ namespace bpkg
               // Note: the dependent may already exist in the cluster with a
               // subset of dependencies.
               //
-              // @@ Can we merge clusters as a result?
-              //
-              // @@ It seems that we need to make sure that we are adding into
-              //    that specific cluster we were about to negotiate when we
-              //    called collect_build_prerequisites() and merge the
-              //    intersecting clusters into it (similar to shadow-based
-              //    merge).
-              //
-              // @@ What if some of the merged clusters are already
-              //    negotiated?
-              //
               pair<postponed_configuration&, optional<bool>> r (
                 postponed_cfgs.add (cp, true /* existing */, dp, cfg_deps));
+
+              // Can we merge clusters as a result? Seems so.
+              //
+              // - Simple case is if the cluster(s) being merged are not
+              //   negotiated. Then perhaps we could handle this via the same
+              //   logic that handles the addition of extra dependencies.
+              //
+              // - For the complex case, perhaps just making the resulting
+              //   cluster shadow and rolling back, just like in the other
+              //   case (non-existing dependent).
+              //
+              // Note: this is a special case of the below more general logic.
+              //
+#if 0
+              postponed_configuration& cfg (r.first);
+
+              if (!simple) // @@ TODO
+              {
+                // Don't print the "while satisfying..." chain.
+                //
+                dep_chain.clear ();
+
+                throw merge_configuration {cfg.depth};
+              }
+#endif
 
               l5 ([&]{trace << "re-evaluating dependent "
                             << pkg.available_name_version_db ()
@@ -4560,8 +4583,8 @@ namespace bpkg
 
       dep_chain.pop_back ();
 
-      l5 ([&]{trace << (!postponed ? "end "         :
-                        reeval     ? "reevaluated " :
+      l5 ([&]{trace << (!postponed ? "end "          :
+                        reeval     ? "re-evaluated " :
                                      "postpone ")
                     << pkg.available_name_version_db ();});
     }
@@ -5020,6 +5043,17 @@ namespace bpkg
           };
           map<config_package, existing_dependent_ex> dependents;
 
+          // @@ TODO: looks like we may end up adding additional
+          //    dependencies to pcfg->dependencies which in turn may
+          //    have additional existing dependents which we need to
+          //    process? Feels like doing this iteratively is the
+          //    best option?
+          //
+          //    Need to make sure we don't re-process the same existing
+          //    dependents (maybe keep a "global" dependents set outside
+          //    the loop that gets merged into from inner loop). Or, better,
+          //    just a flag in existing_dependent_ex!
+          //
           for (const config_package& p: pcfg->dependencies)
           {
             for (existing_dependent& ed:
@@ -5142,12 +5176,11 @@ namespace bpkg
               build_package* b (entered_build (cp));
               assert (b != nullptr);
 
-              // Re-evaluate up-to the earliest position.
+              // Re-evaluate up to the earliest position.
               //
               assert (ed.dependency_position.first != 0);
 
               build_package_refs dep_chain;
-
               collect_build_prerequisites (o,
                                            *b,
                                            fdb,
