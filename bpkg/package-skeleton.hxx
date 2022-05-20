@@ -102,10 +102,15 @@ namespace bpkg
   private:
     // Create the skeleton if necessary and (re)load the build system state.
     //
+    // If merge_config_vars is true, then extract old user configuration
+    // variables from config.build (or equivalent) and merge them into
+    // config_vars_. This is only necessary if something (e.g., reflect) could
+    // override their values in config.build.
+    //
     // Call this function before evaluating every clause.
     //
     build2::scope&
-    load ();
+    load (bool merge_config_vars);
 
   private:
     // NOTE: remember to update move/copy constructors!
