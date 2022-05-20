@@ -20,6 +20,8 @@
 #include <libbuild2/lexer.hxx>
 #include <libbuild2/parser.hxx>
 
+#include <libbuild2/config/utility.hxx>
+
 #include <bpkg/package.hxx>
 #include <bpkg/database.hxx>
 #include <bpkg/manifest-utility.hxx>
@@ -114,8 +116,17 @@ namespace bpkg
     //
     assert (available_->bootstrap_build);
 
-    if (config_srcs_ != nullptr && config_srcs_->empty ())
-      config_srcs_ = nullptr;
+    // We are only interested in old user configuration variables.
+    //
+    if (config_srcs_ != nullptr)
+    {
+      if (find_if (config_srcs_->begin (), config_srcs_->end (),
+                   [] (const config_variable& v)
+                   {
+                     return v.source == config_source::user;
+                   }) == config_srcs_->end ())
+        config_srcs_ = nullptr;
+    }
 
     if (src_root)
     {
@@ -178,7 +189,7 @@ namespace bpkg
       using build2::fail;
       using build2::endf;
 
-      scope& rs (load ());
+      scope& rs (load (false /* merge_config_vars */));
 
       istringstream is ('(' + cond + ')');
       is.exceptions (istringstream::failbit | istringstream::badbit);
@@ -225,6 +236,66 @@ namespace bpkg
     {
       throw failed (); // Assume the diagnostics has already been issued.
     }
+  }
+
+  // Serialize a variable assignment for a buildfile fragment.
+  //
+  static void
+  serialize_buildfile (string& r,
+                       const string& var, const build2::value& val,
+                       build2::names& storage)
+  {
+    using namespace build2;
+
+    r += var;
+    r += " = ";
+
+    if (val.null)
+      r += "[null]";
+    else
+    {
+      storage.clear ();
+      names_view nv (reverse (val, storage));
+
+      if (!nv.empty ())
+      {
+        ostringstream os;
+        to_stream (os, nv, quote_mode::normal, '@');
+        r += os.str ();
+      }
+    }
+
+    r += '\n';
+  }
+
+  // Serialize a variable assignment for a command line override.
+  //
+  static string
+  serialize_cmdline (const string& var, const build2::value& val,
+                     build2::names& storage)
+  {
+    using namespace build2;
+
+    string r (var + '=');
+
+    if (val.null)
+      r += "[null]";
+    else
+    {
+      storage.clear ();
+      names_view nv (reverse (val, storage));
+
+      if (!nv.empty ())
+      {
+        // Note: we need to use command-line (effective) quoting.
+        //
+        ostringstream os;
+        to_stream (os, nv, quote_mode::effective, '@');
+        r += os.str ();
+      }
+    }
+
+    return r;
   }
 
   void package_skeleton::
@@ -281,7 +352,7 @@ namespace bpkg
       using build2::fail;
       using build2::endf;
 
-      scope& rs (load ());
+      scope& rs (load (true /* merge_config_vars */));
 
       istringstream is (refl);
       is.exceptions (istringstream::failbit | istringstream::badbit);
@@ -425,25 +496,7 @@ namespace bpkg
         // For the accumulated fragment we always save the original and let
         // the standard overriding take its course.
         //
-        reflect_frag_ += var.name;
-        reflect_frag_ += " = ";
-
-        if (val.null)
-          reflect_frag_ += "[null]";
-        else
-        {
-          storage.clear ();
-          names_view nv (reverse (val, storage));
-
-          if (!nv.empty ())
-          {
-            ostringstream os;
-            to_stream (os, nv, quote_mode::normal, '@');
-            reflect_frag_ += os.str ();
-          }
-        }
-
-        reflect_frag_ += '\n';
+        serialize_buildfile (reflect_frag_, var.name, val, storage);
 
         // For the accumulated overrides we have to merge user config_vars_
         // with reflect values. Essentially, we have three possibilities:
@@ -534,26 +587,8 @@ namespace bpkg
 #endif
         }
 
-        string s (var.name + '=');
-
-        if (val.null)
-          s += "[null]";
-        else
-        {
-          storage.clear ();
-          names_view nv (reverse (*ovr.first, storage));
-
-          if (!nv.empty ())
-          {
-            // Note: we need to use command-line (effective) quoting.
-            //
-            ostringstream os;
-            to_stream (os, nv, quote_mode::effective, '@');
-            s += os.str ();
-          }
-        }
-
-        reflect_vars_.push_back (move (s));
+        reflect_vars_.push_back (
+          serialize_cmdline (var.name, *ovr.first, storage));
       }
 
 #if 0
@@ -599,9 +634,7 @@ namespace bpkg
 
     if (!reflect_vars_.empty ())
     {
-      // @@ TMP Uncomment when the merge is implemented.
-      //
-      //assert (config_srcs_ == nullptr); // Should have been merged.
+      assert (config_srcs_ == nullptr); // Should have been merged.
 
       vars = move (reflect_vars_);
 
@@ -710,10 +743,16 @@ namespace bpkg
   }
 
   build2::scope& package_skeleton::
-  load ()
+  load (bool merge_config_vars)
   {
     if (ctx_ != nullptr)
-      return *rs_;
+    {
+      if (!merge_config_vars || config_srcs_ == nullptr)
+        return *rs_;
+
+      ctx_ = nullptr;
+      // Fall through.
+    }
 
     // The overall plan is as follows:
     //
@@ -985,6 +1024,69 @@ namespace bpkg
       }
 
       load_root (rs, pre);
+
+      // If requested, extract and merge old user configuration variables from
+      // config.build (or equivalent) into config_vars. Then reload the state
+      // in order to make them overrides.
+      //
+      if (merge_config_vars && config_srcs_ != nullptr)
+      {
+        auto i (config_vars_.begin ()); // Insert position, see below.
+
+        names storage;
+        for (const config_variable& v: *config_srcs_)
+        {
+          if (v.source != config_source::user)
+            continue;
+
+          using config::variable_origin;
+
+          pair<variable_origin, lookup> ol (config::origin (rs, v.name));
+
+          switch (ol.first)
+          {
+          case variable_origin::override_:
+            {
+              // Already in config_vars.
+              //
+              // @@ TODO: theoretically, this could be an append/prepend
+              //    override(s) and to make this work correctly we would need
+              //    to replace them with an assign override with the final
+              //    value. Maybe one day.
+              //
+              break;
+            }
+          case variable_origin::buildfile:
+            {
+              // Doesn't really matter where we add them though conceptually
+              // feels like old should go before new (and in the original
+              // order).
+              //
+              i = config_vars_.insert (
+                i,
+                serialize_cmdline (v.name, *ol.second, storage)) + 1;
+
+              break;
+            }
+          case variable_origin::undefined:
+          case variable_origin::default_:
+            {
+              // Old user configuration no longer in config.build. We could
+              // complain but that feels overly drastic. Seeing that we will
+              // recalculate the new set of config variable sources, let's
+              // just ignore this (we could issue a warning, but who knows how
+              // many times it will be issued with all this backtracking).
+              //
+              break;
+            }
+          }
+        }
+
+        config_srcs_ = nullptr; // Merged.
+
+        ctx_ = nullptr;
+        return load (true);
+      }
 
       // Setup root scope as base.
       //
