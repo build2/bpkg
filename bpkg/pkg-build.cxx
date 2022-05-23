@@ -5169,7 +5169,7 @@ namespace bpkg
                 // If this dependent is present in postponed_deps, then it
                 // means someone depends on it with configuration and it's no
                 // longer considered an existing dependent (it will be
-                // reconfigured).  However, this fact may not be reflected
+                // reconfigured). However, this fact may not be reflected
                 // yet. And it can actually turn out bogus.
                 //
                 auto pi (postponed_deps.find (cp));
@@ -5236,7 +5236,7 @@ namespace bpkg
                 if (ed.reevaluated)
                   continue;
 
-                config_package cp (d.first);
+                const config_package& cp (d.first);
                 packages& ds (ed.dependencies);
 
                 pair<shared_ptr<available_package>,
