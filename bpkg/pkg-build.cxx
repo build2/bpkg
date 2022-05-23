@@ -1354,11 +1354,14 @@ namespace bpkg
 
         ddi.add (dependency (position, move (deps)));
 
-        // Conceptually we can only move from existing to non-existing (e.g.,
-        // due to a upgrade/downgrade later). But that case is handled via
-        // the version replacement rollback.
+        // Conceptually, on the first glance, we can only move from existing
+        // to non-existing (e.g., due to a upgrade/downgrade later) and that
+        // case is handled via the version replacement rollback. However,
+        // after re-evaluation the existing dependent is handled similar to
+        // the new dependent and we can potentially up-negotiate the
+        // dependency configuration for it.
         //
-        assert (ddi.existing == existing);
+        assert (ddi.existing || !existing);
       }
       else
       {
@@ -1845,9 +1848,14 @@ namespace bpkg
         if (i != end ())
         {
           // Note that the cluster with a shadow cluster is by definition
-          // either being negotiated or has been negotiated.
+          // either being negotiated or has been negotiated. Actually, there
+          // is also a special case when we didn't negotiate the configuration
+          // yet and are in the process of re-evaluating existing dependents.
+          // Note though, that in this case we have already got the try/catch
+          // frame corresponding to the cluster negotiation (see
+          // collect_build_postponed() for details).
           //
-          assert (i->negotiated);
+          assert (i->depth != 0);
 
           ri = i;
 
@@ -2216,6 +2224,8 @@ namespace bpkg
     // instead. Add entry to replaced_vers and throw replace_version if the
     // existing version needs to be replaced but the new version cannot be
     // re-collected recursively in-place (see replaced_versions for details).
+    // Also add entry and throw if the existing dependent needs to be
+    // replaced.
     //
     // Optionally, pass the function which verifies the chosen package
     // version. It is called before replace_version is potentially thrown or
@@ -2255,11 +2265,11 @@ namespace bpkg
                    const function<add_priv_cfg_function>& apc,
                    bool initial_collection,
                    replaced_versions& replaced_vers,
+                   postponed_configurations& postponed_cfgs,
                    build_package_refs* dep_chain = nullptr,
                    postponed_packages* postponed_repo = nullptr,
                    postponed_packages* postponed_alts = nullptr,
                    postponed_dependencies* postponed_deps = nullptr,
-                   postponed_configurations* postponed_cfgs = nullptr,
                    const function<verify_package_build_function>& vpb = nullptr)
     {
       using std::swap; // ...and not list::swap().
@@ -2271,8 +2281,7 @@ namespace bpkg
       bool recursive (dep_chain != nullptr);
       assert ((postponed_repo != nullptr) == recursive &&
               (postponed_alts != nullptr) == recursive &&
-              (postponed_deps != nullptr) == recursive &&
-              (postponed_cfgs != nullptr) == recursive);
+              (postponed_deps != nullptr) == recursive);
 
       // Only builds are allowed here.
       //
@@ -2314,6 +2323,25 @@ namespace bpkg
           return nullptr;
         }
       }
+
+      // Add the version replacement entry, call the verification function if
+      // specified, and throw replace_version.
+      //
+      auto replace_ver = [&cp, &vpb, &vi, &replaced_vers]
+                         (const build_package& p)
+      {
+        replaced_version rv (p.available, p.repository_fragment, p.system);
+
+        if (vi != replaced_vers.end ())
+          vi->second = move (rv);
+        else
+          replaced_vers.emplace (move (cp), move (rv));
+
+        if (vpb)
+          vpb (p, true /* scratch */);
+
+        throw replace_version ();
+      };
 
       auto i (map_.find (cp));
 
@@ -2481,21 +2509,7 @@ namespace bpkg
                             << p1->available_name_version_db ();});
 
               if (scratch)
-              {
-                replaced_version rv (p1->available,
-                                     p1->repository_fragment,
-                                     p1->system);
-
-                if (vi != replaced_vers.end ())
-                  vi->second = move (rv);
-                else
-                  replaced_vers.emplace (move (cp), move (rv));
-
-                if (vpb)
-                  vpb (*p1, true /* scratch */);
-
-                throw replace_version ();
-              }
+                replace_ver (*p1);
             }
             else
             {
@@ -2514,6 +2528,27 @@ namespace bpkg
       }
       else
       {
+        // Treat the replacement of the existing dependent as a version
+        // replacement as well. This way we will not be treating the dependent
+        // as an existing on the re-collection (see
+        // query_existing_dependents() for details).
+        //
+        // Note: an existing dependent may not be configured as system.
+        //
+        if (pkg.selected != nullptr &&
+            (pkg.selected->version != pkg.available_version () ||
+             pkg.system))
+        {
+
+          for (const postponed_configuration& cfg: postponed_cfgs)
+          {
+            auto i (cfg.dependents.find (cp));
+
+            if (i != cfg.dependents.end () && i->second.existing)
+              replace_ver (pkg);
+          }
+        }
+
         // This is the first time we are adding this package name to the map.
         //
         l4 ([&]{trace << "add " << pkg.available_name_version_db ();});
@@ -2559,7 +2594,7 @@ namespace bpkg
                                      postponed_alts,
                                      0 /* max_alt_index */,
                                      *postponed_deps,
-                                     *postponed_cfgs);
+                                     postponed_cfgs);
 
       return &p;
     }
@@ -3836,7 +3871,15 @@ namespace bpkg
                   bool f (prq.selected->hold_version);
                   bool w (!f && prq.selected->hold_package);
 
-                  if (f || w || verb >= 2)
+                  // Note that there is no sense to warn or inform the user if
+                  // we are about to start re-collection from scratch.
+                  //
+                  // @@ It seems that we may still warn/inform multiple times
+                  //    about the same package if we start from scratch. The
+                  //    intermediate diagnostics can probably be irrelevant to
+                  //    the final result.
+                  //
+                  if (f || ((w || verb >= 2) && !scratch))
                   {
                     const version& av (p.available_version ());
 
@@ -3888,11 +3931,11 @@ namespace bpkg
                              apc,
                              initial_collection,
                              replaced_vers,
+                             postponed_cfgs,
                              nullptr /* dep_chain */,
                              nullptr /* postponed_repo */,
                              nullptr /* postponed_alts */,
                              nullptr /* postponed_deps */,
-                             nullptr /* postponed_cfgs */,
                              verify));
 
             config_package dcp (b.db, b.available->id.name);
@@ -4723,11 +4766,11 @@ namespace bpkg
                        apc,
                        true /* initial_collection */,
                        replaced_vers,
+                       postponed_cfgs,
                        &dep_chain,
                        &postponed_repo,
                        &postponed_alts,
-                       &postponed_deps,
-                       &postponed_cfgs);
+                       &postponed_deps);
       }
     }
 
@@ -5234,7 +5277,8 @@ namespace bpkg
                                rpt_depts,
                                apc,
                                true /* initial_collection */,
-                               replaced_vers);
+                               replaced_vers,
+                               postponed_cfgs);
 
                 build_package* b (entered_build (cp));
                 assert (b != nullptr);
@@ -9738,7 +9782,8 @@ namespace bpkg
                                   rpt_depts,
                                   add_priv_cfg,
                                   true /* initial_collection */,
-                                  replaced_vers);
+                                  replaced_vers,
+                                  postponed_cfgs);
 
             // Collect all the prerequisites of the user selection.
             //
@@ -9894,11 +9939,11 @@ namespace bpkg
                                   add_priv_cfg,
                                   true /* initial_collection */,
                                   replaced_vers,
+                                  postponed_cfgs,
                                   &dep_chain,
                                   &postponed_repo,
                                   &postponed_alts,
-                                  &postponed_deps,
-                                  &postponed_cfgs);
+                                  &postponed_deps);
             }
           }
 
