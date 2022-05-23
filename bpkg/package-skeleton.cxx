@@ -189,7 +189,7 @@ namespace bpkg
       using build2::fail;
       using build2::endf;
 
-      scope& rs (load (false /* merge_config_vars */));
+      scope& rs (load ());
 
       istringstream is ('(' + cond + ')');
       is.exceptions (istringstream::failbit | istringstream::badbit);
@@ -352,7 +352,13 @@ namespace bpkg
       using build2::fail;
       using build2::endf;
 
-      scope& rs (load (true /* merge_config_vars */));
+      // Merge old configuration variables into config_vars since otherwise
+      // they may end up being overridden by reflects.
+      //
+      if (config_srcs_ != nullptr)
+        merge_old_config_vars ();
+
+      scope& rs (load ());
 
       istringstream is (refl);
       is.exceptions (istringstream::failbit | istringstream::badbit);
@@ -404,12 +410,12 @@ namespace bpkg
              p.first != p.second;
              ++p.first)
         {
-          const variable* var (&p.first->first.get ());
+          const variable& var (p.first->first);
 
           // This can be one of the overrides (__override, __prefix, etc),
           // which we skip.
           //
-          if (var->override ())
+          if (var.override ())
             continue;
 
           // What happens to version if overriden? A: appears to be still
@@ -419,11 +425,11 @@ namespace bpkg
 
           if (collect)
           {
-            vars.emplace (var, value_data {nullptr, val.version});
+            vars.emplace (&var, value_data {nullptr, val.version});
           }
           else
           {
-            auto i (vars.find (var));
+            auto i (vars.find (&var));
 
             if (i != vars.end ())
             {
@@ -433,7 +439,7 @@ namespace bpkg
                 i->second.val = &val;
             }
             else
-              vars.emplace (var, value_data {&val, 0});
+              vars.emplace (&var, value_data {&val, 0});
           }
         }
       };
@@ -742,24 +748,20 @@ namespace bpkg
     return make_pair (move (vars), move (srcs));
   }
 
-  build2::scope& package_skeleton::
-  load (bool merge_config_vars)
+  // Note: cannot be package_skeleton member function due to iterator return
+  // (build2 stuff is only forward-declared in the header).
+  //
+  static build2::scope_map::iterator
+  bootstrap (package_skeleton& skl, const strings& cmd_vars)
   {
-    if (ctx_ != nullptr)
-    {
-      if (!merge_config_vars || config_srcs_ == nullptr)
-        return *rs_;
-
-      ctx_ = nullptr;
-      // Fall through.
-    }
+    assert (skl.ctx_ == nullptr);
 
     // The overall plan is as follows:
     //
     // 0. Create filesystem state if necessary (could have been created by
     //    another instance, e.g., during simulation).
     //
-    // 1. Load the state potentially with accumulated reflect fragment.
+    // 1. Bootstrap the package skeleton.
     //
     // Creating a new context is not exactly cheap (~1.2ms debug, 0.08ms
     // release) so we could try to re-use it by cleaning all the scopes other
@@ -770,22 +772,22 @@ namespace bpkg
 
     // Create the skeleton filesystem state, if it doesn't exist yet.
     //
-    if (!created_)
+    if (!skl.created_)
     {
-      const available_package& ap (*available_);
+      const available_package& ap (*skl.available_);
 
       // Note that we create the skeleton directories in the skeletons/
       // subdirectory of the configuration temporary directory to make sure
       // they never clash with other temporary subdirectories (git
       // repositories, etc).
       //
-      if (src_root_.empty () || out_root_.empty ())
+      if (skl.src_root_.empty () || skl.out_root_.empty ())
       {
         // Cannot be specified if src_root_ is unspecified.
         //
-        assert (out_root_.empty ());
+        assert (skl.out_root_.empty ());
 
-        auto i (temp_dir.find (db_->config_orig));
+        auto i (temp_dir.find (skl.db_->config_orig));
         assert (i != temp_dir.end ());
 
         // Make sure the source and out root directories, if set, are absolute
@@ -797,15 +799,15 @@ namespace bpkg
         dir_path d (normalize (i->second, "temporary directory"));
 
         d /= "skeletons";
-        d /= name ().string () + '-' + ap.version.string ();
+        d /= skl.name ().string () + '-' + ap.version.string ();
 
-        if (src_root_.empty ())
-          src_root_ = move (d); // out_root_ is the same.
+        if (skl.src_root_.empty ())
+          skl.src_root_ = move (d); // out_root_ is the same.
         else
-          out_root_ = move (d); // Don't even need to create it.
+          skl.out_root_ = move (d); // Don't even need to create it.
       }
 
-      if (!exists (src_root_))
+      if (!exists (skl.src_root_))
       {
         // Create the buildfiles.
         //
@@ -814,7 +816,7 @@ namespace bpkg
         // additional files.
         //
         {
-          path bf (src_root_ / std_bootstrap_file);
+          path bf (skl.src_root_ / std_bootstrap_file);
 
           mk_p (bf.directory ());
 
@@ -837,7 +839,7 @@ namespace bpkg
           save (*ap.bootstrap_build, bf);
 
           if (ap.root_build)
-            save (*ap.root_build, src_root_ / std_root_file);
+            save (*ap.root_build, skl.src_root_ / std_root_file);
         }
 
         // Create the manifest file containing the bare minimum of values
@@ -846,7 +848,7 @@ namespace bpkg
         //
         {
           package_manifest m;
-          m.name = name ();
+          m.name = skl.name ();
           m.version = ap.version;
 
           // Note that there is no guarantee that the potential build2
@@ -868,7 +870,7 @@ namespace bpkg
               m.dependencies.push_back (das);
           }
 
-          path mf (src_root_ / manifest_file);
+          path mf (skl.src_root_ / manifest_file);
 
           try
           {
@@ -893,13 +895,13 @@ namespace bpkg
         }
       }
 
-      created_ = true;
+      skl.created_ = true;
     }
 
     // Initialize the build system.
     //
     if (!build2_sched.started ())
-      build2_init (*co_);
+      build2_init (*skl.co_);
 
     try
     {
@@ -909,32 +911,7 @@ namespace bpkg
 
       // Create build context.
       //
-      // We can reasonably assume reflect cannot have global or absolute scope
-      // variable overrides so we don't need to pass them to context.
-
-      // Merge variable overrides (note that the order is important).
-      //
-      strings* cmd_vars;
-      {
-        strings& v1 (build2_cmd_vars);
-        strings& v2 (config_vars_);
-
-        cmd_vars = (v2.empty () ? &v1 : v1.empty () ? &v2 : nullptr);
-
-        if (cmd_vars == nullptr)
-        {
-          if (cmd_vars_.empty ()) // Cached.
-          {
-            cmd_vars_.reserve (v1.size () + v2.size ());
-            cmd_vars_.assign (v1.begin (), v1.end ());
-            cmd_vars_.insert (cmd_vars_.end (), v2.begin (), v2.end ());
-          }
-
-          cmd_vars = &cmd_vars_;
-        }
-      }
-
-      ctx_.reset (
+      skl.ctx_.reset (
         new context (build2_sched,
                      build2_mutexes,
                      build2_fcache,
@@ -942,9 +919,9 @@ namespace bpkg
                      false /* no_external_modules */,
                      false /* dry_run */,             // Shouldn't matter.
                      false /* keep_going */,          // Shouldnt' matter.
-                     *cmd_vars));
+                     cmd_vars));
 
-      context& ctx (*ctx_);
+      context& ctx (*skl.ctx_);
 
       // This is essentially a subset of the steps we perform in b.cxx. See
       // there for more detailed comments.
@@ -965,8 +942,10 @@ namespace bpkg
 
       // Note that it's ok for out_root to not exist (external package).
       //
-      const dir_path& src_root (src_root_);
-      const dir_path& out_root (out_root_.empty () ? src_root_ : out_root_);
+      const dir_path& src_root (skl.src_root_);
+      const dir_path& out_root (skl.out_root_.empty ()
+                                ? skl.src_root_
+                                : skl.out_root_);
 
       auto rsi (create_root (ctx, out_root, src_root));
       scope& rs (*rsi->second.front ());
@@ -985,8 +964,8 @@ namespace bpkg
 
       bootstrap_pre (rs, altn);
       bootstrap_src (rs, altn,
-                     db_->config.relative (out_root) /* amalgamation */,
-                     false                           /* subprojects */);
+                     skl.db_->config.relative (out_root) /* amalgamation */,
+                     false                               /* subprojects */);
 
       create_bootstrap_outer (rs);
       bootstrap_post (rs);
@@ -996,7 +975,59 @@ namespace bpkg
 
       ctx.enter_project_overrides (rs, out_root, ctx.var_overrides);
 
-      // Load project's root.build.
+      return rsi;
+    }
+    catch (const build2::failed&)
+    {
+      throw failed (); // Assume the diagnostics has already been issued.
+    }
+  }
+
+  const strings& package_skeleton::
+  merge_cmd_vars ()
+  {
+    // Merge variable overrides (note that the order is important).
+    //
+    // We can reasonably assume reflect cannot have global or absolute scope
+    // variable overrides so we don't need to pass them to context.
+    //
+    const strings* r;
+
+    const strings& v1 (build2_cmd_vars);
+    const strings& v2 (config_vars_);
+
+    r = (v2.empty () ? &v1 : v1.empty () ? &v2 : nullptr);
+
+    if (r == nullptr)
+    {
+      if (cmd_vars_.empty ()) // Cached.
+      {
+        cmd_vars_.reserve (v1.size () + v2.size ());
+        cmd_vars_.assign (v1.begin (), v1.end ());
+        cmd_vars_.insert (cmd_vars_.end (), v2.begin (), v2.end ());
+      }
+
+      r = &cmd_vars_;
+    }
+
+    return *r;
+  }
+
+  build2::scope& package_skeleton::
+  load ()
+  {
+    if (ctx_ != nullptr)
+      return *rs_;
+
+    try
+    {
+      using namespace build2;
+
+      auto rsi (bootstrap (*this, merge_cmd_vars ()));
+      scope& rs (*rsi->second.front ());
+
+      // Load project's root.build as well as potentially accumulated reflect
+      // fragment.
       //
       // If we have the accumulated reflect fragment, wedge it just before
       // loading root.build (but after initializing config which may load
@@ -1025,75 +1056,97 @@ namespace bpkg
 
       load_root (rs, pre);
 
-      // If requested, extract and merge old user configuration variables from
-      // config.build (or equivalent) into config_vars. Then reload the state
-      // in order to make them overrides.
-      //
-      if (merge_config_vars && config_srcs_ != nullptr)
-      {
-        auto i (config_vars_.begin ()); // Insert position, see below.
-
-        names storage;
-        for (const config_variable& v: *config_srcs_)
-        {
-          if (v.source != config_source::user)
-            continue;
-
-          using config::variable_origin;
-
-          pair<variable_origin, lookup> ol (config::origin (rs, v.name));
-
-          switch (ol.first)
-          {
-          case variable_origin::override_:
-            {
-              // Already in config_vars.
-              //
-              // @@ TODO: theoretically, this could be an append/prepend
-              //    override(s) and to make this work correctly we would need
-              //    to replace them with an assign override with the final
-              //    value. Maybe one day.
-              //
-              break;
-            }
-          case variable_origin::buildfile:
-            {
-              // Doesn't really matter where we add them though conceptually
-              // feels like old should go before new (and in the original
-              // order).
-              //
-              i = config_vars_.insert (
-                i,
-                serialize_cmdline (v.name, *ol.second, storage)) + 1;
-
-              break;
-            }
-          case variable_origin::undefined:
-          case variable_origin::default_:
-            {
-              // Old user configuration no longer in config.build. We could
-              // complain but that feels overly drastic. Seeing that we will
-              // recalculate the new set of config variable sources, let's
-              // just ignore this (we could issue a warning, but who knows how
-              // many times it will be issued with all this backtracking).
-              //
-              break;
-            }
-          }
-        }
-
-        config_srcs_ = nullptr; // Merged.
-
-        ctx_ = nullptr;
-        return load (true);
-      }
-
-      // Setup root scope as base.
-      //
-      setup_base (rsi, out_root, src_root);
+      setup_base (rsi,
+                  out_root_.empty () ? src_root_ : out_root_,
+                  src_root_);
 
       rs_ = &rs;
       return rs;
+    }
+    catch (const build2::failed&)
+    {
+      throw failed (); // Assume the diagnostics has already been issued.
+    }
+  }
+
+  void package_skeleton::
+  merge_old_config_vars ()
+  {
+    if (config_srcs_ == nullptr)
+      return;
+
+    assert (reflect_frag_.empty ()); // Too late.
+
+    ctx_ = nullptr; // Reload.
+
+    try
+    {
+      using namespace build2;
+
+      scope& rs (*bootstrap (*this, merge_cmd_vars ())->second.front ());
+
+      // Load project's root.build.
+      //
+      load_root (rs);
+
+      // Extract and merge old user configuration variables from config.build
+      // (or equivalent) into config_vars. Then invalidate loaded state in
+      // order to make them overrides.
+      //
+      auto i (config_vars_.begin ()); // Insert position, see below.
+
+      names storage;
+      for (const config_variable& v: *config_srcs_)
+      {
+        if (v.source != config_source::user)
+          continue;
+
+        using config::variable_origin;
+
+        pair<variable_origin, lookup> ol (config::origin (rs, v.name));
+
+        switch (ol.first)
+        {
+        case variable_origin::override_:
+          {
+            // Already in config_vars.
+            //
+            // @@ TODO: theoretically, this could be an append/prepend
+            //    override(s) and to make this work correctly we would need
+            //    to replace them with an assign override with the final
+            //    value. Maybe one day.
+            //
+            break;
+          }
+        case variable_origin::buildfile:
+          {
+            // Doesn't really matter where we add them though conceptually
+            // feels like old should go before new (and in the original
+            // order).
+            //
+            i = config_vars_.insert (
+              i,
+              serialize_cmdline (v.name, *ol.second, storage)) + 1;
+
+            break;
+          }
+        case variable_origin::undefined:
+        case variable_origin::default_:
+          {
+            // Old user configuration no longer in config.build. We could
+            // complain but that feels overly drastic. Seeing that we will
+            // recalculate the new set of config variable sources, let's
+            // just ignore this (we could issue a warning, but who knows how
+            // many times it will be issued with all this backtracking).
+            //
+            break;
+          }
+        }
+      }
+
+      config_srcs_ = nullptr; // Merged.
+      cmd_vars_.clear ();     // Invalidated.
+      ctx_ = nullptr;         // Drop.
     }
     catch (const build2::failed&)
     {

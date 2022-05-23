@@ -102,17 +102,30 @@ namespace bpkg
   private:
     // Create the skeleton if necessary and (re)load the build system state.
     //
-    // If merge_config_vars is true, then extract old user configuration
-    // variables from config.build (or equivalent) and merge them into
-    // config_vars_. This is only necessary if something (e.g., reflect) could
-    // override their values in config.build.
-    //
     // Call this function before evaluating every clause.
     //
     build2::scope&
-    load (bool merge_config_vars);
+    load ();
 
-  private:
+    // Extract old user configuration variables from config.build (or
+    // equivalent) and merge them into config_vars_. This is only necessary if
+    // something (e.g., reflect) could override their values in config.build.
+    //
+    // @@ Isn't the plan now to reset all configs to defaul which means we
+    //    will probably always have to extract and merge.
+    //
+    void
+    merge_old_config_vars ();
+
+    // Merge command line variable overrides in one list (normally to be
+    // passed to bootstrap()).
+    //
+    const strings&
+    merge_cmd_vars ();
+
+    // Implementation details (public for bootstrap()).
+    //
+  public:
     // NOTE: remember to update move/copy constructors!
     //
     const common_options* co_;
