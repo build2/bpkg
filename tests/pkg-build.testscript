@@ -5473,7 +5473,6 @@ test.options += --no-progress
 
         : postpone-existing
         :
-        if false
         {
           $clone_cfg;
 
@@ -5487,17 +5486,7 @@ test.options += --no-progress
           #
           $* fix 2>!;
 
-          # @@ So here we should have been in a situation that after libfoo is
-          #    postponed with {foo^ | libfoo->{foo/1,1}} creation and we got
-          #    to negotiating it, by that time foo has stopped to be an
-          #    "existing" dependent since it was downgraded via fix/0.1.0. The
-          #    natural fix would be adding a record somewhere and start from
-          #    scratch (maybe add into postponed_poss with position {0,0}). We
-          #    however crash on assertion failure earlier (see below). Sounds
-          #    like we need to scratch earlier or maybe get rid of assertion
-          #    and deal with the existing flag there.
-          #
-          $* libfoo/0.1.0 fix/0.1.0 2>>~%EOE%
+          $* libfoo/0.1.0 fix/0.1.0 2>>~%EOE%;
             %.*
             trace: pkg_build: refine package collection/plan execution from scratch
             %.*
@@ -5509,6 +5498,40 @@ test.options += --no-progress
             %.*
             trace: collect_build_prerequisites: begin fix/0.1.0
             %.*
+            trace: pkg_build: refine package collection/plan execution from scratch
+            %.*
+            trace: collect_build: add libfoo/0.1.0
+            trace: collect_build: add fix/0.1.0
+            %.*
+            trace: collect_build_prerequisites: skip expected to be built existing dependent foo of dependency libfoo
+            trace: collect_build_prerequisites: begin libfoo/0.1.0
+            trace: collect_build_prerequisites: end libfoo/0.1.0
+            %.*
+            trace: collect_build_prerequisites: begin fix/0.1.0
+            %.*
+            trace: collect_build: apply version replacement for foo/0.1.0
+            trace: collect_build: replacement: foo/0.1.0
+            trace: collect_build: add foo/0.1.0
+            info: package fix dependency on (foo == 0.1.0) is forcing downgrade of foo/1.0.0 to 0.1.0
+            trace: collect_build_prerequisites: no cfg-clause for dependency foo/0.1.0 of dependent fix/0.1.0
+            %.*
+            trace: collect_build_prerequisites: skip being built existing dependent fix of dependency foo
+            trace: collect_build_prerequisites: begin foo/0.1.0
+            %.*
+            trace: collect_build: pick libfoo/0.1.0 over libfoo/1.0.0
+            trace: collect_build_prerequisites: cannot cfg-postpone dependency libfoo/0.1.0 of dependent foo/0.1.0 (collected prematurely), throwing postpone_dependency
+            trace: pkg_build: collection failed due to prematurely collected dependency (libfoo), retry from scratch
+            %.*
+            trace: pkg_build: refine package collection/plan execution from scratch
+            %.*
+            trace: collect_build: add libfoo/0.1.0
+            trace: collect_build: add fix/0.1.0
+            trace: pkg_build: dep-postpone user-specified libfoo
+            %.*
+            trace: collect_build_prerequisites: begin fix/0.1.0
+            %.*
+            trace: collect_build: apply version replacement for foo/0.1.0
+            trace: collect_build: replacement: foo/0.1.0
             trace: collect_build: add foo/0.1.0
             info: package fix dependency on (foo == 0.1.0) is forcing downgrade of foo/1.0.0 to 0.1.0
             trace: collect_build_prerequisites: no cfg-clause for dependency foo/0.1.0 of dependent fix/0.1.0
@@ -5518,9 +5541,37 @@ test.options += --no-progress
             %.*
             trace: collect_build: pick libfoo/0.1.0 over libfoo/1.0.0
             trace: collect_build_prerequisites: cfg-postpone dependency libfoo/0.1.0 of dependent foo/0.1.0
-            trace: postponed_configurations::add: add {foo 1,1: libfoo} to {foo^ | libfoo->{foo/1,1}}
-            bpkg: /home/karen/work/build2/bpkg/bpkg/pkg-build.cxx:1361: void bpkg::postponed_configuration::add(bpkg::config_package&&, bool, std::pair<long unsigned int, long unsigned int>, bpkg::postponed_configuration::packages&&): Assertion 'ddi.existing == existing' failed.
+            trace: postponed_configurations::add: create {foo | libfoo->{foo/1,1}}
+            trace: collect_build_prerequisites: postpone foo/0.1.0
+            trace: collect_build_prerequisites: end fix/0.1.0
+            trace: collect_build_postponed (0): begin
+            trace: collect_build_postponed (1): begin {foo | libfoo->{foo/1,1}}
+            %.*
+            trace: collect_build_postponed (1): skip being built existing dependent foo of dependency libfoo
+            trace: collect_build_postponed (1): cfg-negotiate begin {foo | libfoo->{foo/1,1}}
+            trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
+            trace: collect_build_prerequisites: begin libfoo/0.1.0
+            trace: collect_build_prerequisites: end libfoo/0.1.0
+            trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
+            trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent foo/0.1.0
+            trace: collect_build_prerequisites: resume foo/0.1.0
+            trace: collect_build_prerequisites: end foo/0.1.0
+            trace: collect_build_postponed (1): cfg-negotiate end {foo | libfoo->{foo/1,1}}!
+            trace: collect_build_postponed (1): end {foo | libfoo->{foo/1,1}}
+            trace: collect_build_postponed (0): end
+            %.*
+            trace: execute_plan: simulate: yes
+            %.*
             EOE
+
+          $pkg_status -r >>EOO;
+            !libfoo configured !0.1.0 available 1.0.0
+            !fix configured !0.1.0 available 1.0.0
+              foo configured 0.1.0 available 1.0.0
+                !libfoo configured !0.1.0 available 1.0.0
+            EOO
+
+          $pkg_drop fix libfoo --drop-dependent
         }
       }
 
@@ -5562,22 +5613,14 @@ test.options += --no-progress
             EOE
         }
 
-        : re-evaluating-dependent
+        : up-negotiate
         :
-        if false
         {
           $clone_cfg;
 
           $* tex 2>!;
 
-          # @@ Seems we should get rid of this assertion (as suggested above)
-          #    since the situation is pretty valid here: we just should
-          #    up-negotiate 'tex: depends: libfoo(c)' after existing dependent
-          #    tex was re-evaluated and become a regular dependent in a sence
-          #    (we still need to keep the existing flag for it; see
-          #    collect_build_prerequisites()).
-          #
-          $* baz/0.1.0 2>>~%EOE%
+          $* baz/0.1.0 2>>~%EOE%;
             %.*
             trace: pkg_build: refine package collection/plan execution from scratch
             %.*
@@ -5620,8 +5663,85 @@ test.options += --no-progress
             trace: collect_build: pick libfoo/0.1.0 over libfoo/1.0.0
             trace: collect_build_prerequisites: cfg-postpone dependency libfoo/0.1.0 of dependent tex/1.0.0
             trace: postponed_configurations::add: add {tex 2,1: libfoo} to {baz tex^ | libbar->{baz/1,1 tex/1,1} libfoo->{baz/1,1}}?
-            bpkg: /home/karen/work/build2/bpkg/bpkg/pkg-build.cxx:1361: void bpkg::postponed_configuration::add(bpkg::config_package&&, bool, std::pair<long unsigned int, long unsigned int>, bpkg::postponed_configuration::packages&&): Assertion 'ddi.existing == existing' failed.
+            trace: collect_build_prerequisites: cfg-postponing dependent tex/1.0.0 involves negotiated configurations and results in {baz tex^ | libbar->{baz/1,1 tex/1,1} libfoo->{baz/1,1 tex/2,1}}?, throwing retry_configuration
+            trace: collect_build_postponed (0): cfg-negotiation of {baz | libbar->{baz/1,1} libfoo->{baz/1,1}} failed due to dependent tex, adding shadow dependent and re-negotiating
+            trace: collect_build_postponed (1): begin {baz | libbar->{baz/1,1} libfoo->{baz/1,1}}
+            %.*
+            trace: collect_build_postponed (1): re-evaluate existing dependents for {baz | libbar->{baz/1,1} libfoo->{baz/1,1}}
+            trace: collect_build: add tex/1.0.0
+            trace: collect_build_prerequisites: reeval tex/1.0.0
+            %.*
+            trace: collect_build: pick libbar/0.1.0 over libbar/1.0.0
+            trace: postponed_configurations::add: add {tex^ 1,1: libbar} to {baz | libbar->{baz/1,1} libfoo->{baz/1,1}}
+            trace: collect_build_prerequisites: re-evaluating dependent tex/1.0.0 results in {baz tex^ | libbar->{baz/1,1 tex/1,1} libfoo->{baz/1,1}}
+            trace: collect_build_prerequisites: re-evaluated tex/1.0.0
+            trace: collect_build_postponed (1): cfg-negotiate begin {baz tex^ | libbar->{baz/1,1 tex/1,1} libfoo->{baz/1,1}}
+            trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
+            trace: collect_build_prerequisites: begin libbar/0.1.0
+            trace: collect_build_prerequisites: end libbar/0.1.0
+            trace: collect_build_prerequisites: begin libfoo/0.1.0
+            trace: collect_build_prerequisites: end libfoo/0.1.0
+            trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
+            trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent baz/0.1.0
+            trace: collect_build_prerequisites: resume baz/0.1.0
+            trace: collect_build_prerequisites: end baz/0.1.0
+            trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent tex/1.0.0
+            trace: collect_build_prerequisites: resume tex/1.0.0
+            %.*
+            trace: collect_build: pick libfoo/0.1.0 over libfoo/1.0.0
+            trace: collect_build_prerequisites: cfg-postpone dependency libfoo/0.1.0 of dependent tex/1.0.0
+            trace: postponed_configurations::add: add {tex 2,1: libfoo} to {baz tex^ | libbar->{baz/1,1 tex/1,1} libfoo->{baz/1,1}}?
+            trace: collect_build_prerequisites: dependent tex/1.0.0 is a shadow dependent for {baz tex^ | libbar->{baz/1,1 tex/1,1} libfoo->{baz/1,1 tex/2,1}}?
+            trace: collect_build_prerequisites: cfg-postponing dependent tex/1.0.0 involves non-negotiated configurations and results in {baz tex^ | libbar->{baz/1,1 tex/1,1} libfoo->{baz/1,1 tex/2,1}}?, throwing merge_configuration
+            trace: collect_build_postponed (0): cfg-negotiation of {baz | libbar->{baz/1,1} libfoo->{baz/1,1}} failed due to non-negotiated clusters, force-merging based on shadow cluster {baz tex^ | libbar->{baz/1,1 tex/1,1} libfoo->{baz/1,1 tex/2,1}}?
+            trace: collect_build_postponed (1): begin {baz | libbar->{baz/1,1} libfoo->{baz/1,1}}
+            %.*
+            trace: collect_build_postponed (1): re-evaluate existing dependents for {baz | libbar->{baz/1,1} libfoo->{baz/1,1}}
+            trace: collect_build: add tex/1.0.0
+            trace: collect_build_prerequisites: reeval tex/1.0.0
+            %.*
+            trace: collect_build: pick libbar/0.1.0 over libbar/1.0.0
+            trace: postponed_configurations::add: add {tex^ 1,1: libbar} to {baz | libbar->{baz/1,1} libfoo->{baz/1,1}} (shadow cluster-based)
+            trace: collect_build_prerequisites: re-evaluating dependent tex/1.0.0 results in {baz tex^ | libbar->{baz/1,1 tex/1,1} libfoo->{baz/1,1}}
+            trace: collect_build_prerequisites: re-evaluated tex/1.0.0
+            trace: collect_build_postponed (1): cfg-negotiate begin {baz tex^ | libbar->{baz/1,1 tex/1,1} libfoo->{baz/1,1}}
+            trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
+            trace: collect_build_prerequisites: begin libbar/0.1.0
+            trace: collect_build_prerequisites: end libbar/0.1.0
+            trace: collect_build_prerequisites: begin libfoo/0.1.0
+            trace: collect_build_prerequisites: end libfoo/0.1.0
+            trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
+            trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent baz/0.1.0
+            trace: collect_build_prerequisites: resume baz/0.1.0
+            trace: collect_build_prerequisites: end baz/0.1.0
+            trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent tex/1.0.0
+            trace: collect_build_prerequisites: resume tex/1.0.0
+            %.*
+            trace: collect_build: pick libfoo/0.1.0 over libfoo/1.0.0
+            trace: collect_build_prerequisites: cfg-postpone dependency libfoo/0.1.0 of dependent tex/1.0.0
+            trace: postponed_configurations::add: add {tex 2,1: libfoo} to {baz tex^ | libbar->{baz/1,1 tex/1,1} libfoo->{baz/1,1}}? (shadow cluster-based)
+            trace: collect_build_prerequisites: dependent tex/1.0.0 is a shadow dependent for {baz tex^ | libbar->{baz/1,1 tex/1,1} libfoo->{baz/1,1 tex/2,1}}?
+            trace: collect_build_prerequisites: configuration for cfg-postponed dependencies of dependent tex/1.0.0 is negotiated
+            trace: collect_build_prerequisites: dependency libfoo/0.1.0 of dependent tex/1.0.0 is already (being) recursively collected, skipping
+            trace: collect_build_prerequisites: end tex/1.0.0
+            trace: collect_build_postponed (1): cfg-negotiate end {baz tex^ | libbar->{baz/1,1 tex/1,1} libfoo->{baz/1,1 tex/2,1}}!
+            trace: collect_build_postponed (1): end {baz | libbar->{baz/1,1} libfoo->{baz/1,1}}
+            trace: collect_build_postponed (0): end
+            %.*
+            trace: execute_plan: simulate: yes
+            %.*
             EOE
+
+          $pkg_status -r >>EOO;
+            !tex configured 1.0.0
+              libbar configured 0.1.0 available 1.0.0
+              libfoo configured 0.1.0 available 1.0.0
+            !baz configured !0.1.0 available 1.0.0
+              libbar configured 0.1.0 available 1.0.0
+              libfoo configured 0.1.0 available 1.0.0
+            EOO
+
+          $pkg_drop tex baz
         }
       }
     }
