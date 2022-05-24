@@ -2874,15 +2874,15 @@ namespace bpkg
                                      ? dir_path (pdb.config) /= nm.string ()
                                      : optional<dir_path> ());
 
-        pkg.skeleton = package_skeleton (options,
-                                         pdb,
-                                         *ap,
-                                         pkg.config_vars,
-                                         (sp != nullptr && !pkg.disfigure
-                                          ? &sp->config_variables
-                                          : nullptr),
-                                         move (src_root),
-                                         move (out_root));
+        pkg.skeleton = package_skeleton (
+          options,
+          pdb,
+          *ap,
+          pkg.config_vars,
+          pkg.disfigure,
+          (sp != nullptr ? &sp->config_variables : nullptr),
+          move (src_root),
+          move (out_root));
       }
       else
         l5 ([&]{trace << "resume " << pkg.available_name_version_db ();});
@@ -11616,9 +11616,8 @@ namespace bpkg
                                            pdb,
                                            *ap,
                                            move (p.config_vars),
-                                           (!p.disfigure
-                                            ? &sp->config_variables
-                                            : nullptr),
+                                           p.disfigure,
+                                           &sp->config_variables,
                                            move (src_root),
                                            move (out_root)),
                          prereqs (),
@@ -11660,9 +11659,8 @@ namespace bpkg
                                          pdb,
                                          *dap,
                                          move (p.config_vars),
-                                         (!p.disfigure
-                                          ? &sp->config_variables
-                                          : nullptr),
+                                         p.disfigure,
+                                         &sp->config_variables,
                                          move (src_root),
                                          move (out_root)),
                        prereqs (),

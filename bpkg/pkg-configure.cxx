@@ -591,9 +591,12 @@ namespace bpkg
                                    ? dir_path (db.config) /= p->name.string ()
                                    : optional<dir_path> ());
 
-      // Note that the package could have been disfigured with --keep-config.
-      // Thus, we always pass config variables it may store to the package
-      // skeleton.
+      // Note on the disfigure logic: while we don't know whether the package
+      // has been disfigured with --keep-config or not, it has already been
+      // done physically and if without --keep-config, then config.build has
+      // been removed and config_variables cleaned. As a result, we can just
+      // proceed as disfigure=false and disfigure=true will be taken care
+      // automatically (because then things have been removed/cleaned).
       //
       pkg_configure (o,
                      db,
@@ -605,6 +608,7 @@ namespace bpkg
                                        db,
                                        *ap,
                                        move (vars),
+                                       false /* disfigure */,
                                        &p->config_variables,
                                        move (src_root),
                                        move (out_root)),
