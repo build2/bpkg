@@ -5628,26 +5628,210 @@ test.options += --no-progress
 
         : non-negotiated
         :
-        if false
         {
           $clone_cfg;
 
           $* tex 2>!;
 
-          $* libfoo/0.1.0 libbar/0.1.0 2>>~%EOE%
+          $* libfoo/0.1.0 libbar/0.1.0 2>>~%EOE%;
+            %.*
+            trace: pkg_build: refine package collection/plan execution from scratch
+            %.*
+            trace: collect_build: add libfoo/0.1.0
+            trace: collect_build: add libbar/0.1.0
+            %.*
+            trace: collect_build_prerequisites: cfg-postpone dependency libfoo/0.1.0 of existing dependent tex/1.0.0
+            trace: postponed_configurations::add: create {tex^ | libfoo->{tex/2,1}}
+            %.*
+            trace: collect_build_prerequisites: cfg-postpone dependency libbar/0.1.0 of existing dependent tex/1.0.0
+            trace: postponed_configurations::add: create {tex^ | libbar->{tex/1,1}}
+            trace: collect_build_postponed (0): begin
+            trace: collect_build_postponed (1): begin {tex^ | libfoo->{tex/2,1}}
+            %.*
+            trace: collect_build_postponed (1): re-evaluate existing dependents for {tex^ | libfoo->{tex/2,1}}
+            trace: collect_build_postponed (1): cannot re-evaluate dependent tex for target dependency index 2 due to earlier dependency index 1 in {tex^ | libbar->{tex/1,1}}, skipping {tex^ | libfoo->{tex/2,1}}
+            trace: collect_build_postponed (1): begin {tex^ | libbar->{tex/1,1}}
+            %.*
+            trace: collect_build_postponed (1): re-evaluate existing dependents for {tex^ | libbar->{tex/1,1}}
+            %.*
+            trace: collect_build: add tex/1.0.0
+            trace: collect_build_prerequisites: reeval tex/1.0.0
+            %.*
+            trace: collect_build: pick libbar/0.1.0 over libbar/1.0.0
+            trace: postponed_configurations::add: add {tex^ 1,1: libbar} to {tex^ | libbar->{tex/1,1}}
+            trace: collect_build_prerequisites: re-evaluating dependent tex/1.0.0 results in {tex^ | libbar->{tex/1,1}}
+            trace: collect_build_prerequisites: re-evaluated tex/1.0.0
+            trace: collect_build_postponed (1): cfg-negotiate begin {tex^ | libbar->{tex/1,1}}
+            trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
+            trace: collect_build_prerequisites: begin libbar/0.1.0
+            trace: collect_build_prerequisites: end libbar/0.1.0
+            trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
+            trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent tex/1.0.0
+            trace: collect_build_prerequisites: resume tex/1.0.0
+            %.*
+            trace: collect_build: pick libfoo/0.1.0 over libfoo/1.0.0
+            trace: collect_build_prerequisites: cfg-postpone dependency libfoo/0.1.0 of dependent tex/1.0.0
+            trace: postponed_configurations::add: add {tex 2,1: libfoo} to {tex^ | libfoo->{tex/2,1}}
+            trace: collect_build_prerequisites: postpone tex/1.0.0
+            trace: collect_build_postponed (1): cfg-negotiate end {tex^ | libbar->{tex/1,1}}!
+            trace: collect_build_postponed (2): begin {tex^ | libfoo->{tex/2,1}}
+            %.*
+            trace: collect_build_postponed (2): skip being built existing dependent tex of dependency libfoo
+            trace: collect_build_postponed (2): cfg-negotiate begin {tex^ | libfoo->{tex/2,1}}
+            trace: collect_build_postponed (2): recursively collect cfg-negotiated dependencies
+            trace: collect_build_prerequisites: begin libfoo/0.1.0
+            trace: collect_build_prerequisites: end libfoo/0.1.0
+            trace: collect_build_postponed (2): recursively collect cfg-negotiated dependents
+            trace: collect_build_postponed (2): select cfg-negotiated dependency alternative for dependent tex/1.0.0
+            trace: collect_build_prerequisites: resume tex/1.0.0
+            trace: collect_build_prerequisites: end tex/1.0.0
+            trace: collect_build_postponed (2): cfg-negotiate end {tex^ | libfoo->{tex/2,1}}!
+            trace: collect_build_postponed (2): end {tex^ | libfoo->{tex/2,1}}
+            trace: collect_build_postponed (1): end {tex^ | libbar->{tex/1,1}}
+            trace: collect_build_postponed (0): end
+            %.*
+            trace: execute_plan: simulate: yes
+            %.*
             EOE
+
+          $pkg_status -r >>EOO;
+            !libbar configured !0.1.0 available 1.0.0
+            !libfoo configured !0.1.0 available 1.0.0
+            !tex configured 1.0.0
+              !libbar configured !0.1.0 available 1.0.0
+              !libfoo configured !0.1.0 available 1.0.0
+            EOO
+
+          $pkg_drop tex libfoo libbar
         }
 
         : negotiated
         :
-        if false
         {
           $clone_cfg;
 
           $* tex 2>!;
 
-          $* libfoo/0.1.0 bar/0.1.0 2>>~%EOE%
+          $* libfoo/0.1.0 bar/0.1.0 2>>~%EOE%;
+            %.*
+            trace: pkg_build: refine package collection/plan execution from scratch
+            %.*
+            trace: collect_build: add libfoo/0.1.0
+            trace: collect_build: add bar/0.1.0
+            %.*
+            trace: collect_build_prerequisites: cfg-postpone dependency libfoo/0.1.0 of existing dependent tex/1.0.0
+            trace: postponed_configurations::add: create {tex^ | libfoo->{tex/2,1}}
+            trace: collect_build_prerequisites: begin bar/0.1.0
+            %.*
+            trace: collect_build: add libbar/0.1.0
+            info: package bar dependency on (libbar == 0.1.0) is forcing downgrade of libbar/1.0.0 to 0.1.0
+            trace: collect_build_prerequisites: cfg-postpone dependency libbar/0.1.0 of dependent bar/0.1.0
+            trace: postponed_configurations::add: create {bar | libbar->{bar/1,1}}
+            trace: collect_build_prerequisites: postpone bar/0.1.0
+            trace: collect_build_postponed (0): begin
+            trace: collect_build_postponed (1): begin {tex^ | libfoo->{tex/2,1}}
+            %.*
+            trace: collect_build_postponed (1): re-evaluate existing dependents for {tex^ | libfoo->{tex/2,1}}
+            %.*
+            trace: collect_build: add tex/1.0.0
+            trace: collect_build_prerequisites: reeval tex/1.0.0
+            %.*
+            trace: collect_build: pick libbar/0.1.0 over libbar/1.0.0
+            %.*
+            trace: collect_build: pick libfoo/0.1.0 over libfoo/1.0.0
+            trace: postponed_configurations::add: add {tex^ 2,1: libfoo} to {tex^ | libfoo->{tex/2,1}}
+            trace: collect_build_prerequisites: re-evaluating dependent tex/1.0.0 results in {tex^ | libfoo->{tex/2,1}}
+            trace: collect_build_prerequisites: re-evaluated tex/1.0.0
+            trace: collect_build_postponed (1): cfg-negotiate begin {tex^ | libfoo->{tex/2,1}}
+            trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
+            trace: collect_build_prerequisites: begin libfoo/0.1.0
+            trace: collect_build_prerequisites: end libfoo/0.1.0
+            trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
+            trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent tex/1.0.0
+            trace: collect_build_prerequisites: resume tex/1.0.0
+            trace: collect_build_prerequisites: end tex/1.0.0
+            trace: collect_build_postponed (1): cfg-negotiate end {tex^ | libfoo->{tex/2,1}}!
+            trace: collect_build_postponed (2): begin {bar | libbar->{bar/1,1}}
+            %.*
+            trace: collect_build_postponed (2): re-evaluate existing dependents for {bar | libbar->{bar/1,1}}
+            trace: collect_build_postponed (2): cannot re-evaluate dependent tex for target dependency index 1 due to greater dependency index 2 in {tex^ | libfoo->{tex/2,1}}!, throwing postpone_position
+            trace: pkg_build: collection failed due to earlier dependency position, retry from scratch
+            %.*
+            trace: pkg_build: refine package collection/plan execution from scratch
+            %.*
+            trace: collect_build: add libfoo/0.1.0
+            trace: collect_build: add bar/0.1.0
+            %.*
+            trace: collect_build_prerequisites: cfg-postpone dependency libfoo/0.1.0 of existing dependent tex/1.0.0
+            trace: postponed_configurations::add: create {tex^ | libfoo->{tex/2,1}}
+            trace: collect_build_prerequisites: begin bar/0.1.0
+            %.*
+            trace: collect_build: add libbar/0.1.0
+            info: package bar dependency on (libbar == 0.1.0) is forcing downgrade of libbar/1.0.0 to 0.1.0
+            trace: collect_build_prerequisites: cfg-postpone dependency libbar/0.1.0 of dependent bar/0.1.0
+            trace: postponed_configurations::add: create {bar | libbar->{bar/1,1}}
+            trace: collect_build_prerequisites: postpone bar/0.1.0
+            trace: collect_build_postponed (0): begin
+            trace: collect_build_postponed (1): begin {tex^ | libfoo->{tex/2,1}}
+            %.*
+            trace: collect_build_postponed (1): re-evaluate existing dependents for {tex^ | libfoo->{tex/2,1}}
+            trace: collect_build_postponed (1): pos-postponed existing dependent tex re-evaluation for target dependency index 2, skipping {tex^ | libfoo->{tex/2,1}}
+            trace: collect_build_postponed (1): begin {bar | libbar->{bar/1,1}}
+            %.*
+            trace: collect_build_postponed (1): re-evaluate existing dependents for {bar | libbar->{bar/1,1}}
+            trace: collect_build: add tex/1.0.0
+            trace: collect_build_prerequisites: reeval tex/1.0.0
+            %.*
+            trace: collect_build: pick libbar/0.1.0 over libbar/1.0.0
+            trace: postponed_configurations::add: add {tex^ 1,1: libbar} to {bar | libbar->{bar/1,1}}
+            trace: collect_build_prerequisites: re-evaluating dependent tex/1.0.0 results in {bar tex^ | libbar->{bar/1,1 tex/1,1}}
+            trace: collect_build_prerequisites: re-evaluated tex/1.0.0
+            trace: collect_build_postponed (1): cfg-negotiate begin {bar tex^ | libbar->{bar/1,1 tex/1,1}}
+            trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
+            trace: collect_build_prerequisites: begin libbar/0.1.0
+            trace: collect_build_prerequisites: end libbar/0.1.0
+            trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
+            trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent bar/0.1.0
+            trace: collect_build_prerequisites: resume bar/0.1.0
+            trace: collect_build_prerequisites: end bar/0.1.0
+            trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent tex/1.0.0
+            trace: collect_build_prerequisites: resume tex/1.0.0
+            %.*
+            trace: collect_build: pick libfoo/0.1.0 over libfoo/1.0.0
+            trace: collect_build_prerequisites: cfg-postpone dependency libfoo/0.1.0 of dependent tex/1.0.0
+            trace: postponed_configurations::add: add {tex 2,1: libfoo} to {tex^ | libfoo->{tex/2,1}}
+            trace: collect_build_prerequisites: postpone tex/1.0.0
+            trace: collect_build_postponed (1): cfg-negotiate end {bar tex^ | libbar->{bar/1,1 tex/1,1}}!
+            trace: collect_build_postponed (2): begin {tex^ | libfoo->{tex/2,1}}
+            %.*
+            trace: collect_build_postponed (2): skip being built existing dependent tex of dependency libfoo
+            trace: collect_build_postponed (2): cfg-negotiate begin {tex^ | libfoo->{tex/2,1}}
+            trace: collect_build_postponed (2): recursively collect cfg-negotiated dependencies
+            trace: collect_build_prerequisites: begin libfoo/0.1.0
+            trace: collect_build_prerequisites: end libfoo/0.1.0
+            trace: collect_build_postponed (2): recursively collect cfg-negotiated dependents
+            trace: collect_build_postponed (2): select cfg-negotiated dependency alternative for dependent tex/1.0.0
+            trace: collect_build_prerequisites: resume tex/1.0.0
+            trace: collect_build_prerequisites: end tex/1.0.0
+            trace: collect_build_postponed (2): cfg-negotiate end {tex^ | libfoo->{tex/2,1}}!
+            trace: collect_build_postponed (2): end {tex^ | libfoo->{tex/2,1}}
+            trace: collect_build_postponed (1): end {bar | libbar->{bar/1,1}}
+            trace: collect_build_postponed (0): end
+            %.*
+            trace: execute_plan: simulate: yes
+            %.*
             EOE
+
+          $pkg_status -r >>EOO;
+            !libfoo configured !0.1.0 available 1.0.0
+            !tex configured 1.0.0
+              libbar configured 0.1.0 available 1.0.0
+              !libfoo configured !0.1.0 available 1.0.0
+            !bar configured !0.1.0 available 1.0.0
+              libbar configured 0.1.0 available 1.0.0
+            EOO
+
+          $pkg_drop tex libfoo bar
         }
 
         : up-negotiate
