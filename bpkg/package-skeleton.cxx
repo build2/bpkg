@@ -41,6 +41,12 @@ namespace bpkg
   void
   build2_init (const common_options&);
 
+  // Note: cannot be package_skeleton member function due to iterator return
+  // (build2 stuff is only forward-declared in the header).
+  //
+  static build2::scope_map::iterator
+  bootstrap (package_skeleton&, const strings&);
+
   package_skeleton::
   ~package_skeleton ()
   {
@@ -61,6 +67,7 @@ namespace bpkg
       db_ = v.db_;
       available_ = v.available_;
       config_vars_ = move (v.config_vars_);
+      disfigure_ = v.disfigure_;
       config_srcs_ = v.config_srcs_;
       src_root_ = move (v.src_root_);
       out_root_ = move (v.out_root_);
@@ -85,6 +92,7 @@ namespace bpkg
         db_ (v.db_),
         available_ (v.available_),
         config_vars_ (v.config_vars_),
+        disfigure_ (v.disfigure_),
         config_srcs_ (v.config_srcs_),
         src_root_ (v.src_root_),
         out_root_ (v.out_root_),
@@ -103,6 +111,7 @@ namespace bpkg
                     database& db,
                     const available_package& ap,
                     strings cvs,
+                    bool df,
                     const vector<config_variable>* css,
                     optional<dir_path> src_root,
                     optional<dir_path> out_root)
@@ -110,7 +119,8 @@ namespace bpkg
         db_ (&db),
         available_ (&ap),
         config_vars_ (move (cvs)),
-        config_srcs_ (css)
+        disfigure_ (df),
+        config_srcs_ (df ? nullptr : css)
   {
     // Should not be created for stubs.
     //
@@ -137,6 +147,85 @@ namespace bpkg
     }
     else
       assert (!out_root);
+  }
+
+  void package_skeleton::
+  load_defaults ()
+  {
+    assert (ctx_ == nullptr); // Should only be called before evaluate_*().
+
+    try
+    {
+      using namespace build2;
+      using build2::fail;
+      using build2::endf;
+
+      // @@ TODO: c.c.{disfigure|unload}.
+
+      scope& rs (*bootstrap (*this, merge_cmd_vars ())->second.front ());
+
+      // Load project's root.build.
+      //
+      load_root (rs);
+
+      // Note that a configuration variable may not have a default value so we
+      // cannot just iterate over all the config.<name>** values set on root
+      // scope. Our options seem to be either iterating over the variable pool
+      // or forcing the config module with config.config.module=true and then
+      // using its saved variables map. Since the amout of stuff we load is
+      // quite limited, there shouldn't be too many variables in the pool. So
+      // let's go with the simpler approach for now.
+      //
+      // Though the saved variables map approach would have been more accurate
+      // since that's the variables that were introduced with the config
+      // directive. Potentially the user could just have a buildfile
+      // config.<name>** variable but it feels like that should be harmless
+      // (we will return it but nobody will presumably use that information).
+      //
+      string p ("config." + name ().variable ());
+      size_t n (p.size ());
+
+      for (const variable& var: rs.ctx.var_pool)
+      {
+        if (var.name.compare (0, n, p) != 0 || (var.name[n + 1] != '.' &&
+                                                var.name[n + 1] != '\0'))
+          continue;
+
+        using config::variable_origin;
+
+        pair<variable_origin, lookup> ol (config::origin (rs, var));
+
+        switch (ol.first)
+        {
+        case variable_origin::override_: break; // Value in config_vars.
+        case variable_origin::undefined: break; // No default value.
+        case variable_origin::default_:
+          {
+            // @@ TODO: save in some form?
+            //
+            // How will we enter them (along with value.extra=1) in the
+            // dependent's context. Probably programmatically. Perhaps we
+            // should just save them as untyped names? Then enter and
+            // typify. Seems reasonable. Not clear how/if we can convey
+            // overriden. Maybe we can allow the prefer/require to override
+            // them but then ignore their values?
+            //
+            break;
+          }
+        case variable_origin::buildfile:
+          {
+            // How can this happen if we disfigured all of them?
+            //
+            assert (false);
+            break;
+          }
+        }
+      }
+    }
+    catch (const build2::failed&)
+    {
+      throw failed (); // Assume the diagnostics has already been issued.
+    }
   }
 
   // Print the location of a depends value in the specified manifest file.
@@ -748,8 +837,178 @@ namespace bpkg
     return make_pair (move (vars), move (srcs));
   }
 
-  // Note: cannot be package_skeleton member function due to iterator return
-  // (build2 stuff is only forward-declared in the header).
+  const strings& package_skeleton::
+  merge_cmd_vars ()
+  {
+    // Merge variable overrides (note that the order is important).
+    //
+    // We can reasonably assume reflect cannot have global or absolute scope
+    // variable overrides so we don't need to pass them to context.
+    //
+    const strings* r;
+
+    const strings& v1 (build2_cmd_vars);
+    const strings& v2 (config_vars_);
+
+    r = (v2.empty () ? &v1 : v1.empty () ? &v2 : nullptr);
+
+    if (r == nullptr)
+    {
+      if (cmd_vars_.empty ()) // Cached.
+      {
+        cmd_vars_.reserve (v1.size () + v2.size ());
+        cmd_vars_.assign (v1.begin (), v1.end ());
+        cmd_vars_.insert (cmd_vars_.end (), v2.begin (), v2.end ());
+      }
+
+      r = &cmd_vars_;
+    }
+
+    return *r;
+  }
+
+  build2::scope& package_skeleton::
+  load ()
+  {
+    if (ctx_ != nullptr)
+      return *rs_;
+
+    try
+    {
+      using namespace build2;
+
+      auto rsi (bootstrap (*this, merge_cmd_vars ()));
+      scope& rs (*rsi->second.front ());
+
+      // Load project's root.build as well as potentially accumulated reflect
+      // fragment.
+      //
+      // If we have the accumulated reflect fragment, wedge it just before
+      // loading root.build (but after initializing config which may load
+      // config.build and which we wish to override).
+      //
+      // Note that the plan for non-external packages is to extract the
+      // configuration and then load it with config.config.load and this
+      // approach should work for that case too.
+      //
+      function<void (parser&)> pre;
+
+      if (!reflect_frag_.empty ())
+      {
+        pre = [this, &rs] (parser& p)
+        {
+          istringstream is (reflect_frag_);
+          is.exceptions (istringstream::failbit | istringstream::badbit);
+
+          // Note that the fragment is just a bunch of variable assignments
+          // and thus unlikely to cause any errors.
+          //
+          path_name in ("<accumulated-reflect-fragment>");
+          p.parse_buildfile (is, in, &rs, rs);
+        };
+      }
+
+      load_root (rs, pre);
+
+      setup_base (rsi,
+                  out_root_.empty () ? src_root_ : out_root_,
+                  src_root_);
+
+      rs_ = &rs;
+      return rs;
+    }
+    catch (const build2::failed&)
+    {
+      throw failed (); // Assume the diagnostics has already been issued.
+    }
+  }
+
+  void package_skeleton::
+  merge_old_config_vars ()
+  {
+    if (config_srcs_ == nullptr)
+      return;
+
+    assert (reflect_frag_.empty ()); // Too late.
+
+    ctx_ = nullptr; // Reload.
+
+    try
+    {
+      using namespace build2;
+
+      scope& rs (*bootstrap (*this, merge_cmd_vars ())->second.front ());
+
+      // Load project's root.build.
+      //
+      load_root (rs);
+
+      // Extract and merge old user configuration variables from config.build
+      // (or equivalent) into config_vars. Then invalidate loaded state in
+      // order to make them overrides.
+      //
+      auto i (config_vars_.begin ()); // Insert position, see below.
+
+      names storage;
+      for (const config_variable& v: *config_srcs_)
+      {
+        if (v.source != config_source::user)
+          continue;
+
+        using config::variable_origin;
+
+        pair<variable_origin, lookup> ol (config::origin (rs, v.name));
+
+        switch (ol.first)
+        {
+        case variable_origin::override_:
+          {
+            // Already in config_vars.
+            //
+            // @@ TODO: theoretically, this could be an append/prepend
+            //    override(s) and to make this work correctly we would need
+            //    to replace them with an assign override with the final
+            //    value. Maybe one day.
+            //
+            break;
+          }
+        case variable_origin::buildfile:
+          {
+            // Doesn't really matter where we add them though conceptually
+            // feels like old should go before new (and in the original
+            // order).
+            //
+            i = config_vars_.insert (
+              i,
+              serialize_cmdline (v.name, *ol.second, storage)) + 1;
+
+            break;
+          }
+        case variable_origin::undefined:
+        case variable_origin::default_:
+          {
+            // Old user configuration no longer in config.build. We could
+            // complain but that feels overly drastic. Seeing that we will
+            // recalculate the new set of config variable sources, let's
+            // just ignore this (we could issue a warning, but who knows how
+            // many times it will be issued with all this backtracking).
+            //
+            break;
+          }
+        }
+      }
+
+      config_srcs_ = nullptr; // Merged.
+      cmd_vars_.clear ();     // Invalidated.
+      ctx_ = nullptr;         // Drop.
+    }
+    catch (const build2::failed&)
+    {
+      throw failed (); // Assume the diagnostics has already been issued.
+    }
+  }
+
+  // Bootstrap the package skeleton.
   //
   static build2::scope_map::iterator
   bootstrap (package_skeleton& skl, const strings& cmd_vars)
@@ -976,177 +1235,6 @@ namespace bpkg
       ctx.enter_project_overrides (rs, out_root, ctx.var_overrides);
 
       return rsi;
-    }
-    catch (const build2::failed&)
-    {
-      throw failed (); // Assume the diagnostics has already been issued.
-    }
-  }
-
-  const strings& package_skeleton::
-  merge_cmd_vars ()
-  {
-    // Merge variable overrides (note that the order is important).
-    //
-    // We can reasonably assume reflect cannot have global or absolute scope
-    // variable overrides so we don't need to pass them to context.
-    //
-    const strings* r;
-
-    const strings& v1 (build2_cmd_vars);
-    const strings& v2 (config_vars_);
-
-    r = (v2.empty () ? &v1 : v1.empty () ? &v2 : nullptr);
-
-    if (r == nullptr)
-    {
-      if (cmd_vars_.empty ()) // Cached.
-      {
-        cmd_vars_.reserve (v1.size () + v2.size ());
-        cmd_vars_.assign (v1.begin (), v1.end ());
-        cmd_vars_.insert (cmd_vars_.end (), v2.begin (), v2.end ());
-      }
-
-      r = &cmd_vars_;
-    }
-
-    return *r;
-  }
-
-  build2::scope& package_skeleton::
-  load ()
-  {
-    if (ctx_ != nullptr)
-      return *rs_;
-
-    try
-    {
-      using namespace build2;
-
-      auto rsi (bootstrap (*this, merge_cmd_vars ()));
-      scope& rs (*rsi->second.front ());
-
-      // Load project's root.build as well as potentially accumulated reflect
-      // fragment.
-      //
-      // If we have the accumulated reflect fragment, wedge it just before
-      // loading root.build (but after initializing config which may load
-      // config.build and which we wish to override).
-      //
-      // Note that the plan for non-external packages is to extract the
-      // configuration and then load it with config.config.load and this
-      // approach should work for that case too.
-      //
-      function<void (parser&)> pre;
-
-      if (!reflect_frag_.empty ())
-      {
-        pre = [this, &rs] (parser& p)
-        {
-          istringstream is (reflect_frag_);
-          is.exceptions (istringstream::failbit | istringstream::badbit);
-
-          // Note that the fragment is just a bunch of variable assignments
-          // and thus unlikely to cause any errors.
-          //
-          path_name in ("<accumulated-reflect-fragment>");
-          p.parse_buildfile (is, in, &rs, rs);
-        };
-      }
-
-      load_root (rs, pre);
-
-      setup_base (rsi,
-                  out_root_.empty () ? src_root_ : out_root_,
-                  src_root_);
-
-      rs_ = &rs;
-      return rs;
-    }
-    catch (const build2::failed&)
-    {
-      throw failed (); // Assume the diagnostics has already been issued.
-    }
-  }
-
-  void package_skeleton::
-  merge_old_config_vars ()
-  {
-    if (config_srcs_ == nullptr)
-      return;
-
-    assert (reflect_frag_.empty ()); // Too late.
-
-    ctx_ = nullptr; // Reload.
-
-    try
-    {
-      using namespace build2;
-
-      scope& rs (*bootstrap (*this, merge_cmd_vars ())->second.front ());
-
-      // Load project's root.build.
-      //
-      load_root (rs);
-
-      // Extract and merge old user configuration variables from config.build
-      // (or equivalent) into config_vars. Then invalidate loaded state in
-      // order to make them overrides.
-      //
-      auto i (config_vars_.begin ()); // Insert position, see below.
-
-      names storage;
-      for (const config_variable& v: *config_srcs_)
-      {
-        if (v.source != config_source::user)
-          continue;
-
-        using config::variable_origin;
-
-        pair<variable_origin, lookup> ol (config::origin (rs, v.name));
-
-        switch (ol.first)
-        {
-        case variable_origin::override_:
-          {
-            // Already in config_vars.
-            //
-            // @@ TODO: theoretically, this could be an append/prepend
-            //    override(s) and to make this work correctly we would need
-            //    to replace them with an assign override with the final
-            //    value. Maybe one day.
-            //
-            break;
-          }
-        case variable_origin::buildfile:
-          {
-            // Doesn't really matter where we add them though conceptually
-            // feels like old should go before new (and in the original
-            // order).
-            //
-            i = config_vars_.insert (
-              i,
-              serialize_cmdline (v.name, *ol.second, storage)) + 1;
-
-            break;
-          }
-        case variable_origin::undefined:
-        case variable_origin::default_:
-          {
-            // Old user configuration no longer in config.build. We could
-            // complain but that feels overly drastic. Seeing that we will
-            // recalculate the new set of config variable sources, let's
-            // just ignore this (we could issue a warning, but who knows how
-            // many times it will be issued with all this backtracking).
-            //
-            break;
-          }
-        }
-      }
-
-      config_srcs_ = nullptr; // Merged.
-      cmd_vars_.clear ();     // Invalidated.
-      ctx_ = nullptr;         // Drop.
     }
     catch (const build2::failed&)
     {

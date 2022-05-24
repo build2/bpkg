@@ -29,16 +29,16 @@ namespace bpkg
     // If the package is not external, then none of the root directories
     // should be specified.
     //
-    // Note that the options, database, available_package, and config_srcs are
-    // expected to outlive this object.
+    // The disfigure argument should indicate whether the package is being
+    // reconfigured from scratch (--disfigure).
     //
     // The config_vars argument contains configuration variables specified by
     // the user in this bpkg execution. Optional config_srcs is used to
     // extract (from config.build or equivalent) configuration variables
     // specified by the user in previous bpkg executions. It should be NULL if
-    // this is the first build of the package or if it is being disfigured.
-    // The extracted variables are merged with config_vars and the combined
-    // result is returned by collect_config() below.
+    // this is the first build of the package. The extracted variables are
+    // merged with config_vars and the combined result is returned by
+    // collect_config() below.
     //
     // @@ TODO: speaking of the "config.build or equivalent" part, the
     //    equivalent is likely to be extracted configuration (probably saved
@@ -47,6 +47,9 @@ namespace bpkg
     //    (because sometimes we may need to omit it) so most likely it will be
     //    passed as a separate arguments (likely a file path).
     //
+    // Note that the options, database, available_package, and config_srcs are
+    // expected to outlive this object.
+    //
     // Note also that this creates an "unloaded" skeleton and is therefore
     // relatively cheap.
     //
@@ -54,9 +57,18 @@ namespace bpkg
                       database&,
                       const available_package&,
                       strings config_vars,
+                      bool disfigure,
                       const vector<config_variable>* config_srcs,
                       optional<dir_path> src_root,
                       optional<dir_path> out_root);
+
+    // Load the default values and type information for configuration
+    // variables of the package.
+    //
+    // Note: must be called before any evaluate_*() functions.
+    //
+    void
+    load_defaults ();
 
     // For the following evaluate_*() functions assume that the clause belongs
     // to the specified (by index) depends value (used to print its location
@@ -133,6 +145,7 @@ namespace bpkg
     const available_package* available_;
 
     strings config_vars_;
+    bool disfigure_;
     const vector<config_variable>* config_srcs_; // NULL if nothing to do or
                                                  // already done.
 
