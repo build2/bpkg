@@ -2751,20 +2751,33 @@ namespace bpkg
           {
             // @@ Here we need to first check if for this dependent there is a
             //    record in the postponed_poss (not yet invented; any better
-            //    name?) map. If the record exists and the dependency position
+            //    name?) map.
+
+            //    (If the record exists and the dependency position
             //    is greater that the stored position, then we skip this
             //    dependent. Otherwise, we need to check if this existing
             //    dependent is already present in some non-negotiated
             //    cluster. If it doesn't then just create the cluster and bail
-            //    out. Otherwise, if the dependency position is greater than
-            //    that one in the cluster for this dependent, then skip this
-            //    dependent. Otherwise, if the position is less, then note
-            //    this position in this map and start from scratch. Otherwise
-            //    (the position is equal), just add the dependency to the
-            //    existing cluster.
+            //    out. Otherwise, if the position is less, then note this
+            //    position in this map and start from scratch. Otherwise (the
+            //    position is equal), just add the dependency to the existing
+            //    cluster.) -- Feels outdated.
             //
             //    Note that we also need to think if any such entries could
             //    become bogus (and if we believe not, then assert so).
+            //
+            //    new ? exs   exs
+            //    ------------------
+            //
+            //    less        neg  -- postponed_poss & throw
+            //    less        non  -- insert
+            //
+            //    greater     neg  -- insert
+            //    greater     non  -- insert
+            //
+            //    equal       neg  -- impossible (should have been completed)
+            //    equal       non  -- add missing dependencies
+            //
             //
             l5 ([&]{trace << "cfg-postpone dependency "
                           << pkg.available_name_version_db ()
@@ -5242,6 +5255,18 @@ namespace bpkg
                 //
                 if (ed.reevaluated)
                   continue;
+
+                // @@ Check if exists in a cluster with earlier position and
+                //    throw skip_configuration exception. Perhaps only if not
+                //    already negotiated?
+                //
+                // @@ If already negotiated at later position -- throw
+                //    postpone_position?
+                //
+                // @@ What if it is in postponed_poss map? Yes, also, if
+                //    earlier position is in the postponed_poss, then skip
+                //    this cluster.
+                //
 
                 const config_package& cp (d.first);
                 packages& ds (ed.dependencies);
