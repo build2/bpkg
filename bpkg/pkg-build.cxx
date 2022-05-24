@@ -2224,7 +2224,7 @@ namespace bpkg
     // instead. Add entry to replaced_vers and throw replace_version if the
     // existing version needs to be replaced but the new version cannot be
     // re-collected recursively in-place (see replaced_versions for details).
-    // Also add entry and throw if the existing dependent needs to be
+    // Also add an entry and throw if the existing dependent needs to be
     // replaced.
     //
     // Optionally, pass the function which verifies the chosen package
@@ -2528,10 +2528,11 @@ namespace bpkg
       }
       else
       {
-        // Treat the replacement of the existing dependent as a version
-        // replacement as well. This way we will not be treating the dependent
-        // as an existing on the re-collection (see
-        // query_existing_dependents() for details).
+        // Treat the replacement of the existing dependent that is
+        // participating in the configuration negotiation also as a version
+        // replacement. This way we will not be treating the dependent as an
+        // existing on the re-collection (see query_existing_dependents() for
+        // details).
         //
         // Note: an existing dependent may not be configured as system.
         //
@@ -3879,6 +3880,10 @@ namespace bpkg
                   //    intermediate diagnostics can probably be irrelevant to
                   //    the final result.
                   //
+                  //    Perhaps what we should do is queue the diagnostics and
+                  //    then, if the run is not scratched, issues it. And if
+                  //    it is scratched, then drop it.
+                  //
                   if (f || ((w || verb >= 2) && !scratch))
                   {
                     const version& av (p.available_version ());
@@ -5148,6 +5153,8 @@ namespace bpkg
 
             for (; i != deps.size (); ++i)
             {
+              // Note: this reference is only used while deps is unchanged.
+              //
               const config_package& p (deps[i]);
 
               for (existing_dependent& ed:
