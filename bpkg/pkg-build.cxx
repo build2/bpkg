@@ -2146,7 +2146,6 @@ namespace bpkg
 
   struct postpone_position: scratch_collection
   {
-    explicit
     postpone_position (): scratch_collection ("earlier dependency position") {}
   };
 
@@ -2783,6 +2782,8 @@ namespace bpkg
         // that the remaining dependents will also be considered when the time
         // for negotiation comes.
         //
+        // @@ Maybe let's add all of them?
+        //
         vector<existing_dependent> eds (
           query_existing_dependents (trace,
                                      pdb,
@@ -2795,37 +2796,12 @@ namespace bpkg
         {
           for (existing_dependent& ed: eds)
           {
-            // @@ Here we need to first check if for this dependent there is a
-            //    record in the postponed_poss.
-
-            //    (If the record exists and the dependency position
-            //    is greater that the stored position, then we skip this
-            //    dependent. Otherwise, we need to check if this existing
-            //    dependent is already present in some non-negotiated
-            //    cluster. If it doesn't then just create the cluster and bail
-            //    out. Otherwise, if the position is less, then note this
-            //    position in this map and start from scratch. Otherwise (the
-            //    position is equal), just add the dependency to the existing
-            //    cluster.) -- Feels outdated.
-            //
-            //    new ? exs   exs
-            //    ------------------
-            //
-            //    less        neg  -- postponed_poss & throw
-            //    less        non  -- insert
-            //
-            //    greater     neg  -- insert
-            //    greater     non  -- insert
-            //
-            //    equal       neg  -- impossible (should have been completed)
-            //    equal       non  -- add missing dependencies
-            //
-
             // Make sure that this existing dependent doesn't belong to any
             // (being) negotiated configuration cluster with a greater
-            // dependency index. That would mean that the dependent is already
-            // re-evaluated with this index as a target and so this dependency
-            // cannot be properly configured anymore.
+            // dependency index. That would mean that this dependent has
+            // already been re-evaluated to this index and so cannot
+            // participate in the configuration negotiation of this earlier
+            // dependency.
             //
             size_t di (ed.dependency_position.first);
 
@@ -2838,7 +2814,14 @@ namespace bpkg
 
                 if (di < ei)
                 {
-                  postponed_poss[cp] = ed.dependency_position;
+                  // Feels like there cannot be an earlier position.
+                  //
+                  auto p (postponed_poss.emplace (cp, ed.dependency_position));
+                  if (!p.second)
+                  {
+                    assert (p.first->second > ed.dependency_position);
+                    p.first->second = ed.dependency_position;
+                  }
 
                   l5 ([&]{trace << "cannot cfg-postpone dependency "
                                 << pkg.available_name_version_db ()
@@ -5356,20 +5339,12 @@ namespace bpkg
                 if (ed.reevaluated)
                   continue;
 
-                // @@ Check if exists in a cluster with earlier position and
-                //    throw skip_configuration exception. Perhaps only if not
-                //    already negotiated?
+                // Check if there is an earlier dependency position for this
+                // dependent that will be participating in a configuration
+                // negotiation and skip this cluster if that's the case. There
+                // are two places to check: postponed_poss and other clusters.
                 //
-                // @@ If already negotiated at later position -- throw
-                //    postpone_position?
-                //
-                // @@ What if it is in postponed_poss map? Yes, also, if
-                //    earlier position is in the postponed_poss, then skip
-                //    this cluster.
-                //
-
                 size_t di (ed.dependency_position.first);
-
                 const config_package& cp (d.first);
 
                 auto pi (postponed_poss.find (cp));
@@ -5383,7 +5358,12 @@ namespace bpkg
                   throw skip_configuration ();
                 }
 
-                bool skip_cluster (false);
+                // The other clusters check is a bit more complicated: if the
+                // other cluster (with the earlier position) is not yet
+                // negotiated, then we skip. Otherwise, we have to add an
+                // entry to postponed_poss and backtrack.
+                //
+                bool skip (false);
                 for (const postponed_configuration& cfg: postponed_cfgs)
                 {
                   // Skip the current cluster.
@@ -5394,7 +5374,7 @@ namespace bpkg
                   if (const pair<size_t, size_t>* p =
                       cfg.existing_dependent_position (cp))
                   {
-                    size_t ei (p->first);
+                    size_t ei (p->first); // Other position.
 
                     if (!cfg.negotiated)
                     {
@@ -5406,25 +5386,33 @@ namespace bpkg
                                       << "index " << ei << " in " << cfg
                                       << ", skipping " << *pcfg;});
 
-                        skip_cluster = true;
+                        skip = true;
                       }
                     }
                     else if (di < ei)
                     {
-                      postponed_poss[cp] = ed.dependency_position;
+                      // Feels like there cannot be an earlier position.
+                      //
+                      auto p (postponed_poss.emplace (
+                                cp, ed.dependency_position));
+                      if (!p.second)
+                      {
+                        assert (p.first->second > ed.dependency_position);
+                        p.first->second = ed.dependency_position;
+                      }
 
-                        l5 ([&]{trace << "cannot re-evaluate dependent "
-                                      << cp << " for target dependency index "
-                                      << di << " due to greater dependency "
-                                      << "index " << ei << " in " << cfg
-                                      << ", throwing postpone_position";});
+                      l5 ([&]{trace << "cannot re-evaluate dependent "
+                                    << cp << " for target dependency index "
+                                    << di << " due to greater dependency "
+                                    << "index " << ei << " in " << cfg
+                                    << ", throwing postpone_position";});
 
                       throw postpone_position ();
                     }
                   }
                 }
 
-                if (skip_cluster)
+                if (skip)
                   throw skip_configuration ();
 
                 packages& ds (ed.dependencies);
@@ -6123,6 +6111,9 @@ namespace bpkg
         assert (false); // Can't be here.
       }
 
+      // @@ This can now happen due to skipping: dump cluster information
+      //    and then assert.
+      //
       assert (postponed_cfgs.negotiated ());
 
       l5 ([&]{trace << "end" << trace_suffix;});
@@ -6469,6 +6460,9 @@ namespace bpkg
       pair<size_t, size_t>          dependency_position;
     };
 
+    // Note: this function is fairly specific to configuration negotiation
+    // and probably cannot be reused in other contexts.
+    //
     vector<existing_dependent>
     query_existing_dependents (tracer& trace,
                                database& db,
@@ -6508,11 +6502,12 @@ namespace bpkg
                    (p->system || p->recollect_recursively (rpt_depts))) ||
                   *p->action == build_package::drop)
               {
-                // If the package is being built, the check if it was
+                // If the package is being built, then check if it was
                 // re-evaluated for the target position greater than the
                 // dependency position. If that's the case then don't ignore
-                // the dependent leave it to the caller to handle the
-                // situation.
+                // the dependent, leaving it to the caller to handle this
+                // situation (which should be throw postponed_position).
+                // @@ confirm this.
                 //
                 bool skip (true);
 
