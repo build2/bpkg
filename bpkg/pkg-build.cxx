@@ -1224,8 +1224,9 @@ namespace bpkg
   static ostream&
   operator<< (ostream&, const postponed_configuration&);
 
-  struct postponed_configuration
+  class postponed_configuration
   {
+  public:
     // The id of the cluster plus the ids of all the clusters that have been
     // merged into it.
     //
@@ -2146,6 +2147,13 @@ namespace bpkg
   // may re-evaluate them to a certain position but later realize we've gone
   // too far.
   //
+  // We consider the postponement as bogus if some dependent re-evaluation was
+  // skipped due to it but no re-evaluation to this (or earlier) dependency
+  // index was performed.
+  //
+  // Note that if no re-evaluation is skipped due to this postponement then it
+  // is harmless and we don't consider it as bogus.
+  //
   struct postponed_position: pair<size_t, size_t>
   {
     // True if the "later" position should be replaced rather than merely
@@ -2158,11 +2166,65 @@ namespace bpkg
     //
     bool replace;
 
+    // Re-evaluation was skipped due to this postponement.
+    //
+    bool skipped = false;
+
+    // The dependent was re-evaluated. Note that it can be only re-evaluated
+    // to this or earlier dependency index.
+    //
+    bool reevaluated = false;
+
     postponed_position (pair<size_t, size_t> p, bool r)
         : pair<size_t, size_t> (p), replace (r) {}
   };
 
-  using postponed_positions = map<config_package, postponed_position>;
+  class postponed_positions: public map<config_package, postponed_position>
+  {
+  public:
+    // Erase the bogus postponements and, if any, throw cancel_postponement,
+    // if requested.
+    //
+    struct cancel_postponement: scratch_collection
+    {
+      cancel_postponement ()
+          : scratch_collection ("bogus existing dependent re-evaluation "
+                                "postponement cancellation") {}
+    };
+
+    void
+    cancel_bogus (tracer& trace)
+    {
+      bool bogus (false);
+      for (auto i (begin ()); i != end (); )
+      {
+        const postponed_position& p (i->second);
+
+        if (p.skipped && !p.reevaluated)
+        {
+          bogus = true;
+
+          l5 ([&]{trace << "erase bogus existing dependent " << i->first
+                        << " re-evaluation postponement with dependency index "
+                        << i->second.first;});
+
+          // It seems that the replacement may never be bogus.
+          //
+          assert (!p.replace);
+
+          i = erase (i);
+        }
+        else
+          ++i;
+      }
+
+      if (bogus)
+      {
+        l5 ([&]{trace << "bogus re-evaluation postponement erased, throwing";});
+        throw cancel_postponement ();
+      }
+    }
+  };
 
   struct postpone_position: scratch_collection
   {
@@ -2802,6 +2864,8 @@ namespace bpkg
         // if that's the case, so this package is added to the resulting list
         // and we can handle this situation below.
         //
+        // Note that we rely on "small function object" optimization here.
+        //
         const function<verify_dependent_build_function> verify (
           [&postponed_cfgs]
           (const config_package& cp, pair<size_t, size_t> pos)
@@ -2835,7 +2899,6 @@ namespace bpkg
                                      cp.db,
                                      cp.name,
                                      replaced_vers,
-                                     postponed_cfgs,
                                      rpt_depts,
                                      verify));
 
@@ -4530,7 +4593,7 @@ namespace bpkg
         // the package to the postpones set (can potentially already be there)
         // and saving the enabled alternatives.
         //
-        auto postpone = [&pkg, &edas, reeval, &postponed]
+        auto postpone = [&pkg, &edas, &postponed]
                         (postponed_packages* postpones)
         {
           if (postpones != nullptr)
@@ -5347,6 +5410,9 @@ namespace bpkg
               // position. Return true if that's the case, so this package is
               // added to the resulting list and we can handle this situation.
               //
+              // Note that we rely on "small function object" optimization
+              // here.
+              //
               const function<verify_dependent_build_function> verify (
                 [&postponed_cfgs, pcfg]
                 (const config_package& cp, pair<size_t, size_t> pos)
@@ -5372,7 +5438,6 @@ namespace bpkg
                                                 p.db,
                                                 p.name,
                                                 replaced_vers,
-                                                postponed_cfgs,
                                                 rpt_depts,
                                                 verify))
               {
@@ -5504,10 +5569,12 @@ namespace bpkg
                                 << "index " << di << " due to recorded index "
                                 << pi->second.first << ", skipping " << *pcfg;});
 
-                  if (!pi->second.replace)
-                    throw skip_configuration ();
-                  else
+                  pi->second.skipped = true;
+
+                  if (pi->second.replace)
                     throw skip_configuration (move (ed), pi->second);
+                  else
+                    throw skip_configuration ();
                 }
 
                 // The other clusters check is a bit more complicated: if the
@@ -5638,6 +5705,15 @@ namespace bpkg
                                              ed.dependency_position);
 
                 ed.reevaluated = true;
+
+                if (pi != postponed_poss.end ())
+                {
+                  // Otherwise we would throw skip_configuration above.
+                  //
+                  assert (di <= pi->second.first);
+
+                  pi->second.reevaluated = true;
+                }
               }
             }
           }
@@ -6666,7 +6742,6 @@ namespace bpkg
       database& db,
       const package_name& name,
       const replaced_versions& replaced_vers,
-      const postponed_configurations& /*postponed_cfgs*/,
       const repointed_dependents& rpt_depts,
       const function<verify_dependent_build_function>& vdb = nullptr)
     {
@@ -6767,7 +6842,7 @@ namespace bpkg
 
           dsp = p.first.load ();
 
-          l5 ([&]{trace << "overwrite dependency at index "
+          l5 ([&]{trace << "replace dependency at index "
                         << ed.dependency_position.first
                         << " of existing dependent " << *ed.selected
                         << ed.db << " with dependency " << *dsp
@@ -10266,6 +10341,12 @@ namespace bpkg
                 pd.second.with_config = false;
               }
 
+              for (auto& pd: postponed_poss)
+              {
+                pd.second.skipped = false;
+                pd.second.reevaluated = false;
+              }
+
               scratch_col = false;
             }
 
@@ -10511,7 +10592,7 @@ namespace bpkg
                                           add_priv_cfg);
 
           // Erase the bogus replacements and re-collect from scratch, if any
-          // (see postponed_dependencies for details).
+          // (see replaced_versions for details).
           //
           // Note that we refer replaced_vers to skip existing dependents with
           // configuration clause while negotiate configuration for their
@@ -10520,6 +10601,12 @@ namespace bpkg
           // re-collect.
           //
           replaced_vers.cancel_bogus (trace, true /* scratch */);
+
+          // Erase the bogus existing dependent re-evaluation postpones and
+          // re-collect from scratch, if any (see postponed_positions for
+          // details).
+          //
+          postponed_poss.cancel_bogus (trace);
         }
         catch (const scratch_collection& e)
         {
