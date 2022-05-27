@@ -43,14 +43,33 @@ namespace bpkg
     // On Windows we default to libarchive's bsdtar with auto-decompression
     // (though there is also bsdcat which we could have used).
     //
-    const char* tar (co.tar_specified ()
-                     ? co.tar ().string ().c_str ()
+    // OpenBSD tar does not support -O|--to-stdout and so far the best
+    // solution seems to require bsdtar (libarchive) or gtar (GNU tar).
+    //
+    const char* tar;
+
+    if (co.tar_specified ())
+      tar = co.tar ().string ().c_str ();
+    else
+    {
 #ifdef _WIN32
-                     : "bsdtar"
+      tar = "bsdtar";
+#elif defined(__OpenBSD__)
+      // A bit wasteful to do this every time (and throw away the result).
+      // Oh, well, the user can always "optimize" this away by passing
+      // explicit --tar.
+      //
+      if (!process::try_path_search ("bsdtar", true).empty ())
+        tar = "bsdtar";
+      else if (!process::try_path_search ("gtar", true).empty ())
+        tar = "gtar";
+      else
+        fail << "bsdtar or gtar required on OpenBSD for -O|--to-stdout support"
+             << endf;
 #else
-                     : "tar"
+      tar = "tar";
 #endif
-    );
+    }
 
     // See if we need to decompress.
     //
