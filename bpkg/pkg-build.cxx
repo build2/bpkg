@@ -2142,8 +2142,20 @@ namespace bpkg
 
   // @@ TODO Describe.
   //
+  // This mechanism only applies to handling of existing dependents where we
+  // may re-evaluate them to a certain position but later realize we've gone
+  // too far.
+  //
   struct postponed_position: pair<size_t, size_t>
   {
+    // True if the "later" position should be replaced rather than merely
+    // skipped. The replacement deals with the case where the "earlier"
+    // position is encountered while processing the same cluster as what
+    // contains the later position. In this case, if we merely skip, then we
+    // will never naturally encounter the earlier position. So we have to
+    // force the issue (even if things change enough for us to never see
+    // the later position again).
+    //
     bool replace;
 
     postponed_position (pair<size_t, size_t> p, bool r)
@@ -2788,7 +2800,7 @@ namespace bpkg
         // If the dependent is being built, then check if it was re-evaluated
         // to the position greater than the dependency position. Return true
         // if that's the case, so this package is added to the resulting list
-        // and we can handle this situation.
+        // and we can handle this situation below.
         //
         const function<verify_dependent_build_function> verify (
           [&postponed_cfgs]
@@ -2811,11 +2823,12 @@ namespace bpkg
           });
 
         // Note that there can be multiple existing dependents for a
-        // dependency. Theoretically, we could only add the first one in the
-        // assumption that the remaining dependents will also be considered
-        // when the time for negotiation comes. Let's, however, process all of
-        // them to detect the potential "re-evaluation on the greater
-        // dependency index" situation earlier.
+        // dependency. Strictly speaking, we only need to add the first one
+        // with the assumption that the remaining dependents will also be
+        // considered comes the time for the negotiation. Let's, however,
+        // process all of them to detect the potential "re-evaluation on the
+        // greater dependency index" situation earlier. And, generally, have
+        // as much information as possible up front.
         //
         vector<existing_dependent> eds (
           query_existing_dependents (trace,
@@ -2839,9 +2852,9 @@ namespace bpkg
             // dependency position and, if that's the case, create the
             // configuration cluster with this dependency instead.
             //
-            // Note that if the replace flag is false, we proceed normally in
-            // the assumption that the dependency referred by the entry will
-            // be collected later and its configuration cluster will be
+            // Note that if the replace flag is false, we proceed normally
+            // with the assumption that the dependency referred by the entry
+            // will be collected later and its configuration cluster will be
             // created normally and will be negotiated earlier than the
             // cluster being created for the current dependency (see
             // collect_build_postponed() for details).
@@ -2855,10 +2868,10 @@ namespace bpkg
               // Overwrite the existing dependent dependency information and
               // fall through to proceed as for the normal case.
               //
-              bp = overwrite_existing_dependent_dependency (
+              bp = replace_existing_dependent_dependency (
                 trace,
                 options,
-                ed,
+                ed, // Note: modified.
                 pi->second,
                 fdb,
                 rpt_depts,
@@ -5228,13 +5241,12 @@ namespace bpkg
       struct skip_configuration
       {
         optional<existing_dependent> dependent;
-        pair<size_t, size_t> dependency_position;
+        pair<size_t, size_t> new_position;
 
         skip_configuration () = default;
 
-        skip_configuration (existing_dependent&& d,
-                            pair<size_t, size_t> p)
-            : dependent (move (d)), dependency_position (p) {}
+        skip_configuration (existing_dependent&& d, pair<size_t, size_t> n)
+            : dependent (move (d)), new_position (n) {}
       };
 
       size_t depth (pcfg != nullptr ? pcfg->depth : 0);
@@ -5389,10 +5401,11 @@ namespace bpkg
                 auto i (dependents.find (cp));
                 size_t di (ed.dependency_position.first);
 
-                // Skip re-evaluated dependent it the dependency index is
-                // greater than the one we have re-evaluated to. If it is
-                // earlier, then add the entry to shadow_poss and throw
-                // retry_configuration_positions to recollect from scratch.
+                // Skip re-evaluated dependent if the dependency index is
+                // greater than the one we have already re-evaluated to. If it
+                // is earlier, then add the entry to postponed_poss and throw
+                // postpone_position to recollect from scratch. Note that this
+                // entry in postponed_poss is with replacement.
                 //
                 if (i != dependents.end () && i->second.reevaluated)
                 {
@@ -5484,8 +5497,7 @@ namespace bpkg
                 // are two places to check: postponed_poss and other clusters.
                 //
                 auto pi (postponed_poss.find (cp));
-                if (pi != postponed_poss.end () &&
-                    pi->second.first < di)
+                if (pi != postponed_poss.end () && pi->second.first < di)
                 {
                   l5 ([&]{trace << "pos-postpone existing dependent "
                                 << cp << " re-evaluation to dependency "
@@ -5959,13 +5971,16 @@ namespace bpkg
 
               pc->depth = 0;
 
+              // If requested, "replace" the "later" dependent-dependency
+              // cluster with an earlier.
+              //
               if (e.dependent)
               {
                 existing_dependent& ed (*e.dependent);
                 pair<size_t, size_t> pos (e.dependency_position);
 
                 const build_package* bp (
-                  overwrite_existing_dependent_dependency (
+                  replace_existing_dependent_dependency (
                     trace,
                     o,
                     ed,
@@ -6725,7 +6740,7 @@ namespace bpkg
     // pointer to the collected build package object.
     //
     const build_package*
-    overwrite_existing_dependent_dependency (
+    replace_existing_dependent_dependency (
       tracer& trace,
       const pkg_build_options& o,
       existing_dependent& ed,
@@ -6741,7 +6756,8 @@ namespace bpkg
       database* pdb (nullptr);
       const version_constraint* vc (nullptr);
 
-      // Find the dependency for this earlier dependency position.
+      // Find the dependency for this earlier dependency position. We know
+      // it must be there since it's with configuration.
       //
       for (const auto& p: ed.selected->prerequisites)
       {
