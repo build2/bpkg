@@ -5977,7 +5977,7 @@ namespace bpkg
               if (e.dependent)
               {
                 existing_dependent& ed (*e.dependent);
-                pair<size_t, size_t> pos (e.dependency_position);
+                pair<size_t, size_t> pos (e.new_position);
 
                 const build_package* bp (
                   replace_existing_dependent_dependency (
