@@ -3041,7 +3041,7 @@ namespace bpkg
           options,
           pdb,
           *ap,
-          pkg.config_vars,
+          pkg.config_vars, // @@ Maybe make optional<strings> and move?
           pkg.disfigure,
           (sp != nullptr ? &sp->config_variables : nullptr),
           move (src_root),
