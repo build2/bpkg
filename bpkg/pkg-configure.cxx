@@ -348,6 +348,8 @@ namespace bpkg
     l4 ([&]{trace << "src_root: " << src_root << ", "
                   << "out_root: " << out_root;});
 
+    bool disfigured (ps.disfigure_); // @@ TMP pass explicitly.
+
     // Verify all our prerequisites are configured and populate the
     // prerequisites list.
     //
@@ -383,10 +385,34 @@ namespace bpkg
 
       l4 ([&]{trace << "buildspec: " << bspec;});
 
+      // Unless this package has been completely disfigured, disfigure all the
+      // package configuration variables to reset all the old values to
+      // defaults (all the new user/dependent/reflec values, including old
+      // user, are returned by collect_config() and specified as overrides).
+      // Note that this semantics must be consistent with how we load things
+      // in the package skeleton during configuration negotiation.
+      //
+      // Note also that this means we don't really use the dependent and
+      // reflect sources that we save in the database. But let's keep them
+      // for the completeness of information (maybe could be useful during
+      // configuration reset or some such).
+      //
+      string dvar;
+      if (!disfigured)
+      {
+        // Note: must be quoted to preserve the pattern.
+        //
+        dvar = "config.config.disfigure='config.";
+        dvar += p->name.variable ();
+        dvar += "**'";
+      }
+
+      // @@ TMP remove when settled done.
+      //
+#if 0
       // Deduce the configuration variables which are not reflected anymore
       // and disfigure them.
       //
-      string dvar;
       for (const config_variable& cv: p->config_variables)
       {
         if (cv.source == config_source::reflect)
@@ -409,6 +435,7 @@ namespace bpkg
           }
         }
       }
+#endif
 
       // Configure.
       //

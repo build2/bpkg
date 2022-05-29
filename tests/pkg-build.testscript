@@ -11477,7 +11477,8 @@ test.options += --no-progress
   +cp -r $src/libhello-1.0.0 ./libhello
   +cat <<EOI >+libhello/build/root.build
     config [bool] config.libhello.develop ?= false
-    text "develop=$config.libhello.develop"
+    if ($build.mode != 'skeleton')
+      text "develop=$config.libhello.develop"
     EOI
   +$rep_add libhello --type dir
   +$rep_fetch

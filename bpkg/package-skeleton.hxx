@@ -62,18 +62,53 @@ namespace bpkg
                       optional<dir_path> src_root,
                       optional<dir_path> out_root);
 
-    // Load the default values and type information for configuration
-    // variables of the package.
+    const package_name&
+    name () const {return available_->id.name;}
+
+    // The following functions should be called in the following sequence
+    // (* -- zero or more, ? -- zero or one):
     //
-    // Note: must be called before any evaluate_*() functions.
+    // * load_defaults()
+    // * verify_sensible()
+    // ? dependent_config()
+    // * evaluate_enable() | evaluate_reflect()
+    //   collect_config()
+    //
+    // Note that a copy of the skeleton is expected to continue with the
+    // sequence rather than starting from scratch.
+    //
+  public:
+    // Load the default values and type information for configuration
+    // variables of the package given a "tentative" dependent configuration.
+    //
+    // @@ TODO: if it will be more convenient to pass it as something other
+    //    than strings, then this can be accomodated.
     //
     void
-    load_defaults ();
+    load_defaults (const strings& dependent_vars);
+
+    // Verify the specified "tentative" dependents configuration is sensible,
+    // that is, acceptable to the package. If it is not, then the second half
+    // of the result contains the diagnostics.
+    //
+    // @@ TODO: if it will be more convenient to pass it as something other
+    //    than strings, then this can be accomodated.
+    //
+    pair<bool, string>
+    verify_sensible (const strings& dependent_vars);
+
+    // Incorporate the "final" dependent configuration into subsequent
+    // evaluations. Dependent configuration variables are expected not to
+    // clash with user.
+    //
+    void
+    dependent_config (strings&&);
 
     // For the following evaluate_*() functions assume that the clause belongs
     // to the specified (by index) depends value (used to print its location
     // on failure for an external package).
     //
+
     // Evaluate the enable clause.
     //
     bool
@@ -85,22 +120,21 @@ namespace bpkg
     evaluate_reflect (const string&, size_t depends_index);
 
     // Return the accumulated configuration variables (first) and project
-    // configuration variable sources (second). Note that the arrays are
-    // not necessarily parallel.
+    // configuration variable sources (second). Note that the arrays are not
+    // necessarily parallel (config_vars may contain non-project variables).
     //
-    // Note that the reflect variables are merged with config_vars/config_srcs
-    // and should be used instead rather than in addition to config_vars.
+    // Note that the dependent and reflect variables are merged with
+    // config_vars/config_srcs and should be used instead rather than in
+    // addition to config_vars.
     //
     // Note also that this should be the final call on this object.
     //
     pair<strings, vector<config_variable>>
     collect_config () &&;
 
-    const package_name&
-    name () const {return available_->id.name;}
-
     // Implementation details.
     //
+  public:
     // We have to define these because context is forward-declared. Also, copy
     // constructor has some special logic.
     //
@@ -112,28 +146,32 @@ namespace bpkg
     package_skeleton& operator= (const package_skeleton&) = delete;
 
   private:
-    // Create the skeleton if necessary and (re)load the build system state.
+    // Load old user configuration variables from config.build (or equivalent)
+    // and merge them into config_vars_.
+    //
+    // This should be done before any attempt to load the configuration with
+    // config.config.disfigure and, if this did not happen, inside
+    // collect_config() (since the package will be reconfigured with
+    // config.config.disfigure).
+    //
+    void
+    load_old_config ();
+
+    // (Re)load the build system state.
     //
     // Call this function before evaluating every clause.
     //
     build2::scope&
     load ();
 
-    // Extract old user configuration variables from config.build (or
-    // equivalent) and merge them into config_vars_. This is only necessary if
-    // something (e.g., reflect) could override their values in config.build.
-    //
-    // @@ Isn't the plan now to reset all configs to defaul which means we
-    //    will probably always have to extract and merge.
-    //
-    void
-    merge_old_config_vars ();
-
-    // Merge command line variable overrides in one list (normally to be
+    // Merge command line variable overrides into one list (normally to be
     // passed to bootstrap()).
     //
+    // If cache is true, then assume the result can be reused on subsequent
+    // calls.
+    //
     const strings&
-    merge_cmd_vars ();
+    merge_cmd_vars (const strings& dependent_vars, bool cache = false);
 
     // Implementation details (public for bootstrap()).
     //
@@ -153,13 +191,20 @@ namespace bpkg
     dir_path out_root_; // If empty, the same as src_root_.
 
     bool created_ = false;
+    bool verified_ = false;
     unique_ptr<build2::context> ctx_;
     build2::scope* rs_ = nullptr;
-    strings cmd_vars_; // Storage for merged build2_cmd_vars and config_vars_.
 
-    strings reflect_names_; // Reflect configuration variable names.
-    strings reflect_vars_;  // Reflect configuration variable overrides.
-    string  reflect_frag_;  // Reflect configuration variable fragment.
+    // Storage for merged build2_cmd_vars and config_vars_ and extra overrides
+    // (like config.config.disfigure). If cache is true, then the existing
+    // content can be reused.
+    //
+    strings cmd_vars_;
+    bool cmd_vars_cache_ = false;
+
+    strings dependent_vars_; // Dependent configuration variable overrides.
+    strings reflect_vars_;   // Reflect configuration variable overrides.
+    string  reflect_frag_;   // Reflect configuration variables fragment.
   };
 }
 

@@ -72,10 +72,12 @@ namespace bpkg
       src_root_ = move (v.src_root_);
       out_root_ = move (v.out_root_);
       created_ = v.created_;
+      verified_ = v.verified_;
       ctx_ = move (v.ctx_);
       rs_ = v.rs_;
       cmd_vars_ = move (v.cmd_vars_);
-      reflect_names_ = move (v.reflect_names_);
+      cmd_vars_cache_ = v.cmd_vars_cache_;
+      dependent_vars_ = move (v.dependent_vars_);
       reflect_vars_ = move (v.reflect_vars_);
       reflect_frag_ = move (v.reflect_frag_);
 
@@ -97,8 +99,10 @@ namespace bpkg
         src_root_ (v.src_root_),
         out_root_ (v.out_root_),
         created_ (v.created_),
+        verified_ (v.verified_),
         cmd_vars_ (v.cmd_vars_),
-        reflect_names_ (v.reflect_names_),
+        cmd_vars_cache_ (v.cmd_vars_cache_),
+        dependent_vars_ (v.dependent_vars_),
         reflect_vars_ (v.reflect_vars_),
         reflect_frag_ (v.reflect_frag_)
   {
@@ -150,19 +154,19 @@ namespace bpkg
   }
 
   void package_skeleton::
-  load_defaults ()
+  load_defaults (const strings& dependent_vars)
   {
     assert (ctx_ == nullptr); // Should only be called before evaluate_*().
+
+    if (config_srcs_ != nullptr)
+      load_old_config ();
 
     try
     {
       using namespace build2;
-      using build2::fail;
-      using build2::endf;
 
-      // @@ TODO: c.c.{disfigure|unload}.
-
-      scope& rs (*bootstrap (*this, merge_cmd_vars ())->second.front ());
+      scope& rs (
+        *bootstrap (*this, merge_cmd_vars (dependent_vars))->second.front ());
 
       // Load project's root.build.
       //
@@ -221,11 +225,85 @@ namespace bpkg
           }
         }
       }
+
+      verified_ = true; // Managed to load without errors.
+      ctx_ = nullptr;
     }
     catch (const build2::failed&)
     {
       throw failed (); // Assume the diagnostics has already been issued.
     }
+  }
+
+  pair<bool, string> package_skeleton::
+  verify_sensible (const strings& dependent_vars)
+  {
+    assert (ctx_ == nullptr); // Should only be called before evaluate_*().
+
+    if (config_srcs_ != nullptr)
+      load_old_config ();
+
+    try
+    {
+      using namespace build2;
+
+      // For now we treat any failure to load root.build as bad configuration,
+      // which is not very precise. One idea to make this more precise would
+      // be to invent some kind of tagging for "bad configuration" diagnostics
+      // (e.g., either via an attribute or via special config.assert directive
+      // or some such).
+      //
+      // For now we rely on load_defaults() and load_old_config() to "flush"
+      // out any unrelated errors (e.g., one of the modules configuration is
+      // bad, etc). However, if that did not happen naturally, then we must do
+      // it ourselves.
+      //
+      if (!verified_)
+      {
+        scope& rs (
+          *bootstrap (*this, merge_cmd_vars (strings {}))->second.front ());
+        load_root (rs);
+
+        verified_ = true;
+        ctx_ = nullptr;
+      }
+
+      scope& rs (
+        *bootstrap (*this, merge_cmd_vars (dependent_vars))->second.front ());
+
+      // Load project's root.build while redirecting the diagnostics stream.
+      //
+      ostringstream ds;
+      auto dg (make_guard ([ods = diag_stream] () {diag_stream = ods;}));
+      diag_stream = &ds;
+
+      pair<bool, string> r;
+      try
+      {
+        load_root (rs);
+        r.first = true;
+      }
+      catch (const build2::failed&)
+      {
+        r.first = false;
+        r.second = ds.str ();
+      }
+
+      ctx_ = nullptr;
+      return r;
+    }
+    catch (const build2::failed&)
+    {
+      throw failed (); // Assume the diagnostics has already been issued.
+    }
+  }
+
+  void package_skeleton::
+  dependent_config (strings&& vars)
+  {
+    assert (dependent_vars_.empty ()); // Must be called at most once.
+
+    dependent_vars_ = move (vars);
   }
 
   // Print the location of a depends value in the specified manifest file.
@@ -397,6 +475,9 @@ namespace bpkg
     // also argue we should diagnose this case and fail not to cause more
     // confusion.
     //
+    // @@ They could also clash with dependent configuration. Probably should
+    //    be handled in the same way (it's just another type of "user").
+    //
     // It seems like the most straightforward way to achieve the desired
     // semantics with the mechanisms that we have (in other words, without
     // inventing another "level" of overrides) is to evaluate the reflect
@@ -440,12 +521,6 @@ namespace bpkg
       using namespace build2;
       using build2::fail;
       using build2::endf;
-
-      // Merge old configuration variables into config_vars since otherwise
-      // they may end up being overridden by reflects.
-      //
-      if (config_srcs_ != nullptr)
-        merge_old_config_vars ();
 
       scope& rs (load ());
 
@@ -541,10 +616,19 @@ namespace bpkg
 
       process (false);
 
-      // Add to the map the reflect variables collected previously.
+      // Add to the map the reflect variables collected previously. Note that
+      // we can re-purpose the override since we re-populate it.
       //
-      for (string& n: reflect_names_)
+      for (string& n: reflect_vars_)
       {
+        // Transform `name=value` to just `name`.
+        //
+        {
+          size_t p (n.find ('='));
+          assert (p != string::npos); // We've serialized it so must be there.
+          n.resize (p);
+        }
+
         auto p (vars.emplace (&vp.insert (move (n)), value_data {nullptr, 0}));
 
         if (p.second)
@@ -558,16 +642,8 @@ namespace bpkg
 
       // Re-populate everything from the map.
       //
-      reflect_names_.clear ();
-      reflect_frag_.clear ();
-
-#if 0
-      // NOTE: see also collect_config() if enabling this.
-      //
       reflect_vars_.clear ();
-#else
-      reflect_vars_ = config_vars_;
-#endif
+      reflect_frag_.clear ();
 
       // Collect the config.<name>.* variables that were changed by this
       // and previous reflect clauses.
@@ -586,13 +662,13 @@ namespace bpkg
         const variable& var (*p.first);
         const value& val (*p.second.val);
 
-        reflect_names_.push_back (var.name);
-
         // For the accumulated fragment we always save the original and let
         // the standard overriding take its course.
         //
         serialize_buildfile (reflect_frag_, var.name, val, storage);
 
+        // Note: this is currently disabled and is likely very outdated.
+        //
         // For the accumulated overrides we have to merge user config_vars_
         // with reflect values. Essentially, we have three possibilities:
         //
@@ -617,7 +693,7 @@ namespace bpkg
           ovr = org; // Case #2.
         else
         {
-          // NOTE: see also above and below if enabling this.
+          // NOTE: see also below if enabling this.
           //
 #if 0
           // Case #3.
@@ -677,6 +753,8 @@ namespace bpkg
           //
           ovr = rs.lookup_override (var, org);
 #else
+          // @@ TODO: probably also depends, not just user.
+
           fail << "command line override of reflect clause variable " << var
                << endf;
 #endif
@@ -706,114 +784,69 @@ namespace bpkg
   {
     assert (db_ != nullptr); // Must be called only once.
 
+    if (config_srcs_ != nullptr)
+      load_old_config ();
+
+    // Merge all the variables into a single list in the correct order
+    // and assign their sources while at it.
+    //
     strings vars;
     vector<config_variable> srcs;
 
-    // Check whether the user-specified configuration variable is a project
-    // variables (i.e., its name start with config.<project>).
-    //
-    // Note that some user-specified variables may have qualifications
-    // (global, scope, etc) but there is no reason to expect any project
-    // configuration variables to use such qualifications (since they can only
-    // apply to one project). So we ignore all qualified variables.
-    //
-    auto prj_var = [this, p = optional<string> ()] (const string& v) mutable
+    if (size_t n = (config_vars_.size () +
+                    dependent_vars_.size () +
+                    reflect_vars_.size ()))
     {
-      if (!p)
-        p = "config." + name ().variable ();
-
-      size_t n (p->size ());
-
-      return v.compare (0, n, *p) == 0 && strchr (".=+ \t", v[n]) != nullptr;
-    };
-
-    if (!reflect_vars_.empty ())
-    {
-      assert (config_srcs_ == nullptr); // Should have been merged.
-
-      vars = move (reflect_vars_);
-
-      // Note that if the reflect variables list is not empty, then it also
-      // contains the user-specified configuration variables, which all come
-      // first (see above).
+      // For vars we will steal the first non-empty *_vars_. But for sources
+      // reserve the space.
       //
-      size_t nc (config_vars_.size ());
+      srcs.reserve (n); // At most that many.
 
-      if (!vars.empty ())
+      // Check whether the user-specified configuration variable override has
+      // a project variables (i.e., its name start with config.<project>).
+      //
+      // Note that some user-specified variables may have qualifications
+      // (global, scope, etc) but there is no reason to expect any project
+      // configuration variables to use such qualifications (since they can
+      // only apply to one project). So we ignore all qualified variables.
+      //
+      auto prj_var = [this, p = optional<string> ()] (const string& v) mutable
       {
-        srcs.reserve (vars.size ()); // At most that many.
+        if (!p)
+          p = "config." + name ().variable ();
 
+        size_t n (p->size ());
+
+        return v.compare (0, n, *p) == 0 && strchr (".=+ \t", v[n]) != nullptr;
+      };
+
+      // Return the variable name given the variable override.
+      //
+      auto var_name = [] (const string& v)
+      {
+        size_t p (v.find_first_of ("=+ \t"));
+        assert (p != string::npos);
+        return string (v, 0, p);
+      };
+
+      // Note that for now we assume the three sets of variables do not clash.
+      //
+      // @@ TODO: make sure it's the case for dependent.
+      //
+
+      // First comes the user configuration.
+      //
+      if (!config_vars_.empty ())
+      {
         // Assign the user source only to user-specified configuration
         // variables which are project variables (i.e., names start with
-        // config.<project>). Assign the reflect source to all variables that
-        // follow the user-specified configuration variables (which can only
-        // be project variables).
+        // config.<project>).
         //
-        for (size_t j (0); j != vars.size (); ++j)
+        for (const string& v: config_vars_)
         {
-          const string& v (vars[j]);
-
-          config_source s;
-
-          if (j < nc)
-          {
-            if (prj_var (v))
-              s = config_source::user;
-            else
-              continue;
-          }
-          else
-            s = config_source::reflect;
-
-          size_t p (v.find_first_of ("=+ \t"));
-          assert (p != string::npos);
-
-          string n (v, 0, p);
-
-          // Check for a duplicate.
-          //
-          auto i (find_if (srcs.begin (), srcs.end (),
-                           [&n] (const config_variable& cv)
-                           {
-                             return cv.name == n;
-                           }));
-
-          if (i != srcs.end ())
-            assert (i->source == s); // See evaluate_reflect() for details.
-          else
-            srcs.push_back (config_variable {move (n), s});
-        }
-      }
-    }
-    else
-    {
-      vars = move (config_vars_);
-
-      // If we don't have any reflect variables, then we don't really need to
-      // load user variables from config.build (or equivalent) and add them to
-      // config_vars since there is nothing for them to possibly override. So
-      // all we need to do is to add user variables from config_vars.
-      //
-      if (!vars.empty () || config_srcs_ != nullptr)
-      {
-        srcs.reserve ((config_srcs_ != nullptr ? config_srcs_->size () : 0)
-                      + vars.size ()); // At most that many.
-
-        if (config_srcs_ != nullptr)
-          for (const config_variable& v: *config_srcs_)
-            if (v.source == config_source::user)
-              srcs.push_back (v);
-
-        for (const string& v: vars)
-        {
-          // Similar logic to the above case.
-          //
           if (prj_var (v))
           {
-            size_t p (v.find_first_of ("=+ \t"));
-            assert (p != string::npos);
-
-            string n (v, 0, p);
+            string n (var_name (v));
 
             // Check for a duplicate.
             //
@@ -827,10 +860,56 @@ namespace bpkg
               srcs.push_back (config_variable {move (n), config_source::user});
           }
         }
+
+        vars = move (config_vars_);
+      }
+
+      // Next dependent configuration.
+      //
+      if (!dependent_vars_.empty ())
+      {
+        // These are all project variables. There should also be no duplicates
+        // by construction (see @@).
+        //
+        for (const string& v: dependent_vars_)
+          srcs.push_back (
+            config_variable {var_name (v), config_source::dependent});
+
+        if (vars.empty ())
+          vars = move (dependent_vars_);
+        else
+        {
+          vars.reserve (n);
+          vars.insert (vars.end (),
+                       make_move_iterator (dependent_vars_.begin ()),
+                       make_move_iterator (dependent_vars_.end ()));
+        }
+      }
+
+      // Finally reflect.
+      //
+      if (!reflect_vars_.empty ())
+      {
+        // These are all project variables. There should also be no duplicates
+        // by construction (see evaluate_reflect()).
+        //
+        for (const string& v: reflect_vars_)
+          srcs.push_back (
+            config_variable {var_name (v), config_source::reflect});
+
+        if (vars.empty ())
+          vars = move (reflect_vars_);
+        else
+        {
+          vars.reserve (n);
+          vars.insert (vars.end (),
+                       make_move_iterator (reflect_vars_.begin ()),
+                       make_move_iterator (reflect_vars_.end ()));
+        }
       }
     }
 
-    ctx_ = nullptr; // In case we only had conditions.
+    ctx_ = nullptr; // Free.
     db_ = nullptr;
     available_ = nullptr;
 
@@ -838,114 +917,97 @@ namespace bpkg
   }
 
   const strings& package_skeleton::
-  merge_cmd_vars ()
+  merge_cmd_vars (const strings& dependent_vars, bool cache)
   {
-    // Merge variable overrides (note that the order is important).
+    // Merge variable overrides (note that the order is important). See also a
+    // custom/optimized version in load_old_config().
     //
-    // We can reasonably assume reflect cannot have global or absolute scope
-    // variable overrides so we don't need to pass them to context.
-    //
-    const strings* r;
-
-    const strings& v1 (build2_cmd_vars);
-    const strings& v2 (config_vars_);
-
-    r = (v2.empty () ? &v1 : v1.empty () ? &v2 : nullptr);
-
-    if (r == nullptr)
+    if (!cache || !cmd_vars_cache_)
     {
-      if (cmd_vars_.empty ()) // Cached.
+      const strings& vs1 (build2_cmd_vars);
+      const strings& vs2 (config_vars_);
+      const strings& vs3 (dependent_vars); // Should not override.
+
+      // Try to reuse both vector and string buffers.
+      //
+      cmd_vars_.resize (1 + vs1.size () + vs2.size () + vs3.size ());
+
+      size_t i (0);
       {
-        cmd_vars_.reserve (v1.size () + v2.size ());
-        cmd_vars_.assign (v1.begin (), v1.end ());
-        cmd_vars_.insert (cmd_vars_.end (), v2.begin (), v2.end ());
-      }
+        string& v (cmd_vars_[i++]);
 
-      r = &cmd_vars_;
-    }
-
-    return *r;
-  }
-
-  build2::scope& package_skeleton::
-  load ()
-  {
-    if (ctx_ != nullptr)
-      return *rs_;
-
-    try
-    {
-      using namespace build2;
-
-      auto rsi (bootstrap (*this, merge_cmd_vars ()));
-      scope& rs (*rsi->second.front ());
-
-      // Load project's root.build as well as potentially accumulated reflect
-      // fragment.
-      //
-      // If we have the accumulated reflect fragment, wedge it just before
-      // loading root.build (but after initializing config which may load
-      // config.build and which we wish to override).
-      //
-      // Note that the plan for non-external packages is to extract the
-      // configuration and then load it with config.config.load and this
-      // approach should work for that case too.
-      //
-      function<void (parser&)> pre;
-
-      if (!reflect_frag_.empty ())
-      {
-        pre = [this, &rs] (parser& p)
+        // If the package is being disfigured, then don't load config.build at
+        // all. Otherwise, disfigure all package variables (config.<name>**).
+        //
+        // Note that this semantics must be consistent with how we actually
+        // configure the package in pkg_configure().
+        //
+        if (disfigure_)
+          v = "config.config.unload=true";
+        else
         {
-          istringstream is (reflect_frag_);
-          is.exceptions (istringstream::failbit | istringstream::badbit);
-
-          // Note that the fragment is just a bunch of variable assignments
-          // and thus unlikely to cause any errors.
+          // Note: must be quoted to preserve the pattern.
           //
-          path_name in ("<accumulated-reflect-fragment>");
-          p.parse_buildfile (is, in, &rs, rs);
-        };
+          v = "config.config.disfigure='config.";
+          v += name ().variable ();
+          v += "**'";
+        }
       }
 
-      load_root (rs, pre);
+      for (const string& v: vs1) cmd_vars_[i++] = v;
+      for (const string& v: vs2) cmd_vars_[i++] = v;
+      for (const string& v: vs3) cmd_vars_[i++] = v;
 
-      setup_base (rsi,
-                  out_root_.empty () ? src_root_ : out_root_,
-                  src_root_);
+      cmd_vars_cache_ = cache;
+    }
 
-      rs_ = &rs;
-      return rs;
-    }
-    catch (const build2::failed&)
-    {
-      throw failed (); // Assume the diagnostics has already been issued.
-    }
+    return cmd_vars_;
   }
 
   void package_skeleton::
-  merge_old_config_vars ()
+  load_old_config ()
   {
-    if (config_srcs_ == nullptr)
-      return;
-
-    assert (reflect_frag_.empty ()); // Too late.
-
-    ctx_ = nullptr; // Reload.
+    assert (config_srcs_ != nullptr && ctx_ == nullptr);
 
     try
     {
       using namespace build2;
 
-      scope& rs (*bootstrap (*this, merge_cmd_vars ())->second.front ());
+      // This load that must be done without config.config.disfigure. Also, it
+      // would be nice to optimize for the common case where the only load is
+      // to get the old configuration (e.g., config.*.develop) as part of
+      // collect_config(). So instead of calling merge_cmd_vars() we will do
+      // own (but consistent) thing.
+      //
+      const strings* cmd_vars;
+      {
+        assert (!cmd_vars_cache_); // Sanity check (we are always first).
+
+        const strings& vs1 (build2_cmd_vars);
+        const strings& vs2 (config_vars_);
+
+        cmd_vars = (vs2.empty () ? &vs1 : vs1.empty () ? &vs2 : nullptr);
+
+        if (cmd_vars == nullptr)
+        {
+          // Note: the order is important (see merge_cmd_vars()).
+          //
+          cmd_vars_.reserve (vs1.size () + vs2.size ());
+          cmd_vars_.assign (vs1.begin (), vs1.end ());
+          cmd_vars_.insert (cmd_vars_.end (), vs2.begin (), vs2.end ());
+
+          cmd_vars = &cmd_vars_;
+        }
+      }
+
+      scope& rs (*bootstrap (*this, *cmd_vars)->second.front ());
 
       // Load project's root.build.
       //
       load_root (rs);
 
       // Extract and merge old user configuration variables from config.build
-      // (or equivalent) into config_vars. Then invalidate loaded state in
-      // order to make them overrides.
+      // (or equivalent) into config_vars.
       //
       auto i (config_vars_.begin ()); // Insert position, see below.
 
@@ -998,9 +1060,72 @@ namespace bpkg
         }
       }
 
-      config_srcs_ = nullptr; // Merged.
-      cmd_vars_.clear ();     // Invalidated.
-      ctx_ = nullptr;         // Drop.
+      config_srcs_ = nullptr;
+      verified_ = true; // Managed to load without errors.
+      ctx_ = nullptr;
+    }
+    catch (const build2::failed&)
+    {
+      throw failed (); // Assume the diagnostics has already been issued.
+    }
+  }
+
+  build2::scope& package_skeleton::
+  load ()
+  {
+    if (ctx_ != nullptr)
+      return *rs_;
+
+    if (config_srcs_ != nullptr)
+      load_old_config ();
+
+    try
+    {
+      using namespace build2;
+
+      // We can reuse already merged cmd_vars if this has already been done
+      // (they don't change during evaluate_*() calls).
+      //
+      auto rsi (
+        bootstrap (*this, merge_cmd_vars (dependent_vars_, true /* cache */)));
+      scope& rs (*rsi->second.front ());
+
+      // Load project's root.build as well as potentially accumulated reflect
+      // fragment.
+      //
+      // If we have the accumulated reflect fragment, wedge it just before
+      // loading root.build (but after initializing config which may load
+      // config.build and which we wish to override).
+      //
+      // Note that the plan for non-external packages is to extract the
+      // configuration and then load it with config.config.load and this
+      // approach should work for that case too.
+      //
+      function<void (parser&)> pre;
+
+      if (!reflect_frag_.empty ())
+      {
+        pre = [this, &rs] (parser& p)
+        {
+          istringstream is (reflect_frag_);
+          is.exceptions (istringstream::failbit | istringstream::badbit);
+
+          // Note that the fragment is just a bunch of variable assignments
+          // and thus unlikely to cause any errors.
+          //
+          path_name in ("<accumulated-reflect-fragment>");
+          p.parse_buildfile (is, in, &rs, rs);
+        };
+      }
+
+      load_root (rs, pre);
+
+      setup_base (rsi,
+                  out_root_.empty () ? src_root_ : out_root_,
+                  src_root_);
+
+      rs_ = &rs;
+      return rs;
     }
     catch (const build2::failed&)
     {
