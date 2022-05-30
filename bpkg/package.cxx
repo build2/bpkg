@@ -53,17 +53,17 @@ namespace bpkg
       return path;
   }
 
-  // config_package
+  // package_key
   //
-  string config_package::
+  string package_key::
   string () const
   {
     const std::string& s (db.get ().string);
     return !s.empty () ? name.string () + ' ' + s : name.string ();
   }
 
-  bool config_package::
-  operator< (const config_package& v) const
+  bool package_key::
+  operator< (const package_key& v) const
   {
     int r (name.compare (v.name));
     return r != 0 ? (r < 0) : (db < v.db);
