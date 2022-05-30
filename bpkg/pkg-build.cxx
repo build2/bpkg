@@ -1290,11 +1290,13 @@ namespace bpkg
     dependents_map dependents;
     packages       dependencies;
 
+    // Shadow dependencies and clusters.
+    //
+    // See the collect lambda in collect_build_prerequisites() for details.
+    //
     using positions = small_vector<pair<size_t, size_t>, 1>;
     using shadow_dependents_map = map<config_package, positions>;
 
-    // See the collect lambda in collect_build_prerequisites() for details.
-    //
     shadow_dependents_map shadow_dependents;
     shadow_dependents_map shadow_cluster;
 
@@ -1684,19 +1686,11 @@ namespace bpkg
     }
   };
 
-  // @@ TODO: describe.
-  //
-  struct retry_configuration
+  static ostream&
+  operator<< (ostream& os, const postponed_configuration& c)
   {
-    size_t               depth;
-    config_package       dependent;
-    pair<size_t, size_t> position;
-  };
-
-  struct merge_configuration
-  {
-    size_t depth;
-  };
+    return os << c.string ();
+  }
 
   // Note that we could be adding new/merging existing entries while
   // processing an entry. Thus we use a list.
@@ -2033,11 +2027,19 @@ namespace bpkg
     size_t next_id_ = 1;
   };
 
-  static ostream&
-  operator<< (ostream& os, const postponed_configuration& c)
+  // @@ TODO: describe.
+  //
+  struct retry_configuration
   {
-    return os << c.string ();
-  }
+    size_t               depth;
+    config_package       dependent;
+    pair<size_t, size_t> position;
+  };
+
+  struct merge_configuration
+  {
+    size_t depth;
+  };
 
   // Packages with postponed prerequisites collection, for one of the
   // following reasons:
