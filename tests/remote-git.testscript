@@ -66,7 +66,7 @@ else
 end
 
 # Command for extracting the git repository from a tarball into the output
-# directory (see above).
+# directory (see above). Note: should only be used for .tar, not .tar.gz.
 #
 # Note that we can expect that the tar program is present on the platform. We
 # will use the same options as we do for unpacking of package archives (see
