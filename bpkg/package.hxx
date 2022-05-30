@@ -1568,21 +1568,21 @@ namespace bpkg
   // not detached during such map lifetimes. Considers both package name and
   // database for objects comparison.
   //
-  struct config_package
+  struct package_key
   {
     reference_wrapper<database> db;
     package_name                name;
 
-    config_package (database& d, package_name n): db (d), name (move (n)) {}
+    package_key (database& d, package_name n): db (d), name (move (n)) {}
 
     // Create a pseudo-package (command line as a dependent, etc).
     //
-    config_package (database& d, string n)
+    package_key (database& d, string n)
         : db (d),
           name (n.empty () ? package_name () : package_name (move (n))) {}
 
     bool
-    operator== (const config_package& v) const
+    operator== (const package_key& v) const
     {
       // See operator==(database, database).
       //
@@ -1590,7 +1590,7 @@ namespace bpkg
     }
 
     bool
-    operator< (const config_package&) const;
+    operator< (const package_key&) const;
 
     // Return the package string representation in the form:
     //
@@ -1601,7 +1601,7 @@ namespace bpkg
   };
 
   inline ostream&
-  operator<< (ostream& os, const config_package& p)
+  operator<< (ostream& os, const package_key& p)
   {
     return os << p.string ();
   }

@@ -505,7 +505,7 @@ namespace bpkg
   // prerequisites being replaced ("old"). The unamended prerequisites have no
   // entries.
   //
-  using repointed_dependents = map<config_package, map<config_package, bool>>;
+  using repointed_dependents = map<package_key, map<package_key, bool>>;
 
   // List of the private configuration paths, relative to the containing
   // configuration directories (.bpkg/host/, etc), together with the
@@ -722,7 +722,7 @@ namespace bpkg
     // selection and can be present regardless of the required_by_dependents
     // flag value.
     //
-    set<config_package> required_by;
+    set<package_key> required_by;
 
     // If this flags is true, then required_by contains dependents.
     //
@@ -736,8 +736,8 @@ namespace bpkg
     bool
     user_selection () const
     {
-      return required_by.find (config_package {db.get ().main_database (),
-                                               ""}) != required_by.end ();
+      return required_by.find (package_key {db.get ().main_database (),
+                                            ""}) != required_by.end ();
     }
 
     // Return true if the configured package needs to be recollected
@@ -757,14 +757,14 @@ namespace bpkg
               selected->state == package_state::configured &&
               selected->substate != package_substate::system);
 
-      config_package cp (db, name ());
+      package_key pk (db, name ());
 
       return !system &&
              (dependencies                                     ||
               selected->version != available_version ()        ||
               (!config_vars.empty () &&
                has_buildfile_clause (available->dependencies)) ||
-              rpt_depts.find (cp) != rpt_depts.end ());
+              rpt_depts.find (pk) != rpt_depts.end ());
     }
 
     // State flags.
@@ -1068,7 +1068,7 @@ namespace bpkg
     // Only used for tracing.
     //
     const char* description;
-    const config_package* package = nullptr; // Could be NULL.
+    const package_key* package = nullptr; // Could be NULL.
 
     explicit
     scratch_collection (const char* d): description (d) {}
@@ -1125,7 +1125,7 @@ namespace bpkg
     replaced_version (): system (false), replaced (true) {}
   };
 
-  class replaced_versions: public map<config_package, replaced_version>
+  class replaced_versions: public map<package_key, replaced_version>
   {
   public:
     // Erase the bogus replacements and, if any, throw cancel_replacement, if
@@ -1233,7 +1233,7 @@ namespace bpkg
     size_t id;
     small_vector<size_t, 1> merged_ids;
 
-    using packages = small_vector<config_package, 1>;
+    using packages = small_vector<package_key, 1>;
 
     class dependency: public packages
     {
@@ -1272,7 +1272,7 @@ namespace bpkg
           //
           assert (existing);
 
-          for (config_package& p: dep)
+          for (package_key& p: dep)
           {
             // Add the dependency unless it's already there.
             //
@@ -1285,7 +1285,7 @@ namespace bpkg
       }
     };
 
-    using dependents_map = map<config_package, dependent_info>;
+    using dependents_map = map<package_key, dependent_info>;
 
     dependents_map dependents;
     packages       dependencies;
@@ -1295,7 +1295,7 @@ namespace bpkg
     // See the collect lambda in collect_build_prerequisites() for details.
     //
     using positions = small_vector<pair<size_t, size_t>, 1>;
-    using shadow_dependents_map = map<config_package, positions>;
+    using shadow_dependents_map = map<package_key, positions>;
 
     shadow_dependents_map shadow_dependents;
     shadow_dependents_map shadow_cluster;
@@ -1313,7 +1313,7 @@ namespace bpkg
     // Add dependencies of a new dependent.
     //
     postponed_configuration (size_t i,
-                             config_package&& dependent,
+                             package_key&& dependent,
                              bool existing,
                              pair<size_t, size_t> position,
                              packages&& deps)
@@ -1325,9 +1325,9 @@ namespace bpkg
     // Add dependency of an existing dependent.
     //
     postponed_configuration (size_t i,
-                             config_package&& dependent,
+                             package_key&& dependent,
                              pair<size_t, size_t> position,
-                             config_package&& dep)
+                             package_key&& dep)
         : id (i)
     {
       add (move (dependent),
@@ -1340,7 +1340,7 @@ namespace bpkg
     // dependencies list suppressing duplicates.
     //
     void
-    add (config_package&& dependent,
+    add (package_key&& dependent,
          bool existing,
          pair<size_t, size_t> position,
          packages&& deps)
@@ -1379,7 +1379,7 @@ namespace bpkg
     // specified package.
     //
     bool
-    contains_dependency (const config_package& d) const
+    contains_dependency (const package_key& d) const
     {
       return find (dependencies.begin (), dependencies.end (), d) !=
              dependencies.end ();
@@ -1391,7 +1391,7 @@ namespace bpkg
     bool
     contains_dependency (const packages& ds) const
     {
-      for (const config_package& d: ds)
+      for (const package_key& d: ds)
       {
         if (contains_dependency (d))
           return true;
@@ -1419,11 +1419,11 @@ namespace bpkg
     // return the earliest dependency position. Otherwise return NULL.
     //
     const pair<size_t, size_t>*
-    existing_dependent_position (const config_package& cp) const
+    existing_dependent_position (const package_key& p) const
     {
       const pair<size_t, size_t>* r (nullptr);
 
-      auto i (dependents.find (cp));
+      auto i (dependents.find (p));
       if (i != dependents.end () && i->second.existing)
       {
         for (const dependency& d: i->second.dependencies)
@@ -1517,7 +1517,7 @@ namespace bpkg
     }
 
     void
-    add_shadow (config_package dependent, pair<size_t, size_t> pos)
+    add_shadow (package_key dependent, pair<size_t, size_t> pos)
     {
       auto i (shadow_dependents.find (dependent));
 
@@ -1532,7 +1532,7 @@ namespace bpkg
     }
 
     bool
-    contains_shadow_dependent (config_package dependent,
+    contains_shadow_dependent (package_key dependent,
                                pair<size_t, size_t> pos) const
     {
       auto i (shadow_dependents.find (dependent));
@@ -1562,7 +1562,7 @@ namespace bpkg
     }
 
     bool
-    contains_in_shadow_cluster (config_package dependent,
+    contains_in_shadow_cluster (package_key dependent,
                                 pair<size_t, size_t> pos) const
     {
       auto i (shadow_cluster.find (dependent));
@@ -1596,7 +1596,7 @@ namespace bpkg
     // of the respective depends value and the dependency alternative in the
     // dependent's manifest.
     //
-    // See config_package for details on <package>.
+    // See package_key for details on <package>.
     //
     // For example:
     //
@@ -1621,7 +1621,7 @@ namespace bpkg
 
       r += " |";
 
-      for (const config_package& d: dependencies)
+      for (const package_key& d: dependencies)
       {
         r += ' ';
         r += d.string ();
@@ -1710,7 +1710,7 @@ namespace bpkg
     // negotiated configuration (with minimum non-zero depth).
     //
     pair<postponed_configuration&, optional<bool>>
-    add (config_package dependent,
+    add (package_key dependent,
          bool existing,
          pair<size_t, size_t> position,
          postponed_configuration::packages dependencies)
@@ -1938,9 +1938,9 @@ namespace bpkg
     // dependency doesn't already belong to any existing cluster.
     //
     void
-    add (config_package dependent,
+    add (package_key dependent,
          pair<size_t, size_t> position,
-         config_package dependency)
+         package_key dependency)
     {
       tracer trace ("postponed_configurations::add");
 
@@ -1978,7 +1978,7 @@ namespace bpkg
     // doesn't belong to any cluster.
     //
     const postponed_configuration*
-    find_dependency (const config_package& d) const
+    find_dependency (const package_key& d) const
     {
       for (const postponed_configuration& cfg: *this)
       {
@@ -2032,7 +2032,7 @@ namespace bpkg
   struct retry_configuration
   {
     size_t               depth;
-    config_package       dependent;
+    package_key          dependent;
     pair<size_t, size_t> position;
   };
 
@@ -2091,8 +2091,7 @@ namespace bpkg
     bogus () const {return wout_config && !with_config;}
   };
 
-  class postponed_dependencies: public map<config_package,
-                                           postponed_dependency>
+  class postponed_dependencies: public map<package_key, postponed_dependency>
   {
   public:
     bool
@@ -2181,7 +2180,7 @@ namespace bpkg
         : pair<size_t, size_t> (p), replace (r) {}
   };
 
-  class postponed_positions: public map<config_package, postponed_position>
+  class postponed_positions: public map<package_key, postponed_position>
   {
   public:
     // Erase the bogus postponements and, if any, throw cancel_postponement,
@@ -2309,7 +2308,7 @@ namespace bpkg
       assert (!pkg.action);
 
       database& db (pkg.db); // Save before the move() call.
-      auto p (map_.emplace (config_package {db, move (name)},
+      auto p (map_.emplace (package_key {db, move (name)},
                             data_type {end (), move (pkg)}));
 
       assert (p.second);
@@ -2326,9 +2325,9 @@ namespace bpkg
     }
 
     build_package*
-    entered_build (const config_package& cp)
+    entered_build (const package_key& p)
     {
-      return entered_build (cp.db, cp.name);
+      return entered_build (p.db, p.name);
     }
 
     // Collect the package being built. Return its pointer if this package
@@ -2406,12 +2405,12 @@ namespace bpkg
       assert (pkg.action && *pkg.action == build_package::build &&
               pkg.available != nullptr);
 
-      config_package cp (pkg.db, pkg.available->id.name);
+      package_key pk (pkg.db, pkg.available->id.name);
 
       // Apply the version replacement, if requested, and indicate that it was
       // applied.
       //
-      auto vi (replaced_vers.find (cp));
+      auto vi (replaced_vers.find (pk));
 
       if (vi != replaced_vers.end () && !vi->second.replaced)
       {
@@ -2445,7 +2444,7 @@ namespace bpkg
       // Add the version replacement entry, call the verification function if
       // specified, and throw replace_version.
       //
-      auto replace_ver = [&cp, &vpb, &vi, &replaced_vers]
+      auto replace_ver = [&pk, &vpb, &vi, &replaced_vers]
                          (const build_package& p)
       {
         replaced_version rv (p.available, p.repository_fragment, p.system);
@@ -2453,7 +2452,7 @@ namespace bpkg
         if (vi != replaced_vers.end ())
           vi->second = move (rv);
         else
-          replaced_vers.emplace (move (cp), move (rv));
+          replaced_vers.emplace (move (pk), move (rv));
 
         if (vpb)
           vpb (p, true /* scratch */);
@@ -2461,7 +2460,7 @@ namespace bpkg
         throw replace_version ();
       };
 
-      auto i (map_.find (cp));
+      auto i (map_.find (pk));
 
       // If we already have an entry for this package name, then we have to
       // pick one over the other.
@@ -2661,7 +2660,7 @@ namespace bpkg
 
           for (const postponed_configuration& cfg: postponed_cfgs)
           {
-            auto i (cfg.dependents.find (cp));
+            auto i (cfg.dependents.find (pk));
 
             if (i != cfg.dependents.end () && i->second.existing)
               replace_ver (pkg);
@@ -2672,7 +2671,7 @@ namespace bpkg
         //
         l4 ([&]{trace << "add " << pkg.available_name_version_db ();});
 
-        i = map_.emplace (move (cp), data_type {end (), move (pkg)}).first;
+        i = map_.emplace (move (pk), data_type {end (), move (pkg)}).first;
       }
 
       build_package& p (i->second.package);
@@ -2789,10 +2788,10 @@ namespace bpkg
     //
     struct postpone_dependency: scratch_collection
     {
-      config_package package;
+      package_key package;
 
       explicit
-      postpone_dependency (config_package p)
+      postpone_dependency (package_key p)
           : scratch_collection ("prematurely collected dependency"),
             package (move (p))
       {
@@ -2836,7 +2835,7 @@ namespace bpkg
       const shared_ptr<selected_package>& sp (pkg.selected);
       const package_name& nm (pkg.name ());
       database& pdb (pkg.db);
-      config_package cp (pdb, nm);
+      package_key pk (pdb, nm);
 
       bool reeval (reeval_pos.first != 0);
 
@@ -2859,7 +2858,7 @@ namespace bpkg
       if (!reeval                   &&
           !pkg.recursive_collection &&
           pkg.reconfigure ()        &&
-          postponed_cfgs.find_dependency (cp) == nullptr)
+          postponed_cfgs.find_dependency (pk) == nullptr)
       {
         // If the dependent is being built, then check if it was re-evaluated
         // to the position greater than the dependency position. Return true
@@ -2870,14 +2869,14 @@ namespace bpkg
         //
         const function<verify_dependent_build_function> verify (
           [&postponed_cfgs]
-          (const config_package& cp, pair<size_t, size_t> pos)
+          (const package_key& pk, pair<size_t, size_t> pos)
           {
             for (const postponed_configuration& cfg: postponed_cfgs)
             {
               if (cfg.negotiated)
               {
                 if (const pair<size_t, size_t>* p =
-                    cfg.existing_dependent_position (cp))
+                    cfg.existing_dependent_position (pk))
                 {
                   if (p->first > pos.first)
                     return true;
@@ -2898,8 +2897,8 @@ namespace bpkg
         //
         vector<existing_dependent> eds (
           query_existing_dependents (trace,
-                                     cp.db,
-                                     cp.name,
+                                     pk.db,
+                                     pk.name,
                                      replaced_vers,
                                      rpt_depts,
                                      verify));
@@ -2908,7 +2907,7 @@ namespace bpkg
         {
           for (existing_dependent& ed: eds)
           {
-            config_package dcp (ed.db, ed.selected->name);
+            package_key dpk (ed.db, ed.selected->name);
             size_t& di (ed.dependency_position.first);
 
             const build_package* bp (&pkg);
@@ -2925,7 +2924,7 @@ namespace bpkg
             // collect_build_postponed() for details).
             //
             {
-              auto pi (postponed_poss.find (dcp));
+              auto pi (postponed_poss.find (dpk));
 
               if (pi != postponed_poss.end () &&
                   pi->second.first < di       &&
@@ -2946,7 +2945,7 @@ namespace bpkg
                   replaced_vers,
                   postponed_cfgs);
 
-                cp = config_package (bp->db, bp->name ());
+                pk = package_key (bp->db, bp->name ());
 
                 // Note that here we side-step the bogus logic (by not setting
                 // the skipped flag) because in this case (replace=true) our
@@ -2968,7 +2967,7 @@ namespace bpkg
             for (const postponed_configuration& cfg: postponed_cfgs)
             {
               if (const pair<size_t, size_t>* p =
-                  cfg.existing_dependent_position (cp))
+                  cfg.existing_dependent_position (pk))
               {
                 size_t ei (p->first);
 
@@ -2979,7 +2978,7 @@ namespace bpkg
                   postponed_position pp (ed.dependency_position,
                                          false /* replace */);
 
-                  auto p (postponed_poss.emplace (move (cp), pp));
+                  auto p (postponed_poss.emplace (move (pk), pp));
                   if (!p.second)
                   {
                     assert (p.first->second > pp);
@@ -3018,7 +3017,7 @@ namespace bpkg
                           << " of existing dependent " << *ed.selected
                           << ed.db;});
 
-            postponed_cfgs.add (move (dcp), ed.dependency_position, move (cp));
+            postponed_cfgs.add (move (dpk), ed.dependency_position, move (pk));
           }
 
           return;
@@ -3040,7 +3039,7 @@ namespace bpkg
       // If this is a repointed dependent, then it points to its prerequisite
       // replacements flag map (see repointed_dependents for details).
       //
-      const map<config_package, bool>* rpt_prereq_flags (nullptr);
+      const map<package_key, bool>* rpt_prereq_flags (nullptr);
 
       // Bail out if this is a configured non-system package and no recursive
       // collection is required nor the collection is forced.
@@ -3062,7 +3061,7 @@ namespace bpkg
 
       if (src_conf)
       {
-        repointed_dependents::const_iterator i (rpt_depts.find (cp));
+        repointed_dependents::const_iterator i (rpt_depts.find (pk));
 
         if (i != rpt_depts.end ())
           rpt_prereq_flags = &i->second;
@@ -3452,7 +3451,7 @@ namespace bpkg
               //
               if (rpt_prereq_flags != nullptr)
               {
-                auto i (rpt_prereq_flags->find (config_package {*ddb, dn}));
+                auto i (rpt_prereq_flags->find (package_key {*ddb, dn}));
 
                 bool unamended   (i == rpt_prereq_flags->end ());
                 bool replacement (!unamended && i->second);
@@ -3992,7 +3991,7 @@ namespace bpkg
                         &pkg,
                         &pdb,
                         &nm,
-                        &cp,
+                        &pk,
                         &fdb,
                         &rpt_depts,
                         &apc,
@@ -4049,7 +4048,7 @@ namespace bpkg
               nullopt,                    // Checkout root.
               false,                      // Checkout purge.
               strings (),                 // Configuration variables.
-              {cp},                       // Required by (dependent).
+              {pk},                       // Required by (dependent).
               true,                       // Required by dependents.
               0};                         // State flags.
 
@@ -4183,7 +4182,7 @@ namespace bpkg
                              nullptr /* postponed_poss */,
                              verify));
 
-            config_package dcp (b.db, b.available->id.name);
+            package_key dpk (b.db, b.available->id.name);
 
             // Do not collect prerequisites recursively for dependent
             // re-evaluation. Instead, if the re-evaluation position is
@@ -4193,7 +4192,7 @@ namespace bpkg
             if (reeval)
             {
               if (dp == reeval_pos)
-                cfg_deps.push_back (move (dcp));
+                cfg_deps.push_back (move (dpk));
 
               continue;
             }
@@ -4211,7 +4210,7 @@ namespace bpkg
             bool collect_prereqs (p != nullptr);
 
             {
-              build_package* bp (entered_build (dcp));
+              build_package* bp (entered_build (dpk));
               assert (bp != nullptr);
 
               if (da.prefer || da.require)
@@ -4220,7 +4219,7 @@ namespace bpkg
                 // present.
                 //
                 {
-                  auto i (postponed_deps.find (dcp));
+                  auto i (postponed_deps.find (dpk));
 
                   // Do not override postponements recorded during postponed
                   // collection phase with those recorded during initial
@@ -4228,7 +4227,7 @@ namespace bpkg
                   //
                   if (i == postponed_deps.end ())
                   {
-                    postponed_deps.emplace (dcp,
+                    postponed_deps.emplace (dpk,
                                             postponed_dependency {
                                               false /* without_config */,
                                               true  /* with_config */,
@@ -4241,7 +4240,7 @@ namespace bpkg
                 // Prematurely collected before we saw any config clauses.
                 //
                 if (bp->recursive_collection &&
-                    postponed_cfgs.find_dependency (dcp) == nullptr)
+                    postponed_cfgs.find_dependency (dpk) == nullptr)
                 {
                   l5 ([&]{trace << "cannot cfg-postpone dependency "
                                 << bp->available_name_version_db ()
@@ -4254,7 +4253,7 @@ namespace bpkg
                   //
                   dep_chain.clear ();
 
-                  throw postpone_dependency (move (dcp));
+                  throw postpone_dependency (move (dpk));
                 }
 
                 // Postpone until (re-)negotiation.
@@ -4264,7 +4263,7 @@ namespace bpkg
                               << " of dependent "
                               << pkg.available_name_version_db ();});
 
-                cfg_deps.push_back (move (dcp));
+                cfg_deps.push_back (move (dpk));
 
                 collect_prereqs = false;
               }
@@ -4273,7 +4272,7 @@ namespace bpkg
                 // Indicate that the dependent without configuration clauses
                 // is also present.
                 //
-                auto i (postponed_deps.find (dcp));
+                auto i (postponed_deps.find (dpk));
                 if (i != postponed_deps.end ())
                 {
                   l5 ([&]{trace << "dep-postpone dependency "
@@ -4328,7 +4327,7 @@ namespace bpkg
               // subset of dependencies.
               //
               postponed_configuration& cfg (
-                postponed_cfgs.add (cp,
+                postponed_cfgs.add (pk,
                                     true /* existing */,
                                     dp,
                                     cfg_deps).first);
@@ -4400,7 +4399,7 @@ namespace bpkg
             // constructing exception.
             //
             pair<postponed_configuration&, optional<bool>> r (
-              postponed_cfgs.add (cp, false /* existing */, dp, cfg_deps));
+              postponed_cfgs.add (pk, false /* existing */, dp, cfg_deps));
 
             // Up-negotiate this dependent and re-negotiate (refine) postponed
             // if any (being) negotiated configurations were involved into the
@@ -4429,7 +4428,7 @@ namespace bpkg
               // Note: skip this test if the dependent was added via the
               // shadow cluster logic (see below).
               //
-              if (r.second && !cfg.contains_shadow_dependent (cp, dp))
+              if (r.second && !cfg.contains_shadow_dependent (pk, dp))
               {
                 // The "first time" case.
                 //
@@ -4445,7 +4444,7 @@ namespace bpkg
                 //
                 dep_chain.clear ();
 
-                throw retry_configuration {cfg.depth, move (cp), dp};
+                throw retry_configuration {cfg.depth, move (pk), dp};
               }
               else
               {
@@ -4481,7 +4480,7 @@ namespace bpkg
                   // caller (returning true) that we are done with this
                   // depends value and the dependent is not postponed.
                   //
-                  for (const config_package& p: cfg_deps)
+                  for (const package_key& p: cfg_deps)
                   {
                     build_package* b (entered_build (p));
                     assert (b != nullptr);
@@ -4602,8 +4601,8 @@ namespace bpkg
         };
 
         // Postpone the prerequisite builds collection, optionally inserting
-        // the package to the postpones set (can potentially already be there)
-        // and saving the enabled alternatives.
+        // the package to the postponements set (can potentially already be
+        // there) and saving the enabled alternatives.
         //
         auto postpone = [&pkg, &edas, &postponed]
                         (postponed_packages* postpones)
@@ -4968,13 +4967,13 @@ namespace bpkg
 
         // Add the prerequisite replacements as the required-by packages.
         //
-        set<config_package> required_by;
+        set<package_key> required_by;
         for (const auto& prq: rd.second)
         {
           if (prq.second) // Prerequisite replacement?
           {
-            const config_package& cp (prq.first);
-            required_by.emplace (cp.db, cp.name);
+            const package_key& pk (prq.first);
+            required_by.emplace (pk.db, pk.name);
           }
         }
 
@@ -5037,7 +5036,7 @@ namespace bpkg
     {
       tracer trace ("collect_drop");
 
-      config_package cp (db, sp->name);
+      package_key pk (db, sp->name);
 
       // If there is an entry for building specific version of the package
       // (the available member is not NULL), then it wasn't created to prevent
@@ -5045,7 +5044,7 @@ namespace bpkg
       // the replacement version is not being built anymore due to the plan
       // refinement. Thus, just erase the entry in this case and continue.
       //
-      auto vi (replaced_vers.find (cp));
+      auto vi (replaced_vers.find (pk));
       if (vi != replaced_vers.end () && !vi->second.replaced)
       {
         replaced_version& v (vi->second);
@@ -5094,7 +5093,7 @@ namespace bpkg
         false,      // Required by dependents.
         0};         // State flags.
 
-      auto i (map_.find (cp));
+      auto i (map_.find (pk));
 
       if (i != map_.end ())
       {
@@ -5124,7 +5123,7 @@ namespace bpkg
             if (vi != replaced_vers.end ())
               vi->second = replaced_version ();
             else
-              replaced_vers.emplace (move (cp), replaced_version ());
+              replaced_vers.emplace (move (pk), replaced_version ());
 
             throw replace_version ();
           }
@@ -5133,15 +5132,15 @@ namespace bpkg
         // Overwrite the existing (possibly pre-entered, adjustment, or
         // repoint) entry.
         //
-        l4 ([&]{trace << "overwrite " << cp;});
+        l4 ([&]{trace << "overwrite " << pk;});
 
         bp = move (p);
       }
       else
       {
-        l4 ([&]{trace << "add " << cp;});
+        l4 ([&]{trace << "add " << pk;});
 
-        map_.emplace (move (cp), data_type {end (), move (p)});
+        map_.emplace (move (pk), data_type {end (), move (p)});
       }
     }
 
@@ -5258,7 +5257,7 @@ namespace bpkg
               postponed_deps_ (postponed_deps),
               postponed_cfgs_ (postponed_cfgs)
         {
-          auto save = [] (vector<config_package>& d,
+          auto save = [] (vector<package_key>& d,
                           const postponed_packages& s)
           {
             d.reserve (s.size ());
@@ -5283,11 +5282,11 @@ namespace bpkg
           postponed_deps = move (postponed_deps_);
 
           auto restore = [&pkgs] (postponed_packages& d,
-                                  const vector<config_package>& s)
+                                  const vector<package_key>& s)
           {
             d.clear ();
 
-            for (const config_package& p: s)
+            for (const package_key& p: s)
             {
               build_package* b (pkgs.entered_build (p));
               assert (b != nullptr);
@@ -5305,8 +5304,8 @@ namespace bpkg
         //       necessary (there are still sets/maps inside).
         //
         build_packages           pkgs_;
-        vector<config_package>   postponed_repo_;
-        vector<config_package>   postponed_alts_;
+        vector<package_key>      postponed_repo_;
+        vector<package_key>      postponed_alts_;
         postponed_dependencies   postponed_deps_;
         postponed_configurations postponed_cfgs_;
       };
@@ -5389,7 +5388,7 @@ namespace bpkg
             existing_dependent_ex (existing_dependent&& ed)
                 : existing_dependent (move (ed)) {}
           };
-          map<config_package, existing_dependent_ex> dependents;
+          map<package_key, existing_dependent_ex> dependents;
 
           // Looks like we may end up adding additional dependencies to
           // pcfg->dependencies which in turn may have additional existing
@@ -5415,7 +5414,7 @@ namespace bpkg
             {
               // Note: this reference is only used while deps is unchanged.
               //
-              const config_package& p (deps[i]);
+              const package_key& p (deps[i]);
 
               // If the dependent is being built, then check if it was
               // re-evaluated to the position greater than the dependency
@@ -5427,14 +5426,14 @@ namespace bpkg
               //
               const function<verify_dependent_build_function> verify (
                 [&postponed_cfgs, pcfg]
-                (const config_package& cp, pair<size_t, size_t> pos)
+                (const package_key& pk, pair<size_t, size_t> pos)
                 {
                   for (const postponed_configuration& cfg: postponed_cfgs)
                   {
                     if (&cfg == pcfg || cfg.negotiated)
                     {
                       if (const pair<size_t, size_t>* p =
-                          cfg.existing_dependent_position (cp))
+                          cfg.existing_dependent_position (pk))
                       {
                         if (p->first > pos.first)
                           return true;
@@ -5453,7 +5452,7 @@ namespace bpkg
                                                 rpt_depts,
                                                 verify))
               {
-                config_package cp (ed.db, ed.selected->name);
+                package_key pk (ed.db, ed.selected->name);
 
                 // If this dependent is present in postponed_deps, then it
                 // means someone depends on it with configuration and it's no
@@ -5461,11 +5460,11 @@ namespace bpkg
                 // reconfigured). However, this fact may not be reflected
                 // yet. And it can actually turn out bogus.
                 //
-                auto pi (postponed_deps.find (cp));
+                auto pi (postponed_deps.find (pk));
                 if (pi != postponed_deps.end ())
                 {
                   l5 ([&]{trace << "skip dep-postponed existing dependent "
-                                << cp << " of dependency " << p;});
+                                << pk << " of dependency " << p;});
 
                   // Note that here we would re-evaluate the existing dependent
                   // without specifying any configuration for it.
@@ -5475,7 +5474,7 @@ namespace bpkg
                   continue;
                 }
 
-                auto i (dependents.find (cp));
+                auto i (dependents.find (pk));
                 size_t di (ed.dependency_position.first);
 
                 // Skip re-evaluated dependent if the dependency index is
@@ -5499,7 +5498,7 @@ namespace bpkg
                   postponed_position pp (ed.dependency_position,
                                          true /* replace */);
 
-                  auto p (postponed_poss.emplace (cp, pp));
+                  auto p (postponed_poss.emplace (pk, pp));
 
                   if (!p.second)
                   {
@@ -5508,7 +5507,7 @@ namespace bpkg
                   }
 
                   l5 ([&]{trace << "cannot re-evaluate dependent "
-                                << cp << " to dependency index " << di
+                                << pk << " to dependency index " << di
                                 << " since it is already re-evaluated to "
                                 << "greater index " << ci << " in " << *pcfg
                                 << ", throwing postpone_position";});
@@ -5532,7 +5531,7 @@ namespace bpkg
                 if (i == dependents.end ())
                 {
                   i = dependents.emplace (
-                    move (cp), existing_dependent_ex (move (ed))).first;
+                    move (pk), existing_dependent_ex (move (ed))).first;
                 }
                 else
                 {
@@ -5566,18 +5565,18 @@ namespace bpkg
                   continue;
 
                 size_t di (ed.dependency_position.first);
-                const config_package& cp (d.first);
+                const package_key& pk (d.first);
 
                 // Check if there is an earlier dependency position for this
                 // dependent that will be participating in a configuration
                 // negotiation and skip this cluster if that's the case. There
                 // are two places to check: postponed_poss and other clusters.
                 //
-                auto pi (postponed_poss.find (cp));
+                auto pi (postponed_poss.find (pk));
                 if (pi != postponed_poss.end () && pi->second.first < di)
                 {
                   l5 ([&]{trace << "pos-postpone existing dependent "
-                                << cp << " re-evaluation to dependency "
+                                << pk << " re-evaluation to dependency "
                                 << "index " << di << " due to recorded index "
                                 << pi->second.first << ", skipping " << *pcfg;});
 
@@ -5603,7 +5602,7 @@ namespace bpkg
                     continue;
 
                   if (const pair<size_t, size_t>* p =
-                      cfg.existing_dependent_position (cp))
+                      cfg.existing_dependent_position (pk))
                   {
                     size_t ei (p->first); // Other position.
 
@@ -5612,7 +5611,7 @@ namespace bpkg
                       if (ei < di)
                       {
                         l5 ([&]{trace << "cannot re-evaluate dependent "
-                                      << cp << " to dependency index " << di
+                                      << pk << " to dependency index " << di
                                       << " due to earlier dependency index "
                                       << ei << " in " << cfg << ", skipping "
                                       << *pcfg;});
@@ -5627,7 +5626,7 @@ namespace bpkg
                       postponed_position pp (ed.dependency_position,
                                              false /* replace */);
 
-                      auto p (postponed_poss.emplace (cp, pp));
+                      auto p (postponed_poss.emplace (pk, pp));
                       if (!p.second)
                       {
                         assert (p.first->second > pp);
@@ -5635,7 +5634,7 @@ namespace bpkg
                       }
 
                       l5 ([&]{trace << "cannot re-evaluate dependent "
-                                    << cp << " to dependency index " << di
+                                    << pk << " to dependency index " << di
                                     << " due to greater dependency "
                                     << "index " << ei << " in " << cfg
                                     << ", throwing postpone_position";});
@@ -5652,11 +5651,11 @@ namespace bpkg
 
                 pair<shared_ptr<available_package>,
                      lazy_shared_ptr<repository_fragment>> rp (
-                       find_available_fragment (o, cp.db, ed.selected));
+                       find_available_fragment (o, pk.db, ed.selected));
 
                 build_package p {
                   build_package::build,
-                  cp.db,
+                  pk.db,
                   move (ed.selected),
                   move (rp.first),
                   move (rp.second),
@@ -5675,7 +5674,7 @@ namespace bpkg
                   nullopt,                    // Checkout root.
                   false,                      // Checkout purge.
                   strings (),                 // Configuration variables.
-                  set<config_package> (       // Required by (dependency).
+                  set<package_key> (          // Required by (dependency).
                     ds.begin (), ds.end ()),
                   false,                      // Required by dependents.
                   build_package::adjust_reconfigure};
@@ -5691,7 +5690,7 @@ namespace bpkg
                                replaced_vers,
                                postponed_cfgs);
 
-                build_package* b (entered_build (cp));
+                build_package* b (entered_build (pk));
                 assert (b != nullptr);
 
                 // Re-evaluate up to the earliest position.
@@ -5770,7 +5769,7 @@ namespace bpkg
         //
         l5 ([&]{trace << "recursively collect cfg-negotiated dependencies";});
 
-        for (const config_package& p: dependencies)
+        for (const package_key& p: dependencies)
         {
           build_package* b (entered_build (p));
           assert (b != nullptr);
@@ -5981,7 +5980,7 @@ namespace bpkg
 
         // Now, as there is no more progress made in collecting repository-
         // related postponements, collect the dependency configuration-related
-        // postpones.
+        // postponements.
         //
         // Note that we do it before alternatives since configurations we do
         // perfectly (via backtracking) while alternatives -- heuristically.
@@ -6080,10 +6079,9 @@ namespace bpkg
                     replaced_vers,
                     postponed_cfgs));
 
-                postponed_cfgs.add (
-                  config_package (ed.db, ed.selected->name),
-                  pos,
-                  config_package (bp->db, bp->selected->name));
+                postponed_cfgs.add (package_key (ed.db, ed.selected->name),
+                                    pos,
+                                    package_key (bp->db, bp->selected->name));
               }
 
               l5 ([&]{trace << "postpone cfg-negotiation of " << *pc;});
@@ -6293,7 +6291,7 @@ namespace bpkg
               prog = (pas.find (p) == pas.end () ||
                       ndep != p->dependencies->size ());
 
-              // Save the potential new postpones.
+              // Save the potential new postponements.
               //
               if (prog)
               {
@@ -6304,14 +6302,14 @@ namespace bpkg
               size_t npr (postponed_repo.size ());
               postponed_repo.insert (prs.begin (), prs.end ());
 
-              // Note that not collecting any alternative-relative postpones
-              // but producing new repository-related postpones is progress
-              // nevertheless.
+              // Note that not collecting any alternative-relative
+              // postponements but producing new repository-related
+              // postponements is progress nevertheless.
               //
               // Note that we don't need to check for new configuration-
-              // related postpones here since if they are present, then this
-              // package wouldn't be in pas and so prog would be true (see
-              // above for details).
+              // related postponements here since if they are present, then
+              // this package wouldn't be in pas and so prog would be true
+              // (see above for details).
               //
               if (!prog)
                 prog = (npr != postponed_repo.size ());
@@ -6408,7 +6406,7 @@ namespace bpkg
     // only the specified configuration. Otherwise, treat the package as a
     // dependency and use the custom search function to find its build
     // configuration. Failed that, search for it recursively (see
-    // config_package_map::find_dependency() for details).
+    // package_map::find_dependency() for details).
     //
     // Recursively order the package dependencies being ordered failing if a
     // dependency cycle is detected. If reorder is true, then reorder this
@@ -6421,7 +6419,7 @@ namespace bpkg
            const function<find_database_function>& fdb,
            bool reorder = true)
     {
-      config_package_names chain;
+      package_refs chain;
       return order (db, name, buildtime, chain, fdb, reorder);
     }
 
@@ -6515,13 +6513,13 @@ namespace bpkg
               continue;
 
             repointed_dependents::const_iterator j (
-              rpt_depts.find (config_package {ddb, dn}));
+              rpt_depts.find (package_key {ddb, dn}));
 
             if (j != rpt_depts.end ())
             {
-              const map<config_package, bool>& prereqs_flags (j->second);
+              const map<package_key, bool>& prereqs_flags (j->second);
 
-              auto k (prereqs_flags.find (config_package {pdb, n}));
+              auto k (prereqs_flags.find (package_key {pdb, n}));
 
               if (k != prereqs_flags.end () && !k->second)
                 continue;
@@ -6563,8 +6561,8 @@ namespace bpkg
               string rb;
               if (!p.user_selection ())
               {
-                for (const config_package& cp: p.required_by)
-                  rb += (rb.empty () ? " " : ", ") + cp.string ();
+                for (const package_key& pk: p.required_by)
+                  rb += (rb.empty () ? " " : ", ") + pk.string ();
               }
 
               if (!rb.empty ())
@@ -6610,7 +6608,7 @@ namespace bpkg
                 nullopt,                   // Checkout root.
                 false,                     // Checkout purge.
                 strings (),                // Configuration variables.
-                {config_package {pdb, n}}, // Required by (dependency).
+                {package_key {pdb, n}},    // Required by (dependency).
                 false,                     // Required by dependents.
                 build_package::adjust_reconfigure};
           };
@@ -6665,7 +6663,7 @@ namespace bpkg
           {
             // Don't move dn since it is used by adjustment().
             //
-            i = map_.emplace (config_package {ddb, dn},
+            i = map_.emplace (package_key {ddb, dn},
                               data_type {end (), adjustment ()}).first;
 
             i->second.position = insert (pos, i->second.package);
@@ -6746,7 +6744,7 @@ namespace bpkg
       pair<size_t, size_t>          dependency_position;
     };
 
-    using verify_dependent_build_function = bool (const config_package&,
+    using verify_dependent_build_function = bool (const package_key&,
                                                   pair<size_t, size_t>);
 
     vector<existing_dependent>
@@ -6776,11 +6774,11 @@ namespace bpkg
 
           if (pos.first != 0) // Has config clause?
           {
-            config_package cp (ddb, pd.name);
+            package_key pk (ddb, pd.name);
 
             // Ignore dependent which is already being built or dropped.
             //
-            const build_package* p (entered_build (cp));
+            const build_package* p (entered_build (pk));
 
             if (p != nullptr && p->action)
             {
@@ -6789,11 +6787,11 @@ namespace bpkg
                    (p->system || p->recollect_recursively (rpt_depts))) ||
                   *p->action == build_package::drop)
               {
-                if (!build || !vdb || !vdb (cp, pos))
+                if (!build || !vdb || !vdb (pk, pos))
                 {
                   l5 ([&]{trace << "skip being "
                                 << (build ? "built" : "dropped")
-                                << " existing dependent " << cp
+                                << " existing dependent " << pk
                                 << " of dependency " << name << db;});
                   continue;
                 }
@@ -6802,14 +6800,14 @@ namespace bpkg
 
             // Ignore dependent which is expected to be built or dropped.
             //
-            auto vi (replaced_vers.find (cp));
+            auto vi (replaced_vers.find (pk));
             if (vi != replaced_vers.end () && !vi->second.replaced)
             {
               bool build (vi->second.available != nullptr);
 
               l5 ([&]{trace << "skip expected to be "
                             << (build ? "built" : "dropped")
-                            << " existing dependent " << cp
+                            << " existing dependent " << pk
                             << " of dependency " << name << db;});
 
               continue;
@@ -6868,7 +6866,7 @@ namespace bpkg
 
       assert (dsp != nullptr);
 
-      config_package cp (*pdb, dsp->name);
+      package_key pk (*pdb, dsp->name);
 
       // Adjust the existing dependent entry.
       //
@@ -6878,15 +6876,15 @@ namespace bpkg
       //
       pair<shared_ptr<available_package>,
            lazy_shared_ptr<repository_fragment>> rp (
-             find_available_fragment (o, cp.db, dsp));
+             find_available_fragment (o, pk.db, dsp));
 
       bool system (dsp->system ());
 
-      config_package dcp (ed.db, ed.selected->name);
+      package_key dpk (ed.db, ed.selected->name);
 
       build_package p {
         build_package::build,
-          cp.db,
+          pk.db,
           move (dsp),
           move (rp.first),
           move (rp.second),
@@ -6905,12 +6903,12 @@ namespace bpkg
           nullopt,                    // Checkout root.
           false,                      // Checkout purge.
           strings (),                 // Configuration variables.
-          {dcp},                      // Required by (dependent).
+          {dpk},                      // Required by (dependent).
           true,                       // Required by dependents.
           build_package::adjust_reconfigure};
 
       if (vc != nullptr)
-        p.constraints.emplace_back (dcp.db, dcp.name.string (), *vc);
+        p.constraints.emplace_back (dpk.db, dpk.name.string (), *vc);
 
       // Note: not recursive.
       //
@@ -6923,32 +6921,32 @@ namespace bpkg
                      replaced_vers,
                      postponed_cfgs);
 
-      return entered_build (cp);
+      return entered_build (pk);
     }
 
   private:
-    struct config_package_name
+    struct package_ref
     {
       database& db;
       const package_name& name;
 
       bool
-      operator== (const config_package_name& v)
+      operator== (const package_ref& v)
       {
         return name == v.name && db == v.db;
       }
     };
-    using config_package_names = small_vector<config_package_name, 16>;
+    using package_refs = small_vector<package_ref, 16>;
 
     iterator
     order (database& db,
            const package_name& name,
            optional<bool> buildtime,
-           config_package_names& chain,
+           package_refs& chain,
            const function<find_database_function>& fdb,
            bool reorder)
     {
-      config_package_map::iterator mi;
+      package_map::iterator mi;
 
       if (buildtime)
       {
@@ -6973,7 +6971,7 @@ namespace bpkg
 
       // Make sure there is no dependency cycle.
       //
-      config_package_name cp {pdb, name};
+      package_ref cp {pdb, name};
       {
         auto i (find (chain.begin (), chain.end (), cp));
 
@@ -6982,7 +6980,7 @@ namespace bpkg
           diag_record dr (fail);
           dr << "dependency cycle detected involving package " << name << pdb;
 
-          auto nv = [this] (const config_package_name& cp)
+          auto nv = [this] (const package_ref& cp)
           {
             auto mi (map_.find (cp.db, cp.name));
             assert (mi != map_.end ());
@@ -7201,17 +7199,17 @@ namespace bpkg
       build_package package;
     };
 
-    class config_package_map: public map<config_package, data_type>
+    class package_map: public map<package_key, data_type>
     {
     public:
-      using base_type = map<config_package, data_type>;
+      using base_type = map<package_key, data_type>;
 
       using base_type::find;
 
       iterator
       find (database& db, const package_name& pn)
       {
-        return find (config_package {db, pn});
+        return find (package_key {db, pn});
       }
 
       // Try to find a package build in the dependency configurations (see
@@ -7245,7 +7243,7 @@ namespace bpkg
         return r;
       }
     };
-    config_package_map map_;
+    package_map map_;
   };
 
   // Return a patch version constraint for the selected package if it has a
@@ -7348,19 +7346,19 @@ namespace bpkg
     bool                                       system;
   };
 
-  struct config_package_dependent
+  struct dependent_constraint
   {
     database&                    db;
     shared_ptr<selected_package> package;
     optional<version_constraint> constraint;
 
-    config_package_dependent (database& d,
-                              shared_ptr<selected_package> p,
-                              optional<version_constraint> c)
+    dependent_constraint (database& d,
+                          shared_ptr<selected_package> p,
+                          optional<version_constraint> c)
         : db (d), package (move (p)), constraint (move (c)) {}
   };
 
-  using config_package_dependents = vector<config_package_dependent>;
+  using dependent_constraints = vector<dependent_constraint>;
 
   static optional<evaluate_result>
   evaluate_dependency (database&,
@@ -7372,7 +7370,7 @@ namespace bpkg
                        bool patch,
                        bool explicitly,
                        const config_repo_fragments&,
-                       const config_package_dependents&,
+                       const dependent_constraints&,
                        bool ignore_unsatisfiable);
 
   // If there are no user expectations regarding this dependency, then we give
@@ -7576,7 +7574,7 @@ namespace bpkg
     // dependency.
     //
     config_repo_fragments repo_frags;
-    config_package_dependents dependents;
+    dependent_constraints dpt_constrs;
 
     for (auto& pd: pds)
     {
@@ -7590,7 +7588,7 @@ namespace bpkg
         available_package_id (p->name, p->version),
         repo_frags);
 
-      dependents.emplace_back (ddb, move (p), move (dep.constraint));
+      dpt_constrs.emplace_back (ddb, move (p), move (dep.constraint));
     }
 
     return evaluate_dependency (db,
@@ -7602,7 +7600,7 @@ namespace bpkg
                                 i->patch,
                                 true /* explicitly */,
                                 repo_frags,
-                                dependents,
+                                dpt_constrs,
                                 ignore_unsatisfiable);
   }
 
@@ -7639,7 +7637,7 @@ namespace bpkg
                        bool patch,
                        bool explicitly,
                        const config_repo_fragments& rfs,
-                       const config_package_dependents& dependents,
+                       const dependent_constraints& dpt_constrs,
                        bool ignore_unsatisfiable)
   {
     tracer trace ("evaluate_dependency");
@@ -7739,7 +7737,7 @@ namespace bpkg
       bool satisfactory (true);
       sp_set unsatisfied_dependents;
 
-      for (const auto& dp: dependents)
+      for (const auto& dp: dpt_constrs)
       {
         if (!satisfies (av, dp.constraint))
         {
@@ -7976,7 +7974,7 @@ namespace bpkg
     // dependency.
     //
     config_repo_fragments repo_frags;
-    config_package_dependents dependents;
+    dependent_constraints dpt_constrs;
 
     // Only collect repository fragments (for best version selection) of
     // (immediate) dependents that have a hit (direct or indirect) in recs.
@@ -7990,7 +7988,7 @@ namespace bpkg
       {
         shared_ptr<selected_package> p (ddb.load<selected_package> (pd.name));
 
-        dependents.emplace_back (ddb, p, move (pd.constraint));
+        dpt_constrs.emplace_back (ddb, p, move (pd.constraint));
 
         if (optional<bool> u = upgrade_dependencies (ddb, pd.name, recs))
         {
@@ -8029,7 +8027,7 @@ namespace bpkg
                            !*upgrade /* patch */,
                            false /* explicitly */,
                            repo_frags,
-                           dependents,
+                           dpt_constrs,
                            ignore_unsatisfiable));
 
     // Translate the "no change" result into nullopt.
@@ -9213,7 +9211,7 @@ namespace bpkg
 
     // List of package configurations specified on the command line.
     //
-    vector<config_package> pkg_confs;
+    vector<package_key> pkg_confs;
 
     // Separate the packages specified on the command line into to hold and to
     // up/down-grade as dependencies, and save dependents whose dependencies
@@ -9227,16 +9225,16 @@ namespace bpkg
       // Check if the package is a duplicate. Return true if it is but
       // harmless.
       //
-      struct config_package_key // Like config_package but with NULL'able db.
+      struct sys_package_key // Like package_key but with NULL'able db.
       {
         package_name name;
         database*    db;   // Can be NULL for system dependency.
 
-        config_package_key (package_name n, database* d)
+        sys_package_key (package_name n, database* d)
             : name (move (n)), db (d) {}
 
         bool
-        operator< (const config_package_key& v) const
+        operator< (const sys_package_key& v) const
         {
           if (int r = name.compare (v.name))
             return r < 0;
@@ -9247,14 +9245,14 @@ namespace bpkg
         }
       };
 
-      map<config_package_key, pkg_arg> package_map;
+      map<sys_package_key, pkg_arg> package_map;
 
       auto check_dup = [&package_map, &arg_string, &arg_parsed]
                        (const pkg_arg& pa) -> bool
       {
         assert (arg_parsed (pa));
 
-        auto r (package_map.emplace (config_package_key {pa.name, pa.db}, pa));
+        auto r (package_map.emplace (sys_package_key {pa.name, pa.db}, pa));
 
         const pkg_arg& a (r.first->second);
         assert (arg_parsed (a));
@@ -9809,7 +9807,7 @@ namespace bpkg
            : optional<dir_path> ()),
           pa.options.checkout_purge (),
           move (pa.config_vars),
-          {config_package {mdb, ""}}, // Required by (command line).
+          {package_key {mdb, ""}},    // Required by (command line).
           false,                      // Required by dependents.
           0};                         // State flags.
 
@@ -9905,24 +9903,24 @@ namespace bpkg
                 move (sp),
                 move (ap),
                 move (apr.second),
-                nullopt,                    // Dependencies.
-                nullopt,                    // Dependencies alternatives.
-                nullopt,                    // Package skeleton.
-                nullopt,                    // Postponed dependency alternatives.
-                false,                      // Recursive collection.
-                true,                       // Hold package.
-                false,                      // Hold version.
-                {},                         // Constraints.
-                false,                      // System package.
+                nullopt,                 // Dependencies.
+                nullopt,                 // Dependencies alternatives.
+                nullopt,                 // Package skeleton.
+                nullopt,                 // Postponed dependency alternatives.
+                false,                   // Recursive collection.
+                true,                    // Hold package.
+                false,                   // Hold version.
+                {},                      // Constraints.
+                false,                   // System package.
                 keep_out,
                 o.disfigure (),
-                false,                      // Configure-only.
-                nullopt,                    // Checkout root.
-                false,                      // Checkout purge.
-                strings (),                 // Configuration variables.
-                {config_package {mdb, ""}}, // Required by (command line).
-                false,                      // Required by dependents.
-                0};                         // State flags.
+                false,                   // Configure-only.
+                nullopt,                 // Checkout root.
+                false,                   // Checkout purge.
+                strings (),              // Configuration variables.
+                {package_key {mdb, ""}}, // Required by (command line).
+                false,                   // Required by dependents.
+                0};                      // State flags.
 
             l4 ([&]{trace << "stash held package "
                           << p.available_name_version_db ();});
@@ -9974,18 +9972,18 @@ namespace bpkg
 
         linked_databases ddbs (db.dependency_configs (nm, buildtime));
 
-        for (const config_package& cp: pkg_confs)
+        for (const package_key& p: pkg_confs)
         {
-          if (cp.name == nm &&
-              find (ddbs.begin (), ddbs.end (), cp.db) != ddbs.end ())
+          if (p.name == nm &&
+              find (ddbs.begin (), ddbs.end (), p.db) != ddbs.end ())
           {
             if (r == nullptr)
-              r = &cp.db.get ();
+              r = &p.db.get ();
             else
-              fail << "multiple " << cp.db.get ().type << " configurations "
+              fail << "multiple " << p.db.get ().type << " configurations "
                    << "specified for package " << nm <<
                 info << r->config_orig <<
-                info << cp.db.get ().config_orig;
+                info << p.db.get ().config_orig;
           }
         }
 
@@ -10082,7 +10080,7 @@ namespace bpkg
           for (shared_ptr<selected_package> sp:
                  pointer_result (cdb.query<selected_package> (q)))
           {
-            map<config_package, bool> ps; // Old/new prerequisites.
+            map<package_key, bool> ps; // Old/new prerequisites.
 
             for (const auto& p: sp->prerequisites)
             {
@@ -10102,13 +10100,13 @@ namespace bpkg
 
               if (pdb != nullptr && *pdb != db && pdb->type == db.type)
               {
-                ps.emplace (config_package {*pdb, name}, true);
-                ps.emplace (config_package {  db, name}, false);
+                ps.emplace (package_key {*pdb, name}, true);
+                ps.emplace (package_key {  db, name}, false);
               }
             }
 
             if (!ps.empty ())
-              rpt_depts.emplace (config_package {cdb, sp->name}, move (ps));
+              rpt_depts.emplace (package_key {cdb, sp->name}, move (ps));
           }
         }
 
@@ -10167,11 +10165,11 @@ namespace bpkg
           {
             if (prq.second) // Prerequisite replacement?
             {
-              const config_package& cp (prq.first);
+              const package_key& p (prq.first);
 
               auto i (sp->prerequisites.emplace (
-                        lazy_shared_ptr<selected_package> (cp.db.get (),
-                                                           cp.name),
+                        lazy_shared_ptr<selected_package> (p.db.get (),
+                                                           p.name),
                         prerequisite_info {nullopt, make_pair (0, 0)}));
 
               // The selected package should only contain the old
@@ -10201,12 +10199,11 @@ namespace bpkg
             {
               if (prq.second) // Prerequisite replacement?
               {
-                const config_package& cp (prq.first);
+                const package_key& p (prq.first);
 
                 size_t n (
                   sp->prerequisites.erase (
-                    lazy_shared_ptr<selected_package> (cp.db.get (),
-                                                       cp.name)));
+                    lazy_shared_ptr<selected_package> (p.db.get (), p.name)));
 
                 // The selected package should always contain the prerequisite
                 // replacement at this time, so its removal should always
@@ -10253,7 +10250,7 @@ namespace bpkg
             p.checkout_root,
             p.checkout_purge,
             p.config_vars,
-            {config_package {mdb, ""}}, // Required by (command line).
+            {package_key {mdb, ""}},    // Required by (command line).
             false,                      // Required by dependents.
             0};                         // State flags.
 
@@ -10408,9 +10405,9 @@ namespace bpkg
             //
             for (const build_package& p: hold_pkgs)
             {
-              config_package cp (p.db, p.name ());
+              package_key pk (p.db, p.name ());
 
-              auto i (postponed_deps.find (cp));
+              auto i (postponed_deps.find (pk));
 
               if (i == postponed_deps.end ())
               {
@@ -10439,7 +10436,7 @@ namespace bpkg
                 //
                 i->second.wout_config = true;
 
-                l5 ([&]{trace << "dep-postpone user-specified " << cp;});
+                l5 ([&]{trace << "dep-postpone user-specified " << pk;});
               }
             }
 
@@ -10527,24 +10524,24 @@ namespace bpkg
                 move (sp),
                 d.available,
                 d.repository_fragment,
-                nullopt,                    // Dependencies.
-                nullopt,                    // Dependencies alternatives.
-                nullopt,                    // Package skeleton.
-                nullopt,                    // Postponed dependency alternatives.
-                false,                      // Recursive collection.
-                nullopt,                    // Hold package.
-                nullopt,                    // Hold version.
-                {},                         // Constraints.
+                nullopt,                 // Dependencies.
+                nullopt,                 // Dependencies alternatives.
+                nullopt,                 // Package skeleton.
+                nullopt,                 // Postponed dependency alternatives.
+                false,                   // Recursive collection.
+                nullopt,                 // Hold package.
+                nullopt,                 // Hold version.
+                {},                      // Constraints.
                 d.system,
                 keep_out,
                 o.disfigure (),
-                false,                      // Configure-only.
-                nullopt,                    // Checkout root.
-                false,                      // Checkout purge.
-                strings (),                 // Configuration variables.
-                {config_package {mdb, ""}}, // Required by (command line).
-                false,                      // Required by dependents.
-                0};                         // State flags.
+                false,                   // Configure-only.
+                nullopt,                 // Checkout root.
+                false,                   // Checkout purge.
+                strings (),              // Configuration variables.
+                {package_key {mdb, ""}}, // Required by (command line).
+                false,                   // Required by dependents.
+                0};                      // State flags.
 
               build_package_refs dep_chain;
 
@@ -10615,8 +10612,8 @@ namespace bpkg
           //
           replaced_vers.cancel_bogus (trace, true /* scratch */);
 
-          // Erase the bogus existing dependent re-evaluation postpones and
-          // re-collect from scratch, if any (see postponed_positions for
+          // Erase the bogus existing dependent re-evaluation postponements
+          // and re-collect from scratch, if any (see postponed_positions for
           // details).
           //
           postponed_poss.cancel_bogus (trace);
@@ -10704,10 +10701,10 @@ namespace bpkg
           {
             if (d.second.existing)
             {
-              const config_package& cp (d.first);
+              const package_key& p (d.first);
 
-              pkgs.order (cp.db,
-                          cp.name,
+              pkgs.order (p.db,
+                          p.name,
                           nullopt /* buildtime */,
                           find_prereq_database);
             }
@@ -11018,7 +11015,7 @@ namespace bpkg
           using prerequisites = set<lazy_shared_ptr<selected_package>,
                                     compare_lazy_ptr_id>;
 
-          map<config_package, prerequisites> package_prereqs;
+          map<package_key, prerequisites> package_prereqs;
           small_vector<config_selected_package, 16> chain;
 
           auto verify_dependencies = [&package_prereqs, &chain]
@@ -11029,9 +11026,9 @@ namespace bpkg
           {
             // Return the cached value, if present.
             //
-            config_package cp {db, sp->name};
+            package_key pk {db, sp->name};
             {
-              auto i (package_prereqs.find (cp));
+              auto i (package_prereqs.find (pk));
 
               if (i != package_prereqs.end ())
                 return i->second;
@@ -11141,7 +11138,7 @@ namespace bpkg
             // Cache the resulting package prerequisites set and return a
             // reference to it.
             //
-            auto j (package_prereqs.emplace (move (cp), move (r)));
+            auto j (package_prereqs.emplace (move (pk), move (r)));
             assert (j.second); // A package cannot depend on itself.
 
             return j.first->second;
@@ -11164,22 +11161,22 @@ namespace bpkg
             // List of module packages together with the linked configuration
             // clusters they belong to.
             //
-            vector<pair<config_package, linked_databases>> build2_mods;
+            vector<pair<package_key, linked_databases>> build2_mods;
 
             for (const auto& pp: package_prereqs)
             {
-              const config_package& cp (pp.first);
+              const package_key& pk (pp.first);
 
               // Skip packages other than the build2 modules.
               //
-              if (!build2_module (cp.name))
+              if (!build2_module (pk.name))
                 continue;
 
               // Skip build2 modules configured as system.
               //
               {
                 shared_ptr<selected_package> sp (
-                  cp.db.get ().find<selected_package> (cp.name));
+                  pk.db.get ().find<selected_package> (pk.name));
 
                 assert (sp != nullptr);
 
@@ -11192,28 +11189,28 @@ namespace bpkg
               //
               for (const auto& m: build2_mods)
               {
-                if (m.first.name != cp.name)
+                if (m.first.name != pk.name)
                   continue;
 
                 // The `package_prereqs` map can only contain the same package
                 // twice if databases differ.
                 //
-                assert (m.first.db != cp.db);
+                assert (m.first.db != pk.db);
 
                 const linked_databases& lcc (m.second);
 
-                if (find (lcc.begin (), lcc.end (), cp.db) != lcc.end ())
+                if (find (lcc.begin (), lcc.end (), pk.db) != lcc.end ())
                 {
-                  fail << "building build system module " << cp.name
+                  fail << "building build system module " << pk.name
                        << " in multiple configurations" <<
                     info << m.first.db.get ().config_orig <<
-                    info << cp.db.get ().config_orig;
+                    info << pk.db.get ().config_orig;
                 }
               }
 
               // Add the module and its cluster to the list.
               //
-              build2_mods.emplace_back (cp, cp.db.get ().cluster_configs ());
+              build2_mods.emplace_back (pk, pk.db.get ().cluster_configs ());
             }
           }
         }
@@ -11503,8 +11500,8 @@ namespace bpkg
             // dependent-dependency structure change without any of the
             // package versions changing? Doesn't feel like it should.
             //
-            for (const config_package& cp: p.required_by)
-              rb += (rb.empty () ? " " : ", ") + cp.string ();
+            for (const package_key& p: p.required_by)
+              rb += (rb.empty () ? " " : ", ") + p.string ();
 
             // If not user-selected, then there should be another (implicit)
             // reason for the action.
