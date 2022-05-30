@@ -652,8 +652,8 @@ namespace bpkg
     // recursive collection is started (see postponed_configurations for
     // details).
     //
-    // Note that the skeleton member cannot be used for that purpose since it
-    // is not always created (think of a system dependency or an existing
+    // Note that the dependencies member cannot be used for that purpose since
+    // it is not always created (think of a system dependency or an existing
     // dependency that doesn't need its prerequisites re-collection). In a
     // sense the recursive collection flag is a barrier for the dependency
     // configuration negotiation.
@@ -2867,8 +2867,14 @@ namespace bpkg
       // The being re-evaluated dependent cannot be recursively collected yet.
       // Also, we don't expect it being configured as system.
       //
+      // Note, the configured package can still be re-evaluated after
+      // collect_build_prerequisites() has been called but didn't end up with
+      // the recursive collection.
+      //
       assert (!reeval ||
-              (!pkg.recursive_collection && !pkg.skeleton && !pkg.system));
+              ((!pkg.recursive_collection ||
+                !pkg.recollect_recursively (rpt_depts)) &&
+               !pkg.skeleton && !pkg.system));
 
       // If this package is not being re-evaluated, is not yet collected
       // recursively, needs to be reconfigured, and is not yet postponed, then
