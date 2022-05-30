@@ -2147,12 +2147,12 @@ namespace bpkg
   // may re-evaluate them to a certain position but later realize we've gone
   // too far.
   //
-  // We consider the postponement as bogus if some dependent re-evaluation was
-  // skipped due to it but no re-evaluation to this (or earlier) dependency
-  // index was performed.
+  // We consider the postponement bogus if some dependent re-evaluation was
+  // skipped due its presence but no re-evaluation to this (or earlier)
+  // dependency index was performed.
   //
   // Note that if no re-evaluation is skipped due to this postponement then it
-  // is harmless and we don't consider it as bogus.
+  // is harmless and we don't consider it bogus.
   //
   struct postponed_position: pair<size_t, size_t>
   {
@@ -2922,28 +2922,38 @@ namespace bpkg
             // cluster being created for the current dependency (see
             // collect_build_postponed() for details).
             //
-            auto pi (postponed_poss.find (dcp));
-
-            if (pi != postponed_poss.end () &&
-                pi->second.first < di       &&
-                pi->second.replace)
             {
-              // Overwrite the existing dependent dependency information and
-              // fall through to proceed as for the normal case.
-              //
-              bp = replace_existing_dependent_dependency (
-                trace,
-                options,
-                ed, // Note: modified.
-                pi->second,
-                fdb,
-                rpt_depts,
-                apc,
-                initial_collection,
-                replaced_vers,
-                postponed_cfgs);
+              auto pi (postponed_poss.find (dcp));
 
-              cp = config_package (bp->db, bp->name ());
+              if (pi != postponed_poss.end () &&
+                  pi->second.first < di       &&
+                  pi->second.replace)
+              {
+                // Overwrite the existing dependent dependency information and
+                // fall through to proceed as for the normal case.
+                //
+                bp = replace_existing_dependent_dependency (
+                  trace,
+                  options,
+                  ed, // Note: modified.
+                  pi->second,
+                  fdb,
+                  rpt_depts,
+                  apc,
+                  initial_collection,
+                  replaced_vers,
+                  postponed_cfgs);
+
+                cp = config_package (bp->db, bp->name ());
+
+                // Note that here we side-step the bogus logic (by not setting
+                // the skipped flag) because in this case (replace=true) our
+                // choices are either (potentially) bogus or pathological
+                // (where we have evaluated too far). In other words, the
+                // postponed entry may cause the depends entry that triggered
+                // it to disappear (and thus, strictly speaking, to become
+                // bogus) but if we cancel it, we will be back to square one.
+              }
             }
 
             // Make sure that this existing dependent doesn't belong to any
@@ -5708,7 +5718,7 @@ namespace bpkg
 
                 if (pi != postponed_poss.end ())
                 {
-                  // Otherwise we would throw skip_configuration above.
+                  // Otherwise we should have thrown skip_configuration above.
                   //
                   assert (di <= pi->second.first);
 
@@ -5955,7 +5965,7 @@ namespace bpkg
                                        postponed_poss);
         }
 
-        // Save the potential new dependency alternative-related postpones.
+        // Save the potential new dependency alternative-related postponements.
         //
         postponed_alts.insert (pas.begin (), pas.end ());
 
@@ -5968,7 +5978,7 @@ namespace bpkg
         }
 
         // Now, as there is no more progress made in collecting repository-
-        // related postpones, collect the dependency configuration-related
+        // related postponements, collect the dependency configuration-related
         // postpones.
         //
         // Note that we do it before alternatives since configurations we do
@@ -6193,11 +6203,12 @@ namespace bpkg
         // Note that we only get here if we didn't make any progress on the
         // previous loop (the only "progress" path ends with return).
 
-        // Now, try to collect the dependency alternative-related postpones.
+        // Now, try to collect the dependency alternative-related
+        // postponements.
         //
         if (!postponed_alts.empty ())
         {
-          // Sort the postpones in the unprocessed dependencies count
+          // Sort the postponments in the unprocessed dependencies count
           // descending order.
           //
           // The idea here is to preferably handle those postponed packages
