@@ -1050,6 +1050,31 @@ namespace bpkg
       // For other cases ("weak system") we don't want to copy system over in
       // order not prevent, for example, system to non-system upgrade.
     }
+
+    package_skeleton&
+    init_skeleton (const common_options& options)
+    {
+      assert (!skeleton && available != nullptr);
+
+      optional<dir_path> src_root (external_dir ());
+
+      optional<dir_path> out_root (
+        src_root && !disfigure
+        ? dir_path (db.get ().config) /= name ().string ()
+        : optional<dir_path> ());
+
+      skeleton = package_skeleton (
+        options,
+        db,
+        *available,
+        config_vars, // @@ Maybe make optional<strings> and move?
+        disfigure,
+        (selected != nullptr ? &selected->config_variables : nullptr),
+        move (src_root),
+        move (out_root));
+
+      return *skeleton;
+    }
   };
 
   using build_package_list = list<reference_wrapper<build_package>>;
@@ -3082,9 +3107,12 @@ namespace bpkg
       //
       const dependencies& deps (ap->dependencies);
 
-      // Must all be either present or not.
+      // The skeleton can be pre-initialized before the recursive collection
+      // starts (as a part of dependency configuration negotiation, etc). The
+      // dependencies and alternatives members must both be either present or
+      // not.
       //
-      assert (pkg.dependencies.has_value () == pkg.skeleton.has_value () &&
+      assert ((!pkg.dependencies || pkg.skeleton) &&
               pkg.dependencies.has_value () == pkg.alternatives.has_value ());
 
       // Note that the selected alternatives list can be filled partially (see
@@ -3105,21 +3133,8 @@ namespace bpkg
           pkg.alternatives->reserve (n);
         }
 
-        optional<dir_path> src_root (pkg.external_dir ());
-
-        optional<dir_path> out_root (src_root && !pkg.disfigure
-                                     ? dir_path (pdb.config) /= nm.string ()
-                                     : optional<dir_path> ());
-
-        pkg.skeleton = package_skeleton (
-          options,
-          pdb,
-          *ap,
-          pkg.config_vars, // @@ Maybe make optional<strings> and move?
-          pkg.disfigure,
-          (sp != nullptr ? &sp->config_variables : nullptr),
-          move (src_root),
-          move (out_root));
+        if (!pkg.skeleton)
+          pkg.init_skeleton (options);
       }
       else
         l5 ([&]{trace << "resume " << pkg.available_name_version_db ();});
@@ -11745,7 +11760,7 @@ namespace bpkg
       }
 
       if (*p.action != build_package::drop &&
-          !p.skeleton                      &&
+          !p.dependencies                  &&
           !sp->prerequisites.empty ())
       {
         vector<package_name>& ps (previous_prerequisites[&p]);
@@ -12196,9 +12211,9 @@ namespace bpkg
         //    the package manually). Maybe that a good reason not to allow
         //    this? Or we could store this information in the database.
         //
-        if (p.skeleton)
+        if (p.dependencies)
         {
-          assert (p.dependencies);
+          assert (p.skeleton);
 
           pkg_configure (o,
                          pdb,
