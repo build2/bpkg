@@ -2209,7 +2209,7 @@ namespace bpkg
   {
   public:
     // If true, override the first encountered non-replace position to replace
-    // and clear this flag. See collect_build_postponed () for details.
+    // and clear this flag. See collect_build_postponed() for details.
     //
     bool replace = false;
 
@@ -2962,34 +2962,45 @@ namespace bpkg
             {
               auto pi (postponed_poss.find (dpk));
 
-              if (pi != postponed_poss.end () &&
-                  pi->second.first < di       &&
-                  pi->second.replace)
+              if (pi != postponed_poss.end () && pi->second.first < di)
               {
-                // Overwrite the existing dependent dependency information and
-                // fall through to proceed as for the normal case.
+                // If requested, override the first encountered non-replace
+                // position to replace. See collect_build_postponed () for
+                // details.
                 //
-                bp = replace_existing_dependent_dependency (
-                  trace,
-                  options,
-                  ed, // Note: modified.
-                  pi->second,
-                  fdb,
-                  rpt_depts,
-                  apc,
-                  initial_collection,
-                  replaced_vers,
-                  postponed_cfgs);
+                if (!pi->second.replace && postponed_poss.replace)
+                {
+                  pi->second.replace = true;
+                  postponed_poss.replace = false;
+                }
 
-                pk = package_key (bp->db, bp->name ());
+                if (pi->second.replace)
+                {
+                  // Overwrite the existing dependent dependency information
+                  // and fall through to proceed as for the normal case.
+                  //
+                  bp = replace_existing_dependent_dependency (
+                    trace,
+                    options,
+                    ed, // Note: modified.
+                    pi->second,
+                    fdb,
+                    rpt_depts,
+                    apc,
+                    initial_collection,
+                    replaced_vers,
+                    postponed_cfgs);
 
-                // Note that here we side-step the bogus logic (by not setting
-                // the skipped flag) because in this case (replace=true) our
-                // choices are either (potentially) bogus or pathological
-                // (where we have evaluated too far). In other words, the
-                // postponed entry may cause the depends entry that triggered
-                // it to disappear (and thus, strictly speaking, to become
-                // bogus) but if we cancel it, we will be back to square one.
+                  pk = package_key (bp->db, bp->name ());
+
+                  // Note that here we side-step the bogus logic (by not setting
+                  // the skipped flag) because in this case (replace=true) our
+                  // choices are either (potentially) bogus or pathological
+                  // (where we have evaluated too far). In other words, the
+                  // postponed entry may cause the depends entry that triggered
+                  // it to disappear (and thus, strictly speaking, to become
+                  // bogus) but if we cancel it, we will be back to square one.
+                }
               }
             }
 
@@ -5608,6 +5619,15 @@ namespace bpkg
 
                   pi->second.skipped = true;
 
+                  // If requested, override the first encountered non-replace
+                  // position to replace (see below for details).
+                  //
+                  if (!pi->second.replace && postponed_poss.replace)
+                  {
+                    pi->second.replace = true;
+                    postponed_poss.replace = false;
+                  }
+
                   if (pi->second.replace)
                     throw skip_configuration (move (ed), pi->second);
                   else
@@ -6413,10 +6433,15 @@ namespace bpkg
         // forward.
         //
         if (!postponed_cfgs.negotiated () &&
-            find (postponed_poss.begin (), postponed_poss.end (),
-                  [] () {return !replace;}) != postponed_poss.end () &&
+            find_if (postponed_poss.begin (), postponed_poss.end (),
+                     [] (const auto& v) {return !v.second.replace;}) !=
+            postponed_poss.end ()         &&
             !postponed_poss.replace)
         {
+          l5 ([&]{trace << "non-negotiated clusters left and non-replace "
+                        << "postponed positions are present, overriding first "
+                        << "encountered non-replace position to replace";});
+
           postponed_poss.replace = true;
           prog = true;
           continue; // Go back to negotiating skipped cluster.
