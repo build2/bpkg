@@ -1525,7 +1525,7 @@ test.options += --no-progress
     #
     r = 1/t9-1
     +cp -r $rep/t9 $r && \
-     tar xfz $r/libbar-1.0.0.tar.gz -C $r && \
+     tar xzf $r/libbar-1.0.0.tar.gz -C $r && \
      mv $r/libbar-1.0.0 $r/libbar-2.0.0 && \
      sed -i -e 's/(version:).+/\1 2.0.0/' $r/libbar-2.0.0/manifest && \
      tar cfz $r/libbar-2.0.0.tar.gz -C $r libbar-2.0.0 &$r/libbar-2.0.0.tar.gz && \
@@ -1537,7 +1537,7 @@ test.options += --no-progress
     #
     r = 1/t9-2
     +cp -r 1/t9-1 $r && \
-     tar xfz $r/libbaz-1.0.0.tar.gz -C $r && \
+     tar xzf $r/libbaz-1.0.0.tar.gz -C $r && \
      mv $r/libbaz-1.0.0 $r/libbaz-2.0.0 && \
      sed -i -e 's/(version:).+/\1 2.0.0/' -e 's/(depends: libbar).+/\1 ^2.0.0/' $r/libbaz-2.0.0/manifest && \
      tar cfz $r/libbaz-2.0.0.tar.gz -C $r libbaz-2.0.0 &$r/libbaz-2.0.0.tar.gz && \
@@ -1549,7 +1549,7 @@ test.options += --no-progress
     #
     r = 1/t9-3
     +cp -r 1/t9-2 $r && \
-     tar xfz $r/libbox-1.0.0.tar.gz -C $r && \
+     tar xzf $r/libbox-1.0.0.tar.gz -C $r && \
      mv $r/libbox-1.0.0 $r/libbox-1.1.0 && \
      sed -i -e 's/(version:).+/\1 1.1.0/' $r/libbox-1.1.0/manifest && \
      tar cfz $r/libbox-1.1.0.tar.gz -C $r libbox-1.1.0 &$r/libbox-1.1.0.tar.gz && \
@@ -4032,7 +4032,7 @@ test.options += --no-progress
       {
         +$clone_cfg
 
-        +tar (!$posix ? --force-local : ) -xfz $src/t8a/fax-1.0.0.tar.gz &fax-1.0.0/***
+        +tar (!$posix ? --force-local : ) -xzf $src/t8a/fax-1.0.0.tar.gz &fax-1.0.0/***
         +mv fax-1.0.0 fax
 
         : change-manifest
