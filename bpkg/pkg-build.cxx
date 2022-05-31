@@ -2208,6 +2208,11 @@ namespace bpkg
   class postponed_positions: public map<package_key, postponed_position>
   {
   public:
+    // If true, override the first encountered non-replace position to replace
+    // and clear this flag. See collect_build_postponed () for details.
+    //
+    bool replace = false;
+
     // Erase the bogus postponements and, if any, throw cancel_postponement,
     // if requested.
     //
@@ -6376,6 +6381,8 @@ namespace bpkg
             continue;
         }
 
+        assert (!prog);
+
         // Finally, erase the bogus postponements and re-collect from scratch,
         // if any (see postponed_dependencies for details).
         //
@@ -6384,6 +6391,36 @@ namespace bpkg
         // it earlier which will affect dependency alternatives).
         //
         postponed_deps.cancel_bogus (trace, false /* initial_collection */);
+
+        // If we still have any non-negotiated clusters and non-replace
+        // postponed positions, then it's possible one of them is the cross-
+        // dependent pathological case where we will never hit it unless we
+        // force the re-evaluation to earlier position (similar to the
+        // single-dependent case, which we handle accurately). For example:
+        //
+        // tex: depends: libbar(c)
+        //      depends: libfoo(c)
+        //
+        // tix: depends: libbar(c)
+        //      depends: tex(c)
+        //
+        // Here tex and tix are existing dependent and we are upgrading tex.
+        //
+        // While it would be ideal to handle such cases accurately, it's not
+        // trivial. So for now we resort to the following heuristics: when
+        // left with no other option, we treat the first encountered non-
+        // replace position as replace and see if that helps move things
+        // forward.
+        //
+        if (!postponed_cfgs.negotiated () &&
+            find (postponed_poss.begin (), postponed_poss.end (),
+                  [] () {return !replace;}) != postponed_poss.end () &&
+            !postponed_poss.replace)
+        {
+          postponed_poss.replace = true;
+          prog = true;
+          continue; // Go back to negotiating skipped cluster.
+        }
       }
 
       // If any postponed_{repo,alts} builds remained, then perform the
