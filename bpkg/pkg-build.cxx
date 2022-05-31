@@ -2867,7 +2867,7 @@ namespace bpkg
       // The being re-evaluated dependent cannot be recursively collected yet.
       // Also, we don't expect it being configured as system.
       //
-      // Note, the configured package can still be re-evaluated after
+      // Note that the configured package can still be re-evaluated after
       // collect_build_prerequisites() has been called but didn't end up with
       // the recursive collection.
       //
@@ -5753,14 +5753,46 @@ namespace bpkg
 
         l5 ([&]{trace << "cfg-negotiate begin " << *pcfg;});
 
-        // @@ Negotiate configuration.
-
-        /*
-        for (...)
+        // Negotiate the configuration.
+        //
+        for (auto b (pcfg->dependents.begin ()),
+               i (b),
+               e (pcfg->dependents.end ()); i != e; )
         {
+          // The first step is to resolve package skeletons for the dependent
+          // and its dependencies.
+          //
+          // For the dependent, the skeleton should be already there (since we
+          // should have started recursively collecting it). For a dependency,
+          // it should not already be there (since we haven't yet started
+          // recursively collecting it). But we could be re-resolving the same
+          // dependency multiple times.
+          //
+          {
+            build_package* b (entered_build (i->first));
+            assert (b != nullptr && b->skeleton);
+          }
+
+          {
+            // A non-negotiated cluster must only have one depends position
+            // for each dependent.
+            //
+            assert (i->second.dependencies.size () == 1);
+
+            const postponed_configuration::dependency& ds (
+              i->second.dependencies.front ());
+
+            for (const package_key& pk: ds)
+            {
+              build_package* b (entered_build (pk));
+              assert (b != nullptr && !b->skeleton);
+            }
+          }
+
           // up_negotiate (...);
+
+          ++i;
         }
-        */
 
         // Being negotiated (so can only be up-negotiated).
         //
