@@ -76,6 +76,19 @@ namespace bpkg
                         size_t>,
                    2> edas;
 
+      // If the dependency alternatives are not pre-selected, then evaluate
+      // the enable clauses.
+      //
+      // Note that evaluating the require and prefer clauses in this case is
+      // meaningless since we don't reconfigure the dependencies nor negotiate
+      // configurations with other dependents. What we should probably do is
+      // to load configurations of the dependencies and use them while
+      // evaluating the dependent's enable and reflect clauses as we go
+      // along. Probably we should still evaluate the accept clauses to make
+      // sure that the dependency is configured acceptably for the
+      // dependent. However, let's keep it simple for now and support this
+      // later.
+      //
       if (alts == nullptr)
       {
         if (toolchain_buildtime_dependency (o, das, &ps.name ()))
@@ -86,7 +99,13 @@ namespace bpkg
           const dependency_alternative& da (das[i]);
 
           if (!da.enable || ps.evaluate_enable (*da.enable, di))
+          {
+            if (da.prefer || da.require)
+              fail << "manual configuration of dependents with prefer or "
+                   << "require clauses is not yet supported";
+
             edas.push_back (make_pair (ref (da), i));
+          }
         }
 
         if (edas.empty ())
@@ -100,7 +119,6 @@ namespace bpkg
 
         edas.push_back (make_pair (ref (das.front ()), (*alts)[di]));
       }
-
 
       // Pick the first alternative with dependencies that can all be resolved
       // to the configured packages, satisfying the respective constraints.
