@@ -4440,7 +4440,7 @@ namespace bpkg
 
             // Up-negotiate this dependent and re-negotiate (refine) postponed
             // if any (being) negotiated configurations were involved into the
-            // configuration addition/merge.
+            // configuration addition/merge. @@ Stray/old comment?
             //
             postponed_configuration& cfg (r.first);
 
@@ -4512,10 +4512,11 @@ namespace bpkg
                                 << pkg.available_name_version_db ()
                                 << " is negotiated";});
 
-                  // Note that we still need to recursively collect the not
-                  // yet collected dependencies before indicating to the
-                  // caller (returning true) that we are done with this
-                  // depends value and the dependent is not postponed.
+                  // Note that we may still add extra dependenncies to this
+                  // cluster which we still need to configure and recursively
+                  // collect before indicating to the caller (returning true)
+                  // that we are done with this depends value and the
+                  // dependent is not postponed.
                   //
                   for (const package_key& p: cfg_deps)
                   {
@@ -5784,8 +5785,7 @@ namespace bpkg
                i (b),
                e (pcfg->dependents.end ()); i != e; )
         {
-          // The first step is to resolve package skeletons for the dependent
-          // and its dependencies.
+          // Resolve package skeletons for the dependent and its dependencies.
           //
           // For the dependent, the skeleton should be already there (since we
           // should have started recursively collecting it). For a dependency,
@@ -6134,6 +6134,9 @@ namespace bpkg
 
               pc = &postponed_cfgs[ci];
 
+              // Note that in this case we keep the accumulated configuration
+              // and shadow dependents, if any.
+
               pc->depth = 0;
 
               // If requested, "replace" the "later" dependent-dependency
@@ -6223,6 +6226,11 @@ namespace bpkg
               pc = &postponed_cfgs[ci];
 
               assert (!pc->negotiated);
+
+              // Drop any accumulated shadow dependents (which could be
+              // carried over from retry_configuration logic).
+              //
+              pc->shadow_dependents.clear ();
 
               l5 ([&]{trace << "cfg-negotiation of " << *pc << " failed due "
                             << "to non-negotiated clusters, force-merging "
