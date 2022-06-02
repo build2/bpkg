@@ -195,7 +195,7 @@
 # |   |-- bat-1.0.0.tar.gz      -> libbaz {require {config.libbaz.extras=true}}
 # |   |-- bas-1.0.0.tar.gz      -> libbar {require {config.libbar.extras=true}},
 # |   |                            bus {require {config.bus.extras=true}}
-# |   |-- bus-1.0.0.tar.gz      -> libbox {require {config.libbox.extras=true}},
+# |   |-- bus-1.0.0.tar.gz      -> libaz {require {config.libbox.extras=true}},
 # |   |                            foo {require {config.foo.extras=true}}
 # |   |-- box-0.1.0.tar.gz      -> libbox {require {config.libbox.extras=true}}
 # |   |-- box-1.0.0.tar.gz      -> {libbar libfoo} {require {config.libbar.extras=true config.libfoo.extras=true}} |
@@ -4850,46 +4850,6 @@ test.options += --no-progress
           %.*
           EOE
 
-#\
-        $* foo fox '?sys:libfoo/*' 2>>~%EOE%;
-          %.*
-          trace: pkg_build: refine execution plan from scratch
-          %.*
-          trace: collect_build: add foo/1.0.0
-          trace: collect_build: add fox/1.0.0
-          trace: collect_build_prerequisites: begin foo/1.0.0
-          %.*
-          trace: collect_build_prerequisites: cfg-postpone dependency sys:libfoo/* of dependent foo/1.0.0
-          trace: postponed_configurations::add: create {foo | libfoo}
-          trace: collect_build_prerequisites: postpone foo/1.0.0
-          trace: collect_build_prerequisites: begin fox/1.0.0
-          %.*
-          trace: collect_build_prerequisites: cfg-postpone dependency sys:libfoo/* of dependent fox/1.0.0
-          trace: postponed_configurations::add: add {fox | libfoo} to {foo | libfoo}
-          trace: collect_build_prerequisites: postpone fox/1.0.0
-          %.*
-          trace: collect_build_postponed (0): begin
-          trace: collect_build_postponed (1): begin
-          trace: collect_build_postponed (1): cfg-negotiate begin {foo, fox | libfoo}
-          trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
-          trace: collect_build_prerequisites: skip system sys:libfoo/*
-          trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
-          trace: collect_build_prerequisites: resume foo/1.0.0
-          %.*
-          trace: collect_build_prerequisites: skip cfg-negotiated dependency sys:libfoo/* of dependent foo/1.0.0
-          trace: collect_build_prerequisites: end foo/1.0.0
-          trace: collect_build_prerequisites: resume fox/1.0.0
-          %.*
-          trace: collect_build_prerequisites: skip cfg-negotiated dependency sys:libfoo/* of dependent fox/1.0.0
-          trace: collect_build_prerequisites: end fox/1.0.0
-          trace: collect_build_postponed (1): cfg-negotiate end {foo, fox | libfoo}
-          trace: collect_build_postponed (1): end
-          trace: collect_build_postponed (0): end
-          %.*
-          trace: execute_plan: simulate: yes
-          %.*
-          EOE
-#\
         $pkg_status -r >>EOO;
           !foo configured 1.0.0
             libfoo configured,system !* available 1.0.0 0.1.0
@@ -4905,11 +4865,9 @@ test.options += --no-progress
       {
         $clone_cfg;
 
-        $* foo bar baz 2>!;
-#\
         $* foo bar baz 2>>~%EOE%;
           %.*
-          trace: pkg_build: refine execution plan from scratch
+          trace: pkg_build: refine package collection/plan execution from scratch
           %.*
           trace: collect_build: add foo/1.0.0
           trace: collect_build: add bar/1.0.0
@@ -4918,50 +4876,46 @@ test.options += --no-progress
           %.*
           trace: collect_build: add libfoo/1.0.0
           trace: collect_build_prerequisites: cfg-postpone dependency libfoo/1.0.0 of dependent foo/1.0.0
-          trace: postponed_configurations::add: create {foo | libfoo}
+          trace: postponed_configurations::add: create {foo | libfoo->{foo/1,1}}
           trace: collect_build_prerequisites: postpone foo/1.0.0
           trace: collect_build_prerequisites: begin bar/1.0.0
           %.*
           trace: collect_build: add libbar/1.0.0
           trace: collect_build_prerequisites: cfg-postpone dependency libbar/1.0.0 of dependent bar/1.0.0
-          trace: postponed_configurations::add: create {bar | libbar}
+          trace: postponed_configurations::add: create {bar | libbar->{bar/1,1}}
           trace: collect_build_prerequisites: postpone bar/1.0.0
           trace: collect_build_prerequisites: begin baz/1.0.0
           %.*
           trace: collect_build_prerequisites: cfg-postpone dependency libbar/1.0.0 of dependent baz/1.0.0
           trace: collect_build_prerequisites: cfg-postpone dependency libfoo/1.0.0 of dependent baz/1.0.0
-          trace: postponed_configurations::add: add {baz | libbar, libfoo} to {foo | libfoo}
-          trace: postponed_configurations::add: merge {bar | libbar} into {baz, foo | libbar, libfoo}
+          trace: postponed_configurations::add: add {baz 1,1: libbar libfoo} to {foo | libfoo->{foo/1,1}}
+          trace: postponed_configurations::add: merge {bar | libbar->{bar/1,1}} into {baz foo | libfoo->{baz/1,1 foo/1,1} libbar->{baz/1,1}}
           trace: collect_build_prerequisites: postpone baz/1.0.0
           trace: collect_build_postponed (0): begin
-          trace: collect_build_postponed (1): begin
-          trace: collect_build_postponed (1): cfg-negotiate begin {bar, baz, foo | libbar, libfoo}
+          trace: collect_build_postponed (1): begin {bar baz foo | libfoo->{baz/1,1 foo/1,1} libbar->{bar/1,1 baz/1,1}}
+          %.*
+          trace: collect_build_postponed (1): cfg-negotiate begin {bar baz foo | libfoo->{baz/1,1 foo/1,1} libbar->{bar/1,1 baz/1,1}}
           trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
-          trace: collect_build_prerequisites: begin libbar/1.0.0
-          trace: collect_build_prerequisites: end libbar/1.0.0
           trace: collect_build_prerequisites: begin libfoo/1.0.0
           trace: collect_build_prerequisites: end libfoo/1.0.0
+          trace: collect_build_prerequisites: begin libbar/1.0.0
+          trace: collect_build_prerequisites: end libbar/1.0.0
           trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
+          trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent bar/1.0.0
           trace: collect_build_prerequisites: resume bar/1.0.0
-          %.*
-          trace: collect_build_prerequisites: skip cfg-negotiated dependency libbar/1.0.0 of dependent bar/1.0.0
           trace: collect_build_prerequisites: end bar/1.0.0
+          trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent baz/1.0.0
           trace: collect_build_prerequisites: resume baz/1.0.0
-          %.*
-          trace: collect_build_prerequisites: skip cfg-negotiated dependency libbar/1.0.0 of dependent baz/1.0.0
-          trace: collect_build_prerequisites: skip cfg-negotiated dependency libfoo/1.0.0 of dependent baz/1.0.0
           trace: collect_build_prerequisites: end baz/1.0.0
+          trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent foo/1.0.0
           trace: collect_build_prerequisites: resume foo/1.0.0
-          %.*
-          trace: collect_build_prerequisites: skip cfg-negotiated dependency libfoo/1.0.0 of dependent foo/1.0.0
           trace: collect_build_prerequisites: end foo/1.0.0
-          trace: collect_build_postponed (1): cfg-negotiate end {bar, baz, foo | libbar, libfoo}
-          trace: collect_build_postponed (1): end
+          trace: collect_build_postponed (1): cfg-negotiate end {bar baz foo | libfoo->{baz/1,1 foo/1,1} libbar->{bar/1,1 baz/1,1}}!
+          trace: collect_build_postponed (1): end {bar baz foo | libfoo->{baz/1,1 foo/1,1} libbar->{bar/1,1 baz/1,1}}
           trace: collect_build_postponed (0): end
           trace: execute_plan: simulate: yes
           %.*
           EOE
-#\
 
         $pkg_status -r >>EOO;
           !foo configured 1.0.0
@@ -4981,49 +4935,45 @@ test.options += --no-progress
       {
         $clone_cfg;
 
-        $* fex 2>!;
-#\
         $* fex 2>>~%EOE%;
           %.*
-          trace: pkg_build: refine execution plan from scratch
+          trace: pkg_build: refine package collection/plan execution from scratch
           %.*
           trace: collect_build: add fex/1.0.0
           trace: collect_build_prerequisites: begin fex/1.0.0
           %.*
           trace: collect_build: add foo/1.0.0
-          trace: collect_build_prerequisites: recursively collect dependency foo/1.0.0 of dependent fex/1.0.0
+          trace: collect_build_prerequisites: no cfg-clause for dependency foo/1.0.0 of dependent fex/1.0.0
           trace: collect_build_prerequisites: begin foo/1.0.0
           %.*
           trace: collect_build: add libfoo/1.0.0
           trace: collect_build_prerequisites: cfg-postpone dependency libfoo/1.0.0 of dependent foo/1.0.0
-          trace: postponed_configurations::add: create {foo | libfoo}
+          trace: postponed_configurations::add: create {foo | libfoo->{foo/1,1}}
           trace: collect_build_prerequisites: postpone foo/1.0.0
           %.*
           trace: collect_build_prerequisites: cfg-postpone dependency libfoo/1.0.0 of dependent fex/1.0.0
-          trace: postponed_configurations::add: add {fex | libfoo} to {foo | libfoo}
+          trace: postponed_configurations::add: add {fex 2,1: libfoo} to {foo | libfoo->{foo/1,1}}
           trace: collect_build_prerequisites: postpone fex/1.0.0
           trace: collect_build_postponed (0): begin
-          trace: collect_build_postponed (1): begin
-          trace: collect_build_postponed (1): cfg-negotiate begin {fex, foo | libfoo}
+          trace: collect_build_postponed (1): begin {fex foo | libfoo->{fex/2,1 foo/1,1}}
+          %.*
+          trace: collect_build_postponed (1): cfg-negotiate begin {fex foo | libfoo->{fex/2,1 foo/1,1}}
           trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
           trace: collect_build_prerequisites: begin libfoo/1.0.0
           trace: collect_build_prerequisites: end libfoo/1.0.0
           trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
+          trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent fex/1.0.0
           trace: collect_build_prerequisites: resume fex/1.0.0
-          %.*
-          trace: collect_build_prerequisites: skip cfg-negotiated dependency libfoo/1.0.0 of dependent fex/1.0.0
           trace: collect_build_prerequisites: end fex/1.0.0
+          trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent foo/1.0.0
           trace: collect_build_prerequisites: resume foo/1.0.0
-          %.*
-          trace: collect_build_prerequisites: skip cfg-negotiated dependency libfoo/1.0.0 of dependent foo/1.0.0
           trace: collect_build_prerequisites: end foo/1.0.0
-          trace: collect_build_postponed (1): cfg-negotiate end {fex, foo | libfoo}
-          trace: collect_build_postponed (1): end
+          trace: collect_build_postponed (1): cfg-negotiate end {fex foo | libfoo->{fex/2,1 foo/1,1}}!
+          trace: collect_build_postponed (1): end {fex foo | libfoo->{fex/2,1 foo/1,1}}
           trace: collect_build_postponed (0): end
           trace: execute_plan: simulate: yes
           %.*
           EOE
-#\
 
         $pkg_status -r >>EOO;
           !fex configured 1.0.0
@@ -5040,11 +4990,9 @@ test.options += --no-progress
       {
         $clone_cfg;
 
-        $* fux foo fox 2>!;
-#\
         $* fux foo fox 2>>~%EOE%;
           %.*
-          trace: pkg_build: refine execution plan from scratch
+          trace: pkg_build: refine package collection/plan execution from scratch
           %.*
           trace: collect_build: add fux/1.0.0
           trace: collect_build: add foo/1.0.0
@@ -5052,16 +5000,16 @@ test.options += --no-progress
           trace: collect_build_prerequisites: begin fux/1.0.0
           %.*
           trace: collect_build: add libfoo/1.0.0
-          trace: collect_build_prerequisites: recursively collect dependency libfoo/1.0.0 of dependent fux/1.0.0
+          trace: collect_build_prerequisites: no cfg-clause for dependency libfoo/1.0.0 of dependent fux/1.0.0
           trace: collect_build_prerequisites: begin libfoo/1.0.0
           trace: collect_build_prerequisites: end libfoo/1.0.0
           trace: collect_build_prerequisites: end fux/1.0.0
           trace: collect_build_prerequisites: begin foo/1.0.0
           %.*
-          trace: collect_build_prerequisites: cannot cfg-postpone dependency libfoo/1.0.0 of dependent foo/1.0.0 (collected prematurely)
-          trace: pkg_build: collection failed due to prematurely collected dependency libfoo, retry from scratch
+          trace: collect_build_prerequisites: cannot cfg-postpone dependency libfoo/1.0.0 of dependent foo/1.0.0 (collected prematurely), throwing postpone_dependency
+          trace: pkg_build: collection failed due to prematurely collected dependency (libfoo), retry from scratch
           %.*
-          trace: pkg_build: refine execution plan from scratch
+          trace: pkg_build: refine package collection/plan execution from scratch
           %.*
           trace: collect_build: add fux/1.0.0
           trace: collect_build: add foo/1.0.0
@@ -5074,35 +5022,33 @@ test.options += --no-progress
           trace: collect_build_prerequisites: begin foo/1.0.0
           %.*
           trace: collect_build_prerequisites: cfg-postpone dependency libfoo/1.0.0 of dependent foo/1.0.0
-          trace: postponed_configurations::add: create {foo | libfoo}
+          trace: postponed_configurations::add: create {foo | libfoo->{foo/1,1}}
           trace: collect_build_prerequisites: postpone foo/1.0.0
           trace: collect_build_prerequisites: begin fox/1.0.0
           %.*
           trace: collect_build_prerequisites: cfg-postpone dependency libfoo/1.0.0 of dependent fox/1.0.0
-          trace: postponed_configurations::add: add {fox | libfoo} to {foo | libfoo}
+          trace: postponed_configurations::add: add {fox 1,1: libfoo} to {foo | libfoo->{foo/1,1}}
           trace: collect_build_prerequisites: postpone fox/1.0.0
           trace: collect_build_postponed (0): begin
-          trace: collect_build_postponed (1): begin {foo, fox | libfoo}
-          trace: collect_build_postponed (1): cfg-negotiate begin {foo, fox | libfoo}
+          trace: collect_build_postponed (1): begin {foo fox | libfoo->{foo/1,1 fox/1,1}}
+          %.*
+          trace: collect_build_postponed (1): cfg-negotiate begin {foo fox | libfoo->{foo/1,1 fox/1,1}}
           trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
           trace: collect_build_prerequisites: begin libfoo/1.0.0
           trace: collect_build_prerequisites: end libfoo/1.0.0
           trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
+          trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent foo/1.0.0
           trace: collect_build_prerequisites: resume foo/1.0.0
-          %.*
-          trace: collect_build_prerequisites: skip cfg-negotiated dependency libfoo/1.0.0 of dependent foo/1.0.0
           trace: collect_build_prerequisites: end foo/1.0.0
+          trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent fox/1.0.0
           trace: collect_build_prerequisites: resume fox/1.0.0
-          %.*
-          trace: collect_build_prerequisites: skip cfg-negotiated dependency libfoo/1.0.0 of dependent fox/1.0.0
           trace: collect_build_prerequisites: end fox/1.0.0
-          trace: collect_build_postponed (1): cfg-negotiate end {foo, fox | libfoo}
-          trace: collect_build_postponed (1): end {foo, fox | libfoo}
+          trace: collect_build_postponed (1): cfg-negotiate end {foo fox | libfoo->{foo/1,1 fox/1,1}}!
+          trace: collect_build_postponed (1): end {foo fox | libfoo->{foo/1,1 fox/1,1}}
           trace: collect_build_postponed (0): end
           trace: execute_plan: simulate: yes
           %.*
           EOE
-#\
 
         $pkg_status -r >>EOO;
           !fux configured 1.0.0
@@ -6814,18 +6760,16 @@ test.options += --no-progress
       {
         $clone_cfg;
 
-        $* fux fix 2>!;
-#\
         $* fux fix 2>>~%EOE%;
           %.*
-          trace: pkg_build: refine execution plan from scratch
+          trace: pkg_build: refine package collection/plan execution from scratch
           %.*
           trace: collect_build: add fux/1.0.0
           trace: collect_build: add fix/1.0.0
           trace: collect_build_prerequisites: begin fux/1.0.0
           %.*
           trace: collect_build: add libfoo/1.0.0
-          trace: collect_build_prerequisites: recursively collect dependency libfoo/1.0.0 of dependent fux/1.0.0
+          trace: collect_build_prerequisites: no cfg-clause for dependency libfoo/1.0.0 of dependent fux/1.0.0
           trace: collect_build_prerequisites: begin libfoo/1.0.0
           trace: collect_build_prerequisites: end libfoo/1.0.0
           trace: collect_build_prerequisites: end fux/1.0.0
@@ -6833,18 +6777,19 @@ test.options += --no-progress
           %.*
           trace: collect_build: add foo/1.0.0
           trace: collect_build_prerequisites: cfg-postpone dependency foo/1.0.0 of dependent fix/1.0.0
-          trace: postponed_configurations::add: create {fix | foo}
+          trace: postponed_configurations::add: create {fix | foo->{fix/1,1}}
           trace: collect_build_prerequisites: postpone fix/1.0.0
           trace: collect_build_postponed (0): begin
-          trace: collect_build_postponed (1): begin
-          trace: collect_build_postponed (1): cfg-negotiate begin {fix | foo}
+          trace: collect_build_postponed (1): begin {fix | foo->{fix/1,1}}
+          %.*
+          trace: collect_build_postponed (1): cfg-negotiate begin {fix | foo->{fix/1,1}}
           trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
           trace: collect_build_prerequisites: begin foo/1.0.0
           %.*
-          trace: collect_build_prerequisites: cannot cfg-postpone dependency libfoo/1.0.0 of dependent foo/1.0.0 (collected prematurely)
-          trace: pkg_build: collection failed due to prematurely collected dependency libfoo, retry from scratch
+          trace: collect_build_prerequisites: cannot cfg-postpone dependency libfoo/1.0.0 of dependent foo/1.0.0 (collected prematurely), throwing postpone_dependency
+          trace: pkg_build: collection failed due to prematurely collected dependency (libfoo), retry from scratch
           %.*
-          trace: pkg_build: refine execution plan from scratch
+          trace: pkg_build: refine package collection/plan execution from scratch
           %.*
           trace: collect_build: add fux/1.0.0
           trace: collect_build: add fix/1.0.0
@@ -6857,41 +6802,40 @@ test.options += --no-progress
           %.*
           trace: collect_build: add foo/1.0.0
           trace: collect_build_prerequisites: cfg-postpone dependency foo/1.0.0 of dependent fix/1.0.0
-          trace: postponed_configurations::add: create {fix | foo}
+          trace: postponed_configurations::add: create {fix | foo->{fix/1,1}}
           trace: collect_build_prerequisites: postpone fix/1.0.0
           trace: collect_build_postponed (0): begin
-          trace: collect_build_postponed (1): begin
-          trace: collect_build_postponed (1): cfg-negotiate begin {fix | foo}
+          trace: collect_build_postponed (1): begin {fix | foo->{fix/1,1}}
+          %.*
+          trace: collect_build_postponed (1): cfg-negotiate begin {fix | foo->{fix/1,1}}
           trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
           trace: collect_build_prerequisites: begin foo/1.0.0
           %.*
           trace: collect_build_prerequisites: cfg-postpone dependency libfoo/1.0.0 of dependent foo/1.0.0
-          trace: postponed_configurations::add: create {foo | libfoo}
+          trace: postponed_configurations::add: create {foo | libfoo->{foo/1,1}}
           trace: collect_build_prerequisites: postpone foo/1.0.0
           trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
+          trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent fix/1.0.0
           trace: collect_build_prerequisites: resume fix/1.0.0
-          %.*
-          trace: collect_build_prerequisites: skip cfg-negotiated dependency foo/1.0.0 of dependent fix/1.0.0
           trace: collect_build_prerequisites: end fix/1.0.0
-          trace: collect_build_postponed (1): cfg-negotiate end {fix | foo}
-          trace: collect_build_postponed (2): begin
-          trace: collect_build_postponed (2): cfg-negotiate begin {foo | libfoo}
+          trace: collect_build_postponed (1): cfg-negotiate end {fix | foo->{fix/1,1}}!
+          trace: collect_build_postponed (2): begin {foo | libfoo->{foo/1,1}}
+          %.*
+          trace: collect_build_postponed (2): cfg-negotiate begin {foo | libfoo->{foo/1,1}}
           trace: collect_build_postponed (2): recursively collect cfg-negotiated dependencies
           trace: collect_build_prerequisites: begin libfoo/1.0.0
           trace: collect_build_prerequisites: end libfoo/1.0.0
           trace: collect_build_postponed (2): recursively collect cfg-negotiated dependents
+          trace: collect_build_postponed (2): select cfg-negotiated dependency alternative for dependent foo/1.0.0
           trace: collect_build_prerequisites: resume foo/1.0.0
-          %.*
-          trace: collect_build_prerequisites: skip cfg-negotiated dependency libfoo/1.0.0 of dependent foo/1.0.0
           trace: collect_build_prerequisites: end foo/1.0.0
-          trace: collect_build_postponed (2): cfg-negotiate end {foo | libfoo}
-          trace: collect_build_postponed (2): end
-          trace: collect_build_postponed (1): end
+          trace: collect_build_postponed (2): cfg-negotiate end {foo | libfoo->{foo/1,1}}!
+          trace: collect_build_postponed (2): end {foo | libfoo->{foo/1,1}}
+          trace: collect_build_postponed (1): end {fix | foo->{fix/1,1}}
           trace: collect_build_postponed (0): end
           trace: execute_plan: simulate: yes
           %.*
           EOE
-#\
 
         $pkg_status -r >>EOO;
           !fux configured 1.0.0
@@ -6909,11 +6853,9 @@ test.options += --no-progress
       {
         $clone_cfg;
 
-        $* fux bex fix buz 2>!;
-#\
         $* fux bex fix buz 2>>~%EOE%;
           %.*
-          trace: pkg_build: refine execution plan from scratch
+          trace: pkg_build: refine package collection/plan execution from scratch
           %.*
           trace: collect_build: add fux/1.0.0
           trace: collect_build: add bex/1.0.0
@@ -6922,14 +6864,14 @@ test.options += --no-progress
           trace: collect_build_prerequisites: begin fux/1.0.0
           %.*
           trace: collect_build: add libfoo/1.0.0
-          trace: collect_build_prerequisites: recursively collect dependency libfoo/1.0.0 of dependent fux/1.0.0
+          trace: collect_build_prerequisites: no cfg-clause for dependency libfoo/1.0.0 of dependent fux/1.0.0
           trace: collect_build_prerequisites: begin libfoo/1.0.0
           trace: collect_build_prerequisites: end libfoo/1.0.0
           trace: collect_build_prerequisites: end fux/1.0.0
           trace: collect_build_prerequisites: begin bex/1.0.0
           %.*
           trace: collect_build: add libbar/1.0.0
-          trace: collect_build_prerequisites: recursively collect dependency libbar/1.0.0 of dependent bex/1.0.0
+          trace: collect_build_prerequisites: no cfg-clause for dependency libbar/1.0.0 of dependent bex/1.0.0
           trace: collect_build_prerequisites: begin libbar/1.0.0
           trace: collect_build_prerequisites: end libbar/1.0.0
           trace: collect_build_prerequisites: end bex/1.0.0
@@ -6937,24 +6879,25 @@ test.options += --no-progress
           %.*
           trace: collect_build: add foo/1.0.0
           trace: collect_build_prerequisites: cfg-postpone dependency foo/1.0.0 of dependent fix/1.0.0
-          trace: postponed_configurations::add: create {fix | foo}
+          trace: postponed_configurations::add: create {fix | foo->{fix/1,1}}
           trace: collect_build_prerequisites: postpone fix/1.0.0
           trace: collect_build_prerequisites: begin buz/1.0.0
           %.*
           trace: collect_build: add bux/1.0.0
           trace: collect_build_prerequisites: cfg-postpone dependency bux/1.0.0 of dependent buz/1.0.0
-          trace: postponed_configurations::add: create {buz | bux}
+          trace: postponed_configurations::add: create {buz | bux->{buz/1,1}}
           trace: collect_build_prerequisites: postpone buz/1.0.0
           trace: collect_build_postponed (0): begin
-          trace: collect_build_postponed (1): begin
-          trace: collect_build_postponed (1): cfg-negotiate begin {fix | foo}
+          trace: collect_build_postponed (1): begin {fix | foo->{fix/1,1}}
+          %.*
+          trace: collect_build_postponed (1): cfg-negotiate begin {fix | foo->{fix/1,1}}
           trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
           trace: collect_build_prerequisites: begin foo/1.0.0
           %.*
-          trace: collect_build_prerequisites: cannot cfg-postpone dependency libfoo/1.0.0 of dependent foo/1.0.0 (collected prematurely)
-          trace: pkg_build: collection failed due to prematurely collected dependency libfoo, retry from scratch
+          trace: collect_build_prerequisites: cannot cfg-postpone dependency libfoo/1.0.0 of dependent foo/1.0.0 (collected prematurely), throwing postpone_dependency
+          trace: pkg_build: collection failed due to prematurely collected dependency (libfoo), retry from scratch
           %.*
-          trace: pkg_build: refine execution plan from scratch
+          trace: pkg_build: refine package collection/plan execution from scratch
           %.*
           trace: collect_build: add fux/1.0.0
           trace: collect_build: add bex/1.0.0
@@ -6968,7 +6911,7 @@ test.options += --no-progress
           trace: collect_build_prerequisites: begin bex/1.0.0
           %.*
           trace: collect_build: add libbar/1.0.0
-          trace: collect_build_prerequisites: recursively collect dependency libbar/1.0.0 of dependent bex/1.0.0
+          trace: collect_build_prerequisites: no cfg-clause for dependency libbar/1.0.0 of dependent bex/1.0.0
           trace: collect_build_prerequisites: begin libbar/1.0.0
           trace: collect_build_prerequisites: end libbar/1.0.0
           trace: collect_build_prerequisites: end bex/1.0.0
@@ -6976,38 +6919,39 @@ test.options += --no-progress
           %.*
           trace: collect_build: add foo/1.0.0
           trace: collect_build_prerequisites: cfg-postpone dependency foo/1.0.0 of dependent fix/1.0.0
-          trace: postponed_configurations::add: create {fix | foo}
+          trace: postponed_configurations::add: create {fix | foo->{fix/1,1}}
           trace: collect_build_prerequisites: postpone fix/1.0.0
           trace: collect_build_prerequisites: begin buz/1.0.0
           %.*
           trace: collect_build: add bux/1.0.0
           trace: collect_build_prerequisites: cfg-postpone dependency bux/1.0.0 of dependent buz/1.0.0
-          trace: postponed_configurations::add: create {buz | bux}
+          trace: postponed_configurations::add: create {buz | bux->{buz/1,1}}
           trace: collect_build_prerequisites: postpone buz/1.0.0
           trace: collect_build_postponed (0): begin
-          trace: collect_build_postponed (1): begin
-          trace: collect_build_postponed (1): cfg-negotiate begin {fix | foo}
+          trace: collect_build_postponed (1): begin {fix | foo->{fix/1,1}}
+          %.*
+          trace: collect_build_postponed (1): cfg-negotiate begin {fix | foo->{fix/1,1}}
           trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
           trace: collect_build_prerequisites: begin foo/1.0.0
           %.*
           trace: collect_build_prerequisites: cfg-postpone dependency libfoo/1.0.0 of dependent foo/1.0.0
-          trace: postponed_configurations::add: create {foo | libfoo}
+          trace: postponed_configurations::add: create {foo | libfoo->{foo/1,1}}
           trace: collect_build_prerequisites: postpone foo/1.0.0
           trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
+          trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent fix/1.0.0
           trace: collect_build_prerequisites: resume fix/1.0.0
-          %.*
-          trace: collect_build_prerequisites: skip cfg-negotiated dependency foo/1.0.0 of dependent fix/1.0.0
           trace: collect_build_prerequisites: end fix/1.0.0
-          trace: collect_build_postponed (1): cfg-negotiate end {fix | foo}
-          trace: collect_build_postponed (2): begin
-          trace: collect_build_postponed (2): cfg-negotiate begin {buz | bux}
+          trace: collect_build_postponed (1): cfg-negotiate end {fix | foo->{fix/1,1}}!
+          trace: collect_build_postponed (2): begin {buz | bux->{buz/1,1}}
+          %.*
+          trace: collect_build_postponed (2): cfg-negotiate begin {buz | bux->{buz/1,1}}
           trace: collect_build_postponed (2): recursively collect cfg-negotiated dependencies
           trace: collect_build_prerequisites: begin bux/1.0.0
           %.*
-          trace: collect_build_prerequisites: cannot cfg-postpone dependency libbar/1.0.0 of dependent bux/1.0.0 (collected prematurely)
-          trace: pkg_build: collection failed due to prematurely collected dependency libbar, retry from scratch
+          trace: collect_build_prerequisites: cannot cfg-postpone dependency libbar/1.0.0 of dependent bux/1.0.0 (collected prematurely), throwing postpone_dependency
+          trace: pkg_build: collection failed due to prematurely collected dependency (libbar), retry from scratch
           %.*
-          trace: pkg_build: refine execution plan from scratch
+          trace: pkg_build: refine package collection/plan execution from scratch
           %.*
           trace: collect_build: add fux/1.0.0
           trace: collect_build: add bex/1.0.0
@@ -7027,74 +6971,73 @@ test.options += --no-progress
           %.*
           trace: collect_build: add foo/1.0.0
           trace: collect_build_prerequisites: cfg-postpone dependency foo/1.0.0 of dependent fix/1.0.0
-          trace: postponed_configurations::add: create {fix | foo}
+          trace: postponed_configurations::add: create {fix | foo->{fix/1,1}}
           trace: collect_build_prerequisites: postpone fix/1.0.0
           trace: collect_build_prerequisites: begin buz/1.0.0
           %.*
           trace: collect_build: add bux/1.0.0
           trace: collect_build_prerequisites: cfg-postpone dependency bux/1.0.0 of dependent buz/1.0.0
-          trace: postponed_configurations::add: create {buz | bux}
+          trace: postponed_configurations::add: create {buz | bux->{buz/1,1}}
           trace: collect_build_prerequisites: postpone buz/1.0.0
           trace: collect_build_postponed (0): begin
-          trace: collect_build_postponed (1): begin
-          trace: collect_build_postponed (1): cfg-negotiate begin {fix | foo}
+          trace: collect_build_postponed (1): begin {fix | foo->{fix/1,1}}
+          %.*
+          trace: collect_build_postponed (1): cfg-negotiate begin {fix | foo->{fix/1,1}}
           trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
           trace: collect_build_prerequisites: begin foo/1.0.0
           %.*
           trace: collect_build_prerequisites: cfg-postpone dependency libfoo/1.0.0 of dependent foo/1.0.0
-          trace: postponed_configurations::add: create {foo | libfoo}
+          trace: postponed_configurations::add: create {foo | libfoo->{foo/1,1}}
           trace: collect_build_prerequisites: postpone foo/1.0.0
           trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
+          trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent fix/1.0.0
           trace: collect_build_prerequisites: resume fix/1.0.0
-          %.*
-          trace: collect_build_prerequisites: skip cfg-negotiated dependency foo/1.0.0 of dependent fix/1.0.0
           trace: collect_build_prerequisites: end fix/1.0.0
-          trace: collect_build_postponed (1): cfg-negotiate end {fix | foo}
-          trace: collect_build_postponed (2): begin
-          trace: collect_build_postponed (2): cfg-negotiate begin {buz | bux}
+          trace: collect_build_postponed (1): cfg-negotiate end {fix | foo->{fix/1,1}}!
+          trace: collect_build_postponed (2): begin {buz | bux->{buz/1,1}}
+          %.*
+          trace: collect_build_postponed (2): cfg-negotiate begin {buz | bux->{buz/1,1}}
           trace: collect_build_postponed (2): recursively collect cfg-negotiated dependencies
           trace: collect_build_prerequisites: begin bux/1.0.0
           %.*
           trace: collect_build_prerequisites: cfg-postpone dependency libbar/1.0.0 of dependent bux/1.0.0
-          trace: postponed_configurations::add: create {bux | libbar}
+          trace: postponed_configurations::add: create {bux | libbar->{bux/1,1}}
           trace: collect_build_prerequisites: postpone bux/1.0.0
           trace: collect_build_postponed (2): recursively collect cfg-negotiated dependents
+          trace: collect_build_postponed (2): select cfg-negotiated dependency alternative for dependent buz/1.0.0
           trace: collect_build_prerequisites: resume buz/1.0.0
-          %.*
-          trace: collect_build_prerequisites: skip cfg-negotiated dependency bux/1.0.0 of dependent buz/1.0.0
           trace: collect_build_prerequisites: end buz/1.0.0
-          trace: collect_build_postponed (2): cfg-negotiate end {buz | bux}
-          trace: collect_build_postponed (3): begin
-          trace: collect_build_postponed (3): cfg-negotiate begin {foo | libfoo}
+          trace: collect_build_postponed (2): cfg-negotiate end {buz | bux->{buz/1,1}}!
+          trace: collect_build_postponed (3): begin {foo | libfoo->{foo/1,1}}
+          %.*
+          trace: collect_build_postponed (3): cfg-negotiate begin {foo | libfoo->{foo/1,1}}
           trace: collect_build_postponed (3): recursively collect cfg-negotiated dependencies
           trace: collect_build_prerequisites: begin libfoo/1.0.0
           trace: collect_build_prerequisites: end libfoo/1.0.0
           trace: collect_build_postponed (3): recursively collect cfg-negotiated dependents
+          trace: collect_build_postponed (3): select cfg-negotiated dependency alternative for dependent foo/1.0.0
           trace: collect_build_prerequisites: resume foo/1.0.0
-          %.*
-          trace: collect_build_prerequisites: skip cfg-negotiated dependency libfoo/1.0.0 of dependent foo/1.0.0
           trace: collect_build_prerequisites: end foo/1.0.0
-          trace: collect_build_postponed (3): cfg-negotiate end {foo | libfoo}
-          trace: collect_build_postponed (4): begin
-          trace: collect_build_postponed (4): cfg-negotiate begin {bux | libbar}
+          trace: collect_build_postponed (3): cfg-negotiate end {foo | libfoo->{foo/1,1}}!
+          trace: collect_build_postponed (4): begin {bux | libbar->{bux/1,1}}
+          %.*
+          trace: collect_build_postponed (4): cfg-negotiate begin {bux | libbar->{bux/1,1}}
           trace: collect_build_postponed (4): recursively collect cfg-negotiated dependencies
           trace: collect_build_prerequisites: begin libbar/1.0.0
           trace: collect_build_prerequisites: end libbar/1.0.0
           trace: collect_build_postponed (4): recursively collect cfg-negotiated dependents
+          trace: collect_build_postponed (4): select cfg-negotiated dependency alternative for dependent bux/1.0.0
           trace: collect_build_prerequisites: resume bux/1.0.0
-          %.*
-          trace: collect_build_prerequisites: skip cfg-negotiated dependency libbar/1.0.0 of dependent bux/1.0.0
           trace: collect_build_prerequisites: end bux/1.0.0
-          trace: collect_build_postponed (4): cfg-negotiate end {bux | libbar}
-          trace: collect_build_postponed (4): end
-          trace: collect_build_postponed (3): end
-          trace: collect_build_postponed (2): end
-          trace: collect_build_postponed (1): end
+          trace: collect_build_postponed (4): cfg-negotiate end {bux | libbar->{bux/1,1}}!
+          trace: collect_build_postponed (4): end {bux | libbar->{bux/1,1}}
+          trace: collect_build_postponed (3): end {foo | libfoo->{foo/1,1}}
+          trace: collect_build_postponed (2): end {buz | bux->{buz/1,1}}
+          trace: collect_build_postponed (1): end {fix | foo->{fix/1,1}}
           trace: collect_build_postponed (0): end
           trace: execute_plan: simulate: yes
           %.*
           EOE
-#\
 
         $pkg_status -r >>EOO;
           !fux configured 1.0.0
@@ -7245,51 +7188,6 @@ test.options += --no-progress
           %.*
           EOE
 
-#\
-        $* bix 2>>~%EOE%;
-          %.*
-          trace: pkg_build: refine execution plan from scratch
-          %.*
-          trace: collect_build: add bix/1.0.0
-          trace: collect_build_prerequisites: begin bix/1.0.0
-          %.*
-          trace: collect_build: add libbar/1.0.0
-          trace: collect_build_prerequisites: cfg-postpone dependency libbar/1.0.0 of dependent bix/1.0.0
-          trace: collect_build: add bar/1.0.0
-          trace: collect_build_prerequisites: cfg-postpone dependency bar/1.0.0 of dependent bix/1.0.0
-          trace: postponed_configurations::add: create {bix | bar, libbar}
-          trace: collect_build_prerequisites: postpone bix/1.0.0
-          trace: collect_build_postponed (0): begin
-          trace: collect_build_postponed (1): begin
-          trace: collect_build_postponed (1): cfg-negotiate begin {bix | bar, libbar}
-          trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
-          trace: collect_build_prerequisites: begin bar/1.0.0
-          %.*
-          trace: collect_build_prerequisites: up-negotiate dependency libbar/1.0.0 of dependent bar/1.0.0
-          trace: collect_build_prerequisites: end bar/1.0.0
-          trace: collect_build_prerequisites: begin libbar/1.0.0
-          trace: collect_build_prerequisites: end libbar/1.0.0
-          trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
-          trace: collect_build_prerequisites: resume bix/1.0.0
-          %.*
-          trace: collect_build_prerequisites: skip cfg-negotiated dependency libbar/1.0.0 of dependent bix/1.0.0
-          trace: collect_build_prerequisites: skip cfg-negotiated dependency bar/1.0.0 of dependent bix/1.0.0
-          %.*
-          trace: collect_build: add bux/1.0.0
-          trace: collect_build_prerequisites: recursively collect dependency bux/1.0.0 of dependent bix/1.0.0
-          trace: collect_build_prerequisites: begin bux/1.0.0
-          %.*
-          trace: collect_build_prerequisites: up-negotiate dependency libbar/1.0.0 of dependent bux/1.0.0
-          trace: collect_build_prerequisites: end bux/1.0.0
-          trace: collect_build_prerequisites: end bix/1.0.0
-          trace: collect_build_postponed (1): cfg-negotiate end {bix | bar, libbar}
-          trace: collect_build_postponed (1): end
-          trace: collect_build_postponed (0): end
-          trace: execute_plan: simulate: yes
-          %.*
-          EOE
-#\
-
         $pkg_status -r >>EOO;
           !bix configured 1.0.0
             bar configured 1.0.0
@@ -7312,18 +7210,16 @@ test.options += --no-progress
         {
           $clone_cfg;
 
-          $* fux boo 2>!;
-#\
           $* fux boo 2>>~%EOE%;
             %.*
-            trace: pkg_build: refine execution plan from scratch
+            trace: pkg_build: refine package collection/plan execution from scratch
             %.*
             trace: collect_build: add fux/1.0.0
             trace: collect_build: add boo/1.0.0
             trace: collect_build_prerequisites: begin fux/1.0.0
             %.*
             trace: collect_build: add libfoo/1.0.0
-            trace: collect_build_prerequisites: recursively collect dependency libfoo/1.0.0 of dependent fux/1.0.0
+            trace: collect_build_prerequisites: no cfg-clause for dependency libfoo/1.0.0 of dependent fux/1.0.0
             trace: collect_build_prerequisites: begin libfoo/1.0.0
             trace: collect_build_prerequisites: end libfoo/1.0.0
             trace: collect_build_prerequisites: end fux/1.0.0
@@ -7348,8 +7244,10 @@ test.options += --no-progress
             trace: collect_build_postponed (0): index 2 collect alt-postponed boo/1.0.0
             trace: collect_build_prerequisites: resume boo/1.0.0
             %.*
-            trace: collect_build_prerequisites: cannot cfg-postpone dependency libfoo/1.0.0 of dependent boo/1.0.0 (collected prematurely)
-            trace: pkg_build: collection failed due to prematurely collected dependency libfoo, retry from scratch
+            trace: collect_build_prerequisites: cannot cfg-postpone dependency libfoo/1.0.0 of dependent boo/1.0.0 (collected prematurely), throwing postpone_dependency
+            trace: pkg_build: collection failed due to prematurely collected dependency (libfoo), retry from scratch
+            %.*
+            trace: pkg_build: refine package collection/plan execution from scratch
             %.*
             trace: collect_build: add fux/1.0.0
             trace: collect_build: add boo/1.0.0
@@ -7380,25 +7278,24 @@ test.options += --no-progress
             trace: collect_build_prerequisites: resume boo/1.0.0
             %.*
             trace: collect_build_prerequisites: cfg-postpone dependency libfoo/1.0.0 of dependent boo/1.0.0
-            trace: postponed_configurations::add: create {boo | libfoo}
+            trace: postponed_configurations::add: create {boo | libfoo->{boo/1,2}}
             trace: collect_build_prerequisites: postpone boo/1.0.0
-            trace: collect_build_postponed (1): begin
-            trace: collect_build_postponed (1): cfg-negotiate begin {boo | libfoo}
+            trace: collect_build_postponed (1): begin {boo | libfoo->{boo/1,2}}
+            %.*
+            trace: collect_build_postponed (1): cfg-negotiate begin {boo | libfoo->{boo/1,2}}
             trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
             trace: collect_build_prerequisites: begin libfoo/1.0.0
             trace: collect_build_prerequisites: end libfoo/1.0.0
             trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
+            trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent boo/1.0.0
             trace: collect_build_prerequisites: resume boo/1.0.0
-            %.*
-            trace: collect_build_prerequisites: skip cfg-negotiated dependency libfoo/1.0.0 of dependent boo/1.0.0
             trace: collect_build_prerequisites: end boo/1.0.0
-            trace: collect_build_postponed (1): cfg-negotiate end {boo | libfoo}
-            trace: collect_build_postponed (1): end
+            trace: collect_build_postponed (1): cfg-negotiate end {boo | libfoo->{boo/1,2}}!
+            trace: collect_build_postponed (1): end {boo | libfoo->{boo/1,2}}
             trace: collect_build_postponed (0): end
             trace: execute_plan: simulate: yes
             %.*
             EOE
-#\
 
           $pkg_status -r >>EOO;
             !fux configured 1.0.0
@@ -7415,11 +7312,9 @@ test.options += --no-progress
         {
           $clone_cfg;
 
-          $* fux bex fix biz 2>!;
-#\
           $* fux bex fix biz 2>>~%EOE%;
             %.*
-            trace: pkg_build: refine execution plan from scratch
+            trace: pkg_build: refine package collection/plan execution from scratch
             %.*
             trace: collect_build: add fux/1.0.0
             trace: collect_build: add bex/1.0.0
@@ -7428,14 +7323,14 @@ test.options += --no-progress
             trace: collect_build_prerequisites: begin fux/1.0.0
             %.*
             trace: collect_build: add libfoo/1.0.0
-            trace: collect_build_prerequisites: recursively collect dependency libfoo/1.0.0 of dependent fux/1.0.0
+            trace: collect_build_prerequisites: no cfg-clause for dependency libfoo/1.0.0 of dependent fux/1.0.0
             trace: collect_build_prerequisites: begin libfoo/1.0.0
             trace: collect_build_prerequisites: end libfoo/1.0.0
             trace: collect_build_prerequisites: end fux/1.0.0
             trace: collect_build_prerequisites: begin bex/1.0.0
             %.*
             trace: collect_build: add libbar/1.0.0
-            trace: collect_build_prerequisites: recursively collect dependency libbar/1.0.0 of dependent bex/1.0.0
+            trace: collect_build_prerequisites: no cfg-clause for dependency libbar/1.0.0 of dependent bex/1.0.0
             trace: collect_build_prerequisites: begin libbar/1.0.0
             trace: collect_build_prerequisites: end libbar/1.0.0
             trace: collect_build_prerequisites: end bex/1.0.0
@@ -7443,24 +7338,25 @@ test.options += --no-progress
             %.*
             trace: collect_build: add foo/1.0.0
             trace: collect_build_prerequisites: cfg-postpone dependency foo/1.0.0 of dependent fix/1.0.0
-            trace: postponed_configurations::add: create {fix | foo}
+            trace: postponed_configurations::add: create {fix | foo->{fix/1,1}}
             trace: collect_build_prerequisites: postpone fix/1.0.0
             trace: collect_build_prerequisites: begin biz/1.0.0
             %.*
             trace: collect_build: add boo/1.0.0
             trace: collect_build_prerequisites: cfg-postpone dependency boo/1.0.0 of dependent biz/1.0.0
-            trace: postponed_configurations::add: create {biz | boo}
+            trace: postponed_configurations::add: create {biz | boo->{biz/1,1}}
             trace: collect_build_prerequisites: postpone biz/1.0.0
             trace: collect_build_postponed (0): begin
-            trace: collect_build_postponed (1): begin
-            trace: collect_build_postponed (1): cfg-negotiate begin {fix | foo}
+            trace: collect_build_postponed (1): begin {fix | foo->{fix/1,1}}
+            %.*
+            trace: collect_build_postponed (1): cfg-negotiate begin {fix | foo->{fix/1,1}}
             trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
             trace: collect_build_prerequisites: begin foo/1.0.0
             %.*
-            trace: collect_build_prerequisites: cannot cfg-postpone dependency libfoo/1.0.0 of dependent foo/1.0.0 (collected prematurely)
-            trace: pkg_build: collection failed due to prematurely collected dependency libfoo, retry from scratch
+            trace: collect_build_prerequisites: cannot cfg-postpone dependency libfoo/1.0.0 of dependent foo/1.0.0 (collected prematurely), throwing postpone_dependency
+            trace: pkg_build: collection failed due to prematurely collected dependency (libfoo), retry from scratch
             %.*
-            trace: pkg_build: refine execution plan from scratch
+            trace: pkg_build: refine package collection/plan execution from scratch
             %.*
             trace: collect_build: add fux/1.0.0
             trace: collect_build: add bex/1.0.0
@@ -7474,7 +7370,7 @@ test.options += --no-progress
             trace: collect_build_prerequisites: begin bex/1.0.0
             %.*
             trace: collect_build: add libbar/1.0.0
-            trace: collect_build_prerequisites: recursively collect dependency libbar/1.0.0 of dependent bex/1.0.0
+            trace: collect_build_prerequisites: no cfg-clause for dependency libbar/1.0.0 of dependent bex/1.0.0
             trace: collect_build_prerequisites: begin libbar/1.0.0
             trace: collect_build_prerequisites: end libbar/1.0.0
             trace: collect_build_prerequisites: end bex/1.0.0
@@ -7482,31 +7378,32 @@ test.options += --no-progress
             %.*
             trace: collect_build: add foo/1.0.0
             trace: collect_build_prerequisites: cfg-postpone dependency foo/1.0.0 of dependent fix/1.0.0
-            trace: postponed_configurations::add: create {fix | foo}
+            trace: postponed_configurations::add: create {fix | foo->{fix/1,1}}
             trace: collect_build_prerequisites: postpone fix/1.0.0
             trace: collect_build_prerequisites: begin biz/1.0.0
             %.*
             trace: collect_build: add boo/1.0.0
             trace: collect_build_prerequisites: cfg-postpone dependency boo/1.0.0 of dependent biz/1.0.0
-            trace: postponed_configurations::add: create {biz | boo}
+            trace: postponed_configurations::add: create {biz | boo->{biz/1,1}}
             trace: collect_build_prerequisites: postpone biz/1.0.0
             trace: collect_build_postponed (0): begin
-            trace: collect_build_postponed (1): begin
-            trace: collect_build_postponed (1): cfg-negotiate begin {fix | foo}
+            trace: collect_build_postponed (1): begin {fix | foo->{fix/1,1}}
+            %.*
+            trace: collect_build_postponed (1): cfg-negotiate begin {fix | foo->{fix/1,1}}
             trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
             trace: collect_build_prerequisites: begin foo/1.0.0
             %.*
             trace: collect_build_prerequisites: cfg-postpone dependency libfoo/1.0.0 of dependent foo/1.0.0
-            trace: postponed_configurations::add: create {foo | libfoo}
+            trace: postponed_configurations::add: create {foo | libfoo->{foo/1,1}}
             trace: collect_build_prerequisites: postpone foo/1.0.0
             trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
+            trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent fix/1.0.0
             trace: collect_build_prerequisites: resume fix/1.0.0
-            %.*
-            trace: collect_build_prerequisites: skip cfg-negotiated dependency foo/1.0.0 of dependent fix/1.0.0
             trace: collect_build_prerequisites: end fix/1.0.0
-            trace: collect_build_postponed (1): cfg-negotiate end {fix | foo}
-            trace: collect_build_postponed (2): begin
-            trace: collect_build_postponed (2): cfg-negotiate begin {biz | boo}
+            trace: collect_build_postponed (1): cfg-negotiate end {fix | foo->{fix/1,1}}!
+            trace: collect_build_postponed (2): begin {biz | boo->{biz/1,1}}
+            %.*
+            trace: collect_build_postponed (2): cfg-negotiate begin {biz | boo->{biz/1,1}}
             trace: collect_build_postponed (2): recursively collect cfg-negotiated dependencies
             trace: collect_build_prerequisites: begin boo/1.0.0
             %.*
@@ -7514,35 +7411,33 @@ test.options += --no-progress
               info: dependency alternative: libbar
             trace: collect_build_prerequisites: postpone boo/1.0.0
             trace: collect_build_postponed (2): recursively collect cfg-negotiated dependents
+            trace: collect_build_postponed (2): select cfg-negotiated dependency alternative for dependent biz/1.0.0
             trace: collect_build_prerequisites: resume biz/1.0.0
-            %.*
-            trace: collect_build_prerequisites: skip cfg-negotiated dependency boo/1.0.0 of dependent biz/1.0.0
             trace: collect_build_prerequisites: end biz/1.0.0
-            trace: collect_build_postponed (2): cfg-negotiate end {biz | boo}
-            trace: collect_build_postponed (3): begin
-            trace: collect_build_postponed (3): cfg-negotiate begin {foo | libfoo}
+            trace: collect_build_postponed (2): cfg-negotiate end {biz | boo->{biz/1,1}}!
+            trace: collect_build_postponed (3): begin {foo | libfoo->{foo/1,1}}
+            %.*
+            trace: collect_build_postponed (3): cfg-negotiate begin {foo | libfoo->{foo/1,1}}
             trace: collect_build_postponed (3): recursively collect cfg-negotiated dependencies
             trace: collect_build_prerequisites: begin libfoo/1.0.0
             trace: collect_build_prerequisites: end libfoo/1.0.0
             trace: collect_build_postponed (3): recursively collect cfg-negotiated dependents
+            trace: collect_build_postponed (3): select cfg-negotiated dependency alternative for dependent foo/1.0.0
             trace: collect_build_prerequisites: resume foo/1.0.0
-            %.*
-            trace: collect_build_prerequisites: skip cfg-negotiated dependency libfoo/1.0.0 of dependent foo/1.0.0
             trace: collect_build_prerequisites: end foo/1.0.0
-            trace: collect_build_postponed (3): cfg-negotiate end {foo | libfoo}
+            trace: collect_build_postponed (3): cfg-negotiate end {foo | libfoo->{foo/1,1}}!
             trace: collect_build_postponed (3): index 1 collect alt-postponed boo/1.0.0
             trace: collect_build_prerequisites: resume boo/1.0.0
             %.*
-            trace: collect_build_prerequisites: recursively collect dependency libbar/1.0.0 of dependent boo/1.0.0
+            trace: collect_build_prerequisites: no cfg-clause for dependency libbar/1.0.0 of dependent boo/1.0.0
             trace: collect_build_prerequisites: end boo/1.0.0
-            trace: collect_build_postponed (3): end
-            trace: collect_build_postponed (2): end
-            trace: collect_build_postponed (1): end
+            trace: collect_build_postponed (3): end {foo | libfoo->{foo/1,1}}
+            trace: collect_build_postponed (2): end {biz | boo->{biz/1,1}}
+            trace: collect_build_postponed (1): end {fix | foo->{fix/1,1}}
             trace: collect_build_postponed (0): end
             trace: execute_plan: simulate: yes
             %.*
             EOE
-#\
 
           $pkg_status -r >>EOO;
             !fux configured 1.0.0
@@ -7560,16 +7455,14 @@ test.options += --no-progress
           $pkg_drop fux bex fix biz
         }
 
-        : with-rollback
+        : up-negotiate
         :
         {
           $clone_cfg;
 
-          $* foo boo 2>!;
-#\
           $* foo boo 2>>~%EOE%;
             %.*
-            trace: pkg_build: refine execution plan from scratch
+            trace: pkg_build: refine package collection/plan execution from scratch
             %.*
             trace: collect_build: add foo/1.0.0
             trace: collect_build: add boo/1.0.0
@@ -7577,7 +7470,7 @@ test.options += --no-progress
             %.*
             trace: collect_build: add libfoo/1.0.0
             trace: collect_build_prerequisites: cfg-postpone dependency libfoo/1.0.0 of dependent foo/1.0.0
-            trace: postponed_configurations::add: create {foo | libfoo}
+            trace: postponed_configurations::add: create {foo | libfoo->{foo/1,1}}
             trace: collect_build_prerequisites: postpone foo/1.0.0
             trace: collect_build_prerequisites: begin boo/1.0.0
             %.*
@@ -7585,17 +7478,17 @@ test.options += --no-progress
               info: dependency alternative: libbar
             trace: collect_build_prerequisites: postpone boo/1.0.0
             trace: collect_build_postponed (0): begin
-            trace: collect_build_postponed (1): begin
-            trace: collect_build_postponed (1): cfg-negotiate begin {foo | libfoo}
+            trace: collect_build_postponed (1): begin {foo | libfoo->{foo/1,1}}
+            %.*
+            trace: collect_build_postponed (1): cfg-negotiate begin {foo | libfoo->{foo/1,1}}
             trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
             trace: collect_build_prerequisites: begin libfoo/1.0.0
             trace: collect_build_prerequisites: end libfoo/1.0.0
             trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
+            trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent foo/1.0.0
             trace: collect_build_prerequisites: resume foo/1.0.0
-            %.*
-            trace: collect_build_prerequisites: skip cfg-negotiated dependency libfoo/1.0.0 of dependent foo/1.0.0
             trace: collect_build_prerequisites: end foo/1.0.0
-            trace: collect_build_postponed (1): cfg-negotiate end {foo | libfoo}
+            trace: collect_build_postponed (1): cfg-negotiate end {foo | libfoo->{foo/1,1}}!
             trace: collect_build_postponed (1): index 1 collect alt-postponed boo/1.0.0
             trace: collect_build_prerequisites: resume boo/1.0.0
             %.*
@@ -7611,9 +7504,22 @@ test.options += --no-progress
             trace: collect_build_postponed (1): index 2 collect alt-postponed boo/1.0.0
             trace: collect_build_prerequisites: resume boo/1.0.0
             %.*
-            trace: collect_build_prerequisites: cannot cfg-postpone dependency libfoo/1.0.0 of dependent boo/1.0.0 (collected prematurely)
-            trace: collect_build_postponed (0): cfg-negotiation of {foo | libfoo} failed due to dependency libfoo, try next
-            trace: collect_build_postponed (0): index 1 collect alt-postponed boo/1.0.0
+            trace: collect_build_prerequisites: cfg-postpone dependency libfoo/1.0.0 of dependent boo/1.0.0
+            trace: postponed_configurations::add: add {boo 1,2: libfoo} to {foo | libfoo->{foo/1,1}}!
+            trace: collect_build_prerequisites: cfg-postponing dependent boo/1.0.0 involves negotiated configurations and results in {boo foo | libfoo->{boo/1,2 foo/1,1}}!, throwing retry_configuration
+            trace: collect_build_postponed (0): cfg-negotiation of {foo | libfoo->{foo/1,1}} failed due to dependent boo, adding shadow dependent and re-negotiating
+            trace: collect_build_postponed (1): begin {foo | libfoo->{foo/1,1}}
+            %.*
+            trace: collect_build_postponed (1): cfg-negotiate begin {foo | libfoo->{foo/1,1}}
+            trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
+            trace: collect_build_prerequisites: begin libfoo/1.0.0
+            trace: collect_build_prerequisites: end libfoo/1.0.0
+            trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
+            trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent foo/1.0.0
+            trace: collect_build_prerequisites: resume foo/1.0.0
+            trace: collect_build_prerequisites: end foo/1.0.0
+            trace: collect_build_postponed (1): cfg-negotiate end {foo | libfoo->{foo/1,1}}!
+            trace: collect_build_postponed (1): index 1 collect alt-postponed boo/1.0.0
             trace: collect_build_prerequisites: resume boo/1.0.0
             %.*
             trace: collect_build_prerequisites: alt-postpone dependent boo/1.0.0 since max index is reached: 1
@@ -7625,33 +7531,20 @@ test.options += --no-progress
               }
             }
             trace: collect_build_prerequisites: postpone boo/1.0.0
-            trace: collect_build_postponed (0): index 2 collect alt-postponed boo/1.0.0
+            trace: collect_build_postponed (1): index 2 collect alt-postponed boo/1.0.0
             trace: collect_build_prerequisites: resume boo/1.0.0
             %.*
             trace: collect_build_prerequisites: cfg-postpone dependency libfoo/1.0.0 of dependent boo/1.0.0
-            trace: postponed_configurations::add: add {boo | libfoo} to {foo | libfoo}
-            trace: collect_build_prerequisites: postpone boo/1.0.0
-            trace: collect_build_postponed (1): begin
-            trace: collect_build_postponed (1): cfg-negotiate begin {boo, foo | libfoo}
-            trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
-            trace: collect_build_prerequisites: begin libfoo/1.0.0
-            trace: collect_build_prerequisites: end libfoo/1.0.0
-            trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
-            trace: collect_build_prerequisites: resume boo/1.0.0
-            %.*
-            trace: collect_build_prerequisites: skip cfg-negotiated dependency libfoo/1.0.0 of dependent boo/1.0.0
+            trace: postponed_configurations::add: add {boo 1,2: libfoo} to {foo | libfoo->{foo/1,1}}!
+            trace: collect_build_prerequisites: dependent boo/1.0.0 is a shadow dependent for {boo foo | libfoo->{boo/1,2 foo/1,1}}!
+            trace: collect_build_prerequisites: configuration for cfg-postponed dependencies of dependent boo/1.0.0 is negotiated
+            trace: collect_build_prerequisites: dependency libfoo/1.0.0 of dependent boo/1.0.0 is already (being) recursively collected, skipping
             trace: collect_build_prerequisites: end boo/1.0.0
-            trace: collect_build_prerequisites: resume foo/1.0.0
-            %.*
-            trace: collect_build_prerequisites: skip cfg-negotiated dependency libfoo/1.0.0 of dependent foo/1.0.0
-            trace: collect_build_prerequisites: end foo/1.0.0
-            trace: collect_build_postponed (1): cfg-negotiate end {boo, foo | libfoo}
-            trace: collect_build_postponed (1): end
+            trace: collect_build_postponed (1): end {foo | libfoo->{foo/1,1}}
             trace: collect_build_postponed (0): end
             trace: execute_plan: simulate: yes
             %.*
             EOE
-#\
 
           $pkg_status -r >>EOO;
             !foo configured 1.0.0
@@ -7668,40 +7561,39 @@ test.options += --no-progress
         {
           $clone_cfg;
 
-          $* foo biz 2>!;
-#\
           $* foo biz 2>>~%EOE%;
             %.*
-            trace: pkg_build: refine execution plan from scratch
-            trace: pkg_build: BEGIN EXCLUSIVE
+            trace: pkg_build: refine package collection/plan execution from scratch
+            %.*
             trace: collect_build: add foo/1.0.0
             trace: collect_build: add biz/1.0.0
             trace: collect_build_prerequisites: begin foo/1.0.0
             %.*
             trace: collect_build: add libfoo/1.0.0
             trace: collect_build_prerequisites: cfg-postpone dependency libfoo/1.0.0 of dependent foo/1.0.0
-            trace: postponed_configurations::add: create {foo | libfoo}
+            trace: postponed_configurations::add: create {foo | libfoo->{foo/1,1}}
             trace: collect_build_prerequisites: postpone foo/1.0.0
             trace: collect_build_prerequisites: begin biz/1.0.0
             %.*
             trace: collect_build: add boo/1.0.0
             trace: collect_build_prerequisites: cfg-postpone dependency boo/1.0.0 of dependent biz/1.0.0
-            trace: postponed_configurations::add: create {biz | boo}
+            trace: postponed_configurations::add: create {biz | boo->{biz/1,1}}
             trace: collect_build_prerequisites: postpone biz/1.0.0
             trace: collect_build_postponed (0): begin
-            trace: collect_build_postponed (1): begin
-            trace: collect_build_postponed (1): cfg-negotiate begin {foo | libfoo}
+            trace: collect_build_postponed (1): begin {foo | libfoo->{foo/1,1}}
+            %.*
+            trace: collect_build_postponed (1): cfg-negotiate begin {foo | libfoo->{foo/1,1}}
             trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
             trace: collect_build_prerequisites: begin libfoo/1.0.0
             trace: collect_build_prerequisites: end libfoo/1.0.0
             trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
+            trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent foo/1.0.0
             trace: collect_build_prerequisites: resume foo/1.0.0
-            %.*
-            trace: collect_build_prerequisites: skip cfg-negotiated dependency libfoo/1.0.0 of dependent foo/1.0.0
             trace: collect_build_prerequisites: end foo/1.0.0
-            trace: collect_build_postponed (1): cfg-negotiate end {foo | libfoo}
-            trace: collect_build_postponed (2): begin
-            trace: collect_build_postponed (2): cfg-negotiate begin {biz | boo}
+            trace: collect_build_postponed (1): cfg-negotiate end {foo | libfoo->{foo/1,1}}!
+            trace: collect_build_postponed (2): begin {biz | boo->{biz/1,1}}
+            %.*
+            trace: collect_build_postponed (2): cfg-negotiate begin {biz | boo->{biz/1,1}}
             trace: collect_build_postponed (2): recursively collect cfg-negotiated dependencies
             trace: collect_build_prerequisites: begin boo/1.0.0
             %.*
@@ -7709,11 +7601,10 @@ test.options += --no-progress
               info: dependency alternative: libbar
             trace: collect_build_prerequisites: postpone boo/1.0.0
             trace: collect_build_postponed (2): recursively collect cfg-negotiated dependents
+            trace: collect_build_postponed (2): select cfg-negotiated dependency alternative for dependent biz/1.0.0
             trace: collect_build_prerequisites: resume biz/1.0.0
-            %.*
-            trace: collect_build_prerequisites: skip cfg-negotiated dependency boo/1.0.0 of dependent biz/1.0.0
             trace: collect_build_prerequisites: end biz/1.0.0
-            trace: collect_build_postponed (2): cfg-negotiate end {biz | boo}
+            trace: collect_build_postponed (2): cfg-negotiate end {biz | boo->{biz/1,1}}!
             trace: collect_build_postponed (2): index 1 collect alt-postponed boo/1.0.0
             trace: collect_build_prerequisites: resume boo/1.0.0
             %.*
@@ -7727,92 +7618,64 @@ test.options += --no-progress
             }
             trace: collect_build_prerequisites: postpone boo/1.0.0
             trace: collect_build_postponed (2): index 2 collect alt-postponed boo/1.0.0
-            trace: collect_build_prerequisites: resume boo/1.0.0
-            %.*
-            trace: collect_build_prerequisites: cannot cfg-postpone dependency libfoo/1.0.0 of dependent boo/1.0.0 (collected prematurely)
-            trace: collect_build_postponed (0): cfg-negotiation of {foo | libfoo} failed due to dependency libfoo, try next
-            trace: collect_build_postponed (1): begin
-            trace: collect_build_postponed (1): cfg-negotiate begin {biz | boo}
-            trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
-            trace: collect_build_prerequisites: begin boo/1.0.0
-            %.*
-            trace: collect_build_prerequisites: alt-postpone dependent boo/1.0.0 since max index is reached: 0
-              info: dependency alternative: libbar
-            trace: collect_build_prerequisites: postpone boo/1.0.0
-            trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
-            trace: collect_build_prerequisites: resume biz/1.0.0
-            %.*
-            trace: collect_build_prerequisites: skip cfg-negotiated dependency boo/1.0.0 of dependent biz/1.0.0
-            trace: collect_build_prerequisites: end biz/1.0.0
-            trace: collect_build_postponed (1): cfg-negotiate end {biz | boo}
-            trace: collect_build_postponed (2): begin
-            trace: collect_build_postponed (2): cfg-negotiate begin {foo | libfoo}
-            trace: collect_build_postponed (2): recursively collect cfg-negotiated dependencies
-            trace: collect_build_prerequisites: begin libfoo/1.0.0
-            trace: collect_build_prerequisites: end libfoo/1.0.0
-            trace: collect_build_postponed (2): recursively collect cfg-negotiated dependents
-            trace: collect_build_prerequisites: resume foo/1.0.0
-            %.*
-            trace: collect_build_prerequisites: skip cfg-negotiated dependency libfoo/1.0.0 of dependent foo/1.0.0
-            trace: collect_build_prerequisites: end foo/1.0.0
-            trace: collect_build_postponed (2): cfg-negotiate end {foo | libfoo}
-            trace: collect_build_postponed (2): index 1 collect alt-postponed boo/1.0.0
-            trace: collect_build_prerequisites: resume boo/1.0.0
-            %.*
-            trace: collect_build_prerequisites: alt-postpone dependent boo/1.0.0 since max index is reached: 1
-              info: dependency alternative: libfoo
-            {
-              require
-              {
-                config.libfoo.extras = true
-              }
-            }
-            trace: collect_build_prerequisites: postpone boo/1.0.0
-            trace: collect_build_postponed (2): index 2 collect alt-postponed boo/1.0.0
-            trace: collect_build_prerequisites: resume boo/1.0.0
-            %.*
-            trace: collect_build_prerequisites: cannot cfg-postpone dependency libfoo/1.0.0 of dependent boo/1.0.0 (collected prematurely)
-            trace: collect_build_postponed (1): cfg-negotiation of {foo | libfoo} failed due to dependency libfoo, try next
-            trace: collect_build_postponed (1): index 1 collect alt-postponed boo/1.0.0
-            trace: collect_build_prerequisites: resume boo/1.0.0
-            %.*
-            trace: collect_build_prerequisites: alt-postpone dependent boo/1.0.0 since max index is reached: 1
-              info: dependency alternative: libfoo
-            {
-              require
-              {
-                config.libfoo.extras = true
-              }
-            }
-            trace: collect_build_prerequisites: postpone boo/1.0.0
-            trace: collect_build_postponed (1): index 2 collect alt-postponed boo/1.0.0
             trace: collect_build_prerequisites: resume boo/1.0.0
             %.*
             trace: collect_build_prerequisites: cfg-postpone dependency libfoo/1.0.0 of dependent boo/1.0.0
-            trace: postponed_configurations::add: add {boo | libfoo} to {foo | libfoo}
-            trace: collect_build_prerequisites: postpone boo/1.0.0
-            trace: collect_build_postponed (2): begin
-            trace: collect_build_postponed (2): cfg-negotiate begin {boo, foo | libfoo}
-            trace: collect_build_postponed (2): recursively collect cfg-negotiated dependencies
+            trace: postponed_configurations::add: add {boo 1,2: libfoo} to {foo | libfoo->{foo/1,1}}!
+            trace: collect_build_prerequisites: cfg-postponing dependent boo/1.0.0 involves negotiated configurations and results in {boo foo | libfoo->{boo/1,2 foo/1,1}}!, throwing retry_configuration
+            trace: collect_build_postponed (0): cfg-negotiation of {foo | libfoo->{foo/1,1}} failed due to dependent boo, adding shadow dependent and re-negotiating
+            trace: collect_build_postponed (1): begin {foo | libfoo->{foo/1,1}}
+            %.*
+            trace: collect_build_postponed (1): cfg-negotiate begin {foo | libfoo->{foo/1,1}}
+            trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
             trace: collect_build_prerequisites: begin libfoo/1.0.0
             trace: collect_build_prerequisites: end libfoo/1.0.0
+            trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
+            trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent foo/1.0.0
+            trace: collect_build_prerequisites: resume foo/1.0.0
+            trace: collect_build_prerequisites: end foo/1.0.0
+            trace: collect_build_postponed (1): cfg-negotiate end {foo | libfoo->{foo/1,1}}!
+            trace: collect_build_postponed (2): begin {biz | boo->{biz/1,1}}
+            %.*
+            trace: collect_build_postponed (2): cfg-negotiate begin {biz | boo->{biz/1,1}}
+            trace: collect_build_postponed (2): recursively collect cfg-negotiated dependencies
+            trace: collect_build_prerequisites: begin boo/1.0.0
+            %.*
+            trace: collect_build_prerequisites: alt-postpone dependent boo/1.0.0 since max index is reached: 0
+              info: dependency alternative: libbar
+            trace: collect_build_prerequisites: postpone boo/1.0.0
             trace: collect_build_postponed (2): recursively collect cfg-negotiated dependents
+            trace: collect_build_postponed (2): select cfg-negotiated dependency alternative for dependent biz/1.0.0
+            trace: collect_build_prerequisites: resume biz/1.0.0
+            trace: collect_build_prerequisites: end biz/1.0.0
+            trace: collect_build_postponed (2): cfg-negotiate end {biz | boo->{biz/1,1}}!
+            trace: collect_build_postponed (2): index 1 collect alt-postponed boo/1.0.0
             trace: collect_build_prerequisites: resume boo/1.0.0
             %.*
-            trace: collect_build_prerequisites: skip cfg-negotiated dependency libfoo/1.0.0 of dependent boo/1.0.0
-            trace: collect_build_prerequisites: end boo/1.0.0
-            trace: collect_build_prerequisites: resume foo/1.0.0
+            trace: collect_build_prerequisites: alt-postpone dependent boo/1.0.0 since max index is reached: 1
+              info: dependency alternative: libfoo
+            {
+              require
+              {
+                config.libfoo.extras = true
+              }
+            }
+            trace: collect_build_prerequisites: postpone boo/1.0.0
+            trace: collect_build_postponed (2): index 2 collect alt-postponed boo/1.0.0
+            trace: collect_build_prerequisites: resume boo/1.0.0
             %.*
-            trace: collect_build_prerequisites: skip cfg-negotiated dependency libfoo/1.0.0 of dependent foo/1.0.0
-            trace: collect_build_prerequisites: end foo/1.0.0
-            trace: collect_build_postponed (2): cfg-negotiate end {boo, foo | libfoo}
-            trace: collect_build_postponed (2): end
-            trace: collect_build_postponed (1): end
+            trace: collect_build_prerequisites: cfg-postpone dependency libfoo/1.0.0 of dependent boo/1.0.0
+            trace: postponed_configurations::add: add {boo 1,2: libfoo} to {foo | libfoo->{foo/1,1}}!
+            trace: collect_build_prerequisites: dependent boo/1.0.0 is a shadow dependent for {boo foo | libfoo->{boo/1,2 foo/1,1}}!
+            trace: collect_build_prerequisites: configuration for cfg-postponed dependencies of dependent boo/1.0.0 is negotiated
+            trace: collect_build_prerequisites: dependency libfoo/1.0.0 of dependent boo/1.0.0 is already (being) recursively collected, skipping
+            trace: collect_build_prerequisites: end boo/1.0.0
+            trace: collect_build_postponed (2): end {biz | boo->{biz/1,1}}
+            trace: collect_build_postponed (1): end {foo | libfoo->{foo/1,1}}
             trace: collect_build_postponed (0): end
             trace: execute_plan: simulate: yes
             %.*
             EOE
-#\
 
           $pkg_status -r >>EOO;
             !foo configured 1.0.0
@@ -8763,8 +8626,6 @@ test.options += --no-progress
           #  tiz: depends: tex(c)
           #       depends: libbar(c)
           #
-          $* tex tiz 2>!;
-#\
           $* tex tiz 2>>~%EOE%;
             %.*
             trace: pkg_build: refine package collection/plan execution from scratch
@@ -8775,13 +8636,11 @@ test.options += --no-progress
             %.*
             trace: collect_build: add libbar/1.0.0
             trace: collect_build_prerequisites: cfg-postpone dependency libbar/1.0.0 of dependent tex/1.0.0
-            trace: postponed_configurations::add: create {tex | libbar->{tex/1}}
+            trace: postponed_configurations::add: create {tex | libbar->{tex/1,1}}
             trace: collect_build_prerequisites: postpone tex/1.0.0
             trace: collect_build_prerequisites: begin tiz/1.0.0
             %.*
-            trace: collect_build_prerequisites: cannot cfg-postpone dependency tex/1.0.0 of dependent tiz/1.0.0 (collected prematurely), checking for configuration cycle
-            trace: postponed_configurations::add: create {tiz | tex->{tiz/1}}
-            trace: collect_build_prerequisites: no configuration cycle, throwing
+            trace: collect_build_prerequisites: cannot cfg-postpone dependency tex/1.0.0 of dependent tiz/1.0.0 (collected prematurely), throwing postpone_dependency
             trace: pkg_build: collection failed due to prematurely collected dependency (tex), retry from scratch
             %.*
             trace: pkg_build: refine package collection/plan execution from scratch
@@ -8792,68 +8651,63 @@ test.options += --no-progress
             trace: collect_build_prerequisites: begin tiz/1.0.0
             %.*
             trace: collect_build_prerequisites: cfg-postpone dependency tex/1.0.0 of dependent tiz/1.0.0
-            trace: postponed_configurations::add: create {tiz | tex->{tiz/1}}
+            trace: postponed_configurations::add: create {tiz | tex->{tiz/1,1}}
             trace: collect_build_prerequisites: postpone tiz/1.0.0
             trace: collect_build_postponed (0): begin
-            trace: collect_build_postponed (1): begin
+            trace: collect_build_postponed (1): begin {tiz | tex->{tiz/1,1}}
             %.*
-            trace: collect_build_postponed (1): cfg-negotiate begin {tiz | tex->{tiz/1}}
+            trace: collect_build_postponed (1): cfg-negotiate begin {tiz | tex->{tiz/1,1}}
             trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
             trace: collect_build_prerequisites: begin tex/1.0.0
             %.*
             trace: collect_build: add libbar/1.0.0
             trace: collect_build_prerequisites: cfg-postpone dependency libbar/1.0.0 of dependent tex/1.0.0
-            trace: postponed_configurations::add: create {tex | libbar->{tex/1}}
+            trace: postponed_configurations::add: create {tex | libbar->{tex/1,1}}
             trace: collect_build_prerequisites: postpone tex/1.0.0
             trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
+            trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent tiz/1.0.0
             trace: collect_build_prerequisites: resume tiz/1.0.0
             %.*
-            trace: collect_build_prerequisites: skip cfg-negotiated dependency tex/1.0.0 of dependent tiz/1.0.0
-            %.*
             trace: collect_build_prerequisites: cfg-postpone dependency libbar/1.0.0 of dependent tiz/1.0.0
-            trace: postponed_configurations::add: add {tiz | libbar->{tiz/2}} to {tex | libbar->{tex/1}}
+            trace: postponed_configurations::add: add {tiz 2,1: libbar} to {tex | libbar->{tex/1,1}}
             trace: collect_build_prerequisites: postpone tiz/1.0.0
-            trace: collect_build_postponed (1): cfg-negotiate end {tiz | tex->{tiz/1}}
-            trace: collect_build_postponed (2): begin
+            trace: collect_build_postponed (1): cfg-negotiate end {tiz | tex->{tiz/1,1}}!
+            trace: collect_build_postponed (2): begin {tex tiz | libbar->{tex/1,1 tiz/2,1}}
             %.*
-            trace: collect_build_postponed (2): cfg-negotiate begin {tex tiz | libbar->{tex/1 tiz/2}}
+            trace: collect_build_postponed (2): cfg-negotiate begin {tex tiz | libbar->{tex/1,1 tiz/2,1}}
             trace: collect_build_postponed (2): recursively collect cfg-negotiated dependencies
             trace: collect_build_prerequisites: begin libbar/1.0.0
             trace: collect_build_prerequisites: end libbar/1.0.0
             trace: collect_build_postponed (2): recursively collect cfg-negotiated dependents
+            trace: collect_build_postponed (2): select cfg-negotiated dependency alternative for dependent tex/1.0.0
             trace: collect_build_prerequisites: resume tex/1.0.0
-            %.*
-            trace: collect_build_prerequisites: skip cfg-negotiated dependency libbar/1.0.0 of dependent tex/1.0.0
             %.*
             trace: collect_build: add libfoo/1.0.0
             trace: collect_build_prerequisites: cfg-postpone dependency libfoo/1.0.0 of dependent tex/1.0.0
-            trace: postponed_configurations::add: create {tex | libfoo->{tex/2}}
+            trace: postponed_configurations::add: create {tex | libfoo->{tex/2,1}}
             trace: collect_build_prerequisites: postpone tex/1.0.0
+            trace: collect_build_postponed (2): select cfg-negotiated dependency alternative for dependent tiz/1.0.0
             trace: collect_build_prerequisites: resume tiz/1.0.0
-            %.*
-            trace: collect_build_prerequisites: skip cfg-negotiated dependency libbar/1.0.0 of dependent tiz/1.0.0
             trace: collect_build_prerequisites: end tiz/1.0.0
-            trace: collect_build_postponed (2): cfg-negotiate end {tex tiz | libbar->{tex/1 tiz/2}}
-            trace: collect_build_postponed (3): begin
+            trace: collect_build_postponed (2): cfg-negotiate end {tex tiz | libbar->{tex/1,1 tiz/2,1}}!
+            trace: collect_build_postponed (3): begin {tex | libfoo->{tex/2,1}}
             %.*
-            trace: collect_build_postponed (3): cfg-negotiate begin {tex | libfoo->{tex/2}}
+            trace: collect_build_postponed (3): cfg-negotiate begin {tex | libfoo->{tex/2,1}}
             trace: collect_build_postponed (3): recursively collect cfg-negotiated dependencies
             trace: collect_build_prerequisites: begin libfoo/1.0.0
             trace: collect_build_prerequisites: end libfoo/1.0.0
             trace: collect_build_postponed (3): recursively collect cfg-negotiated dependents
+            trace: collect_build_postponed (3): select cfg-negotiated dependency alternative for dependent tex/1.0.0
             trace: collect_build_prerequisites: resume tex/1.0.0
-            %.*
-            trace: collect_build_prerequisites: skip cfg-negotiated dependency libfoo/1.0.0 of dependent tex/1.0.0
             trace: collect_build_prerequisites: end tex/1.0.0
-            trace: collect_build_postponed (3): cfg-negotiate end {tex | libfoo->{tex/2}}
-            trace: collect_build_postponed (3): end
-            trace: collect_build_postponed (2): end
-            trace: collect_build_postponed (1): end
+            trace: collect_build_postponed (3): cfg-negotiate end {tex | libfoo->{tex/2,1}}!
+            trace: collect_build_postponed (3): end {tex | libfoo->{tex/2,1}}
+            trace: collect_build_postponed (2): end {tex tiz | libbar->{tex/1,1 tiz/2,1}}
+            trace: collect_build_postponed (1): end {tiz | tex->{tiz/1,1}}
             trace: collect_build_postponed (0): end
             trace: execute_plan: simulate: yes
             %.*
             EOE
-#\
 
           $pkg_status -r >>EOO;
             !tex configured 1.0.0
@@ -8885,8 +8739,6 @@ test.options += --no-progress
           #  tiz: depends: tex(c)
           #       depends: libbar(c)
           #
-          $* tiz 2>!;
-#\
           $* tiz 2>>~%EOE%;
             %.*
             trace: pkg_build: refine package collection/plan execution from scratch
@@ -8896,68 +8748,63 @@ test.options += --no-progress
             %.*
             trace: collect_build: add tex/1.0.0
             trace: collect_build_prerequisites: cfg-postpone dependency tex/1.0.0 of dependent tiz/1.0.0
-            trace: postponed_configurations::add: create {tiz | tex->{tiz/1}}
+            trace: postponed_configurations::add: create {tiz | tex->{tiz/1,1}}
             trace: collect_build_prerequisites: postpone tiz/1.0.0
             trace: collect_build_postponed (0): begin
-            trace: collect_build_postponed (1): begin
+            trace: collect_build_postponed (1): begin {tiz | tex->{tiz/1,1}}
             %.*
-            trace: collect_build_postponed (1): cfg-negotiate begin {tiz | tex->{tiz/1}}
+            trace: collect_build_postponed (1): cfg-negotiate begin {tiz | tex->{tiz/1,1}}
             trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
             trace: collect_build_prerequisites: begin tex/1.0.0
             %.*
             trace: collect_build: add libbar/1.0.0
             trace: collect_build_prerequisites: cfg-postpone dependency libbar/1.0.0 of dependent tex/1.0.0
-            trace: postponed_configurations::add: create {tex | libbar->{tex/1}}
+            trace: postponed_configurations::add: create {tex | libbar->{tex/1,1}}
             trace: collect_build_prerequisites: postpone tex/1.0.0
             trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
+            trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent tiz/1.0.0
             trace: collect_build_prerequisites: resume tiz/1.0.0
             %.*
-            trace: collect_build_prerequisites: skip cfg-negotiated dependency tex/1.0.0 of dependent tiz/1.0.0
-            %.*
             trace: collect_build_prerequisites: cfg-postpone dependency libbar/1.0.0 of dependent tiz/1.0.0
-            trace: postponed_configurations::add: add {tiz | libbar->{tiz/2}} to {tex | libbar->{tex/1}}
+            trace: postponed_configurations::add: add {tiz 2,1: libbar} to {tex | libbar->{tex/1,1}}
             trace: collect_build_prerequisites: postpone tiz/1.0.0
-            trace: collect_build_postponed (1): cfg-negotiate end {tiz | tex->{tiz/1}}
-            trace: collect_build_postponed (2): begin
+            trace: collect_build_postponed (1): cfg-negotiate end {tiz | tex->{tiz/1,1}}!
+            trace: collect_build_postponed (2): begin {tex tiz | libbar->{tex/1,1 tiz/2,1}}
             %.*
-            trace: collect_build_postponed (2): cfg-negotiate begin {tex tiz | libbar->{tex/1 tiz/2}}
+            trace: collect_build_postponed (2): cfg-negotiate begin {tex tiz | libbar->{tex/1,1 tiz/2,1}}
             trace: collect_build_postponed (2): recursively collect cfg-negotiated dependencies
             trace: collect_build_prerequisites: begin libbar/1.0.0
             trace: collect_build_prerequisites: end libbar/1.0.0
             trace: collect_build_postponed (2): recursively collect cfg-negotiated dependents
+            trace: collect_build_postponed (2): select cfg-negotiated dependency alternative for dependent tex/1.0.0
             trace: collect_build_prerequisites: resume tex/1.0.0
-            %.*
-            trace: collect_build_prerequisites: skip cfg-negotiated dependency libbar/1.0.0 of dependent tex/1.0.0
             %.*
             trace: collect_build: add libfoo/1.0.0
             trace: collect_build_prerequisites: cfg-postpone dependency libfoo/1.0.0 of dependent tex/1.0.0
-            trace: postponed_configurations::add: create {tex | libfoo->{tex/2}}
+            trace: postponed_configurations::add: create {tex | libfoo->{tex/2,1}}
             trace: collect_build_prerequisites: postpone tex/1.0.0
+            trace: collect_build_postponed (2): select cfg-negotiated dependency alternative for dependent tiz/1.0.0
             trace: collect_build_prerequisites: resume tiz/1.0.0
-            %.*
-            trace: collect_build_prerequisites: skip cfg-negotiated dependency libbar/1.0.0 of dependent tiz/1.0.0
             trace: collect_build_prerequisites: end tiz/1.0.0
-            trace: collect_build_postponed (2): cfg-negotiate end {tex tiz | libbar->{tex/1 tiz/2}}
-            trace: collect_build_postponed (3): begin
+            trace: collect_build_postponed (2): cfg-negotiate end {tex tiz | libbar->{tex/1,1 tiz/2,1}}!
+            trace: collect_build_postponed (3): begin {tex | libfoo->{tex/2,1}}
             %.*
-            trace: collect_build_postponed (3): cfg-negotiate begin {tex | libfoo->{tex/2}}
+            trace: collect_build_postponed (3): cfg-negotiate begin {tex | libfoo->{tex/2,1}}
             trace: collect_build_postponed (3): recursively collect cfg-negotiated dependencies
             trace: collect_build_prerequisites: begin libfoo/1.0.0
             trace: collect_build_prerequisites: end libfoo/1.0.0
             trace: collect_build_postponed (3): recursively collect cfg-negotiated dependents
+            trace: collect_build_postponed (3): select cfg-negotiated dependency alternative for dependent tex/1.0.0
             trace: collect_build_prerequisites: resume tex/1.0.0
-            %.*
-            trace: collect_build_prerequisites: skip cfg-negotiated dependency libfoo/1.0.0 of dependent tex/1.0.0
             trace: collect_build_prerequisites: end tex/1.0.0
-            trace: collect_build_postponed (3): cfg-negotiate end {tex | libfoo->{tex/2}}
-            trace: collect_build_postponed (3): end
-            trace: collect_build_postponed (2): end
-            trace: collect_build_postponed (1): end
+            trace: collect_build_postponed (3): cfg-negotiate end {tex | libfoo->{tex/2,1}}!
+            trace: collect_build_postponed (3): end {tex | libfoo->{tex/2,1}}
+            trace: collect_build_postponed (2): end {tex tiz | libbar->{tex/1,1 tiz/2,1}}
+            trace: collect_build_postponed (1): end {tiz | tex->{tiz/1,1}}
             trace: collect_build_postponed (0): end
             trace: execute_plan: simulate: yes
             %.*
             EOE
-#\
 
           $pkg_status -r >>EOO;
             !tiz configured 1.0.0
@@ -10515,8 +10362,6 @@ test.options += --no-progress
           #       depends: libbox(c)
           #       depends: libbar(c)
           #
-          $* tax dex diz 2>!;
-#\
           $* tax dex diz 2>>~%EOE%;
             %.*
             trace: pkg_build: refine package collection/plan execution from scratch
@@ -10528,108 +10373,84 @@ test.options += --no-progress
             %.*
             trace: collect_build: add libbar/1.0.0
             trace: collect_build_prerequisites: cfg-postpone dependency libbar/1.0.0 of dependent tax/1.0.0
-            trace: postponed_configurations::add: create {tax | libbar->{tax/1}}
+            trace: postponed_configurations::add: create {tax | libbar->{tax/1,1}}
             trace: collect_build_prerequisites: postpone tax/1.0.0
             trace: collect_build_prerequisites: begin dex/1.0.0
             %.*
             trace: collect_build: add bar/1.0.0
             trace: collect_build_prerequisites: cfg-postpone dependency bar/1.0.0 of dependent dex/1.0.0
-            trace: postponed_configurations::add: create {dex | bar->{dex/1}}
+            trace: postponed_configurations::add: create {dex | bar->{dex/1,1}}
             trace: collect_build_prerequisites: postpone dex/1.0.0
             trace: collect_build_prerequisites: begin diz/1.0.0
             %.*
             trace: collect_build: add dox/1.0.0
             trace: collect_build_prerequisites: cfg-postpone dependency dox/1.0.0 of dependent diz/1.0.0
-            trace: postponed_configurations::add: create {diz | dox->{diz/1}}
+            trace: postponed_configurations::add: create {diz | dox->{diz/1,1}}
             trace: collect_build_prerequisites: postpone diz/1.0.0
             trace: collect_build_postponed (0): begin
-            trace: collect_build_postponed (1): begin
+            trace: collect_build_postponed (1): begin {tax | libbar->{tax/1,1}}
             %.*
-            trace: collect_build_postponed (1): cfg-negotiate begin {tax | libbar->{tax/1}}
+            trace: collect_build_postponed (1): cfg-negotiate begin {tax | libbar->{tax/1,1}}
             trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
             trace: collect_build_prerequisites: begin libbar/1.0.0
             trace: collect_build_prerequisites: end libbar/1.0.0
             trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
+            trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent tax/1.0.0
             trace: collect_build_prerequisites: resume tax/1.0.0
             %.*
-            trace: collect_build_prerequisites: skip cfg-negotiated dependency libbar/1.0.0 of dependent tax/1.0.0
-            %.*
             trace: collect_build: add libfoo/1.0.0
-            trace: collect_build_prerequisites: recursively collect dependency libfoo/1.0.0 of dependent tax/1.0.0
+            trace: collect_build_prerequisites: no cfg-clause for dependency libfoo/1.0.0 of dependent tax/1.0.0
             trace: collect_build_prerequisites: begin libfoo/1.0.0
             trace: collect_build_prerequisites: end libfoo/1.0.0
             trace: collect_build_prerequisites: end tax/1.0.0
-            trace: collect_build_postponed (1): cfg-negotiate end {tax | libbar->{tax/1}}
-            trace: collect_build_postponed (2): begin
+            trace: collect_build_postponed (1): cfg-negotiate end {tax | libbar->{tax/1,1}}!
+            trace: collect_build_postponed (2): begin {dex | bar->{dex/1,1}}
             %.*
-            trace: collect_build_postponed (2): cfg-negotiate begin {dex | bar->{dex/1}}
+            trace: collect_build_postponed (2): cfg-negotiate begin {dex | bar->{dex/1,1}}
             trace: collect_build_postponed (2): recursively collect cfg-negotiated dependencies
-            trace: collect_build_prerequisites: begin bar/1.0.0
-            %.*
-            trace: collect_build_prerequisites: cannot cfg-postpone dependency libbar/1.0.0 of dependent bar/1.0.0 (collected prematurely), checking for configuration cycle
-            trace: collect_build_prerequisites: negotiated: {tax | libbar->{tax/1}}
-            trace: collect_build_prerequisites: being negotiated: {dex | bar->{dex/1}}
-            trace: postponed_configurations::add: add {bar | libbar->{bar/1}} to {tax | libbar->{tax/1}}
-            trace: collect_build_prerequisites: verifying {bar tax | libbar->{bar/1 tax/1}}
-            trace: collect_build_prerequisites: verifying {dex | bar->{dex/1}}
-            trace: collect_build_prerequisites: no configuration cycle, throwing
-            trace: collect_build_postponed (0): cfg-negotiation of {tax | libbar->{tax/1}} failed due to dependency libbar, try next
-            trace: collect_build_postponed (1): begin
-            %.*
-            trace: collect_build_postponed (1): cfg-negotiate begin {dex | bar->{dex/1}}
-            trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
             trace: collect_build_prerequisites: begin bar/1.0.0
             %.*
             trace: collect_build_prerequisites: cfg-postpone dependency libbar/1.0.0 of dependent bar/1.0.0
-            trace: postponed_configurations::add: add {bar | libbar->{bar/1}} to {tax | libbar->{tax/1}}
-            trace: collect_build_prerequisites: postpone bar/1.0.0
-            trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
-            trace: collect_build_prerequisites: resume dex/1.0.0
+            trace: postponed_configurations::add: add {bar 1,1: libbar} to {tax | libbar->{tax/1,1}}!
+            trace: collect_build_prerequisites: cfg-postponing dependent bar/1.0.0 involves negotiated configurations and results in {bar tax | libbar->{bar/1,1 tax/1,1}}!, throwing retry_configuration
+            trace: collect_build_postponed (0): cfg-negotiation of {tax | libbar->{tax/1,1}} failed due to dependent bar, adding shadow dependent and re-negotiating
+            trace: collect_build_postponed (1): begin {tax | libbar->{tax/1,1}}
             %.*
-            trace: collect_build_prerequisites: skip cfg-negotiated dependency bar/1.0.0 of dependent dex/1.0.0
-            %.*
-            trace: collect_build: add libfoo/1.0.0
-            trace: collect_build_prerequisites: cfg-postpone dependency libfoo/1.0.0 of dependent dex/1.0.0
-            trace: postponed_configurations::add: create {dex | libfoo->{dex/2}}
-            trace: collect_build_prerequisites: postpone dex/1.0.0
-            trace: collect_build_postponed (1): cfg-negotiate end {dex | bar->{dex/1}}
-            trace: collect_build_postponed (2): begin
-            %.*
-            trace: collect_build_postponed (2): cfg-negotiate begin {bar tax | libbar->{bar/1 tax/1}}
-            trace: collect_build_postponed (2): recursively collect cfg-negotiated dependencies
+            trace: collect_build_postponed (1): cfg-negotiate begin {tax | libbar->{tax/1,1}}
+            trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
             trace: collect_build_prerequisites: begin libbar/1.0.0
             trace: collect_build_prerequisites: end libbar/1.0.0
-            trace: collect_build_postponed (2): recursively collect cfg-negotiated dependents
-            trace: collect_build_prerequisites: resume bar/1.0.0
-            %.*
-            trace: collect_build_prerequisites: skip cfg-negotiated dependency libbar/1.0.0 of dependent bar/1.0.0
-            trace: collect_build_prerequisites: end bar/1.0.0
+            trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
+            trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent tax/1.0.0
             trace: collect_build_prerequisites: resume tax/1.0.0
             %.*
-            trace: collect_build_prerequisites: skip cfg-negotiated dependency libbar/1.0.0 of dependent tax/1.0.0
-            %.*
-            trace: collect_build_prerequisites: dep-postpone dependency libfoo/1.0.0 of dependent tax/1.0.0
+            trace: collect_build: add libfoo/1.0.0
+            trace: collect_build_prerequisites: no cfg-clause for dependency libfoo/1.0.0 of dependent tax/1.0.0
+            trace: collect_build_prerequisites: begin libfoo/1.0.0
+            trace: collect_build_prerequisites: end libfoo/1.0.0
             trace: collect_build_prerequisites: end tax/1.0.0
-            trace: collect_build_postponed (2): cfg-negotiate end {bar tax | libbar->{bar/1 tax/1}}
-            trace: collect_build_postponed (3): begin
+            trace: collect_build_postponed (1): cfg-negotiate end {tax | libbar->{tax/1,1}}!
+            trace: collect_build_postponed (2): begin {dex | bar->{dex/1,1}}
             %.*
-            trace: collect_build_postponed (3): cfg-negotiate begin {diz | dox->{diz/1}}
-            trace: collect_build_postponed (3): recursively collect cfg-negotiated dependencies
-            trace: collect_build_prerequisites: begin dox/1.0.0
+            trace: collect_build_postponed (2): cfg-negotiate begin {dex | bar->{dex/1,1}}
+            trace: collect_build_postponed (2): recursively collect cfg-negotiated dependencies
+            trace: collect_build_prerequisites: begin bar/1.0.0
             %.*
-            trace: collect_build_prerequisites: cannot cfg-postpone dependency dex/1.0.0 of dependent dox/1.0.0 (collected prematurely), checking for configuration cycle
-            trace: collect_build_prerequisites: negotiated: {bar tax | libbar->{bar/1 tax/1}}
-            trace: collect_build_prerequisites: negotiated: {dex | bar->{dex/1}}
-            trace: collect_build_prerequisites: being negotiated: {diz | dox->{diz/1}}
-            trace: postponed_configurations::add: create {dox | dex->{dox/1}}
-            trace: collect_build_prerequisites: verifying {bar tax | libbar->{bar/1 tax/1}}
-            trace: collect_build_prerequisites: verifying {dex | bar->{dex/1}}
-            trace: collect_build_prerequisites: verifying {diz | dox->{diz/1}}
-            trace: collect_build_prerequisites: no configuration cycle, throwing
-            trace: pkg_build: collection failed due to prematurely collected dependency (dex), retry from scratch
-            trace: pkg_build: COMMIT
+            trace: collect_build_prerequisites: cfg-postpone dependency libbar/1.0.0 of dependent bar/1.0.0
+            trace: postponed_configurations::add: add {bar 1,1: libbar} to {tax | libbar->{tax/1,1}}!
+            trace: collect_build_prerequisites: dependent bar/1.0.0 is a shadow dependent for {bar tax | libbar->{bar/1,1 tax/1,1}}!
+            trace: collect_build_prerequisites: configuration for cfg-postponed dependencies of dependent bar/1.0.0 is negotiated
+            trace: collect_build_prerequisites: dependency libbar/1.0.0 of dependent bar/1.0.0 is already (being) recursively collected, skipping
+            trace: collect_build_prerequisites: end bar/1.0.0
+            trace: collect_build_postponed (2): recursively collect cfg-negotiated dependents
+            trace: collect_build_postponed (2): select cfg-negotiated dependency alternative for dependent dex/1.0.0
+            trace: collect_build_prerequisites: resume dex/1.0.0
+            %.*
+            trace: collect_build_prerequisites: cannot cfg-postpone dependency libfoo/1.0.0 of dependent dex/1.0.0 (collected prematurely), throwing postpone_dependency
+            trace: pkg_build: collection failed due to prematurely collected dependency (libfoo), retry from scratch
+            %.*
             trace: pkg_build: refine package collection/plan execution from scratch
-            trace: pkg_build: BEGIN EXCLUSIVE
+            %.*
             trace: collect_build: add tax/1.0.0
             trace: collect_build: add dex/1.0.0
             trace: collect_build: add diz/1.0.0
@@ -10637,334 +10458,347 @@ test.options += --no-progress
             %.*
             trace: collect_build: add libbar/1.0.0
             trace: collect_build_prerequisites: cfg-postpone dependency libbar/1.0.0 of dependent tax/1.0.0
-            trace: postponed_configurations::add: create {tax | libbar->{tax/1}}
+            trace: postponed_configurations::add: create {tax | libbar->{tax/1,1}}
+            trace: collect_build_prerequisites: postpone tax/1.0.0
+            trace: collect_build_prerequisites: begin dex/1.0.0
+            %.*
+            trace: collect_build: add bar/1.0.0
+            trace: collect_build_prerequisites: cfg-postpone dependency bar/1.0.0 of dependent dex/1.0.0
+            trace: postponed_configurations::add: create {dex | bar->{dex/1,1}}
+            trace: collect_build_prerequisites: postpone dex/1.0.0
+            trace: collect_build_prerequisites: begin diz/1.0.0
+            %.*
+            trace: collect_build: add dox/1.0.0
+            trace: collect_build_prerequisites: cfg-postpone dependency dox/1.0.0 of dependent diz/1.0.0
+            trace: postponed_configurations::add: create {diz | dox->{diz/1,1}}
+            trace: collect_build_prerequisites: postpone diz/1.0.0
+            trace: collect_build_postponed (0): begin
+            trace: collect_build_postponed (1): begin {tax | libbar->{tax/1,1}}
+            %.*
+            trace: collect_build_postponed (1): cfg-negotiate begin {tax | libbar->{tax/1,1}}
+            trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
+            trace: collect_build_prerequisites: begin libbar/1.0.0
+            trace: collect_build_prerequisites: end libbar/1.0.0
+            trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
+            trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent tax/1.0.0
+            trace: collect_build_prerequisites: resume tax/1.0.0
+            %.*
+            trace: collect_build: add libfoo/1.0.0
+            trace: collect_build_prerequisites: dep-postpone dependency libfoo/1.0.0 of dependent tax/1.0.0
+            trace: collect_build_prerequisites: end tax/1.0.0
+            trace: collect_build_postponed (1): cfg-negotiate end {tax | libbar->{tax/1,1}}!
+            trace: collect_build_postponed (2): begin {dex | bar->{dex/1,1}}
+            %.*
+            trace: collect_build_postponed (2): cfg-negotiate begin {dex | bar->{dex/1,1}}
+            trace: collect_build_postponed (2): recursively collect cfg-negotiated dependencies
+            trace: collect_build_prerequisites: begin bar/1.0.0
+            %.*
+            trace: collect_build_prerequisites: cfg-postpone dependency libbar/1.0.0 of dependent bar/1.0.0
+            trace: postponed_configurations::add: add {bar 1,1: libbar} to {tax | libbar->{tax/1,1}}!
+            trace: collect_build_prerequisites: cfg-postponing dependent bar/1.0.0 involves negotiated configurations and results in {bar tax | libbar->{bar/1,1 tax/1,1}}!, throwing retry_configuration
+            trace: collect_build_postponed (0): cfg-negotiation of {tax | libbar->{tax/1,1}} failed due to dependent bar, adding shadow dependent and re-negotiating
+            trace: collect_build_postponed (1): begin {tax | libbar->{tax/1,1}}
+            %.*
+            trace: collect_build_postponed (1): cfg-negotiate begin {tax | libbar->{tax/1,1}}
+            trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
+            trace: collect_build_prerequisites: begin libbar/1.0.0
+            trace: collect_build_prerequisites: end libbar/1.0.0
+            trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
+            trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent tax/1.0.0
+            trace: collect_build_prerequisites: resume tax/1.0.0
+            %.*
+            trace: collect_build: add libfoo/1.0.0
+            trace: collect_build_prerequisites: dep-postpone dependency libfoo/1.0.0 of dependent tax/1.0.0
+            trace: collect_build_prerequisites: end tax/1.0.0
+            trace: collect_build_postponed (1): cfg-negotiate end {tax | libbar->{tax/1,1}}!
+            trace: collect_build_postponed (2): begin {dex | bar->{dex/1,1}}
+            %.*
+            trace: collect_build_postponed (2): cfg-negotiate begin {dex | bar->{dex/1,1}}
+            trace: collect_build_postponed (2): recursively collect cfg-negotiated dependencies
+            trace: collect_build_prerequisites: begin bar/1.0.0
+            %.*
+            trace: collect_build_prerequisites: cfg-postpone dependency libbar/1.0.0 of dependent bar/1.0.0
+            trace: postponed_configurations::add: add {bar 1,1: libbar} to {tax | libbar->{tax/1,1}}!
+            trace: collect_build_prerequisites: dependent bar/1.0.0 is a shadow dependent for {bar tax | libbar->{bar/1,1 tax/1,1}}!
+            trace: collect_build_prerequisites: configuration for cfg-postponed dependencies of dependent bar/1.0.0 is negotiated
+            trace: collect_build_prerequisites: dependency libbar/1.0.0 of dependent bar/1.0.0 is already (being) recursively collected, skipping
+            trace: collect_build_prerequisites: end bar/1.0.0
+            trace: collect_build_postponed (2): recursively collect cfg-negotiated dependents
+            trace: collect_build_postponed (2): select cfg-negotiated dependency alternative for dependent dex/1.0.0
+            trace: collect_build_prerequisites: resume dex/1.0.0
+            %.*
+            trace: collect_build_prerequisites: cfg-postpone dependency libfoo/1.0.0 of dependent dex/1.0.0
+            trace: postponed_configurations::add: create {dex | libfoo->{dex/2,1}}
+            trace: collect_build_prerequisites: postpone dex/1.0.0
+            trace: collect_build_postponed (2): cfg-negotiate end {dex | bar->{dex/1,1}}!
+            trace: collect_build_postponed (3): begin {diz | dox->{diz/1,1}}
+            %.*
+            trace: collect_build_postponed (3): cfg-negotiate begin {diz | dox->{diz/1,1}}
+            trace: collect_build_postponed (3): recursively collect cfg-negotiated dependencies
+            trace: collect_build_prerequisites: begin dox/1.0.0
+            %.*
+            trace: collect_build_prerequisites: cannot cfg-postpone dependency dex/1.0.0 of dependent dox/1.0.0 (collected prematurely), throwing postpone_dependency
+            trace: pkg_build: collection failed due to prematurely collected dependency (dex), retry from scratch
+            %.*
+            trace: pkg_build: refine package collection/plan execution from scratch
+            %.*
+            trace: collect_build: add tax/1.0.0
+            trace: collect_build: add dex/1.0.0
+            trace: collect_build: add diz/1.0.0
+            trace: collect_build_prerequisites: begin tax/1.0.0
+            %.*
+            trace: collect_build: add libbar/1.0.0
+            trace: collect_build_prerequisites: cfg-postpone dependency libbar/1.0.0 of dependent tax/1.0.0
+            trace: postponed_configurations::add: create {tax | libbar->{tax/1,1}}
             trace: collect_build_prerequisites: postpone tax/1.0.0
             trace: pkg_build: dep-postpone user-specified dex
             trace: collect_build_prerequisites: begin diz/1.0.0
             %.*
             trace: collect_build: add dox/1.0.0
             trace: collect_build_prerequisites: cfg-postpone dependency dox/1.0.0 of dependent diz/1.0.0
-            trace: postponed_configurations::add: create {diz | dox->{diz/1}}
+            trace: postponed_configurations::add: create {diz | dox->{diz/1,1}}
             trace: collect_build_prerequisites: postpone diz/1.0.0
             trace: collect_build_postponed (0): begin
-            trace: collect_build_postponed (1): begin
+            trace: collect_build_postponed (1): begin {tax | libbar->{tax/1,1}}
             %.*
-            trace: collect_build_postponed (1): cfg-negotiate begin {tax | libbar->{tax/1}}
+            trace: collect_build_postponed (1): cfg-negotiate begin {tax | libbar->{tax/1,1}}
             trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
             trace: collect_build_prerequisites: begin libbar/1.0.0
             trace: collect_build_prerequisites: end libbar/1.0.0
             trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
+            trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent tax/1.0.0
             trace: collect_build_prerequisites: resume tax/1.0.0
-            %.*
-            trace: collect_build_prerequisites: skip cfg-negotiated dependency libbar/1.0.0 of dependent tax/1.0.0
             %.*
             trace: collect_build: add libfoo/1.0.0
             trace: collect_build_prerequisites: dep-postpone dependency libfoo/1.0.0 of dependent tax/1.0.0
             trace: collect_build_prerequisites: end tax/1.0.0
-            trace: collect_build_postponed (1): cfg-negotiate end {tax | libbar->{tax/1}}
-            trace: collect_build_postponed (2): begin
+            trace: collect_build_postponed (1): cfg-negotiate end {tax | libbar->{tax/1,1}}!
+            trace: collect_build_postponed (2): begin {diz | dox->{diz/1,1}}
             %.*
-            trace: collect_build_postponed (2): cfg-negotiate begin {diz | dox->{diz/1}}
+            trace: collect_build_postponed (2): cfg-negotiate begin {diz | dox->{diz/1,1}}
             trace: collect_build_postponed (2): recursively collect cfg-negotiated dependencies
             trace: collect_build_prerequisites: begin dox/1.0.0
             %.*
             trace: collect_build_prerequisites: cfg-postpone dependency dex/1.0.0 of dependent dox/1.0.0
-            trace: postponed_configurations::add: create {dox | dex->{dox/1}}
+            trace: postponed_configurations::add: create {dox | dex->{dox/1,1}}
             trace: collect_build_prerequisites: postpone dox/1.0.0
             trace: collect_build_postponed (2): recursively collect cfg-negotiated dependents
+            trace: collect_build_postponed (2): select cfg-negotiated dependency alternative for dependent diz/1.0.0
             trace: collect_build_prerequisites: resume diz/1.0.0
-            %.*
-            trace: collect_build_prerequisites: skip cfg-negotiated dependency dox/1.0.0 of dependent diz/1.0.0
             %.*
             trace: collect_build: add libbox/1.0.0
             trace: collect_build_prerequisites: cfg-postpone dependency libbox/1.0.0 of dependent diz/1.0.0
-            trace: postponed_configurations::add: create {diz | libbox->{diz/2}}
+            trace: postponed_configurations::add: create {diz | libbox->{diz/2,1}}
             trace: collect_build_prerequisites: postpone diz/1.0.0
-            trace: collect_build_postponed (2): cfg-negotiate end {diz | dox->{diz/1}}
-            trace: collect_build_postponed (3): begin
+            trace: collect_build_postponed (2): cfg-negotiate end {diz | dox->{diz/1,1}}!
+            trace: collect_build_postponed (3): begin {dox | dex->{dox/1,1}}
             %.*
-            trace: collect_build_postponed (3): cfg-negotiate begin {dox | dex->{dox/1}}
+            trace: collect_build_postponed (3): cfg-negotiate begin {dox | dex->{dox/1,1}}
             trace: collect_build_postponed (3): recursively collect cfg-negotiated dependencies
             trace: collect_build_prerequisites: begin dex/1.0.0
             %.*
             trace: collect_build: add bar/1.0.0
             trace: collect_build_prerequisites: cfg-postpone dependency bar/1.0.0 of dependent dex/1.0.0
-            trace: postponed_configurations::add: create {dex | bar->{dex/1}}
+            trace: postponed_configurations::add: create {dex | bar->{dex/1,1}}
             trace: collect_build_prerequisites: postpone dex/1.0.0
             trace: collect_build_postponed (3): recursively collect cfg-negotiated dependents
+            trace: collect_build_postponed (3): select cfg-negotiated dependency alternative for dependent dox/1.0.0
             trace: collect_build_prerequisites: resume dox/1.0.0
-            %.*
-            trace: collect_build_prerequisites: skip cfg-negotiated dependency dex/1.0.0 of dependent dox/1.0.0
             trace: collect_build_prerequisites: end dox/1.0.0
-            trace: collect_build_postponed (3): cfg-negotiate end {dox | dex->{dox/1}}
-            trace: collect_build_postponed (4): begin
+            trace: collect_build_postponed (3): cfg-negotiate end {dox | dex->{dox/1,1}}!
+            trace: collect_build_postponed (4): begin {diz | libbox->{diz/2,1}}
             %.*
-            trace: collect_build_postponed (4): cfg-negotiate begin {diz | libbox->{diz/2}}
+            trace: collect_build_postponed (4): cfg-negotiate begin {diz | libbox->{diz/2,1}}
             trace: collect_build_postponed (4): recursively collect cfg-negotiated dependencies
             trace: collect_build_prerequisites: begin libbox/1.0.0
             trace: collect_build_prerequisites: end libbox/1.0.0
             trace: collect_build_postponed (4): recursively collect cfg-negotiated dependents
+            trace: collect_build_postponed (4): select cfg-negotiated dependency alternative for dependent diz/1.0.0
             trace: collect_build_prerequisites: resume diz/1.0.0
-            %.*
-            trace: collect_build_prerequisites: skip cfg-negotiated dependency libbox/1.0.0 of dependent diz/1.0.0
-            %.*
-            trace: collect_build_prerequisites: cannot cfg-postpone dependency libbar/1.0.0 of dependent diz/1.0.0 (collected prematurely), checking for configuration cycle
-            trace: collect_build_prerequisites: negotiated: {tax | libbar->{tax/1}}
-            trace: collect_build_prerequisites: negotiated: {diz | dox->{diz/1}}
-            trace: collect_build_prerequisites: negotiated: {dox | dex->{dox/1}}
-            trace: collect_build_prerequisites: being negotiated: {diz | libbox->{diz/2}}
-            trace: postponed_configurations::add: add {diz | libbar->{diz/3}} to {tax | libbar->{tax/1}}
-            trace: collect_build_prerequisites: verifying {diz tax | libbar->{diz/3 tax/1}}
-            trace: collect_build_prerequisites: verifying {diz | dox->{diz/1}}
-            trace: collect_build_prerequisites: verifying {dox | dex->{dox/1}}
-            trace: collect_build_prerequisites: verifying {diz | libbox->{diz/2}}
-            trace: collect_build_prerequisites: no configuration cycle, throwing
-            trace: collect_build_postponed (0): cfg-negotiation of {tax | libbar->{tax/1}} failed due to dependency libbar, try next
-            trace: collect_build_postponed (1): begin
-            %.*
-            trace: collect_build_postponed (1): cfg-negotiate begin {diz | dox->{diz/1}}
-            trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
-            trace: collect_build_prerequisites: begin dox/1.0.0
-            %.*
-            trace: collect_build_prerequisites: cfg-postpone dependency dex/1.0.0 of dependent dox/1.0.0
-            trace: postponed_configurations::add: create {dox | dex->{dox/1}}
-            trace: collect_build_prerequisites: postpone dox/1.0.0
-            trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
-            trace: collect_build_prerequisites: resume diz/1.0.0
-            %.*
-            trace: collect_build_prerequisites: skip cfg-negotiated dependency dox/1.0.0 of dependent diz/1.0.0
-            %.*
-            trace: collect_build: add libbox/1.0.0
-            trace: collect_build_prerequisites: cfg-postpone dependency libbox/1.0.0 of dependent diz/1.0.0
-            trace: postponed_configurations::add: create {diz | libbox->{diz/2}}
-            trace: collect_build_prerequisites: postpone diz/1.0.0
-            trace: collect_build_postponed (1): cfg-negotiate end {diz | dox->{diz/1}}
-            trace: collect_build_postponed (2): begin
-            %.*
-            trace: collect_build_postponed (2): cfg-negotiate begin {tax | libbar->{tax/1}}
-            trace: collect_build_postponed (2): recursively collect cfg-negotiated dependencies
-            trace: collect_build_prerequisites: begin libbar/1.0.0
-            trace: collect_build_prerequisites: end libbar/1.0.0
-            trace: collect_build_postponed (2): recursively collect cfg-negotiated dependents
-            trace: collect_build_prerequisites: resume tax/1.0.0
-            %.*
-            trace: collect_build_prerequisites: skip cfg-negotiated dependency libbar/1.0.0 of dependent tax/1.0.0
-            %.*
-            trace: collect_build: add libfoo/1.0.0
-            trace: collect_build_prerequisites: dep-postpone dependency libfoo/1.0.0 of dependent tax/1.0.0
-            trace: collect_build_prerequisites: end tax/1.0.0
-            trace: collect_build_postponed (2): cfg-negotiate end {tax | libbar->{tax/1}}
-            trace: collect_build_postponed (3): begin
-            %.*
-            trace: collect_build_postponed (3): cfg-negotiate begin {dox | dex->{dox/1}}
-            trace: collect_build_postponed (3): recursively collect cfg-negotiated dependencies
-            trace: collect_build_prerequisites: begin dex/1.0.0
-            %.*
-            trace: collect_build: add bar/1.0.0
-            trace: collect_build_prerequisites: cfg-postpone dependency bar/1.0.0 of dependent dex/1.0.0
-            trace: postponed_configurations::add: create {dex | bar->{dex/1}}
-            trace: collect_build_prerequisites: postpone dex/1.0.0
-            trace: collect_build_postponed (3): recursively collect cfg-negotiated dependents
-            trace: collect_build_prerequisites: resume dox/1.0.0
-            %.*
-            trace: collect_build_prerequisites: skip cfg-negotiated dependency dex/1.0.0 of dependent dox/1.0.0
-            trace: collect_build_prerequisites: end dox/1.0.0
-            trace: collect_build_postponed (3): cfg-negotiate end {dox | dex->{dox/1}}
-            trace: collect_build_postponed (4): begin
-            %.*
-            trace: collect_build_postponed (4): cfg-negotiate begin {diz | libbox->{diz/2}}
-            trace: collect_build_postponed (4): recursively collect cfg-negotiated dependencies
-            trace: collect_build_prerequisites: begin libbox/1.0.0
-            trace: collect_build_prerequisites: end libbox/1.0.0
-            trace: collect_build_postponed (4): recursively collect cfg-negotiated dependents
-            trace: collect_build_prerequisites: resume diz/1.0.0
-            %.*
-            trace: collect_build_prerequisites: skip cfg-negotiated dependency libbox/1.0.0 of dependent diz/1.0.0
-            %.*
-            trace: collect_build_prerequisites: cannot cfg-postpone dependency libbar/1.0.0 of dependent diz/1.0.0 (collected prematurely), checking for configuration cycle
-            trace: collect_build_prerequisites: negotiated: {tax | libbar->{tax/1}}
-            trace: collect_build_prerequisites: negotiated: {diz | dox->{diz/1}}
-            trace: collect_build_prerequisites: negotiated: {dox | dex->{dox/1}}
-            trace: collect_build_prerequisites: being negotiated: {diz | libbox->{diz/2}}
-            trace: postponed_configurations::add: add {diz | libbar->{diz/3}} to {tax | libbar->{tax/1}}
-            trace: collect_build_prerequisites: verifying {diz tax | libbar->{diz/3 tax/1}}
-            trace: collect_build_prerequisites: verifying {diz | dox->{diz/1}}
-            trace: collect_build_prerequisites: verifying {dox | dex->{dox/1}}
-            trace: collect_build_prerequisites: verifying {diz | libbox->{diz/2}}
-            trace: collect_build_prerequisites: no configuration cycle, throwing
-            trace: collect_build_postponed (1): cfg-negotiation of {tax | libbar->{tax/1}} failed due to dependency libbar, try next
-            trace: collect_build_postponed (2): begin
-            %.*
-            trace: collect_build_postponed (2): cfg-negotiate begin {dox | dex->{dox/1}}
-            trace: collect_build_postponed (2): recursively collect cfg-negotiated dependencies
-            trace: collect_build_prerequisites: begin dex/1.0.0
-            %.*
-            trace: collect_build: add bar/1.0.0
-            trace: collect_build_prerequisites: cfg-postpone dependency bar/1.0.0 of dependent dex/1.0.0
-            trace: postponed_configurations::add: create {dex | bar->{dex/1}}
-            trace: collect_build_prerequisites: postpone dex/1.0.0
-            trace: collect_build_postponed (2): recursively collect cfg-negotiated dependents
-            trace: collect_build_prerequisites: resume dox/1.0.0
-            %.*
-            trace: collect_build_prerequisites: skip cfg-negotiated dependency dex/1.0.0 of dependent dox/1.0.0
-            trace: collect_build_prerequisites: end dox/1.0.0
-            trace: collect_build_postponed (2): cfg-negotiate end {dox | dex->{dox/1}}
-            trace: collect_build_postponed (3): begin
-            %.*
-            trace: collect_build_postponed (3): cfg-negotiate begin {tax | libbar->{tax/1}}
-            trace: collect_build_postponed (3): recursively collect cfg-negotiated dependencies
-            trace: collect_build_prerequisites: begin libbar/1.0.0
-            trace: collect_build_prerequisites: end libbar/1.0.0
-            trace: collect_build_postponed (3): recursively collect cfg-negotiated dependents
-            trace: collect_build_prerequisites: resume tax/1.0.0
-            %.*
-            trace: collect_build_prerequisites: skip cfg-negotiated dependency libbar/1.0.0 of dependent tax/1.0.0
-            %.*
-            trace: collect_build: add libfoo/1.0.0
-            trace: collect_build_prerequisites: dep-postpone dependency libfoo/1.0.0 of dependent tax/1.0.0
-            trace: collect_build_prerequisites: end tax/1.0.0
-            trace: collect_build_postponed (3): cfg-negotiate end {tax | libbar->{tax/1}}
-            trace: collect_build_postponed (4): begin
-            %.*
-            trace: collect_build_postponed (4): cfg-negotiate begin {diz | libbox->{diz/2}}
-            trace: collect_build_postponed (4): recursively collect cfg-negotiated dependencies
-            trace: collect_build_prerequisites: begin libbox/1.0.0
-            trace: collect_build_prerequisites: end libbox/1.0.0
-            trace: collect_build_postponed (4): recursively collect cfg-negotiated dependents
-            trace: collect_build_prerequisites: resume diz/1.0.0
-            %.*
-            trace: collect_build_prerequisites: skip cfg-negotiated dependency libbox/1.0.0 of dependent diz/1.0.0
-            %.*
-            trace: collect_build_prerequisites: cannot cfg-postpone dependency libbar/1.0.0 of dependent diz/1.0.0 (collected prematurely), checking for configuration cycle
-            trace: collect_build_prerequisites: negotiated: {tax | libbar->{tax/1}}
-            trace: collect_build_prerequisites: negotiated: {diz | dox->{diz/1}}
-            trace: collect_build_prerequisites: negotiated: {dox | dex->{dox/1}}
-            trace: collect_build_prerequisites: being negotiated: {diz | libbox->{diz/2}}
-            trace: postponed_configurations::add: add {diz | libbar->{diz/3}} to {tax | libbar->{tax/1}}
-            trace: collect_build_prerequisites: verifying {diz tax | libbar->{diz/3 tax/1}}
-            trace: collect_build_prerequisites: verifying {diz | dox->{diz/1}}
-            trace: collect_build_prerequisites: verifying {dox | dex->{dox/1}}
-            trace: collect_build_prerequisites: verifying {diz | libbox->{diz/2}}
-            trace: collect_build_prerequisites: no configuration cycle, throwing
-            trace: collect_build_postponed (2): cfg-negotiation of {tax | libbar->{tax/1}} failed due to dependency libbar, try next
-            trace: collect_build_postponed (3): begin
-            %.*
-            trace: collect_build_postponed (3): cfg-negotiate begin {diz | libbox->{diz/2}}
-            trace: collect_build_postponed (3): recursively collect cfg-negotiated dependencies
-            trace: collect_build_prerequisites: begin libbox/1.0.0
-            trace: collect_build_prerequisites: end libbox/1.0.0
-            trace: collect_build_postponed (3): recursively collect cfg-negotiated dependents
-            trace: collect_build_prerequisites: resume diz/1.0.0
-            %.*
-            trace: collect_build_prerequisites: skip cfg-negotiated dependency libbox/1.0.0 of dependent diz/1.0.0
             %.*
             trace: collect_build_prerequisites: cfg-postpone dependency libbar/1.0.0 of dependent diz/1.0.0
-            trace: postponed_configurations::add: add {diz | libbar->{diz/3}} to {tax | libbar->{tax/1}}
-            trace: collect_build_prerequisites: postpone diz/1.0.0
-            trace: collect_build_postponed (3): cfg-negotiate end {diz | libbox->{diz/2}}
-            trace: collect_build_postponed (4): begin
+            trace: postponed_configurations::add: add {diz 3,1: libbar} to {tax | libbar->{tax/1,1}}!
+            trace: collect_build_prerequisites: cfg-postponing dependent diz/1.0.0 involves negotiated configurations and results in {diz tax | libbar->{diz/3,1 tax/1,1}}!, throwing retry_configuration
+            trace: collect_build_postponed (0): cfg-negotiation of {tax | libbar->{tax/1,1}} failed due to dependent diz, adding shadow dependent and re-negotiating
+            trace: collect_build_postponed (1): begin {tax | libbar->{tax/1,1}}
             %.*
-            trace: collect_build_postponed (4): cfg-negotiate begin {diz tax | libbar->{diz/3 tax/1}}
-            trace: collect_build_postponed (4): recursively collect cfg-negotiated dependencies
+            trace: collect_build_postponed (1): cfg-negotiate begin {tax | libbar->{tax/1,1}}
+            trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
             trace: collect_build_prerequisites: begin libbar/1.0.0
             trace: collect_build_prerequisites: end libbar/1.0.0
-            trace: collect_build_postponed (4): recursively collect cfg-negotiated dependents
-            trace: collect_build_prerequisites: resume diz/1.0.0
-            %.*
-            trace: collect_build_prerequisites: skip cfg-negotiated dependency libbar/1.0.0 of dependent diz/1.0.0
-            trace: collect_build_prerequisites: end diz/1.0.0
+            trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
+            trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent tax/1.0.0
             trace: collect_build_prerequisites: resume tax/1.0.0
-            %.*
-            trace: collect_build_prerequisites: skip cfg-negotiated dependency libbar/1.0.0 of dependent tax/1.0.0
             %.*
             trace: collect_build: add libfoo/1.0.0
             trace: collect_build_prerequisites: dep-postpone dependency libfoo/1.0.0 of dependent tax/1.0.0
             trace: collect_build_prerequisites: end tax/1.0.0
-            trace: collect_build_postponed (4): cfg-negotiate end {diz tax | libbar->{diz/3 tax/1}}
-            trace: collect_build_postponed (5): begin
+            trace: collect_build_postponed (1): cfg-negotiate end {tax | libbar->{tax/1,1}}!
+            trace: collect_build_postponed (2): begin {diz | dox->{diz/1,1}}
             %.*
-            trace: collect_build_postponed (5): cfg-negotiate begin {dex | bar->{dex/1}}
-            trace: collect_build_postponed (5): recursively collect cfg-negotiated dependencies
-            trace: collect_build_prerequisites: begin bar/1.0.0
+            trace: collect_build_postponed (2): cfg-negotiate begin {diz | dox->{diz/1,1}}
+            trace: collect_build_postponed (2): recursively collect cfg-negotiated dependencies
+            trace: collect_build_prerequisites: begin dox/1.0.0
             %.*
-            trace: collect_build_prerequisites: cannot cfg-postpone dependency libbar/1.0.0 of dependent bar/1.0.0 (collected prematurely), checking for configuration cycle
-            trace: collect_build_prerequisites: negotiated: {diz tax | libbar->{diz/3 tax/1}}
-            trace: collect_build_prerequisites: negotiated: {diz | dox->{diz/1}}
-            trace: collect_build_prerequisites: negotiated: {dox | dex->{dox/1}}
-            trace: collect_build_prerequisites: negotiated: {diz | libbox->{diz/2}}
-            trace: collect_build_prerequisites: being negotiated: {dex | bar->{dex/1}}
-            trace: postponed_configurations::add: add {bar | libbar->{bar/1}} to {diz tax | libbar->{diz/3 tax/1}}
-            trace: collect_build_prerequisites: verifying {bar diz tax | libbar->{bar/1 diz/3 tax/1}}
-            trace: collect_build_prerequisites: verifying {diz | dox->{diz/1}}
-            trace: collect_build_prerequisites: verifying {dox | dex->{dox/1}}
-            trace: collect_build_prerequisites: verifying {diz | libbox->{diz/2}}
-            trace: collect_build_prerequisites: verifying {dex | bar->{dex/1}}
-            trace: collect_build_prerequisites: no configuration cycle, throwing
-            trace: collect_build_postponed (3): cfg-negotiation of {diz tax | libbar->{diz/3 tax/1}} failed due to dependency libbar, try next
-            trace: collect_build_postponed (4): begin
+            trace: collect_build_prerequisites: cfg-postpone dependency dex/1.0.0 of dependent dox/1.0.0
+            trace: postponed_configurations::add: create {dox | dex->{dox/1,1}}
+            trace: collect_build_prerequisites: postpone dox/1.0.0
+            trace: collect_build_postponed (2): recursively collect cfg-negotiated dependents
+            trace: collect_build_postponed (2): select cfg-negotiated dependency alternative for dependent diz/1.0.0
+            trace: collect_build_prerequisites: resume diz/1.0.0
             %.*
-            trace: collect_build_postponed (4): cfg-negotiate begin {dex | bar->{dex/1}}
+            trace: collect_build: add libbox/1.0.0
+            trace: collect_build_prerequisites: cfg-postpone dependency libbox/1.0.0 of dependent diz/1.0.0
+            trace: postponed_configurations::add: create {diz | libbox->{diz/2,1}}
+            trace: collect_build_prerequisites: postpone diz/1.0.0
+            trace: collect_build_postponed (2): cfg-negotiate end {diz | dox->{diz/1,1}}!
+            trace: collect_build_postponed (3): begin {dox | dex->{dox/1,1}}
+            %.*
+            trace: collect_build_postponed (3): cfg-negotiate begin {dox | dex->{dox/1,1}}
+            trace: collect_build_postponed (3): recursively collect cfg-negotiated dependencies
+            trace: collect_build_prerequisites: begin dex/1.0.0
+            %.*
+            trace: collect_build: add bar/1.0.0
+            trace: collect_build_prerequisites: cfg-postpone dependency bar/1.0.0 of dependent dex/1.0.0
+            trace: postponed_configurations::add: create {dex | bar->{dex/1,1}}
+            trace: collect_build_prerequisites: postpone dex/1.0.0
+            trace: collect_build_postponed (3): recursively collect cfg-negotiated dependents
+            trace: collect_build_postponed (3): select cfg-negotiated dependency alternative for dependent dox/1.0.0
+            trace: collect_build_prerequisites: resume dox/1.0.0
+            trace: collect_build_prerequisites: end dox/1.0.0
+            trace: collect_build_postponed (3): cfg-negotiate end {dox | dex->{dox/1,1}}!
+            trace: collect_build_postponed (4): begin {diz | libbox->{diz/2,1}}
+            %.*
+            trace: collect_build_postponed (4): cfg-negotiate begin {diz | libbox->{diz/2,1}}
             trace: collect_build_postponed (4): recursively collect cfg-negotiated dependencies
+            trace: collect_build_prerequisites: begin libbox/1.0.0
+            trace: collect_build_prerequisites: end libbox/1.0.0
+            trace: collect_build_postponed (4): recursively collect cfg-negotiated dependents
+            trace: collect_build_postponed (4): select cfg-negotiated dependency alternative for dependent diz/1.0.0
+            trace: collect_build_prerequisites: resume diz/1.0.0
+            %.*
+            trace: collect_build_prerequisites: cfg-postpone dependency libbar/1.0.0 of dependent diz/1.0.0
+            trace: postponed_configurations::add: add {diz 3,1: libbar} to {tax | libbar->{tax/1,1}}!
+            trace: collect_build_prerequisites: dependent diz/1.0.0 is a shadow dependent for {diz tax | libbar->{diz/3,1 tax/1,1}}!
+            trace: collect_build_prerequisites: configuration for cfg-postponed dependencies of dependent diz/1.0.0 is negotiated
+            trace: collect_build_prerequisites: dependency libbar/1.0.0 of dependent diz/1.0.0 is already (being) recursively collected, skipping
+            trace: collect_build_prerequisites: end diz/1.0.0
+            trace: collect_build_postponed (4): cfg-negotiate end {diz | libbox->{diz/2,1}}!
+            trace: collect_build_postponed (5): begin {dex | bar->{dex/1,1}}
+            %.*
+            trace: collect_build_postponed (5): cfg-negotiate begin {dex | bar->{dex/1,1}}
+            trace: collect_build_postponed (5): recursively collect cfg-negotiated dependencies
             trace: collect_build_prerequisites: begin bar/1.0.0
             %.*
             trace: collect_build_prerequisites: cfg-postpone dependency libbar/1.0.0 of dependent bar/1.0.0
-            trace: postponed_configurations::add: add {bar | libbar->{bar/1}} to {diz tax | libbar->{diz/3 tax/1}}
-            trace: collect_build_prerequisites: postpone bar/1.0.0
-            trace: collect_build_postponed (4): recursively collect cfg-negotiated dependents
-            trace: collect_build_prerequisites: resume dex/1.0.0
+            trace: postponed_configurations::add: add {bar 1,1: libbar} to {diz tax | libbar->{diz/3,1 tax/1,1}}!
+            trace: collect_build_prerequisites: cfg-postponing dependent bar/1.0.0 involves negotiated configurations and results in {bar diz tax | libbar->{bar/1,1 diz/3,1 tax/1,1}}!, throwing retry_configuration
+            trace: collect_build_postponed (0): cfg-negotiation of {tax | libbar->{tax/1,1}} failed due to dependent bar, adding shadow dependent and re-negotiating
+            trace: collect_build_postponed (1): begin {tax | libbar->{tax/1,1}}
             %.*
-            trace: collect_build_prerequisites: skip cfg-negotiated dependency bar/1.0.0 of dependent dex/1.0.0
-            %.*
-            trace: collect_build: add libfoo/1.0.0
-            trace: collect_build_prerequisites: cfg-postpone dependency libfoo/1.0.0 of dependent dex/1.0.0
-            trace: postponed_configurations::add: create {dex | libfoo->{dex/2}}
-            trace: collect_build_prerequisites: postpone dex/1.0.0
-            trace: collect_build_postponed (4): cfg-negotiate end {dex | bar->{dex/1}}
-            trace: collect_build_postponed (5): begin
-            %.*
-            trace: collect_build_postponed (5): cfg-negotiate begin {bar diz tax | libbar->{bar/1 diz/3 tax/1}}
-            trace: collect_build_postponed (5): recursively collect cfg-negotiated dependencies
+            trace: collect_build_postponed (1): cfg-negotiate begin {tax | libbar->{tax/1,1}}
+            trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
             trace: collect_build_prerequisites: begin libbar/1.0.0
             trace: collect_build_prerequisites: end libbar/1.0.0
-            trace: collect_build_postponed (5): recursively collect cfg-negotiated dependents
-            trace: collect_build_prerequisites: resume bar/1.0.0
-            %.*
-            trace: collect_build_prerequisites: skip cfg-negotiated dependency libbar/1.0.0 of dependent bar/1.0.0
-            trace: collect_build_prerequisites: end bar/1.0.0
-            trace: collect_build_prerequisites: resume diz/1.0.0
-            %.*
-            trace: collect_build_prerequisites: skip cfg-negotiated dependency libbar/1.0.0 of dependent diz/1.0.0
-            trace: collect_build_prerequisites: end diz/1.0.0
+            trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
+            trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent tax/1.0.0
             trace: collect_build_prerequisites: resume tax/1.0.0
             %.*
-            trace: collect_build_prerequisites: skip cfg-negotiated dependency libbar/1.0.0 of dependent tax/1.0.0
-            %.*
+            trace: collect_build: add libfoo/1.0.0
             trace: collect_build_prerequisites: dep-postpone dependency libfoo/1.0.0 of dependent tax/1.0.0
             trace: collect_build_prerequisites: end tax/1.0.0
-            trace: collect_build_postponed (5): cfg-negotiate end {bar diz tax | libbar->{bar/1 diz/3 tax/1}}
-            trace: collect_build_postponed (6): begin
+            trace: collect_build_postponed (1): cfg-negotiate end {tax | libbar->{tax/1,1}}!
+            trace: collect_build_postponed (2): begin {diz | dox->{diz/1,1}}
             %.*
-            trace: collect_build_postponed (6): cfg-negotiate begin {dex | libfoo->{dex/2}}
+            trace: collect_build_postponed (2): cfg-negotiate begin {diz | dox->{diz/1,1}}
+            trace: collect_build_postponed (2): recursively collect cfg-negotiated dependencies
+            trace: collect_build_prerequisites: begin dox/1.0.0
+            %.*
+            trace: collect_build_prerequisites: cfg-postpone dependency dex/1.0.0 of dependent dox/1.0.0
+            trace: postponed_configurations::add: create {dox | dex->{dox/1,1}}
+            trace: collect_build_prerequisites: postpone dox/1.0.0
+            trace: collect_build_postponed (2): recursively collect cfg-negotiated dependents
+            trace: collect_build_postponed (2): select cfg-negotiated dependency alternative for dependent diz/1.0.0
+            trace: collect_build_prerequisites: resume diz/1.0.0
+            %.*
+            trace: collect_build: add libbox/1.0.0
+            trace: collect_build_prerequisites: cfg-postpone dependency libbox/1.0.0 of dependent diz/1.0.0
+            trace: postponed_configurations::add: create {diz | libbox->{diz/2,1}}
+            trace: collect_build_prerequisites: postpone diz/1.0.0
+            trace: collect_build_postponed (2): cfg-negotiate end {diz | dox->{diz/1,1}}!
+            trace: collect_build_postponed (3): begin {dox | dex->{dox/1,1}}
+            %.*
+            trace: collect_build_postponed (3): cfg-negotiate begin {dox | dex->{dox/1,1}}
+            trace: collect_build_postponed (3): recursively collect cfg-negotiated dependencies
+            trace: collect_build_prerequisites: begin dex/1.0.0
+            %.*
+            trace: collect_build: add bar/1.0.0
+            trace: collect_build_prerequisites: cfg-postpone dependency bar/1.0.0 of dependent dex/1.0.0
+            trace: postponed_configurations::add: create {dex | bar->{dex/1,1}}
+            trace: collect_build_prerequisites: postpone dex/1.0.0
+            trace: collect_build_postponed (3): recursively collect cfg-negotiated dependents
+            trace: collect_build_postponed (3): select cfg-negotiated dependency alternative for dependent dox/1.0.0
+            trace: collect_build_prerequisites: resume dox/1.0.0
+            trace: collect_build_prerequisites: end dox/1.0.0
+            trace: collect_build_postponed (3): cfg-negotiate end {dox | dex->{dox/1,1}}!
+            trace: collect_build_postponed (4): begin {diz | libbox->{diz/2,1}}
+            %.*
+            trace: collect_build_postponed (4): cfg-negotiate begin {diz | libbox->{diz/2,1}}
+            trace: collect_build_postponed (4): recursively collect cfg-negotiated dependencies
+            trace: collect_build_prerequisites: begin libbox/1.0.0
+            trace: collect_build_prerequisites: end libbox/1.0.0
+            trace: collect_build_postponed (4): recursively collect cfg-negotiated dependents
+            trace: collect_build_postponed (4): select cfg-negotiated dependency alternative for dependent diz/1.0.0
+            trace: collect_build_prerequisites: resume diz/1.0.0
+            %.*
+            trace: collect_build_prerequisites: cfg-postpone dependency libbar/1.0.0 of dependent diz/1.0.0
+            trace: postponed_configurations::add: add {diz 3,1: libbar} to {tax | libbar->{tax/1,1}}!
+            trace: collect_build_prerequisites: dependent diz/1.0.0 is a shadow dependent for {diz tax | libbar->{diz/3,1 tax/1,1}}!
+            trace: collect_build_prerequisites: configuration for cfg-postponed dependencies of dependent diz/1.0.0 is negotiated
+            trace: collect_build_prerequisites: dependency libbar/1.0.0 of dependent diz/1.0.0 is already (being) recursively collected, skipping
+            trace: collect_build_prerequisites: end diz/1.0.0
+            trace: collect_build_postponed (4): cfg-negotiate end {diz | libbox->{diz/2,1}}!
+            trace: collect_build_postponed (5): begin {dex | bar->{dex/1,1}}
+            %.*
+            trace: collect_build_postponed (5): cfg-negotiate begin {dex | bar->{dex/1,1}}
+            trace: collect_build_postponed (5): recursively collect cfg-negotiated dependencies
+            trace: collect_build_prerequisites: begin bar/1.0.0
+            %.*
+            trace: collect_build_prerequisites: cfg-postpone dependency libbar/1.0.0 of dependent bar/1.0.0
+            trace: postponed_configurations::add: add {bar 1,1: libbar} to {diz tax | libbar->{diz/3,1 tax/1,1}}!
+            trace: collect_build_prerequisites: dependent bar/1.0.0 is a shadow dependent for {bar diz tax | libbar->{bar/1,1 diz/3,1 tax/1,1}}!
+            trace: collect_build_prerequisites: configuration for cfg-postponed dependencies of dependent bar/1.0.0 is negotiated
+            trace: collect_build_prerequisites: dependency libbar/1.0.0 of dependent bar/1.0.0 is already (being) recursively collected, skipping
+            trace: collect_build_prerequisites: end bar/1.0.0
+            trace: collect_build_postponed (5): recursively collect cfg-negotiated dependents
+            trace: collect_build_postponed (5): select cfg-negotiated dependency alternative for dependent dex/1.0.0
+            trace: collect_build_prerequisites: resume dex/1.0.0
+            %.*
+            trace: collect_build_prerequisites: cfg-postpone dependency libfoo/1.0.0 of dependent dex/1.0.0
+            trace: postponed_configurations::add: create {dex | libfoo->{dex/2,1}}
+            trace: collect_build_prerequisites: postpone dex/1.0.0
+            trace: collect_build_postponed (5): cfg-negotiate end {dex | bar->{dex/1,1}}!
+            trace: collect_build_postponed (6): begin {dex | libfoo->{dex/2,1}}
+            %.*
+            trace: collect_build_postponed (6): cfg-negotiate begin {dex | libfoo->{dex/2,1}}
             trace: collect_build_postponed (6): recursively collect cfg-negotiated dependencies
             trace: collect_build_prerequisites: begin libfoo/1.0.0
             trace: collect_build_prerequisites: end libfoo/1.0.0
             trace: collect_build_postponed (6): recursively collect cfg-negotiated dependents
+            trace: collect_build_postponed (6): select cfg-negotiated dependency alternative for dependent dex/1.0.0
             trace: collect_build_prerequisites: resume dex/1.0.0
-            %.*
-            trace: collect_build_prerequisites: skip cfg-negotiated dependency libfoo/1.0.0 of dependent dex/1.0.0
             trace: collect_build_prerequisites: end dex/1.0.0
-            trace: collect_build_postponed (6): cfg-negotiate end {dex | libfoo->{dex/2}}
-            trace: collect_build_postponed (6): end
-            trace: collect_build_postponed (5): end
-            trace: collect_build_postponed (4): end
-            trace: collect_build_postponed (3): end
-            trace: collect_build_postponed (2): end
-            trace: collect_build_postponed (1): end
+            trace: collect_build_postponed (6): cfg-negotiate end {dex | libfoo->{dex/2,1}}!
+            trace: collect_build_postponed (6): end {dex | libfoo->{dex/2,1}}
+            trace: collect_build_postponed (5): end {dex | bar->{dex/1,1}}
+            trace: collect_build_postponed (4): end {diz | libbox->{diz/2,1}}
+            trace: collect_build_postponed (3): end {dox | dex->{dox/1,1}}
+            trace: collect_build_postponed (2): end {diz | dox->{diz/1,1}}
+            trace: collect_build_postponed (1): end {tax | libbar->{tax/1,1}}
             trace: collect_build_postponed (0): end
             trace: execute_plan: simulate: yes
             %.*
             EOE
-#\
 
           $pkg_status -r >>EOO;
             !tax configured 1.0.0
@@ -11008,8 +10842,6 @@ test.options += --no-progress
           #       depends: libbox(c)
           #       depends: libbar(c)
           #
-          $* diz 2>!;
-#\
           $* diz 2>>~%EOE%;
             %.*
             trace: pkg_build: refine package collection/plan execution from scratch
@@ -11019,119 +10851,111 @@ test.options += --no-progress
             %.*
             trace: collect_build: add dox/1.0.0
             trace: collect_build_prerequisites: cfg-postpone dependency dox/1.0.0 of dependent diz/1.0.0
-            trace: postponed_configurations::add: create {diz | dox->{diz/1}}
+            trace: postponed_configurations::add: create {diz | dox->{diz/1,1}}
             trace: collect_build_prerequisites: postpone diz/1.0.0
             trace: collect_build_postponed (0): begin
-            trace: collect_build_postponed (1): begin
+            trace: collect_build_postponed (1): begin {diz | dox->{diz/1,1}}
             %.*
-            trace: collect_build_postponed (1): cfg-negotiate begin {diz | dox->{diz/1}}
+            trace: collect_build_postponed (1): cfg-negotiate begin {diz | dox->{diz/1,1}}
             trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
             trace: collect_build_prerequisites: begin dox/1.0.0
             %.*
             trace: collect_build: add dex/1.0.0
             trace: collect_build_prerequisites: cfg-postpone dependency dex/1.0.0 of dependent dox/1.0.0
-            trace: postponed_configurations::add: create {dox | dex->{dox/1}}
+            trace: postponed_configurations::add: create {dox | dex->{dox/1,1}}
             trace: collect_build_prerequisites: postpone dox/1.0.0
             trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
+            trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent diz/1.0.0
             trace: collect_build_prerequisites: resume diz/1.0.0
-            %.*
-            trace: collect_build_prerequisites: skip cfg-negotiated dependency dox/1.0.0 of dependent diz/1.0.0
             %.*
             trace: collect_build: add libbox/1.0.0
             trace: collect_build_prerequisites: cfg-postpone dependency libbox/1.0.0 of dependent diz/1.0.0
-            trace: postponed_configurations::add: create {diz | libbox->{diz/2}}
+            trace: postponed_configurations::add: create {diz | libbox->{diz/2,1}}
             trace: collect_build_prerequisites: postpone diz/1.0.0
-            trace: collect_build_postponed (1): cfg-negotiate end {diz | dox->{diz/1}}
-            trace: collect_build_postponed (2): begin
+            trace: collect_build_postponed (1): cfg-negotiate end {diz | dox->{diz/1,1}}!
+            trace: collect_build_postponed (2): begin {dox | dex->{dox/1,1}}
             %.*
-            trace: collect_build_postponed (2): cfg-negotiate begin {dox | dex->{dox/1}}
+            trace: collect_build_postponed (2): cfg-negotiate begin {dox | dex->{dox/1,1}}
             trace: collect_build_postponed (2): recursively collect cfg-negotiated dependencies
             trace: collect_build_prerequisites: begin dex/1.0.0
             %.*
             trace: collect_build: add bar/1.0.0
             trace: collect_build_prerequisites: cfg-postpone dependency bar/1.0.0 of dependent dex/1.0.0
-            trace: postponed_configurations::add: create {dex | bar->{dex/1}}
+            trace: postponed_configurations::add: create {dex | bar->{dex/1,1}}
             trace: collect_build_prerequisites: postpone dex/1.0.0
             trace: collect_build_postponed (2): recursively collect cfg-negotiated dependents
+            trace: collect_build_postponed (2): select cfg-negotiated dependency alternative for dependent dox/1.0.0
             trace: collect_build_prerequisites: resume dox/1.0.0
-            %.*
-            trace: collect_build_prerequisites: skip cfg-negotiated dependency dex/1.0.0 of dependent dox/1.0.0
             trace: collect_build_prerequisites: end dox/1.0.0
-            trace: collect_build_postponed (2): cfg-negotiate end {dox | dex->{dox/1}}
-            trace: collect_build_postponed (3): begin
+            trace: collect_build_postponed (2): cfg-negotiate end {dox | dex->{dox/1,1}}!
+            trace: collect_build_postponed (3): begin {diz | libbox->{diz/2,1}}
             %.*
-            trace: collect_build_postponed (3): cfg-negotiate begin {diz | libbox->{diz/2}}
+            trace: collect_build_postponed (3): cfg-negotiate begin {diz | libbox->{diz/2,1}}
             trace: collect_build_postponed (3): recursively collect cfg-negotiated dependencies
             trace: collect_build_prerequisites: begin libbox/1.0.0
             trace: collect_build_prerequisites: end libbox/1.0.0
             trace: collect_build_postponed (3): recursively collect cfg-negotiated dependents
+            trace: collect_build_postponed (3): select cfg-negotiated dependency alternative for dependent diz/1.0.0
             trace: collect_build_prerequisites: resume diz/1.0.0
-            %.*
-            trace: collect_build_prerequisites: skip cfg-negotiated dependency libbox/1.0.0 of dependent diz/1.0.0
             %.*
             trace: collect_build: add libbar/1.0.0
             trace: collect_build_prerequisites: cfg-postpone dependency libbar/1.0.0 of dependent diz/1.0.0
-            trace: postponed_configurations::add: create {diz | libbar->{diz/3}}
+            trace: postponed_configurations::add: create {diz | libbar->{diz/3,1}}
             trace: collect_build_prerequisites: postpone diz/1.0.0
-            trace: collect_build_postponed (3): cfg-negotiate end {diz | libbox->{diz/2}}
-            trace: collect_build_postponed (4): begin
+            trace: collect_build_postponed (3): cfg-negotiate end {diz | libbox->{diz/2,1}}!
+            trace: collect_build_postponed (4): begin {dex | bar->{dex/1,1}}
             %.*
-            trace: collect_build_postponed (4): cfg-negotiate begin {dex | bar->{dex/1}}
+            trace: collect_build_postponed (4): cfg-negotiate begin {dex | bar->{dex/1,1}}
             trace: collect_build_postponed (4): recursively collect cfg-negotiated dependencies
             trace: collect_build_prerequisites: begin bar/1.0.0
             %.*
             trace: collect_build_prerequisites: cfg-postpone dependency libbar/1.0.0 of dependent bar/1.0.0
-            trace: postponed_configurations::add: add {bar | libbar->{bar/1}} to {diz | libbar->{diz/3}}
+            trace: postponed_configurations::add: add {bar 1,1: libbar} to {diz | libbar->{diz/3,1}}
             trace: collect_build_prerequisites: postpone bar/1.0.0
             trace: collect_build_postponed (4): recursively collect cfg-negotiated dependents
+            trace: collect_build_postponed (4): select cfg-negotiated dependency alternative for dependent dex/1.0.0
             trace: collect_build_prerequisites: resume dex/1.0.0
-            %.*
-            trace: collect_build_prerequisites: skip cfg-negotiated dependency bar/1.0.0 of dependent dex/1.0.0
             %.*
             trace: collect_build: add libfoo/1.0.0
             trace: collect_build_prerequisites: cfg-postpone dependency libfoo/1.0.0 of dependent dex/1.0.0
-            trace: postponed_configurations::add: create {dex | libfoo->{dex/2}}
+            trace: postponed_configurations::add: create {dex | libfoo->{dex/2,1}}
             trace: collect_build_prerequisites: postpone dex/1.0.0
-            trace: collect_build_postponed (4): cfg-negotiate end {dex | bar->{dex/1}}
-            trace: collect_build_postponed (5): begin
+            trace: collect_build_postponed (4): cfg-negotiate end {dex | bar->{dex/1,1}}!
+            trace: collect_build_postponed (5): begin {bar diz | libbar->{bar/1,1 diz/3,1}}
             %.*
-            trace: collect_build_postponed (5): cfg-negotiate begin {bar diz | libbar->{bar/1 diz/3}}
+            trace: collect_build_postponed (5): cfg-negotiate begin {bar diz | libbar->{bar/1,1 diz/3,1}}
             trace: collect_build_postponed (5): recursively collect cfg-negotiated dependencies
             trace: collect_build_prerequisites: begin libbar/1.0.0
             trace: collect_build_prerequisites: end libbar/1.0.0
             trace: collect_build_postponed (5): recursively collect cfg-negotiated dependents
+            trace: collect_build_postponed (5): select cfg-negotiated dependency alternative for dependent bar/1.0.0
             trace: collect_build_prerequisites: resume bar/1.0.0
-            %.*
-            trace: collect_build_prerequisites: skip cfg-negotiated dependency libbar/1.0.0 of dependent bar/1.0.0
             trace: collect_build_prerequisites: end bar/1.0.0
+            trace: collect_build_postponed (5): select cfg-negotiated dependency alternative for dependent diz/1.0.0
             trace: collect_build_prerequisites: resume diz/1.0.0
-            %.*
-            trace: collect_build_prerequisites: skip cfg-negotiated dependency libbar/1.0.0 of dependent diz/1.0.0
             trace: collect_build_prerequisites: end diz/1.0.0
-            trace: collect_build_postponed (5): cfg-negotiate end {bar diz | libbar->{bar/1 diz/3}}
-            trace: collect_build_postponed (6): begin
+            trace: collect_build_postponed (5): cfg-negotiate end {bar diz | libbar->{bar/1,1 diz/3,1}}!
+            trace: collect_build_postponed (6): begin {dex | libfoo->{dex/2,1}}
             %.*
-            trace: collect_build_postponed (6): cfg-negotiate begin {dex | libfoo->{dex/2}}
+            trace: collect_build_postponed (6): cfg-negotiate begin {dex | libfoo->{dex/2,1}}
             trace: collect_build_postponed (6): recursively collect cfg-negotiated dependencies
             trace: collect_build_prerequisites: begin libfoo/1.0.0
             trace: collect_build_prerequisites: end libfoo/1.0.0
             trace: collect_build_postponed (6): recursively collect cfg-negotiated dependents
+            trace: collect_build_postponed (6): select cfg-negotiated dependency alternative for dependent dex/1.0.0
             trace: collect_build_prerequisites: resume dex/1.0.0
-            %.*
-            trace: collect_build_prerequisites: skip cfg-negotiated dependency libfoo/1.0.0 of dependent dex/1.0.0
             trace: collect_build_prerequisites: end dex/1.0.0
-            trace: collect_build_postponed (6): cfg-negotiate end {dex | libfoo->{dex/2}}
-            trace: collect_build_postponed (6): end
-            trace: collect_build_postponed (5): end
-            trace: collect_build_postponed (4): end
-            trace: collect_build_postponed (3): end
-            trace: collect_build_postponed (2): end
-            trace: collect_build_postponed (1): end
+            trace: collect_build_postponed (6): cfg-negotiate end {dex | libfoo->{dex/2,1}}!
+            trace: collect_build_postponed (6): end {dex | libfoo->{dex/2,1}}
+            trace: collect_build_postponed (5): end {bar diz | libbar->{bar/1,1 diz/3,1}}
+            trace: collect_build_postponed (4): end {dex | bar->{dex/1,1}}
+            trace: collect_build_postponed (3): end {diz | libbox->{diz/2,1}}
+            trace: collect_build_postponed (2): end {dox | dex->{dox/1,1}}
+            trace: collect_build_postponed (1): end {diz | dox->{diz/1,1}}
             trace: collect_build_postponed (0): end
             trace: execute_plan: simulate: yes
             %.*
             EOE
-#\
 
           $pkg_status -r >>EOO;
             !diz configured 1.0.0
@@ -12108,6 +11932,138 @@ test.options += --no-progress
           }
         }
       }
+    }
+
+    : all-repo-packages
+    :
+    : Don't match the tracing but just make sure that pkg-build doesn't crash
+    : or hang and ends up with an expected packages setup.
+    :
+    {
+      $clone_cfg;
+
+      $* libfoo libbar ?libbaz/0.1.0 ?libbox/0.1.0 \
+         foo fox fux fix fex bar baz bac bat bas bus \
+         box bax bux bix bex boo biz buz buc tax tex \
+         tix tiz toz tez tux dex dix diz dox 2>!;
+
+      $pkg_status -r >>EOO;
+        !libfoo configured 1.0.0
+        !libbar configured 1.0.0
+        !bat configured 1.0.0
+          libbaz configured !0.1.0 available 1.0.0
+        !tix configured 0.1.0 available 1.0.0
+        !toz configured 0.1.0 available 1.0.0 0.2.0
+        !tux configured 1.0.0
+          libbox configured !0.1.0 available 1.0.0
+          !tix configured 0.1.0 available 1.0.0
+        !bar configured 1.0.0
+          !libbar configured 1.0.0
+        !bux configured 1.0.0
+          !libbar configured 1.0.0
+        !bex configured 1.0.0
+          !libbar configured 1.0.0
+        !boo configured 1.0.0
+          !libbar configured 1.0.0
+        !biz configured 1.0.0
+          !boo configured 1.0.0
+            !libbar configured 1.0.0
+        !buz configured 1.0.0
+          !bux configured 1.0.0
+            !libbar configured 1.0.0
+        !tez configured 1.0.0
+          !libbar configured 1.0.0
+          libbox configured !0.1.0 available 1.0.0
+          !toz configured 0.1.0 available 1.0.0 0.2.0
+        !bix configured 1.0.0
+          !bar configured 1.0.0
+            !libbar configured 1.0.0
+          !bux configured 1.0.0
+            !libbar configured 1.0.0
+          !libbar configured 1.0.0
+        !foo configured 1.0.0
+          !libfoo configured 1.0.0
+        !fox configured 1.0.0
+          !libfoo configured 1.0.0
+        !fux configured 1.0.0
+          !libfoo configured 1.0.0
+        !baz configured 1.0.0
+          !libbar configured 1.0.0
+          !libfoo configured 1.0.0
+        !bac configured 1.0.0
+          !libbar configured 1.0.0
+          libbaz configured !0.1.0 available 1.0.0
+          !libfoo configured 1.0.0
+        !fix configured 1.0.0
+          !foo configured 1.0.0
+            !libfoo configured 1.0.0
+        !fex configured 1.0.0
+          !foo configured 1.0.0
+            !libfoo configured 1.0.0
+          !libfoo configured 1.0.0
+        !bus configured 1.0.0
+          !foo configured 1.0.0
+            !libfoo configured 1.0.0
+          libbaz configured !0.1.0 available 1.0.0
+        !bas configured 1.0.0
+          !bus configured 1.0.0
+            !foo configured 1.0.0
+              !libfoo configured 1.0.0
+            libbaz configured !0.1.0 available 1.0.0
+          !libbar configured 1.0.0
+        !box configured 1.0.0
+          !libbar configured 1.0.0
+          !libfoo configured 1.0.0
+        !bax configured 1.0.0
+          !libbar configured 1.0.0
+          libbox configured !0.1.0 available 1.0.0
+          !libfoo configured 1.0.0
+        !buc configured 1.0.0
+          !bux configured 1.0.0
+            !libbar configured 1.0.0
+          !libfoo configured 1.0.0
+        !tax configured 1.0.0
+          !libbar configured 1.0.0
+          !libfoo configured 1.0.0
+        !tex configured 1.0.0
+          !libbar configured 1.0.0
+          !libfoo configured 1.0.0
+        !tiz configured 1.0.0
+          !libbar configured 1.0.0
+          !tex configured 1.0.0
+            !libbar configured 1.0.0
+            !libfoo configured 1.0.0
+        !dex configured 1.0.0
+          !bar configured 1.0.0
+            !libbar configured 1.0.0
+          !libfoo configured 1.0.0
+        !dox configured 1.0.0
+          !dex configured 1.0.0
+            !bar configured 1.0.0
+              !libbar configured 1.0.0
+            !libfoo configured 1.0.0
+        !dix configured 1.0.0
+          !dox configured 1.0.0
+            !dex configured 1.0.0
+              !bar configured 1.0.0
+                !libbar configured 1.0.0
+              !libfoo configured 1.0.0
+          !libbar configured 1.0.0
+          libbox configured !0.1.0 available 1.0.0
+        !diz configured 1.0.0
+          !dox configured 1.0.0
+            !dex configured 1.0.0
+              !bar configured 1.0.0
+                !libbar configured 1.0.0
+              !libfoo configured 1.0.0
+          !libbar configured 1.0.0
+          libbox configured !0.1.0 available 1.0.0
+        EOO
+
+      $pkg_drop libfoo libbar foo fox fux fix fex bar \
+                baz bac bat bas bus box bax bux bix bex \
+                boo biz buz buc tax tex tix tiz toz tez \
+                tux dex dix diz dox
     }
   }
 }
