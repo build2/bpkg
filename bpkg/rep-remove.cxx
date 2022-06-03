@@ -131,8 +131,8 @@ namespace bpkg
   static void
   rmdir (const dir_path& cfg, const dir_path& d)
   {
-    auto i (temp_dir.find (cfg));
-    assert (i != temp_dir.end ());
+    auto i (tmp_dirs.find (cfg));
+    assert (i != tmp_dirs.end ());
 
     dir_path td (i->second / d.leaf ());
 

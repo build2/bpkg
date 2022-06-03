@@ -531,6 +531,8 @@ init (const common_options& co,
   if (tmp)
     init_tmp (dir_path (cfg_dir (&o)));
 
+  keep_tmp = o.keep_tmp ();
+
   return o;
 }
 
@@ -744,7 +746,20 @@ try
   if (build2_sched.started ())
     build2_sched.shutdown ();
 
-  clean_tmp (true /* ignore_error */);
+  if (!keep_tmp)
+  {
+    clean_tmp (true /* ignore_error */);
+  }
+  else if (verb > 1)
+  {
+    for (const auto& d: tmp_dirs)
+    {
+      const dir_path& td (d.second);
+
+      if (exists (td))
+        info << "keeping temporary directory " << td;
+    }
+  }
 
   if (r != 0)
     return r;

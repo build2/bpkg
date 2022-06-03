@@ -416,6 +416,13 @@ namespace bpkg
     {
       "Don't load default options files."
     }
+
+    bool --keep-tmp
+    {
+      "Don't remove the \cb{bpkg}'s temporary directory at the end of the
+       command execution and print its path at the verbosity level 2 or
+       higher. This option is primarily useful for troubleshooting."
+    }
   };
 
   {

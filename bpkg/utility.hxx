@@ -100,7 +100,9 @@ namespace bpkg
   // commands in main(), so you don't need to call init_tmp() explicitly
   // except for certain special commands (like cfg-create).
   //
-  extern std::map<dir_path, dir_path> temp_dir;
+  extern std::map<dir_path, dir_path> tmp_dirs;
+
+  extern bool keep_tmp; // --keep-tmp
 
   auto_rmfile
   tmp_file (const dir_path& cfg, const string& prefix);

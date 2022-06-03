@@ -197,8 +197,8 @@ namespace bpkg
       // of it (note that if they appear on different filesystems that won't
       // be possible).
       //
-      auto ti (temp_dir.find (rdb.config_orig));
-      assert (ti != temp_dir.end ());
+      auto ti (tmp_dirs.find (rdb.config_orig));
+      assert (ti != tmp_dirs.end ());
       const dir_path& tdir (ti->second);
 
       // Try to reuse the cached repository (moved to the temporary directory
@@ -224,7 +224,7 @@ namespace bpkg
 
         // The repository temporary directory.
         //
-        auto_rmdir rmt (tdir / sd);
+        auto_rmdir rmt (tdir / sd, !keep_tmp);
 
         // Move the repository to the temporary directory.
         //
@@ -258,7 +258,7 @@ namespace bpkg
       // The temporary out of source directory that is required for the dist
       // meta-operation.
       //
-      auto_rmdir rmo (tdir / dir_path (n.string ()));
+      auto_rmdir rmo (tdir / dir_path (n.string ()), !keep_tmp);
       const dir_path& od (rmo.path);
 
       if (exists (od))
