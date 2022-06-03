@@ -54,8 +54,26 @@ namespace bpkg
 
   package_skeleton::
   package_skeleton (package_skeleton&& v)
+      : key (move (v.key)),
+        available (v.available),
+        co_ (v.co_),
+        db_ (v.db_),
+        config_vars_ (move (v.config_vars_)),
+        disfigure_ (v.disfigure_),
+        config_srcs_ (v.config_srcs_),
+        src_root_ (move (v.src_root_)),
+        out_root_ (move (v.out_root_)),
+        created_ (v.created_),
+        verified_ (v.verified_),
+        ctx_ (move (v.ctx_)),
+        rs_ (v.rs_),
+        cmd_vars_ (move (v.cmd_vars_)),
+        cmd_vars_cache_ (v.cmd_vars_cache_),
+        dependent_vars_ (move (v.dependent_vars_)),
+        reflect_vars_ (move (v.reflect_vars_)),
+        reflect_frag_ (move (v.reflect_frag_))
   {
-    *this = move (v);
+    v.db_ = nullptr;
   }
 
   package_skeleton& package_skeleton::
@@ -63,9 +81,10 @@ namespace bpkg
   {
     if (this != &v)
     {
+      key = move (v.key);
+      available = v.available;
       co_ = v.co_;
       db_ = v.db_;
-      available_ = v.available_;
       config_vars_ = move (v.config_vars_);
       disfigure_ = v.disfigure_;
       config_srcs_ = v.config_srcs_;
@@ -82,7 +101,6 @@ namespace bpkg
       reflect_frag_ = move (v.reflect_frag_);
 
       v.db_ = nullptr;
-      v.available_ = nullptr;
     }
 
     return *this;
@@ -90,9 +108,10 @@ namespace bpkg
 
   package_skeleton::
   package_skeleton (const package_skeleton& v)
-      : co_ (v.co_),
+      : key (v.key),
+        available (v.available),
+        co_ (v.co_),
         db_ (v.db_),
-        available_ (v.available_),
         config_vars_ (v.config_vars_),
         disfigure_ (v.disfigure_),
         config_srcs_ (v.config_srcs_),
@@ -119,16 +138,17 @@ namespace bpkg
                     const vector<config_variable>* css,
                     optional<dir_path> src_root,
                     optional<dir_path> out_root)
-      : co_ (&co),
+      : key (db, ap.id.name),
+        available (ap),
+        co_ (&co),
         db_ (&db),
-        available_ (&ap),
         config_vars_ (move (cvs)),
         disfigure_ (df),
         config_srcs_ (df ? nullptr : css)
   {
     // Should not be created for stubs.
     //
-    assert (available_->bootstrap_build);
+    assert (ap.bootstrap_build);
 
     // We are only interested in old user configuration variables.
     //
@@ -153,10 +173,135 @@ namespace bpkg
       assert (!out_root);
   }
 
-  void package_skeleton::
-  load_defaults (const strings& dependent_vars)
+  // Serialize a variable assignment for a buildfile fragment.
+  //
+  static void
+  serialize_buildfile (string& r,
+                       const string& var, const build2::value& val,
+                       build2::names& storage)
   {
-    assert (ctx_ == nullptr); // Should only be called before evaluate_*().
+    using namespace build2;
+
+    r += var;
+    r += " = ";
+
+    if (val.null)
+      r += "[null]";
+    else
+    {
+      storage.clear ();
+      names_view nv (reverse (val, storage));
+
+      if (!nv.empty ())
+      {
+        ostringstream os;
+        to_stream (os, nv, quote_mode::normal, '@');
+        r += os.str ();
+      }
+    }
+
+    r += '\n';
+  }
+
+  // Serialize a variable assignment for a command line override.
+  //
+  static string
+  serialize_cmdline (const string& var, const build2::value& val,
+                     build2::names& storage)
+  {
+    using namespace build2;
+
+    string r (var + '=');
+
+    if (val.null)
+      r += "[null]";
+    else
+    {
+      storage.clear ();
+      names_view nv (reverse (val, storage));
+
+      if (!nv.empty ())
+      {
+        // Note: we need to use command-line (effective) quoting.
+        //
+        ostringstream os;
+        to_stream (os, nv, quote_mode::effective, '@');
+        r += os.str ();
+      }
+    }
+
+    return r;
+  }
+
+  static string
+  serialize_cmdline (const string& var, const optional<build2::names>& val)
+  {
+    using namespace build2;
+
+    string r (var + '=');
+
+    if (!val)
+      r += "[null]";
+    else
+    {
+      if (!val->empty ())
+      {
+        // Note: we need to use command-line (effective) quoting.
+        //
+        ostringstream os;
+        to_stream (os, *val, quote_mode::effective, '@');
+        r += os.str ();
+      }
+    }
+
+    return r;
+  }
+
+  // Reverse value to names.
+  //
+  static optional<build2::names>
+  reverse_value (const build2::value& val)
+  {
+    using namespace build2;
+
+    if (val.null)
+      return nullopt;
+
+    names storage;
+    names_view nv (reverse (val, storage));
+
+    return (nv.data () == storage.data ()
+            ? move (storage)
+            : names (nv.begin (), nv.end ()));
+  }
+
+  // Return the dependent (origin==buildfile) configuration variables as
+  // command line overrides.
+  //
+  static strings
+  dependent_cmd_vars (const package_configuration& cfg)
+  {
+    using build2::config::variable_origin;
+
+    strings r;
+
+    for (const config_variable_value& v: cfg)
+    {
+      if (v.origin == variable_origin::buildfile)
+        r.push_back (serialize_cmdline (v.name, v.value));
+    }
+
+    return r;
+  }
+
+  void package_skeleton::
+  reload_defaults (package_configuration& cfg)
+  {
+    // Should only be called before dependent_config()/evaluate_*().
+    //
+    assert (dependent_vars_.empty () &&
+            reflect_vars_.empty () &&
+            ctx_ == nullptr);
 
     if (config_srcs_ != nullptr)
       load_old_config ();
@@ -165,34 +310,59 @@ namespace bpkg
     {
       using namespace build2;
 
+      // This is what needs to happen to the variables of different origins in
+      // the passed configuration:
+      //
+      // default              -- reloaded
+      // buildfile/dependent  -- made command line override
+      // override/user        -- should match what's in config_vars_
+      // undefined            -- reloaded
+      //
+      // Note also that on the first call we will have no configuration. And
+      // so to keep things simple, we merge variable of the buildfile origin
+      // into cmd_vars and then rebuild things from scratch. Note, however,
+      // that below we need to sort our these merged overrides into user and
+      // dependent, so we keep the old configuration for reference.
+      //
+      // Note also that dependent values do not clash with user overrides by
+      // construction (in evaluate_{prefer_accept,require}()): we do not add
+      // as dependent variables that have the override origin.
+      //
+      package_configuration old (move (cfg));
+
       scope& rs (
-        *bootstrap (*this, merge_cmd_vars (dependent_vars))->second.front ());
+        *bootstrap (
+          *this, merge_cmd_vars (dependent_cmd_vars (cfg)))->second.front ());
 
       // Load project's root.build.
       //
       load_root (rs);
 
       // Note that a configuration variable may not have a default value so we
-      // cannot just iterate over all the config.<name>** values set on root
-      // scope. Our options seem to be either iterating over the variable pool
-      // or forcing the config module with config.config.module=true and then
-      // using its saved variables map. Since the amout of stuff we load is
-      // quite limited, there shouldn't be too many variables in the pool. So
-      // let's go with the simpler approach for now.
+      // cannot just iterate over all the config.<name>** values set on the
+      // root scope. Our options seem to be either iterating over the variable
+      // pool or forcing the config module with config.config.module=true and
+      // then using its saved variables map. Since the amout of stuff we load
+      // is quite limited, there shouldn't be too many variables in the pool.
+      // So let's go with the simpler approach for now.
       //
       // Though the saved variables map approach would have been more accurate
       // since that's the variables that were introduced with the config
       // directive. Potentially the user could just have a buildfile
       // config.<name>** variable but it feels like that should be harmless
       // (we will return it but nobody will presumably use that information).
+      // Also, if/when we start tracking the configuration variable
+      // dependencies (i.e., which default value depend on which config
+      // variable), then the saved variables map seem like the natural place
+      // to keep this information.
       //
       string p ("config." + name ().variable ());
       size_t n (p.size ());
 
       for (const variable& var: rs.ctx.var_pool)
       {
-        if (var.name.compare (0, n, p) != 0 || (var.name[n + 1] != '.' &&
-                                                var.name[n + 1] != '\0'))
+        if (var.name.compare (0, n, p) != 0 || (var.name[n] != '.' &&
+                                                var.name[n] != '\0'))
           continue;
 
         using config::variable_origin;
@@ -201,24 +371,42 @@ namespace bpkg
 
         switch (ol.first)
         {
-        case variable_origin::override_: break; // Value in config_vars.
-        case variable_origin::undefined: break; // No default value.
         case variable_origin::default_:
+        case variable_origin::override_:
+        case variable_origin::undefined:
           {
-            // @@ TODO: save in some form?
+            config_variable_value v {var.name, ol.first, {}, {}, {}, 0};
+
+            // Override could mean user override from config_vars_ or the
+            // dependent override that we have merged above.
             //
-            // How will we enter them (along with value.extra=1) in the
-            // dependent's context. Probably programmatically. Perhaps we
-            // should just save them as untyped names? Then enter and
-            // typify. Seems reasonable. Not clear how/if we can convey
-            // overriden. Maybe we can allow the prefer/require to override
-            // them but then ignore their values?
+            if (v.origin == variable_origin::override_)
+            {
+              if (config_variable_value* ov = old.find (v.name))
+              {
+                assert (ov->origin == variable_origin::buildfile);
+
+                v.origin = variable_origin::buildfile;
+                v.dependent = move (ov->dependent);
+              }
+            }
+
+            // Save value.
             //
+            if (v.origin != variable_origin::undefined)
+              v.value = reverse_value (*ol.second);
+
+            // Save type.
+            //
+            if (var.type != nullptr)
+              v.type = var.type->name;
+
+            cfg.push_back (move (v));
             break;
           }
         case variable_origin::buildfile:
           {
-            // How can this happen if we disfigured all of them?
+            // Feel like this shouldn't happen since we have disfigured them.
             //
             assert (false);
             break;
@@ -236,9 +424,13 @@ namespace bpkg
   }
 
   pair<bool, string> package_skeleton::
-  verify_sensible (const strings& dependent_vars)
+  verify_sensible (const package_configuration& cfg)
   {
-    assert (ctx_ == nullptr); // Should only be called before evaluate_*().
+    // Should only be called before dependent_config()/evaluate_*().
+    //
+    assert (dependent_vars_.empty () &&
+            reflect_vars_.empty () &&
+            ctx_ == nullptr);
 
     if (config_srcs_ != nullptr)
       load_old_config ();
@@ -269,7 +461,8 @@ namespace bpkg
       }
 
       scope& rs (
-        *bootstrap (*this, merge_cmd_vars (dependent_vars))->second.front ());
+        *bootstrap (
+          *this, merge_cmd_vars (dependent_cmd_vars (cfg)))->second.front ());
 
       // Load project's root.build while redirecting the diagnostics stream.
       //
@@ -299,11 +492,11 @@ namespace bpkg
   }
 
   void package_skeleton::
-  dependent_config (strings&& vars)
+  dependent_config (const package_configuration& cfg)
   {
     assert (dependent_vars_.empty ()); // Must be called at most once.
 
-    dependent_vars_ = move (vars);
+    dependent_vars_ = dependent_cmd_vars (cfg);
   }
 
   // Print the location of a depends value in the specified manifest file.
@@ -405,66 +598,6 @@ namespace bpkg
     }
   }
 
-  // Serialize a variable assignment for a buildfile fragment.
-  //
-  static void
-  serialize_buildfile (string& r,
-                       const string& var, const build2::value& val,
-                       build2::names& storage)
-  {
-    using namespace build2;
-
-    r += var;
-    r += " = ";
-
-    if (val.null)
-      r += "[null]";
-    else
-    {
-      storage.clear ();
-      names_view nv (reverse (val, storage));
-
-      if (!nv.empty ())
-      {
-        ostringstream os;
-        to_stream (os, nv, quote_mode::normal, '@');
-        r += os.str ();
-      }
-    }
-
-    r += '\n';
-  }
-
-  // Serialize a variable assignment for a command line override.
-  //
-  static string
-  serialize_cmdline (const string& var, const build2::value& val,
-                     build2::names& storage)
-  {
-    using namespace build2;
-
-    string r (var + '=');
-
-    if (val.null)
-      r += "[null]";
-    else
-    {
-      storage.clear ();
-      names_view nv (reverse (val, storage));
-
-      if (!nv.empty ())
-      {
-        // Note: we need to use command-line (effective) quoting.
-        //
-        ostringstream os;
-        to_stream (os, nv, quote_mode::effective, '@');
-        r += os.str ();
-      }
-    }
-
-    return r;
-  }
-
   void package_skeleton::
   evaluate_reflect (const string& refl, size_t depends_index)
   {
@@ -476,7 +609,9 @@ namespace bpkg
     // confusion.
     //
     // @@ They could also clash with dependent configuration. Probably should
-    //    be handled in the same way (it's just another type of "user").
+    //    be handled in the same way (it's just another type of "user"). Yes,
+    //    since dependent_vars_ are entered as cmd line overrides, this is
+    //    how they are treated (but may need to adjust the diagnostics).
     //
     // It seems like the most straightforward way to achieve the desired
     // semantics with the mechanisms that we have (in other words, without
@@ -497,9 +632,9 @@ namespace bpkg
     //
     // We may also have configuration values from the previous reflect clause
     // which we want to "factor in" before evaluating the next enable or
-    // reflect clauses (so that they can use the previously reflect values or
-    // values that are derived from them in root.build). It seems like we have
-    // two options here: either enter them as true overrides similar to
+    // reflect clauses (so that they can use the previously reflected values
+    // or values that are derived from them in root.build). It seems like we
+    // have two options here: either enter them as true overrides similar to
     // config_vars_ or just evaluate them similar to loading config.build
     // (which, BTW, we might have, in case of an external package). The big
     // problem with the former approach is that it will then prevent any
@@ -512,7 +647,7 @@ namespace bpkg
     //
     // BTW, a plan B would be to restrict reflect to just config vars in which
     // case we could merge them with true overrides. Though how exactly would
-    // we do this merging is unclear.
+    // we do this merging is unclear. Hm, but they are config vars...
     //
     try
     {
@@ -554,7 +689,7 @@ namespace bpkg
       // Note: a lot of this code is inspired by the config module.
       //
 
-      // Collect all the config.<name>.* variables on the first pass and
+      // Collect all the set config.<name>.* variables on the first pass and
       // filter out unchanged on the second.
       //
       auto& vp (rs.var_pool ());
@@ -566,6 +701,8 @@ namespace bpkg
         size_t       ver;
       };
 
+      // @@ Maybe redo as small_vector?
+      //
       map<const variable*, value_data> vars;
 
       auto process = [&rs, &ns, &vars] (bool collect)
@@ -779,6 +916,195 @@ namespace bpkg
     }
   }
 
+  bool package_skeleton::
+  evaluate_prefer_accept (const dependency_configurations& cfgs,
+                          const string& prefer,
+                          const string& accept,
+                          size_t depends_index)
+  {
+    try
+    {
+      using namespace build2;
+      using config::variable_origin;
+      using build2::fail;
+      using build2::endf;
+
+      // This is what needs to happen to the variables of different origins in
+      // the passed dependency configurations:
+      //
+      // default              -- set as default (value.extra=1)
+      // buildfile/dependent  -- set as buildfile
+      // override/user        -- set as override (so cannot be overriden)
+      // undefined            -- ignored
+      //
+      // Additionally, for all origins we need to typify the variables.
+      //
+      // All of this is done by load().
+      //
+      scope& rs (load (cfgs));
+
+      // Evaluate the prefer clause.
+      //
+      {
+        istringstream is (prefer);
+        is.exceptions (istringstream::failbit | istringstream::badbit);
+
+        path_name in ("<depends-prefer-clause>");
+        uint64_t il (1);
+
+        auto df = build2::make_diag_frame (
+          [&prefer, &rs, depends_index] (const diag_record& dr)
+          {
+            dr << info << "prefer fragment:\n"
+               << prefer;
+
+            // For external packages we have the manifest so print the
+            // location of the depends value in questions.
+            //
+            if (!rs.out_eq_src ())
+              depends_location (dr,
+                                rs.src_path () / manifest_file,
+                                depends_index);
+          });
+
+        lexer l (is, in, il /* start line */);
+        parser p (rs.ctx);
+        p.parse_buildfile (l, &rs, rs);
+      }
+
+      // Evaluate the accept clause.
+      //
+      bool r;
+      {
+        istringstream is ('(' + accept + ')');
+        is.exceptions (istringstream::failbit | istringstream::badbit);
+
+        path_name in ("<depends-accept-clause>");
+        uint64_t il (1);
+
+        auto df = build2::make_diag_frame (
+          [&accept, &rs, depends_index] (const diag_record& dr)
+          {
+            dr << info << "accept condition: (" << accept << ")";
+
+            // For external packages we have the manifest so print the location
+            // of the depends value in questions.
+            //
+            if (!rs.out_eq_src ())
+              depends_location (dr,
+                                rs.src_path () / manifest_file,
+                                depends_index);
+          });
+
+        lexer l (is, in, il /* start line */);
+        parser p (rs.ctx);
+        value v (p.parse_eval (l, rs, rs, parser::pattern_mode::expand));
+
+        try
+        {
+          // Should evaluate to 'true' or 'false'.
+          //
+          r = build2::convert<bool> (move (v));
+        }
+        catch (const invalid_argument& e)
+        {
+          fail (build2::location (in, il)) << e << endf;
+        }
+      }
+
+      // If acceptable, update the configuration with the new values, if any.
+      //
+      // @@ TODO: we also need to save the subset of values that were "set"
+      //    (for some definition of "set") by this dependent to be reflected
+      //    to further clauses.
+      //
+      if (r)
+      {
+        for (package_configuration& cfg: cfgs)
+        {
+          for (config_variable_value& v: cfg)
+          {
+            pair<variable_origin, lookup> ol (config::origin (rs, v.name));
+
+            // An override cannot become non-override. And a non-override
+            // cannot become an override.
+            //
+            assert ((v.origin == variable_origin::override_) ==
+                    (ol.first == variable_origin::override_));
+
+            switch (ol.first)
+            {
+            case variable_origin::buildfile:
+              {
+                // Possible transitions:
+                //
+                // default/undefine -> buildfile -- override dependency default
+                // buildfile        -> buildfile -- override other dependent
+                //
+                optional<names> val (reverse_value (*ol.second));
+
+                if (v.origin == variable_origin::buildfile)
+                {
+                  // If unchanged, then we keep the old originating dependent
+                  // (even if the value was technically "overwritten" by this
+                  // dependent).
+                  //
+                  if (v.value == val)
+                    break;
+                }
+                else
+                  v.origin = variable_origin::buildfile;
+
+                v.value = move (val);
+                v.dependent = key; // We are the originating dependent.
+                break;
+              }
+            case variable_origin::default_:
+            case variable_origin::undefined:
+              {
+                // An undefined can only come from undefined. Likewise,
+                // default can only come from default.
+                //
+                assert (ol.first == v.origin);
+                break;
+              }
+            case variable_origin::override_:
+              {
+                // @@ We may still need to see if there is original set
+                //    by this dependent and if so, reflect the overridden
+                //    value.
+                break;
+              }
+            }
+          }
+        }
+      }
+
+      // Drop the build system state since it needs reloading (for one, we
+      // could have dependency configuration, such as defaults and other
+      // dependent values, that further clauses should not see).
+      //
+      ctx_ = nullptr;
+
+      return r;
+    }
+    catch (const build2::failed&)
+    {
+      throw failed (); // Assume the diagnostics has already been issued.
+    }
+  }
+
+  bool package_skeleton::
+  evaluate_require (const dependency_configurations&,
+                    const string&, size_t /*depends_index*/)
+  {
+    // How will we square the implied accept logic with user overrides?
+    // Feels like the only way is to not enter them as overrides and then
+    // see of any of them override manually? Nasty.
+
+    return false; // @@ TODO
+  }
+
   pair<strings, vector<config_variable>> package_skeleton::
   collect_config () &&
   {
@@ -911,13 +1237,14 @@ namespace bpkg
 
     ctx_ = nullptr; // Free.
     db_ = nullptr;
-    available_ = nullptr;
 
     return make_pair (move (vars), move (srcs));
   }
 
   const strings& package_skeleton::
-  merge_cmd_vars (const strings& dependent_vars, bool cache)
+  merge_cmd_vars (const strings& dependent_vars,
+                  const strings& dependency_vars,
+                  bool cache)
   {
     // Merge variable overrides (note that the order is important). See also a
     // custom/optimized version in load_old_config().
@@ -926,11 +1253,13 @@ namespace bpkg
     {
       const strings& vs1 (build2_cmd_vars);
       const strings& vs2 (config_vars_);
-      const strings& vs3 (dependent_vars); // Should not override.
+      const strings& vs3 (dependent_vars);  // Should not override.
+      const strings& vs4 (dependency_vars); // Should not override.
 
       // Try to reuse both vector and string buffers.
       //
-      cmd_vars_.resize (1 + vs1.size () + vs2.size () + vs3.size ());
+      cmd_vars_.resize (
+        1 + vs1.size () + vs2.size () + vs3.size () + vs4.size ());
 
       size_t i (0);
       {
@@ -957,6 +1286,7 @@ namespace bpkg
       for (const string& v: vs1) cmd_vars_[i++] = v;
       for (const string& v: vs2) cmd_vars_[i++] = v;
       for (const string& v: vs3) cmd_vars_[i++] = v;
+      for (const string& v: vs4) cmd_vars_[i++] = v;
 
       cmd_vars_cache_ = cache;
     }
@@ -1071,10 +1401,17 @@ namespace bpkg
   }
 
   build2::scope& package_skeleton::
-  load ()
+  load (const dependency_configurations& cfgs)
   {
     if (ctx_ != nullptr)
-      return *rs_;
+    {
+      // We have to reload if there is any dependency configuration.
+      //
+      if (cfgs.empty ())
+        return *rs_;
+
+      ctx_ = nullptr;
+    }
 
     if (config_srcs_ != nullptr)
       load_old_config ();
@@ -1082,12 +1419,35 @@ namespace bpkg
     try
     {
       using namespace build2;
+      using build2::config::variable_origin;
 
-      // We can reuse already merged cmd_vars if this has already been done
-      // (they don't change during evaluate_*() calls).
+      // If we have any dependency configurations, then here we need to add
+      // dependency configuration variables with the override origin to the
+      // command line overrides (see evaluate_prefer_accept() for details).
       //
-      auto rsi (
-        bootstrap (*this, merge_cmd_vars (dependent_vars_, true /* cache */)));
+      strings dependency_vars;
+      for (package_configuration& cfg: cfgs)
+      {
+        for (config_variable_value& v: cfg)
+        {
+          if (v.origin == variable_origin::override_)
+          {
+            dependency_vars.push_back (serialize_cmdline (v.name, v.value));
+            v.version = 0; // No value, only override.
+          }
+        }
+      }
+
+      // If there aren't any, then we can reuse already merged cmd_vars (they
+      // don't change during evaluate_*() calls except for the dependency
+      // overrides case).
+      //
+      const strings& cmd_vars (
+        merge_cmd_vars (dependent_vars_,
+                        dependency_vars,
+                        dependency_vars.empty () /* cache */));
+
+      auto rsi (bootstrap (*this, cmd_vars));
       scope& rs (*rsi->second.front ());
 
       // Load project's root.build as well as potentially accumulated reflect
@@ -1101,20 +1461,78 @@ namespace bpkg
       // configuration and then load it with config.config.load and this
       // approach should work for that case too.
       //
+      // This is also where we set dependency configuration variables with the
+      // default and buildfile origins and typify all dependency variables
+      // (see evaluate_prefer_accept() for details).
+      //
       function<void (parser&)> pre;
 
-      if (!reflect_frag_.empty ())
+      struct data
       {
-        pre = [this, &rs] (parser& p)
-        {
-          istringstream is (reflect_frag_);
-          is.exceptions (istringstream::failbit | istringstream::badbit);
+        scope& rs;
+        const dependency_configurations& cfgs;
+      } d {rs, cfgs};
 
-          // Note that the fragment is just a bunch of variable assignments
-          // and thus unlikely to cause any errors.
-          //
-          path_name in ("<accumulated-reflect-fragment>");
-          p.parse_buildfile (is, in, &rs, rs);
+      if (!reflect_frag_.empty () || !cfgs.empty ())
+      {
+        pre = [this, &d] (parser& p)
+        {
+          scope& rs (d.rs);
+
+          if (!reflect_frag_.empty ())
+          {
+            istringstream is (reflect_frag_);
+            is.exceptions (istringstream::failbit | istringstream::badbit);
+
+            // Note that the fragment is just a bunch of variable assignments
+            // and thus unlikely to cause any errors.
+            //
+            path_name in ("<accumulated-reflect-fragment>");
+            p.parse_buildfile (is, in, &rs, rs);
+          }
+
+          for (package_configuration& cfg: d.cfgs)
+          {
+            for (config_variable_value& v: cfg)
+            {
+              const value_type* vt (nullptr);
+              if (v.type)
+              {
+                vt = parser::find_value_type (&rs, *v.type);
+                assert (vt != nullptr);
+              }
+
+              const variable& var (rs.var_pool ().insert (v.name, vt));
+
+              switch (v.origin)
+              {
+              case variable_origin::default_:
+              case variable_origin::buildfile:
+                {
+                  auto& val (
+                    static_cast<variable_map::value_data&> (
+                      rs.assign (var)));
+
+                  if (v.value)
+                    val.assign (names (*v.value), &var);
+                  else
+                    val = nullptr;
+
+                  if (v.origin == variable_origin::default_)
+                    val.extra = 1;
+
+                  v.version = val.version;
+                  break;
+                }
+              case variable_origin::undefined:
+                {
+                  v.version = 0;
+                  break;
+                }
+              case variable_origin::override_: break; // Already handled.
+              }
+            }
+          }
         };
       }
 
@@ -1138,7 +1556,7 @@ namespace bpkg
   static build2::scope_map::iterator
   bootstrap (package_skeleton& skl, const strings& cmd_vars)
   {
-    assert (skl.ctx_ == nullptr);
+    assert (skl.db_ != nullptr && skl.ctx_ == nullptr);
 
     // The overall plan is as follows:
     //
@@ -1158,7 +1576,7 @@ namespace bpkg
     //
     if (!skl.created_)
     {
-      const available_package& ap (*skl.available_);
+      const available_package& ap (skl.available);
 
       // Note that we create the skeleton directories in the skeletons/
       // subdirectory of the configuration temporary directory to make sure

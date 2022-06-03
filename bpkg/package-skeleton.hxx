@@ -4,12 +4,13 @@
 #ifndef BPKG_PACKAGE_SKELETON_HXX
 #define BPKG_PACKAGE_SKELETON_HXX
 
-#include <libbuild2/forward.hxx> // build2::context
+#include <libbuild2/forward.hxx>
 
 #include <bpkg/types.hxx>
 #include <bpkg/utility.hxx>
 
 #include <bpkg/package.hxx>
+#include <bpkg/package-configuration.hxx>
 #include <bpkg/common-options.hxx>
 
 namespace bpkg
@@ -62,13 +63,17 @@ namespace bpkg
                       optional<dir_path> src_root,
                       optional<dir_path> out_root);
 
+
+    package_key key;
+    reference_wrapper<const available_package> available;
+
     const package_name&
-    name () const {return available_->id.name;}
+    name () const {return key.name;} // @@ TMP: get rid (use key.name).
 
     // The following functions should be called in the following sequence
     // (* -- zero or more, ? -- zero or one):
     //
-    // * load_defaults()
+    // * reload_defaults()
     // * verify_sensible()
     // ? dependent_config()
     // * evaluate_enable() | evaluate_reflect()
@@ -78,31 +83,26 @@ namespace bpkg
     // sequence rather than starting from scratch.
     //
   public:
-    // Load the default values and type information for configuration
-    // variables of the package given a "tentative" dependent configuration.
-    //
-    // @@ TODO: if it will be more convenient to pass it as something other
-    //    than strings, then this can be accomodated.
+    // Reload the default values and type information for configuration
+    // variables using the values with the buildfile origin as a "tentative"
+    // dependent configuration.
     //
     void
-    load_defaults (const strings& dependent_vars);
+    reload_defaults (package_configuration&);
 
-    // Verify the specified "tentative" dependents configuration is sensible,
-    // that is, acceptable to the package. If it is not, then the second half
-    // of the result contains the diagnostics.
-    //
-    // @@ TODO: if it will be more convenient to pass it as something other
-    //    than strings, then this can be accomodated.
+    // Verify the specified "tentative" dependent configuration is sensible,
+    // that is, acceptable to the dependency itself. If it is not, then the
+    // second half of the result contains the diagnostics.
     //
     pair<bool, string>
-    verify_sensible (const strings& dependent_vars);
+    verify_sensible (const package_configuration&);
 
     // Incorporate the "final" dependent configuration into subsequent
     // evaluations. Dependent configuration variables are expected not to
     // clash with user.
     //
     void
-    dependent_config (strings&&);
+    dependent_config (const package_configuration&);
 
     // For the following evaluate_*() functions assume that the clause belongs
     // to the specified (by index) depends value (used to print its location
@@ -118,6 +118,23 @@ namespace bpkg
     //
     void
     evaluate_reflect (const string&, size_t depends_index);
+
+    // Evaluate the prefer/accept or require clauses on the specified
+    // dependency configurations (serves as both input and output).
+    //
+    // Return true is acceptable and false otherwise. If acceptable, the
+    // passed configuration is updated with new values, if any.
+    //
+    using dependency_configurations =
+      small_vector<reference_wrapper<package_configuration>, 1>;
+
+    bool
+    evaluate_prefer_accept (const dependency_configurations&,
+                            const string&, const string&, size_t depends_index);
+
+    bool
+    evaluate_require (const dependency_configurations&,
+                      const string&, size_t depends_index);
 
     // Return the accumulated configuration variables (first) and project
     // configuration variable sources (second). Note that the arrays are not
@@ -161,8 +178,11 @@ namespace bpkg
     //
     // Call this function before evaluating every clause.
     //
+    // If dependency configurations are specified, then set their values and
+    // save the resulting versions in config_variable_value::version.
+    //
     build2::scope&
-    load ();
+    load (const dependency_configurations& = {});
 
     // Merge command line variable overrides into one list (normally to be
     // passed to bootstrap()).
@@ -171,7 +191,9 @@ namespace bpkg
     // calls.
     //
     const strings&
-    merge_cmd_vars (const strings& dependent_vars, bool cache = false);
+    merge_cmd_vars (const strings& dependent_vars,
+                    const strings& dependency_vars = {},
+                    bool cache = false);
 
     // Implementation details (public for bootstrap()).
     //
@@ -180,7 +202,6 @@ namespace bpkg
     //
     const common_options* co_;
     database* db_;
-    const available_package* available_;
 
     strings config_vars_;
     bool disfigure_;

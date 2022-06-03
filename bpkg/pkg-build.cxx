@@ -37,6 +37,7 @@
 #include <bpkg/pkg-disfigure.hxx>
 #include <bpkg/package-skeleton.hxx>
 #include <bpkg/system-repository.hxx>
+#include <bpkg/package-configuration.hxx>
 
 using namespace std;
 using namespace butl;
@@ -1331,6 +1332,15 @@ namespace bpkg
 
     dependents_map dependents;
     packages       dependencies;
+
+    // Dependency configuration.
+    //
+    // Note that this container may not yet contain some entries that are
+    // already in the dependencies member above. And it may already contain
+    // entries that are not yet in dependencies due to the retry_configuration
+    // logic.
+    //
+    package_configurations dependency_configurations;
 
     // Shadow dependencies and clusters.
     //
@@ -6011,6 +6021,10 @@ namespace bpkg
 
         // Negotiate the configuration.
         //
+        // The overall plan is as follows: continue refining the configuration
+        // until there are no more changes by giving each dependent a chance
+        // to make further adjustments.
+        //
         for (auto b (pcfg->dependents.begin ()),
                i (b),
                e (pcfg->dependents.end ()); i != e; )
@@ -6023,11 +6037,15 @@ namespace bpkg
           // recursively collecting it). But we could be re-resolving the same
           // dependency multiple times.
           //
+          package_skeleton* dept;
           {
             build_package* b (entered_build (i->first));
             assert (b != nullptr && b->skeleton);
+            dept = &*b->skeleton;
           }
 
+          pair<size_t, size_t> pos;
+          small_vector<reference_wrapper<package_skeleton>, 1> depcs;
           {
             // A non-negotiated cluster must only have one depends position
             // for each dependent.
@@ -6037,14 +6055,29 @@ namespace bpkg
             const postponed_configuration::dependency& ds (
               i->second.dependencies.front ());
 
+            pos = ds.position;
+
+            depcs.reserve (ds.size ());
             for (const package_key& pk: ds)
             {
               build_package* b (entered_build (pk));
-              assert (b != nullptr && !b->skeleton);
+              assert (b != nullptr);
+
+              depcs.push_back (b->skeleton
+                               ? *b->skeleton
+                               : b->init_skeleton (o /* options */));
             }
           }
 
-          // up_negotiate (...);
+          if (up_negotiate_configuration (
+                pcfg->dependency_configurations, *dept, pos, depcs))
+          {
+            if (i != b)
+            {
+              i = b; // Restart from the beginning.
+              continue;
+            }
+          }
 
           ++i;
         }
@@ -6086,8 +6119,33 @@ namespace bpkg
           //
           if (!b->recursive_collection)
           {
-            build_package_refs dep_chain;
+            // Verify and set the dependent configuration for this dependency.
+            //
+            {
+              assert (b->skeleton); // Should have been init'ed above.
 
+              const package_configuration& cfg (
+                pcfg->dependency_configurations[p]);
+
+              pair<bool, string> pr (b->skeleton->verify_sensible (cfg));
+
+              if (!pr.first)
+              {
+                // @@ TODO: improve (print dependencies, dependents, config).
+                //
+                // Note that the diagnostics from the dependent will most
+                // likely be in the "error ..." form (potentially with
+                // additional info lines) and by printing it with a two-space
+                // indentation we make it "fit" into our diag record.
+                //
+                fail << "unable to negotiate sensible configuration\n"
+                     << "  " << pr.second;
+              }
+
+              b->skeleton->dependent_config (cfg);
+            }
+
+            build_package_refs dep_chain;
             collect_build_prerequisites (o,
                                          *b,
                                          fdb,
@@ -6434,7 +6492,8 @@ namespace bpkg
               // dependent/dependencies (i.e., we add them to the cluster but
               // they never get re-visited). @@ While seems harmless, maybe we
               // need to prune the part of the configuration that was added
-              // by them?
+              // by them? Maybe we should have the confirmed flag which is
+              // set when the originating dependent confirms the value?!
               //
               pc->add_shadow (move (e.dependent), e.position);
             }
@@ -6461,9 +6520,10 @@ namespace bpkg
 
               assert (!pc->negotiated);
 
-              // Drop any accumulated shadow dependents (which could be
-              // carried over from retry_configuration logic).
+              // Drop any accumulated configuration and shadow dependents
+              // (which could be carried over from retry_configuration logic).
               //
+              pc->dependency_configurations.clear ();
               pc->shadow_dependents.clear ();
 
               l5 ([&]{trace << "cfg-negotiation of " << *pc << " failed due "

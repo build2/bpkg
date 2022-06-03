@@ -1590,6 +1590,12 @@ namespace bpkg
     }
 
     bool
+    operator!= (const package_key& v) const
+    {
+      return !(*this == v);
+    }
+
+    bool
     operator< (const package_key&) const;
 
     // Return the package string representation in the form:
