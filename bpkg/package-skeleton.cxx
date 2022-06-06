@@ -328,7 +328,7 @@ namespace bpkg
       // construction (in evaluate_{prefer_accept,require}()): we do not add
       // as dependent variables that have the override origin.
       //
-      package_configuration old (move (cfg));
+      package_configuration old (move (cfg)); cfg.package = move (old.package);
 
       scope& rs (
         *bootstrap (
@@ -355,6 +355,11 @@ namespace bpkg
       // dependencies (i.e., which default value depend on which config
       // variable), then the saved variables map seem like the natural place
       // to keep this information.
+      //
+      // @@ One potentially-bogus config variable could be config.*.develop.
+      //    Would have been nice not to drag it around if not used by the
+      //    package. And, could be helpful to warn that configuration variable
+      //    does not exist.
       //
       string p ("config." + name ().variable ());
       size_t n (p.size ());
@@ -507,7 +512,7 @@ namespace bpkg
   // the temp directory is not cleaned in case of an error. Maybe one day.
   //
   static void
-  depends_location (const diag_record& dr,
+  depends_location (const build2::diag_record& dr,
                     const path& mf,
                     size_t depends_index)
   {
@@ -527,10 +532,10 @@ namespace bpkg
         {
           if (nv.name == "depends" && i++ == depends_index)
           {
-            dr << info (location (p.name (),
-                                  nv.value_line,
-                                  nv.value_column))
-               << "depends value defined here";
+            dr << build2::info (build2::location (mf,
+                                                  nv.value_line,
+                                                  nv.value_column))
+               << "in depends value defined here";
             break;
           }
         }
@@ -547,6 +552,7 @@ namespace bpkg
     {
       using namespace build2;
       using build2::fail;
+      using build2::info;
       using build2::endf;
 
       scope& rs (load ());
@@ -564,7 +570,7 @@ namespace bpkg
       uint64_t il (1);
 
       auto df = build2::make_diag_frame (
-        [&cond, &rs, depends_index] (const diag_record& dr)
+        [&cond, &rs, depends_index] (const build2::diag_record& dr)
         {
           dr << info << "enable condition: (" << cond << ")";
 
@@ -655,6 +661,7 @@ namespace bpkg
       //
       using namespace build2;
       using build2::fail;
+      using build2::info;
       using build2::endf;
 
       scope& rs (load ());
@@ -666,16 +673,16 @@ namespace bpkg
       uint64_t il (1);
 
       auto df = build2::make_diag_frame (
-        [&refl, &rs, depends_index] (const diag_record& dr)
+        [&refl, &rs, depends_index] (const build2::diag_record& dr)
         {
           // Probably safe to assume a one-line fragment contains a variable
           // assignment.
           //
           if (refl.find ('\n') == string::npos)
-            dr << info << "reflect variable: " << refl;
+            dr << info << "reflect variable: " << trim (string (refl));
           else
-            dr << info << "reflect fragment:\n"
-               << refl;
+            dr << info << "reflect clause:\n"
+               << trim_right (string (refl));
 
           // For external packages we have the manifest so print the location
           // of the depends value in questions.
@@ -693,7 +700,7 @@ namespace bpkg
       // filter out unchanged on the second.
       //
       auto& vp (rs.var_pool ());
-      const variable& ns (vp.insert ("config." + name ().variable ()));
+      string ns ("config." + name ().variable ());
 
       struct value_data
       {
@@ -823,6 +830,9 @@ namespace bpkg
         //    config.hello.backend = foo  # reflect
         //    config.hello.backend += bar # user
         //
+
+        // @@ Can't we redo it via origin() call like in other places?
+        //
         pair<lookup, size_t> org {lookup {val, var, rs.vars}, 1 /* depth */};
         pair<lookup, size_t> ovr;
 
@@ -927,6 +937,7 @@ namespace bpkg
       using namespace build2;
       using config::variable_origin;
       using build2::fail;
+      using build2::info;
       using build2::endf;
 
       // This is what needs to happen to the variables of different origins in
@@ -953,10 +964,10 @@ namespace bpkg
         uint64_t il (1);
 
         auto df = build2::make_diag_frame (
-          [&prefer, &rs, depends_index] (const diag_record& dr)
+          [&prefer, &rs, depends_index] (const build2::diag_record& dr)
           {
-            dr << info << "prefer fragment:\n"
-               << prefer;
+            dr << info << "prefer clause:\n"
+               << trim_right (string (prefer));
 
             // For external packages we have the manifest so print the
             // location of the depends value in questions.
@@ -970,6 +981,34 @@ namespace bpkg
         lexer l (is, in, il /* start line */);
         parser p (rs.ctx);
         p.parse_buildfile (l, &rs, rs);
+
+        // Check if the dependent set any stray configuration variables.
+        //
+        for (package_configuration& cfg: cfgs)
+        {
+          string ns ("config." + cfg.package.name.variable ());
+
+          for (auto p (rs.vars.lookup_namespace (ns));
+               p.first != p.second;
+               ++p.first)
+          {
+            const variable& var (p.first->first);
+
+            // This can be one of the overrides (__override, __prefix, etc),
+            // which we skip.
+            //
+            if (var.override ())
+              continue;
+
+            if (cfg.find (var.name) == nullptr)
+            {
+              fail << "package " << cfg.package.name << " has no "
+                   << "configuration variable " << var.name <<
+                info << var.name << " set in require clause of dependent "
+                   << key.string ();
+            }
+          }
+        }
       }
 
       // Evaluate the accept clause.
@@ -983,7 +1022,7 @@ namespace bpkg
         uint64_t il (1);
 
         auto df = build2::make_diag_frame (
-          [&accept, &rs, depends_index] (const diag_record& dr)
+          [&accept, &rs, depends_index] (const build2::diag_record& dr)
           {
             dr << info << "accept condition: (" << accept << ")";
 
@@ -1022,11 +1061,28 @@ namespace bpkg
       {
         for (package_configuration& cfg: cfgs)
         {
-          for (config_variable_value& v: cfg)
-          {
-            pair<variable_origin, lookup> ol (config::origin (rs, v.name));
+          string ns ("config." + cfg.package.name.variable ());
 
-            // An override cannot become non-override. And a non-override
+          for (auto p (rs.vars.lookup_namespace (ns));
+               p.first != p.second;
+               ++p.first)
+          {
+            const variable& var (p.first->first);
+
+            if (var.override ())
+              continue;
+
+            const variable_map::value_data& val (p.first->second);
+
+            pair<variable_origin, lookup> ol (
+              config::origin (rs,
+                              var,
+                              pair<lookup, size_t> {
+                                lookup {val, var, rs.vars}, 1 /* depth */}));
+
+            config_variable_value& v (*cfg.find (var.name));
+
+            // An override cannot become a non-override. And a non-override
             // cannot become an override.
             //
             assert ((v.origin == variable_origin::override_) ==
@@ -1041,7 +1097,7 @@ namespace bpkg
                 // default/undefine -> buildfile -- override dependency default
                 // buildfile        -> buildfile -- override other dependent
                 //
-                optional<names> val (reverse_value (*ol.second));
+                optional<names> ns (reverse_value (val));
 
                 if (v.origin == variable_origin::buildfile)
                 {
@@ -1049,13 +1105,13 @@ namespace bpkg
                   // (even if the value was technically "overwritten" by this
                   // dependent).
                   //
-                  if (v.value == val)
+                  if (v.value == ns)
                     break;
                 }
                 else
                   v.origin = variable_origin::buildfile;
 
-                v.value = move (val);
+                v.value = move (ns);
                 v.dependent = key; // We are the originating dependent.
                 break;
               }
@@ -1073,6 +1129,10 @@ namespace bpkg
                 // @@ We may still need to see if there is original set
                 //    by this dependent and if so, reflect the overridden
                 //    value.
+                //
+                //    Maybe we don't need the version: the presence of the
+                //    value in rs is enough.
+                //
                 break;
               }
             }
@@ -1095,14 +1155,205 @@ namespace bpkg
   }
 
   bool package_skeleton::
-  evaluate_require (const dependency_configurations&,
-                    const string&, size_t /*depends_index*/)
+  evaluate_require (const dependency_configurations& cfgs,
+                    const string& require, size_t depends_index)
   {
-    // How will we square the implied accept logic with user overrides?
-    // Feels like the only way is to not enter them as overrides and then
-    // see of any of them override manually? Nasty.
+    try
+    {
+      using namespace build2;
+      using config::variable_origin;
+      using build2::fail;
+      using build2::info;
+      using build2::endf;
 
-    return false; // @@ TODO
+      // A require clause can only set bool configuration variables and only
+      // to true and may not have any conditions on other configuration
+      // variables (including their origin). As a result, we don't need to set
+      // the default (or other dependent) values, but will need the type
+      // information as well as overrides (see up_negotiate_configuration()
+      // for details).
+      //
+      scope& rs (load (cfgs, false /* defaults */));
+
+      // Evaluate the require clause.
+      //
+      istringstream is (require);
+      is.exceptions (istringstream::failbit | istringstream::badbit);
+
+      path_name in ("<depends-require-clause>");
+      uint64_t il (1);
+
+      // Note: keep the diag frame beyond parse_buildfile().
+      //
+      auto df = build2::make_diag_frame (
+        [&require, &rs, depends_index] (const build2::diag_record& dr)
+        {
+          dr << info << "require clause:\n"
+             << trim_right (string (require));
+
+          // For external packages we have the manifest so print the
+          // location of the depends value in questions.
+          //
+          if (!rs.out_eq_src ())
+            depends_location (dr,
+                              rs.src_path () / manifest_file,
+                              depends_index);
+        });
+
+      lexer l (is, in, il /* start line */);
+      parser p (rs.ctx);
+      p.parse_buildfile (l, &rs, rs);
+
+      // First determine if acceptable.
+      //
+      // While at it, also check for stray variables and enforce all the
+      // require restrictions (bool, set to true, etc).
+      //
+      bool r (true);
+      for (package_configuration& cfg: cfgs)
+      {
+        string ns ("config." + cfg.package.name.variable ());
+
+        // Note that because we didn't set any default (or other dependent)
+        // values, all the values we see are set by this dependent.
+        //
+        for (auto p (rs.vars.lookup_namespace (ns));
+             p.first != p.second;
+             ++p.first)
+        {
+          const variable& var (p.first->first);
+
+          // This can be one of the overrides (__override, __prefix, etc),
+          // which we skip.
+          //
+          if (var.override ())
+            continue;
+
+          const config_variable_value* v (cfg.find (var.name));
+
+          if (v == nullptr)
+          {
+            fail << "package " << cfg.package.name << " has no configuration "
+                 << "variable " << var.name <<
+              info << var.name << " set in require clause of dependent "
+                 << key.string ();
+          }
+
+          if (!v->type || *v->type != "bool")
+          {
+            fail << "configuration variable " << var.name << " is not of "
+                 << "bool type" <<
+              info << var.name << " set in require clause of dependent "
+                 << key.string ();
+          }
+
+          const value& val (p.first->second);
+
+          if (!cast_false<bool> (val))
+          {
+            fail << "configuration variable " << var.name << " is not set "
+                 << "to true" <<
+              info << var.name << " set in require clause of dependent "
+                 << key.string ();
+          }
+
+          // The only situation where the result would not be acceptable is if
+          // one of the values were overridden to false.
+          //
+          pair<variable_origin, lookup> ol (
+            config::origin (rs,
+                            var,
+                            pair<lookup, size_t> {
+                              lookup {val, var, rs.vars}, 1 /* depth */}));
+
+          // An override cannot become a non-override. And a non-override
+          // cannot become an override.
+          //
+          assert ((v->origin == variable_origin::override_) ==
+                  (ol.first == variable_origin::override_));
+
+          if (ol.first == variable_origin::override_)
+          {
+            if (!cast_false<bool> (*ol.second))
+              r = false;
+          }
+        }
+      }
+
+      // If acceptable, update the configuration with the new values, if any.
+      //
+      // Note that we cannot easily combine this loop with the above because
+      // we should not modify configurations if the result is not acceptable.
+      //
+      // @@ TODO: we also need to save the subset of values that were "set"
+      //    (for some definition of "set") by this dependent to be reflected
+      //    to further clauses.
+      //
+      if (r)
+      {
+        for (package_configuration& cfg: cfgs)
+        {
+          string ns ("config." + cfg.package.name.variable ());
+
+          for (auto p (rs.vars.lookup_namespace (ns));
+               p.first != p.second;
+               ++p.first)
+          {
+            const variable& var (p.first->first);
+
+            if (var.override ())
+              continue;
+
+            config_variable_value& v (*cfg.find (var.name));
+
+            if (v.origin != variable_origin::override_)
+            {
+              // Possible transitions:
+              //
+              // default/undefine -> buildfile -- override dependency default
+              // buildfile        -> buildfile -- override other dependent
+              //
+              optional<names> ns (names {build2::name ("true")});
+
+              // @@ TODO: reflect (before continue)
+
+              if (v.origin == variable_origin::buildfile)
+              {
+                // If unchanged, then we keep the old originating dependent
+                // (even if the value was technically "overwritten" by this
+                // dependent).
+                //
+                if (v.value == ns)
+                  continue;
+              }
+              else
+                v.origin = variable_origin::buildfile;
+
+              v.value = move (ns);
+              v.dependent = key; // We are the originating dependent.
+            }
+            else
+            {
+              // @@ TODO: reflect (true). Could probably handle with the
+              //    same code as !=override case.
+            }
+          }
+        }
+      }
+
+      // Drop the build system state since it needs reloading (while it may
+      // seem safe for us to keep the state since we didn't set any defaults,
+      // we may have overrides that the clause did not set, so let's drop it
+      // for good measure and also to keep things simple).
+      //
+      ctx_ = nullptr;
+
+      return r;
+    }
+    catch (const build2::failed&)
+    {
+      throw failed (); // Assume the diagnostics has already been issued.
+    }
   }
 
   pair<strings, vector<config_variable>> package_skeleton::
@@ -1401,7 +1652,7 @@ namespace bpkg
   }
 
   build2::scope& package_skeleton::
-  load (const dependency_configurations& cfgs)
+  load (const dependency_configurations& cfgs, bool defaults)
   {
     if (ctx_ != nullptr)
     {
@@ -1471,7 +1722,8 @@ namespace bpkg
       {
         scope& rs;
         const dependency_configurations& cfgs;
-      } d {rs, cfgs};
+        bool defaults;
+      } d {rs, cfgs, defaults};
 
       if (!reflect_frag_.empty () || !cfgs.empty ())
       {
@@ -1509,19 +1761,25 @@ namespace bpkg
               case variable_origin::default_:
               case variable_origin::buildfile:
                 {
-                  auto& val (
-                    static_cast<variable_map::value_data&> (
-                      rs.assign (var)));
+                  if (d.defaults)
+                  {
+                    auto& val (
+                      static_cast<variable_map::value_data&> (
+                        rs.assign (var)));
 
-                  if (v.value)
-                    val.assign (names (*v.value), &var);
+                    if (v.value)
+                      val.assign (names (*v.value), &var);
+                    else
+                      val = nullptr;
+
+                    if (v.origin == variable_origin::default_)
+                      val.extra = 1;
+
+                    v.version = val.version;
+                  }
                   else
-                    val = nullptr;
+                    v.version = 0;
 
-                  if (v.origin == variable_origin::default_)
-                    val.extra = 1;
-
-                  v.version = val.version;
                   break;
                 }
               case variable_origin::undefined:

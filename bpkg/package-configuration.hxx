@@ -55,6 +55,11 @@ namespace bpkg
   class package_configuration: public vector<config_variable_value>
   {
   public:
+    package_key package;
+
+    explicit
+    package_configuration (package_key p): package (move (p)) {}
+
     config_variable_value*
     find (const string& name)
     {
@@ -78,10 +83,24 @@ namespace bpkg
     }
   };
 
+  class package_configurations: public small_vector<package_configuration, 1>
+  {
+  public:
+    package_configuration&
+    operator[] (const package_key& p)
+    {
+      auto i (find_if (begin (), end (),
+                       [&p] (const package_configuration& pc)
+                       {
+                         return pc.package == p;
+                       }));
+      if (i != end ())
+        return *i;
 
-  // @@ Maybe redo as small_vector?
-  //
-  using package_configurations = map<package_key, package_configuration>;
+      push_back (package_configuration (p));
+      return back ();
+    }
+  };
 
 
   // A subset of config_variable_value for variable values set by the

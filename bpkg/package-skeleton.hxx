@@ -178,11 +178,14 @@ namespace bpkg
     //
     // Call this function before evaluating every clause.
     //
-    // If dependency configurations are specified, then set their values and
-    // save the resulting versions in config_variable_value::version.
+    // If dependency configurations are specified, then typify the variables
+    // and set their values saving the resulting value versions in
+    // config_variable_value::version. If defaults is false, then only typify
+    // the variables and set overrides without setting the default/buildfile
+    // values.
     //
     build2::scope&
-    load (const dependency_configurations& = {});
+    load (const dependency_configurations& = {}, bool defaults = true);
 
     // Merge command line variable overrides into one list (normally to be
     // passed to bootstrap()).

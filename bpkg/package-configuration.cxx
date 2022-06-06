@@ -16,7 +16,12 @@ namespace bpkg
     pair<size_t, size_t> pos,
     const small_vector<reference_wrapper<package_skeleton>, 1>& depcs)
   {
-    dependent_config_variable_values old_cfgs;
+    pos.first--; pos.second--; // Convert to 0-base.
+
+    const dependency_alternative& da (
+      dept.available.get ().dependencies[pos.first][pos.second]);
+
+    assert (da.require || da.prefer);
 
     // Step 1: save a snapshot of the old configuration while unsetting values
     // that have this dependent as the originator and reloading the defaults.
@@ -24,6 +29,22 @@ namespace bpkg
     // While at it, also collect the configurations to pass to dependent's
     // evaluate_*() calls.
     //
+    // Our assumptions regarding require:
+    //
+    // - Can only set bool configuration variables and only to true.
+    //
+    // - Should not have any conditions on the state of other configuration
+    //   variables, including their origin (but can have other conditions,
+    //   for example on the target platform).
+    //
+    // This means that we don't need to set the default values, but will need
+    // the type information as well as overrides. So what we will do is only
+    // call reload_defaults() for the first time to load types/override. Note
+    // that this assumes the set of configuration variables cannot change
+    // based on the values of other configuration variables (we have a note
+    // in the manual instructing the user not to do this).
+    //
+    dependent_config_variable_values old_cfgs;
     package_skeleton::dependency_configurations depc_cfgs;
     depc_cfgs.reserve (depcs.size ());
 
@@ -41,7 +62,10 @@ namespace bpkg
               dependent_config_variable_value {
                 v.name, move (v.value), move (*v.dependent)});
 
+            // Note that we will not reload it to default in case of require.
+            //
             v.origin = variable_origin::undefined;
+            v.value = nullopt;
             v.dependent = nullopt;
           }
           else
@@ -50,18 +74,14 @@ namespace bpkg
         }
       }
 
-      depc.reload_defaults (cfg);
+      if (da.prefer || cfg.empty ())
+        depc.reload_defaults (cfg);
 
       depc_cfgs.push_back (cfg);
     }
 
     // Step 2: execute the prefer/accept or requires clauses.
     //
-    pos.first--; pos.second--; // Convert to 0-base.
-
-    const dependency_alternative& da (
-      dept.available.get ().dependencies[pos.first][pos.second]);
-
     if (!(da.require
           ? dept.evaluate_require (depc_cfgs, *da.require, pos.first)
           : dept.evaluate_prefer_accept (depc_cfgs,
