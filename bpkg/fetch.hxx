@@ -102,6 +102,13 @@ namespace bpkg
                            const repository_location&,
                            const dir_path&);
 
+
+  // Verify that the symlinks target paths in the working tree are valid,
+  // relative, and none of them refer outside the repository directory.
+  //
+  void
+  git_verify_symlinks (const common_options&, const dir_path&);
+
   // Fix up or revert the fixes (including in submodules, recursively) in a
   // working tree previously checked out by git_checkout() or
   // git_checkout_submodules(). Return true if any changes have been made to

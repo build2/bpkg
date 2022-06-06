@@ -74,6 +74,9 @@ namespace bpkg
     {
     case repository_type::git:
       {
+        if (!revert && !ie)
+          git_verify_symlinks (o, dir);
+
         r = git_fixup_worktree (o, dir, revert, ie);
         break;
       }

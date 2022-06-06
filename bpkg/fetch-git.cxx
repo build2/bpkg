@@ -1401,7 +1401,7 @@ namespace bpkg
         catch (const logic_error&)
         {
           fail << "'" << s << "' doesn't appear to contain a git commit "
-            "timestamp" << endg;
+               << "timestamp" << endg;
         }
       }
 
@@ -2148,25 +2148,11 @@ namespace bpkg
                          dir_path () /* prefix */);
   }
 
-#ifndef _WIN32
-
-  // Noop on POSIX.
+  // Find symlinks in a working tree of a top repository or submodule
+  // (non-recursive submodule-wise) and return their relative paths together
+  // with the respective git object ids.
   //
-  optional<bool>
-  git_fixup_worktree (const common_options&,
-                      const dir_path&,
-                      bool revert,
-                      bool)
-  {
-    assert (!revert);
-    return false;
-  }
-
-#else
-
-  // Find symlinks in the repository (non-recursive submodule-wise).
-  //
-  static paths
+  static vector<pair<path, string>>
   find_symlinks (const common_options& co,
                  const dir_path& dir,
                  const dir_path& prefix)
@@ -2197,7 +2183,7 @@ namespace bpkg
 
     try
     {
-      paths r;
+      vector<pair<path, string>> r;
       ifdstream is (move (pipe.in), fdstream_mode::skip, ifdstream::badbit);
 
       for (string l; !eof (getline (is, l, '\0')); )
@@ -2221,7 +2207,7 @@ namespace bpkg
         // mode as a string.
         //
         if (l.compare (0, 6, "120000") == 0)
-          r.push_back (path (string (l, 50)));
+          r.push_back (make_pair (path (string (l, 50)), string (l, 7, 40)));
       }
 
       is.close ();
@@ -2265,6 +2251,124 @@ namespace bpkg
     //
     submodule_failure ("unable to list repository files", prefix);
   }
+
+  // Verify symlinks in a working tree of a top repository or submodule,
+  // recursively.
+  //
+  // Specifically, fail if the symlink target is not a valid relative path or
+  // refers outside the top repository directory.
+  //
+  static void
+  verify_symlinks (const common_options& co,
+                   const dir_path& dir,
+                   const dir_path& prefix)
+  {
+    auto failure = [&prefix] (const string& d, const exception* e = nullptr)
+    {
+      submodule_failure (d, prefix, e);
+    };
+
+    for (const auto& l: find_symlinks (co, dir, prefix))
+    {
+      const path& lp (l.first);
+
+      // Obtain the symlink target path.
+      //
+      path tp;
+
+      fdpipe pipe (open_pipe ());
+      process pr (start_git (co,
+                             pipe, 2 /* stderr */,
+                             co.git_option (),
+                             "-C", dir,
+                             "cat-file",
+                             "-p",
+                             l.second + "^{object}"));
+
+      // Shouldn't throw, unless something is severely damaged.
+      //
+      pipe.out.close ();
+
+      try
+      {
+        ifdstream is (move (pipe.in), fdstream_mode::skip);
+        string s (is.read_text ()); // Note: is not newline-terminated.
+        is.close ();
+
+        if (pr.wait () && !s.empty ())
+        try
+        {
+          tp = path (move (s));
+        }
+        catch (const invalid_path& e)
+        {
+          failure ("invalid target path '" + e.path + "' for symlink '" +
+                   lp.string () + "'",
+                   &e);
+        }
+
+        // Fall through.
+      }
+      catch (const io_error&)
+      {
+        // Fall through.
+      }
+
+      if (tp.empty ())
+        failure ("unable to read target path for symlink '" + lp.string () +
+                 "'");
+
+      // Verify that the symlink target path is relative.
+      //
+      if (tp.absolute ())
+        failure ("absolute target path '" + tp.string () + "' for symlink '" +
+                 lp.string () + "'");
+
+      // Verify that the symlink target path refers inside the top repository
+      // directory.
+      //
+      path rtp (prefix / lp.directory () / tp); // Relative to top directory.
+      rtp.normalize (); // Note: can't throw since the path is relative.
+
+      // Normalizing non-empty path can't end up with an empty path.
+      //
+      assert (!rtp.empty ());
+
+      // Make sure that the relative to the top repository directory target
+      // path doesn't start with '..'.
+      //
+      if (dir_path::traits_type::parent (*rtp.begin ()))
+        failure ("target path '" + tp.string () + "' for symlink '" +
+                 lp.string () + "' refers outside repository");
+    }
+
+    // Verify symlinks for submodules.
+    //
+    for (const submodule& sm: find_submodules (co, dir, prefix))
+      verify_symlinks (co, dir / sm.path, prefix / sm.path);
+  }
+
+  void
+  git_verify_symlinks (const common_options& co, const dir_path& dir)
+  {
+    verify_symlinks (co, dir, dir_path () /* prefix */);
+  }
+
+#ifndef _WIN32
+
+  // Noop on POSIX.
+  //
+  optional<bool>
+  git_fixup_worktree (const common_options&,
+                      const dir_path&,
+                      bool revert,
+                      bool)
+  {
+    assert (!revert);
+    return false;
+  }
+
+#else
 
   // Fix up or revert the previously made fixes in a working tree of a top
   // repository or submodule (see git_fixup_worktree() description for
@@ -2327,7 +2431,7 @@ namespace bpkg
       // skipping those with not-yet-existing target, unless no links were
       // created at the previous run, in which case we fail.
       //
-      paths ls (find_symlinks (co, dir, prefix));
+      vector<pair<path, string>> ls (find_symlinks (co, dir, prefix));
       vector<pair<path, path>> links; // List of the link/target path pairs.
 
       // Mark the being replaced in the working tree links as unchanged,
@@ -2353,8 +2457,9 @@ namespace bpkg
 
       // Cache/remove filesystem-agnostic symlinks.
       //
-      for (path& l: ls)
+      for (auto& li: ls)
       {
+        path& l (li.first);
         path lp (dir / l); // Absolute or relative to the current directory.
 
         // Check the symlink type to see if we need to replace it or can bail
@@ -2512,8 +2617,10 @@ namespace bpkg
       // filesystem entry. To prevent this, we remove all links ourselves
       // first.
       //
-      for (const path& l: find_symlinks (co, dir, prefix))
+      for (const auto& li: find_symlinks (co, dir, prefix))
       {
+        const path& l (li.first);
+
         try
         {
           try_rmfile (dir / l);
