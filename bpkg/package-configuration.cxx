@@ -92,6 +92,10 @@ namespace bpkg
 
     // Check if anything changed by comparing to entries in old_cfgs.
     //
+    // While at it, also detect if we have any changes where one dependent
+    // overrides a value set by another dependent (see below).
+    //
+    bool cycle (false);
     {
       optional<size_t> n (0); // Number of unchanged.
 
@@ -109,19 +113,35 @@ namespace bpkg
                                return v.name == o.name;
                              }));
 
-            if (i == old_cfgs.end () ||
-                i->value != v.value  ||
-                i->dependent != *v.dependent)
+            if (i != old_cfgs.end ())
             {
-              n = nullopt;
-              break;
+              if (i->value == v.value)
+              {
+                // If the value hasn't change, so shouldn't the originating
+                // dependent.
+                //
+                assert (i->dependent == *v.dependent);
+
+                if (n)
+                  ++*n;
+
+                continue;
+              }
+              else
+              {
+                assert (i->dependent != *v.dependent);
+                cycle = true;
+              }
             }
 
-            ++*n;
+            n = nullopt;
+
+            if (cycle)
+              break;
           }
         }
 
-        if (!n)
+        if (!n && cycle)
           break;
       }
 
@@ -132,16 +152,108 @@ namespace bpkg
         return false;
     }
 
-
-    // @@ TODO: look for cycles in change history.
-    // @@ TODO: save in change history.
+    // Besides the dependent returning false from its accept clause, there is
+    // another manifestation of the inability to negotiate an acceptable
+    // configuration: two dependents keep changing the same configuration to
+    // mutually unacceptable values. To detect this, we need to look for
+    // negotiation cycles.
     //
-    /*
-    dependent_config_variable_values new_cfgs; // @@ TODO.
+    // Specifically, given a linear change history in the form:
+    //
+    //   O->N ... O->N ... O->N
+    //
+    // We need to look for a possibility of turning it into a cycle:
+    //
+    //   O->N ... O->N
+    //    \   ...   /
+    //
+    // Where O->N is a change that involves one dependent overriding a value
+    // set by another dependent and `...` are identical history segments.
+    //
+    if (!cycle)
+      return true;
 
-    old_cfgs.sort ();
-    new_cfgs.sort ();
-    */
+    // Populate new_cfgs.
+    //
+    dependent_config_variable_values new_cfgs;
+    for (package_skeleton& depc: depcs)
+    {
+      package_configuration& cfg (cfgs[depc.key]);
+
+      for (config_variable_value& v: cfg)
+      {
+        if (v.origin == variable_origin::buildfile)
+        {
+          new_cfgs.push_back (
+            dependent_config_variable_value {v.name, v.value, *v.dependent});
+        }
+      }
+    }
+
+    // Sort both.
+    //
+    {
+      auto cmp = [] (const dependent_config_variable_value& x,
+                     const dependent_config_variable_value& y)
+      {
+        return x.name < y.name;
+      };
+
+      sort (old_cfgs.begin (), old_cfgs.end (), cmp);
+      sort (new_cfgs.begin (), new_cfgs.end (), cmp);
+    }
+
+    // Look backwards for identical O->N changes and see if we can come
+    // up with two identical segments between them.
+    //
+    cycle = false;
+
+    auto& change_history (cfgs.change_history_);
+
+    for (size_t n (change_history.size ()), i (n); i != 0; i -= 2)
+    {
+      if (change_history[i - 2] == old_cfgs &&
+          change_history[i - 1] == new_cfgs)
+      {
+        size_t d (n - i); // Segment length.
+
+        // See if there is an identical segment before this that also starts
+        // with O->N.
+        //
+        if (i < 2 + d + 2)
+          break; // Not long enough to possibly find anything.
+
+        size_t j (i - 2 - d); // Earlier O->N.
+
+        if (change_history[j - 2] == old_cfgs &&
+            change_history[j - 1] == new_cfgs)
+        {
+          if (equal (change_history.begin () + j,
+                     change_history.begin () + j + d,
+                     change_history.begin () + i))
+          {
+            cycle = true;
+            break;
+          }
+        }
+
+        // Otherwise, keep looking for a potentially longer segment.
+      }
+    }
+
+    if (cycle)
+    {
+      // @@ TODO
+      //
+      // Here we can analyze the O->N change history and determine the other
+      // problematic dependent(s). Do we actually know for sure they are all
+      // problematic? Well, they repeatedly changed the values so I guess so.
+      //
+      fail << "unable to negotiate acceptable configuration (cycle)";
+    }
+
+    change_history.push_back (move (old_cfgs));
+    change_history.push_back (move (new_cfgs));
 
     return true;
   }

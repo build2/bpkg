@@ -48,6 +48,23 @@ namespace bpkg
     optional<package_key> dependent;
   };
 
+  // A subset of config_variable_value for variable values set by the
+  // dependents (origin is buildfile). Used to track change history.
+  //
+  struct dependent_config_variable_value
+  {
+    string                  name;
+    optional<build2::names> value;
+    package_key             dependent;
+  };
+
+  inline bool
+  operator== (const dependent_config_variable_value& x,
+              const dependent_config_variable_value& y)
+  {
+    return x.name == y.name && x.value == y.value && x.dependent == y.dependent;
+  }
+
   class package_configuration: public vector<config_variable_value>
   {
   public:
@@ -79,6 +96,9 @@ namespace bpkg
     }
   };
 
+  using dependent_config_variable_values =
+    small_vector<dependent_config_variable_value, 1>;
+
   class package_configurations: public small_vector<package_configuration, 1>
   {
   public:
@@ -96,28 +116,20 @@ namespace bpkg
       push_back (package_configuration (p));
       return back ();
     }
-  };
 
-
-  // A subset of config_variable_value for variable values set by the
-  // dependents (origin is buildfile). Used to track change history.
-  //
-  struct dependent_config_variable_value
-  {
-    string                  name;
-    optional<build2::names> value;
-    package_key             dependent;
-  };
-
-  class dependent_config_variable_values:
-    public small_vector<dependent_config_variable_value, 1>
-  {
-  public:
-    /*
-      @@
     void
-    sort ();
-    */
+    clear ()
+    {
+      small_vector<package_configuration, 1>::clear ();
+      change_history_.clear ();
+    }
+
+    // Implementation details.
+    //
+  public:
+    // Note: dependent_config_variable_values must be sorted by name.
+    //
+    small_vector<dependent_config_variable_values, 2> change_history_;
   };
 
   // Up-negotiate the configuration for the specified dependencies of the
