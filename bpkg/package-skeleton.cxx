@@ -338,8 +338,6 @@ namespace bpkg
       // construction (in evaluate_{prefer_accept,require}()): we do not add
       // as dependent variables that have the override origin.
       //
-      package_configuration old (move (cfg)); cfg.package = move (old.package);
-
       scope& rs (
         *bootstrap (
           *this, merge_cmd_vars (dependent_cmd_vars (cfg)))->second.front ());
@@ -347,6 +345,9 @@ namespace bpkg
       // Load project's root.build.
       //
       load_root (rs);
+
+      package_configuration old (move (cfg));
+      cfg.package = move (old.package);
 
       // Note that a configuration variable may not have a default value so we
       // cannot just iterate over all the config.<name>** values set on the
