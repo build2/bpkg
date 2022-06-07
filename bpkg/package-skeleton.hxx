@@ -179,9 +179,8 @@ namespace bpkg
     // Call this function before evaluating every clause.
     //
     // If dependency configurations are specified, then typify the variables
-    // and set their values saving the resulting value versions in
-    // config_variable_value::version. If defaults is false, then only typify
-    // the variables and set overrides without setting the default/buildfile
+    // and set their values. If defaults is false, then only typify the
+    // variables and set overrides without setting the default/buildfile
     // values.
     //
     build2::scope&
@@ -226,9 +225,38 @@ namespace bpkg
     strings cmd_vars_;
     bool cmd_vars_cache_ = false;
 
+    // Reflect variable value storage. Used for both real reflect and
+    // dependency reflect.
+    //
+    struct reflect_variable_value
+    {
+      string                          name;
+      build2::config::variable_origin origin;
+      optional<string>                type;
+      optional<build2::names>         value;
+    };
+
+    using reflect_variable_values = vector<reflect_variable_value>;
+
     strings dependent_vars_; // Dependent configuration variable overrides.
     strings reflect_vars_;   // Reflect configuration variable overrides.
     string  reflect_frag_;   // Reflect configuration variables fragment.
+
+    // Dependency configuration variables set by the prefer/require clauses
+    // and that should be reflected in subsequent clauses.
+    //
+    // The same prefer/require clause could be re-evaluated multiple times in
+    // which case the previous dependency reflect values from this clause (but
+    // not from any previous clauses) should be dropped. This is achieved by
+    // keeping track of the depends_index for the most recently evaluated
+    // prefer/require clause along with the position of the first element that
+    // was added by this clause. Note also that this logic does the right
+    // thing if we move to a different dependency alternative withing the same
+    // depends value.
+    //
+    reflect_variable_values dependency_reflect_;
+    size_t                  dependency_reflect_index_ = 0;
+    size_t                  dependency_reflect_pending_ = 0;
   };
 }
 

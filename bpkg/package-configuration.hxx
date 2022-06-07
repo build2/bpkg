@@ -33,23 +33,19 @@ namespace bpkg
     //
     build2::config::variable_origin origin;
 
+    // Variable type name with absent signifying untyped.
+    //
+    optional<string> type;
+
     // If origin is not undefined, then this is the reversed variable value
     // with absent signifying NULL.
     //
     optional<build2::names> value;
 
-    // Variable type name with absent signifying untyped.
-    //
-    optional<string> type;
-
     // If origin is buildfile, then this is the "originating dependent" which
     // first set this variable to this value.
     //
     optional<package_key> dependent;
-
-    // Value version (used internally by package_skeleton).
-    //
-    size_t version;
   };
 
   class package_configuration: public vector<config_variable_value>
