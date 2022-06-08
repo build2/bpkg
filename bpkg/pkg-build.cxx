@@ -1743,11 +1743,13 @@ namespace bpkg
   {
   public:
     // Return the configuration the dependent is added to (after all the
-    // potential configuration merges, etc). Also return in second absent if
-    // the merge happened due to the shadow cluster logic (in which case the
-    // cluster was/is being negotiated) and true/false indicating whether all
-    // the merge-involved configurations are negotiated (the negotiated member
-    // is true for all of them).
+    // potential configuration merges, etc).
+    //
+    // Also return in second absent if the merge happened due to the shadow
+    // cluster logic (in which case the cluster was/is being negotiated) and
+    // true/false indicating whether all the merge-involved configurations are
+    // completely negotiated (the negotiated member is present and true for
+    // all of them).
     //
     // If some configurations needs to be merged and this involves the (being)
     // negotiated configurations, then merge into the outermost-depth
@@ -4472,6 +4474,13 @@ namespace bpkg
               return false; // Cases (1) or (2).
             else
             {
+              // r.second:
+              //
+              //   absent  -- shadow cluster-based merge
+              //   false   -- some not or being negotiated
+              //   true    -- all have been negotiated
+              //
+
               // Case (3).
               //
               // If this is the first time we are here (see below), then we
@@ -4493,6 +4502,34 @@ namespace bpkg
               {
                 // The "first time" case.
                 //
+
+                // @@ TODO: if configuration has not changed, then we don't
+                //    need to throw. Do it at the end (there is no harm in
+                //    throwing even if not needed and it will change test
+                //    trace).
+                //
+                //    Also, we may have to throw multiple times if the
+                //    configuration gets refined... In a sense, semantically,
+                //    we should act like a one more iteration of the initial
+                //    negotiation loop with the exception acting like a
+                //    request to restart the refinement process from the
+                //    beginning.
+                //
+                //    It feels like the unchanged case semantics should be
+                //    like falling through to the "second time" case. Though
+                //    I wonder if there could be some missing steps, like
+                //    collecting dependencies? Doesn't feel like it since
+                //    we are re-using existing configuration which presumably
+                //    means all this has already been done.
+                //
+                //    Hm, won't we need to "reset" dependency package
+                //    skeletons (which have by now potentially seen
+                //    evaluate_*() calls) in order to negotiate. And if the
+                //    configuration hasn't changed, then how will we restore
+                //    them? Maybe we should make copies (that are "reset" to
+                //    the initial state) and use that?
+                //
+
                 l5 ([&]{trace << "cfg-postponing dependent "
                               << pkg.available_name_version_db ()
                               << " involves negotiated configurations and "
@@ -4511,16 +4548,28 @@ namespace bpkg
               {
                 // The "second time" case.
                 //
-                // There is just one complication: If all the merged clusters
-                // are already negotiated, then all is good: all the
-                // dependencies in cfg_deps have been collected recursively as
-                // part of the configuration negotiation (because everything
-                // in this cluster is already negotiated) and we can return
-                // true (no need to postpone any further steps).
+                // There is just one complication:
+                //
+                // If all the merged clusters are already negotiated, then all
+                // is good: all the dependencies in cfg_deps have been
+                // collected recursively as part of the configuration
+                // negotiation (because everything in this cluster is already
+                // negotiated) and we can return true (no need to postpone any
+                // further steps).
                 //
                 // But if we do have clusters not yet negotiated, or, worse,
                 // being in the middle of negotiation, then we need to get
-                // this cluster into the fully negotiated state.
+                // this merged cluster into the fully negotiated state. The
+                // we do it is by throwing merge_configuration (see below).
+                //
+                // When we are back here after throwing merge_configuration,
+                // then all the clusters have been pre-merged and our call to
+                // add() shouldn't have added any new cluster. In this case
+                // the cluster can either be already negotiated or being
+                // negotiated and we can proceed as in the "everything is
+                // negotiated case" above (we just need to get the the
+                // dependencies that we care about into the recursively
+                // collected state).
                 //
                 l5 ([&]{trace << "dependent "
                               << pkg.available_name_version_db ()
@@ -4541,6 +4590,8 @@ namespace bpkg
                   // collect before indicating to the caller (returning true)
                   // that we are done with this depends value and the
                   // dependent is not postponed.
+                  //
+                  // @@ TODO call verify_sensible(), etc. DO NOW.
                   //
                   for (const package_key& p: cfg_deps)
                   {
@@ -6208,9 +6259,13 @@ namespace bpkg
                             << "to dependent " << e.dependent << ", adding "
                             << "shadow dependent and re-negotiating";});
 
-              // Record the dependent/dependencies/position that triggered this
-              // so that we don't repeat this up-negotiate/throw/catch dance
-              // when we retry collect_build_postponed().
+              // @@ TODO: need to copy dependency_configuration to the
+              //    restored state. DO NOW.
+
+              // Record the dependent/dependencies/position that triggered
+              // this so that we don't repeat this up-negotiate/throw/catch
+              // dance when we retry collect_build_postponed(). @@ Hm. could
+              // this not be re-done via "unchanged configuration"?
               //
               // Note that there is also a possibility of having a "bogus"
               // dependent/dependencies (i.e., we add them to the cluster but
