@@ -1951,8 +1951,8 @@ namespace bpkg
         //
         assert (skl.out_root_.empty ());
 
-        auto i (temp_dir.find (skl.db_->config_orig));
-        assert (i != temp_dir.end ());
+        auto i (tmp_dirs.find (skl.db_->config_orig));
+        assert (i != tmp_dirs.end ());
 
         // Make sure the source and out root directories, if set, are absolute
         // and normalized.
