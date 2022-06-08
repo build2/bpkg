@@ -1746,10 +1746,9 @@ namespace bpkg
     // potential configuration merges, etc).
     //
     // Also return in second absent if the merge happened due to the shadow
-    // cluster logic (in which case the cluster was/is being negotiated) and
-    // true/false indicating whether all the merge-involved configurations are
-    // completely negotiated (the negotiated member is present and true for
-    // all of them).
+    // cluster logic (in which case the cluster was/is being negotiated),
+    // false if any non-negotiated or being negotiated clusters has been
+    // merged in, and true otherwise.
     //
     // If some configurations needs to be merged and this involves the (being)
     // negotiated configurations, then merge into the outermost-depth
@@ -1768,17 +1767,18 @@ namespace bpkg
       // The plan is to first go through the existing clusters and check if
       // any of them contain this dependent/dependencies in their shadow
       // clusters. If such a cluster is found, then force-add them to
-      // it. Otherwise, add the specified dependent/dependencies to the first
-      // found dependency-intersecting cluster, if present, and add the new
-      // cluster otherwise. Afterwards, merge into the resulting cluster other
-      // dependency-intersecting clusters. Note that in case of shadow, this
-      // should normally not happen because such a cluster should have been
-      // either pre-merged or its dependents should be in the cluster. But
-      // it feels like it may still happen if things change, in which case
-      // we will throw again (admittedly a bit fuzzy).
+      // it. Otherwise, if any dependency-intersecting clusters are present,
+      // then add the specified dependent/dependencies to the one with the
+      // minimum non-zero depth, if any, and to the first one otherwise.
+      // Otherwise, add the new cluster. Afterwards, merge into the resulting
+      // cluster other dependency-intersecting clusters. Note that in case of
+      // shadow, this should normally not happen because such a cluster should
+      // have been either pre-merged or its dependents should be in the
+      // cluster. But it feels like it may still happen if things change, in
+      // which case we will throw again (admittedly a bit fuzzy).
       //
       iterator ri;
-      bool rb;
+      bool rb (true);
 
       // Note that if a single dependency is added, then it can only belong to
       // a single existing cluster and so no clusters merge can happen, unless
@@ -1790,7 +1790,8 @@ namespace bpkg
       bool single (dependencies.size () == 1);
 
       // Merge dependency-intersecting clusters in the specified range into
-      // the resulting cluster. Return true if any clusters have been merged.
+      // the resulting cluster and reset change rb to false if any of the
+      // merged in clusters is non-negotiated or is being negotiated.
       //
       // The iterator arguments refer to entries before and after the range
       // endpoints, respectively.
@@ -1799,7 +1800,7 @@ namespace bpkg
                                                      iterator e,
                                                      bool shadow_based)
       {
-        postponed_configuration& c1 (*ri);
+        postponed_configuration& rc (*ri);
 
         iterator j (i);
 
@@ -1808,40 +1809,19 @@ namespace bpkg
         bool merged (false);
         for (++i; i != e; ++i)
         {
-          postponed_configuration& c2 (*i);
+          postponed_configuration& c (*i);
 
-          if (c2.contains_dependency (c1))
+          if (c.contains_dependency (rc))
           {
-            if (!c2.negotiated || !*c2.negotiated)
+            if (!c.negotiated || !*c.negotiated)
               rb = false;
 
-            // Merge into the outermost-depth negotiated configuration of
-            // the two, unless we are force-merging into the shadow-matching
-            // cluster.
-            //
-            if (!shadow_based &&
-                c2.depth != 0 &&
-                (c1.depth == 0 || c1.depth > c2.depth))
-            {
-              l5 ([&]{trace << "merge " << c1 << " into " << c2;});
-              c2.merge (move (c1));
+            l5 ([&]{trace << "merge " << c << " into " << rc;});
 
-              // Mark configuration as the one being merged from for
-              // subsequent erasing from the list.
-              //
-              c1.dependencies.clear ();
+            assert (!shadow_based || (c.negotiated && *c.negotiated));
 
-              ri = i;
-            }
-            else
-            {
-              l5 ([&]{trace << "merge " << c2 << " into " << c1;});
-
-              assert (!shadow_based || (c2.negotiated && *c2.negotiated));
-
-              c1.merge (move (c2));
-              c2.dependencies.clear (); // Mark as merged from (see above).
-            }
+            rc.merge (move (c));
+            c.dependencies.clear (); // Mark as merged from (see above).
 
             merged = true;
 
@@ -1923,30 +1903,31 @@ namespace bpkg
 
           ri = i;
 
-          merge (before_begin (), i, true /* shadow_based */);
-          merge (i, end (), true /* shadow_based */);
+          merge (before_begin (), ri, true /* shadow_based */);
+          merge (ri, end (), true /* shadow_based */);
 
           return make_pair (ref (*ri), optional<bool> ());
         }
       }
 
-      auto i (begin ());
-      auto j (before_begin ()); // Precedes iterator i.
+      // Find the cluster to add the dependent/dependencies to.
+      //
+      optional<size_t> depth;
 
-      for (; i != end (); ++i, ++j)
+      auto j (before_begin ()); // Precedes iterator i.
+      for (auto i (begin ()); i != end (); ++i, ++j)
       {
         postponed_configuration& c (*i);
 
-        if (c.contains_dependency (dependencies))
+        if (c.contains_dependency (dependencies) &&
+            (!depth || (c.depth != 0 && (*depth == 0 || *depth > c.depth))))
         {
-          trace_add (c, false /* shadow */);
-
-          c.add (move (dependent), existing, position, move (dependencies));
-          break;
+          ri = i;
+          depth = c.depth;
         }
       }
 
-      if (i == end ())
+      if (!depth) // No intersecting cluster?
       {
         // New cluster. Insert after the last element.
         //
@@ -1958,20 +1939,22 @@ namespace bpkg
                              position,
                              move (dependencies)));
 
-        rb = false;
-
         l5 ([&]{trace << "create " << *ri;});
       }
       else
       {
-        ri = i;
-        rb = (i->negotiated && *i->negotiated);
-
-        // We know no cluster we have already examined could end up being
-        // merged.
+        // Add the dependent/dependencies into an existing cluster.
         //
-        if (!single)
-          merge (i, end (), false /* shadow_based */); // Note: updates rb.
+        postponed_configuration& c (*ri);
+
+        trace_add (c, false /* shadow */);
+
+        c.add (move (dependent), existing, position, move (dependencies));
+
+        // Try to merge other clusters into this cluster.
+        //
+        merge (before_begin (), ri, false /* shadow_based */);
+        merge (ri, end (), false /* shadow_based */);
       }
 
       return make_pair (ref (*ri), optional<bool> (rb));
@@ -4505,7 +4488,7 @@ namespace bpkg
               //   false   -- some non or being negotiated
               //   true    -- all have been negotiated
               //
-              if (r.second && !r.second)
+              if (r.second && !*r.second)
               {
                 // The partially negotiated case.
                 //
@@ -4539,9 +4522,9 @@ namespace bpkg
                 //
                 l5 ([&]{trace << "cfg-postponing dependent "
                               << pkg.available_name_version_db ()
-                              << " involves non-negotiated configurations "
-                              << "and results in " << cfg << ", throwing "
-                              << "merge_configuration";});
+                              << " merges non-negotiated and/or being "
+                              << "negotiated configurations in and results in "
+                              << cfg << ", throwing merge_configuration";});
 
                 // Don't print the "while satisfying..." chain.
                 //
@@ -4552,6 +4535,8 @@ namespace bpkg
 
               if (r.second && !cfg.contains_shadow_dependent (pk, dp))
               {
+                assert (*r.second); // Would't be here otherwise.
+
                 // The "first time" case.
                 //
 
@@ -4584,8 +4569,8 @@ namespace bpkg
 
                 l5 ([&]{trace << "cfg-postponing dependent "
                               << pkg.available_name_version_db ()
-                              << " involves negotiated configurations and "
-                              << "results in " << cfg
+                              << " involves (being) negotiated configurations "
+                              << "and results in " << cfg
                               << ", throwing retry_configuration";});
 
                 // up_negotiate (...);
@@ -4605,8 +4590,8 @@ namespace bpkg
 
                 l5 ([&]{trace << "configuration for cfg-postponed "
                               << "dependencies of dependent "
-                              << pkg.available_name_version_db () << " "
-                              << (r.second ? "is" : "shadow") << " negotiated";});
+                              << pkg.available_name_version_db () << " is "
+                              << (r.second ? "" : "shadow-") << "negotiated";});
 
                 // Note that even in the fully negotiated case we may still
                 // add extra dependencies to this cluster which we still need
