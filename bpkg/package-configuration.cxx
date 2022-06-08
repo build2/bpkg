@@ -64,6 +64,22 @@ namespace bpkg
     //                   ? ($config.foo.x ? 8196 : 6144)
     //                   : $config.foo.buf)
     //
+    // Another issue with this "originating dependent" logic is that it will
+    // be tricky to scale to containers where we would need to track
+    // originating dependents for individual elements of a value rather than
+    // the whole value as we do now. As an example, consider some "set of
+    // enabled backends" configuration variable. Technically, this doesn't
+    // seem insurmountable if we make some assumptions (e.g., if a value
+    // contains multiple elements, then it is such a set-like value; or
+    // we could use actual type names).
+    //
+    // For now we recommend to use multiple bool configurations to handle such
+    // cases (and, in fact, we currently don't have any set/map-like types,
+    // which we may want to add in the future). However, one could come up
+    // with some open-ended configuration list that will be difficult to
+    // support with bool. For example, we may need to support a set of buffer
+    // sizes or some such.
+    //
     // Our assumptions regarding require:
     //
     // - Can only set bool configuration variables and only to true.
