@@ -26,8 +26,43 @@ namespace bpkg
     // Step 1: save a snapshot of the old configuration while unsetting values
     // that have this dependent as the originator and reloading the defaults.
     //
-    // While at it, also collect the configurations to pass to dependent's
-    // evaluate_*() calls.
+    // The idea behind unsetting values previously (first) set by this
+    // dependent is to allow it to "change its mind" based on other changes in
+    // the configuration (e.g., some expensive feature got enabled by another
+    // dependent which this dependent might as well use).
+    //
+    // This works well if the default values of configuration variables are
+    // independent. However, consider this example:
+    //
+    // dependency:
+    //
+    //   config [bool] config.foo.x ?= false
+    //   config [bool] config.foo.buf ?= ($config.foo.x ? 8196 : 4096)
+    //
+    // dependent:
+    //
+    //   config.foo.x = true
+    //   config.foo.buf = ($config.foo.buf < 6144 ? 6144 : $config.foo.buf)
+    //
+    // Here if we unset both x and buf to their defaults, we will get an
+    // incorrect result.
+    //
+    // The long-term solution here is to track dependencies between
+    // configuration variables (which we can do as part of the config
+    // directive via our parser::lookup_variable() hook and save this
+    // information in the config module's saved_variables list). Then, we
+    // "levelize" all the variables and have an inner "refinement" loop over
+    // these levels. Specifically, we first unset all of them. Then we unset
+    // all except the first level (which contains configuration variables that
+    // don't depend on any others). And so on.
+    //
+    // And until we implement this, we expect the dependent to take such
+    // configuration variable dependencies into account. For example:
+    //
+    // config.foo.x = true
+    // config.foo.buf = ($config.foo.buf < 6144
+    //                   ? ($config.foo.x ? 8196 : 6144)
+    //                   : $config.foo.buf)
     //
     // Our assumptions regarding require:
     //
@@ -43,6 +78,9 @@ namespace bpkg
     // that this assumes the set of configuration variables cannot change
     // based on the values of other configuration variables (we have a note
     // in the manual instructing the user not to do this).
+    //
+    // While at it, also collect the configurations to pass to dependent's
+    // evaluate_*() calls.
     //
     dependent_config_variable_values old_cfgs;
     package_skeleton::dependency_configurations depc_cfgs;
