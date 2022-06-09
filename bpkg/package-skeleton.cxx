@@ -262,30 +262,6 @@ namespace bpkg
     return r;
   }
 
-  static string
-  serialize_cmdline (const string& var, const optional<build2::names>& val)
-  {
-    using namespace build2;
-
-    string r (var + '=');
-
-    if (!val)
-      r += "[null]";
-    else
-    {
-      if (!val->empty ())
-      {
-        // Note: we need to use command-line (effective) quoting.
-        //
-        ostringstream os;
-        to_stream (os, *val, quote_mode::effective, '@');
-        r += os.str ();
-      }
-    }
-
-    return r;
-  }
-
   // Reverse value to names.
   //
   static optional<build2::names>
@@ -317,7 +293,7 @@ namespace bpkg
     for (const config_variable_value& v: cfg)
     {
       if (v.origin == variable_origin::buildfile)
-        r.push_back (serialize_cmdline (v.name, v.value));
+        r.push_back (v.serialize_cmdline ());
     }
 
     return r;
@@ -411,7 +387,7 @@ namespace bpkg
         case variable_origin::override_:
         case variable_origin::undefined:
           {
-            config_variable_value v {var.name, ol.first, {}, {}, {}};
+            config_variable_value v {var.name, ol.first, {}, {}, {}, false};
 
             // Override could mean user override from config_vars_ or the
             // dependent override that we have merged above.
@@ -424,6 +400,7 @@ namespace bpkg
 
                 v.origin = variable_origin::buildfile;
                 v.dependent = move (ov->dependent);
+                v.confirmed = true;
               }
             }
 
@@ -1171,6 +1148,7 @@ namespace bpkg
 
                 v.value = move (ns);
                 v.dependent = key; // We are the originating dependent.
+                v.confirmed = true;
                 break;
               }
             case variable_origin::default_:
@@ -1448,6 +1426,7 @@ namespace bpkg
 
               v.value = move (ns);
               v.dependent = key; // We are the originating dependent.
+              v.confirmed = true;
             }
           }
         }
@@ -1792,7 +1771,7 @@ namespace bpkg
         for (const config_variable_value& v: cfg)
         {
           if (v.origin == variable_origin::override_)
-            dependency_vars.push_back (serialize_cmdline (v.name, v.value));
+            dependency_vars.push_back (v.serialize_cmdline ());
         }
       }
 

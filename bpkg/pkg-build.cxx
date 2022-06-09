@@ -2073,7 +2073,9 @@ namespace bpkg
   {
     size_t               depth;
     package_key          dependent;
+#if 0 // @@ TMP
     pair<size_t, size_t> position;
+#endif
   };
 
   struct merge_configuration
@@ -4624,7 +4626,7 @@ namespace bpkg
                 //
                 dep_chain.clear ();
 
-                throw retry_configuration {cfg.depth, move (pk), dp};
+                throw retry_configuration {cfg.depth, move (pk)/*, dp*/}; // @@ TMP
               }
 
               l5 ([&]{trace << "configuration for cfg-postponed "
@@ -5570,6 +5572,7 @@ namespace bpkg
                              postponed_packages& postponed_alts,
                              postponed_dependencies& postponed_deps,
                              postponed_configurations& postponed_cfgs,
+                             strings& postponed_cfgs_history,
                              postponed_positions& postponed_poss,
                              const function<find_database_function>& fdb,
                              const repointed_dependents& rpt_depts,
@@ -5577,6 +5580,8 @@ namespace bpkg
                              postponed_configuration* pcfg = nullptr)
     {
       // Snapshot of the package builds collection state.
+      //
+      // Note: should not include postponed_cfgs_history.
       //
       class snapshot
       {
@@ -6440,6 +6445,7 @@ namespace bpkg
                                        postponed_alts,
                                        postponed_deps,
                                        postponed_cfgs,
+                                       postponed_cfgs_history,
                                        postponed_poss,
                                        fdb,
                                        rpt_depts,
@@ -6507,7 +6513,7 @@ namespace bpkg
 
               break;
             }
-            catch (retry_configuration& e)
+            catch (const retry_configuration& e)
             {
               // If this is not "our problem", then keep looking.
               //
@@ -6529,21 +6535,32 @@ namespace bpkg
 
               pc = &postponed_cfgs[ci];
 
+              // @@ TMP: "shadow" seems no longer correct.
+              //
               l5 ([&]{trace << "cfg-negotiation of " << *pc << " failed due "
                             << "to dependent " << e.dependent << ", adding "
                             << "shadow dependent and re-negotiating";});
 
-              // @@ TODO
-              //
-              // Note that there is also a possibility of having a "bogus"
-              // dependent/dependencies (i.e., we add them to the cluster but
-              // they never get re-visited). While seems harmless (or not),
-              // maybe we need to prune the part of the configuration that was
-              // added by them? Maybe we should have the confirmed flag which
-              // is set when the originating dependent confirms the value?!
-
               // Copy over the configuration for further refinement.
               //
+              // Note that there is also a possibility of ending up with
+              // "bogus" configuration variables that were set by a dependent
+              // during up-negotiation but, due to changes to the overall
+              // configuration, such a dependent were never re-visited.
+              //
+              // The way we are going to deal with this is by detecting such
+              // bogus variables based on the confirmed flag, cleaning them
+              // out, and doing another retry. Here we clear the confirmed
+              // flag and the detection happens in collect_build_postponed()
+              // after we have processed everything postponed (since that's
+              // the only time we can be certain there could no longer be a
+              // re-visit).
+              //
+              for (package_configuration& cfg: cfgs)
+                for (config_variable_value& v: cfg)
+                  if (v.dependent)
+                    v.confirmed = false;
+
               pc->dependency_configurations = move (cfgs);
 
 #if 0
@@ -6808,6 +6825,139 @@ namespace bpkg
         // it earlier which will affect dependency alternatives).
         //
         postponed_deps.cancel_bogus (trace, false /* initial_collection */);
+      }
+
+      // Check if any negotiatiated configurations ended up with any bogus
+      // variables (see retry_configuration catch block for background).
+      //
+      // Note that we could potentially end up yo-yo'ing: we remove a bogus
+      // and that causes the original dependent to get re-visited which in
+      // turn re-introduces the bogus. In other words, one of the bogus
+      // variables which we have removed are actually the cause of no longer
+      // needing the dependent that introduced it. Feels like the correct
+      // outcome of this should be keeping the bogus variable that triggered
+      // yo-yo'ing. Of course, there could be some that we should keep and
+      // some that we should drop and figuring this out would require retrying
+      // all possible combinations. An alternative solution would be to detect
+      // yo-yo'ing, print the bogus variables involved, and ask the user to
+      // choose (with an override) which ones to keep. Let's go with this for
+      // now.
+      //
+      {
+        // On the first pass see if we have anything bogus.
+        //
+        bool bogus (false);
+        for (postponed_configuration& pcfg: postponed_cfgs)
+        {
+          if (pcfg.negotiated && *pcfg.negotiated) // Negotiated.
+          {
+            for (package_configuration& cfg: pcfg.dependency_configurations)
+            {
+              for (config_variable_value& v: cfg)
+              {
+                if (v.dependent && !v.confirmed)
+                {
+                  bogus = true;
+                  break;
+                }
+              }
+              if (bogus) break;
+            }
+            if (bogus) break;
+          }
+        }
+
+        if (bogus)
+        {
+          // On the second pass calculate the checksum of all the negotiated
+          // clusters.
+          //
+          sha256 cs;
+          for (postponed_configuration& pcfg: postponed_cfgs)
+          {
+            if (pcfg.negotiated && *pcfg.negotiated)
+            {
+              for (package_configuration& cfg: pcfg.dependency_configurations)
+              {
+                for (config_variable_value& v: cfg)
+                {
+                  if (v.dependent)
+                    to_checksum (cs, v);
+                }
+              }
+            }
+          }
+
+          bool cycle;
+          {
+            string s (cs.string ());
+            if (find (postponed_cfgs_history.begin (),
+                      postponed_cfgs_history.end (),
+                      s) == postponed_cfgs_history.end ())
+            {
+              postponed_cfgs_history.push_back (move (s));
+              cycle = false;
+            }
+            else
+              cycle = true;
+          }
+
+          // On the third pass we either retry or diagnose.
+          //
+          diag_record dr;
+          if (cycle)
+          {
+            dr <<
+              fail << "unable to remove bogus configuration values without "
+                   << "causing configuration refinement cycle" <<
+              info << "consider manually specifying one or more of the "
+                   << "following variables as user configuration";
+          }
+
+          for (postponed_configuration& pcfg: postponed_cfgs)
+          {
+            optional<package_key> dept; // Bogus dependent.
+
+            if (pcfg.negotiated && *pcfg.negotiated)
+            {
+              for (package_configuration& cfg: pcfg.dependency_configurations)
+              {
+                // Note that the entire dependency configuration may end up
+                // being "bogus" (i.e., it does not contain any configuration
+                // variables with a confirmed dependent). But that will be
+                // handled naturally: we will either no longer have this
+                // dependency in the cluster and thus never call its
+                // skeleton's dependent_config() or this call will be no-op
+                // since it won't find any dependent variables.
+                //
+                for (config_variable_value& v: cfg)
+                {
+                  if (v.dependent && !v.confirmed)
+                  {
+                    if (!dept)
+                      dept = move (v.dependent);
+
+                    if (cycle)
+                      dr << info << v.serialize_cmdline ();
+                    else
+                      v.undefine ();
+                  }
+                }
+              }
+
+              if (dept)
+              {
+                if (cycle)
+                  break;
+                else
+                  throw retry_configuration {pcfg.depth, move (*dept)};
+              }
+            }
+
+            if (dept)
+              break;
+          }
+        }
       }
 
       // If any postponed_{repo,alts} builds remained, then perform the
@@ -10826,6 +10976,7 @@ namespace bpkg
         postponed_packages       postponed_repo;
         postponed_packages       postponed_alts;
         postponed_configurations postponed_cfgs;
+        strings                  postponed_cfgs_history;
 
         try
         {
@@ -11099,6 +11250,7 @@ namespace bpkg
                                           postponed_alts,
                                           postponed_deps,
                                           postponed_cfgs,
+                                          postponed_cfgs_history,
                                           postponed_poss,
                                           find_prereq_database,
                                           rpt_depts,

@@ -3,11 +3,61 @@
 
 #include <bpkg/package-configuration.hxx>
 
+#include <sstream>
+
 #include <bpkg/package-skeleton.hxx>
 
 namespace bpkg
 {
   using build2::config::variable_origin;
+
+  string config_variable_value::
+  serialize_cmdline () const
+  {
+    using namespace build2;
+
+    string r (name + '=');
+
+    if (!value)
+      r += "[null]";
+    else
+    {
+      if (!value->empty ())
+      {
+        // Note: we need to use command-line (effective) quoting.
+        //
+        ostringstream os;
+        to_stream (os, *value, quote_mode::effective, '@');
+        r += os.str ();
+      }
+    }
+
+    return r;
+  }
+
+  void
+  to_checksum (sha256& cs, const config_variable_value& v)
+  {
+    using namespace build2;
+
+    cs.append (v.name);
+    cs.append (static_cast<uint8_t> (v.origin));
+    if (v.type)
+      cs.append (*v.type);
+
+    if (v.origin != variable_origin::undefined)
+    {
+      if (v.value)
+        for (const name& n: *v.value)
+          to_checksum (cs, n);
+
+      if (v.origin == variable_origin::buildfile)
+      {
+        cs.append (v.dependent->string ());
+        cs.append (v.confirmed);
+      }
+    }
+  }
 
   bool
   up_negotiate_configuration (
@@ -118,9 +168,7 @@ namespace bpkg
 
             // Note that we will not reload it to default in case of require.
             //
-            v.origin = variable_origin::undefined;
-            v.value = nullopt;
-            v.dependent = nullopt;
+            v.undefine ();
           }
           else
             old_cfgs.push_back (

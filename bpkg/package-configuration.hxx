@@ -46,7 +46,31 @@ namespace bpkg
     // first set this variable to this value.
     //
     optional<package_key> dependent;
+
+    // If origin is buildfile, then this flag indicates whether the
+    // originating dependent has been encountered during the negotiation
+    // retry.
+    //
+    bool confirmed;
+
+  public:
+    void
+    undefine ()
+    {
+      origin = build2::config::variable_origin::undefined;
+      value = nullopt;
+      dependent = nullopt;
+      confirmed = false;
+    }
+
+    // Serialize the variable value as a command line override.
+    //
+    string
+    serialize_cmdline () const;
   };
+
+  void
+  to_checksum (sha256&, const config_variable_value&);
 
   // A subset of config_variable_value for variable values set by the
   // dependents (origin is buildfile). Used to track change history.
