@@ -4630,7 +4630,7 @@ namespace bpkg
 
               l5 ([&]{trace << "configuration for cfg-postponed "
                             << "dependencies of dependent "
-                            << pkg.available_name_version_db () << " "
+                            << pkg.available_name_version_db () << " is "
                             << (r.second ? "" : "shadow-") << "negotiated";});
 
               // Note that even in the fully negotiated case we may still add
