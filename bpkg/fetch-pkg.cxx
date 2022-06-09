@@ -52,7 +52,7 @@ namespace bpkg
       is.close ();
 
       string s (bs.str ());
-      string sha256sum (sha256 (s.c_str (), s.size ()));
+      string cs (sha256sum (s.c_str (), s.size ()));
 
       istringstream ts (s); // Text mode.
 
@@ -60,7 +60,7 @@ namespace bpkg
       M m (mp, ignore_unknown);
 
       if (pr.wait ())
-        return make_pair (move (m), move (sha256sum));
+        return make_pair (move (m), move (cs));
 
       // Child existed with an error, fall through.
     }
@@ -146,14 +146,14 @@ namespace bpkg
       // and reading the manifest. The file should be opened in the binary
       // mode for the first operation and in the text mode for the second one.
       //
-      string sha256sum;
+      string cs;
       if (o != nullptr)
-        sha256sum = sha256 (*o, f); // Read file in the binary mode.
+        cs = sha256sum (*o, f); // Read file in the binary mode.
 
       ifdstream ifs (f);  // Open file in the text mode.
 
       manifest_parser mp (ifs, f.string ());
-      return make_pair (M (mp, ignore_unknown), move (sha256sum));
+      return make_pair (M (mp, ignore_unknown), move (cs));
     }
     catch (const manifest_parsing& e)
     {

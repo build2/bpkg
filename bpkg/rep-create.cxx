@@ -106,7 +106,7 @@ namespace bpkg
 
       // Calculate its checksum.
       //
-      m.sha256sum = sha256 (o, a);
+      m.sha256sum = sha256sum (o, a);
 
       l4 ([&]{trace << m.name << " " << m.version << " in " << a
                     << " sha256sum " << *m.sha256sum;});
@@ -183,7 +183,7 @@ namespace bpkg
     collect (o, pm, d, d);
 
     pkg_package_manifests manifests;
-    manifests.sha256sum = sha256 (o, path (d / repositories_file));
+    manifests.sha256sum = sha256sum (o, path (d / repositories_file));
 
     for (auto& p: pm)
     {
@@ -235,7 +235,7 @@ namespace bpkg
             info << "run 'bpkg help rep-create' for more information";
 
         signature_manifest m;
-        m.sha256sum = sha256 (o, p);
+        m.sha256sum = sha256sum (o, p);
         m.signature = sign_repository (o, m.sha256sum, key, *cert, d);
 
         p = path (d / signature_file);

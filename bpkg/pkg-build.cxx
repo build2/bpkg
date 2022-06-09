@@ -12,7 +12,6 @@
 #include <functional>   // ref()
 #include <forward_list>
 
-#include <libbutl/sha256.hxx>
 #include <libbutl/standard-version.hxx>
 
 #include <bpkg/package.hxx>
