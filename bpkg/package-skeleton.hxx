@@ -73,14 +73,13 @@ namespace bpkg
     // The following functions should be called in the following sequence
     // (* -- zero or more, ? -- zero or one):
     //
-    // * reload_defaults()
-    // * verify_sensible()
+    // * reload_defaults() | verify_sensible()
     // ? dependent_config()
-    // * evaluate_enable() | evaluate_reflect()
+    // * evaluate_*()
     //   collect_config()
     //
     // Note that a copy of the skeleton is expected to continue with the
-    // sequence rather than starting from scratch.
+    // sequence rather than starting from scratch, unless reset() is called.
     //
   public:
     // Reload the default values and type information for configuration
@@ -135,6 +134,13 @@ namespace bpkg
     bool
     evaluate_require (const dependency_configurations&,
                       const string&, size_t depends_index);
+
+    // Reset the skeleton to the start of the call sequence.
+    //
+    // Note that this function cannot be called after collect_config().
+    //
+    void
+    reset ();
 
     // Return the accumulated configuration variables (first) and project
     // configuration variable sources (second). Note that the arrays are not

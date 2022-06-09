@@ -138,6 +138,26 @@ namespace bpkg
     // that it can be loaded if necessary.
   }
 
+  void package_skeleton::
+  reset ()
+  {
+    assert (db_ != nullptr); // Cannot be called after collect_config().
+
+    rs_ = nullptr;
+    ctx_ = nullptr; // Free.
+
+    cmd_vars_.clear ();
+    cmd_vars_cache_ = false;
+
+    dependent_vars_.clear ();
+    reflect_vars_.clear ();
+    reflect_frag_.clear ();
+
+    dependency_reflect_.clear ();
+    dependency_reflect_index_ = 0;
+    dependency_reflect_pending_ = 0;
+  }
+
   package_skeleton::
   package_skeleton (const common_options& co,
                     database& db,

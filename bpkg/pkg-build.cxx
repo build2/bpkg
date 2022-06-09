@@ -4478,7 +4478,7 @@ namespace bpkg
               // everything in this cluster is already negotiated) and we can
               // return true (no need to postpone any further steps).
               //
-              // But if we do have clusters not yet negotiated, or, worse,
+              // But if we merged clusters not yet negotiated, or, worse,
               // being in the middle of negotiation, then we need to get this
               // merged cluster into the fully negotiated state. The we do it
               // is by throwing merge_configuration (see below).
@@ -4543,47 +4543,83 @@ namespace bpkg
                 throw merge_configuration {cfg.depth};
               }
 
-              if (r.second && !cfg.contains_shadow_dependent (pk, dp))
+              // Up-negotiate the configuration and if it has changed, throw
+              // retry_configuration to the try/catch frame corresponding to
+              // the negotiation of the outermost merged cluster in order to
+              // retry the same steps (potentially refining the configuration
+              // as we go along) and likely (but not necessarily) ending up
+              // here again, at which point we up-negotiate again with the
+              // expectation that the configuration won't change (but if it
+              // does, then we throw again and do another refinement pass).
+              //
+              // In a sense, semantically, we should act like a one more
+              // iteration of the initial negotiation loop with the exception
+              // acting like a request to restart the refinement process from
+              // the beginning.
+              //
+              bool changed;
               {
-                assert (*r.second); // Would't be here otherwise.
+                // Similar to initial negotiation, resolve package skeletons
+                // for this dependent and its dependencies.
+                //
+                package_skeleton* dept;
+                {
+                  build_package* b (entered_build (pk));
+                  assert (b != nullptr && b->skeleton);
+                  dept = &*b->skeleton;
+                }
 
-                // The "first time" case.
+                // If a dependency has already been recursively collected,
+                // then we can no longer call reload_defaults() or
+                // verify_sensible() on its skeleton. We could reset it, but
+                // then we wouldn't be able to continue using it if
+                // up_negotiate_configuration() below returns false. So it
+                // seems the most sensible approach is to make a temporary
+                // copy and reset that.
                 //
+                small_vector<reference_wrapper<package_skeleton>, 1> depcs;
+                forward_list<package_skeleton> depcs_storage; // Ref stability.
+                {
+                  depcs.reserve (cfg_deps.size ());
+                  for (const package_key& pk: cfg_deps)
+                  {
+                    build_package* b (entered_build (pk));
+                    assert (b != nullptr);
 
-                // @@ TODO: if configuration has not changed, then we don't
-                //    need to throw. Do it at the end (there is no harm in
-                //    throwing even if not needed and it will change test
-                //    trace).
-                //
-                //    Also, we may have to throw multiple times if the
-                //    configuration gets refined... In a sense, semantically,
-                //    we should act like a one more iteration of the initial
-                //    negotiation loop with the exception acting like a
-                //    request to restart the refinement process from the
-                //    beginning.
-                //
-                //    It feels like the unchanged case semantics should be
-                //    like falling through to the "second time" case. Though
-                //    I wonder if there could be some missing steps, like
-                //    collecting dependencies? Doesn't feel like it since
-                //    we are re-using existing configuration which presumably
-                //    means all this has already been done.
-                //
-                //    Hm, won't we need to "reset" dependency package
-                //    skeletons (which have by now potentially seen
-                //    evaluate_*() calls) in order to negotiate. And if the
-                //    configuration hasn't changed, then how will we restore
-                //    them? Maybe we should make copies (that are "reset" to
-                //    the initial state) and use that?
-                //
+                    package_skeleton* depc;
+                    if (b->recursive_collection)
+                    {
+                      assert (b->skeleton);
 
+                      depcs_storage.push_front (*b->skeleton);
+                      depc = &depcs_storage.front ();
+                      depc->reset ();
+                    }
+                    else
+                      depc = &(b->skeleton
+                               ? *b->skeleton
+                               : b->init_skeleton (options));
+
+                    depcs.push_back (*depc);
+                  }
+                }
+
+                changed = up_negotiate_configuration (
+                  cfg.dependency_configurations, *dept, dp, depcs);
+              }
+
+              // If the configuration hasn't changed, then we carry on.
+              // Otherwise, retry the negotiation from the beginning to
+              // refine the resulting configuration (see the catch block
+              // for retry_configuration).
+              //
+              if (changed)
+              {
                 l5 ([&]{trace << "cfg-postponing dependent "
                               << pkg.available_name_version_db ()
                               << " involves (being) negotiated configurations "
                               << "and results in " << cfg
                               << ", throwing retry_configuration";});
-
-                // up_negotiate (...);
 
                 // Don't print the "while satisfying..." chain.
                 //
@@ -4591,67 +4627,81 @@ namespace bpkg
 
                 throw retry_configuration {cfg.depth, move (pk), dp};
               }
-              else
+
+              l5 ([&]{trace << "configuration for cfg-postponed "
+                            << "dependencies of dependent "
+                            << pkg.available_name_version_db () << " "
+                            << (r.second ? "" : "shadow-") << "negotiated";});
+
+              // Note that even in the fully negotiated case we may still add
+              // extra dependencies to this cluster which we still need to
+              // configure and recursively collect before indicating to the
+              // caller (returning true) that we are done with this depends
+              // value and the dependent is not postponed.
+              //
+              for (const package_key& p: cfg_deps)
               {
-                // The "second time" case.
-                //
-                assert (!r.second || // Shadow cluster was/is being negotiated.
-                        *r.second);  // Everything already negotiated.
+                build_package* b (entered_build (p));
+                assert (b != nullptr);
 
-                l5 ([&]{trace << "configuration for cfg-postponed "
-                              << "dependencies of dependent "
-                              << pkg.available_name_version_db () << " is "
-                              << (r.second ? "" : "shadow-") << "negotiated";});
-
-                // Note that even in the fully negotiated case we may still
-                // add extra dependencies to this cluster which we still need
-                // to configure and recursively collect before indicating to
-                // the caller (returning true) that we are done with this
-                // depends value and the dependent is not postponed.
-                //
-                // @@ TODO call verify_sensible(), etc. DO NOW.
-                //
-                for (const package_key& p: cfg_deps)
+                if (!b->recursive_collection)
                 {
-                  build_package* b (entered_build (p));
-                  assert (b != nullptr);
+                  l5 ([&]{trace << "collecting cfg-postponed dependency "
+                                << b->available_name_version_db ()
+                                << " of dependent "
+                                << pkg.available_name_version_db ();});
 
-                  if (!b->recursive_collection)
+                  // Similar to the inital negotiation case, verify and set
+                  // the dependent configuration for this dependency.
+                  //
                   {
-                    l5 ([&]{trace << "collecting cfg-postponed dependency "
-                                  << b->available_name_version_db ()
-                                  << " of dependent "
-                                  << pkg.available_name_version_db ();});
+                    assert (b->skeleton); // Should have been init'ed above.
 
-                    collect_build_prerequisites (options,
-                                                 *b,
-                                                 fdb,
-                                                 rpt_depts,
-                                                 apc,
-                                                 initial_collection,
-                                                 replaced_vers,
-                                                 dep_chain,
-                                                 postponed_repo,
-                                                 postponed_alts,
-                                                 0 /* max_alt_index */,
-                                                 postponed_deps,
-                                                 postponed_cfgs,
-                                                 postponed_poss,
-                                                 true /* force_configured */);
+                    const package_configuration& pc (
+                      cfg.dependency_configurations[p]);
+
+                    pair<bool, string> pr (b->skeleton->verify_sensible (pc));
+
+                    if (!pr.first)
+                    {
+                      // @@ TODO: improve (see the other case).
+                      //
+                      fail << "unable to negotiate sensible configuration\n"
+                           << "  " << pr.second;
+                    }
+
+                    b->skeleton->dependent_config (pc);
                   }
-                  else
-                    l5 ([&]{trace << "dependency "
-                                  << b->available_name_version_db ()
-                                  << " of dependent "
-                                  << pkg.available_name_version_db ()
-                                  << " is already (being) recursively "
-                                  << "collected, skipping";});
-                }
 
-                return true;
+                  collect_build_prerequisites (options,
+                                               *b,
+                                               fdb,
+                                               rpt_depts,
+                                               apc,
+                                               initial_collection,
+                                               replaced_vers,
+                                               dep_chain,
+                                               postponed_repo,
+                                               postponed_alts,
+                                               0 /* max_alt_index */,
+                                               postponed_deps,
+                                               postponed_cfgs,
+                                               postponed_poss,
+                                               true /* force_configured */);
+                }
+                else
+                  l5 ([&]{trace << "dependency "
+                                << b->available_name_version_db ()
+                                << " of dependent "
+                                << pkg.available_name_version_db ()
+                                << " is already (being) recursively "
+                                << "collected, skipping";});
               }
+
+              return true;
 #else
-              //@@ TMP: get rid of shadow_dependents if pans out.
+              //@@ TMP: get rid of shadow_dependents (including in
+              //        retry_configuration) if pans out.
 
               // Case (3).
               //
@@ -6124,14 +6174,15 @@ namespace bpkg
             {
               assert (b->skeleton); // Should have been init'ed above.
 
-              const package_configuration& cfg (
+              const package_configuration& pc (
                 pcfg->dependency_configurations[p]);
 
-              pair<bool, string> pr (b->skeleton->verify_sensible (cfg));
+              pair<bool, string> pr (b->skeleton->verify_sensible (pc));
 
               if (!pr.first)
               {
                 // @@ TODO: improve (print dependencies, dependents, config).
+                //          (also in the up-negotiation case).
                 //
                 // Note that the diagnostics from the dependent will most
                 // likely be in the "error ..." form (potentially with
@@ -6142,7 +6193,7 @@ namespace bpkg
                      << "  " << pr.second;
               }
 
-              b->skeleton->dependent_config (cfg);
+              b->skeleton->dependent_config (pc);
             }
 
             build_package_refs dep_chain;
@@ -6464,6 +6515,9 @@ namespace bpkg
               if (e.depth != pcd)
                 throw;
 
+              package_configurations cfgs (
+                move (pc->dependency_configurations));
+
               // Restore the state from snapshot.
               //
               // Note: postponed_cfgs is re-assigned.
@@ -6480,22 +6534,29 @@ namespace bpkg
                             << "to dependent " << e.dependent << ", adding "
                             << "shadow dependent and re-negotiating";});
 
-              // @@ TODO: need to copy dependency_configuration to the
-              //    restored state. DO NOW.
+              // @@ TODO
+              //
+              // Note that there is also a possibility of having a "bogus"
+              // dependent/dependencies (i.e., we add them to the cluster but
+              // they never get re-visited). While seems harmless (or not),
+              // maybe we need to prune the part of the configuration that was
+              // added by them? Maybe we should have the confirmed flag which
+              // is set when the originating dependent confirms the value?!
+
+              // Copy over the configuration for further refinement.
+              //
+              pc->dependency_configurations = move (cfgs);
+
+#if 0
+              // @@ TMP drop if pans out.
 
               // Record the dependent/dependencies/position that triggered
               // this so that we don't repeat this up-negotiate/throw/catch
               // dance when we retry collect_build_postponed(). @@ Hm. could
               // this not be re-done via "unchanged configuration"?
               //
-              // Note that there is also a possibility of having a "bogus"
-              // dependent/dependencies (i.e., we add them to the cluster but
-              // they never get re-visited). @@ While seems harmless, maybe we
-              // need to prune the part of the configuration that was added
-              // by them? Maybe we should have the confirmed flag which is
-              // set when the originating dependent confirms the value?!
-              //
               pc->add_shadow (move (e.dependent), e.position);
+#endif
             }
             catch (merge_configuration& e)
             {
