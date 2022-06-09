@@ -102,6 +102,8 @@ namespace bpkg
   class package_configurations: public small_vector<package_configuration, 1>
   {
   public:
+    // Note: may invalidate references.
+    //
     package_configuration&
     operator[] (const package_key& p)
     {

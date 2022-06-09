@@ -130,9 +130,14 @@ namespace bpkg
 
       if (da.prefer || cfg.empty ())
         depc.reload_defaults (cfg);
-
-      depc_cfgs.push_back (cfg);
     }
+
+    // Note that we need to collect the dependency configurations as a
+    // separate loop so that the stored references are not invalidated by
+    // operator[] (which is really a push_back() into a vector).
+    //
+    for (package_skeleton& depc: depcs)
+      depc_cfgs.push_back (cfgs[depc.key]);
 
     // Step 2: execute the prefer/accept or requires clauses.
     //
