@@ -80,6 +80,10 @@ namespace bpkg
     string                  name;
     optional<build2::names> value;
     package_key             dependent;
+
+  public:
+    string
+    serialize_cmdline () const;
   };
 
   inline bool
@@ -88,6 +92,22 @@ namespace bpkg
   {
     return x.name == y.name && x.value == y.value && x.dependent == y.dependent;
   }
+
+  class dependent_config_variable_values:
+    public small_vector<dependent_config_variable_value, 1>
+  {
+  public:
+    const dependent_config_variable_value*
+    find (const string& name) const
+    {
+      auto i (find_if (begin (), end (),
+                       [&name] (const dependent_config_variable_value& v)
+                       {
+                         return v.name == name;
+                       }));
+      return i != end () ? &*i : nullptr;
+    }
+  };
 
   class package_configuration: public vector<config_variable_value>
   {
@@ -118,10 +138,16 @@ namespace bpkg
                        }));
       return i != end () ? &*i : nullptr;
     }
-  };
 
-  using dependent_config_variable_values =
-    small_vector<dependent_config_variable_value, 1>;
+    // Print buildfile and override configuration variable values as command
+    // line overrides one per line with the specified indentation. After each
+    // variable also print in parenthesis its origin. If overrides is not
+    // NULL, then it is used to override the value/dependent information.
+    //
+    void
+    print (diag_record&, const char* indent,
+           const dependent_config_variable_values* overrides = nullptr) const;
+  };
 
   class package_configurations: public small_vector<package_configuration, 1>
   {

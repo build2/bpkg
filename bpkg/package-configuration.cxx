@@ -11,8 +11,8 @@ namespace bpkg
 {
   using build2::config::variable_origin;
 
-  string config_variable_value::
-  serialize_cmdline () const
+  static string
+  serialize_cmdline (const string& name, const optional<build2::names>& value)
   {
     using namespace build2;
 
@@ -33,6 +33,58 @@ namespace bpkg
     }
 
     return r;
+  }
+
+
+  string config_variable_value::
+  serialize_cmdline () const
+  {
+    return bpkg::serialize_cmdline (name, value);
+  }
+
+  string dependent_config_variable_value::
+  serialize_cmdline () const
+  {
+    return bpkg::serialize_cmdline (name, value);
+  }
+
+  void package_configuration::
+  print (diag_record& dr,
+         const char* indent,
+         const dependent_config_variable_values* ovrs) const
+  {
+    bool first (true);
+    for (const config_variable_value& v: *this)
+    {
+      if (v.origin != variable_origin::buildfile &&
+          v.origin != variable_origin::override_)
+        continue;
+
+      if (first)
+        first = false;
+      else
+        dr << '\n';
+
+      dr << indent;
+
+      if (ovrs != nullptr && v.origin == variable_origin::buildfile)
+      {
+        if (const dependent_config_variable_value* ov = ovrs->find (v.name))
+        {
+          dr << ov->serialize_cmdline () << " (set by " << ov->dependent << ')';
+          continue;
+        }
+      }
+
+      dr << v.serialize_cmdline () << " (";
+
+      if (v.origin == variable_origin::buildfile)
+        dr << "set by " << *v.dependent;
+      else
+        dr << "user configuration";
+
+      dr << ')';
+    }
   }
 
   void
@@ -194,7 +246,22 @@ namespace bpkg
           : dept.evaluate_prefer_accept (depc_cfgs,
                                          *da.prefer, *da.accept, pos.first)))
     {
-      fail << "unable to negotiate acceptable configuration"; // @@ TODO
+      diag_record dr (fail);
+
+      dr << "unable to negotiate acceptable configuration with dependent "
+         << dept.key << " for dependencies ";
+
+      for (size_t i (0); i != depcs.size (); ++i)
+        dr << (i == 0 ? "" : ", ") << depcs[i].get ().key;
+
+      dr << info << "configuration before negotiation:\n";
+
+      // Note that we won't print this dependent's values (which we have unset
+      // above), but that seems like a good thing since they are not the cause
+      // of this impasse.
+      //
+      for (const package_configuration& cfg: depc_cfgs)
+        cfg.print (dr, "    "); // Note 4 spaces since in nested info.
     }
 
     // Check if anything changed by comparing to entries in old_cfgs.
@@ -214,20 +281,15 @@ namespace bpkg
         {
           if (v.origin == variable_origin::buildfile)
           {
-            auto i (find_if (old_cfgs.begin (), old_cfgs.end (),
-                             [&v] (const dependent_config_variable_value& o)
-                             {
-                               return v.name == o.name;
-                             }));
-
-            if (i != old_cfgs.end ())
+            if (const dependent_config_variable_value* ov =
+                  old_cfgs.find (v.name))
             {
-              if (i->value == v.value)
+              if (ov->value == v.value)
               {
                 // If the value hasn't change, so shouldn't the originating
                 // dependent.
                 //
-                assert (i->dependent == *v.dependent);
+                assert (ov->dependent == *v.dependent);
 
                 if (n)
                   ++*n;
@@ -236,7 +298,7 @@ namespace bpkg
               }
               else
               {
-                assert (i->dependent != *v.dependent);
+                assert (ov->dependent != *v.dependent);
                 cycle = true;
               }
             }
@@ -348,20 +410,59 @@ namespace bpkg
       }
     }
 
-    if (cycle)
+    if (!cycle)
     {
-      // @@ TODO
-      //
-      // Here we can analyze the O->N change history and determine the other
-      // problematic dependent(s). Do we actually know for sure they are all
-      // problematic? Well, they repeatedly changed the values so I guess so.
-      //
-      fail << "unable to negotiate acceptable configuration (cycle)";
+      change_history.push_back (move (old_cfgs));
+      change_history.push_back (move (new_cfgs));
+
+      return true;
     }
 
-    change_history.push_back (move (old_cfgs));
-    change_history.push_back (move (new_cfgs));
+    diag_record dr (fail);
 
-    return true;
+    dr << "unable to negotiate acceptable configuration between dependents "
+       << dept.key;
+
+    // Analyze the O->N changes and determine the problematic dependent(s).
+    // Do we actually know for sure they are all problematic? Well, they
+    // repeatedly changed the values to the ones we don't like, so I guess so.
+    //
+    small_vector<reference_wrapper<const package_key>, 1> depts; // Duplicates.
+    for (const dependent_config_variable_value& nv: new_cfgs)
+    {
+      if (nv.dependent == dept.key)
+      {
+        if (const dependent_config_variable_value* ov = old_cfgs.find (nv.name))
+        {
+          if (ov->value != nv.value && ov->dependent != nv.dependent)
+          {
+            if (find_if (depts.begin (), depts.end (),
+                         [ov] (reference_wrapper<const package_key> pk)
+                         {
+                           return ov->dependent == pk.get ();
+                         }) == depts.end ())
+            {
+              dr << ", " << ov->dependent;
+              depts.push_back (ov->dependent);
+            }
+          }
+        }
+      }
+    }
+
+    dr << " for dependencies ";
+
+    for (size_t i (0); i != depcs.size (); ++i)
+      dr << (i == 0 ? "" : ", ") << depcs[i].get ().key;
+
+    dr << info << "configuration before negotiation:\n";
+    for (const package_configuration& cfg: depc_cfgs)
+      cfg.print (dr, "    ", &old_cfgs);
+
+    dr << info << "configuration after negotiation:\n";
+    for (const package_configuration& cfg: depc_cfgs)
+      cfg.print (dr, "    ");
+
+    dr << endf;
   }
 }
