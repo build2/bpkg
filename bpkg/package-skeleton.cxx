@@ -493,7 +493,7 @@ namespace bpkg
       catch (const build2::failed&)
       {
         r.first = false;
-        r.second = ds.str ();
+        r.second = trim (ds.str ());
       }
 
       ctx_ = nullptr;

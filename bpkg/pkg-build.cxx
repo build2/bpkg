@@ -4665,10 +4665,13 @@ namespace bpkg
 
                     if (!pr.first)
                     {
-                      // @@ TODO: improve (see the other case).
-                      //
-                      fail << "unable to negotiate sensible configuration\n"
-                           << "  " << pr.second;
+                      diag_record dr (fail);
+                      dr << "unable to negotiate sensible configuration for "
+                         << "dependency " << p << '\n'
+                         << "  " << pr.second;
+
+                      dr << info << "negotiated configuration:\n";
+                      pc.print (dr, "    ");
                     }
 
                     b->skeleton->dependent_config (pc);
@@ -6175,6 +6178,8 @@ namespace bpkg
           {
             // Verify and set the dependent configuration for this dependency.
             //
+            // Note: see similar code for the up-negotiation case.
+            //
             {
               assert (b->skeleton); // Should have been init'ed above.
 
@@ -6185,16 +6190,18 @@ namespace bpkg
 
               if (!pr.first)
               {
-                // @@ TODO: improve (print dependencies, dependents, config).
-                //          (also in the up-negotiation case).
-                //
-                // Note that the diagnostics from the dependent will most
+                // Note that the diagnostics from the dependency will most
                 // likely be in the "error ..." form (potentially with
                 // additional info lines) and by printing it with a two-space
                 // indentation we make it "fit" into our diag record.
                 //
-                fail << "unable to negotiate sensible configuration\n"
-                     << "  " << pr.second;
+                diag_record dr (fail);
+                dr << "unable to negotiate sensible configuration for "
+                   << "dependency " << p << '\n'
+                   << "  " << pr.second;
+
+                dr << info << "negotiated configuration:\n";
+                pc.print (dr, "    "); // Note 4 spaces since in nested info.
               }
 
               b->skeleton->dependent_config (pc);
