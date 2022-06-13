@@ -76,6 +76,7 @@ namespace bpkg
     // * reload_defaults() | verify_sensible()
     // ? dependent_config()
     // * evaluate_*()
+    // * empty() | print_config()
     //   collect_config()
     //
     // Note that a copy of the skeleton is expected to continue with the
@@ -142,6 +143,20 @@ namespace bpkg
     void
     reset ();
 
+    // Return true if there are no accumulated *project* configuration
+    // variables meaning that print_config() will not print anything while
+    // collect_config() will return an empty list of project configuration
+    // variable sources.
+    //
+    bool
+    empty ();
+
+    // Print the accumulated *project* configuration variables as command line
+    // overrides one per line with the specified indentation.
+    //
+    void
+    print_config (ostream&, const char* indent);
+
     // Return the accumulated configuration variables (first) and project
     // configuration variable sources (second). Note that the arrays are not
     // necessarily parallel (config_vars may contain non-project variables).
@@ -203,6 +218,23 @@ namespace bpkg
                     const strings& dependency_vars = {},
                     bool cache = false);
 
+    // Check whether the specified configuration variable override has a
+    // project variables (i.e., its name start with config.<project>).
+    //
+    // Note that some user-specified variables may have qualifications
+    // (global, scope, etc) but there is no reason to expect any project
+    // configuration variables to use such qualifications (since they can
+    // only apply to one project). So we ignore all qualified variables.
+    //
+    bool
+    project_override (const string& v) const
+    {
+      const string& p (var_prefix_);
+      size_t n (p.size ());
+
+      return v.compare (0, n, p) == 0 && strchr (".=+ \t", v[n]) != nullptr;
+    }
+
     // Implementation details (public for bootstrap()).
     //
   public:
@@ -210,6 +242,8 @@ namespace bpkg
     //
     const common_options* co_;
     database* db_;
+
+    string var_prefix_; // config.<project>
 
     strings config_vars_;
     bool disfigure_;
@@ -244,9 +278,11 @@ namespace bpkg
 
     using reflect_variable_values = vector<reflect_variable_value>;
 
-    strings dependent_vars_; // Dependent configuration variable overrides.
-    strings reflect_vars_;   // Reflect configuration variable overrides.
-    string  reflect_frag_;   // Reflect configuration variables fragment.
+    strings             dependent_vars_; // Dependent variable overrides.
+    vector<package_key> dependent_orgs_; // Dependent originators (parallel).
+
+    strings reflect_vars_;   // Reflect variable overrides.
+    string  reflect_frag_;   // Reflect variables fragment.
 
     // Dependency configuration variables set by the prefer/require clauses
     // and that should be reflected in subsequent clauses.

@@ -58,6 +58,7 @@ namespace bpkg
         available (v.available),
         co_ (v.co_),
         db_ (v.db_),
+        var_prefix_ (move (v.var_prefix_)),
         config_vars_ (move (v.config_vars_)),
         disfigure_ (v.disfigure_),
         config_srcs_ (v.config_srcs_),
@@ -70,6 +71,7 @@ namespace bpkg
         cmd_vars_ (move (v.cmd_vars_)),
         cmd_vars_cache_ (v.cmd_vars_cache_),
         dependent_vars_ (move (v.dependent_vars_)),
+        dependent_orgs_ (move (v.dependent_orgs_)),
         reflect_vars_ (move (v.reflect_vars_)),
         reflect_frag_ (move (v.reflect_frag_)),
         dependency_reflect_ (move (v.dependency_reflect_)),
@@ -88,6 +90,7 @@ namespace bpkg
       available = v.available;
       co_ = v.co_;
       db_ = v.db_;
+      var_prefix_ = move (v.var_prefix_);
       config_vars_ = move (v.config_vars_);
       disfigure_ = v.disfigure_;
       config_srcs_ = v.config_srcs_;
@@ -100,6 +103,7 @@ namespace bpkg
       cmd_vars_ = move (v.cmd_vars_);
       cmd_vars_cache_ = v.cmd_vars_cache_;
       dependent_vars_ = move (v.dependent_vars_);
+      dependent_orgs_ = move (v.dependent_orgs_);
       reflect_vars_ = move (v.reflect_vars_);
       reflect_frag_ = move (v.reflect_frag_);
       dependency_reflect_ = move (v.dependency_reflect_);
@@ -118,6 +122,7 @@ namespace bpkg
         available (v.available),
         co_ (v.co_),
         db_ (v.db_),
+        var_prefix_ (v.var_prefix_),
         config_vars_ (v.config_vars_),
         disfigure_ (v.disfigure_),
         config_srcs_ (v.config_srcs_),
@@ -128,6 +133,7 @@ namespace bpkg
         cmd_vars_ (v.cmd_vars_),
         cmd_vars_cache_ (v.cmd_vars_cache_),
         dependent_vars_ (v.dependent_vars_),
+        dependent_orgs_ (v.dependent_orgs_),
         reflect_vars_ (v.reflect_vars_),
         reflect_frag_ (v.reflect_frag_),
         dependency_reflect_ (v.dependency_reflect_),
@@ -150,6 +156,8 @@ namespace bpkg
     cmd_vars_cache_ = false;
 
     dependent_vars_.clear ();
+    dependent_orgs_.clear ();
+
     reflect_vars_.clear ();
     reflect_frag_.clear ();
 
@@ -171,6 +179,7 @@ namespace bpkg
         available (ap),
         co_ (&co),
         db_ (&db),
+        var_prefix_ ("config." + key.name.variable ()),
         config_vars_ (move (cvs)),
         disfigure_ (df),
         config_srcs_ (df ? nullptr : css)
@@ -281,10 +290,12 @@ namespace bpkg
   }
 
   // Return the dependent (origin==buildfile) configuration variables as
-  // command line overrides.
+  // command line overrides. If the second argument is not NULL, then populate
+  // it with the corresponding originating dependents.
   //
   static strings
-  dependent_cmd_vars (const package_configuration& cfg)
+  dependent_cmd_vars (const package_configuration& cfg,
+                      vector<package_key>* orgs = nullptr)
   {
     using build2::config::variable_origin;
 
@@ -293,7 +304,12 @@ namespace bpkg
     for (const config_variable_value& v: cfg)
     {
       if (v.origin == variable_origin::buildfile)
+      {
         r.push_back (v.serialize_cmdline ());
+
+        if (orgs != nullptr)
+          orgs->push_back (*v.dependent);
+      }
     }
 
     return r;
@@ -304,8 +320,8 @@ namespace bpkg
   {
     // Should only be called before dependent_config()/evaluate_*().
     //
-    assert (dependent_vars_.empty () &&
-            reflect_vars_.empty () &&
+    assert (dependent_vars_.empty ()     &&
+            reflect_vars_.empty ()       &&
             dependency_reflect_.empty () &&
             ctx_ == nullptr);
 
@@ -368,7 +384,7 @@ namespace bpkg
       //    package. And, could be helpful to warn that configuration variable
       //    does not exist.
       //
-      string p ("config." + name ().variable ());
+      const string& p (var_prefix_);
       size_t n (p.size ());
 
       for (const variable& var: rs.ctx.var_pool)
@@ -441,8 +457,8 @@ namespace bpkg
   {
     // Should only be called before dependent_config()/evaluate_*().
     //
-    assert (dependent_vars_.empty () &&
-            reflect_vars_.empty () &&
+    assert (dependent_vars_.empty ()     &&
+            reflect_vars_.empty ()       &&
             dependency_reflect_.empty () &&
             ctx_ == nullptr);
 
@@ -510,7 +526,7 @@ namespace bpkg
   {
     assert (dependent_vars_.empty ()); // Must be called at most once.
 
-    dependent_vars_ = dependent_cmd_vars (cfg);
+    dependent_vars_ = dependent_cmd_vars (cfg, &dependent_orgs_);
   }
 
   // Print the location of a depends value in the specified manifest file.
@@ -709,7 +725,7 @@ namespace bpkg
       // filter out unchanged on the second.
       //
       auto& vp (rs.var_pool ());
-      string ns ("config." + name ().variable ());
+      const string& ns (var_prefix_);
 
       struct value_data
       {
@@ -1447,6 +1463,66 @@ namespace bpkg
     }
   }
 
+  bool package_skeleton::
+  empty ()
+  {
+    if (config_srcs_ != nullptr)
+      load_old_config ();
+
+    return (dependent_vars_.empty () &&
+            reflect_vars_.empty ()   &&
+            find_if (config_vars_.begin (), config_vars_.end (),
+                     [this] (const string& v)
+                     {
+                       return project_override (v);
+                     }) == config_vars_.end ());
+  }
+
+  void package_skeleton::
+  print_config (ostream& os, const char* indent)
+  {
+    if (config_srcs_ != nullptr)
+      load_old_config ();
+
+    auto print = [&os,
+                  indent,
+                  first = true] (const string& v) mutable -> ostream&
+    {
+      if (first)
+        first = false;
+      else
+        os << '\n';
+
+      os << indent << v;
+      return os;
+    };
+
+    // First comes the user configuration.
+    //
+    for (const string& v: config_vars_)
+    {
+      if (project_override (v))
+        print (v) << " (user configuration)";
+    }
+
+    // Next dependent configuration.
+    //
+    for (size_t i (0); i != dependent_vars_.size (); ++i)
+    {
+      const string& v (dependent_vars_[i]);
+      const package_key& d (dependent_orgs_[i]); // Parallel.
+
+      print (v) << " (set by " << d << ')';
+    }
+
+    // Finally reflect.
+    //
+    for (const string& v: reflect_vars_)
+    {
+      print (v) << " (set by " << key.name << ')';
+    }
+  }
+
   pair<strings, vector<config_variable>> package_skeleton::
   collect_config () &&
   {
@@ -1470,24 +1546,6 @@ namespace bpkg
       //
       srcs.reserve (n); // At most that many.
 
-      // Check whether the user-specified configuration variable override has
-      // a project variables (i.e., its name start with config.<project>).
-      //
-      // Note that some user-specified variables may have qualifications
-      // (global, scope, etc) but there is no reason to expect any project
-      // configuration variables to use such qualifications (since they can
-      // only apply to one project). So we ignore all qualified variables.
-      //
-      auto prj_var = [this, p = optional<string> ()] (const string& v) mutable
-      {
-        if (!p)
-          p = "config." + name ().variable ();
-
-        size_t n (p->size ());
-
-        return v.compare (0, n, *p) == 0 && strchr (".=+ \t", v[n]) != nullptr;
-      };
-
       // Return the variable name given the variable override.
       //
       auto var_name = [] (const string& v)
@@ -1510,7 +1568,7 @@ namespace bpkg
         //
         for (const string& v: config_vars_)
         {
-          if (prj_var (v))
+          if (project_override (v))
           {
             string n (var_name (v));
 
