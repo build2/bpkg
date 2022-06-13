@@ -8,6 +8,7 @@
 #include <list>
 #include <limits>       // numeric_limits
 #include <cstring>      // strlen()
+#include <sstream>
 #include <iostream>     // cout
 #include <functional>   // ref()
 #include <forward_list>
@@ -12030,14 +12031,14 @@ namespace bpkg
     {
       bool first (true); // First entry in the plan.
 
-      for (const build_package& p: reverse_iterate (pkgs))
+      for (build_package& p: reverse_iterate (pkgs))
       {
+        assert (p.action);
+
         database& pdb (p.db);
         const shared_ptr<selected_package>& sp (p.selected);
 
         string act;
-
-        assert (p.action);
 
         if (*p.action == build_package::drop)
         {
@@ -12046,6 +12047,13 @@ namespace bpkg
         }
         else
         {
+          package_skeleton* cfg (nullptr); // Print configuration variables.
+
+          // @@ TODO set cfg
+          //
+          // @@ Maybe use pointer to skeleton as indication since it will have
+          // to be init'ed differently in different situations.
+
           string cause;
           if (*p.action == build_package::adjust)
           {
@@ -12154,6 +12162,14 @@ namespace bpkg
 
           if (!rb.empty ())
             act += " (" + cause + rb + ')';
+
+          if (cfg != nullptr && !cfg->empty ())
+          {
+            ostringstream os;
+            cfg->print_config (os, o.print_only () ? "  " : "    ");
+            act += '\n';
+            act += os.string ();
+          }
         }
 
         if (first)
@@ -12855,6 +12871,8 @@ namespace bpkg
         {
           assert (sp != nullptr && !p.skeleton); // See above.
 
+          // @@ TODO: factor to init_skeleton.
+
           optional<dir_path> src_root (p.external_dir ());
 
           optional<dir_path> out_root (
@@ -12893,6 +12911,8 @@ namespace bpkg
         //
         shared_ptr<available_package> dap (find_available (o, pdb, sp));
 
+        // @@ TODO: factor to init_skeleton.
+
         optional<dir_path> src_root (p.external_dir ());
 
         optional<dir_path> out_root (
@@ -12904,6 +12924,9 @@ namespace bpkg
         //    configuration variables specified by the user on some previous
         //    build, which can be quite surprising. Should we store this
         //    information in the database?
+        //
+        //    I believe this now works for external packages via package
+        //    skeleton (wich extracts user configruation).
         //
         pkg_configure (o,
                        pdb,
