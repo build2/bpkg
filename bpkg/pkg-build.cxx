@@ -5543,23 +5543,23 @@ namespace bpkg
           sp,
           nullptr,
           nullptr,
-          nullopt,    // Dependencies.
-          nullopt,    // Dependencies alternatives.
-          nullopt,    // Package skeleton.
-          nullopt,    // Postponed dependency alternatives.
-          false,      // Recursive collection.
-          nullopt,    // Hold package.
-          nullopt,    // Hold version.
-          {},         // Constraints.
-          false,      // System package.
-          false,      // Keep output directory.
-          false,      // Disfigure (from-scratch reconf).
-          false,      // Configure-only.
-          nullopt,    // Checkout root.
-          false,      // Checkout purge.
-          strings (), // Configuration variables.
-          {},         // Required by.
-          false,      // Required by dependents.
+          nullopt,       // Dependencies.
+          nullopt,       // Dependencies alternatives.
+          nullopt,       // Package skeleton.
+          nullopt,       // Postponed dependency alternatives.
+          false,         // Recursive collection.
+          nullopt,       // Hold package.
+          nullopt,       // Hold version.
+          {},            // Constraints.
+          sp->system (),
+          false,         // Keep output directory.
+          false,         // Disfigure (from-scratch reconf).
+          false,         // Configure-only.
+          nullopt,       // Checkout root.
+          false,         // Checkout purge.
+          strings (),    // Configuration variables.
+          {},            // Required by.
+          false,         // Required by dependents.
           build_package::adjust_unhold};
 
         p.merge (move (bp));
