@@ -343,7 +343,7 @@ namespace bpkg
       // Note also that on the first call we will have no configuration. And
       // so to keep things simple, we merge variable of the buildfile origin
       // into cmd_vars and then rebuild things from scratch. Note, however,
-      // that below we need to sort our these merged overrides into user and
+      // that below we need to sort out these merged overrides into user and
       // dependent, so we keep the old configuration for reference.
       //
       // Note also that dependent values do not clash with user overrides by
@@ -416,7 +416,7 @@ namespace bpkg
 
                 v.origin = variable_origin::buildfile;
                 v.dependent = move (ov->dependent);
-                v.confirmed = true;
+                v.confirmed = ov->confirmed;
               }
             }
 

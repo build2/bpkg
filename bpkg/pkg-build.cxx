@@ -6972,7 +6972,7 @@ namespace bpkg
                       dept = move (v.dependent);
 
                     if (cycle)
-                      dr << info << v.serialize_cmdline ();
+                      dr << "\n    " << v.serialize_cmdline ();
                     else
                       v.undefine ();
                   }
