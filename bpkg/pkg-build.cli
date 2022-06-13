@@ -379,11 +379,12 @@ namespace bpkg
     {
       "<sum>",
 
-      "Hash the names and versions of all the packages that would be built.
-       If the resulting checksum matches the specified, then exit without
-       building anything (potentially with a special error code specified
-       with the \cb{--noop-exit} option). Otherwise, proceed to build as
-       normal. In both cases, print the resulting checksum to \cb{stdout}."
+      "Hash the names, versions, and configurations of all the packages that
+       would be built. If the resulting checksum matches the specified, then
+       exit without building anything (potentially with a special error code
+       specified with the \cb{--noop-exit} option). Otherwise, proceed to
+       build as normal. In both cases, print the resulting checksum to
+       \cb{stdout}."
     }
 
     uint16_t --no-private-config

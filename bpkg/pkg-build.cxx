@@ -1057,9 +1057,14 @@ namespace bpkg
     // Initialize the skeleton of a being built package.
     //
     package_skeleton&
-    init_skeleton (const common_options& options)
+    init_skeleton (const common_options& options,
+                   const shared_ptr<available_package>& override = nullptr)
     {
-      assert (!skeleton && available != nullptr);
+      const shared_ptr<available_package>& ap (override != nullptr
+                                               ? override
+                                               : available);
+
+      assert (!skeleton && ap != nullptr);
 
       optional<dir_path> src_root (external_dir ());
 
@@ -1071,7 +1076,7 @@ namespace bpkg
       skeleton = package_skeleton (
         options,
         db,
-        *available,
+        ap,
         config_vars, // @@ Maybe make optional<strings> and move?
         disfigure,
         (selected != nullptr ? &selected->config_variables : nullptr),
@@ -4482,8 +4487,8 @@ namespace bpkg
               //
               // But if we merged clusters not yet negotiated, or, worse,
               // being in the middle of negotiation, then we need to get this
-              // merged cluster into the fully negotiated state. The we do it
-              // is by throwing merge_configuration (see below).
+              // merged cluster into the fully negotiated state. The way we do
+              // it is by throwing merge_configuration (see below).
               //
               // When we are back here after throwing merge_configuration,
               // then all the clusters have been pre-merged and our call to
@@ -12033,6 +12038,11 @@ namespace bpkg
     // While at it, detect if we have any dependents that the user may want to
     // update.
     //
+    // For the packages being printed also print the configuration specified
+    // by the user, dependents, and via the reflect clauses. For that we will
+    // use the package skeletons, initializing them if required. Note that the
+    // freshly-initialized skeletons will be reused during the plan execution.
+    //
     bool update_dependents (false);
 
     // We need the plan and to ask for the user's confirmation only if some
@@ -12050,6 +12060,11 @@ namespace bpkg
         o.plan_specified () ||
         o.rebuild_checksum_specified ())
     {
+      // Start the transaction since we may query available packages for
+      // skeleton initializations.
+      //
+      transaction t (mdb);
+
       bool first (true); // First entry in the plan.
 
       for (build_package& p: reverse_iterate (pkgs))
@@ -12068,12 +12083,12 @@ namespace bpkg
         }
         else
         {
-          package_skeleton* cfg (nullptr); // Print configuration variables.
-
-          // @@ TODO set cfg
+          // Print configuration variables.
           //
-          // @@ Maybe use pointer to skeleton as indication since it will have
-          // to be init'ed differently in different situations.
+          // The idea here is to only print configuration for those packages
+          // for which we call pkg_configure*() in execute_plan().
+          //
+          package_skeleton* cfg (nullptr);
 
           string cause;
           if (*p.action == build_package::adjust)
@@ -12110,14 +12125,64 @@ namespace bpkg
             const string& s (pdb.string);
             if (!s.empty ())
               act += ' ' + s;
+
+            // This is an adjustment and so there is no available package
+            // specified for the build package object and thus the skeleton
+            // cannot be present.
+            //
+            assert (p.available == nullptr && !p.skeleton);
+
+            // We shouldn't be printing configurations for plain unholds.
+            //
+            if (p.reconfigure ())
+            {
+              // Since there is no available package specified we need to find
+              // it (or create a transient one).
+              //
+              // @@ TMP Don't create skeletons for system packages for now.
+              //
+              //        Notes on system packages:
+              //
+              //        - The available package while specified for the
+              //          package build object may refer to some unrelated
+              //          version (normally the latest available in the
+              //          user-added repositories) to the user-specified
+              //          version. Actually the user may specify a version
+              //          that is not present in any repository.
+              //
+              //        - The user can specify wildcard version and so there
+              //          is no version which we could take the manifest from
+              //          for the skeleton creation.
+              //
+              //        - The available package can be a stub and we don't
+              //          create skeletons for stubs since they don't have
+              //          bootstrap-build in manifests.
+              //
+              if (!p.system)
+                cfg = &p.init_skeleton (o, find_available (o, pdb, sp));
+            }
           }
           else
           {
+            assert (p.available != nullptr); // This is a package build.
+
             // Even if we already have this package selected, we have to
             // make sure it is configured and updated.
             //
             if (sp == nullptr)
+            {
               act = p.system ? "configure" : "new";
+
+              // For a new non-system package the skeleton must already be
+              // initialized.
+              //
+              // @@ TMP Don't create skeletons for system packages for now.
+              //
+              assert (p.system || p.skeleton.has_value ());
+
+              if (!p.system)
+                cfg = &*p.skeleton;
+            }
             else if (sp->version == p.available_version ())
             {
               // If this package is already configured and is not part of the
@@ -12139,6 +12204,16 @@ namespace bpkg
                       ? "reconfigure"
                       : "reconfigure/update")
                    : "update");
+
+              if (p.reconfigure ())
+              {
+                // Initialize the skeleton if it is not initialized yet.
+                //
+                // @@ TMP Don't create skeletons for system packages for now.
+                //
+                if (!p.system)
+                  cfg = &(p.skeleton ? *p.skeleton : p.init_skeleton (o));
+              }
             }
             else
             {
@@ -12147,6 +12222,16 @@ namespace bpkg
                 : sp->version < p.available_version ()
                   ? "upgrade"
                   : "downgrade";
+
+              // For a non-system package up/downgrade the skeleton must
+              // already be initialized.
+              //
+              // @@ TMP Don't create skeletons for system packages for now.
+              //
+              assert (p.system || p.skeleton.has_value ());
+
+              if (!p.system)
+                cfg = &*p.skeleton;
 
               need_prompt = true;
             }
@@ -12189,7 +12274,7 @@ namespace bpkg
             ostringstream os;
             cfg->print_config (os, o.print_only () ? "  " : "    ");
             act += '\n';
-            act += os.string ();
+            act += os.str ();
           }
         }
 
@@ -12218,6 +12303,8 @@ namespace bpkg
         if (o.rebuild_checksum_specified ())
           csum.append (act);
       }
+
+      t.commit ();
     }
 
     if (o.rebuild_checksum_specified ())
@@ -12820,6 +12907,9 @@ namespace bpkg
       // source code one, or just available, in which case it is a system
       // one. Note that a system package gets selected as being configured.
       //
+      // NOTE: remember to update the preparation of the plan to be presented
+      // to the user if changing anything here.
+      //
       assert (sp != nullptr || p.system);
 
       database& pdb (p.db);
@@ -12854,6 +12944,8 @@ namespace bpkg
       }
       else if (ap != nullptr)
       {
+        assert (*p.action == build_package::build);
+
         // If the package prerequisites builds are collected, then use the
         // resulting package skeleton and the pre-selected dependency
         // alternatives.
@@ -12890,16 +12982,19 @@ namespace bpkg
         }
         else
         {
-          assert (sp != nullptr && !p.skeleton); // See above.
+          assert (sp != nullptr); // See above.
 
-          // @@ TODO: factor to init_skeleton.
+          // Initialize the skeleton if it is not initialized yet.
+          //
+          // Note that the skeleton can only be present here if it was
+          // initialized during the preparation of the plan to be presented to
+          // the user. This only happens after all the refinements and so this
+          // plan execution is not simulated.
+          //
+          assert (!p.skeleton || !simulate);
 
-          optional<dir_path> src_root (p.external_dir ());
-
-          optional<dir_path> out_root (
-            src_root && !p.disfigure
-            ? dir_path (pdb.config) /= p.name ().string ()
-            : optional<dir_path> ());
+          if (!p.skeleton)
+            p.init_skeleton (o);
 
           pkg_configure (o,
                          pdb,
@@ -12907,14 +13002,7 @@ namespace bpkg
                          sp,
                          ap->dependencies,
                          nullptr /* alternatives */,
-                         package_skeleton (o,
-                                           pdb,
-                                           *ap,
-                                           move (p.config_vars),
-                                           p.disfigure,
-                                           &sp->config_variables,
-                                           move (src_root),
-                                           move (out_root)),
+                         move (*p.skeleton),
                          prereqs (),
                          simulate,
                          fdb);
@@ -12922,24 +13010,29 @@ namespace bpkg
       }
       else // Dependent.
       {
+        assert (*p.action == build_package::adjust);
+
         // Must be in the unpacked state since it was disfigured on the first
         // pass (see above).
         //
         assert (sp->state == package_state::unpacked);
 
-        // Note that here we don't care about the repository fragment the
-        // package comes from and only need its manifest information.
+        // Initialize the skeleton if it is not initialized yet.
         //
-        shared_ptr<available_package> dap (find_available (o, pdb, sp));
+        // Note that the skeleton can only be present here if it was
+        // initialized during the preparation of the plan and so this plan
+        // execution is not simulated (see above for details).
+        //
+        // Also note that there is no available package specified for the
+        // build package object here and so we need to find it (or create a
+        // transient one).
+        //
+        assert (p.available == nullptr && (!p.skeleton || !simulate));
 
-        // @@ TODO: factor to init_skeleton.
+        if (!p.skeleton)
+          p.init_skeleton (o, find_available (o, pdb, sp));
 
-        optional<dir_path> src_root (p.external_dir ());
-
-        optional<dir_path> out_root (
-          src_root && !p.disfigure
-          ? dir_path (pdb.config) /= p.name ().string ()
-          : optional<dir_path> ());
+        const dependencies& deps (p.skeleton->available->dependencies);
 
         // @@ Note that on reconfiguration the dependent looses the potential
         //    configuration variables specified by the user on some previous
@@ -12947,22 +13040,15 @@ namespace bpkg
         //    information in the database?
         //
         //    I believe this now works for external packages via package
-        //    skeleton (wich extracts user configruation).
+        //    skeleton (which extracts user configuration).
         //
         pkg_configure (o,
                        pdb,
                        t,
                        sp,
-                       dap->dependencies,
+                       deps,
                        nullptr /* alternatives */,
-                       package_skeleton (o,
-                                         pdb,
-                                         *dap,
-                                         move (p.config_vars),
-                                         p.disfigure,
-                                         &sp->config_variables,
-                                         move (src_root),
-                                         move (out_root)),
+                       move (*p.skeleton),
                        prereqs (),
                        simulate,
                        fdb);

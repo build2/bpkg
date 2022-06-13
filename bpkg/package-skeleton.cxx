@@ -169,14 +169,14 @@ namespace bpkg
   package_skeleton::
   package_skeleton (const common_options& co,
                     database& db,
-                    const available_package& ap,
+                    shared_ptr<const available_package> ap,
                     strings cvs,
                     bool df,
                     const vector<config_variable>* css,
                     optional<dir_path> src_root,
                     optional<dir_path> out_root)
-      : key (db, ap.id.name),
-        available (ap),
+      : key (db, ap->id.name),
+        available (move (ap)),
         co_ (&co),
         db_ (&db),
         var_prefix_ ("config." + key.name.variable ()),
@@ -186,7 +186,7 @@ namespace bpkg
   {
     // Should not be created for stubs.
     //
-    assert (ap.bootstrap_build);
+    assert (available != nullptr && available->bootstrap_build);
 
     // We are only interested in old user configuration variables.
     //
@@ -365,7 +365,7 @@ namespace bpkg
       // cannot just iterate over all the config.<name>** values set on the
       // root scope. Our options seem to be either iterating over the variable
       // pool or forcing the config module with config.config.module=true and
-      // then using its saved variables map. Since the amout of stuff we load
+      // then using its saved variables map. Since the amount of stuff we load
       // is quite limited, there shouldn't be too many variables in the pool.
       // So let's go with the simpler approach for now.
       //
@@ -1995,7 +1995,7 @@ namespace bpkg
     //
     if (!skl.created_)
     {
-      const available_package& ap (skl.available);
+      const available_package& ap (*skl.available);
 
       // Note that we create the skeleton directories in the skeletons/
       // subdirectory of the configuration temporary directory to make sure

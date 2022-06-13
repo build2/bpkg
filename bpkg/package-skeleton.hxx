@@ -48,15 +48,15 @@ namespace bpkg
     //    (because sometimes we may need to omit it) so most likely it will be
     //    passed as a separate arguments (likely a file path).
     //
-    // Note that the options, database, available_package, and config_srcs are
-    // expected to outlive this object.
+    // Note that the options, database, and config_srcs are expected to
+    // outlive this object.
     //
     // Note also that this creates an "unloaded" skeleton and is therefore
     // relatively cheap.
     //
     package_skeleton (const common_options& co,
                       database&,
-                      const available_package&,
+                      shared_ptr<const available_package>,
                       strings config_vars,
                       bool disfigure,
                       const vector<config_variable>* config_srcs,
@@ -65,7 +65,7 @@ namespace bpkg
 
 
     package_key key;
-    reference_wrapper<const available_package> available;
+    shared_ptr<const available_package> available;
 
     const package_name&
     name () const {return key.name;} // @@ TMP: get rid (use key.name).

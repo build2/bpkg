@@ -3500,7 +3500,7 @@ test.options += --no-progress
     {
       +$clone_cfg
 
-      test.arguments += --yes
+      test.arguments += --yes --plan 'build plan:'
 
       : ambiguity
       :
@@ -3527,6 +3527,10 @@ test.options += --no-progress
           $clone_cfg;
 
           $* fox ?libbaz 2>>~%EOE%;
+            build plan:
+              new libbaz/1.1.0
+              new fox/1.0.0
+                config.fox.backend=libbaz (set by fox)
             fetched libbaz/1.1.0
             unpacked libbaz/1.1.0
             fetched fox/1.0.0
@@ -3548,6 +3552,10 @@ test.options += --no-progress
           $clone_cfg;
 
           $* fox libbaz 2>>~%EOE%;
+            build plan:
+              new libbaz/1.1.0
+              new fox/1.0.0
+                config.fox.backend=libbaz (set by fox)
             fetched libbaz/1.1.0
             unpacked libbaz/1.1.0
             fetched fox/1.0.0
@@ -3572,6 +3580,9 @@ test.options += --no-progress
           $* libbaz 2>!;
 
           $* fox 2>>~%EOE%;
+            build plan:
+              new fox/1.0.0
+                config.fox.backend=libbaz (set by fox)
             fetched fox/1.0.0
             unpacked fox/1.0.0
             configured fox/1.0.0
@@ -3591,6 +3602,10 @@ test.options += --no-progress
           $pkg_fetch libbaz/1.0.0;
 
           $* fox 2>>~%EOE%;
+            build plan:
+              update libbaz/1.0.0 (required by fox)
+              new fox/1.0.0
+                config.fox.backend=libbaz (set by fox)
             unpacked libbaz/1.0.0
             fetched fox/1.0.0
             unpacked fox/1.0.0
@@ -3615,6 +3630,12 @@ test.options += --no-progress
           $clone_cfg;
 
           $* fox foo 2>>~%EOE%;
+            build plan:
+              new libbaz/1.1.0 (required by foo)
+              new libbar/1.0.0 (required by foo, fox)
+              new fox/1.0.0
+                config.fox.backend=libbar (set by fox)
+              new foo/1.0.0
             fetched libbaz/1.1.0
             unpacked libbaz/1.1.0
             fetched libbar/1.0.0
@@ -3643,6 +3664,13 @@ test.options += --no-progress
           $clone_cfg;
 
           $* baz fox bar 2>>~%EOE%;
+            build plan:
+              new libbaz/1.1.0 (required by baz)
+              new baz/1.0.0
+              new libbar/1.0.0 (required by bar, fox)
+              new fox/1.0.0
+                config.fox.backend=libbar (set by fox)
+              new bar/1.0.0
             fetched libbaz/1.1.0
             unpacked libbaz/1.1.0
             fetched baz/1.0.0
@@ -3684,6 +3712,10 @@ test.options += --no-progress
         $clone_cfg;
 
         $* fox ?libbaz/1.0.0 2>>~%EOE%;
+          build plan:
+            new libbaz/1.0.0
+            new fox/1.0.0
+              config.fox.backend=libbaz (set by fox)
           fetched libbaz/1.0.0
           unpacked libbaz/1.0.0
           fetched fox/1.0.0
@@ -3697,6 +3729,9 @@ test.options += --no-progress
           EOE
 
         $* ?libbaz 2>>~%EOE%;
+          build plan:
+            upgrade libbaz/1.1.0
+            reconfigure fox (dependent of libbaz)
           disfigured fox/1.0.0
           disfigured libbaz/1.0.0
           fetched libbaz/1.1.0
@@ -3739,6 +3774,10 @@ test.options += --no-progress
             $* box libbox 2>!;
 
             $* box +{ config.box.extras=true } ?libbiz 2>>~%EOE%;
+              build plan:
+                reconfigure/update box/1.0.0
+                  config.box.extras=true (user configuration)
+                  config.box.backend=libbox (set by box)
               disfigured box/1.0.0
               configured box/1.0.0
               %info: .+box-1.0.0.+ is up to date%
@@ -3746,6 +3785,11 @@ test.options += --no-progress
               EOE
 
             $* box +{ config.box.extras=false } libbiz 2>>~%EOE%;
+              build plan:
+                reconfigure/update box/1.0.0
+                  config.box.extras=false (user configuration)
+                  config.box.backend=libbox (set by box)
+                new libbiz/1.0.0
               disfigured box/1.0.0
               fetched libbiz/1.0.0
               unpacked libbiz/1.0.0
@@ -3785,6 +3829,12 @@ test.options += --no-progress
             $* box libbox 2>!;
 
             $* box +{ config.box.extras=true } ?libbox/0.1.0 2>>~%EOE%;
+              build plan:
+                new libbiz/1.0.0 (required by box)
+                drop libbox/1.0.0 (unused)
+                reconfigure/update box/1.0.0
+                  config.box.extras=true (user configuration)
+                  config.box.backend=libbiz (set by box)
               disfigured box/1.0.0
               disfigured libbox/1.0.0
               fetched libbiz/1.0.0
@@ -3820,6 +3870,12 @@ test.options += --no-progress
             $* box libbox 2>!;
 
             $* box +{ config.box.extras=true } libbox/0.1.0 2>>~%EOE%;
+              build plan:
+                new libbiz/1.0.0 (required by box)
+                downgrade libbox/0.1.0
+                reconfigure/update box/1.0.0
+                  config.box.extras=true (user configuration)
+                  config.box.backend=libbiz (set by box)
               disfigured box/1.0.0
               disfigured libbox/1.0.0
               fetched libbiz/1.0.0
@@ -3857,6 +3913,11 @@ test.options += --no-progress
           $clone_cfg;
 
           $* box ?libbiz/0.1.0 2>>~%EOE%;
+            build plan:
+              new libbox/1.0.0 (required by box)
+              new libbaz/1.1.0 (required by box)
+              new box/1.0.0
+                config.box.backend=libbox (set by box)
             fetched libbox/1.0.0
             unpacked libbox/1.0.0
             fetched libbaz/1.1.0
@@ -3885,6 +3946,10 @@ test.options += --no-progress
           # libbox as a prerequisite of box.
           #
           $* libbiz ?libbaz/1.0.0 2>>~%EOE%;
+            build plan:
+              new libbiz/1.0.0
+              downgrade libbaz/1.0.0
+              reconfigure box (dependent of libbaz)
             disfigured box/1.0.0
             disfigured libbaz/1.1.0
             fetched libbiz/1.0.0
@@ -3917,6 +3982,9 @@ test.options += --no-progress
           # Make sure the decision is hold for downgraded dependency either.
           #
           $* ?libbox/0.1.1 2>>~%EOE%;
+            build plan:
+              downgrade libbox/0.1.1
+              reconfigure box (dependent of libbox)
             disfigured box/1.0.0
             disfigured libbox/1.0.0
             fetched libbox/0.1.1
@@ -4740,7 +4808,7 @@ test.options += --no-progress
   {
     +$clone_root_cfg && $rep_add $rep/t11a && $rep_fetch
 
-    test.arguments += --yes --verbose 5 --build-option --quiet
+    test.arguments += --yes --plan 'build plan:' --verbose 5 --build-option --quiet
 
     : initial-collection
     :

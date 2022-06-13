@@ -650,7 +650,7 @@ namespace bpkg
                      nullptr /* alternatives */,
                      package_skeleton (o,
                                        db,
-                                       *ap,
+                                       ap,
                                        move (vars),
                                        false /* disfigure */,
                                        &p->config_variables,

@@ -121,7 +121,7 @@ namespace bpkg
     pos.first--; pos.second--; // Convert to 0-base.
 
     const dependency_alternative& da (
-      dept.available.get ().dependencies[pos.first][pos.second]);
+      dept.available->dependencies[pos.first][pos.second]);
 
     assert (da.require || da.prefer);
 
