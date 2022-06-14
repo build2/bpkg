@@ -298,8 +298,12 @@ namespace bpkg
               }
               else
               {
-                assert (ov->dependent != *v.dependent);
-                cycle = true;
+                // Note that it's possible the same dependent overrides its
+                // old value (e.g., because a conditional default changed to a
+                // better value).
+                //
+                if (ov->dependent != *v.dependent)
+                  cycle = true;
               }
             }
 

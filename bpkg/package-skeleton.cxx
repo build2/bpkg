@@ -512,11 +512,14 @@ namespace bpkg
             {
               if (config_variable_value* ov = old.find (v.name))
               {
-                assert (ov->origin == variable_origin::buildfile);
-
-                v.origin = variable_origin::buildfile;
-                v.dependent = move (ov->dependent);
-                v.confirmed = ov->confirmed;
+                if (ov->origin == variable_origin::buildfile)
+                {
+                  v.origin = variable_origin::buildfile;
+                  v.dependent = move (ov->dependent);
+                  v.confirmed = ov->confirmed;
+                }
+                else
+                  assert (ov->origin == variable_origin::override_);
               }
             }
 
