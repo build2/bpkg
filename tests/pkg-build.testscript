@@ -4862,6 +4862,13 @@ test.options += --no-progress
           trace: collect_build_postponed (0): end
           trace: execute_plan: simulate: yes
           %.*
+          build plan:
+            new libfoo/1.0.0 (required by foo, fox, fux)
+              config.libfoo.extras=true (set by foo)
+            new foo/1.0.0
+            new fox/1.0.0
+            new fux/1.0.0
+          %.*
           EOE
 
         $pkg_status -r >>EOO;
@@ -4917,6 +4924,11 @@ test.options += --no-progress
           trace: collect_build_postponed (0): end
           %.*
           trace: execute_plan: simulate: yes
+          %.*
+          build plan:
+            configure sys:libfoo/*
+            new foo/1.0.0
+            new fox/1.0.0
           %.*
           EOE
 
@@ -4985,6 +4997,15 @@ test.options += --no-progress
           trace: collect_build_postponed (1): end {bar baz foo | libfoo->{baz/1,1 foo/1,1} libbar->{bar/1,1 baz/1,1}}
           trace: collect_build_postponed (0): end
           trace: execute_plan: simulate: yes
+          %.*
+          build plan:
+            new libfoo/1.0.0 (required by baz, foo)
+              config.libfoo.extras=true (set by baz)
+            new foo/1.0.0
+            new libbar/1.0.0 (required by bar, baz)
+              config.libbar.extras=true (set by bar)
+            new bar/1.0.0
+            new baz/1.0.0
           %.*
           EOE
 
@@ -5354,6 +5375,11 @@ test.options += --no-progress
           %.*
           trace: execute_plan: simulate: yes
           %.*
+          build plan:
+            reconfigure/update libfoo/1.0.0 (required by foo)
+              config.libfoo.extras=true (set by foo)
+            new foo/1.0.0
+          %.*
           EOE
 
         $pkg_status -r >>EOO;
@@ -5445,7 +5471,17 @@ test.options += --no-progress
             %.*
             trace: execute_plan: simulate: yes
             %.*
+            build plan:
+              downgrade libfoo/0.1.0
+                config.libfoo.extras=true (set by foo)
+              reconfigure/update foo/1.0.0 (dependent of libfoo)
+            %.*
             EOE
+
+          $pkg_status -r >>EOO;
+            !foo configured 1.0.0
+              libfoo configured !0.1.0 available 1.0.0
+            EOO
 
           # Reconfigure the dependency and hold.
           #
@@ -5482,6 +5518,11 @@ test.options += --no-progress
             trace: collect_build_postponed (0): end
             %.*
             trace: execute_plan: simulate: yes
+            %.*
+            build plan:
+              reconfigure/update libfoo/0.1.0
+                config.libfoo.extras=true (user configuration)
+              reconfigure/update foo/1.0.0 (dependent of libfoo)
             %.*
             EOE
 
@@ -5543,6 +5584,10 @@ test.options += --no-progress
             trace: collect_drop: overwrite foo
             %.*
             trace: execute_plan: simulate: yes
+            %.*
+            build plan:
+              upgrade libfoo/1.0.0
+              drop foo/1.0.0 (unused)
             %.*
             EOE
 
@@ -5736,6 +5781,13 @@ test.options += --no-progress
             trace: collect_build_postponed (0): end
             %.*
             trace: execute_plan: simulate: yes
+            %.*
+            build plan:
+              downgrade libfoo/0.1.0
+                config.libfoo.extras=true (set by tex)
+              downgrade libbar/0.1.0
+                config.libbar.extras=true (set by tex)
+              reconfigure/update tex/1.0.0 (dependent of libbar)
             %.*
             EOE
 
