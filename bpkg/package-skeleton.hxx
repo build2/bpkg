@@ -298,6 +298,16 @@ namespace bpkg
     reflect_variable_values dependency_reflect_;
     size_t                  dependency_reflect_index_ = 0;
     size_t                  dependency_reflect_pending_ = 0;
+
+    // Position of the last successfully evaluated prefer/accept clauses.
+    //
+    // This information is used to make all (as opposed to only those set by
+    // the prefer clause) dependency configuration variables available to the
+    // reflect clause but only at the same position. This allows for some more
+    // advanced configuration techniques, such as, using a feature if enabled
+    // by someone else but not having any preferences ourselves.
+    //
+    optional<pair<size_t, size_t>> prefer_accept_;
   };
 }
 

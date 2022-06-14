@@ -76,7 +76,8 @@ namespace bpkg
         reflect_frag_ (move (v.reflect_frag_)),
         dependency_reflect_ (move (v.dependency_reflect_)),
         dependency_reflect_index_ (v.dependency_reflect_index_),
-        dependency_reflect_pending_ (v.dependency_reflect_pending_)
+        dependency_reflect_pending_ (v.dependency_reflect_pending_),
+        prefer_accept_ (v.prefer_accept_)
   {
     v.db_ = nullptr;
   }
@@ -109,6 +110,7 @@ namespace bpkg
       dependency_reflect_ = move (v.dependency_reflect_);
       dependency_reflect_index_ = v.dependency_reflect_index_;
       dependency_reflect_pending_ = v.dependency_reflect_pending_;
+      prefer_accept_ = v.prefer_accept_;
 
       v.db_ = nullptr;
     }
@@ -138,10 +140,17 @@ namespace bpkg
         reflect_frag_ (v.reflect_frag_),
         dependency_reflect_ (v.dependency_reflect_),
         dependency_reflect_index_ (v.dependency_reflect_index_),
-        dependency_reflect_pending_ (v.dependency_reflect_pending_)
+        dependency_reflect_pending_ (v.dependency_reflect_pending_),
+        prefer_accept_ (v.prefer_accept_)
   {
     // The idea here is to create an "unloaded" copy but with enough state
     // that it can be loaded if necessary.
+    //
+    // Note that there is a bit of a hole in this logic with regards to the
+    // prefer_accept_ semantics but it looks like we cannot plausible trigger
+    // it (which is fortified with an assert in evaluate_reflect(); note that
+    // doing it here would be overly strict since this may have a left-over
+    // prefer_accept_ position).
   }
 
   void package_skeleton::
@@ -164,6 +173,8 @@ namespace bpkg
     dependency_reflect_.clear ();
     dependency_reflect_index_ = 0;
     dependency_reflect_pending_ = 0;
+
+    prefer_accept_ = nullopt;
   }
 
   package_skeleton::
@@ -582,6 +593,14 @@ namespace bpkg
       using build2::info;
       using build2::endf;
 
+      // Drop the state from the previous evaluation of prefer/accept.
+      //
+      if (prefer_accept_)
+      {
+        ctx_ = nullptr;
+        prefer_accept_ = nullopt;
+      }
+
       scope& rs (load ());
 
       istringstream is ('(' + cond + ')');
@@ -692,6 +711,25 @@ namespace bpkg
       using build2::fail;
       using build2::info;
       using build2::endf;
+
+      // Drop the state from the previous evaluation of prefer/accept if it's
+      // from the wrong position.
+      //
+      if (prefer_accept_)
+      {
+        if (*prefer_accept_ != indexes)
+        {
+          ctx_ = nullptr;
+          prefer_accept_ = nullopt;
+        }
+        else
+          // This could theoretically happen if we make a copy of the skeleton
+          // after evaluate_prefer_accept() and then attempt to continue with
+          // the call on the copy to evaluate_reflect() passing the same
+          // position. But it doesn't appear our usage should trigger this.
+          //
+          assert (ctx_ != nullptr);
+      }
 
       scope& rs (load ());
 
@@ -973,6 +1011,14 @@ namespace bpkg
       using build2::info;
       using build2::endf;
 
+      // Drop the state from the previous evaluation of prefer/accept.
+      //
+      if (prefer_accept_)
+      {
+        ctx_ = nullptr;
+        prefer_accept_ = nullopt;
+      }
+
       // Drop any dependency reflect values from the previous evaluation of
       // this clause, if any.
       //
@@ -1215,13 +1261,14 @@ namespace bpkg
             }
           }
         }
-      }
 
-      // Drop the build system state since it needs reloading (for one, we
-      // could have dependency configuration, such as defaults and other
-      // dependent values, that further clauses should not see).
-      //
-      ctx_ = nullptr;
+        // Note: do not drop the build system state yet since it should be
+        // reused by the following reflect clause, if any.
+        //
+        prefer_accept_ = indexes;
+      }
+      else
+        ctx_ = nullptr;
 
       return r;
     }
@@ -1246,6 +1293,14 @@ namespace bpkg
       using build2::fail;
       using build2::info;
       using build2::endf;
+
+      // Drop the state from the previous evaluation of prefer/accept.
+      //
+      if (prefer_accept_)
+      {
+        ctx_ = nullptr;
+        prefer_accept_ = nullopt;
+      }
 
       // Drop any dependency reflect values from the previous evaluation of
       // this clause, if any.
