@@ -242,9 +242,9 @@ namespace bpkg
     // Step 2: execute the prefer/accept or requires clauses.
     //
     if (!(da.require
-          ? dept.evaluate_require (depc_cfgs, *da.require, pos.first)
+          ? dept.evaluate_require (depc_cfgs, *da.require, pos)
           : dept.evaluate_prefer_accept (depc_cfgs,
-                                         *da.prefer, *da.accept, pos.first)))
+                                         *da.prefer, *da.accept, pos)))
     {
       diag_record dr (fail);
 

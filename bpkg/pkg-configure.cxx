@@ -97,7 +97,7 @@ namespace bpkg
         {
           const dependency_alternative& da (das[i]);
 
-          if (!da.enable || ps.evaluate_enable (*da.enable, di))
+          if (!da.enable || ps.evaluate_enable (*da.enable, make_pair (di, i)))
           {
             if (da.prefer || da.require)
               fail << "manual configuration of dependents with prefer or "
@@ -273,7 +273,7 @@ namespace bpkg
           // Evaluate the dependency alternative reflect clause, if present.
           //
           if (da.reflect)
-            ps.evaluate_reflect (*da.reflect, di);
+            ps.evaluate_reflect (*da.reflect, make_pair (di, dai));
 
           satisfied = true;
           break;

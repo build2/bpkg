@@ -105,19 +105,18 @@ namespace bpkg
     dependent_config (const package_configuration&);
 
     // For the following evaluate_*() functions assume that the clause belongs
-    // to the specified (by index) depends value (used to print its location
-    // on failure for an external package).
-    //
+    // to the dependency alternative specified as a pair of indexes (depends
+    // value index and alternative index).
 
     // Evaluate the enable clause.
     //
     bool
-    evaluate_enable (const string&, size_t depends_index);
+    evaluate_enable (const string&, pair<size_t, size_t>);
 
     // Evaluate the reflect clause.
     //
     void
-    evaluate_reflect (const string&, size_t depends_index);
+    evaluate_reflect (const string&, pair<size_t, size_t>);
 
     // Evaluate the prefer/accept or require clauses on the specified
     // dependency configurations (serves as both input and output).
@@ -130,11 +129,11 @@ namespace bpkg
 
     bool
     evaluate_prefer_accept (const dependency_configurations&,
-                            const string&, const string&, size_t depends_index);
+                            const string&, const string&, pair<size_t, size_t>);
 
     bool
     evaluate_require (const dependency_configurations&,
-                      const string&, size_t depends_index);
+                      const string&, pair<size_t, size_t>);
 
     // Reset the skeleton to the start of the call sequence.
     //

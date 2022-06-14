@@ -3278,7 +3278,8 @@ namespace bpkg
           {
             const dependency_alternative& da (das[i]);
 
-            if (!da.enable || skel.evaluate_enable (*da.enable, di))
+            if (!da.enable ||
+                skel.evaluate_enable (*da.enable, make_pair (di, i)))
               edas.push_back (make_pair (ref (da), i));
           }
         }
@@ -4948,7 +4949,7 @@ namespace bpkg
           salts.push_back (dai);
 
           if (da.reflect)
-            skel.evaluate_reflect (*da.reflect, di);
+            skel.evaluate_reflect (*da.reflect, make_pair (di, dai));
 
           selected = true;
         };
@@ -6349,7 +6350,7 @@ namespace bpkg
             // Evaluate reflect, if present.
             //
             if (da.reflect)
-              b->skeleton->evaluate_reflect (*da.reflect, di);
+              b->skeleton->evaluate_reflect (*da.reflect, make_pair (di, dai));
           }
 
           // Continue recursively collecting the dependent.

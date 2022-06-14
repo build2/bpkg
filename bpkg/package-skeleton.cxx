@@ -571,8 +571,10 @@ namespace bpkg
   }
 
   bool package_skeleton::
-  evaluate_enable (const string& cond, size_t depends_index)
+  evaluate_enable (const string& cond, pair<size_t, size_t> indexes)
   {
+    size_t depends_index (indexes.first);
+
     try
     {
       using namespace build2;
@@ -630,8 +632,10 @@ namespace bpkg
   }
 
   void package_skeleton::
-  evaluate_reflect (const string& refl, size_t depends_index)
+  evaluate_reflect (const string& refl, pair<size_t, size_t> indexes)
   {
+    size_t depends_index (indexes.first);
+
     // The reflect configuration variables are essentially overrides that will
     // be passed on the command line when we configure the package. They could
     // clash with configuration variables specified by the user (config_vars_)
@@ -955,8 +959,10 @@ namespace bpkg
   evaluate_prefer_accept (const dependency_configurations& cfgs,
                           const string& prefer,
                           const string& accept,
-                          size_t depends_index)
+                          pair<size_t, size_t> indexes)
   {
+    size_t depends_index (indexes.first);
+
     assert (dependency_reflect_index_ <= depends_index);
 
     try
@@ -1219,8 +1225,10 @@ namespace bpkg
 
   bool package_skeleton::
   evaluate_require (const dependency_configurations& cfgs,
-                    const string& require, size_t depends_index)
+                    const string& require, pair<size_t, size_t> indexes)
   {
+    size_t depends_index (indexes.first);
+
     assert (dependency_reflect_index_ <= depends_index);
 
     try
