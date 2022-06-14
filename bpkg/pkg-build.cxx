@@ -4646,6 +4646,13 @@ namespace bpkg
                 build_package* b (entered_build (p));
                 assert (b != nullptr);
 
+                // Reconfigure the configured dependencies (see
+                // collect_build_postponed() for details).
+                //
+                if (b->selected != nullptr &&
+                    b->selected->state == package_state::configured)
+                  b->flags |= build_package::adjust_reconfigure;
+
                 if (!b->recursive_collection)
                 {
                   l5 ([&]{trace << "collecting cfg-postponed dependency "
@@ -6172,6 +6179,20 @@ namespace bpkg
         {
           build_package* b (entered_build (p));
           assert (b != nullptr);
+
+          // Reconfigure the configured dependencies.
+          //
+          // Note that potentially this can be an overkill if the dependency
+          // configuration doesn't really change. Later we can implement some
+          // precise detection for that using configuration checksum or
+          // similar.
+          //
+          // Also note that for configured dependents which belong to the
+          // configuration cluster this flag is already set (see above).
+          //
+          if (b->selected != nullptr &&
+              b->selected->state == package_state::configured)
+            b->flags |= build_package::adjust_reconfigure;
 
           // Skip the dependencies which are already collected recursively.
           //

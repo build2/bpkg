@@ -5283,6 +5283,7 @@ test.options += --no-progress
           trace: collect_build_postponed (1): cfg-negotiate end {foo | libfoo->{foo/1,1}}!
           trace: collect_build_postponed (1): end {foo | libfoo->{foo/1,1}}
           trace: collect_build_postponed (0): end
+          %.*
           trace: execute_plan: simulate: yes
           %.*
           EOE
@@ -8783,6 +8784,7 @@ test.options += --no-progress
               trace: collect_build_postponed (2): end {tix | tex->{tix/2,1}}
               trace: collect_build_postponed (1): end {tix | libbar->{tix/1,1}}
               trace: collect_build_postponed (0): end
+              %.*
               trace: execute_plan: simulate: yes
               %.*
               EOE
@@ -10877,6 +10879,7 @@ test.options += --no-progress
               trace: collect_build_postponed (2): end {dix | libbox->{dix/2,1}}
               trace: collect_build_postponed (1): end {dix | libbar->{dix/1,1}}
               trace: collect_build_postponed (0): end
+              %.*
               trace: execute_plan: simulate: yes
               %.*
               EOE
