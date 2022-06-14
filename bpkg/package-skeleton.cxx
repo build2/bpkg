@@ -982,10 +982,15 @@ namespace bpkg
       // This is what needs to happen to the variables of different origins in
       // the passed dependency configurations:
       //
-      // default              -- set as default (value.extra=1)
-      // buildfile/dependent  -- set as buildfile
+      // default              -- set as default (value::extra=1)
+      // buildfile/dependent  -- set as buildfile (value::extra=2)
       // override/user        -- set as override (so cannot be overriden)
       // undefined            -- ignored
+      //
+      // Note that we set value::extra to 2 for buildfile/dependent values.
+      // This is done so that we can detect when they were set by this
+      // dependent (even if to the same value). Note that the build2 config
+      // module only treats 1 as the default value marker.
       //
       // Additionally, for all origins we need to typify the variables.
       //
@@ -1146,10 +1151,13 @@ namespace bpkg
               {
                 optional<names> ns (reverse_value (val));
 
-                // This value was set so save it as a dependency reflect.
+                // If this value was set, save it as a dependency reflect.
                 //
-                dependency_reflect_.push_back (
-                  reflect_variable_value {v.name, ol.first, v.type, ns});
+                if (val.extra == 0)
+                {
+                  dependency_reflect_.push_back (
+                    reflect_variable_value {v.name, ol.first, v.type, ns});
+                }
 
                 // Possible transitions:
                 //
@@ -1162,7 +1170,7 @@ namespace bpkg
                   // (even if the value was technically "overwritten" by this
                   // dependent).
                   //
-                  if (v.value == ns)
+                  if (val.extra == 2 || v.value == ns)
                     break;
                 }
                 else
@@ -1420,8 +1428,8 @@ namespace bpkg
             // This value was set so save it as a dependency reflect.
             //
             // Note that unlike the equivalent evaluate_prefer_accept() logic,
-            // here the value cannot be the default (since we don't set
-            // defaults).
+            // here the value cannot be the default/buildfile (since we don't
+            // set those; see the load() call above).
             //
             optional<names> ns (names {build2::name ("true")});
 
@@ -1950,8 +1958,7 @@ namespace bpkg
                     else
                       val = nullptr;
 
-                    if (v.origin == variable_origin::default_)
-                      val.extra = 1;
+                    val.extra = v.origin == variable_origin::default_ ? 1 : 2;
                   }
                   break;
                 }

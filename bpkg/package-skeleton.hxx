@@ -201,7 +201,7 @@ namespace bpkg
     // If dependency configurations are specified, then typify the variables
     // and set their values. If defaults is false, then only typify the
     // variables and set overrides without setting the default/buildfile
-    // values.
+    // values. Note that buildfile values have value::extra set to 2.
     //
     build2::scope&
     load (const dependency_configurations& = {}, bool defaults = true);
