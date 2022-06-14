@@ -4320,7 +4320,7 @@ test.options += --no-progress
           $* fax/ 2>>~%EOE% != 0;
             <depends-enable-clause>:1: error: invalid bool value: multiple names
               info: enable condition: (config.fax.libbiz = true)
-            %  fax.manifest:10:10: info: in depends value defined here%
+            %  fax.manifest:10:10: info: in depends manifest value defined here%
             info: while satisfying fax/1.0.0#3
             EOE
 

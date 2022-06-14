@@ -201,10 +201,15 @@ namespace bpkg
     // If dependency configurations are specified, then typify the variables
     // and set their values. If defaults is false, then only typify the
     // variables and set overrides without setting the default/buildfile
-    // values. Note that buildfile values have value::extra set to 2.
+    // values. Note that buildfile values have value::extra set to 2. While
+    // at it, also remove from dependency_var_prefixes_ and add to
+    // dependency_var_prefixes variable prefixes (config.<project>) for
+    // the passed dependencies.
     //
     build2::scope&
-    load (const dependency_configurations& = {}, bool defaults = true);
+    load (const dependency_configurations& = {},
+          strings* dependency_var_prefixes = nullptr,
+          bool defaults = true);
 
     // Merge command line variable overrides into one list (normally to be
     // passed to bootstrap()).
@@ -216,23 +221,6 @@ namespace bpkg
     merge_cmd_vars (const strings& dependent_vars,
                     const strings& dependency_vars = {},
                     bool cache = false);
-
-    // Check whether the specified configuration variable override has a
-    // project variables (i.e., its name start with config.<project>).
-    //
-    // Note that some user-specified variables may have qualifications
-    // (global, scope, etc) but there is no reason to expect any project
-    // configuration variables to use such qualifications (since they can
-    // only apply to one project). So we ignore all qualified variables.
-    //
-    bool
-    project_override (const string& v) const
-    {
-      const string& p (var_prefix_);
-      size_t n (p.size ());
-
-      return v.compare (0, n, p) == 0 && strchr (".=+ \t", v[n]) != nullptr;
-    }
 
     // Implementation details (public for bootstrap()).
     //
@@ -298,6 +286,17 @@ namespace bpkg
     reflect_variable_values dependency_reflect_;
     size_t                  dependency_reflect_index_ = 0;
     size_t                  dependency_reflect_pending_ = 0;
+
+    // List of variable prefixes (config.<project>) of all known dependencies.
+    //
+    // This information is used to detect and diagnose references to undefined
+    // dependency configuration variables (for example, those that were not
+    // set and therefore not reflected). The pending index is used to ignore
+    // the entries added by the last evaluate_prefer_accept() in the following
+    // reflect clause (see prefer_accept_ below for details).
+    //
+    strings dependency_var_prefixes_;
+    size_t  dependency_var_prefixes_pending_;
 
     // Position of the last successfully evaluated prefer/accept clauses.
     //

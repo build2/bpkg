@@ -40,6 +40,90 @@ namespace bpkg
 
   void
   build2_init (const common_options&);
+}
+
+namespace bpkg
+{
+  // Check whether the specified configuration variable override has a
+  // project variables (i.e., its name starts with config.<project>).
+  //
+  // Note that some user-specified variables may have qualifications
+  // (global, scope, etc) but there is no reason to expect any project
+  // configuration variables to use such qualifications (since they can
+  // only apply to one project). So we ignore all qualified variables.
+  //
+  static inline bool
+  project_override (const string& v, const string& p)
+  {
+    size_t n (p.size ());
+    return v.compare (0, n, p) == 0 && strchr (".=+ \t", v[n]) != nullptr;
+  }
+
+  // Check whether the specified configuration variable name is a project
+  // variables (i.e., its name starts with config.<project>).
+  //
+  static inline bool
+  project_variable (const string& v, const string& p)
+  {
+    size_t n (p.size ());
+    return v.compare (0, n, p) == 0 && (v[n] == '.' || v[n] == '\0');
+  }
+
+  // Customized buildfile parser that is used to detect and diagnose
+  // references to undefined dependency configuration variables.
+  //
+  class buildfile_parser: public build2::parser
+  {
+  public:
+    buildfile_parser (build2::context& ctx,
+                      const strings& dvps,
+                      optional<size_t> dvps_pending = {})
+        : parser (ctx),
+          dependency_var_prefixes_ (dvps),
+          dependency_var_prefixes_pending_ (dvps_pending) {}
+
+  protected:
+    virtual build2::lookup
+    lookup_variable (build2::name&& qual,
+                     string&& name,
+                     const build2::location& loc) override
+    {
+      using namespace build2;
+      using build2::fail;
+      using build2::info;
+
+      // To avoid making copies of the name, pre-check if it is from one
+      // of the dependencies.
+      //
+      optional<string> dep;
+      if (!pre_parse_ && qual.empty ())
+      {
+        auto b (dependency_var_prefixes_.begin ());
+        auto e (dependency_var_prefixes_pending_
+                ? b + *dependency_var_prefixes_pending_
+                : dependency_var_prefixes_.end ());
+
+        if (find_if (b, e,
+                     [&name] (const string& p)
+                     {
+                       return project_variable (name, p);
+                     }) != e)
+          dep = name;
+      }
+
+      lookup l (parser::lookup_variable (move (qual), move (name), loc));
+
+      if (dep && !l.defined ())
+        fail (loc) << "undefined dependency configuration variable " << *dep <<
+          info << "was " << *dep << " set in earlier prefer or require clause?";
+
+      return l;
+    }
+
+  private:
+    const strings& dependency_var_prefixes_;
+    optional<size_t> dependency_var_prefixes_pending_;
+  };
 
   // Note: cannot be package_skeleton member function due to iterator return
   // (build2 stuff is only forward-declared in the header).
@@ -77,6 +161,8 @@ namespace bpkg
         dependency_reflect_ (move (v.dependency_reflect_)),
         dependency_reflect_index_ (v.dependency_reflect_index_),
         dependency_reflect_pending_ (v.dependency_reflect_pending_),
+        dependency_var_prefixes_ (move (v.dependency_var_prefixes_)),
+        dependency_var_prefixes_pending_ (v.dependency_var_prefixes_pending_),
         prefer_accept_ (v.prefer_accept_)
   {
     v.db_ = nullptr;
@@ -110,6 +196,8 @@ namespace bpkg
       dependency_reflect_ = move (v.dependency_reflect_);
       dependency_reflect_index_ = v.dependency_reflect_index_;
       dependency_reflect_pending_ = v.dependency_reflect_pending_;
+      dependency_var_prefixes_ = move (v.dependency_var_prefixes_);
+      dependency_var_prefixes_pending_ = v.dependency_var_prefixes_pending_;
       prefer_accept_ = v.prefer_accept_;
 
       v.db_ = nullptr;
@@ -141,6 +229,8 @@ namespace bpkg
         dependency_reflect_ (v.dependency_reflect_),
         dependency_reflect_index_ (v.dependency_reflect_index_),
         dependency_reflect_pending_ (v.dependency_reflect_pending_),
+        dependency_var_prefixes_ (v.dependency_var_prefixes_),
+        dependency_var_prefixes_pending_ (v.dependency_var_prefixes_pending_),
         prefer_accept_ (v.prefer_accept_)
   {
     // The idea here is to create an "unloaded" copy but with enough state
@@ -173,6 +263,9 @@ namespace bpkg
     dependency_reflect_.clear ();
     dependency_reflect_index_ = 0;
     dependency_reflect_pending_ = 0;
+
+    dependency_var_prefixes_.clear ();
+    dependency_var_prefixes_pending_ = 0;
 
     prefer_accept_ = nullopt;
   }
@@ -395,13 +488,9 @@ namespace bpkg
       //    package. And, could be helpful to warn that configuration variable
       //    does not exist.
       //
-      const string& p (var_prefix_);
-      size_t n (p.size ());
-
       for (const variable& var: rs.ctx.var_pool)
       {
-        if (var.name.compare (0, n, p) != 0 || (var.name[n] != '.' &&
-                                                var.name[n] != '\0'))
+        if (!project_variable (var.name, var_prefix_))
           continue;
 
         using config::variable_origin;
@@ -571,7 +660,7 @@ namespace bpkg
             dr << build2::info (build2::location (mf,
                                                   nv.value_line,
                                                   nv.value_column))
-               << "in depends value defined here";
+               << "in depends manifest value defined here";
             break;
           }
         }
@@ -616,21 +705,23 @@ namespace bpkg
       uint64_t il (1);
 
       auto df = build2::make_diag_frame (
-        [&cond, &rs, depends_index] (const build2::diag_record& dr)
+        [this, &cond, &rs, depends_index] (const build2::diag_record& dr)
         {
           dr << info << "enable condition: (" << cond << ")";
 
           // For external packages we have the manifest so print the location
           // of the depends value in questions.
           //
-          if (!rs.out_eq_src ())
+          if (rs.out_eq_src ())
+            dr << info << "in depends manifest value of package " << key.name;
+          else
             depends_location (dr,
                               rs.src_path () / manifest_file,
                               depends_index);
         });
 
       lexer l (is, in, il /* start line */);
-      parser p (rs.ctx);
+      buildfile_parser p (rs.ctx, dependency_var_prefixes_);
       value v (p.parse_eval (l, rs, rs, parser::pattern_mode::expand));
 
       try
@@ -715,6 +806,7 @@ namespace bpkg
       // Drop the state from the previous evaluation of prefer/accept if it's
       // from the wrong position.
       //
+      optional<size_t> dependency_var_prefixes_pending;
       if (prefer_accept_)
       {
         if (*prefer_accept_ != indexes)
@@ -723,12 +815,16 @@ namespace bpkg
           prefer_accept_ = nullopt;
         }
         else
+        {
           // This could theoretically happen if we make a copy of the skeleton
           // after evaluate_prefer_accept() and then attempt to continue with
           // the call on the copy to evaluate_reflect() passing the same
           // position. But it doesn't appear our usage should trigger this.
           //
           assert (ctx_ != nullptr);
+
+          dependency_var_prefixes_pending = dependency_var_prefixes_pending_;
+        }
       }
 
       scope& rs (load ());
@@ -740,7 +836,7 @@ namespace bpkg
       uint64_t il (1);
 
       auto df = build2::make_diag_frame (
-        [&refl, &rs, depends_index] (const build2::diag_record& dr)
+        [this, &refl, &rs, depends_index] (const build2::diag_record& dr)
         {
           // Probably safe to assume a one-line fragment contains a variable
           // assignment.
@@ -754,7 +850,9 @@ namespace bpkg
           // For external packages we have the manifest so print the location
           // of the depends value in questions.
           //
-          if (!rs.out_eq_src ())
+          if (rs.out_eq_src ())
+            dr << info << "in depends manifest value of package " << key.name;
+          else
             depends_location (dr,
                               rs.src_path () / manifest_file,
                               depends_index);
@@ -822,7 +920,9 @@ namespace bpkg
       process (true);
 
       lexer l (is, in, il /* start line */);
-      parser p (rs.ctx);
+      buildfile_parser p (rs.ctx,
+                          dependency_var_prefixes_,
+                          dependency_var_prefixes_pending);
       p.parse_buildfile (l, &rs, rs);
 
       process (false);
@@ -1040,9 +1140,12 @@ namespace bpkg
       //
       // Additionally, for all origins we need to typify the variables.
       //
-      // All of this is done by load().
+      // All of this is done by load(), including removing and returning the
+      // dependency variable prefixes (config.<project>) which we later add
+      // to dependency_var_prefixes_.
       //
-      scope& rs (load (cfgs));
+      strings dvps;
+      scope& rs (load (cfgs, &dvps, true /* defaults */));
 
       // Evaluate the prefer clause.
       //
@@ -1054,7 +1157,7 @@ namespace bpkg
         uint64_t il (1);
 
         auto df = build2::make_diag_frame (
-          [&prefer, &rs, depends_index] (const build2::diag_record& dr)
+          [this, &prefer, &rs, depends_index] (const build2::diag_record& dr)
           {
             dr << info << "prefer clause:\n"
                << trim_right (string (prefer));
@@ -1062,22 +1165,25 @@ namespace bpkg
             // For external packages we have the manifest so print the
             // location of the depends value in questions.
             //
-            if (!rs.out_eq_src ())
+            if (rs.out_eq_src ())
+              dr << info << "in depends manifest value of package " << key.name;
+            else
               depends_location (dr,
                                 rs.src_path () / manifest_file,
                                 depends_index);
           });
 
         lexer l (is, in, il /* start line */);
-        parser p (rs.ctx);
+        buildfile_parser p (rs.ctx, dependency_var_prefixes_);
         p.parse_buildfile (l, &rs, rs);
 
         // Check if the dependent set any stray configuration variables.
         //
-        for (package_configuration& cfg: cfgs)
+        for (size_t i (0); i != cfgs.size (); ++i)
         {
-          string ns ("config." + cfg.package.name.variable ());
+          package_configuration& cfg (cfgs[i]);
 
+          const string& ns (dvps[i]); // Parallel.
           for (auto p (rs.vars.lookup_namespace (ns));
                p.first != p.second;
                ++p.first)
@@ -1112,21 +1218,23 @@ namespace bpkg
         uint64_t il (1);
 
         auto df = build2::make_diag_frame (
-          [&accept, &rs, depends_index] (const build2::diag_record& dr)
+          [this, &accept, &rs, depends_index] (const build2::diag_record& dr)
           {
             dr << info << "accept condition: (" << accept << ")";
 
-            // For external packages we have the manifest so print the location
-            // of the depends value in questions.
+            // For external packages we have the manifest so print the
+            // location of the depends value in questions.
             //
-            if (!rs.out_eq_src ())
+            if (rs.out_eq_src ())
+              dr << info << "in depends manifest value of package " << key.name;
+            else
               depends_location (dr,
                                 rs.src_path () / manifest_file,
                                 depends_index);
           });
 
         lexer l (is, in, il /* start line */);
-        parser p (rs.ctx);
+        buildfile_parser p (rs.ctx, dependency_var_prefixes_);
         value v (p.parse_eval (l, rs, rs, parser::pattern_mode::expand));
 
         try
@@ -1151,10 +1259,11 @@ namespace bpkg
         dependency_reflect_index_ = depends_index;
         dependency_reflect_pending_ = dependency_reflect_.size ();
 
-        for (package_configuration& cfg: cfgs)
+        for (size_t i (0); i != cfgs.size (); ++i)
         {
-          string ns ("config." + cfg.package.name.variable ());
+          package_configuration& cfg (cfgs[i]);
 
+          const string& ns (dvps[i]);
           for (auto p (rs.vars.lookup_namespace (ns));
                p.first != p.second;
                ++p.first)
@@ -1262,6 +1371,15 @@ namespace bpkg
           }
         }
 
+        // Note that because we add it here, the following reflect clause will
+        // not be able to expand undefined values. We handle this by keeping a
+        // pending position.
+        //
+        dependency_var_prefixes_pending_ = dependency_var_prefixes_.size ();
+        dependency_var_prefixes_.insert (dependency_var_prefixes_.end (),
+                                         make_move_iterator (dvps.begin ()),
+                                         make_move_iterator (dvps.end ()));
+
         // Note: do not drop the build system state yet since it should be
         // reused by the following reflect clause, if any.
         //
@@ -1315,7 +1433,8 @@ namespace bpkg
       // information as well as overrides (see up_negotiate_configuration()
       // for details).
       //
-      scope& rs (load (cfgs, false /* defaults */));
+      strings dvps;
+      scope& rs (load (cfgs, &dvps, false /* defaults */));
 
       // Evaluate the require clause.
       //
@@ -1327,7 +1446,7 @@ namespace bpkg
         uint64_t il (1);
 
         auto df = build2::make_diag_frame (
-          [&require, &rs, depends_index] (const build2::diag_record& dr)
+          [this, &require, &rs, depends_index] (const build2::diag_record& dr)
           {
             dr << info << "require clause:\n"
                << trim_right (string (require));
@@ -1335,30 +1454,34 @@ namespace bpkg
             // For external packages we have the manifest so print the
             // location of the depends value in questions.
             //
-            if (!rs.out_eq_src ())
+            if (rs.out_eq_src ())
+              dr << info << "in depends manifest value of package " << key.name;
+            else
               depends_location (dr,
                                 rs.src_path () / manifest_file,
                                 depends_index);
           });
 
         lexer l (is, in, il /* start line */);
-        parser p (rs.ctx);
+        buildfile_parser p (rs.ctx, dependency_var_prefixes_);
         p.parse_buildfile (l, &rs, rs);
 
         // Check for stray variables and enforce all the require restrictions
         // (bool, set to true, etc).
         //
-        for (package_configuration& cfg: cfgs)
+        for (size_t i (0); i != cfgs.size (); ++i)
         {
-          string ns ("config." + cfg.package.name.variable ());
+          package_configuration& cfg (cfgs[i]);
 
-          // Note that because we didn't set any default (or other dependent)
-          // values, all the values we see are set by this dependent.
-          //
+          const string& ns (dvps[i]); // Parallel.
           for (auto p (rs.vars.lookup_namespace (ns));
                p.first != p.second;
                ++p.first)
           {
+            // Note that because we didn't set any default (or other
+            // dependent) values, all the values we see are set by this
+            // dependent.
+            //
             const variable& var (p.first->first);
 
             // This can be one of the overrides (__override, __prefix, etc),
@@ -1401,10 +1524,11 @@ namespace bpkg
       // First determine if acceptable.
       //
       bool r (true);
-      for (package_configuration& cfg: cfgs)
+      for (size_t i (0); i != cfgs.size (); ++i)
       {
-        string ns ("config." + cfg.package.name.variable ());
+        package_configuration& cfg (cfgs[i]);
 
+        const string& ns (dvps[i]);
         for (auto p (rs.vars.lookup_namespace (ns));
              p.first != p.second;
              ++p.first)
@@ -1465,10 +1589,11 @@ namespace bpkg
         dependency_reflect_index_ = depends_index;
         dependency_reflect_pending_ = dependency_reflect_.size ();
 
-        for (package_configuration& cfg: cfgs)
+        for (size_t i (0); i != cfgs.size (); ++i)
         {
-          string ns ("config." + cfg.package.name.variable ());
+          package_configuration& cfg (cfgs[i]);
 
+          const string& ns (dvps[i]);
           for (auto p (rs.vars.lookup_namespace (ns));
                p.first != p.second;
                ++p.first)
@@ -1517,6 +1642,10 @@ namespace bpkg
             }
           }
         }
+
+        dependency_var_prefixes_.insert (dependency_var_prefixes_.end (),
+                                         make_move_iterator (dvps.begin ()),
+                                         make_move_iterator (dvps.end ()));
       }
 
       // Drop the build system state since it needs reloading (while it may
@@ -1545,7 +1674,7 @@ namespace bpkg
             find_if (config_vars_.begin (), config_vars_.end (),
                      [this] (const string& v)
                      {
-                       return project_override (v);
+                       return project_override (v, var_prefix_);
                      }) == config_vars_.end ());
   }
 
@@ -1572,7 +1701,7 @@ namespace bpkg
     //
     for (const string& v: config_vars_)
     {
-      if (project_override (v))
+      if (project_override (v, var_prefix_))
         print (v) << " (user configuration)";
     }
 
@@ -1639,7 +1768,7 @@ namespace bpkg
         //
         for (const string& v: config_vars_)
         {
-          if (project_override (v))
+          if (project_override (v, var_prefix_))
           {
             string n (var_name (v));
 
@@ -1870,7 +1999,7 @@ namespace bpkg
   }
 
   build2::scope& package_skeleton::
-  load (const dependency_configurations& cfgs, bool defaults)
+  load (const dependency_configurations& cfgs, strings* dvps, bool defaults)
   {
     if (ctx_ != nullptr)
     {
@@ -1893,6 +2022,7 @@ namespace bpkg
       // If we have any dependency configurations, then here we need to add
       // dependency configuration variables with the override origin to the
       // command line overrides (see evaluate_prefer_accept() for details).
+      // While at it, handle dependency variable prefixes.
       //
       strings dependency_vars;
       for (const package_configuration& cfg: cfgs)
@@ -1902,6 +2032,16 @@ namespace bpkg
           if (v.origin == variable_origin::override_)
             dependency_vars.push_back (v.serialize_cmdline ());
         }
+
+        string p ("config." + cfg.package.name.variable ());
+
+        auto i (find (dependency_var_prefixes_.begin (),
+                      dependency_var_prefixes_.end (),
+                      p));
+        if (i != dependency_var_prefixes_.end ())
+          dependency_var_prefixes_.erase (i);
+
+        dvps->push_back (move (p));
       }
 
       // If there aren't any, then we can reuse already merged cmd_vars (they
