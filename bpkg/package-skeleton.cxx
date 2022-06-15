@@ -1971,7 +1971,7 @@ namespace bpkg
       // collect_config(). So instead of calling merge_cmd_vars() we will do
       // our own (but consistent) thing.
       //
-      const strings* cmd_vars;
+      const strings* cmd_vars (nullptr);
       {
         assert (!cmd_vars_cache_); // Sanity check (we are always first).
 
