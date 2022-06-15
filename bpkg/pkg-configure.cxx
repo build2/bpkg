@@ -365,7 +365,7 @@ namespace bpkg
     l4 ([&]{trace << "src_root: " << src_root << ", "
                   << "out_root: " << out_root;});
 
-    bool disfigured (ps.disfigure_); // @@ TMP pass explicitly.
+    bool disfigured (ps.disfigure_); // @@ TMP-K pass explicitly.
 
     // Verify all our prerequisites are configured and populate the
     // prerequisites list.
@@ -423,36 +423,6 @@ namespace bpkg
         dvar += p->name.variable ();
         dvar += "**'";
       }
-
-      // @@ TMP remove when settled done.
-      //
-#if 0
-      // Deduce the configuration variables which are not reflected anymore
-      // and disfigure them.
-      //
-      for (const config_variable& cv: p->config_variables)
-      {
-        if (cv.source == config_source::reflect)
-        {
-          const vector<config_variable>& ss (cpr.config_sources);
-          auto i (find_if (ss.begin (), ss.end (),
-                           [&cv] (const config_variable& v)
-                           {
-                             return v.name == cv.name;
-                           }));
-
-          if (i == ss.end ())
-          {
-            if (dvar.empty ())
-              dvar = "config.config.disfigure=";
-            else
-              dvar += ' ';
-
-            dvar += cv.name;
-          }
-        }
-      }
-#endif
 
       // Configure.
       //

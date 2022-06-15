@@ -486,7 +486,8 @@ namespace bpkg
       // @@ One potentially-bogus config variable could be config.*.develop.
       //    Would have been nice not to drag it around if not used by the
       //    package. And, could be helpful to warn that configuration variable
-      //    does not exist.
+      //    does not exist. But we cannot do it consistently since we don't
+      //    always load the skeleton.
       //
       for (const variable& var: rs.ctx.var_pool)
       {

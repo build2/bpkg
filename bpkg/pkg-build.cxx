@@ -2812,7 +2812,7 @@ namespace bpkg
                                  postponed_configurations& postponed_cfgs,
                                  postponed_positions& postponed_poss,
                                  //
-                                 // @@ TMP This will probably be gone (see below).
+                                 // @@ TMP-K This will probably be gone (see below).
                                  //
                                  bool force_configured = false,
 
@@ -3060,7 +3060,7 @@ namespace bpkg
       // Bail out if this is a configured non-system package and no recursive
       // collection is required nor the collection is forced.
       //
-      // @@ TMP Forcing collection will probably be gone when we implement
+      // @@ TMP-K Forcing collection will probably be gone when we implement
       //    complete negotiation implementation since we will recognize the
       //    need to recollect by the presence of the respective config vars,
       //    etc.
@@ -6317,7 +6317,7 @@ namespace bpkg
 
               pc = &postponed_cfgs[ci];
 
-              // @@ TMP: "shadow" seems no longer correct.
+              // @@ TMP-K: "shadow" seems no longer correct.
               //
               l5 ([&]{trace << "cfg-negotiation of " << *pc << " failed due "
                             << "to dependent " << e.dependent << ", adding "
