@@ -290,6 +290,58 @@
 # |   |-- baz-1.0.0.tar.gz      -> bar, liba {require {...}}
 # |   `-- repositories.manifest
 # |
+# |-- t13e
+# |   |-- liba-0.1.0.tar.gz
+# |   |-- bar-1.0.0.tar.gz      -> liba {prefer {...} accept (...)}
+# |   |-- baz-1.0.0.tar.gz      -> liba {prefer {...} accept (...)},
+# |   |                            bar ? (...),
+# |   |                            biz
+# |   |-- biz-1.0.0.tar.gz      -> liba {require {...}}
+# |   `-- repositories.manifest
+# |
+# |-- t13f
+# |   |-- liba-0.1.0.tar.gz
+# |   |-- bar-1.0.0.tar.gz      -> liba {prefer {...} accept (...)}
+# |   |-- baz-1.0.0.tar.gz      -> liba {prefer {...} accept (...)}
+# |   `-- repositories.manifest
+# |
+# |-- t13g
+# |   |-- liba-0.1.0.tar.gz
+# |   |-- libb-0.1.0.tar.gz
+# |   |-- bar-1.0.0.tar.gz      -> liba {prefer {...} accept (...) reflect (...)},
+# |   |                            libb {prefer {...} accept (...) reflect (...)}
+# |   |-- baz-1.0.0.tar.gz      -> liba {prefer {...} accept (...) reflect (...)},
+# |   |                            libb ? (...)
+# |   |-- biz-1.0.0.tar.gz      -> liba {prefer {...} accept (...) reflect (...)},
+# |   |                            libb {prefer {...} accept (...) reflect (...)}
+# |   |-- box-1.0.0.tar.gz      -> liba {prefer {...} accept (...) reflect (...)},
+# |   |                            libb {prefer {...} accept (...) reflect (...)}
+# |   `-- repositories.manifest
+# |
+# |-- t13h
+# |   |-- liba-0.1.0.tar.gz
+# |   |-- bar-1.0.0.tar.gz      -> liba {prefer {...} accept (...)}
+# |   |-- baz-1.0.0.tar.gz      -> liba {prefer {...} accept (...)}
+# |   `-- repositories.manifest
+# |
+# |-- t13i
+# |   |-- liba-0.1.0.tar.gz
+# |   |-- bar-1.0.0.tar.gz      -> liba {require {...} reflect (...)}
+# |   `-- repositories.manifest
+# |
+# |-- t13j
+# |   |-- liba-0.1.0.tar.gz
+# |   |-- bar-1.0.0.tar.gz      -> liba {prefer {...} accept (...)}
+# |   |-- baz-1.0.0.tar.gz      -> liba {require {...}}
+# |   |-- biz-1.0.0.tar.gz      -> liba {prefer {...} accept (...)}
+# |   `-- repositories.manifest
+# |
+# |-- t13k
+# |   |-- liba-0.1.0.tar.gz
+# |   |-- bar-1.0.0.tar.gz      -> liba {prefer {...} accept (...)}
+# |   |-- baz-1.0.0.tar.gz      -> liba {prefer {...} accept (...)}
+# |   `-- repositories.manifest
+# |
 # `-- git
 #     |-- libbar.git            -> style-basic.git (prerequisite repository)
 #     |-- libbaz.git
@@ -328,6 +380,13 @@ posix = ($cxx.target.class != 'windows')
   cp -r $src/t13b $out/t13b && $rep_create $out/t13b &$out/t13b/packages.manifest
   cp -r $src/t13c $out/t13c && $rep_create $out/t13c &$out/t13c/packages.manifest
   cp -r $src/t13d $out/t13d && $rep_create $out/t13d &$out/t13d/packages.manifest
+  cp -r $src/t13e $out/t13e && $rep_create $out/t13e &$out/t13e/packages.manifest
+  cp -r $src/t13f $out/t13f && $rep_create $out/t13f &$out/t13f/packages.manifest
+  cp -r $src/t13g $out/t13g && $rep_create $out/t13g &$out/t13g/packages.manifest
+  cp -r $src/t13h $out/t13h && $rep_create $out/t13h &$out/t13h/packages.manifest
+  cp -r $src/t13i $out/t13i && $rep_create $out/t13i &$out/t13i/packages.manifest
+  cp -r $src/t13j $out/t13j && $rep_create $out/t13j &$out/t13j/packages.manifest
+  cp -r $src/t13k $out/t13k && $rep_create $out/t13k &$out/t13k/packages.manifest
 
   # Create git repositories.
   #
@@ -11865,6 +11924,345 @@ test.options += --no-progress
           EOO
 
         $pkg_drop bar
+      }
+    }
+
+    : proj-bogus-config
+    :
+    {
+      +$clone_root_cfg && $rep_add $rep/t13e && $rep_fetch
+
+      : baz
+      :
+      {
+        $clone_cfg;
+
+        $* baz 2>>~%EOE%;
+          build plan:
+            new liba/1.0.0 (required by baz, biz)
+              config.liba.x=true (set by biz)
+            new biz/1.0.0 (required by baz)
+            new baz/1.0.0
+          fetched liba/1.0.0
+          unpacked liba/1.0.0
+          fetched biz/1.0.0
+          unpacked biz/1.0.0
+          fetched baz/1.0.0
+          unpacked baz/1.0.0
+          configured liba/1.0.0
+          configured biz/1.0.0
+          configured baz/1.0.0
+          %info: .+baz.+ is up to date%
+          updated baz/1.0.0
+          EOE
+
+        $pkg_status -r >>EOO;
+          !baz configured 1.0.0
+            biz configured 1.0.0
+              liba configured 1.0.0
+            liba configured 1.0.0
+          EOO
+
+        cat cfg/liba-1.0.0/build/config.build >>~%EOO%;
+          %.*
+          config.liba.x = true
+          config.liba.buffer = 1024
+          EOO
+
+        $pkg_drop baz
+      }
+    }
+
+    : proj-bogus-config-cycle
+    :
+    {
+      +$clone_root_cfg && $rep_add $rep/t13f && $rep_fetch
+
+      : baz
+      :
+      {
+        $clone_cfg;
+
+        $* baz 2>>EOE != 0;
+          error: unable to remove bogus configuration values without causing configuration refinement cycle
+            info: consider manually specifying one or more of the following variables as user configuration
+              config.liba.buffer=2048
+              config.liba.x=true
+          EOE
+
+        $* baz ?liba +{ config.liba.x=true } 2>>~%EOE%;
+          build plan:
+            new liba/1.0.0
+              config.liba.x=true (user configuration)
+            new baz/1.0.0
+          fetched liba/1.0.0
+          unpacked liba/1.0.0
+          fetched baz/1.0.0
+          unpacked baz/1.0.0
+          configured liba/1.0.0
+          configured baz/1.0.0
+          %info: .+liba.+ is up to date%
+          %info: .+baz.+ is up to date%
+          updated liba/1.0.0
+          updated baz/1.0.0
+          EOE
+
+        $pkg_status -r >>EOO;
+          !baz configured 1.0.0
+            liba configured 1.0.0
+          EOO
+
+        cat cfg/liba-1.0.0/build/config.build >>~%EOO%;
+          %.*
+          config.liba.x = true
+          config.liba.buffer = 1024
+          EOO
+
+        $pkg_drop baz
+      }
+    }
+
+    : proj-detect-unset
+    :
+    {
+      +$clone_root_cfg && $rep_add $rep/t13g && $rep_fetch
+
+      : bar
+      :
+      {
+        $clone_cfg;
+
+        $* bar 2>>EOE != 0
+          <depends-accept-clause>:1:3: error: undefined dependency configuration variable config.liba.x
+            info: was config.liba.x set in earlier prefer or require clause?
+            info: accept condition: ($config.liba.x)
+            info: in depends manifest value of package bar
+          EOE
+      }
+
+      : baz
+      :
+      {
+        $clone_cfg;
+
+        $* baz 2>>EOE != 0
+          <depends-enable-clause>:1:3: error: undefined dependency configuration variable config.liba.x
+            info: was config.liba.x set in earlier prefer or require clause?
+            info: enable condition: ($config.liba.x)
+            info: in depends manifest value of package baz
+          info: while satisfying baz/1.0.0
+          EOE
+      }
+
+      : biz
+      :
+      {
+        $clone_cfg;
+
+        $* biz 2>>EOE != 0
+          <depends-prefer-clause>:1:12: error: undefined dependency configuration variable config.liba.x
+            info: was config.liba.x set in earlier prefer or require clause?
+            info: prefer clause:
+              x = (!$config.liba.x) # Error.
+            info: in depends manifest value of package biz
+          EOE
+      }
+
+      : box
+      :
+      {
+        $clone_cfg;
+
+        $* box 2>>EOE != 0
+          <depends-reflect-clause>:1:12: error: undefined dependency configuration variable config.liba.x
+            info: was config.liba.x set in earlier prefer or require clause?
+            info: reflect clause:
+              x = (!$config.liba.x) # Error.
+            info: in depends manifest value of package box
+          EOE
+      }
+    }
+
+    : proj-cycle
+    :
+    {
+      +$clone_root_cfg && $rep_add $rep/t13h && $rep_fetch
+
+      : bar baz
+      :
+      {
+        $clone_cfg;
+
+        $* bar baz 2>>EOE != 0
+          error: unable to negotiate acceptable configuration between dependents baz, bar for dependencies liba
+            info: configuration before negotiation:
+              config.liba.buffer=4096 (set by bar)
+            info: configuration after negotiation:
+              config.liba.buffer=8192 (set by baz)
+          EOE
+      }
+    }
+
+    : proj-dependency-reflect
+    :
+    {
+      +$clone_root_cfg && $rep_add $rep/t13i && $rep_fetch
+
+      : bar
+      :
+      {
+        $clone_cfg;
+
+        $* bar 2>>~%EOE%;
+          <depends-reflect-clause>:1:5: info: yes
+            info: reflect clause:
+              info ($config.liba.x ? yes : no)
+            info: in depends manifest value of package bar
+          build plan:
+            new liba/1.0.0 (required by bar)
+              config.liba.x=true (set by bar)
+            new bar/1.0.0
+          fetched liba/1.0.0
+          unpacked liba/1.0.0
+          fetched bar/1.0.0
+          unpacked bar/1.0.0
+          configured liba/1.0.0
+          configured bar/1.0.0
+          %info: .+bar.+ is up to date%
+          updated bar/1.0.0
+          EOE
+
+        $pkg_status -r >>EOO;
+          !bar configured 1.0.0
+            liba configured 1.0.0
+          EOO
+
+        cat cfg/liba-1.0.0/build/config.build >>~%EOO%;
+          %.*
+          config.liba.x = true
+          config.liba.buffer = 1024
+          EOO
+
+        $pkg_drop bar
+      }
+
+      : baz
+      :
+      {
+        $clone_cfg;
+
+        $* baz 2>>~%EOE%;
+          <depends-reflect-clause>:1:5: info: 4096
+            info: reflect clause:
+              info $config.liba.buffer
+            info: in depends manifest value of package baz
+          build plan:
+            new liba/1.0.0 (required by baz)
+              config.liba.buffer=4096 (set by baz)
+            new baz/1.0.0
+          fetched liba/1.0.0
+          unpacked liba/1.0.0
+          fetched baz/1.0.0
+          unpacked baz/1.0.0
+          configured liba/1.0.0
+          configured baz/1.0.0
+          %info: .+baz.+ is up to date%
+          updated baz/1.0.0
+          EOE
+
+        $pkg_status -r >>EOO;
+          !baz configured 1.0.0
+            liba configured 1.0.0
+          EOO
+
+        cat cfg/liba-1.0.0/build/config.build >>~%EOO%;
+          %.*
+          config.liba.x = false
+          config.liba.buffer = 4096
+          EOO
+
+        $pkg_drop baz
+      }
+    }
+
+    : proj-non-sensible
+    :
+    {
+      +$clone_root_cfg && $rep_add $rep/t13j && $rep_fetch
+
+      : bar-baz
+      :
+      {
+        $clone_cfg;
+
+        $* bar baz 2>>~%EOE% != 0
+          error: unable to negotiate sensible configuration for dependency liba
+          %  .+/root.build:5:1: error: buffer must be at least 4096 if feature x is enabled%
+            info: negotiated configuration:
+              config.liba.buffer=2048 (set by bar)
+              config.liba.x=true (set by baz)
+          EOE
+      }
+
+      : biz-baz
+      :
+      {
+        $clone_cfg;
+
+        $* biz baz 2>>~%EOE%;
+          build plan:
+            new liba/1.0.0 (required by baz, biz)
+              config.liba.buffer=4096 (set by biz)
+              config.liba.x=true (set by baz)
+            new biz/1.0.0
+            new baz/1.0.0
+          fetched liba/1.0.0
+          unpacked liba/1.0.0
+          fetched biz/1.0.0
+          unpacked biz/1.0.0
+          fetched baz/1.0.0
+          unpacked baz/1.0.0
+          configured liba/1.0.0
+          configured biz/1.0.0
+          configured baz/1.0.0
+          %info: .+biz.+ is up to date%
+          %info: .+baz.+ is up to date%
+          updated biz/1.0.0
+          updated baz/1.0.0
+          EOE
+
+        $pkg_status -r >>EOO;
+          !biz configured 1.0.0
+            liba configured 1.0.0
+          !baz configured 1.0.0
+            liba configured 1.0.0
+          EOO
+
+        cat cfg/liba-1.0.0/build/config.build >>~%EOO%;
+          %.*
+          config.liba.x = true
+          config.liba.buffer = 4096
+          EOO
+
+        $pkg_drop biz baz
+      }
+    }
+
+    : proj-unaccept
+    :
+    {
+      +$clone_root_cfg && $rep_add $rep/t13k && $rep_fetch
+
+      : bar-baz
+      :
+      {
+        $clone_cfg;
+
+        $* bar baz 2>>EOE != 0
+          error: unable to negotiate acceptable configuration with dependent bar for dependencies liba
+            info: configuration before negotiation:
+              config.liba.buffer=8192 (set by baz)
+          EOE
       }
     }
   }
