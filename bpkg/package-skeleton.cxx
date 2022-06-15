@@ -44,8 +44,9 @@ namespace bpkg
 
 namespace bpkg
 {
-  // Check whether the specified configuration variable override has a
-  // project variables (i.e., its name starts with config.<project>).
+  // Check whether the specified configuration variable override has a project
+  // variable (i.e., its name starts with config.<project>). If the last
+  // argument is not NULL, then set it to the length of the variable portion.
   //
   // Note that some user-specified variables may have qualifications
   // (global, scope, etc) but there is no reason to expect any project
@@ -53,14 +54,33 @@ namespace bpkg
   // only apply to one project). So we ignore all qualified variables.
   //
   static inline bool
-  project_override (const string& v, const string& p)
+  project_override (const string& v, const string& p, size_t* l = nullptr)
   {
     size_t n (p.size ());
-    return v.compare (0, n, p) == 0 && strchr (".=+ \t", v[n]) != nullptr;
+
+    if (v.compare (0, n, p) == 0)
+    {
+      if (v[n] == '.')
+      {
+        if (l != nullptr)
+          *l = v.find_first_of ("=+ \t", n + 1);
+
+        return true;
+      }
+      else if (strchr ("=+ \t", v[n]) != nullptr)
+      {
+        if (l != nullptr)
+          *l = n;
+
+        return true;
+      }
+    }
+
+    return false;
   }
 
   // Check whether the specified configuration variable name is a project
-  // variables (i.e., its name starts with config.<project>).
+  // variable (i.e., its name starts with config.<project>).
   //
   static inline bool
   project_variable (const string& v, const string& p)
@@ -150,6 +170,8 @@ namespace bpkg
         out_root_ (move (v.out_root_)),
         created_ (v.created_),
         verified_ (v.verified_),
+        loaded_old_config_ (v.loaded_old_config_),
+        develop_ (v.develop_),
         ctx_ (move (v.ctx_)),
         rs_ (v.rs_),
         cmd_vars_ (move (v.cmd_vars_)),
@@ -185,6 +207,8 @@ namespace bpkg
       out_root_ = move (v.out_root_);
       created_ = v.created_;
       verified_ = v.verified_;
+      loaded_old_config_ = v.loaded_old_config_;
+      develop_ = v.develop_;
       ctx_ = move (v.ctx_);
       rs_ = v.rs_;
       cmd_vars_ = move (v.cmd_vars_);
@@ -220,6 +244,8 @@ namespace bpkg
         out_root_ (v.out_root_),
         created_ (v.created_),
         verified_ (v.verified_),
+        loaded_old_config_ (v.loaded_old_config_),
+        develop_ (v.develop_),
         cmd_vars_ (v.cmd_vars_),
         cmd_vars_cache_ (v.cmd_vars_cache_),
         dependent_vars_ (v.dependent_vars_),
@@ -303,6 +329,17 @@ namespace bpkg
                    }) == config_srcs_->end ())
         config_srcs_ = nullptr;
     }
+
+    // We don't need to load old user configuration if there isn't any and
+    // there is no new project configuration specified by the user.
+    //
+    loaded_old_config_ =
+      (config_srcs_ == nullptr) &&
+      find_if (config_vars_.begin (), config_vars_.end (),
+               [this] (const string& v)
+               {
+                 return project_override (v, var_prefix_);
+               }) == config_vars_.end ();
 
     if (src_root)
     {
@@ -429,7 +466,7 @@ namespace bpkg
             dependency_reflect_.empty () &&
             ctx_ == nullptr);
 
-    if (config_srcs_ != nullptr)
+    if (!loaded_old_config_)
       load_old_config ();
 
     try
@@ -482,12 +519,6 @@ namespace bpkg
       // dependencies (i.e., which default value depend on which config
       // variable), then the saved variables map seem like the natural place
       // to keep this information.
-      //
-      // @@ One potentially-bogus config variable could be config.*.develop.
-      //    Would have been nice not to drag it around if not used by the
-      //    package. And, could be helpful to warn that configuration variable
-      //    does not exist. But we cannot do it consistently since we don't
-      //    always load the skeleton.
       //
       for (const variable& var: rs.ctx.var_pool)
       {
@@ -566,7 +597,7 @@ namespace bpkg
             dependency_reflect_.empty () &&
             ctx_ == nullptr);
 
-    if (config_srcs_ != nullptr)
+    if (!loaded_old_config_)
       load_old_config ();
 
     try
@@ -1668,9 +1699,9 @@ namespace bpkg
   }
 
   bool package_skeleton::
-  empty ()
+  empty_print ()
   {
-    if (config_srcs_ != nullptr)
+    if (!loaded_old_config_)
       load_old_config ();
 
     return (dependent_vars_.empty () &&
@@ -1678,14 +1709,28 @@ namespace bpkg
             find_if (config_vars_.begin (), config_vars_.end (),
                      [this] (const string& v)
                      {
-                       return project_override (v, var_prefix_);
+                       // See print_config() for details.
+                       //
+                       size_t vn;
+                       if (project_override (v, var_prefix_, &vn))
+                       {
+                         if (!develop_)
+                         {
+                           size_t pn (var_prefix_.size ());
+                           if (v.compare (pn, vn - pn, ".develop") == 0)
+                             return false;
+                         }
+
+                         return true;
+                       }
+                       return false;
                      }) == config_vars_.end ());
   }
 
   void package_skeleton::
   print_config (ostream& os, const char* indent)
   {
-    if (config_srcs_ != nullptr)
+    if (!loaded_old_config_)
       load_old_config ();
 
     auto print = [&os,
@@ -1701,12 +1746,27 @@ namespace bpkg
       return os;
     };
 
+    // NOTE: see also empty_print() if changing anything here.
+
     // First comes the user configuration.
     //
     for (const string& v: config_vars_)
     {
-      if (project_override (v, var_prefix_))
+      size_t vn;
+      if (project_override (v, var_prefix_, &vn))
+      {
+        // To reduce the noise (e.g., during bdep-init), skip
+        // config.<project>.develop if the package doesn't use it.
+        //
+        if (!develop_)
+        {
+          size_t pn (var_prefix_.size ());
+          if (v.compare (pn, vn - pn, ".develop") == 0)
+            continue;
+        }
+
         print (v) << " (user configuration)";
+      }
     }
 
     // Next dependent configuration.
@@ -1732,7 +1792,7 @@ namespace bpkg
   {
     assert (db_ != nullptr); // Must be called only once.
 
-    if (config_srcs_ != nullptr)
+    if (!loaded_old_config_)
       load_old_config ();
 
     // Merge all the variables into a single list in the correct order
@@ -1899,7 +1959,7 @@ namespace bpkg
   void package_skeleton::
   load_old_config ()
   {
-    assert (config_srcs_ != nullptr && ctx_ == nullptr);
+    assert (!loaded_old_config_ && ctx_ == nullptr);
 
     try
     {
@@ -1909,7 +1969,7 @@ namespace bpkg
       // would be nice to optimize for the common case where the only load is
       // to get the old configuration (e.g., config.*.develop) as part of
       // collect_config(). So instead of calling merge_cmd_vars() we will do
-      // own (but consistent) thing.
+      // our own (but consistent) thing.
       //
       const strings* cmd_vars;
       {
@@ -1918,14 +1978,22 @@ namespace bpkg
         const strings& vs1 (build2_cmd_vars);
         const strings& vs2 (config_vars_);
 
-        cmd_vars = (vs2.empty () ? &vs1 : vs1.empty () ? &vs2 : nullptr);
+        if (!disfigure_)
+          cmd_vars = (vs2.empty () ? &vs1 : vs1.empty () ? &vs2 : nullptr);
 
         if (cmd_vars == nullptr)
         {
           // Note: the order is important (see merge_cmd_vars()).
           //
-          cmd_vars_.reserve (vs1.size () + vs2.size ());
-          cmd_vars_.assign (vs1.begin (), vs1.end ());
+          cmd_vars_.reserve ((disfigure_ ? 1 : 0) + vs1.size () + vs2.size ());
+
+          // If the package is being disfigured, then don't load config.build
+          // at all.
+          //
+          if (disfigure_)
+            cmd_vars_.push_back ("config.config.unload=true");
+
+          cmd_vars_.insert (cmd_vars_.end (), vs1.begin (), vs1.end ());
           cmd_vars_.insert (cmd_vars_.end (), vs2.begin (), vs2.end ());
 
           cmd_vars = &cmd_vars_;
@@ -1938,61 +2006,81 @@ namespace bpkg
       //
       load_root (rs);
 
+      if (const variable* var = rs.var_pool ().find (var_prefix_ + ".develop"))
+      {
+        // Use the fact that the variable is typed as a proxy for it being
+        // defined with config directive (the more accurate way would be via
+        // the config module's saved variables map).
+        //
+        develop_ = (var->type != nullptr);
+      }
+
+      // @@ TODO: should we also verify user-specified project configuration
+      //    variables are not bogus? But they could be untyped...
+      //
+      //    Also, build2 warns about unused variables being dropped.
+
+
       // Extract and merge old user configuration variables from config.build
       // (or equivalent) into config_vars.
       //
-      auto i (config_vars_.begin ()); // Insert position, see below.
-
-      names storage;
-      for (const config_variable& v: *config_srcs_)
+      if (config_srcs_ != nullptr)
       {
-        if (v.source != config_source::user)
-          continue;
+        assert (!disfigure_);
 
-        using config::variable_origin;
+        auto i (config_vars_.begin ()); // Insert position, see below.
 
-        pair<variable_origin, lookup> ol (config::origin (rs, v.name));
-
-        switch (ol.first)
+        names storage;
+        for (const config_variable& v: *config_srcs_)
         {
-        case variable_origin::override_:
-          {
-            // Already in config_vars.
-            //
-            // @@ TODO: theoretically, this could be an append/prepend
-            //    override(s) and to make this work correctly we would need
-            //    to replace them with an assign override with the final
-            //    value. Maybe one day.
-            //
-            break;
-          }
-        case variable_origin::buildfile:
-          {
-            // Doesn't really matter where we add them though conceptually
-            // feels like old should go before new (and in the original
-            // order).
-            //
-            i = config_vars_.insert (
-              i,
-              serialize_cmdline (v.name, *ol.second, storage)) + 1;
+          if (v.source != config_source::user)
+            continue;
 
-            break;
-          }
-        case variable_origin::undefined:
-        case variable_origin::default_:
+          using config::variable_origin;
+
+          pair<variable_origin, lookup> ol (config::origin (rs, v.name));
+
+          switch (ol.first)
           {
-            // Old user configuration no longer in config.build. We could
-            // complain but that feels overly drastic. Seeing that we will
-            // recalculate the new set of config variable sources, let's
-            // just ignore this (we could issue a warning, but who knows how
-            // many times it will be issued with all this backtracking).
-            //
-            break;
+          case variable_origin::override_:
+            {
+              // Already in config_vars.
+              //
+              // @@ TODO: theoretically, this could be an append/prepend
+              //    override(s) and to make this work correctly we would need
+              //    to replace them with an assign override with the final
+              //    value. Maybe one day.
+              //
+              break;
+            }
+          case variable_origin::buildfile:
+            {
+              // Doesn't really matter where we add them though conceptually
+              // feels like old should go before new (and in the original
+              // order).
+              //
+              i = config_vars_.insert (
+                i,
+                serialize_cmdline (v.name, *ol.second, storage)) + 1;
+
+              break;
+            }
+          case variable_origin::undefined:
+          case variable_origin::default_:
+            {
+              // Old user configuration no longer in config.build. We could
+              // complain but that feels overly drastic. Seeing that we will
+              // recalculate the new set of config variable sources, let's
+              // just ignore this (we could issue a warning, but who knows how
+              // many times it will be issued with all this backtracking).
+              //
+              break;
+            }
           }
         }
       }
 
-      config_srcs_ = nullptr;
+      loaded_old_config_ = true;
       verified_ = true; // Managed to load without errors.
       ctx_ = nullptr;
     }
@@ -2015,7 +2103,7 @@ namespace bpkg
       ctx_ = nullptr;
     }
 
-    if (config_srcs_ != nullptr)
+    if (!loaded_old_config_)
       load_old_config ();
 
     try

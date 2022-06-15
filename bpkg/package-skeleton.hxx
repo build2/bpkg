@@ -143,12 +143,10 @@ namespace bpkg
     reset ();
 
     // Return true if there are no accumulated *project* configuration
-    // variables meaning that print_config() will not print anything while
-    // collect_config() will return an empty list of project configuration
-    // variable sources.
+    // variables that will be printed by print_config().
     //
     bool
-    empty ();
+    empty_print ();
 
     // Print the accumulated *project* configuration variables as command line
     // overrides one per line with the specified indentation.
@@ -184,7 +182,8 @@ namespace bpkg
 
   private:
     // Load old user configuration variables from config.build (or equivalent)
-    // and merge them into config_vars_.
+    // and merge them into config_vars_. Also verify new user configuration
+    // already in config_vars_ makes sense.
     //
     // This should be done before any attempt to load the configuration with
     // config.config.disfigure and, if this did not happen, inside
@@ -242,6 +241,9 @@ namespace bpkg
 
     bool created_ = false;
     bool verified_ = false;
+    bool loaded_old_config_;
+    bool develop_ = false;  // Package has config.*.develop.
+
     unique_ptr<build2::context> ctx_;
     build2::scope* rs_ = nullptr;
 
@@ -296,7 +298,7 @@ namespace bpkg
     // reflect clause (see prefer_accept_ below for details).
     //
     strings dependency_var_prefixes_;
-    size_t  dependency_var_prefixes_pending_;
+    size_t  dependency_var_prefixes_pending_ = 0;
 
     // Position of the last successfully evaluated prefer/accept clauses.
     //

@@ -12005,7 +12005,7 @@ namespace bpkg
           if (!rb.empty ())
             act += " (" + cause + rb + ')';
 
-          if (cfg != nullptr && !cfg->empty ())
+          if (cfg != nullptr && !cfg->empty_print ())
           {
             ostringstream os;
             cfg->print_config (os, o.print_only () ? "  " : "    ");
