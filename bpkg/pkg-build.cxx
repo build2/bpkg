@@ -1347,14 +1347,13 @@ namespace bpkg
     //
     package_configurations dependency_configurations;
 
-    // Shadow dependencies and clusters.
+    // Shadow clusters.
     //
     // See the collect lambda in collect_build_prerequisites() for details.
     //
     using positions = small_vector<pair<size_t, size_t>, 1>;
     using shadow_dependents_map = map<package_key, positions>;
 
-    shadow_dependents_map shadow_dependents;
     shadow_dependents_map shadow_cluster;
 
     // Absent -- not negotiated yet, false -- being negotiated, true -- has
@@ -1548,61 +1547,6 @@ namespace bpkg
       }
       else
         depth = c.depth;
-
-      // Merge shadow dependents.
-      //
-      // This is only necessary if all the merged non-shadow configurations
-      // have already been negotiated (otherwise we throw and replace the
-      // shadow with newly merged non-shadow).
-      //
-      for (auto& d: c.shadow_dependents)
-      {
-        auto i (shadow_dependents.find (d.first));
-
-        if (i != shadow_dependents.end ())
-        {
-          const positions& sps (d.second);
-          positions& dps (i->second);
-
-          for (const auto& sp: sps)
-          {
-            if (find (dps.begin (), dps.end (), sp) == dps.end ())
-              dps.push_back (sp);
-          }
-        }
-        else
-          shadow_dependents.emplace (d.first, move (d.second));
-      }
-    }
-
-    void
-    add_shadow (package_key dependent, pair<size_t, size_t> pos)
-    {
-      auto i (shadow_dependents.find (dependent));
-
-      if (i != shadow_dependents.end ())
-      {
-        positions& ps (i->second);
-        if (find (ps.begin (), ps.end (), pos) == ps.end ())
-          ps.push_back (pos);
-      }
-      else
-        shadow_dependents.emplace (move (dependent), positions ({pos}));
-    }
-
-    bool
-    contains_shadow_dependent (package_key dependent,
-                               pair<size_t, size_t> pos) const
-    {
-      auto i (shadow_dependents.find (dependent));
-
-      if (i != shadow_dependents.end ())
-      {
-        const positions& ps (i->second);
-        return find (ps.begin (), ps.end (), pos) != ps.end ();
-      }
-      else
-        return false;
     }
 
     void
@@ -2079,9 +2023,6 @@ namespace bpkg
   {
     size_t               depth;
     package_key          dependent;
-#if 0 // @@ TMP
-    pair<size_t, size_t> position;
-#endif
   };
 
   struct merge_configuration
@@ -4475,7 +4416,6 @@ namespace bpkg
               return false; // Cases (1) or (2).
             else
             {
-#if 1
               // Case (3).
               //
               // There is just one complication:
@@ -4521,20 +4461,20 @@ namespace bpkg
                 // clusters that will have no corresponding try-catch frames
                 // (because we may unwind them in the process).
                 //
-                // So the approach we will use is the "shadow" idea but for
-                // merging clusters rather than up-negotiating a
-                // configuration. Specifically, we throw merge_configuration
-                // to the outer try/catch. At the catch site we make the newly
-                // merged cluster a shadow of the restored cluster and retry
-                // the same steps similar to retry_configuration. As we redo
-                // these steps, we consult the shadow cluster and if the
-                // dependent/dependency entry is there, then instead of adding
-                // it to another (new/existing) cluster that would later be
-                // merged into this non-shadow cluster, we add it directly to
-                // the non-shadow cluster (potentially merging other cluster
-                // which it feels like by definition should all be already
-                // fully negotiated). The end result is that once we reach
-                // this point again, there will be nothing to merge.
+                // So the approach we will use is the "shadow" idea for
+                // merging clusters. Specifically, we throw
+                // merge_configuration to the outer try/catch. At the catch
+                // site we make the newly merged cluster a shadow of the
+                // restored cluster and retry the same steps similar to
+                // retry_configuration. As we redo these steps, we consult the
+                // shadow cluster and if the dependent/dependency entry is
+                // there, then instead of adding it to another (new/existing)
+                // cluster that would later be merged into this non-shadow
+                // cluster, we add it directly to the non-shadow cluster
+                // (potentially merging other cluster which it feels like by
+                // definition should all be already fully negotiated). The end
+                // result is that once we reach this point again, there will
+                // be nothing to merge.
                 //
                 // The shadow check is part of postponed_configs::add().
                 //
@@ -4633,7 +4573,7 @@ namespace bpkg
                 //
                 dep_chain.clear ();
 
-                throw retry_configuration {cfg.depth, move (pk)/*, dp*/}; // @@ TMP
+                throw retry_configuration {cfg.depth, move (pk)};
               }
 
               l5 ([&]{trace << "configuration for cfg-postponed "
@@ -4717,209 +4657,6 @@ namespace bpkg
               }
 
               return true;
-#else
-              //@@ TMP: get rid of shadow_dependents (including in
-              //        retry_configuration) if pans out.
-
-              // Case (3).
-              //
-              // If this is the first time we are here (see below), then we
-              // up-negotiate the configuration and throw retry_configuration
-              // to the try/catch frame corresponding to the negotiation of
-              // the outermost merged cluster in order to retry the same steps
-              // (potentially refining the configuration as we go along) and
-              // likely (but not necessarily) ending up here again, at which
-              // point we do not need to re-do the up-negotiation and can just
-              // merge this dependent/dependency into the cluster. To
-              // distinguish these "first time"/"second time" cases the
-              // cluster contains the shadow dependents map (see the catch
-              // site for details).
-              //
-              // Note: skip this test if the dependent was added via the
-              // shadow cluster logic (see below).
-              //
-              if (r.second && !cfg.contains_shadow_dependent (pk, dp))
-              {
-                // The "first time" case.
-                //
-
-                // @@ TODO: if configuration has not changed, then we don't
-                //    need to throw. Do it at the end (there is no harm in
-                //    throwing even if not needed and it will change test
-                //    trace).
-                //
-                //    Also, we may have to throw multiple times if the
-                //    configuration gets refined... In a sense, semantically,
-                //    we should act like a one more iteration of the initial
-                //    negotiation loop with the exception acting like a
-                //    request to restart the refinement process from the
-                //    beginning.
-                //
-                //    It feels like the unchanged case semantics should be
-                //    like falling through to the "second time" case. Though
-                //    I wonder if there could be some missing steps, like
-                //    collecting dependencies? Doesn't feel like it since
-                //    we are re-using existing configuration which presumably
-                //    means all this has already been done.
-                //
-                //    Hm, won't we need to "reset" dependency package
-                //    skeletons (which have by now potentially seen
-                //    evaluate_*() calls) in order to negotiate. And if the
-                //    configuration hasn't changed, then how will we restore
-                //    them? Maybe we should make copies (that are "reset" to
-                //    the initial state) and use that?
-                //
-
-                l5 ([&]{trace << "cfg-postponing dependent "
-                              << pkg.available_name_version_db ()
-                              << " involves negotiated configurations and "
-                              << "results in " << cfg
-                              << ", throwing retry_configuration";});
-
-                // up_negotiate (...);
-
-                // Don't print the "while satisfying..." chain.
-                //
-                dep_chain.clear ();
-
-                throw retry_configuration {cfg.depth, move (pk), dp};
-              }
-              else
-              {
-                // The "second time" case.
-                //
-                // There is just one complication:
-                //
-                // If all the merged clusters are already negotiated, then all
-                // is good: all the dependencies in cfg_deps have been
-                // collected recursively as part of the configuration
-                // negotiation (because everything in this cluster is already
-                // negotiated) and we can return true (no need to postpone any
-                // further steps).
-                //
-                // But if we do have clusters not yet negotiated, or, worse,
-                // being in the middle of negotiation, then we need to get
-                // this merged cluster into the fully negotiated state. The
-                // we do it is by throwing merge_configuration (see below).
-                //
-                // When we are back here after throwing merge_configuration,
-                // then all the clusters have been pre-merged and our call to
-                // add() shouldn't have added any new cluster. In this case
-                // the cluster can either be already negotiated or being
-                // negotiated and we can proceed as in the "everything is
-                // negotiated case" above (we just need to get the the
-                // dependencies that we care about into the recursively
-                // collected state).
-                //
-                l5 ([&]{trace << "dependent "
-                              << pkg.available_name_version_db ()
-                              << " is a shadow dependent for " << cfg;});
-
-                if (!r.second || // Shadow cluster was/is being negotiated.
-                    *r.second)   // Everything already negotiated.
-                {
-                  // The everything already negotiated (sort of) case.
-                  //
-                  l5 ([&]{trace << "configuration for cfg-postponed "
-                                << "dependencies of dependent "
-                                << pkg.available_name_version_db ()
-                                << " is negotiated";});
-
-                  // Note that we may still add extra dependencies to this
-                  // cluster which we still need to configure and recursively
-                  // collect before indicating to the caller (returning true)
-                  // that we are done with this depends value and the
-                  // dependent is not postponed.
-                  //
-                  // @@ TODO call verify_sensible(), etc. DO NOW.
-                  //
-                  for (const package_key& p: cfg_deps)
-                  {
-                    build_package* b (entered_build (p));
-                    assert (b != nullptr);
-
-                    if (!b->recursive_collection)
-                    {
-                      l5 ([&]{trace << "collecting cfg-postponed dependency "
-                                    << b->available_name_version_db ()
-                                    << " of dependent "
-                                    << pkg.available_name_version_db ();});
-
-                      collect_build_prerequisites (options,
-                                                   *b,
-                                                   fdb,
-                                                   rpt_depts,
-                                                   apc,
-                                                   initial_collection,
-                                                   replaced_vers,
-                                                   dep_chain,
-                                                   postponed_repo,
-                                                   postponed_alts,
-                                                   0 /* max_alt_index */,
-                                                   postponed_deps,
-                                                   postponed_cfgs,
-                                                   postponed_poss,
-                                                   true /* force_configured */);
-                    }
-                    else
-                      l5 ([&]{trace << "dependency "
-                                    << b->available_name_version_db ()
-                                    << " of dependent "
-                                    << pkg.available_name_version_db ()
-                                    << " is already (being) recursively "
-                                    << "collected, skipping";});
-                  }
-
-                  return true;
-                }
-                else
-                {
-                  // The partially negotiated case.
-                  //
-                  // Handling this in a straightforward way is not easy due to
-                  // the being negotiated cases -- we have code up the stack
-                  // that is in the middle of the negotiation logic.
-                  //
-                  // Another idea is to again throw to the outer try/catch
-                  // frame (thus unwinding all the being negotiated code) and
-                  // complete the work there. The problem with this approach
-                  // is that without restoring the state we may end up with
-                  // unrelated clusters that will have no corresponding
-                  // try-catch frames (because we may unwind them in the
-                  // process).
-                  //
-                  // So the approach we will use is the "shadow" idea but for
-                  // merging clusters rather than up-negotiating a
-                  // configuration. Specifically, we throw merge_configuration
-                  // to the outer try/catch. At the catch site we make the
-                  // newly merged cluster a shadow of the restored cluster and
-                  // retry the same steps similar to retry_configuration. As
-                  // we redo these steps, we consult the shadow cluster and if
-                  // the dependent/dependency entry is there, then instead of
-                  // adding it to another (new/existing) cluster that would
-                  // later be merged into this non-shadow cluster, we add it
-                  // directly to the non-shadow cluster (potentially merging
-                  // other cluster which it feels like by definition should
-                  // all be already fully negotiated). The end result is that
-                  // once we reach this point again, there will be nothing to
-                  // merge.
-                  //
-                  // The shadow check is part of postponed_configs::add().
-                  //
-                  l5 ([&]{trace << "cfg-postponing dependent "
-                                << pkg.available_name_version_db ()
-                                << " involves non-negotiated configurations "
-                                << "and results in " << cfg << ", throwing "
-                                << "merge_configuration";});
-
-                  // Don't print the "while satisfying..." chain.
-                  //
-                  dep_chain.clear ();
-
-                  throw merge_configuration {cfg.depth};
-                }
-              }
-#endif
             }
           }
 
@@ -6513,8 +6250,8 @@ namespace bpkg
 
               pc = &postponed_cfgs[ci];
 
-              // Note that in this case we keep the accumulated configuration
-              // and shadow dependents, if any.
+              // Note that in this case we keep the accumulated configuration,
+              // if any.
 
               pc->depth = 0;
 
@@ -6597,17 +6334,6 @@ namespace bpkg
                     v.confirmed = false;
 
               pc->dependency_configurations = move (cfgs);
-
-#if 0
-              // @@ TMP drop if pans out.
-
-              // Record the dependent/dependencies/position that triggered
-              // this so that we don't repeat this up-negotiate/throw/catch
-              // dance when we retry collect_build_postponed(). @@ Hm. could
-              // this not be re-done via "unchanged configuration"?
-              //
-              pc->add_shadow (move (e.dependent), e.position);
-#endif
             }
             catch (merge_configuration& e)
             {
@@ -6632,11 +6358,10 @@ namespace bpkg
 
               assert (!pc->negotiated);
 
-              // Drop any accumulated configuration and shadow dependents
-              // (which could be carried over from retry_configuration logic).
+              // Drop any accumulated configuration (which could be carried
+              // over from retry_configuration logic).
               //
               pc->dependency_configurations.clear ();
-              pc->shadow_dependents.clear ();
 
               l5 ([&]{trace << "cfg-negotiation of " << *pc << " failed due "
                             << "to non-negotiated clusters, force-merging "
