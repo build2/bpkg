@@ -4323,6 +4323,11 @@ namespace bpkg
           // If this dependent has any dependencies with configurations
           // clauses, then we need to deal with that.
           //
+          // This is what we refer to as the "up-negotiation" where we
+          // negotiate the configuration of dependents that could not be
+          // postponed and handled all at once during "initial negotiation" in
+          // collect_build_postponed().
+          //
           if (!cfg_deps.empty ())
           {
             // Re-evaluation is a special case (it happens during cluster
@@ -4521,9 +4526,9 @@ namespace bpkg
                 // then we can no longer call reload_defaults() or
                 // verify_sensible() on its skeleton. We could reset it, but
                 // then we wouldn't be able to continue using it if
-                // up_negotiate_configuration() below returns false. So it
-                // seems the most sensible approach is to make a temporary
-                // copy and reset that.
+                // negotiate_configuration() below returns false. So it seems
+                // the most sensible approach is to make a temporary copy and
+                // reset that.
                 //
                 small_vector<reference_wrapper<package_skeleton>, 1> depcs;
                 forward_list<package_skeleton> depcs_storage; // Ref stability.
@@ -4552,7 +4557,7 @@ namespace bpkg
                   }
                 }
 
-                changed = up_negotiate_configuration (
+                changed = negotiate_configuration (
                   cfg.dependency_configurations, *dept, dp, depcs);
               }
 
@@ -5435,6 +5440,11 @@ namespace bpkg
 
       if (pcfg != nullptr)
       {
+        // This is what we refer to as the "initial negotiation" where we
+        // negotiate the configuration of dependents that could be postponed.
+        // Those that could not we "up-negotiate" in the collect() lambda of
+        // collect_build_prerequisites().
+        //
         using packages = postponed_configuration::packages;
 
         assert (!pcfg->negotiated);
@@ -5877,7 +5887,7 @@ namespace bpkg
             }
           }
 
-          if (up_negotiate_configuration (
+          if (negotiate_configuration (
                 pcfg->dependency_configurations, *dept, pos, depcs))
           {
             if (i != b)

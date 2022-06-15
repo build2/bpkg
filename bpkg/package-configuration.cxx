@@ -112,7 +112,7 @@ namespace bpkg
   }
 
   bool
-  up_negotiate_configuration (
+  negotiate_configuration (
     package_configurations& cfgs,
     package_skeleton& dept,
     pair<size_t, size_t> pos,

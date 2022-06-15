@@ -184,11 +184,11 @@ namespace bpkg
     small_vector<dependent_config_variable_values, 2> change_history_;
   };
 
-  // Up-negotiate the configuration for the specified dependencies of the
+  // Negotiate the configuration for the specified dependencies of the
   // specified dependent. Return true if the configuration has changed.
   //
   bool
-  up_negotiate_configuration (
+  negotiate_configuration (
     package_configurations&,
     package_skeleton& dependent,
     pair<size_t, size_t> position,

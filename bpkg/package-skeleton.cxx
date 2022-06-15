@@ -1433,7 +1433,7 @@ namespace bpkg
       // to true and may not have any conditions on other configuration
       // variables (including their origin). As a result, we don't need to set
       // the default (or other dependent) values, but will need the type
-      // information as well as overrides (see up_negotiate_configuration()
+      // information as well as overrides (see negotiate_configuration()
       // for details).
       //
       strings dvps;
