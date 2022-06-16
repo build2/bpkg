@@ -88,10 +88,14 @@ namespace bpkg
   extern const dir_path std_build_dir;      // build/
   extern const path     std_bootstrap_file; // build/bootstrap.build
   extern const path     std_root_file;      // build/root.build
+  extern const dir_path std_bootstrap_dir;  // build/bootstrap
+  extern const path     std_src_root_file;  // build/bootstrap/src-root.build
 
   extern const dir_path alt_build_dir;      // build2/
   extern const path     alt_bootstrap_file; // build2/bootstrap.build2
   extern const path     alt_root_file;      // build2/root.build2
+  extern const dir_path alt_bootstrap_dir;  // build2/bootstrap
+  extern const path     alt_src_root_file;  // build2/bootstrap/src-root.build2
 
   extern const dir_path current_dir;        // ./
 

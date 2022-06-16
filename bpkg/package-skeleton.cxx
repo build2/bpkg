@@ -2688,14 +2688,17 @@ namespace bpkg
         // If the package directory was moved, then it's possible we will have
         // bootstrap.build with an old src_root value. Presumably this will
         // cause the package to be re-configured and so ignoring the old value
-        // here should be ok.
+        // here should be ok. Also let's remove the outdated bootstrap.build
+        // in this case, so it doesn't affect us down the road.
         //
-#if 0
-        assert (cast<dir_path> (v) == src_root);
-#else
         if (cast<dir_path> (v) != src_root)
+        {
           v = src_root;
-#endif
+
+          assert (altn); // Since bootstrap.build has been found.
+
+          rm (out_root / (*altn ? alt_src_root_file : std_src_root_file));
+        }
       }
 
       setup_root (rs, false /* forwarded */);

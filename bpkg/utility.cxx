@@ -29,10 +29,14 @@ namespace bpkg
   const dir_path std_build_dir      ("build");
   const path     std_bootstrap_file (dir_path (std_build_dir) /= "bootstrap.build");
   const path     std_root_file      (dir_path (std_build_dir) /= "root.build");
+  const dir_path std_bootstrap_dir  (dir_path (std_build_dir) /= "bootstrap");
+  const path     std_src_root_file  (std_bootstrap_dir / "src-root.build");
 
   const dir_path alt_build_dir      ("build2");
   const path     alt_bootstrap_file (dir_path (alt_build_dir) /= "bootstrap.build2");
   const path     alt_root_file      (dir_path (alt_build_dir) /= "root.build2");
+  const dir_path alt_bootstrap_dir  (dir_path (alt_build_dir) /= "bootstrap");
+  const path     alt_src_root_file  (alt_bootstrap_dir / "src-root.build2");
 
   const dir_path current_dir (".");
 
