@@ -11983,11 +11983,16 @@ test.options += --no-progress
       {
         $clone_cfg;
 
-        $* baz 2>>EOE != 0;
+        $* baz 2>>~%EOE% != 0;
           error: unable to remove bogus configuration values without causing configuration refinement cycle
             info: consider manually specifying one or more of the following variables as user configuration
+          %(
               config.liba.buffer=2048
               config.liba.x=true
+          %|
+              config.liba.x=true
+              config.liba.buffer=2048
+          %)
           EOE
 
         $* baz ?liba +{ config.liba.x=true } 2>>~%EOE%;
