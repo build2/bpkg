@@ -338,7 +338,19 @@ namespace bpkg
       find_if (config_vars_.begin (), config_vars_.end (),
                [this] (const string& v)
                {
+                 // For now tighten it even further so that we can continue
+                 // using repositories without package skeleton information
+                 // (bootstrap.build, root.build). See load_old_config() for
+                 // details.
+                 //
+#if 1 // @@ TMP
                  return project_override (v, var_prefix_);
+#else
+                 size_t vn;
+                 size_t pn (var_prefix_.size ());
+                 return (project_override (v, var_prefix_, &vn) &&
+                         v.compare (pn, vn - pn, ".develop") == 0);
+#endif
                }) == config_vars_.end ();
 
     if (src_root)
@@ -2019,7 +2031,9 @@ namespace bpkg
       //    variables are not bogus? But they could be untyped...
       //
       //    Also, build2 warns about unused variables being dropped.
-
+      //
+      //    Note that currently load_old_config() is disabled unless there is
+      //    a config.*.develop variable; see package_skeleton ctor.
 
       // Extract and merge old user configuration variables from config.build
       // (or equivalent) into config_vars.
