@@ -1355,7 +1355,7 @@ namespace bpkg
             {
               fail << "package " << cfg.package.name << " has no "
                    << "configuration variable " << var.name <<
-                info << var.name << " set in require clause of dependent "
+                info << var.name << " set in prefer clause of dependent "
                    << key.string ();
             }
           }
