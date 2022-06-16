@@ -1070,14 +1070,15 @@ namespace bpkg
 
       if (system)
       {
-        // @@ TODO
-        //
         // Keep the available package if its version is "close enough" to the
         // system package version. For now we will require the exact match
         // but in the future we could relax this (e.g., allow the user to
         // specify something like libfoo/^1.2.0 or some such).
         //
-        ap = nullptr;
+        const version* v (!ap->stub () ? ap->system_version (db) : nullptr);
+
+        if (v == nullptr || *v != ap->version)
+          ap = nullptr;
       }
 
       optional<dir_path> src_root, out_root;
@@ -3508,17 +3509,18 @@ namespace bpkg
               {
                 system = dsp->system ();
 
-                optional<version_constraint> vc (
-                  !system
-                  ? version_constraint (dsp->version)
-                  : optional<version_constraint> ());
+                version_constraint vc (dsp->version);
 
                 // First try to find an available package for this exact
                 // version, falling back to ignoring version revision and
                 // iteration. In particular, this handles the case where a
                 // package moves from one repository to another (e.g., from
-                // testing to stable). For a system package we pick the latest
-                // one (its exact version doesn't really matter).
+                // testing to stable). For a system package we will try to
+                // find the available package that matches the selected
+                // package version (preferable for the configuration
+                // negotiation machinery) and, if fail, fallback to picking
+                // the latest one (its exact version doesn't really matter in
+                // this case).
                 //
                 // It seems reasonable to search for the package in the
                 // repositories explicitly added by the user if the selected
@@ -3536,11 +3538,11 @@ namespace bpkg
                                            true /* prereq */,
                                            true /* revision */);
 
-                  // Note: constraint is not present for the system package,
-                  // so there is no sense to repeat the attempt.
-                  //
-                  if (dap == nullptr && !system)
+                  if (dap == nullptr)
                     rp = find_available_one (dbs, dn, vc);
+
+                  if (dap == nullptr && system)
+                    rp = find_available_one (dbs, dn, nullopt);
                 }
                 else if (af != nullptr)
                 {
@@ -3550,8 +3552,11 @@ namespace bpkg
                                            true /* prereq */,
                                            true /* revision */);
 
-                  if (dap == nullptr && !system)
+                  if (dap == nullptr)
                     rp = find_available_one (dn, vc, af);
+
+                  if (dap == nullptr && system)
+                    rp = find_available_one (dn, nullopt, af);
                 }
 
                 // A stub satisfies any version constraint so we weed them out
@@ -3792,13 +3797,17 @@ namespace bpkg
               // problematic dependent, expecting that some other one will
               // find the appropriate version in its repositories.
               //
-              // For a system package we pick the latest version just to make
-              // sure the package is recognized. An unrecognized package means
-              // the broken/stale repository (see below).
+              // For a system package we will try to find the available
+              // package that matches the constraint (preferable for the
+              // configuration negotiation machinery) and, if fail, fallback
+              // to picking the latest one just to make sure the package is
+              // recognized. An unrecognized package means the broken/stale
+              // repository (see below).
               //
-              rp = find_available_one (dn,
-                                       !system ? d.constraint : nullopt,
-                                       af);
+              rp = find_available_one (dn, d.constraint, af);
+
+              if (dap == nullptr && system && d.constraint)
+                rp = find_available_one (dn, nullopt, af);
 
               if (dap == nullptr)
               {
@@ -7007,7 +7016,9 @@ namespace bpkg
           {
             shared_ptr<selected_package> dsp (ddb.load<selected_package> (dn));
 
-            bool system (dsp->system ()); // Save before the move(dsp) call.
+            // A system package cannot be a dependent.
+            //
+            assert (!dsp->system ());
 
             return build_package {
               build_package::adjust,
@@ -7023,7 +7034,7 @@ namespace bpkg
                 nullopt,                   // Hold package.
                 nullopt,                   // Hold version.
                 {},                        // Constraints.
-                system,
+                false,                     // System.
                 false,                     // Keep output directory.
                 false,                     // Disfigure (from-scratch reconf).
                 false,                     // Configure-only.
@@ -8093,8 +8104,10 @@ namespace bpkg
     // Build the list of available packages for the potential up/down-grade
     // to, in the version-descending order. If patching, then we constrain the
     // choice with the latest patch version and place no constraints if
-    // upgrading. For a system package we also put no constraints just to make
-    // sure that the package is recognized.
+    // upgrading. For a system package we will try to find the available
+    // package that matches the user-specified system version (preferable for
+    // the configuration negotiation machinery) and, if fail, fallback to
+    // picking the latest one just to make sure the package is recognized.
     //
     optional<version_constraint> c;
 
@@ -8113,12 +8126,15 @@ namespace bpkg
         }
       }
     }
-    else if (!dsys)
+    else if (!dsys || !wildcard (*dvc))
       c = dvc;
 
     vector<pair<shared_ptr<available_package>,
                 lazy_shared_ptr<repository_fragment>>> afs (
       find_available (nm, c, rfs));
+
+    if (afs.empty () && dsys && c)
+      afs = find_available (nm, nullopt, rfs);
 
     // Go through up/down-grade candidates and pick the first one that
     // satisfies all the dependents. Collect (and sort) unsatisfied dependents
@@ -9936,14 +9952,19 @@ namespace bpkg
               lazy_shared_ptr<repository_fragment> root (*pdb, empty_string);
 
               // Either get the user-specified version or the latest allowed
-              // for a source code package. For a system package we pick the
-              // latest one just to make sure the package is recognized.
+              // for a source code package. For a system package we will try
+              // to find the available package that matches the user-specified
+              // system version (preferable for the configuration negotiation
+              // machinery) and, if fail, fallback to picking the latest one
+              // just to make sure the package is recognized.
               //
               optional<version_constraint> c;
 
+              bool sys (arg_sys (pa));
+
               if (!pa.constraint)
               {
-                assert (!arg_sys (pa));
+                assert (!sys);
 
                 if (pa.options.patch () &&
                     (sp = pdb->find<selected_package> (pa.name)) != nullptr)
@@ -9962,10 +9983,13 @@ namespace bpkg
                   patch = true;
                 }
               }
-              else if (!arg_sys (pa))
+              else if (!sys || !wildcard (*pa.constraint))
                 c = pa.constraint;
 
               auto rp (find_available_one (pa.name, c, root));
+
+              if (rp.first == nullptr && sys && c)
+                rp = find_available_one (pa.name, nullopt, root);
 
               ap = move (rp.first);
               af = move (rp.second);
@@ -11801,8 +11825,10 @@ namespace bpkg
     //
     // For the packages being printed also print the configuration specified
     // by the user, dependents, and via the reflect clauses. For that we will
-    // use the package skeletons, initializing them if required. Note that the
-    // freshly-initialized skeletons will be reused during the plan execution.
+    // use the package skeletons, initializing them if required. Note that for
+    // a system package the skeleton may already be initialized during the
+    // dependency negotiation process. Also note that the freshly-initialized
+    // skeletons will be reused during the plan execution.
     //
     bool update_dependents (false);
 
@@ -11900,27 +11926,7 @@ namespace bpkg
               // Since there is no available package specified we need to find
               // it (or create a transient one).
               //
-              // @@ TMP Don't create skeletons for system packages for now.
-              //
-              //        Notes on system packages:
-              //
-              //        - The available package while specified for the
-              //          package build object may refer to some unrelated
-              //          version (normally the latest available in the
-              //          user-added repositories) to the user-specified
-              //          version. Actually the user may specify a version
-              //          that is not present in any repository.
-              //
-              //        - The user can specify wildcard version and so there
-              //          is no version which we could take the manifest from
-              //          for the skeleton creation.
-              //
-              //        - The available package can be a stub and we don't
-              //          create skeletons for stubs since they don't have
-              //          bootstrap-build in manifests.
-              //
-              if (!p.system)
-                cfg = &p.init_skeleton (o, find_available (o, pdb, sp));
+              cfg = &p.init_skeleton (o, find_available (o, pdb, sp));
             }
           }
           else
@@ -11937,12 +11943,11 @@ namespace bpkg
               // For a new non-system package the skeleton must already be
               // initialized.
               //
-              // @@ TMP Don't create skeletons for system packages for now.
-              //
               assert (p.system || p.skeleton.has_value ());
 
-              if (!p.system)
-                cfg = &*p.skeleton;
+              // Initialize the skeleton if it is not initialized yet.
+              //
+              cfg = &(p.skeleton ? *p.skeleton : p.init_skeleton (o));
             }
             else if (sp->version == p.available_version ())
             {
@@ -11970,10 +11975,7 @@ namespace bpkg
               {
                 // Initialize the skeleton if it is not initialized yet.
                 //
-                // @@ TMP Don't create skeletons for system packages for now.
-                //
-                if (!p.system)
-                  cfg = &(p.skeleton ? *p.skeleton : p.init_skeleton (o));
+                cfg = &(p.skeleton ? *p.skeleton : p.init_skeleton (o));
               }
             }
             else
@@ -11987,12 +11989,11 @@ namespace bpkg
               // For a non-system package up/downgrade the skeleton must
               // already be initialized.
               //
-              // @@ TMP Don't create skeletons for system packages for now.
-              //
               assert (p.system || p.skeleton.has_value ());
 
-              if (!p.system)
-                cfg = &*p.skeleton;
+              // Initialize the skeleton if it is not initialized yet.
+              //
+              cfg = &(p.skeleton ? *p.skeleton : p.init_skeleton (o));
 
               need_prompt = true;
             }
@@ -12771,7 +12772,13 @@ namespace bpkg
       }
       else // Dependent.
       {
-        assert (*p.action == build_package::adjust);
+        // This is an adjustment of a dependent which cannot be system
+        // (otherwise it wouldn't be a dependent) and cannot become system
+        // (otherwise it would be a build).
+        //
+        assert (*p.action == build_package::adjust &&
+                !p.system &&
+                !sp->system ());
 
         // Must be in the unpacked state since it was disfigured on the first
         // pass (see above).
@@ -12792,6 +12799,8 @@ namespace bpkg
 
         if (!p.skeleton)
           p.init_skeleton (o, find_available (o, pdb, sp));
+
+        assert (p.skeleton->available != nullptr); // Can't be system.
 
         const dependencies& deps (p.skeleton->available->dependencies);
 
