@@ -113,6 +113,7 @@ namespace bpkg
   {
   public:
     package_key package;
+    bool system = false; // True if system package without skeleton info.
 
     explicit
     package_configuration (package_key p): package (move (p)) {}

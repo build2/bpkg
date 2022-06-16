@@ -145,6 +145,9 @@ namespace bpkg
     optional<size_t> dependency_var_prefixes_pending_;
   };
 
+  static void
+  create_context (package_skeleton&, const strings&);
+
   // Note: cannot be package_skeleton member function due to iterator return
   // (build2 stuff is only forward-declared in the header).
   //
@@ -159,7 +162,8 @@ namespace bpkg
   package_skeleton::
   package_skeleton (package_skeleton&& v)
       : key (move (v.key)),
-        available (v.available),
+        system (v.system),
+        available (move (v.available)),
         co_ (v.co_),
         db_ (v.db_),
         var_prefix_ (move (v.var_prefix_)),
@@ -196,7 +200,8 @@ namespace bpkg
     if (this != &v)
     {
       key = move (v.key);
-      available = v.available;
+      system = v.system;
+      available = move (v.available);
       co_ = v.co_;
       db_ = v.db_;
       var_prefix_ = move (v.var_prefix_);
@@ -233,6 +238,7 @@ namespace bpkg
   package_skeleton::
   package_skeleton (const package_skeleton& v)
       : key (v.key),
+        system (v.system),
         available (v.available),
         co_ (v.co_),
         db_ (v.db_),
@@ -298,25 +304,28 @@ namespace bpkg
 
   package_skeleton::
   package_skeleton (const common_options& co,
-                    database& db,
+                    package_key pk,
+                    bool sys,
                     shared_ptr<const available_package> ap,
                     strings cvs,
                     bool df,
                     const vector<config_variable>* css,
                     optional<dir_path> src_root,
                     optional<dir_path> out_root)
-      : key (db, ap->id.name),
+      : key (move (pk)),
+        system (sys),
         available (move (ap)),
         co_ (&co),
-        db_ (&db),
+        db_ (&key.db.get ()),
         var_prefix_ ("config." + key.name.variable ()),
         config_vars_ (move (cvs)),
         disfigure_ (df),
         config_srcs_ (df ? nullptr : css)
   {
-    // Should not be created for stubs.
-    //
-    assert (available != nullptr && available->bootstrap_build);
+    if (available != nullptr)
+      assert (available->bootstrap_build); // Should have skeleton info.
+    else
+      assert (system);
 
     // We are only interested in old user configuration variables.
     //
@@ -333,25 +342,32 @@ namespace bpkg
     // We don't need to load old user configuration if there isn't any and
     // there is no new project configuration specified by the user.
     //
-    loaded_old_config_ =
-      (config_srcs_ == nullptr) &&
-      find_if (config_vars_.begin (), config_vars_.end (),
-               [this] (const string& v)
-               {
-                 // For now tighten it even further so that we can continue
-                 // using repositories without package skeleton information
-                 // (bootstrap.build, root.build). See load_old_config() for
-                 // details.
-                 //
+    // Note that at first it may seem like we shouldn't do this for any system
+    // packages but if we want to verify the user configuration, why not do so
+    // for system if we can (i.e., have skeleton info)?
+    //
+    if (available == nullptr)
+      loaded_old_config_ = true;
+    else
+      loaded_old_config_ =
+        (config_srcs_ == nullptr) &&
+        find_if (config_vars_.begin (), config_vars_.end (),
+                 [this] (const string& v)
+                 {
+                   // For now tighten it even further so that we can continue
+                   // using repositories without package skeleton information
+                   // (bootstrap.build, root.build). See load_old_config() for
+                   // details.
+                   //
 #if 1 // @@ TMP
-                 return project_override (v, var_prefix_);
+                   return project_override (v, var_prefix_);
 #else
-                 size_t vn;
-                 size_t pn (var_prefix_.size ());
-                 return (project_override (v, var_prefix_, &vn) &&
-                         v.compare (pn, vn - pn, ".develop") == 0);
+                   size_t vn;
+                   size_t pn (var_prefix_.size ());
+                   return (project_override (v, var_prefix_, &vn) &&
+                           v.compare (pn, vn - pn, ".develop") == 0);
 #endif
-               }) == config_vars_.end ();
+                 }) == config_vars_.end ();
 
     if (src_root)
     {
@@ -476,6 +492,7 @@ namespace bpkg
     assert (dependent_vars_.empty ()     &&
             reflect_vars_.empty ()       &&
             dependency_reflect_.empty () &&
+            available != nullptr         &&
             ctx_ == nullptr);
 
     if (!loaded_old_config_)
@@ -599,6 +616,96 @@ namespace bpkg
     }
   }
 
+  void package_skeleton::
+  load_overrides (package_configuration& cfg)
+  {
+    // Should only be called before dependent_config()/evaluate_*() and only
+    // on system package without skeleton info.
+    //
+    assert (dependent_vars_.empty ()     &&
+            reflect_vars_.empty ()       &&
+            dependency_reflect_.empty () &&
+            available == nullptr         &&
+            system);
+
+    if (find_if (config_vars_.begin (), config_vars_.end (),
+                 [this] (const string& v)
+                 {
+                   return project_override (v, var_prefix_);
+                 }) == config_vars_.end ())
+      return;
+
+    try
+    {
+      using namespace build2;
+      using build2::fail;
+      using build2::endf;
+
+      using config::variable_origin;
+
+      // Create the build context.
+      //
+      create_context (*this, strings {});
+      context& ctx (*ctx_);
+
+      scope& gs (ctx.global_scope.rw ());
+      auto& vp (ctx.var_pool.rw ());
+
+      for (const string& v: config_vars_)
+      {
+        size_t vn;
+        if (!project_override (v, var_prefix_, &vn))
+          continue;
+
+        const variable& var (vp.insert (string (v, 0, vn)));
+
+        // Parse the value part (note that all evaluate_require() cares about
+        // is whether the value is true or not, but we do need accurate values
+        // for diagnostics).
+        //
+        size_t p (v.find ('=', vn));
+        assert (p != string::npos);
+        if (v[p + 1] == '+')
+          ++p;
+
+        optional<names> val;
+        {
+          // Similar to context() ctor.
+          //
+          istringstream is (string (v, p + 1));
+          is.exceptions (istringstream::failbit | istringstream::badbit);
+
+          path_name in ("<cmdline>");
+          lexer lex (is, in, 1 /* line */, "\'\"\\$("); // Effective.
+
+          parser par (ctx);
+          pair<value, token> r (
+            par.parse_variable_value (lex, gs, &build2::work, var));
+
+          if (r.second.type != token_type::eos)
+            fail << "invalid command line variable override '" << v << "'";
+
+          val = reverse_value (r.first);
+        }
+
+        // @@ Should we do anything with append/prepend?
+        //
+        if (config_variable_value* v = cfg.find (var.name))
+          v->value = move (val);
+        else
+          cfg.push_back (
+            config_variable_value {
+              var.name, variable_origin::override_, {}, move (val), {}, false});
+      }
+
+      ctx_ = nullptr; // Free.
+    }
+    catch (const build2::failed&)
+    {
+      throw failed (); // Assume the diagnostics has already been issued.
+    }
+  }
+
   pair<bool, string> package_skeleton::
   verify_sensible (const package_configuration& cfg)
   {
@@ -607,6 +714,7 @@ namespace bpkg
     assert (dependent_vars_.empty ()     &&
             reflect_vars_.empty ()       &&
             dependency_reflect_.empty () &&
+            available != nullptr         &&
             ctx_ == nullptr);
 
     if (!loaded_old_config_)
@@ -1477,8 +1585,9 @@ namespace bpkg
       // to true and may not have any conditions on other configuration
       // variables (including their origin). As a result, we don't need to set
       // the default (or other dependent) values, but will need the type
-      // information as well as overrides (see negotiate_configuration()
-      // for details).
+      // information as well as overrides. Except that the type information
+      // may not be available for system packages, so we must deal with
+      // that. See negotiate_configuration() for details.
       //
       strings dvps;
       scope& rs (load (cfgs, &dvps, false /* defaults */));
@@ -1537,27 +1646,47 @@ namespace bpkg
             if (var.override ())
               continue;
 
-            const config_variable_value* v (cfg.find (var.name));
-
-            if (v == nullptr)
-            {
-              fail << "package " << cfg.package.name << " has no configuration "
-                   << "variable " << var.name <<
-                info << var.name << " set in require clause of dependent "
-                   << key.string ();
-            }
-
-            if (!v->type || *v->type != "bool")
-            {
-              fail << "configuration variable " << var.name << " is not of "
-                   << "bool type" <<
-                info << var.name << " set in require clause of dependent "
-                   << key.string ();
-            }
-
             const value& val (p.first->second);
 
-            if (!cast_false<bool> (val))
+            // Deal with a system package that has no type information.
+            //
+            if (!cfg.system)
+            {
+              const config_variable_value* v (cfg.find (var.name));
+
+              if (v == nullptr)
+              {
+                fail << "package " << cfg.package.name << " has no "
+                     << "configuration variable " << var.name <<
+                  info << var.name << " set in require clause of dependent "
+                     << key.string ();
+              }
+
+              if (!v->type || *v->type != "bool")
+              {
+                fail << "configuration variable " << var.name << " is not of "
+                     << "bool type" <<
+                  info << var.name << " set in require clause of dependent "
+                     << key.string ();
+              }
+            }
+
+            bool r;
+            if (cfg.system)
+            {
+              try
+              {
+                r = build2::convert<bool> (val);
+              }
+              catch (const invalid_argument&)
+              {
+                r = false;
+              }
+            }
+            else
+              r = cast_false<bool> (val);
+
+            if (!r)
             {
               fail << "configuration variable " << var.name << " is not set "
                    << "to true" <<
@@ -1587,7 +1716,9 @@ namespace bpkg
 
           const value& val (p.first->second);
 
-          const config_variable_value& v (*cfg.find (var.name));
+          // Note: could be NULL if cfg.system.
+          //
+          const config_variable_value* v (cfg.find (var.name));
 
           // The only situation where the result would not be acceptable is if
           // one of the values were overridden to false.
@@ -1602,12 +1733,12 @@ namespace bpkg
           // cannot become an override. Except that the dependency override
           // could be specified (only) for the dependent.
           //
-          if (v.origin == variable_origin::override_)
+          if (v != nullptr && v->origin == variable_origin::override_)
           {
             assert (ol.first == variable_origin::override_);
           }
           else if (ol.first == variable_origin::override_ &&
-                   v.origin != variable_origin::override_)
+                   (v == nullptr || v->origin != variable_origin::override_))
           {
             fail << "dependency override " << var.name << " specified for "
                  << "dependent " << key.string () << " but not dependency" <<
@@ -1617,8 +1748,23 @@ namespace bpkg
 
           if (ol.first == variable_origin::override_)
           {
-            if (!cast_false<bool> (*ol.second))
-              r = false;
+            if (cfg.system)
+            {
+              try
+              {
+                if (!build2::convert<bool> (*ol.second))
+                  r = false;
+              }
+              catch (const invalid_argument&)
+              {
+                r = false;
+              }
+            }
+            else
+            {
+              if (!cast_false<bool> (*ol.second))
+                r = false;
+            }
           }
         }
       }
@@ -1650,7 +1796,15 @@ namespace bpkg
             if (var.override ())
               continue;
 
-            config_variable_value& v (*cfg.find (var.name));
+            config_variable_value* v (cfg.find (var.name));
+
+            if (v == nullptr) // cfg.system
+            {
+              cfg.push_back (
+                config_variable_value {
+                  var.name, variable_origin::undefined, {}, {}, {}, false});
+              v = &cfg.back ();
+            }
 
             // This value was set so save it as a dependency reflect.
             //
@@ -1660,10 +1814,18 @@ namespace bpkg
             //
             optional<names> ns (names {build2::name ("true")});
 
+            // Note: force bool type if system.
+            //
             dependency_reflect_.push_back (
-              reflect_variable_value {v.name, v.origin, v.type, ns});
+              reflect_variable_value {
+                v->name,
+                (v->origin == variable_origin::override_
+                 ? v->origin
+                 : variable_origin::buildfile),
+                cfg.system ? optional<string> ("bool") : v->type,
+                ns});
 
-            if (v.origin != variable_origin::override_)
+            if (v->origin != variable_origin::override_)
             {
               // Possible transitions:
               //
@@ -1671,21 +1833,21 @@ namespace bpkg
               // buildfile        -> buildfile -- override other dependent
               //
 
-              if (v.origin == variable_origin::buildfile)
+              if (v->origin == variable_origin::buildfile)
               {
                 // If unchanged, then we keep the old originating dependent
                 // (even if the value was technically "overwritten" by this
                 // dependent).
                 //
-                if (v.value == ns)
+                if (v->value == ns)
                   continue;
               }
               else
-                v.origin = variable_origin::buildfile;
+                v->origin = variable_origin::buildfile;
 
-              v.value = move (ns);
-              v.dependent = key; // We are the originating dependent.
-              v.confirmed = true;
+              v->value = move (ns);
+              v->dependent = key; // We are the originating dependent.
+              v->confirmed = true;
             }
           }
         }
@@ -1777,7 +1939,8 @@ namespace bpkg
             continue;
         }
 
-        print (v) << " (user configuration)";
+        print (v) << " (" << (system ? "expected " : "")
+                  << "user configuration)";
       }
     }
 
@@ -1788,14 +1951,16 @@ namespace bpkg
       const string& v (dependent_vars_[i]);
       const package_key& d (dependent_orgs_[i]); // Parallel.
 
-      print (v) << " (set by " << d << ')';
+      print (v) << " (" << (system ? "expected" : "set") << " by "
+                << d << ')';
     }
 
     // Finally reflect.
     //
     for (const string& v: reflect_vars_)
     {
-      print (v) << " (set by " << key.name << ')';
+      print (v) << " (" << (system ? "expected" : "set") << " by "
+                << key.name << ')';
     }
   }
 
@@ -2286,12 +2451,50 @@ namespace bpkg
     }
   }
 
+  // Create the build context.
+  //
+  static void
+  create_context (package_skeleton& skl, const strings& cmd_vars)
+  {
+    assert (skl.db_ != nullptr && skl.ctx_ == nullptr);
+
+    // Initialize the build system.
+    //
+    if (!build2_sched.started ())
+      build2_init (*skl.co_);
+
+    try
+    {
+      using namespace build2;
+      using build2::fail;
+      using build2::endf;
+
+      // Create build context.
+      //
+      skl.ctx_.reset (
+        new context (build2_sched,
+                     build2_mutexes,
+                     build2_fcache,
+                     false /* match_only */,          // Shouldn't matter.
+                     false /* no_external_modules */,
+                     false /* dry_run */,             // Shouldn't matter.
+                     false /* keep_going */,          // Shouldnt' matter.
+                     cmd_vars));
+    }
+    catch (const build2::failed&)
+    {
+      throw failed (); // Assume the diagnostics has already been issued.
+    }
+  }
+
   // Bootstrap the package skeleton.
   //
   static build2::scope_map::iterator
   bootstrap (package_skeleton& skl, const strings& cmd_vars)
   {
-    assert (skl.db_ != nullptr && skl.ctx_ == nullptr);
+    assert (skl.db_ != nullptr       &&
+            skl.ctx_ == nullptr      &&
+            skl.available != nullptr);
 
     // The overall plan is as follows:
     //
@@ -2435,29 +2638,15 @@ namespace bpkg
       skl.created_ = true;
     }
 
-    // Initialize the build system.
-    //
-    if (!build2_sched.started ())
-      build2_init (*skl.co_);
-
     try
     {
       using namespace build2;
       using build2::fail;
       using build2::endf;
 
-      // Create build context.
+      // Create the build context.
       //
-      skl.ctx_.reset (
-        new context (build2_sched,
-                     build2_mutexes,
-                     build2_fcache,
-                     false /* match_only */,          // Shouldn't matter.
-                     false /* no_external_modules */,
-                     false /* dry_run */,             // Shouldn't matter.
-                     false /* keep_going */,          // Shouldnt' matter.
-                     cmd_vars));
-
+      create_context (skl, cmd_vars);
       context& ctx (*skl.ctx_);
 
       // This is essentially a subset of the steps we perform in b.cxx. See

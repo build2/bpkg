@@ -21,6 +21,12 @@ namespace bpkg
   class package_skeleton
   {
   public:
+    // If the package is system, then its available package should be NULL if
+    // it doesn't match the system package version "close enough" to be usable
+    // as the source of its configuration information (types, defaults). If it
+    // is NULL, then the skeleton can only be used to print and collect the
+    // configuration information.
+    //
     // If the package is external, then the existing package source root
     // directory needs to be specified (as absolute and normalized). In this
     // case, if output root is specified (as absolute and normalized; normally
@@ -55,7 +61,8 @@ namespace bpkg
     // relatively cheap.
     //
     package_skeleton (const common_options& co,
-                      database&,
+                      package_key,
+                      bool system,
                       shared_ptr<const available_package>,
                       strings config_vars,
                       bool disfigure,
@@ -65,6 +72,7 @@ namespace bpkg
 
 
     package_key key;
+    bool system;
     shared_ptr<const available_package> available;
 
     const package_name&
@@ -89,6 +97,13 @@ namespace bpkg
     //
     void
     reload_defaults (package_configuration&);
+
+    // Load overrides for a system package without skeleton info. Note that
+    // this is done in an ad hoc manner and only to support evaluate_require()
+    // semantics (see the implementation for details).
+    //
+    void
+    load_overrides (package_configuration&);
 
     // Verify the specified "tentative" dependent configuration is sensible,
     // that is, acceptable to the dependency itself. If it is not, then the
@@ -242,7 +257,7 @@ namespace bpkg
     bool created_ = false;
     bool verified_ = false;
     bool loaded_old_config_;
-    bool develop_ = false;  // Package has config.*.develop.
+    bool develop_ = true;  // Package has config.*.develop.
 
     unique_ptr<build2::context> ctx_;
     build2::scope* rs_ = nullptr;

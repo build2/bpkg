@@ -118,6 +118,8 @@ namespace bpkg
     pair<size_t, size_t> pos,
     const small_vector<reference_wrapper<package_skeleton>, 1>& depcs)
   {
+    assert (!dept.system);
+
     pos.first--; pos.second--; // Convert to 0-base.
 
     const dependency_alternative& da (
@@ -197,6 +199,11 @@ namespace bpkg
     // based on the values of other configuration variables (we have a note
     // in the manual instructing the user not to do this).
     //
+    // The dependency could also be system in which case there could be no
+    // skeleton information to load the types/defaults from. In this case we
+    // can handle require in the "lax mode" (based on the above assumptions)
+    // but not prefer.
+    //
     // While at it, also collect the configurations to pass to dependent's
     // evaluate_*() calls.
     //
@@ -227,6 +234,31 @@ namespace bpkg
               dependent_config_variable_value {v.name, v.value, *v.dependent});
         }
       }
+
+      if (depc.available == nullptr)
+      {
+        assert (depc.system);
+
+        if (da.prefer)
+          fail << "unable to negotiate configuration for system dependency "
+               << depc.key << " without configuration information" <<
+            info << "consider specifying system dependency version that has "
+               << "corresponding available package" <<
+            info << "dependent " << dept.key << " has prefer/accept clauses "
+               << "that cannot be evaluated without configuration information";
+
+        if (!cfg.system)
+        {
+          // Note that we still need the overrides.
+          //
+          depc.load_overrides (cfg);
+          cfg.system = true;
+        }
+
+        continue;
+      }
+      else
+        assert (!cfg.system);
 
       if (da.prefer || cfg.empty ())
         depc.reload_defaults (cfg);

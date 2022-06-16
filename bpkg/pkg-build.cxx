@@ -1060,23 +1060,41 @@ namespace bpkg
     init_skeleton (const common_options& options,
                    const shared_ptr<available_package>& override = nullptr)
     {
-      const shared_ptr<available_package>& ap (override != nullptr
-                                               ? override
-                                               : available);
+      shared_ptr<available_package> ap (override != nullptr
+                                        ? override
+                                        : available);
 
       assert (!skeleton && ap != nullptr);
 
-      optional<dir_path> src_root (external_dir ());
+      package_key pk (db, ap->id.name);
 
-      optional<dir_path> out_root (
-        src_root && !disfigure
-        ? dir_path (db.get ().config) /= name ().string ()
-        : optional<dir_path> ());
+      if (system)
+      {
+        // @@ TODO
+        //
+        // Keep the available package if its version is "close enough" to the
+        // system package version. For now we will require the exact match
+        // but in the future we could relax this (e.g., allow the user to
+        // specify something like libfoo/^1.2.0 or some such).
+        //
+        ap = nullptr;
+      }
+
+      optional<dir_path> src_root, out_root;
+
+      if (ap != nullptr)
+      {
+        src_root = external_dir ();
+        out_root = (src_root && !disfigure
+                    ? dir_path (db.get ().config) /= name ().string ()
+                    : optional<dir_path> ());
+      }
 
       skeleton = package_skeleton (
         options,
-        db,
-        ap,
+        move (pk),
+        system,
+        move (ap),
         config_vars, // @@ Maybe make optional<strings> and move?
         disfigure,
         (selected != nullptr ? &selected->config_variables : nullptr),
@@ -4620,7 +4638,9 @@ namespace bpkg
                     const package_configuration& pc (
                       cfg.dependency_configurations[p]);
 
-                    pair<bool, string> pr (b->skeleton->verify_sensible (pc));
+                    pair<bool, string> pr (b->skeleton->available != nullptr
+                                           ? b->skeleton->verify_sensible (pc)
+                                           : make_pair (true, string ()));
 
                     if (!pr.first)
                     {
@@ -5961,7 +5981,12 @@ namespace bpkg
               const package_configuration& pc (
                 pcfg->dependency_configurations[p]);
 
-              pair<bool, string> pr (b->skeleton->verify_sensible (pc));
+              // Skip the verification if this is a system package
+              // without skeleton info.
+              //
+              pair<bool, string> pr (b->skeleton->available != nullptr
+                                     ? b->skeleton->verify_sensible (pc)
+                                     : make_pair (true, string ()));
 
               if (!pr.first)
               {
