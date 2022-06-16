@@ -4,8 +4,6 @@
 #ifndef BPKG_PACKAGE_CONFIGURATION_HXX
 #define BPKG_PACKAGE_CONFIGURATION_HXX
 
-#include <map>
-
 #include <libbuild2/types.hxx>        // build2::names
 #include <libbuild2/config/types.hxx> // build2::config::variable_origin
 
