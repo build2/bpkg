@@ -12016,8 +12016,8 @@ namespace bpkg
             // dependent-dependency structure change without any of the
             // package versions changing? Doesn't feel like it should.
             //
-            for (const package_key& p: p.required_by)
-              rb += (rb.empty () ? " " : ", ") + p.string ();
+            for (const package_key& pk: p.required_by)
+              rb += (rb.empty () ? " " : ", ") + pk.string ();
 
             // If not user-selected, then there should be another (implicit)
             // reason for the action.
