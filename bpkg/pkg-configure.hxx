@@ -59,6 +59,7 @@ namespace bpkg
                  const vector<size_t>* alternatives,
                  package_skeleton&&,
                  const vector<package_name>* prerequisites,
+                 bool disfigured,
                  bool simulate,
                  const function<find_database_function>& = {});
 

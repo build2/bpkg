@@ -342,6 +342,7 @@ namespace bpkg
                  const vector<size_t>* alts,
                  package_skeleton&& ps,
                  const vector<package_name>* pps,
+                 bool disfigured,
                  bool simulate,
                  const function<find_database_function>& fdb)
   {
@@ -364,8 +365,6 @@ namespace bpkg
 
     l4 ([&]{trace << "src_root: " << src_root << ", "
                   << "out_root: " << out_root;});
-
-    bool disfigured (ps.disfigure_); // @@ TMP-K pass explicitly.
 
     // Verify all our prerequisites are configured and populate the
     // prerequisites list.
@@ -628,6 +627,7 @@ namespace bpkg
                                        move (src_root),
                                        move (out_root)),
                      nullptr /* prerequisites */,
+                     false /* disfigured */,
                      false /* simulate */);
     }
 

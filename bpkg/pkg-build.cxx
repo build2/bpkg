@@ -762,10 +762,14 @@ namespace bpkg
               selected->state == package_state::configured &&
               selected->substate != package_substate::system);
 
+      // Note that if the skeleton is present then the package is either being
+      // already collected or its configuration has been negotiated between
+      // the dependents.
+      //
       return !system &&
              (dependencies                                     ||
               selected->version != available_version ()        ||
-              (!config_vars.empty () &&
+              ((!config_vars.empty () || skeleton) &&
                has_buildfile_clause (available->dependencies)) ||
               rpt_depts.find (package_key (db, name ())) != rpt_depts.end ());
     }
@@ -2830,11 +2834,6 @@ namespace bpkg
                                  postponed_dependencies& postponed_deps,
                                  postponed_configurations& postponed_cfgs,
                                  postponed_positions& postponed_poss,
-                                 //
-                                 // @@ TMP-K This will probably be gone (see below).
-                                 //
-                                 bool force_configured = false,
-
                                  pair<size_t, size_t> reeval_pos =
                                    make_pair(0, 0))
     {
@@ -3077,12 +3076,7 @@ namespace bpkg
       const map<package_key, bool>* rpt_prereq_flags (nullptr);
 
       // Bail out if this is a configured non-system package and no recursive
-      // collection is required nor the collection is forced.
-      //
-      // @@ TMP-K Forcing collection will probably be gone when we implement
-      //    complete negotiation implementation since we will recognize the
-      //    need to recollect by the presence of the respective config vars,
-      //    etc.
+      // collection is required.
       //
       bool src_conf (sp != nullptr &&
                      sp->state == package_state::configured &&
@@ -3101,9 +3095,7 @@ namespace bpkg
         if (i != rpt_depts.end ())
           rpt_prereq_flags = &i->second;
 
-        if (!force_configured &&
-            !reeval           &&
-            !pkg.recollect_recursively (rpt_depts))
+        if (!reeval && !pkg.recollect_recursively (rpt_depts))
         {
           l5 ([&]{trace << "skip configured "
                         << pkg.available_name_version_db ();});
@@ -4678,8 +4670,7 @@ namespace bpkg
                                                0 /* max_alt_index */,
                                                postponed_deps,
                                                postponed_cfgs,
-                                               postponed_poss,
-                                               true /* force_configured */);
+                                               postponed_poss);
                 }
                 else
                   l5 ([&]{trace << "dependency "
@@ -5846,7 +5837,6 @@ namespace bpkg
                                              postponed_deps,
                                              postponed_cfgs,
                                              postponed_poss,
-                                             false /* force_configured */,
                                              ed.dependency_position);
 
                 ed.reevaluated = true;
@@ -6030,8 +6020,7 @@ namespace bpkg
                                          0 /* max_alt_index */,
                                          postponed_deps,
                                          postponed_cfgs,
-                                         postponed_poss,
-                                         true /* force_configured */);
+                                         postponed_poss);
           }
           else
             l5 ([&]{trace << "dependency " << b->available_name_version_db ()
@@ -6351,11 +6340,9 @@ namespace bpkg
 
               pc = &postponed_cfgs[ci];
 
-              // @@ TMP-K: "shadow" seems no longer correct.
-              //
               l5 ([&]{trace << "cfg-negotiation of " << *pc << " failed due "
-                            << "to dependent " << e.dependent << ", adding "
-                            << "shadow dependent and re-negotiating";});
+                            << "to dependent " << e.dependent << ", refining "
+                            << "configuration";});
 
               // Copy over the configuration for further refinement.
               //
@@ -6424,6 +6411,8 @@ namespace bpkg
                   // higher stack frame.
                   //
                   assert (!c->negotiated);
+
+                  l5 ([&]{trace << "force-merge " << *c << " into " << *pc;});
 
                   pc->merge (move (*c));
 
@@ -12739,6 +12728,7 @@ namespace bpkg
                          &*p.alternatives,
                          move (*p.skeleton),
                          nullptr /* previous_prerequisites */,
+                         p.disfigure,
                          simulate,
                          fdb);
         }
@@ -12746,15 +12736,10 @@ namespace bpkg
         {
           assert (sp != nullptr); // See above.
 
-          // Initialize the skeleton if it is not initialized yet.
+          // Note that the skeleton can be present if, for example, this is a
+          // dependency which configuration has been negotiated but it is not
+          // collected recursively since it has no buildfile clauses.
           //
-          // Note that the skeleton can only be present here if it was
-          // initialized during the preparation of the plan to be presented to
-          // the user. This only happens after all the refinements and so this
-          // plan execution is not simulated.
-          //
-          assert (!p.skeleton || !simulate);
-
           if (!p.skeleton)
             p.init_skeleton (o);
 
@@ -12766,6 +12751,7 @@ namespace bpkg
                          nullptr /* alternatives */,
                          move (*p.skeleton),
                          prereqs (),
+                         p.disfigure,
                          simulate,
                          fdb);
         }
@@ -12820,6 +12806,7 @@ namespace bpkg
                        nullptr /* alternatives */,
                        move (*p.skeleton),
                        prereqs (),
+                       false /* disfigured */,
                        simulate,
                        fdb);
       }
