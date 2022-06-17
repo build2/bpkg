@@ -2982,19 +2982,14 @@ namespace bpkg
       else
       {
         // If the package directory was moved, then it's possible we will have
-        // bootstrap.build with an old src_root value. Presumably this will
+        // src-root.build with an old src_root value. Presumably this will
         // cause the package to be re-configured and so ignoring the old value
-        // here should be ok. Also let's remove the outdated bootstrap.build
-        // in this case, so it doesn't affect us down the road.
+        // here should be ok. Note that the outdated src-root.build can also
+        // mess up subproject discovery in create_bootstrap_outer() but we
+        // omit that part.
         //
         if (cast<dir_path> (v) != src_root)
-        {
           v = src_root;
-
-          assert (altn); // Since bootstrap.build has been found.
-
-          rm (out_root / (*altn ? alt_src_root_file : std_src_root_file));
-        }
       }
 
       setup_root (rs, false /* forwarded */);
@@ -3004,7 +2999,12 @@ namespace bpkg
                      skl.db_->config.relative (out_root) /* amalgamation */,
                      false                               /* subprojects */);
 
-      create_bootstrap_outer (rs);
+
+      // Omit discovering amalgamation's subprojects (i.e., all the packages
+      // in the configuration). Besides being a performance optimization, this
+      // also sidesteps the issue of outdated src-root.build (see above).
+      //
+      create_bootstrap_outer (rs, false /* subprojects */);
       bootstrap_post (rs);
 
       assert (mif.meta_operation_pre == nullptr);
