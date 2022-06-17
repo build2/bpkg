@@ -161,7 +161,7 @@ namespace bpkg
 
   package_skeleton::
   package_skeleton (package_skeleton&& v)
-      : key (move (v.key)),
+      : package (move (v.package)),
         system (v.system),
         available (move (v.available)),
         co_ (v.co_),
@@ -199,7 +199,7 @@ namespace bpkg
   {
     if (this != &v)
     {
-      key = move (v.key);
+      package = move (v.package);
       system = v.system;
       available = move (v.available);
       co_ = v.co_;
@@ -237,7 +237,7 @@ namespace bpkg
 
   package_skeleton::
   package_skeleton (const package_skeleton& v)
-      : key (v.key),
+      : package (v.package),
         system (v.system),
         available (v.available),
         co_ (v.co_),
@@ -312,12 +312,12 @@ namespace bpkg
                     const vector<config_variable>* css,
                     optional<dir_path> src_root,
                     optional<dir_path> out_root)
-      : key (move (pk)),
+      : package (move (pk)),
         system (sys),
         available (move (ap)),
         co_ (&co),
-        db_ (&key.db.get ()),
-        var_prefix_ ("config." + key.name.variable ()),
+        db_ (&package.db.get ()),
+        var_prefix_ ("config." + package.name.variable ()),
         config_vars_ (move (cvs)),
         disfigure_ (df),
         config_srcs_ (df ? nullptr : css)
@@ -868,7 +868,8 @@ namespace bpkg
           // of the depends value in questions.
           //
           if (rs.out_eq_src ())
-            dr << info << "in depends manifest value of package " << key.name;
+            dr << info << "in depends manifest value of package "
+               << package.name;
           else
             depends_location (dr,
                               rs.src_path () / manifest_file,
@@ -1006,7 +1007,8 @@ namespace bpkg
           // of the depends value in questions.
           //
           if (rs.out_eq_src ())
-            dr << info << "in depends manifest value of package " << key.name;
+            dr << info << "in depends manifest value of package "
+               << package.name;
           else
             depends_location (dr,
                               rs.src_path () / manifest_file,
@@ -1321,7 +1323,8 @@ namespace bpkg
             // location of the depends value in questions.
             //
             if (rs.out_eq_src ())
-              dr << info << "in depends manifest value of package " << key.name;
+              dr << info << "in depends manifest value of package "
+                 << package.name;
             else
               depends_location (dr,
                                 rs.src_path () / manifest_file,
@@ -1356,7 +1359,7 @@ namespace bpkg
               fail << "package " << cfg.package.name << " has no "
                    << "configuration variable " << var.name <<
                 info << var.name << " set in prefer clause of dependent "
-                   << key.string ();
+                   << package.string ();
             }
           }
         }
@@ -1381,7 +1384,8 @@ namespace bpkg
             // location of the depends value in questions.
             //
             if (rs.out_eq_src ())
-              dr << info << "in depends manifest value of package " << key.name;
+              dr << info << "in depends manifest value of package "
+                 << package.name;
             else
               depends_location (dr,
                                 rs.src_path () / manifest_file,
@@ -1450,7 +1454,7 @@ namespace bpkg
                      v.origin != variable_origin::override_)
             {
               fail << "dependency override " << var.name << " specified for "
-                   << "dependent " << key.string () << " but not dependency" <<
+                   << "dependent " << package.string () << " but not dependency" <<
                 info << "did you mean to specify ?" << cfg.package.name
                    << " +{ " << var.name << "=... }";
             }
@@ -1487,7 +1491,7 @@ namespace bpkg
                   v.origin = variable_origin::buildfile;
 
                 v.value = move (ns);
-                v.dependent = key; // We are the originating dependent.
+                v.dependent = package; // We are the originating dependent.
                 v.confirmed = true;
                 break;
               }
@@ -1611,7 +1615,8 @@ namespace bpkg
             // location of the depends value in questions.
             //
             if (rs.out_eq_src ())
-              dr << info << "in depends manifest value of package " << key.name;
+              dr << info << "in depends manifest value of package "
+                 << package.name;
             else
               depends_location (dr,
                                 rs.src_path () / manifest_file,
@@ -1659,7 +1664,7 @@ namespace bpkg
                 fail << "package " << cfg.package.name << " has no "
                      << "configuration variable " << var.name <<
                   info << var.name << " set in require clause of dependent "
-                     << key.string ();
+                     << package.string ();
               }
 
               if (!v->type || *v->type != "bool")
@@ -1667,7 +1672,7 @@ namespace bpkg
                 fail << "configuration variable " << var.name << " is not of "
                      << "bool type" <<
                   info << var.name << " set in require clause of dependent "
-                     << key.string ();
+                     << package.string ();
               }
             }
 
@@ -1691,7 +1696,7 @@ namespace bpkg
               fail << "configuration variable " << var.name << " is not set "
                    << "to true" <<
                 info << var.name << " set in require clause of dependent "
-                   << key.string ();
+                   << package.string ();
             }
           }
         }
@@ -1741,7 +1746,7 @@ namespace bpkg
                    (v == nullptr || v->origin != variable_origin::override_))
           {
             fail << "dependency override " << var.name << " specified for "
-                 << "dependent " << key.string () << " but not dependency" <<
+                 << "dependent " << package.string () << " but not dependency" <<
               info << "did you mean to specify ?" << cfg.package.name
                  << " +{ " << var.name << "=... }";
           }
@@ -1812,7 +1817,7 @@ namespace bpkg
             // here the value cannot be the default/buildfile (since we don't
             // set those; see the load() call above).
             //
-            optional<names> ns (names {build2::name ("true")});
+            optional<names> ns (names {name ("true")});
 
             // Note: force bool type if system.
             //
@@ -1846,7 +1851,7 @@ namespace bpkg
                 v->origin = variable_origin::buildfile;
 
               v->value = move (ns);
-              v->dependent = key; // We are the originating dependent.
+              v->dependent = package; // We are the originating dependent.
               v->confirmed = true;
             }
           }
@@ -1960,7 +1965,7 @@ namespace bpkg
     for (const string& v: reflect_vars_)
     {
       print (v) << " (" << (system ? "expected" : "set") << " by "
-                << key.name << ')';
+                << package.name << ')';
     }
   }
 
@@ -2117,7 +2122,7 @@ namespace bpkg
           // Note: must be quoted to preserve the pattern.
           //
           v = "config.config.disfigure='config.";
-          v += name ().variable ();
+          v += package.name.variable ();
           v += "**'";
         }
       }
@@ -2539,7 +2544,7 @@ namespace bpkg
         dir_path d (normalize (i->second, "temporary directory"));
 
         d /= "skeletons";
-        d /= skl.name ().string () + '-' + ap.version.string ();
+        d /= skl.package.name.string () + '-' + ap.version.string ();
 
         if (skl.src_root_.empty ())
           skl.src_root_ = move (d); // out_root_ is the same.
@@ -2588,7 +2593,7 @@ namespace bpkg
         //
         {
           package_manifest m;
-          m.name = skl.name ();
+          m.name = skl.package.name;
           m.version = ap.version;
 
           // Note that there is no guarantee that the potential build2

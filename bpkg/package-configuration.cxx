@@ -213,13 +213,13 @@ namespace bpkg
 
     for (package_skeleton& depc: depcs)
     {
-      package_configuration& cfg (cfgs[depc.key]);
+      package_configuration& cfg (cfgs[depc.package]);
 
       for (config_variable_value& v: cfg)
       {
         if (v.origin == variable_origin::buildfile)
         {
-          if (*v.dependent == dept.key)
+          if (*v.dependent == dept.package)
           {
             old_cfgs.push_back (
               dependent_config_variable_value {
@@ -241,10 +241,10 @@ namespace bpkg
 
         if (da.prefer)
           fail << "unable to negotiate configuration for system dependency "
-               << depc.key << " without configuration information" <<
+               << depc.package << " without configuration information" <<
             info << "consider specifying system dependency version that has "
                << "corresponding available package" <<
-            info << "dependent " << dept.key << " has prefer/accept clauses "
+            info << "dependent " << dept.package << " has prefer/accept clauses "
                << "that cannot be evaluated without configuration information";
 
         if (!cfg.system)
@@ -269,7 +269,7 @@ namespace bpkg
     // operator[] (which is really a push_back() into a vector).
     //
     for (package_skeleton& depc: depcs)
-      depc_cfgs.push_back (cfgs[depc.key]);
+      depc_cfgs.push_back (cfgs[depc.package]);
 
     // Step 2: execute the prefer/accept or requires clauses.
     //
@@ -281,10 +281,10 @@ namespace bpkg
       diag_record dr (fail);
 
       dr << "unable to negotiate acceptable configuration with dependent "
-         << dept.key << " for dependencies ";
+         << dept.package << " for dependencies ";
 
       for (size_t i (0); i != depcs.size (); ++i)
-        dr << (i == 0 ? "" : ", ") << depcs[i].get ().key;
+        dr << (i == 0 ? "" : ", ") << depcs[i].get ().package;
 
       dr << info << "configuration before negotiation:\n";
 
@@ -307,7 +307,7 @@ namespace bpkg
 
       for (package_skeleton& depc: depcs)
       {
-        package_configuration& cfg (cfgs[depc.key]);
+        package_configuration& cfg (cfgs[depc.package]);
 
         for (config_variable_value& v: cfg)
         {
@@ -383,7 +383,7 @@ namespace bpkg
     dependent_config_variable_values new_cfgs;
     for (package_skeleton& depc: depcs)
     {
-      package_configuration& cfg (cfgs[depc.key]);
+      package_configuration& cfg (cfgs[depc.package]);
 
       for (config_variable_value& v: cfg)
       {
@@ -457,7 +457,7 @@ namespace bpkg
     diag_record dr (fail);
 
     dr << "unable to negotiate acceptable configuration between dependents "
-       << dept.key;
+       << dept.package;
 
     // Analyze the O->N changes and determine the problematic dependent(s).
     // Do we actually know for sure they are all problematic? Well, they
@@ -466,7 +466,7 @@ namespace bpkg
     small_vector<reference_wrapper<const package_key>, 1> depts; // Duplicates.
     for (const dependent_config_variable_value& nv: new_cfgs)
     {
-      if (nv.dependent == dept.key)
+      if (nv.dependent == dept.package)
       {
         if (const dependent_config_variable_value* ov = old_cfgs.find (nv.name))
         {
@@ -489,7 +489,7 @@ namespace bpkg
     dr << " for dependencies ";
 
     for (size_t i (0); i != depcs.size (); ++i)
-      dr << (i == 0 ? "" : ", ") << depcs[i].get ().key;
+      dr << (i == 0 ? "" : ", ") << depcs[i].get ().package;
 
     dr << info << "configuration before negotiation:\n";
     for (const package_configuration& cfg: depc_cfgs)

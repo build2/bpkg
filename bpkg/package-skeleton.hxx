@@ -71,12 +71,9 @@ namespace bpkg
                       optional<dir_path> out_root);
 
 
-    package_key key;
+    package_key package;
     bool system;
     shared_ptr<const available_package> available;
-
-    const package_name&
-    name () const {return key.name;} // @@ TMP: get rid (use key.name).
 
     // The following functions should be called in the following sequence
     // (* -- zero or more, ? -- zero or one):

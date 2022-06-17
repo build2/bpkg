@@ -90,7 +90,7 @@ namespace bpkg
       //
       if (alts == nullptr)
       {
-        if (toolchain_buildtime_dependency (o, das, &ps.name ()))
+        if (toolchain_buildtime_dependency (o, das, &ps.package.name))
           continue;
 
         for (size_t i (0); i != das.size (); ++i)
