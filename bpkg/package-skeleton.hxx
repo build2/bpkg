@@ -266,6 +266,9 @@ namespace bpkg
     strings cmd_vars_;
     bool cmd_vars_cache_ = false;
 
+    strings             dependent_vars_; // Dependent variable overrides.
+    vector<package_key> dependent_orgs_; // Dependent originators (parallel).
+
     // Reflect variable value storage. Used for both real reflect and
     // dependency reflect.
     //
@@ -277,13 +280,22 @@ namespace bpkg
       optional<build2::names>         value;
     };
 
-    using reflect_variable_values = vector<reflect_variable_value>;
+    class reflect_variable_values: public vector<reflect_variable_value>
+    {
+    public:
+      const reflect_variable_value*
+      find (const string& name)
+      {
+        auto i (find_if (begin (), end (),
+                         [&name] (const reflect_variable_value& v)
+                         {
+                           return v.name == name;
+                         }));
+        return i != end () ? &*i : nullptr;
+      }
+    };
 
-    strings             dependent_vars_; // Dependent variable overrides.
-    vector<package_key> dependent_orgs_; // Dependent originators (parallel).
-
-    strings reflect_vars_;   // Reflect variable overrides.
-    string  reflect_frag_;   // Reflect variables fragment.
+    reflect_variable_values reflect_; // Reflect variables.
 
     // Dependency configuration variables set by the prefer/require clauses
     // and that should be reflected in subsequent clauses.

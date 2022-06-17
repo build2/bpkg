@@ -11,7 +11,7 @@ namespace bpkg
 {
   using build2::config::variable_origin;
 
-  static string
+  string
   serialize_cmdline (const string& name, const optional<build2::names>& value)
   {
     using namespace build2;
@@ -33,19 +33,6 @@ namespace bpkg
     }
 
     return r;
-  }
-
-
-  string config_variable_value::
-  serialize_cmdline () const
-  {
-    return bpkg::serialize_cmdline (name, value);
-  }
-
-  string dependent_config_variable_value::
-  serialize_cmdline () const
-  {
-    return bpkg::serialize_cmdline (name, value);
   }
 
   void package_configuration::

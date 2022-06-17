@@ -18,6 +18,11 @@ namespace bpkg
 {
   class package_skeleton;
 
+  // Serialize the variable value as a command line override.
+  //
+  string
+  serialize_cmdline (const string& name, const optional<build2::names>& value);
+
   struct config_variable_value
   {
     string name;
@@ -61,10 +66,11 @@ namespace bpkg
       confirmed = false;
     }
 
-    // Serialize the variable value as a command line override.
-    //
     string
-    serialize_cmdline () const;
+    serialize_cmdline () const
+    {
+      return bpkg::serialize_cmdline (name, value);
+    }
   };
 
   void
@@ -81,7 +87,10 @@ namespace bpkg
 
   public:
     string
-    serialize_cmdline () const;
+    serialize_cmdline () const
+    {
+      return bpkg::serialize_cmdline (name, value);
+    }
   };
 
   inline bool

@@ -182,8 +182,7 @@ namespace bpkg
         cmd_vars_cache_ (v.cmd_vars_cache_),
         dependent_vars_ (move (v.dependent_vars_)),
         dependent_orgs_ (move (v.dependent_orgs_)),
-        reflect_vars_ (move (v.reflect_vars_)),
-        reflect_frag_ (move (v.reflect_frag_)),
+        reflect_ (move (v.reflect_)),
         dependency_reflect_ (move (v.dependency_reflect_)),
         dependency_reflect_index_ (v.dependency_reflect_index_),
         dependency_reflect_pending_ (v.dependency_reflect_pending_),
@@ -220,8 +219,7 @@ namespace bpkg
       cmd_vars_cache_ = v.cmd_vars_cache_;
       dependent_vars_ = move (v.dependent_vars_);
       dependent_orgs_ = move (v.dependent_orgs_);
-      reflect_vars_ = move (v.reflect_vars_);
-      reflect_frag_ = move (v.reflect_frag_);
+      reflect_ = move (v.reflect_);
       dependency_reflect_ = move (v.dependency_reflect_);
       dependency_reflect_index_ = v.dependency_reflect_index_;
       dependency_reflect_pending_ = v.dependency_reflect_pending_;
@@ -256,8 +254,7 @@ namespace bpkg
         cmd_vars_cache_ (v.cmd_vars_cache_),
         dependent_vars_ (v.dependent_vars_),
         dependent_orgs_ (v.dependent_orgs_),
-        reflect_vars_ (v.reflect_vars_),
-        reflect_frag_ (v.reflect_frag_),
+        reflect_ (v.reflect_),
         dependency_reflect_ (v.dependency_reflect_),
         dependency_reflect_index_ (v.dependency_reflect_index_),
         dependency_reflect_pending_ (v.dependency_reflect_pending_),
@@ -289,8 +286,7 @@ namespace bpkg
     dependent_vars_.clear ();
     dependent_orgs_.clear ();
 
-    reflect_vars_.clear ();
-    reflect_frag_.clear ();
+    reflect_.clear ();
 
     dependency_reflect_.clear ();
     dependency_reflect_index_ = 0;
@@ -380,36 +376,6 @@ namespace bpkg
       assert (!out_root);
   }
 
-  // Serialize a variable assignment for a buildfile fragment.
-  //
-  static void
-  serialize_buildfile (string& r,
-                       const string& var, const build2::value& val,
-                       build2::names& storage)
-  {
-    using namespace build2;
-
-    r += var;
-    r += " = ";
-
-    if (val.null)
-      r += "[null]";
-    else
-    {
-      storage.clear ();
-      names_view nv (reverse (val, storage));
-
-      if (!nv.empty ())
-      {
-        ostringstream os;
-        to_stream (os, nv, quote_mode::normal, '@');
-        r += os.str ();
-      }
-    }
-
-    r += '\n';
-  }
-
   // Serialize a variable assignment for a command line override.
   //
   static string
@@ -490,7 +456,7 @@ namespace bpkg
     // Should only be called before dependent_config()/evaluate_*().
     //
     assert (dependent_vars_.empty ()     &&
-            reflect_vars_.empty ()       &&
+            reflect_.empty ()            &&
             dependency_reflect_.empty () &&
             available != nullptr         &&
             ctx_ == nullptr);
@@ -623,7 +589,7 @@ namespace bpkg
     // on system package without skeleton info.
     //
     assert (dependent_vars_.empty ()     &&
-            reflect_vars_.empty ()       &&
+            reflect_.empty ()            &&
             dependency_reflect_.empty () &&
             available == nullptr         &&
             system);
@@ -712,7 +678,7 @@ namespace bpkg
     // Should only be called before dependent_config()/evaluate_*().
     //
     assert (dependent_vars_.empty ()     &&
-            reflect_vars_.empty ()       &&
+            reflect_.empty ()            &&
             dependency_reflect_.empty () &&
             available != nullptr         &&
             ctx_ == nullptr);
@@ -847,6 +813,8 @@ namespace bpkg
 
       scope& rs (load ());
 
+      // Evaluate the enable condition.
+      //
       istringstream is ('(' + cond + ')');
       is.exceptions (istringstream::failbit | istringstream::badbit);
 
@@ -897,6 +865,8 @@ namespace bpkg
     }
   }
 
+#if 1
+
   void package_skeleton::
   evaluate_reflect (const string& refl, pair<size_t, size_t> indexes)
   {
@@ -909,10 +879,10 @@ namespace bpkg
     // also argue we should diagnose this case and fail not to cause more
     // confusion.
     //
-    // @@ They could also clash with dependent configuration. Probably should
-    //    be handled in the same way (it's just another type of "user"). Yes,
-    //    since dependent_vars_ are entered as cmd line overrides, this is
-    //    how they are treated (but may need to adjust the diagnostics).
+    // They could also clash with dependent configuration. Probably should be
+    // handled in the same way (it's just another type of "user"). Yes, since
+    // dependent_vars_ are entered as cmd line overrides, this is how they are
+    // treated.
     //
     // It seems like the most straightforward way to achieve the desired
     // semantics with the mechanisms that we have (in other words, without
@@ -921,21 +891,13 @@ namespace bpkg
     // variables set by root.build in conditions, (2) override default values
     // of configuration variables (and those loaded from config.build), and
     // (3) be overriden by configuration variables specified by the user.
-    // Naturally, this approach is not without a few corner cases:
-    //
-    // 1. Append in the reflect clause may not produce the desired result
-    //    (i.e., it will append to the default value in root.build) rather
-    //    than overriding it, as would have happen if it were a real variable
-    //    override.
-    //
-    //    config.hello.x ?= 1 # root.build
-    //    config.hello.x += 2 # reflect clause
+    // Naturally, this approach is probably not without a few corner cases.
     //
     // We may also have configuration values from the previous reflect clause
-    // which we want to "factor in" before evaluating the next enable or
-    // reflect clauses (so that they can use the previously reflected values
-    // or values that are derived from them in root.build). It seems like we
-    // have two options here: either enter them as true overrides similar to
+    // which we want to "factor in" before evaluating the next clause (enable,
+    // reflect etc.; so that they can use the previously reflected values or
+    // values that are derived from them in root.build). It seems like we have
+    // two options here: either enter them as true overrides similar to
     // config_vars_ or just evaluate them similar to loading config.build
     // (which, BTW, we might have, in case of an external package). The big
     // problem with the former approach is that it will then prevent any
@@ -946,9 +908,321 @@ namespace bpkg
     // responsibility of the package author (who is in control of both
     // root.build and manifest) to arrange for suitable compartmentalization.
     //
-    // BTW, a plan B would be to restrict reflect to just config vars in which
-    // case we could merge them with true overrides. Though how exactly would
-    // we do this merging is unclear. Hm, but they are config vars...
+    try
+    {
+      // Note: similar in many respects to evaluate_enable().
+      //
+      using namespace build2;
+      using config::variable_origin;
+      using build2::diag_record;
+      using build2::fail;
+      using build2::info;
+      using build2::endf;
+
+      // Drop the state from the previous evaluation of prefer/accept if it's
+      // from the wrong position.
+      //
+      optional<size_t> dependency_var_prefixes_pending;
+      if (prefer_accept_)
+      {
+        if (*prefer_accept_ != indexes)
+        {
+          ctx_ = nullptr;
+          prefer_accept_ = nullopt;
+        }
+        else
+        {
+          // This could theoretically happen if we make a copy of the skeleton
+          // after evaluate_prefer_accept() and then attempt to continue with
+          // the call on the copy to evaluate_reflect() passing the same
+          // position. But it doesn't appear our usage should trigger this.
+          //
+          assert (ctx_ != nullptr);
+
+          dependency_var_prefixes_pending = dependency_var_prefixes_pending_;
+        }
+      }
+
+      scope& rs (load ());
+
+      // Collect all the set config.<name>.* variables on the first pass and
+      // filter out unchanged on the second.
+      //
+      // Note: a lot of this code is inspired by the config module.
+      //
+      struct rvar
+      {
+        const variable* var;
+        const value*    val;
+        size_t          ver;
+      };
+
+      class rvars: public vector<rvar>
+      {
+      public:
+        pair<iterator, bool>
+        insert (const rvar& v)
+        {
+          auto i (find_if (begin (), end (),
+                           [&v] (const rvar& o) {return v.var == o.var;}));
+          if (i != end ())
+            return make_pair (i, false);
+
+          push_back (v);
+          return make_pair (--end (), true);
+        }
+      };
+
+      rvars vars;
+
+      auto process = [this, &rs, &vars] (bool collect)
+      {
+        // @@ TODO: would be nice to verify no bogus variables are set (can
+        //    probably only be done via the saved variables map).
+
+        for (auto p (rs.vars.lookup_namespace (var_prefix_));
+             p.first != p.second;
+             ++p.first)
+        {
+          const variable& var (p.first->first);
+
+          // This can be one of the overrides (__override, __prefix, etc),
+          // which we skip.
+          //
+          if (var.override ())
+            continue;
+
+          // What happens to version if overriden? A: appears to be still
+          // incremented!
+          //
+          const variable_map::value_data& val (p.first->second);
+
+          if (collect)
+            vars.insert (rvar {&var, nullptr, val.version});
+          else
+          {
+            auto p (vars.insert (rvar {&var, &val, 0}));
+
+            if (!p.second)
+            {
+              auto i (p.first);
+
+              if (i->ver == val.version)
+                vars.erase (i); // Unchanged.
+              else
+                i->val = &val;
+            }
+          }
+        }
+      };
+
+      // Evaluate the reflect clause.
+      //
+      istringstream is (refl);
+      is.exceptions (istringstream::failbit | istringstream::badbit);
+
+      path_name in ("<depends-reflect-clause>");
+      uint64_t il (1);
+
+      // Note: keep it active until the end (see the override detection).
+      //
+      auto df = build2::make_diag_frame (
+        [this, &refl, &rs, depends_index] (const build2::diag_record& dr)
+        {
+          // Probably safe to assume a one-line fragment contains a variable
+          // assignment.
+          //
+          if (refl.find ('\n') == string::npos)
+            dr << info << "reflect variable: " << trim (string (refl));
+          else
+            dr << info << "reflect clause:\n"
+               << trim_right (string (refl));
+
+          // For external packages we have the manifest so print the
+          // location of the depends value in questions.
+          //
+          if (rs.out_eq_src ())
+            dr << info << "in depends manifest value of package "
+               << package.name;
+          else
+            depends_location (dr,
+                              rs.src_path () / manifest_file,
+                              depends_index);
+        });
+
+      lexer l (is, in, il /* start line */);
+      buildfile_parser p (rs.ctx,
+                          dependency_var_prefixes_,
+                          dependency_var_prefixes_pending);
+
+      process (true);
+      p.parse_buildfile (l, &rs, rs);
+      process (false);
+
+      // Add to the vars set the reflect variables collected previously.
+      //
+      auto& vp (rs.var_pool ());
+      for (const reflect_variable_value& v: reflect_)
+      {
+        const variable* var (vp.find (v.name));
+        assert (var != nullptr); // Must be there (set by load()).
+
+        auto p (vars.insert (rvar {var, nullptr, 0}));
+
+        if (p.second)
+          p.first->val = rs.vars[*var].value; // Must be there (set by load()).
+      }
+
+      // Re-populate everything from the var set but try to re-use buffers as
+      // much a possible (normally we would just be appending more variables
+      // at the end).
+      //
+      reflect_.resize (vars.size ());
+
+      // Collect the config.<name>.* variables that were changed by this
+      // and previous reflect clauses.
+      //
+      for (size_t i (0); i != vars.size (); ++i)
+      {
+        const variable& var (*vars[i].var);
+        const value& val (*vars[i].val);
+
+        pair<variable_origin, lookup> ol (
+          config::origin (rs,
+                          var,
+                          pair<lookup, size_t> {
+                            lookup {val, var, rs.vars}, 1 /* depth */}));
+
+        reflect_variable_value& v (reflect_[i]);
+        v.name = var.name;
+        v.origin = ol.first;
+
+        if (ol.first == variable_origin::override_)
+        {
+          // Detect an overridden reflect value, but allowing it if the values
+          // match (think both user/dependent and reflect trying to enable the
+          // same feature).
+          //
+          // What would be the plausible scenarios for an override?
+          //
+          // 1. Append override that adds some backend or some such to the
+          //    reflect value.
+          //
+          // 2. A reflect may enable a feature based on the dependency
+          //    alternative selected (e.g., I see we are using Qt6 so we might
+          //    as well enable feature X). The user may want do disable it
+          //    with an override.
+          //
+          // Note also that a sufficiently smart reflect clause can detect if
+          // a variable is overridden (with $config.origin()) and avoid the
+          // clash. Perhaps that should be the recommendation for reflect
+          // variables that can also plausibly be set by the user (it feels
+          // like configuration variables have the intf/impl split similar
+          // to libraries)?
+          //
+          if (val != *ol.second)
+          {
+            // See if this is a dependent or user override.
+            //
+            const package_key* d (nullptr);
+            {
+              for (size_t i (0); i != dependent_vars_.size (); ++i)
+              {
+                const string& v (dependent_vars_[i]);
+                size_t n (var.name.size ());
+                if (v.compare (0, n, var.name) == 0 && v[n] == '=')
+                {
+                  d = &dependent_orgs_[i];
+                  break;
+                }
+              }
+            }
+
+            diag_record dr (fail);
+
+            dr << "reflect variable " << var << " overriden by ";
+
+            if (d != nullptr)
+              dr << "dependent " << *d;
+            else
+              dr << "user configuration";
+
+            names storage;
+            dr << info << "reflect value: "
+               << serialize_cmdline (var.name, val, storage);
+
+            dr << info << (d != nullptr ? "dependent" : "user") << " value: "
+               << serialize_cmdline (var.name, *ol.second, storage);
+          }
+
+          // Skipped in load(), collect_config(), but used in print_config().
+        }
+        else
+        {
+          assert (ol.first == variable_origin::buildfile);
+
+          // Note that we keep it always untyped letting the config directives
+          // in root.build to take care of typing.
+          //
+          v.value = reverse_value (val);
+        }
+      }
+
+      // Drop the build system state since it needs reloading (some computed
+      // values in root.build may depend on the new configuration values).
+      //
+      ctx_ = nullptr;
+    }
+    catch (const build2::failed&)
+    {
+      throw failed (); // Assume the diagnostics has already been issued.
+    }
+  }
+
+#else
+
+  // @@ TMP: keep this in dep-config-neg but drop in master.
+
+  void package_skeleton::
+  evaluate_reflect (const string& refl, pair<size_t, size_t> indexes)
+  {
+    size_t depends_index (indexes.first);
+
+    // The reflect configuration variables are essentially overrides that will
+    // be passed on the command line when we configure the package. They could
+    // clash with configuration variables specified by the user (config_vars_)
+    // and it feels like user values should take precedence. Though one could
+    // also argue we should diagnose this case and fail not to cause more
+    // confusion.
+    //
+    // They could also clash with dependent configuration. Probably should be
+    // handled in the same way (it's just another type of "user"). Yes, since
+    // dependent_vars_ are entered as cmd line overrides, this is how they are
+    // treated.
+    //
+    // It seems like the most straightforward way to achieve the desired
+    // semantics with the mechanisms that we have (in other words, without
+    // inventing another "level" of overrides) is to evaluate the reflect
+    // fragment after loading root.build. This way it will (1) be able to use
+    // variables set by root.build in conditions, (2) override default values
+    // of configuration variables (and those loaded from config.build), and
+    // (3) be overriden by configuration variables specified by the user.
+    // Naturally, this approach is probably not without a few corner cases.
+    //
+    // We may also have configuration values from the previous reflect clause
+    // which we want to "factor in" before evaluating the next clause (enable,
+    // reflect etc.; so that they can use the previously reflected values or
+    // values that are derived from them in root.build). It seems like we have
+    // two options here: either enter them as true overrides similar to
+    // config_vars_ or just evaluate them similar to loading config.build
+    // (which, BTW, we might have, in case of an external package). The big
+    // problem with the former approach is that it will then prevent any
+    // further reflect clauses from modifying the same values.
+    //
+    // So overall it feels like we have iterative/compartmentalized
+    // configuration process. A feedback loop, in a sense. And it's the
+    // responsibility of the package author (who is in control of both
+    // root.build and manifest) to arrange for suitable compartmentalization.
     //
     try
     {
@@ -1225,6 +1499,8 @@ namespace bpkg
           ovr = rs.lookup_override (var, org);
 #else
           // @@ TODO: probably also depends, not just user.
+          // @@ TODO: maybe we should allow if the same value (say a bool
+          //          feature set to true but both)?!
 
           fail << "command line override of reflect clause variable " << var
                << endf;
@@ -1249,6 +1525,8 @@ namespace bpkg
       throw failed (); // Assume the diagnostics has already been issued.
     }
   }
+
+#endif
 
   bool package_skeleton::
   evaluate_prefer_accept (const dependency_configurations& cfgs,
@@ -1365,7 +1643,7 @@ namespace bpkg
         }
       }
 
-      // Evaluate the accept clause.
+      // Evaluate the accept condition.
       //
       bool r;
       {
@@ -1884,7 +2162,7 @@ namespace bpkg
       load_old_config ();
 
     return (dependent_vars_.empty () &&
-            reflect_vars_.empty ()   &&
+            reflect_.empty ()        &&
             find_if (config_vars_.begin (), config_vars_.end (),
                      [this] (const string& v)
                      {
@@ -1909,6 +2187,8 @@ namespace bpkg
   void package_skeleton::
   print_config (ostream& os, const char* indent)
   {
+    using build2::config::variable_origin;
+
     if (!loaded_old_config_)
       load_old_config ();
 
@@ -1926,6 +2206,12 @@ namespace bpkg
     };
 
     // NOTE: see also empty_print() if changing anything here.
+
+    // @@ TODO: we could have added the package itself to "set by ..."
+    //    for overriden (to the same value) reflect. But then why not
+    //    do the same for dependent that is overriden by user (we could
+    //    have kept them as reflect_variable_values rather than strings)?
+    //    Maybe one day.
 
     // First comes the user configuration.
     //
@@ -1960,11 +2246,15 @@ namespace bpkg
                 << d << ')';
     }
 
-    // Finally reflect.
+    // Finally reflect (but skip overriden).
     //
-    for (const string& v: reflect_vars_)
+    for (const reflect_variable_value& v: reflect_)
     {
-      print (v) << " (" << (system ? "expected" : "set") << " by "
+      if (v.origin == variable_origin::override_)
+        continue;
+
+      string s (serialize_cmdline (v.name, v.value));
+      print (s) << " (" << (system ? "expected" : "set") << " by "
                 << package.name << ')';
     }
   }
@@ -1973,6 +2263,8 @@ namespace bpkg
   collect_config () &&
   {
     assert (db_ != nullptr); // Must be called only once.
+
+    using build2::config::variable_origin;
 
     if (!loaded_old_config_)
       load_old_config ();
@@ -1985,7 +2277,7 @@ namespace bpkg
 
     if (size_t n = (config_vars_.size () +
                     dependent_vars_.size () +
-                    reflect_vars_.size ()))
+                    reflect_.size ()))
     {
       // For vars we will steal the first non-empty *_vars_. But for sources
       // reserve the space.
@@ -2058,23 +2350,20 @@ namespace bpkg
 
       // Finally reflect.
       //
-      if (!reflect_vars_.empty ())
+      if (!reflect_.empty ())
       {
+        vars.reserve (n);
+
         // These are all project variables. There should also be no duplicates
         // by construction (see evaluate_reflect()).
         //
-        for (const string& v: reflect_vars_)
-          srcs.push_back (
-            config_variable {var_name (v), config_source::reflect});
-
-        if (vars.empty ())
-          vars = move (reflect_vars_);
-        else
+        for (const reflect_variable_value& v: reflect_)
         {
-          vars.reserve (n);
-          vars.insert (vars.end (),
-                       make_move_iterator (reflect_vars_.begin ()),
-                       make_move_iterator (reflect_vars_.end ()));
+          if (v.origin == variable_origin::override_)
+            continue;
+
+          vars.push_back (serialize_cmdline (v.name, v.value));
+          srcs.push_back (config_variable {v.name, config_source::reflect});
         }
       }
     }
@@ -2333,9 +2622,9 @@ namespace bpkg
       scope& rs (*rsi->second.front ());
 
       // Load project's root.build as well as potentially accumulated reflect
-      // fragment.
+      // variables.
       //
-      // If we have the accumulated reflect fragment, wedge it just before
+      // If we have the accumulated reflect variables, wedge them just before
       // loading root.build (but after initializing config which may load
       // config.build and which we wish to override).
       //
@@ -2356,11 +2645,11 @@ namespace bpkg
         bool defaults;
       } d {rs, cfgs, defaults};
 
-      if (!reflect_frag_.empty ()       ||
-          !dependency_reflect_.empty () ||
-          !cfgs.empty ())
+      if (!cfgs.empty ()     ||
+          !reflect_.empty () ||
+          !dependency_reflect_.empty ())
       {
-        pre = [this, &d] (parser& p)
+        pre = [this, &d] (parser&)
         {
           scope& rs (d.rs);
 
@@ -2378,16 +2667,18 @@ namespace bpkg
             return rs.var_pool ().insert (name, vt);
           };
 
-          if (!reflect_frag_.empty ())
+          for (const reflect_variable_value& v: reflect_)
           {
-            istringstream is (reflect_frag_);
-            is.exceptions (istringstream::failbit | istringstream::badbit);
+            if (v.origin == variable_origin::override_)
+              continue;
 
-            // Note that the fragment is just a bunch of variable assignments
-            // and thus unlikely to cause any errors.
-            //
-            path_name in ("<accumulated-reflect-fragment>");
-            p.parse_buildfile (is, in, &rs, rs);
+            const variable& var (insert_var (v.name, v.type)); // Note: untyped.
+            value& val (rs.assign (var));
+
+            if (v.value)
+              val.assign (names (*v.value), &var);
+            else
+              val = nullptr;
           }
 
           // Note that for now we don't bother setting overridden reflect
