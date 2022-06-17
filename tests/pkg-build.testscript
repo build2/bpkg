@@ -342,6 +342,40 @@
 # |   |-- baz-1.0.0.tar.gz      -> liba {prefer {...} accept (...)}
 # |   `-- repositories.manifest
 # |
+# |-- t13l
+# |   |-- liba-0.1.0.tar.gz
+# |   |-- libb-0.1.0.tar.gz
+# |   |-- bar-1.0.0.tar.gz      -> liba {require {...}},
+# |   |                            libb ? (...)
+# |   |-- baz-1.0.0.tar.gz      -> liba {prefer {...} accept (...)},
+# |   |                            libb ? (...)
+# |   `-- repositories.manifest
+# |
+# |-- t13m
+# |   |-- liba-0.1.0.tar.gz
+# |   |-- bar-1.0.0.tar.gz      -> liba {require {...}}
+# |   |-- baz-1.0.0.tar.gz      -> liba {require {...}},
+# |   |                            bar  { enable (...) reflect {...}}
+# |   |-- biz-1.0.0.tar.gz      -> liba {require {...}}
+# |   |-- bix-1.0.0.tar.gz      -> liba {require {...}}
+# |   |-- box-1.0.0.tar.gz      -> liba {require {...}}
+# |   `-- repositories.manifest
+# |
+# |-- t13n
+# |   |-- liba-0.1.0.tar.gz
+# |   |-- libb-0.1.0.tar.gz
+# |   |-- bar-1.0.0.tar.gz      -> liba {reflect {...}},
+# |   |                            libb {reflect {...}}
+# |   `-- repositories.manifest
+# |
+# |-- t13o
+# |   |-- liba-0.1.0.tar.gz
+# |   |-- bar-1.0.0.tar.gz      -> liba {reflect {...}}
+# |   |-- baz-1.0.0.tar.gz      -> bar  {require {...}}
+# |   |-- biz-1.0.0.tar.gz      -> bar  {prefer {...} accept (...)}
+# |   |-- bix-1.0.0.tar.gz      -> bar  {prefer {...} accept (...)}
+# |   `-- repositories.manifest
+# |
 # `-- git
 #     |-- libbar.git            -> style-basic.git (prerequisite repository)
 #     |-- libbaz.git
@@ -387,6 +421,10 @@ posix = ($cxx.target.class != 'windows')
   cp -r $src/t13i $out/t13i && $rep_create $out/t13i &$out/t13i/packages.manifest
   cp -r $src/t13j $out/t13j && $rep_create $out/t13j &$out/t13j/packages.manifest
   cp -r $src/t13k $out/t13k && $rep_create $out/t13k &$out/t13k/packages.manifest
+  cp -r $src/t13l $out/t13l && $rep_create $out/t13l &$out/t13l/packages.manifest
+  cp -r $src/t13m $out/t13m && $rep_create $out/t13m &$out/t13m/packages.manifest
+  cp -r $src/t13n $out/t13n && $rep_create $out/t13n &$out/t13n/packages.manifest
+  cp -r $src/t13o $out/t13o && $rep_create $out/t13o &$out/t13o/packages.manifest
 
   # Create git repositories.
   #
@@ -5018,6 +5056,7 @@ test.options += --no-progress
           %.*
           build plan:
             configure sys:libfoo/*
+              config.libfoo.extras=true (expected by foo)
             new foo/1.0.0
             new fox/1.0.0
           %.*
@@ -12268,6 +12307,765 @@ test.options += --no-progress
             info: configuration before negotiation:
               config.liba.buffer=8192 (set by baz)
           EOE
+      }
+    }
+
+    : proj-require-system
+    :
+    {
+      +$clone_root_cfg && $rep_add $rep/t13l && $rep_fetch
+
+      : bar
+      :
+      {
+        +$clone_cfg
+
+        : basic
+        :
+        {
+          $clone_cfg;
+
+          $* bar 2>>~%EOE%;
+            build plan:
+              new liba/1.0.0 (required by bar)
+                config.liba.x=true (set by bar)
+              new libb/1.0.0 (required by bar)
+              new bar/1.0.0
+            fetched liba/1.0.0
+            unpacked liba/1.0.0
+            fetched libb/1.0.0
+            unpacked libb/1.0.0
+            fetched bar/1.0.0
+            unpacked bar/1.0.0
+            configured liba/1.0.0
+            configured libb/1.0.0
+            configured bar/1.0.0
+            %info: .+bar.+ is up to date%
+            updated bar/1.0.0
+            EOE
+
+          $pkg_status -r >>EOO;
+            !bar configured 1.0.0
+              liba configured 1.0.0
+              libb configured 1.0.0
+            EOO
+
+          cat cfg/liba-1.0.0/build/config.build >>~%EOO%;
+            %.*
+            config.liba.x = true
+            EOO
+
+          $pkg_drop bar
+        }
+
+        : sys-liba-1
+        :
+        {
+          $clone_cfg;
+
+          $* bar '?sys:liba' 2>>~%EOE%;
+            build plan:
+              configure sys:liba/*
+                config.liba.x=true (expected by bar)
+              new libb/1.0.0 (required by bar)
+              new bar/1.0.0
+            fetched libb/1.0.0
+            unpacked libb/1.0.0
+            fetched bar/1.0.0
+            unpacked bar/1.0.0
+            configured sys:liba/*
+            configured libb/1.0.0
+            configured bar/1.0.0
+            %info: .+bar.+ is up to date%
+            updated bar/1.0.0
+            EOE
+
+          $pkg_status -r >>EOO;
+            !bar configured 1.0.0
+              liba configured,system !* available 1.0.0
+              libb configured 1.0.0
+            EOO
+
+          $pkg_drop bar
+        }
+
+        : sys-liba-2
+        :
+        {
+          $clone_cfg;
+
+          $* bar '?sys:liba' +{ config.liba.x=false } 2>>EOE != 0
+            error: unable to negotiate acceptable configuration with dependent bar for dependencies liba
+              info: configuration before negotiation:
+                config.liba.x=false (user configuration)
+            EOE
+        }
+
+        : bar-sys-liba-3
+        :
+        {
+          $clone_cfg;
+
+          $* bar '?sys:liba' +{ config.liba.x=[null] } 2>>EOE != 0
+            error: unable to negotiate acceptable configuration with dependent bar for dependencies liba
+              info: configuration before negotiation:
+                config.liba.x=[null] (user configuration)
+            EOE
+        }
+
+        : sys-liba-4
+        :
+        {
+          $clone_cfg;
+
+          $* bar '?sys:liba' +{ config.liba.x=true } 2>>~%EOE%;
+            build plan:
+              configure sys:liba/*
+                config.liba.x=true (expected user configuration)
+              new libb/1.0.0 (required by bar)
+              new bar/1.0.0
+            fetched libb/1.0.0
+            unpacked libb/1.0.0
+            fetched bar/1.0.0
+            unpacked bar/1.0.0
+            configured sys:liba/*
+            configured libb/1.0.0
+            configured bar/1.0.0
+            %info: .+bar.+ is up to date%
+            updated bar/1.0.0
+            EOE
+
+          $pkg_status -r >>EOO;
+            !bar configured 1.0.0
+              liba configured,system !* available 1.0.0
+              libb configured 1.0.0
+            EOO
+
+          $pkg_drop bar
+        }
+      }
+
+      : baz
+      :
+      {
+        +$clone_cfg
+
+        : basic
+        :
+        {
+          $clone_cfg;
+
+          $* baz 2>>~%EOE%;
+            build plan:
+              new liba/1.0.0 (required by baz)
+                config.liba.x=true (set by baz)
+              new libb/1.0.0 (required by baz)
+              new baz/1.0.0
+            fetched liba/1.0.0
+            unpacked liba/1.0.0
+            fetched libb/1.0.0
+            unpacked libb/1.0.0
+            fetched baz/1.0.0
+            unpacked baz/1.0.0
+            configured liba/1.0.0
+            configured libb/1.0.0
+            configured baz/1.0.0
+            %info: .+baz.+ is up to date%
+            updated baz/1.0.0
+            EOE
+
+          $pkg_status -r >>EOO;
+            !baz configured 1.0.0
+              liba configured 1.0.0
+              libb configured 1.0.0
+            EOO
+
+          cat cfg/liba-1.0.0/build/config.build >>~%EOO%;
+            %.*
+            config.liba.x = true
+            EOO
+
+          $pkg_drop baz
+        }
+
+        : sys-liba-1
+        :
+        {
+          $clone_cfg;
+
+          $* baz '?sys:liba' +{ config.liba.x=false } 2>>EOE != 0
+            error: unable to negotiate configuration for system dependency liba without configuration information
+              info: consider specifying system dependency version that has corresponding available package
+              info: dependent baz has prefer/accept clauses that cannot be evaluated without configuration information
+            EOE
+        }
+
+        : sys-liba-2
+        :
+        {
+          $clone_cfg;
+
+          $* baz '?sys:liba/1.0.0' 2>>~%EOE%;
+            build plan:
+              configure sys:liba/1.0.0
+                config.liba.x=true (expected by baz)
+              new libb/1.0.0 (required by baz)
+              new baz/1.0.0
+            fetched libb/1.0.0
+            unpacked libb/1.0.0
+            fetched baz/1.0.0
+            unpacked baz/1.0.0
+            configured sys:liba/1.0.0
+            configured libb/1.0.0
+            configured baz/1.0.0
+            %info: .+baz.+ is up to date%
+            updated baz/1.0.0
+            EOE
+
+          $pkg_status -r >>EOO;
+            !baz configured 1.0.0
+              liba configured,system !1.0.0
+              libb configured 1.0.0
+            EOO
+
+          $pkg_drop baz
+        }
+
+        : sys-liba-3
+        :
+        {
+          $clone_cfg;
+
+          $* baz '?sys:liba/1.0.0' +{ config.liba.x=false } 2>>EOE != 0
+            error: unable to negotiate acceptable configuration with dependent baz for dependencies liba
+              info: configuration before negotiation:
+                config.liba.x=false (user configuration)
+            EOE
+        }
+
+        : bar-sys-liba-4
+        :
+        {
+          $clone_cfg;
+
+          $* baz '?sys:liba/1.0.0' +{ config.liba.x=[null] } 2>>/~%EOE% != 0
+            <depends-accept-clause>:1: error: invalid bool value: null
+              info: accept condition: ($config.liba.x)
+              info: in depends manifest value of package baz
+            EOE
+        }
+
+        : sys-liba-5
+        :
+        {
+          $clone_cfg;
+
+          $* baz '?sys:liba/1.0.0' +{ config.liba.x=true } 2>>~%EOE%;
+            build plan:
+              configure sys:liba/1.0.0
+                config.liba.x=true (expected user configuration)
+              new libb/1.0.0 (required by baz)
+              new baz/1.0.0
+            fetched libb/1.0.0
+            unpacked libb/1.0.0
+            fetched baz/1.0.0
+            unpacked baz/1.0.0
+            configured sys:liba/1.0.0
+            configured libb/1.0.0
+            configured baz/1.0.0
+            %info: .+baz.+ is up to date%
+            updated baz/1.0.0
+            EOE
+
+          $pkg_status -r >>EOO;
+            !baz configured 1.0.0
+              liba configured,system !1.0.0
+              libb configured 1.0.0
+            EOO
+
+          $pkg_drop baz
+        }
+      }
+    }
+
+    : proj-require-basics
+    :
+    {
+      +$clone_root_cfg && $rep_add $rep/t13m && $rep_fetch
+
+      : bar
+      :
+      {
+        $clone_cfg;
+
+        $* bar 2>>~%EOE%;
+          build plan:
+            new liba/1.0.0 (required by bar)
+              config.liba.x=true (set by bar)
+            new bar/1.0.0
+          fetched liba/1.0.0
+          unpacked liba/1.0.0
+          fetched bar/1.0.0
+          unpacked bar/1.0.0
+          configured liba/1.0.0
+          configured bar/1.0.0
+          %info: .+bar.+ is up to date%
+          updated bar/1.0.0
+          EOE
+
+        $pkg_status -r >>EOO;
+          !bar configured 1.0.0
+            liba configured 1.0.0
+          EOO
+
+        cat cfg/liba-1.0.0/build/config.build >>~%EOO%;
+          %.*
+          config.liba.x = true
+          config.liba.y = false
+          config.liba.n = 1024
+          EOO
+
+        $pkg_drop bar
+      }
+
+      : baz
+      :
+      {
+        $clone_cfg;
+
+        $* baz 2>>~%EOE%;
+          build plan:
+            new liba/1.0.0 (required by bar, baz)
+              config.liba.y=true (set by baz)
+              config.liba.x=true (set by bar)
+            new bar/1.0.0 (required by baz)
+            new baz/1.0.0
+              config.baz.bar=true (set by baz)
+          fetched liba/1.0.0
+          unpacked liba/1.0.0
+          fetched bar/1.0.0
+          unpacked bar/1.0.0
+          fetched baz/1.0.0
+          unpacked baz/1.0.0
+          configured liba/1.0.0
+          configured bar/1.0.0
+          configured baz/1.0.0
+          %info: .+baz.+ is up to date%
+          updated baz/1.0.0
+          EOE
+
+        $pkg_status -r >>EOO;
+          !baz configured 1.0.0
+            bar configured 1.0.0
+              liba configured 1.0.0
+            liba configured 1.0.0
+          EOO
+
+        cat cfg/liba-1.0.0/build/config.build >>~%EOO%;
+          %.*
+          config.liba.x = true
+          config.liba.y = true
+          config.liba.n = 1024
+          EOO
+
+        cat cfg/baz-1.0.0/build/config.build >>~%EOO%;
+          %.*
+          config.baz.bar = true
+          EOO
+
+        $pkg_drop baz
+      }
+
+      : biz
+      :
+      {
+        $clone_cfg;
+
+        $* biz 2>>EOE != 0
+          error: configuration variable config.liba.x is not set to true
+            info: config.liba.x set in require clause of dependent biz
+            info: require clause:
+              config.liba.x = false # Error: not true
+            info: in depends manifest value of package biz
+          EOE
+      }
+
+      : bix
+      :
+      {
+        $clone_cfg;
+
+        $* bix 2>>EOE != 0
+          error: configuration variable config.liba.n is not of bool type
+            info: config.liba.n set in require clause of dependent bix
+            info: require clause:
+              config.liba.n = 1    # Error: not bool
+            info: in depends manifest value of package bix
+          EOE
+      }
+
+      : box
+      :
+      {
+        $clone_cfg;
+
+        $* box 2>>EOE != 0
+          error: package liba has no configuration variable config.liba.z
+            info: config.liba.z set in require clause of dependent box
+            info: require clause:
+              config.liba.z = true # Error: no such variable
+            info: in depends manifest value of package box
+          EOE
+      }
+    }
+
+    : proj-reflect-append
+    :
+    {
+      +$clone_root_cfg && $rep_add $rep/t13n && $rep_fetch
+
+      : bar
+      :
+      {
+        $clone_cfg;
+
+        $* bar 2>>~%EOE%;
+          build plan:
+            new liba/1.0.0 (required by bar)
+            new libb/1.0.0 (required by bar)
+            new bar/1.0.0
+              config.bar.libs=liba libb (set by bar)
+              config.bar.x=true (set by bar)
+              config.bar.y=true (set by bar)
+          fetched liba/1.0.0
+          unpacked liba/1.0.0
+          fetched libb/1.0.0
+          unpacked libb/1.0.0
+          fetched bar/1.0.0
+          unpacked bar/1.0.0
+          configured liba/1.0.0
+          configured libb/1.0.0
+          configured bar/1.0.0
+          %info: .+bar.+ is up to date%
+          updated bar/1.0.0
+          EOE
+
+        $pkg_status -r >>EOO;
+          !bar configured 1.0.0
+            liba configured 1.0.0
+            libb configured 1.0.0
+          EOO
+
+        cat cfg/bar-1.0.0/build/config.build >>~%EOO%;
+          %.*
+          config.bar.x = true
+          config.bar.y = true
+          config.bar.libs = liba libb
+          EOO
+
+        $pkg_drop bar
+      }
+    }
+
+    : proj-reflect-override
+    :
+    {
+      +$clone_root_cfg && $rep_add $rep/t13o && $rep_fetch
+
+      : bar
+      :
+      {
+        $clone_cfg;
+
+        $* bar 2>>~%EOE%;
+          build plan:
+            new liba/1.0.0 (required by bar)
+            new bar/1.0.0
+              config.bar.x=true (set by bar)
+              config.bar.y=true (set by bar)
+              config.bar.z=true (set by bar)
+          fetched liba/1.0.0
+          unpacked liba/1.0.0
+          fetched bar/1.0.0
+          unpacked bar/1.0.0
+          configured liba/1.0.0
+          configured bar/1.0.0
+          %info: .+bar.+ is up to date%
+          updated bar/1.0.0
+          EOE
+
+        $pkg_status -r >>EOO;
+          !bar configured 1.0.0
+            liba configured 1.0.0
+          EOO
+
+        cat cfg/bar-1.0.0/build/config.build >>~%EOO%;
+          %.*
+          config.bar.x = true
+          config.bar.y = true
+          config.bar.z = true
+          EOO
+
+        $pkg_drop bar
+      }
+
+      : bar-config-1
+      :
+      {
+        $clone_cfg;
+
+        $* config.bar.y=true -- bar 2>>~%EOE%;
+          build plan:
+            new liba/1.0.0 (required by bar)
+            new bar/1.0.0
+              config.bar.y=true (user configuration)
+              config.bar.x=true (set by bar)
+              config.bar.z=true (set by bar)
+          fetched liba/1.0.0
+          unpacked liba/1.0.0
+          fetched bar/1.0.0
+          unpacked bar/1.0.0
+          configured liba/1.0.0
+          configured bar/1.0.0
+          %info: .+bar.+ is up to date%
+          updated bar/1.0.0
+          EOE
+
+        $pkg_status -r >>EOO;
+          !bar configured 1.0.0
+            liba configured 1.0.0
+          EOO
+
+        cat cfg/bar-1.0.0/build/config.build >>~%EOO%;
+          %.*
+          config.bar.x = true
+          config.bar.y = true
+          config.bar.z = true
+          EOO
+
+        $pkg_drop bar
+      }
+
+      : bar-config-2
+      :
+      {
+        $clone_cfg;
+
+        $* config.bar.y=false -- bar 2>>EOE != 0
+          error: reflect variable config.bar.y overriden by user configuration
+            info: reflect value: config.bar.y=true
+            info: user value: config.bar.y=false
+            info: reflect clause:
+              config.bar.x = true
+              config.bar.y = true
+              if ($config.origin(config.bar.z) != 'override')
+                config.bar.z = true
+            info: in depends manifest value of package bar
+          info: while satisfying bar/1.0.0
+          EOE
+      }
+
+      : bar-config-3
+      :
+      {
+        $clone_cfg;
+
+        $* config.bar.z=false -- bar 2>>~%EOE%;
+          build plan:
+            new liba/1.0.0 (required by bar)
+            new bar/1.0.0
+              config.bar.z=false (user configuration)
+              config.bar.x=true (set by bar)
+              config.bar.y=true (set by bar)
+          fetched liba/1.0.0
+          unpacked liba/1.0.0
+          fetched bar/1.0.0
+          unpacked bar/1.0.0
+          configured liba/1.0.0
+          configured bar/1.0.0
+          %info: .+bar.+ is up to date%
+          updated bar/1.0.0
+          EOE
+
+        $pkg_status -r >>EOO;
+          !bar configured 1.0.0
+            liba configured 1.0.0
+          EOO
+
+        cat cfg/bar-1.0.0/build/config.build >>~%EOO%;
+          %.*
+          config.bar.x = true
+          config.bar.y = true
+          config.bar.z = false
+          EOO
+
+        $pkg_drop bar
+      }
+
+      : baz
+      :
+      {
+        $clone_cfg;
+
+        $* baz 2>>~%EOE%;
+          build plan:
+            new liba/1.0.0 (required by bar)
+            new bar/1.0.0 (required by baz)
+              config.bar.y=true (set by baz)
+              config.bar.x=true (set by bar)
+              config.bar.z=true (set by bar)
+            new baz/1.0.0
+          fetched liba/1.0.0
+          unpacked liba/1.0.0
+          fetched bar/1.0.0
+          unpacked bar/1.0.0
+          fetched baz/1.0.0
+          unpacked baz/1.0.0
+          configured liba/1.0.0
+          configured bar/1.0.0
+          configured baz/1.0.0
+          %info: .+baz.+ is up to date%
+          updated baz/1.0.0
+          EOE
+
+        $pkg_status -r >>EOO;
+          !baz configured 1.0.0
+            bar configured 1.0.0
+              liba configured 1.0.0
+          EOO
+
+        cat cfg/bar-1.0.0/build/config.build >>~%EOO%;
+          %.*
+          config.bar.x = true
+          config.bar.y = true
+          config.bar.z = true
+          EOO
+
+        $pkg_drop baz
+      }
+
+      : biz
+      :
+      {
+        $clone_cfg;
+
+        $* biz 2>>EOE != 0
+          error: reflect variable config.bar.y overriden by dependent biz
+            info: reflect value: config.bar.y=true
+            info: dependent value: config.bar.y=false
+            info: reflect clause:
+              config.bar.x = true
+              config.bar.y = true
+              if ($config.origin(config.bar.z) != 'override')
+                config.bar.z = true
+            info: in depends manifest value of package bar
+          info: while satisfying bar/1.0.0
+          EOE
+      }
+
+      : biz-bar
+      :
+      {
+        $clone_cfg;
+
+        $* biz ?bar +{ config.bar.y=false } 2>>EOE != 0
+          error: reflect variable config.bar.y overriden by user configuration
+            info: reflect value: config.bar.y=true
+            info: user value: config.bar.y=false
+            info: reflect clause:
+              config.bar.x = true
+              config.bar.y = true
+              if ($config.origin(config.bar.z) != 'override')
+                config.bar.z = true
+            info: in depends manifest value of package bar
+          info: while satisfying bar/1.0.0
+          EOE
+      }
+
+      : bix
+      :
+      {
+        $clone_cfg;
+
+        $* bix 2>>~%EOE%;
+          build plan:
+            new liba/1.0.0 (required by bar)
+            new bar/1.0.0 (required by bix)
+              config.bar.z=false (set by bix)
+              config.bar.x=true (set by bar)
+              config.bar.y=true (set by bar)
+            new bix/1.0.0
+          fetched liba/1.0.0
+          unpacked liba/1.0.0
+          fetched bar/1.0.0
+          unpacked bar/1.0.0
+          fetched bix/1.0.0
+          unpacked bix/1.0.0
+          configured liba/1.0.0
+          configured bar/1.0.0
+          configured bix/1.0.0
+          %info: .+bix.+ is up to date%
+          updated bix/1.0.0
+          EOE
+
+        $pkg_status -r >>EOO;
+          !bix configured 1.0.0
+            bar configured 1.0.0
+              liba configured 1.0.0
+          EOO
+
+        cat cfg/bar-1.0.0/build/config.build >>~%EOO%;
+          %.*
+          config.bar.x = true
+          config.bar.y = true
+          config.bar.z = false
+          EOO
+
+        $pkg_drop bix
+      }
+
+      : bix-bar
+      :
+      {
+        $clone_cfg;
+
+        $* bix ?bar +{ config.bar.z=false } 2>>~%EOE%;
+          build plan:
+            new liba/1.0.0 (required by bar)
+            new bar/1.0.0
+              config.bar.z=false (user configuration)
+              config.bar.x=true (set by bar)
+              config.bar.y=true (set by bar)
+            new bix/1.0.0
+          fetched liba/1.0.0
+          unpacked liba/1.0.0
+          fetched bar/1.0.0
+          unpacked bar/1.0.0
+          fetched bix/1.0.0
+          unpacked bix/1.0.0
+          configured liba/1.0.0
+          configured bar/1.0.0
+          configured bix/1.0.0
+          %info: .+bar.+ is up to date%
+          %info: .+bix.+ is up to date%
+          updated bar/1.0.0
+          updated bix/1.0.0
+          EOE
+
+        $pkg_status -r >>EOO;
+          !bix configured 1.0.0
+            bar configured 1.0.0
+              liba configured 1.0.0
+          EOO
+
+        cat cfg/bar-1.0.0/build/config.build >>~%EOO%;
+          %.*
+          config.bar.x = true
+          config.bar.y = true
+          config.bar.z = false
+          EOO
+
+        $pkg_drop bix
       }
     }
   }
