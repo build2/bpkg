@@ -11666,8 +11666,13 @@ test.options += --no-progress
         $* baz biz 2>>~%EOE%;
           build plan:
             new liba/1.0.0 (required by baz, biz)
+          %(
               config.liba.buffer=10240 (set by baz)
               config.liba.x=true (set by biz)
+          %|
+              config.liba.x=true (set by biz)
+              config.liba.buffer=10240 (set by baz)
+          %)
             new baz/1.0.0
             new biz/1.0.0
           fetched liba/1.0.0
@@ -12213,12 +12218,17 @@ test.options += --no-progress
       {
         $clone_cfg;
 
-        $* bar baz 2>>~%EOE% != 0
+        $* bar baz 2>>/~%EOE% != 0
           error: unable to negotiate sensible configuration for dependency liba
           %  .+/root.build:5:1: error: buffer must be at least 4096 if feature x is enabled%
             info: negotiated configuration:
+          %(
               config.liba.buffer=2048 (set by bar)
               config.liba.x=true (set by baz)
+          %|
+              config.liba.x=true (set by baz)
+              config.liba.buffer=2048 (set by bar)
+          %)
           EOE
       }
 
@@ -12230,8 +12240,13 @@ test.options += --no-progress
         $* biz baz 2>>~%EOE%;
           build plan:
             new liba/1.0.0 (required by baz, biz)
+          %(
               config.liba.buffer=4096 (set by biz)
               config.liba.x=true (set by baz)
+          %|
+              config.liba.x=true (set by baz)
+              config.liba.buffer=4096 (set by biz)
+          %)
             new biz/1.0.0
             new baz/1.0.0
           fetched liba/1.0.0
@@ -12522,7 +12537,7 @@ test.options += --no-progress
         {
           $clone_cfg;
 
-          $* baz '?sys:liba/1.0.0' +{ config.liba.x=[null] } 2>>/~%EOE% != 0
+          $* baz '?sys:liba/1.0.0' +{ config.liba.x=[null] } 2>>EOE != 0
             <depends-accept-clause>:1: error: invalid bool value: null
               info: accept condition: ($config.liba.x)
               info: in depends manifest value of package baz
@@ -12610,8 +12625,13 @@ test.options += --no-progress
         $* baz 2>>~%EOE%;
           build plan:
             new liba/1.0.0 (required by bar, baz)
+          %(
               config.liba.y=true (set by baz)
               config.liba.x=true (set by bar)
+          %|
+              config.liba.x=true (set by bar)
+              config.liba.y=true (set by baz)
+          %)
             new bar/1.0.0 (required by baz)
             new baz/1.0.0
               config.baz.bar=true (set by baz)
@@ -15485,13 +15505,13 @@ else
         %.*
         trace: pkg_build: refine package collection/plan execution from scratch
         %.*
-        trace: collect_build: add libbaz/1.0.0 [t2/]
-        trace: collect_build_prerequisites: begin libbaz/1.0.0 [t2/]
-        trace: collect_build_prerequisites: end libbaz/1.0.0 [t2/]
+        %trace: collect_build: add libbaz/1.0.0 \[t2.\]%
+        %trace: collect_build_prerequisites: begin libbaz/1.0.0 \[t2.\]%
+        %trace: collect_build_prerequisites: end libbaz/1.0.0 \[t2.\]%
         %.*
         trace: collect_build_prerequisites: begin foo/1.0.0
         %.*
-        trace: collect_build_prerequisites: no cfg-clause for dependency libbaz/1.0.0 [t2/] of dependent foo/1.0.0
+        %trace: collect_build_prerequisites: no cfg-clause for dependency libbaz/1.0.0 \[t2.\] of dependent foo/1.0.0%
         trace: collect_build_prerequisites: end foo/1.0.0
         %.*
         trace: execute_plan: simulate: yes
@@ -15507,15 +15527,15 @@ else
         %.*
         trace: pkg_build: refine package collection/plan execution from scratch
         %.*
-        trace: collect_build: add libbaz/1.0.0 [t2/]
-        trace: collect_build_prerequisites: begin libbaz/1.0.0 [t2/]
-        trace: collect_build_prerequisites: end libbaz/1.0.0 [t2/]
+        %trace: collect_build: add libbaz/1.0.0 \[t2.\]%
+        %trace: collect_build_prerequisites: begin libbaz/1.0.0 \[t2.\]%
+        %trace: collect_build_prerequisites: end libbaz/1.0.0 \[t2.\]%
         trace: collect_build: apply version replacement for foo/1.0.0
         trace: collect_build: replacement: drop
         %.*
         trace: execute_plan: simulate: yes
         %.*
-        trace: evaluate_dependency: libbuild2-bar/1.0.0 [t1/.bpkg/build2/]: unused
+        %trace: evaluate_dependency: libbuild2-bar/1.0.0 \[t1..bpkg.build2.\]: unused%
         %.*
         trace: pkg_build: refine package collection/plan execution
         %.*
