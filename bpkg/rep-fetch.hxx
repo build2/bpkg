@@ -54,9 +54,9 @@ namespace bpkg
   // (description, changes, etc), setting them to the contents of files they
   // refer to and set the potentially absent description-type value to the
   // effective description type (see libbpkg/manifest.hxx) and load the
-  // bootstrap and root buildfiles into the respective *-build values. Note
-  // that for pkg repositories such values are expanded/loaded at the
-  // repository creation time.
+  // bootstrap, root, and config/*.build buildfiles into the respective *-build
+  // values. Note that for pkg repositories such values are expanded/loaded at
+  // the repository creation time.
   //
   rep_fetch_data
   rep_fetch (const common_options&,

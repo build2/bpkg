@@ -4932,7 +4932,7 @@ test.options += --no-progress
     }
   }
 
-  : configuration-negotiation-order
+  : config-negotiation-order
   :
   {
     +$clone_root_cfg && $rep_add $rep/t11a && $rep_fetch
@@ -5520,7 +5520,7 @@ test.options += --no-progress
         $pkg_drop foo libfoo
       }
 
-      : dependent-single-position
+      : dependent-single-pos
       :
       {
         +$clone_cfg
@@ -5831,7 +5831,7 @@ test.options += --no-progress
         }
       }
 
-      : dependent-multiple-positions
+      : dependent-mult-pos
       :
       {
         +$clone_cfg
@@ -6151,7 +6151,7 @@ test.options += --no-progress
           $pkg_drop tex baz
         }
 
-        : replace-re-evaluation
+        : replace-reeval
         :
         {
           +$clone_cfg
@@ -11272,7 +11272,7 @@ test.options += --no-progress
     }
   }
 
-  : configuration-negotiation
+  : config-negotiation
   :
   {
     test.arguments += --yes --plan 'build plan:'

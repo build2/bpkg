@@ -3,9 +3,11 @@
 
 #include <bpkg/manifest-utility.hxx>
 
+#include <sstream>
 #include <cstring> // strcspn()
 
 #include <libbutl/b.hxx>
+#include <libbutl/filesystem.hxx>  // dir_iterator
 
 #include <bpkg/package.hxx>        // wildcard_version
 #include <bpkg/diagnostics.hxx>
@@ -357,19 +359,73 @@ namespace bpkg
     }
   }
 
+  // Return the sorted list of *.build files (first) which are present in the
+  // package's build/config/ subdirectory (or their alternatives) together
+  // with the *-build manifest value names they correspond to (second). Skip
+  // files which are already present in the specified list. Note: throws
+  // system_error on filesystem errors.
+  //
+  static vector<pair<path, path>>
+  find_buildfiles (const dir_path& config,
+                   const string& ext,
+                   const vector<buildfile>& bs)
+  {
+    vector<pair<path, path>> r;
+
+    for (const dir_entry& de:
+           dir_iterator (config, false /* ignore_dangling */))
+    {
+      if (de.type () == entry_type::regular)
+      {
+        const path& p (de.path ());
+        const char* e (p.extension_cstring ());
+
+        if (e != nullptr && ext == e)
+        {
+          path f (config.leaf () / p.base ()); // Relative to build/.
+
+          if (find_if (bs.begin (), bs.end (),
+                       [&f] (const auto& v) {return v.path == f;}) ==
+              bs.end ())
+          {
+            r.emplace_back (config / p, move (f));
+          }
+        }
+      }
+    }
+
+    sort (r.begin (), r.end (),
+          [] (const auto& x, const auto& y) {return x.second < y.second;});
+
+    return r;
+  }
+
   string
   package_buildfiles_checksum (const optional<string>& bb,
                                const optional<string>& rb,
-                               const dir_path& d)
+                               const vector<buildfile>& bs,
+                               const dir_path& d,
+                               optional<bool> an)
   {
-    if (bb && rb)
+    if (d.empty ())
     {
+      assert (bb);
+
       sha256 cs (*bb);
-      cs.append (*rb);
+
+      if (rb)
+        cs.append (*rb);
+
+      for (const buildfile& b: bs)
+        cs.append (b.content);
+
       return cs.string ();
     }
 
-    auto checksum = [&bb, &rb] (const path& b, const path& r)
+    auto checksum = [&bb, &rb, &bs] (const path& b,
+                                     const path& r,
+                                     const dir_path& c,
+                                     const string& e)
     {
       sha256 cs;
 
@@ -396,24 +452,176 @@ namespace bpkg
       else
         append_file (b);
 
+      bool root (true);
+
       if (rb)
         cs.append (*rb);
       else if (exists (r))
         append_file (r);
+      else
+        root = false;
+
+      for (const buildfile& b: bs)
+        cs.append (b.content);
+
+      if (root && exists (c))
+      try
+      {
+        for (auto& f: find_buildfiles (c, e, bs))
+          append_file (f.first);
+      }
+      catch (const system_error& e)
+      {
+        fail << "unable to scan directory " << c << ": " << e;
+      }
 
       return string (cs.string ());
     };
 
-    // Check the alternative bootstrap file first since it is more
-    // specific.
+    // Verify that the deduced naming scheme matches the specified one and
+    // fail if that's not the case.
+    //
+    auto verify = [an, &d] (bool alt_naming)
+    {
+      assert (an);
+
+      if (*an != alt_naming)
+        fail << "buildfile naming scheme mismatch between manifest and "
+             << "package directory " << d;
+    };
+
+    // Check the alternative bootstrap file first since it is more specific.
     //
     path bf;
     if (exists (bf = d / alt_bootstrap_file))
-      return checksum (bf, d / alt_root_file);
+    {
+      if (an)
+        verify (true /* alt_naming */);
+
+      return checksum (bf,
+                       d / alt_root_file,
+                       d / alt_config_dir,
+                       alt_build_ext);
+    }
     else if (exists (bf = d / std_bootstrap_file))
-      return checksum (bf, d / std_root_file);
+    {
+      if (an)
+        verify (false /* alt_naming */);
+
+      return checksum (bf,
+                       d / std_root_file,
+                       d / std_config_dir,
+                       std_build_ext);
+    }
     else
       fail << "unable to find bootstrap.build file in package directory "
            << d << endf;
+  }
+
+  void
+  load_package_buildfiles (package_manifest& m, const dir_path& d, bool erp)
+  {
+    auto load_buildfiles = [&m, &d, erp] (const path& b,
+                                          const path& r,
+                                          const dir_path& c,
+                                          const string& ext)
+    {
+      auto diag_path = [&d, erp] (const path& p)
+      {
+        return !erp ? p : p.leaf (d);
+      };
+
+      auto load = [&diag_path] (const path& f)
+      {
+        try
+        {
+          ifdstream ifs (f);
+          string r (ifs.read_text ());
+          ifs.close ();
+          return r;
+        }
+        catch (const io_error& e)
+        {
+          // Sanitize the exception description.
+          //
+          ostringstream os;
+          os << "unable to read from " << diag_path (f) << ": " << e;
+          throw runtime_error (os.str ());
+        }
+      };
+
+      if (!m.bootstrap_build)
+        m.bootstrap_build = load (b);
+
+      if (!m.root_build && exists (r))
+        m.root_build = load (r);
+
+      if (m.root_build && exists (c))
+      try
+      {
+        for (auto& f: find_buildfiles (c, ext, m.buildfiles))
+          m.buildfiles.emplace_back (move (f.second), load (f.first));
+      }
+      catch (const system_error& e)
+      {
+        // Sanitize the exception description.
+        //
+        ostringstream os;
+        os << "unable to scan directory " << diag_path (c) << ": " << e;
+        throw runtime_error (os.str ());
+      }
+    };
+
+    // Set the manifest's alt_naming flag to the deduced value if absent and
+    // verify that it matches otherwise.
+    //
+    auto alt_naming = [&m, &d, erp] (bool v)
+    {
+      if (!m.alt_naming)
+      {
+        m.alt_naming = v;
+      }
+      else if (*m.alt_naming != v)
+      {
+        string e ("buildfile naming scheme mismatch between manifest and "
+                  "package directory");
+
+        if (!erp)
+          e += " " + d.string ();
+
+        throw runtime_error (e);
+      }
+    };
+
+    // Check the alternative bootstrap file first since it is more specific.
+    //
+    path bf;
+    if (exists (bf = d / alt_bootstrap_file))
+    {
+      alt_naming (true);
+
+      load_buildfiles (bf,
+                       d / alt_root_file,
+                       d / alt_config_dir,
+                       alt_build_ext);
+    }
+    else if (exists (bf = d / std_bootstrap_file))
+    {
+      alt_naming (false);
+
+      load_buildfiles (bf,
+                       d / std_root_file,
+                       d / std_config_dir,
+                       std_build_ext);
+    }
+    else
+    {
+      string e ("unable to find bootstrap.build file in package directory");
+
+      if (!erp)
+        e += " " + d.string ();
+
+      throw runtime_error (e);
+    }
   }
 }

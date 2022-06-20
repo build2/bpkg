@@ -175,6 +175,7 @@ namespace bpkg
           : has_buildfile_clause (deps))
         bc = package_buildfiles_checksum (nullopt /* bootstrap_build */,
                                           nullopt /* root_build */,
+                                          {}      /* buildfiles */,
                                           d);
     }
 
@@ -414,10 +415,13 @@ namespace bpkg
 
       if (ap != nullptr)
       {
+        // Note that the available package already has all the buildfiles
+        // loaded.
+        //
         if (has_buildfile_clause (ap->dependencies))
           bc = package_buildfiles_checksum (ap->bootstrap_build,
                                             ap->root_build,
-                                            d);
+                                            ap->buildfiles);
       }
       else
       {
@@ -435,7 +439,9 @@ namespace bpkg
         if (has_buildfile_clause (m.dependencies))
           bc = package_buildfiles_checksum (m.bootstrap_build,
                                             m.root_build,
-                                            d);
+                                            m.buildfiles,
+                                            d,
+                                            m.alt_naming);
       }
     }
 

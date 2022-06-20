@@ -623,6 +623,11 @@ license: <licenses> [; <comment>]
 
 [bootstrap-build]: <text>
 [root-build]: <text>
+[*-build]: <text>
+
+[bootstrap-build2]: <text>
+[root-build2]: <text>
+[*-build2]: <text>
 \
 
 \h2#manifest-package-name|\c{name}|
@@ -1437,17 +1442,51 @@ Note that the comment of the matching exclusion is used by the web interface
 (\c{brep}) to display the reason for the build configuration exclusion.
 
 
-\h2#manifest-package-bootstrap-root-build|\c{{bootstrap,root\}-build}|
+\h2#manifest-package-x-build|\c{{bootstrap,root,*\}-build[2]}|
 
 \
 [bootstrap-build]: <text>
 [root-build]: <text>
+[*-build]: <text>
+
+[bootstrap-build2]: <text>
+[root-build2]: <text>
+[*-build2]: <text>
 \
 
-The contents of the mandatory \c{bootstrap.build} and optional \c{root.build}
-files in the package's \c{build/} (or their alternative names) subdirectory.
-If unspecified, then they will be automatically added, for example, when the
-\l{#manifest-package-list-pkg package list manifest} is created.
+The contents of the mandatory \c{bootstrap.build} file, optional
+\c{root.build} file, and additional files included by \c{root.build}, or their
+alternative naming scheme variants (\c{bootstrap.build2}, etc). Packages with
+the alternative naming scheme should use the \c{*-build2} values instead of
+\c{*-build}.
+
+These files must reside in the package's \c{build/} subdirectory and have the
+\c{.build} extension (or their alternative names). The respective manifest
+value name prefix must be the file path relative to this subdirectory with the
+extension stripped.
+
+As an example, the following value corresponds to the
+\c{build/config/common.build} file:
+
+\
+config/common-build:\
+config [bool] config.libhello.fancy ?= false
+\\
+\
+
+And the following value corresponds to the \c{build2/config/common.build2}
+file in a package with the alternative naming scheme:
+
+\
+config/common-build2:\
+config [bool] config.libhello.fancy ?= false
+\\
+\
+
+If unspecified, then the package's \c{bootstrap.build}, \c{root.build}, and
+\c{build/config/*.build} files (or their alternative names) will be
+automatically added, for example, when the \l{#manifest-package-list-pkg
+package list manifest} is created.
 
 
 \h#manifest-package-list-pkg|Package List Manifest for \cb{pkg} Repositories|

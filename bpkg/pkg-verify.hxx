@@ -22,8 +22,9 @@ namespace bpkg
   // expand the file-referencing manifest values (description, changes, etc),
   // setting them to the contents of files they refer to, set the potentially
   // absent description-type value to the effective description type (see
-  // libbpkg/manifest.hxx), load the bootstrap and root buildfiles into the
-  // respective *-build values, and complete the dependency constraints.
+  // libbpkg/manifest.hxx), load the bootstrap, root, and config/*.build
+  // buildfiles into the respective *-build values, and complete the
+  // dependency constraints.
   //
   // Throw not_package (derived from failed) if this doesn't look like a
   // package. Throw plain failed if this does looks like a package but

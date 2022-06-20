@@ -676,6 +676,7 @@ namespace bpkg
       changed = package_buildfiles_checksum (
         nullopt /* bootstrap_build */,
         nullopt /* root_build */,
+        {}      /* buildfiles */,
         d) != *p->buildfiles_checksum;
     }
 

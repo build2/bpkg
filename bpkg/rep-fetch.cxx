@@ -323,67 +323,21 @@ namespace bpkg
         //
         m.location = move (*pm.location);
 
-        // Load the bootstrap/root buildfiles into the respective *-build
-        // values, if requested and if they are not already specified in the
-        // manifest.
+        // Load the bootstrap, root, and config/*.build buildfiles into the
+        // respective *-build values, if requested and if they are not already
+        // specified in the manifest.
         //
-        if (lb && (!m.bootstrap_build || !m.root_build))
+        if (lb)
+        try
         {
-          const dir_path& d (pds[i]);
-
-          // Note that the paths relative to the package directory (last two
-          // arguments) are used for diagnostics only.
-          //
-          auto load_buildfiles = [&m, &add_package_info] (const path& bf,
-                                                          const path& rf,
-                                                          const path& bfr,
-                                                          const path& rfr)
-          {
-            auto load = [&m, &add_package_info] (const path& f, const path& fr)
-            {
-              try
-              {
-                ifdstream ifs (f);
-                string r (ifs.read_text ());
-                ifs.close ();
-                return r;
-              }
-              catch (const io_error& e)
-              {
-                diag_record dr (fail);
-                dr << "unable to read from " << fr << ": " << e;
-                add_package_info (m, dr);
-                dr << endf;
-              }
-            };
-
-            if (!m.bootstrap_build)
-              m.bootstrap_build = load (bf, bfr);
-
-            if (!m.root_build && exists (rf))
-              m.root_build = load (rf, rfr);
-          };
-
-          // Check the alternative bootstrap file first since it is more
-          // specific.
-          //
-          path bf;
-          if (exists (bf = d / alt_bootstrap_file))
-          {
-            load_buildfiles (bf, d / alt_root_file,
-                             alt_bootstrap_file, alt_root_file);
-          }
-          else if (exists (bf = d / std_bootstrap_file))
-          {
-            load_buildfiles (bf, d / std_root_file,
-                             std_bootstrap_file, std_root_file);
-          }
-          else
-          {
-            diag_record dr (fail);
-            dr << "unable to find bootstrap.build file";
-            add_package_info (m, dr);
-          }
+          load_package_buildfiles (m, pds[i], true /* err_path_relative */);
+        }
+        catch (const runtime_error& e)
+        {
+          diag_record dr (fail);
+          dr << e << info;
+          add_package_info (m, dr);
+          dr << endf;
         }
 
         pm = move (m);

@@ -154,14 +154,29 @@ namespace bpkg
                     const dir_path& src_dir,
                     const package_info*);
 
-  // Caclulate the checksum of the buildfiles using the *-build manifest
-  // values, unless unspecified in which case use the files in the package
-  // source directory.
+  // Calculate the checksum of the buildfiles using the *-build manifest
+  // values. If the package source directory is specified (not empty), then
+  // use the files it contains for unspecified values. If the alt_naming flag
+  // is also specified for the latter case, then verify the package's
+  // buildfile naming scheme against its value and fail on mismatch.
   //
   string
   package_buildfiles_checksum (const optional<string>& bootstrap_build,
                                const optional<string>& root_build,
-                               const dir_path& src_dir);
+                               const vector<buildfile>& buildfiles,
+                               const dir_path& src_dir = {},
+                               optional<bool> alt_naming = nullopt);
+
+  // Load the package's buildfiles for unspecified manifest values. Throw
+  // std::runtime_error for underlying errors (unable to find bootstrap.build,
+  // unable to read from file, etc). Optionally convert paths used in the
+  // potential error description to be relative to the package source
+  // directory.
+  //
+  void
+  load_package_buildfiles (package_manifest&,
+                           const dir_path& src_dir,
+                           bool err_path_relative = false);
 }
 
 #endif // BPKG_MANIFEST_UTILITY_HXX

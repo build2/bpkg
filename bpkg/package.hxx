@@ -27,7 +27,7 @@
 //
 #define DB_SCHEMA_VERSION_BASE 7
 
-#pragma db model version(DB_SCHEMA_VERSION_BASE, 19, closed)
+#pragma db model version(DB_SCHEMA_VERSION_BASE, 20, closed)
 
 namespace bpkg
 {
@@ -653,6 +653,10 @@ namespace bpkg
     available_package_id (package_name, const bpkg::version&);
   };
 
+  // buildfile
+  //
+  #pragma db value(buildfile) definition
+
   #pragma db object pointer(shared_ptr) session
   class available_package
   {
@@ -690,12 +694,14 @@ namespace bpkg
     small_vector<test_dependency, 1> tests;
 
     // Note that while the bootstrap buildfile is always present for stub
-    // packages, we don't save bootstrap/root buildfiles for stubs of any kind
-    // (can come from repository, be based on system selected package, etc),
-    // leaving *_build as nullopt.
+    // packages, we don't save buildfiles for stubs of any kind (can come from
+    // repository, be based on system selected package, etc), leaving *_build
+    // as nullopt and buildfiles empty.
     //
-    optional<string> bootstrap_build;
-    optional<string> root_build;
+    optional<bool>    alt_naming;
+    optional<string>  bootstrap_build;
+    optional<string>  root_build;
+    vector<buildfile> buildfiles;
 
     // Present for non-transient objects only (and only for certain repository
     // types).
@@ -719,10 +725,12 @@ namespace bpkg
     {
       if (!stub ())
       {
-        assert (m.bootstrap_build.has_value ());
+        assert (m.bootstrap_build.has_value () && m.alt_naming.has_value ());
 
+        alt_naming = m.alt_naming;
         bootstrap_build = move (m.bootstrap_build);
         root_build = move (m.root_build);
+        buildfiles = move (m.buildfiles);
       }
     }
 
@@ -813,6 +821,20 @@ namespace bpkg
     //
     #pragma db member(tests) id_column("") value_column("test_")
 
+    // alt_naming
+    //
+    // @@ TMP Drop when database migration to the schema version 20 is no
+    //    longer supported.
+    //
+    //    Note that since no real packages with alternative buildfile naming
+    //    use conditional dependencies yet, we can just set alt_naming to
+    //    false during migration to the database schema version 20. Also we
+    //    never rely on alt_naming to be nullopt for the stub packages, so
+    //    let's not complicate things and set alt_naming to false for them
+    //    either.
+    //
+    #pragma db member(alt_naming) default(false)
+
     // *_build
     //
     // @@ TMP Drop when database migration to the schema version 15 is no
@@ -826,6 +848,10 @@ namespace bpkg
     //    them either.
     //
     #pragma db member(bootstrap_build) default("")
+
+    // buildfiles
+    //
+    #pragma db member(buildfiles) id_column("") value_column("")
 
   private:
     friend class odb::access;

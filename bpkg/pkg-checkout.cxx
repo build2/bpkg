@@ -319,12 +319,15 @@ namespace bpkg
       // Calculate the buildfiles checksum if the package has any buildfile
       // clauses in the dependencies.
       //
+      // Note that the available package already has all the buildfiles
+      // loaded.
+      //
       if ((p != nullptr && p->manifest_checksum == mc)
           ? p->buildfiles_checksum.has_value ()
           : has_buildfile_clause (ap->dependencies))
         bc = package_buildfiles_checksum (ap->bootstrap_build,
                                           ap->root_build,
-                                          d);
+                                          ap->buildfiles);
     }
 
     if (p != nullptr)

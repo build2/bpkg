@@ -226,12 +226,13 @@ namespace bpkg
             iu);
         }
 
-        // Extract the bootstrap/root buildfiles into the respective *-build
-        // values, if requested and are not already specified in the manifest.
+        // Extract the bootstrap, root, and config/*.build buildfiles into the
+        // respective *-build values, if requested and are not already
+        // specified in the manifest.
         //
         // Note that we don't verify that the files are not empty.
         //
-        if (lb && (!m.bootstrap_build || !m.root_build))
+        if (lb)
         {
           paths ps (archive_contents (co, af, diag_level != 0));
 
@@ -240,14 +241,80 @@ namespace bpkg
             return find (ps.begin (), ps.end (), p) != ps.end ();
           };
 
-          auto extract_buildfiles = [&m, &co, &af, diag_level, &contains]
-                                    (const path& b, const path& r)
+          auto extract_buildfiles = [&m, &co, &af, &ps, diag_level, &contains]
+                                    (const path& b,
+                                     const path& r,
+                                     const dir_path& c,
+                                     const string& ext)
           {
             if (!m.bootstrap_build)
               m.bootstrap_build = extract (co, af, b, diag_level != 0);
 
             if (!m.root_build && contains (r))
               m.root_build = extract (co, af, r, diag_level != 0);
+
+            // Extract build/config/*.build files.
+            //
+            if (m.root_build)
+            {
+              vector<buildfile>& bs (m.buildfiles);
+              size_t n (bs.size ());
+
+              for (const path& ap: ps)
+              {
+                if (!ap.to_directory () && ap.sub (c))
+                {
+                  path p (ap.leaf (c));
+                  const char* e (p.extension_cstring ());
+
+                  // Only consider immediate sub-entries of the config/
+                  // subdirectory.
+                  //
+                  if (e != nullptr && ext == e && p.simple ())
+                  {
+                    path f (c.leaf () / p.base ()); // Relative to build/.
+
+                    if (find_if (bs.begin (), bs.end (),
+                                 [&f] (const auto& v) {return v.path == f;}) ==
+                        bs.end ())
+                    {
+                      bs.emplace_back (move (f),
+                                       extract (co, af, ap, diag_level != 0));
+                    }
+                  }
+                }
+              }
+
+              // To produce a stable result sort the appended *-build values.
+              //
+              if (bs.size () != n)
+              {
+                sort (bs.begin () + n, bs.end (),
+                      [] (const auto& x, const auto& y)
+                      {
+                        return x.path < y.path;
+                      });
+              }
+            }
+          };
+
+          // Set the manifest's alt_naming flag to the deduced value if absent
+          // and verify that it matches otherwise.
+          //
+          auto alt_naming = [&m, diag_level, &af] (bool v)
+          {
+            if (!m.alt_naming)
+            {
+              m.alt_naming = v;
+            }
+            else if (*m.alt_naming != v)
+            {
+              if (diag_level != 0)
+                error << "buildfile naming scheme mismatch between manifest "
+                      << "and package archive " << af;
+
+              throw failed ();
+            }
           };
 
           // Check the alternative bootstrap file first since it is more
@@ -256,11 +323,21 @@ namespace bpkg
           path bf;
           if (contains (bf = pd / alt_bootstrap_file))
           {
-            extract_buildfiles (bf, pd / alt_root_file);
+            alt_naming (true);
+
+            extract_buildfiles (bf,
+                                pd / alt_root_file,
+                                pd / alt_config_dir,
+                                alt_build_ext);
           }
           else if (contains (bf = pd / std_bootstrap_file))
           {
-            extract_buildfiles (bf, pd / std_root_file);
+            alt_naming (false);
+
+            extract_buildfiles (bf,
+                                pd / std_root_file,
+                                pd / std_config_dir,
+                                std_build_ext);
           }
           else
           {
@@ -354,61 +431,23 @@ namespace bpkg
                           tf,
                           iu);
 
-      // Load the bootstrap/root buildfiles into the respective *-build
-      // values, if requested and if they are not already specified in the
-      // manifest.
+      // Load the bootstrap, root, and config/*.build buildfiles into the
+      // respective *-build values, if requested and if they are not already
+      // specified in the manifest.
       //
       // Note that we don't verify that the files are not empty.
       //
-      if (lb && (!m.bootstrap_build || !m.root_build))
+      if (lb)
+      try
       {
-        auto load_buildfiles = [&m, diag_level] (const path& b, const path& r)
-        {
-          auto load = [diag_level] (const path& f)
-          {
-            try
-            {
-              ifdstream ifs (f);
-              string r (ifs.read_text ());
-              ifs.close ();
-              return r;
-            }
-            catch (const io_error& e)
-            {
-              if (diag_level != 0)
-                error << "unable to read from " << f << ": " << e;
+        load_package_buildfiles (m, d);
+      }
+      catch (const runtime_error& e)
+      {
+        if (diag_level != 0)
+          error << e;
 
-              throw failed ();
-            }
-          };
-
-          if (!m.bootstrap_build)
-            m.bootstrap_build = load (b);
-
-          if (!m.root_build && exists (r))
-            m.root_build = load (r);
-        };
-
-        // Check the alternative bootstrap file first since it is more
-        // specific.
-        //
-        path bf;
-        if (exists (bf = d / alt_bootstrap_file))
-        {
-          load_buildfiles (bf, d / alt_root_file);
-        }
-        else if (exists (bf = d / std_bootstrap_file))
-        {
-          load_buildfiles (bf, d / std_root_file);
-        }
-        else
-        {
-          if (diag_level != 0)
-            error << "unable to find bootstrap.build file in package "
-                  << "directory " << d;
-
-          throw failed ();
-        }
+        throw failed ();
       }
 
       // We used to verify package directory is <name>-<version> but it is

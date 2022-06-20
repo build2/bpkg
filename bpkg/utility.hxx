@@ -86,12 +86,16 @@ namespace bpkg
   extern const dir_path repos_dir;          // .bpkg/repos/
 
   extern const dir_path std_build_dir;      // build/
+  extern const dir_path std_config_dir;     // build/config/
   extern const path     std_bootstrap_file; // build/bootstrap.build
   extern const path     std_root_file;      // build/root.build
+  extern const string   std_build_ext;      // build
 
   extern const dir_path alt_build_dir;      // build2/
+  extern const dir_path alt_config_dir;     // build2/config/
   extern const path     alt_bootstrap_file; // build2/bootstrap.build2
   extern const path     alt_root_file;      // build2/root.build2
+  extern const string   alt_build_ext;      // build2
 
   extern const dir_path current_dir;        // ./
 

@@ -2501,7 +2501,10 @@ namespace bpkg
         // additional files.
         //
         {
-          path bf (skl.src_root_ / std_bootstrap_file);
+          bool an (*ap.alt_naming);
+
+          path bf (skl.src_root_ /
+                   (an ? alt_bootstrap_file : std_bootstrap_file));
 
           mk_p (bf.directory ());
 
@@ -2524,7 +2527,22 @@ namespace bpkg
           save (*ap.bootstrap_build, bf);
 
           if (ap.root_build)
-            save (*ap.root_build, skl.src_root_ / std_root_file);
+            save (*ap.root_build,
+                  skl.src_root_ / (an ? alt_root_file : std_root_file));
+
+          for (const buildfile& f: ap.buildfiles)
+          {
+            path p (skl.src_root_                        /
+                    (an ? alt_build_dir : std_build_dir) /
+                    f.path);
+
+            p += ".";
+            p += (an ? alt_build_ext : std_build_ext);
+
+            mk_p (p.directory ());
+
+            save (f.content, p);
+          }
         }
 
         // Create the manifest file containing the bare minimum of values
