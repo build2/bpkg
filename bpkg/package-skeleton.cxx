@@ -355,7 +355,7 @@ namespace bpkg
                    // (bootstrap.build, root.build). See load_old_config() for
                    // details.
                    //
-#if 1 // @@ TMP
+#if 0
                    return project_override (v, var_prefix_);
 #else
                    size_t vn;
