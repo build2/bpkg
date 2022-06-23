@@ -539,6 +539,35 @@ example:
 url: http://git.example.com/?p=foo\;a=tree
 \
 
+The only other recognized escape sequence in such values is \c{\\\\}, which is
+replaced with a single backslash. If a backslash is followed by any other
+character, then it is treated literally.
+
+If a value with a comment is multi-line, then \c{;} must appear on a separate
+line, for example:
+
+\
+url:\
+http://git.example.com/?p=foo;a=tree
+;
+Git repository tree.
+\\
+\
+
+In this case, only lines that consist of a sole non-comment semicolon need
+escaping, for example:
+
+\
+license:\
+other: strange
+\;
+license
+\\
+\
+
+The only other recognized escape sequence in such multi-line values is lines
+consisting of two or more backslashes followed by a semicolon.
+
 In the manifest specifications described below optional components are
 enclosed in square brackets (\c{[]}). If the name is enclosed in \c{[]} then
 the name-value pair is optional, otherwise \- required. For example:
