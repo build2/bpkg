@@ -737,11 +737,29 @@ namespace bpkg
     //
     bool required_by_dependents;
 
+    // Consider a package as user-selected if it is specified on the command
+    // line, is a held package being upgraded via the `pkg-build -u|-p`
+    // command form, or is a dependency being upgraded via the recursively
+    // upgraded dependent.
+    //
     bool
     user_selection () const
     {
       return required_by.find (package_key {db.get ().main_database (),
                                             ""}) != required_by.end ();
+    }
+
+    // Consider a package as user-selected only if it is specified on the
+    // command line as build to hold.
+    //
+    bool
+    user_selection (const vector<build_package>& hold_pkgs) const
+    {
+      return find_if (hold_pkgs.begin (), hold_pkgs.end (),
+                      [this] (const build_package& p)
+                      {
+                        return p.db == db && p.name () == name ();
+                      }) != hold_pkgs.end ();
     }
 
     // Return true if the configured package needs to be recollected
@@ -12007,8 +12025,12 @@ namespace bpkg
               update_dependents = true;
           }
 
+          // Also list dependents for the newly built user-selected
+          // dependencies.
+          //
+          bool us (p.user_selection ());
           string rb;
-          if (!p.user_selection ())
+          if (!us || (!p.user_selection (hold_pkgs) && sp == nullptr))
           {
             // Note: if we are ever tempted to truncate this, watch out for
             // the --rebuild-checksum functionality which uses this. But then
@@ -12017,14 +12039,17 @@ namespace bpkg
             // package versions changing? Doesn't feel like it should.
             //
             for (const package_key& pk: p.required_by)
-              rb += (rb.empty () ? " " : ", ") + pk.string ();
+            {
+              // Skip the command-line dependent.
+              //
+              if (!pk.name.empty ())
+                rb += (rb.empty () ? " " : ", ") + pk.string ();
+            }
 
             // If not user-selected, then there should be another (implicit)
             // reason for the action.
             //
             assert (!rb.empty ());
-
-            need_prompt = true;
           }
 
           if (!rb.empty ())
@@ -12037,6 +12062,9 @@ namespace bpkg
             act += '\n';
             act += os.str ();
           }
+
+          if (!us)
+            need_prompt = true;
         }
 
         if (first)

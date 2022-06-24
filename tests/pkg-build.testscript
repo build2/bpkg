@@ -3657,7 +3657,7 @@ test.options += --no-progress
 
           $* fox ?libbaz 2>>~%EOE%;
             build plan:
-              new libbaz/1.1.0
+              new libbaz/1.1.0 (required by fox)
               new fox/1.0.0
                 config.fox.backend=libbaz (set by fox)
             fetched libbaz/1.1.0
@@ -3842,7 +3842,7 @@ test.options += --no-progress
 
         $* fox ?libbaz/1.0.0 2>>~%EOE%;
           build plan:
-            new libbaz/1.0.0
+            new libbaz/1.0.0 (required by fox)
             new fox/1.0.0
               config.fox.backend=libbaz (set by fox)
           fetched libbaz/1.0.0
@@ -5055,7 +5055,7 @@ test.options += --no-progress
           trace: execute_plan: simulate: yes
           %.*
           build plan:
-            configure sys:libfoo/*
+            configure sys:libfoo/* (required by foo, fox)
               config.libfoo.extras=true (expected by foo)
             new foo/1.0.0
             new fox/1.0.0
@@ -11625,7 +11625,7 @@ test.options += --no-progress
 
         $* bar ?liba +{ config.liba.x=true } 2>>~%EOE%;
           build plan:
-            new liba/1.0.0
+            new liba/1.0.0 (required by bar)
               config.liba.x=true (user configuration)
               config.liba.buffer=10240 (set by bar)
             new bar/1.0.0
@@ -11696,7 +11696,7 @@ test.options += --no-progress
 
         $* baz ?liba +{ config.liba.x=true } 2>>~%EOE%;
           build plan:
-            new liba/1.0.0
+            new liba/1.0.0 (required by baz)
               config.liba.x=true (user configuration)
               config.liba.buffer=10240 (set by baz)
             new baz/1.0.0
@@ -11900,7 +11900,7 @@ test.options += --no-progress
               info $config.liba.x
             info: in depends manifest value of package bar
           build plan:
-            new liba/1.0.0
+            new liba/1.0.0 (required by bar)
               config.liba.x=true (user configuration)
             new bar/1.0.0
           fetched liba/1.0.0
@@ -12083,7 +12083,7 @@ test.options += --no-progress
 
         $* baz ?liba +{ config.liba.x=true } 2>>~%EOE%;
           build plan:
-            new liba/1.0.0
+            new liba/1.0.0 (required by baz)
               config.liba.x=true (user configuration)
             new baz/1.0.0
           fetched liba/1.0.0
@@ -12422,7 +12422,7 @@ test.options += --no-progress
 
           $* bar '?sys:liba' 2>>~%EOE%;
             build plan:
-              configure sys:liba/*
+              configure sys:liba/* (required by bar)
                 config.liba.x=true (expected by bar)
               new libb/1.0.0 (required by bar)
               new bar/1.0.0
@@ -12477,7 +12477,7 @@ test.options += --no-progress
 
           $* bar '?sys:liba' +{ config.liba.x=true } 2>>~%EOE%;
             build plan:
-              configure sys:liba/*
+              configure sys:liba/* (required by bar)
                 config.liba.x=true (expected user configuration)
               new libb/1.0.0 (required by bar)
               new bar/1.0.0
@@ -12564,7 +12564,7 @@ test.options += --no-progress
 
           $* baz '?sys:liba/1.0.0' 2>>~%EOE%;
             build plan:
-              configure sys:liba/1.0.0
+              configure sys:liba/1.0.0 (required by baz)
                 config.liba.x=true (expected by baz)
               new libb/1.0.0 (required by baz)
               new baz/1.0.0
@@ -12619,7 +12619,7 @@ test.options += --no-progress
 
           $* baz '?sys:liba/1.0.0' +{ config.liba.x=true } 2>>~%EOE%;
             build plan:
-              configure sys:liba/1.0.0
+              configure sys:liba/1.0.0 (required by baz)
                 config.liba.x=true (expected user configuration)
               new libb/1.0.0 (required by baz)
               new baz/1.0.0
@@ -13094,7 +13094,7 @@ test.options += --no-progress
         $* bix ?bar +{ config.bar.z=false } 2>>~%EOE%;
           build plan:
             new liba/1.0.0 (required by bar)
-            new bar/1.0.0
+            new bar/1.0.0 (required by bix)
               config.bar.z=false (user configuration)
               config.bar.x=true (set by bar)
               config.bar.y=true (set by bar)
@@ -15342,7 +15342,7 @@ else
         y
         EOI
         %  new libbuild2-bar/1.0.0 \[t1..bpkg.build2.\] \(required by foo\)%
-        %  new libbaz/1.0.0 \[t2.\]%
+        %  new libbaz/1.0.0 \[t2.\] \(required by foo\)%
         %  new foo/1.0.0%
         %continue\? \[Y.n\] fetched libbuild2-bar/1.0.0 \[t1..bpkg.build2.\]%
         %unpacked libbuild2-bar/1.0.0 \[t1..bpkg.build2.\]%
@@ -15391,7 +15391,7 @@ else
         EOI
         %  new libbuild2-bar/1.0.0 \[h1..bpkg.build2.\] \(required by foo \[h1.\]\)%
         %  new libbaz/1.0.0 \[h1.\] \(required by foo \[h1.\]\)%
-        %  new foo/1.0.0 \[h1.\]%
+        %  new foo/1.0.0 \[h1.\] \(required by libbar\)%
           new libbaz/1.0.0 (required by libbar)
           new libbar/1.0.0
         %continue\? \[Y/n\] fetched libbuild2-bar/1.0.0 \[h1..bpkg.build2.\]%
@@ -15459,7 +15459,7 @@ else
         EOI
         %  new libbuild2-bar/1.0.0 \[h2..bpkg.build2.\] \(required by foo \[h2.\]\)%
         %  new libbaz/1.0.0 \[h2.\] \(required by foo \[h2.\]\)%
-        %  new foo/1.0.0 \[h2.\]%
+        %  new foo/1.0.0 \[h2.\] \(required by libbar\)%
         %  reconfigure libbar/1.0.0 \(dependent of foo \[h2.\]\)%
         continue? [Y/n] update dependent packages? [Y/n] disfigured libbar/1.0.0
         %fetched libbuild2-bar/1.0.0 \[h2..bpkg.build2.\]%
@@ -15726,7 +15726,7 @@ else
                  ?libbaz +{ --config-name h2 } <<EOI 2>>~%EOE%;
         y
         EOI
-        %  new libbaz/1.0.0 \[h2.\]%
+        %  new libbaz/1.0.0 \[h2.\] \(required by libbar\)%
         %  drop libbuild2-bar/1.0.0 \[h1..bpkg.build2.\] \(unused\)%
           drop libbaz/1.0.0 (unused)
           reconfigure/unhold sys:foo/1.2.0
@@ -15762,7 +15762,7 @@ else
         EOI
         %  drop libbaz/1.0.0 \[h2.\] \(unused\)%
         %  new libbuild2-bar/1.0.0 \[h1..bpkg.build2.\] \(required by foo\)%
-          new libbaz/1.0.0
+          new libbaz/1.0.0 (required by foo, libbar)
           downgrade foo/1.0.0
           reconfigure libbar/1.0.0 (dependent of libbaz)
         continue? [Y/n] update dependent packages? [Y/n] disfigured libbar/1.0.0
@@ -15901,8 +15901,8 @@ else
         y
         EOI
         %  new libbuild2-bar/1.0.0 \[h1..bpkg.build2.\] \(required by foo\)%
-        %  new libbaz/1.0.0%
-        %  new foo/1.0.0%
+          new libbaz/1.0.0 (required by foo)
+          new foo/1.0.0
         %continue\? \[Y.n\] fetched libbuild2-bar/1.0.0 \[h1..bpkg.build2.\]%
         %unpacked libbuild2-bar/1.0.0 \[h1..bpkg.build2.\]%
         fetched libbaz/1.0.0
@@ -15986,7 +15986,7 @@ else
         y
         EOI
         %  new libbaz/1.1.0 \[h1.\] \(required by foo \[h1.\]\)%
-        %  new foo/1.1.0 \[h1.\]%
+        %  new foo/1.1.0 \[h1.\] \(required by libbar\)%
         %  drop libbuild2-bar/1.0.0 \[t1..bpkg.build2.\] \(unused\)%
         %  drop libbaz/1.0.0 \[t1..bpkg.host.\] \(unused\)%
         %  drop foo/1.0.0 \[t1..bpkg.host.\] \(unused\)%
@@ -16049,7 +16049,7 @@ else
         y
         y
         EOI
-        %  new libbaz/1.1.0 \[h2.\]%
+        %  new libbaz/1.1.0 \[h2.\] \(required by foo, libbar\)%
         %  drop libbuild2-bar/1.0.0 \[h1..bpkg.build2.\] \(unused\)%
           drop libbaz/1.0.0 (unused)
           upgrade foo/1.1.0
@@ -16568,8 +16568,8 @@ else
         y
         y
         EOI
-        %  new libbuild2-bar/1.0.0 \[cfg4.\]%
-        %  new libbaz/1.0.0 \[cfg5.\]%
+        %  new libbuild2-bar/1.0.0 \[cfg4.\] \(required by foo \[cfg.\], foo \[cfg2.\]\)%
+        %  new libbaz/1.0.0 \[cfg5.\] \(required by foo \[cfg.\], foo \[cfg2.\]\)%
         %  drop libbaz/1.0.0 \[cfg2.\] \(unused\)%
         %  drop libbuild2-bar/1.0.0 \[cfg3.\] \(unused\)%
         %  reconfigure foo/1.0.0 \[cfg2.\] \(dependent of libbaz \[cfg5.\], libbuild2-bar \[cfg4.\]\)%
@@ -16618,7 +16618,7 @@ else
       $* foo ?libbaz --config-uuid $cfg_uuid <<EOI 2>>~%EOE%;
         y
         EOI
-        %  new libbaz/1.1.0 \[cfg.\]%
+        %  new libbaz/1.1.0 \[cfg.\] \(required by foo \[cfg.\]\)%
         %  upgrade foo/1.1.0 \[cfg.\]%
         %continue\? \[Y/n\] disfigured foo/1.0.0 \[cfg.\]%
         %fetched libbaz/1.1.0 \[cfg.\]%
@@ -16721,7 +16721,7 @@ else
         y
         EOI
         %  new libbaz/1.0.0 \[cfg.\] \(required by libbox \[cfg.\]\)%
-        %  configure sys:foo/\* \[cfg3.\]%
+        %  configure sys:foo/\* \[cfg3.\] \(required by libbox \[cfg.\], libbox \[cfg2.\]\)%
         %  new libbox/1.0.0 \[cfg.\]%
         %  new libbaz/1.0.0 \[cfg2.\] \(required by libbox \[cfg2.\]\)%
         %  new libbox/1.0.0 \[cfg2.\]%
@@ -16800,7 +16800,7 @@ else
         $* libbox '?sys:foo' <<EOI 2>>~%EOE%;
           y
           EOI
-          %  configure sys:foo/\* \[cfg2.\]%
+          %  configure sys:foo/\* \[cfg2.\] \(required by libbox\)%
             new libbaz/1.0.0 (required by libbox)
             new libbox/1.0.0
           continue? [Y/n] fetched libbaz/1.0.0
@@ -16831,7 +16831,7 @@ else
         $* libbox '?sys:foo' &cfg/.bpkg/host/*** <<EOI 2>>~%EOE%;
           y
           EOI
-          %  configure sys:foo/\* \[cfg..bpkg.host.\]%
+          %  configure sys:foo/\* \[cfg..bpkg.host.\] \(required by libbox\)%
             new libbaz/1.0.0 (required by libbox)
             new libbox/1.0.0
           continue? [Y/n] fetched libbaz/1.0.0
@@ -16862,7 +16862,7 @@ else
         $* libbox '?sys:libbuild2-bar' &cfg/.bpkg/host/*** &cfg/.bpkg/build2/*** <<EOI 2>>~%EOE%;
           y
           EOI
-          %  configure sys:libbuild2-bar/\* \[cfg..bpkg.build2.\]%
+          %  configure sys:libbuild2-bar/\* \[cfg..bpkg.build2.\] \(required by foo \[cfg..bpkg.host.\]\)%
           %  new libbaz/1.0.0 \[cfg..bpkg.host.\] \(required by foo \[cfg..bpkg.host.\]\)%
           %  new foo/1.0.0 \[cfg..bpkg.host.\] \(required by libbox\)%
             new libbaz/1.0.0 (required by libbox)
@@ -16915,7 +16915,7 @@ else
         $* libbox '?sys:foo' +{ --config-name cfg3 } <<EOI 2>>~%EOE%;
           y
           EOI
-          %  configure sys:foo/\* \[cfg3.\]%
+          %  configure sys:foo/\* \[cfg3.\] \(required by libbox\)%
             new libbaz/1.0.0 (required by libbox)
             new libbox/1.0.0
           continue? [Y/n] fetched libbaz/1.0.0
