@@ -824,13 +824,17 @@ namespace bpkg
     //
     static const uint16_t build_repoint = 0x0004;
 
+    // Set if this build action is for re-evaluating of an existing dependent.
+    //
+    static const uint16_t build_reevaluate = 0x0008;
+
     bool
     configure_only () const
     {
       assert (action);
 
       return configure_only_ ||
-        (*action == build && (flags & build_repoint) != 0);
+        (*action == build && (flags & (build_repoint | build_reevaluate)) != 0);
     }
 
     // Return true if the resulting package will be configured as external.
@@ -969,6 +973,11 @@ namespace bpkg
       assert ((flags & build_repoint) == 0 ||
               (p.flags & build_repoint) == 0);
 
+      // We never merge two existing dependent re-evaluations.
+      //
+      assert ((flags & build_reevaluate) == 0 ||
+              (p.flags & build_reevaluate) == 0);
+
       // Copy the user-specified options/variables.
       //
       if (p.user_selection ())
@@ -1044,10 +1053,10 @@ namespace bpkg
       //
       flags |= p.flags;
 
-      // Upgrade repoint to the full build.
+      // Upgrade dependent repointments and re-evaluations to the full builds.
       //
       if (*action == build)
-        flags &= ~build_repoint;
+        flags &= ~(build_repoint | build_reevaluate);
 
       // Note that we don't copy the build_package::system flag. If it was
       // set from the command line ("strong system") then we will also have
@@ -5802,7 +5811,8 @@ namespace bpkg
                   set<package_key> (          // Required by (dependency).
                     ds.begin (), ds.end ()),
                   false,                      // Required by dependents.
-                  build_package::adjust_reconfigure};
+                  build_package::adjust_reconfigure |
+                  build_package::build_reevaluate};
 
                 // Note: not recursive.
                 //
@@ -12157,7 +12167,8 @@ namespace bpkg
 
         if ((*p.action == build_package::adjust && p.reconfigure ()) ||
             (*p.action == build_package::build &&
-             (p.flags & build_package::build_repoint) != 0))
+             (p.flags & (build_package::build_repoint |
+                         build_package::build_reevaluate)) != 0))
           upkgs.push_back (pkg_command_vars {db.config_orig,
                                              !multi_config () && db.main (),
                                              p.selected,

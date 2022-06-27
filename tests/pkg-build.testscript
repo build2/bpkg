@@ -5603,7 +5603,23 @@ test.options += --no-progress
             build plan:
               downgrade libfoo/0.1.0
                 config.libfoo.extras=true (set by foo)
-              reconfigure/update foo/1.0.0 (dependent of libfoo)
+              reconfigure foo/1.0.0 (dependent of libfoo)
+            %.*
+            disfigured foo/1.0.0
+            %.*
+            disfigured libfoo/1.0.0
+            %.*
+            fetched libfoo/0.1.0
+            %.*
+            unpacked libfoo/0.1.0
+            %.*
+            configured libfoo/0.1.0
+            %.*
+            configured foo/1.0.0
+            %.*
+            updated libfoo/0.1.0
+            %.*
+            updated foo/1.0.0
             %.*
             EOE
 
@@ -5650,7 +5666,19 @@ test.options += --no-progress
             build plan:
               reconfigure/update libfoo/0.1.0
                 config.libfoo.extras=true (user configuration)
-              reconfigure/update foo/1.0.0 (dependent of libfoo)
+              reconfigure foo/1.0.0 (dependent of libfoo)
+            %.*
+            disfigured foo/1.0.0
+            %.*
+            disfigured libfoo/0.1.0
+            %.*
+            configured libfoo/0.1.0
+            %.*
+            configured foo/1.0.0
+            %.*
+            updated libfoo/0.1.0
+            %.*
+            updated foo/1.0.0
             %.*
             EOE
 
@@ -5716,6 +5744,20 @@ test.options += --no-progress
             build plan:
               upgrade libfoo/1.0.0
               drop foo/1.0.0 (unused)
+            %.*
+            disfigured foo/1.0.0
+            %.*
+            disfigured libfoo/0.1.0
+            %.*
+            fetched libfoo/1.0.0
+            %.*
+            unpacked libfoo/1.0.0
+            %.*
+            purged foo/1.0.0
+            %.*
+            configured libfoo/1.0.0
+            %.*
+            updated libfoo/1.0.0
             %.*
             EOE
 
@@ -5915,7 +5957,33 @@ test.options += --no-progress
                 config.libfoo.extras=true (set by tex)
               downgrade libbar/0.1.0
                 config.libbar.extras=true (set by tex)
-              reconfigure/update tex/1.0.0 (dependent of libbar)
+              reconfigure tex/1.0.0 (dependent of libbar)
+            %.*
+            disfigured tex/1.0.0
+            %.*
+            disfigured libbar/1.0.0
+            %.*
+            disfigured libfoo/1.0.0
+            %.*
+            fetched libfoo/0.1.0
+            %.*
+            unpacked libfoo/0.1.0
+            %.*
+            fetched libbar/0.1.0
+            %.*
+            unpacked libbar/0.1.0
+            %.*
+            configured libfoo/0.1.0
+            %.*
+            configured libbar/0.1.0
+            %.*
+            configured tex/1.0.0
+            %.*
+            updated libfoo/0.1.0
+            %.*
+            updated libbar/0.1.0
+            %.*
+            updated tex/1.0.0
             %.*
             EOE
 
