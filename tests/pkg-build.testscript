@@ -2188,8 +2188,7 @@ test.options += --no-progress
       unpacked libbox/0.0.1
       configured libbaz/0.0.4
       configured libbox/0.0.1
-      %info: .+ is up to date%{2}
-      updated libbaz/0.0.4
+      %info: .+libbox.+ is up to date%
       updated libbox/0.0.1
       EOE
 
@@ -2211,8 +2210,7 @@ test.options += --no-progress
       unpacked libbaz/0.1.0
       configured libbaz/0.1.0
       configured libbox/0.0.1
-      %info: .+ is up to date%{2}
-      updated libbaz/0.1.0
+      %info: .+libbox.+ is up to date%
       updated libbox/0.0.1
       EOE
 
@@ -3290,7 +3288,7 @@ test.options += --no-progress
       # Note that libfoo building doesn't trigger libhello building as it is a
       # fake dependent, so build both explicitly.
       #
-      $* libfoo ?libhello 2>!;
+      $* libfoo libhello 2>!;
 
       # Move libhello version ahead.
       #
@@ -3304,16 +3302,17 @@ test.options += --no-progress
       # date on filesystems with a low file timestamps resolution (for example
       # HFS+).
       #
-      $* ?libhello --yes --keep-out 2>>~%EOE%
+      $* ?libhello --yes --keep-out 2>>~%EOE%;
         disfigured libfoo/1.1.0
         disfigured libhello/1.0.0
         using libhello/1.0.1 (external)
         configured libhello/1.0.1
         configured libfoo/1.1.0
-        %info: .+ is up to date%{1,2}
-        updated libhello/1.0.1
+        %info: .+libfoo.+ is up to date%
         updated libfoo/1.1.0
         EOE
+
+      test -d cfg/libhello/libhello
     }
   }
 
@@ -3666,9 +3665,7 @@ test.options += --no-progress
             unpacked fox/1.0.0
             configured libbaz/1.1.0
             configured fox/1.0.0
-            %info: .+libbaz-1.1.0.+ is up to date%
             %info: .+fox-1.0.0.+ is up to date%
-            updated libbaz/1.1.0
             updated fox/1.0.0
             EOE
 
@@ -3851,9 +3848,7 @@ test.options += --no-progress
           unpacked fox/1.0.0
           configured libbaz/1.0.0
           configured fox/1.0.0
-          %info: .+libbaz-1.0.0.+ is up to date%
           %info: .+fox-1.0.0.+ is up to date%
-          updated libbaz/1.0.0
           updated fox/1.0.0
           EOE
 
@@ -3867,9 +3862,7 @@ test.options += --no-progress
           unpacked libbaz/1.1.0
           configured libbaz/1.1.0
           configured fox/1.0.0
-          %info: .+libbaz-1.1.0.+ is up to date%
           %info: .+fox-1.0.0.+ is up to date%
-          updated libbaz/1.1.0
           updated fox/1.0.0
           EOE
 
@@ -4089,10 +4082,8 @@ test.options += --no-progress
             configured libbaz/1.0.0
             configured box/1.0.0
             %info: .+libbiz-1.0.0.+ is up to date%
-            %info: .+libbaz-1.0.0.+ is up to date%
             %info: .+box-1.0.0.+ is up to date%
             updated libbiz/1.0.0
-            updated libbaz/1.0.0
             updated box/1.0.0
             EOE
 
@@ -4120,9 +4111,7 @@ test.options += --no-progress
             unpacked libbox/0.1.1
             configured libbox/0.1.1
             configured box/1.0.0
-            %info: .+libbox-0.1.1.+ is up to date%
             %info: .+box-1.0.0.+ is up to date%
-            updated libbox/0.1.1
             updated box/1.0.0
             EOE
 
@@ -4326,9 +4315,7 @@ test.options += --no-progress
             unpacked libbiz/1.0.0
             configured libbiz/1.0.0
             configured fux/1.0.0
-            %info: .+libbiz-1.0.0.+ is up to date%
             %info: .+fux-1.0.0.+ is up to date%
-            updated libbiz/1.0.0
             updated fux/1.0.0
             EOE
 
@@ -5616,8 +5603,6 @@ test.options += --no-progress
             configured libfoo/0.1.0
             %.*
             configured foo/1.0.0
-            %.*
-            updated libfoo/0.1.0
             %.*
             updated foo/1.0.0
             %.*
@@ -11635,9 +11620,7 @@ test.options += --no-progress
           unpacked bar/1.0.0
           configured liba/1.0.0
           configured bar/1.0.0
-          %info: .+liba.+ is up to date%
           %info: .+bar.+ is up to date%
-          updated liba/1.0.0
           updated bar/1.0.0
           EOE
 
@@ -11706,9 +11689,7 @@ test.options += --no-progress
           unpacked baz/1.0.0
           configured liba/1.0.0
           configured baz/1.0.0
-          %info: .+liba.+ is up to date%
           %info: .+baz.+ is up to date%
-          updated liba/1.0.0
           updated baz/1.0.0
           EOE
 
@@ -11909,9 +11890,7 @@ test.options += --no-progress
           unpacked bar/1.0.0
           configured liba/1.0.0
           configured bar/1.0.0
-          %info: .+liba.+ is up to date%
           %info: .+bar.+ is up to date%
-          updated liba/1.0.0
           updated bar/1.0.0
           EOE
 
@@ -12092,9 +12071,7 @@ test.options += --no-progress
           unpacked baz/1.0.0
           configured liba/1.0.0
           configured baz/1.0.0
-          %info: .+liba.+ is up to date%
           %info: .+baz.+ is up to date%
-          updated liba/1.0.0
           updated baz/1.0.0
           EOE
 
@@ -13108,9 +13085,7 @@ test.options += --no-progress
           configured liba/1.0.0
           configured bar/1.0.0
           configured bix/1.0.0
-          %info: .+bar.+ is up to date%
           %info: .+bix.+ is up to date%
-          updated bar/1.0.0
           updated bix/1.0.0
           EOE
 
@@ -14666,11 +14641,7 @@ else
         %configured libfoo/1.1.0 \[cfg-bar-foo.\]%
         %configured libbar/1.1.0 \[cfg-bar-foo.\]%
         configured libbaz/1.1.0
-        %info: cfg-bar-foo.+libfoo-1.1.0.+ is up to date%
-        %info: cfg-bar-foo.+libbar-1.1.0.+ is up to date%
         %info: cfg[^-].+libbaz-1.1.0.+ is up to date%
-        %updated libfoo/1.1.0 \[cfg-bar-foo.\]%
-        %updated libbar/1.1.0 \[cfg-bar-foo.\]%
         updated libbaz/1.1.0
         EOE
 
@@ -14727,9 +14698,7 @@ else
         unpacked libbar/1.1.0
         %configured libfoo/1.1.0 \[cfg-foo.\]%
         configured libbar/1.1.0
-        %info: cfg-foo.+libfoo-1.1.0.+ is up to date%
         %info: cfg-bar.+libbar-1.1.0.+ is up to date%
-        %updated libfoo/1.1.0 \[cfg-foo.\]%
         updated libbar/1.1.0
         EOE
 
@@ -14896,11 +14865,7 @@ else
           %configured libbaz/1.0.0 \[cfg2.\]%
           %configured foo/1.0.0 \[cfg2.\]%
           configured libbar/1.0.0
-          %info: cfg2.+libbaz-1.0.0.+ is up to date%
-          %info: cfg2.+foo-1.0.0.+ is up to date%
           %info: cfg.+libbar-1.0.0.+ is up to date%
-          %updated libbaz/1.0.0 \[cfg2.\]%
-          %updated foo/1.0.0 \[cfg2.\]%
           updated libbar/1.0.0
           EOE
 
@@ -15353,9 +15318,7 @@ else
         %configured libbuild2-bar/1.0.0 \[t1..bpkg.build2.\]%
         %configured libbaz/1.0.0 \[t2.\]%
         configured foo/1.0.0
-        %info: t2.+libbaz-1.0.0.+ is up to date%
         %info: t1.+foo-1.0.0.+ is up to date%
-        %updated libbaz/1.0.0 \[t2.\]%
         updated foo/1.0.0
         EOE
 
@@ -15409,9 +15372,7 @@ else
         %configured foo/1.0.0 \[h1.\]%
         configured libbaz/1.0.0
         configured libbar/1.0.0
-        %info: h1.+foo-1.0.0.+ is up to date%
         %info: t1.+libbar-1.0.0.+ is up to date%
-        %updated foo/1.0.0 \[h1.\]%
         updated libbar/1.0.0
         EOE
 
@@ -15437,9 +15398,7 @@ else
         unpacked libbox/1.0.0
         configured libbaz/1.0.0
         configured libbox/1.0.0
-        %info: h1.+foo-1.0.0.+ is up to date%
         %info: t2.+libbox-1.0.0.+ is up to date%
-        %updated foo/1.0.0 \[h1.\]%
         updated libbox/1.0.0
         EOE
 
@@ -15472,9 +15431,7 @@ else
         %configured libbaz/1.0.0 \[h2.\]%
         %configured foo/1.0.0 \[h2.\]%
         configured libbar/1.0.0
-        %info: h2.+foo-1.0.0.+ is up to date%
         %info: t1.+libbar-1.0.0.+ is up to date%
-        %updated foo/1.0.0 \[h2.\]%
         updated libbar/1.0.0
         EOE
 
@@ -15744,9 +15701,7 @@ else
         %configured libbaz/1.0.0 \[h2.\]%
         configured sys:foo/1.2.0
         configured libbar/1.0.0
-        %info: h2.+libbaz-1.0.0.+ is up to date%
         %info: h1.+libbar-1.0.0.+ is up to date%
-        %updated libbaz/1.0.0 \[h2.\]%
         updated libbar/1.0.0
         EOE
 
@@ -15779,11 +15734,7 @@ else
         configured libbaz/1.0.0
         configured foo/1.0.0
         configured libbar/1.0.0
-        %info: h1.+libbaz-1.0.0.+ is up to date%
-        %info: h1.+foo-1.0.0.+ is up to date%
         %info: h1.+libbar-1.0.0.+ is up to date%
-        updated libbaz/1.0.0
-        updated foo/1.0.0
         updated libbar/1.0.0
         EOE
 
@@ -15862,10 +15813,8 @@ else
         configured foo/1.0.0
         configured libbar/1.0.0
         %info: h2.+libbaz-1.0.0.+ is up to date%
-        %info: h1.+foo-1.0.0.+ is up to date%
         %info: h1.+libbar-1.0.0.+ is up to date%
         %updated libbaz/1.0.0 \[h2.\]%
-        updated foo/1.0.0
         updated libbar/1.0.0
         EOE
 
@@ -15912,9 +15861,7 @@ else
         %configured libbuild2-bar/1.0.0 \[h1..bpkg.build2.\]%
         configured libbaz/1.0.0
         configured foo/1.0.0
-        %info: h1.+libbaz-1.0.0.+ is up to date%
         %info: h1.+foo-1.0.0.+ is up to date%
-        updated libbaz/1.0.0
         updated foo/1.0.0
         EOE
 
@@ -15944,8 +15891,6 @@ else
         disfigured libbaz/1.0.0
         purged libbaz/1.0.0
         configured foo/1.0.0
-        %info: h2.+libbaz-1.1.0.+ is up to date%
-        %updated libbaz/1.1.0 \[h2.\]%
         EOE
 
       $pkg_status -d h1 --link -r >>/EOO
@@ -16007,9 +15952,7 @@ else
         %configured libbaz/1.1.0 \[h1.\]%
         %configured foo/1.1.0 \[h1.\]%
         configured libbar/1.1.0
-        %info: h1.+foo-1.1.0.+ is up to date%
         %info: t1.+libbar-1.1.0.+ is up to date%
-        %updated foo/1.1.0 \[h1.\]%
         updated libbar/1.1.0
         EOE
 
@@ -16069,11 +16012,7 @@ else
         %configured libbaz/1.1.0 \[h2.\]%
         configured foo/1.1.0
         configured libbar/1.1.0
-        %info: h2.+libbaz-1.1.0.+ is up to date%
-        %info: h1.+foo-1.1.0.+ is up to date%
         %info: h1.+libbar-1.1.0.+ is up to date%
-        %updated libbaz/1.1.0 \[h2.\]%
-        updated foo/1.1.0
         updated libbar/1.1.0
         EOE
 
@@ -16591,12 +16530,8 @@ else
         %configured libbaz/1.0.0 \[cfg5.\]%
         %configured foo/1.0.0 \[cfg2.\]%
         %configured foo/1.0.0 \[cfg.\]%
-        %info: cfg4.+libbuild2-bar-1.0.0.+is up to date%
-        %info: cfg5.+libbaz-1.0.0.+ is up to date%
         %info: cfg2.+foo-1.0.0.+ is up to date%
         %info: cfg.+foo-1.0.0.+ is up to date%
-        %updated libbuild2-bar/1.0.0 \[cfg4.\]%
-        %updated libbaz/1.0.0 \[cfg5.\]%
         %updated foo/1.0.0 \[cfg2.\]%
         %updated foo/1.0.0 \[cfg.\]%
         EOE
@@ -16627,9 +16562,7 @@ else
         %unpacked foo/1.1.0 \[cfg.\]%
         %configured libbaz/1.1.0 \[cfg.\]%
         %configured foo/1.1.0 \[cfg.\]%
-        %info: cfg.+libbaz-1.1.0.+ is up to date%
         %info: cfg.+foo-1.1.0.+ is up to date%
-        %updated libbaz/1.1.0 \[cfg.\]%
         %updated foo/1.1.0 \[cfg.\]%
         EOE
 
@@ -16663,9 +16596,7 @@ else
         %unpacked foo/1.1.0 \[cfg2.\]%
         %configured libbaz/1.1.0 \[cfg5.\]%
         %configured foo/1.1.0 \[cfg2.\]%
-        %info: cfg5.+libbaz-1.1.0.+ is up to date%
         %info: cfg2.+foo-1.1.0.+ is up to date%
-        %updated libbaz/1.1.0 \[cfg5.\]%
         %updated foo/1.1.0 \[cfg2.\]%
         EOE
 

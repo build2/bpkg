@@ -12163,6 +12163,10 @@ namespace bpkg
 
     // First add the user selection.
     //
+    // Only update user-selected packages which are specified on the command
+    // line as build to hold. Note that the dependency package will be updated
+    // implicitly via their dependents, if the latter are updated.
+    //
     for (const build_package& p: reverse_iterate (pkgs))
     {
       assert (p.action);
@@ -12174,7 +12178,7 @@ namespace bpkg
       const shared_ptr<selected_package>& sp (p.selected);
 
       if (!sp->system () && // System package doesn't need update.
-          p.user_selection ())
+          p.user_selection (hold_pkgs))
         upkgs.push_back (pkg_command_vars {db.config_orig,
                                            !multi_config () && db.main (),
                                            sp,
