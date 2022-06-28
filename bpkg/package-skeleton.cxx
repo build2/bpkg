@@ -104,7 +104,7 @@ namespace bpkg
 
   protected:
     virtual build2::lookup
-    lookup_variable (build2::name&& qual,
+    lookup_variable (build2::names&& qual,
                      string&& name,
                      const build2::location& loc) override
     {
