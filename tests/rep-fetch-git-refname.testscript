@@ -39,7 +39,7 @@
   : changed
   :
   {
-    g = git -C
+    g = [cmdline] git -C
     u = "$rep_git/state1"
     d = cfg/libfoo-1.0.0
 

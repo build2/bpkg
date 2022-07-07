@@ -19,7 +19,7 @@
   # Make sure the cloned repository has a valid location, so we can use
   # rep-info command to validate the repository info.
   #
-  clone_rep = mkdir 1/ && cp -r $src/stable 1/
+  clone_rep = [cmdline] mkdir 1/ && cp -r $src/stable 1/
 
   : without-key
   :
@@ -120,7 +120,7 @@
   # Make sure the cloned repository has a valid location, so we can use
   # rep-info command to validate the repository info.
   #
-  clone_rep = mkdir 1/ && cp -r ../stable 1/
+  clone_rep = [cmdline] mkdir 1/ && cp -r ../stable 1/
 
   : with-key
   :
@@ -204,7 +204,7 @@
 : Test that package manifest that contains an unknown name is properly handled.
 :
 {
-  clone_rep = cp -r $src/testing ./
+  clone_rep = [cmdline] cp -r $src/testing ./
 
   : fail
   :
@@ -228,7 +228,7 @@
 : Here we break the 'stable' repository prior to running a test.
 :
 {
-  clone_rep = cp -r $src/stable ./
+  clone_rep = [cmdline] cp -r $src/stable ./
 
   : no-repositories-manifest
   :

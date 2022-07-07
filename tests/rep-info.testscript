@@ -20,7 +20,7 @@
 # Prepare repositories used by tests if running in the local mode.
 #
 +if! $remote
-  rc = $rep_create 2>!
+  rc = [cmdline] $rep_create 2>!
 
   # Create the unsigned 'testing' repository.
   #

@@ -41,7 +41,7 @@
   cp -r $src/testing $out/testing
   cp -r $src/alpha   $out/alpha
 
-  c = $rep_create 2>!
+  c = [cmdline] $rep_create 2>!
 
   $c $out/extra   &$out/extra/packages.manifest
   $c $out/math    &$out/math/packages.manifest

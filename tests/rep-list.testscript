@@ -37,7 +37,7 @@
   cp -r $src/stable  $out/stable
   cp -r $src/testing $out/testing
 
-  c = $rep_create 2>!
+  c = [cmdline] $rep_create 2>!
 
   $c $out/extra   &$out/extra/packages.manifest
   $c $out/math    &$out/math/packages.manifest

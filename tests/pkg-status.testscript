@@ -40,7 +40,7 @@
   cp -r $src/testing  $out/testing
   cp -r $src/unstable $out/unstable
 
-  c = $rep_create 2>!
+  c = [cmdline] $rep_create 2>!
 
   $c $out/extra    &$out/extra/packages.manifest
   $c $out/stable   &$out/stable/packages.manifest

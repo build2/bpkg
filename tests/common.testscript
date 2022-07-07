@@ -32,26 +32,26 @@ test.options += --default-options $options_guard \
 # (for example, to make sure that configuration post-test state is valid and is
 # as expected).
 #
-cfg_create    = $* cfg-create
-cfg_info      = $* cfg-info
-cfg_link      = $* cfg-link
-cfg_unlink    = $* cfg-unlink
-pkg_build     = $* pkg-build
-pkg_checkout  = $* pkg-checkout
-pkg_configure = $* pkg-configure
-pkg_disfigure = $* pkg-disfigure
-pkg_drop      = $* pkg-drop
-pkg_fetch     = $* pkg-fetch
-pkg_purge     = $* pkg-purge
-pkg_status    = $* pkg-status
-pkg_unpack    = $* pkg-unpack
-pkg_update    = $* pkg-update
-rep_add       = $* rep-add
-rep_create    = $* rep-create
-rep_fetch     = $* rep-fetch
-rep_info      = $* rep-info
-rep_list      = $* rep-list
-rep_remove    = $* rep-remove
+cfg_create    = [cmdline] $* cfg-create
+cfg_info      = [cmdline] $* cfg-info
+cfg_link      = [cmdline] $* cfg-link
+cfg_unlink    = [cmdline] $* cfg-unlink
+pkg_build     = [cmdline] $* pkg-build
+pkg_checkout  = [cmdline] $* pkg-checkout
+pkg_configure = [cmdline] $* pkg-configure
+pkg_disfigure = [cmdline] $* pkg-disfigure
+pkg_drop      = [cmdline] $* pkg-drop
+pkg_fetch     = [cmdline] $* pkg-fetch
+pkg_purge     = [cmdline] $* pkg-purge
+pkg_status    = [cmdline] $* pkg-status
+pkg_unpack    = [cmdline] $* pkg-unpack
+pkg_update    = [cmdline] $* pkg-update
+rep_add       = [cmdline] $* rep-add
+rep_create    = [cmdline] $* rep-create
+rep_fetch     = [cmdline] $* rep-fetch
+rep_info      = [cmdline] $* rep-info
+rep_list      = [cmdline] $* rep-list
+rep_remove    = [cmdline] $* rep-remove
 
 # All testscripts are named after bpkg commands, for example
 # pkg-verify.testscript. So the testscript scope id is a name of the command

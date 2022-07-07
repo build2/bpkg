@@ -24,7 +24,7 @@
 # Prepare repositories used by tests if running in the local mode.
 #
 +if! $remote
-  rc = $rep_create 2>!
+  rc = [cmdline] $rep_create 2>!
 
   # Create the 'unsigned1' repository.
   #
@@ -128,8 +128,8 @@ rep_fetch  += -d cfg
 
 # Check if rep-fetch command was successfull or not.
 #
-fetched     = $pkg_status foo >'foo available 1'
-not_fetched = $pkg_status foo >'foo unknown'
+fetched     = [cmdline] $pkg_status foo >'foo available 1'
+not_fetched = [cmdline] $pkg_status foo >'foo unknown'
 
 sc = " " # Space character to append to here-document line when required.
 

@@ -72,6 +72,7 @@ end
 # will use the same options as we do for unpacking of package archives (see
 # pkg-unpack.cxx).
 #
-git_extract = ($cxx.target.class != 'windows' \
+git_extract = [cmdline] \
+              ($cxx.target.class != 'windows' \
                ? tar -C $out_git -xf \
                : tar -C $regex.replace($out_git, '\\', '/') --force-local -xf)

@@ -3428,7 +3428,7 @@ test.options += --no-progress
        configured libbar/0.0.2
        EOE
 
-    clone_cfg = cp --no-cleanup -r ../cfg ./ &cfg/***
+    clone_cfg = [cmdline] cp --no-cleanup -r ../cfg ./ &cfg/***
 
     : immediate
     :
@@ -13539,7 +13539,7 @@ test.options += --no-progress
        configured libfix/0.0.3
        EOE
 
-    clone_cfg = cp --no-cleanup -r ../cfg ./ &cfg/***
+    clone_cfg = [cmdline] cp --no-cleanup -r ../cfg ./ &cfg/***
 
     : explicitly
     :
@@ -13662,7 +13662,7 @@ test.options += --no-progress
       configured libbaz/0.0.3
       EOE
 
-    clone_cfg = cp --no-cleanup -r ../cfg ./ &cfg/***
+    clone_cfg = [cmdline] cp --no-cleanup -r ../cfg ./ &cfg/***
 
     : explicit
     :
@@ -14216,7 +14216,7 @@ test.options += --no-progress
     : Test that libhello is fully rebuilt, as the resulted package is not
     : external.
     {
-      clone_cfg = cp -pr --no-cleanup ../../cfg ./
+      clone_cfg = [cmdline] cp -pr --no-cleanup ../../cfg ./
 
       # Distribute using the dedicated configuration to avoid the 'c and cxx
       # module toolchain pattern mismatch' warning.
