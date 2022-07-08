@@ -3,7 +3,7 @@
 
 .include common.testscript
 
-config_cxx = config.cxx=$quote($recall($cxx.path) $cxx.config.mode, true)
+config_cxx = [cmdline] config.cxx=$quote($recall($cxx.path) $cxx.config.mode, true)
 
 cfg_create += 2>!
 

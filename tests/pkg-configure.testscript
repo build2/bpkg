@@ -70,7 +70,7 @@
   cp -r $src/t8a $out/t8a && $rep_create $out/t8a &$out/t8a/packages.manifest
 end
 
-test.arguments += config.cxx=$quote($recall($cxx.path) $cxx.config.mode, true)
+test.arguments += config.cxx=$quote($recall($cxx.path) $cxx.config.mode)
 
 pkg_disfigure += -d cfg
 pkg_fetch     += -d cfg 2>!

@@ -433,7 +433,7 @@ posix = ($cxx.target.class != 'windows')
   $git_extract $src/git/libbaz.tar &$out_git/state1/***
 end
 
-config_cxx = config.cxx=$quote($recall($cxx.path) $cxx.config.mode, true)
+config_cxx = [cmdline] config.cxx=$quote($recall($cxx.path) $cxx.config.mode, true)
 
 cfg_create    += 2>!
 cfg_link      += 2>!
