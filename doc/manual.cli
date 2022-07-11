@@ -722,8 +722,8 @@ license: <licenses> [; <comment>]
 [build-warning-email]: <email> [; <comment>]
 [build-error-email]: <email> [; <comment>]
 
-[depends]: [*][?] <alternatives> [; <comment>]
-[requires]: [*][?] [<alternatives>] [; <comment>]
+[depends]: [*] <alternatives> [; <comment>]
+[requires]: [*] [<alternatives>] [; <comment>]
 
 [tests]: [*] <name> [<version-constraint>]
 [examples]: [*] <name> [<version-constraint>]
@@ -1156,10 +1156,61 @@ build error notifications are sent to this email.
 \h2#manifest-package-depends|\c{depends}|
 
 \
-[depends]: [*][?] <alternatives> [; <comment>]
+[depends]: [*] <alternatives> [; <comment>]
+\
 
-<alternatives> = <dependency> [ '|' <dependency>]*
+Single-line form:
+
+\
+<alternatives> = <alternative> [ '|' <alternative>]*
+<alternative>  = <dependencies> ['?' <enable-cond>] [<reflect-var>]
+<dependencies> = <dependency> | \
+    ('{' <dependency> [ <dependency>]* '}' [<version-constraint>])
 <dependency>   = <name> [<version-constraint>]
+<enable-cond>  = '(' <buildfile-eval-expr> ')'
+<reflect-var>  = <config-var> '=' <value>
+\
+
+Multi-line form:
+
+\
+<alternatives> =
+  <alternative>[
+  '|'
+  <alternative>]*
+
+<alternative>  =
+  <dependencies>
+  '{'
+   [
+     'enable' <enable-cond>
+   ]
+
+   [
+     'require'
+     '{'
+        <buildfile-fragment>
+     '}'
+
+   ] | [
+
+     'prefer'
+     '{'
+        <buildfile-fragment>
+     '}'
+
+     'accept' <accept-cond>
+   ]
+
+   [
+     'reflect'
+     '{'
+        <buildfile-fragment>
+     '}'
+   ]
+  '}'
+
+<accept-cond>  = '(' <buildfile-eval-expr> ')'
 \
 
 The dependency packages. If the \c{depends} value starts with \c{*}, then
@@ -1218,8 +1269,10 @@ depends: libsqlite3 == $
 
 \h2#manifest-package-requires|\c{requires}|
 
+@@ TODO: `?` is now inside (but just `?` is allowed, see manifest.hxx.
+
 \
-[requires]: [*][?] [<alternatives>] [; <comment>]
+[requires]: [*] [<alternatives>] [; <comment>]
 
 <alternatives> = <requirement> [ '|' <requirement>]*
 <requirement>  = <id> | <dependency>
