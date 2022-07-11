@@ -1162,10 +1162,10 @@ build error notifications are sent to this email.
 <dependency>   = <name> [<version-constraint>]
 \
 
-The prerequisite packages. If the \c{depends} value starts with \c{*}, then
-it is a \i{build-time} prerequisite. Otherwise it is \i{run-time}.
+The dependency packages. If the \c{depends} value starts with \c{*}, then
+it is a \i{build-time} dependency. Otherwise it is \i{run-time}.
 
-\N|Most of the build-time prerequisites are expected to be tools such as code
+\N|Most of the build-time dependencies are expected to be tools such as code
 generator, so you can think of \c{*} as the executable mark printed by
 \c{ls}. An important difference between the two kinds of dependencies is that
 in case of cross-compilation a build-time dependency must be built for the
@@ -1185,9 +1185,9 @@ depends: * bpkg >= 0.6.0
 Each \c{depends} value can specify multiple packages with the \i{OR}
 semantics. While multiple \c{depends} values are used to specify multiple
 packages with the \i{AND} semantics. A value that starts with \c{?} is a
-conditional prerequisite. Whether such a prerequisite will be in effect can
+conditional dependency. Whether such a dependency will be in effect can
 only be determined at the package configuration time. It is recommended that
-you provide a comment for each conditional prerequisite as an aid to the user.
+you provide a comment for each conditional dependency as an aid to the user.
 For example:
 
 \
@@ -1303,10 +1303,10 @@ configuration. See the \c{bbot} documentation for details.
 \
 
 Separate tests, examples, and benchmarks packages. If the value starts with
-\c{*}, then the primary package is a \i{build-time} prerequisite for the
+\c{*}, then the primary package is a \i{build-time} dependency for the
 specified package. Otherwise it is \i{run-time}. See the
 \l{#manifest-package-depends \c{depends}} value for details on \i{build-time}
-prerequisites.
+dependencies.
 
 These packages are built and tested by automated build bots together with the
 primary package (see the \c{bbot} documentation for details). This, in
