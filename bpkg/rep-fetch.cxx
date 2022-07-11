@@ -192,6 +192,23 @@ namespace bpkg
     return r;
   }
 
+  static void
+  print_package_info (diag_record& dr,
+                      const dir_path& pl,
+                      const repository_location& rl,
+                      const optional<string>& fragment)
+  {
+    dr << "package ";
+
+    if (!pl.current ())
+      dr << "'" << pl.string () << "' "; // Strip trailing '/'.
+
+    dr << "in repository " << rl;
+
+    if (fragment)
+      dr << ' ' << *fragment;
+  }
+
   // Parse package manifests referenced by the package directory manifests.
   //
   static pair<vector<package_manifest>, vector<package_info>>
@@ -199,22 +216,16 @@ namespace bpkg
                            const dir_path& repo_dir,
                            vector<package_manifest>&& pms,
                            bool iu,
-                           bool lb,
                            const repository_location& rl,
                            const optional<string>& fragment) // For diagnostics.
   {
-    auto add_package_info = [&rl, &fragment] (const package_manifest& pm,
-                                              diag_record& dr)
+    auto prn_package_info = [&rl, &fragment] (diag_record& dr,
+                                              const package_manifest& pm)
     {
-      dr << "package ";
-
-      if (!pm.location->current ())
-        dr << "'" << pm.location->string () << "' "; // Strip trailing '/'.
-
-      dr << "in repository " << rl;
-
-      if (fragment)
-        dr << ' ' << *fragment;
+      print_package_info (dr,
+                          path_cast<dir_path> (*pm.location),
+                          rl,
+                          fragment);
     };
 
     // Verify that all the package directories contain the package manifest
@@ -251,19 +262,19 @@ namespace bpkg
         {
           diag_record dr (fail);
           dr << "no manifest file for ";
-          add_package_info (pm, dr);
+          prn_package_info (dr, pm);
         }
 
         // Provide the context if the package compatibility verification fails.
         //
         auto g (
           make_exception_guard (
-            [&pm, &add_package_info] ()
+            [&pm, &prn_package_info] ()
             {
               diag_record dr (info);
 
               dr << "while retrieving information for ";
-              add_package_info (pm, dr);
+              prn_package_info (dr, pm);
             }));
 
         try
@@ -323,30 +334,13 @@ namespace bpkg
         //
         m.location = move (*pm.location);
 
-        // Load the bootstrap, root, and config/*.build buildfiles into the
-        // respective *-build values, if requested and if they are not already
-        // specified in the manifest.
-        //
-        if (lb)
-        try
-        {
-          load_package_buildfiles (m, pds[i], true /* err_path_relative */);
-        }
-        catch (const runtime_error& e)
-        {
-          diag_record dr (fail);
-          dr << e << info;
-          add_package_info (m, dr);
-          dr << endf;
-        }
-
         pm = move (m);
       }
       catch (const manifest_parsing& e)
       {
         diag_record dr (fail (e.name, e.line, e.column));
         dr << e.description << info;
-        add_package_info (pm, dr);
+        prn_package_info (dr, pm);
       }
 
       r.first.push_back  (move (pm));
@@ -374,7 +368,7 @@ namespace bpkg
       ifdstream is (fp);
       string s (is.read_text ());
 
-      if (s.empty ())
+      if (s.empty () && name != "build-file")
         fail << name << " manifest value in " << pkg / manifest_file
              << " references empty file " << rp <<
           info << "repository " << rl
@@ -423,29 +417,60 @@ namespace bpkg
                                rd,
                                move (pms),
                                iu,
-                               lb,
                                rl,
                                empty_string /* fragment */));
 
     fr.packages      = move (pmi.first);
     fr.package_infos = move (pmi.second);
 
-    // Expand file-referencing package manifest values.
+    // If requested, expand file-referencing package manifest values and load
+    // the buildfiles into the respective *-build values.
     //
-    if (ev)
+    if (ev || lb)
     {
       for (package_manifest& m: fr.packages)
+      {
+        dir_path pl (path_cast<dir_path> (*m.location));
+
+        // Load *-file values.
+        //
         m.load_files (
-          [&m, &rd, &rl] (const string& n, const path& p)
+          [ev, &rd, &rl, &pl]
+          (const string& n, const path& p) -> optional<string>
           {
-            return read_package_file (p,
-                                      n,
-                                      path_cast<dir_path> (*m.location),
-                                      rd,
-                                      rl,
-                                      empty_string /* fragment */);
+            // Always expand the build-file values.
+            //
+            if (ev || n == "build-file")
+            {
+              return read_package_file (p,
+                                        n,
+                                        pl,
+                                        rd,
+                                        rl,
+                                        empty_string /* fragment */);
+            }
+            else
+              return nullopt;
           },
           iu);
+
+        // Load the bootstrap, root, and config/*.build buildfiles into the
+        // respective *-build values, if requested and if they are not already
+        // specified in the manifest.
+        //
+        if (lb)
+        try
+        {
+          load_package_buildfiles (m, rd / pl, true /* err_path_relative */);
+        }
+        catch (const runtime_error& e)
+        {
+          diag_record dr (fail);
+          dr << e << info;
+          print_package_info (dr, pl, rl, nullopt /* fragment */);
+          dr << endf;
+        }
+      }
     }
 
     return rep_fetch_data {{move (fr)},
@@ -587,42 +612,74 @@ namespace bpkg
                                  td,
                                  move (pms),
                                  iu,
-                                 lb,
                                  rl,
                                  fr.friendly_name));
 
       fr.packages      = move (pmi.first);
       fr.package_infos = move (pmi.second);
 
-      // Expand file-referencing package manifest values checking out
-      // submodules, if required.
+      // If requested, expand file-referencing package manifest values
+      // checking out submodules, if required, and load the buildfiles into
+      // the respective *-build values.
       //
-      if (ev)
+      if (ev || lb)
       {
         for (package_manifest& m: fr.packages)
-          m.load_files (
-            [&m, &td, &rl, &fr, &checkout_submodules] (const string& n,
-                                                       const path& p)
-            {
-              // Note that this doesn't work for symlinks on Windows where git
-              // normally creates filesystem-agnostic symlinks that are
-              // indistinguishable from regular files (see fixup_worktree()
-              // for details). It seems like the only way to deal with that is
-              // to unconditionally checkout submodules on Windows. Let's not
-              // pessimize things for now (if someone really wants this to
-              // work, they can always enable real symlinks in git).
-              //
-              if (!exists (td / *m.location / p))
-                checkout_submodules ();
+        {
+          dir_path pl (path_cast<dir_path> (*m.location));
 
-              return read_package_file (p,
-                                        n,
-                                        path_cast<dir_path> (*m.location),
-                                        td,
-                                        rl,
-                                        fr.friendly_name);
+          // Load *-file values.
+          //
+          m.load_files (
+            [ev, &td, &rl, &pl, &fr, &checkout_submodules]
+            (const string& n, const path& p) -> optional<string>
+            {
+              // Always expand the build-file values.
+              //
+              if (ev || n == "build-file")
+              {
+                // Check out submodules if the referenced file doesn't exist.
+                //
+                // Note that this doesn't work for symlinks on Windows where
+                // git normally creates filesystem-agnostic symlinks that are
+                // indistinguishable from regular files (see fixup_worktree()
+                // for details). It seems like the only way to deal with that
+                // is to unconditionally checkout submodules on Windows. Let's
+                // not pessimize things for now (if someone really wants this
+                // to work, they can always enable real symlinks in git).
+                //
+                if (!exists (td / pl / p))
+                  checkout_submodules ();
+
+                return read_package_file (p,
+                                          n,
+                                          pl,
+                                          td,
+                                          rl,
+                                          fr.friendly_name);
+              }
+              else
+                return nullopt;
             },
             iu);
+
+          // Load the bootstrap, root, and config/*.build buildfiles into the
+          // respective *-build values, if requested and if they are not
+          // already specified in the manifest.
+          //
+          if (lb)
+          try
+          {
+            load_package_buildfiles (m, td / pl, true /* err_path_relative */);
+          }
+          catch (const runtime_error& e)
+          {
+            diag_record dr (fail);
+            dr << e << info;
+            print_package_info (dr, pl, rl, fr.friendly_name);
+            dr << endf;
+          }
+        }
       }
 
       np += fr.packages.size ();

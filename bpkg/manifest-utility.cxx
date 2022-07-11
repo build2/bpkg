@@ -362,13 +362,14 @@ namespace bpkg
   // Return the sorted list of *.build files (first) which are present in the
   // package's build/config/ subdirectory (or their alternatives) together
   // with the *-build manifest value names they correspond to (second). Skip
-  // files which are already present in the specified list. Note: throws
-  // system_error on filesystem errors.
+  // files which are already present in the specified buildfile/path
+  // lists. Note: throws system_error on filesystem errors.
   //
   static vector<pair<path, path>>
   find_buildfiles (const dir_path& config,
                    const string& ext,
-                   const vector<buildfile>& bs)
+                   const vector<buildfile>& bs,
+                   const vector<path>& bps)
   {
     vector<pair<path, path>> r;
 
@@ -386,7 +387,8 @@ namespace bpkg
 
           if (find_if (bs.begin (), bs.end (),
                        [&f] (const auto& v) {return v.path == f;}) ==
-              bs.end ())
+              bs.end () &&
+              find (bps.begin (), bps.end (), f) == bps.end ())
           {
             r.emplace_back (config / p, move (f));
           }
@@ -405,6 +407,7 @@ namespace bpkg
                                const optional<string>& rb,
                                const vector<buildfile>& bs,
                                const dir_path& d,
+                               const vector<path>& bps,
                                optional<bool> an)
   {
     if (d.empty ())
@@ -422,10 +425,10 @@ namespace bpkg
       return cs.string ();
     }
 
-    auto checksum = [&bb, &rb, &bs] (const path& b,
-                                     const path& r,
-                                     const dir_path& c,
-                                     const string& e)
+    auto checksum = [&bb, &rb, &bs, &bps] (const path& b,
+                                           const path& r,
+                                           const dir_path& c,
+                                           const string& e)
     {
       sha256 cs;
 
@@ -464,10 +467,23 @@ namespace bpkg
       for (const buildfile& b: bs)
         cs.append (b.content);
 
+      if (!bps.empty ())
+      {
+        dir_path bd (b.directory ());
+
+        for (const path& p: bps)
+        {
+          path f (bd / p);
+          f += "." + e;
+
+          append_file (f);
+        }
+      }
+
       if (root && exists (c))
       try
       {
-        for (auto& f: find_buildfiles (c, e, bs))
+        for (auto& f: find_buildfiles (c, e, bs, bps))
           append_file (f.first);
       }
       catch (const system_error& e)
@@ -521,6 +537,8 @@ namespace bpkg
   void
   load_package_buildfiles (package_manifest& m, const dir_path& d, bool erp)
   {
+    assert (m.buildfile_paths.empty ()); // build-file values must be expanded.
+
     auto load_buildfiles = [&m, &d, erp] (const path& b,
                                           const path& r,
                                           const dir_path& c,
@@ -559,8 +577,13 @@ namespace bpkg
       if (m.root_build && exists (c))
       try
       {
-        for (auto& f: find_buildfiles (c, ext, m.buildfiles))
+        for (auto& f: find_buildfiles (c,
+                                       ext,
+                                       m.buildfiles,
+                                       m.buildfile_paths))
+        {
           m.buildfiles.emplace_back (move (f.second), load (f.first));
+        }
       }
       catch (const system_error& e)
       {

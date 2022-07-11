@@ -202,31 +202,41 @@ namespace bpkg
           throw failed ();
         }
 
-        // Expand the *-file manifest values, if requested.
+        // If requested, expand file-referencing package manifest values.
         //
-        if (ev)
+        if (ev || lb)
         {
           m.load_files (
-            [&pd, &co, &af, diag_level] (const string& n, const path& p)
+            [ev, &pd, &co, &af, diag_level]
+            (const string& n, const path& p) -> optional<string>
             {
-              path f (pd / p);
-              string s (extract (co, af, f, diag_level != 0));
+              bool bf (n == "build-file");
 
-              if (s.empty ())
+              // Always expand the build-file values.
+              //
+              if (ev || bf)
               {
-                if (diag_level != 0)
-                  error << n << " manifest value in package archive "
-                        << af << " references empty file " << f;
+                path f (pd / p);
+                string s (extract (co, af, f, diag_level != 0));
 
-                throw failed ();
+                if (s.empty () && !bf)
+                {
+                  if (diag_level != 0)
+                    error << n << " manifest value in package archive "
+                          << af << " references empty file " << f;
+
+                  throw failed ();
+                }
+
+                return s;
               }
-
-              return s;
+              else
+                return nullopt;
             },
             iu);
         }
 
-        // Extract the bootstrap, root, and config/*.build buildfiles into the
+        // Load the bootstrap, root, and config/*.build buildfiles into the
         // respective *-build values, if requested and are not already
         // specified in the manifest.
         //
@@ -433,21 +443,53 @@ namespace bpkg
 
       // Load the bootstrap, root, and config/*.build buildfiles into the
       // respective *-build values, if requested and if they are not already
-      // specified in the manifest.
+      // specified in the manifest. But first expand the build-file manifest
+      // values into the respective *-build values.
       //
       // Note that we don't verify that the files are not empty.
       //
       if (lb)
-      try
       {
-        load_package_buildfiles (m, d);
-      }
-      catch (const runtime_error& e)
-      {
-        if (diag_level != 0)
-          error << e;
+        m.load_files (
+          [&d, &mf, diag_level]
+          (const string& n, const path& p) -> optional<string>
+          {
+            // Only expand the build-file values.
+            //
+            if (n == "build-file")
+            {
+              path f (d / p);
 
-        throw failed ();
+              try
+              {
+                ifdstream is (f);
+                return is.read_text ();
+              }
+              catch (const io_error& e)
+              {
+                if (diag_level != 0)
+                  error << "unable to read from " << f << " referenced by "
+                        << n << " manifest value in " << mf << ": " << e;
+
+                throw failed ();
+              }
+            }
+            else
+              return nullopt;
+          },
+          iu);
+
+        try
+        {
+          load_package_buildfiles (m, d);
+        }
+        catch (const runtime_error& e)
+        {
+          if (diag_level != 0)
+            error << e;
+
+          throw failed ();
+        }
       }
 
       // We used to verify package directory is <name>-<version> but it is

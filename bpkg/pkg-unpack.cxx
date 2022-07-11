@@ -441,6 +441,7 @@ namespace bpkg
                                             m.root_build,
                                             m.buildfiles,
                                             d,
+                                            m.buildfile_paths,
                                             m.alt_naming);
       }
     }
