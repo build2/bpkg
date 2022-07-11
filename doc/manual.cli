@@ -384,6 +384,350 @@ are treated the same):
 ||
 
 
+\h1#package-skeleton|Package Build System Skeleton|
+
+There are situations where \c{bpkg} may need to evaluate \c{buildfile}
+expressions and fragments before committing to a particular version of the
+package and therefore before actually unpacking anything. For example,
+\c{bpkg} may need to evaluate a condition in the conditional dependency or it
+may need to negotiate a configuration among several dependents of a package
+which requires it to know this package's configuration variable types and
+default values.
+
+To solve this chicken and egg of a problem, \c{bpkg} includes a minimal subset
+of the build system files along with the package's standard metadata (name,
+version, etc) into the repository metadata (\l{#manifest-package-list-pkg
+\c{packages.manifest}}). This subset is called the package build system
+skeleton, or just package skeleton for short, and includes the
+\c{build/bootstrap.build} and \c{build/root.build} files (or their alternative
+naming scheme variants) as well as any files that may be sources by
+\c{root.build}.
+
+The inclusion of \c{build/bootstrap.build} and \c{build/root.build} (if
+present) as well as any \c{build/config/*.build} (or their alternative naming
+scheme variants) is automatic. However, if \c{root.build} sources any files
+other than \c{build/config/*.build}, then they must be specified explicitly in
+the package manifest using the \l{#manifest-package-build-file \c{build-file}}
+value.
+
+Inside these buildfiles the skeleton load can be distinguished from normal
+load by examining the \c{build.mode} variable, which is set to \c{skeleton}
+during the skeleton load. In particular, this variable must be used to omit
+loading of build system modules that are neither built-in nor standard
+pre-installed and which are therefore listed as a package dependencies. Such
+modules are not yet available during the skeleton load. For example:
+
+\
+# root.build
+
+using cxx       # Ok, built-in module.
+using autoconf  # Ok, standard pre-installed module.
+
+if ($build.mode != 'skeleton')
+  using hello
+\
+
+The \c{build.mode} variable can also be used to omit parts of \c{root.build}
+that are expensive to evaluate and which are only necessary during the actual
+build. Here is a realistic example:
+
+\
+# root.build
+
+...
+
+using cxx
+
+# Determine the GCC plugin directory. But omit doing it during the
+# skeleton load.
+#
+if ($build.mode != 'skeleton')
+{
+  if ($cxx.id != 'gcc')
+    fail 'this project can only be built with GCC'
+
+  # If plugin support is disabled, then -print-file-name will print
+  # the name we have passed (the real plugin directory will always
+  # be absolute).
+  #
+  plugin_dir = [dir_path] \
+    $process.run($cxx.path -print-file-name=plugin)
+
+  if (\"$plugin_dir\" == plugin)
+    fail \"$recall($cxx.path) does not support plugins\"
+
+  plugin_dir = $normalize($plugin_dir)
+}
+\
+
+
+\h1#dep-config-negotiation|Dependency Configuration Negotiation|
+
+In \c{bpkg}, a dependent package may specify a desired configuration for a
+dependency package. Because there could be multiple such dependents, \c{bpkg}
+needs to come up with a dependency configuration that is acceptable to all of
+them. This process is called the dependency configuration negotiation.
+
+The desired dependency configuration is specified as part of the
+\l{#manifest-package-depends \c{depends}} manifest value and can be expressed
+as either a single \c{require} clause of as a pair of \c{prefer}/\c{accept}
+clauses.
+
+The \c{require} clause is essentially a shortcut for specifying the
+\c{prefer}/\c{accept} clauses where the \c{accept} condition simply verifies
+all the variable values assigned in the \c{prefer} clause. It is, however,
+further restricted to the common case of only setting \c{bool} variables and
+only to \c{true} to allow additional optimizations during the configuration
+negotiation. The remainder of this section only deals with the general
+\c{prefer}/\c{accept} semantics.
+
+While the exact format of \c{prefer}/\c{accept} is described as part of the
+\l{#manifest-package-depends \c{depends}} manifest value, for this section it
+is sufficient to know that the \c{prefer} clause is an arbitrary \c{buildfile}
+fragment that is expected to set one or more dependency configuration
+variables to the values preferred by this dependent while the \c{accept}
+clause is a \c{buildfile} eval context expression that should evaluate to
+\c{true} or \c{false} indicating whether the dependency configuration values
+it is evaluated on are acceptable to this dependent. For example:
+
+\
+libfoo ^1.0.0
+{
+  # We prefer the cache but can work without it.
+  # We need the buffer of at least 4KB.
+  #
+  prefer
+  {
+    config.libfoo.cache = true
+
+    config.libfoo.buffer = ($config.libfoo.buffer < 4096 \
+                            ? 4096                       \
+                            : $config.libfoo.buffer)
+  }
+
+  accept ($config.libfoo.buffer >= 4096)
+}
+\
+
+The configuration negotiation algorithm can be summarized as cooperative
+refinement. Specifically, whenever a \c{prefer} clause of a dependent changes
+any configuration value, all other dependent's \c{prefer} clauses are
+re-evaluated. This process continues until there are no more changes
+(success), one of the \c{accept} clauses returned \c{false} (failure), or the
+process starts \"yo-yo'ing\" between two or more configurations (failure).
+
+The dependents are expected to cooperate by not overriding \"better\" values
+that were set by other dependents. Consider the following two \c{prefer}
+clauses:
+
+\
+prefer
+{
+  config.libfoo.buffer = 4096
+}
+
+prefer
+{
+  config.libfoo.buffer = ($config.libfoo.buffer < 4096 \
+                          ? 4096                       \
+                          : $config.libfoo.buffer)
+}
+\
+
+The first version is non-cooperative and should only be used if this dependent
+requires the buffer to be exactly 4KB. The second version is cooperative: it
+will increase the buffer to the minimum required by this dependent but will
+respect values above 4KB.
+
+One case where we don't need to worry about this is when setting the
+configuration variable to the \"best\" possible value. One common example of
+this is setting a \c{bool} configuration to \c{true}.
+
+With a few exceptions discussed below, a dependent must always re-set the
+configuration variable, even if to the better value. For example, the
+following is an incorrect attempt at the above cooperative \c{prefer} clause:
+
+\
+prefer
+{
+  if ($config.libfoo.buffer < 4096)  # Incorrect.
+    config.libfoo.buffer = 4096
+}
+\
+
+The problem with the above attempt is that the default value could be greater
+than 4KB, in which case \c{bpkg} will have no idea that there is a dependent
+relying on this configuration value.
+
+Before each \c{prefer} clause re-evaluation, values that were first set by
+this dependent are reset to their defaults thus allowing the dependent to
+change its mind, for instance, in response to other configuration changes.
+For example:
+
+\
+# While we have no preference about the cache, if enabled/disabled,
+# we need a bigger/smaller buffer.
+#
+prefer
+{
+  min_buffer = ($config.libfoo.cache ? 8192 : 4096)
+
+  config.libfoo.buffer = ($config.libfoo.buffer < $min_buffer \
+                          ? $min_buffer                       \
+                          : $config.libfoo.buffer)
+}
+
+accept ($config.libfoo.buffer >= ($config.libfoo.cache ? 8192 : 4096))
+\
+
+The interesting case to consider in the above example is when
+\c{config.libfoo.cache} changes from \c{true} to \c{false}: without the reset
+to defaults semantics the \c{prefer} clause would have kept the buffer at 8KB
+(since it's greater than the 4KB minimum).
+
+\N|Currently \c{accept} is always evaluated after \c{prefer} and temporary
+variables (like \c{min_buffer} in the above example) set in \c{prefer} are
+visible in \c{accept}. But it's best not to rely on this in case this changes
+in the future. For example, we may try harder to resolve the \"yo-yo'ing\"
+case mentioned above by checking if one of the alternating configurations
+are acceptable to everyone without re-evaluation.
+
+This is also the reason why we need a separate \c{accept} in the first place.
+Plus, it allows for more advanced configuration techniques where we may need
+to have an acceptance criteria but no preferences.|
+
+Configuration variables that are set by the dependent in the \c{prefer} clause
+are visible in the subsequent clauses as well as in the subsequent \c{depends}
+values of this dependent. Configuration variables that are not set, however,
+are only visible until the immediately following \c{reflect} clause. For
+example, in the above listing, \c{config.libfoo.cache} would still be visible
+in the \c{reflect} clause if it were to follow \c{accept} but no further. As a
+result, if we need to make decisions based on configuration variables that we
+have no preference about, they need to be saved in the \c{prefer} clause. For
+example:
+
+\
+depends:
+\\
+libfoo ^1.0.0
+{
+  # We have no preference about the cache but need to
+  # observe its value.
+  #
+  prefer
+  {
+  }
+
+  accept (true)
+
+  reflect
+  {
+    config.hello.libfoo_cache = $config.libfoo.cache
+  }
+}
+\\
+
+depends: libbar ^1.0.0 ? ($config.hello.libfoo_cache)
+\
+
+It is possible to determine the origin of the configuration variable value
+using the \c{$config.origin()} function. It returns either \c{undefined} if
+the variable is undefined (only possible if it has no default value),
+\c{default} if the variable has the default value from the \c{config}
+directive in \c{root.build}, \c{buildfile} if the value is from a
+\c{buildfile}, normally \c{config.build}, or \c{override} if the value is a
+command line override (that is, user configuration). For example, this is how
+we could use it if we only wanted to change the default value (notice that
+it's the variable's name and not its \c{$}-expansion that we pass to
+\c{$config.origin()}):
+
+\
+prefer
+{
+  config.libfoo.buffer = (                            \
+    $config.origin(config.libfoo.buffer) == 'default' \
+    ? 4096                                            \
+    : $config.libfoo.buffer)
+}
+\
+
+The following sub-sections discuss a number of more advanced configuration
+techniques that are based on the functionality described in this section.
+
+
+\h#dep-config-prefer-x-accept-xy|Prefer X but Accept X or Y|
+
+Consider a configuration variable that is a choice between several mutually
+exclusive values, for example, user interface backends that could be, say,
+\c{cli}, \c{gui}, or \c{none}. In such situations it's common to prefer one
+value but being able to work with some subset of them. For example, we could
+prefer \c{gui} but were also able to make do with \c{cli} but not with
+\c{none}. Here is how we could express such a configuration:
+
+\
+libfoo ^1.0.0
+{
+  # We prefer `gui`, can also work with `cli` but not `none`.
+  #
+  prefer
+  {
+    config.libfoo.ui = (                                     \
+      $config.origin(config.libfoo.ui) == 'default' ||       \
+      ($config.liba.ui != 'gui' && $config.liba.ui != 'cli') \
+      ? 'gui' \
+      : $config.liba.ui)
+  }
+
+  accept ($config.liba.ui == 'gui' || $config.liba.ui == 'cli')
+}
+\
+
+\h#dep-config-use-if-enabled|Use If Enabled|
+
+Sometimes we may want to use a feature if it is enabled by someone else but
+not enable it ourselves. For example, the feature might be expensive and our
+use of it tangential, but if it's enabled anyway, then we might as well take
+advantage of it. Here is how we could express such a configuration:
+
+\
+libfoo ^1.0.0
+{
+  # Use config.libfoo.x only if enabled by someone else.
+  #
+  prefer
+  {
+  }
+
+  accept (true)
+
+  reflect
+  {
+    config.hello.libfoo_x = $config.libfoo.x
+  }
+}
+\
+
+\h#dep-config-disable-default|Disable If Enabled by Default|
+
+Sometimes we may want to disable a feature that is enabled by default provided
+that nobody else needs it. For example, the feature might be expensive and we
+would prefer to avoid paying the cost if we are the only ones using this
+dependency. Here is how we could express such a configuration:
+
+\
+libfoo ^1.0.0
+{
+  prefer
+  {
+    if ($config.origin(config.libfoo.x) == 'default')
+      config.libfoo.x = false
+  }
+
+  accept (true)
+}
+\
+
+
 \h1#manifests|Manifests|
 
 This chapter describes the general manifest file format as well as the
@@ -517,9 +861,9 @@ Expressed as a C-string, the value in the above example is:
 
 
 \N|Originally, the multi-line mode was entered if \c{:} after the name were
-followed by \c{\\} and a newline but on the same line. While this syntax is
-still recognized for backwards compatibility, it is deprecated and will be
-discontinued in the future.|
+immediately followed by \c{\\} and a newline but on the same line. While this
+syntax is still recognized for backwards compatibility, it is deprecated and
+will be discontinued in the future.|
 
 Note that in the multi-line mode we can still use newline escaping to split
 long lines, for example:
@@ -722,8 +1066,8 @@ license: <licenses> [; <comment>]
 [build-warning-email]: <email> [; <comment>]
 [build-error-email]: <email> [; <comment>]
 
-[depends]: [*][?] <alternatives> [; <comment>]
-[requires]: [*][?] [<alternatives>] [; <comment>]
+[depends]: [*] <alternatives> [; <comment>]
+[requires]: [*] <alternatives> [; <comment>]
 
 [tests]: [*] <name> [<version-constraint>]
 [examples]: [*] <name> [<version-constraint>]
@@ -1156,54 +1500,73 @@ build error notifications are sent to this email.
 \h2#manifest-package-depends|\c{depends}|
 
 \
-[depends]: [*][?] <alternatives> [; <comment>]
+[depends]: [*] <alternatives> [; <comment>]
+\
 
-<alternatives> = <dependency> [ '|' <dependency>]*
+Single-line form:
+
+\
+<alternatives> = <alternative> [ '|' <alternative>]*
+<alternative>  = <dependencies> ['?' <enable-cond>] [<reflect-var>]
+<dependencies> = <dependency> | \
+    '{' <dependency> [<dependency>]* '}' [<version-constraint>]
 <dependency>   = <name> [<version-constraint>]
+<enable-cond>  = '(' <buildfile-eval-expr> ')'
+<reflect-var>  = <config-var> '=' <value>
 \
 
-The dependency packages. If the \c{depends} value starts with \c{*}, then
-it is a \i{build-time} dependency. Otherwise it is \i{run-time}.
-
-\N|Most of the build-time dependencies are expected to be tools such as code
-generator, so you can think of \c{*} as the executable mark printed by
-\c{ls}. An important difference between the two kinds of dependencies is that
-in case of cross-compilation a build-time dependency must be built for the
-host machine, not the target. Build system modules are also build-time
-dependencies.|
-
-Two special build-time dependency names are recognized and checked in an ad
-hoc manner: \c{build2} (the \c{build2} build system) and \c{bpkg} (the
-\c{build2} package manager). This allows us to specify the required build
-system and package manager versions, for example:
+Multi-line form:
 
 \
-depends: * build2 >= 0.6.0
-depends: * bpkg >= 0.6.0
+<alternatives> =
+  <alternative>[
+  '|'
+  <alternative>]*
+
+<alternative>  =
+  <dependencies>
+  '{'
+   [
+     'enable' <enable-cond>
+   ]
+
+   [
+     'require'
+     '{'
+        <buildfile-fragment>
+     '}'
+
+   ] | [
+
+     'prefer'
+     '{'
+        <buildfile-fragment>
+     '}'
+
+     'accept' <accept-cond>
+   ]
+
+   [
+     'reflect'
+     '{'
+        <buildfile-fragment>
+     '}'
+   ]
+  '}'
+
+<accept-cond>  = '(' <buildfile-eval-expr> ')'
 \
 
-Each \c{depends} value can specify multiple packages with the \i{OR}
-semantics. While multiple \c{depends} values are used to specify multiple
-packages with the \i{AND} semantics. A value that starts with \c{?} is a
-conditional dependency. Whether such a dependency will be in effect can
-only be determined at the package configuration time. It is recommended that
-you provide a comment for each conditional dependency as an aid to the user.
-For example:
+The dependency packages. The most common form of a dependency is a package
+name followed by the optional version constraint. For example:
 
 \
-depends: libz
-depends: libfoo ~1.2.0 ; Only works with libfoo 1.2.*.
-depends: libgnutls >= 1.2.3 | libopenssl >= 2.3.4
-depends: ? libboost-regex >= 1.52.0 ; Only if no C++11 <regex>.
-depends: ? libqtcore >= 5.0.0 ; Only if GUI is enabled.
+depends: libhello ^1.0.0
 \
-
-It is recommended that you specify unconditional dependencies first with
-simple (no alternatives) dependencies leading each set.
 
 See \l{#package-version-constraint Package Version Constraint} for the format
-and semantics of the optional version constraint. Instead of a concrete value,
-the version in the constraint can also be specified in terms of the dependent
+and semantics of the version constraint. Instead of a concrete value, the
+version in the constraint can also be specified in terms of the dependent
 package's version (that is, its \l{#manifest-package-version \c{version}}
 value) using the special \c{$} value. This mechanism is primarily useful when
 developing related packages that should track each other's versions exactly or
@@ -1215,46 +1578,438 @@ version: 3.18.2
 depends: libsqlite3 == $
 \
 
+If multiple packages are specified within a single \c{depends} value, they
+must be grouped with \c{{\}}. This can be useful if the packages share a
+version constraint. The group constraint applies to all the packages in
+the group that do not have their own constraint. For example:
+
+\
+depends: { libboost-any libboost-log libboost-uuid ~1.77.1 } ~1.77.0
+\
+
+If the \c{depends} value starts with \c{*}, then it is a \i{build-time}
+dependency. Otherwise it is \i{run-time}. For example:
+
+\
+depends: * byacc >= 20210619
+\
+
+\N|Most of the build-time dependencies are expected to be tools such as code
+generators, so you can think of \c{*} as the executable mark printed by
+\c{ls}. An important difference between the two kinds of dependencies is that
+in case of cross-compilation a build-time dependency must be built for the
+host machine, not the target. Build system modules are also build-time
+dependencies.|
+
+Two special build-time dependency names are recognized and checked in an ad
+hoc manner: \c{build2} (the \c{build2} build system) and \c{bpkg} (the
+\c{build2} package manager). This allows us to specify the minimum required
+build system and package manager versions, for example:
+
+\
+depends: * build2 >= 0.15.0
+depends: * bpkg >= 0.15.0
+\
+
+\N|If you are developing or packaging a project that uses features from the
+not yet released (staged) version of the \c{build2} toolchain, then you can
+use the pre-release version in the constraint. For example:
+
+\
+depends: * build2 >= 0.16.0-
+depends: * bpkg >= 0.16.0-
+\
+
+|
+
+A dependency can be conditional, that is, it is only enabled if a certain
+condition is met. For example:
+
+\
+depends: libposix-getopt ^1.0.0 ? ($cxx.target.class == 'windows')
+\
+
+The condition after \c{?} inside \c{()} is a \c{buildfile} eval context
+expression that should evaluate to \c{true} or \c{false}, as if it were
+specified in the \c{buildfile} \c{if} directive (see \l{b#intro-lang-expand
+Expansion and Quoting} and \l{b#intro-if-else Conditions (\c{if-else})} for
+details).
+
+The condition expression is evaluated after loading the package build system
+skeleton, that is, after loading its \c{root.build} (see \l{#package-skeleton
+Package Build System Skeleton} for details). As a result, variable values set
+by build system modules that are loaded in \c{root.build} as well as package's
+configuration (including previously reflected; see below) or computed values
+can be referenced in dependency conditions. For example, given the following
+\c{root.build}:
+
+\
+# root.build
+
+...
+
+using cxx
+
+# MinGW ships POSIX <getopt.h>.
+#
+need_getopt = ($cxx.target.class == 'windows' && \
+               $cxx.target.system != 'mingw32')
+
+config [bool] config.hello.regex ?= false
+\
+
+We could have the following conditional dependencies:
+
+\
+depends: libposix-getopt ^1.0.0 ? ($need_getop) ; Windows && !MinGW.
+depends: libposix-regex  ^1.0.0 ? ($config.hello.regex && \
+                                   $cxx.target.class == 'windows')
+\
+
+The first \c{depends} value in the above example also shows the use of an
+optional comment. It's a good idea to provide it if the condition is not
+sufficiently self-explanatory.
+
+A dependency can \"reflect\" configuration variables to the subsequent
+\c{depends} values and to the package configuration. This can be used to
+signal whether a conditional dependency is enabled or which dependency
+alternative was selected (see below). The single-line form of \c{depends} can
+only reflect one configuration variable. For example:
+
+\
+depends: libposix-regex ^1.0.0       \
+  ? ($cxx.target.class == 'windows') \
+  config.hello.external_regex=true
+\
+
+\
+# root.build
+
+...
+
+using cxx
+
+config [bool] config.hello.external_regex ?= false
+\
+
+\
+# buildfile
+
+libs =
+
+if $config.hello.external_regex
+  import libs += libposix-regex%lib{posix-regex}
+
+exe{hello}: ... $libs
+\
+
+In the above example, if the \c{hello} package is built on Windows, then the
+dependency on \c{libposix-regex} will be enabled and the package will be
+configured with \c{config.hello.external_regex=true}. This is used in the
+\c{buildfile} to decide whether to import \c{libposix-regex}. While in this
+example it would have probably been easier to just duplicate the check for
+Windows in the \c{buildfile} (or, better yet, factor this check to
+\c{root.build} and share the result via a computed variable between
+\c{manifest} and \c{buildfile}), the reflect mechanism is the only way to
+communicate the selected dependency alternative (discussed next).
+
+\N|An attempt to set a reflected configuration variable that is overridden by
+the user is an error. In a sense, configuration variables that are used to
+reflect information should be treated as the package's implementation details
+if the package management is involved. If, however, the package is configured
+without \c{bpkg}'s involvement, then these variables could reasonably be
+provided as user configuration.
+
+If you feel the need to allow a reflected configuration variable to also
+potentially be supplied as user configuration, then it's probably a good sign
+that you should turn things around: make the variable only user-configurable
+and use the enable condition instead of reflect. Alternatively, you could try
+to recognize and handle user overrides with the help of the
+\c{$config.origin()} function discussed in \l{#dep-config-negotiation
+Dependency Configuration Negotiation}.|
+
+While multiple \c{depends} values are used to specify multiple packages with
+the \i{AND} semantics, inside \c{depends} we can specify multiple packages (or
+groups of packages) with the \i{OR} semantics, called dependency
+alternatives. For example:
+
+\
+depends: libmysqlclient >= 5.0.3 | libmariadb ^10.2.2
+\
+
+When selecting an alternative, \c{bpkg} only considers packages that are
+either already present in the build configuration or are selected as
+dependencies by other packages, picking the first alternative with a
+satisfactory version constraint and an acceptable configuration. As a result,
+the order of alternatives expresses a preference. If, however, this does not
+yield a suitable alternative, then \c{bpkg} fails asking the user to make the
+selection.
+
+For example, if the package with the above dependency is called \c{libhello}
+and we build it in a configuration that already has both \c{libmysqlclient}
+and \c{libmariadb}, then \c{bpkg} will select \c{libmysqlclient}, provided the
+existing version satisfies the version constraint. If, however, there are no
+existing packages in the build configuration and we attempt to build just
+\c{libhello}, then \c{bpkg} will fail asking the user to pick one of the
+alternatives. If we wanted to make \c{bpkg} select \c{libmariadb} we could
+run:
+
+\
+$ bpkg build libhello ?libmariadb
+\
+
+\N|While \c{bpkg}'s refusal to automatically pick an alternative that would
+require building a new package may at first seem unfriendly to the user,
+practical experience shows that such extra user-friendliness would rarely
+justifies the potential confusion that it may cause.
+
+Also note that it's not only the user that can pick a certain alternative but
+also a dependent package. Continue with the above example, if we had \c{hello}
+that depended on \c{libhello} but only supported MariaDB (or provided a
+configuration variable to explicitly select the database), then we could
+have the following in its \c{manifest}:
+
+\
+depends: libmariadb       ; Select MariaDB in libhello.
+depends: libhello ^1.0.0
+\
+
+|
+
+Dependency alternatives can be combined with all the other features discussed
+above: groups, conditional dependencies, and reflect. As mentioned earlier,
+reflect is the only way to communicate the selection to subsequent \c{depends}
+values and package configuration. For example:
+
+\
+depends: libmysqlclient >= 5.0.3 config.hello.db='mysql'      | \
+         libmariadb ^10.2.2 ? ($cxx.target.class != 'windows')  \
+           config.hello.db='mariadb'
+
+depends: libz ^1.2.1100 ? ($config.hello.db == 'mysql')
+\
+
+If an alternative is conditional and the condition evaluates to \c{false},
+then this alternative is not considered. If all but one alternative are
+disabled due to conditions, then this becomes an ordinary dependency. If all
+the alternatives are disabled due to conditions, then the entire dependency
+is disabled. For example:
+
+\
+depends: libmysqlclient >= 5.0.3 ? ($config.hello.db == 'mysql') | \
+         libmariadb ^10.2.2      ? ($config.hello.db == 'mariadb')
+\
+
+While there is no need to use the dependency alternatives in the above example
+(since the alternatives are mutually exclusive), it makes for good
+documentation of intent.
+
+Besides as a single line, the \c{depends} value can also be specified in a
+multi-line form which, besides potentially better readability, provides
+additional functionality. In the multi-line form, each dependency alternative
+occupies a separate line and \c{|} can be specified either at the end of
+the dependency alternative line or on a separate line. For example:
+
+\
+depends:
+\\
+libmysqlclient >= 5.0.3 ? ($config.hello.db == 'mysql') |
+libmariadb ^10.2.2      ? ($config.hello.db == 'mariadb')
+\\
+\
+
+A dependency alternative can be optionally followed by a block containing a
+number of clauses. The \c{enable} clause is the alternative way to specify the
+condition for a conditional dependency while the \c{reflect} clause is the
+alternative way to specify the reflected configuration variable. The block may
+also contain \c{#}-style comments, similar to \c{buildfile}. For example:
+
+\
+depends:
+\\
+libmysqlclient >= 5.0.3
+{
+  reflect
+  {
+    config.hello.db = 'mysql'
+  }
+}
+|
+libmariadb ^10.2.2
+{
+  # TODO: MariaDB support on Windows.
+  #
+  enable ($cxx.target.class != 'windows')
+
+  reflect
+  {
+    config.hello.db = 'mariadb'
+  }
+}
+\\
+\
+
+While the \c{enable} clause is essentially the same as its inline \c{?}
+variant, the \c{reflect} clause is an arbitrary \c{buildfile} fragment that
+can have more complex logic and assign multiple configuration variables. For
+example:
+
+\
+libmariadb ^10.2.2
+{
+  reflect
+  {
+    if ($cxx.target.class == 'windows')
+      config.hello.db = 'mariadb-windows'
+    else
+      config.hello.db = 'mariadb-posix'
+  }
+}
+\
+
+The multi-line form also allows us to express our preferences and requirements
+for the dependency configuration. If all we need is to set one or more
+\c{bool} configuration variables to \c{true} (which usually translates to
+enabling one or more features), then we can use the \c{require} clause. For
+example:
+
+\
+libmariadb ^10.2.2
+{
+  require
+  {
+    config.libmariadb.cache = true
+
+    if ($cxx.target.class != 'windows')
+      config.libmariadb.tls = true
+  }
+}
+\
+
+For more complex dependency configurations we use the \c{prefer} and
+\c{accept} clauses. The \c{prefer} clause can set configuration variables of
+any type and to any value in order to express the package's preferred
+configuration while the \c{accept} condition evaluates whether any given
+configuration is acceptable. For example:
+
+\
+libmariadb ^10.2.2
+{
+  # We prefer the cache but can work without it.
+  # We need the buffer of at least 4KB.
+  #
+  prefer
+  {
+    config.libmariadb.cache = true
+
+    config.libmariadb.buffer = ($config.libmariadb.buffer < 4096 \
+                                ? 4096                           \
+                                : $config.libmariadb.buffer)
+  }
+
+  accept ($config.libmariadb.buffer >= 4096)
+}
+\
+
+The \c{require} and \c{prefer} clauses are arbitrary \c{buildfile} fragments
+similar to \c{reflect} while the \c{accept} clause is a \c{buildfile} eval
+context expression that should evaluate to \c{true} or \c{false}, similar to
+\c{enable}.
+
+Given the \c{require} and \c{prefer}/\c{accept} clauses of all the dependents
+of a particular dependency, \c{bpkg} tries to negotiates a configuration
+acceptable to all of them as described in \l{#dep-config-negotiation
+Dependency Configuration Negotiation}.
+
+All the clauses are evaluated in the specified order, that is, \c{enable},
+then \c{require} or \c{prefer}/\c{accept}, and finally \c{reflect}, with the
+(negotiated, in case of \c{prefer}) configuration values set by preceding
+clauses available for examination by the subsequent clauses in this
+\c{depends} value as well as in all the subsequent ones. For example:
+
+\
+depends:
+\\
+libmariadb ^10.2.2
+{
+  prefer
+  {
+    config.libmariadb.cache = true
+
+    config.libmariadb.buffer = ($config.libmariadb.buffer < 4096 \
+                                ? 4096                           \
+                                : $config.libmariadb.buffer)
+  }
+
+  accept ($config.libmariadb.buffer >= 4096)
+
+  reflect
+  {
+    config.hello.buffer = $config.libmariadb.buffer
+  }
+}
+\\
+
+depends: liblru ^1.0.0 ? ($config.libmariadb.cache)
+\
+
+The above example also highlights the difference between the
+\c{require}/\c{prefer} and \c{reflect} clauses that is easy to mix up: in
+\c{require}/\c{prefer} we set the dependency's while in \c{reflect} we set the
+dependent's configuration variables.
+
 
 \h2#manifest-package-requires|\c{requires}|
 
 \
-[requires]: [*][?] [<alternatives>] [; <comment>]
+[requires]: [*] <alternatives> [; <comment>]
 
-<alternatives> = <requirement> [ '|' <requirement>]*
-<requirement>  = <id> | <dependency>
-<id>           = <name>
+<alternatives> = <alternative> [ '|' <alternative>]*
+<alternative>  = <requirements> ['?' [<enable-cond>]] [<reflect-var>]
+<requirements> = [<requirement>] | \
+    '{' <requirement> [<requirement>]* '}' [<version-constraint>]
+<requirement>  = <name> [<version-constraint>]
+<enable-cond>  = '(' <buildfile-eval-expr> ')'
+<reflect-var>  = <config-var> '=' <value>
 \
 
 The package requirements (other than other packages). Such requirements are
-normally checked during package configuration by the build system and the only
-purpose of capturing them in the manifest is for documentation. Similar to
-\c{depends}, a value that starts with \c{*} is a build-time requirement and/or
-with \c{?} is a conditional requirement. For example:
+normally checked in an ad hoc way during package configuration by its
+\c{buildfiles} and the primary purpose of capturing them in the manifest is
+for documentation.  However, there are some special requirements that are
+recognized by the tooling (see below). For example:
 
 \
-requires: linux | windows | macos
 requires: c++11
-requires: ? ; VC 15 or later if targeting Windows.
-requires: ? ; libc++ if using Clang on Mac OS.
+requires: linux | windows | macos
+requires: libc++ ? ($macos) ; libc++ if using Clang on Mac OS.
 \
 
-Notice that in the last two cases the id is omitted altogether with only the
-comment specifying the requirement.
-
-Note that \c{requires} should also be used to specify dependencies on external
-libraries, that is, the ones not packaged or not in the repository. In this
-case it may make sense to also specify the version constraint. For example:
+The format of the \c{requires} value is similar to
+\l{#manifest-package-depends \c{depends}} with the following differences. The
+requirement name (with or without version constraint) can mean anything (but
+must still be a valid package name). Only the \c{enable} and \c{reflect}
+clauses are permitted. There is a simplified syntax with either the
+requirement or enable condition or both being empty and where the comment
+carries all the information (and is thus mandatory). For example:
 
 \
-requires: zlib >= 1.2.0 ; Most systems already have it or get from zlib.net.
+requires: ; X11 libs.
+requires: ? ($windows) ; Only 64-bit.
+requires: ? ; Only 64-bit if on Windows.
+requires: x86_64 ? ; Only if on Windows.
 \
 
-It is recommended that you specify unconditional requirements first with
-simple (no alternatives) requirements leading each set.
+Note that \c{requires} can also be used to specify dependencies on system
+libraries, that is, the ones not to be packaged. In this case it may make
+sense to also specify the version constraint. For example:
 
-To assist automated processing, the following pre-defined ids should be used
-for the common requirements:
+\
+requires: libx11 >= 1.7.2
+\
+
+To assist potential future automated processing, the following pre-defined
+requirement names should be used for the common requirements:
 
 \
 c++98
@@ -1271,6 +2026,8 @@ posix
 linux
 macos
 freebsd
+openbsd
+netbsd
 windows
 \
 
@@ -1280,7 +2037,8 @@ clang[_X.Y]  ; For example: clang_6, clang_3.4, clang_3.4.1
 msvc[_N.U]   ; For example: msvc_14, msvc_15.3
 \
 
-The following pre-defined ids are recognized by automated build bots:
+The following pre-defined requirement names are recognized by automated build
+bots:
 
 \
 bootstrap
@@ -1500,7 +2258,8 @@ The contents of the mandatory \c{bootstrap.build} file, optional
 \c{root.build} file, and additional files included by \c{root.build}, or their
 alternative naming scheme variants (\c{bootstrap.build2}, etc). Packages with
 the alternative naming scheme should use the \c{*-build2} values instead of
-\c{*-build}.
+\c{*-build}. See \l{#package-skeleton Package Build System Skeleton} for
+background.
 
 These files must reside in the package's \c{build/} subdirectory and have the
 \c{.build} extension (or their alternative names). They can be provided either
