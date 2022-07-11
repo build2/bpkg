@@ -297,6 +297,92 @@ operators. While it is possible that the original manifest specified equality
 or shortucts as full ranges, it is acceptable to display/serialize them as
 simpler operators.|
 
+Instead of a concrete value, the version in the constraint can be specified in
+terms of the dependent package's version (that is, the version of the package
+placing the constraint) using the special \c{$} value. For example:
+
+\
+libfoo == $
+\
+
+A constraint that contains \c{$} is called incomplete. This mechanism is
+primarily useful when developing related packages that should track each
+other's versions exactly or closely.
+
+In comparison operators and ranges the \c{$} value is replaced with the
+dependent version ignoring the revision. For shortcut operators, the dependent
+version must be a standard version and the following additional processing is
+applied depending on whether the version is a release, final pre-release, or a
+snapshot pre-release.
+
+\ol|
+
+\li|For a release we set the min version patch to zero. For \c{^} we also set
+the minor version to zero, unless the major version is zero (reduces to
+\c{~}). The max version is set according to the standard shortcut logic. For
+example, \c{~$} is completed as follows:
+
+\
+1.2.0 -> [1.2.0 1.3.0-)
+1.2.1 -> [1.2.0 1.3.0-)
+1.2.2 -> [1.2.0 1.3.0-)
+\
+
+And \c{^$} is completed as follows:
+
+\
+1.0.0 -> [1.0.0 2.0.0-)
+1.1.1 -> [1.0.0 2.0.0-)
+\
+
+|
+
+\li|For a final pre-release the key observation is that if the patch
+component for \c{~} or minor and patch components for \c{^} are not zero, then
+that means there has been a compatible release and we treat this case the same
+as release, ignoring the pre-release part. If, however, it/they are zero, then
+that means there may yet be no final release and we have to start from the
+first alpha. For example, for the \c{~$} case:
+
+\
+1.2.0-a.1 -> [1.2.0-a.1 1.3.0-)
+1.2.0-b.2 -> [1.2.0-a.1 1.3.0-)
+1.2.1-a.1 -> [1.2.0     1.3.0-)
+1.2.2-b.2 -> [1.2.0     1.3.0-)
+\
+
+And for the \c{^$} case:
+
+\
+1.0.0-a.1 -> [1.0.0-a.1 2.0.0-)
+1.0.0-b.2 -> [1.0.0-a.1 2.0.0-)
+1.0.1-a.1 -> [1.0.0     2.0.0-)
+1.1.0-b.2 -> [1.0.0     2.0.0-)
+\
+
+|
+
+\li|For a snapshot pre-release we distinguish two cases: a patch snapshot
+(the patch component is not zero) and a major/minor snapshot (the patch
+component is zero). For the patch snapshot case we assume that it is (most
+likely) developed independently of the dependency and we treat it the same as
+the final pre-release case. For example, if the dependent version is
+\c{1.2.1-a.0.nnn}, the dependency could be \c{1.2.0} or \c{1.2.2} (or
+somewhere in-between).
+
+For the major/minor snapshot we assume that all the packages are developed in
+the lockstep and have the same \c{X.Y.0} version. In this case we make the
+range start from the earliest possible version in this \"snapshot series\" and
+end before the final pre-release. For example (in this case \c{~} and \c{^}
+are treated the same):
+
+\
+1.2.0-a.0.nnn -> [1.2.0-a.0.1 1.2.0-a.1)
+2.0.0-b.2.nnn -> [2.0.0-b.2.1 2.0.0-b.3)
+\
+
+||
+
 
 \h1#manifests|Manifests|
 
@@ -1116,93 +1202,18 @@ It is recommended that you specify unconditional dependencies first with
 simple (no alternatives) dependencies leading each set.
 
 See \l{#package-version-constraint Package Version Constraint} for the format
-and semantics of the optional version constraint. Instead of a concrete
-value, it can also be specified in terms of the dependent package's version
-(that is, its \l{#manifest-package-version \c{version}} value) using the
-special \c{$} value. A \c{depends} value that contains \c{$} is called
-incomplete. This mechanism is primarily useful when developing related
-packages that should track each other's versions exactly or closely. For
-example:
+and semantics of the optional version constraint. Instead of a concrete value,
+the version in the constraint can also be specified in terms of the dependent
+package's version (that is, its \l{#manifest-package-version \c{version}}
+value) using the special \c{$} value. This mechanism is primarily useful when
+developing related packages that should track each other's versions exactly or
+closely. For example:
 
 \
 name: sqlite3
 version: 3.18.2
 depends: libsqlite3 == $
 \
-
-In comparison operators and ranges the \c{$} value is replaced with the
-dependent version ignoring the revision. For shortcut operators, the dependent
-version must be a standard version and the following additional processing is
-applied depending on whether the version is a release, final pre-release, or a
-snapshot pre-release.
-
-\ol|
-
-\li|For a release we set the min version patch to zero. For \c{^} we also set
-the minor version to zero, unless the major version is zero (reduces to
-\c{~}). The max version is set according to the standard shortcut logic. For
-example, \c{~$} is completed as follows:
-
-\
-1.2.0 -> [1.2.0 1.3.0-)
-1.2.1 -> [1.2.0 1.3.0-)
-1.2.2 -> [1.2.0 1.3.0-)
-\
-
-And \c{^$} is completed as follows:
-
-\
-1.0.0 -> [1.0.0 2.0.0-)
-1.1.1 -> [1.0.0 2.0.0-)
-\
-
-|
-
-\li|For a final pre-release the key observation is that if the patch
-component for \c{~} or minor and patch components for \c{^} are not zero, then
-that means there has been a compatible release and we treat this case the same
-as release, ignoring the pre-release part. If, however, it/they are zero, then
-that means there may yet be no final release and we have to start from the
-first alpha. For example, for the \c{~$} case:
-
-\
-1.2.0-a.1 -> [1.2.0-a.1 1.3.0-)
-1.2.0-b.2 -> [1.2.0-a.1 1.3.0-)
-1.2.1-a.1 -> [1.2.0     1.3.0-)
-1.2.2-b.2 -> [1.2.0     1.3.0-)
-\
-
-And for the \c{^$} case:
-
-\
-1.0.0-a.1 -> [1.0.0-a.1 2.0.0-)
-1.0.0-b.2 -> [1.0.0-a.1 2.0.0-)
-1.0.1-a.1 -> [1.0.0     2.0.0-)
-1.1.0-b.2 -> [1.0.0     2.0.0-)
-\
-
-|
-
-\li|For a snapshot pre-release we distinguish two cases: a patch snapshot
-(the patch component is not zero) and a major/minor snapshot (the patch
-component is zero). For the patch snapshot case we assume that it is (most
-likely) developed independently of the dependency and we treat it the same as
-the final pre-release case. For example, if the dependent version is
-\c{1.2.1-a.0.nnn}, the dependency could be \c{1.2.0} or \c{1.2.2} (or
-somewhere in-between).
-
-For the major/minor snapshot we assume that all the packages are developed in
-the lockstep and have the same \c{X.Y.0} version. In this case we make the
-range start from the earliest possible version in this \"snapshot series\" and
-end before the final pre-release. For example (in this case \c{~} and \c{^}
-are treated the same):
-
-\
-1.2.0-a.0.nnn -> [1.2.0-a.0.1 1.2.0-a.1)
-2.0.0-b.2.nnn -> [2.0.0-b.2.1 2.0.0-b.3)
-\
-
-||
 
 
 \h2#manifest-package-requires|\c{requires}|
