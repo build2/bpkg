@@ -493,14 +493,16 @@ description: First line. Second line.
 \
 
 As a result, such a sequence is \"overloaded\" to provide more useful
-functionality in two ways: Firstly, if \c{:} after the name is immediately
-followed by \c{\\} and a newline, then it signals the start of the multi-line
-mode. In this mode all subsequent newlines and \c{#} are treated as ordinary
-characters rather than value terminators or comments until a line consisting
-of just \\ and a newline (the multi-line mode terminator). For example:
+functionality in two ways: Firstly, if \c{:} after the name is followed on the
+next line by just \c{\\} and a newline, then it signals the start of the
+multi-line mode. In this mode all subsequent newlines and \c{#} are treated as
+ordinary characters rather than value terminators or comments until a line
+consisting of just \c{\\} and a newline (the multi-line mode terminator). For
+example:
 
 \
-description:\
+description:
+\\
 First paragraph.
 #
 Second paragraph.
@@ -514,35 +516,26 @@ Expressed as a C-string, the value in the above example is:
 \
 
 
-\N|If we didn't expect to ever need to specify a name with an empty value,
-then an empty value could have turned on the multi-line mode, for example:
-
-\
-description:
-First paragraph.
-#
-Second paragraph.
-\\
-\
-
-There are two reasons we don't do this: we don't want to close the door on
-empty values and we want a more explicit \"introducer\" for the multi-line
-mode since it is quite different compared to the simple mode.|
+\N|Originally, the multi-line mode was entered if \c{:} after the name were
+followed by \c{\\} and a newline but on the same line. While this syntax is
+still recognized for backwards compatibility, it is deprecated and will be
+discontinued in the future.|
 
 Note that in the multi-line mode we can still use newline escaping to split
 long lines, for example:
 
 \
-description:\
+description:
+\\
 First paragraph that doesn't fit into one line \
 so it is continued on the next line.
 Second paragraph.
 \\
 \
 
-In the simple (that is, non-multi-line) mode, the sole \c{\\} and newline
-sequence is overloaded to mean a newline. So the previous example can also be
-represented like this:
+And secondly, in the simple (that is, non-multi-line) mode, the sole \c{\\}
+and newline sequence is overloaded to mean a newline. So the previous example
+can also be represented like this:
 
 \
 description: First paragraph that doesn't fit into one \
@@ -555,7 +548,8 @@ Note that the multi-line mode can be used to capture a value with leading
 and/or trailing whitespaces, for example:
 
 \
-description:\
+description:
+\\
   test
 
 \\
@@ -572,7 +566,8 @@ values. For example the following representation results in the same value as
 in the previous example.
 
 \
-description:\
+description:
+\\
   test
 
 <EOF>
@@ -633,7 +628,8 @@ If a value with a comment is multi-line, then \c{;} must appear on a separate
 line, for example:
 
 \
-url:\
+url:
+\\
 http://git.example.com/?p=foo;a=tree
 ;
 Git repository tree.
@@ -644,7 +640,8 @@ In this case, only lines that consist of a sole non-comment semicolon need
 escaping, for example:
 
 \
-license:\
+license:
+\\
 other: strange
 \;
 license
@@ -1044,7 +1041,8 @@ changes-file: NEWS
 Or:
 
 \
-changes:\
+changes:
+\\
 1.2.3-2
   - applied upstream patch for critical bug bar
   - regenerated documentation
@@ -1509,7 +1507,8 @@ As an example, the following value corresponds to the
 \c{build/config/common.build} file:
 
 \
-config/common-build:\
+config/common-build:
+\\
 config [bool] config.libhello.fancy ?= false
 \\
 \
@@ -1518,7 +1517,8 @@ And the following value corresponds to the \c{build2/config/common.build2}
 file in a package with the alternative naming scheme:
 
 \
-config/common-build2:\
+config/common-build2:
+\\
 config [bool] config.libhello.fancy ?= false
 \\
 \
