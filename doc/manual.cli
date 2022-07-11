@@ -246,10 +246,10 @@ operators, shortcut (to range) operators, or ranges and has the following
 form:
 
 \
-<version-constraint> := <comparison> | <shortcut> | <range>
-<comparison>         := ('==' | '>' | '<' | '>=' | '<=') <version>
-<shortcut>           := ('^' | '~') <version>
-<range>              := ('(' | '[') <version> <version> (')' | ']')
+<version-constraint> = <comparison> | <shortcut> | <range>
+<comparison>         = ('==' | '>' | '<' | '>=' | '<=') <version>
+<shortcut>           = ('^' | '~') <version>
+<range>              = ('(' | '[') <version> <version> (')' | ']')
 \
 
 The shortcut operators can only be used with \l{b#module-version standard
