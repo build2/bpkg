@@ -133,7 +133,8 @@ Add the \cb{certificate:} field for the base repository (\cb{role: base})
 in the \cb{repositories} manifest file(s):
 
 \
-certificate: \
+certificate:
+\\
 <cert>
 \\
 \
@@ -143,7 +144,8 @@ Replace \i{cert} with the entire contents of \cb{cert.pem} (including the
 an entry like this:
 
 \
-certificate: \
+certificate:
+\\
 -----BEGIN CERTIFICATE-----
 MIIDQjCCAiqgAwIBAgIJAIUgsIqSnesGMA0GCSqGSIb3DQEBCwUAMDkxFzAVBgNV
 .
