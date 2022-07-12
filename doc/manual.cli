@@ -384,6 +384,80 @@ are treated the same):
 ||
 
 
+\h1#package-skeleton|Package Build System Skeleton|
+
+There are situations where \c{bpkg} may need to evaluate \c{buildfile}
+expressions and fragments before committing to a particular version of the
+package and therefore before actually unpacking anything. For example,
+\c{bpkg} may need to evaluate a condition in the conditional dependency or it
+may need to negotiate a configuration among several dependents of a package
+which requires it to know this package's configuration variable types and
+default values.
+
+To solve this chicken and egg of a problem, \c{bpkg} includes a minimal subset
+of the build system files along with the package's other metadata. This subset
+is called the package build system skeleton, or just package skeleton for
+short, and includes the \c{build/bootstrap.build} and \c{build/root.build}
+files (or their alternative naming scheme variants) as well as any files that
+may be sources by \c{root.build}.
+
+The inclusion of \c{build/bootstrap.build} and \c{build/root.build} (if
+present) as well as any \c{build/config/*.build} (or their alternative naming
+scheme variants) is automatic. However, if \c{root.build} sources any files
+other than \c{build/config/*.build}, then they must be specified explicitly in
+the package manifest using the \c{build-file} value (@@ REF).
+
+Inside these buildfiles the skeleton load can be distinguished from normal
+load by examining the \c{build.mode} variable, which is set to \c{skeleton}
+during the skeleton load. In particular, this variable must be used to omit
+loading of build system modules that are neither built-in nor standard
+pre-installed and which are therefore listed as a package dependency. Such
+modules are not yet available during the skeleton load. For example:
+
+\
+# root.build
+
+using cxx       # Ok, built-in module.
+using autoconf  # Ok, standard pre-installed module.
+
+if ($build.mode != 'skeleton')
+  using hello
+\
+
+The \c{build.mode} variable can also be used to omit parts of \c{root.build}
+that are expensive to evaluate and which are only necessary during the actual
+build. Here is a realistic example:
+
+\
+# root.build
+
+...
+
+using cxx
+
+# Determine the GCC plugin directory. But omit doing it during the
+# skeleton load.
+#
+if ($build.mode != 'skeleton')
+{
+  if ($cxx.id != 'gcc')
+    fail 'this project can only be built with GCC'
+
+  # If plugin support is disabled, then -print-file-name will print
+  # the name we have passed (the real plugin directory will always
+  # be absolute).
+  #
+  plugin_dir = [dir_path] \
+    $process.run($cxx.path -print-file-name=plugin)
+
+  if (\"$plugin_dir\" == plugin)
+    fail \"$recall($cxx.path) does not support plugins\"
+
+  plugin_dir = $normalize($plugin_dir)
+}
+\
+
+
 \h1#manifests|Manifests|
 
 This chapter describes the general manifest file format as well as the
@@ -517,9 +591,9 @@ Expressed as a C-string, the value in the above example is:
 
 
 \N|Originally, the multi-line mode was entered if \c{:} after the name were
-followed by \c{\\} and a newline but on the same line. While this syntax is
-still recognized for backwards compatibility, it is deprecated and will be
-discontinued in the future.|
+immediately followed by \c{\\} and a newline but on the same line. While this
+syntax is still recognized for backwards compatibility, it is deprecated and
+will be discontinued in the future.|
 
 Note that in the multi-line mode we can still use newline escaping to split
 long lines, for example:
@@ -1165,7 +1239,7 @@ Single-line form:
 <alternatives> = <alternative> [ '|' <alternative>]*
 <alternative>  = <dependencies> ['?' <enable-cond>] [<reflect-var>]
 <dependencies> = <dependency> | \
-    ('{' <dependency> [ <dependency>]* '}' [<version-constraint>])
+    '{' <dependency> [<dependency>]* '}' [<version-constraint>]
 <dependency>   = <name> [<version-constraint>]
 <enable-cond>  = '(' <buildfile-eval-expr> ')'
 <reflect-var>  = <config-var> '=' <value>
@@ -1213,11 +1287,45 @@ Multi-line form:
 <accept-cond>  = '(' <buildfile-eval-expr> ')'
 \
 
-The dependency packages. If the \c{depends} value starts with \c{*}, then
-it is a \i{build-time} dependency. Otherwise it is \i{run-time}.
+The dependency packages. The most common form of a dependency is a package
+name followed by the optional version constraint. For example:
+
+\
+depends: libhello ^1.0.0
+\
+
+See \l{#package-version-constraint Package Version Constraint} for the format
+and semantics of the version constraint. Instead of a concrete value, the
+version in the constraint can also be specified in terms of the dependent
+package's version (that is, its \l{#manifest-package-version \c{version}}
+value) using the special \c{$} value. This mechanism is primarily useful when
+developing related packages that should track each other's versions exactly or
+closely. For example:
+
+\
+name: sqlite3
+version: 3.18.2
+depends: libsqlite3 == $
+\
+
+If multiple packages are specified within a single \c{depends} value, they
+must be grouped with \c{{\}}. This can be useful if the packages share a
+version constraint. The common constraint applies to all the packages in
+the group that do not have their own constraint. For example:
+
+\
+depends: { libboost-any libboost-log libboost-uuid ~1.77.1 } ~1.77.0
+\
+
+If the \c{depends} value starts with \c{*}, then it is a \i{build-time}
+dependency. Otherwise it is \i{run-time}. For example:
+
+\
+depends: * byacc >= 20210619
+\
 
 \N|Most of the build-time dependencies are expected to be tools such as code
-generator, so you can think of \c{*} as the executable mark printed by
+generators, so you can think of \c{*} as the executable mark printed by
 \c{ls}. An important difference between the two kinds of dependencies is that
 in case of cross-compilation a build-time dependency must be built for the
 host machine, not the target. Build system modules are also build-time
@@ -1229,9 +1337,68 @@ hoc manner: \c{build2} (the \c{build2} build system) and \c{bpkg} (the
 system and package manager versions, for example:
 
 \
-depends: * build2 >= 0.6.0
-depends: * bpkg >= 0.6.0
+depends: * build2 >= 0.15.0
+depends: * bpkg >= 0.15.0
 \
+
+\N|If you are developing or packaging a project that uses features from the
+not yet released (staged) version of the \c{build2} toolchain, then you can
+use the pre-release version in the constraint. For example:
+
+\
+depends: * build2 >= 0.16.0-
+depends: * bpkg >= 0.16.0-
+\
+
+|
+
+A dependency can be conditional, that is, it is only in effect if a certain
+condition is met. For example:
+
+\
+depends: libposix-getopt ^1.0.0 ? ($cxx.target.class == 'windows')
+\
+
+The condition after \c{?} inside \c{()} is a \c{buildfile} eval context
+expression that should evaluate to \c{true} or \c{false}, as if it was
+specified in the \c{buildfile} \c{if} directive (see \l{b#intro-lang-expand
+Expansion and Quoting} and \l{b#intro-if-else Conditions (\c{if-else})} for
+details).
+
+The condition expression is evaluated after loading the package build system
+skeleton, that is, after loading its \c{root.build} (see \l{#package-skeleton
+Package Build System Skeleton} for details). As a result, variable values set
+by build system modules that are loaded in \c{root.build} as well as package's
+configuration (including previously reflected; see below) or computed values
+can be referenced in dependency conditions. For example, given the following
+\c{root.build}:
+
+\
+# root.build
+
+...
+
+using cxx
+
+# MinGW ships POSIX <getopt.h>.
+#
+need_getopt = ($cxx.target.class == 'windows' && \
+               $cxx.target.system != 'mingw32')
+
+config [bool] config.hello.regex ?= false
+\
+
+We could have the following conditional dependencies:
+
+\
+depends: libposix-getopt ^1.0.0 ? ($need_getop) ; Windows && !MinGW.
+depends: libposix-regex  ^1.0.0 ? ($config.hello.regex && \
+                                   $cxx.target.class == 'windows')
+\
+
+The first `depends` value in the above example also shows the use of an
+optional comment. It's a good idea to include one if the condition is
+not sufficiently self-documenting.
 
 Each \c{depends} value can specify multiple packages with the \i{OR}
 semantics. While multiple \c{depends} values are used to specify multiple
@@ -1251,21 +1418,6 @@ depends: ? libqtcore >= 5.0.0 ; Only if GUI is enabled.
 
 It is recommended that you specify unconditional dependencies first with
 simple (no alternatives) dependencies leading each set.
-
-See \l{#package-version-constraint Package Version Constraint} for the format
-and semantics of the optional version constraint. Instead of a concrete value,
-the version in the constraint can also be specified in terms of the dependent
-package's version (that is, its \l{#manifest-package-version \c{version}}
-value) using the special \c{$} value. This mechanism is primarily useful when
-developing related packages that should track each other's versions exactly or
-closely. For example:
-
-\
-name: sqlite3
-version: 3.18.2
-depends: libsqlite3 == $
-\
-
 
 \h2#manifest-package-requires|\c{requires}|
 
