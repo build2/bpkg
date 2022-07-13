@@ -3331,6 +3331,7 @@ namespace bpkg
           explicit
           precollect_result (bool p): reused (false), repo_postpone (p) {}
         };
+
         auto precollect = [&options,
                            &pkg,
                            &nm,
@@ -3847,56 +3848,59 @@ namespace bpkg
                   return precollect_result (true /* postpone */);
                 }
 
-                if (dr != nullptr)
+                // Fail if we are unable to find an available dependency
+                // package which satisfies the dependent's constraint.
+                //
+                // It feels that just considering this alternative as
+                // unsatisfactory and silently trying another alternative
+                // would be wrong, since the user may rather want to
+                // fix/re-fetch the repository and retry.
+                //
+                diag_record dr (fail);
+
+                // Issue diagnostics differently based on the presence of
+                // available packages for the unsatisfied dependency.
+                //
+                // Note that there can't be any stubs, since they satisfy
+                // any constraint and we won't be here if there were any.
+                //
+                vector<shared_ptr<available_package>> aps (
+                  find_available (dn, nullopt /* version_constraint */, af));
+
+                if (!aps.empty ())
                 {
-                  *dr << error;
+                  dr << "unable to satisfy dependency constraint (" << dn;
 
-                  // Issue diagnostics differently based on the presence of
-                  // available packages for the unsatisfied dependency.
+                  // We need to be careful not to print the wildcard-based
+                  // constraint.
                   //
-                  // Note that there can't be any stubs, since they satisfy
-                  // any constraint and we won't be here if they were.
-                  //
-                  vector<shared_ptr<available_package>> aps (
-                    find_available (dn, nullopt /* version_constraint */, af));
+                  if (d.constraint &&
+                      (!dep_constr || !wildcard (*dep_constr)))
+                    dr << ' ' << *d.constraint;
 
-                  if (!aps.empty ())
-                  {
-                    *dr << "unable to satisfy dependency constraint (" << dn;
+                  dr << ") of package " << nm << pdb <<
+                    info << "available " << dn << " versions:";
 
-                    // We need to be careful not to print the wildcard-based
-                    // constraint.
-                    //
-                    if (d.constraint &&
-                        (!dep_constr || !wildcard (*dep_constr)))
-                      *dr << ' ' << *d.constraint;
-
-                    *dr << ") of package " << nm << pdb <<
-                      info << "available " << dn << " versions:";
-
-                    for (const shared_ptr<available_package>& ap: aps)
-                      *dr << ' ' << ap->version;
-                  }
-                  else
-                  {
-                    *dr << "no package available for dependency " << dn
-                        << " of package " << nm << pdb;
-                  }
-
-                  // Avoid printing this if the dependent package is external
-                  // since it's more often confusing than helpful (they are
-                  // normally not fetched manually).
-                  //
-                  if (!af->location.empty ()           &&
-                      !af->location.directory_based () &&
-                      (!dep_constr || system))
-                    *dr << info << "repository " << af->location << " appears "
-                        << "to be broken" <<
-                      info << "or the repository state could be stale" <<
-                      info << "run 'bpkg rep-fetch' to update";
+                  for (const shared_ptr<available_package>& ap: aps)
+                    dr << ' ' << ap->version;
+                }
+                else
+                {
+                  dr << "no package available for dependency " << dn
+                     << " of package " << nm << pdb;
                 }
 
-                return precollect_result (false /* postpone */);
+                // Avoid printing this if the dependent package is external
+                // since it's more often confusing than helpful (they are
+                // normally not fetched manually).
+                //
+                if (!af->location.empty ()           &&
+                    !af->location.directory_based () &&
+                    (!dep_constr || system))
+                  dr << info << "repository " << af->location << " appears "
+                     << "to be broken" <<
+                    info << "or the repository state could be stale" <<
+                    info << "run 'bpkg rep-fetch' to update";
               }
 
               // If all that's available is a stub then we need to make sure
@@ -4812,7 +4816,7 @@ namespace bpkg
             // together with others. And in this case we may want some other
             // alternative. Consider, as an example, something like this:
             //
-            // depends: libfoo >= 2.0.0 | libfoo >= 1.0.0 libbar
+            // depends: libfoo >= 2.0.0 | {libfoo >= 1.0.0 libbar}
             //
             if (!r.builds)
             {
@@ -4843,10 +4847,10 @@ namespace bpkg
               continue;
             }
 
-            // Try to select a true alternative, returning true if the
-            // alternative is selected or the selection is postponed. Return
-            // false if the alternative is ignored (not postponed and not all
-            // of it dependencies are reused).
+            // Try to collect and then select a true alternative, returning
+            // true if the alternative is selected or the collection is
+            // postponed. Return false if the alternative is ignored (not
+            // postponed and not all of it dependencies are reused).
             //
             auto try_select = [postponed_alts, &max_alt_index,
                                &edas, &pkg,
