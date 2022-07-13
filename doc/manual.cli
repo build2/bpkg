@@ -1396,28 +1396,166 @@ depends: libposix-regex  ^1.0.0 ? ($config.hello.regex && \
                                    $cxx.target.class == 'windows')
 \
 
-The first `depends` value in the above example also shows the use of an
-optional comment. It's a good idea to include one if the condition is
-not sufficiently self-documenting.
+The first \c{depends} value in the above example also shows the use of an
+optional comment. It's a good idea to provide it if the condition is not
+sufficiently self-documenting.
 
-Each \c{depends} value can specify multiple packages with the \i{OR}
-semantics. While multiple \c{depends} values are used to specify multiple
-packages with the \i{AND} semantics. A value that starts with \c{?} is a
-conditional dependency. Whether such a dependency will be in effect can
-only be determined at the package configuration time. It is recommended that
-you provide a comment for each conditional dependency as an aid to the user.
-For example:
+A dependency can \"reflect\" configuration variables to the subsequent
+\c{depends} values and to the package configuration. This can be used to
+signal whether a conditional dependency is in effect or which dependency
+alternative was selected (see below). The single-line form of \c{depends} can
+only reflect one configuration variable. For example:
 
 \
-depends: libz
-depends: libfoo ~1.2.0 ; Only works with libfoo 1.2.*.
-depends: libgnutls >= 1.2.3 | libopenssl >= 2.3.4
-depends: ? libboost-regex >= 1.52.0 ; Only if no C++11 <regex>.
-depends: ? libqtcore >= 5.0.0 ; Only if GUI is enabled.
+depends: libposix-regex ^1.0.0       \
+  ? ($cxx.target.class == 'windows') \
+  config.hello.external_regex=true
 \
 
-It is recommended that you specify unconditional dependencies first with
-simple (no alternatives) dependencies leading each set.
+\
+# root.build
+
+...
+
+using cxx
+
+config [bool] config.hello.external_regex ?= false
+\
+
+\
+# buildfile
+
+libs =
+
+if $config.hello.external_regex
+  import libs += libposix-regex%lib{posix-regex}
+
+exe{hello}: ... $libs
+\
+
+In the above example, if the \c{hello} package is built on Windows, then the
+dependency on \c{libposix-regex} will be enabled and the package will be
+configured with \c{config.hello.external_regex=true}. This is used in the
+\c{buildfile} to decide whether to import \c{libposix-regex}. While in this
+example it would have probably been easier to just duplicate the check for
+Windows in the \c{buildfile} (or, better yet, factor this check to
+\c{root.build} and share the result via a computed variable between the
+\c{manifest} and \c{buildfile}), the reflect mechanism is the only way to
+communicate the selected dependency alternative (discussed next).
+
+While multiple \c{depends} values are used to specify multiple packages with
+the \i{AND} semantics, inside \c{depends} we can specify specify multiple
+packages (or groups of packages) with the \i{OR} semantics, called dependency
+alternatives. For example:
+
+\
+depends: libmysqlclient >= 5.0.3 | libmariadb ^10.2.2
+\
+
+When selecting an alternative, \c{bpkg} prefers packages that are either
+already present in the build configuration or are selected as dependencies by
+other packages. If this does not yield a selection, then \c{bpkg} picks the
+first alternative with a satisfiable version constraint. As a result, the
+order of alternatives expresses a preference. For example, if the package with
+the above dependency is called \c{hello} and we build just that one package,
+then \c{bpkg} will select \c{libmysqlclient}, provided there is a suitable
+version available. If we wanted to force \c{bpkg} to select \c{libmariadb}
+instead, we could run:
+
+\
+$ bpkg build hello ?libmariadb
+\
+
+Dependency alternatives can be combined with all the other features discussed
+above: groups, conditional dependencies, and reflect. As mentioned earlier,
+reflect is the only way to communicate the selection to subsequent \c{depends}
+values and package configuration. For example:
+
+\
+depends: libmysqlclient >= 5.0.3 config.hello.db='mysql'      | \
+         libmariadb ^10.2.2 ? ($cxx.target.class != 'windows')  \
+           config.hello.db='mariadb'
+
+depends: libz ^1.2.1100 ? ($config.hello.db == 'mysql')
+\
+
+If an alternative is conditional and the condition evaluates to \c{false},
+then this alternative is not considered. If all but one alternative are
+eliminated due to conditions, then this becomes an ordinary dependency. If all
+the alternatives are eliminated due to conditions, then this dependency is not
+in effect. For example:
+
+\
+depends: libmysqlclient >= 5.0.3 ? ($config.hello.db == 'mysql') | \
+         libmariadb ^10.2.2      ? ($config.hello.db == 'mariadb')
+\
+
+While there is no need to use the dependency alternative in the above example
+(since the alternatives are mutually exclusive), it makes for good
+documentation of intent.
+
+Besides as a single line, the \c{depends} value can also be specified in a
+multi-line form which, besides potentially better readability, provides
+additional functionality. In the multi-line form, each dependency alternative
+occupies a separate line and \c{|} can be specified either at the end of
+the dependency alternative line or on a separate line. For example:
+
+\
+depends:
+\\
+libmysqlclient >= 5.0.3 ? ($config.hello.db == 'mysql') |
+libmariadb ^10.2.2      ? ($config.hello.db == 'mariadb')
+\\
+\
+
+A dependency alternative can be optionally followed by a block containing a
+number of clauses. The \c{enable} clause is the alternative way to specify the
+condition for a conditional dependency while the \c{reflect} clause is the
+alternative way to specify the reflected configuration variable. The block may
+also contain \c{#}-style comments, similar to \c{buildfile}. For example:
+
+\
+depends:
+\\
+libmysqlclient >= 5.0.3
+{
+  reflect
+  {
+    config.hello.db = 'mysql'
+  }
+}
+|
+libmariadb ^10.2.2
+{
+  # TODO: MariaDB support on Windows.
+  #
+  enable ($cxx.target.class != 'windows')
+
+  reflect
+  {
+    config.hello.db = 'mariadb'
+  }
+}
+\\
+\
+
+While the \c{enable} clause is essentially the same as \c{?}, the \c{reflect}
+clause is an arbitrary \c{buildfile} fragment that can have more complex logic
+and assign multiple configuration variables. For example:
+
+\
+libmariadb ^10.2.2
+{
+  reflect
+  {
+    if ($cxx.target.class == 'windows')
+      config.hello.db = 'mariadb-windows'
+    else
+      config.hello.db = 'mariadb-posix'
+  }
+}
+\
+
 
 \h2#manifest-package-requires|\c{requires}|
 
