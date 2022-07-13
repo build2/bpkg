@@ -3307,10 +3307,17 @@ namespace bpkg
           //
           optional<prebuilds> builds;
 
+          // If some dependency of the alternative cannot be resolved because
+          // there is no version available which can satisfy all the being
+          // built dependents, then this member contains all the dependency
+          // builds (which otherwise would be contained in the builds member).
+          //
+          optional<prebuilds> unsatisfactory;
+
           // True if dependencies can all be resolved (builds is present) and
           // are all reused (see above).
           //
-          bool reused;
+          bool reused = false;
 
           // True if some of the dependencies cannot be resolved (builds is
           // nullopt) and the dependent package prerequisites collection needs
@@ -3318,18 +3325,24 @@ namespace bpkg
           // pre-entered constraint from repositories available to the
           // dependent package.
           //
-          bool repo_postpone;
+          bool repo_postpone = false;
 
           // Create precollect result containing dependency builds.
           //
           precollect_result (prebuilds&& bs, bool r)
-              : builds (move (bs)), reused (r), repo_postpone (false) {}
+              : builds (move (bs)), reused (r) {}
+
+          // Create precollect result containing unsatisfactory dependency
+          // builds.
+          //
+          precollect_result (bool r, prebuilds&& bs)
+              : unsatisfactory (move (bs)), reused (r) {}
 
           // Create precollect result without builds (some dependency can't be
-          // satisfied, etc).
+          // resolved, etc).
           //
           explicit
-          precollect_result (bool p): reused (false), repo_postpone (p) {}
+          precollect_result (bool p): repo_postpone (p) {}
         };
 
         auto precollect = [&options,
@@ -3387,8 +3400,7 @@ namespace bpkg
             // failing due to inability for dependency versions collected by
             // two dependents to satisfy each other constraints (for an
             // example see the
-            // pkg-build/dependency/apply-constraints/resolve-conflict{1,2}
-            // tests).
+            // pkg-build/dependency/apply-constraints/resolve-conflict/ tests).
 
             // Points to the desired dependency version constraint, if
             // specified, and is NULL otherwise. Can be used as boolean flag.
@@ -3958,16 +3970,42 @@ namespace bpkg
               }
             }
 
-            // If the dependency package of a different version is already
-            // being built, then we also need to make sure that we will be
-            // able to choose one of them (either existing or new) which
-            // satisfies all the dependents.
-            //
-            // Note that collect_build() also performs this check but
-            // postponing it till then can end up in failing instead of
-            // selecting some other dependency alternative.
-            //
+            bool ru (i != map_.end () || dsp != nullptr);
+
+            if (!ru)
+              reused = false;
+
+            r.push_back (prebuild {d,
+                                   *ddb,
+                                   move (dsp),
+                                   move (dap),
+                                   move (rp.second),
+                                   system,
+                                   specified,
+                                   force,
+                                   ru});
+          }
+
+          // Now, as we have pre-collected the dependency builds, go through
+          // them and check that for those dependencies which are already
+          // being built we will be able to choose one of them (either
+          // existing or new) which satisfies all the dependents. If that's
+          // not the case, then issue the diagnostics, if requested, and
+          // return the unsatisfactory dependency builds.
+          //
+          // Note that collect_build() also performs this check but postponing
+          // it till then can end up in failing instead of selecting some
+          // other dependency alternative.
+          //
+          for (const prebuild& b: r)
+          {
+            const shared_ptr<available_package>& dap (b.available);
+
             assert (dap != nullptr); // Otherwise we would fail earlier.
+
+            const dependency& d (b.dependency);
+
+            auto i (map_.find (b.db, d.name));
 
             if (i != map_.end () && d.constraint)
             {
@@ -3975,8 +4013,8 @@ namespace bpkg
 
               if (bp.action && *bp.action == build_package::build)
               {
-                const version& v1 (system
-                                   ? *dap->system_version (*ddb)
+                const version& v1 (b.system
+                                   ? *dap->system_version (b.db)
                                    : dap->version);
 
                 const version& v2 (bp.available_version ());
@@ -4008,33 +4046,18 @@ namespace bpkg
                             info << "available "
                                  << bp.available_name_version () <<
                             info << "available "
-                                 << package_string (n, v1, system) <<
+                                 << package_string (n, v1, b.system) <<
                             info << "explicitly specify " << n << " version "
                                  << "to manually satisfy both constraints";
                         }
 
-                        return precollect_result (false /* postpone */);
+                        return precollect_result (reused, move (r));
                       }
                     }
                   }
                 }
               }
             }
-
-            bool ru (i != map_.end () || dsp != nullptr);
-
-            if (!ru)
-              reused = false;
-
-            r.push_back (prebuild {d,
-                                   *ddb,
-                                   move (dsp),
-                                   move (dap),
-                                   move (rp.second),
-                                   system,
-                                   specified,
-                                   force,
-                                   ru});
           }
 
           return precollect_result (move (r), reused);
@@ -4798,6 +4821,26 @@ namespace bpkg
           //
           size_t alts_num (0);
 
+          // If true, then only reused alternatives will be considered for the
+          // selection.
+          //
+          // The idea here is that we don't want to bloat the configuration by
+          // silently configuring a new dependency package as the alternative
+          // for an already used but not satisfactory for all the dependents
+          // dependency. Think of silently configuring Qt6 just because the
+          // configured version of Qt5 is not satisfactory for all the
+          // dependents. The user must have a choice if to either configure
+          // this new dependency by specifying it explicitly or, for example,
+          // to upgrade dependents so that the existing dependency is
+          // satisfactory for all of them.
+          //
+          // Note that if there are multiple alternatives with all their
+          // dependencies resolved/satisfied, then only reused alternatives
+          // are considered anyway. Thus, this flag only affects the single
+          // alternative case.
+          //
+          bool reused_only (false);
+
           for (size_t i (0); i != edas.size (); ++i)
           {
             const dependency_alternative& da (edas[i].first);
@@ -4828,6 +4871,12 @@ namespace bpkg
                 postpone (nullptr); // Already inserted into postponed_repo.
                 break;
               }
+
+              // If this alternative is reused but is not satisfactory, then
+              // switch to the reused-only mode.
+              //
+              if (r.reused && r.unsatisfactory)
+                reused_only = true;
 
               continue;
             }
@@ -4937,24 +4986,31 @@ namespace bpkg
           if (postponed)
             break;
 
-          // Select the single satisfactory alternative (regardless of its
-          // dependencies reuse).
+          // Select the single satisfactory alternative if it is reused or we
+          // are not in the reused-only mode.
           //
           if (!selected && alts_num == 1)
           {
-            assert (first_alt && first_alt->second.builds);
+            assert (first_alt);
 
-            const auto& eda (edas[first_alt->first]);
-            const dependency_alternative& da (eda.first);
-            size_t dai (eda.second);
+            precollect_result& r (first_alt->second);
 
-            if (!collect (da, dai, move (*first_alt->second.builds)))
+            assert (r.builds);
+
+            if (r.reused || !reused_only)
             {
-              postpone (nullptr); // Already inserted into postponed_cfgs.
-              break;
-            }
+              const auto& eda (edas[first_alt->first]);
+              const dependency_alternative& da (eda.first);
+              size_t dai (eda.second);
 
-            select (da, dai);
+              if (!collect (da, dai, move (*r.builds)))
+              {
+                postpone (nullptr); // Already inserted into postponed_cfgs.
+                break;
+              }
+
+              select (da, dai);
+            }
           }
 
           // If an alternative is selected, then we are done.
@@ -4992,11 +5048,11 @@ namespace bpkg
             throw failed ();
           }
 
-          // Issue diagnostics and fail if there are multiple alternatives
-          // with non-reused dependencies, unless the failure needs to be
-          // postponed.
+          // Issue diagnostics and fail if there are multiple non-reused
+          // alternatives or there is a single non-reused alternative in the
+          // reused-only mode, unless the failure needs to be postponed.
           //
-          assert (alts_num > 1);
+          assert (alts_num > (!reused_only ? 1 : 0));
 
           if (postponed_alts != nullptr)
           {
@@ -5016,10 +5072,11 @@ namespace bpkg
           }
 
           diag_record dr (fail);
+
           dr << "unable to select dependency alternative for package "
              << pkg.available_name_version_db () <<
             info << "explicitly specify dependency packages to manually "
-             << "select the alternative";
+                 << "select the alternative";
 
           for (const auto& da: edas)
           {
@@ -5039,6 +5096,38 @@ namespace bpkg
               {
                 if (!b.reused)
                   dr << ' ' << b.dependency.name;
+              }
+            }
+          }
+
+          // If there is only a single alternative (while we are in the
+          // reused-only mode), then also print the reused unsatisfactory
+          // alternatives and the reasons why they are not satisfactory.
+          //
+          if (alts_num == 1)
+          {
+            assert (reused_only);
+
+            for (const auto& da: edas)
+            {
+              precollect_result r (
+                precollect (da.first, das.buildtime, nullptr /* prereqs */));
+
+              if (r.reused && r.unsatisfactory)
+              {
+                // Print the alternative.
+                //
+                dr << info << "unsatisfactory alternative:";
+
+                for (const prebuild& b: *r.unsatisfactory)
+                  dr << ' ' << b.dependency.name;
+
+                // Print the reason.
+                //
+                precollect (da.first,
+                            das.buildtime,
+                            nullptr /* prereqs */,
+                            &dr);
               }
             }
           }

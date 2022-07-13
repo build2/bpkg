@@ -3991,7 +3991,23 @@ test.options += --no-progress
 
             $* box libbox 2>!;
 
-            $* box +{ config.box.extras=true } libbox/0.1.0 2>>~%EOE%;
+            # While at it, test the reused-only alternative selection mode.
+            #
+            $* box +{ config.box.extras=true } libbox/0.1.0 2>>EOE != 0;
+              error: unable to select dependency alternative for package box/1.0.0
+                info: explicitly specify dependency packages to manually select the alternative
+                info: alternative: libbiz
+                info: unsatisfactory alternative: libbox
+                error: unable to satisfy constraints on package libbox
+                info: command line depends on (libbox == 0.1.0)
+                info: box depends on (libbox >= 0.1.1)
+                info: available libbox/0.1.0
+                info: available libbox/1.0.0
+                info: explicitly specify libbox version to manually satisfy both constraints
+              info: while satisfying box/1.0.0
+              EOE
+
+            $* box +{ config.box.extras=true } libbox/0.1.0 ?libbiz 2>>~%EOE%;
               build plan:
                 new libbiz/1.0.0 (required by box)
                 downgrade libbox/0.1.0
