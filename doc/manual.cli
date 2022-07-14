@@ -457,6 +457,140 @@ if ($build.mode != 'skeleton')
 }
 \
 
+\h1#dep-config-negotiation|Dependency Configuration Negotiation|
+
+In \c{bpkg}, a dependent package may specify a desired configuration for a
+dependency package. Because there could be multiple such dependents, \c{bpkg}
+needs to come up with a dependency configuration that is acceptable to all of
+them. This process is called the dependency configuration negotiation.
+
+The desired dependency configuration is specified as as part of the
+\c{#manifest-package-depends \c{depends}} manifest value and can be expressed
+as either a single \c{require} clause of as a pair of \c{prefer}/\c{accept}
+clauses.
+
+The \c{require} clause is essentially a shortcut for specifying the
+\c{prefer}/\c{accept} clauses where the \c{accept} condition simply verifies
+all the variable values assigned in the \c{prefer} clause. It is, however,
+further restricted to the common case of only setting \c{bool} variables and
+only to \c{true} to allow some optimizations during the configuration
+negotiation. As a result, in the remainder of this section only deals with the
+general \c{prefer}/\c{accept} semantics.
+
+While the exact format of \c{prefer}/\c{accept} is described as part of the
+\c{#manifest-package-depends \c{depends}} manifest value, for this section it
+is sufficient to know that the \c{prefer} clause is an arbitrary \c{buildfile}
+fragment that is expected to set one or more dependency configuration
+variables to the values preferred by this dependent while the \c{accept}
+clause is a \c{buildfile} eval context expression that should evaluate to
+\c{true} or \c{false} indicating whether the dependency configuration values
+it is evaluated on are acceptable to this dependent. For example:
+
+\
+libfoo ^1.0.0
+{
+  # We prefer the cache but can work without it.
+  # We need the buffer of at least 4KB.
+  #
+  prefer
+  {
+    config.libfoo.cache = true
+
+    config.libfoo.buffer = ($config.libfoo.buffer < 4096 \
+                            ? 4096                       \
+                            : $config.libfoo.buffer)
+  }
+
+  accept ($config.libfoo.buffer >= 4096)
+}
+\
+
+The configuration negotiation algorithm can be summarized as cooperative
+refinment. Specifically, whenever a \c{prefer} clause of a dependent changes
+the configuration, all other dependent's \c{prefer} clauses are re-evaluated.
+This process continues until there are no more changes (success), one of the
+\c{accept} clauses returned \c{false} (failure), or the process starts
+\"yo-yo'ing\" between two or more configurations (failure).
+
+The dependents are expected to cooperate by not overriding \"better\" values
+that were set by other dependents. Consider the following two \c{prefer}
+clauses:
+
+\
+prefer
+{
+  config.libfoo.buffer = 4096
+}
+
+prefer
+{
+  config.libfoo.buffer = ($config.libfoo.buffer < 4096 \
+                          ? 4096                       \
+                          : $config.libfoo.buffer)
+}
+\
+
+The first version is non-cooperative and should only be used if this dependent
+requires the buffer to be exactly 4KB. The second version is cooperative: it
+will increase the buffer to the minimum required by this dependent but will
+respect values above 4KB.
+
+One case where we don't need to worry about this is when setting the
+configuration variable to the \"best\" possible value. One common example of
+this is setting a \c{bool} configuration to \c{true}.
+
+With a few exceptions discussed below, a dependent must always set the
+configuration variable, even if to the better value. For example, the
+following is an incorrect version of the above cooperative \c{prefer} clause:
+
+\
+prefer
+{
+  if ($config.libfoo.buffer < 4096) # Incorrect!
+    config.libfoo.buffer = 4096
+}
+\
+
+The problem with the above version is that the default could be the better
+value, in which case \c{bpkg} will have no idea that there is a dependent
+relying on this configuration value.
+
+Before each \c{prefer} clause re-evaluation, values that were first set by
+this dependent are reset to their defaults thus allowing the dependent to
+change its mind, for instance, in response to other configuration changes.
+For example:
+
+\
+# While we have no preference about the cache, if enabled/disabled,
+# we need a bigger/smaller buffer.
+#
+prefer
+{
+  min_buffer = ($config.libfoo.cache ? 4096 : 8192)
+
+  config.libfoo.buffer = ($config.libfoo.buffer < $min_buffer \
+                          ? $min_buffer                       \
+                          : $config.libfoo.buffer)
+}
+
+accept ($config.libfoo.buffer >= ($config.libfoo.cache ? 4096 : 8192))
+\
+
+The interesting case to consider in the above example is when
+\c{config.libfoo.cache} changes from \c{true} to \c{false}. Without the reset
+to defaults semantics the \c{prefer} clause would have kept the buffer at 8KB
+(since it's larger than the 4KB minimum).
+
+@@ Is stuff set in prefer sivible in accept? Yes, currently. But maybe best
+   not to rely?
+
+@@ This dependency reflect clause \"sees\" variables that were
+   not set.
+
+@@ Hm, what do we need accept for at all? Flexibility (acceptable but
+   no preference)? Change algo in the future (evaluate accept without
+   prefer)? For example, we could try to resolve yo-yo'ing by seeing
+   if one of them is acceptable to both?
 
 \h1#manifests|Manifests|
 
@@ -1539,9 +1673,10 @@ libmariadb ^10.2.2
 \\
 \
 
-While the \c{enable} clause is essentially the same as \c{?}, the \c{reflect}
-clause is an arbitrary \c{buildfile} fragment that can have more complex logic
-and assign multiple configuration variables. For example:
+While the \c{enable} clause is essentially the same as its inline \c{?}
+variant, the \c{reflect} clause is an arbitrary \c{buildfile} fragment that
+can have more complex logic and assign multiple configuration variables. For
+example:
 
 \
 libmariadb ^10.2.2
@@ -1555,6 +1690,97 @@ libmariadb ^10.2.2
   }
 }
 \
+
+The multi-line form also allows us to express our preferences and requirements
+for the dependency configuration. If all we need is to set one or more
+\c{bool} configuration variables to \c{true} (which usually translates to
+enabling one or more features), then we can use the \c{require} clause. For
+example:
+
+\
+libmariadb ^10.2.2
+{
+  require
+  {
+    config.libmariadb.cache = true
+
+    if ($cxx.target.class != 'windows')
+      config.libmariadb.tls = true
+  }
+}
+\
+
+For more complex dependency configurations we use the \c{prefer} and
+\c{accept} clauses. The \c{prefer} clause can set configuration variables of
+any type and to any value and expresses the package's preferred configuration
+while the \c{accept} condition evaluates whether any given configuration is
+acceptable. For example:
+
+\
+libmariadb ^10.2.2
+{
+  # We prefer the cache but can work without it.
+  # We need the buffer of at least 4KB.
+  #
+  prefer
+  {
+    config.libmariadb.cache = true
+
+    config.libmariadb.buffer = ($config.libmariadb.buffer < 4096 \
+                                ? 4096                           \
+                                : $config.libmariadb.buffer)
+  }
+
+  accept ($config.libmariadb.buffer >= 4096)
+}
+\
+
+The \c{require} and \c{prefer} claues are arbitrary \c{buildfile} fragments
+similar to \c{reflect} while the \c{accept} clause is a \c{buildfile} eval
+context expression that should evaluate to \c{true} or \c{false}, similar to
+\c{enable}.
+
+Given the \c{require} and \c{prefer}/\c{accept} clauses of all the dependents
+of a particular dependency, \c{bpkg} tries to negotiates a configuration
+acceptable to all of them as described in \l{#dep-config-negotiation
+Dependency Configuration Negotiation}.
+
+All the clauses are evaluated in the specified order, that is, \c{enable},
+then \c{require} or \c{prefer}/\c{accept}, and finally \c{reflect}, with the
+(negotiated, in case of \c{prefer}) configuration values set by preceding
+clauses available for examination by the subsequent clauses in this
+\c{depends} value as well as in all the subsequent ones. For example:
+
+\
+depends:
+\\
+libmariadb ^10.2.2
+{
+  prefer
+  {
+    config.libmariadb.cache = true
+
+    config.libmariadb.buffer = ($config.libmariadb.buffer < 4096 \
+                                ? 4096                           \
+                                : $config.libmariadb.buffer)
+  }
+
+  accept ($config.libmariadb.buffer >= 4096)
+
+  reflect
+  {
+    config.hello.buffer = $config.libmariadb.buffer
+  }
+}
+\\
+
+depends: liblru ^1.0.0 ? ($config.libmariadb.cache)
+\
+
+The above example also highlights the difference between the
+\c{require}/\c{prefer} and \c{reflect} clauses that is easy to mix up: in
+\c{require}/\c{prefer} we set the dependency's while in \c{reflect} we set the
+dependent's configuration variables.
 
 
 \h2#manifest-package-requires|\c{requires}|
