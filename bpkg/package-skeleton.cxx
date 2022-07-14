@@ -530,7 +530,8 @@ namespace bpkg
         case variable_origin::override_:
         case variable_origin::undefined:
           {
-            config_variable_value v {var.name, ol.first, {}, {}, {}, false};
+            config_variable_value v {
+              var.name, ol.first, {}, {}, {}, false, false};
 
             // Override could mean user override from config_vars_ or the
             // dependent override that we have merged above.
@@ -544,6 +545,7 @@ namespace bpkg
                   v.origin = variable_origin::buildfile;
                   v.dependent = move (ov->dependent);
                   v.confirmed = ov->confirmed;
+                  v.has_alternative = ov->has_alternative;
                 }
                 else
                   assert (ov->origin == variable_origin::override_);
@@ -659,9 +661,13 @@ namespace bpkg
         if (config_variable_value* v = cfg.find (var.name))
           v->value = move (val);
         else
-          cfg.push_back (
-            config_variable_value {
-              var.name, variable_origin::override_, {}, move (val), {}, false});
+          cfg.push_back (config_variable_value {var.name,
+                                                variable_origin::override_,
+                                                {},
+                                                move (val),
+                                                {},
+                                                false,
+                                                false});
       }
 
       ctx_ = nullptr; // Free.
@@ -1181,7 +1187,8 @@ namespace bpkg
   evaluate_prefer_accept (const dependency_configurations& cfgs,
                           const string& prefer,
                           const string& accept,
-                          pair<size_t, size_t> indexes)
+                          pair<size_t, size_t> indexes,
+                          bool has_alt)
   {
     size_t depends_index (indexes.first);
 
@@ -1420,6 +1427,7 @@ namespace bpkg
                 v.value = move (ns);
                 v.dependent = package; // We are the originating dependent.
                 v.confirmed = true;
+                v.has_alternative = has_alt;
                 break;
               }
             case variable_origin::default_:
@@ -1484,7 +1492,9 @@ namespace bpkg
 
   bool package_skeleton::
   evaluate_require (const dependency_configurations& cfgs,
-                    const string& require, pair<size_t, size_t> indexes)
+                    const string& require,
+                    pair<size_t, size_t> indexes,
+                    bool has_alt)
   {
     size_t depends_index (indexes.first);
 
@@ -1732,9 +1742,14 @@ namespace bpkg
 
             if (v == nullptr) // cfg.system
             {
-              cfg.push_back (
-                config_variable_value {
-                  var.name, variable_origin::undefined, {}, {}, {}, false});
+              cfg.push_back (config_variable_value {var.name,
+                                                    variable_origin::undefined,
+                                                    {},
+                                                    {},
+                                                    {},
+                                                    false,
+                                                    false});
+
               v = &cfg.back ();
             }
 
@@ -1780,6 +1795,7 @@ namespace bpkg
               v->value = move (ns);
               v->dependent = package; // We are the originating dependent.
               v->confirmed = true;
+              v->has_alternative = has_alt;
             }
           }
         }

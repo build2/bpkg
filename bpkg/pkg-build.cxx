@@ -1336,10 +1336,20 @@ namespace bpkg
     class dependency: public packages
     {
     public:
-      pair<size_t, size_t> position; // depends + alternative
+      pair<size_t, size_t> position; // depends + alternative (1-based)
 
-      dependency (const pair<size_t, size_t>& pos, packages deps)
-          : packages (move (deps)), position (pos) {}
+      // If true, then another dependency alternative is present and that can
+      // potentially be considered instead of this one (see
+      // unacceptable_alternatives for details).
+      //
+      // Initially nullopt for existing dependents until they are re-evaluated.
+      //
+      optional<bool> has_alternative;
+
+      dependency (const pair<size_t, size_t>& pos,
+                  packages deps,
+                  optional<bool> ha)
+          : packages (move (deps)), position (pos), has_alternative (ha) {}
     };
 
     class dependent_info
@@ -1376,6 +1386,17 @@ namespace bpkg
             //
             if (find (d->begin (), d->end (), p) == d->end ())
               d->push_back (move (p));
+          }
+
+          // Set the has_alternative flag for an existing dependent. Note that
+          // it shouldn't change if already set.
+          //
+          if (dep.has_alternative)
+          {
+            if (!d->has_alternative)
+              d->has_alternative = *dep.has_alternative;
+            else
+              assert (*d->has_alternative == *dep.has_alternative);
           }
         }
         else
@@ -1422,10 +1443,15 @@ namespace bpkg
                              package_key&& dependent,
                              bool existing,
                              pair<size_t, size_t> position,
-                             packages&& deps)
+                             packages&& deps,
+                             optional<bool> has_alternative)
         : id (i)
     {
-      add (move (dependent), existing, position, move (deps));
+      add (move (dependent),
+           existing,
+           position,
+           move (deps),
+           has_alternative);
     }
 
     // Add dependency of an existing dependent.
@@ -1439,7 +1465,8 @@ namespace bpkg
       add (move (dependent),
            true /* existing */,
            position,
-           packages ({move (dep)}));
+           packages ({move (dep)}),
+           nullopt /* has_alternative */);
     }
 
     // Add dependencies of a dependent.
@@ -1451,7 +1478,8 @@ namespace bpkg
     add (package_key&& dependent,
          bool existing,
          pair<size_t, size_t> position,
-         packages&& deps)
+         packages&& deps,
+         optional<bool> has_alternative)
     {
       assert (position.first != 0 && position.second != 0);
 
@@ -1463,7 +1491,7 @@ namespace bpkg
       {
         dependent_info& ddi (i->second);
 
-        ddi.add (dependency (position, move (deps)));
+        ddi.add (dependency (position, move (deps), has_alternative));
 
         // Conceptually, on the first glance, we can only move from existing
         // to non-existing (e.g., due to a upgrade/downgrade later) and that
@@ -1476,7 +1504,8 @@ namespace bpkg
       }
       else
       {
-        small_vector<dependency, 1> ds ({dependency (position, move (deps))});
+        small_vector<dependency, 1> ds ({
+            dependency (position, move (deps), has_alternative)});
 
         dependents.emplace (move (dependent),
                             dependent_info {existing, move (ds)});
@@ -1767,7 +1796,8 @@ namespace bpkg
     add (package_key dependent,
          bool existing,
          pair<size_t, size_t> position,
-         postponed_configuration::packages dependencies)
+         postponed_configuration::packages dependencies,
+         optional<bool> has_alternative)
     {
       tracer trace ("postponed_configurations::add");
 
@@ -1893,7 +1923,12 @@ namespace bpkg
           {
             trace_add (c, true /* shadow */);
 
-            c.add (move (dependent), existing, position, move (dependencies));
+            c.add (move (dependent),
+                   existing,
+                   position,
+                   move (dependencies),
+                   has_alternative);
+
             break;
           }
         }
@@ -1946,7 +1981,8 @@ namespace bpkg
                              move (dependent),
                              existing,
                              position,
-                             move (dependencies)));
+                             move (dependencies),
+                             has_alternative));
 
         l5 ([&]{trace << "create " << *ri;});
       }
@@ -1958,7 +1994,11 @@ namespace bpkg
 
         trace_add (c, false /* shadow */);
 
-        c.add (move (dependent), existing, position, move (dependencies));
+        c.add (move (dependent),
+               existing,
+               position,
+               move (dependencies),
+               has_alternative);
 
         // Try to merge other clusters into this cluster.
         //
@@ -2277,6 +2317,52 @@ namespace bpkg
     }
   };
 
+  // Set of dependency alternatives which were found unacceptable by the
+  // configuration negotiation machinery and need to be ignored on re-
+  // collection.
+  //
+  // Note that while negotiating the dependency alternative configuration for
+  // a dependent it may turn out that the configuration required by other
+  // dependents is not acceptable for this dependent. It can also happen that
+  // this dependent is involved in a negotiation cycle when two dependents
+  // continuously overwrite each other's configuration during re-negotiation.
+  // Both situations end up with the failure, unless the dependent has some
+  // other reused dependency alternative which can be tried instead. In the
+  // latter case, we note the problematic alternative and re-collect from
+  // scratch. On re-collection the unacceptable alternatives are ignored,
+  // similar to the disabled alternatives.
+  //
+  struct unacceptable_alternative
+  {
+    package_key package;
+    bpkg::version version;
+    pair<size_t, size_t> position; // depends + alternative (1-based)
+
+    unacceptable_alternative (package_key pkg,
+                              bpkg::version ver,
+                              pair<size_t, size_t> pos)
+        : package (move (pkg)), version (move (ver)), position (pos) {}
+
+    bool
+    operator< (const unacceptable_alternative& v) const
+    {
+      if (package != v.package)
+        return package < v.package;
+
+      if (int r = version.compare (v.version))
+        return r < 0;
+
+      return position < v.position;
+    }
+  };
+
+  using unacceptable_alternatives = set<unacceptable_alternative>;
+
+  struct unaccept_alternative: scratch_collection
+  {
+    unaccept_alternative (): scratch_collection ("unacceptable alternative") {}
+  };
+
   struct build_packages: build_package_list
   {
     build_packages () = default;
@@ -2432,6 +2518,7 @@ namespace bpkg
                    postponed_packages* postponed_alts = nullptr,
                    postponed_dependencies* postponed_deps = nullptr,
                    postponed_positions* postponed_poss = nullptr,
+                   unacceptable_alternatives* unacceptable_alts = nullptr,
                    const function<verify_package_build_function>& vpb = nullptr)
     {
       using std::swap; // ...and not list::swap().
@@ -2441,10 +2528,11 @@ namespace bpkg
       // See the above notes.
       //
       bool recursive (dep_chain != nullptr);
-      assert ((postponed_repo != nullptr) == recursive &&
-              (postponed_alts != nullptr) == recursive &&
-              (postponed_deps != nullptr) == recursive &&
-              (postponed_poss != nullptr) == recursive);
+      assert ((postponed_repo    != nullptr) == recursive &&
+              (postponed_alts    != nullptr) == recursive &&
+              (postponed_deps    != nullptr) == recursive &&
+              (postponed_poss    != nullptr) == recursive &&
+              (unacceptable_alts != nullptr) == recursive);
 
       // Only builds are allowed here.
       //
@@ -2753,7 +2841,8 @@ namespace bpkg
                                      0 /* max_alt_index */,
                                      *postponed_deps,
                                      postponed_cfgs,
-                                     *postponed_poss);
+                                     *postponed_poss,
+                                     *unacceptable_alts);
 
       return &p;
     }
@@ -2827,6 +2916,10 @@ namespace bpkg
     // is handled by re-collecting packages from scratch, but now with the
     // knowledge about position this dependent needs to be re-evaluated to.
     //
+    // If a dependency alternative configuration cannot be negotiated between
+    // all the dependents, then unaccept_alternative can be thrown (see
+    // unacceptable_alternatives for details).
+    //
     struct postpone_dependency: scratch_collection
     {
       package_key package;
@@ -2861,6 +2954,7 @@ namespace bpkg
                                  postponed_dependencies& postponed_deps,
                                  postponed_configurations& postponed_cfgs,
                                  postponed_positions& postponed_poss,
+                                 unacceptable_alternatives& unacceptable_alts,
                                  pair<size_t, size_t> reeval_pos =
                                    make_pair(0, 0))
     {
@@ -3272,7 +3366,8 @@ namespace bpkg
 
         // Try to pre-collect build information (pre-builds) for the
         // dependencies of an alternative. Optionally, issue diagnostics into
-        // the specified diag record.
+        // the specified diag record. In the dry-run mode don't change the
+        // packages collection state (postponed_repo set, etc).
         //
         // Note that rather than considering an alternative as unsatisfactory
         // (returning no pre-builds) the function can fail in some cases
@@ -3360,7 +3455,8 @@ namespace bpkg
                           (const dependency_alternative& da,
                            bool buildtime,
                            const package_prerequisites* prereqs,
-                           diag_record* dr = nullptr)
+                           diag_record* dr = nullptr,
+                           bool dry_run = false)
           -> precollect_result
         {
           prebuilds r;
@@ -3850,13 +3946,17 @@ namespace bpkg
                   //
                   assert (dr == nullptr);
 
-                  l5 ([&]{trace << "rep-postpone dependent "
-                                << pkg.available_name_version_db ()
-                                << " due to dependency " << dp
-                                << " and user-specified constraint "
-                                << *dep_constr;});
+                  if (!dry_run)
+                  {
+                    l5 ([&]{trace << "rep-postpone dependent "
+                                  << pkg.available_name_version_db ()
+                                  << " due to dependency " << dp
+                                  << " and user-specified constraint "
+                                  << *dep_constr;});
 
-                  postponed_repo->insert (&pkg);
+                    postponed_repo->insert (&pkg);
+                  }
+
                   return precollect_result (true /* postpone */);
                 }
 
@@ -4084,16 +4184,21 @@ namespace bpkg
                         &postponed_deps,
                         &postponed_cfgs,
                         &postponed_poss,
+                        &unacceptable_alts,
                         &di,
                         reeval,
                         &reeval_pos,
                         &reevaluated,
                         &fail_reeval,
+                        &edas,
+                        &das,
+                        &precollect,
                         &trace,
                         this]
                        (const dependency_alternative& da,
                         size_t dai,
-                        prebuilds&& bs)
+                        prebuilds&& bs,
+                        const package_prerequisites* prereqs)
         {
           // Dependency alternative position.
           //
@@ -4262,6 +4367,7 @@ namespace bpkg
                              nullptr /* postponed_alts */,
                              nullptr /* postponed_deps */,
                              nullptr /* postponed_poss */,
+                             nullptr /* unacceptable_alts */,
                              verify));
 
             package_key dpk (b.db, b.available->id.name);
@@ -4390,7 +4496,8 @@ namespace bpkg
                                            0 /* max_alt_index */,
                                            postponed_deps,
                                            postponed_cfgs,
-                                           postponed_poss);
+                                           postponed_poss,
+                                           unacceptable_alts);
           }
 
           // If this dependent has any dependencies with configurations
@@ -4403,6 +4510,102 @@ namespace bpkg
           //
           if (!cfg_deps.empty ())
           {
+            // First, determine if there is any unprocessed reused dependency
+            // alternative that we can potentially use instead of the current
+            // one if it turns out that a configuration for some of its
+            // dependencies cannot be negotiated between all the dependents
+            // (see unacceptable_alternatives for details).
+            //
+            bool has_alt (false);
+            {
+              // Find the index of the current dependency alternative.
+              //
+              size_t i (0);
+              for (; i != edas.size (); ++i)
+              {
+                if (&edas[i].first.get () == &da)
+                  break;
+              }
+
+              // The current dependency alternative must be present in the
+              // list.
+              //
+              assert (i != edas.size ());
+
+              // Return true if the current alternative is unacceptable.
+              //
+              auto unacceptable =
+                [&pk, &pkg, di, &i, &edas, &unacceptable_alts] ()
+                {
+                  // Convert to 1-base.
+                  //
+                  pair<size_t, size_t> pos (di + 1, edas[i].second + 1);
+
+                  return unacceptable_alts.find (
+                           unacceptable_alternative (pk,
+                                                     pkg.available->version,
+                                                     pos)) !=
+                         unacceptable_alts.end ();
+
+                };
+
+              // See if there is any unprocessed reused alternative to the
+              // right.
+              //
+              // Note that this is parallel to the alternative selection
+              // logic.
+              //
+              for (++i; i != edas.size (); ++i)
+              {
+                if (unacceptable ())
+                  continue;
+
+                const dependency_alternative& a (edas[i].first);
+
+                precollect_result r (precollect (a,
+                                                 das.buildtime,
+                                                 prereqs,
+                                                 nullptr /* diag_record */,
+                                                 true /* dru_run */));
+
+                if (r.builds && r.reused)
+                {
+                  has_alt = true;
+                  break;
+                }
+              }
+
+              // If there are none and we are in the "recreate dependency
+              // decisions" mode, then repeat the search in the "make
+              // dependency decisions" mode.
+              //
+              if (!has_alt && prereqs != nullptr)
+              {
+                for (i = 0; i != edas.size (); ++i)
+                {
+                  if (unacceptable ())
+                    continue;
+
+                  const dependency_alternative& a (edas[i].first);
+
+                  if (&a != &da) // Skip the current dependency alternative.
+                  {
+                    precollect_result r (precollect (a,
+                                                     das.buildtime,
+                                                     nullptr /* prereqs */,
+                                                     nullptr /* diag_record */,
+                                                     true /* dru_run */));
+
+                    if (r.builds && r.reused)
+                    {
+                      has_alt = true;
+                      break;
+                    }
+                  }
+                }
+              }
+            }
+
             // Re-evaluation is a special case (it happens during cluster
             // negotiation; see collect_build_postponed()).
             //
@@ -4417,7 +4620,8 @@ namespace bpkg
                 postponed_cfgs.add (pk,
                                     true /* existing */,
                                     dp,
-                                    cfg_deps).first);
+                                    cfg_deps,
+                                    has_alt).first);
 
               // Can we merge clusters as a result? Seems so.
               //
@@ -4486,7 +4690,11 @@ namespace bpkg
             // constructing exception.
             //
             pair<postponed_configuration&, optional<bool>> r (
-              postponed_cfgs.add (pk, false /* existing */, dp, cfg_deps));
+              postponed_cfgs.add (pk,
+                                  false /* existing */,
+                                  dp,
+                                  cfg_deps,
+                                  has_alt));
 
             postponed_configuration& cfg (r.first);
 
@@ -4588,12 +4796,8 @@ namespace bpkg
                 // Similar to initial negotiation, resolve package skeletons
                 // for this dependent and its dependencies.
                 //
-                package_skeleton* dept;
-                {
-                  build_package* b (entered_build (pk));
-                  assert (b != nullptr && b->skeleton);
-                  dept = &*b->skeleton;
-                }
+                assert (pkg.skeleton);
+                package_skeleton& dept (*pkg.skeleton);
 
                 // If a dependency has already been recursively collected,
                 // then we can no longer call reload_defaults() or
@@ -4630,8 +4834,33 @@ namespace bpkg
                   }
                 }
 
-                changed = negotiate_configuration (
-                  cfg.dependency_configurations, *dept, dp, depcs);
+                optional<bool> c (
+                  negotiate_configuration (
+                    cfg.dependency_configurations, dept, dp, depcs, has_alt));
+
+                // If the dependency alternative configuration cannot be
+                // negotiated for this dependent, then add an entry to
+                // unacceptable_alts and throw unaccept_alternative to
+                // recollect from scratch.
+                //
+                if (!c)
+                {
+                  unacceptable_alts.emplace (pk, pkg.available->version, dp);
+
+                  l5 ([&]{trace << "unable to cfg-negotiate dependency "
+                                << "alternative " << dp.first << ','
+                                << dp.second << " for dependent "
+                                << pkg.available_name_version_db ()
+                                << ", throwing unaccept_alternative";});
+
+                  // Don't print the "while satisfying..." chain.
+                  //
+                  dep_chain.clear ();
+
+                  throw unaccept_alternative ();
+                }
+                else
+                  changed = *c;
               }
 
               // If the configuration hasn't changed, then we carry on.
@@ -4724,7 +4953,8 @@ namespace bpkg
                                                0 /* max_alt_index */,
                                                postponed_deps,
                                                postponed_cfgs,
-                                               postponed_poss);
+                                               postponed_poss,
+                                               unacceptable_alts);
                 }
                 else
                   l5 ([&]{trace << "dependency "
@@ -4810,7 +5040,7 @@ namespace bpkg
         //
         assert (!reeval || prereqs != nullptr);
 
-        for (;;)
+        for (bool unacceptable (false);;)
         {
           // The index and pre-collection result of the first satisfactory
           // alternative.
@@ -4843,6 +5073,28 @@ namespace bpkg
 
           for (size_t i (0); i != edas.size (); ++i)
           {
+            // Skip the unacceptable alternatives.
+            //
+            {
+              // Convert to 1-base.
+              //
+              pair<size_t, size_t> pos (di + 1, edas[i].second + 1);
+
+              if (unacceptable_alts.find (
+                    unacceptable_alternative (pk, ap->version, pos)) !=
+                  unacceptable_alts.end ())
+              {
+                unacceptable = true;
+
+                l5 ([&]{trace << "dependency alternative " << pos.first << ','
+                              << pos.second << " for dependent "
+                              << pkg.available_name_version_db ()
+                              << " is unacceptable, skipping";});
+
+                continue;
+              }
+            }
+
             const dependency_alternative& da (edas[i].first);
 
             precollect_result r (precollect (da, das.buildtime, prereqs));
@@ -4903,6 +5155,7 @@ namespace bpkg
             //
             auto try_select = [postponed_alts, &max_alt_index,
                                &edas, &pkg,
+                               prereqs,
                                reeval,
                                &trace,
                                &postpone, &collect, &select]
@@ -4941,7 +5194,7 @@ namespace bpkg
                 //
                 assert (postponed_alts != nullptr);
 
-                if (!collect (da, dai, move (*r.builds)))
+                if (!collect (da, dai, move (*r.builds), prereqs))
                 {
                   postpone (nullptr); // Already inserted into postponed_cfgs.
                   return true;
@@ -4999,11 +5252,16 @@ namespace bpkg
 
             if (r.reused || !reused_only)
             {
+              // If there are any unacceptable alternatives, then the
+              // remaining one should be reused.
+              //
+              assert (!unacceptable || r.reused);
+
               const auto& eda (edas[first_alt->first]);
               const dependency_alternative& da (eda.first);
               size_t dai (eda.second);
 
-              if (!collect (da, dai, move (*r.builds)))
+              if (!collect (da, dai, move (*r.builds), prereqs))
               {
                 postpone (nullptr); // Already inserted into postponed_cfgs.
                 break;
@@ -5032,6 +5290,11 @@ namespace bpkg
             prereqs = nullptr;
             continue;
           }
+
+          // We shouldn't end up with the "no alternative to select" case if
+          // any alternatives are unacceptable.
+          //
+          assert (!unacceptable);
 
           // Issue diagnostics and fail if there are no satisfactory
           // alternatives.
@@ -5167,7 +5430,8 @@ namespace bpkg
                                  size_t max_alt_index,
                                  postponed_dependencies& postponed_deps,
                                  postponed_configurations& postponed_cfgs,
-                                 postponed_positions& postponed_poss)
+                                 postponed_positions& postponed_poss,
+                                 unacceptable_alternatives& unacceptable_alts)
     {
       auto mi (map_.find (db, name));
       assert (mi != map_.end ());
@@ -5187,7 +5451,8 @@ namespace bpkg
                                    max_alt_index,
                                    postponed_deps,
                                    postponed_cfgs,
-                                   postponed_poss);
+                                   postponed_poss,
+                                   unacceptable_alts);
     }
 
     // Collect the repointed dependents and their replaced prerequisites,
@@ -5208,6 +5473,7 @@ namespace bpkg
       postponed_dependencies& postponed_deps,
       postponed_configurations& postponed_cfgs,
       postponed_positions& postponed_poss,
+      unacceptable_alternatives& unacceptable_alts,
       const function<find_database_function>& fdb,
       const function<add_priv_cfg_function>& apc)
     {
@@ -5291,7 +5557,8 @@ namespace bpkg
                        &postponed_repo,
                        &postponed_alts,
                        &postponed_deps,
-                       &postponed_poss);
+                       &postponed_poss,
+                       &unacceptable_alts);
       }
     }
 
@@ -5473,6 +5740,7 @@ namespace bpkg
                              postponed_configurations& postponed_cfgs,
                              strings& postponed_cfgs_history,
                              postponed_positions& postponed_poss,
+                             unacceptable_alternatives& unacceptable_alts,
                              const function<find_database_function>& fdb,
                              const repointed_dependents& rpt_depts,
                              const function<add_priv_cfg_function>& apc,
@@ -5958,6 +6226,7 @@ namespace bpkg
                                              postponed_deps,
                                              postponed_cfgs,
                                              postponed_poss,
+                                             unacceptable_alts,
                                              ed.dependency_position);
 
                 ed.reevaluated = true;
@@ -6004,6 +6273,7 @@ namespace bpkg
 
           pair<size_t, size_t> pos;
           small_vector<reference_wrapper<package_skeleton>, 1> depcs;
+          bool has_alt;
           {
             // A non-negotiated cluster must only have one depends position
             // for each dependent.
@@ -6014,6 +6284,14 @@ namespace bpkg
               i->second.dependencies.front ());
 
             pos = ds.position;
+
+            // Note that an existing dependent which initially doesn't have
+            // the has_alternative flag present should obtain it as a part of
+            // re-evaluation at this time.
+            //
+            assert (ds.has_alternative);
+
+            has_alt = *ds.has_alternative;
 
             depcs.reserve (ds.size ());
             for (const package_key& pk: ds)
@@ -6027,8 +6305,31 @@ namespace bpkg
             }
           }
 
-          if (negotiate_configuration (
-                pcfg->dependency_configurations, *dept, pos, depcs))
+          optional<bool> changed (
+            negotiate_configuration (
+              pcfg->dependency_configurations, *dept, pos, depcs, has_alt));
+
+          // If the dependency alternative configuration cannot be negotiated
+          // for this dependent, then add an entry to unacceptable_alts and
+          // throw unaccept_alternative to recollect from scratch.
+          //
+          if (!changed)
+          {
+            assert (dept->available != nullptr); // Can't be system.
+
+            const package_key& p (dept->package);
+            const version& v (dept->available->version);
+
+            unacceptable_alts.emplace (p, v, pos);
+
+            l5 ([&]{trace << "unable to cfg-negotiate dependency alternative "
+                          << pos.first << ',' << pos.second << " for "
+                          << "dependent " << package_string (p.name, v)
+                          << p.db << ", throwing unaccept_alternative";});
+
+            throw unaccept_alternative ();
+          }
+          else if (*changed)
           {
             if (i != b)
             {
@@ -6101,8 +6402,8 @@ namespace bpkg
               const package_configuration& pc (
                 pcfg->dependency_configurations[p]);
 
-              // Skip the verification if this is a system package
-              // without skeleton info.
+              // Skip the verification if this is a system package without
+              // skeleton info.
               //
               pair<bool, string> pr (b->skeleton->available != nullptr
                                      ? b->skeleton->verify_sensible (pc)
@@ -6141,7 +6442,8 @@ namespace bpkg
                                          0 /* max_alt_index */,
                                          postponed_deps,
                                          postponed_cfgs,
-                                         postponed_poss);
+                                         postponed_poss,
+                                         unacceptable_alts);
           }
           else
             l5 ([&]{trace << "dependency " << b->available_name_version_db ()
@@ -6262,7 +6564,8 @@ namespace bpkg
             0 /* max_alt_index */,
             postponed_deps,
             postponed_cfgs,
-            postponed_poss);
+            postponed_poss,
+            unacceptable_alts);
         }
 
         // Negotiated (so can only be rolled back).
@@ -6310,7 +6613,8 @@ namespace bpkg
                                        0 /* max_alt_index */,
                                        postponed_deps,
                                        postponed_cfgs,
-                                       postponed_poss);
+                                       postponed_poss,
+                                       unacceptable_alts);
         }
 
         // Save the potential new dependency alternative-related postponements.
@@ -6373,6 +6677,7 @@ namespace bpkg
                                        postponed_cfgs,
                                        postponed_cfgs_history,
                                        postponed_poss,
+                                       unacceptable_alts,
                                        fdb,
                                        rpt_depts,
                                        apc,
@@ -6657,7 +6962,8 @@ namespace bpkg
                                            i,
                                            postponed_deps,
                                            postponed_cfgs,
-                                           postponed_poss);
+                                           postponed_poss,
+                                           unacceptable_alts);
 
               prog = (pas.find (p) == pas.end () ||
                       ndep != p->dependencies->size ());
@@ -6895,7 +7201,8 @@ namespace bpkg
                                      0,
                                      postponed_deps,
                                      postponed_cfgs,
-                                     postponed_poss);
+                                     postponed_poss,
+                                     unacceptable_alts);
 
         assert (false); // Can't be here.
       }
@@ -6917,7 +7224,8 @@ namespace bpkg
                                      0,
                                      postponed_deps,
                                      postponed_cfgs,
-                                     postponed_poss);
+                                     postponed_poss,
+                                     unacceptable_alts);
 
         assert (false); // Can't be here.
       }
@@ -10621,9 +10929,10 @@ namespace bpkg
       };
       vector<dep> deps;
 
-      replaced_versions replaced_vers;
-      postponed_dependencies postponed_deps;
-      postponed_positions postponed_poss;
+      replaced_versions         replaced_vers;
+      postponed_dependencies    postponed_deps;
+      postponed_positions       postponed_poss;
+      unacceptable_alternatives unacceptable_alts;
 
       // Map the repointed dependents to the replacement flags (see
       // repointed_dependents for details), unless --no-move is specified.
@@ -10918,6 +11227,7 @@ namespace bpkg
               replaced_vers.clear ();
               postponed_deps.clear ();
               postponed_poss.clear ();
+              unacceptable_alts.clear ();
 
               scratch_exe = false;
             }
@@ -11008,7 +11318,8 @@ namespace bpkg
                   0 /* max_alt_index */,
                   postponed_deps,
                   postponed_cfgs,
-                  postponed_poss);
+                  postponed_poss,
+                  unacceptable_alts);
               }
               else
               {
@@ -11062,6 +11373,7 @@ namespace bpkg
                                                postponed_deps,
                                                postponed_cfgs,
                                                postponed_poss,
+                                               unacceptable_alts,
                                                find_prereq_database,
                                                add_priv_cfg);
           }
@@ -11142,7 +11454,8 @@ namespace bpkg
                                   &postponed_repo,
                                   &postponed_alts,
                                   &postponed_deps,
-                                  &postponed_poss);
+                                  &postponed_poss,
+                                  &unacceptable_alts);
             }
           }
 
@@ -11181,6 +11494,7 @@ namespace bpkg
                                           postponed_cfgs,
                                           postponed_cfgs_history,
                                           postponed_poss,
+                                          unacceptable_alts,
                                           find_prereq_database,
                                           rpt_depts,
                                           add_priv_cfg);

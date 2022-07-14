@@ -141,11 +141,13 @@ namespace bpkg
 
     bool
     evaluate_prefer_accept (const dependency_configurations&,
-                            const string&, const string&, pair<size_t, size_t>);
+                            const string&, const string&, pair<size_t, size_t>,
+                            bool has_alternative);
 
     bool
     evaluate_require (const dependency_configurations&,
-                      const string&, pair<size_t, size_t>);
+                      const string&, pair<size_t, size_t>,
+                      bool has_alternative);
 
     // Reset the skeleton to the start of the call sequence.
     //

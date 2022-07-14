@@ -56,6 +56,18 @@ namespace bpkg
     //
     bool confirmed;
 
+    // If origin is buildfile and the originating dependent has been
+    // encountered during the negotiation, then this flag indicates whether
+    // this dependent has another dependency alternative.
+    //
+    // @@ Strictly speaking this is a property of the dependent and
+    //    duplicating it here for each variable is quite dirty (and requires
+    //    us to drag this through skeleton calls). Doing this properly,
+    //    however, will likely require another map with the dependent as a
+    //    key. Maybe one day.
+    //
+    bool has_alternative;
+
   public:
     void
     undefine ()
@@ -64,6 +76,7 @@ namespace bpkg
       value = nullopt;
       dependent = nullopt;
       confirmed = false;
+      has_alternative = false;
     }
 
     string
@@ -84,6 +97,7 @@ namespace bpkg
     string                  name;
     optional<build2::names> value;
     package_key             dependent;
+    bool                    has_alternative;
 
   public:
     string
@@ -194,13 +208,16 @@ namespace bpkg
 
   // Negotiate the configuration for the specified dependencies of the
   // specified dependent. Return true if the configuration has changed.
+  // Return absent if has_alternative is true and no acceptable configuration
+  // could be negotiated.
   //
-  bool
+  optional<bool>
   negotiate_configuration (
     package_configurations&,
     package_skeleton& dependent,
     pair<size_t, size_t> position,
-    const small_vector<reference_wrapper<package_skeleton>, 1>& dependencies);
+    const small_vector<reference_wrapper<package_skeleton>, 1>& dependencies,
+    bool has_alternative);
 }
 
 #endif // BPKG_PACKAGE_CONFIGURATION_HXX

@@ -180,7 +180,14 @@
 # |   |-- libbaz-1.0.0.tar.gz
 # |   |-- libbox-0.1.0.tar.gz
 # |   |-- libbox-1.0.0.tar.gz
+# |   |-- foo-0.1.0.tar.gz      -> libfoo {require {config.libfoo.extras=true}}
+# |   |-- foo-0.2.0.tar.gz      -> libfoo {require {config.libfoo.extras=true}} | libbar
 # |   |-- foo-1.0.0.tar.gz      -> libfoo {require {config.libfoo.extras=true}}
+# |   |-- fox-0.1.0.tar.gz      -> libfoo {prefer {config.libfoo.extras=true} accept (false)} |
+# |   |                            libbar
+# |   |-- fox-0.2.0.tar.gz      -> libfoo {prefer {config.libfoo.extras=false} accept (!$config.libfoo.extras)} |
+# |   |                            libfoo {prefer {config.libfoo.extras=true}  accept (true)} |
+# |   |                            libbar {require {config.libbar.extras=true}}
 # |   |-- fox-1.0.0.tar.gz      -> libfoo {require {config.libfoo.extras=true}}
 # |   |-- fux-1.0.0.tar.gz      -> libfoo
 # |   |-- fix-1.0.0.tar.gz      -> foo {require {config.foo.extras=true}}
@@ -5866,7 +5873,7 @@ test.options += --no-progress
           $pkg_status -r >>EOO;
             !libfoo configured !0.1.0 available 1.0.0
             !fix configured !0.1.0 available 1.0.0
-              foo configured 0.1.0 available 1.0.0
+              foo configured 0.1.0 available 1.0.0 0.2.0
                 !libfoo configured !0.1.0 available 1.0.0
             EOO
 
@@ -6865,6 +6872,7 @@ test.options += --no-progress
           %.*
           trace: collect_build_prerequisites: cfg-postpone dependency libbar/1.0.0 of dependent box/1.0.0
           trace: collect_build_prerequisites: cfg-postpone dependency libfoo/1.0.0 of dependent box/1.0.0
+          %.*
           trace: postponed_configurations::add: add {box 1,1: libbar libfoo} to {foo | libfoo->{foo/1,1}}!
           trace: postponed_configurations::add: merge {bar | libbar->{bar/1,1}}! into {box foo | libfoo->{box/1,1 foo/1,1} libbar->{box/1,1}}!
           %.*
@@ -6899,6 +6907,7 @@ test.options += --no-progress
           %.*
           trace: collect_build_prerequisites: cfg-postpone dependency libbar/1.0.0 of dependent box/1.0.0
           trace: collect_build_prerequisites: cfg-postpone dependency libfoo/1.0.0 of dependent box/1.0.0
+          %.*
           trace: postponed_configurations::add: add {box 1,1: libbar libfoo} to {foo | libfoo->{foo/1,1}}!
           trace: postponed_configurations::add: merge {bar | libbar->{bar/1,1}}! into {box foo | libfoo->{box/1,1 foo/1,1} libbar->{box/1,1}}!
           trace: collect_build_prerequisites: configuration for cfg-postponed dependencies of dependent box/1.0.0 is negotiated
@@ -7389,6 +7398,7 @@ test.options += --no-progress
             trace: collect_build_prerequisites: resume boo/1.0.0
             %.*
             trace: collect_build_prerequisites: cfg-postpone dependency libfoo/1.0.0 of dependent boo/1.0.0
+            %.*
             trace: postponed_configurations::add: create {boo | libfoo->{boo/1,2}}
             trace: collect_build_prerequisites: postpone boo/1.0.0
             trace: collect_build_postponed (1): begin {boo | libfoo->{boo/1,2}}
@@ -7622,6 +7632,7 @@ test.options += --no-progress
             trace: collect_build_prerequisites: resume boo/1.0.0
             %.*
             trace: collect_build_prerequisites: cfg-postpone dependency libfoo/1.0.0 of dependent boo/1.0.0
+            %.*
             trace: postponed_configurations::add: add {boo 1,2: libfoo} to {foo | libfoo->{foo/1,1}}!
             %.*
             trace: collect_build_prerequisites: configuration for cfg-postponed dependencies of dependent boo/1.0.0 is negotiated
@@ -7664,6 +7675,7 @@ test.options += --no-progress
             %.*
             trace: collect_build: add boo/1.0.0
             trace: collect_build_prerequisites: cfg-postpone dependency boo/1.0.0 of dependent biz/1.0.0
+            %.*
             trace: postponed_configurations::add: create {biz | boo->{biz/1,1}}
             trace: collect_build_prerequisites: postpone biz/1.0.0
             trace: collect_build_postponed (0): begin
@@ -7710,6 +7722,7 @@ test.options += --no-progress
             trace: collect_build_prerequisites: resume boo/1.0.0
             %.*
             trace: collect_build_prerequisites: cfg-postpone dependency libfoo/1.0.0 of dependent boo/1.0.0
+            %.*
             trace: postponed_configurations::add: add {boo 1,2: libfoo} to {foo | libfoo->{foo/1,1}}!
             trace: collect_build_prerequisites: configuration for cfg-postponed dependencies of dependent boo/1.0.0 is negotiated
             trace: collect_build_prerequisites: dependency libfoo/1.0.0 of dependent boo/1.0.0 is already (being) recursively collected, skipping
@@ -11205,6 +11218,369 @@ test.options += --no-progress
             $pkg_drop --drop-dependent dex dix
           }
         }
+      }
+    }
+
+    : unaccept-alternative
+    :
+    {
+      +$clone_cfg
+
+      : unacceptable
+      :
+      {
+        $clone_cfg;
+
+        $* foo fox/0.1.0 ?libbar 2>>~%EOE%;
+          %.*
+          trace: pkg_build: refine package collection/plan execution from scratch
+          %.*
+          trace: collect_build: add foo/1.0.0
+          trace: collect_build: add fox/0.1.0
+          trace: collect_build_prerequisites: begin foo/1.0.0
+          %.*
+          trace: collect_build: add libfoo/1.0.0
+          trace: collect_build_prerequisites: cfg-postpone dependency libfoo/1.0.0 of dependent foo/1.0.0
+          trace: postponed_configurations::add: create {foo | libfoo->{foo/1,1}}
+          trace: collect_build_prerequisites: postpone foo/1.0.0
+          trace: collect_build_prerequisites: begin fox/0.1.0
+          %.*
+          trace: collect_build_prerequisites: alt-postpone dependent fox/0.1.0 since max index is reached: 0
+            info: dependency alternative: libfoo
+          {
+            prefer
+            {
+              config.libfoo.extras = true
+            }
+
+            accept (false)
+          }
+          trace: collect_build_prerequisites: postpone fox/0.1.0
+          trace: collect_build_postponed (0): begin
+          trace: collect_build_postponed (1): begin {foo | libfoo->{foo/1,1}}
+          %.*
+          trace: collect_build_postponed (1): cfg-negotiate begin {foo | libfoo->{foo/1,1}}
+          %.*
+          trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
+          trace: collect_build_prerequisites: begin libfoo/1.0.0
+          trace: collect_build_prerequisites: end libfoo/1.0.0
+          trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
+          trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent foo/1.0.0
+          trace: collect_build_prerequisites: resume foo/1.0.0
+          trace: collect_build_prerequisites: end foo/1.0.0
+          trace: collect_build_postponed (1): cfg-negotiate end {foo | libfoo->{foo/1,1}}!
+          trace: collect_build_postponed (1): index 1 collect alt-postponed fox/0.1.0
+          trace: collect_build_prerequisites: resume fox/0.1.0
+          %.*
+          trace: collect_build_prerequisites: cfg-postpone dependency libfoo/1.0.0 of dependent fox/0.1.0
+          %.*
+          trace: postponed_configurations::add: add {fox 1,1: libfoo} to {foo | libfoo->{foo/1,1}}!
+          %.*
+          trace: collect_build_prerequisites: unable to cfg-negotiate dependency alternative 1,1 for dependent fox/0.1.0, throwing unaccept_alternative
+          trace: pkg_build: collection failed due to unacceptable alternative, retry from scratch
+          %.*
+          trace: pkg_build: refine package collection/plan execution from scratch
+          %.*
+          trace: collect_build: add foo/1.0.0
+          trace: collect_build: add fox/0.1.0
+          trace: collect_build_prerequisites: begin foo/1.0.0
+          %.*
+          trace: collect_build: add libfoo/1.0.0
+          trace: collect_build_prerequisites: cfg-postpone dependency libfoo/1.0.0 of dependent foo/1.0.0
+          trace: postponed_configurations::add: create {foo | libfoo->{foo/1,1}}
+          trace: collect_build_prerequisites: postpone foo/1.0.0
+          trace: collect_build_prerequisites: begin fox/0.1.0
+          trace: collect_build_prerequisites: dependency alternative 1,1 for dependent fox/0.1.0 is unacceptable, skipping
+          %.*
+          trace: collect_build_prerequisites: no cfg-clause for dependency libbar/1.0.0 of dependent fox/0.1.0
+          trace: collect_build_prerequisites: begin libbar/1.0.0
+          trace: collect_build_prerequisites: end libbar/1.0.0
+          trace: collect_build_prerequisites: end fox/0.1.0
+          trace: collect_build_postponed (0): begin
+          trace: collect_build_postponed (1): begin {foo | libfoo->{foo/1,1}}
+          %.*
+          trace: collect_build_postponed (1): cfg-negotiate begin {foo | libfoo->{foo/1,1}}
+          trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
+          trace: collect_build_prerequisites: begin libfoo/1.0.0
+          trace: collect_build_prerequisites: end libfoo/1.0.0
+          trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
+          trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent foo/1.0.0
+          trace: collect_build_prerequisites: resume foo/1.0.0
+          trace: collect_build_prerequisites: end foo/1.0.0
+          trace: collect_build_postponed (1): cfg-negotiate end {foo | libfoo->{foo/1,1}}!
+          trace: collect_build_postponed (1): end {foo | libfoo->{foo/1,1}}
+          trace: collect_build_postponed (0): end
+          trace: execute_plan: simulate: yes
+          %.*
+          trace: evaluate_dependency: libbar/1.0.0: unchanged
+          %.*
+          trace: evaluate_dependency: libbar/1.0.0: unchanged
+          %.*
+          build plan:
+            new libfoo/1.0.0 (required by foo)
+              config.libfoo.extras=true (set by foo)
+            new foo/1.0.0
+            new libbar/1.0.0 (required by fox)
+            new fox/0.1.0
+          trace: execute_plan: simulate: no
+          %.*
+          EOE
+
+        $pkg_status -r >>EOO;
+          !foo configured 1.0.0
+            libfoo configured 1.0.0
+          !fox configured !0.1.0 available 1.0.0 0.2.0
+            libbar configured 1.0.0
+          EOO
+
+        $pkg_drop foo fox
+      }
+
+      : negotiation-cycle1
+      :
+      {
+        $clone_cfg;
+
+        $* foo fox/0.2.0 2>>~%EOE%;
+          %.*
+          trace: pkg_build: refine package collection/plan execution from scratch
+          %.*
+          trace: collect_build: add foo/1.0.0
+          trace: collect_build: add fox/0.2.0
+          trace: collect_build_prerequisites: begin foo/1.0.0
+          %.*
+          trace: collect_build: add libfoo/1.0.0
+          trace: collect_build_prerequisites: cfg-postpone dependency libfoo/1.0.0 of dependent foo/1.0.0
+          trace: postponed_configurations::add: create {foo | libfoo->{foo/1,1}}
+          trace: collect_build_prerequisites: postpone foo/1.0.0
+          trace: collect_build_prerequisites: begin fox/0.2.0
+          %.*
+          trace: collect_build_prerequisites: alt-postpone dependent fox/0.2.0 since max index is reached: 0
+            info: dependency alternative: libfoo
+          {
+            prefer
+            {
+              config.libfoo.extras = false
+            }
+
+            accept (!$config.libfoo.extras)
+          }
+          trace: collect_build_prerequisites: postpone fox/0.2.0
+          trace: collect_build_postponed (0): begin
+          trace: collect_build_postponed (1): begin {foo | libfoo->{foo/1,1}}
+          %.*
+          trace: collect_build_postponed (1): cfg-negotiate begin {foo | libfoo->{foo/1,1}}
+          %.*
+          trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
+          trace: collect_build_prerequisites: begin libfoo/1.0.0
+          trace: collect_build_prerequisites: end libfoo/1.0.0
+          trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
+          trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent foo/1.0.0
+          trace: collect_build_prerequisites: resume foo/1.0.0
+          trace: collect_build_prerequisites: end foo/1.0.0
+          trace: collect_build_postponed (1): cfg-negotiate end {foo | libfoo->{foo/1,1}}!
+          trace: collect_build_postponed (1): index 1 collect alt-postponed fox/0.2.0
+          trace: collect_build_prerequisites: resume fox/0.2.0
+          %.*
+          trace: collect_build_prerequisites: cfg-postpone dependency libfoo/1.0.0 of dependent fox/0.2.0
+          %.*
+          trace: postponed_configurations::add: add {fox 1,1: libfoo} to {foo | libfoo->{foo/1,1}}!
+          %.*
+          trace: collect_build_prerequisites: cfg-postponing dependent fox/0.2.0 involves (being) negotiated configurations and results in {foo fox | libfoo->{foo/1,1 fox/1,1}}!, throwing retry_configuration
+          trace: collect_build_postponed (0): cfg-negotiation of {foo | libfoo->{foo/1,1}} failed due to dependent fox, refining configuration
+          trace: collect_build_postponed (1): begin {foo | libfoo->{foo/1,1}}
+          %.*
+          trace: collect_build_postponed (1): cfg-negotiate begin {foo | libfoo->{foo/1,1}}
+          trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
+          trace: collect_build_prerequisites: begin libfoo/1.0.0
+          trace: collect_build_prerequisites: end libfoo/1.0.0
+          trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
+          trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent foo/1.0.0
+          trace: collect_build_prerequisites: resume foo/1.0.0
+          trace: collect_build_prerequisites: end foo/1.0.0
+          trace: collect_build_postponed (1): cfg-negotiate end {foo | libfoo->{foo/1,1}}!
+          trace: collect_build_postponed (1): index 1 collect alt-postponed fox/0.2.0
+          trace: collect_build_prerequisites: resume fox/0.2.0
+          %.*
+          trace: collect_build_prerequisites: cfg-postpone dependency libfoo/1.0.0 of dependent fox/0.2.0
+          %.*
+          trace: postponed_configurations::add: add {fox 1,1: libfoo} to {foo | libfoo->{foo/1,1}}!
+          trace: collect_build_prerequisites: cfg-postponing dependent fox/0.2.0 involves (being) negotiated configurations and results in {foo fox | libfoo->{foo/1,1 fox/1,1}}!, throwing retry_configuration
+          trace: collect_build_postponed (0): cfg-negotiation of {foo | libfoo->{foo/1,1}} failed due to dependent fox, refining configuration
+          trace: collect_build_postponed (1): begin {foo | libfoo->{foo/1,1}}
+          %.*
+          trace: collect_build_postponed (1): cfg-negotiate begin {foo | libfoo->{foo/1,1}}
+          trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
+          trace: collect_build_prerequisites: begin libfoo/1.0.0
+          trace: collect_build_prerequisites: end libfoo/1.0.0
+          trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
+          trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent foo/1.0.0
+          trace: collect_build_prerequisites: resume foo/1.0.0
+          trace: collect_build_prerequisites: end foo/1.0.0
+          trace: collect_build_postponed (1): cfg-negotiate end {foo | libfoo->{foo/1,1}}!
+          trace: collect_build_postponed (1): index 1 collect alt-postponed fox/0.2.0
+          trace: collect_build_prerequisites: resume fox/0.2.0
+          %.*
+          trace: collect_build_prerequisites: cfg-postpone dependency libfoo/1.0.0 of dependent fox/0.2.0
+          %.*
+          trace: postponed_configurations::add: add {fox 1,1: libfoo} to {foo | libfoo->{foo/1,1}}!
+          trace: collect_build_prerequisites: unable to cfg-negotiate dependency alternative 1,1 for dependent fox/0.2.0, throwing unaccept_alternative
+          trace: pkg_build: collection failed due to unacceptable alternative, retry from scratch
+          %.*
+          trace: pkg_build: refine package collection/plan execution from scratch
+          %.*
+          trace: collect_build: add foo/1.0.0
+          trace: collect_build: add fox/0.2.0
+          trace: collect_build_prerequisites: begin foo/1.0.0
+          %.*
+          trace: collect_build: add libfoo/1.0.0
+          trace: collect_build_prerequisites: cfg-postpone dependency libfoo/1.0.0 of dependent foo/1.0.0
+          trace: postponed_configurations::add: create {foo | libfoo->{foo/1,1}}
+          trace: collect_build_prerequisites: postpone foo/1.0.0
+          trace: collect_build_prerequisites: begin fox/0.2.0
+          trace: collect_build_prerequisites: dependency alternative 1,1 for dependent fox/0.2.0 is unacceptable, skipping
+          %.*
+          trace: collect_build_prerequisites: alt-postpone dependent fox/0.2.0 since max index is reached: 1
+            info: dependency alternative: libfoo
+          {
+            prefer
+            {
+              config.libfoo.extras = true
+            }
+
+            accept (true)
+          }
+          trace: collect_build_prerequisites: postpone fox/0.2.0
+          trace: collect_build_postponed (0): begin
+          trace: collect_build_postponed (1): begin {foo | libfoo->{foo/1,1}}
+          %.*
+          trace: collect_build_postponed (1): cfg-negotiate begin {foo | libfoo->{foo/1,1}}
+          trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
+          trace: collect_build_prerequisites: begin libfoo/1.0.0
+          trace: collect_build_prerequisites: end libfoo/1.0.0
+          trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
+          trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent foo/1.0.0
+          trace: collect_build_prerequisites: resume foo/1.0.0
+          trace: collect_build_prerequisites: end foo/1.0.0
+          trace: collect_build_postponed (1): cfg-negotiate end {foo | libfoo->{foo/1,1}}!
+          trace: collect_build_postponed (1): index 1 collect alt-postponed fox/0.2.0
+          trace: collect_build_prerequisites: resume fox/0.2.0
+          trace: collect_build_prerequisites: dependency alternative 1,1 for dependent fox/0.2.0 is unacceptable, skipping
+          %.*
+          trace: collect_build_prerequisites: alt-postpone dependent fox/0.2.0 since max index is reached: 1
+            info: dependency alternative: libfoo
+          {
+            prefer
+            {
+              config.libfoo.extras = true
+            }
+
+            accept (true)
+          }
+          trace: collect_build_prerequisites: postpone fox/0.2.0
+          trace: collect_build_postponed (1): index 2 collect alt-postponed fox/0.2.0
+          trace: collect_build_prerequisites: resume fox/0.2.0
+          trace: collect_build_prerequisites: dependency alternative 1,1 for dependent fox/0.2.0 is unacceptable, skipping
+          %.*
+          trace: collect_build_prerequisites: cfg-postpone dependency libfoo/1.0.0 of dependent fox/0.2.0
+          %.*
+          trace: postponed_configurations::add: add {fox 1,2: libfoo} to {foo | libfoo->{foo/1,1}}!
+          trace: collect_build_prerequisites: configuration for cfg-postponed dependencies of dependent fox/0.2.0 is negotiated
+          trace: collect_build_prerequisites: dependency libfoo/1.0.0 of dependent fox/0.2.0 is already (being) recursively collected, skipping
+          trace: collect_build_prerequisites: end fox/0.2.0
+          trace: collect_build_postponed (1): end {foo | libfoo->{foo/1,1}}
+          trace: collect_build_postponed (0): end
+          %.*
+          build plan:
+            new libfoo/1.0.0 (required by foo, fox)
+              config.libfoo.extras=true (set by foo)
+            new foo/1.0.0
+            new fox/0.2.0
+          trace: execute_plan: simulate: no
+          %.*
+          EOE
+
+        $pkg_status -r >>EOO;
+          !foo configured 1.0.0
+            libfoo configured 1.0.0
+          !fox configured !0.2.0 available 1.0.0
+            libfoo configured 1.0.0
+          EOO
+
+        $pkg_drop foo fox
+      }
+
+      : negotiation-cycle2
+      :
+      : Similar to the above but peforms one more negotiation half-cycle (see
+      : negotiate_configuration() for details).
+      :
+      {
+        $clone_cfg;
+
+        # Note that this 'one more half-cycle' case doesn't reproduce always
+        # and depends on the negotiate_configuration() calls order for the fox
+        # and foo dependents. This order is not actually deterministic since
+        # depends on the order of these packages in the postponed_packages set
+        # (of the set<build_package*> type). Thus, the 'one more half-cycle'
+        # case only takes place if the order of the packages as they appear on
+        # the command line is preserved.
+        #
+        $* fox/0.2.0 foo/0.2.0 ?libfoo 2>>~%EOE%;
+          %.*
+          trace: pkg_build: refine package collection/plan execution from scratch
+          %.*
+          trace: collect_build: add fox/0.2.0
+          trace: collect_build: add foo/0.2.0
+          trace: collect_build_prerequisites: begin fox/0.2.0
+          %.*
+          trace: collect_build_prerequisites: alt-postpone dependent fox/0.2.0 since max index is reached: 0
+            info: dependency alternative: libfoo
+          {
+            prefer
+            {
+              config.libfoo.extras = false
+            }
+
+            accept (!$config.libfoo.extras)
+          }
+          trace: collect_build_prerequisites: postpone fox/0.2.0
+          trace: collect_build_prerequisites: begin foo/0.2.0
+          %.*
+          trace: collect_build_prerequisites: alt-postpone dependent foo/0.2.0 since max index is reached: 0
+            info: dependency alternative: libfoo
+          {
+            require
+            {
+              config.libfoo.extras = true
+            }
+          }
+          trace: collect_build_prerequisites: postpone foo/0.2.0
+          %.*
+          %.+: unable to cfg-negotiate dependency alternative 1,1 for dependent fox/0.2.0, throwing unaccept_alternative%
+          trace: pkg_build: collection failed due to unacceptable alternative, retry from scratch
+          %.*
+          trace: pkg_build: refine package collection/plan execution from scratch
+          %.*
+          trace: collect_build_prerequisites: dependency alternative 1,1 for dependent fox/0.2.0 is unacceptable, skipping
+          %.*
+          build plan:
+            new libfoo/1.0.0 (required by foo, fox)
+              config.libfoo.extras=true (set by foo)
+            new fox/0.2.0
+            new foo/0.2.0
+          trace: execute_plan: simulate: no
+          %.*
+          EOE
+
+        $pkg_status -r >>EOO;
+          !fox configured !0.2.0 available 1.0.0
+            libfoo configured 1.0.0
+          !foo configured !0.2.0 available 1.0.0
+            libfoo configured 1.0.0
+          EOO
+
+        $pkg_drop foo fox
       }
     }
 

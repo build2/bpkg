@@ -98,12 +98,13 @@ namespace bpkg
     }
   }
 
-  bool
+  optional<bool>
   negotiate_configuration (
     package_configurations& cfgs,
     package_skeleton& dept,
     pair<size_t, size_t> pos,
-    const small_vector<reference_wrapper<package_skeleton>, 1>& depcs)
+    const small_vector<reference_wrapper<package_skeleton>, 1>& depcs,
+    bool has_alt)
   {
     assert (!dept.system);
 
@@ -210,7 +211,7 @@ namespace bpkg
           {
             old_cfgs.push_back (
               dependent_config_variable_value {
-                v.name, move (v.value), move (*v.dependent)});
+                v.name, move (v.value), move (*v.dependent), v.has_alternative});
 
             // Note that we will not reload it to default in case of require.
             //
@@ -218,7 +219,8 @@ namespace bpkg
           }
           else
             old_cfgs.push_back (
-              dependent_config_variable_value {v.name, v.value, *v.dependent});
+              dependent_config_variable_value {
+                v.name, v.value, *v.dependent, v.has_alternative});
         }
       }
 
@@ -261,10 +263,14 @@ namespace bpkg
     // Step 2: execute the prefer/accept or requires clauses.
     //
     if (!(da.require
-          ? dept.evaluate_require (depc_cfgs, *da.require, pos)
+          ? dept.evaluate_require (depc_cfgs, *da.require, pos, has_alt)
           : dept.evaluate_prefer_accept (depc_cfgs,
-                                         *da.prefer, *da.accept, pos)))
+                                         *da.prefer, *da.accept, pos,
+                                         has_alt)))
     {
+      if (has_alt)
+        return nullopt;
+
       diag_record dr (fail);
 
       dr << "unable to negotiate acceptable configuration with dependent "
@@ -377,7 +383,8 @@ namespace bpkg
         if (v.origin == variable_origin::buildfile)
         {
           new_cfgs.push_back (
-            dependent_config_variable_value {v.name, v.value, *v.dependent});
+            dependent_config_variable_value {
+              v.name, v.value, *v.dependent, v.has_alternative});
         }
       }
     }
@@ -441,16 +448,19 @@ namespace bpkg
       return true;
     }
 
-    diag_record dr (fail);
-
-    dr << "unable to negotiate acceptable configuration between dependents "
-       << dept.package;
+    if (has_alt)
+      return nullopt;
 
     // Analyze the O->N changes and determine the problematic dependent(s).
     // Do we actually know for sure they are all problematic? Well, they
     // repeatedly changed the values to the ones we don't like, so I guess so.
     //
-    small_vector<reference_wrapper<const package_key>, 1> depts; // Duplicates.
+    // If it's the other dependent that has an alternative, then we let the
+    // negotiation continue for one more half-cycle at which point it will be
+    // while negotiating the configuration of the other dependent that we will
+    // (again) detect this cycle.
+    //
+    small_vector<reference_wrapper<const package_key>, 1> depts;
     for (const dependent_config_variable_value& nv: new_cfgs)
     {
       if (nv.dependent == dept.package)
@@ -465,13 +475,28 @@ namespace bpkg
                            return ov->dependent == pk.get ();
                          }) == depts.end ())
             {
-              dr << ", " << ov->dependent;
+              if (ov->has_alternative)
+              {
+                change_history.push_back (move (old_cfgs));
+                change_history.push_back (move (new_cfgs));
+
+                return true;
+              }
+
               depts.push_back (ov->dependent);
             }
           }
         }
       }
     }
+
+    diag_record dr (fail);
+
+    dr << "unable to negotiate acceptable configuration between dependents "
+       << dept.package;
+
+    for (const package_key& d: depts)
+      dr << ", " << d;
 
     dr << " for dependencies ";
 
