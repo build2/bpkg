@@ -405,7 +405,8 @@ The inclusion of \c{build/bootstrap.build} and \c{build/root.build} (if
 present) as well as any \c{build/config/*.build} (or their alternative naming
 scheme variants) is automatic. However, if \c{root.build} sources any files
 other than \c{build/config/*.build}, then they must be specified explicitly in
-the package manifest using the \c{build-file} value (@@ REF).
+the package manifest using the \l{#manifest-package-build-file \c{build-file}}
+value.
 
 Inside these buildfiles the skeleton load can be distinguished from normal
 load by examining the \c{build.mode} variable, which is set to \c{skeleton}
@@ -577,20 +578,153 @@ accept ($config.libfoo.buffer >= ($config.libfoo.cache ? 4096 : 8192))
 \
 
 The interesting case to consider in the above example is when
-\c{config.libfoo.cache} changes from \c{true} to \c{false}. Without the reset
+\c{config.libfoo.cache} changes from \c{true} to \c{false}: without the reset
 to defaults semantics the \c{prefer} clause would have kept the buffer at 8KB
 (since it's larger than the 4KB minimum).
 
-@@ Is stuff set in prefer sivible in accept? Yes, currently. But maybe best
-   not to rely?
+\N|Currently \c{accept} is always evaluated after \c{prefer} and temporary
+variables (like \c{min_buffer} in the above example) set in \c{prefer} are
+visible in \c{accept}. But it's best not to rely on this in case this changes
+in the future. For example, we may try harder to resolve the \"yo-yo'ing\"
+case mentioned above by checking if one of the alternating configurations
+are acceptable to everyone without re-evaluation.
 
-@@ This dependency reflect clause \"sees\" variables that were
-   not set.
+This is also the reason why we need separate \c{accept} in the first place.
+Plus, it allows for more advanced configuration techniques where we may need
+to have an acceptance criteria but no preferences.|
 
-@@ Hm, what do we need accept for at all? Flexibility (acceptable but
-   no preference)? Change algo in the future (evaluate accept without
-   prefer)? For example, we could try to resolve yo-yo'ing by seeing
-   if one of them is acceptable to both?
+Configuration variables that are set by the dependent in the \c{prefer} clause
+are visible in the subsequent clauses as well as in the subsequent \c{depends}
+values of this dependent. Configuration variables that are not set, however,
+are only visible until the immediately following \c{reflect} clause. For
+example, in the above listing, \c{config.libfoo.cache} would be visible in the
+\c{reflect} if it were to follow \c{accept} but no further. As a result, if we
+need to make decisions based on configuration variables that we have no
+preference about, they need to be saved in the \c{prefer} clause. For
+example:
+
+\
+depends:
+\\
+libfoo ^1.0.0
+{
+  # We have no preference about the cache but need to
+  # observe its value.
+  #
+  prefer
+  {
+  }
+
+  accept (true)
+
+  reflect
+  {
+    config.hello.libfoo_cache = $config.libfoo.cache
+  }
+}
+\\
+
+depends: libbar ^1.0.0 ? ($config.hello.libfoo_cache)
+\
+
+It is also possible to determine the origin of the configuration variable
+value using the \c{$config.origin()} function. It returns either \c{undefined}
+if the variable is undefined (only possible if it has no default value),
+\c{default} if the variable has the default value from the \c{config}
+directive in \c{root.build}, \c{buildfile} if the value is from a
+\c{buildfile}, normally \c{config.build}, or \c{override} if the value is a
+command line override (that is, user configuration). For example, this
+is how we could use it if we only wanted to change the default buffer
+value (notice that it's the variable's name and not its \c{$}-expansion
+that we pass to \c{$config.origin()}):
+
+\
+prefer
+{
+  config.libfoo.buffer = (                            \
+    $config.origin(config.libfoo.buffer) == 'default' \
+    ? 4096                                            \
+    : $config.libfoo.buffer)
+}
+\
+
+The following sub-sections discuss a number of more advanced configuration
+techniques that are based on the functionality described in this section.
+
+
+\h#dep-config-prefer-x-accept-xy|Prefer X but Accept X or Y|
+
+Consider a configuration variable that is a choice between several mutually
+exclusive values, for example, user interface backends that could be, say,
+\c{cli}, \c{gui}, or \c{none}. In such situations it's common to prefer one
+value but being able to work with some subset of them. For example, we could
+prefer \c{gui} but were also able to make do with \c{cli} but not with
+\c{none}. Here is how we could express such a configuration:
+
+\
+libfoo ^1.0.0
+{
+  # We prefer `gui`, can also work with `cli` but not `none`.
+  #
+  prefer
+  {
+    config.libfoo.ui = (                                     \
+      $config.origin(config.libfoo.ui) == 'default' ||       \
+      ($config.liba.ui != 'gui' && $config.liba.ui != 'cli') \
+      ? 'gui' \
+      : $config.liba.ui)
+  }
+
+  accept ($config.liba.ui == 'gui' || $config.liba.ui == 'cli')
+}
+\
+
+\h#dep-config-use-if-enabled|Use If Enabled|
+
+Sometimes we may want to use a feature if it is enabled by someone else but
+not enable it ourselves. For example, the feature might be expensive and our
+use of it tangential, but if it's enabled anyway, then we might as well take
+advantage of it. Here is how we could express such a configuration:
+
+\
+libfoo ^1.0.0
+{
+  # Use config.libfoo.x only if enabled by someone else.
+  #
+  prefer
+  {
+  }
+
+  accept (true)
+
+  reflect
+  {
+    config.hello.libfoo_x = $config.libfoo.x
+  }
+}
+\
+
+\h#dep-config-disable-default|Disable If Enabled by Default|
+
+Sometimes we may want to disable a feature that is enabled by default provided
+that nobody else needs it. For example, the feature might be expensive and we
+would prefer to avoid paying the cost if we are the only ones using this
+dependency. Here is how we could express such a configuration:
+
+\
+libfoo ^1.0.0
+{
+  prefer
+  {
+    if ($config.origin(config.libfoo.x) == 'default')
+      config.libfoo.x = false
+  }
+
+  accept (true)
+}
+\
+
+
 
 \h1#manifests|Manifests|
 
@@ -1577,6 +1711,21 @@ Windows in the \c{buildfile} (or, better yet, factor this check to
 \c{manifest} and \c{buildfile}), the reflect mechanism is the only way to
 communicate the selected dependency alternative (discussed next).
 
+\N|An attempt to set a reflected configuration variable that is overridden by
+the user is an error. In a sense, configuration variables used to reflect
+information are the package's implementation details if the package management
+is involved. If, however, the package is configured without \c{bpkg}'s
+involvement, then these variables could reasonably be provided as user
+configuration.
+
+If you feel the need to allow a reflected configuration variable to also
+potentially be supplied as user configuration, then it's probably a good sign
+that you should turn things around: make the variable only user-configurable
+and use the enable condition instead of reflect. Alternatively, you could try
+to recognize and handle user overrides with the help of the
+\c{$config.origin()} function discussed in \l{#dep-config-negotiation
+Dependency Configuration Negotiation}.|
+
 While multiple \c{depends} values are used to specify multiple packages with
 the \i{AND} semantics, inside \c{depends} we can specify specify multiple
 packages (or groups of packages) with the \i{OR} semantics, called dependency
@@ -2069,7 +2218,8 @@ The contents of the mandatory \c{bootstrap.build} file, optional
 \c{root.build} file, and additional files included by \c{root.build}, or their
 alternative naming scheme variants (\c{bootstrap.build2}, etc). Packages with
 the alternative naming scheme should use the \c{*-build2} values instead of
-\c{*-build}.
+\c{*-build}. See \l{#package-skeleton Package Build System Skeleton} for
+background.
 
 These files must reside in the package's \c{build/} subdirectory and have the
 \c{.build} extension (or their alternative names). They can be provided either
