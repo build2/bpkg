@@ -1735,19 +1735,44 @@ alternatives. For example:
 depends: libmysqlclient >= 5.0.3 | libmariadb ^10.2.2
 \
 
-When selecting an alternative, \c{bpkg} prefers packages that are either
-already present in the build configuration or are selected as dependencies by
-other packages. If this does not yield a selection, then \c{bpkg} picks the
-first alternative with a satisfiable version constraint. As a result, the
-order of alternatives expresses a preference. For example, if the package with
-the above dependency is called \c{hello} and we build just that one package,
-then \c{bpkg} will select \c{libmysqlclient}, provided there is a suitable
-version available. If we wanted to force \c{bpkg} to select \c{libmariadb}
-instead, we could run:
+When selecting an alternative, \c{bpkg} only considers packages that are
+either already present in the build configuration or are selected as
+dependencies by other packages, picking the first alternative with a
+satisfactory version constraint and an acceptable configuration. As a result,
+the order of alternatives expresses a preference. If, however, this does not
+yield a suitable alternative, then \c{bpkg} fails asking the user to make the
+selection.
+
+For example, if the package with the above dependency is called \c{libhello}
+and we build it in a configuration that already has both \c{libmysqlclient}
+and \c{libmariadb}, then \c{bpkg} will select \c{libmysqlclient}, provided the
+existing version of \c{libmysqlclient} satisfies the constraint. If, however,
+there are no existing packages in the build configuration and we attempt to
+build just \c{libhello}, \c{bpkg} will fail asking the user to pick the
+alternative. If, in either cases, we wanted to make \c{bpkg} select
+\c{libmariadb} we could run:
 
 \
-$ bpkg build hello ?libmariadb
+$ bpkg build libhello ?libmariadb
 \
+
+\N|While \c{bpkg}'s refusal to automatically pick an alternative that contains
+a new package may at first seem unfriendly to the user, practical experience
+shows that the extra user-friendliness rarely justifies the potential
+confusion that it may cause.
+
+Also note that it's not only the user that can pick a certain alternative but
+also a dependent package. Continue with the above example, if we had \c{hello}
+that depended on \c{libhello} but only supported MariaDB (or provided a
+configuration variable to explicitly select the database), then we could
+have the following in its manifest:
+
+\
+depends: libmariadb       ; Select MariaDB in libhello.
+depends: libhello ^1.0.0
+\
+
+|
 
 Dependency alternatives can be combined with all the other features discussed
 above: groups, conditional dependencies, and reflect. As mentioned earlier,
@@ -1934,45 +1959,63 @@ dependent's configuration variables.
 
 \h2#manifest-package-requires|\c{requires}|
 
-@@ TODO: `?` is now inside (but just `?` is allowed, see manifest.hxx.
-
 \
 [requires]: [*] [<alternatives>] [; <comment>]
 
-<alternatives> = <requirement> [ '|' <requirement>]*
-<requirement>  = <id> | <dependency>
-<id>           = <name>
+<alternatives> = <alternative> [ '|' <alternative>]*
+<alternative>  = <requirements> ['?' [<enable-cond>]] [<reflect-var>]
+<requirements> = [<requirement>] | \
+    '{' <requirement> [<requirement>]* '}' [<version-constraint>]
+<requirement>  = <name> [<version-constraint>]
+<enable-cond>  = '(' <buildfile-eval-expr> ')'
+<reflect-var>  = <config-var> '=' <value>
 \
 
 The package requirements (other than other packages). Such requirements are
-normally checked during package configuration by the build system and the only
-purpose of capturing them in the manifest is for documentation. Similar to
-\c{depends}, a value that starts with \c{*} is a build-time requirement and/or
-with \c{?} is a conditional requirement. For example:
+normally checked during package configuration by the build system and the
+primary purpose of capturing them in the manifest is for documentation.
+However, there are some special requirements that are recognized by the
+tooling (see below). For example:
 
 \
-requires: linux | windows | macos
 requires: c++11
-requires: ? ; VC 15 or later if targeting Windows.
-requires: ? ; libc++ if using Clang on Mac OS.
+requires: linux | windows | macos
+requires: libc++ ? ($macos) ; libc++ if using Clang on Mac OS.
 \
 
-Notice that in the last two cases the id is omitted altogether with only the
-comment specifying the requirement.
+The format of the \c{requires} value is similar to
+\l{#manifest-package-depends \c{depends}} with the following differences:
 
-Note that \c{requires} should also be used to specify dependencies on external
-libraries, that is, the ones not packaged or not in the repository. In this
-case it may make sense to also specify the version constraint. For example:
+\ul|
+
+\li|The requirement name (with or without version constraint) can mean
+anything (but must still be a valid package name).|
+
+\li|Only the \c{enable} and \c{reflect} clauses are permitted.|
+
+\li|The simplified syntax with either the requirement or enable condition or
+both being empty and where the comment carries all the information (and
+is thus mandatory). For example:
 
 \
-requires: zlib >= 1.2.0 ; Most systems already have it or get from zlib.net.
+requires: ; X11 libs.
+requires: ? ($windows) ; Only 64-bit.
+requires: ? ; Only 64-bit if on Windows.
+requires: x86_64 ? ; Only if on Windows.
 \
 
-It is recommended that you specify unconditional requirements first with
-simple (no alternatives) requirements leading each set.
+||
 
-To assist automated processing, the following pre-defined ids should be used
-for the common requirements:
+Note that \c{requires} can also be used to specify dependencies on system
+libraries, that is, the ones not to be packaged. In this case it may make
+sense to also specify the version constraint. For example:
+
+\
+requires: libx11 >= 1.7.2
+\
+
+To assist potential future automated processing, the following pre-defined ids
+should be used for the common requirements:
 
 \
 c++98
@@ -1989,6 +2032,8 @@ posix
 linux
 macos
 freebsd
+openbsd
+netbsd
 windows
 \
 
