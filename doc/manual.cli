@@ -470,7 +470,7 @@ them. This process is called the dependency configuration negotiation.
 
 The desired dependency configuration is specified as part of the
 \l{#manifest-package-depends \c{depends}} manifest value and can be expressed
-as either a single \c{require} clause of as a pair of \c{prefer}/\c{accept}
+as either a single \c{require} clause or as a pair of \c{prefer}/\c{accept}
 clauses.
 
 The \c{require} clause is essentially a shortcut for specifying the
@@ -671,14 +671,14 @@ libfoo ^1.0.0
   #
   prefer
   {
-    config.libfoo.ui = (                                     \
-      $config.origin(config.libfoo.ui) == 'default' ||       \
-      ($config.liba.ui != 'gui' && $config.liba.ui != 'cli') \
-      ? 'gui' \
-      : $config.liba.ui)
+    config.libfoo.ui = (                                         \
+      $config.origin(config.libfoo.ui) == 'default' ||           \
+      ($config.libfoo.ui != 'gui' && $config.libfoo.ui != 'cli') \
+      ? 'gui'                                                    \
+      : $config.libfoo.ui)
   }
 
-  accept ($config.liba.ui == 'gui' || $config.liba.ui == 'cli')
+  accept ($config.libfoo.ui == 'gui' || $config.libfoo.ui == 'cli')
 }
 \
 
