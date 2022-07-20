@@ -820,7 +820,7 @@ $* libfoo/1.0.0 2>>~%EOE% != 0
       purged libbar
       EOO
 
-    $* --all-pattern '*' 2>>EOO
+    $* libfoo 2>>EOO
       disfigured libfoo
       purged libfoo
       EOO
