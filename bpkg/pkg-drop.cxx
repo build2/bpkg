@@ -7,6 +7,8 @@
 #include <list>
 #include <iostream>   // cout
 
+#include <libbutl/path-pattern.hxx>
+
 #include <bpkg/package.hxx>
 #include <bpkg/package-odb.hxx>
 #include <bpkg/database.hxx>
@@ -506,17 +508,40 @@ namespace bpkg
     const dir_path& c (o.directory ());
     l4 ([&]{trace << "configuration: " << c;});
 
-    if (o.yes () && o.no ())
-      fail << "both --yes|-y and --no|-n specified";
+    {
+      diag_record dr;
 
-    if (o.drop_dependent () && o.keep_dependent ())
-      fail << "both --drop-dependent and --keep-dependent|-K "
-           << "specified" <<
-        info << "run 'bpkg help pkg-drop' for more information";
+      if (o.yes () && o.no ())
+      {
+        dr << fail << "both --yes|-y and --no|-n specified";
+      }
+      else if (o.drop_dependent () && o.keep_dependent ())
+      {
+        dr << fail << "both --drop-dependent and --keep-dependent|-K "
+                   << "specified";
+      }
+      else if (o.all ())
+      {
+        if (o.all_pattern_specified ())
+          dr << fail << "both --all|-a and --all-pattern specified";
 
-    if (!args.more ())
-      fail << "package name argument expected" <<
-        info << "run 'bpkg help pkg-drop' for more information";
+        if (args.more ())
+          dr << fail << "both --all|-a and package argument specified";
+      }
+      else if (o.all_pattern_specified ())
+      {
+        if (args.more ())
+          dr << fail << "both --all-pattern and package argument specified";
+      }
+      else if (!args.more ())
+      {
+        dr << fail << "package name argument expected";
+      }
+
+      if (!dr.empty ())
+        dr << info << "run 'bpkg help pkg-drop' for more information";
+    }
+
 
     database db (c, trace, true /* pre_attach */);
 
@@ -546,17 +571,10 @@ namespace bpkg
       // by the user.
       //
       vector<package_name> names;
-      while (args.more ())
+
+      auto add = [&names, &pkgs, &db] (shared_ptr<selected_package>&& p)
       {
-        package_name n (parse_package_name (args.next (),
-                                            false /* allow_version */));
-
-        l4 ([&]{trace << "package " << n;});
-
-        shared_ptr<selected_package> p (db.find<selected_package> (n));
-
-        if (p == nullptr)
-          fail << "package " << n << " does not exist in configuration " << c;
+        package_name n (p->name);
 
         if (p->state == package_state::broken)
           fail << "unable to drop broken package " << n <<
@@ -564,6 +582,52 @@ namespace bpkg
 
         if (pkgs.collect (db, move (p)))
           names.push_back (move (n));
+      };
+
+      if (o.all () || o.all_pattern_specified ())
+      {
+        using query = query<selected_package>;
+
+        for (shared_ptr<selected_package> p:
+               pointer_result (
+                 db.query<selected_package> (query::hold_package)))
+        {
+          l4 ([&]{trace << *p;});
+
+          if (o.all_pattern_specified ())
+          {
+            for (const string& pat: o.all_pattern ())
+            {
+              if (path_match (p->name.string (), pat))
+              {
+                add (move (p));
+                break;
+              }
+            }
+          }
+          else // --all
+            add (move (p));
+        }
+
+        if (names.empty ())
+          info << "nothing to drop";
+      }
+      else
+      {
+        while (args.more ())
+        {
+          package_name n (parse_package_name (args.next (),
+                                              false /* allow_version */));
+
+          l4 ([&]{trace << "package " << n;});
+
+          shared_ptr<selected_package> p (db.find<selected_package> (n));
+
+          if (p == nullptr)
+            fail << "package " << n << " does not exist in configuration " << c;
+
+          add (move (p));
+        }
       }
 
       // The next step is to see if there are any dependents that are not

@@ -310,7 +310,7 @@ namespace bpkg
       {
         using query = query<selected_package>;
 
-        query q (query::hold_package &&
+        query q (query::hold_package          &&
                  query::state == "configured" &&
                  query::substate != "system");
 

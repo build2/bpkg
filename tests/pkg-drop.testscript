@@ -39,6 +39,22 @@ $* 2>>EOE != 0
     info: run 'bpkg help pkg-drop' for more information
   EOE
 
+: all-all-pattern
+:
+$clone_cfg;
+$* --all --all-pattern 'lib*' 2>>EOE != 0
+  error: both --all|-a and --all-pattern specified
+    info: run 'bpkg help pkg-drop' for more information
+  EOE
+
+: all-pattern-name
+:
+$clone_cfg;
+$* --all-pattern 'lib*' libbaz 2>>EOE != 0
+  error: both --all-pattern and package argument specified
+    info: run 'bpkg help pkg-drop' for more information
+  EOE
+
 : unknown-package
 :
 $clone_cfg;
@@ -763,5 +779,50 @@ $* libfoo/1.0.0 2>>~%EOE% != 0
       info: no held packages in the configuration
         info: use --all|-a to see status of all packages
       EOE
+  }
+}
+
+: all-options
+:
+{
+  +$clone_cfg && $rep_add $rep/t4b $rep/t4c && $rep_fetch
+
+  test.arguments += --yes
+
+  : all
+  :
+  {
+    $clone_cfg;
+
+    $pkg_build libbaz libbar;
+
+    $* --all 2>>EOO
+      disfigured libbaz
+      disfigured libbar
+      disfigured libfoo
+      purged libbaz
+      purged libbar
+      purged libfoo
+      EOO
+  }
+
+  : all-pattern
+  :
+  {
+    $clone_cfg;
+
+    $pkg_build libbaz libbar libfoo;
+
+    $* --all-pattern 'libb*' 2>>EOO;
+      disfigured libbaz
+      disfigured libbar
+      purged libbaz
+      purged libbar
+      EOO
+
+    $* --all-pattern '*' 2>>EOO
+      disfigured libfoo
+      purged libfoo
+      EOO
   }
 }

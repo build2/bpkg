@@ -14,17 +14,21 @@ namespace bpkg
 
     "\h|SYNOPSIS|
 
-     \c{\b{bpkg pkg-drop}|\b{drop} [<options>] <pkg>...}
+     \c{\b{bpkg pkg-drop}|\b{drop} [<options>] <pkg>...\n
+        \b{bpkg pkg-drop}|\b{drop} [<options>] \b{--all}|\b{-a}\n
+        \b{bpkg pkg-drop}|\b{drop} [<options>] (\b{--all-pattern} <pattern>)...}
 
      \h|DESCRIPTION|
 
-     The \cb{pkg-drop} command drops one or more packages from the
-     configuration. If the packages being dropped still have dependent
-     packages, then those will have to be dropped as well and you will be
-     prompted to confirm. And if the packages being dropped have dependency
-     packages that would otherwise no longer be used, then they will be
-     dropped as well unless the \c{\b{--keep-unused}|\b{-K}} option is
-     specified.
+     The \cb{pkg-drop} command drops from the configuration the specified
+     packages (the first form), all the held packages (the second form, see
+     \l{bpkg-pkg-status(1)}), or all the held packages that match any of the
+     specified wildcard patterns (the third form). If the packages being
+     dropped still have dependent packages, then those will have to be dropped
+     as well and you will be prompted to confirm. And if the packages being
+     dropped have dependency packages that would otherwise no longer be used,
+     then they will be dropped as well unless the \c{\b{--keep-unused}|\b{-K}}
+     option is specified.
 
      The \cb{pkg-drop} command also supports several options (described below)
      that allow you to control the amount of work that will be done."
@@ -33,6 +37,19 @@ namespace bpkg
   class pkg_drop_options: configuration_options
   {
     "\h|PKG-DROP OPTIONS|"
+
+    bool --all|-a
+    {
+      "Drop all held packages."
+    }
+
+    strings --all-pattern
+    {
+      "<pattern>",
+      "Drop held packages that match the specified wildcard pattern. Repeat
+       this option to match multiple patterns. Note that you may need to quote
+       the pattern to prevent expansion by your shell."
+    }
 
     bool --yes|-y
     {
