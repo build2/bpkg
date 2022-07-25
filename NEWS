@@ -1,3 +1,91 @@
+Version 0.15.0
+
+  * New dependency declaration features:
+
+    - Dependency groups, for example:
+
+      depends: { libboost-any libboost-log libboost-uuid } ~1.77.0
+
+
+    - Conditional dependencies, for example:
+
+      depends: libposix-getopt ^1.0.0 ? ($cxx.target.class == 'windows')
+
+
+    - Dependency alternatives, for example:
+
+      depends: libmysqlclient >= 5.0.3 | libmariadb ^10.2.2
+
+
+    - Reflected configuration variables, for example:
+
+      depends: libposix-getopt ^1.0.0             \
+               ? ($cxx.target.class == 'windows') \
+	       config.hello.external_regex=true
+
+      Or:
+
+      depends: libmysqlclient >= 5.0.3 config.hello.db='mysql' | \
+               libmariadb ^10.2.2 ?    config.hello.db='mariadb'
+
+
+    - Dependency configuration, for example:
+
+      depends:
+      \
+      libmariadb ^10.2.2
+      {
+        require
+        {
+          config.libmariadb.cache = true
+
+          if ($cxx.target.class != 'windows')
+            config.libmariadb.tls = true
+        }
+      }
+      \
+
+      Or:
+
+      depends:
+      \
+      libmariadb ^10.2.2
+      {
+        prefer
+        {
+          config.libmariadb.cache = true
+
+          config.libmariadb.buffer = ($config.libmariadb.buffer < 4096 \
+                                      ? 4096                           \
+                                      : $config.libmariadb.buffer)
+        }
+
+        accept ($config.libmariadb.buffer >= 4096)
+      }
+      \
+
+    See the `depends` package manifest value in the manual for details.
+
+    The implementation of these features led to bpkg becoming a special build
+    system driver with repository metadata now containing the minimal subset
+    of build system files for each package (called the package build system
+    skeleton). See "Package Build System Skeleton" in the manual for details.
+
+  * Support for JSON output in the bpkg-pkg-status command.
+
+    See the --stdout-format option in bpkg-pkg-status(1) for details.
+
+  * New --all, --all-pattern bpkg-pkg-drop options.
+
+    These options can be used to drop all the held packages (in case of
+    --all-pattern, limited to those that match a wildcard pattern).
+
+  * New --keep-tmp common option.
+
+    This option instructs bpkg not to remove its temporary directory at the
+    end of the command execution and print its path if the verbosity level is
+    2 or higher. This option is primarily useful for troubleshooting.
+
 Version 0.14.0
 
   * Support for configuration types, configuration linking, and build-time
