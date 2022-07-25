@@ -394,14 +394,14 @@ may need to negotiate a configuration among several dependents of a package
 which requires it to know this package's configuration variable types and
 default values.
 
-To solve this chicken and egg of a problem, \c{bpkg} includes a minimal subset
-of the build system files along with the package's standard metadata (name,
-version, etc) into the repository metadata (\l{#manifest-package-list-pkg
-\c{packages.manifest}}). This subset is called the package build system
-skeleton, or just package skeleton for short, and includes the
-\c{build/bootstrap.build} and \c{build/root.build} files (or their alternative
-naming scheme variants) as well as any files that may be sources by
-\c{root.build}.
+To solve this chicken and egg kind of problem, \c{bpkg} includes a minimal
+subset of the build system files along with the package's standard metadata
+(name, version, etc) into the repository metadata
+(\l{#manifest-package-list-pkg \c{packages.manifest}}). This subset is called
+the package build system skeleton, or just package skeleton for short, and
+includes the \c{build/bootstrap.build} and \c{build/root.build} files (or
+their alternative naming scheme variants) as well as any files that may be
+sources by \c{root.build}.
 
 The inclusion of \c{build/bootstrap.build} and \c{build/root.build} (if
 present) as well as any \c{build/config/*.build} (or their alternative naming
@@ -414,7 +414,7 @@ Inside these buildfiles the skeleton load can be distinguished from normal
 load by examining the \c{build.mode} variable, which is set to \c{skeleton}
 during the skeleton load. In particular, this variable must be used to omit
 loading of build system modules that are neither built-in nor standard
-pre-installed and which are therefore listed as a package dependencies. Such
+pre-installed and which are therefore listed as package dependencies. Such
 modules are not yet available during the skeleton load. For example:
 
 \
@@ -511,7 +511,7 @@ libfoo ^1.0.0
 
 The configuration negotiation algorithm can be summarized as cooperative
 refinement. Specifically, whenever a \c{prefer} clause of a dependent changes
-any configuration value, all other dependent's \c{prefer} clauses are
+any configuration value, all other dependents' \c{prefer} clauses are
 re-evaluated. This process continues until there are no more changes
 (success), one of the \c{accept} clauses returned \c{false} (failure), or the
 process starts \"yo-yo'ing\" between two or more configurations (failure).
@@ -1761,7 +1761,7 @@ $ bpkg build libhello ?libmariadb
 \N|While \c{bpkg}'s refusal to automatically pick an alternative that would
 require building a new package may at first seem unfriendly to the user,
 practical experience shows that such extra user-friendliness would rarely
-justifies the potential confusion that it may cause.
+justify the potential confusion that it may cause.
 
 Also note that it's not only the user that can pick a certain alternative but
 also a dependent package. Continue with the above example, if we had \c{hello}
@@ -1917,7 +1917,7 @@ context expression that should evaluate to \c{true} or \c{false}, similar to
 \c{enable}.
 
 Given the \c{require} and \c{prefer}/\c{accept} clauses of all the dependents
-of a particular dependency, \c{bpkg} tries to negotiates a configuration
+of a particular dependency, \c{bpkg} tries to negotiate a configuration
 acceptable to all of them as described in \l{#dep-config-negotiation
 Dependency Configuration Negotiation}.
 
@@ -1973,7 +1973,7 @@ dependent's configuration variables.
 <reflect-var>  = <config-var> '=' <value>
 \
 
-The package requirements (other than other packages). Such requirements are
+The package requirements other than other packages. Such requirements are
 normally checked in an ad hoc way during package configuration by its
 \c{buildfiles} and the primary purpose of capturing them in the manifest is
 for documentation.  However, there are some special requirements that are
