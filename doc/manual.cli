@@ -401,7 +401,7 @@ subset of the build system files along with the package's standard metadata
 the package build system skeleton, or just package skeleton for short, and
 includes the \c{build/bootstrap.build} and \c{build/root.build} files (or
 their alternative naming scheme variants) as well as any files that may be
-sources by \c{root.build}.
+sourced by \c{root.build}.
 
 The inclusion of \c{build/bootstrap.build} and \c{build/root.build} (if
 present) as well as any \c{build/config/*.build} (or their alternative naming
@@ -559,10 +559,10 @@ The problem with the above attempt is that the default value could be greater
 than 4KB, in which case \c{bpkg} will have no idea that there is a dependent
 relying on this configuration value.
 
-Before each \c{prefer} clause re-evaluation, values that were first set by
-this dependent are reset to their defaults thus allowing the dependent to
-change its mind, for instance, in response to other configuration changes.
-For example:
+Before each \c{prefer} clause re-evaluation, variables that were first set to
+their current values by this dependent are reset to their defaults thus
+allowing the dependent to change its mind, for instance, in response to other
+configuration changes. For example:
 
 \
 # While we have no preference about the cache, if enabled/disabled,
@@ -587,7 +587,7 @@ to defaults semantics the \c{prefer} clause would have kept the buffer at 8KB
 
 \N|Currently \c{accept} is always evaluated after \c{prefer} and temporary
 variables (like \c{min_buffer} in the above example) set in \c{prefer} are
-visible in \c{accept}. But it's best not to rely on this in case this changes
+visible in \c{accept}. But it's best not to rely on this in case it changes
 in the future. For example, we may try harder to resolve the \"yo-yo'ing\"
 case mentioned above by checking if one of the alternating configurations
 are acceptable to everyone without re-evaluation.
@@ -603,7 +603,7 @@ are only visible until the immediately following \c{reflect} clause. For
 example, in the above listing, \c{config.libfoo.cache} would still be visible
 in the \c{reflect} clause if it were to follow \c{accept} but no further. As a
 result, if we need to make decisions based on configuration variables that we
-have no preference about, they need to be saved in the \c{prefer} clause. For
+have no preference about, they need to be saved in the \c{reflect} clause. For
 example:
 
 \
@@ -1638,10 +1638,10 @@ details).
 The condition expression is evaluated after loading the package build system
 skeleton, that is, after loading its \c{root.build} (see \l{#package-skeleton
 Package Build System Skeleton} for details). As a result, variable values set
-by build system modules that are loaded in \c{root.build} as well as package's
-configuration (including previously reflected; see below) or computed values
-can be referenced in dependency conditions. For example, given the following
-\c{root.build}:
+by build system modules that are loaded in \c{root.build} as well as the
+package's configuration (including previously reflected; see below) or
+computed values can be referenced in dependency conditions. For example, given
+the following \c{root.build}:
 
 \
 # root.build
@@ -1661,7 +1661,7 @@ config [bool] config.hello.regex ?= false
 We could have the following conditional dependencies:
 
 \
-depends: libposix-getopt ^1.0.0 ? ($need_getop) ; Windows && !MinGW.
+depends: libposix-getopt ^1.0.0 ? ($need_getopt) ; Windows && !MinGW.
 depends: libposix-regex  ^1.0.0 ? ($config.hello.regex && \
                                    $cxx.target.class == 'windows')
 \
@@ -1703,7 +1703,7 @@ if $config.hello.external_regex
 exe{hello}: ... $libs
 \
 
-In the above example, if the \c{hello} package is built on Windows, then the
+In the above example, if the \c{hello} package is built for Windows, then the
 dependency on \c{libposix-regex} will be enabled and the package will be
 configured with \c{config.hello.external_regex=true}. This is used in the
 \c{buildfile} to decide whether to import \c{libposix-regex}. While in this
@@ -1764,10 +1764,10 @@ practical experience shows that such extra user-friendliness would rarely
 justify the potential confusion that it may cause.
 
 Also note that it's not only the user that can pick a certain alternative but
-also a dependent package. Continue with the above example, if we had \c{hello}
-that depended on \c{libhello} but only supported MariaDB (or provided a
-configuration variable to explicitly select the database), then we could
-have the following in its \c{manifest}:
+also a dependent package. Continuing with the above example, if we had
+\c{hello} that depended on \c{libhello} but only supported MariaDB (or
+provided a configuration variable to explicitly select the database), then we
+could have the following in its \c{manifest}:
 
 \
 depends: libmariadb       ; Select MariaDB in libhello.
@@ -1779,7 +1779,7 @@ depends: libhello ^1.0.0
 Dependency alternatives can be combined with all the other features discussed
 above: groups, conditional dependencies, and reflect. As mentioned earlier,
 reflect is the only way to communicate the selection to subsequent \c{depends}
-values and package configuration. For example:
+values and the package configuration. For example:
 
 \
 depends: libmysqlclient >= 5.0.3 config.hello.db='mysql'      | \
@@ -1886,11 +1886,12 @@ libmariadb ^10.2.2
 }
 \
 
-For more complex dependency configurations we use the \c{prefer} and
-\c{accept} clauses. The \c{prefer} clause can set configuration variables of
-any type and to any value in order to express the package's preferred
-configuration while the \c{accept} condition evaluates whether any given
-configuration is acceptable. For example:
+For more complex dependency configurations instead of \c{require} we can use
+the \c{prefer} and \c{accept} clauses. The \c{prefer} clause can set
+configuration variables of any type and to any value in order to express the
+package's preferred configuration while the \c{accept} condition evaluates
+whether any given configuration is acceptable. If used instead of \c{require},
+both \c{prefer} and \c{accept} must be present. For example:
 
 \
 libmariadb ^10.2.2
@@ -1910,6 +1911,13 @@ libmariadb ^10.2.2
   accept ($config.libmariadb.buffer >= 4096)
 }
 \
+
+\N|The \c{require} clause is essentially a shortcut for specifying the
+\c{prefer}/\c{accept} clauses where the \c{accept} condition simply verifies
+all the variable values assigned in the \c{prefer} clause. It is, however,
+further restricted to the common case of only setting \c{bool} variables and
+only to \c{true} to allow additional optimizations during the configuration
+negotiation.|
 
 The \c{require} and \c{prefer} clauses are arbitrary \c{buildfile} fragments
 similar to \c{reflect} while the \c{accept} clause is a \c{buildfile} eval
