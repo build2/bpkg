@@ -10197,6 +10197,7 @@ namespace bpkg
                 pkg_verify (o,
                             a,
                             true /* ignore_unknown */,
+                            false /* ignore_toolchain */,
                             false /* expand_values */,
                             true /* load_buildfiles */,
                             true /* complete_depends */,
@@ -10263,6 +10264,7 @@ namespace bpkg
                     o,
                     d,
                     true /* ignore_unknown */,
+                    false /* ignore_toolchain */,
                     true /* load_buildfiles */,
                     [&o, &d, &pvi] (version& v)
                     {

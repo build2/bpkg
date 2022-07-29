@@ -101,6 +101,7 @@ namespace bpkg
         pkg_verify (o,
                     a,
                     o.ignore_unknown (),
+                    o.ignore_unknown () /* ignore_toolchain */,
                     true /* expand_values */,
                     true /* load_buildfiles */));
 

@@ -571,11 +571,13 @@ namespace bpkg
       ? pkg_verify (options,
                     a->absolute () ? *a : db.config_orig / *a,
                     true /* ignore_unknown */,
+                    false /* ignore_toolchain */,
                     false /* expand_values */,
                     true /* load_buildfiles */)
       : pkg_verify (options,
                     sp->effective_src_root (db.config_orig),
                     true /* ignore_unknown */,
+                    false /* ignore_toolchain */,
                     true /* load_buildfiles */,
                     // Copy potentially fixed up version from selected package.
                     [&sp] (version& v) {v = sp->version;}));
@@ -827,7 +829,7 @@ namespace bpkg
 
   bool
   toolchain_buildtime_dependency (const common_options& o,
-                                  const dependency_alternatives_ex& das,
+                                  const dependency_alternatives& das,
                                   const package_name* pkg)
   {
     if (das.buildtime)

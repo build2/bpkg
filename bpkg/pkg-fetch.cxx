@@ -163,6 +163,7 @@ namespace bpkg
     package_manifest m (pkg_verify (co,
                                     a,
                                     true /* ignore_unknown */,
+                                    false /* ignore_toolchain */,
                                     false /* expand_values */,
                                     false /* load_buildfiles */));
 

@@ -65,11 +65,14 @@ namespace bpkg
 
     init_tmp (conf != nullptr ? *conf : empty_dir_path);
 
+    bool ignore_unknown (!o.manifest () || o.ignore_unknown ());
+
     rep_fetch_data rfd (
       rep_fetch (o,
                  conf,
                  rl,
-                 !o.manifest () /* ignore_unknow */,
+                 ignore_unknown,
+                 ignore_unknown /* ignore_toolchain */,
                  o.deep () /* expand_values */,
                  o.deep () /* load_buildfiles */));
 

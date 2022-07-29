@@ -217,6 +217,7 @@ namespace bpkg
       pkg_verify (o,
                   d,
                   true /* ignore_unknown */,
+                  false /* ignore_toolchain */,
                   false /* load_buildfiles */,
                   [&o, &d, &pvi] (version& v)
                   {
@@ -433,6 +434,7 @@ namespace bpkg
           pkg_verify (co,
                       d,
                       true  /* ignore_unknown */,
+                      false /* ignore_toolchain */,
                       false /* load_buildfiles */,
                       function<package_manifest::translate_function> ()));
 

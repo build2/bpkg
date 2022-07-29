@@ -18,9 +18,10 @@ using namespace butl;
 
 namespace bpkg
 {
-  vector<manifest_name_value>
+  pkg_verify_result
   pkg_verify (const common_options& co,
               manifest_parser& p,
+              bool it,
               const path& what,
               int diag_level)
   {
@@ -36,10 +37,10 @@ namespace bpkg
       throw manifest_parsing (p.name (), nv.value_line, nv.value_column,
                               "unsupported format version");
 
-    vector<manifest_name_value> r;
+    pkg_verify_result r;
 
     // For the depends name, parse the value and if it contains the build2 or
-    // bpkg constraints, verify that they are satisfied.
+    // bpkg constraints, verify that they are satisfied, if requested.
     //
     // Note that if the semantics of the depends value changes we may be
     // unable to parse some of them before we get to build2 or bpkg and issue
@@ -66,15 +67,19 @@ namespace bpkg
 
         if (das.buildtime)
         {
-          for (const dependency_alternative& da: das)
+          for (dependency_alternative& da: das)
           {
-            for (const dependency& d: da)
+            for (dependency& d: da)
             {
               const package_name& dn (d.name);
 
               if (dn != "build2" && dn != "bpkg")
                 continue;
 
+              // Even if the toolchain build-time dependencies are requested
+              // to be ignored let's make sure they are well-formed, i.e. they
+              // are the only dependencies in the respective depends values.
+              //
               if (da.size () != 1)
               {
                 if (diag_level != 0)
@@ -95,7 +100,7 @@ namespace bpkg
 
               if (dn == "build2")
               {
-                if (d.constraint && !satisfy_build2 (co, d))
+                if (!it && d.constraint && !satisfy_build2 (co, d))
                 {
                   if (diag_level != 0)
                   {
@@ -111,10 +116,12 @@ namespace bpkg
 
                   throw failed ();
                 }
+
+                r.build2_dependency = move (d);
               }
               else
               {
-                if (d.constraint && !satisfy_bpkg (co, d))
+                if (!it && d.constraint && !satisfy_bpkg (co, d))
                 {
                   if (diag_level != 0)
                   {
@@ -124,11 +131,14 @@ namespace bpkg
                     if (!what.empty ())
                       dr << " for package " << what;
 
-                    dr << "available bpkg version is " << bpkg_version;
+                    dr << info << "available bpkg version is "
+                       << bpkg_version;
                   }
 
                   throw failed ();
                 }
+
+                r.bpkg_dependency = move (d);
               }
             }
           }
@@ -153,6 +163,7 @@ namespace bpkg
   pkg_verify (const common_options& co,
               const path& af,
               bool iu,
+              bool it,
               bool ev,
               bool lb,
               bool cd,
@@ -181,9 +192,10 @@ namespace bpkg
       manifest_parser mp (is, mf.string ());
 
       package_manifest m (mp.name (),
-                          pkg_verify (co, mp, af, diag_level),
+                          pkg_verify (co, mp, it, af, diag_level),
                           iu,
                           cd);
+
       is.close ();
 
       if (wait ())
@@ -415,6 +427,7 @@ namespace bpkg
   pkg_verify (const common_options& co,
               const dir_path& d,
               bool iu,
+              bool it,
               bool lb,
               const function<package_manifest::translate_function>& tf,
               int diag_level)
@@ -437,7 +450,7 @@ namespace bpkg
       manifest_parser mp (ifs, mf.string ());
 
       package_manifest m (mp.name (),
-                          pkg_verify (co, mp, d, diag_level),
+                          pkg_verify (co, mp, it, d, diag_level),
                           tf,
                           iu);
 
@@ -546,13 +559,15 @@ namespace bpkg
     //
     try
     {
-      package_manifest m (pkg_verify (o,
-                                      a,
-                                      o.ignore_unknown (),
-                                      o.deep () /* expand_values */,
-                                      o.deep () /* load_buildfiles */,
-                                      o.deep () /* complete_depends */,
-                                      o.silent () ? 0 : 2));
+      package_manifest m (
+        pkg_verify (o,
+                    a,
+                    o.ignore_unknown (),
+                    o.ignore_unknown () /* ignore_toolchain */,
+                    o.deep () /* expand_values */,
+                    o.deep () /* load_buildfiles */,
+                    o.deep () /* complete_depends */,
+                    o.silent () ? 0 : 2));
 
       if (o.manifest ())
       {

@@ -93,7 +93,16 @@ namespace bpkg
        in the resulting packages manifest the \cb{*-file} values are replaced
        with the contents of the referenced files and the \c{*-build} values
        are automatically added (unless the corresponding files are
-       absent). See also \cb{--repositories-file} and \cb{--packages-file}."
+       absent). See also \cb{--ignore-unknown}, \cb{--repositories-file}, and
+       \cb{--packages-file}."
+    }
+
+    bool --ignore-unknown
+    {
+      "Ignore unknown manifest entries. Note that this option also ignores
+       the version constraints in the special toolchain build-time
+       dependencies. This option is implied if \cb{--manifest} is not
+       specified."
     }
 
     bool --deep

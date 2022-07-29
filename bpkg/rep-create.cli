@@ -33,7 +33,8 @@ namespace bpkg
 
     bool --ignore-unknown
     {
-      "Ignore unknown manifest entries."
+      "Ignore unknown manifest entries. Note that this option also ignores the
+       version constraints in the special toolchain build-time dependencies."
     }
 
     butl::standard_version --min-bpkg-version

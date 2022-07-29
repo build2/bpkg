@@ -17,6 +17,7 @@
 #include <bpkg/rep-remove.hxx>
 #include <bpkg/pkg-verify.hxx>
 #include <bpkg/diagnostics.hxx>
+#include <bpkg/satisfaction.hxx>
 #include <bpkg/manifest-utility.hxx>
 
 using namespace std;
@@ -53,7 +54,8 @@ namespace bpkg
                  database* db,
                  const repository_location& rl,
                  const optional<string>& dependent_trust,
-                 bool ignore_unknown)
+                 bool ignore_unknown,
+                 bool ignore_toolchain)
   {
     // First fetch the repositories list and authenticate the base's
     // certificate.
@@ -113,6 +115,18 @@ namespace bpkg
 
       assert (cert != nullptr);
       authenticate_repository (co, conf, cert_pem, *cert, sm, rl);
+    }
+
+    // If requested, verify that the packages are compatible with the current
+    // toolchain.
+    //
+    if (!ignore_toolchain)
+    {
+      for (const package_manifest& m: fr.packages)
+      {
+        for (const dependency_alternatives& das: m.dependencies)
+          toolchain_buildtime_dependency (co, das, &m.name);
+      }
     }
 
     return rep_fetch_data {{move (fr)}, move (cert_pem), move (cert)};
@@ -216,6 +230,7 @@ namespace bpkg
                            const dir_path& repo_dir,
                            vector<package_manifest>&& pms,
                            bool iu,
+                           bool it,
                            const repository_location& rl,
                            const optional<string>& fragment) // For diagnostics.
   {
@@ -229,8 +244,10 @@ namespace bpkg
     };
 
     // Verify that all the package directories contain the package manifest
-    // files and retrieve the package versions via the single `b info` call.
-    // While at it cache the manifest paths for the future use.
+    // files and retrieve the package versions via the single `b info` call,
+    // but only if the current build2 version is satisfactory for all the
+    // repository packages. While at it cache the manifest paths for the
+    // future use.
     //
     // Note that if the package is not compatible with the toolchain, not to
     // end up with an unfriendly build2 error message (referring a line in the
@@ -240,15 +257,20 @@ namespace bpkg
     // since we need the package versions for that. Thus, we cache the
     // respective name value lists instead.
     //
-    package_version_infos               pvs;
+    optional<package_version_infos>     pvs;
     paths                               mfs;
-    dir_paths                           pds;
     vector<vector<manifest_name_value>> nvs;
     {
       mfs.reserve (pms.size ());
       nvs.reserve (pms.size ());
 
+      dir_paths pds;
       pds.reserve (pms.size ());
+
+      // If true, then build2 version is satisfactory for all the repository
+      // packages.
+      //
+      bool bs (true);
 
       for (const package_manifest& pm: pms)
       {
@@ -286,7 +308,14 @@ namespace bpkg
           // (e.g., .bpkg/tmp/6f746365314d/) and it's probably better to omit
           // it entirely (the above exception guard will print all we've got).
           //
-          nvs.push_back (pkg_verify (co, mp, dir_path ()));
+          pkg_verify_result r (pkg_verify (co, mp, it, dir_path ()));
+
+          if (bs                  &&
+              r.build2_dependency &&
+              !satisfy_build2 (co, *r.build2_dependency))
+            bs = false;
+
+          nvs.push_back (move (r));
         }
         catch (const manifest_parsing& e)
         {
@@ -301,14 +330,17 @@ namespace bpkg
         pds.push_back (move (d));
       }
 
-      pvs = package_versions (co, pds);
+      if (bs)
+        pvs = package_versions (co, pds);
     }
 
     // Parse package manifests, fixing up their versions.
     //
     pair<vector<package_manifest>, vector<package_info>> r;
-    r.first.reserve  (pms.size ());
-    r.second.reserve (pms.size ());
+    r.first.reserve (pms.size ());
+
+    if (pvs)
+      r.second.reserve (pms.size ());
 
     for (size_t i (0); i != pms.size (); ++i)
     {
@@ -318,15 +350,18 @@ namespace bpkg
 
       try
       {
-        optional<version>& pv (pvs[i].version);
-
         package_manifest m (
           mfs[i].string (),
           move (nvs[i]),
-          [&pv] (version& v)
+          [&pvs, i] (version& v)
           {
-            if (pv)
-              v = move (*pv);
+            if (pvs)
+            {
+              optional<version>& pv ((*pvs)[i].version);
+
+              if (pv)
+                v = move (*pv);
+            }
           },
           iu);
 
@@ -344,7 +379,9 @@ namespace bpkg
       }
 
       r.first.push_back  (move (pm));
-      r.second.push_back (move (pvs[i].info));
+
+      if (pvs)
+        r.second.push_back (move ((*pvs)[i].info));
     }
 
     return r;
@@ -390,6 +427,7 @@ namespace bpkg
   rep_fetch_dir (const common_options& co,
                  const repository_location& rl,
                  bool iu,
+                 bool it,
                  bool ev,
                  bool lb)
   {
@@ -417,6 +455,7 @@ namespace bpkg
                                rd,
                                move (pms),
                                iu,
+                               it,
                                rl,
                                empty_string /* fragment */));
 
@@ -483,6 +522,7 @@ namespace bpkg
                  const dir_path* conf,
                  const repository_location& rl,
                  bool iu,
+                 bool it,
                  bool ev,
                  bool lb)
   {
@@ -612,6 +652,7 @@ namespace bpkg
                                  td,
                                  move (pms),
                                  iu,
+                                 it,
                                  rl,
                                  fr.friendly_name));
 
@@ -714,14 +755,24 @@ namespace bpkg
              const repository_location& rl,
              const optional<string>& dt,
              bool iu,
+             bool it,
              bool ev,
              bool lb)
   {
     switch (rl.type ())
     {
-    case repository_type::pkg: return rep_fetch_pkg (co, conf, db, rl, dt, iu);
-    case repository_type::dir: return rep_fetch_dir (co, rl, iu, ev, lb);
-    case repository_type::git: return rep_fetch_git (co, conf, rl, iu, ev, lb);
+    case repository_type::pkg:
+      {
+        return rep_fetch_pkg (co, conf, db, rl, dt, iu, it);
+      }
+    case repository_type::dir:
+      {
+        return rep_fetch_dir (co, rl, iu, it, ev, lb);
+      }
+    case repository_type::git:
+      {
+        return rep_fetch_git (co, conf, rl, iu, it, ev, lb);
+      }
     }
 
     assert (false); // Can't be here.
@@ -733,6 +784,7 @@ namespace bpkg
              const dir_path* conf,
              const repository_location& rl,
              bool iu,
+             bool it,
              bool ev,
              bool lb)
   {
@@ -742,6 +794,7 @@ namespace bpkg
                       rl,
                       nullopt /* dependent_trust */,
                       iu,
+                      it,
                       ev,
                       lb);
   }
@@ -1028,6 +1081,10 @@ namespace bpkg
       //
       if (rl.directory_based ())
       {
+        // Wouldn't be here otherwise. Note that rep_fetch_data is retrieved
+        // by rep_fetch() with false passed as the ignore_toolchain argument
+        // (see rep_fetch() for more details).
+        //
         assert (!pis.empty ());
 
         // Note that we can't check if the external package of this upstream
@@ -1235,6 +1292,7 @@ namespace bpkg
                  rl,
                  dependent_trust,
                  true /* ignore_unknow */,
+                 false /* ignore_toolchain */,
                  false /* expand_values */,
                  true /* load_buildfiles */));
 

@@ -589,7 +589,7 @@ namespace bpkg
 
   bool
   toolchain_buildtime_dependency (const common_options&,
-                                  const dependency_alternatives_ex&,
+                                  const dependency_alternatives&,
                                   const package_name*);
 
   // Return true if any dependency other than toolchain build-time
