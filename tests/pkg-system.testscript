@@ -52,10 +52,9 @@ rep_remove += -d cfg 2>!
 {
   $clone_cfg;
 
-  $pkg_build 'sys:libbar' 2>>/EOE != 0;
-    error: unknown package libbar
-      info: configuration cfg/ has no repositories
-      info: use 'bpkg rep-add' to add a repository
+  $pkg_build 'sys:libbar' 2>>EOE != 0;
+    error: unknown package sys:libbar
+      info: consider specifying sys:libbar/*
     EOE
 
   $pkg_build 'sys:libbar/1' 2>>EOE;
@@ -851,7 +850,8 @@ rep_remove += -d cfg 2>!
       EOE
 
     $pkg_build 'sys:libbar' 2>>EOE != 0;
-      error: unknown package libbar
+      error: unknown package sys:libbar
+        info: consider specifying sys:libbar/*
       EOE
 
     $pkg_build foo 'sys:libbar/1' 2>>EOE != 0;
@@ -899,10 +899,18 @@ rep_remove += -d cfg 2>!
     # Fail as libbar while being selected is still unknown (not present in t3
     # repo).
     #
-    $pkg_build 'sys:libbar'     2>'error: unknown package libbar' != 0;
-    $pkg_build foo 'sys:libbar' 2>'error: unknown package libbar' != 0;
-    $pkg_status foo             1>'!foo configured 2';
-    $pkg_status libbar          1>'libbar configured,system !2';
+    $pkg_build 'sys:libbar' 2>>EOE != 0;
+      error: unknown package sys:libbar
+        info: consider specifying sys:libbar/*
+      EOE
+
+    $pkg_build foo 'sys:libbar' 2>>EOE != 0;
+      error: unknown package sys:libbar
+        info: consider specifying sys:libbar/*
+      EOE
+
+    $pkg_status foo    1>'!foo configured 2';
+    $pkg_status libbar 1>'libbar configured,system !2';
 
     # Build foo and ?sys:libbar/3.
     #

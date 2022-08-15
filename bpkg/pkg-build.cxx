@@ -10473,9 +10473,19 @@ namespace bpkg
 
           if (apr.empty ())
           {
+            string n (arg_string (pa, false /* options */));
+
             diag_record dr (fail);
-            dr << "unknown package " << arg_string (pa, false /* options */);
-            check_any_available (repo_configs, t, &dr);
+            dr << "unknown package " << n;
+            if (sys)
+            {
+              // Feels like we can't end up here if the version was specified
+              // explicitly.
+              //
+              dr << info << "consider specifying " << n << "/*";
+            }
+            else
+              check_any_available (repo_configs, t, &dr);
           }
 
           if (pdb != nullptr)
@@ -10526,6 +10536,8 @@ namespace bpkg
         bool found (true);
         bool sys_advise (false);
 
+        bool sys (arg_sys (pa));
+
         // If the package is not available from the repository we can try to
         // create it from the orphaned selected package. Meanwhile that
         // doesn't make sense for a system package. The only purpose to
@@ -10533,7 +10545,7 @@ namespace bpkg
         // package is not in the repository then there is no dependent for it
         // (otherwise the repository would be broken).
         //
-        if (!arg_sys (pa))
+        if (!sys)
         {
           // If we failed to find the requested package we can still check if
           // the package name is present in the repositories and if that's the
@@ -10576,13 +10588,10 @@ namespace bpkg
             }
           }
           //
-          // No explicit version was specified by the user (not relevant for a
-          // system package, see above).
+          // No explicit version was specified by the user.
           //
           else
           {
-            assert (!arg_sys (pa));
-
             if (ap != nullptr)
             {
               assert (!ap->stub ());
@@ -10619,15 +10628,30 @@ namespace bpkg
 
           if (!sys_advise)
           {
-            dr << "unknown package " << pa.name;
+            // Note that if the package is not system and its version was
+            // explicitly specified, then we can only be here if no version of
+            // this package is available in source from the repository
+            // (otherwise we would advise to configure it as a system package;
+            // see above). Thus, let's not print it's version constraint in
+            // this case.
+            //
+            // Also note that for a system package we can't end up here if the
+            // version was specified explicitly.
+            //
+            string n (package_string (pa.name, nullopt /* vc */, sys));
+
+            dr << "unknown package " << n;
 
             // Let's help the new user out here a bit.
             //
-            check_any_available (*pdb, t, &dr);
+            if (sys)
+              dr << info << "consider specifying " << n << "/*";
+            else
+              check_any_available (*pdb, t, &dr);
           }
           else
           {
-            assert (!arg_sys (pa));
+            assert (!sys);
 
             dr << arg_string (pa, false /* options */)
                << " is not available in source";
@@ -10644,7 +10668,7 @@ namespace bpkg
         //
         if (ap == nullptr)
         {
-          assert (sp != nullptr && sp->system () == arg_sys (pa));
+          assert (sp != nullptr && sp->system () == sys);
 
           auto rp (make_available_fragment (o, *pdb, sp));
           ap = move (rp.first);
@@ -10679,7 +10703,7 @@ namespace bpkg
           true,                       // Hold package.
           pa.constraint.has_value (), // Hold version.
           {},                         // Constraints.
-          arg_sys (pa),
+          sys,
           keep_out,
           pa.options.disfigure (),
           false,                      // Configure-only.
