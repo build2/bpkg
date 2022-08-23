@@ -11,6 +11,7 @@
 #include <bpkg/package-odb.hxx>
 #include <bpkg/database.hxx>
 #include <bpkg/diagnostics.hxx>
+#include <bpkg/package-query.hxx>
 #include <bpkg/manifest-utility.hxx>
 
 using namespace std;

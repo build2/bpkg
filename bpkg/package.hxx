@@ -637,6 +637,19 @@ namespace bpkg
   //
   extern const version wildcard_version;
 
+  // Return true if the version constraint represents the wildcard version.
+  //
+  inline bool
+  wildcard (const version_constraint& vc)
+  {
+    bool r (vc.min_version && *vc.min_version == wildcard_version);
+
+    if (r)
+      assert (vc.max_version == vc.min_version);
+
+    return r;
+  }
+
   // package_name
   //
   #pragma db value(package_name) type("TEXT") options("COLLATE NOCASE")
@@ -907,62 +920,6 @@ namespace bpkg
   {
     shared_ptr<available_package> package;
   };
-
-  // Query the available packages that optionally satisfy the specified
-  // version constraint and return them in the version descending order, by
-  // default. Note that a stub satisfies any constraint.
-  //
-  // By default if the revision is not explicitly specified for the version
-  // constraint, then compare ignoring the revision. The idea is that when the
-  // user runs 'bpkg build libfoo/1' and there is 1+1 available, it should
-  // just work. The user shouldn't have to spell the revision
-  // explicitly. Similarly, when we have 'depends: libfoo == 1', then it would
-  // be strange if 1+1 did not satisfy this constraint. The same for libfoo <=
-  // 1 -- 1+1 should satisfy.
-  //
-  // Note that by default we compare ignoring the iteration, as it can not be
-  // specified in the manifest/command line. This way the latest iteration
-  // will always be picked up.
-  //
-  // Pass true as the revision argument to query the exact available package
-  // version, also comparing the version revision and iteration.
-  //
-  odb::result<available_package>
-  query_available (database&,
-                   const package_name&,
-                   const optional<version_constraint>&,
-                   bool order = true,
-                   bool revision = false);
-
-  // Only return packages that are in the specified repository fragments, their
-  // complements or prerequisites (if prereq is true), recursively. While you
-  // could maybe come up with a (barely comprehensible) view/query to achieve
-  // this, doing it on the "client side" is definitely more straightforward.
-  //
-  vector<shared_ptr<available_package>>
-  filter (const shared_ptr<repository_fragment>&,
-          odb::result<available_package>&&,
-          bool prereq = true);
-
-  pair<shared_ptr<available_package>, shared_ptr<repository_fragment>>
-  filter_one (const shared_ptr<repository_fragment>&,
-              odb::result<available_package>&&,
-              bool prereq = true);
-
-  shared_ptr<repository_fragment>
-  filter (const shared_ptr<repository_fragment>&,
-          const shared_ptr<available_package>&,
-          bool prereq = true);
-
-  vector<pair<shared_ptr<available_package>, shared_ptr<repository_fragment>>>
-  filter (const vector<shared_ptr<repository_fragment>>&,
-          odb::result<available_package>&&,
-          bool prereq = true);
-
-  pair<shared_ptr<available_package>, shared_ptr<repository_fragment>>
-  filter_one (const vector<shared_ptr<repository_fragment>>&,
-              odb::result<available_package>&&,
-              bool prereq = true);
 
   // Check if there are packages available in the specified configurations. If
   // that's not the case then print the info message into the diag record or,

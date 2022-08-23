@@ -8,6 +8,7 @@
 #include <bpkg/database.hxx>
 #include <bpkg/diagnostics.hxx>
 #include <bpkg/satisfaction.hxx>
+#include <bpkg/package-query.hxx>
 #include <bpkg/manifest-utility.hxx>
 
 #include <bpkg/pkg-verify.hxx>
