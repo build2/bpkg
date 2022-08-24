@@ -177,50 +177,7 @@
     </add-table>
   </changeset>
 
-  <changeset version="12"/>
-
-  <changeset version="11">
-    <alter-table name="main.available_package_tests">
-      <add-column name="test_buildtime" type="INTEGER" null="true" default="0"/>
-    </alter-table>
-  </changeset>
-
-  <changeset version="10"/>
-
-  <changeset version="9">
-    <add-table name="main.configuration" kind="object">
-      <column name="id" type="INTEGER" null="true"/>
-      <column name="uuid" type="TEXT" null="true"/>
-      <column name="name" type="TEXT" null="true"/>
-      <column name="type" type="TEXT" null="true"/>
-      <column name="path" type="TEXT" null="true"/>
-      <column name="explicit" type="INTEGER" null="true"/>
-      <primary-key auto="true">
-        <column name="id"/>
-      </primary-key>
-      <index name="configuration_uuid_i" type="UNIQUE">
-        <column name="uuid"/>
-      </index>
-      <index name="configuration_name_i" type="UNIQUE">
-        <column name="name"/>
-      </index>
-      <index name="configuration_path_i" type="UNIQUE">
-        <column name="path"/>
-      </index>
-    </add-table>
-    <alter-table name="main.selected_package_prerequisites">
-      <add-column name="configuration" type="TEXT" null="true"/>
-      <drop-foreign-key name="prerequisite_fk"/>
-    </alter-table>
-  </changeset>
-
-  <changeset version="8">
-    <alter-table name="main.repository">
-      <add-column name="local" type="INTEGER" null="true"/>
-    </alter-table>
-  </changeset>
-
-  <model version="7">
+  <model version="12">
     <table name="main.repository_fragment" kind="object">
       <column name="name" type="TEXT" null="true"/>
       <column name="url" type="TEXT" null="true"/>
@@ -272,6 +229,7 @@
       <column name="url" type="TEXT" null="true"/>
       <column name="type" type="TEXT" null="true"/>
       <column name="certificate" type="TEXT" null="true"/>
+      <column name="local" type="INTEGER" null="true"/>
       <primary-key>
         <column name="name"/>
       </primary-key>
@@ -494,6 +452,7 @@
       <column name="max_version_release" type="TEXT" null="true"/>
       <column name="min_open" type="INTEGER" null="true"/>
       <column name="max_open" type="INTEGER" null="true"/>
+      <column name="configuration" type="TEXT" null="true"/>
       <foreign-key name="package_fk" on-delete="CASCADE">
         <column name="package"/>
         <references table="main.selected_package">
@@ -503,12 +462,6 @@
       <index name="selected_package_prerequisites_package_i">
         <column name="package"/>
       </index>
-      <foreign-key name="prerequisite_fk" deferrable="DEFERRED">
-        <column name="prerequisite"/>
-        <references table="main.selected_package">
-          <column name="name"/>
-        </references>
-      </foreign-key>
     </table>
     <table name="main.certificate" kind="object">
       <column name="id" type="TEXT" null="true"/>
@@ -548,6 +501,7 @@
       <column name="test_min_open" type="INTEGER" null="true"/>
       <column name="test_max_open" type="INTEGER" null="true"/>
       <column name="test_type" type="TEXT" null="true"/>
+      <column name="test_buildtime" type="INTEGER" null="true" default="0"/>
       <foreign-key name="object_id_fk" on-delete="CASCADE">
         <column name="name"/>
         <column name="version_epoch"/>
@@ -574,6 +528,26 @@
       </index>
       <index name="available_package_tests_index_i">
         <column name="index"/>
+      </index>
+    </table>
+    <table name="main.configuration" kind="object">
+      <column name="id" type="INTEGER" null="true"/>
+      <column name="uuid" type="TEXT" null="true"/>
+      <column name="name" type="TEXT" null="true"/>
+      <column name="type" type="TEXT" null="true"/>
+      <column name="path" type="TEXT" null="true"/>
+      <column name="explicit" type="INTEGER" null="true"/>
+      <primary-key auto="true">
+        <column name="id"/>
+      </primary-key>
+      <index name="configuration_uuid_i" type="UNIQUE">
+        <column name="uuid"/>
+      </index>
+      <index name="configuration_name_i" type="UNIQUE">
+        <column name="name"/>
+      </index>
+      <index name="configuration_path_i" type="UNIQUE">
+        <column name="path"/>
       </index>
     </table>
   </model>
