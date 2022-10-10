@@ -515,6 +515,8 @@ namespace bpkg
       // variable), then the saved variables map seem like the natural place
       // to keep this information.
       //
+      // Note: go straight for the public variable pool.
+      //
       for (const variable& var: rs.ctx.var_pool)
       {
         if (!project_variable (var.name, var_prefix_))
@@ -616,8 +618,10 @@ namespace bpkg
       create_context (*this, strings {});
       context& ctx (*ctx_);
 
+      // Note: go straight for the public variable pool.
+      //
       scope& gs (ctx.global_scope.rw ());
-      auto& vp (ctx.var_pool.rw ());
+      auto& vp (gs.var_pool (true /* public */));
 
       for (const string& v: config_vars_)
       {
@@ -1065,10 +1069,11 @@ namespace bpkg
 
       // Add to the vars set the reflect variables collected previously.
       //
-      auto& vp (rs.var_pool ());
       for (const reflect_variable_value& v: reflect_)
       {
-        const variable* var (vp.find (v.name));
+        // Note: go straight for the public variable pool.
+        //
+        const variable* var (rs.ctx.var_pool.find (v.name));
         assert (var != nullptr); // Must be there (set by load()).
 
         auto p (vars.insert (rvar {var, nullptr, 0}));
@@ -2142,7 +2147,9 @@ namespace bpkg
       //
       load_root (rs);
 
-      if (const variable* var = rs.var_pool ().find (var_prefix_ + ".develop"))
+      // Note: go straight for the public variable pool.
+      //
+      if (const variable* var = rs.ctx.var_pool.find (var_prefix_ + ".develop"))
       {
         // Use the fact that the variable is typed as a proxy for it being
         // defined with config directive (the more accurate way would be via
@@ -2329,7 +2336,9 @@ namespace bpkg
               assert (vt != nullptr);
             }
 
-            return rs.var_pool ().insert (name, vt);
+            // Note: go straight for the public variable pool.
+            //
+            return rs.var_pool (true /* public */).insert (name, vt);
           };
 
           for (const reflect_variable_value& v: reflect_)
