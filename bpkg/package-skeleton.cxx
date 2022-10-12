@@ -2488,8 +2488,20 @@ namespace bpkg
         //
         assert (skl.out_root_.empty ());
 
-        auto i (tmp_dirs.find (skl.db_->config_orig));
-        assert (i != tmp_dirs.end ());
+        // Note that only configurations which can be used as repository
+        // information sources has the temporary directory facility
+        // pre-initialized (see pkg-build.cxx for details). Thus, we may need
+        // to initialize it ourselves.
+        //
+        const dir_path& c (skl.db_->config_orig);
+        auto i (tmp_dirs.find (c));
+
+        if (i == tmp_dirs.end ())
+        {
+          init_tmp (c);
+
+          i = tmp_dirs.find (c);
+        }
 
         // Make sure the source and out root directories, if set, are absolute
         // and normalized.
