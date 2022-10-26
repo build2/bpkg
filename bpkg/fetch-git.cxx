@@ -877,24 +877,25 @@ namespace bpkg
       text << "querying " << url;
 
     refs rs;
-    fdpipe pipe (open_pipe ());
-
-    // Note: ls-remote doesn't print anything to stderr, so no progress
-    // suppression is required.
-    //
-    process pr (start_git (co,
-                           pipe, 2 /* stderr */,
-                           timeout_opts (co, url.scheme),
-                           co.git_option (),
-                           "ls-remote",
-                           to_git_url (url)));
-
-    // Shouldn't throw, unless something is severely damaged.
-    //
-    pipe.out.close ();
 
     for (;;) // Breakout loop.
     {
+      fdpipe pipe (open_pipe ());
+
+      // Note: ls-remote doesn't print anything to stderr, so no progress
+      // suppression is required.
+      //
+      process pr (start_git (co,
+                             pipe, 2 /* stderr */,
+                             timeout_opts (co, url.scheme),
+                             co.git_option (),
+                             "ls-remote",
+                             to_git_url (url)));
+
+      // Shouldn't throw, unless something is severely damaged.
+      //
+      pipe.out.close ();
+
       try
       {
         ifdstream is (move (pipe.in), fdstream_mode::skip, ifdstream::badbit);
@@ -1701,6 +1702,255 @@ namespace bpkg
       submodule_failure (d, prefix, e);
     };
 
+    // Use git-config to obtain the submodules names/paths and then
+    // git-ls-files to obtain their commits.
+    //
+    // Note that previously we used git-submodule--helper-list subcommand to
+    // obtain the submodules commits/paths and then git-submodule--helper-name
+    // to obtain their names. However, git 2.38 has removed these subcommands.
+
+    // Obtain the submodules names/paths.
+    //
+    for (;;) // Breakout loop.
+    {
+      fdpipe pipe (open_pipe ());
+
+      process pr (start_git (co,
+                             pipe, 2 /* stderr */,
+                             co.git_option (),
+                             "-C", dir,
+                             "config",
+                             "--list",
+                             "--file", gitmodules_file,
+                             "-z"));
+
+      // Shouldn't throw, unless something is severely damaged.
+      //
+      pipe.out.close ();
+
+      try
+      {
+        ifdstream is (move (pipe.in), fdstream_mode::skip, ifdstream::badbit);
+
+        for (string l; !eof (getline (is, l, '\0')); )
+        {
+          auto bad = [&l] ()
+          {
+            throw runtime_error ("invalid submodule option '" + l + "'");
+          };
+
+          // The submodule configuration option line is NULL-terminated and
+          // has the following form:
+          //
+          // submodule.<submodule-name>.<option-name><NEWLINE><value>
+          //
+          // For example:
+          //
+          // submodule.style.path
+          // doc/style
+          //
+          l4 ([&]{trace << "submodule option: " << l;});
+
+          // If this is a submodule path option, then extract its name and
+          // path and add the entry to the resulting list.
+          //
+          size_t n (l.find ('\n'));
+
+          if (n != string::npos                    &&
+              n >= 15                              &&
+              l.compare (0, 10, "submodule.") == 0 &&
+              l.compare (n - 5, 5, ".path") == 0)
+          {
+            string nm (l, 10, n - 15);
+            dir_path p (l, n + 1, l.size () - n - 1);
+
+            // For good measure verify that the name and path are not empty.
+            //
+            if (nm.empty () || p.empty ())
+              bad ();
+
+            r.push_back (submodule {move (p), move (nm), empty_string});
+          }
+        }
+
+        is.close ();
+
+        if (pr.wait ())
+          break;
+
+        // Fall through.
+      }
+      catch (const invalid_path& e)
+      {
+        if (pr.wait ())
+          failure ("invalid submodule directory path '" + e.path + "'");
+
+        // Fall through.
+      }
+      catch (const io_error& e)
+      {
+        if (pr.wait ())
+          failure ("unable to read submodule options", &e);
+
+        // Fall through.
+      }
+      // Note that the io_error class inherits from the runtime_error class,
+      // so this catch-clause must go last.
+      //
+      catch (const runtime_error& e)
+      {
+        if (pr.wait ())
+          failure (e.what ());
+
+        // Fall through.
+      }
+
+      // We should only get here if the child exited with an error status.
+      //
+      assert (!pr.wait ());
+
+      failure ("unable to list submodule options");
+    }
+
+    // Note that we could potentially bail out here if the submodules list is
+    // empty. Let's however continue and verify that via git-ls-files, for
+    // good measure.
+
+    // Complete the resulting submodules information with their commits.
+    //
+    for (;;) // Breakout loop.
+    {
+      fdpipe pipe (open_pipe ());
+
+      process pr (start_git (co,
+                             pipe, 2 /* stderr */,
+                             co.git_option (),
+                             "-C", dir,
+                             "ls-files",
+                             "--stage",
+                             "-z"));
+
+      // Shouldn't throw, unless something is severely damaged.
+      //
+      pipe.out.close ();
+
+      try
+      {
+        ifdstream is (move (pipe.in), fdstream_mode::skip, ifdstream::badbit);
+
+        for (string l; !eof (getline (is, l, '\0')); )
+        {
+          auto bad = [&l] ()
+          {
+            throw runtime_error ("invalid file description '" + l + "'");
+          };
+
+          // The line describing a file is NULL-terminated and has the
+          // following form:
+          //
+          // <mode><SPACE><object><SPACE><stage><TAB><path>
+          //
+          // The mode is a 6-digit octal representation of the file type and
+          // permission bits mask. For a submodule directory it is 160000 (see
+          // git index format documentation for gitlink object type). For
+          // example:
+          //
+          // 160000 59dcc1bea3509e37b65905ac472f86f4c55eb510 0	doc/style
+          //
+          if (!(l.size () > 50 && l[48] == '0' && l[49] == '\t'))
+            bad ();
+
+          // For submodules permission bits are always zero, so we can match
+          // the mode as a string.
+          //
+          if (l.compare (0, 6, "160000") == 0)
+          {
+            l4 ([&]{trace << "submodule: " << l;});
+
+            dir_path d (l, 50, l.size () - 50);
+
+            auto i (find_if (r.begin (), r.end (),
+                             [&d] (const submodule& sm) {return sm.path == d;}));
+
+            if (i == r.end ())
+              bad ();
+
+            i->commit = string (l, 7, 40);
+          }
+        }
+
+        is.close ();
+
+        if (pr.wait ())
+          break;
+
+        // Fall through.
+      }
+      catch (const invalid_path& e)
+      {
+        if (pr.wait ())
+          failure ("invalid submodule directory path '" + e.path + "'");
+
+        // Fall through.
+      }
+      catch (const io_error& e)
+      {
+        if (pr.wait ())
+          failure ("unable to read repository file list", &e);
+
+        // Fall through.
+      }
+      // Note that the io_error class inherits from the runtime_error class,
+      // so this catch-clause must go last.
+      //
+      catch (const runtime_error& e)
+      {
+        if (pr.wait ())
+          failure (e.what ());
+
+        // Fall through.
+      }
+
+      // We should only get here if the child exited with an error status.
+      //
+      assert (!pr.wait ());
+
+      failure ("unable to list repository files");
+    }
+
+    // Make sure that we have deduced commits for all the submodules.
+    //
+    for (const submodule& sm: r)
+    {
+      if (sm.commit.empty ())
+        failure ("unable to deduce commit for submodule " + sm.name);
+    }
+
+    return r;
+  }
+
+  // @@ TMP Old, submodule--helper-{list,name} subcommands-based,
+  //    implementation of find_submodules().
+  //
+#if 0
+  static submodules
+  find_submodules (const common_options& co,
+                   const dir_path& dir,
+                   const dir_path& prefix,
+                   bool gitmodules = true)
+  {
+    tracer trace ("find_submodules");
+
+    submodules r;
+
+    if (gitmodules && !exists (dir / gitmodules_file))
+      return r;
+
+    auto failure = [&prefix] (const string& d, const exception* e = nullptr)
+    {
+      submodule_failure (d, prefix, e);
+    };
+
     fdpipe pipe (open_pipe ());
 
     process pr (start_git (co,
@@ -1792,6 +2042,7 @@ namespace bpkg
 
     submodule_failure ("unable to list submodules", prefix);
   }
+#endif
 
   // Return commit id for the submodule directory or nullopt if the submodule
   // is not initialized (directory doesn't exist, doesn't contain .git entry,
@@ -1839,13 +2090,15 @@ namespace bpkg
           co.git_option (),
           "-C", dir,
 
-          // Note that older git versions don't recognize the --super-prefix
-          // option but seem to behave correctly without any additional
-          // efforts when it is omitted.
+          // Note that git versions outside the [2.14.0 2.38.0) range don't
+          // recognize the --super-prefix option but seem to behave correctly
+          // without any additional efforts when it is omitted.
           //
-          !prefix.empty () && git_ver >= semantic_version {2, 14, 0}
-          ? strings ({"--super-prefix", prefix.posix_representation ()})
-          : strings (),
+          (!prefix.empty ()                       &&
+           git_ver >= semantic_version {2, 14, 0} &&
+           git_ver <  semantic_version {2, 38, 0}
+           ? strings ({"--super-prefix", prefix.posix_representation ()})
+           : strings ()),
 
           "submodule--helper", "init",
           verb < 2 ? "-q" : nullptr))
@@ -2188,7 +2441,7 @@ namespace bpkg
 
       for (string l; !eof (getline (is, l, '\0')); )
       {
-        // The line describing a file is NUL-terminated and has the following
+        // The line describing a file is NULL-terminated and has the following
         // form:
         //
         // <mode><SPACE><object><SPACE><stage><TAB><path>
@@ -2198,8 +2451,6 @@ namespace bpkg
         //
         // 100644 165b42ec7a10fb6dd4a60b756fa1966c1065ef85 0	README
         //
-        l4 ([&]{trace << "file: " << l;});
-
         if (!(l.size () > 50 && l[48] == '0' && l[49] == '\t'))
           throw runtime_error ("invalid file description '" + l + "'");
 
@@ -2207,7 +2458,11 @@ namespace bpkg
         // mode as a string.
         //
         if (l.compare (0, 6, "120000") == 0)
+        {
+          l4 ([&]{trace << "symlink: " << l;});
+
           r.push_back (make_pair (path (string (l, 50)), string (l, 7, 40)));
+        }
       }
 
       is.close ();
