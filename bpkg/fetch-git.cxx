@@ -1736,7 +1736,7 @@ namespace bpkg
         {
           auto bad = [&l] ()
           {
-            throw runtime_error ("invalid submodule option '" + l + "'");
+            throw runtime_error ("invalid submodule option '" + l + '\'');
           };
 
           // The submodule configuration option line is NULL-terminated and
@@ -1783,7 +1783,7 @@ namespace bpkg
       catch (const invalid_path& e)
       {
         if (pr.wait ())
-          failure ("invalid submodule directory path '" + e.path + "'");
+          failure ("invalid submodule directory path '" + e.path + '\'');
 
         // Fall through.
       }
@@ -1842,7 +1842,7 @@ namespace bpkg
         {
           auto bad = [&l] ()
           {
-            throw runtime_error ("invalid file description '" + l + "'");
+            throw runtime_error ("invalid file description '" + l + '\'');
           };
 
           // The line describing a file is NULL-terminated and has the
@@ -1889,7 +1889,7 @@ namespace bpkg
       catch (const invalid_path& e)
       {
         if (pr.wait ())
-          failure ("invalid submodule directory path '" + e.path + "'");
+          failure ("invalid submodule directory path '" + e.path + '\'');
 
         // Fall through.
       }
@@ -1980,7 +1980,7 @@ namespace bpkg
         l4 ([&]{trace << "submodule: " << l;});
 
         if (!(l.size () > 50 && l[48] == '0' && l[49] == '\t'))
-          throw runtime_error ("invalid submodule description '" + l + "'");
+          throw runtime_error ("invalid submodule description '" + l + '\'');
 
         dir_path d (string (l, 50));
 
@@ -2014,7 +2014,7 @@ namespace bpkg
     catch (const invalid_path& e)
     {
       if (pr.wait ())
-        failure ("invalid submodule path '" + e.path + "'");
+        failure ("invalid submodule path '" + e.path + '\'');
 
       // Fall through.
     }
@@ -2211,7 +2211,7 @@ namespace bpkg
       catch (const invalid_path& e)
       {
         failure ("invalid submodule '" + sm.name + "' repository path '" +
-                 e.path + "'");
+                 e.path + '\'');
       }
       catch (const invalid_argument& e)
       {
@@ -2452,7 +2452,7 @@ namespace bpkg
         // 100644 165b42ec7a10fb6dd4a60b756fa1966c1065ef85 0	README
         //
         if (!(l.size () > 50 && l[48] == '0' && l[49] == '\t'))
-          throw runtime_error ("invalid file description '" + l + "'");
+          throw runtime_error ("invalid file description '" + l + '\'');
 
         // For symlinks permission bits are always zero, so we can match the
         // mode as a string.
@@ -2475,7 +2475,7 @@ namespace bpkg
     catch (const invalid_path& e)
     {
       if (pr.wait ())
-        failure ("invalid repository symlink path '" + e.path + "'");
+        failure ("invalid repository symlink path '" + e.path + '\'');
 
       // Fall through.
     }
@@ -2558,7 +2558,7 @@ namespace bpkg
         catch (const invalid_path& e)
         {
           failure ("invalid target path '" + e.path + "' for symlink '" +
-                   lp.string () + "'",
+                   lp.string () + '\'',
                    &e);
         }
 
@@ -2577,7 +2577,7 @@ namespace bpkg
       //
       if (tp.absolute ())
         failure ("absolute target path '" + tp.string () + "' for symlink '" +
-                 lp.string () + "'");
+                 lp.string () + '\'');
 
       // Verify that the symlink target path refers inside the top repository
       // directory.
@@ -2666,7 +2666,7 @@ namespace bpkg
           //
           if (r)
             failure ("unexpected real symlink in submodule '" +
-                     sm.path.string () + "'");
+                     sm.path.string () + '\'');
 
           return nullopt;
         }
@@ -2740,14 +2740,14 @@ namespace bpkg
           if (e.second.type == entry_type::symlink)
           {
             if (r)
-              failure ("unexpected real symlink '" + l.string () + "'");
+              failure ("unexpected real symlink '" + l.string () + '\'');
 
             return nullopt;
           }
         }
         catch (const system_error& e)
         {
-          failure ("unable to stat symlink '" + l.string ()  + "'", &e);
+          failure ("unable to stat symlink '" + l.string ()  + '\'', &e);
         }
 
         // Read the symlink target path.
@@ -2762,7 +2762,7 @@ namespace bpkg
         catch (const invalid_path& e)
         {
           failure ("invalid target path '" + e.path + "' for symlink '" +
-                   l.string () + "'",
+                   l.string () + '\'',
                    &e);
         }
         catch (const io_error& e)
@@ -2826,7 +2826,7 @@ namespace bpkg
           catch (const system_error& e)
           {
             failure ("unable to stat target '" + t.string () +
-                     "' for symlink '" + l.string () + "'",
+                     "' for symlink '" + l.string () + '\'',
                      &e);
           }
 
@@ -2844,7 +2844,7 @@ namespace bpkg
           {
             failure (string ("unable to create ") +
                      (dir_target ? "junction" : "hardlink") + " '" +
-                     l.string () + "' with target '" + t.string () + "'",
+                     l.string () + "' with target '" + t.string () + '\'',
                      &e);
           }
 
@@ -2883,7 +2883,7 @@ namespace bpkg
         catch (const system_error& e)
         {
           failure ("unable to remove hardlink, symlink, or junction '" +
-                   l.string () + "'",
+                   l.string () + '\'',
                    &e);
         }
       }

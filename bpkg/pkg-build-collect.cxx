@@ -4240,7 +4240,7 @@ namespace bpkg
 
     size_t depth (pcfg != nullptr ? pcfg->depth : 0);
 
-    string t ("collect_build_postponed (" + to_string (depth) + ")");
+    string t ("collect_build_postponed (" + to_string (depth) + ')');
     tracer trace (t.c_str ());
 
     string trace_suffix;

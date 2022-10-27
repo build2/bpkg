@@ -202,7 +202,7 @@ namespace bpkg
       {
         // Verify package archive/directory is <name>-<version>.
         //
-        dir_path ed (m.name.string () + "-" + m.version.string ());
+        dir_path ed (m.name.string () + '-' + m.version.string ());
 
         if (pd != ed)
         {
@@ -509,7 +509,7 @@ namespace bpkg
       // not clear why we should enforce it in this case (i.e., the user
       // provides us with a package directory).
       //
-      // dir_path ed (m.name + "-" + m.version.string ());
+      // dir_path ed (m.name + '-' + m.version.string ());
       //
       // if (d.leaf () != ed)
       // {

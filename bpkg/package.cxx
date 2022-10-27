@@ -211,7 +211,7 @@ namespace bpkg
 
     // Quote the result as it contains the space character.
     //
-    return "'" + name.string () + ' ' + constraint->string () + "'";
+    return '\'' + name.string () + ' ' + constraint->string () + '\'';
   }
 
   // selected_package
@@ -279,7 +279,7 @@ namespace bpkg
          if (s == "user")      return config_source::user;
     else if (s == "dependent") return config_source::dependent;
     else if (s == "reflect")   return config_source::reflect;
-    else throw invalid_argument ("invalid config source '" + s + "'");
+    else throw invalid_argument ("invalid config source '" + s + '\'');
   }
 
   shared_ptr<available_package>
@@ -464,7 +464,7 @@ namespace bpkg
     else if (s == "fetched")    return package_state::fetched;
     else if (s == "unpacked")   return package_state::unpacked;
     else if (s == "configured") return package_state::configured;
-    else throw invalid_argument ("invalid package state '" + s + "'");
+    else throw invalid_argument ("invalid package state '" + s + '\'');
   }
 
   // substate
@@ -486,7 +486,7 @@ namespace bpkg
   {
          if (s == "none")   return package_substate::none;
     else if (s == "system") return package_substate::system;
-    else throw invalid_argument ("invalid package substate '" + s + "'");
+    else throw invalid_argument ("invalid package substate '" + s + '\'');
   }
 
   // certificate

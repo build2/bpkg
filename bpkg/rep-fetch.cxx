@@ -410,7 +410,7 @@ namespace bpkg
         fail << name << " manifest value in " << pkg / manifest_file
              << " references empty file " << rp <<
           info << "repository " << rl
-               << (!fragment.empty () ? " " + fragment : "");
+               << (!fragment.empty () ? ' ' + fragment : "");
 
       return s;
     }
@@ -420,7 +420,7 @@ namespace bpkg
            << name << " manifest value in " << pkg / manifest_file << ": "
            << e <<
         info << "repository " << rl
-             << (!fragment.empty () ? " " + fragment : "")  << endf;
+             << (!fragment.empty () ? ' ' + fragment : "")  << endf;
     }
   }
 

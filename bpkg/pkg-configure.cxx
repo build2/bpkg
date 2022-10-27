@@ -265,7 +265,7 @@ namespace bpkg
                   //
                   dir_path od (sp->effective_out_root (pdb.config));
                   vars.push_back ("config.import." + sp->name.variable () +
-                                  "='" + od.representation () + "'");
+                                  "='" + od.representation () + '\'');
                 }
               }
             }
@@ -362,7 +362,7 @@ namespace bpkg
     dir_path out_root (
       p->external ()
       ? c / dir_path (p->name.string ())
-      : c / dir_path (p->name.string () + "-" + p->version.string ()));
+      : c / dir_path (p->name.string () + '-' + p->version.string ()));
 
     l4 ([&]{trace << "src_root: " << src_root << ", "
                   << "out_root: " << out_root;});

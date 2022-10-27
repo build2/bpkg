@@ -311,7 +311,7 @@ namespace bpkg
              verb_b::progress,
              "--no-external-modules",
              "!config.dist.bootstrap=true",
-             "config.dist.root='" + ord.representation () + "'",
+             "config.dist.root='" + ord.representation () + '\'',
              bspec);
 
       mc = package_checksum (o, d, nullptr /* package_info */);

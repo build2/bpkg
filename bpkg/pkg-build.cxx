@@ -131,7 +131,7 @@ namespace bpkg
 
     try
     {
-      return version_constraint ("~" + vs);
+      return version_constraint ('~' + vs);
     }
     // Note that the only possible reason for invalid_argument exception to
     // be thrown is that minor version reached the 99999 limit (see
@@ -3534,7 +3534,7 @@ namespace bpkg
 
           l5 ([&]{trace << "collection failed due to " << e.description
                         << (e.package != nullptr
-                            ? " (" + e.package->string () + ")"
+                            ? " (" + e.package->string () + ')'
                             : empty_string)
                         << ", retry from scratch";});
 

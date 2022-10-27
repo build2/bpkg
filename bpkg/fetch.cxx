@@ -99,7 +99,7 @@ namespace bpkg
 
     const string& ua (user_agent.empty ()
                       ? BPKG_USER_AGENT " wget/" + to_string (wget_major) +
-                        "." + to_string (wget_minor)
+                        '.' + to_string (wget_minor)
                       : user_agent);
 
     cstrings args {

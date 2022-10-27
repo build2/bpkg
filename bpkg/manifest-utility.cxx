@@ -474,7 +474,7 @@ namespace bpkg
         for (const path& p: bps)
         {
           path f (bd / p);
-          f += "." + e;
+          f += '.' + e;
 
           append_file (f);
         }
@@ -610,7 +610,7 @@ namespace bpkg
                   "package directory");
 
         if (!erp)
-          e += " " + d.string ();
+          e += ' ' + d.string ();
 
         throw runtime_error (e);
       }
@@ -642,7 +642,7 @@ namespace bpkg
       string e ("unable to find bootstrap.build file in package directory");
 
       if (!erp)
-        e += " " + d.string ();
+        e += ' ' + d.string ();
 
       throw runtime_error (e);
     }

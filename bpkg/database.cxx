@@ -467,7 +467,7 @@ namespace bpkg
         auto drop = [this] (const char* table, const char* column)
         {
           execute (std::string ("ALTER TABLE \"main\".") + table +
-                   " DROP COLUMN \"" + column + "\"");
+                   " DROP COLUMN \"" + column + '"');
         };
 
         // @@ TMP See migrate_v13() for details.
