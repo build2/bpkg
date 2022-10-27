@@ -302,7 +302,8 @@ namespace bpkg
               fail << "multiple " << db.type << " configurations specified "
                    << "for dependency package " << nm <<
                 info << i->db->config_orig <<
-                info << j->db->config_orig;
+                info << j->db->config_orig <<
+                info << "consider using the --no-move option";
             }
           }
         }
