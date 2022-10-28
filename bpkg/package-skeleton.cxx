@@ -2448,6 +2448,7 @@ namespace bpkg
                      false /* match_only */,          // Shouldn't matter.
                      false /* no_external_modules */,
                      false /* dry_run */,             // Shouldn't matter.
+                     false /* no_diag_buffer */,      // Shouldn't matter.
                      false /* keep_going */,          // Shouldnt' matter.
                      cmd_vars));
     }
