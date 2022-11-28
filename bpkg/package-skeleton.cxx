@@ -467,6 +467,7 @@ namespace bpkg
     try
     {
       using namespace build2;
+      using build2::info;
 
       // This is what needs to happen to the variables of different origins in
       // the passed configuration:
@@ -486,13 +487,22 @@ namespace bpkg
       // construction (in evaluate_{prefer_accept,require}()): we do not add
       // as dependent variables that have the override origin.
       //
-      scope& rs (
-        *bootstrap (
-          *this, merge_cmd_vars (dependent_cmd_vars (cfg)))->second.front ());
+      scope* rs;
+      {
+        auto df = build2::make_diag_frame (
+          [this] (const build2::diag_record& dr)
+          {
+            dr << info << "while loading build system skeleton of package "
+               << package.name;
+          });
 
-      // Load project's root.build.
-      //
-      load_root (rs);
+        rs = bootstrap (
+          *this, merge_cmd_vars (dependent_cmd_vars (cfg)))->second.front ();
+
+        // Load project's root.build.
+        //
+        load_root (*rs);
+      }
 
       package_configuration old (move (cfg));
       cfg.package = move (old.package);
@@ -517,14 +527,14 @@ namespace bpkg
       //
       // Note: go straight for the public variable pool.
       //
-      for (const variable& var: rs.ctx.var_pool)
+      for (const variable& var: rs->ctx.var_pool)
       {
         if (!project_variable (var.name, var_prefix_))
           continue;
 
         using config::variable_origin;
 
-        pair<variable_origin, lookup> ol (config::origin (rs, var));
+        pair<variable_origin, lookup> ol (config::origin (*rs, var));
 
         switch (ol.first)
         {
@@ -699,6 +709,7 @@ namespace bpkg
     try
     {
       using namespace build2;
+      using build2::info;
 
       // For now we treat any failure to load root.build as bad configuration,
       // which is not very precise. One idea to make this more precise would
@@ -713,8 +724,16 @@ namespace bpkg
       //
       if (!verified_)
       {
+        auto df = build2::make_diag_frame (
+          [this] (const build2::diag_record& dr)
+          {
+            dr << info << "while loading build system skeleton of package "
+               << package.name;
+          });
+
         scope& rs (
           *bootstrap (*this, merge_cmd_vars (strings {}))->second.front ());
+
         load_root (rs);
 
         verified_ = true;
@@ -726,6 +745,8 @@ namespace bpkg
           *this, merge_cmd_vars (dependent_cmd_vars (cfg)))->second.front ());
 
       // Load project's root.build while redirecting the diagnostics stream.
+      //
+      // Note: no diag_frame unlike all the other places.
       //
       ostringstream ds;
       auto dg (make_guard ([ods = diag_stream] () {diag_stream = ods;}));
@@ -2105,6 +2126,7 @@ namespace bpkg
     try
     {
       using namespace build2;
+      using build2::info;
 
       // This load that must be done without config.config.disfigure. Also, it
       // would be nice to optimize for the common case where the only load is
@@ -2141,15 +2163,25 @@ namespace bpkg
         }
       }
 
-      scope& rs (*bootstrap (*this, *cmd_vars)->second.front ());
+      scope* rs;
+      {
+        auto df = build2::make_diag_frame (
+          [this] (const build2::diag_record& dr)
+          {
+            dr << info << "while loading build system skeleton of package "
+               << package.name;
+          });
 
-      // Load project's root.build.
-      //
-      load_root (rs);
+        rs = bootstrap (*this, *cmd_vars)->second.front ();
+
+        // Load project's root.build.
+        //
+        load_root (*rs);
+      }
 
       // Note: go straight for the public variable pool.
       //
-      if (const variable* var = rs.ctx.var_pool.find (var_prefix_ + ".develop"))
+      if (const variable* var = rs->ctx.var_pool.find (var_prefix_ + ".develop"))
       {
         // Use the fact that the variable is typed as a proxy for it being
         // defined with config directive (the more accurate way would be via
@@ -2183,7 +2215,7 @@ namespace bpkg
 
           using config::variable_origin;
 
-          pair<variable_origin, lookup> ol (config::origin (rs, v.name));
+          pair<variable_origin, lookup> ol (config::origin (*rs, v.name));
 
           switch (ol.first)
           {
@@ -2254,6 +2286,7 @@ namespace bpkg
     try
     {
       using namespace build2;
+      using build2::info;
       using build2::config::variable_origin;
 
       // If we have any dependency configurations, then here we need to add
@@ -2289,6 +2322,13 @@ namespace bpkg
         merge_cmd_vars (dependent_vars_,
                         dependency_vars,
                         dependency_vars.empty () /* cache */));
+
+      auto df = build2::make_diag_frame (
+        [this] (const build2::diag_record& dr)
+        {
+          dr << info << "while loading build system skeleton of package "
+             << package.name;
+        });
 
       auto rsi (bootstrap (*this, cmd_vars));
       scope& rs (*rsi->second.front ());
