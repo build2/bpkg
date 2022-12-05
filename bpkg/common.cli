@@ -167,8 +167,7 @@ namespace bpkg
 
        If the fetch program is not specified, then \cb{bpkg} will try to
        discover if one of the above programs is available and use that.
-       Currently, \cb{bpkg} has the following preference order: \cb{wget}
-       1.16 or higher (supports \cb{--show-progress}), \cb{curl},
+       Currently, \cb{bpkg} has the following preference order: \cb{curl},
        \cb{wget}, and \cb{fetch}."
     }
 
@@ -179,6 +178,13 @@ namespace bpkg
        for more information on the fetch program. Repeat this option to
        specify multiple fetch options."
     }
+
+    // Undocumented equivalents to bdep's --curl* options. We "merge" them
+    // into --fetch/--fetch-option in an ad hoc manner (see fetch.cxx for
+    // details).
+    //
+    path --curl;
+    strings --curl-option;
 
     size_t --fetch-timeout
     {

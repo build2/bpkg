@@ -66,12 +66,15 @@ function compile ()
 ../bpkg/$n.cli
 }
 
-o="--output-prefix bpkg- --class-doc bpkg::common_options=short"
+# Need global --suppress-undocumented because of few undocumented options
+# in common.cli.
+#
+o="--suppress-undocumented --output-prefix bpkg- --class-doc bpkg::common_options=short"
 
 # A few special cases.
 #
 compile "common" $o --output-suffix "-options" --class-doc bpkg::common_options=long
-compile "bpkg" $o --output-prefix "" --suppress-undocumented --class-doc bpkg::commands=short --class-doc bpkg::topics=short
+compile "bpkg" $o --output-prefix "" --class-doc bpkg::commands=short --class-doc bpkg::topics=short
 
 compile "pkg-build" $o --class-doc  bpkg::pkg_build_pkg_options=exclude-base
 

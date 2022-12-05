@@ -555,7 +555,7 @@ namespace bpkg
   // Cache the result of finding/testing the fetch program. Sometimes a simple
   // global variable is really the right solution...
   //
-  enum class fetch_kind {wget, curl, fetch};
+  enum class fetch_kind {curl, wget, fetch};
 
   static path       path_;
   static fetch_kind kind_;
@@ -575,19 +575,19 @@ namespace bpkg
       const path& n (p.leaf ());
       const string& s (n.string ());
 
-      if (s.find ("wget") != string::npos)
-      {
-        if (!check_wget (p))
-          fail << p << " does not appear to be the 'wget' program";
-
-        kind_ = fetch_kind::wget;
-      }
-      else if (s.find ("curl") != string::npos)
+      if (s.find ("curl") != string::npos)
       {
         if (!check_curl (p))
           fail << p << " does not appear to be the 'curl' program";
 
         kind_ = fetch_kind::curl;
+      }
+      else if (s.find ("wget") != string::npos)
+      {
+        if (!check_wget (p))
+          fail << p << " does not appear to be the 'wget' program";
+
+        kind_ = fetch_kind::wget;
       }
       else if (s.find ("fetch") != string::npos)
       {
@@ -599,14 +599,44 @@ namespace bpkg
       else
         fail << "unknown fetch program " << p;
     }
+    else if (o.curl_specified ())
+    {
+      const path& p (path_ = o.fetch ());
+
+      if (!check_curl (p))
+        fail << p << " does not appear to be the 'curl' program";
+
+      kind_ = fetch_kind::curl;
+    }
     else
     {
       // See if any is available. The preference order is:
+      //
+      // curl
+      // wget
+      // fetch
+#if 1
+      if (check_curl (path_ = path ("curl")))
+      {
+        kind_ = fetch_kind::curl;
+      }
+      else if (check_wget (path_ = path ("wget")))
+      {
+        kind_ = fetch_kind::wget;
+      }
+#else
+      // Old preference order:
       //
       // wget 1.16 or up
       // curl
       // wget
       // fetch
+      //
+      // We used to prefer wget 1.16 because it has --show-progress which
+      // results in nicer progress. But experience shows that wget is quite
+      // unreliable plus with bdep always using curl, it would be strange
+      // to use both curl and wget (and expecting the user to setup proxy,
+      // authentication, etc., for both).
       //
       bool wg (check_wget (path_ = path ("wget")));
 
@@ -623,12 +653,13 @@ namespace bpkg
         path_ = path ("wget");
         kind_ = fetch_kind::wget;
       }
+#endif
       else if (check_fetch (path_ = path ("fetch")))
       {
         kind_ = fetch_kind::fetch;
       }
       else
-        fail << "unable to find 'wget', 'curl', or 'fetch'" <<
+        fail << "unable to find 'curl', 'wget', or 'fetch'" <<
           info << "use --fetch to specify the fetch program location";
 
       if (verb >= 3)
@@ -656,10 +687,11 @@ namespace bpkg
                   const string&,
                   const string&) = nullptr;
 
-    switch (check (o))
+    fetch_kind fk (check (o));
+    switch (fk)
     {
-    case fetch_kind::wget:  f = &start_wget;  break;
     case fetch_kind::curl:  f = &start_curl;  break;
+    case fetch_kind::wget:  f = &start_wget;  break;
     case fetch_kind::fetch: f = &start_fetch; break;
     }
 
@@ -732,11 +764,36 @@ namespace bpkg
         }
       }
 
+      // Note that the merge semantics here is not 100% accurate since we may
+      // override "later" --fetch-option with "earlier" --curl-option.
+      // However, this should be close enough for our use-case, which is
+      // bdep's --curl-option values overriding --fetch-option specified in
+      // the default options file. The situation that we will mis-handle is
+      // when both are specified on the command line, for example,
+      // --curl-option --max-time=2 --bpkg-option --fetch-option=--max-time=1,
+      // but that feel quite far fetched to complicate things here.
+      //
+      const strings& fos (o.fetch_option ());
+      const strings& cos (o.curl_option ());
+
+      const strings& os (
+        fk != fetch_kind::curl || cos.empty ()
+        ? fos
+        : (fos.empty ()
+           ? cos
+           : [&fos, &cos] ()
+             {
+               strings r (fos.begin (), fos.end ());
+               r.insert (r.end (), cos.begin (), cos.end ());
+               return r;
+             } ()));
+
+
       return f (path_,
                 timeout,
                 o.progress (),
                 o.no_progress (),
-                o.fetch_option (),
+                os,
                 !http_url.empty () ? http_url : src,
                 out,
                 user_agent,
