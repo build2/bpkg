@@ -152,9 +152,17 @@ namespace bpkg
   dir_path
   current_directory ();
 
-  // Progress.
+  // Diagnostics.
   //
-  extern bool stderr_term; // True if stderr is a terminal.
+  // If stderr is not a terminal, then the value is absent (so can be used as
+  // bool). Otherwise, it is the value of the TERM environment variable (which
+  // can be NULL).
+  //
+  extern optional<const char*> stderr_term;
+
+  // True if the color can be used on the stderr terminal.
+  //
+  extern bool stderr_term_color;
 
   // Y/N prompt. See butl::yn_prompt() for details (this is a thin wrapper).
   //

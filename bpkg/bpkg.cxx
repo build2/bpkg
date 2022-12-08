@@ -2,6 +2,8 @@
 // license   : MIT; see accompanying LICENSE file
 
 #include <limits>
+#include <cstdlib>     // getenv()
+#include <cstring>     // strcmp()
 #include <iostream>
 #include <exception>   // set_terminate(), terminate_handler
 #include <type_traits> // enable_if, is_base_of
@@ -161,12 +163,15 @@ namespace bpkg
 
       init_diag (bc.verbosity,
                  bo.silent (),
-                 (bc.progress       ? bc.progress :
-                  co.progress ()    ? optional<bool> (true) :
-                  co.no_progress () ? optional<bool> (false) : nullopt),
+                 (bc.progress         ? bc.progress :
+                  co.progress ()      ? optional<bool> (true)  :
+                  co.no_progress ()   ? optional<bool> (false) : nullopt),
+                 (bc.diag_color       ? bc.diag_color :
+                  co.diag_color ()    ? optional<bool> (true)  :
+                  co.no_diag_color () ? optional<bool> (false) : nullopt),
                  bo.no_line (),
                  bo.no_column (),
-                 bpkg::stderr_term);
+                 bpkg::stderr_term.has_value ());
 
       // Note that we pretend to be in the serial-stop mode even though we may
       // build build system modules in parallel in order to get better
@@ -465,31 +470,48 @@ init (const common_options& co,
 
     // Verify common options.
     //
-    // Also merge the --progress/--no-progress options, overriding a less
-    // specific flag with a more specific.
+    // Also merge the --*/--no-* options, overriding a less specific flag with
+    // a more specific.
     //
-    optional<bool> progress;
-    auto merge_progress = [&progress]
-                          (const O& o,
-                           const default_options_entry<O>* e = nullptr)
+    //
+    optional<bool> progress, diag_color;
+    auto merge_no = [&progress, &diag_color] (
+      const O& o,
+      const default_options_entry<O>* e = nullptr)
     {
-      if (o.progress () && o.no_progress ())
       {
-        diag_record dr;
-        (e != nullptr ? dr << fail (e->file) : dr << fail)
+        if (o.progress () && o.no_progress ())
+        {
+          diag_record dr;
+          (e != nullptr ? dr << fail (e->file) : dr << fail)
           << "both --progress and --no-progress specified";
+        }
+
+        if (o.progress ())
+          progress = true;
+        else if (o.no_progress ())
+          progress = false;
       }
 
-      if (o.progress ())
-        progress = true;
-      else if (o.no_progress ())
-        progress = false;
+      {
+        if (o.diag_color () && o.no_diag_color ())
+        {
+          diag_record dr;
+          (e != nullptr ? dr << fail (e->file) : dr << fail)
+          << "both --diag-color and --no-diag-color specified";
+        }
+
+        if (o.diag_color ())
+          diag_color = true;
+        else if (o.no_diag_color ())
+          diag_color = false;
+      }
     };
 
     for (const default_options_entry<O>& e: dos)
-      merge_progress (e.options, &e);
+      merge_no (e.options, &e);
 
-    merge_progress (o);
+    merge_no (o);
 
     o = merge_options (dos, o);
 
@@ -497,6 +519,12 @@ init (const common_options& co,
     {
       o.progress (*progress);
       o.no_progress (!*progress);
+    }
+
+    if (diag_color)
+    {
+      o.diag_color (*diag_color);
+      o.no_diag_color (!*diag_color);
     }
   }
   catch (const invalid_argument& e)
@@ -544,7 +572,24 @@ try
 
   default_terminate = set_terminate (custom_terminate);
 
-  stderr_term = fdterm (stderr_fd ());
+  if (fdterm (stderr_fd ()))
+  {
+    stderr_term = std::getenv ("TERM");
+
+    stderr_term_color =
+#ifdef _WIN32
+      // For now we disable color on Windows since it's unclear if/where/how
+      // it is supported. Maybe one day someone will figure this out.
+      //
+      false
+#else
+      // This test was lifted from GCC (Emacs shell sets TERM=dumb).
+      //
+      *stderr_term != nullptr && strcmp (*stderr_term, "dumb") != 0
+#endif
+      ;
+  }
+
   exec_dir = path (argv[0]).directory ();
   build2_argv0 = argv[0];
 

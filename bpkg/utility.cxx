@@ -161,7 +161,8 @@ namespace bpkg
     }
   }
 
-  bool stderr_term;
+  optional<const char*> stderr_term = nullopt;
+  bool stderr_term_color = false;
 
   bool
   yn_prompt (const string& p, char d)

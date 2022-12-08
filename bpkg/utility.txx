@@ -74,6 +74,14 @@ namespace bpkg
       if (no_progress)
         ops.push_back ("--no-progress");
 
+      // Forward our --[no]diag-color options.
+      //
+      if (co.diag_color ())
+        ops.push_back ("--diag-color");
+
+      if (co.no_diag_color ())
+        ops.push_back ("--no-diag-color");
+
       return process_start_callback (
         [] (const char* const args[], size_t n)
         {
