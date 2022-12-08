@@ -373,8 +373,7 @@ namespace bpkg
   {
     vector<pair<path, path>> r;
 
-    for (const dir_entry& de:
-           dir_iterator (config, false /* ignore_dangling */))
+    for (const dir_entry& de: dir_iterator (config, dir_iterator::no_follow))
     {
       if (de.type () == entry_type::regular)
       {

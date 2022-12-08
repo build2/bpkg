@@ -58,7 +58,7 @@ namespace bpkg
   {
     tracer trace ("collect");
 
-    for (const dir_entry& de: dir_iterator (d, false /* ignore_dangling */))
+    for (const dir_entry& de: dir_iterator (d, dir_iterator::no_follow))
     {
       path p (de.path ());
 

@@ -336,7 +336,7 @@ namespace bpkg
 
     try
     {
-      for (const dir_entry& de: dir_iterator (rd, false /* ignore_dangling */))
+      for (const dir_entry& de: dir_iterator (rd, dir_iterator::no_follow))
       {
         if (de.ltype () == entry_type::directory)
           rmdir (db.config_orig, rd / path_cast<dir_path> (de.path ()));
