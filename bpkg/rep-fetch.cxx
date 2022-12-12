@@ -331,8 +331,15 @@ namespace bpkg
         pds.push_back (move (d));
       }
 
+      // Note that for the directory-based repositories we also query
+      // subprojects since the package information will be used for the
+      // subsequent package_iteration() call (see below).
+      //
       if (bs)
-        pvs = package_versions (co, pds);
+        pvs = package_versions (co, pds,
+                                (rl.directory_based ()
+                                 ? b_info_flags::subprojects
+                                 : b_info_flags::none));
     }
 
     // Parse package manifests, fixing up their versions.

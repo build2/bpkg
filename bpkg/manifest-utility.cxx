@@ -24,7 +24,9 @@ namespace bpkg
   const path manifest_file     ("manifest");
 
   vector<package_info>
-  package_b_info (const common_options& o, const dir_paths& ds, bool ext_mods)
+  package_b_info (const common_options& o,
+                  const dir_paths& ds,
+                  b_info_flags fl)
   {
     path b (name_b (o));
 
@@ -33,7 +35,7 @@ namespace bpkg
     {
       b_info (r,
               ds,
-              ext_mods,
+              fl,
               verb,
               [] (const char* const args[], size_t n)
               {
@@ -309,9 +311,11 @@ namespace bpkg
   }
 
   package_version_infos
-  package_versions (const common_options& o, const dir_paths& ds)
+  package_versions (const common_options& o,
+                    const dir_paths& ds,
+                    b_info_flags fl)
   {
-    vector<b_project_info> pis (package_b_info (o, ds, false /* ext_mods */));
+    vector<b_project_info> pis (package_b_info (o, ds, fl));
 
     package_version_infos r;
     r.reserve (pis.size ());
@@ -346,7 +350,7 @@ namespace bpkg
       const vector<package_info::subproject>& sps (
         pi != nullptr
         ? pi->subprojects
-        : package_b_info (o, d, false /* ext_mods */).subprojects);
+        : package_b_info (o, d, b_info_flags::subprojects).subprojects);
 
       for (const package_info::subproject& sp: sps)
         cs.append (sp.path.string ());

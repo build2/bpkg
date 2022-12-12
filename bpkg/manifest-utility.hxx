@@ -7,6 +7,8 @@
 #include <libbpkg/manifest.hxx>
 #include <libbpkg/package-name.hxx>
 
+#include <libbutl/b.hxx> // b_info_flags
+
 #include <bpkg/types.hxx>
 #include <bpkg/utility.hxx>
 
@@ -17,17 +19,19 @@ namespace bpkg
   extern const path signature_file;    // signature.manifest
   extern const path manifest_file;     // manifest
 
+  using butl::b_info_flags;
+
   // Obtain build2 projects info for package source or output directories.
   //
   vector<package_info>
-  package_b_info (const common_options&, const dir_paths&, bool ext_mods);
+  package_b_info (const common_options&, const dir_paths&, b_info_flags);
 
   // As above but return the info for a single package directory.
   //
   inline package_info
-  package_b_info (const common_options& o, const dir_path& d, bool ext_mods)
+  package_b_info (const common_options& o, const dir_path& d, b_info_flags fl)
   {
-    vector<package_info> r (package_b_info (o, dir_paths ({d}), ext_mods));
+    vector<package_info> r (package_b_info (o, dir_paths ({d}), fl));
     return move (r[0]);
   }
 
@@ -131,14 +135,14 @@ namespace bpkg
   using package_version_infos = vector<package_version_info>;
 
   package_version_infos
-  package_versions (const common_options&, const dir_paths&);
+  package_versions (const common_options&, const dir_paths&, b_info_flags);
 
   // As above but return the version of a single package.
   //
   inline package_version_info
-  package_version (const common_options& o, const dir_path& d)
+  package_version (const common_options& o, const dir_path& d, b_info_flags fl)
   {
-    package_version_infos r (package_versions (o, dir_paths ({d})));
+    package_version_infos r (package_versions (o, dir_paths ({d}), fl));
     return move (r[0]);
   }
 
@@ -147,7 +151,8 @@ namespace bpkg
   //
   // Pass the build2 project info for the package, if available, to speed up
   // the call and NULL otherwise (in which case it will be queried by the
-  // implementation).
+  // implementation). In the former case it is assumed that the package info
+  // has been retrieved with the b_info_flags::subprojects flag.
   //
   string
   package_checksum (const common_options&,

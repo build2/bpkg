@@ -1361,21 +1361,22 @@ namespace bpkg
   //
   // Pass the build2 project info for the package, if available, to speed up
   // the call and NULL otherwise (in which case it will be queried by the
-  // implementation).
+  // implementation). In the former case it is assumed that the package info
+  // has been retrieved with the b_info_flags::subprojects flag.
   //
   // Notes:
   //
   // - The package directory is considered an iteration of the package if this
   //   upstream version and revision is already present (selected) in the
   //   configuration and has a source directory. If that's the case, then the
-  //   specified directory path and the checksum of the manifest file it
-  //   contains are compared to the ones of the package present in the
-  //   configuration. If both match, then the present package version
-  //   (including its iteration, if any) is returned. Otherwise (the package
-  //   has moved and/or the packaging information has changed), the present
-  //   package version with the incremented iteration number is returned. Note
-  //   that the directory path is matched only for the external selected
-  //   packages.
+  //   specified directory path and the package checksum (see
+  //   package_checksum() for details) are compared to the ones of the package
+  //   present in the configuration. If both match, then the present package
+  //   version (including its iteration, if any) is returned.  Otherwise (the
+  //   package has moved and/or the package information has changed), the
+  //   present package version with the incremented iteration number is
+  //   returned. Note that the directory path is matched only for the external
+  //   selected packages.
   //
   // - Only a single package iteration is valid per version in the
   //   configuration. This, in particular, means that a package of the

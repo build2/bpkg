@@ -179,6 +179,7 @@ else
       $* links/1.0.1 2>>~%EOE% != 0
         checking out links/1.0.1
         distributing links/1.0.1
+        %warning: skipping dangling symlink .+%
         %error: unable to stat .+%
         EOE
     else
@@ -193,16 +194,14 @@ else
 
     # Cyclic symlinks in the repository.
     #
+    $rep_fetch "$rep/links.git#v1.0.2";
+
     if $posix
-      $rep_fetch "$rep/links.git#v1.0.2" 2>>~%EOE% != 0
+      $* links/1.0.2 2>>~%EOE% != 0
         %.*
         %error: unable to iterate over .+%
-        warning: repository state is now broken and will be cleaned up
-          info: run 'bpkg rep-fetch' to update
         EOE
     else
-      $rep_fetch "$rep/links.git#v1.0.2"
-
       $* links/1.0.2 2>>~%EOE% != 0
         checking out links/1.0.2
         %.*

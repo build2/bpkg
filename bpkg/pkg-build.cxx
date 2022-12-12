@@ -2257,7 +2257,11 @@ namespace bpkg
                     true /* load_buildfiles */,
                     [&o, &d, &pvi] (version& v)
                     {
-                      pvi = package_version (o, d);
+                      // Note that we also query subprojects since the package
+                      // information will be used for the subsequent
+                      // package_iteration() call.
+                      //
+                      pvi = package_version (o, d, b_info_flags::subprojects);
 
                       if (pvi.version)
                         v = move (*pvi.version);

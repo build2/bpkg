@@ -8,7 +8,7 @@ before modification, and
 
 $ ./pack
 
-afterwrds.
+afterwards.
 
 Also note that config files under .git/ subdirectory refer to the submodule
 repositories using absolute paths. So prior to pulling in subproject directory
