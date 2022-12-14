@@ -978,7 +978,7 @@ namespace bpkg
   }
 
   build_packages& build_packages::
-  operator= (build_packages&& v)
+  operator= (build_packages&& v) noexcept (false)
   {
     clear ();
 

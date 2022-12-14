@@ -1056,7 +1056,7 @@ namespace bpkg
     build_packages& operator= (const build_packages&) = delete;
 
     build_packages&
-    operator= (build_packages&&);
+    operator= (build_packages&&) noexcept (false);
 
     // Pre-enter a build_package without an action. No entry for this package
     // may already exists.

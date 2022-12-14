@@ -188,8 +188,8 @@ namespace bpkg
     // constructor has some special logic.
     //
     ~package_skeleton ();
-    package_skeleton (package_skeleton&&);
-    package_skeleton& operator= (package_skeleton&&);
+    package_skeleton (package_skeleton&&) noexcept;
+    package_skeleton& operator= (package_skeleton&&) noexcept;
 
     package_skeleton (const package_skeleton&);
     package_skeleton& operator= (const package_skeleton&) = delete;

@@ -160,7 +160,7 @@ namespace bpkg
   }
 
   package_skeleton::
-  package_skeleton (package_skeleton&& v)
+  package_skeleton (package_skeleton&& v) noexcept
       : package (move (v.package)),
         system (v.system),
         available (move (v.available)),
@@ -194,7 +194,7 @@ namespace bpkg
   }
 
   package_skeleton& package_skeleton::
-  operator= (package_skeleton&& v)
+  operator= (package_skeleton&& v) noexcept
   {
     if (this != &v)
     {

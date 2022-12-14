@@ -158,6 +158,9 @@ namespace bpkg
 
     // Move-constructible but not move-assignable.
     //
+    // Note: noexcept is not specified since
+    // odb::sqlite::database(odb::sqlite::database&&) can throw.
+    //
     database (database&&);
     database& operator= (database&&) = delete;
 
