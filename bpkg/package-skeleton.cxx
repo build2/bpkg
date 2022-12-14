@@ -391,7 +391,7 @@ namespace bpkg
     else
     {
       storage.clear ();
-      names_view nv (reverse (val, storage));
+      names_view nv (reverse (val, storage, true /* reduce */));
 
       if (!nv.empty ())
       {
@@ -406,7 +406,8 @@ namespace bpkg
     return r;
   }
 
-  // Reverse value to names.
+  // Reverse value to names reducing empty simple value to empty list of
+  // names.
   //
   static optional<build2::names>
   reverse_value (const build2::value& val)
@@ -417,7 +418,7 @@ namespace bpkg
       return nullopt;
 
     names storage;
-    names_view nv (reverse (val, storage));
+    names_view nv (reverse (val, storage, true /* reduce */));
 
     return (nv.data () == storage.data ()
             ? move (storage)
