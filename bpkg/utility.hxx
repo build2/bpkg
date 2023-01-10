@@ -246,6 +246,12 @@ namespace bpkg
   template <typename... A>
   void
   run_b (const common_options&, verb_b, A&&... args);
+
+  // Read out the data from the specified file descriptor and dump it to
+  // stderr. Throw io_error on the underlying OS errors.
+  //
+  void
+  dump_stderr (auto_fd&&);
 }
 
 #include <bpkg/utility.txx>

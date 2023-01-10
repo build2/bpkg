@@ -285,20 +285,7 @@ namespace bpkg
 
       try
       {
-        ifdstream is (move (pipe.in), fdstream_mode::skip, ifdstream::badbit);
-
-        // We could probably write something like this, instead:
-        //
-        // *diag_stream << is.rdbuf () << flush;
-        //
-        // However, it would never throw and we could potentially miss the
-        // reading failure, unless we decide to additionally mess with the
-        // diagnostics stream exception mask.
-        //
-        for (string l; !eof (getline (is, l)); )
-          *diag_stream << l << endl;
-
-        is.close ();
+        dump_stderr (move (pipe.in));
 
         // Fall through.
       }
@@ -549,7 +536,11 @@ namespace bpkg
   // For HTTP(S) sense the protocol type by sending the first HTTP request of
   // the fetch operation handshake and analyzing the first line of the
   // response. Fail if connecting to the server failed, the response code
-  // differs from 200, or reading the response body failed.
+  // differs from 200 and 401, or reading the response body failed. If the
+  // response code is 401 (requires authentication), then consider protocol as
+  // smart. The thinking here is that a git repository with support for
+  // authentication is likely one of the hosting places (like git{hub,lab})
+  // and is unlikely to be dumb.
   //
   // Note that, as a side-effect, this function checks the HTTP(S) server
   // availability and so must be called prior to any git command that involves
@@ -574,12 +565,12 @@ namespace bpkg
 
   static capabilities
   sense_capabilities (const common_options& co,
-                      repository_url url,
+                      const repository_url& repo_url,
                       const semantic_version& git_ver)
   {
-    assert (url.path);
+    assert (repo_url.path);
 
-    switch (url.scheme)
+    switch (repo_url.scheme)
     {
     case repository_protocol::git:
     case repository_protocol::ssh:
@@ -588,6 +579,9 @@ namespace bpkg
     case repository_protocol::https: break; // Ask the server (see below).
     }
 
+    // Craft the URL for sensing the capabilities.
+    //
+    repository_url url (repo_url);
     path& up (*url.path);
 
     if (!up.to_directory ())
@@ -601,19 +595,69 @@ namespace bpkg
       url.query = "service=git-upload-pack";
 
     string u (url.string ());
-    process pr (start_fetch (co,
-                             u,
-                             path () /* out */,
-                             "git/" + git_ver.string ()));
+
+    // Start fetching, also trying to retrieve the HTTP status code.
+    //
+    // We unset failbit to properly handle an empty response (no refs) from
+    // the dumb server.
+    //
+    ifdstream is (ifdstream::badbit);
+
+    pair<process, uint16_t> ps (
+      start_fetch_http (co,
+                        u,
+                        is /* out */,
+                        fdstream_mode::skip | fdstream_mode::binary,
+                        true /* quiet */,
+                        "git/" + git_ver.string ()));
+
+    process& pr (ps.first);
+
+    // If the fetch program stderr is redirected, then read it out and pass
+    // through.
+    //
+    auto dump_stderr = [&pr] ()
+    {
+      if (pr.in_efd != nullfd)
+      try
+      {
+        bpkg::dump_stderr (move (pr.in_efd));
+      }
+      catch (const io_error&)
+      {
+        // Not much we can do here.
+      }
+    };
 
     try
     {
-      // We unset failbit to properly handle an empty response (no refs) from
-      // the dumb server.
+      // If authentication is required (HTTP status code is 401), then
+      // consider the protocol as smart. Drop the diagnostics if that's the
+      // case and dump it otherwise.
       //
-      ifdstream is (move (pr.in_ofd),
-                    fdstream_mode::skip | fdstream_mode::binary,
-                    ifdstream::badbit);
+      if (ps.second == 401)
+      {
+        if (verb >= 2)
+        {
+          info << "smart git protocol assumed for repository " << repo_url
+               << " due to authentication requirement" <<
+            info << "use --git-capabilities to override or suppress this "
+                 << "diagnostics";
+        }
+
+        // Note that we don't care about the process exit code here and just
+        // silently wait for the process completion in the process object
+        // destructor. We, however, close the stream (reading out the
+        // content), so that the process won't get blocked writing to it.
+        //
+        // Also note that we drop the potentially redirected process stderr
+        // stream content. We even don't read it out, since we assume it fully
+        // fits into the pipe buffer.
+        //
+        is.close ();
+
+        return capabilities::smart;
+      }
 
       string l;
       getline (is, l); // Is empty if no refs returned by the dumb server.
@@ -667,6 +711,8 @@ namespace bpkg
 
       is.close ();
 
+      dump_stderr ();
+
       if (pr.wait ())
         return r;
 
@@ -674,6 +720,8 @@ namespace bpkg
     }
     catch (const io_error&)
     {
+      dump_stderr ();
+
       if (pr.wait ())
         fail << "unable to read fetched " << url << endg;
 

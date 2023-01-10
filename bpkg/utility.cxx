@@ -366,4 +366,23 @@ namespace bpkg
       ? co.build ().string ().c_str ()
       : BPKG_EXE_PREFIX "b" BPKG_EXE_SUFFIX;
   }
+
+  void
+  dump_stderr (auto_fd&& fd)
+  {
+    ifdstream is (move (fd), fdstream_mode::skip, ifdstream::badbit);
+
+    // We could probably write something like this, instead:
+    //
+    // *diag_stream << is.rdbuf () << flush;
+    //
+    // However, it would never throw and we could potentially miss the reading
+    // failure, unless we decide to additionally mess with the diagnostics
+    // stream exception mask.
+    //
+    for (string l; !eof (getline (is, l)); )
+      *diag_stream << l << endl;
+
+    is.close ();
+  }
 }
