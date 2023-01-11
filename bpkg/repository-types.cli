@@ -189,7 +189,9 @@ that they support fetching minimal history for tags and branches and may or
 may not support this for commit ids depending on the server configuration.
 Note, however, that unlike for \cb{http(s)://}, for these protocols \cb{bpkg}
 does not try to sense if fetching unadvertised commits is allowed and always
-assumes that it is not.
+assumes that it is not. Also note that the sensed or assumed protocol
+capabilities can be overridden for a \cb{git} repository URL prefix using the
+\cb{--git-capabilities} option (\l{bpkg-common-options(1)}).
 
 Based on this information, to achieve optimal results the recommended protocol
 for remote repositories is smart \cb{https://}. Additionally, if you are

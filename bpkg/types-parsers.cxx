@@ -3,6 +3,8 @@
 
 #include <bpkg/types-parsers.hxx>
 
+#include <libbpkg/manifest.hxx>
+
 namespace bpkg
 {
   namespace cli
@@ -139,6 +141,83 @@ namespace bpkg
         x = auth::all;
       else
         throw invalid_value (o, v);
+    }
+
+    void parser<git_protocol_capabilities>::
+    parse (git_protocol_capabilities& x, bool& xs, scanner& s)
+    {
+      xs = true;
+      const char* o (s.next ());
+
+      if (!s.more ())
+        throw missing_value (o);
+
+      const string v (s.next ());
+      if (v == "dumb")
+        x = git_protocol_capabilities::dumb;
+      else if (v == "smart")
+        x = git_protocol_capabilities::smart;
+      else if (v == "unadv")
+        x = git_protocol_capabilities::unadv;
+      else
+        throw invalid_value (o, v);
+    }
+
+    void parser<git_capabilities_map>::
+    parse (git_capabilities_map& x, bool& xs, scanner& s)
+    {
+      xs = true;
+      const char* o (s.next ());
+
+      if (!s.more ())
+        throw missing_value (o);
+
+      string v (s.next ());
+      size_t p (v.rfind ('='));
+
+      if (p == string::npos)
+        throw invalid_value (o, v);
+
+      string k (v, 0, p);
+
+      // Verify that the key is a valid remote git repository URL prefix.
+      //
+      try
+      {
+        repository_url u (k);
+
+        if (u.scheme == repository_protocol::file)
+          throw invalid_value (o, k, "local repository location");
+      }
+      catch (const invalid_argument& e)
+      {
+        throw invalid_value (o, k, e.what ());
+      }
+
+      // Parse the protocol capabilities value.
+      //
+      int ac (2);
+      char* av[] = {const_cast<char*> (o),
+                    const_cast<char*> (v.c_str () + p + 1)};
+
+      argv_scanner vs (0, ac, av);
+
+      bool dummy;
+      parser<git_protocol_capabilities>::parse (x[k], dummy, vs);
+    }
+
+    void parser<git_capabilities_map>::
+    merge (git_capabilities_map& b, const git_capabilities_map& a)
+    {
+      for (const auto& o: a)
+      {
+        auto i (b.find (o.first));
+
+        if (i != b.end ())
+          i->second = o.second;
+        else
+          b.emplace (o.first, o.second);
+      }
     }
 
     void parser<stdout_format>::

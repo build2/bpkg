@@ -556,12 +556,7 @@ namespace bpkg
   // URLs, if possible. That's why the function requires the git version
   // parameter.
   //
-  enum class capabilities
-  {
-    dumb,  // No shallow clone support.
-    smart, // Support for shallow clone, but not for unadvertised refs fetch.
-    unadv  // Support for shallow clone and for unadvertised refs fetch.
-  };
+  using capabilities = git_protocol_capabilities;
 
   static capabilities
   sense_capabilities (const common_options& co,
@@ -1132,7 +1127,25 @@ namespace bpkg
       // the first call, and so git version get assigned (and checked).
       //
       if (!cap)
-        cap = sense_capabilities (co, url (), git_ver);
+      {
+        const repository_url& u (url ());
+
+        // Check if the protocol capabilities are overridden for this
+        // repository.
+        //
+        const git_capabilities_map& gcs (co.git_capabilities ());
+
+        if (!gcs.empty () && u.scheme != repository_protocol::file)
+        {
+          auto i (gcs.find_sup (u.string ()));
+
+          if (i != gcs.end ())
+            cap = i->second;
+        }
+
+        if (!cap)
+          cap = sense_capabilities (co, u, git_ver);
+      }
 
       return *cap;
     };

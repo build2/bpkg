@@ -8,6 +8,8 @@
 #include <cassert>
 #include <utility> // move()
 
+#include <libbutl/prefix-map.hxx>
+
 #include <bpkg/types.hxx>
 
 namespace bpkg
@@ -26,6 +28,17 @@ namespace bpkg
     lines,
     json
   };
+
+  enum class git_protocol_capabilities
+  {
+    dumb,  // No shallow clone support.
+    smart, // Support for shallow clone, but not for unadvertised refs fetch.
+    unadv  // Support for shallow clone and for unadvertised refs fetch.
+  };
+
+  using git_capabilities_map = butl::prefix_map<string,
+                                                git_protocol_capabilities,
+                                                '/'>;
 
   // Qualified options.
   //

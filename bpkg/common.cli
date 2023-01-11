@@ -381,6 +381,24 @@ namespace bpkg
       "Assume the answer to all authentication prompts is \cb{no}."
     }
 
+    git_capabilities_map --git-capabilities
+    {
+      "<up>=<pc>",
+      "Protocol capabilities (<pc>) for a \cb{git} repository URL prefix
+       (<up>). Valid values for the capabilities are \cb{dumb} (no shallow
+       clone support), \cb{smart} (support for shallow clone, but not for
+       fetching unadvertised commits), \cb{unadv} (support for shallow clone
+       and for fetching unadvertised commits). For example:
+
+       \
+       bpkg build https://example.org/foo.git#master \
+         --git-capabilities https://example.org=smart
+       \
+
+       See \l{bpkg-repository-types(1)} for details on the \cb{git} protocol
+       capabilities."
+    }
+
     string --pager // String to allow empty value.
     {
       "<path>",

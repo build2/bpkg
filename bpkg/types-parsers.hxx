@@ -84,6 +84,29 @@ namespace bpkg
     };
 
     template <>
+    struct parser<git_protocol_capabilities>
+    {
+      static void
+      parse (git_protocol_capabilities&, bool&, scanner&);
+
+      static void
+      merge (git_protocol_capabilities& b, const git_protocol_capabilities& a)
+      {
+        b = a;
+      }
+    };
+
+    template <>
+    struct parser<git_capabilities_map>
+    {
+      static void
+      parse (git_capabilities_map&, bool&, scanner&);
+
+      static void
+      merge (git_capabilities_map&, const git_capabilities_map&);
+    };
+
+    template <>
     struct parser<stdout_format>
     {
       static void
