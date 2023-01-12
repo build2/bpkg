@@ -32,7 +32,9 @@
 #include <bpkg/pkg-disfigure.hxx>
 #include <bpkg/package-query.hxx>
 #include <bpkg/package-skeleton.hxx>
+
 #include <bpkg/system-repository.hxx>
+#include <bpkg/system-package-manager.hxx>
 
 #include <bpkg/pkg-build-collect.hxx>
 
@@ -1652,23 +1654,68 @@ namespace bpkg
       return r;
     };
 
-    // Add the system package authoritative information to the database's
-    // system repository, unless it already contains authoritative information
-    // for this package.
+    // Figure out the system package version unless explicitly specified and
+    // add the system package authoritative information to the database's
+    // system repository unless the database is NULL or it already contains
+    // authoritative information for this package. Return the figured out
+    // system package version as constraint.
     //
     // Note that it is assumed that all the possible duplicates are handled
     // elsewhere/later.
     //
-    auto add_system_package = [] (database& db,
-                                  const package_name& nm,
-                                  const version& v)
+    auto add_system_package =
+      [spm = optional<unique_ptr<system_package_manager>> ()] // Create lazy.
+      (database* db,
+       const package_name& nm,
+       optional<version_constraint> vc) mutable
     {
-      assert (db.system_repository);
+      if (!vc)
+      {
+        // @@ Where do we check that this package should have available_
+        //    package (source or stub)? We will need to drag all such
+        //    available packages into this call in order to get the
+        //    name/version mappings.
 
-      const system_package* sp (db.system_repository->find (nm));
+        // See if we should query the system package manager.
+        //
+        // @@ TODO: --sys-no-query
+        //
+        if (!spm)
+          spm = /*ops.sys_no_query ()*/ false
+            ? nullptr
+            : make_system_package_manager (host_triplet, "" /* type */);
 
-      if (sp == nullptr || !sp->authoritative)
-        db.system_repository->insert (nm, v, true /* authoritative */);
+        if (*spm != nullptr)
+        {
+          // @@ TODO: query the version
+          //
+          //system_package_manager& m (**spm);
+        }
+        else
+          vc = version_constraint (wildcard_version);
+      }
+      else
+        // The system package may only have an exact/wildcard version
+        // specified.
+        //
+        assert (vc->min_version == vc->max_version);
+
+      if (db != nullptr)
+      {
+        assert (db->system_repository);
+
+        const system_package* sp (db->system_repository->find (nm));
+
+        if (sp == nullptr || !sp->authoritative)
+          db->system_repository->insert (nm,
+                                         *vc->min_version,
+                                         true /* authoritative */);
+
+        // @@ If it is authoritative, wouldn't it be a good idea to check that
+        //    the versions match?
+      }
+
+      return vc;
     };
 
     // Create the parsed package argument. Issue diagnostics and fail if the
@@ -1707,17 +1754,7 @@ namespace bpkg
       {
       case package_scheme::sys:
         {
-          if (!r.constraint)
-            r.constraint = version_constraint (wildcard_version);
-
-          // The system package may only have an exact/wildcard version
-          // specified.
-          //
-          assert (r.constraint->min_version == r.constraint->max_version);
-
-          if (db != nullptr)
-            add_system_package (*db, r.name, *r.constraint->min_version);
-
+          r.constraint = add_system_package (db, r.name, move (r.constraint));
           break;
         }
       case package_scheme::none: break; // Nothing to do.
@@ -3180,12 +3217,7 @@ namespace bpkg
           // The system package may only have an exact/wildcard version
           // specified.
           //
-          add_system_package (db,
-                              p.name,
-                              (p.constraint
-                               ? *p.constraint->min_version
-                               : wildcard_version));
-
+          add_system_package (&db, p.name, p.constraint);
           enter (db, p);
         };
 

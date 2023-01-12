@@ -99,6 +99,10 @@ namespace bpkg
 
   extern const dir_path current_dir;        // ./
 
+  // Host target triplet for which we were built.
+  //
+  extern const target_triplet host_triplet;
+
   // Temporary directory facility.
   //
   // An entry normally maps <cfg-dir> to <cfg-dir>/.bpkg/tmp/ but can also map

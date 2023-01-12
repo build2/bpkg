@@ -46,6 +46,8 @@ namespace bpkg
 
   const dir_path current_dir (".");
 
+  const target_triplet host_triplet (BPKG_HOST_TRIPLET);
+
   map<dir_path, dir_path> tmp_dirs;
 
   bool keep_tmp;

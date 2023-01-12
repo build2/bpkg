@@ -33,6 +33,7 @@
 #include <libbutl/optional.hxx>
 #include <libbutl/fdstream.hxx>
 #include <libbutl/small-vector.hxx>
+#include <libbutl/target-triplet.hxx>
 #include <libbutl/default-options.hxx>
 
 namespace bpkg
@@ -126,6 +127,10 @@ namespace bpkg
   using butl::ifdstream;
   using butl::ofdstream;
   using butl::fdstream_mode;
+
+  // <libbutl/target-triplet.hxx>
+  //
+  using butl::target_triplet;
 
   // <libbutl/default-options.hxx>
   //
