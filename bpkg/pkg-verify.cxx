@@ -566,7 +566,7 @@ namespace bpkg
                     o.ignore_unknown () /* ignore_toolchain */,
                     o.deep () /* expand_values */,
                     o.deep () /* load_buildfiles */,
-                    o.deep () /* complete_depends */,
+                    o.deep () /* complete_values */,
                     o.silent () ? 0 : 2));
 
       if (o.manifest ())

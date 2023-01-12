@@ -26,7 +26,7 @@ namespace bpkg
   // description-type value to the effective description type (see
   // libbpkg/manifest.hxx), load the bootstrap, root, and config/*.build
   // buildfiles into the respective *-build values, and complete the
-  // dependency constraints.
+  // manifest values (depends, <distribution>-version, etc).
   //
   // Throw not_package (derived from failed) if this doesn't look like a
   // package. Throw plain failed if this does looks like a package but
@@ -47,7 +47,7 @@ namespace bpkg
               bool ignore_toolchain,
               bool expand_values,
               bool load_buildfiles,
-              bool complete_depends = true,
+              bool complete_values = true,
               int diag_level = 2);
 
   // Similar to the above but verifies that a source directory is a valid
