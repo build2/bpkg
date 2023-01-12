@@ -2189,7 +2189,7 @@ namespace bpkg
                             false /* ignore_toolchain */,
                             false /* expand_values */,
                             true /* load_buildfiles */,
-                            true /* complete_depends */,
+                            true /* complete_values */,
                             diag ? 2 : 1));
 
               // This is a package archive.

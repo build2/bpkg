@@ -27,7 +27,7 @@
 //
 #define DB_SCHEMA_VERSION_BASE 12
 
-#pragma db model version(DB_SCHEMA_VERSION_BASE, 20, closed)
+#pragma db model version(DB_SCHEMA_VERSION_BASE, 21, closed)
 
 namespace bpkg
 {
@@ -670,6 +670,10 @@ namespace bpkg
   //
   #pragma db value(buildfile) definition
 
+  // distribution_name_value
+  //
+  #pragma db value(distribution_name_value) definition
+
   #pragma db object pointer(shared_ptr) session
   class available_package
   {
@@ -716,6 +720,8 @@ namespace bpkg
     optional<string>  root_build;
     vector<buildfile> buildfiles;
 
+    vector<distribution_name_value> distribution_values;
+
     // Present for non-transient objects only (and only for certain repository
     // types).
     //
@@ -734,6 +740,7 @@ namespace bpkg
           version (move (m.version)),
           dependencies (convert (move (m.dependencies))),
           tests (move (m.tests)),
+          distribution_values (move (m.distribution_values)),
           sha256sum (move (m.sha256sum))
     {
       if (!stub ())
@@ -833,6 +840,10 @@ namespace bpkg
     // tests
     //
     #pragma db member(tests) id_column("") value_column("test_")
+
+    // distributions
+    //
+    #pragma db member(distribution_values) id_column("") value_column("dist_")
 
     // alt_naming
     //

@@ -1040,6 +1040,7 @@ a full package manifest they can be interleaved with non-header values.
 \
 name: <name>
 version: <version>
+[upstream-version]: <string>
 [project]: <name>
 [priority]: <priority> [; <comment>]
 summary: <text>
@@ -1092,6 +1093,10 @@ license: <licenses> [; <comment>]
 [bootstrap-build2]: <text>
 [root-build2]: <text>
 [*-build2]: <text>
+
+[*-name]: <name> [<name>...]
+[*-version]: <string>
+[*-to-downstream-version]: <regex>
 \
 
 \h2#manifest-package-name|\c{name}|
@@ -2383,6 +2388,81 @@ If unspecified, then the package's \c{bootstrap.build}, \c{root.build}, and
 \c{build/config/*.build} files (or their alternative names) will be
 automatically added, for example, when the \l{#manifest-package-list-pkg
 package list manifest} is created.
+
+
+\h2#manifest-package-distribution|\c{*-name}|
+
+\
+[*-name]: <name> [<name>...]
+[*-version]: <string>
+[*-to-downstream-version]: <regex>
+
+<regex> = /<patten>/<replacement>/
+\
+
+The binary distribution packages where the substring matched by \c{*} in
+\c{*-name} denotes the distribution name which has the
+\c{<name>[\b{_}<version>]} form. For example:
+
+\
+debian
+debian_10
+fedora_32
+ubuntu_16.04
+freebsd_12.1
+windows_10
+macos_10
+macos_10.15
+macos_12
+\
+
+If the \c{*-name} values are specified, then the packages required for these
+binary distributions can be created using the \l{bpkg-pkg-bindist(1)}
+command. The \c{*-name} values contain whitespace separated lists of the
+distribution package names. Normally such a list contains a single primary
+package name, but can additionally contain the related package names which
+cannot automatically be deduced from the primary package name. For example:
+
+\
+debian_10-name: libssl1.1 libssl-dev
+fedora_32-name: openssl-libs
+\
+
+If the distribution package version differs from the upstream package version
+(the \c{upstream-version} value, if present, and the \c{version} value
+otherwise), then the matching \c{*-version} value needs to be specified. For
+example:
+
+\
+debian-name: libssl1.1 libssl-dev
+debian-version: 1.1.1n
+\
+
+To specify the distribution package version to be the same as the \cb{bpkg}
+package version, the special \c{$} value can be used. For example:
+
+\
+debian-version: $
+\
+
+When configuring a package as a system dependency the \l{bpkg-pkg-build(1)}
+command needs to map the binary distribution package versions back to the
+\cb{bpkg} package versions, so it can verify the version constraints imposed
+by the dependent packages on this dependency package. Unless such a mapping is
+maintained externally, it should be specified at the \cb{bpkg} package level
+by using the \c{*-to-downstream-version} values. For example:
+
+\
+debian-name: libssl1.1 libssl-dev
+debian-version: 1.1.1n
+debian-to-downstream-version: /([^.])\.([^.])\.([^.])n/\1.\2.\3+14/
+debian-to-downstream-version: /([^.])\.([^.])\.([^.])o/\1.\2.\3+15/
+debian-to-downstream-version: /([^.])\.([^.])\.([^.])p/\1.\2.\3+16/
+\
+
+If \cb{bpkg} finds the matching regular expression pattern, then it uses the
+corresponding replacement to produce the \cb{bpkg} package version. Otherwise,
+it excludes this binary distribution package version from the consideration.
 
 
 \h#manifest-package-list-pkg|Package List Manifest for \cb{pkg} Repositories|
