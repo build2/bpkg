@@ -1675,6 +1675,21 @@ namespace bpkg
         //    package (source or stub)? We will need to drag all such
         //    available packages into this call in order to get the
         //    name/version mappings.
+        //
+        //    We should probably try to find the mapping for the queried
+        //    distribution package version, evaluating regexes of available
+        //    packages queried from the current_configs databases, recursively
+        //    in both dependency/dependent directions (see
+        //    dependency_configs() and dependent_configs()), and ordered
+        //    descending by their versions (the later package version can
+        //    potentially fix a broken mapping).
+        //
+        //    If no mapping is found we should presumably fail.
+        //
+        // @@ We should probably cache the mappings of the system package
+        //    names to the resolved versions, not to repeat the system package
+        //    manager and the database queries during the simulated plan
+        //    execution iterations.
 
         // See if we should query the system package manager.
         //
@@ -1713,6 +1728,31 @@ namespace bpkg
 
         // @@ If it is authoritative, wouldn't it be a good idea to check that
         //    the versions match?
+        //
+        //    Note that this check in a sense is performed by the check_dup()
+        //    lambda, but at some later stage. However, we could also check
+        //    here since we could issue more accurate diagnostics, before the
+        //    information if the version is specified by the user or is
+        //    resolved via the system package manager is lost (saving this
+        //    info to the system repository would also be helpful). So we
+        //    could print:
+        //
+        //    $ bpkg build { --config-name main }+ { ?sys:foo/1.0.0 ?sys:foo }
+        //      error: duplicate package foo
+        //        info: first mentioned as ?sys:foo/1.0.0 +{ --config-name main }
+        //        info: second resolved as ?sys:foo/2.0.0 +{ --config-name main }
+        //
+        //    This won't work out of the box though for the no-db case, since
+        //    we will fail in check_dup() instead:
+        //
+        //    $ bpkg build ?sys:foo/1.0.0 ?sys:foo
+        //      error: duplicate package foo
+        //        info: first mentioned as ?sys:foo/1.0.0
+        //        info: second mentioned as ?sys:foo/2.0.0
+        //
+        //    We can probably fix that by inventing the
+        //    no_db_system_repository or some such, which add_system_package()
+        //    can use if db == NULL.
       }
 
       return vc;
