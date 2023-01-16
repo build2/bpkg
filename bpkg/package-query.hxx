@@ -75,8 +75,8 @@ namespace bpkg
   // Try to find packages that optionally satisfy the specified version
   // constraint in multiple databases, suppressing duplicates. Return the list
   // of packages and repository fragments in which each was found in the
-  // package version descending or empty list if none were found. Note that a
-  // stub satisfies any constraint.
+  // package version descending order or empty list if none were found. Note
+  // that a stub satisfies any constraint.
   //
   // Note that we return (loaded) lazy_shared_ptr in order to also convey
   // the database to which it belongs.
@@ -172,6 +172,21 @@ namespace bpkg
   find_available_fragment (const common_options&,
                            database&,
                            const shared_ptr<selected_package>&);
+
+  // Try to find packages in multiple databases, traversing the explicitly and
+  // implicitly linked databases recursively and suppressing duplicates and,
+  // optionally, older package revisions. Return the list of packages and
+  // repository fragments in which each was found in the package version
+  // descending order or empty list if none were found.
+  //
+  // Note that we return (loaded) lazy_shared_ptr in order to also convey
+  // the database to which it belongs.
+  //
+  vector<pair<shared_ptr<available_package>,
+              lazy_shared_ptr<repository_fragment>>>
+  find_available_all (const linked_databases&,
+                      const package_name&,
+                      bool suppress_older_revisions = true);
 
   // Create a transient (or fake, if you prefer) available_package object
   // corresponding to the specified selected object. Note that the package
