@@ -43,10 +43,10 @@ using namespace butl;
 
 namespace bpkg
 {
-  // @@ Overall TODO:
+  // System package manager. Resolved lazily if and when needed. Present NULL
+  // value means no system package manager is available.
   //
-  //    - Configuration vars (both passed and preserved)
-  //
+  static optional<unique_ptr<system_package_manager>> sys_pkg_mgr;
 
   // Current configurations as specified with --directory|-d (or the current
   // working directory if none specified).
@@ -1663,15 +1663,13 @@ namespace bpkg
     // Note that it is assumed that all the possible duplicates are handled
     // elsewhere/later.
     //
-    auto add_system_package =
-      [spm = optional<unique_ptr<system_package_manager>> ()] // Create lazy.
-      (database* db,
-       const package_name& nm,
-       optional<version_constraint> vc) mutable
+    auto add_system_package = [] (database* db,
+                                  const package_name& nm,
+                                  optional<version_constraint> vc)
     {
       if (!vc)
       {
-        // @@ Where do we check that this package should have available_
+        // @@ Where do we check that this package should have available
         //    package (source or stub)? We will need to drag all such
         //    available packages into this call in order to get the
         //    name/version mappings.
@@ -1690,21 +1688,30 @@ namespace bpkg
         //    names to the resolved versions, not to repeat the system package
         //    manager and the database queries during the simulated plan
         //    execution iterations.
+        //
+        //    Good point. Feels like doing this in system_package_manager
+        //    (and making it global) is the way to go.
 
         // See if we should query the system package manager.
         //
         // @@ TODO: --sys-no-query
         //
-        if (!spm)
-          spm = /*ops.sys_no_query ()*/ false
+
+        if (!sys_pkg_mgr)
+          sys_pkg_mgr = /*ops.sys_no_query ()*/ false
             ? nullptr
             : make_system_package_manager (host_triplet, "" /* type */);
 
-        if (*spm != nullptr)
+        if (*sys_pkg_mgr != nullptr)
         {
           // @@ TODO: query the version
           //
-          //system_package_manager& m (**spm);
+          //system_package_manager& spm (**sys_pkg_mgr);
+
+
+          //@@ TODO: if we extracted a version, then we need to add an entry
+          //   to the imaginary stubs (probably checking for duplicated), just
+          //   as if the user specified it explicitly.
         }
         else
           vc = version_constraint (wildcard_version);
@@ -1753,6 +1760,7 @@ namespace bpkg
         //    We can probably fix that by inventing the
         //    no_db_system_repository or some such, which add_system_package()
         //    can use if db == NULL.
+        //
       }
 
       return vc;
