@@ -1708,6 +1708,9 @@ namespace bpkg
           //
           //system_package_manager& spm (**sys_pkg_mgr);
 
+          // @@ TODO: if find_available_all() returns empty list, then this is
+          //    an error (no source/stub for the package). Issue diag similar
+          //    to other cases where we suggest specifing /*.
 
           //@@ TODO: if we extracted a version, then we need to add an entry
           //   to the imaginary stubs (probably checking for duplicated), just

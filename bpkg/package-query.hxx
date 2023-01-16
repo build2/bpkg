@@ -182,6 +182,8 @@ namespace bpkg
   // Note that we return (loaded) lazy_shared_ptr in order to also convey
   // the database to which it belongs.
   //
+  // @@ Add available_packages typedef and use everywhere.
+  //
   vector<pair<shared_ptr<available_package>,
               lazy_shared_ptr<repository_fragment>>>
   find_available_all (const linked_databases&,

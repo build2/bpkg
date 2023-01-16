@@ -1,0 +1,178 @@
+# file      : bpkg/host-os-release.test.testscript
+# license   : MIT; see accompanying LICENSE file
+
+: linux
+:
+$* x86_64-linux-gnu os-release >>EOO
+  linux
+
+
+
+  Linux
+
+
+  EOO
+
+: debian-10
+:
+cat <<EOI >=os-release;
+  PRETTY_NAME="Debian GNU/Linux 10 (buster)"
+  NAME="Debian GNU/Linux"
+  VERSION_ID="10"
+  VERSION="10 (buster)"
+  VERSION_CODENAME=buster
+  ID=debian
+  HOME_URL="https://www.debian.org/"
+  SUPPORT_URL="https://www.debian.org/support"
+  BUG_REPORT_URL="https://bugs.debian.org/"
+  EOI
+$* x86_64-linux-gnu os-release >>EOO
+  debian
+
+  10
+
+  Debian GNU/Linux
+  buster
+
+  EOO
+
+: debian-testing
+:
+cat <<EOI >=os-release;
+  PRETTY_NAME="Debian GNU/Linux bookworm/sid"
+  NAME="Debian GNU/Linux"
+  ID=debian
+  HOME_URL="https://www.debian.org/"
+  SUPPORT_URL="https://www.debian.org/support"
+  BUG_REPORT_URL="https://bugs.debian.org/"
+  EOI
+$* x86_64-linux-gnu os-release >>EOO
+  debian
+
+
+
+  Debian GNU/Linux
+
+
+  EOO
+
+: ubuntu-20.04
+:
+cat <<EOI >=os-release;
+  NAME="Ubuntu"
+  VERSION="20.04.1 LTS (Focal Fossa)"
+  ID=ubuntu
+  ID_LIKE=debian
+  PRETTY_NAME="Ubuntu 20.04.1 LTS"
+  VERSION_ID="20.04"
+  HOME_URL="https://www.ubuntu.com/"
+  SUPPORT_URL="https://help.ubuntu.com/"
+  BUG_REPORT_URL="https://bugs.launchpad.net/ubuntu/"
+  PRIVACY_POLICY_URL="https://www.ubuntu.com/legal/terms-and-policies/privacy-policy"
+  VERSION_CODENAME=focal
+  UBUNTU_CODENAME=focal
+  EOI
+$* x86_64-linux-gnu os-release >>EOO
+  ubuntu
+  debian
+  20.04
+
+  Ubuntu
+  focal
+
+  EOO
+
+: fedora-35
+:
+cat <<EOI >=os-release;
+  NAME="Fedora Linux"
+  VERSION="35 (Workstation Edition)"
+  ID=fedora
+  VERSION_ID=35
+  VERSION_CODENAME=""
+  PLATFORM_ID="platform:f35"
+  PRETTY_NAME="Fedora Linux 35 (Workstation Edition)"
+  ANSI_COLOR="0;38;2;60;110;180"
+  LOGO=fedora-logo-icon
+  CPE_NAME="cpe:/o:fedoraproject:fedora:35"
+  HOME_URL="https://fedoraproject.org/"
+  DOCUMENTATION_URL="https://docs.fedoraproject.org/en-US/fedora/f35/system-administrators-guide/"
+  SUPPORT_URL="https://ask.fedoraproject.org/"
+  BUG_REPORT_URL="https://bugzilla.redhat.com/"
+  REDHAT_BUGZILLA_PRODUCT="Fedora"
+  REDHAT_BUGZILLA_PRODUCT_VERSION=35
+  REDHAT_SUPPORT_PRODUCT="Fedora"
+  REDHAT_SUPPORT_PRODUCT_VERSION=35
+  PRIVACY_POLICY_URL="https://fedoraproject.org/wiki/Legal:PrivacyPolicy"
+  VARIANT="Workstation Edition"
+  VARIANT_ID=workstation
+  EOI
+$* x86_64-linux-gnu os-release >>EOO
+  fedora
+
+  35
+  workstation
+  Fedora Linux
+
+  Workstation Edition
+  EOO
+
+: rhel-8.2
+:
+cat <<EOI >=os-release;
+  NAME="Red Hat Enterprise Linux"
+  VERSION="8.2 (Ootpa)"
+  ID="rhel"
+  ID_LIKE="fedora"
+  VERSION_ID="8.2"
+  PLATFORM_ID="platform:el8"
+  PRETTY_NAME="Red Hat Enterprise Linux 8.2 (Ootpa)"
+  ANSI_COLOR="0;31"
+  CPE_NAME="cpe:/o:redhat:enterprise_linux:8.2:GA"
+  HOME_URL="https://www.redhat.com/"
+  BUG_REPORT_URL="https://bugzilla.redhat.com/"
+
+  REDHAT_BUGZILLA_PRODUCT="Red Hat Enterprise Linux 8"
+  REDHAT_BUGZILLA_PRODUCT_VERSION=8.2
+  REDHAT_SUPPORT_PRODUCT="Red Hat Enterprise Linux"
+  REDHAT_SUPPORT_PRODUCT_VERSION="8.2"
+  EOI
+$* x86_64-linux-gnu os-release >>EOO
+  rhel
+  fedora
+  8.2
+
+  Red Hat Enterprise Linux
+
+
+  EOO
+
+: centos-8
+:
+cat <<EOI >=os-release;
+  NAME="CentOS Linux"
+  VERSION="8 (Core)"
+  ID="centos"
+  ID_LIKE="rhel fedora"
+  VERSION_ID="8"
+  PLATFORM_ID="platform:el8"
+  PRETTY_NAME="CentOS Linux 8 (Core)"
+  ANSI_COLOR="0;31"
+  CPE_NAME="cpe:/o:centos:centos:8"
+  HOME_URL="https://www.centos.org/"
+  BUG_REPORT_URL="https://bugs.centos.org/"
+
+  CENTOS_MANTISBT_PROJECT="CentOS-8"
+  CENTOS_MANTISBT_PROJECT_VERSION="8"
+  REDHAT_SUPPORT_PRODUCT="centos"
+  REDHAT_SUPPORT_PRODUCT_VERSION="8"
+  EOI
+$* x86_64-linux-gnu os-release >>EOO
+  centos
+  rhel|fedora
+  8
+
+  CentOS Linux
+
+
+  EOO
