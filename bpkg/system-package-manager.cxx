@@ -10,6 +10,8 @@
 #include <bpkg/database.hxx>
 #include <bpkg/diagnostics.hxx>
 
+#include <bpkg/system-package-manager-debian.hxx>
+
 using namespace std;
 using namespace butl;
 
@@ -41,6 +43,8 @@ namespace bpkg
         {
           // @@ TODO: verify name if specified.
 
+          // @@ TMP
+          //
           //r.reset (new system_package_manager_debian (move (*osr)));
         }
       }

@@ -23,23 +23,85 @@ namespace bpkg
   public:
     struct package_status
     {
+      // Downstream (as in, bpkg package) version.
+      //
       bpkg::version version;
 
-      // The system package can be either "available already installed"
-      // or "available not yet installed".
+      // The system package can be either "available already installed",
+      // "available partially installed" (for example, libfoo but not
+      // libfoo-dev is installed) or "available not yet installed".
       //
-      // If the package is partially installed (for example, libfoo but not
-      // libfoo-dev is installed), then installed should be false (and perhaps
-      // only a single available version should be returned).
-      //
-      bool installed;
+      enum {installed, partially_installed, not_installed} status;
 
+      // System (as in, distribution package) name and version.
+      //
+      // @@ But these could be multiple. Do we really need this?
+      /*
       string system_name;
       string system_version;
+      */
     };
 
-    // @@ We actually need to fetch is some are not installed to get their
-    //    versions. We can do it as part of the call, no?
+    // Query the system package status.
+    //
+    // This function has two modes: cache-only (available_packages is NULL)
+    // and full (available_packages is not NULL). In the cache-only mode this
+    // function returns the status of this package if it has already been
+    // queried and nullopt otherwise. This allows the caller to only collect
+    // all the available packages (for the name/version mapping information)
+    // if really necessary.
+    //
+    // The returned value can be NULL, which indicates that no such package is
+    // available from the system package manager. Note that NULL is returned
+    // if no fully installed package is available from the system and install
+    // is false.
+    //
+    // If fetch is false, then do not re-fetch the system package repository
+    // metadata (that is, available packages/versions) before querying for
+    // the available version of the not yet installed or partially installed
+    // packages.
+    //
+    // Note that currently the result is a single available version. While
+    // some package managers may support installing multiple versions in
+    // parallel, this is unlikely to be suppored for the packages we are
+    // interested in due to the underlying limitations.
+    //
+    // Specifically, the packages that we are primarily interested in are
+    // libraries with headers and executables (tools). While most package
+    // managers (e.g., Debian, Fedora) are able to install multiple libraries
+    // in parallel, they normally can only install a single set of headers,
+    // static libraries, pkg-config files, etc., (e.g., -dev/-devel package)
+    // at a time due to them being installed into the same location (e.g.,
+    // /usr/include). The same holds for executables, which are installed into
+    // the same location (e.g., /usr/bin).
+    //
+    // @@ But it's still plausible to have multiple available versions but
+    //    only being able to install one at a time?
+    //
+    // It is possible that a certain library has made arrangements for
+    // multiple of its versions to co-exist. For example, hypothetically, our
+    // libssl package could be mapped to both libssl1.1 libssl1.1-dev and
+    // libssl3 libssl3-dev which could be installed at the same time (note
+    // that it is not the case in reality; there is only libssl-dev). However,
+    // in this case, we should probably also have two packages with separate
+    // names (e.g., libssl and libssl3) that can also co-exist. An example of
+    // this would be libQt5Core and libQt6Core. (Note that strictly speaking
+    // there could be different degrees of co-existence: for the system
+    // package manager it is sufficient for different versions not to clobber
+    // each other's files while for us we may also need the ability to use
+    // different versions in the base build).
+    //
+    // Note also that the above reasoning is quite C/C++-centric and it's
+    // possible that multiple versions of libraries (or equivalent) for other
+    // languages (e.g., Rust) can always co-exist. In this case we may need to
+    // revise this decision to only return a single version (and pick the best
+    // suitable version as part of the constraint resolution).
+    //
+    virtual optional<const package_status*>
+    pkg_status (const package_name&,
+                const available_packages*,
+                bool install,
+                bool fetch) = 0;
 
   public:
     virtual

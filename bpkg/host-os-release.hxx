@@ -47,8 +47,10 @@ namespace bpkg
     string variant;          // VARIANT
   };
 
-  // Return the release information for the specified host or nullopt if
-  // the specific host is unknown/unsupported.
+  // Return the release information for the specified host or nullopt if the
+  // specific host is unknown/unsupported. Note that "host" here implies that
+  // we may be examining files, environment variables, etc., of the machine we
+  // are running on.
   //
   optional<os_release>
   host_os_release (const target_triplet& host);

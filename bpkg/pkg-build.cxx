@@ -1762,6 +1762,9 @@ namespace bpkg
         //    no_db_system_repository or some such, which add_system_package()
         //    can use if db == NULL.
         //
+        //    @@ Actually, I think this should just be assert() since the only
+        //       source of authoritative information is system package manager
+        //       and it caches its results.
       }
 
       return vc;
