@@ -520,10 +520,8 @@ namespace bpkg
     //
     optional<version_constraint> c;
 
-    if (!dvc)
+    if (!dsys && !dvc) // @@ For now we don't patch system packages.
     {
-      assert (!dsys); // The version can't be empty for the system package.
-
       if (patch)
       {
         c = patch_constraint (sp, ignore_unsatisfiable);
@@ -535,7 +533,7 @@ namespace bpkg
         }
       }
     }
-    else if (!dsys || !wildcard (*dvc))
+    else if (!dsys || (dvc && !wildcard (*dvc)))
       c = dvc;
 
     available_packages afs (find_available (nm, c, rfs));
@@ -568,10 +566,8 @@ namespace bpkg
       //
       // Note that we also handle a package stub here.
       //
-      if (!dvc && dsp != nullptr && av < dsp->version)
+      if (!dsys && !dvc && dsp != nullptr && av < dsp->version)
       {
-        assert (!dsys); // Version can't be empty for the system package.
-
         // For the selected system package we still need to pick a source
         // package version to downgrade to.
         //
@@ -1533,7 +1529,14 @@ namespace bpkg
 
       package_scheme               scheme;
       package_name                 name;
+
+      // Note that currently a system package without constraint is always
+      // configured not to hold the version and can implicitly be
+      // up/downgraded. But in the future we can add support for holding the
+      // resolved version, for example, with the sys:libfoo/? syntax.
+      //
       optional<version_constraint> constraint;
+
       string                       value;
       pkg_options                  options;
       strings                      config_vars;
@@ -1652,19 +1655,39 @@ namespace bpkg
       return r;
     };
 
-    // Figure out the system package version unless explicitly specified and
-    // add the system package authoritative information to the database's
+    // Figure out the system package version(s) unless explicitly specified
+    // and add the system package authoritative information to the database's
     // system repository unless the database is NULL or it already contains
-    // authoritative information for this package. Return the figured out
-    // system package version as constraint.
+    // authoritative information for this package.
+    //
+    // Specifically, if the system package version is not specified its
+    // deduction is performed as follows:
+    //
+    // - If no system manager is available or --sys-no-query option is
+    //   specified, then the version is the wildcard version.
+    //
+    // - Otherwise, the system manager is queried for available versions and
+    //   the resulting versions are mapped to the downstream package
+    //   versions. The system versions which cannot be mapped are not
+    //   considered.
+    //
+    // - Fail if no version were deduced.
     //
     // Note that it is assumed that all the possible duplicates are handled
     // elsewhere/later.
     //
+    // @@ Since the only outcome of the function is adding the system package
+    //    versions to the system repository, calling with the NULL database
+    //    doesn't make much sense. This, however, can be plausable if we
+    //    implement more accurate diagnostics (see below). So let's keep
+    //    `database*` in favor of `database&` for now.
+    //
     auto add_system_package = [] (database* db,
                                   const package_name& nm,
-                                  optional<version_constraint> vc)
+                                  const optional<version_constraint>& vc)
     {
+      system_package_versions vs;
+
       if (!vc)
       {
         // @@ Where do we check that this package should have available
@@ -1713,15 +1736,23 @@ namespace bpkg
           //@@ TODO: if we extracted a version, then we need to add an entry
           //   to the imaginary stubs (probably checking for duplicated), just
           //   as if the user specified it explicitly.
+
+          if (db != nullptr)
+            vs.push_back (wildcard_version); // @@ TMP
         }
-        else
-          vc = version_constraint (wildcard_version);
+        else if (db != nullptr)
+          vs.push_back (wildcard_version);
       }
       else
+      {
         // The system package may only have an exact/wildcard version
         // specified.
         //
-        assert (vc->min_version == vc->max_version);
+        assert (vc->min_version && vc->min_version == vc->max_version);
+
+        if (db != nullptr)
+          vs.push_back (*vc->min_version);
+      }
 
       if (db != nullptr)
       {
@@ -1730,9 +1761,7 @@ namespace bpkg
         const system_package* sp (db->system_repository->find (nm));
 
         if (sp == nullptr || !sp->authoritative)
-          db->system_repository->insert (nm,
-                                         *vc->min_version,
-                                         true /* authoritative */);
+          db->system_repository->insert (nm, vs, true /* authoritative */);
 
         // @@ If it is authoritative, wouldn't it be a good idea to check that
         //    the versions match?
@@ -1766,8 +1795,6 @@ namespace bpkg
         //       source of authoritative information is system package manager
         //       and it caches its results.
       }
-
-      return vc;
     };
 
     // Create the parsed package argument. Issue diagnostics and fail if the
@@ -1806,7 +1833,7 @@ namespace bpkg
       {
       case package_scheme::sys:
         {
-          r.constraint = add_system_package (db, r.name, move (r.constraint));
+          add_system_package (db, r.name, r.constraint);
           break;
         }
       case package_scheme::none: break; // Nothing to do.
@@ -2221,7 +2248,7 @@ namespace bpkg
              !compare_options (a.options, pa.options) ||
              a.config_vars != pa.config_vars))
           fail << "duplicate package " << pa.name <<
-            info << "first mentioned as " << arg_string (r.first->second) <<
+            info << "first mentioned as " << arg_string (a) <<
             info << "second mentioned as " << arg_string (pa);
 
         return !r.second;
@@ -2464,10 +2491,8 @@ namespace bpkg
 
               bool sys (arg_sys (pa));
 
-              if (!pa.constraint)
+              if (!sys && !pa.constraint)
               {
-                assert (!sys);
-
                 if (pa.options.patch () &&
                     (sp = pdb->find<selected_package> (pa.name)) != nullptr)
                 {
@@ -2485,7 +2510,7 @@ namespace bpkg
                   patch = true;
                 }
               }
-              else if (!sys || !wildcard (*pa.constraint))
+              else if (!sys || (pa.constraint && !wildcard (*pa.constraint)))
                 c = pa.constraint;
 
               auto rp (find_available_one (pa.name, c, root));
@@ -2652,7 +2677,7 @@ namespace bpkg
           //
           if (pa.constraint)
           {
-            for (;;)
+            for (;;) // Breakout loop.
             {
               if (ap != nullptr) // Must be that version, see above.
                 break;

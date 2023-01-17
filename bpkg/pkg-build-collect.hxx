@@ -673,6 +673,10 @@ namespace bpkg
     //
     shared_ptr<available_package> available;
     lazy_shared_ptr<bpkg::repository_fragment> repository_fragment;
+
+    // @@ MULT-SYS Make it of optional<version> type as build_package::system
+    //    (see available_version() implementation for details).
+    //
     bool system; // Meaningless for the drop.
 
     // True if the entry has been inserted or used for the replacement during

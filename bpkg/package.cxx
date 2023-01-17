@@ -71,10 +71,10 @@ namespace bpkg
 
   // available_package
   //
-  const version* available_package::
-  system_version (database& db) const
+  const system_package_versions* available_package::
+  system_versions (database& db) const
   {
-    if (!system_version_)
+    if (system_versions_.empty ())
     {
       assert (db.system_repository);
 
@@ -83,36 +83,36 @@ namespace bpkg
         // Only cache if it is authoritative.
         //
         if (sp->authoritative)
-          system_version_ = sp->version;
+          system_versions_ = sp->versions;
         else
-          return &sp->version;
+          return &sp->versions;
       }
     }
 
-    return system_version_ ? &*system_version_ : nullptr;
+    return !system_versions_.empty () ? &system_versions_ : nullptr;
   }
 
-  pair<const version*, bool> available_package::
-  system_version_authoritative (database& db) const
+  pair<const system_package_versions*, bool> available_package::
+  system_versions_authoritative (database& db) const
   {
     assert (db.system_repository);
 
     const system_package* sp (db.system_repository->find (id.name));
 
-    if (!system_version_)
+    if (system_versions_.empty ())
     {
       if (sp != nullptr)
       {
         // Only cache if it is authoritative.
         //
         if (sp->authoritative)
-          system_version_ = sp->version;
+          system_versions_ = sp->versions;
         else
-          return make_pair (&sp->version, false);
+          return make_pair (&sp->versions, false);
       }
     }
 
-    return make_pair (system_version_ ?  &*system_version_ : nullptr,
+    return make_pair (!system_versions_.empty () ? &system_versions_ : nullptr,
                       sp != nullptr ? sp->authoritative : false);
   }
 

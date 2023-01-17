@@ -766,7 +766,7 @@ rep_remove += -d cfg 2>!
       EOE
 
     $pkg_status foo    >'!foo configured 2';
-    $pkg_status libbar >'libbar configured,system !*';
+    $pkg_status libbar >'libbar configured,system *';
 
     # Drop foo.
     #
@@ -938,7 +938,14 @@ rep_remove += -d cfg 2>!
       EOE
 
     $pkg_status foo    >'!foo configured 2';
-    $pkg_status libbar >'libbar configured,system !*';
+    $pkg_status libbar >'libbar configured,system *';
+
+    # Build ?sys:libbar/*.
+    #
+    # @@ Doesn't seems to reconfigure with the hold version flag. Need to fix.
+    #
+    #$pkg_build '?sys:libbar/*';
+    #$pkg_status libbar >'libbar configured,system !*';
 
     $pkg_drop foo
   }

@@ -5,10 +5,14 @@
 
 namespace bpkg
 {
-  const version& system_repository::
-  insert (const package_name& name, const version& v, bool authoritative)
+  const system_package_versions& system_repository::
+  insert (const package_name& name,
+          const system_package_versions& vs,
+          bool authoritative)
   {
-    auto p (map_.emplace (name, system_package {v, authoritative}));
+    assert (!vs.empty ());
+
+    auto p (map_.emplace (name, system_package {vs, authoritative}));
 
     if (!p.second)
     {
@@ -21,10 +25,10 @@ namespace bpkg
       if (authoritative >= sp.authoritative)
       {
         sp.authoritative = authoritative;
-        sp.version = v;
+        sp.versions = vs;
       }
     }
 
-    return p.first->second.version;
+    return p.first->second.versions;
   }
 }

@@ -22,6 +22,7 @@
 #include <bpkg/utility.hxx>
 
 #include <bpkg/diagnostics.hxx>
+#include <bpkg/system-repository.hxx>
 
 // Used by the data migration entries.
 //
@@ -729,7 +730,7 @@ namespace bpkg
 
   private:
     #pragma db transient
-    mutable optional<version_type> system_version_;
+    mutable system_package_versions system_versions_;
 
   public:
     // Note: version constraints must be complete and the bootstrap build must
@@ -766,23 +767,48 @@ namespace bpkg
     //
     available_package (package_name n, version_type sysv)
         : id (move (n), wildcard_version),
-          version (wildcard_version),
-          system_version_ (sysv) {}
+          version (wildcard_version)
+    {
+      system_versions_.push_back (move (sysv));
+    }
 
     bool
     stub () const {return version.compare (wildcard_version, true) == 0;}
 
-    // Return package system version if one has been discovered. Note that
+    // Return package system versions if any has been discovered. Note that
     // we do not implicitly assume a wildcard version.
     //
-    const version_type*
-    system_version (database&) const;
+    const system_package_versions*
+    system_versions (database&) const;
 
     // As above but also return an indication if the version information is
     // authoritative.
     //
+    pair<const system_package_versions*, bool>
+    system_versions_authoritative (database&) const;
+
+#if 1
+    const version_type*
+    system_version (database& db) const
+    {
+      const system_package_versions* vs (system_versions (db));
+      assert (vs == nullptr || vs->size () == 1);
+      return vs != nullptr ? &vs->front () : nullptr;
+    }
+
+
     pair<const version_type*, bool>
-    system_version_authoritative (database&) const;
+    system_version_authoritative (database& db) const
+    {
+      pair<const system_package_versions*, bool> r (
+        system_versions_authoritative (db));
+
+      assert (r.first == nullptr || r.first->size () == 1);
+      return r.first != nullptr
+             ? make_pair (&r.first->front (), r.second)
+             : make_pair (nullptr, r.second);
+    }
+#endif
 
     // Database mapping.
     //

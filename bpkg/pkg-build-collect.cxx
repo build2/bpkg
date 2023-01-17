@@ -100,6 +100,19 @@ namespace bpkg
       (*action == build && (flags & (build_repoint | build_reevaluate)) != 0);
   }
 
+  // @@ MULT-SYS Note that the semantics of this function to return the
+  //    package version which this build should result with (should we rename
+  //    it to just version()?).
+  //
+  //    We should probably make `bool system` member as
+  //    `optional<version> system` and, if present, return it's value here.
+  //
+  //    The creator of build_package object should provide the version for the
+  //    system package build. It can, for example, be the latest version from
+  //    the system repository when this is a build-to-hold object (specified
+  //    on the command line). Or it can be a satisfying version from
+  //    the system repository for a dependency build.
+  //
   const version& build_package::
   available_version () const
   {
@@ -107,7 +120,7 @@ namespace bpkg
     //
     assert (available != nullptr &&
             (system
-             ? available->system_version (db) != nullptr
+             ? available->system_versions (db) != nullptr
              : !available->stub ()));
 
     return system ? *available->system_version (db) : available->version;
@@ -1809,7 +1822,12 @@ namespace bpkg
         shared_ptr<selected_package>               selected;
         shared_ptr<available_package>              available;
         lazy_shared_ptr<bpkg::repository_fragment> repository_fragment;
+
+        // @@ MULT-SYS Make it of optional<version> type as
+        //    build_package::system (see above for details).
+        //
         bool                                       system;
+
         bool                                       specified_dependency;
         bool                                       force;
 
@@ -2114,6 +2132,11 @@ namespace bpkg
 
                 // A stub satisfies any version constraint so we weed them out
                 // (returning stub as an available package feels wrong).
+                //
+                // For a system selected package we still create a stub, but
+                // with a fixed system version (see
+                // available_package(package_name, version_type) constructor
+                // for details).
                 //
                 if (dap == nullptr || dap->stub ())
                   rp = make_available_fragment (options, *ddb, dsp);
@@ -2457,7 +2480,7 @@ namespace bpkg
                 // version constraint). If it were, then the system version
                 // wouldn't be NULL and would satisfy itself.
                 //
-                if (dap->system_version (*ddb) == nullptr)
+                if (dap->system_versions (*ddb) == nullptr)
                 {
                   if (dr != nullptr)
                     *dr << error << "dependency " << d << " of package "
@@ -2468,6 +2491,10 @@ namespace bpkg
                   return precollect_result (false /* postpone */);
                 }
 
+                // @@ MULT-SYS Go through all sys versions and only if none
+                //    satisfying found, only then fail. Otherwise save the
+                //    satisfying version to the `system` variable.
+                //
                 if (!satisfies (*dap->system_version (*ddb), d.constraint))
                 {
                   if (dr != nullptr)
@@ -2485,6 +2512,9 @@ namespace bpkg
               }
               else
               {
+                // @@ MULT-SYS Go through all sys versions and if there is a
+                //    satisfying one, the save it into the `system` variable.
+                //
                 auto p (dap->system_version_authoritative (*ddb));
 
                 if (p.first != nullptr &&
@@ -2500,14 +2530,14 @@ namespace bpkg
               reused = false;
 
             r.push_back (prebuild {d,
-                  *ddb,
-                  move (dsp),
-                  move (dap),
-                  move (rp.second),
-                  system,
-                  specified,
-                  force,
-                  ru});
+                                   *ddb,
+                                   move (dsp),
+                                   move (dap),
+                                   move (rp.second),
+                                   system,
+                                   specified,
+                                   force,
+                                   ru});
           }
 
           // Now, as we have pre-collected the dependency builds, go through
@@ -2537,6 +2567,10 @@ namespace bpkg
 
               if (bp.action && *bp.action == build_package::build)
               {
+                // @@ MULT-SYS:
+                //
+                // const version& v1 (b.system ? *b.system : dap->version);
+                //
                 const version& v1 (b.system
                                    ? *dap->system_version (b.db)
                                    : dap->version);
@@ -3985,7 +4019,7 @@ namespace bpkg
     package_key pk (db, sp->name);
 
     // If there is an entry for building specific version of the package (the
-    // available member is not NULL), then it wasn't created to prevent out
+    // available member is not NULL), then it wasn't created to prevent our
     // drop (see replaced_versions for details). This rather mean that the
     // replacement version is not being built anymore due to the plan
     // refinement. Thus, just erase the entry in this case and continue.
@@ -4000,6 +4034,11 @@ namespace bpkg
       {
         if (verb >= 5)
         {
+          // @@ MULT-SYS:
+          //
+          // const optional<version>& s (v.system);
+          // const version& av (s ? *s : ap->version);
+          //
           bool s (v.system);
           const version& av (s ? *ap->system_version (db) : ap->version);
 

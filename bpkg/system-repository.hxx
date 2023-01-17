@@ -20,23 +20,38 @@ namespace bpkg
   // that are present in the database; in a sence it was authoritative but
   // on some previous run.
   //
-  // Note that in our model we assume that once an authoritative version has
-  // been discovered, it does not change (on this run; see caching logic in
+  // Note that in our model we assume that once an authoritative versions have
+  // been discovered, they does not change (on this run; see caching logic in
   // available package).
   //
+  using system_package_versions = small_vector<version, 2>;
+
   struct system_package
   {
-    using version_type = bpkg::version;
-
-    version_type version;
+    system_package_versions versions;
     bool authoritative;
   };
 
   class system_repository
   {
   public:
-    const version&
-    insert (const package_name& name, const version&, bool authoritative);
+    // @@ Add move-insertion overloads (system_package_versions&& and
+    //    version&&)?
+    //
+
+    // Note: the system package versions are assumed to be provided in the
+    // preference descending order.
+    //
+    const system_package_versions&
+    insert (const package_name& name,
+            const system_package_versions&,
+            bool authoritative);
+
+    const system_package_versions&
+    insert (const package_name& n, const version& v, bool a)
+    {
+      return insert (n, system_package_versions ({v}), a);
+    }
 
     const system_package*
     find (const package_name& name)
