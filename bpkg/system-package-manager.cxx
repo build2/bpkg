@@ -31,16 +31,27 @@ namespace bpkg
 
     if (optional<os_release> osr = host_os_release (host))
     {
+      auto is_or_like = [&osr] (const char* id)
+      {
+        return (osr->name_id == id ||
+                find_if (osr->like_ids.begin (), osr->like_ids.end (),
+                         [id] (const string& n)
+                         {
+                           return n == id;
+                         }) != osr->like_ids.end ());
+      };
+
       if (host.class_ == "linux")
       {
-        if (osr->name_id == "debian" ||
-            osr->name_id == "ubuntu" ||
-            find_if (osr->like_ids.begin (), osr->like_ids.end (),
-                     [] (const string& n)
-                     {
-                       return n == "debian" || n == "ubuntu";
-                     }) != osr->like_ids.end ())
+        if (is_or_like ("debian") ||
+            is_or_like ("ubuntu"))
         {
+          // If we recognized this as Debian-like in an ad hoc manner, then
+          // add debian to like_ids.
+          //
+          if (osr->name_id != "debian" && !is_or_like ("debian"))
+            osr->like_ids.push_back ("debian");
+
           // @@ TODO: verify name if specified.
 
           // @@ TMP
@@ -64,7 +75,7 @@ namespace bpkg
   system_package_names (const available_packages& aps,
                         const string& name_id,
                         const string& version_id,
-                        const string& like_id)
+                        const vector<string>& like_ids)
   {
     assert (!aps.empty ());
 
@@ -169,20 +180,30 @@ namespace bpkg
     //
     values vs (name_values (name_id, vid));
 
-    // If the resulting list is empty and the like id is specified, then
+    // If the resulting list is empty and the like ids are specified, then
     // re-collect but now using the like id and "0" version id instead.
     //
-    if (vs.empty () && !like_id.empty ())
-      vs = name_values (like_id, semantic_version (0, 0, 0));
+    if (vs.empty ())
+    {
+      for (const string& like_id: like_ids)
+      {
+        vs = name_values (like_id, semantic_version (0, 0, 0));
+        if (!vs.empty ())
+          break;
+      }
+    }
 
     // Return the values of the collected name/values list.
     //
     strings r;
-    r.reserve (vs.size ());
+    if (size_t n = vs.size ())
+    {
+      r.reserve (n);
 
-    transform (vs.begin (), vs.end (),
-               back_inserter (r),
-               [] (const distribution_name_value& v) {return v.value;});
+      transform (vs.begin (), vs.end (),
+                 back_inserter (r),
+                 [] (const distribution_name_value& v) {return v.value;});
+    }
 
     return r;
   }
