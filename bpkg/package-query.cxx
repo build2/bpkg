@@ -315,9 +315,7 @@ namespace bpkg
   // revisions.
   //
   static void
-  sort_dedup (vector<pair<shared_ptr<available_package>,
-                          lazy_shared_ptr<repository_fragment>>>& pfs,
-              bool suppress_older_revisions = false)
+  sort_dedup (available_packages& pfs, bool suppress_older_revisions = false)
   {
     sort (pfs.begin (), pfs.end (),
           [] (const auto& x, const auto& y)
@@ -335,14 +333,12 @@ namespace bpkg
       pfs.end ());
   }
 
-  vector<pair<shared_ptr<available_package>,
-              lazy_shared_ptr<repository_fragment>>>
+  available_packages
   find_available (const linked_databases& dbs,
                   const package_name& name,
                   const optional<version_constraint>& c)
   {
-    vector<pair<shared_ptr<available_package>,
-                lazy_shared_ptr<repository_fragment>>> r;
+    available_packages r;
 
     for (database& db: dbs)
     {
@@ -380,15 +376,13 @@ namespace bpkg
     return r;
   }
 
-  vector<pair<shared_ptr<available_package>,
-              lazy_shared_ptr<repository_fragment>>>
+  available_packages
   find_available (const package_name& name,
                   const optional<version_constraint>& c,
                   const config_repo_fragments& rfs,
                   bool prereq)
   {
-    vector<pair<shared_ptr<available_package>,
-                lazy_shared_ptr<repository_fragment>>> r;
+    available_packages r;
 
     for (const auto& dfs: rfs)
     {
@@ -550,8 +544,7 @@ namespace bpkg
     return make_pair (find_available (options, db, sp), nullptr);
   }
 
-  vector<pair<shared_ptr<available_package>,
-              lazy_shared_ptr<repository_fragment>>>
+  available_packages
   find_available_all (const linked_databases& dbs,
                       const package_name& name,
                       bool suppress_older_revisions)
@@ -591,8 +584,7 @@ namespace bpkg
 
     // Collect all the available packages from all the collected databases.
     //
-    vector<pair<shared_ptr<available_package>,
-                lazy_shared_ptr<repository_fragment>>> r;
+    available_packages r;
 
     for (database& db: all_dbs)
     {

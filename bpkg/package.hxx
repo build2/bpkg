@@ -882,6 +882,15 @@ namespace bpkg
     available_package () = default;
   };
 
+  // The available packages together with the repository fragments they belong
+  // to.
+  //
+  // Note that lazy_shared_ptr is used to also convey the databases the
+  // objects belong to.
+  //
+  using available_packages = vector<pair<shared_ptr<available_package>,
+                                         lazy_shared_ptr<repository_fragment>>>;
+
   #pragma db view object(available_package)
   struct available_package_count
   {

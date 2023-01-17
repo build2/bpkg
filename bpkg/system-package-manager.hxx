@@ -10,6 +10,7 @@
 #include <bpkg/types.hxx>
 #include <bpkg/utility.hxx>
 
+#include <bpkg/package.hxx>
 #include <bpkg/host-os-release.hxx>
 
 namespace bpkg
@@ -71,8 +72,8 @@ namespace bpkg
     // something more elaborate, like translate version_id to the like_id's
     // version and try that).
     //
-    static vector<string>
-    system_package_names (/*const available_packages&,*/
+    static strings
+    system_package_names (const available_packages&,
                           const string& name_id,
                           const string& version_id,
                           const string& like_id);

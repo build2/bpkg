@@ -538,9 +538,7 @@ namespace bpkg
     else if (!dsys || !wildcard (*dvc))
       c = dvc;
 
-    vector<pair<shared_ptr<available_package>,
-                lazy_shared_ptr<repository_fragment>>> afs (
-      find_available (nm, c, rfs));
+    available_packages afs (find_available (nm, c, rfs));
 
     if (afs.empty () && dsys && c)
       afs = find_available (nm, nullopt, rfs);

@@ -81,8 +81,7 @@ namespace bpkg
   // Note that we return (loaded) lazy_shared_ptr in order to also convey
   // the database to which it belongs.
   //
-  vector<pair<shared_ptr<available_package>,
-              lazy_shared_ptr<repository_fragment>>>
+  available_packages
   find_available (const linked_databases&,
                   const package_name&,
                   const optional<version_constraint>&);
@@ -94,8 +93,8 @@ namespace bpkg
   using config_repo_fragments =
     database_map<vector<shared_ptr<repository_fragment>>>;
 
-  vector<pair<shared_ptr<available_package>,
-              lazy_shared_ptr<repository_fragment>>>
+
+  available_packages
   find_available (const package_name&,
                   const optional<version_constraint>&,
                   const config_repo_fragments&,
@@ -182,10 +181,7 @@ namespace bpkg
   // Note that we return (loaded) lazy_shared_ptr in order to also convey
   // the database to which it belongs.
   //
-  // @@ Add available_packages typedef and use everywhere.
-  //
-  vector<pair<shared_ptr<available_package>,
-              lazy_shared_ptr<repository_fragment>>>
+  available_packages
   find_available_all (const linked_databases&,
                       const package_name&,
                       bool suppress_older_revisions = true);
