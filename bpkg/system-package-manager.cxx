@@ -101,17 +101,10 @@ namespace bpkg
 
         for (const distribution_name_value& nv: ap->distribution_values)
         {
-          const string& nm (nv.name);
-
-          // @@ TODO
-          //
-          // optional<string>
-          // distribution_name_value::distribution (const string& suffix);
-          //
-          if (nm.size () > 5 && nm.compare (nm.size () - 5, 5, "-name") == 0)
+          if (optional<string> d = nv.distribution ("-name"))
           {
-            string dn (nm, 0, nm.size () - 5); // <name>[_<version>]
-            size_t p (dn.rfind ('_'));         // Version-separating underscore.
+            string dn (move (*d));     // <name>[_<version>]
+            size_t p (dn.rfind ('_')); // Version-separating underscore.
 
             // If '_' separator is present, then make sure that the right-hand
             // part looks like a version (not empty and only contains digits
@@ -147,15 +140,10 @@ namespace bpkg
             }
             catch (const invalid_argument& e)
             {
-              // @@ []
-              //
-              const string& db (a.second.database ().string);
-
-              fail << "invalid distribution version in value " << nm
+              fail << "invalid distribution version in value " << nv.name
                    << " for package " << ap->id.name << ' ' << ap->version
-                   << (!db.empty () ? ' ' + db : empty_string)
-                   << " in repository " << a.second.load ()->location << ": "
-                   << e;
+                   << a.second.database () << " in repository "
+                   << a.second.load ()->location << ": " << e;
             }
 
             dn.resize (p);
@@ -163,8 +151,8 @@ namespace bpkg
             if (dn == n &&
                 dv <= v &&
                 find_if (r.begin (), r.end (),
-                         [&nm, &nv] (const distribution_name_value& v)
-                         {return v.name == nm || v.value == nv.value;}) ==
+                         [&nv] (const distribution_name_value& v)
+                         {return v.name == nv.name || v.value == nv.value;}) ==
                 r.end ())
             {
               r.push_back (nv);
