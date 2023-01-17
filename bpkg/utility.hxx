@@ -10,7 +10,7 @@
 #include <cstring>   // strcmp(), strchr()
 #include <utility>   // move(), forward(), declval(), make_pair()
 #include <cassert>   // assert()
-#include <iterator>  // make_move_iterator()
+#include <iterator>  // make_move_iterator(), back_inserter()
 #include <algorithm> // *
 
 #include <libbutl/ft/lang.hxx>
@@ -33,6 +33,7 @@ namespace bpkg
   using std::make_pair;
   using std::make_shared;
   using std::make_move_iterator;
+  using std::back_inserter;
   using std::to_string;
 
   using std::strcmp;

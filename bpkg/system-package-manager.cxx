@@ -3,8 +3,6 @@
 
 #include <bpkg/system-package-manager.hxx>
 
-#include <iterator> // back_inserter
-
 #include <libbutl/semantic-version.hxx>
 
 #include <bpkg/package.hxx>
@@ -77,20 +75,20 @@ namespace bpkg
     }
     catch (const invalid_argument& e)
     {
-      fail << "invalid VERSION_ID '" << version_id << "' for " << name_id
-           << " operating system identification data: " << e;
+      fail << "invalid version '" << version_id << "' for " << name_id
+           << " operating system: " << e;
     }
 
     // Return those <name>[_<version>]-name distribution values of the
-    // specified available packages, whose <name> component matches the
+    // specified available packages whose <name> component matches the
     // specified distribution name and the <version> component (assumed as "0"
     // if not present) is less or equal the specified distribution version.
-    // Suppress the duplicate entries with the same name (so that distribution
+    // Suppress duplicate entries with the same name (so that distribution
     // values of the later available package versions are preferred) or value.
     //
     using values = vector<reference_wrapper<const distribution_name_value>>;
 
-    auto name_vals = [&aps] (const string& n, const semantic_version& v)
+    auto name_values = [&aps] (const string& n, const semantic_version& v)
     {
       values r;
       for (const auto& a: aps)
@@ -101,6 +99,11 @@ namespace bpkg
         {
           const string& nm (nv.name);
 
+          // @@ TODO
+          //
+          // optional<string>
+          // distribution_name_value::distribution (const string& suffix);
+          //
           if (nm.size () > 5 && nm.compare (nm.size () - 5, 5, "-name") == 0)
           {
             string dn (nm, 0, nm.size () - 5); // <name>[_<version>]
@@ -140,11 +143,13 @@ namespace bpkg
             }
             catch (const invalid_argument& e)
             {
-              const std::string& s (a.second.database ().string);
+              // @@ []
+              //
+              const string& db (a.second.database ().string);
 
-              fail << "invalid distribution value " << nm << " for package "
-                   << ap->id.name << ' ' << ap->version
-                   << (!s.empty () ? ' ' + s : empty_string)
+              fail << "invalid distribution version in value " << nm
+                   << " for package " << ap->id.name << ' ' << ap->version
+                   << (!db.empty () ? ' ' + db : empty_string)
                    << " in repository " << a.second.load ()->location << ": "
                    << e;
             }
@@ -170,13 +175,13 @@ namespace bpkg
     // Collect the <distribution>-name values that match the name id and refer
     // to the version which is less or equal than the version id.
     //
-    values vs (name_vals (name_id, vid));
+    values vs (name_values (name_id, vid));
 
     // If the resulting list is empty and the like id is specified, then
     // re-collect but now using the like id and "0" version id instead.
     //
     if (vs.empty () && !like_id.empty ())
-      vs = name_vals (like_id, semantic_version (0, 0, 0));
+      vs = name_values (like_id, semantic_version (0, 0, 0));
 
     // Return the values of the collected name/values list.
     //
