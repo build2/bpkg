@@ -17,7 +17,7 @@ namespace bpkg
   class system_package_manager_debian: public system_package_manager
   {
   public:
-    virtual const vector<package_status>*
+    virtual const vector<unique_ptr<system_package_status>>*
     pkg_status (const package_name&,
                 const available_packages*,
                 bool install,

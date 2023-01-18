@@ -118,9 +118,34 @@ namespace bpkg
   //
   using butl::diag_stream;
   using butl::diag_epilogue;
+  using butl::diag_frame;
 
   // Diagnostic facility, project specifics.
   //
+  template <typename F>
+  struct diag_frame_impl: diag_frame
+  {
+    explicit
+    diag_frame_impl (F f): diag_frame (&thunk), func_ (move (f)) {}
+
+  private:
+    static void
+    thunk (const diag_frame& f, const butl::diag_record& r)
+    {
+      static_cast<const diag_frame_impl&> (f).func_ (
+        static_cast<const diag_record&> (r));
+    }
+
+    const F func_;
+  };
+
+  template <typename F>
+  inline diag_frame_impl<F>
+  make_diag_frame (F f)
+  {
+    return diag_frame_impl<F> (move (f));
+  }
+
   struct simple_prologue_base
   {
     explicit
@@ -184,7 +209,7 @@ namespace bpkg
     basic_mark_base (const char* type,
                      const char* name = nullptr,
                      const void* data = nullptr,
-                     diag_epilogue* epilogue = nullptr)
+                     diag_epilogue* epilogue = &diag_frame::apply)
         : type_ (type), name_ (name), data_ (data), epilogue_ (epilogue) {}
 
     simple_prologue
@@ -288,6 +313,7 @@ namespace bpkg
                            data,
                            [](const diag_record& r, butl::diag_writer* w)
                            {
+                             diag_frame::apply (r);
                              r.flush (w);
                              throw failed ();
                            }) {}

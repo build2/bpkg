@@ -20,60 +20,44 @@ namespace bpkg
   // The system package manager interface. Used by both pkg-build (to query
   // and install system packages) and by pkg-bindist (to build them).
   //
+  class system_package_status
+  {
+  public:
+    // Downstream (as in, bpkg package) version.
+    //
+    bpkg::version version;
+
+    // The system package can be either "available already installed",
+    // "available partially installed" (for example, libfoo but not
+    // libfoo-dev is installed) or "available not yet installed".
+    //
+    // Whether not_installed versions can be returned along with installed
+    // or partially_installed depends on whether the packager manager can
+    // install multiple versions side-by-side.
+    //
+    enum status_type {installed, partially_installed, not_installed};
+
+    status_type status = not_installed;
+
+    // System (as in, distribution package) name and version.
+    //
+    // @@ But these could be multiple. Do we really need this?
+    // @@ Can now probably provide as virtual functions.
+    /*
+    string system_name;
+    string system_version;
+    */
+
+  public:
+    virtual
+    ~system_package_status ();
+
+    system_package_status () = default;
+  };
+
   class system_package_manager
   {
   public:
-    struct package_status
-    {
-      // Downstream (as in, bpkg package) version.
-      //
-      bpkg::version version;
-
-      // The system package can be either "available already installed",
-      // "available partially installed" (for example, libfoo but not
-      // libfoo-dev is installed) or "available not yet installed".
-      //
-      // Whether not_installed versions can be returned along with installed
-      // or partially_installed depends on whether the packager manager can
-      // install multiple versions side-by-side.
-      //
-      enum {installed, partially_installed, not_installed} status;
-
-      // System (as in, distribution package) name and version.
-      //
-      // @@ But these could be multiple. Do we really need this?
-      /*
-      string system_name;
-      string system_version;
-      */
-
-      // Package manager implementation-specific data.
-      //
-    public:
-      using data_ptr = unique_ptr<void, void (*) (void*)>;
-
-      template <typename T>
-      T&
-      data () { return *static_cast<T*> (data_.get ()); }
-
-      template <typename T>
-      const T&
-      data () const { return *static_cast<const T*> (data_.get ()); }
-
-      template <typename T>
-      T&
-      data (T* d)
-      {
-        data_ = data_ptr (d, [] (void* p) { delete static_cast<T*> (p); });
-        return *d;
-      }
-
-      static void
-      null_data_deleter (void* p) { assert (p == nullptr); }
-
-      data_ptr data_ = {nullptr, null_data_deleter};
-    };
-
     // Query the system package status.
     //
     // This function has two modes: cache-only (available_packages is NULL)
@@ -83,7 +67,13 @@ namespace bpkg
     // the available packages (for the name/version mapping information) if
     // really necessary.
     //
-    // The returned value can be empty, which indicates that no such package
+    // The returned list should be arranged in the preference order with the
+    // first entry having the highest preference. Normally this will be in the
+    // descending version order but can also be something more elaborate, such
+    // as the already installed or partially installed version coming first
+    // with the descending version order after that.
+    //
+    // The returned list can be empty, which indicates that no such package
     // is available from the system package manager. Note that empty is also
     // returned if no fully installed package is available from the system and
     // the install argument is false.
@@ -93,7 +83,7 @@ namespace bpkg
     // the available version of the not yet installed or partially installed
     // packages.
     //
-    virtual const vector<package_status>*
+    virtual const vector<unique_ptr<system_package_status>>*
     pkg_status (const package_name&,
                 const available_packages*,
                 bool install,
@@ -119,7 +109,8 @@ namespace bpkg
 
   protected:
     // Given the available packages (as returned by find_available_all())
-    // return the list of system package names.
+    // return the list of system package names as mapped by the
+    // <distribution>-name values.
     //
     // The name_id, version_id, and like_ids are the values from os_release
     // (refer there for background). If version_id is empty, then it's treated
@@ -140,15 +131,39 @@ namespace bpkg
     // something more elaborate, like translate version_id to the like_id's
     // version and try that).
     //
+    // @@ TODO: allow multiple -name values per same distribution and handle
+    //    here? E.g., libcurl4-openssl-dev libcurl4-gnutls-dev. But they will
+    //    have the same available version, how will we deal with that? How
+    //    will we pick one? Perhaps this should all be handled by the system
+    //    package manager (conceptually, this is configuration negotiation).
+    //
     static strings
     system_package_names (const available_packages&,
                           const string& name_id,
                           const string& version_id,
                           const vector<string>& like_ids);
 
+    // Given the system package version and available packages (as returned by
+    // find_available_all()) return the downstream package version as mapped
+    // by one of the <distribution>-to-downstream-version values.
+    //
+    // The rest of the arguments as well as the overalls semantics is the same
+    // as in system_package_names() above. That is, first consider
+    // <distribution>-to-downstream-version values corresponding to
+    // name_id. If none match, then repeat the above process for every
+    // like_ids entry with version_id equal 0. If still no match, then return
+    // nullopt.
+    //
+    static optional<version>
+    downstream_package_version (const string& system_version,
+                                const available_packages&,
+                                const string& name_id,
+                                const string& version_id,
+                                const vector<string>& like_ids);
   protected:
     os_release os_release_;
-    std::map<package_name, vector<package_status>> status_cache_;
+    std::map<package_name,
+             vector<unique_ptr<system_package_status>>> status_cache_;
   };
 
   // Create a package manager instance corresponding to the specified host

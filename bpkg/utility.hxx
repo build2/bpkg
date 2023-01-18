@@ -52,6 +52,7 @@ namespace bpkg
   using butl::trim;
   using butl::trim_left;
   using butl::trim_right;
+  using butl::next_word;
 
   using butl::make_guard;
   using butl::make_exception_guard;
