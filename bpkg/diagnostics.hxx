@@ -133,7 +133,7 @@ namespace bpkg
     thunk (const diag_frame& f, const butl::diag_record& r)
     {
       static_cast<const diag_frame_impl&> (f).func_ (
-        static_cast<const diag_record&> (r));
+        const_cast<diag_record&> (static_cast<const diag_record&> (r)));
     }
 
     const F func_;

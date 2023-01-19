@@ -81,8 +81,8 @@ namespace bpkg
   }
 
   // Return the version id parsed as a semantic version if it is not empty and
-  // the "0" semantic version otherwise. Issue diagnostics and fail on the
-  // parsing error.
+  // the "0" semantic version otherwise. Issue diagnostics and fail on parsing
+  // errors.
   //
   // Note: the name_id argument is only used for diagnostics.
   //
@@ -104,8 +104,8 @@ namespace bpkg
   }
 
   // Parse the <distribution> component of the specified <distribution>-*
-  // value into the distribution name and version (returne as "0" if not
-  // present). Issue diagnostics and fail on the parsing error.
+  // value into the distribution name and version (return as "0" if not
+  // present). Issue diagnostics and fail on parsing errors.
   //
   // Note: the value_name, ap, and af arguments are only used for diagnostics.
   //
@@ -118,8 +118,9 @@ namespace bpkg
     string dn (move (d));      // <name>[_<version>]
     size_t p (dn.rfind ('_')); // Version-separating underscore.
 
-    // If '_' separator is present, then make sure that the right-hand part
-    // looks like a version (is not empty and only contains digits and dots).
+    // If the '_' separator is present, then make sure that the right-hand
+    // part looks like a version (not empty and only contains digits and
+    // dots).
     //
     if (p != string::npos)
     {
@@ -264,7 +265,7 @@ namespace bpkg
     // specified one. Otherwise (the version is less), continue iterating
     // while preferring downstream version candidates for greater distribution
     // versions. Note that here we are trying to use a version mapping for the
-    // distribution version most close (but never greater) to the specified
+    // distribution version closest (but never greater) to the specified
     // distribution version. So, for example, if both following values contain
     // a matching mapping, then for debian 11 we prefer the downstream version
     // produced by the debian_10-to-downstream-version value:
@@ -273,8 +274,8 @@ namespace bpkg
     // debian_10-to-downstream-version
     //
     auto downstream_version = [&aps, &system_version]
-                              (const string& n, const semantic_version& v)
-      -> optional<version>
+                              (const string& n,
+                               const semantic_version& v) -> optional<version>
     {
       optional<version> r;
       semantic_version rv;

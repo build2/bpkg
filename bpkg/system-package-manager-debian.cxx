@@ -220,6 +220,191 @@ namespace bpkg
     return r;
   }
 
+  // Obtain the installed and candidate versions for the specified list
+  // of Debian packages by executing apt-cache policy.
+  //
+  struct package_policy
+  {
+    string name;
+    string installed_version; // Empty if none.
+    string candidate_version; // Empty if none.
+  };
+
+  static process_path apt_cache;
+
+  static void
+  apt_cache_policy (vector<package_policy>& pps)
+  {
+    assert (!pps.empty ());
+
+    // In particular, --quite makes sure we don't get a noice (N) printed to
+    // stderr if the package is unknown. It does not appear to affect error
+    // diagnostics (try temporarily renaming /var/lib/dpkg/status).
+    //
+    cstrings args {"apt-cache", "policy", "--quiet"};
+
+    for (const package_policy& pp: pps)
+    {
+      assert (!pp.name.empty ()             &&
+              pp.installed_version.empty () &&
+              pp.candidate_version.empty ());
+
+      args.push_back (pp.name.c_str ());
+    }
+
+    args.push_back (nullptr);
+
+    // Run with the C locale to make sure there is no localization. Note that
+    // this is not without potential drawbacks, see Debian bug #643787. But
+    // for now it seems to work and feels like the least of two potential
+    // evils.
+    //
+    const char* evars[] = {"LC_ALL=C", nullptr};
+
+    try
+    {
+      if (apt_cache.empty ())
+        apt_cache = process::path_search (args[0]);
+
+      process_env pe (apt_cache, evars);
+
+      if (verb >= 3)
+        print_process (pe, args);
+
+      // Redirect stdout to a pipe. For good measure also redirect stdin to
+      // /dev/null to make sure there are no prompts of any kind.
+      //
+      process pr (apt_cache,
+                  args,
+                  -2      /* stdin */,
+                  -1      /* stdout */,
+                  2       /* stderr */,
+                  nullptr /* cwd */,
+                  evars);
+      try
+      {
+        ifdstream is (move (pr.in_ofd), fdstream_mode::skip, ifdstream::badbit);
+
+        // The output of `apt-cache policy <pkg1> <pkg2> ...` are blocks of
+        // lines in the following form:
+        //
+        // <pkg1>:
+        //   Installed: 1.2.3-1
+        //   Candidate: 1.3.0-2
+        //   Version table:
+        //     <...>
+        // <pkg2>:
+        //   Installed: (none)
+        //   Candidate: 1.3.0+dfsg-2+b1
+        //   Version table:
+        //     <...>
+        //
+        // Where <...> are further lines indented with at least one space. If
+        // a package is unknown, then the entire block (including the first
+        // <pkg>: line) is omitted. The blocks appear in the same order as
+        // packages on the command line and multiple entries for the same
+        // package result in multiple corresponding blocks. It looks like
+        // there should be not blank lines but who really knows.
+        //
+        {
+          auto df = make_diag_frame (
+            [&pe, &args] (diag_record& dr)
+            {
+              dr << info << "while parsing output of ";
+              print_process (dr, pe, args);
+            });
+
+          auto i (pps.begin ());
+
+          string l;
+          for (getline (is, l); !eof (is); )
+          {
+            // Parse the first line of the block.
+            //
+            if (l.empty () || l.front () == ' ' || l.back () != ':')
+              fail << "expected package name instead of '" << l << "'";
+
+            l.pop_back ();
+
+            // Skip until this package.
+            //
+            for (; i != pps.end () && i->name != l; ++i) ;
+
+            if (i == pps.end ())
+              fail << "unexpected package name '" << l << "'";
+
+            auto parse_version = [&l] (const string& n) -> string
+            {
+              size_t s (n.size ());
+
+              if (l[0] == ' '              &&
+                  l[1] == ' '              &&
+                  l.compare (2, s, n) == 0 &&
+                  l[2 + s] == ':')
+              {
+                string v (l, 2 + s + 1);
+                trim (v);
+
+                if (!v.empty ())
+                  return v == "(none)" ? string () : move (v);
+              }
+
+              fail << "invalid " << n << " version line '" << l << "'" << endf;
+            };
+
+            // Get the installed version line.
+            //
+            if (eof (getline (is, l)))
+              fail << "expected Installed version line after package name";
+
+            i->installed_version = parse_version ("Installed");
+
+            // Get the candidate version line.
+            //
+            if (eof (getline (is, l)))
+              fail << "expected Candidate version line after Installed version";
+
+            i->installed_version = parse_version ("Candidate");
+
+            // Skip the rest of the indented lines (or blanks, just in case).
+            //
+            while (!eof (getline (is, l)) && (l.empty () || l.front () != ' ')) ;
+          }
+        }
+
+        is.close ();
+      }
+      catch (const io_error& e)
+      {
+        if (pr.wait ())
+          fail << "unable to read " << args[0] << " policy output: " << e;
+
+        // Fall through.
+      }
+
+      if (!pr.wait ())
+      {
+        diag_record dr (fail);
+        dr << args[0] << " policy exited with non-zero code";
+
+        if (verb < 3)
+        {
+          dr << "command line: ";
+          print_process (dr, pe, args);
+        }
+      }
+    }
+    catch (const process_error& e)
+    {
+      error << "unable to execute " << args[0] << ": " << e;
+
+      if (e.child)
+        exit (1);
+
+      throw failed ();
+    }
+  }
+
   optional<const system_package_status*>
   system_package_manager_debian::
   pkg_status (const package_name& pn,
@@ -239,13 +424,13 @@ namespace bpkg
         return nullptr;
     }
 
-    vector<unique_ptr<package_status_debian>> rs;
+    vector<unique_ptr<package_status_debian>> rs; // Candidates.
 
     // Translate our package name to the Debian package names.
     //
     {
       auto df = make_diag_frame (
-        [&pn] (const diag_record& dr)
+        [&pn] (diag_record& dr)
         {
           dr << info << "while mapping " << pn << " to Debian package name";
         });
@@ -312,6 +497,16 @@ namespace bpkg
     //
     unique_ptr<package_status_debian> r;
 
+    for (unique_ptr<package_status_debian>& c: rs)
+    {
+      vector<package_policy> pps;
+
+      // @@ TODO: rest of packages (and main can be empty).
+      //
+      pps.push_back (package_policy {c->main, "", ""});
+
+      apt_cache_policy (pps);
+    }
 
     // Next look for available versions if we are allowed to install.
     //
