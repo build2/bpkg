@@ -173,6 +173,7 @@ namespace bpkg
     optional<dir_path>           checkout_root;
     bool                         checkout_purge;
     strings                      config_vars;    // Only if not system.
+    const system_package_status* system_status;  // See struct pkg_arg.
   };
   using dependency_packages = vector<dependency_package>;
 
@@ -1537,6 +1538,12 @@ namespace bpkg
       string                       value;
       pkg_options                  options;
       strings                      config_vars;
+
+      // If schema is sys then this member indicated whether the constraint
+      // came from the system package manager (not NULL) or user/fallback
+      // (NULL).
+      //
+      const system_package_status* system_status;
     };
 
     auto arg_parsed = [] (const pkg_arg& a) {return !a.name.empty ();};
@@ -1663,65 +1670,88 @@ namespace bpkg
     //
     auto add_system_package = [] (database* db,
                                   const package_name& nm,
-                                  optional<version_constraint> vc)
+                                  optional<version_constraint> vc,
+                                  const system_package_status* sps,
+                                  vector<shared_ptr<available_package>>* stubs)
+      -> pair<version_constraint, const system_package_status*>
     {
       if (!vc)
       {
-        // @@ Where do we check that this package should have available
-        //    package (source or stub)? We will need to drag all such
-        //    available packages into this call in order to get the
-        //    name/version mappings.
-        //
-        //    We should probably try to find the mapping for the queried
-        //    distribution package version, evaluating regexes of available
-        //    packages queried from the current_configs databases, recursively
-        //    in both dependency/dependent directions (see
-        //    dependency_configs() and dependent_configs()), and ordered
-        //    descending by their versions (the later package version can
-        //    potentially fix a broken mapping).
-        //
-        //    If no mapping is found we should presumably fail.
-        //
-        // @@ We should probably cache the mappings of the system package
-        //    names to the resolved versions, not to repeat the system package
-        //    manager and the database queries during the simulated plan
-        //    execution iterations.
-        //
-        //    Good point. Feels like doing this in system_package_manager
-        //    (and making it global) is the way to go.
+        assert (sps == nullptr);
 
         // See if we should query the system package manager.
         //
         // @@ TODO: --sys-no-query
+        //          --sys-no-fetch
+        //          --sys-install
         //
+        bool query (!/*ops.sys_no_query ()*/ false);
+        bool fetch (!/*ops.sys_no_fetch ()*/ false);
+        bool install (/*ops.sys_install ()*/ false);
 
         if (!sys_pkg_mgr)
-          sys_pkg_mgr = /*ops.sys_no_query ()*/ false
-            ? nullptr
-            : make_system_package_manager (host_triplet, "" /* type */);
+          sys_pkg_mgr = query
+            ? make_system_package_manager (host_triplet, "" /* name */)
+            : nullptr;
 
         if (*sys_pkg_mgr != nullptr)
         {
-          // @@ TODO: query the version
+          system_package_manager& spm (**sys_pkg_mgr);
+
+          // First check the cache.
           //
-          //system_package_manager& spm (**sys_pkg_mgr);
+          optional<const system_package_status*> os (
+            spm.pkg_status (nm, nullptr, install, fetch));
 
-          // @@ TODO: if find_available_all() returns empty list, then this is
-          //    an error (no source/stub for the package). Issue diag similar
-          //    to other cases where we suggest specifing /*.
+          if (!os)
+          {
+            // If no cache hit, then collect the available packages for the
+            // mapping information.
+            //
+            available_packages aps (find_available_all (current_configs, nm));
 
-          //@@ TODO: if we extracted a version, then we need to add an entry
-          //   to the imaginary stubs (probably checking for duplicated), just
-          //   as if the user specified it explicitly.
+            // If no source/stub for the package (and thus no mapping), issue
+            // diagnostics consistent with other such places.
+            //
+            if (aps.empty ())
+              fail << "unknown package " << nm <<
+                info << "consider specifying " << nm << "/*";
+
+            os = spm.pkg_status (nm, &aps, install, fetch);
+
+            assert (os);
+          }
+
+          if ((sps = *os) != nullptr)
+            vc = version_constraint (sps->version);
+          else
+          {
+            diag_record dr (fail);
+
+            dr << "no installed " << (install ? " or available " : "")
+               << "system package for " << nm;
+
+            if (!install)
+              dr << info << "specify --sys-install to try to install it";
+          }
         }
         else
           vc = version_constraint (wildcard_version);
       }
       else
+      {
         // The system package may only have an exact/wildcard version
         // specified.
         //
         assert (vc->min_version == vc->max_version);
+
+        // For system packages not associated with a specific repository
+        // location add the stub package to the imaginary system repository
+        // (see below for details).
+        //
+        if (stubs != nullptr)
+          stubs->push_back (make_shared<available_package> (nm));
+      }
 
       if (db != nullptr)
       {
@@ -1729,45 +1759,23 @@ namespace bpkg
 
         const system_package* sp (db->system_repository->find (nm));
 
+        // Note that we don't check for the version match here since that's
+        // handled by check_dup() lambda at a later stage, which covers both
+        // db and no-db cases consistently.
+        //
         if (sp == nullptr || !sp->authoritative)
+        {
+          //@@ Need to note if this is "queried" system package which, if
+          //   selected, must be passed to pkg_install(). Also save the
+          //   system_version to show in the plan?
+
           db->system_repository->insert (nm,
                                          *vc->min_version,
                                          true /* authoritative */);
-
-        // @@ If it is authoritative, wouldn't it be a good idea to check that
-        //    the versions match?
-        //
-        //    Note that this check in a sense is performed by the check_dup()
-        //    lambda, but at some later stage. However, we could also check
-        //    here since we could issue more accurate diagnostics, before the
-        //    information if the version is specified by the user or is
-        //    resolved via the system package manager is lost (saving this
-        //    info to the system repository would also be helpful). So we
-        //    could print:
-        //
-        //    $ bpkg build { --config-name main }+ { ?sys:foo/1.0.0 ?sys:foo }
-        //      error: duplicate package foo
-        //        info: first mentioned as ?sys:foo/1.0.0 +{ --config-name main }
-        //        info: second resolved as ?sys:foo/2.0.0 +{ --config-name main }
-        //
-        //    This won't work out of the box though for the no-db case, since
-        //    we will fail in check_dup() instead:
-        //
-        //    $ bpkg build ?sys:foo/1.0.0 ?sys:foo
-        //      error: duplicate package foo
-        //        info: first mentioned as ?sys:foo/1.0.0
-        //        info: second mentioned as ?sys:foo/2.0.0
-        //
-        //    We can probably fix that by inventing the
-        //    no_db_system_repository or some such, which add_system_package()
-        //    can use if db == NULL.
-        //
-        //    @@ Actually, I think this should just be assert() since the only
-        //       source of authoritative information is system package manager
-        //       and it caches its results.
+        }
       }
 
-      return vc;
+      return move (*vc);
     };
 
     // Create the parsed package argument. Issue diagnostics and fail if the
@@ -1779,7 +1787,9 @@ namespace bpkg
                         package_name nm,
                         optional<version_constraint> vc,
                         pkg_options os,
-                        strings vs) -> pkg_arg
+                        strings vs,
+                        vector<shared_ptr<available_package>>* stubs = nullptr)
+      -> pkg_arg
     {
       assert (!vc || !vc->empty ()); // May not be empty if present.
 
@@ -1806,7 +1816,11 @@ namespace bpkg
       {
       case package_scheme::sys:
         {
-          r.constraint = add_system_package (db, r.name, move (r.constraint));
+          assert (stubs != nullptr);
+
+          r.constraint = add_system_package (
+            db, r.name, move (r.constraint), stubs);
+
           break;
         }
       case package_scheme::none: break; // Nothing to do.
@@ -1891,13 +1905,6 @@ namespace bpkg
               parse_package_version_constraint (
                 s, sys, version_flags (sc), version_only (sc)));
 
-            // For system packages not associated with a specific repository
-            // location add the stub package to the imaginary system
-            // repository (see above for details).
-            //
-            if (sys && vc)
-              stubs.push_back (make_shared<available_package> (n));
-
             pkg_options& o (ps.options);
 
             // Disregard the (main) database for a system dependency with
@@ -1914,7 +1921,8 @@ namespace bpkg
                                              move (n),
                                              move (vc),
                                              move (o),
-                                             move (ps.config_vars)));
+                                             move (ps.config_vars),
+                                             &stubs));
           }
           else                           // Add unparsed.
             pkg_args.push_back (arg_raw (ps.db,
@@ -2148,7 +2156,8 @@ namespace bpkg
                                              move (n),
                                              move (vc),
                                              ps.options,
-                                             ps.config_vars));
+                                             ps.config_vars,
+                                             &stubs));
           }
         }
       }
@@ -3269,7 +3278,7 @@ namespace bpkg
           // The system package may only have an exact/wildcard version
           // specified.
           //
-          add_system_package (&db, p.name, p.constraint);
+          add_system_package (&db, p.name, p.constraint, nullptr /* stubs */);
           enter (db, p);
         };
 

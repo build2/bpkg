@@ -26,7 +26,7 @@ namespace bpkg
   // satisfaction machinery, the rabbit hole goes deeper than that since, for
   // example, different bpkg packages can be mapped to the same system
   // package, as is the case for libcrypto/libssl which are both mapped to
-  // libssl on Debian.  This means we will need to somehow coordinate (and
+  // libssl on Debian. This means we will need to somehow coordinate (and
   // likely backtrack) version selection between unrelated bpkg packages
   // because only one underlying system version can be selected. (One
   // simplified way to handle this would be to detect that different versions
