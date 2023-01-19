@@ -306,38 +306,33 @@ namespace bpkg
               // Parse the distribution value into the regex pattern and the
               // replacement.
               //
-              const string& val (nv.value);
-
-              if (val[0] != '/')
-                bad_value ("first character must be '/'");
-
-              if (val.size () < 2 || val.back () != '/')
-                bad_value ("last character must be '/'");
-
-              // Find '/' which separates the pattern and replacement
-              // components. For good measure, search backwards from position
-              // which preceeds the trailing '/'.
+              // Note that in the future we may add support for some regex
+              // flags.
               //
-              size_t p (val.rfind ('/', val.size () - 2));
-              assert (p != string::npos); // There is always the leading '/'.
+              pair<string, string> rep;
+              try
+              {
+                size_t end;
+                const string& val (nv.value);
+                rep = regex_replace_parse (val.c_str (), val.size (), end);
+              }
+              catch (const invalid_argument& e)
+              {
+                bad_value (e.what ());
+              }
 
-              if (p == 0)
-                bad_value ("no replacement component");
-
-              string pat (val, 1, p - 1);
-              string rep (val, p + 1, val.size () - p - 2);
-
-              // Match the regex and skip it if it doesn't match or proceed to
-              // parsing the downstream version resulting from the regex
-              // replacement otherwise.
+              // Match the regex pattern against the system version and skip
+              // the value if it doesn't match or proceed to parsing the
+              // downstream version resulting from the regex replacement
+              // otherwise.
               //
               string dv;
               try
               {
-                regex re (pat, regex::ECMAScript);
+                regex re (rep.first, regex::ECMAScript);
 
                 pair<string, bool> rr (
-                  regex_replace_match (system_version, re, rep));
+                  regex_replace_match (system_version, re, rep.second));
 
                 // Skip the regex if it doesn't match.
                 //
@@ -351,7 +346,7 @@ namespace bpkg
                 // Print regex_error description if meaningful (no space).
                 //
                 ostringstream os;
-                os << "invalid regex pattern '" << pat << "'" << e;
+                os << "invalid regex pattern '" << rep.first << "'" << e;
                 bad_value (os.str ());
               }
 
@@ -383,36 +378,6 @@ namespace bpkg
               {
                 bad_value ("resulting downstream version '" + dv +
                            "' is invalid: " + e.what ());
-              }
-            }
-          }
-          //
-          // Try to also deduce the downstream version using the *-version
-          // distribution value.
-          //
-          else if (!ap->stub ())
-          {
-            // Note that the below logic is a simplified version of the above
-            // *-to-downstream-version value handling.
-            //
-            if (optional<string> d = nv.distribution ("-version"))
-            {
-              pair<string, semantic_version> dnv (
-                parse_distribution (move (*d), nv.name, ap, a.second));
-
-              if (dnv.first == n && dnv.second <= v)
-              {
-                if (nv.value == system_version)
-                {
-                  if (dnv.second == v)
-                    return ap->version;
-
-                  if (!r || rv < dnv.second)
-                  {
-                    r = ap->version;
-                    rv = move (dnv.second);
-                  }
-                }
               }
             }
           }
