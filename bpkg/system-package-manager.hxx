@@ -84,8 +84,14 @@ namespace bpkg
     //
     bpkg::version version;
 
-    // System (as in, distribution package) version.
+    // System (as in, distribution package) package name and version for
+    // diagnostics.
     //
+    // Note that this status may represent multiple system packages (for
+    // example, libssl3 and libssl3-dev) and here we have the main package
+    // name (for example, libssl3).
+    //
+    string system_name;
     string system_version;
 
     // The system package can be either "available already installed",

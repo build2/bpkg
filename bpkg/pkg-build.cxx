@@ -1764,14 +1764,10 @@ namespace bpkg
         // db and no-db cases consistently.
         //
         if (sp == nullptr || !sp->authoritative)
-        {
-          //@@ Also save the system_version to show in the plan?
-
           db->system_repository->insert (nm,
                                          *vc->min_version,
                                          true /* authoritative */,
                                          sps);
-        }
       }
 
       return make_pair (move (*vc), sps);
