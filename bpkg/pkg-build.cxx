@@ -1539,7 +1539,7 @@ namespace bpkg
       pkg_options                  options;
       strings                      config_vars;
 
-      // If schema is sys then this member indicated whether the constraint
+      // If schema is sys then this member indicates whether the constraint
       // came from the system package manager (not NULL) or user/fallback
       // (NULL).
       //
@@ -1765,17 +1765,16 @@ namespace bpkg
         //
         if (sp == nullptr || !sp->authoritative)
         {
-          //@@ Need to note if this is "queried" system package which, if
-          //   selected, must be passed to pkg_install(). Also save the
-          //   system_version to show in the plan?
+          //@@ Also save the system_version to show in the plan?
 
           db->system_repository->insert (nm,
                                          *vc->min_version,
-                                         true /* authoritative */);
+                                         true /* authoritative */,
+                                         sps);
         }
       }
 
-      return move (*vc);
+      return make_pair (move (*vc), sps);
     };
 
     // Create the parsed package argument. Issue diagnostics and fail if the
@@ -1796,8 +1795,14 @@ namespace bpkg
       if (db == nullptr)
         assert (sc == package_scheme::sys && os.dependency ());
 
-      pkg_arg r {
-        db, sc, move (nm), move (vc), string (), move (os), move (vs)};
+      pkg_arg r {db,
+                 sc,
+                 move (nm),
+                 move (vc),
+                 string () /* value */,
+                 move (os),
+                 move (vs),
+                 nullptr /* system_status */};
 
       // Verify that the package database is specified in the multi-config
       // mode, unless this is a system dependency package.
@@ -1818,9 +1823,14 @@ namespace bpkg
         {
           assert (stubs != nullptr);
 
-          r.constraint = add_system_package (
-            db, r.name, move (r.constraint), stubs);
+          auto sp (add_system_package (db,
+                                       r.name,
+                                       move (r.constraint),
+                                       nullptr /* system_package_status */,
+                                       stubs));
 
+          r.constraint = move (sp.first);
+          r.system_status = sp.second;
           break;
         }
       case package_scheme::none: break; // Nothing to do.
@@ -1842,7 +1852,8 @@ namespace bpkg
                       nullopt /* constraint */,
                       move (v),
                       move (os),
-                      move (vs)};
+                      move (vs),
+                      nullptr /* system_status */};
     };
 
     vector<pkg_arg> pkg_args;
@@ -2230,7 +2241,7 @@ namespace bpkg
              !compare_options (a.options, pa.options) ||
              a.config_vars != pa.config_vars))
           fail << "duplicate package " << pa.name <<
-            info << "first mentioned as " << arg_string (r.first->second) <<
+            info << "first mentioned as " << arg_string (a) <<
             info << "second mentioned as " << arg_string (pa);
 
         return !r.second;
@@ -2601,7 +2612,8 @@ namespace bpkg
                                  ? move (pa.options.checkout_root ())
                                  : optional<dir_path> ()),
                                 pa.options.checkout_purge (),
-                                move (pa.config_vars)});
+                                move (pa.config_vars),
+                                pa.system_status});
           continue;
         }
 
@@ -2661,7 +2673,7 @@ namespace bpkg
           //
           if (pa.constraint)
           {
-            for (;;)
+            for (;;) // Breakout loop.
             {
               if (ap != nullptr) // Must be that version, see above.
                 break;
@@ -3278,7 +3290,11 @@ namespace bpkg
           // The system package may only have an exact/wildcard version
           // specified.
           //
-          add_system_package (&db, p.name, p.constraint, nullptr /* stubs */);
+          add_system_package (&db,
+                              p.name,
+                              p.constraint,
+                              p.system_status,
+                              nullptr /* stubs */);
           enter (db, p);
         };
 

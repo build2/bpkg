@@ -12,6 +12,8 @@
 #include <bpkg/types.hxx>
 #include <bpkg/utility.hxx>
 
+#include <bpkg/system-package-manager.hxx>
+
 namespace bpkg
 {
   // A map of discovered system package versions. The information can be
@@ -30,13 +32,22 @@ namespace bpkg
 
     version_type version;
     bool authoritative;
+
+    // If the information is authoritative then this member indicates whether
+    // the version came from the system package manager (not NULL) or
+    // user/fallback (NULL).
+    //
+    const system_package_status* system_status;
   };
 
   class system_repository
   {
   public:
     const version&
-    insert (const package_name& name, const version&, bool authoritative);
+    insert (const package_name& name,
+            const version&,
+            bool authoritative,
+            const system_package_status* = nullptr);
 
     const system_package*
     find (const package_name& name)
