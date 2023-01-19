@@ -203,6 +203,8 @@ namespace bpkg
       {
         unique_ptr<package_status_debian> g (parse_group (gs[i]));
 
+        // @@ Shouldn't we filter some based on what we are installing?
+
         if (!g->main.empty ())   r->extras.push_back (move (g->main));
         if (!g->dev.empty ())    r->extras.push_back (move (g->dev));
         if (!g->doc.empty ())    r->extras.push_back (move (g->doc));
@@ -218,7 +220,7 @@ namespace bpkg
     return r;
   }
 
-  const vector<unique_ptr<package_status>>*
+  optional<const system_package_status*>
   system_package_manager_debian::
   pkg_status (const package_name& pn,
               const available_packages* aps,
@@ -231,13 +233,13 @@ namespace bpkg
       auto i (status_cache_.find (pn));
 
       if (i != status_cache_.end ())
-        return &i->second;
+        return i->second.get ();
 
       if (aps == nullptr)
         return nullptr;
     }
 
-    vector<unique_ptr<package_status>> r;
+    vector<unique_ptr<package_status_debian>> rs;
 
     // Translate our package name to the Debian package names.
     //
@@ -276,7 +278,7 @@ namespace bpkg
         else
           s.reset (new package_status_debian (n));
 
-        r.push_back (move (s));
+        rs.push_back (move (s));
       }
       else
       {
@@ -289,16 +291,15 @@ namespace bpkg
           // Suppress duplicates for good measure based on the main package
           // name (and falling back to -dev if empty).
           //
-          auto i (find_if (r.begin (), r.end (),
-                           [&s] (const unique_ptr<package_status>& x)
+          auto i (find_if (rs.begin (), rs.end (),
+                           [&s] (const unique_ptr<package_status_debian>& x)
                            {
-                             const package_status_debian& d (as_debian (x));
                              return s->main.empty ()
-                               ? s->dev == d.dev
-                               : s->main == d.main;
+                               ? s->dev == x->dev
+                               : s->main == x->main;
                            }));
-          if (i == r.end ())
-            r.push_back (move (s));
+          if (i == rs.end ())
+            rs.push_back (move (s));
           else
           {
             // @@ Should we verify the rest matches for good measure?
@@ -309,42 +310,12 @@ namespace bpkg
 
     // First look for an already installed package.
     //
+    unique_ptr<package_status_debian> r;
 
 
     // Next look for available versions if we are allowed to install.
     //
-    // We only do this if we don't have a package already installed. This is
-    // because while Debian generally supports installing multiple versions in
-    // parallel, this is unlikely to be supported for the packages we are
-    // interested in due to the underlying limitations.
-    //
-    // Specifically, the packages that we are primarily interested in are
-    // libraries with headers and executables (tools). While Debian is able to
-    // install multiple libraries in parallel, it normally can only install a
-    // single set of headers, static libraries, pkg-config files, etc., (i.e.,
-    // the -dev package) at a time due to them being installed into the same
-    // location (e.g., /usr/include). The same holds for executables, which
-    // are installed into the same location (e.g., /usr/bin).
-    //
-    // It is possible that a certain library has made arrangements for
-    // multiple of its versions to co-exist. For example, hypothetically, our
-    // libssl package could be mapped to both libssl1.1 libssl1.1-dev and
-    // libssl3 libssl3-dev which could be installed at the same time (note
-    // that it is not the case in reality; there is only libssl-dev). However,
-    // in this case, we should probably also have two packages with separate
-    // names (e.g., libssl and libssl3) that can also co-exist. An example of
-    // this would be libQt5Core and libQt6Core. (Note that strictly speaking
-    // there could be different degrees of co-existence: for the system
-    // package manager it is sufficient for different versions not to clobber
-    // each other's files while for us we may also need the ability to use
-    // different versions in the base build).
-    //
-    // Note also that the above reasoning is quite C/C++-centric and it's
-    // possible that multiple versions of libraries (or equivalent) for other
-    // languages (e.g., Rust) can always co-exist. In this case we may need to
-    // revise this decision.
-    //
-    if (install && r.empty ())
+    if (r == nullptr && install)
     {
       if (fetch && !fetched_)
       {
@@ -356,12 +327,13 @@ namespace bpkg
 
     // Cache.
     //
-    return &status_cache_.emplace (pn, move (r)).first->second;
+    return status_cache_.emplace (pn, move (r)).first->second.get ();
   }
 
-  bool system_package_manager_debian::
-  pkg_install (const package_name&, const version&)
+  void system_package_manager_debian::
+  pkg_install (const vector<package_name>&)
   {
-    return false;
+    assert (!installed_);
+    installed_ = true;
   }
 }

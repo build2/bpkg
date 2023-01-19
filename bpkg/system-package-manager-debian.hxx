@@ -4,6 +4,8 @@
 #ifndef BPKG_SYSTEM_PACKAGE_MANAGER_DEBIAN_HXX
 #define BPKG_SYSTEM_PACKAGE_MANAGER_DEBIAN_HXX
 
+#include <map>
+
 #include <bpkg/types.hxx>
 #include <bpkg/utility.hxx>
 
@@ -17,14 +19,14 @@ namespace bpkg
   class system_package_manager_debian: public system_package_manager
   {
   public:
-    virtual const vector<unique_ptr<system_package_status>>*
+    virtual optional<const system_package_status*>
     pkg_status (const package_name&,
                 const available_packages*,
                 bool install,
                 bool fetch) override;
 
-    virtual bool
-    pkg_install (const package_name&, const version&) override;
+    virtual void
+    pkg_install (const vector<package_name>&) override;
 
   public:
     // Note: expects os_release::name_id to be "debian" or os_release::like_id
@@ -35,7 +37,10 @@ namespace bpkg
         : system_package_manager (move (osr)) {}
 
   protected:
-    bool fetched_ = false; // True if already fetched metadata.
+    bool fetched_ = false;   // True if already fetched metadata.
+    bool installed_ = false; // True if already installed.
+
+    std::map<package_name, unique_ptr<system_package_status>> status_cache_;
   };
 }
 
