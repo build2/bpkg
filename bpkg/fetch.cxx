@@ -797,7 +797,7 @@ namespace bpkg
     }
     else if (o.curl_specified ())
     {
-      const path& p (path_ = o.fetch ());
+      const path& p (path_ = o.curl ());
 
       if (!check_curl (p))
         fail << p << " does not appear to be the 'curl' program";
