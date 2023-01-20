@@ -15,8 +15,9 @@
 
 namespace bpkg
 {
-  // The system package manager interface. Used by both pkg-build (to query
-  // and install system packages) and by pkg-bindist (to build them).
+  // The system/distribution package manager interface. Used by both pkg-build
+  // (to query and install system packages) and by pkg-bindist (to build
+  // them).
   //
   // Note that currently the result of a query is a single available version.
   // While some package managers may support having multiple available

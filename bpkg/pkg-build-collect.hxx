@@ -211,10 +211,16 @@ namespace bpkg
     //
     bool system;
 
-    // Return the binary distribution package status if this is a system
-    // package (re-)configuration, the package version has been resolved via
-    // the system package manager, and the binary distribution package needs
-    // to be installed. Otherwise, return NULL. So can be used as bool.
+    // Return the system/distribution package status if this is a system
+    // package (re-)configuration and the package is being managed by the
+    // system package manager (as opposed to user/fallback). Otherwise, return
+    // NULL (so can be used as bool).
+    //
+    const system_package_status*
+    system_status () const;
+
+    // As above but only return the status if the package needs to be
+    // installed.
     //
     const system_package_status*
     system_install () const;

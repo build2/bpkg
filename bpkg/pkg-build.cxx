@@ -4397,14 +4397,17 @@ namespace bpkg
         o.plan_specified () ||
         o.rebuild_checksum_specified ())
     {
-      // Map the system package statuses of the binary distribution packages
-      // that needs to be installed to the system packages which require their
-      // installation (see build_package::system_install() for details).
+      // Map the main system/distribution packages that need to be installed
+      // to the system packages which caused their installation (see
+      // build_package::system_install() for details).
       //
-      using sys_installs_map =
-        map<const system_package_status*, set<package_name>>;
+      // @@ Use main package for key.
+      // @@ Switch set to vector.
+      // @@ Terminology binary distribution package -> system/dis...
+      //
+      using system_map = map<const system_package_status*, set<package_name>>;
 
-      sys_installs_map sys_installs;
+      system_map sys_map;
 
       for (const build_package& p: pkgs)
       {
@@ -4421,12 +4424,12 @@ namespace bpkg
 
       // Print the bpkg package action lines.
       //
-      // Also print the sys_install action lines for system packages which
-      // require the binary distribution package installation. Print them
-      // before the respected system package action lines, but only once per
-      // binary distribution package. For example:
+      // Also print the system-install action lines for system/distribution
+      // packages which require installation by the system package manager.
+      // Print them before the respective system package action lines, but
+      // only once per (main) system/distribution package. For example:
       //
-      // system_install libssl1.1/1.1.1l (required by sys:libssl, sys:libcrypto)
+      // system-install libssl1.1/1.1.1l (required by sys:libssl, sys:libcrypto)
       // configure sys:libssl/1.1.1 (required by foo)
       // configure sys:libcrypto/1.1.1 (required by bar)
       //
@@ -4443,7 +4446,7 @@ namespace bpkg
         if ((s = p.system_install ()) != nullptr &&
             (j = sys_installs.find (s)) != sys_installs.end ())
         {
-          act = "system_install ";
+          act = "system-install ";
           act += s->system_name;
           act += '/';
           act += s->system_version;
