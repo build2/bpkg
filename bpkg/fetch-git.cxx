@@ -654,6 +654,31 @@ namespace bpkg
         return capabilities::smart;
       }
 
+      // Fail on any other HTTP error (e.g., 404). In the case of a success
+      // code other than 200 (e.g. 204 (No Content)) just let the capabilities
+      // detection to take its course.
+      //
+      if (ps.second != 0 && (ps.second < 200 || ps.second >= 300))
+      {
+        // Note that we don't care about the process exit code here (see above
+        // for the reasoning).
+        //
+        is.close ();
+
+        // Dump the potentially redirected process stderr stream content since
+        // it may be helpful to the user.
+        //
+        // Note, however, that we don't know if it really contains the error
+        // description since the fetch program may even exit successfully (see
+        // start_fetch_http() for details). Thus, we additionally print the
+        // HTTP status code in the diagnostics.
+        //
+        dump_stderr ();
+
+        fail << "unable to fetch " << url <<
+          info << "HTTP status code " << ps.second << endg;
+      }
+
       string l;
       getline (is, l); // Is empty if no refs returned by the dumb server.
 

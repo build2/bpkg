@@ -156,7 +156,9 @@ namespace bpkg
   // whether stderr is redirected by checking process::in_efd.
   //
   // In contrast to start_fetch() always fetch to stdout, which can be read by
-  // the caller from the specified stream.
+  // the caller from the specified stream. On HTTP errors (e.g., 404) this
+  // stream may contain the error description returned by the server and the
+  // process may exit with 0 code.
   //
   // If the quiet argument is true, then, if stderr is redirected, minimize
   // the amount of diagnostics printed by the fetch program by only printing

@@ -317,7 +317,6 @@ namespace bpkg
 
     cstrings args {
       prog.string ().c_str (),
-      "-f", // Fail on HTTP errors (e.g., 404).
       "-L", // Follow redirects.
       "-A", ua.c_str ()
     };
@@ -397,12 +396,24 @@ namespace bpkg
 
     // Status code.
     //
+    // Add the --include|-i option if HTTP status code needs to be retrieved
+    // in order to include the HTTP response headers to the output. Otherwise,
+    // add the --fail|-f option not to print the response body and exit with
+    // non-zero status code on HTTP error (e.g., 404), so that the caller can
+    // recognize the request failure.
+    //
+    // Note that older versions of curl (e.g., 7.55.1) ignore the --include|-i
+    // option in the presence of the --fail|-f option on HTTP errors and don't
+    // print the response status line and headers.
+    //
     if (out_is != nullptr)
     {
       assert (!fo); // Currently unsupported (see start_fetch() for details).
 
       args.push_back ("-i");
     }
+    else
+      args.push_back ("-f");
 
     args.push_back (url.c_str ());
     args.push_back (nullptr);
@@ -482,8 +493,8 @@ namespace bpkg
         assert (e != nullptr);
 
         return *e == '\0' && c >= 100 && c < 600
-        ? static_cast<uint16_t> (c)
-        : 0;
+               ? static_cast<uint16_t> (c)
+               : 0;
       };
 
       // Read the CRLF-terminated line from the stream stripping the trailing
@@ -535,10 +546,7 @@ namespace bpkg
         close_streams ();
 
         fail << "invalid HTTP response status line '" << l
-             << "' while fetching " << url;
-
-        assert (false); // Can't be here.
-        return 0;
+             << "' while fetching " << url << endf;
       };
 
       sc = read_status ();
