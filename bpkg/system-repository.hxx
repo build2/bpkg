@@ -50,7 +50,7 @@ namespace bpkg
             const system_package_status* = nullptr);
 
     const system_package*
-    find (const package_name& name)
+    find (const package_name& name) const
     {
       auto i (map_.find (name));
       return i != map_.end () ? &i->second : nullptr;

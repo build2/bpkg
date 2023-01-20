@@ -4397,6 +4397,21 @@ namespace bpkg
         o.plan_specified () ||
         o.rebuild_checksum_specified ())
     {
+      // Map the system package statuses of the binary distribution packages
+      // that needs to be installed to the system packages which require their
+      // installation (see build_package::system_install() for details).
+      //
+      using sys_installs_map =
+        map<const system_package_status*, set<package_name>>;
+
+      sys_installs_map sys_installs;
+
+      for (const build_package& p: pkgs)
+      {
+        if (const system_package_status* s = p.system_install ())
+          sys_installs[s].insert (p.name ());
+      }
+
       // Start the transaction since we may query available packages for
       // skeleton initializations.
       //
@@ -4404,200 +4419,250 @@ namespace bpkg
 
       bool first (true); // First entry in the plan.
 
-      for (build_package& p: reverse_iterate (pkgs))
+      // Print the bpkg package action lines.
+      //
+      // Also print the sys_install action lines for system packages which
+      // require the binary distribution package installation. Print them
+      // before the respected system package action lines, but only once per
+      // binary distribution package. For example:
+      //
+      // system_install libssl1.1/1.1.1l (required by sys:libssl, sys:libcrypto)
+      // configure sys:libssl/1.1.1 (required by foo)
+      // configure sys:libcrypto/1.1.1 (required by bar)
+      //
+      for (auto i (pkgs.rbegin ()); i != pkgs.rend (); )
       {
+        build_package& p (*i);
         assert (p.action);
-
-        database& pdb (p.db);
-        const shared_ptr<selected_package>& sp (p.selected);
 
         string act;
 
-        if (*p.action == build_package::drop)
+        const system_package_status* s;
+        sys_installs_map::iterator j;
+
+        if ((s = p.system_install ()) != nullptr &&
+            (j = sys_installs.find (s)) != sys_installs.end ())
         {
-          act = "drop " + sp->string (pdb) + " (unused)";
+          act = "system_install ";
+          act += s->system_name;
+          act += '/';
+          act += s->system_version;
+          act += " (required by ";
+
+          bool first (true);
+          for (const package_name& n: j->second)
+          {
+            if (first)
+              first = false;
+            else
+              act += ", ";
+
+            act += "sys:";
+            act += n.string ();
+          }
+
+          act += ')';
+
           need_prompt = true;
+
+          // Make sure that we print this system_install action just once.
+          //
+          sys_installs.erase (j);
         }
         else
         {
-          // Print configuration variables.
-          //
-          // The idea here is to only print configuration for those packages
-          // for which we call pkg_configure*() in execute_plan().
-          //
-          package_skeleton* cfg (nullptr);
+          ++i;
 
-          string cause;
-          if (*p.action == build_package::adjust)
+          database& pdb (p.db);
+          const shared_ptr<selected_package>& sp (p.selected);
+
+          if (*p.action == build_package::drop)
           {
-            assert (sp != nullptr && (p.reconfigure () || p.unhold ()));
-
-            // This is a dependent needing reconfiguration.
-            //
-            // This is an implicit reconfiguration which requires the plan to
-            // be printed. Will flag that later when composing the list of
-            // prerequisites.
-            //
-            if (p.reconfigure ())
-            {
-              act = "reconfigure";
-              cause = "dependent of";
-
-              if (!o.configure_only ())
-                update_dependents = true;
-            }
-
-            // This is a held package needing unhold.
-            //
-            if (p.unhold ())
-            {
-              if (act.empty ())
-                act = "unhold";
-              else
-                act += "/unhold";
-            }
-
-            act += ' ' + sp->name.string ();
-
-            const string& s (pdb.string);
-            if (!s.empty ())
-              act += ' ' + s;
-
-            // This is an adjustment and so there is no available package
-            // specified for the build package object and thus the skeleton
-            // cannot be present.
-            //
-            assert (p.available == nullptr && !p.skeleton);
-
-            // We shouldn't be printing configurations for plain unholds.
-            //
-            if (p.reconfigure ())
-            {
-              // Since there is no available package specified we need to find
-              // it (or create a transient one).
-              //
-              cfg = &p.init_skeleton (o, find_available (o, pdb, sp));
-            }
+            act = "drop " + sp->string (pdb) + " (unused)";
+            need_prompt = true;
           }
           else
           {
-            assert (p.available != nullptr); // This is a package build.
-
-            // Even if we already have this package selected, we have to
-            // make sure it is configured and updated.
+            // Print configuration variables.
             //
-            if (sp == nullptr)
+            // The idea here is to only print configuration for those packages
+            // for which we call pkg_configure*() in execute_plan().
+            //
+            package_skeleton* cfg (nullptr);
+
+            string cause;
+            if (*p.action == build_package::adjust)
             {
-              act = p.system ? "configure" : "new";
+              assert (sp != nullptr && (p.reconfigure () || p.unhold ()));
 
-              // For a new non-system package the skeleton must already be
-              // initialized.
+              // This is a dependent needing reconfiguration.
               //
-              assert (p.system || p.skeleton.has_value ());
-
-              // Initialize the skeleton if it is not initialized yet.
+              // This is an implicit reconfiguration which requires the plan
+              // to be printed. Will flag that later when composing the list
+              // of prerequisites.
               //
-              cfg = &(p.skeleton ? *p.skeleton : p.init_skeleton (o));
-            }
-            else if (sp->version == p.available_version ())
-            {
-              // If this package is already configured and is not part of the
-              // user selection (or we are only configuring), then there is
-              // nothing we will be explicitly doing with it (it might still
-              // get updated indirectly as part of the user selection update).
-              //
-              if (!p.reconfigure () &&
-                  sp->state == package_state::configured &&
-                  (!p.user_selection () ||
-                   o.configure_only ()  ||
-                   p.configure_only ()))
-                continue;
-
-              act = p.system
-                ? "reconfigure"
-                : (p.reconfigure ()
-                   ? (o.configure_only () || p.configure_only ()
-                      ? "reconfigure"
-                      : "reconfigure/update")
-                   : "update");
-
               if (p.reconfigure ())
               {
-                // Initialize the skeleton if it is not initialized yet.
+                act = "reconfigure";
+                cause = "dependent of";
+
+                if (!o.configure_only ())
+                  update_dependents = true;
+              }
+
+              // This is a held package needing unhold.
+              //
+              if (p.unhold ())
+              {
+                if (act.empty ())
+                  act = "unhold";
+                else
+                  act += "/unhold";
+              }
+
+              act += ' ' + sp->name.string ();
+
+              const string& s (pdb.string);
+              if (!s.empty ())
+                act += ' ' + s;
+
+              // This is an adjustment and so there is no available package
+              // specified for the build package object and thus the skeleton
+              // cannot be present.
+              //
+              assert (p.available == nullptr && !p.skeleton);
+
+              // We shouldn't be printing configurations for plain unholds.
+              //
+              if (p.reconfigure ())
+              {
+                // Since there is no available package specified we need to
+                // find it (or create a transient one).
                 //
-                cfg = &(p.skeleton ? *p.skeleton : p.init_skeleton (o));
+                cfg = &p.init_skeleton (o, find_available (o, pdb, sp));
               }
             }
             else
             {
-              act = p.system
-                ? "reconfigure"
-                : sp->version < p.available_version ()
-                  ? "upgrade"
-                  : "downgrade";
+              assert (p.available != nullptr); // This is a package build.
 
-              // For a non-system package up/downgrade the skeleton must
-              // already be initialized.
+              // Even if we already have this package selected, we have to
+              // make sure it is configured and updated.
               //
-              assert (p.system || p.skeleton.has_value ());
+              if (sp == nullptr)
+              {
+                act = p.system ? "configure" : "new";
 
-              // Initialize the skeleton if it is not initialized yet.
-              //
-              cfg = &(p.skeleton ? *p.skeleton : p.init_skeleton (o));
+                // For a new non-system package the skeleton must already be
+                // initialized.
+                //
+                assert (p.system || p.skeleton.has_value ());
 
-              need_prompt = true;
+                // Initialize the skeleton if it is not initialized yet.
+                //
+                cfg = &(p.skeleton ? *p.skeleton : p.init_skeleton (o));
+              }
+              else if (sp->version == p.available_version ())
+              {
+                // If this package is already configured and is not part of
+                // the user selection (or we are only configuring), then there
+                // is nothing we will be explicitly doing with it (it might
+                // still get updated indirectly as part of the user selection
+                // update).
+                //
+                if (!p.reconfigure () &&
+                    sp->state == package_state::configured &&
+                    (!p.user_selection () ||
+                     o.configure_only ()  ||
+                     p.configure_only ()))
+                  continue;
+
+                act = p.system
+                  ? "reconfigure"
+                  : (p.reconfigure ()
+                     ? (o.configure_only () || p.configure_only ()
+                        ? "reconfigure"
+                        : "reconfigure/update")
+                     : "update");
+
+                if (p.reconfigure ())
+                {
+                  // Initialize the skeleton if it is not initialized yet.
+                  //
+                  cfg = &(p.skeleton ? *p.skeleton : p.init_skeleton (o));
+                }
+              }
+              else
+              {
+                act += p.system
+                  ? "reconfigure"
+                  : sp->version < p.available_version ()
+                                  ? "upgrade"
+                                  : "downgrade";
+
+                // For a non-system package up/downgrade the skeleton must
+                // already be initialized.
+                //
+                assert (p.system || p.skeleton.has_value ());
+
+                // Initialize the skeleton if it is not initialized yet.
+                //
+                cfg = &(p.skeleton ? *p.skeleton : p.init_skeleton (o));
+
+                need_prompt = true;
+              }
+
+              if (p.unhold ())
+                act += "/unhold";
+
+              act += ' ' + p.available_name_version_db ();
+              cause = p.required_by_dependents ? "required by" : "dependent of";
+
+              if (p.configure_only ())
+                update_dependents = true;
             }
 
-            if (p.unhold ())
-              act += "/unhold";
-
-            act += ' ' + p.available_name_version_db ();
-            cause = p.required_by_dependents ? "required by" : "dependent of";
-
-            if (p.configure_only ())
-              update_dependents = true;
-          }
-
-          // Also list dependents for the newly built user-selected
-          // dependencies.
-          //
-          bool us (p.user_selection ());
-          string rb;
-          if (!us || (!p.user_selection (hold_pkgs) && sp == nullptr))
-          {
-            // Note: if we are ever tempted to truncate this, watch out for
-            // the --rebuild-checksum functionality which uses this. But then
-            // it's not clear this information is actually important: can a
-            // dependent-dependency structure change without any of the
-            // package versions changing? Doesn't feel like it should.
+            // Also list dependents for the newly built user-selected
+            // dependencies.
             //
-            for (const package_key& pk: p.required_by)
+            bool us (p.user_selection ());
+            string rb;
+            if (!us || (!p.user_selection (hold_pkgs) && sp == nullptr))
             {
-              // Skip the command-line dependent.
+              // Note: if we are ever tempted to truncate this, watch out for
+              // the --rebuild-checksum functionality which uses this. But
+              // then it's not clear this information is actually important:
+              // can a dependent-dependency structure change without any of
+              // the package versions changing? Doesn't feel like it should.
               //
-              if (!pk.name.empty ())
-                rb += (rb.empty () ? " " : ", ") + pk.string ();
+              for (const package_key& pk: p.required_by)
+              {
+                // Skip the command-line dependent.
+                //
+                if (!pk.name.empty ())
+                  rb += (rb.empty () ? " " : ", ") + pk.string ();
+              }
+
+              // If not user-selected, then there should be another (implicit)
+              // reason for the action.
+              //
+              assert (!rb.empty ());
             }
 
-            // If not user-selected, then there should be another (implicit)
-            // reason for the action.
-            //
-            assert (!rb.empty ());
+            if (!rb.empty ())
+              act += " (" + cause + rb + ')';
+
+            if (cfg != nullptr && !cfg->empty_print ())
+            {
+              ostringstream os;
+              cfg->print_config (os, o.print_only () ? "  " : "    ");
+              act += '\n';
+              act += os.str ();
+            }
+
+            if (!us)
+              need_prompt = true;
           }
-
-          if (!rb.empty ())
-            act += " (" + cause + rb + ')';
-
-          if (cfg != nullptr && !cfg->empty_print ())
-          {
-            ostringstream os;
-            cfg->print_config (os, o.print_only () ? "  " : "    ");
-            act += '\n';
-            act += os.str ();
-          }
-
-          if (!us)
-            need_prompt = true;
         }
 
         if (first)
@@ -4772,6 +4837,40 @@ namespace bpkg
                     o.progress ()));
 
     size_t prog_i, prog_n, prog_percent;
+
+    // system_install
+    //
+    // Install the binary distribution packages required by the respective
+    // system packages (see build_package::system_install() for details).
+    //
+    if (!simulate)
+    {
+      // Collect the names of the system packages which require installation
+      // of the binary distribution packages, suppressing duplicates.
+      //
+      vector<package_name> install_pkgs;
+
+      for (build_package& p: build_pkgs)
+      {
+        if (p.system_install ())
+        {
+          if (find (install_pkgs.begin (), install_pkgs.end (), p.name ()) !=
+              install_pkgs.end ())
+            install_pkgs.push_back (p.name ());
+        }
+      }
+
+      // Install the binary distribution packages, if any.
+      //
+      if (!install_pkgs.empty ())
+      {
+        // Otherwise, we wouldn't get any package statuses.
+        //
+        assert (sys_pkg_mgr && *sys_pkg_mgr != nullptr);
+
+        (*sys_pkg_mgr)->pkg_install (install_pkgs);
+      }
+    }
 
     // disfigure
     //

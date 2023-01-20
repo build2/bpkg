@@ -29,6 +29,31 @@ namespace bpkg
 {
   // build_package
   //
+  const system_package_status* build_package::
+  system_install () const
+  {
+    assert (action);
+
+    if (*action != build_package::drop && system)
+    {
+      const optional<system_repository>& sys_rep (db.get ().system_repository);
+      assert (sys_rep);
+
+      if (const system_package* sys_pkg = sys_rep->find (name ()))
+      {
+        const system_package_status* s (sys_pkg->system_status);
+
+        return s != nullptr &&
+               (s->status == system_package_status::partially_installed ||
+                s->status == system_package_status::not_installed)
+               ? s
+               : nullptr;
+      }
+    }
+
+    return nullptr;
+  }
+
   bool build_package::
   user_selection () const
   {

@@ -19,8 +19,9 @@
 #include <bpkg/common-options.hxx>
 #include <bpkg/pkg-build-options.hxx>
 
-#include <bpkg/pkg-configure.hxx>    // find_database_function()
+#include <bpkg/pkg-configure.hxx>          // find_database_function()
 #include <bpkg/package-skeleton.hxx>
+#include <bpkg/system-package-manager.hxx>
 
 namespace bpkg
 {
@@ -209,6 +210,14 @@ namespace bpkg
     // System package indicator. See also a note in the merge() function.
     //
     bool system;
+
+    // Return the binary distribution package status if this is a system
+    // package (re-)configuration, the package version has been resolved via
+    // the system package manager, and the binary distribution package needs
+    // to be installed. Otherwise, return NULL. So can be used as bool.
+    //
+    const system_package_status*
+    system_install () const;
 
     // If this flag is set and the external package is being replaced with an
     // external one, then keep its output directory between upgrades and
