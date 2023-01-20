@@ -841,7 +841,7 @@ namespace bpkg
     //
     #pragma db member(tests) id_column("") value_column("test_")
 
-    // distributions
+    // distribution_values
     //
     #pragma db member(distribution_values) id_column("") value_column("dist_")
 

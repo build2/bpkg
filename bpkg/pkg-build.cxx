@@ -4383,10 +4383,11 @@ namespace bpkg
     bool update_dependents (false);
 
     // We need the plan and to ask for the user's confirmation only if some
-    // implicit action (such as building prerequisite or reconfiguring
-    // dependent package) is to be taken or there is a selected package which
-    // version must be changed. But if the user explicitly requested it with
-    // --plan, then we print it as long as it is not empty.
+    // implicit action (such as building prerequisite, reconfiguring dependent
+    // package, or installing system/distribution packages) is to be taken or
+    // there is a selected package which version must be changed. But if the
+    // user explicitly requested it with --plan, then we print it as long as
+    // it is not empty.
     //
     string plan;
     sha256 csum;
@@ -4401,18 +4402,25 @@ namespace bpkg
       // to the system packages which caused their installation (see
       // build_package::system_install() for details).
       //
-      // @@ Use main package for key.
-      // @@ Switch set to vector.
-      // @@ Terminology binary distribution package -> system/dis...
-      //
-      using system_map = map<const system_package_status*, set<package_name>>;
+      using package_names = vector<reference_wrapper<const package_name>>;
+      using system_map = map<string, package_names>;
 
       system_map sys_map;
 
-      for (const build_package& p: pkgs)
+      // Iterate in the reverse order as we will do for printing the action
+      // lines. This way a sys-install action line will be printed right
+      // before the bpkg action line of a package which appears first in the
+      // sys-install action's 'required by' list.
+      //
+      for (const build_package& p: reverse_iterate (pkgs))
       {
         if (const system_package_status* s = p.system_install ())
-          sys_installs[s].insert (p.name ());
+        {
+          package_names& ps (sys_map[s->system_name]);
+
+          if (find (ps.begin (), ps.end (), p.name ()) == ps.end ())
+            ps.push_back (p.name ());
+        }
       }
 
       // Start the transaction since we may query available packages for
@@ -4441,10 +4449,10 @@ namespace bpkg
         string act;
 
         const system_package_status* s;
-        sys_installs_map::iterator j;
+        system_map::iterator j;
 
         if ((s = p.system_install ()) != nullptr &&
-            (j = sys_installs.find (s)) != sys_installs.end ())
+            (j = sys_map.find (s->system_name)) != sys_map.end ())
         {
           act = "system-install ";
           act += s->system_name;
@@ -4468,9 +4476,9 @@ namespace bpkg
 
           need_prompt = true;
 
-          // Make sure that we print this system_install action just once.
+          // Make sure that we print this system-install action just once.
           //
-          sys_installs.erase (j);
+          sys_map.erase (j);
         }
         else
         {
@@ -4727,13 +4735,14 @@ namespace bpkg
 
     // Ok, we have "all systems go". The overall action plan is as follows.
     //
-    // 1.  disfigure       up/down-graded, reconfigured [left to right]
-    // 2.  purge           up/down-graded               [right to left]
-    // 3.a fetch/unpack    new, up/down-graded
-    // 3.b checkout        new, up/down-graded
-    // 4.  configure       all
-    // 5.  unhold          unheld
-    // 6.  build           user selection               [right to left]
+    // 1.  system-install  not installed system/distribution
+    // 2.  disfigure       up/down-graded, reconfigured       [left to right]
+    // 3.  purge           up/down-graded                     [right to left]
+    // 4.a fetch/unpack    new, up/down-graded
+    // 4.b checkout        new, up/down-graded
+    // 5.  configure       all
+    // 6.  unhold          unheld
+    // 7.  build           user selection                     [right to left]
     //
     // Note that for some actions, e.g., purge or fetch, the order is not
     // really important. We will, however, do it right to left since that
@@ -4841,37 +4850,42 @@ namespace bpkg
 
     size_t prog_i, prog_n, prog_percent;
 
-    // system_install
+    // system-install
     //
-    // Install the binary distribution packages required by the respective
+    // Install the system/distribution packages required by the respective
     // system packages (see build_package::system_install() for details).
     //
     if (!simulate)
     {
-      // Collect the names of the system packages which require installation
-      // of the binary distribution packages, suppressing duplicates.
+      // Collect the names of all the system packages being managed by the
+      // system package manager (as opposed to user/fallback), suppressing
+      // duplicates. Check if any of the system/distribution packages need to
+      // be installed.
       //
-      vector<package_name> install_pkgs;
+      vector<package_name> ips;
+      bool install (false);
 
       for (build_package& p: build_pkgs)
       {
-        if (p.system_install ())
+        if (p.system_status () &&
+            find (ips.begin (), ips.end (), p.name ()) == ips.end ())
         {
-          if (find (install_pkgs.begin (), install_pkgs.end (), p.name ()) !=
-              install_pkgs.end ())
-            install_pkgs.push_back (p.name ());
+          ips.push_back (p.name ());
+
+          if (!install && p.system_install ())
+            install = true;
         }
       }
 
-      // Install the binary distribution packages, if any.
+      // Install the system/distribution packages.
       //
-      if (!install_pkgs.empty ())
+      if (install)
       {
         // Otherwise, we wouldn't get any package statuses.
         //
         assert (sys_pkg_mgr && *sys_pkg_mgr != nullptr);
 
-        (*sys_pkg_mgr)->pkg_install (install_pkgs);
+        (*sys_pkg_mgr)->pkg_install (ips);
       }
     }
 

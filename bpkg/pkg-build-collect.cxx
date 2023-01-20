@@ -30,7 +30,7 @@ namespace bpkg
   // build_package
   //
   const system_package_status* build_package::
-  system_install () const
+  system_status () const
   {
     assert (action);
 
@@ -40,16 +40,20 @@ namespace bpkg
       assert (sys_rep);
 
       if (const system_package* sys_pkg = sys_rep->find (name ()))
-      {
-        const system_package_status* s (sys_pkg->system_status);
-
-        return s != nullptr &&
-               (s->status == system_package_status::partially_installed ||
-                s->status == system_package_status::not_installed)
-               ? s
-               : nullptr;
-      }
+        return sys_pkg->system_status;
     }
+
+    return nullptr;
+  }
+
+  const system_package_status* build_package::
+  system_install () const
+  {
+    if (const system_package_status* s = system_status ())
+      return s->status == system_package_status::partially_installed ||
+             s->status == system_package_status::not_installed
+             ? s
+             : nullptr;
 
     return nullptr;
   }
