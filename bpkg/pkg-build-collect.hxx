@@ -216,6 +216,12 @@ namespace bpkg
     // system package manager (as opposed to user/fallback). Otherwise, return
     // NULL (so can be used as bool).
     //
+    // Note on terminology: We call the bpkg package that is being configured
+    // as available from the system as "system package" and we call the
+    // underlying package managed by the system/distribution package manager
+    // as "system/distribution package". See system-package-manager.hxx for
+    // background.
+    //
     const system_package_status*
     system_status () const;
 

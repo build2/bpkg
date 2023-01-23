@@ -26,7 +26,8 @@ namespace bpkg
                 bool fetch) override;
 
     virtual void
-    pkg_install (const vector<package_name>&) override;
+    pkg_install (const vector<package_name>&,
+                 bool install) override;
 
   public:
     // Note: expects os_release::name_id to be "debian" or os_release::like_id

@@ -973,7 +973,7 @@ namespace bpkg
   }
 
   void system_package_manager_debian::
-  pkg_install (const vector<package_name>&)
+  pkg_install (const vector<package_name>&, bool)
   {
     assert (!installed_);
     installed_ = true;

@@ -4408,9 +4408,9 @@ namespace bpkg
       system_map sys_map;
 
       // Iterate in the reverse order as we will do for printing the action
-      // lines. This way a sys-install action line will be printed right
+      // lines. This way a system-install action line will be printed right
       // before the bpkg action line of a package which appears first in the
-      // sys-install action's 'required by' list.
+      // system-install action's 'required by' list.
       //
       for (const build_package& p: reverse_iterate (pkgs))
       {
@@ -4479,6 +4479,9 @@ namespace bpkg
           // Make sure that we print this system-install action just once.
           //
           sys_map.erase (j);
+
+          // Note that we don't increment i in order to re-iterate this pkgs
+          // entry.
         }
         else
         {
@@ -4859,33 +4862,28 @@ namespace bpkg
     {
       // Collect the names of all the system packages being managed by the
       // system package manager (as opposed to user/fallback), suppressing
-      // duplicates. Check if any of the system/distribution packages need to
-      // be installed.
+      // duplicates.
       //
-      vector<package_name> ips;
-      bool install (false);
+      vector<package_name> ps;
 
       for (build_package& p: build_pkgs)
       {
         if (p.system_status () &&
-            find (ips.begin (), ips.end (), p.name ()) == ips.end ())
+            find (ps.begin (), ps.end (), p.name ()) == ps.end ())
         {
-          ips.push_back (p.name ());
-
-          if (!install && p.system_install ())
-            install = true;
+          ps.push_back (p.name ());
         }
       }
 
       // Install the system/distribution packages.
       //
-      if (install)
+      if (!ps.empty ())
       {
         // Otherwise, we wouldn't get any package statuses.
         //
         assert (sys_pkg_mgr && *sys_pkg_mgr != nullptr);
 
-        (*sys_pkg_mgr)->pkg_install (ips);
+        (*sys_pkg_mgr)->pkg_install (ps, /*&& ops.sys_install ()*/ false);
       }
     }
 

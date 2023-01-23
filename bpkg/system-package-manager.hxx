@@ -154,7 +154,7 @@ namespace bpkg
     // progress and diagnostics.
     //
     virtual void
-    pkg_install (const vector<package_name>&) = 0;
+    pkg_install (const vector<package_name>&, bool install) = 0;
 
   public:
     virtual
