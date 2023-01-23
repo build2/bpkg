@@ -61,7 +61,7 @@ namespace bpkg
     reference_wrapper<const string> name;
 
     string installed_version; // Empty if none.
-    string candidate_version; // Empty if none.
+    string candidate_version; // Empty if none and no installed_version.
 
     explicit
     package_policy (const string& n): name (n) {}
@@ -78,6 +78,7 @@ namespace bpkg
     strings extras;
 
     vector<package_policy> package_policies;
+    size_t package_policies_main = 0; // Size of the main group.
 
     explicit
     system_package_status_debian (string m, string d = {})
@@ -322,6 +323,9 @@ namespace bpkg
         // packages on the command line and multiple entries for the same
         // package result in multiple corresponding blocks. It looks like
         // there should be not blank lines but who really knows.
+        //
+        // Note also that if Installed version is not (none), then the
+        // Candidate version will be that version of better.
         //
         {
           auto df = make_diag_frame (
@@ -781,21 +785,29 @@ namespace bpkg
     // Return nullopt if there is a component without installed or candidate
     // version (which means the package cannot be installed).
     //
-    // @@ Maybe we shouldn't be considering extras for partially_installed
-    //    determination?
+    // The main argument specified the size of the main group. Only components
+    // from this group are considered for partially_installed determination.
     //
     using status_type = package_status::status_type;
 
-    auto status = [] (const vector<package_policy>& pps) -> optional<status_type>
+    auto status = [] (const vector<package_policy>& pps, size_t main)
+      -> optional<status_type>
     {
       bool i (false), u (false);
 
-      for (const package_policy& pp: pps)
+      for (size_t j (0); j != pps.size (); ++j)
       {
-        if (pp.installed_version.empty () && pp.candidate_version.empty ())
-          return nullopt;
+        const package_policy& pp (pps[j]);
 
-        (pp.installed_version.empty () ? u : i) = true;
+        if (pp.installed_version.empty ())
+        {
+          if (pp.candidate_version.empty ())
+            return nullopt;
+
+          u = true;
+        }
+        else if (j < main)
+          i = true;
       }
 
       return (!u ? package_status::installed :
@@ -816,6 +828,7 @@ namespace bpkg
       if (!ps->doc.empty () && need_doc) pps.emplace_back (ps->doc);
       if (!ps->dbg.empty () && need_dbg) pps.emplace_back (ps->dbg);
       if (!ps->common.empty () && false) pps.emplace_back (ps->common);
+      ps->package_policies_main = pps.size ();
       for (const string& n: ps->extras)  pps.emplace_back (n);
 
       apt_cache_policy (pps);
@@ -834,10 +847,11 @@ namespace bpkg
 
         guess_main (*ps, dev.installed_version);
         pps.emplace (pps.begin (), ps->main);
+        ps->package_policies_main++;
         apt_cache_policy (pps, 1);
       }
 
-      optional<status_type> s (status (pps));
+      optional<status_type> s (status (pps, ps->package_policies_main));
 
       if (!s)
         continue;
@@ -900,13 +914,11 @@ namespace bpkg
 
           guess_main (*ps, dev.candidate_version);
           pps.emplace (pps.begin (), ps->main);
+          ps->package_policies_main++;
           apt_cache_policy (pps, 1);
-
-          // @@ What if the main version doesn't match dev? Or it must? Or we
-          //    use the candidate_version for main? Fuzzy.
         }
 
-        optional<status_type> s (status (pps));
+        optional<status_type> s (status (pps, ps->package_policies_main));
 
         if (!s)
         {
@@ -918,6 +930,13 @@ namespace bpkg
 
         const package_policy& main (pps.front ());
 
+        // Note that if we are installing something for this main package,
+        // then we always go for the candidate version even though it may have
+        // an installed version that may be good enough (especially if what we
+        // are installing are extras). The reason is that it may as well not
+        // be good enough (especially if we are installing the -dev package)
+        // and there is no straightforward way to change our mind.
+        //
         ps->status = *s;
         ps->system_name = main.name;
         ps->system_version = main.candidate_version;
@@ -964,7 +983,35 @@ namespace bpkg
 
     if (r != nullptr)
     {
-      // @@ TODO: map system version to bpkg version.
+      // Map the system version to bpkg version.
+      //
+      optional<version> v (
+        downstream_package_version (r->system_version,
+                                    *aps,
+                                    os_release_.name_id,
+                                    os_release_.version_id,
+                                    os_release_.like_ids));
+
+      if (!v)
+      {
+        // Fallback to using system version as downstream version.
+        //
+        try
+        {
+          v = version (r->system_version);
+        }
+        catch (const invalid_argument& e)
+        {
+          fail << "unable to map Debian package " << r->system_name
+               << " version " << r->system_version << " to bpkg package "
+               << pn << " version" <<
+            info << "Debian version is not a valid bpkg version: " << e.what () <<
+            info << "consider specifying explicit mapping in " << pn
+               << " package manifest";
+        }
+      }
+
+      r->version = move (*v);
     }
 
     // Cache.

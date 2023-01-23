@@ -209,7 +209,9 @@ namespace bpkg
     // <distribution>-to-downstream-version values corresponding to
     // name_id. If none match, then repeat the above process for every
     // like_ids entry with version_id equal 0. If still no match, then return
-    // nullopt.
+    // nullopt (in which case the caller may choose to fallback to the system
+    // package version or do something more elaborate, like translate
+    // version_id to the like_id's version and try that).
     //
     static optional<version>
     downstream_package_version (const string& system_version,
