@@ -33,7 +33,8 @@ namespace bpkg
   }
 
   unique_ptr<system_package_manager>
-  make_system_package_manager (const target_triplet& host,
+  make_system_package_manager (const common_options&,
+                               const target_triplet& host,
                                const string& name)
   {
     unique_ptr<system_package_manager> r;
@@ -65,7 +66,7 @@ namespace bpkg
 
           // @@ TMP
           //
-          //r.reset (new system_package_manager_debian (move (*osr)));
+          //r.reset (new system_package_manager_debian (co, move (*osr)));
         }
       }
     }

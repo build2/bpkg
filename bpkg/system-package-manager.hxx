@@ -11,6 +11,7 @@
 #include <bpkg/utility.hxx>
 
 #include <bpkg/package.hxx>
+#include <bpkg/common-options.hxx>
 #include <bpkg/host-os-release.hxx>
 
 namespace bpkg
@@ -147,8 +148,9 @@ namespace bpkg
     // duplicate the system package set to be installed (since some bpkg
     // packages may be mapped to the same system package), perform post-
     // installation verifications (such as making sure the versions of already
-    // installed packages have not changed due to upgrades), implement version
-    // holds, etc.
+    // installed packages have not changed due to upgrades), change properties
+    // of already installed packages (e.g., mark them as manually installed in
+    // Debian), etc.
     //
     // Note also that the implementation is expected to issue appropriate
     // progress and diagnostics.
@@ -160,9 +162,11 @@ namespace bpkg
     virtual
     ~system_package_manager ();
 
-    explicit
-    system_package_manager (os_release&& osr)
-        : os_release_ (osr) {}
+    system_package_manager (const common_options& co, os_release&& osr)
+        : os_release_ (osr),
+          progress_ (co.progress () ? true :
+                     co.no_progress () ? false :
+                     optional<bool> ()) {}
 
   protected:
     // Given the available packages (as returned by find_available_all())
@@ -221,6 +225,7 @@ namespace bpkg
                                 const vector<string>& like_ids);
   protected:
     os_release os_release_;
+    optional<bool> progress_; // --[no]-progress (see also stderr_term)
   };
 
   // Create a package manager instance corresponding to the specified host
@@ -234,7 +239,8 @@ namespace bpkg
   //    debian, fedora (i.e., follow  /etc/os-release ID_LIKE lead)
   //
   unique_ptr<system_package_manager>
-  make_system_package_manager (const target_triplet&,
+  make_system_package_manager (const common_options&,
+                               const target_triplet&,
                                const string& name);
 }
 

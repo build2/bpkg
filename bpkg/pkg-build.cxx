@@ -1668,11 +1668,11 @@ namespace bpkg
     // Note that it is assumed that all the possible duplicates are handled
     // elsewhere/later.
     //
-    auto add_system_package = [] (database* db,
-                                  const package_name& nm,
-                                  optional<version_constraint> vc,
-                                  const system_package_status* sps,
-                                  vector<shared_ptr<available_package>>* stubs)
+    auto add_system_package = [&o] (database* db,
+                                    const package_name& nm,
+                                    optional<version_constraint> vc,
+                                    const system_package_status* sps,
+                                    vector<shared_ptr<available_package>>* stubs)
       -> pair<version_constraint, const system_package_status*>
     {
       if (!vc)
@@ -1691,7 +1691,7 @@ namespace bpkg
 
         if (!sys_pkg_mgr)
           sys_pkg_mgr = query
-            ? make_system_package_manager (host_triplet, "" /* name */)
+            ? make_system_package_manager (o, host_triplet, "" /* name */)
             : nullptr;
 
         if (*sys_pkg_mgr != nullptr)
