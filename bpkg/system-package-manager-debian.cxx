@@ -45,7 +45,7 @@ namespace bpkg
   // main package) as well as -doc and -dbg unless requested (the
   // extra_{doc,dbg} arguments).
   //
-  static unique_ptr<package_status_debian>
+  static package_status_debian
   parse_debian_name (const string& nv,
                      bool extra_doc,
                      bool extra_dbg)
@@ -72,7 +72,7 @@ namespace bpkg
       if (ns.empty ())
         fail << "empty package group";
 
-      unique_ptr<package_status_debian> r;
+      package_status_debian r;
 
       // Handle the dev instead of main special case for libraries.
       //
@@ -87,10 +87,10 @@ namespace bpkg
             suffix (m, "-dev")           &&
             !(ns.size () > 1 && suffix (ns[1], "-dev")))
         {
-          r.reset (new package_status_debian ("", move (m)));
+          r = package_status_debian ("", move (m));
         }
         else
-          r.reset (new package_status_debian (move (m)));
+          r = package_status_debian (move (m));
       }
 
       // Handle the rest.
@@ -100,10 +100,10 @@ namespace bpkg
         string& n (ns[i]);
 
         const char* w;
-        if (string* v = (suffix (n, (w = "-dev"))    ? &r->dev :
-                         suffix (n, (w = "-doc"))    ? &r->doc :
-                         suffix (n, (w = "-dbg"))    ? &r->dbg :
-                         suffix (n, (w = "-common")) ? &r->common : nullptr))
+        if (string* v = (suffix (n, (w = "-dev"))    ? &r.dev :
+                         suffix (n, (w = "-doc"))    ? &r.doc :
+                         suffix (n, (w = "-dbg"))    ? &r.dbg :
+                         suffix (n, (w = "-common")) ? &r.common : nullptr))
         {
           if (!v->empty ())
             fail << "multiple " << w << " package names in '" << g << "'" <<
@@ -112,7 +112,7 @@ namespace bpkg
           *v = move (n);
         }
         else
-          r->extras.push_back (move (n));
+          r.extras.push_back (move (n));
       }
 
       return r;
@@ -121,24 +121,24 @@ namespace bpkg
     strings gs (split (nv, ','));
     assert (!gs.empty ()); // *-name value cannot be empty.
 
-    unique_ptr<package_status_debian> r;
+    package_status_debian r;
     for (size_t i (0); i != gs.size (); ++i)
     {
       if (i == 0) // Main group.
         r = parse_group (gs[i]);
       else
       {
-        unique_ptr<package_status_debian> g (parse_group (gs[i]));
+        package_status_debian g (parse_group (gs[i]));
 
-        if (!g->main.empty ())             r->extras.push_back (move (g->main));
-        if (!g->dev.empty ())              r->extras.push_back (move (g->dev));
-        if (!g->doc.empty () && extra_doc) r->extras.push_back (move (g->doc));
-        if (!g->dbg.empty () && extra_dbg) r->extras.push_back (move (g->dbg));
-        if (!g->common.empty () && false)  r->extras.push_back (move (g->common));
-        if (!g->extras.empty ())           r->extras.insert (
-          r->extras.end (),
-          make_move_iterator (g->extras.begin ()),
-          make_move_iterator (g->extras.end ()));
+        if (!g.main.empty ())             r.extras.push_back (move (g.main));
+        if (!g.dev.empty ())              r.extras.push_back (move (g.dev));
+        if (!g.doc.empty () && extra_doc) r.extras.push_back (move (g.doc));
+        if (!g.dbg.empty () && extra_dbg) r.extras.push_back (move (g.dbg));
+        if (!g.common.empty () && false)  r.extras.push_back (move (g.common));
+        if (!g.extras.empty ())           r.extras.insert (
+          r.extras.end (),
+          make_move_iterator (g.extras.begin ()),
+          make_move_iterator (g.extras.end ()));
       }
     }
 
@@ -803,13 +803,13 @@ namespace bpkg
       auto i (status_cache_.find (pn));
 
       if (i != status_cache_.end ())
-        return i->second.get ();
+        return i->second ? &*i->second : nullptr;
 
       if (aps == nullptr)
-        return nullptr;
+        return nullopt;
     }
 
-    vector<unique_ptr<package_status_debian>> candidates;
+    vector<package_status_debian> candidates;
 
     // Translate our package name to the Debian package names.
     //
@@ -836,19 +836,15 @@ namespace bpkg
         // non-libraries with the lib prefix (both of which we do not
         // recomment) will have to provide a manual mapping.
         //
-        unique_ptr<package_status_debian> s;
-
         if (n.compare (0, 3, "lib") == 0)
         {
           // Keep the main package name empty as an indication that it is to
           // be discovered.
           //
-          s.reset (new package_status_debian ("", n + "-dev"));
+          candidates.push_back (package_status_debian ("", n + "-dev"));
         }
         else
-          s.reset (new package_status_debian (n));
-
-        candidates.push_back (move (s));
+          candidates.push_back (package_status_debian (n));
       }
       else
       {
@@ -856,18 +852,17 @@ namespace bpkg
         //
         for (const string& n: ns)
         {
-          unique_ptr<package_status_debian> s (
-            parse_debian_name (n, need_doc, need_dbg));
+          package_status_debian s (parse_debian_name (n, need_doc, need_dbg));
 
           // Suppress duplicates for good measure based on the main package
           // name (and falling back to -dev if empty).
           //
           auto i (find_if (candidates.begin (), candidates.end (),
-                           [&s] (const unique_ptr<package_status_debian>& x)
+                           [&s] (const package_status_debian& x)
                            {
-                             return s->main.empty ()
-                               ? s->dev == x->dev
-                               : s->main == x->main;
+                             return s.main.empty ()
+                               ? s.dev == x.dev
+                               : s.main == x.main;
                            }));
           if (i == candidates.end ())
             candidates.push_back (move (s));
@@ -932,25 +927,25 @@ namespace bpkg
 
     // First look for an already fully installed package.
     //
-    unique_ptr<package_status_debian> r;
+    optional<package_status_debian> r;
 
-    for (unique_ptr<package_status_debian>& ps: candidates)
+    for (package_status_debian& ps: candidates)
     {
-      vector<package_policy>& pps (ps->package_policies);
+      vector<package_policy>& pps (ps.package_policies);
 
-      if (!ps->main.empty ())            pps.emplace_back (ps->main);
-      if (!ps->dev.empty ())             pps.emplace_back (ps->dev);
-      if (!ps->doc.empty () && need_doc) pps.emplace_back (ps->doc);
-      if (!ps->dbg.empty () && need_dbg) pps.emplace_back (ps->dbg);
-      if (!ps->common.empty () && false) pps.emplace_back (ps->common);
-      ps->package_policies_main = pps.size ();
-      for (const string& n: ps->extras)  pps.emplace_back (n);
+      if (!ps.main.empty ())            pps.emplace_back (ps.main);
+      if (!ps.dev.empty ())             pps.emplace_back (ps.dev);
+      if (!ps.doc.empty () && need_doc) pps.emplace_back (ps.doc);
+      if (!ps.dbg.empty () && need_dbg) pps.emplace_back (ps.dbg);
+      if (!ps.common.empty () && false) pps.emplace_back (ps.common);
+      ps.package_policies_main = pps.size ();
+      for (const string& n: ps.extras)  pps.emplace_back (n);
 
       apt_cache_policy (pps);
 
       // Handle the unknown main package.
       //
-      if (ps->main.empty ())
+      if (ps.main.empty ())
       {
         const package_policy& dev (pps.front ());
 
@@ -960,13 +955,13 @@ namespace bpkg
         if (dev.installed_version.empty ())
           continue;
 
-        guess_main (*ps, dev.installed_version);
-        pps.emplace (pps.begin (), ps->main);
-        ps->package_policies_main++;
+        guess_main (ps, dev.installed_version);
+        pps.emplace (pps.begin (), ps.main);
+        ps.package_policies_main++;
         apt_cache_policy (pps, 1);
       }
 
-      optional<status_type> s (status (pps, ps->package_policies_main));
+      optional<status_type> s (status (pps, ps.package_policies_main));
 
       if (!s)
         continue;
@@ -975,15 +970,15 @@ namespace bpkg
       {
         const package_policy& main (pps.front ());
 
-        ps->status = *s;
-        ps->system_name = main.name;
-        ps->system_version = main.installed_version;
+        ps.status = *s;
+        ps.system_name = main.name;
+        ps.system_version = main.installed_version;
 
-        if (r != nullptr)
+        if (r)
         {
           fail << "multiple installed Debian packages for " << pn <<
             info << "first package: " << r->main << " " << r->system_version <<
-            info << "second package: " << ps->main << " " << ps->system_version <<
+            info << "second package: " << ps.main << " " << ps.system_version <<
             info << "consider specifying the desired version manually";
         }
 
@@ -993,7 +988,7 @@ namespace bpkg
 
     // Next look for available versions if we are allowed to install.
     //
-    if (r == nullptr && install)
+    if (!r && install)
     {
       // If we weren't instructed to fetch or we already fetched, then we
       // don't need to re-run apt_cache_policy().
@@ -1005,38 +1000,35 @@ namespace bpkg
         fetched_ = true;
       }
 
-      for (unique_ptr<package_status_debian>& ps: candidates)
+      for (package_status_debian& ps: candidates)
       {
-        vector<package_policy>& pps (ps->package_policies);
+        vector<package_policy>& pps (ps.package_policies);
 
         if (requery)
           apt_cache_policy (pps);
 
         // Handle the unknown main package.
         //
-        if (ps->main.empty ())
+        if (ps.main.empty ())
         {
           const package_policy& dev (pps.front ());
 
           // Note that this time we use the candidate version.
           //
           if (dev.candidate_version.empty ())
-          {
-            ps = nullptr; // Not installable.
-            continue;
-          }
+            continue; // Not installable.
 
-          guess_main (*ps, dev.candidate_version);
-          pps.emplace (pps.begin (), ps->main);
-          ps->package_policies_main++;
+          guess_main (ps, dev.candidate_version);
+          pps.emplace (pps.begin (), ps.main);
+          ps.package_policies_main++;
           apt_cache_policy (pps, 1);
         }
 
-        optional<status_type> s (status (pps, ps->package_policies_main));
+        optional<status_type> s (status (pps, ps.package_policies_main));
 
         if (!s)
         {
-          ps = nullptr; // Not installable.
+          ps.main.clear (); // Not installable.
           continue;
         }
 
@@ -1051,21 +1043,21 @@ namespace bpkg
         // be good enough (especially if we are installing the -dev package)
         // and there is no straightforward way to change our mind.
         //
-        ps->status = *s;
-        ps->system_name = main.name;
-        ps->system_version = main.candidate_version;
+        ps.status = *s;
+        ps.system_name = main.name;
+        ps.system_version = main.candidate_version;
 
         // Prefer partially installed to not installed. This makes detecting
         // ambiguity a bit trickier so we handle partially installed here and
         // not installed in a separate loop below.
         //
-        if (ps->status == package_status::partially_installed)
+        if (ps.status == package_status::partially_installed)
         {
-          if (r != nullptr)
+          if (r)
           {
             fail << "multiple partially installed Debian packages for " << pn <<
               info << "first package: " << r->main << " " << r->system_version <<
-              info << "second package: " << ps->main << " " << ps->system_version <<
+              info << "second package: " << ps.main << " " << ps.system_version <<
               info << "consider specifying the desired version manually";
           }
 
@@ -1073,20 +1065,20 @@ namespace bpkg
         }
       }
 
-      if (r == nullptr)
+      if (!r)
       {
-        for (unique_ptr<package_status_debian>& ps: candidates)
+        for (package_status_debian& ps: candidates)
         {
-          if (ps == nullptr)
+          if (ps.main.empty ())
             continue;
 
-          assert (ps->status != package_status::not_installed); // Sanity check.
+          assert (ps.status != package_status::not_installed); // Sanity check.
 
-          if (r != nullptr)
+          if (r)
           {
             fail << "multiple available Debian packages for " << pn <<
               info << "first package: " << r->main << " " << r->system_version <<
-              info << "second package: " << ps->main << " " << ps->system_version <<
+              info << "second package: " << ps.main << " " << ps.system_version <<
               info << "consider installing the desired package manually";
           }
 
@@ -1095,7 +1087,7 @@ namespace bpkg
       }
     }
 
-    if (r != nullptr)
+    if (r)
     {
       // Map the system version to the bpkg version.
       //
@@ -1130,7 +1122,8 @@ namespace bpkg
 
     // Cache.
     //
-    return status_cache_.emplace (pn, move (r)).first->second.get ();
+    auto i (status_cache_.emplace (pn, move (r)).first);
+    return i->second ? &*i->second : nullptr;
   }
 
   void system_package_manager_debian::
@@ -1154,7 +1147,7 @@ namespace bpkg
     for (const package_name& pn: pns)
     {
       auto it (status_cache_.find (pn));
-      assert (it != status_cache_.end () && it->second != nullptr);
+      assert (it != status_cache_.end () && it->second);
 
       const package_status_debian& ps (*it->second);
 

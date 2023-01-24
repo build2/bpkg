@@ -79,9 +79,8 @@ namespace bpkg
   // So for now we keep it simple and pick a single available version but can
   // probably revise this decision later.
   //
-  class system_package_status
+  struct system_package_status
   {
-  public:
     // Downstream (as in, bpkg package) version.
     //
     bpkg::version version;
@@ -103,12 +102,6 @@ namespace bpkg
     enum status_type {installed, partially_installed, not_installed};
 
     status_type status = not_installed;
-
-  public:
-    virtual
-    ~system_package_status ();
-
-    system_package_status () = default;
   };
 
   class system_package_manager

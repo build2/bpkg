@@ -46,9 +46,8 @@ namespace bpkg
   // For executable packages there is normally no -dev packages but -dbg,
   // -doc, and -common are plausible.
   //
-  class system_package_status_debian: public system_package_status
+  struct system_package_status_debian: system_package_status
   {
-  public:
     string main;
     string dev;
     string doc;
@@ -78,6 +77,8 @@ namespace bpkg
     {
       assert (!main.empty () || !dev.empty ());
     }
+
+    system_package_status_debian () = default;
   };
 
   class system_package_manager_debian: public system_package_manager
@@ -105,10 +106,7 @@ namespace bpkg
     bool fetched_ = false;   // True if already fetched metadata.
     bool installed_ = false; // True if already installed.
 
-    // @@ Don't need unique_ptr/polymorphism.
-    //
-    std::map<package_name,
-             unique_ptr<system_package_status_debian>> status_cache_;
+    std::map<package_name, optional<system_package_status_debian>> status_cache_;
   };
 }
 

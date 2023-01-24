@@ -20,12 +20,6 @@ using namespace butl;
 
 namespace bpkg
 {
-  system_package_status::
-  ~system_package_status ()
-  {
-    // vtable
-  }
-
   system_package_manager::
   ~system_package_manager ()
   {
