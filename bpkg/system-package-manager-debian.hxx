@@ -85,22 +85,16 @@ namespace bpkg
   {
   public:
     virtual optional<const system_package_status*>
-    pkg_status (const package_name&,
-                const available_packages*,
-                bool install,
-                bool fetch) override;
+    pkg_status (const package_name&, const available_packages*) override;
 
     virtual void
-    pkg_install (const vector<package_name>&,
-                 bool install) override;
+    pkg_install (const vector<package_name>&) override;
 
   public:
     // Note: expects os_release::name_id to be "debian" or os_release::like_id
     // to contain "debian".
     //
-    explicit
-    system_package_manager_debian (const common_options& co, os_release&& osr)
-        : system_package_manager (co, move (osr)) {}
+    using system_package_manager::system_package_manager;
 
   protected:
     bool fetched_ = false;   // True if already fetched metadata.

@@ -1072,6 +1072,10 @@ namespace bpkg
            << "specified" <<
         info << "run 'bpkg help pkg-build' for more information";
 
+    if (o.sys_no_query () && o.sys_install ())
+      fail << "both --sys-no-query and --sys-install specified" <<
+        info << "run 'bpkg help pkg-build' for more information";
+
     if (!args.more () && !o.upgrade () && !o.patch ())
       fail << "package name argument expected" <<
         info << "run 'bpkg help pkg-build' for more information";
@@ -1681,18 +1685,16 @@ namespace bpkg
 
         // See if we should query the system package manager.
         //
-        // @@ TODO: --sys-no-query
-        //          --sys-no-fetch
-        //          --sys-install
-        //
-        bool query (!/*ops.sys_no_query ()*/ false);
-        bool fetch (!/*ops.sys_no_fetch ()*/ false);
-        bool install (/*ops.sys_install ()*/ false);
-
         if (!sys_pkg_mgr)
-          sys_pkg_mgr = query
-            ? make_system_package_manager (o, host_triplet, "" /* name */)
-            : nullptr;
+          sys_pkg_mgr = o.sys_no_query ()
+            ? nullptr
+            : make_system_package_manager (o,
+                                           host_triplet,
+                                           o.sys_install (),
+                                           !o.sys_no_fetch (),
+                                           o.sys_yes (),
+                                           o.sys_sudo (),
+                                           "" /* name */);
 
         if (*sys_pkg_mgr != nullptr)
         {
@@ -1701,7 +1703,7 @@ namespace bpkg
           // First check the cache.
           //
           optional<const system_package_status*> os (
-            spm.pkg_status (nm, nullptr, install, fetch));
+            spm.pkg_status (nm, nullptr));
 
           if (!os)
           {
@@ -1717,7 +1719,7 @@ namespace bpkg
               fail << "unknown package " << nm <<
                 info << "consider specifying " << nm << "/*";
 
-            os = spm.pkg_status (nm, &aps, install, fetch);
+            os = spm.pkg_status (nm, &aps);
 
             assert (os);
           }
@@ -1728,10 +1730,10 @@ namespace bpkg
           {
             diag_record dr (fail);
 
-            dr << "no installed " << (install ? " or available " : "")
+            dr << "no installed " << (o.sys_install () ? " or available " : "")
                << "system package for " << nm;
 
-            if (!install)
+            if (!o.sys_install ())
               dr << info << "specify --sys-install to try to install it";
           }
         }
@@ -4858,7 +4860,7 @@ namespace bpkg
     // Install the system/distribution packages required by the respective
     // system packages (see build_package::system_install() for details).
     //
-    if (!simulate)
+    if (!simulate && o.sys_install ())
     {
       // Collect the names of all the system packages being managed by the
       // system package manager (as opposed to user/fallback), suppressing
@@ -4883,7 +4885,7 @@ namespace bpkg
         //
         assert (sys_pkg_mgr && *sys_pkg_mgr != nullptr);
 
-        (*sys_pkg_mgr)->pkg_install (ps, /*&& ops.sys_install ()*/ false);
+        (*sys_pkg_mgr)->pkg_install (ps);
       }
     }
 

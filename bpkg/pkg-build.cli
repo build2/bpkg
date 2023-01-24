@@ -95,12 +95,19 @@ namespace bpkg
      A package name (<pkg>) can be prefixed with a package scheme
      (<scheme>). Currently the only recognized scheme is \cb{sys} which
      instructs \cb{pkg-build} to configure the package as available from the
-     system rather than building it from source. If the system package version
-     (<ver-spec>) is not specified or is '\cb{/*}', then it is considered to
-     be unknown but satisfying any version constraint. If specified,
-     <ver-spec> may not be a version constraint. If the version is not
-     explicitly specified, then at least a stub package must be available from
-     one of the repositories.
+     system rather than building it from source.
+
+     The system package version (<ver-spec>) may not be a version constraint
+     but may be the special '\cb{/*}' value, which indicates that the version
+     should be considered unknown but satisfying any version constraint. If
+     unspecified, then \cb{pkg-build} will attempt to query the system package
+     manager for the installed version unless the system package manager is
+     unsupported or this functionality is disabled with \cb{--sys-no-query},
+     in which case '\cb{/*}' <ver-spec> is assumed. If the system package
+     manager is supported, then the automatic installation of an available
+     package can be requested with the \cb{--sys-install} option. If the
+     version is not explicitly specified, then at least a stub package must be
+     available from one of the repositories.
 
      Finally, a package can be specified as either the path to the package
      archive (<file>) or to the package directory (<dir>\cb{/}; note that it
@@ -293,7 +300,8 @@ namespace bpkg
 
     bool --yes|-y
     {
-      "Assume the answer to all prompts is \cb{yes}."
+      "Assume the answer to all prompts is \cb{yes}. Note that this excludes
+       the system package manager prompts; see \cb{--sys-yes} for details."
     }
 
     string --for|-f
@@ -406,6 +414,48 @@ namespace bpkg
        \
 
        See \l{bpkg-cfg-create(1)} for details on linked configurations."
+    }
+
+    bool --sys-no-query
+    {
+      "Do not query the system package manager for the installed versions of
+       packages specified with the \cb{sys} scheme."
+    }
+
+    bool --sys-install
+    {
+      "Automatically instruct the system package manager to install
+       available versions of packages specified with the \cb{sys} scheme
+       that are not already installed. See also the \cb{--sys-no-fetch},
+       \cb{--sys-yes}, and \cb{--sys-sudo} options."
+    }
+
+    bool --sys-no-fetch
+    {
+      "Do not automatically fetch the system package manager metadata
+       before querying for available version. This option only makes
+       sense together with \cb{--sys-install}."
+    }
+
+    bool --sys-yes
+    {
+      "Assume the answer to the system package manager prompts is \cb{yes}.
+       Note that system package manager interactions may break your system
+       and you should normally only use this option on throw-away systems
+       (test virtual machines, etc)."
+    }
+
+    string --sys-sudo = "sudo"
+    {
+      "<prog>",
+
+      "The \cb{sudo} program to use for system package manager interactions
+       that normally require administrative privileges (fetch package
+       metadata, install packages, etc). If unspecified, \cb{sudo} is used
+       by default. Pass empty or the special \cb{false} value to disable the
+       use of the \cb{sudo} program. Note that the \cb{sudo} program is
+       normally only needed if the system package installation is enabled
+       (\cb{--sys-install})."
     }
 
     dir_paths --directory|-d

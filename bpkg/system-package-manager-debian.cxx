@@ -785,10 +785,7 @@ namespace bpkg
 
   optional<const system_package_status*>
   system_package_manager_debian::
-  pkg_status (const package_name& pn,
-              const available_packages* aps,
-              bool install,
-              bool fetch)
+  pkg_status (const package_name& pn, const available_packages* aps)
   {
     // For now we ignore -doc and -dbg package components (but we may want to
     // have options controlling this later). Note also that we assume -common
@@ -988,15 +985,15 @@ namespace bpkg
 
     // Next look for available versions if we are allowed to install.
     //
-    if (!r && install)
+    if (!r && install_)
     {
       // If we weren't instructed to fetch or we already fetched, then we
       // don't need to re-run apt_cache_policy().
       //
       bool requery;
-      if ((requery = fetch && !fetched_))
+      if ((requery = fetch_ && !fetched_))
       {
-        apt_get_update ("sudo" /* --sys-sudo */, progress_, false /* --sys-yes */);
+        apt_get_update (sudo_, progress_, yes_);
         fetched_ = true;
       }
 
@@ -1127,11 +1124,11 @@ namespace bpkg
   }
 
   void system_package_manager_debian::
-  pkg_install (const vector<package_name>& pns, bool /* @@ install */)
+  pkg_install (const vector<package_name>& pns)
   {
     assert (!pns.empty ());
 
-    assert (!installed_);
+    assert (install_ && !installed_);
     installed_ = true;
 
     // Collect and merge all the Debian packages/version for the specified
@@ -1211,10 +1208,7 @@ namespace bpkg
         specs.push_back (move (s));
       }
 
-      apt_get_install (specs,
-                       "sudo" /* --sys-sudo */,
-                       progress_,
-                       false /* --sys-yes */);
+      apt_get_install (specs, sudo_, progress_, yes_);
     }
 
     // Verify that versions we have promised in pkg_status() match what

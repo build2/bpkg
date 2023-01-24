@@ -119,20 +119,17 @@ namespace bpkg
     // The returned status can be NULL, which indicates that no such package
     // is available from the system package manager. Note that empty is also
     // returned if no fully installed package is available from the system and
-    // the install argument is false.
+    // package installation is not enabled (see the constructor below).
     //
-    // If fetch is false, then do not re-fetch the system package repository
-    // metadata (that is, available packages/versions) before querying for the
-    // available version of the not yet installed or partially installed
-    // packages.
+    // Note also that the implementation is expected to issue appropriate
+    // progress and diagnostics if fetching package metadata.
     //
     virtual optional<const system_package_status*>
-    pkg_status (const package_name&,
-                const available_packages*,
-                bool install,
-                bool fetch) = 0;
+    pkg_status (const package_name&, const available_packages*) = 0;
 
     // Install the specified subset of the previously-queried packages.
+    // Should only be called if installation is enabled (see the constructor
+    // below).
     //
     // Note that this function should be called only once after the final set
     // of the necessary system packages has been determined. And the specified
@@ -149,17 +146,33 @@ namespace bpkg
     // progress and diagnostics.
     //
     virtual void
-    pkg_install (const vector<package_name>&, bool install) = 0;
+    pkg_install (const vector<package_name>&) = 0;
 
   public:
     virtual
     ~system_package_manager ();
 
-    system_package_manager (const common_options& co, os_release&& osr)
+    // If install is true, then enable package installation.
+    //
+    // If fetch is false, then do not re-fetch the system package repository
+    // metadata (that is, available packages/versions) before querying for the
+    // available version of the not yet installed or partially installed
+    // packages.
+    //
+    system_package_manager (const common_options& co,
+                            os_release&& osr,
+                            bool install,
+                            bool fetch,
+                            bool yes,
+                            string sudo)
         : os_release_ (osr),
           progress_ (co.progress () ? true :
                      co.no_progress () ? false :
-                     optional<bool> ()) {}
+                     optional<bool> ()),
+          install_ (install),
+          fetch_ (fetch),
+          yes_ (yes),
+          sudo_ (sudo != "false" ? move (sudo) : string ()) {}
 
   protected:
     // Given the available packages (as returned by find_available_all())
@@ -219,6 +232,13 @@ namespace bpkg
   protected:
     os_release os_release_;
     optional<bool> progress_; // --[no]-progress (see also stderr_term)
+
+    // The --sys-* option values.
+    //
+    bool install_;
+    bool fetch_;
+    bool yes_;
+    string sudo_;
   };
 
   // Create a package manager instance corresponding to the specified host
@@ -234,6 +254,10 @@ namespace bpkg
   unique_ptr<system_package_manager>
   make_system_package_manager (const common_options&,
                                const target_triplet&,
+                               bool install,
+                               bool fetch,
+                               bool yes,
+                               const string& sudo,
                                const string& name);
 }
 
