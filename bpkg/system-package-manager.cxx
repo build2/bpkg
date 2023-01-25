@@ -35,6 +35,10 @@ namespace bpkg
                                const string& sudo,
                                const string& name)
   {
+    optional<bool> progress (co.progress () ? true :
+                             co.no_progress () ? false :
+                             optional<bool> ());
+
     unique_ptr<system_package_manager> r;
 
     if (optional<os_release> osr = host_os_release (host))
@@ -63,7 +67,7 @@ namespace bpkg
           // @@ TODO: verify name if specified.
 
           r.reset (new system_package_manager_debian (
-                     co, move (*osr), install, fetch, yes, sudo));
+                     move (*osr), install, fetch, progress, yes, sudo));
         }
       }
     }

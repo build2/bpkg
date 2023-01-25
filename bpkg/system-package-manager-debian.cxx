@@ -5,12 +5,11 @@
 
 #include <bpkg/diagnostics.hxx>
 
+using namespace butl;
+
 namespace bpkg
 {
-  using package_status = system_package_status;
-  using package_status_debian = system_package_status_debian;
-
-  using package_policy = package_status_debian::package_policy;
+  using package_status = system_package_status_debian;
 
   // Parse the debian-name (or alike) value.
   //
@@ -45,7 +44,7 @@ namespace bpkg
   // main package) as well as -doc and -dbg unless requested (the
   // extra_{doc,dbg} arguments).
   //
-  static package_status_debian
+  static package_status
   parse_debian_name (const string& nv,
                      bool extra_doc,
                      bool extra_dbg)
@@ -72,7 +71,7 @@ namespace bpkg
       if (ns.empty ())
         fail << "empty package group";
 
-      package_status_debian r;
+      package_status r;
 
       // Handle the dev instead of main special case for libraries.
       //
@@ -87,10 +86,10 @@ namespace bpkg
             suffix (m, "-dev")           &&
             !(ns.size () > 1 && suffix (ns[1], "-dev")))
         {
-          r = package_status_debian ("", move (m));
+          r = package_status ("", move (m));
         }
         else
-          r = package_status_debian (move (m));
+          r = package_status (move (m));
       }
 
       // Handle the rest.
@@ -121,14 +120,14 @@ namespace bpkg
     strings gs (split (nv, ','));
     assert (!gs.empty ()); // *-name value cannot be empty.
 
-    package_status_debian r;
+    package_status r;
     for (size_t i (0); i != gs.size (); ++i)
     {
       if (i == 0) // Main group.
         r = parse_group (gs[i]);
       else
       {
-        package_status_debian g (parse_group (gs[i]));
+        package_status g (parse_group (gs[i]));
 
         if (!g.main.empty ())             r.extras.push_back (move (g.main));
         if (!g.dev.empty ())              r.extras.push_back (move (g.dev));
@@ -145,6 +144,60 @@ namespace bpkg
     return r;
   }
 
+  // Attempt to determine the main package name from its -dev package based on
+  // the extracted Depends value. Return empty string if unable to.
+  //
+  string system_package_manager_debian::
+  main_from_dev (const string& dev_name,
+                 const string& dev_ver,
+                 const string& depends)
+  {
+    // The format of the Depends value is a comma-seperated list of dependency
+    // expressions. For example:
+    //
+    // Depends: libssl3 (= 3.0.7-1), libc6 (>= 2.34), libfoo | libbar
+    //
+    // For the main package we look for a dependency in the form:
+    //
+    // <dev-stem>* (= <dev-ver>)
+    //
+    // Usually it is the first one.
+    //
+    string dev_stem (dev_name, 0, dev_name.rfind ("-dev"));
+
+    string r;
+    for (size_t b (0), e (0); next_word (depends, b, e, ','); )
+    {
+      string d (depends, b, e - b);
+      trim (d);
+
+      size_t p (d.find (' '));
+      if (p != string::npos)
+      {
+        if (d.compare (0, dev_stem.size (), dev_stem) == 0) // <dev-stem>*
+        {
+          size_t q (d.find ('(', p + 1));
+          if (q != string::npos && d.back () == ')') // (...)
+          {
+            if (d[q + 1] == '=' && d[q + 2] == ' ') // Equal.
+            {
+              string v (d, q + 3, d.size () - q - 3 - 1);
+              trim (v);
+
+              if (v == dev_ver)
+              {
+                r.assign (d, 0, p);
+                break;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    return r;
+  }
+
   // Do we use apt or apt-get? From apt(8):
   //
   // "The apt(8) commandline is designed as an end-user tool and it may change
@@ -155,17 +208,20 @@ namespace bpkg
   //  these commands (potentially with some additional options enabled) in
   //  your scripts as they keep backward compatibility as much as possible."
   //
+  // Note also that for some reason both apt-cache and apt-get exit with 100
+  // code on error.
+  //
   static process_path apt_cache_path;
   static process_path apt_get_path;
   static process_path sudo_path;
 
-  // Obtain the installed and candidate versions for the specified list
-  // of Debian packages by executing `apt-cache policy`.
+  // Obtain the installed and candidate versions for the specified list of
+  // Debian packages by executing `apt-cache policy`.
   //
   // If the n argument is not 0, then only query the first n packages.
   //
-  static void
-  apt_cache_policy (vector<package_policy>& pps, size_t n = 0)
+  void system_package_manager_debian::
+  apt_cache_policy (vector<package_policy>& pps, size_t n)
   {
     if (n == 0)
       n = pps.size ();
@@ -202,7 +258,7 @@ namespace bpkg
 
     try
     {
-      if (apt_cache_path.empty ())
+      if (apt_cache_path.empty () && !simulate_)
         apt_cache_path = process::path_search (args[0]);
 
       process_env pe (apt_cache_path, evars);
@@ -213,13 +269,51 @@ namespace bpkg
       // Redirect stdout to a pipe. For good measure also redirect stdin to
       // /dev/null to make sure there are no prompts of any kind.
       //
-      process pr (apt_cache_path,
-                  args,
-                  -2      /* stdin */,
-                  -1      /* stdout */,
-                  2       /* stderr */,
-                  nullptr /* cwd */,
-                  evars);
+      process pr;
+      if (!simulate_)
+        pr = process (apt_cache_path,
+                      args,
+                      -2      /* stdin */,
+                      -1      /* stdout */,
+                      2       /* stderr */,
+                      nullptr /* cwd */,
+                      evars);
+      else
+      {
+        print_process (pe, args);
+
+        strings k;
+        for (size_t i (0); i != n; ++i)
+          k.push_back (pps[i].name);
+
+        const path* f (nullptr);
+        if (installed_)
+        {
+          auto i (simulate_->apt_cache_policy_installed_.find (k));
+          if (i != simulate_->apt_cache_policy_installed_.end ())
+            f = &i->second;
+        }
+        if (f == nullptr && fetched_)
+        {
+          auto i (simulate_->apt_cache_policy_fetched_.find (k));
+          if (i != simulate_->apt_cache_policy_fetched_.end ())
+            f = &i->second;
+        }
+        if (f == nullptr)
+        {
+          auto i (simulate_->apt_cache_policy_.find (k));
+          if (i != simulate_->apt_cache_policy_.end ())
+            f = &i->second;
+        }
+
+        pr = process (process_exit (0));
+        pr.in_ofd = f == nullptr || f->empty ()
+          ? fdopen_null ()
+          : (f->string () == "-"
+             ? fddup (stdin_fd ())
+             : fdopen (*f, fdopen_mode::in));
+      }
+
       try
       {
         ifdstream is (move (pr.in_ofd), fdstream_mode::skip, ifdstream::badbit);
@@ -270,7 +364,7 @@ namespace bpkg
 
             // Skip until this package.
             //
-            for (; i != n && pps[i].name.get () != l; ++i) ;
+            for (; i != n && pps[i].name != l; ++i) ;
 
             if (i == n)
               fail << "unexpected package name '" << l << "'";
@@ -310,9 +404,14 @@ namespace bpkg
 
             pp.candidate_version = parse_version ("Candidate");
 
+            // Candidate should fallback to Installed.
+            //
+            assert (pp.installed_version.empty () ||
+                    !pp.candidate_version.empty ());
+
             // Skip the rest of the indented lines (or blanks, just in case).
             //
-            while (!eof (getline (is, l)) && (l.empty () || l.front () != ' ')) ;
+            while (!eof (getline (is, l)) && (l.empty () || l.front () == ' ')) ;
           }
         }
 
@@ -353,7 +452,7 @@ namespace bpkg
   // specified package and version.  Fail if either package or version is
   // unknown.
   //
-  static string
+  string system_package_manager_debian::
   apt_cache_show (const string& name, const string& ver)
   {
     assert (!name.empty () && !ver.empty ());
@@ -377,7 +476,7 @@ namespace bpkg
     string r;
     try
     {
-      if (apt_cache_path.empty ())
+      if (apt_cache_path.empty () && !simulate_)
         apt_cache_path = process::path_search (args[0]);
 
       process_env pe (apt_cache_path, evars);
@@ -388,13 +487,48 @@ namespace bpkg
       // Redirect stdout to a pipe. For good measure also redirect stdin to
       // /dev/null to make sure there are no prompts of any kind.
       //
-      process pr (apt_cache_path,
-                  args,
-                  -2      /* stdin */,
-                  -1      /* stdout */,
-                  2       /* stderr */,
-                  nullptr /* cwd */,
-                  evars);
+      process pr;
+      if (!simulate_)
+        pr = process (apt_cache_path,
+                      args,
+                      -2      /* stdin */,
+                      -1      /* stdout */,
+                      2       /* stderr */,
+                      nullptr /* cwd */,
+                      evars);
+      else
+      {
+        print_process (pe, args);
+
+        pair<string, string> k (name, ver);
+
+        const path* f (nullptr);
+        if (fetched_)
+        {
+          auto i (simulate_->apt_cache_show_fetched_.find (k));
+          if (i != simulate_->apt_cache_show_fetched_.end ())
+            f = &i->second;
+        }
+        if (f == nullptr)
+        {
+          auto i (simulate_->apt_cache_show_.find (k));
+          if (i != simulate_->apt_cache_show_.end ())
+            f = &i->second;
+        }
+
+        if (f == nullptr || f->empty ())
+        {
+          text << "E: No packages found";
+          pr = process (process_exit (100));
+        }
+        else
+        {
+          pr = process (process_exit (0));
+          pr.in_ofd = f->string () == "-"
+            ? fddup (stdin_fd ())
+            : fdopen (*f, fdopen_mode::in);
+        }
+      }
 
       bool no_version (false);
       try
@@ -435,10 +569,13 @@ namespace bpkg
 
           do
           {
-            // This line should be the start of a field unless it's a
-            // comment. According to deb822(5), there can be no leading
-            // whitespaces before `#`.
+            // This line should be the start of a field unless it's a comment
+            // or the terminating blank line. According to deb822(5), there
+            // can be no leading whitespaces before `#`.
             //
+            if (l.empty ())
+              break;
+
             if (l[0] == '#')
             {
               getline (is, l);
@@ -533,75 +670,15 @@ namespace bpkg
     return r;
   }
 
-  // Attempt to determine the main package name from its -dev package. Return
-  // empty string if unable. Save the extracted Depends value to the depends
-  // argument for diagnostics.
-  //
-  static string
-  main_from_dev (const string& dev_name,
-                 const string& dev_ver,
-                 string& depends)
-  {
-    depends = apt_cache_show (dev_name, dev_ver);
-
-    // The format of the Depends value is a comma-seperated list of dependency
-    // expressions. For example:
-    //
-    // Depends: libssl3 (= 3.0.7-1), libc6 (>= 2.34), libfoo | libbar
-    //
-    // For the main package we look for a dependency in the form:
-    //
-    // <dev-stem>* (= <dev-ver>)
-    //
-    // Usually it is the first one.
-    //
-    string dev_stem (dev_name, 0, dev_name.rfind ("-dev"));
-
-    string r;
-    for (size_t b (0), e (0); next_word (depends, b, e, ','); )
-    {
-      string d (depends, b, e - b);
-      trim (d);
-
-      size_t p (d.find (' '));
-      if (p != string::npos)
-      {
-        if (d.compare (0, dev_stem.size (), dev_stem) == 0) // <dev-stem>*
-        {
-          size_t q (d.find ('(', p + 1));
-          if (q != string::npos && d.back () == ')') // (...)
-          {
-            if (d[q + 1] == '=' && d[q + 2] == ' ') // Equal.
-            {
-              string v (d, q + 3, d.size () - q - 3 - 1);
-              trim (v);
-
-              if (v == dev_ver)
-              {
-                r.assign (d, 0, p);
-                break;
-              }
-            }
-          }
-        }
-      }
-    }
-
-    return r;
-  }
-
   // Prepare the common `apt-get <command>` options.
   //
-  static pair<cstrings, const process_path&>
-  apt_get_common (const char* command,
-                  const string& sudo,
-                  optional<bool> progress,
-                  bool yes)
+  pair<cstrings, const process_path&> system_package_manager_debian::
+  apt_get_common (const char* command)
   {
     cstrings args;
 
-    if (!sudo.empty ())
-      args.push_back (sudo.c_str ());
+    if (!sudo_.empty ())
+      args.push_back (sudo_.c_str ());
 
     args.push_back ("apt-get");
     args.push_back (command);
@@ -621,7 +698,7 @@ namespace bpkg
     // apt-get install it shows additionally progress during unpacking which
     // looks quite odd.
     //
-    if (progress && *progress)
+    if (progress_ && *progress_)
     {
       args.push_back ("--quiet=0");
     }
@@ -629,14 +706,14 @@ namespace bpkg
     {
       // Only use level 2 if assuming yes.
       //
-      args.push_back (yes ? "--quiet=2" : "--quiet");
+      args.push_back (yes_ ? "--quiet=2" : "--quiet");
     }
-    else if (progress && !*progress)
+    else if (progress_ && !*progress_)
     {
       args.push_back ("--quiet");
     }
 
-    if (yes)
+    if (yes_)
     {
       args.push_back ("--assume-yes");
     }
@@ -651,16 +728,16 @@ namespace bpkg
     {
       const process_path* pp (nullptr);
 
-      if (!sudo.empty ())
+      if (!sudo_.empty ())
       {
-        if (sudo_path.empty ())
+        if (sudo_path.empty () && !simulate_)
           sudo_path = process::path_search (args[0]);
 
         pp = &sudo_path;
       }
       else
       {
-        if (apt_get_path.empty ())
+        if (apt_get_path.empty () && !simulate_)
           apt_get_path = process::path_search (args[0]);
 
         pp = &apt_get_path;
@@ -681,11 +758,10 @@ namespace bpkg
 
   // Execute `apt-get update` to update the package index.
   //
-  static void
-  apt_get_update (const string& sudo, optional<bool> progress, bool yes)
+  void system_package_manager_debian::
+  apt_get_update ()
   {
-    pair<cstrings, const process_path&> args_pp (
-      apt_get_common ("update", sudo, progress, yes));
+    pair<cstrings, const process_path&> args_pp (apt_get_common ("update"));
 
     cstrings& args (args_pp.first);
     const process_path& pp (args_pp.second);
@@ -699,16 +775,21 @@ namespace bpkg
       else if (verb)
         text << "updating Debian package index...";
 
-      // We don't expect any prompts from apt-get update, but who knows.
-      //
-      process pr (pp, args);
+      process pr;
+      if (!simulate_)
+        pr = process (pp, args);
+      else
+      {
+        print_process (args);
+        pr = process (process_exit (simulate_->apt_get_update_fail_ ? 100 : 0));
+      }
 
       if (!pr.wait ())
       {
         diag_record dr (fail);
         dr << "apt-get update exited with non-zero code";
 
-        if (verb < 3)
+        if (verb < 2)
         {
           dr << "command line: ";
           print_process (dr, args);
@@ -726,19 +807,15 @@ namespace bpkg
     }
   }
 
-  // Execute `apt-get install` to install the specified packages/version
+  // Execute `apt-get install` to install the specified packages/versions
   // (e.g., libfoo or libfoo=1.2.3).
   //
-  static void
-  apt_get_install (const strings& pkgs,
-                   const string& sudo,
-                   optional<bool> progress,
-                   bool yes)
+  void system_package_manager_debian::
+  apt_get_install (const strings& pkgs)
   {
     assert (!pkgs.empty ());
 
-    pair<cstrings, const process_path&> args_pp (
-      apt_get_common ("install", sudo, progress, yes));
+    pair<cstrings, const process_path&> args_pp (apt_get_common ("install"));
 
     cstrings& args (args_pp.first);
     const process_path& pp (args_pp.second);
@@ -755,14 +832,21 @@ namespace bpkg
       else if (verb)
         text << "installing Debian packages...";
 
-      process pr (pp, args);
+      process pr;
+      if (!simulate_)
+        pr = process (pp, args);
+      else
+      {
+        print_process (args);
+        pr = process (process_exit (simulate_->apt_get_install_fail_ ? 100 : 0));
+      }
 
       if (!pr.wait ())
       {
         diag_record dr (fail);
         dr << "apt-get install exited with non-zero code";
 
-        if (verb < 3)
+        if (verb < 2)
         {
           dr << "command line: ";
           print_process (dr, args);
@@ -783,8 +867,7 @@ namespace bpkg
     }
   }
 
-  optional<const system_package_status*>
-  system_package_manager_debian::
+  optional<const system_package_status*> system_package_manager_debian::
   pkg_status (const package_name& pn, const available_packages* aps)
   {
     // For now we ignore -doc and -dbg package components (but we may want to
@@ -806,7 +889,7 @@ namespace bpkg
         return nullopt;
     }
 
-    vector<package_status_debian> candidates;
+    vector<package_status> candidates;
 
     // Translate our package name to the Debian package names.
     //
@@ -838,10 +921,10 @@ namespace bpkg
           // Keep the main package name empty as an indication that it is to
           // be discovered.
           //
-          candidates.push_back (package_status_debian ("", n + "-dev"));
+          candidates.push_back (package_status ("", n + "-dev"));
         }
         else
-          candidates.push_back (package_status_debian (n));
+          candidates.push_back (package_status (n));
       }
       else
       {
@@ -849,13 +932,13 @@ namespace bpkg
         //
         for (const string& n: ns)
         {
-          package_status_debian s (parse_debian_name (n, need_doc, need_dbg));
+          package_status s (parse_debian_name (n, need_doc, need_dbg));
 
           // Suppress duplicates for good measure based on the main package
           // name (and falling back to -dev if empty).
           //
           auto i (find_if (candidates.begin (), candidates.end (),
-                           [&s] (const package_status_debian& x)
+                           [&s] (const package_status& x)
                            {
                              return s.main.empty ()
                                ? s.dev == x.dev
@@ -873,9 +956,10 @@ namespace bpkg
 
     // Guess unknown main package given the dev package and its version.
     //
-    auto guess_main = [&pn] (package_status_debian& s, const string& ver)
+    auto guess_main = [this, &pn] (package_status& s, const string& ver)
     {
-      string depends;
+      string depends (apt_cache_show (s.dev, ver));
+
       s.main = main_from_dev (s.dev, ver, depends);
 
       if (s.main.empty ())
@@ -924,9 +1008,9 @@ namespace bpkg
 
     // First look for an already fully installed package.
     //
-    optional<package_status_debian> r;
+    optional<package_status> r;
 
-    for (package_status_debian& ps: candidates)
+    for (package_status& ps: candidates)
     {
       vector<package_policy>& pps (ps.package_policies);
 
@@ -993,11 +1077,11 @@ namespace bpkg
       bool requery;
       if ((requery = fetch_ && !fetched_))
       {
-        apt_get_update (sudo_, progress_, yes_);
+        apt_get_update ();
         fetched_ = true;
       }
 
-      for (package_status_debian& ps: candidates)
+      for (package_status& ps: candidates)
       {
         vector<package_policy>& pps (ps.package_policies);
 
@@ -1064,7 +1148,7 @@ namespace bpkg
 
       if (!r)
       {
-        for (package_status_debian& ps: candidates)
+        for (package_status& ps: candidates)
         {
           if (ps.main.empty ())
             continue;
@@ -1146,7 +1230,7 @@ namespace bpkg
       auto it (status_cache_.find (pn));
       assert (it != status_cache_.end () && it->second);
 
-      const package_status_debian& ps (*it->second);
+      const package_status& ps (*it->second);
 
       // At first it may seem we don't need to do anything for already fully
       // installed packages. But it's possible some of them were automatically
@@ -1208,7 +1292,7 @@ namespace bpkg
         specs.push_back (move (s));
       }
 
-      apt_get_install (specs, sudo_, progress_, yes_);
+      apt_get_install (specs);
     }
 
     // Verify that versions we have promised in pkg_status() match what
@@ -1219,7 +1303,7 @@ namespace bpkg
 
       for (const package_name& pn: pns)
       {
-        const package_status_debian& ps (*status_cache_.find (pn)->second);
+        const package_status& ps (*status_cache_.find (pn)->second);
         pps.push_back (package_policy (ps.system_name));
       }
 
@@ -1228,7 +1312,7 @@ namespace bpkg
       auto i (pps.begin ());
       for (const package_name& pn: pns)
       {
-        const package_status_debian& ps (*status_cache_.find (pn)->second);
+        const package_status& ps (*status_cache_.find (pn)->second);
         const package_policy& pp (*i++);
 
         if (pp.installed_version != ps.system_version)

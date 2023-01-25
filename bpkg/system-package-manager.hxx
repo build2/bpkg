@@ -159,16 +159,14 @@ namespace bpkg
     // available version of the not yet installed or partially installed
     // packages.
     //
-    system_package_manager (const common_options& co,
-                            os_release&& osr,
+    system_package_manager (os_release&& osr,
                             bool install,
                             bool fetch,
+                            optional<bool> progress,
                             bool yes,
                             string sudo)
         : os_release_ (osr),
-          progress_ (co.progress () ? true :
-                     co.no_progress () ? false :
-                     optional<bool> ()),
+          progress_ (progress),
           install_ (install),
           fetch_ (fetch),
           yes_ (yes),

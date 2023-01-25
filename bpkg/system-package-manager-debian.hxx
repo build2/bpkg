@@ -59,13 +59,12 @@ namespace bpkg
     //
     struct package_policy
     {
-      reference_wrapper<const string> name;
-
+      string name;
       string installed_version; // Empty if none.
       string candidate_version; // Empty if none and no installed_version.
 
       explicit
-      package_policy (const string& n): name (n) {}
+      package_policy (string n): name (move (n)) {}
     };
 
     vector<package_policy> package_policies;
@@ -95,6 +94,63 @@ namespace bpkg
     // to contain "debian".
     //
     using system_package_manager::system_package_manager;
+
+    // Implementation details exposed for testing (see definitions for
+    // documentation).
+    //
+  public:
+    using package_status = system_package_status_debian;
+    using package_policy = package_status::package_policy;
+
+    void
+    apt_cache_policy (vector<package_policy>&, size_t = 0);
+
+    string
+    apt_cache_show (const string&, const string&);
+
+    void
+    apt_get_update ();
+
+    void
+    apt_get_install (const strings&);
+
+    pair<cstrings, const process_path&>
+    apt_get_common (const char*);
+
+    static string
+    main_from_dev (const string&, const string&, const string&);
+
+    // If simulate is not NULL, then instead of executing the actual apt-cache
+    // and apt-get commands simulate their execution: (1) for apt-cache by
+    // printing their command lines and reading the results from files
+    // specified in the below apt_cache_* maps and (2) for apt-get by printing
+    // their command lines and failing if requested.
+    //
+    // In the (1) case if the corresponding map entry does not exist or the
+    // path is empty, then act as if the specified package/version is
+    // unknown. If the path is special "-" then read from stdin. For apt-cache
+    // different post-fetch and (for policy) post-install results can be
+    // specified (if the result is not found in one of the later maps, the
+    // previous map is used as a fallback). Note that the keys in the
+    // apt_cache_policy_* maps are the package sets and the corresponding
+    // result file is expected to contain (or not) the results for all of
+    // them. See apt_cache_policy() and apt_cache_show() implementations for
+    // details on the expected results.
+    //
+    struct simulation
+    {
+      std::map<strings, path> apt_cache_policy_;
+      std::map<strings, path> apt_cache_policy_fetched_;
+      std::map<strings, path> apt_cache_policy_installed_;
+
+      std::map<pair<string, string>, path> apt_cache_show_;
+      std::map<pair<string, string>, path> apt_cache_show_fetched_;
+
+      bool apt_get_update_fail_ = false;
+      bool apt_get_install_fail_ = false;
+    };
+
+    const simulation* simulate_ = nullptr;
 
   protected:
     bool fetched_ = false;   // True if already fetched metadata.
