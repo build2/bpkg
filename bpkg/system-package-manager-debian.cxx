@@ -202,7 +202,7 @@ namespace bpkg
 
     assert (n != 0 && n <= pps.size ());
 
-    // In particular, --quite makes sure we don't get a noice (N) printed to
+    // In particular, --quiet makes sure we don't get a noice (N) printed to
     // stderr if the package is unknown. It does not appear to affect error
     // diagnostics (try temporarily renaming /var/lib/dpkg/status).
     //
@@ -433,7 +433,7 @@ namespace bpkg
 
     string spec (name + '=' + ver);
 
-    // In particular, --quite makes sure we don't get noices (N) printed to
+    // In particular, --quiet makes sure we don't get noices (N) printed to
     // stderr. It does not appear to affect error diagnostics (try showing
     // information for an unknown package).
     //
@@ -1144,10 +1144,18 @@ namespace bpkg
 
     if (r)
     {
-      // Map the system version to the bpkg version.
+      // Map the Debian version to the bpkg version. But first strip the
+      // revision from Debian version ([<epoch>:]<upstream>[-<revision>]), if
+      // any.
       //
+      // Note that according to deb-version(5), <upstream> may contain `:`/`-`
+      // but in these cases <epoch>/<revision> must be specified explicitly,
+      // respectively.
+      //
+      string sv (r->system_version, 0, r->system_version.rfind ('-'));
+
       optional<version> v (
-        downstream_package_version (r->system_version,
+        downstream_package_version (sv,
                                     *aps,
                                     os_release_.name_id,
                                     os_release_.version_id,
@@ -1155,17 +1163,22 @@ namespace bpkg
 
       if (!v)
       {
-        // Fallback to using system version as downstream version.
+        // Fallback to using system version as downstream version. But first
+        // strip the epoch, if any.
         //
+        size_t p (sv.find (':'));
+        if (p != string::npos)
+          sv.erase (0, p + 1);
+
         try
         {
-          v = version (r->system_version);
+          v = version (sv);
         }
         catch (const invalid_argument& e)
         {
           fail << "unable to map Debian package " << r->system_name
-               << " version " << r->system_version << " to bpkg package "
-               << pn << " version" <<
+               << " version " << sv << " to bpkg package " << pn
+               << " version" <<
             info << "Debian version is not a valid bpkg version: " << e.what () <<
             info << "consider specifying explicit mapping in " << pn
                << " package manifest";

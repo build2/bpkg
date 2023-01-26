@@ -57,7 +57,8 @@ namespace bpkg
   // -common packages. They normally have the same version.
   //
   // The first group is called the main group and the first package in the
-  // group is called the main package.
+  // group is called the main package. Note that all the groups are consumed
+  // (installed) but only the main group is produced (packaged).
   //
   // We allow/recommend specifying the -dev package instead of the main
   // package for libraries (the name starts with lib), seeing that we are
@@ -70,6 +71,13 @@ namespace bpkg
   // Note also that for now we treat all the packages from the non-main groups
   // as extras but in the future we may decide to sort them out like the main
   // group (see parse_name_value() for details).
+  //
+  // The Debian package version has the [<epoch>:]<upstream>[-<revision>] form
+  // (see deb-version(5) for details). If no explicit mapping to bpkg version
+  // is specified with the debian-to-downstream-version manifest values (or
+  // alike), then we fallback to using the <upstream> part as bpkg version. If
+  // explicit mapping is specified, then we match it against the
+  // <epoch>:<upstream> parts ignoring <revision>.
   //
   struct system_package_status_debian: system_package_status
   {
