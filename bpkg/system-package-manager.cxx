@@ -155,10 +155,22 @@ namespace bpkg
     }
     catch (const invalid_argument& e)
     {
-      fail << "invalid distribution version '" << string (dn, p + 1)
-           << "' in value " << value_name << " for package " << ap->id.name
-           << ' ' << ap->version << af.database () << " in repository "
-           << af.load ()->location << ": " << e;
+      // Note: the repository fragment may have no database associated when
+      // used in tests.
+      //
+      shared_ptr<repository_fragment> f (af.get_eager ());
+      database* db (f == nullptr || af.loaded () ? &af.database () : nullptr);
+
+      diag_record dr (fail);
+      dr << "invalid distribution version '" << string (dn, p + 1)
+         << "' in value " << value_name << " for package " << ap->id.name
+         << ' ' << ap->version;
+
+      if (db != nullptr)
+        dr << *db;
+
+      dr << " in repository " << (f != nullptr ? f : af.load ())->location
+         << ": " << e;
     }
 
     return make_pair (move (dn), move (dv));
@@ -297,12 +309,25 @@ namespace bpkg
             {
               auto bad_value = [&nv, &ap, &a] (const string& d)
               {
+                // Note: the repository fragment may have no database
+                // associated when used in tests.
+                //
                 const lazy_shared_ptr<repository_fragment>& af (a.second);
+                shared_ptr<repository_fragment> f (af.get_eager ());
+                database* db (f == nullptr || af.loaded ()
+                              ? &af.database ()
+                              : nullptr);
 
-                fail << "invalid distribution value '" << nv.name << ": "
-                     << nv.value << "' for package " << ap->id.name << ' '
-                     << ap->version << af.database () << " in repository "
-                     << af.load ()->location << ": " << d;
+                diag_record dr (fail);
+                dr << "invalid distribution value '" << nv.name << ": "
+                   << nv.value << "' for package " << ap->id.name << ' '
+                   << ap->version;
+
+                if (db != nullptr)
+                  dr << *db;
+
+                dr << " in repository "
+                   << (f != nullptr ? f : af.load ())->location << ": " << d;
               };
 
               // Parse the distribution value into the regex pattern and the

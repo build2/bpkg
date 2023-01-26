@@ -461,6 +461,10 @@ rep_list      += -d cfg
 #
 test.options += --no-progress
 
+# Disable the use of the system package manager.
+#
+test.arguments += --sys-no-query
+
 : libfoo
 :
 : Test building different versions of libfoo.

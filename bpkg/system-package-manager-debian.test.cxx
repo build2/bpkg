@@ -9,6 +9,12 @@
 #include <map>
 #include <iostream>
 
+#include <libbutl/manifest-parser.hxx>
+
+#include <libbpkg/manifest.hxx>
+
+#include <bpkg/package.hxx>
+
 #undef NDEBUG
 #include <cassert>
 
@@ -18,6 +24,9 @@ namespace bpkg
 {
   using package_status = system_package_status_debian;
   using package_policy = package_status::package_policy;
+
+  using butl::manifest_parser;
+  using butl::manifest_parsing;
 
   // Usage: args[0] <command> ...
   //
@@ -210,7 +219,41 @@ namespace bpkg
           if (i == aps.end ())
             fail << "unknown package " << n << " in '" << l << "'";
 
-          // @@ TODO: parse manifest and make available package out of it.
+          // Parse the manifest as if it comes from a git repository with a
+          // single package and make an available package out of it.
+          //
+          try
+          {
+            ifdstream ifs (f);
+            manifest_parser mp (ifs, f);
+
+            package_manifest m (mp,
+                                false /* ignore_unknown */,
+                                true /* complete_values */);
+
+            m.alt_naming = false;
+            m.bootstrap_build = "project = " + m.name.string () + '\n';
+
+            shared_ptr<available_package> ap (
+              make_shared<available_package> (move (m)));
+
+            lazy_shared_ptr<repository_fragment> af (
+              make_shared<repository_fragment> (
+                repository_location ("https://example.com/" + i->first,
+                                     repository_type::git)));
+
+            ap->locations.push_back (package_location {af, current_dir});
+
+            i->second.push_back (make_pair (move (ap), move (af)));
+          }
+          catch (const manifest_parsing& e)
+          {
+            fail (e.name, e.line, e.column) << e.description;
+          }
+          catch (const io_error& e)
+          {
+            fail << "unable to read from " << f << ": " << e;
+          }
         }
         else if (
           map<strings, path>* policy =
@@ -262,13 +305,33 @@ namespace bpkg
           fail << "unknown keyword '" << k << "' in simulation description";
       }
 
-      // Fallback to stubs.
+      // Fallback to stubs as if they come from git repositories with a single
+      // package.
       //
       for (pair<const string, available_packages>& p: aps)
       {
         if (p.second.empty ())
         {
-          // @@ TODO: add stub available package.
+          try
+          {
+            package_name n (p.first);
+
+            shared_ptr<available_package> ap (
+              make_shared<available_package> (move (n)));
+
+            lazy_shared_ptr<repository_fragment> af (
+              make_shared<repository_fragment> (
+                repository_location ("https://example.com/" + p.first,
+                                     repository_type::git)));
+
+            ap->locations.push_back (package_location {af, current_dir});
+
+            p.second.push_back (make_pair (move (ap), move (af)));
+          }
+          catch (const invalid_argument& e)
+          {
+            fail << "invalid package name '" << p.first << "': " << e;
+          }
         }
       }
 
