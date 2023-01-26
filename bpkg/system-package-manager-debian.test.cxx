@@ -26,6 +26,8 @@ namespace bpkg
   //
   // apt-cache-show <pkg> <ver>         result comes from stdin
   //
+  // parse_name_value                   debian-name value from from stdin
+  //
   // main-from-dev <dev-pkg> <dev-ver>  depends comes from stdin
   //
   int
@@ -80,7 +82,29 @@ namespace bpkg
 
       s.apt_cache_show_.emplace (key, path ("-"));
 
-      cout << m.apt_cache_show (key.first, key.second) << "\n";
+      cout << m.apt_cache_show (key.first, key.second) << '\n';
+    }
+    else if (cmd == "parse-name-value")
+    {
+      assert (argc == 2);
+
+      string v;
+      getline (cin, v);
+
+      package_status s (m.parse_name_value (v, false, false));
+
+      if (!s.main.empty ())   cout << "main: "   << s.main   << '\n';
+      if (!s.dev.empty ())    cout << "dev: "    << s.dev    << '\n';
+      if (!s.doc.empty ())    cout << "doc: "    << s.doc    << '\n';
+      if (!s.dbg.empty ())    cout << "dbg: "    << s.dbg    << '\n';
+      if (!s.common.empty ()) cout << "common: " << s.common << '\n';
+      if (!s.extras.empty ())
+      {
+        cout << "extras:";
+        for (const string& e: s.extras)
+          cout << ' ' << e;
+        cout << '\n';
+      }
     }
     else if (cmd == "main-from-dev")
     {
@@ -89,9 +113,9 @@ namespace bpkg
       string n (argv[2]);
       string v (argv[3]);
       string d;
-      getline (cin, d, '\0');
+      getline (cin, d);
 
-      cout << m.main_from_dev (n, v, d) << "\n";
+      cout << m.main_from_dev (n, v, d) << '\n';
     }
     else
       fail << "unknown command '" << cmd << "'";

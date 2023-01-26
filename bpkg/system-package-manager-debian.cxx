@@ -13,41 +13,15 @@ namespace bpkg
 
   // Parse the debian-name (or alike) value.
   //
-  // The format of this value is a comma-separated list of one or more package
-  // groups:
+  // Note that for now we treat all the packages from the non-main groups as
+  // extras omitting the -common package (assuming it's pulled by the main
+  // package) as well as -doc and -dbg unless requested with the
+  // extra_{doc,dbg} arguments.
   //
-  // <package-group> [, <package-group>...]
-  //
-  // Where each <package-group> is the space-separated list of one or more
-  // package names:
-  //
-  // <package-name> [  <package-name>...]
-  //
-  // All the packages in the group should be "package components" (for the
-  // lack of a better term) of the same "logical package", such as -dev, -doc,
-  // -common packages. They usually have the same version.
-  //
-  // The first group is called the main group and the first package in the
-  // group is called the main package.
-  //
-  // We allow/recommend specifying the -dev package instead of the main
-  // package for libraries (the name starts with lib), seeing that we are
-  // capable of detecting the main package automatically. If the library name
-  // happens to end with -dev (which poses an ambiguity), then the -dev
-  // package should be specified explicitly as the second package to
-  // disambiguate this situation (if a non-library name happened to start with
-  // lib and end with -dev, well, you are out of luck, I guess).
-  //
-  // Note also that for now we treat all the packages from the non-main groups
-  // as extras (but in the future we may decide to sort them out like the main
-  // group). For now we omit the -common package (assuming it's pulled by the
-  // main package) as well as -doc and -dbg unless requested (the
-  // extra_{doc,dbg} arguments).
-  //
-  static package_status
-  parse_debian_name (const string& nv,
-                     bool extra_doc,
-                     bool extra_dbg)
+  package_status system_package_manager_debian::
+  parse_name_value (const string& nv,
+                    bool extra_doc,
+                    bool extra_dbg)
   {
     auto split = [] (const string& s, char d) -> strings
     {
@@ -932,7 +906,7 @@ namespace bpkg
         //
         for (const string& n: ns)
         {
-          package_status s (parse_debian_name (n, need_doc, need_dbg));
+          package_status s (parse_name_value (n, need_doc, need_dbg));
 
           // Suppress duplicates for good measure based on the main package
           // name (and falling back to -dev if empty).

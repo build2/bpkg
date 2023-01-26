@@ -16,7 +16,6 @@ namespace bpkg
   // The system package manager implementation for Debian and alike (Ubuntu,
   // etc) using the APT frontend.
   //
-
   // For background, a library in Debian is normally split up into several
   // packages: the shared library package (e.g., libfoo1 where 1 is the ABI
   // version), the development files package (e.g., libfoo-dev), the
@@ -40,11 +39,37 @@ namespace bpkg
   // shared library package with the same version and its name should normally
   // start with the -dev package's stem.
   //
-  // For a manual mapping we will require the user to always specify the
-  // shared library package and the -dev package names explicitly.
-  //
   // For executable packages there is normally no -dev packages but -dbg,
   // -doc, and -common are plausible.
+  //
+  // The format of the debian-name (or alike) manifest value value is a comma-
+  // separated list of one or more package groups:
+  //
+  // <package-group> [, <package-group>...]
+  //
+  // Where each <package-group> is the space-separated list of one or more
+  // package names:
+  //
+  // <package-name> [  <package-name>...]
+  //
+  // All the packages in the group should be "package components" (for the
+  // lack of a better term) of the same "logical package", such as -dev, -doc,
+  // -common packages. They normally have the same version.
+  //
+  // The first group is called the main group and the first package in the
+  // group is called the main package.
+  //
+  // We allow/recommend specifying the -dev package instead of the main
+  // package for libraries (the name starts with lib), seeing that we are
+  // capable of detecting the main package automatically. If the library name
+  // happens to end with -dev (which poses an ambiguity), then the -dev
+  // package should be specified explicitly as the second package to
+  // disambiguate this situation (if a non-library name happened to start with
+  // lib and end with -dev, well, you are out of luck, I guess).
+  //
+  // Note also that for now we treat all the packages from the non-main groups
+  // as extras but in the future we may decide to sort them out like the main
+  // group (see parse_name_value() for details).
   //
   struct system_package_status_debian: system_package_status
   {
@@ -116,6 +141,9 @@ namespace bpkg
 
     pair<cstrings, const process_path&>
     apt_get_common (const char*);
+
+    static package_status
+    parse_name_value (const string&, bool, bool);
 
     static string
     main_from_dev (const string&, const string&, const string&);

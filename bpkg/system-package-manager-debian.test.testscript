@@ -138,6 +138,60 @@
     EOE
 }
 
+: parse-name-value
+:
+{
+  test.arguments += parse-name-value
+
+  : basics
+  :
+  $* <<EOI >>EOO
+    libssl3 libssl-common libssl-doc libssl-dev libssl-dbg libssl-extras, libc6 libc-dev libc-common libc-doc, libz-dev
+    EOI
+    main: libssl3
+    dev: libssl-dev
+    doc: libssl-doc
+    dbg: libssl-dbg
+    common: libssl-common
+    extras: libssl-extras libc6 libc-dev libz-dev
+    EOO
+
+  : non-lib
+  :
+  $* <<EOI >>EOO
+    sqlite3 sqlite3-common sqlite3-doc
+    EOI
+    main: sqlite3
+    doc: sqlite3-doc
+    common: sqlite3-common
+    EOO
+
+  : lib-dev
+  :
+  $* <<EOI >>EOO
+    libssl-dev
+    EOI
+    dev: libssl-dev
+    EOO
+
+  : non-lib-dev
+  :
+  $* <<EOI >>EOO
+    ssl-dev
+    EOI
+    main: ssl-dev
+    EOO
+
+  : lib-custom-dev
+  :
+  $* <<EOI >>EOO
+    libfoo-dev libfoo-dev-dev
+    EOI
+    main: libfoo-dev
+    dev: libfoo-dev-dev
+    EOO
+}
+
 : main-from-dev
 :
 {
