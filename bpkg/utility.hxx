@@ -61,6 +61,8 @@ namespace bpkg
   using butl::setenv;
   using butl::unsetenv;
 
+  using butl::eof;
+
   // <libbutl/process.hxx>
   //
   using butl::process_start_callback;
