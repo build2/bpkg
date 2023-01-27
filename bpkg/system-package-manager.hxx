@@ -196,11 +196,16 @@ namespace bpkg
     // something more elaborate, like translate version_id to the like_id's
     // version and try that).
     //
-    // @@ TODO: allow multiple -name values per same distribution and handle
-    //    here? E.g., libcurl4-openssl-dev libcurl4-gnutls-dev. But they will
-    //    have the same available version, how will we deal with that? How
-    //    will we pick one? Perhaps this should all be handled by the system
-    //    package manager (conceptually, this is configuration negotiation).
+    // Note that multiple -name values per same distribution can be returned
+    // as, for example, for the following distribution values:
+    //
+    // debian_10-name: libcurl4 libcurl4-doc libcurl4-openssl-dev
+    // debian_10-name: libcurl3-gnutls libcurl4-gnutls-dev        (yes, 3 and 4)
+    //
+    // @@ TODO: But they will have the same available version, how will we
+    //    deal with that? How will we pick one? Perhaps this should all be
+    //    handled by the system package manager (conceptually, this is
+    //    configuration negotiation).
     //
     static strings
     system_package_names (const available_packages&,

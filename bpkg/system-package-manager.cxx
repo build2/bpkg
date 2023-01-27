@@ -159,7 +159,9 @@ namespace bpkg
       // used in tests.
       //
       shared_ptr<repository_fragment> f (af.get_eager ());
-      database* db (f == nullptr || af.loaded () ? &af.database () : nullptr);
+      database* db (!(f != nullptr && !af.loaded ()) // Not transient?
+                    ? &af.database ()
+                    : nullptr);
 
       diag_record dr (fail);
       dr << "invalid distribution version '" << string (dn, p + 1)
@@ -190,14 +192,11 @@ namespace bpkg
     // specified available packages whose <name> component matches the
     // specified distribution name and the <version> component (assumed as "0"
     // if not present) is less or equal the specified distribution version.
-    // Suppress duplicate entries with the same name (so that distribution
-    // values of the later available package versions are preferred) or value.
+    // Suppress duplicate values.
     //
-    using values = vector<reference_wrapper<const distribution_name_value>>;
-
     auto name_values = [&aps] (const string& n, const semantic_version& v)
     {
-      values r;
+      strings r;
       for (const auto& a: aps)
       {
         const shared_ptr<available_package>& ap (a.first);
@@ -212,11 +211,10 @@ namespace bpkg
             if (dnv.first  == n &&
                 dnv.second <= v &&
                 find_if (r.begin (), r.end (),
-                         [&nv] (const distribution_name_value& v)
-                         {return v.name == nv.name || v.value == nv.value;}) ==
+                         [&nv] (const string& v) {return nv.value == v;}) ==
                 r.end ())
             {
-              r.push_back (nv);
+              r.push_back (nv.value);
             }
           }
         }
@@ -225,34 +223,23 @@ namespace bpkg
       return r;
     };
 
-    // Collect the <distribution>-name values that match the name id and refer
-    // to the version which is less or equal than the version id.
+    // Collect distribution values for those <distribution>-name names which
+    // match the name id and refer to the version which is less or equal than
+    // the version id.
     //
-    values vs (name_values (name_id, vid));
+    strings r (name_values (name_id, vid));
 
     // If the resulting list is empty and the like ids are specified, then
     // re-collect but now using the like id and "0" version id instead.
     //
-    if (vs.empty ())
+    if (r.empty ())
     {
       for (const string& like_id: like_ids)
       {
-        vs = name_values (like_id, semantic_version (0, 0, 0));
-        if (!vs.empty ())
+        r = name_values (like_id, semantic_version (0, 0, 0));
+        if (!r.empty ())
           break;
       }
-    }
-
-    // Return the values of the collected name/values list.
-    //
-    strings r;
-    if (size_t n = vs.size ())
-    {
-      r.reserve (n);
-
-      transform (vs.begin (), vs.end (),
-                 back_inserter (r),
-                 [] (const distribution_name_value& v) {return v.value;});
     }
 
     return r;
@@ -314,7 +301,7 @@ namespace bpkg
                 //
                 const lazy_shared_ptr<repository_fragment>& af (a.second);
                 shared_ptr<repository_fragment> f (af.get_eager ());
-                database* db (f == nullptr || af.loaded ()
+                database* db (!(f != nullptr && !af.loaded ()) // Not transient?
                               ? &af.database ()
                               : nullptr);
 
