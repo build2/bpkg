@@ -129,7 +129,7 @@ namespace bpkg
   const basic_mark error ("error");
   const basic_mark warn  ("warning");
   const basic_mark info  ("info");
-  const basic_mark text  (nullptr);
+  const basic_mark text  (nullptr, nullptr, nullptr, nullptr); // No frame.
   const fail_mark  fail  ("error");
   const fail_end   endf;
 }

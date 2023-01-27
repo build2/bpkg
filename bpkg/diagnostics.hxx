@@ -122,6 +122,9 @@ namespace bpkg
 
   // Diagnostic facility, project specifics.
   //
+
+  // Note: diag frames are not applied to text/trace diagnostics.
+  //
   template <typename F>
   struct diag_frame_impl: diag_frame
   {

@@ -1705,12 +1705,13 @@ namespace bpkg
           optional<const system_package_status*> os (
             spm.pkg_status (nm, nullptr));
 
+          available_packages aps;
           if (!os)
           {
             // If no cache hit, then collect the available packages for the
             // mapping information.
             //
-            available_packages aps (find_available_all (current_configs, nm));
+            aps = find_available_all (current_configs, nm);
 
             // If no source/stub for the package (and thus no mapping), issue
             // diagnostics consistent with other such places.
@@ -1718,9 +1719,24 @@ namespace bpkg
             if (aps.empty ())
               fail << "unknown package " << nm <<
                 info << "consider specifying " << nm << "/*";
+          }
 
+          // This covers both our diagnostics below as well as anything that
+          // might be issued by pkg_status().
+          //
+          auto df = make_diag_frame (
+            [&nm] (diag_record& dr)
+            {
+              dr << info << "specify " << nm << "/* if package is not "
+                 << "installed with system package manager";
+
+              dr << info << "specify --sys-no-query to disable system "
+                 << "package manager interaction";
+            });
+
+          if (!os)
+          {
             os = spm.pkg_status (nm, &aps);
-
             assert (os);
           }
 

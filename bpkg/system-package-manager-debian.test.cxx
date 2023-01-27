@@ -312,26 +312,17 @@ namespace bpkg
       {
         if (p.second.empty ())
         {
-          try
-          {
-            package_name n (p.first);
+          shared_ptr<available_package> ap (
+            make_shared<available_package> (package_name (p.first)));
 
-            shared_ptr<available_package> ap (
-              make_shared<available_package> (move (n)));
+          lazy_shared_ptr<repository_fragment> af (
+            make_shared<repository_fragment> (
+              repository_location ("https://example.com/" + p.first,
+                                   repository_type::git)));
 
-            lazy_shared_ptr<repository_fragment> af (
-              make_shared<repository_fragment> (
-                repository_location ("https://example.com/" + p.first,
-                                     repository_type::git)));
+          ap->locations.push_back (package_location {af, current_dir});
 
-            ap->locations.push_back (package_location {af, current_dir});
-
-            p.second.push_back (make_pair (move (ap), move (af)));
-          }
-          catch (const invalid_argument& e)
-          {
-            fail << "invalid package name '" << p.first << "': " << e;
-          }
+          p.second.push_back (make_pair (move (ap), move (af)));
         }
       }
 
@@ -351,8 +342,11 @@ namespace bpkg
 
         const system_package_status* s (*m.pkg_status (pn, &aps[n]));
 
+        assert (*m.pkg_status (pn, nullptr) == s); // Test caching.
+
         if (s == nullptr)
-          fail << "no system package for " << pn;
+          fail << "no installed " << (install ? "or available " : "")
+               << "system package for " << pn;
 
         cout << pn << ' ' << s->version
              << " (" << s->system_name << ' ' << s->system_version << ") ";

@@ -254,8 +254,6 @@ namespace bpkg
                       evars);
       else
       {
-        print_process (pe, args);
-
         strings k;
         for (size_t i (0); i != n; ++i)
           k.push_back (pps[i].name);
@@ -279,6 +277,10 @@ namespace bpkg
           if (i != simulate_->apt_cache_policy_.end ())
             f = &i->second;
         }
+
+        diag_record dr (text);
+        print_process (dr, pe, args);
+        dr << " <" << (f == nullptr || f->empty () ? "/dev/null" : f->string ());
 
         pr = process (process_exit (0));
         pr.in_ofd = f == nullptr || f->empty ()
@@ -406,7 +408,7 @@ namespace bpkg
 
         if (verb < 3)
         {
-          dr << "command line: ";
+          dr << info << "command line: ";
           print_process (dr, pe, args);
         }
       }
@@ -472,8 +474,6 @@ namespace bpkg
                       evars);
       else
       {
-        print_process (pe, args);
-
         pair<string, string> k (name, ver);
 
         const path* f (nullptr);
@@ -489,6 +489,10 @@ namespace bpkg
           if (i != simulate_->apt_cache_show_.end ())
             f = &i->second;
         }
+
+        diag_record dr (text);
+        print_process (dr, pe, args);
+        dr << " <" << (f == nullptr || f->empty () ? "/dev/null" : f->string ());
 
         if (f == nullptr || f->empty ())
         {
@@ -626,7 +630,7 @@ namespace bpkg
 
         if (verb < 3)
         {
-          dr << "command line: ";
+          dr << info << "command line: ";
           print_process (dr, pe, args);
         }
       }
@@ -746,8 +750,8 @@ namespace bpkg
     {
       if (verb >= 2)
         print_process (args);
-      else if (verb)
-        text << "updating Debian package index...";
+      else if (verb == 1)
+        text << "updating " << os_release_.name_id << " package index...";
 
       process pr;
       if (!simulate_)
@@ -765,10 +769,13 @@ namespace bpkg
 
         if (verb < 2)
         {
-          dr << "command line: ";
+          dr << info << "command line: ";
           print_process (dr, args);
         }
       }
+
+      if (verb == 1)
+        text << "updated " << os_release_.name_id << " package index";
     }
     catch (const process_error& e)
     {
@@ -803,8 +810,8 @@ namespace bpkg
     {
       if (verb >= 2)
         print_process (args);
-      else if (verb)
-        text << "installing Debian packages...";
+      else if (verb == 1)
+        text << "installing " << os_release_.name_id << " packages...";
 
       process pr;
       if (!simulate_)
@@ -822,13 +829,16 @@ namespace bpkg
 
         if (verb < 2)
         {
-          dr << "command line: ";
+          dr << info << "command line: ";
           print_process (dr, args);
         }
 
-        dr << "consider resolving the issue manually and retrying the "
-           << "bpkg command";
+        dr << info << "consider resolving the issue manually and retrying "
+           << "the bpkg command";
       }
+
+      if (verb == 1)
+        text << "installed " << os_release_.name_id << " packages";
     }
     catch (const process_error& e)
     {
@@ -869,9 +879,10 @@ namespace bpkg
     //
     {
       auto df = make_diag_frame (
-        [&pn] (diag_record& dr)
+        [this, &pn] (diag_record& dr)
         {
-          dr << info << "while mapping " << pn << " to Debian package name";
+          dr << info << "while mapping " << pn << " to "
+             << os_release_.name_id << " package name";
         });
 
       strings ns (system_package_names (*aps,
@@ -938,8 +949,8 @@ namespace bpkg
 
       if (s.main.empty ())
       {
-        fail << "unable to guess main Debian package for " << s.dev << ' '
-             << ver <<
+        fail << "unable to guess main " << os_release_.name_id
+             << " package for " << s.dev << ' ' << ver <<
           info << s.dev << " Depends value: " << depends <<
           info << "consider specifying explicit mapping in " << pn
              << " package manifest";
@@ -1031,7 +1042,8 @@ namespace bpkg
 
         if (r)
         {
-          fail << "multiple installed Debian packages for " << pn <<
+          fail << "multiple installed " << os_release_.name_id
+               << " packages for " << pn <<
             info << "first package: " << r->main << " " << r->system_version <<
             info << "second package: " << ps.main << " " << ps.system_version <<
             info << "consider specifying the desired version manually";
@@ -1110,7 +1122,8 @@ namespace bpkg
         {
           if (r)
           {
-            fail << "multiple partially installed Debian packages for " << pn <<
+            fail << "multiple partially installed " << os_release_.name_id
+                 << " packages for " << pn <<
               info << "first package: " << r->main << " " << r->system_version <<
               info << "second package: " << ps.main << " " << ps.system_version <<
               info << "consider specifying the desired version manually";
@@ -1127,11 +1140,12 @@ namespace bpkg
           if (ps.main.empty ())
             continue;
 
-          assert (ps.status != package_status::not_installed); // Sanity check.
+          assert (ps.status == package_status::not_installed); // Sanity check.
 
           if (r)
           {
-            fail << "multiple available Debian packages for " << pn <<
+            fail << "multiple available " << os_release_.name_id
+                 << " packages for " << pn <<
               info << "first package: " << r->main << " " << r->system_version <<
               info << "second package: " << ps.main << " " << ps.system_version <<
               info << "consider installing the desired package manually";
@@ -1176,12 +1190,13 @@ namespace bpkg
         }
         catch (const invalid_argument& e)
         {
-          fail << "unable to map Debian package " << r->system_name
-               << " version " << sv << " to bpkg package " << pn
-               << " version" <<
-            info << "Debian version is not a valid bpkg version: " << e.what () <<
+          fail << "unable to map " << os_release_.name_id << " package "
+               << r->system_name << " version " << sv << " to bpkg package "
+               << pn << " version" <<
+            info << os_release_.name_id << " version is not a valid bpkg "
+                 << "version: " << e.what () <<
             info << "consider specifying explicit mapping in " << pn
-               << " package manifest";
+                 << " package manifest";
         }
       }
 
@@ -1288,23 +1303,41 @@ namespace bpkg
     {
       vector<package_policy> pps;
 
+      // Here we just check the main package component of each package.
+      //
       for (const package_name& pn: pns)
       {
         const package_status& ps (*status_cache_.find (pn)->second);
-        pps.push_back (package_policy (ps.system_name));
+
+        if (find_if (pps.begin (), pps.end (),
+                     [&ps] (const package_policy& pp)
+                     {
+                       return pp.name == ps.system_name;
+                     }) == pps.end ())
+        {
+          pps.push_back (package_policy (ps.system_name));
+        }
       }
 
       apt_cache_policy (pps);
 
-      auto i (pps.begin ());
       for (const package_name& pn: pns)
       {
         const package_status& ps (*status_cache_.find (pn)->second);
-        const package_policy& pp (*i++);
+
+        auto i (find_if (pps.begin (), pps.end (),
+                         [&ps] (const package_policy& pp)
+                         {
+                           return pp.name == ps.system_name;
+                         }));
+        assert (i != pps.end ());
+
+        const package_policy& pp (*i);
 
         if (pp.installed_version != ps.system_version)
         {
-          fail << "unexpected Debian package version for " << ps.system_name <<
+          fail << "unexpected " << os_release_.name_id << " package version "
+               << "for " << ps.system_name <<
             info << "expected: " << ps.system_version <<
             info << "installed: " << pp.installed_version <<
             info << "consider retrying the bpkg command";
