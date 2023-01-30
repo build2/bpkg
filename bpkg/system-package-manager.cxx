@@ -197,25 +197,51 @@ namespace bpkg
     auto name_values = [&aps] (const string& n, const semantic_version& v)
     {
       strings r;
+
+      // For each available package sort the system package names in the
+      // distribution version descending order and then append them to the
+      // resulting list, keeping this order and suppressing duplicates.
+      //
+      using name_version = pair<string, semantic_version>;
+      vector<name_version> nvs; // Reuse the buffer.
+
       for (const auto& a: aps)
       {
+        nvs.clear ();
+
         const shared_ptr<available_package>& ap (a.first);
 
-        for (const distribution_name_value& nv: ap->distribution_values)
+        for (const distribution_name_value& dv: ap->distribution_values)
         {
-          if (optional<string> d = nv.distribution ("-name"))
+          if (optional<string> d = dv.distribution ("-name"))
           {
             pair<string, semantic_version> dnv (
-              parse_distribution (move (*d), nv.name, ap, a.second));
+              parse_distribution (move (*d), dv.name, ap, a.second));
 
-            if (dnv.first  == n &&
-                dnv.second <= v &&
-                find_if (r.begin (), r.end (),
-                         [&nv] (const string& v) {return nv.value == v;}) ==
-                r.end ())
+            if (dnv.first == n && dnv.second <= v)
             {
-              r.push_back (nv.value);
+              // Add the name/version pair to the sorted vector.
+              //
+              name_version nv (make_pair (dv.value, move (dnv.second)));
+
+              nvs.insert (upper_bound (nvs.begin (), nvs.end (), nv,
+                                       [] (const name_version& x,
+                                           const name_version& y)
+                                       {return x.second > y.second;}),
+                          move (nv));
             }
+          }
+        }
+
+        // Append the sorted names to the resulting list.
+        //
+        for (name_version& nv: nvs)
+        {
+          if (find_if (r.begin (), r.end (),
+                       [&nv] (const string& n) {return nv.first == n;}) ==
+              r.end ())
+          {
+            r.push_back (move (nv.first));
           }
         }
       }
