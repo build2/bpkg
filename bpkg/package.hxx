@@ -27,7 +27,7 @@
 //
 #define DB_SCHEMA_VERSION_BASE 12
 
-#pragma db model version(DB_SCHEMA_VERSION_BASE, 21, closed)
+#pragma db model version(DB_SCHEMA_VERSION_BASE, 22, closed)
 
 namespace bpkg
 {
@@ -679,9 +679,13 @@ namespace bpkg
   {
   public:
     using version_type = bpkg::version;
+    using upstream_version_type = bpkg::upstream_version;
 
     available_package_id id;
-    upstream_version version;
+    upstream_version_type version;
+
+    optional<string> upstream_version;
+    optional<package_name> project;
 
     // List of repository fragments to which this package version belongs
     // (yes, in our world, it can be in multiple, unrelated repositories)
@@ -738,6 +742,8 @@ namespace bpkg
     available_package (package_manifest&& m)
         : id (move (m.name), m.version),
           version (move (m.version)),
+          upstream_version (move (m.upstream_version)),
+          project (move (m.project)),
           dependencies (convert (move (m.dependencies))),
           tests (move (m.tests)),
           distribution_values (move (m.distribution_values)),
