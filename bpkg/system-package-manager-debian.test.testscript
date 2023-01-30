@@ -582,8 +582,8 @@
       manifest: libcrypto libcrypto.manifest
       manifest: libssl    libssl.manifest
 
-      apt-cache-policy: libssl1.1 libssl-dev libssl1.1+libssl-dev.policy
-      apt-cache-policy: libssl1.1            libssl1.1.policy-installed
+      apt-cache-policy:           libssl1.1 libssl-dev libssl1.1+libssl-dev.policy
+      apt-cache-policy-installed: libssl1.1            libssl1.1.policy-installed
       EOI
       LC_ALL=C apt-cache policy --quiet libssl1.1 libssl-dev <libssl1.1+libssl-dev.policy
       LC_ALL=C apt-cache policy --quiet libssl1.1 libssl-dev <libssl1.1+libssl-dev.policy
@@ -624,8 +624,8 @@
       manifest: libcrypto libcrypto.manifest
       manifest: libssl    libssl.manifest
 
-      apt-cache-policy: libssl1.1 libssl-dev libssl1.1+libssl-dev.policy
-      apt-cache-policy: libssl1.1            libssl1.1.policy-installed
+      apt-cache-policy:           libssl1.1 libssl-dev libssl1.1+libssl-dev.policy
+      apt-cache-policy-installed: libssl1.1            libssl1.1.policy-installed
       EOI
       LC_ALL=C apt-cache policy --quiet libssl1.1 libssl-dev <libssl1.1+libssl-dev.policy
       sudo apt-get update --quiet --assume-no
@@ -668,8 +668,8 @@
       manifest: libcrypto libcrypto.manifest
       manifest: libssl    libssl.manifest
 
-      apt-cache-policy: libssl1.1 libssl-dev libssl1.1+libssl-dev.policy
-      apt-cache-policy: libssl1.1            libssl1.1.policy-installed
+      apt-cache-policy:           libssl1.1 libssl-dev libssl1.1+libssl-dev.policy
+      apt-cache-policy-installed: libssl1.1            libssl1.1.policy-installed
       EOI
       LC_ALL=C apt-cache policy --quiet libssl1.1 libssl-dev <libssl1.1+libssl-dev.policy
       sudo apt-get update --quiet --assume-no
@@ -681,5 +681,251 @@
       libcrypto 1.1.1 (libssl1.1 1.1.1n-0+deb11u3) not installed
       libssl 1.1.1 (libssl1.1 1.1.1n-0+deb11u3) not installed
       EOO
+  }
+
+  : libcurl
+  :
+  {
+    # Note that libcurl3-gnutls libcurl4-gnutls-dev is not a mistake.
+    #
+    # Note also that there is a third flavor, libcurl3-nss libcurl4-nss-dev,
+    # but we omit it to keep the tests manageable.
+    #
+    #
+    +cat <<EOI >=libcurl.manifest
+      : 1
+      name: libcurl
+      version: 7.84.0
+      debian-name: libcurl4 libcurl4-openssl-dev libcurl4-doc
+      debian-name: libcurl3-gnutls libcurl4-gnutls-dev libcurl4-doc
+      summary: C library for transferring data with URLs
+      license: curl
+      EOI
+
+
+    : one-full-installed
+    :
+    ln -s ../libcurl.manifest ./;
+    cat <<EOI >=libcurl4+libcurl4-openssl-dev.policy;
+      libcurl4:
+        Installed: 7.85.0-1
+        Candidate: 7.87.0-2
+        Version table:
+           7.87.0-2 500
+              500 http://deb.debian.org/debian bookworm/main amd64 Packages
+       *** 7.85.0-1 100
+              100 /var/lib/dpkg/status
+      libcurl4-openssl-dev:
+        Installed: 7.85.0-1
+        Candidate: 7.87.0-2
+        Version table:
+           7.87.0-2 500
+              500 http://deb.debian.org/debian bookworm/main amd64 Packages
+       *** 7.85.0-1 100
+              100 /var/lib/dpkg/status
+      EOI
+    cat <<EOI >=libcurl3-gnutls+libcurl4-gnutls-dev.policy;
+      libcurl3-gnutls:
+        Installed: 7.85.0-1
+        Candidate: 7.87.0-2
+        Version table:
+           7.87.0-2 500
+              500 http://deb.debian.org/debian bookworm/main amd64 Packages
+       *** 7.85.0-1 100
+              100 /var/lib/dpkg/status
+      libcurl4-gnutls-dev:
+        Installed: (none)
+        Candidate: 7.87.0-2
+        Version table:
+           7.87.0-2 500
+              500 http://deb.debian.org/debian bookworm/main amd64 Packages
+      EOI
+    cat <<EOI >=libcurl4.policy-installed;
+      libcurl4:
+        Installed: 7.85.0-1
+        Candidate: 7.87.0-2
+        Version table:
+           7.87.0-2 500
+              500 http://deb.debian.org/debian bookworm/main amd64 Packages
+       *** 7.85.0-1 100
+              100 /var/lib/dpkg/status
+      EOI
+    $* libcurl --install libcurl <<EOI 2>>EOE >>EOO
+      manifest: libcurl libcurl.manifest
+
+      apt-cache-policy:           libcurl4 libcurl4-openssl-dev       libcurl4+libcurl4-openssl-dev.policy
+      apt-cache-policy:           libcurl3-gnutls libcurl4-gnutls-dev libcurl3-gnutls+libcurl4-gnutls-dev.policy
+      apt-cache-policy-installed: libcurl4                            libcurl4.policy-installed
+      EOI
+      LC_ALL=C apt-cache policy --quiet libcurl4 libcurl4-openssl-dev <libcurl4+libcurl4-openssl-dev.policy
+      LC_ALL=C apt-cache policy --quiet libcurl3-gnutls libcurl4-gnutls-dev <libcurl3-gnutls+libcurl4-gnutls-dev.policy
+      sudo apt-get install --quiet --assume-no libcurl4=7.85.0-1 libcurl4-openssl-dev=7.85.0-1
+      LC_ALL=C apt-cache policy --quiet libcurl4 <libcurl4.policy-installed
+      EOE
+      libcurl 7.85.0 (libcurl4 7.85.0-1) installed
+      EOO
+
+
+    : one-part-installed
+    :
+    ln -s ../libcurl.manifest ./;
+    cat <<EOI >=libcurl4+libcurl4-openssl-dev.policy;
+      libcurl4:
+        Installed: 7.85.0-1
+        Candidate: 7.87.0-2
+        Version table:
+           7.87.0-2 500
+              500 http://deb.debian.org/debian bookworm/main amd64 Packages
+       *** 7.85.0-1 100
+              100 /var/lib/dpkg/status
+      libcurl4-openssl-dev:
+        Installed: (none)
+        Candidate: 7.87.0-2
+        Version table:
+           7.87.0-2 500
+              500 http://deb.debian.org/debian bookworm/main amd64 Packages
+      EOI
+    cat <<EOI >=libcurl3-gnutls+libcurl4-gnutls-dev.policy;
+      libcurl3-gnutls:
+        Installed: (none)
+        Candidate: 7.87.0-2
+        Version table:
+           7.87.0-2 500
+              500 http://deb.debian.org/debian bookworm/main amd64 Packages
+      libcurl4-gnutls-dev:
+        Installed: (none)
+        Candidate: 7.87.0-2
+        Version table:
+           7.87.0-2 500
+              500 http://deb.debian.org/debian bookworm/main amd64 Packages
+      EOI
+    cat <<EOI >=libcurl4.policy-installed;
+      libcurl4:
+        Installed: 7.87.0-2
+        Candidate: 7.87.0-2
+        Version table:
+       *** 7.87.0-2 500
+              500 http://deb.debian.org/debian bookworm/main amd64 Packages
+              100 /var/lib/dpkg/status
+      EOI
+    $* libcurl --install libcurl <<EOI 2>>EOE >>EOO
+      manifest: libcurl libcurl.manifest
+
+      apt-cache-policy:           libcurl4 libcurl4-openssl-dev       libcurl4+libcurl4-openssl-dev.policy
+      apt-cache-policy:           libcurl3-gnutls libcurl4-gnutls-dev libcurl3-gnutls+libcurl4-gnutls-dev.policy
+      apt-cache-policy-installed: libcurl4                            libcurl4.policy-installed
+      EOI
+      LC_ALL=C apt-cache policy --quiet libcurl4 libcurl4-openssl-dev <libcurl4+libcurl4-openssl-dev.policy
+      LC_ALL=C apt-cache policy --quiet libcurl3-gnutls libcurl4-gnutls-dev <libcurl3-gnutls+libcurl4-gnutls-dev.policy
+      sudo apt-get update --quiet --assume-no
+      LC_ALL=C apt-cache policy --quiet libcurl4 libcurl4-openssl-dev <libcurl4+libcurl4-openssl-dev.policy
+      LC_ALL=C apt-cache policy --quiet libcurl3-gnutls libcurl4-gnutls-dev <libcurl3-gnutls+libcurl4-gnutls-dev.policy
+      sudo apt-get install --quiet --assume-no libcurl4 libcurl4-openssl-dev
+      LC_ALL=C apt-cache policy --quiet libcurl4 <libcurl4.policy-installed
+      EOE
+      libcurl 7.87.0 (libcurl4 7.87.0-2) part installed
+      EOO
+
+
+    : none-installed
+    :
+    ln -s ../libcurl.manifest ./;
+    cat <<EOI >=libcurl4+libcurl4-openssl-dev.policy;
+      libcurl4:
+        Installed: (none)
+        Candidate: 7.87.0-2
+        Version table:
+           7.87.0-2 500
+              500 http://deb.debian.org/debian bookworm/main amd64 Packages
+      libcurl4-openssl-dev:
+        Installed: (none)
+        Candidate: 7.87.0-2
+        Version table:
+           7.87.0-2 500
+              500 http://deb.debian.org/debian bookworm/main amd64 Packages
+      EOI
+    cat <<EOI >=libcurl3-gnutls+libcurl4-gnutls-dev.policy;
+      libcurl3-gnutls:
+        Installed: (none)
+        Candidate: 7.87.0-2
+        Version table:
+           7.87.0-2 500
+              500 http://deb.debian.org/debian bookworm/main amd64 Packages
+      libcurl4-gnutls-dev:
+        Installed: (none)
+        Candidate: 7.87.0-2
+        Version table:
+           7.87.0-2 500
+              500 http://deb.debian.org/debian bookworm/main amd64 Packages
+      EOI
+    $* libcurl --install libcurl <<EOI 2>>EOE != 0
+      manifest: libcurl libcurl.manifest
+
+      apt-cache-policy:           libcurl4 libcurl4-openssl-dev       libcurl4+libcurl4-openssl-dev.policy
+      apt-cache-policy:           libcurl3-gnutls libcurl4-gnutls-dev libcurl3-gnutls+libcurl4-gnutls-dev.policy
+      EOI
+      LC_ALL=C apt-cache policy --quiet libcurl4 libcurl4-openssl-dev <libcurl4+libcurl4-openssl-dev.policy
+      LC_ALL=C apt-cache policy --quiet libcurl3-gnutls libcurl4-gnutls-dev <libcurl3-gnutls+libcurl4-gnutls-dev.policy
+      sudo apt-get update --quiet --assume-no
+      LC_ALL=C apt-cache policy --quiet libcurl4 libcurl4-openssl-dev <libcurl4+libcurl4-openssl-dev.policy
+      LC_ALL=C apt-cache policy --quiet libcurl3-gnutls libcurl4-gnutls-dev <libcurl3-gnutls+libcurl4-gnutls-dev.policy
+      error: multiple available debian packages for libcurl
+        info: first package: libcurl4 7.87.0-2
+        info: second package: libcurl3-gnutls 7.87.0-2
+        info: consider installing the desired package manually and retrying the bpkg command
+      EOE
+
+
+    : both-part-installed
+    :
+    ln -s ../libcurl.manifest ./;
+    cat <<EOI >=libcurl4+libcurl4-openssl-dev.policy;
+      libcurl4:
+        Installed: 7.85.0-1
+        Candidate: 7.87.0-2
+        Version table:
+           7.87.0-2 500
+              500 http://deb.debian.org/debian bookworm/main amd64 Packages
+       *** 7.85.0-1 100
+              100 /var/lib/dpkg/status
+      libcurl4-openssl-dev:
+        Installed: (none)
+        Candidate: 7.87.0-2
+        Version table:
+           7.87.0-2 500
+              500 http://deb.debian.org/debian bookworm/main amd64 Packages
+      EOI
+    cat <<EOI >=libcurl3-gnutls+libcurl4-gnutls-dev.policy;
+      libcurl3-gnutls:
+        Installed: 7.85.0-1
+        Candidate: 7.87.0-2
+        Version table:
+           7.87.0-2 500
+              500 http://deb.debian.org/debian bookworm/main amd64 Packages
+       *** 7.85.0-1 100
+              100 /var/lib/dpkg/status
+      libcurl4-gnutls-dev:
+        Installed: (none)
+        Candidate: 7.87.0-2
+        Version table:
+           7.87.0-2 500
+              500 http://deb.debian.org/debian bookworm/main amd64 Packages
+      EOI
+    $* libcurl --install libcurl <<EOI 2>>EOE != 0
+      manifest: libcurl libcurl.manifest
+
+      apt-cache-policy:           libcurl4 libcurl4-openssl-dev       libcurl4+libcurl4-openssl-dev.policy
+      apt-cache-policy:           libcurl3-gnutls libcurl4-gnutls-dev libcurl3-gnutls+libcurl4-gnutls-dev.policy
+      EOI
+      LC_ALL=C apt-cache policy --quiet libcurl4 libcurl4-openssl-dev <libcurl4+libcurl4-openssl-dev.policy
+      LC_ALL=C apt-cache policy --quiet libcurl3-gnutls libcurl4-gnutls-dev <libcurl3-gnutls+libcurl4-gnutls-dev.policy
+      sudo apt-get update --quiet --assume-no
+      LC_ALL=C apt-cache policy --quiet libcurl4 libcurl4-openssl-dev <libcurl4+libcurl4-openssl-dev.policy
+      LC_ALL=C apt-cache policy --quiet libcurl3-gnutls libcurl4-gnutls-dev <libcurl3-gnutls+libcurl4-gnutls-dev.policy
+      error: multiple partially installed debian packages for libcurl
+        info: first package: libcurl4 7.87.0-2
+        info: second package: libcurl3-gnutls 7.87.0-2
+        info: consider fully installing the desired package manually and retrying the bpkg command
+      EOE
   }
 }

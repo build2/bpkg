@@ -202,10 +202,9 @@ namespace bpkg
     // debian_10-name: libcurl4 libcurl4-doc libcurl4-openssl-dev
     // debian_10-name: libcurl3-gnutls libcurl4-gnutls-dev        (yes, 3 and 4)
     //
-    // @@ TODO: But they will have the same available version, how will we
-    //    deal with that? How will we pick one? Perhaps this should all be
-    //    handled by the system package manager (conceptually, this is
-    //    configuration negotiation).
+    // Note also that the value are returned in the "override order", that is
+    // from the newest package version to oldest and then from the highest
+    // distribution version to oldest. @@ Is the latter actually the case?
     //
     static strings
     system_package_names (const available_packages&,

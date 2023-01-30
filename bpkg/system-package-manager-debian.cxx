@@ -933,7 +933,14 @@ namespace bpkg
             candidates.push_back (move (s));
           else
           {
-            // @@ Should we verify the rest matches for good measure?
+            // Should we verify the rest matches for good measure? But what if
+            // we need to override, as in:
+            //
+            // debian_10-name: libcurl4 libcurl4-openssl-dev
+            // debian_9-name: libcurl4 libcurl4-dev
+            //
+            // Note that for this to work we must get debian_10 values before
+            // debian_9, which is the semantics of parse_name_value().
           }
         }
       }
@@ -1122,11 +1129,14 @@ namespace bpkg
         {
           if (r)
           {
+            // @@ TODO show missing components (like -dev, etc).
+
             fail << "multiple partially installed " << os_release_.name_id
                  << " packages for " << pn <<
               info << "first package: " << r->main << " " << r->system_version <<
               info << "second package: " << ps.main << " " << ps.system_version <<
-              info << "consider specifying the desired version manually";
+              info << "consider fully installing the desired package manually "
+                   << "and retrying the bpkg command";
           }
 
           r = move (ps);
@@ -1148,7 +1158,8 @@ namespace bpkg
                  << " packages for " << pn <<
               info << "first package: " << r->main << " " << r->system_version <<
               info << "second package: " << ps.main << " " << ps.system_version <<
-              info << "consider installing the desired package manually";
+              info << "consider installing the desired package manually "
+                   << "and retrying the bpkg command";
           }
 
           r = move (ps);
