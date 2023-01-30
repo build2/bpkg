@@ -93,6 +93,7 @@ namespace bpkg
       s.apt_cache_policy_.emplace (move (key), path ("-"));
 
       system_package_manager_debian m (move (osr),
+                                       host_triplet,
                                        false   /* install */,
                                        false   /* fetch */,
                                        nullopt /* progress */,
@@ -119,6 +120,7 @@ namespace bpkg
       s.apt_cache_show_.emplace (key, path ("-"));
 
       system_package_manager_debian m (move (osr),
+                                       host_triplet,
                                        false   /* install */,
                                        false   /* fetch */,
                                        nullopt /* progress */,
@@ -327,6 +329,7 @@ namespace bpkg
       }
 
       system_package_manager_debian m (move (osr),
+                                       host_triplet,
                                        install,
                                        fetch,
                                        nullopt /* progress */,

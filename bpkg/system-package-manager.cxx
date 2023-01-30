@@ -67,7 +67,7 @@ namespace bpkg
           // @@ TODO: verify name if specified.
 
           r.reset (new system_package_manager_debian (
-                     move (*osr), install, fetch, progress, yes, sudo));
+                     move (*osr), host, install, fetch, progress, yes, sudo));
         }
       }
     }

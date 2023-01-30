@@ -50,7 +50,7 @@ namespace bpkg
   // Where each <package-group> is the space-separated list of one or more
   // package names:
   //
-  // <package-name> [  <package-name>...]
+  // <package-name> [ <package-name>...]
   //
   // All the packages in the group should be "package components" (for the
   // lack of a better term) of the same "logical package", such as -dev, -doc,
@@ -61,10 +61,10 @@ namespace bpkg
   // (installed) but only the main group is produced (packaged).
   //
   // We allow/recommend specifying the -dev package instead of the main
-  // package for libraries (the name starts with lib), seeing that we are
-  // capable of detecting the main package automatically. If the library name
-  // happens to end with -dev (which poses an ambiguity), then the -dev
-  // package should be specified explicitly as the second package to
+  // package for libraries (the bpkg package name starts with lib), seeing
+  // that we are capable of detecting the main package automatically. If the
+  // library name happens to end with -dev (which poses an ambiguity), then
+  // the -dev package should be specified explicitly as the second package to
   // disambiguate this situation (if a non-library name happened to start with
   // lib and end with -dev, well, you are out of luck, I guess).
   //

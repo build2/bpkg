@@ -117,7 +117,7 @@ namespace bpkg
     // if really necessary.
     //
     // The returned status can be NULL, which indicates that no such package
-    // is available from the system package manager. Note that empty is also
+    // is available from the system package manager. Note that NULL is also
     // returned if no fully installed package is available from the system and
     // package installation is not enabled (see the constructor below).
     //
@@ -160,12 +160,14 @@ namespace bpkg
     // packages.
     //
     system_package_manager (os_release&& osr,
+                            const target_triplet& host,
                             bool install,
                             bool fetch,
                             optional<bool> progress,
                             bool yes,
                             string sudo)
         : os_release_ (osr),
+          host_ (host),
           progress_ (progress),
           install_ (install),
           fetch_ (fetch),
@@ -233,6 +235,7 @@ namespace bpkg
                                 const vector<string>& like_ids);
   protected:
     os_release os_release_;
+    target_triplet host_;
     optional<bool> progress_; // --[no]-progress (see also stderr_term)
 
     // The --sys-* option values.

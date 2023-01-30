@@ -425,7 +425,7 @@ namespace bpkg
   }
 
   // Execute `apt-cache show` and return the Depends value, if any, for the
-  // specified package and version.  Fail if either package or version is
+  // specified package and version. Fail if either package or version is
   // unknown.
   //
   string system_package_manager_debian::
@@ -618,7 +618,7 @@ namespace bpkg
       catch (const io_error& e)
       {
         if (pr.wait ())
-          fail << "unable to read " << args[0] << " policy output: " << e;
+          fail << "unable to read " << args[0] << " show output: " << e;
 
         // Fall through.
       }
@@ -626,7 +626,7 @@ namespace bpkg
       if (!pr.wait () || no_version)
       {
         diag_record dr (fail);
-        dr << args[0] << " policy exited with non-zero code";
+        dr << args[0] << " show exited with non-zero code";
 
         if (verb < 3)
         {
@@ -993,7 +993,7 @@ namespace bpkg
           i = true;
       }
 
-      return (!u ? package_status::installed :
+      return (!u ? package_status::installed     :
               !i ? package_status::not_installed :
               package_status::partially_installed);
     };
