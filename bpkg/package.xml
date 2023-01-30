@@ -1,4 +1,11 @@
 <changelog xmlns="http://www.codesynthesis.com/xmlns/odb/changelog" database="sqlite" version="1">
+  <changeset version="22">
+    <alter-table name="main.available_package">
+      <add-column name="upstream_version" type="TEXT" null="true"/>
+      <add-column name="project" type="TEXT" null="true" options="COLLATE NOCASE"/>
+    </alter-table>
+  </changeset>
+
   <changeset version="21">
     <add-table name="main.available_package_distribution_values" kind="container">
       <column name="name" type="TEXT" null="true" options="COLLATE NOCASE"/>
