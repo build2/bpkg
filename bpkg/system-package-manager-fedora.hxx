@@ -14,6 +14,8 @@ namespace bpkg
   // The system package manager implementation for Fedora and alike (Red Hat
   // Enterprise Linux, CentOS, etc) using the DNF frontend.
   //
+  // NOTE: the below description is also reproduced in the bpkg manual.
+  //
   // For background, a library in Fedora is normally split up into several
   // packages: the shared library package (e.g., libfoo), the development
   // files package (e.g., libfoo-devel), the static library package (e.g.,
@@ -27,7 +29,7 @@ namespace bpkg
   // name has it (see some examples below).
   //
   // For mixed packages which include both applications and libraries, the
-  // shared library package normally have the -libs suffix (e.g., foo-libs).
+  // shared library package normally has the -libs suffix (e.g., foo-libs).
   //
   // A package name may also include an upstream version based suffix if
   // multiple versions of the package can be installed simultaneously (e.g.,
@@ -51,7 +53,7 @@ namespace bpkg
   //
   // icu libicu libicu-devel libicu-doc
   //
-  // openssl openssl-devel openssl-libs
+  // openssl openssl-libs openssl-devel
   //
   // curl libcurl libcurl-devel
   //
@@ -73,7 +75,7 @@ namespace bpkg
   // For application packages there is normally no -devel packages but
   // -debug*, -doc, and -common are plausible.
   //
-  // The format of the fedora-name (or alike) manifest value value is a comma-
+  // The format of the fedora-name (or alike) manifest value is a comma-
   // separated list of one or more package groups:
   //
   // <package-group> [, <package-group>...]
@@ -110,12 +112,12 @@ namespace bpkg
   // The Fedora package version has the [<epoch>:]<version>-<release> form
   // where the parts correspond to the Epoch (optional upstream versioning
   // scheme), Version (upstream version), and Release (Fedora's package
-  // revision) RPM tags (see the Fedora package Versioning Guidelines and RPM
-  // tags documentation for details). If no explicit mapping to bpkg version
-  // is specified with the fedora-to-downstream-version manifest values (or
-  // alike), then we fallback to using the <version> part as bpkg version. If
-  // explicit mapping is specified, then we match it against the
-  // [<epoch>:]<version> parts ignoring <release>.
+  // revision) RPM tags (see the Fedora Package Versioning Guidelines and RPM
+  // tags documentation for details). If no explicit mapping to the bpkg
+  // version is specified with the fedora-to-downstream-version (or alike)
+  // manifest values or none match, then we fallback to using the <version>
+  // part as the bpkg version. If explicit mapping is specified, then we match
+  // it against the [<epoch>:]<version> parts ignoring <release>.
   //
   struct system_package_status_fedora: system_package_status
   {
@@ -127,28 +129,56 @@ namespace bpkg
     string common;
     strings extras;
 
-    string devel_fallback; // Fallback based on project name.
+    string fallback; // Fallback based on project name.
 
-    // @@ Rename. package_info?
+    // The `dnf list` output.
     //
-    // The `apt-cache policy` output.
-    //
-    struct package_policy
+    struct package_info
     {
       string name;
       string installed_version; // Empty if none.
       string candidate_version; // Empty if none and no installed_version.
 
+      // The installed/candidate package version architecture. Can be the host
+      // architecture or noarch.
+      //
+      // Note that in Fedora the same package version can be available for
+      // multiple architectures or be architecture-independent. For example:
+      //
+      // dbus-libs-1:1.12.22-1.fc35.i686
+      // dbus-libs-1:1.12.22-1.fc35.x86_64
+      // dbus-common-1:1.12.22-1.fc35.noarch
+      // code-insiders-1.75.0-1675123170.el7.armv7hl
+      // code-insiders-1.75.0-1675123170.el7.aarch64
+      // code-insiders-1.75.0-1675123170.el7.x86_64
+      //
+      // Thus, on package query you normally need to qualify the package with
+      // the architecture suffix or filter the query result, normally skipping
+      // packages which are specific for architecture other than the host
+      // architecture.
+      //
+      string installed_arch;
+      string candidate_arch;
+
       explicit
-      package_policy (string n): name (move (n)) {}
+      package_info (string n): name (move (n)) {}
+
+      bool
+      unknown () const
+      {
+        return installed_version.empty () && candidate_version.empty ();
+      }
+
+      bool
+      known () const {return !unknown ();}
     };
 
-    vector<package_policy> package_policies;
-    size_t package_policies_main = 0; // Size of the main group.
+    vector<package_info> package_infos;
+    size_t package_infos_main = 0; // Size of the main group.
 
     explicit
-    system_package_status_fedora (string m, string d = {})
-        : main (move (m)), devel (move (d))
+    system_package_status_fedora (string m, string d = {}, string f = {})
+        : main (move (m)), devel (move (d)), fallback (move (f))
     {
       assert (!main.empty () || !devel.empty ());
     }
@@ -166,9 +196,8 @@ namespace bpkg
     pkg_install (const vector<package_name>&) override;
 
   public:
-    // Note: expects os_release::name_id to be "fedora" or os_release::like_id
-    // to contain "fedora".
-    //
+    // Expects os_release::name_id to be "fedora" or os_release::like_ids to
+    // contain "fedora".
     using system_package_manager::system_package_manager;
 
     // Implementation details exposed for testing (see definitions for
@@ -176,16 +205,30 @@ namespace bpkg
     //
   public:
     using package_status = system_package_status_fedora;
-    using package_policy = package_status::package_policy;
+    using package_info = package_status::package_info;
 
     void
-    dnf_list (vector<package_policy>&, size_t = 0);
+    dnf_list (vector<package_info>&, size_t = 0);
 
     vector<pair<string, string>>
-    dnf_repoquery_requires (const string&, const string&);
+    dnf_repoquery_requires (const string&, const string&, const string&);
+
+    void
+    dnf_makecache ();
+
+    void
+    dnf_install (const strings&);
+
+    pair<cstrings, const process_path&>
+    dnf_common (const char*);
 
     static package_status
-    parse_name_value (const string&, bool, bool, bool);
+    parse_name_value (const package_name&, const string&, bool, bool, bool);
+
+    static string
+    main_from_dev (const string&,
+                   const string&,
+                   const vector<pair<string, string>>&);
 
     // @@ TODO
     //
