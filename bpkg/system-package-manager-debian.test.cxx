@@ -3,20 +3,16 @@
 
 #include <bpkg/system-package-manager-debian.hxx>
 
-#include <bpkg/types.hxx>
-#include <bpkg/utility.hxx>
-
 #include <map>
 #include <iostream>
 
-#include <libbutl/manifest-parser.hxx>
-
-#include <libbpkg/manifest.hxx>
-
-#include <bpkg/package.hxx>
+#include <bpkg/types.hxx>
+#include <bpkg/utility.hxx>
 
 #undef NDEBUG
 #include <cassert>
+
+#include <bpkg/system-package-manager.test.hxx>
 
 using namespace std;
 
@@ -221,41 +217,7 @@ namespace bpkg
           if (i == aps.end ())
             fail << "unknown package " << n << " in '" << l << "'";
 
-          // Parse the manifest as if it comes from a git repository with a
-          // single package and make an available package out of it.
-          //
-          try
-          {
-            ifdstream ifs (f);
-            manifest_parser mp (ifs, f);
-
-            package_manifest m (mp,
-                                false /* ignore_unknown */,
-                                true /* complete_values */);
-
-            m.alt_naming = false;
-            m.bootstrap_build = "project = " + m.name.string () + '\n';
-
-            shared_ptr<available_package> ap (
-              make_shared<available_package> (move (m)));
-
-            lazy_shared_ptr<repository_fragment> af (
-              make_shared<repository_fragment> (
-                repository_location ("https://example.com/" + i->first,
-                                     repository_type::git)));
-
-            ap->locations.push_back (package_location {af, current_dir});
-
-            i->second.push_back (make_pair (move (ap), move (af)));
-          }
-          catch (const manifest_parsing& e)
-          {
-            fail (e.name, e.line, e.column) << e.description;
-          }
-          catch (const io_error& e)
-          {
-            fail << "unable to read from " << f << ": " << e;
-          }
+          i->second.push_back (make_available_from_manifest (n, f));
         }
         else if (
           map<strings, path>* policy =
@@ -307,25 +269,14 @@ namespace bpkg
           fail << "unknown keyword '" << k << "' in simulation description";
       }
 
-      // Fallback to stubs as if they come from git repositories with a single
-      // package.
+      // Fallback to stubs and sort in the version descending order.
       //
       for (pair<const string, available_packages>& p: aps)
       {
         if (p.second.empty ())
-        {
-          shared_ptr<available_package> ap (
-            make_shared<available_package> (package_name (p.first)));
+          p.second.push_back (make_available_stub (p.first));
 
-          lazy_shared_ptr<repository_fragment> af (
-            make_shared<repository_fragment> (
-              repository_location ("https://example.com/" + p.first,
-                                   repository_type::git)));
-
-          ap->locations.push_back (package_location {af, current_dir});
-
-          p.second.push_back (make_pair (move (ap), move (af)));
-        }
+        sort_available (p.second);
       }
 
       system_package_manager_debian m (move (osr),

@@ -1,0 +1,102 @@
+# file      : bpkg/system-package-manager.test.testscript
+# license   : MIT; see accompanying LICENSE file
+
+: system-package-names
+:
+{
+  test.arguments += system-package-names
+
+  : basics
+  :
+  cat <<EOI >=libcurl7.64.manifest;
+    : 1
+    name: libcurl
+    version: 7.64.0
+    debian-name: libcurl2 libcurl2-dev
+    summary: curl
+    license: curl
+    EOI
+  cat <<EOI >=libcurl7.84.manifest;
+    : 1
+    name: libcurl
+    version: 7.84.0
+    debian_9-name: libcurl2 libcurl2-dev libcurl2-doc
+    debian_10-name: libcurl4 libcurl4-openssl-dev
+    debian_10-name: libcurl3-gnutls libcurl4-gnutls-dev
+    summary: curl
+    license: curl
+    EOI
+#\
+  $* debian 10 -- libcurl libcurl7.64.manifest libcurl7.84.manifest >>EOO;
+    libcurl4 libcurl4-openssl-dev
+    libcurl3-gnutls libcurl4-gnutls-dev
+    libcurl2 libcurl2-dev libcurl2-doc
+    libcurl2 libcurl2-dev
+    EOO
+#\
+  $* debian 9 -- libcurl libcurl7.64.manifest libcurl7.84.manifest >>EOO;
+    libcurl2 libcurl2-dev libcurl2-doc
+    libcurl2 libcurl2-dev
+    EOO
+  $* debian '' -- libcurl libcurl7.64.manifest libcurl7.84.manifest >>EOO;
+    libcurl2 libcurl2-dev
+    EOO
+  $* ubuntu 16.04 debian -- libcurl libcurl7.64.manifest libcurl7.84.manifest >>EOO
+    libcurl2 libcurl2-dev
+    EOO
+}
+
+: downstream-package-version
+:
+{
+  test.arguments += downstream-package-version
+
+  : basics
+  :
+  cat <<EOI >=libssl1.manifest;
+    : 1
+    name: libssl
+    version: 1.1.1
+    upstream-version: 1.1.1n
+    debian-to-downstream-version: /1\.1\.1[a-z]/1.1.1/
+    summary: openssl
+    license: openssl
+    EOI
+  cat <<EOI >=libssl3.manifest;
+    : 1
+    name: libssl
+    version: 3.0.0
+    debian-to-downstream-version: /([3-9])\.([0-9]+)\.([0-9]+)/\1.\2.\3/
+    summary: openssl
+    license: openssl
+    EOI
+  $* debian 10 -- 1.1.1l libssl libssl1.manifest libssl3.manifest >'1.1.1';
+  $* debian 10 -- 3.0.7  libssl libssl1.manifest libssl3.manifest >'3.0.7';
+  $* debian '' -- 1.1.1l libssl libssl1.manifest libssl3.manifest >'1.1.1';
+  $* debian '' -- 3.0.7  libssl libssl1.manifest libssl3.manifest >'3.0.7';
+  $* ubuntu 16.04 debian -- 1.1.1l libssl libssl1.manifest libssl3.manifest >'1.1.1';
+  $* ubuntu 16.05 debian -- 3.0.7  libssl libssl1.manifest libssl3.manifest >'3.0.7'
+
+  : order
+  :
+  cat <<EOI >=libssl1.manifest;
+    : 1
+    name: libssl
+    version: 1.1.1
+    debian-to-downstream-version: /.*/0/
+    summary: openssl
+    license: openssl
+    EOI
+  cat <<EOI >=libssl3.manifest;
+    : 1
+    name: libssl
+    version: 3.0.0
+    debian_9-to-downstream-version: /.*/9/
+    debian_10-to-downstream-version: /.*/10/
+    summary: openssl
+    license: openssl
+    EOI
+  $* debian 10 -- 1 libssl libssl1.manifest libssl3.manifest >'10';
+  $* debian  9 -- 1 libssl libssl1.manifest libssl3.manifest >'9';
+  $* debian  8 -- 1 libssl libssl1.manifest libssl3.manifest >'0'
+}

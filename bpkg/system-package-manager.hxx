@@ -174,7 +174,9 @@ namespace bpkg
           yes_ (yes),
           sudo_ (sudo != "false" ? move (sudo) : string ()) {}
 
-  protected:
+    // Implementation details.
+    //
+  public:
     // Given the available packages (as returned by find_available_all())
     // return the list of system package names as mapped by the
     // <distribution>-name values.
@@ -202,11 +204,11 @@ namespace bpkg
     // as, for example, for the following distribution values:
     //
     // debian_10-name: libcurl4 libcurl4-doc libcurl4-openssl-dev
-    // debian_10-name: libcurl3-gnutls libcurl4-gnutls-dev        (yes, 3 and 4)
+    // debian_10-name: libcurl3-gnutls libcurl4-gnutls-dev    (yes, 3 and 4)
     //
     // Note also that the value are returned in the "override order", that is
     // from the newest package version to oldest and then from the highest
-    // distribution version to oldest. @@ Is the latter actually the case?
+    // distribution version to oldest.
     //
     static strings
     system_package_names (const available_packages&,

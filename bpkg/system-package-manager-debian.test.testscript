@@ -1,4 +1,4 @@
-# file      : bpkg/host-os-release.test.testscript
+# file      : bpkg/system-package-manager-debian.test.testscript
 # license   : MIT; see accompanying LICENSE file
 
 : apt-cache-policy
