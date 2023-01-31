@@ -58,13 +58,15 @@ namespace bpkg
         if (is_or_like ("debian") ||
             is_or_like ("ubuntu"))
         {
+          if (!name.empty () && name != "debian")
+            fail << "unsupported package manager '" << name << "' for "
+                 << osr->name_id << " host";
+
           // If we recognized this as Debian-like in an ad hoc manner, then
           // add debian to like_ids.
           //
           if (osr->name_id != "debian" && !is_or_like ("debian"))
             osr->like_ids.push_back ("debian");
-
-          // @@ TODO: verify name if specified.
 
           r.reset (new system_package_manager_debian (
                      move (*osr), host, install, fetch, progress, yes, sudo));

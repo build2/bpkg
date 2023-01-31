@@ -250,13 +250,13 @@ namespace bpkg
 
   // Create a package manager instance corresponding to the specified host
   // target and optional manager name. If name is empty, return NULL if there
-  // is no support for this platform.
+  // is no support for this platform. Currently recognized names:
   //
-  // @@ TODO: need to assign names. Ideas:
+  //   debian -- Debian and alike (Ubuntu, etc) using the APT frontend.
+  //   fedora -- Fedora and alike (RHEL, Centos, etc) using the DNF frontend.
   //
-  //    dpkg-apt, rpm-dnf
-  //    deb, rpm
-  //    debian, fedora (i.e., follow  /etc/os-release ID_LIKE lead)
+  // Note: the name will be used to select an alternative package manager
+  // implementation on platforms that support multiple.
   //
   unique_ptr<system_package_manager>
   make_system_package_manager (const common_options&,
