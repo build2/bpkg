@@ -16,6 +16,8 @@ namespace bpkg
   // The system package manager implementation for Debian and alike (Ubuntu,
   // etc) using the APT frontend.
   //
+  // NOTE: the below description is also reproduced in the bpkg manual.
+  //
   // For background, a library in Debian is normally split up into several
   // packages: the shared library package (e.g., libfoo1 where 1 is the ABI
   // version), the development files package (e.g., libfoo-dev), the
@@ -73,11 +75,11 @@ namespace bpkg
   // group (see parse_name_value() for details).
   //
   // The Debian package version has the [<epoch>:]<upstream>[-<revision>] form
-  // (see deb-version(5) for details). If no explicit mapping to bpkg version
-  // is specified with the debian-to-downstream-version manifest values (or
-  // alike), then we fallback to using the <upstream> part as bpkg version. If
-  // explicit mapping is specified, then we match it against the
-  // [<epoch>:]<upstream> parts ignoring <revision>.
+  // (see deb-version(5) for details). If no explicit mapping to the bpkg
+  // version is specified with the debian-to-downstream-version (or alike)
+  // manifest values or none match, then we fallback to using the <upstream>
+  // part as the bpkg version. If explicit mapping is specified, then we match
+  // it against the [<epoch>:]<upstream> parts ignoring <revision>.
   //
   struct system_package_status_debian: system_package_status
   {
