@@ -971,6 +971,9 @@ namespace bpkg
     // The main argument specifies the size of the main group. Only components
     // from this group are considered for partially_installed determination.
     //
+    // @@ TODO: we should probably prioritize partially installed with fully
+    // installed main group. Add almost_installed next to partially_installed?
+    //
     using status_type = package_status::status_type;
 
     auto status = [] (const vector<package_policy>& pps, size_t main)
@@ -1002,62 +1005,70 @@ namespace bpkg
     //
     optional<package_status> r;
 
-    for (package_status& ps: candidates)
     {
-      vector<package_policy>& pps (ps.package_policies);
+      diag_record dr; // Ambiguity diagnostics.
 
-      if (!ps.main.empty ())            pps.emplace_back (ps.main);
-      if (!ps.dev.empty ())             pps.emplace_back (ps.dev);
-      if (!ps.doc.empty () && need_doc) pps.emplace_back (ps.doc);
-      if (!ps.dbg.empty () && need_dbg) pps.emplace_back (ps.dbg);
-      if (!ps.common.empty () && false) pps.emplace_back (ps.common);
-      ps.package_policies_main = pps.size ();
-      for (const string& n: ps.extras)  pps.emplace_back (n);
-
-      apt_cache_policy (pps);
-
-      // Handle the unknown main package.
-      //
-      if (ps.main.empty ())
+      for (package_status& ps: candidates)
       {
-        const package_policy& dev (pps.front ());
+        vector<package_policy>& pps (ps.package_policies);
 
-        // Note that at this stage we can only use the installed dev package
-        // (since the candidate version may change after fetch).
+        if (!ps.main.empty ())            pps.emplace_back (ps.main);
+        if (!ps.dev.empty ())             pps.emplace_back (ps.dev);
+        if (!ps.doc.empty () && need_doc) pps.emplace_back (ps.doc);
+        if (!ps.dbg.empty () && need_dbg) pps.emplace_back (ps.dbg);
+        if (!ps.common.empty () && false) pps.emplace_back (ps.common);
+        ps.package_policies_main = pps.size ();
+        for (const string& n: ps.extras)  pps.emplace_back (n);
+
+        apt_cache_policy (pps);
+
+        // Handle the unknown main package.
         //
-        if (dev.installed_version.empty ())
+        if (ps.main.empty ())
+        {
+          const package_policy& dev (pps.front ());
+
+          // Note that at this stage we can only use the installed dev package
+          // (since the candidate version may change after fetch).
+          //
+          if (dev.installed_version.empty ())
+            continue;
+
+          guess_main (ps, dev.installed_version);
+          pps.emplace (pps.begin (), ps.main);
+          ps.package_policies_main++;
+          apt_cache_policy (pps, 1);
+        }
+
+        optional<status_type> s (status (pps, ps.package_policies_main));
+
+        if (!s || *s != package_status::installed)
           continue;
 
-        guess_main (ps, dev.installed_version);
-        pps.emplace (pps.begin (), ps.main);
-        ps.package_policies_main++;
-        apt_cache_policy (pps, 1);
-      }
-
-      optional<status_type> s (status (pps, ps.package_policies_main));
-
-      if (!s)
-        continue;
-
-      if (*s == package_status::installed)
-      {
         const package_policy& main (pps.front ());
 
         ps.status = *s;
         ps.system_name = main.name;
         ps.system_version = main.installed_version;
 
-        if (r)
+        if (!r)
         {
-          fail << "multiple installed " << os_release_.name_id
-               << " packages for " << pn <<
-            info << "first package: " << r->main << " " << r->system_version <<
-            info << "second package: " << ps.main << " " << ps.system_version <<
-            info << "consider specifying the desired version manually";
+          r = move (ps);
+          continue;
         }
 
-        r = move (ps);
+        if (dr.empty ())
+        {
+          dr << fail << "multiple installed " << os_release_.name_id
+             << " packages for " << pn <<
+            info << "candidate: " << r->main << " " << r->system_version;
+        }
+
+        dr << info << "candidate: " << ps.main << " " << ps.system_version;
       }
+
+      if (!dr.empty ())
+        dr << info << "consider specifying the desired version manually";
     }
 
     // Next look for available versions if we are allowed to install.
@@ -1074,77 +1085,100 @@ namespace bpkg
         fetched_ = true;
       }
 
-      for (package_status& ps: candidates)
       {
-        vector<package_policy>& pps (ps.package_policies);
+        diag_record dr; // Ambiguity diagnostics.
 
-        if (requery)
-          apt_cache_policy (pps);
-
-        // Handle the unknown main package.
-        //
-        if (ps.main.empty ())
+        for (package_status& ps: candidates)
         {
-          const package_policy& dev (pps.front ());
+          vector<package_policy>& pps (ps.package_policies);
 
-          // Note that this time we use the candidate version.
+          if (requery)
+            apt_cache_policy (pps);
+
+          // Handle the unknown main package.
           //
-          if (dev.candidate_version.empty ())
-            continue; // Not installable.
-
-          guess_main (ps, dev.candidate_version);
-          pps.emplace (pps.begin (), ps.main);
-          ps.package_policies_main++;
-          apt_cache_policy (pps, 1);
-        }
-
-        optional<status_type> s (status (pps, ps.package_policies_main));
-
-        if (!s)
-        {
-          ps.main.clear (); // Not installable.
-          continue;
-        }
-
-        assert (*s != package_status::installed); // Sanity check.
-
-        const package_policy& main (pps.front ());
-
-        // Note that if we are installing something for this main package,
-        // then we always go for the candidate version even though it may have
-        // an installed version that may be good enough (especially if what we
-        // are installing are extras). The reason is that it may as well not
-        // be good enough (especially if we are installing the -dev package)
-        // and there is no straightforward way to change our mind.
-        //
-        ps.status = *s;
-        ps.system_name = main.name;
-        ps.system_version = main.candidate_version;
-
-        // Prefer partially installed to not installed. This makes detecting
-        // ambiguity a bit trickier so we handle partially installed here and
-        // not installed in a separate loop below.
-        //
-        if (ps.status == package_status::partially_installed)
-        {
-          if (r)
+          if (ps.main.empty ())
           {
-            // @@ TODO show missing components (like -dev, etc).
+            const package_policy& dev (pps.front ());
 
-            fail << "multiple partially installed " << os_release_.name_id
-                 << " packages for " << pn <<
-              info << "first package: " << r->main << " " << r->system_version <<
-              info << "second package: " << ps.main << " " << ps.system_version <<
-              info << "consider fully installing the desired package manually "
-                   << "and retrying the bpkg command";
+            // Note that this time we use the candidate version.
+            //
+            if (dev.candidate_version.empty ())
+              continue; // Not installable.
+
+            guess_main (ps, dev.candidate_version);
+            pps.emplace (pps.begin (), ps.main);
+            ps.package_policies_main++;
+            apt_cache_policy (pps, 1);
           }
 
-          r = move (ps);
+          optional<status_type> s (status (pps, ps.package_policies_main));
+
+          if (!s)
+          {
+            ps.main.clear (); // Not installable.
+            continue;
+          }
+
+          assert (*s != package_status::installed); // Sanity check.
+
+          const package_policy& main (pps.front ());
+
+          // Note that if we are installing something for this main package,
+          // then we always go for the candidate version even though it may
+          // have an installed version that may be good enough (especially if
+          // what we are installing are extras). The reason is that it may as
+          // well not be good enough (especially if we are installing the -dev
+          // package) and there is no straightforward way to change our mind.
+          //
+          ps.status = *s;
+          ps.system_name = main.name;
+          ps.system_version = main.candidate_version;
+
+          // Prefer partially installed to not installed. This makes detecting
+          // ambiguity a bit trickier so we handle partially installed here
+          // and not installed in a separate loop below.
+          //
+          if (ps.status != package_status::partially_installed)
+            continue;
+
+          if (!r)
+          {
+            r = move (ps);
+            continue;
+          }
+
+          auto print_missing = [&dr] (const package_status& s)
+          {
+            for (const package_policy& pp: s.package_policies)
+              if (pp.installed_version.empty ())
+                dr << ' ' << pp.name;
+          };
+
+          if (dr.empty ())
+          {
+            dr << fail << "multiple partially installed "
+               << os_release_.name_id << " packages for " << pn;
+
+            dr << info << "candidate: " << r->main << " " << r->system_version
+               << ", missing components:";
+            print_missing (*r);
+          }
+
+          dr << info << "candidate: " << ps.main << " " << ps.system_version
+             << ", missing components:";
+          print_missing (ps);
         }
+
+        if (!dr.empty ())
+          dr << info << "consider fully installing the desired package "
+             << "manually and retrying the bpkg command";
       }
 
       if (!r)
       {
+        diag_record dr; // Ambiguity diagnostics.
+
         for (package_status& ps: candidates)
         {
           if (ps.main.empty ())
@@ -1152,18 +1186,25 @@ namespace bpkg
 
           assert (ps.status == package_status::not_installed); // Sanity check.
 
-          if (r)
+          if (!r)
           {
-            fail << "multiple available " << os_release_.name_id
-                 << " packages for " << pn <<
-              info << "first package: " << r->main << " " << r->system_version <<
-              info << "second package: " << ps.main << " " << ps.system_version <<
-              info << "consider installing the desired package manually "
-                   << "and retrying the bpkg command";
+            r = move (ps);
+            continue;
           }
 
-          r = move (ps);
+          if (dr.empty ())
+          {
+            dr << fail << "multiple available " << os_release_.name_id
+               << " packages for " << pn <<
+              info << "candidate: " << r->main << " " << r->system_version;
+          }
+
+          dr << info << "candidate: " << ps.main << " " << ps.system_version;
         }
+
+        if (!dr.empty ())
+          dr << info << "consider installing the desired package manually and "
+             << "retrying the bpkg command";
       }
     }
 

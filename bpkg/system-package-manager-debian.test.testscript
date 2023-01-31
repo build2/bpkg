@@ -870,8 +870,8 @@
       LC_ALL=C apt-cache policy --quiet libcurl4 libcurl4-openssl-dev <libcurl4+libcurl4-openssl-dev.policy
       LC_ALL=C apt-cache policy --quiet libcurl3-gnutls libcurl4-gnutls-dev <libcurl3-gnutls+libcurl4-gnutls-dev.policy
       error: multiple available debian packages for libcurl
-        info: first package: libcurl4 7.87.0-2
-        info: second package: libcurl3-gnutls 7.87.0-2
+        info: candidate: libcurl4 7.87.0-2
+        info: candidate: libcurl3-gnutls 7.87.0-2
         info: consider installing the desired package manually and retrying the bpkg command
       EOE
 
@@ -923,8 +923,8 @@
       LC_ALL=C apt-cache policy --quiet libcurl4 libcurl4-openssl-dev <libcurl4+libcurl4-openssl-dev.policy
       LC_ALL=C apt-cache policy --quiet libcurl3-gnutls libcurl4-gnutls-dev <libcurl3-gnutls+libcurl4-gnutls-dev.policy
       error: multiple partially installed debian packages for libcurl
-        info: first package: libcurl4 7.87.0-2
-        info: second package: libcurl3-gnutls 7.87.0-2
+        info: candidate: libcurl4 7.87.0-2, missing components: libcurl4-openssl-dev
+        info: candidate: libcurl3-gnutls 7.87.0-2, missing components: libcurl4-gnutls-dev
         info: consider fully installing the desired package manually and retrying the bpkg command
       EOE
   }
