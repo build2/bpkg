@@ -3032,7 +3032,7 @@ libsigc++30 libsigc++30-devel libsigc++30-doc
 
 icu libicu libicu-devel libicu-doc
 
-openssl openssl-devel openssl-libs
+openssl openssl-libs openssl-devel
 
 curl libcurl libcurl-devel
 
