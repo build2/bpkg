@@ -32,7 +32,7 @@ namespace bpkg
   //
   //   apt-cache-show <pkg> <ver>         result comes from stdin
   //
-  //   parse_name_value                   debian-name value from from stdin
+  //   parse-name-value <pkg>             debian-name value from stdin
   //
   //   main-from-dev <dev-pkg> <dev-ver>  depends comes from stdin
   //
@@ -128,13 +128,15 @@ namespace bpkg
     }
     else if (cmd == "parse-name-value")
     {
-      assert (argc == 2);
+      assert (argc == 3); // <pkg>
+
+      package_name pn (argv[2]);
 
       string v;
       getline (cin, v);
 
       package_status s (
-        system_package_manager_debian::parse_name_value (v, false, false));
+        system_package_manager_debian::parse_name_value (pn, v, false, false));
 
       if (!s.main.empty ())   cout << "main: "   << s.main   << '\n';
       if (!s.dev.empty ())    cout << "dev: "    << s.dev    << '\n';

@@ -145,7 +145,7 @@
 
   : basics
   :
-  $* <<EOI >>EOO
+  $* libssl <<EOI >>EOO
     libssl3 libssl-common libssl-doc libssl-dev libssl-dbg libssl-extras, libc6 libc-dev libc-common libc-doc, libz-dev
     EOI
     main: libssl3
@@ -158,7 +158,7 @@
 
   : non-lib
   :
-  $* <<EOI >>EOO
+  $* sqlite3 <<EOI >>EOO
     sqlite3 sqlite3-common sqlite3-doc
     EOI
     main: sqlite3
@@ -168,7 +168,7 @@
 
   : lib-dev
   :
-  $* <<EOI >>EOO
+  $* libssl <<EOI >>EOO
     libssl-dev
     EOI
     dev: libssl-dev
@@ -176,7 +176,7 @@
 
   : non-lib-dev
   :
-  $* <<EOI >>EOO
+  $* ssl-dev <<EOI >>EOO
     ssl-dev
     EOI
     main: ssl-dev
@@ -184,7 +184,7 @@
 
   : lib-custom-dev
   :
-  $* <<EOI >>EOO
+  $* libfoo-dev <<EOI >>EOO
     libfoo-dev libfoo-dev-dev
     EOI
     main: libfoo-dev
@@ -369,6 +369,62 @@
       LC_ALL=C apt-cache policy --quiet libsqlite3-0 <libsqlite3-0.policy-installed
       EOE
       libsqlite3 3.40.1 (libsqlite3-0 3.40.1-1) part installed
+      EOO
+
+
+    # Note that the semantics is unrealistic (maybe background apt-get update
+    # happenned in between).
+    #
+    : part-installed-upgrade-version-change
+    :
+    cat <<EOI >=libsqlite3-dev.policy;
+      libsqlite3-dev:
+        Installed: (none)
+        Candidate: 3.39.4-1
+        Version table:
+           3.39.4-1 500
+              500 http://deb.debian.org/debian bookworm/main amd64 Packages
+      EOI
+    cat <<EOI >=libsqlite3-dev.show;
+      Package: libsqlite3-dev
+      Version: 3.39.4-1
+      Depends: libsqlite3-0 (= 3.39.4-1), libc-dev
+      EOI
+    cat <<EOI >=libsqlite3-0.policy;
+      libsqlite3-0:
+        Installed: 3.39.4-1
+        Candidate: 3.39.4-1
+        Version table:
+       *** 3.39.4-1 500
+              500 http://deb.debian.org/debian bookworm/main amd64 Packages
+              100 /var/lib/dpkg/status
+      EOI
+    cat <<EOI >=libsqlite3-0.policy-installed;
+      libsqlite3-0:
+        Installed: 3.40.1-1
+        Candidate: 3.40.1-1
+        Version table:
+       *** 3.40.1-1 500
+              500 http://deb.debian.org/debian bookworm/main amd64 Packages
+              100 /var/lib/dpkg/status
+      EOI
+    $* libsqlite3 --install --no-fetch libsqlite3 <<EOI 2>>EOE >>EOO != 0
+      apt-cache-policy:           libsqlite3-dev          libsqlite3-dev.policy
+      apt-cache-show:             libsqlite3-dev 3.39.4-1 libsqlite3-dev.show
+      apt-cache-policy:           libsqlite3-0            libsqlite3-0.policy
+      apt-cache-policy-installed: libsqlite3-0            libsqlite3-0.policy-installed
+      EOI
+      LC_ALL=C apt-cache policy --quiet libsqlite3-dev <libsqlite3-dev.policy
+      LC_ALL=C apt-cache show --quiet libsqlite3-dev=3.39.4-1 <libsqlite3-dev.show
+      LC_ALL=C apt-cache policy --quiet libsqlite3-0 <libsqlite3-0.policy
+      sudo apt-get install --quiet --assume-no libsqlite3-0 libsqlite3-dev
+      LC_ALL=C apt-cache policy --quiet libsqlite3-0 <libsqlite3-0.policy-installed
+      error: unexpected debian package version for libsqlite3-0
+        info: expected: 3.39.4-1
+        info: installed: 3.40.1-1
+        info: consider retrying the bpkg command
+      EOE
+      libsqlite3 3.39.4 (libsqlite3-0 3.39.4-1) part installed
       EOO
 
 

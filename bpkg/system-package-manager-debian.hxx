@@ -29,8 +29,8 @@ namespace bpkg
   // libssl1.1 libssl-dev libssl-doc
   // libssl3 libssl-dev libssl-doc
   //
-  // libcurl4 libcurl4-doc libcurl4-openssl-dev
-  // libcurl3-gnutls libcurl4-gnutls-dev         (yes, 3 and 4)
+  // libcurl4 libcurl4-openssl-dev libcurl4-doc
+  // libcurl3-gnutls libcurl4-gnutls-dev libcurl4-doc  (yes, 3 and 4)
   //
   // Based on that, it seems our best bet when trying to automatically map our
   // library package name to Debian package names is to go for the -dev
@@ -42,7 +42,7 @@ namespace bpkg
   // For executable packages there is normally no -dev packages but -dbg,
   // -doc, and -common are plausible.
   //
-  // The format of the debian-name (or alike) manifest value value is a comma-
+  // The format of the debian-name (or alike) manifest value is a comma-
   // separated list of one or more package groups:
   //
   // <package-group> [, <package-group>...]
@@ -77,7 +77,7 @@ namespace bpkg
   // is specified with the debian-to-downstream-version manifest values (or
   // alike), then we fallback to using the <upstream> part as bpkg version. If
   // explicit mapping is specified, then we match it against the
-  // <epoch>:<upstream> parts ignoring <revision>.
+  // [<epoch>:]<upstream> parts ignoring <revision>.
   //
   struct system_package_status_debian: system_package_status
   {
@@ -123,8 +123,8 @@ namespace bpkg
     pkg_install (const vector<package_name>&) override;
 
   public:
-    // Note: expects os_release::name_id to be "debian" or os_release::like_id
-    // to contain "debian".
+    // Expects os_release::name_id to be "debian" or os_release::like_ids to
+    // contain "debian".
     //
     using system_package_manager::system_package_manager;
 
@@ -151,7 +151,7 @@ namespace bpkg
     apt_get_common (const char*);
 
     static package_status
-    parse_name_value (const string&, bool, bool);
+    parse_name_value (const package_name&, const string&, bool, bool);
 
     static string
     main_from_dev (const string&, const string&, const string&);

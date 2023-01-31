@@ -44,7 +44,7 @@ using namespace butl;
 namespace bpkg
 {
   // System package manager. Resolved lazily if and when needed. Present NULL
-  // value means no system package manager is available.
+  // value means no system package manager is available for this host.
   //
   static optional<unique_ptr<system_package_manager>> sys_pkg_mgr;
 
@@ -1731,7 +1731,7 @@ namespace bpkg
                  << "installed with system package manager";
 
               dr << info << "specify --sys-no-query to disable system "
-                 << "package manager interaction";
+                 << "package manager interactions";
             });
 
           if (!os)

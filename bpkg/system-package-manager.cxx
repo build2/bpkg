@@ -103,7 +103,7 @@ namespace bpkg
     catch (const invalid_argument& e)
     {
       fail << "invalid version '" << version_id << "' for " << name_id
-           << " operating system: " << e << endf;
+           << " host: " << e << endf;
     }
   }
 

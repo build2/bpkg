@@ -19,7 +19,8 @@ namespace bpkg
   // extra_{doc,dbg} arguments.
   //
   package_status system_package_manager_debian::
-  parse_name_value (const string& nv,
+  parse_name_value (const package_name& pn,
+                    const string& nv,
                     bool extra_doc,
                     bool extra_dbg)
   {
@@ -38,7 +39,8 @@ namespace bpkg
       return nn > sn && n.compare (nn - sn, sn, s) == 0;
     };
 
-    auto parse_group = [&split, &suffix] (const string& g)
+    auto parse_group = [&split, &suffix] (const string& g,
+                                          const package_name* pn)
     {
       strings ns (split (g, ' '));
 
@@ -47,17 +49,20 @@ namespace bpkg
 
       package_status r;
 
-      // Handle the dev instead of main special case for libraries.
+      // Handle the "dev instead of main" special case for libraries.
+      //
+      // Note: the lib prefix check is based on the bpkg package name.
       //
       // Check that the following name does not end with -dev. This will be
       // the only way to disambiguate the case where the library name happens
-      // to end with -dev (e.g., libops-dev libops-dev-dev).
+      // to end with -dev (e.g., libfoo-dev libfoo-dev-dev).
       //
       {
         string& m (ns[0]);
 
-        if (m.compare (0, 3, "lib") == 0 &&
-            suffix (m, "-dev")           &&
+        if (pn != nullptr                            &&
+            pn->string ().compare (0, 3, "lib") == 0 &&
+            suffix (m, "-dev")                       &&
             !(ns.size () > 1 && suffix (ns[1], "-dev")))
         {
           r = package_status ("", move (m));
@@ -98,10 +103,10 @@ namespace bpkg
     for (size_t i (0); i != gs.size (); ++i)
     {
       if (i == 0) // Main group.
-        r = parse_group (gs[i]);
+        r = parse_group (gs[i], &pn);
       else
       {
-        package_status g (parse_group (gs[i]));
+        package_status g (parse_group (gs[i], nullptr));
 
         if (!g.main.empty ())             r.extras.push_back (move (g.main));
         if (!g.dev.empty ())              r.extras.push_back (move (g.dev));
@@ -202,7 +207,7 @@ namespace bpkg
 
     assert (n != 0 && n <= pps.size ());
 
-    // In particular, --quiet makes sure we don't get a noice (N) printed to
+    // The --quiet option makes sure we don't get a noice (N) printed to
     // stderr if the package is unknown. It does not appear to affect error
     // diagnostics (try temporarily renaming /var/lib/dpkg/status).
     //
@@ -666,7 +671,7 @@ namespace bpkg
     //
     // 1 -- shows URL being downloaded but no percentage progress is shown.
     //
-    // 2 -- only shows diagnostics (implies --assume-yes and which cannot be
+    // 2 -- only shows diagnostics (implies --assume-yes which cannot be
     //      overriden with --assume-no).
     //
     // It also appears to automatically use level 1 if stderr is not a
@@ -856,7 +861,8 @@ namespace bpkg
   {
     // For now we ignore -doc and -dbg package components (but we may want to
     // have options controlling this later). Note also that we assume -common
-    // is pulled automatically by the main package so we ignore it as well.
+    // is pulled automatically by the main package so we ignore it as well
+    // (see equivalent logic in parse_name_value()).
     //
     bool need_doc (false);
     bool need_dbg (false);
@@ -917,7 +923,7 @@ namespace bpkg
         //
         for (const string& n: ns)
         {
-          package_status s (parse_name_value (n, need_doc, need_dbg));
+          package_status s (parse_name_value (pn, n, need_doc, need_dbg));
 
           // Suppress duplicates for good measure based on the main package
           // name (and falling back to -dev if empty).
@@ -925,7 +931,11 @@ namespace bpkg
           auto i (find_if (candidates.begin (), candidates.end (),
                            [&s] (const package_status& x)
                            {
-                             return s.main.empty ()
+                             // Note that it's possible for one mapping to be
+                             // specified as -dev only while the other as main
+                             // and -dev.
+                             //
+                             return s.main.empty () || x.main.empty ()
                                ? s.dev == x.dev
                                : s.main == x.main;
                            }));
@@ -940,13 +950,14 @@ namespace bpkg
             // debian_9-name: libcurl4 libcurl4-dev
             //
             // Note that for this to work we must get debian_10 values before
-            // debian_9, which is the semantics of parse_name_value().
+            // debian_9, which is the semantics guaranteed by
+            // system_package_names().
           }
         }
       }
     }
 
-    // Guess unknown main package given the dev package and its version.
+    // Guess unknown main package given the -dev package and its version.
     //
     auto guess_main = [this, &pn] (package_status& s, const string& ver)
     {
@@ -1028,8 +1039,8 @@ namespace bpkg
         {
           const package_policy& dev (pps.front ());
 
-          // Note that at this stage we can only use the installed dev package
-          // (since the candidate version may change after fetch).
+          // Note that at this stage we can only use the installed -dev
+          // package (since the candidate version may change after fetch).
           //
           if (dev.installed_version.empty ())
             continue;

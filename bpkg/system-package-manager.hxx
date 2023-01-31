@@ -41,9 +41,9 @@ namespace bpkg
   // managers (e.g., Debian, Fedora) are able to install multiple libraries in
   // parallel, they normally can only install a single set of headers, static
   // libraries, pkg-config files, etc., (e.g., -dev/-devel package) at a time
-  // due to them being installed into the same location (e.g.,
-  // /usr/include). The same holds for executables, which are installed into
-  // the same location (e.g., /usr/bin).
+  // due to them being installed into the same location (e.g., /usr/include).
+  // The same holds for executables, which are installed into the same
+  // location (e.g., /usr/bin).
   //
   // It is possible that a certain library has made arrangements for
   // multiple of its versions to co-exist. For example, hypothetically, our
@@ -85,12 +85,11 @@ namespace bpkg
     //
     bpkg::version version;
 
-    // System (as in, distribution package) package name and version for
-    // diagnostics.
+    // System (as in, distribution) package name and version for diagnostics.
     //
     // Note that this status may represent multiple system packages (for
-    // example, libssl3 and libssl3-dev) and here we have the main package
-    // name (for example, libssl3).
+    // example, libfoo and libfoo-dev) and here we have only the
+    // main/representative package name (for example, libfoo).
     //
     string system_name;
     string system_version;
@@ -122,7 +121,8 @@ namespace bpkg
     // package installation is not enabled (see the constructor below).
     //
     // Note also that the implementation is expected to issue appropriate
-    // progress and diagnostics if fetching package metadata.
+    // progress and diagnostics if fetching package metadata (again see the
+    // constructor below).
     //
     virtual optional<const system_package_status*>
     pkg_status (const package_name&, const available_packages*) = 0;
@@ -132,7 +132,7 @@ namespace bpkg
     // below).
     //
     // Note that this function should be called only once after the final set
-    // of the necessary system packages has been determined. And the specified
+    // of the required system packages has been determined. And the specified
     // subset should contain all the selected packages, including the already
     // fully installed. This allows the implementation to merge and de-
     // duplicate the system package set to be installed (since some bpkg
@@ -149,9 +149,6 @@ namespace bpkg
     pkg_install (const vector<package_name>&) = 0;
 
   public:
-    virtual
-    ~system_package_manager ();
-
     // If install is true, then enable package installation.
     //
     // If fetch is false, then do not re-fetch the system package repository
@@ -174,6 +171,9 @@ namespace bpkg
           yes_ (yes),
           sudo_ (sudo != "false" ? move (sudo) : string ()) {}
 
+    virtual
+    ~system_package_manager ();
+
     // Implementation details.
     //
   public:
@@ -188,17 +188,17 @@ namespace bpkg
     // First consider <distribution>-name values corresponding to name_id.
     // Assume <distribution> has the <name>[_<version>] form, where <version>
     // is a semver-like version (e.g, 10, 10.15, or 10.15.1) and return all
-    // the values that are equal of less than the specified version_id
+    // the values that are equal or less than the specified version_id
     // (include the value with the absent <version>). In a sense, absent
-    // <version> can be treated as 0 semver-like versions.
+    // <version> can be treated as a 0 semver-like version.
     //
     // If no value is found then repeat the above process for every like_ids
     // entry (from left to right) instead of name_id with version_id equal 0.
     //
     // If still no value is found, then return empty list (in which case the
     // caller may choose to fallback to the downstream package name or do
-    // something more elaborate, like translate version_id to the like_id's
-    // version and try that).
+    // something more elaborate, like translate version_id to one of the
+    // like_id's version and try that).
     //
     // Note that multiple -name values per same distribution can be returned
     // as, for example, for the following distribution values:
@@ -206,9 +206,9 @@ namespace bpkg
     // debian_10-name: libcurl4 libcurl4-doc libcurl4-openssl-dev
     // debian_10-name: libcurl3-gnutls libcurl4-gnutls-dev    (yes, 3 and 4)
     //
-    // Note also that the value are returned in the "override order", that is
+    // Note also that the values are returned in the "override order", that is
     // from the newest package version to oldest and then from the highest
-    // distribution version to oldest.
+    // distribution version to lowest.
     //
     static strings
     system_package_names (const available_packages&,
@@ -226,8 +226,7 @@ namespace bpkg
     // name_id. If none match, then repeat the above process for every
     // like_ids entry with version_id equal 0. If still no match, then return
     // nullopt (in which case the caller may choose to fallback to the system
-    // package version or do something more elaborate, like translate
-    // version_id to the like_id's version and try that).
+    // package version or do something more elaborate).
     //
     static optional<version>
     downstream_package_version (const string& system_version,
@@ -255,7 +254,7 @@ namespace bpkg
   //   debian -- Debian and alike (Ubuntu, etc) using the APT frontend.
   //   fedora -- Fedora and alike (RHEL, Centos, etc) using the DNF frontend.
   //
-  // Note: the name will be used to select an alternative package manager
+  // Note: the name can be used to select an alternative package manager
   // implementation on platforms that support multiple.
   //
   unique_ptr<system_package_manager>

@@ -103,11 +103,11 @@ namespace bpkg
      unspecified, then \cb{pkg-build} will attempt to query the system package
      manager for the installed version unless the system package manager is
      unsupported or this functionality is disabled with \cb{--sys-no-query},
-     in which case '\cb{/*}' <ver-spec> is assumed. If the system package
+     in which case the '\cb{/*}' <ver-spec> is assumed. If the system package
      manager is supported, then the automatic installation of an available
-     package can be requested with the \cb{--sys-install} option. If the
-     version is not explicitly specified, then at least a stub package must be
-     available from one of the repositories.
+     package can be requested with the \cb{--sys-install} option. Note that if
+     the version is not explicitly specified, then at least a stub package
+     must be available from one of the repositories.
 
      Finally, a package can be specified as either the path to the package
      archive (<file>) or to the package directory (<dir>\cb{/}; note that it
@@ -424,24 +424,24 @@ namespace bpkg
 
     bool --sys-install
     {
-      "Automatically instruct the system package manager to install
-       available versions of packages specified with the \cb{sys} scheme
-       that are not already installed. See also the \cb{--sys-no-fetch},
-       \cb{--sys-yes}, and \cb{--sys-sudo} options."
+      "Instruct the system package manager to install available versions of
+       packages specified with the \cb{sys} scheme that are not already
+       installed. See also the \cb{--sys-no-fetch}, \cb{--sys-yes}, and
+       \cb{--sys-sudo} options."
     }
 
     bool --sys-no-fetch
     {
-      "Do not automatically fetch the system package manager metadata
-       before querying for available version. This option only makes
-       sense together with \cb{--sys-install}."
+      "Do not fetch the system package manager metadata before querying for
+       available versions of packages specified with the \cb{sys} scheme.
+       This option only makes sense together with \cb{--sys-install}."
     }
 
     bool --sys-yes
     {
       "Assume the answer to the system package manager prompts is \cb{yes}.
        Note that system package manager interactions may break your system
-       and you should normally only use this option on throw-away systems
+       and you should normally only use this option on throw-away setups
        (test virtual machines, etc)."
     }
 
@@ -455,7 +455,7 @@ namespace bpkg
        by default. Pass empty or the special \cb{false} value to disable the
        use of the \cb{sudo} program. Note that the \cb{sudo} program is
        normally only needed if the system package installation is enabled
-       (\cb{--sys-install})."
+       with the \cb{--sys-install} option."
     }
 
     dir_paths --directory|-d
