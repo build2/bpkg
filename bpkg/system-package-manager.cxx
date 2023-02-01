@@ -14,6 +14,7 @@
 #include <bpkg/diagnostics.hxx>
 
 #include <bpkg/system-package-manager-debian.hxx>
+#include <bpkg/system-package-manager-fedora.hxx>
 
 using namespace std;
 using namespace butl;
@@ -69,6 +70,25 @@ namespace bpkg
             osr->like_ids.push_back ("debian");
 
           r.reset (new system_package_manager_debian (
+                     move (*osr), host, install, fetch, progress, yes, sudo));
+        }
+        else if (is_or_like ("fedora") ||
+                 is_or_like ("rhel")   ||
+                 is_or_like ("centos") ||
+                 is_or_like ("rocky")  ||
+                 is_or_like ("almalinux"))
+        {
+          if (!name.empty () && name != "fedora")
+            fail << "unsupported package manager '" << name << "' for "
+                 << osr->name_id << " host";
+
+          // If we recognized this as Fedora-like in an ad hoc manner, then
+          // add fedora to like_ids.
+          //
+          if (osr->name_id != "fedora" && !is_or_like ("fedora"))
+            osr->like_ids.push_back ("fedora");
+
+          r.reset (new system_package_manager_fedora (
                      move (*osr), host, install, fetch, progress, yes, sudo));
         }
       }

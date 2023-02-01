@@ -3041,7 +3041,8 @@ libsigc++30 libsigc++30-devel libsigc++30-doc
 
 icu libicu libicu-devel libicu-doc
 
-openssl openssl-libs openssl-devel
+openssl openssl-libs openssl-devel openssl-static
+openssl1.1 openssl1.1-devel
 
 curl libcurl libcurl-devel
 
@@ -3049,6 +3050,10 @@ sqlite sqlite-libs sqlite-devel sqlite-doc
 
 community-mysql community-mysql-libs community-mysql-devel
 community-mysql-common community-mysql-server
+
+ncurses ncurses-libs ncurses-c++-libs ncurses-devel ncurses-static
+
+keyutils keyutils-libs keyutils-libs-devel
 \
 
 Based on that, our approach when trying to automatically map a \c{bpkg}

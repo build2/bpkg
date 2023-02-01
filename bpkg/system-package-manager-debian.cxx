@@ -62,6 +62,7 @@ namespace bpkg
 
         if (pn != nullptr                            &&
             pn->string ().compare (0, 3, "lib") == 0 &&
+            pn->string ().size () > 3                &&
             suffix (m, "-dev")                       &&
             !(ns.size () > 1 && suffix (ns[1], "-dev")))
         {
@@ -909,7 +910,7 @@ namespace bpkg
         // non-libraries with the lib prefix (both of which we do not
         // recomment) will have to provide a manual mapping.
         //
-        if (n.compare (0, 3, "lib") == 0)
+        if (n.compare (0, 3, "lib") == 0 && n.size () > 3)
         {
           // Keep the main package name empty as an indication that it is to
           // be discovered.
@@ -1283,7 +1284,7 @@ namespace bpkg
     assert (install_ && !installed_);
     installed_ = true;
 
-    // Collect and merge all the Debian packages/version for the specified
+    // Collect and merge all the Debian packages/versions for the specified
     // bpkg packages.
     //
     struct package
