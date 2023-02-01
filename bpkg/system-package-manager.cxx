@@ -280,6 +280,8 @@ namespace bpkg
                               const string& version_id,
                               const vector<string>& like_ids)
   {
+    assert (!aps.empty ());
+
     semantic_version vid (parse_version_id (version_id, name_id));
 
     // Iterate over the passed available packages (in version descending

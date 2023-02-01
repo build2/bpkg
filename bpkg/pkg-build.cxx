@@ -1714,11 +1714,21 @@ namespace bpkg
             aps = find_available_all (current_configs, nm);
 
             // If no source/stub for the package (and thus no mapping), issue
-            // diagnostics consistent with other such places.
+            // diagnostics consistent with other such places unless explicitly
+            // allowed by the user.
             //
             if (aps.empty ())
-              fail << "unknown package " << nm <<
-                info << "consider specifying " << nm << "/*";
+            {
+              if (!o.sys_no_stub ())
+                fail << "unknown package " << nm <<
+                  info << "consider specifying --sys-no-stub or " << nm << "/*";
+
+              // Add the stub package to the imaginary system repository (like
+              // the user-specified case below).
+              //
+              if (stubs != nullptr)
+                stubs->push_back (make_shared<available_package> (nm));
+            }
           }
 
           // This covers both our diagnostics below as well as anything that

@@ -891,10 +891,12 @@ namespace bpkg
              << os_release_.name_id << " package name";
         });
 
-      strings ns (system_package_names (*aps,
-                                        os_release_.name_id,
-                                        os_release_.version_id,
-                                        os_release_.like_ids));
+      strings ns;
+      if (!aps->empty ())
+        ns = system_package_names (*aps,
+                                   os_release_.name_id,
+                                   os_release_.version_id,
+                                   os_release_.like_ids);
       if (ns.empty ())
       {
         // Attempt to automatically translate our package name (see above for
@@ -1231,12 +1233,13 @@ namespace bpkg
       //
       string sv (r->system_version, 0, r->system_version.rfind ('-'));
 
-      optional<version> v (
-        downstream_package_version (sv,
-                                    *aps,
-                                    os_release_.name_id,
-                                    os_release_.version_id,
-                                    os_release_.like_ids));
+      optional<version> v;
+      if (!aps->empty ())
+        v = downstream_package_version (sv,
+                                        *aps,
+                                        os_release_.name_id,
+                                        os_release_.version_id,
+                                        os_release_.like_ids);
 
       if (!v)
       {
