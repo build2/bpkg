@@ -10,7 +10,7 @@
 #include <cstring>   // strcmp(), strchr()
 #include <utility>   // move(), forward(), declval(), make_pair()
 #include <cassert>   // assert()
-#include <iterator>  // make_move_iterator()
+#include <iterator>  // make_move_iterator(), back_inserter()
 #include <algorithm> // *
 
 #include <libbutl/ft/lang.hxx>
@@ -33,6 +33,7 @@ namespace bpkg
   using std::make_pair;
   using std::make_shared;
   using std::make_move_iterator;
+  using std::back_inserter;
   using std::to_string;
 
   using std::strcmp;
@@ -51,6 +52,7 @@ namespace bpkg
   using butl::trim;
   using butl::trim_left;
   using butl::trim_right;
+  using butl::next_word;
 
   using butl::make_guard;
   using butl::make_exception_guard;
@@ -58,6 +60,8 @@ namespace bpkg
   using butl::getenv;
   using butl::setenv;
   using butl::unsetenv;
+
+  using butl::eof;
 
   // <libbutl/process.hxx>
   //
@@ -98,6 +102,10 @@ namespace bpkg
   extern const string   alt_build_ext;      // build2
 
   extern const dir_path current_dir;        // ./
+
+  // Host target triplet for which we were built.
+  //
+  extern const target_triplet host_triplet;
 
   // Temporary directory facility.
   //

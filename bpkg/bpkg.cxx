@@ -611,6 +611,7 @@ try
     cout << "bpkg " << BPKG_VERSION_ID << endl
          << "libbpkg " << LIBBPKG_VERSION_ID << endl
          << "libbutl " << LIBBUTL_VERSION_ID << endl
+         << "host " << host_triplet << endl
          << "Copyright (c) " << BPKG_COPYRIGHT << "." << endl
          << "This is free software released under the MIT license." << endl;
     return 0;

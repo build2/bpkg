@@ -6,9 +6,12 @@
 namespace bpkg
 {
   const version& system_repository::
-  insert (const package_name& name, const version& v, bool authoritative)
+  insert (const package_name& name,
+          const version& v,
+          bool authoritative,
+          const system_package_status* s)
   {
-    auto p (map_.emplace (name, system_package {v, authoritative}));
+    auto p (map_.emplace (name, system_package {v, authoritative, s}));
 
     if (!p.second)
     {
@@ -22,6 +25,7 @@ namespace bpkg
       {
         sp.authoritative = authoritative;
         sp.version = v;
+        sp.system_status = s;
       }
     }
 

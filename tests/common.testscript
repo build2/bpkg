@@ -32,11 +32,13 @@ test.options += --default-options $options_guard \
 # (for example, to make sure that configuration post-test state is valid and is
 # as expected).
 #
+# Disable the use of the system package manager for the pkg-build command.
+#
 cfg_create    = [cmdline] $* cfg-create
 cfg_info      = [cmdline] $* cfg-info
 cfg_link      = [cmdline] $* cfg-link
 cfg_unlink    = [cmdline] $* cfg-unlink
-pkg_build     = [cmdline] $* pkg-build
+pkg_build     = [cmdline] $* pkg-build --sys-no-query
 pkg_checkout  = [cmdline] $* pkg-checkout
 pkg_configure = [cmdline] $* pkg-configure
 pkg_disfigure = [cmdline] $* pkg-disfigure

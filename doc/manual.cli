@@ -2390,25 +2390,57 @@ automatically added, for example, when the \l{#manifest-package-list-pkg
 package list manifest} is created.
 
 
-\h2#manifest-package-distribution|\c{*-name}|
+\h2#manifest-package-distribution|\c{*-{name, version, to-downstream-version\}}|
 
 \
-[*-name]: <name> [<name>...]
-[*-version]: <string>
-[*-to-downstream-version]: <regex>
+[<distribution>-name]: <name> [<name>...]
+[<distribution>-version]: <string>
+[<distribution>-to-downstream-version]: <regex>
 
-<regex> = /<patten>/<replacement>/
+<distribution> = <name>[_<version>]
+<regex> = /<pattern>/<replacement>/
 \
 
-The binary distribution packages where the substring matched by \c{*} in
-\c{*-name} denotes the distribution name which has the
-\c{<name>[\b{_}<version>]} form. For example:
+The binary distribution package name and version mapping. The \c{-name} value
+specifies the distribution package(s) this \c{bpkg} package maps to. If
+unspecified, then appropriate name(s) are automatically derived from the
+\c{bpkg} package name (\l{#manifest-package-name \c{name}}). Similarly, the
+\c{-version} value specifies the distribution package version. If unspecified,
+then the \c{upstream-version} value is used if specified and the \c{bpkg}
+version otherwise (\l{#manifest-package-version \c{version}}). While the
+\c{-to-downstream-version} values specify the reverse mapping, that is, from
+the distribution version to the \c{bpkg} version. If unspecified or none
+match, then the appropriate part of the distribution version is used. For
+example:
+
+\
+name: libssl
+version 1.1.1+18
+debian-name: libssl1.1 libssl-dev
+debian-version: 1.1.1n
+debian-to-downstream-version: /1\.1\.1[a-z]/1.1.1/
+debian-to-downstream-version: /([3-9])\.([0-9]+)\.([0-9]+)/\1.\2.\3/
+\
+
+If \c{upstream-version} is specified but the the distribution package version
+should be the same as the \c{bpkg} package version, then the special \c{$}
+\c{-version} value can be used. For example:
+
+\
+debian-version: $
+\
+
+The \c{<distribution>} name prefix consists of the distribution name followed
+by the optional distribution version. If the version is omitted, then the
+value applies to all versions. Some examples of distribution names and
+versions:
 
 \
 debian
 debian_10
-fedora_32
 ubuntu_16.04
+fedora_32
+rhel_8.5
 freebsd_12.1
 windows_10
 macos_10
@@ -2416,54 +2448,15 @@ macos_10.15
 macos_12
 \
 
-If the \c{*-name} values are specified, then the packages required for these
-binary distributions can be created using the \l{bpkg-pkg-bindist(1)}
-command. The \c{*-name} values contain whitespace separated lists of the
-distribution package names. Normally such a list contains a single primary
-package name, but can additionally contain the related package names which
-cannot automatically be deduced from the primary package name. For example:
+Note also that some distributions are like others (for example, \c{ubuntu} is
+like \c{debian}) and the corresponding \"base\" distribution values are
+considered if no \"derived\" values are specified.
 
-\
-debian_10-name: libssl1.1 libssl-dev
-fedora_32-name: openssl-libs
-\
-
-If the distribution package version differs from the upstream package version
-(the \c{upstream-version} value, if present, and the \c{version} value
-otherwise), then the matching \c{*-version} value needs to be specified. For
-example:
-
-\
-debian-name: libssl1.1 libssl-dev
-debian-version: 1.1.1n
-\
-
-To specify the distribution package version to be the same as the \cb{bpkg}
-package version, the special \c{$} value can be used. For example:
-
-\
-debian-version: $
-\
-
-When configuring a package as a system dependency the \l{bpkg-pkg-build(1)}
-command needs to map the binary distribution package versions back to the
-\cb{bpkg} package versions, so it can verify the version constraints imposed
-by the dependent packages on this dependency package. Unless such a mapping is
-maintained externally, it should be specified at the \cb{bpkg} package level
-by using the \c{*-to-downstream-version} values. For example:
-
-\
-debian-name: libssl1.1 libssl-dev
-debian-version: 1.1.1n
-debian-to-downstream-version: /([^.])\.([^.])\.([^.])n/\1.\2.\3+14/
-debian-to-downstream-version: /([^.])\.([^.])\.([^.])o/\1.\2.\3+15/
-debian-to-downstream-version: /([^.])\.([^.])\.([^.])p/\1.\2.\3+16/
-\
-
-If \cb{bpkg} finds the matching regular expression pattern, then it uses the
-corresponding replacement to produce the \cb{bpkg} package version. Otherwise,
-it excludes this binary distribution package version from the consideration.
-
+The exact format of the \c{-name} value and the distribution version part that
+is matched against the \c{-to-downstream-version} pattern are
+distribution-specific. For details, see
+\l{#bindist-mapping-debian Debian Package Mapping} and
+\l{#bindist-mapping-fedora Fedora Package Mapping}.
 
 \h#manifest-package-list-pkg|Package List Manifest for \cb{pkg} Repositories|
 
@@ -2918,6 +2911,188 @@ signature: <sig>
 The signature of the \c{packages.manifest} file. It should be calculated by
 encrypting the above \c{sha256sum} value with the repository certificate's
 private key and then \c{base64}-encoding the result.
+
+
+\h1#bindist-mapping|Binary Distribution Package Mapping|
+
+
+\h#bindist-mapping-debian|Debian Package Mapping|
+
+This section describes the distribution package mapping for Debian and
+alike (Ubuntu, etc).
+
+A library in Debian is normally split up into several packages: the shared
+library package (e.g., \c{libfoo1} where \c{1} is the ABI version), the
+development files package (e.g., \c{libfoo-dev}), the documentation files
+package (e.g., \c{libfoo-doc}), the debug symbols package (e.g.,
+\c{libfoo1-dbg}), and the architecture-independent files (e.g.,
+\c{libfoo1-common}). All the packages except \c{-dev} are optional and there
+is quite a bit of variability. Here are a few examples:
+
+\
+libz3-4 libz3-dev
+
+libssl1.1 libssl-dev libssl-doc
+libssl3 libssl-dev libssl-doc
+
+libcurl4 libcurl4-openssl-dev libcurl4-doc
+libcurl3-gnutls libcurl4-gnutls-dev libcurl4-doc
+\
+
+For executable packages there is normally no \c{-dev} packages but \c{-dbg},
+\c{-doc}, and \c{-common} are plausible.
+
+Based on that, our approach when trying to automatically map a \c{bpkg}
+library package name to Debian package names is to go for the \c{-dev} package
+first and figure out the shared library package from that based on the fact
+that the \c{-dev} package should have the \c{==} dependency on the shared
+library package with the same version and its name should normally start with
+the \c{-dev} package's stem.
+
+The format of the \c{debian-name} (or alike) manifest value is a
+comma-separated list of one or more package groups:
+
+\
+<package-group> [, <package-group>...]
+\
+
+Where each \c{<package-group>} is the space-separated list of one or more
+package names:
+
+\
+<package-name> [ <package-name>...]
+\
+
+All the packages in the group should be \"package components\" (for the lack
+of a better term) of the same \"logical package\", such as \c{-dev}, \c{-doc},
+\c{-common} packages. They normally have the same version.
+
+The first group is called the main group and the first package in the
+group is called the main package. Note that all the groups are consumed
+(installed) but only the main group is produced (packaged).
+
+We allow/recommend specifying the \c{-dev} package instead of the main package
+for libraries (the \c{bpkg} package name starts with \c{lib}), seeing that we
+are capable of detecting the main package automatically (see above). If the
+library name happens to end with \c{-dev} (which poses an ambiguity), then the
+\c{-dev} package should be specified explicitly as the second package to
+disambiguate this situation.
+
+The Debian package version has the \c{[<epoch>:]<upstream>[-<revision>]} form
+(see \cb{deb-version(5)} for details). If no explicit mapping to the \c{bpkg}
+version is specified with the \c{debian-to-downstream-version} (or alike)
+manifest values or none match, then we fallback to using the \c{<upstream>}
+part as the \c{bpkg} version. If explicit mapping is specified, then we match
+it against the \c{[<epoch>:]<upstream>} parts ignoring \c{<revision>}.
+
+
+\h#bindist-mapping-fedora|Fedora Package Mapping|
+
+This section describes the distribution package mapping for Fedora and alike
+(Red Hat Enterprise Linux, Centos, etc).
+
+A library in Fedora is normally split up into several packages: the shared
+library package (e.g., \c{libfoo}), the development files package (e.g.,
+\c{libfoo-devel}), the static library package (e.g., \c{libfoo-static}; may
+also be placed into the \c{-devel} package), the documentation files package
+(e.g., \c{libfoo-doc}), the debug symbols and source files packages (e.g.,
+\c{libfoo-debuginfo} and \c{libfoo-debugsource}), and the common or
+architecture-independent files (e.g., \c{libfoo-common}).  All the packages
+except \c{-devel} are optional and there is quite a bit of variability. In
+particular, the \c{lib} prefix in \c{libfoo} is not a requirement (unlike in
+Debian) and is normally present only if upstream name has it (see some
+examples below).
+
+For application packages there is normally no \c{-devel} packages but
+\c{-debug*}, \c{-doc}, and \c{-common} are plausible.
+
+For mixed packages which include both applications and libraries, the shared
+library package normally has the \c{-libs} suffix (e.g., \c{foo-libs}).
+
+A package name may also include an upstream version based suffix if
+multiple versions of the package can be installed simultaneously (e.g.,
+\c{libfoo1.1} \c{libfoo1.1-devel}, \c{libfoo2} \c{libfoo2-devel}).
+
+Terminology-wise, the term \"base package\" (sometime also \"main package\")
+normally refers to either the application or shared library package (as
+decided by the package maintainer in the spec file) with the suffixed packages
+(\c{-devel}, \c{-doc}, etc) called \"subpackages\".
+
+Here are a few examples:
+
+\
+libpq libpq-devel
+
+zlib zlib-devel zlib-static
+
+xerces-c xerces-c-devel xerces-c-doc
+
+libsigc++20 libsigc++20-devel libsigc++20-doc
+libsigc++30 libsigc++30-devel libsigc++30-doc
+
+icu libicu libicu-devel libicu-doc
+
+openssl openssl-libs openssl-devel
+
+curl libcurl libcurl-devel
+
+sqlite sqlite-libs sqlite-devel sqlite-doc
+
+community-mysql community-mysql-libs community-mysql-devel
+community-mysql-common community-mysql-server
+\
+
+Based on that, our approach when trying to automatically map a \c{bpkg}
+library package name to Fedora package names is to go for the \c{-devel}
+package first and figure out the shared library package from that based on the
+fact that the \c{-devel} package should have the \c{==} dependency on the
+shared library package with the same version and its name should normally
+start with the \c{-devel} package's stem and potentially end with the
+\c{-libs} suffix. If failed to find the \c{-devel} package, we re-try but now
+using the \c{bpkg} project name instead of the package name (see, for example,
+\c{openssl}, \c{sqlite}).
+
+The format of the \c{fedora-name} (or alike) manifest value value is a
+comma-separated list of one or more package groups:
+
+\
+<package-group> [, <package-group>...]
+\
+
+Where each \c{<package-group>} is the space-separated list of one or more
+package names:
+
+\
+<package-name> [ <package-name>...]
+\
+
+All the packages in the group should belong to the same \"logical package\",
+such as \c{-devel}, \c{-doc}, \c{-common} packages. They normally have the
+same version.
+
+The first group is called the main group and the first package in the
+group is called the main package. Note that all the groups are consumed
+(installed) but only the main group is produced (packaged).
+
+(Note that above we use the term \"logical package\" instead of \"base
+package\" since the main package may not be the base package, for example
+being the \c{-libs} subpackage.)
+
+We allow/recommend specifying the \c{-devel} package instead of the main
+package for libraries (the \c{bpkg} package name starts with \c{lib}), seeing
+that we are capable of detecting the main package automatically (see
+above). If the library name happens to end with \c{-devel} (which poses an
+ambiguity), then the \c{-devel} package should be specified explicitly as the
+second package to disambiguate this situation.
+
+The Fedora package version has the \c{[<epoch>:]<version>-<release>} form (see
+Fedora Package Versioning Guidelines for details). If no explicit mapping
+to the \c{bpkg} version is specified with the \c{fedora-to-downstream-version}
+(or alike) manifest values or none match, then we fallback to using the
+\c{<version>} part as the \c{bpkg} version. If explicit mapping is specified,
+then we match it against the \c{[<epoch>:]<version>} parts ignoring
+\c{<release>}.
+
 "
 
 //@@ TODO items (grep).

@@ -458,7 +458,9 @@ $* libfoo/1.0.0 2>>~%EOE% != 0
 : linked-configs
 :
 {
-  pkg_build = [cmdline] $0 pkg-build --yes 2>!
+  # Get rid of -d option.
+  #
+  pkg_build = [cmdline] $0 pkg-build --yes --sys-no-query 2>!
 
   : 3-configs
   :

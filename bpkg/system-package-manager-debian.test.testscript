@@ -1,0 +1,987 @@
+# file      : bpkg/system-package-manager-debian.test.testscript
+# license   : MIT; see accompanying LICENSE file
+
+: apt-cache-policy
+:
+{
+  test.arguments += apt-cache-policy
+
+  : basics
+  :
+  $* libssl3 libssl1.1 libssl-dev libsqlite5 libxerces-c-dev <<EOI 2>>EOE >>EOO
+    libssl3:
+      Installed: 3.0.7-1
+      Candidate: 3.0.7-2
+      Version table:
+         3.0.7-2 500
+            500 http://deb.debian.org/debian bookworm/main amd64 Packages
+     *** 3.0.7-1 100
+            100 /var/lib/dpkg/status
+    libssl1.1:
+      Installed: 1.1.1n-0+deb11u3
+      Candidate: 1.1.1n-0+deb11u3
+      Version table:
+     *** 1.1.1n-0+deb11u3 100
+            100 /var/lib/dpkg/status
+    libssl-dev:
+      Installed: 3.0.7-1
+      Candidate: 3.0.7-2
+      Version table:
+         3.0.7-2 500
+            500 http://deb.debian.org/debian bookworm/main amd64 Packages
+     *** 3.0.7-1 100
+            100 /var/lib/dpkg/status
+    libxerces-c-dev:
+      Installed: (none)
+      Candidate: 3.2.4+debian-1
+      Version table:
+         3.2.4+debian-1 500
+            500 http://deb.debian.org/debian bookworm/main amd64 Packages
+    EOI
+    LC_ALL=C apt-cache policy --quiet libssl3 libssl1.1 libssl-dev libsqlite5 libxerces-c-dev <-
+    EOE
+    libssl3 '3.0.7-1' '3.0.7-2'
+    libssl1.1 '1.1.1n-0+deb11u3' '1.1.1n-0+deb11u3'
+    libssl-dev '3.0.7-1' '3.0.7-2'
+    libsqlite5 '' ''
+    libxerces-c-dev '' '3.2.4+debian-1'
+    EOO
+
+  : empty
+  :
+  $* libsqlite5 <:'' 2>>EOE >>EOO
+    LC_ALL=C apt-cache policy --quiet libsqlite5 <-
+    EOE
+    libsqlite5 '' ''
+    EOO
+
+  : none-none
+  :
+  $* pulseaudio <<EOI 2>>EOE >>EOO
+    pulseaudio:
+      Installed: (none)
+      Candidate: (none)
+      Version table:
+        1:11.1-1ubuntu7.5 -1
+           500 http://au.archive.ubuntu.com/ubuntu bionic-updates/main amd64 Packages
+        1:11.1-1ubuntu7 -1
+           500 http://au.archive.ubuntu.com/ubuntu bionic/main amd64 Packages
+    EOI
+    LC_ALL=C apt-cache policy --quiet pulseaudio <-
+    EOE
+    pulseaudio '' ''
+    EOO
+}
+
+: apt-cache-show
+:
+{
+  test.arguments += apt-cache-show
+
+  # Note: put Depends last to test folded/multiline parsing.
+  #
+  : basics
+  :
+  $* libssl1.1 1.1.1n-0+deb11u3 <<EOI 2>>EOE >>EOO
+    Package: libssl1.1
+    Status: install ok installed
+    Priority: optional
+    Section: libs
+    Installed-Size: 4120
+    Maintainer: Debian OpenSSL Team <pkg-openssl-devel@lists.alioth.debian.org>
+    Architecture: amd64
+    Multi-Arch: same
+    Source: openssl
+    Version: 1.1.1n-0+deb11u3
+    Breaks: isync (<< 1.3.0-2), lighttpd (<< 1.4.49-2), python-boto (<< 2.44.0-1.1), python-httplib2 (<< 0.11.3-1), python-imaplib2 (<< 2.57-5), python3-boto (<< 2.44.0-1.1), python3-imaplib2 (<< 2.57-5)
+    Description: Secure Sockets Layer toolkit - shared libraries
+     This package is part of the OpenSSL project's implementation of the SSL
+     and TLS cryptographic protocols for secure communication over the
+     Internet.
+     .
+     It provides the libssl and libcrypto shared libraries.
+    Description-md5: 88547c6206c7fbc4fcc7d09ce100d210
+    Homepage: https://www.openssl.org/
+    Depends: libc6 (>= 2.25), debconf (>= 0.5) | debconf-2.0
+
+    EOI
+    LC_ALL=C apt-cache show --quiet libssl1.1=1.1.1n-0+deb11u3 <-
+    EOE
+    libc6 (>= 2.25), debconf (>= 0.5) | debconf-2.0
+    EOO
+
+  : no-depends
+  :
+  $* libssl1.1 1.1.1n-0+deb11u3 <<EOI 2>>EOE >''
+    Package: libssl1.1
+    Status: install ok installed
+    Priority: optional
+    Section: libs
+    Installed-Size: 4120
+    Maintainer: Debian OpenSSL Team <pkg-openssl-devel@lists.alioth.debian.org>
+    Architecture: amd64
+    Multi-Arch: same
+    Source: openssl
+    Version: 1.1.1n-0+deb11u3
+    Breaks: isync (<< 1.3.0-2), lighttpd (<< 1.4.49-2), python-boto (<< 2.44.0-1.1), python-httplib2 (<< 0.11.3-1), python-imaplib2 (<< 2.57-5), python3-boto (<< 2.44.0-1.1), python3-imaplib2 (<< 2.57-5)
+    Description: Secure Sockets Layer toolkit - shared libraries
+     This package is part of the OpenSSL project's implementation of the SSL
+     and TLS cryptographic protocols for secure communication over the
+     Internet.
+     .
+     It provides the libssl and libcrypto shared libraries.
+    Description-md5: 88547c6206c7fbc4fcc7d09ce100d210
+    Homepage: https://www.openssl.org/
+
+    EOI
+    LC_ALL=C apt-cache show --quiet libssl1.1=1.1.1n-0+deb11u3 <-
+    EOE
+}
+
+: parse-name-value
+:
+{
+  test.arguments += parse-name-value
+
+  : basics
+  :
+  $* libssl <<EOI >>EOO
+    libssl3 libssl-common libssl-doc libssl-dev libssl-dbg libssl-extras, libc6 libc-dev libc-common libc-doc, libz-dev
+    EOI
+    main: libssl3
+    dev: libssl-dev
+    doc: libssl-doc
+    dbg: libssl-dbg
+    common: libssl-common
+    extras: libssl-extras libc6 libc-dev libz-dev
+    EOO
+
+  : non-lib
+  :
+  $* sqlite3 <<EOI >>EOO
+    sqlite3 sqlite3-common sqlite3-doc
+    EOI
+    main: sqlite3
+    doc: sqlite3-doc
+    common: sqlite3-common
+    EOO
+
+  : lib-dev
+  :
+  $* libssl <<EOI >>EOO
+    libssl-dev
+    EOI
+    dev: libssl-dev
+    EOO
+
+  : non-lib-dev
+  :
+  $* ssl-dev <<EOI >>EOO
+    ssl-dev
+    EOI
+    main: ssl-dev
+    EOO
+
+  : lib-custom-dev
+  :
+  $* libfoo-dev <<EOI >>EOO
+    libfoo-dev libfoo-dev-dev
+    EOI
+    main: libfoo-dev
+    dev: libfoo-dev-dev
+    EOO
+}
+
+: main-from-dev
+:
+{
+  test.arguments += main-from-dev
+
+  : first
+  :
+  $* libssl-dev 3.0.7-1 <<EOI >'libssl3'
+    libssl3 (= 3.0.7-1), debconf (>= 0.5) | debconf-2.0
+    EOI
+
+  : not-first
+  :
+  $* libxerces-c-dev 3.2.4+debian-1 <<EOI >'libxerces-c3.2'
+    libc6-dev | libc-dev, libicu-dev, libxerces-c3.2 (= 3.2.4+debian-1)
+    EOI
+
+  : exact
+  :
+  $* libexpat1-dev 2.5.0-1 <<EOI >'libexpat1'
+    libexpat1 (= 2.5.0-1), libc6-dev | libc-dev
+    EOI
+
+  : not-stem
+  :
+  $* libcurl4-openssl-dev 7.87.0-2 <<EOI >''
+    libcurl4 (= 7.87.0-2)
+    EOI
+}
+
+: build
+:
+{
+  test.arguments += build
+
+  : libsqlite3
+  :
+  {
+    : installed
+    :
+    cat <<EOI >=libsqlite3-dev.policy;
+      libsqlite3-dev:
+        Installed: 3.40.1-1
+        Candidate: 3.40.1-1
+        Version table:
+       *** 3.40.1-1 500
+              500 http://deb.debian.org/debian bookworm/main amd64 Packages
+              100 /var/lib/dpkg/status
+      EOI
+    cat <<EOI >=libsqlite3-dev.show;
+      Package: libsqlite3-dev
+      Version: 3.40.1-1
+      Depends: libsqlite3-0 (= 3.40.1-1), libc-dev
+      EOI
+    cat <<EOI >=libsqlite3-0.policy;
+      libsqlite3-0:
+        Installed: 3.40.1-1
+        Candidate: 3.40.1-1
+        Version table:
+       *** 3.40.1-1 500
+              500 http://deb.debian.org/debian bookworm/main amd64 Packages
+              100 /var/lib/dpkg/status
+      EOI
+    $* libsqlite3 --install libsqlite3 <<EOI 2>>EOE >>EOO
+      apt-cache-policy: libsqlite3-dev          libsqlite3-dev.policy
+      apt-cache-show:   libsqlite3-dev 3.40.1-1 libsqlite3-dev.show
+      apt-cache-policy: libsqlite3-0            libsqlite3-0.policy
+      EOI
+      LC_ALL=C apt-cache policy --quiet libsqlite3-dev <libsqlite3-dev.policy
+      LC_ALL=C apt-cache show --quiet libsqlite3-dev=3.40.1-1 <libsqlite3-dev.show
+      LC_ALL=C apt-cache policy --quiet libsqlite3-0 <libsqlite3-0.policy
+      sudo apt-get install --quiet --assume-no libsqlite3-0=3.40.1-1 libsqlite3-dev=3.40.1-1
+      LC_ALL=C apt-cache policy --quiet libsqlite3-0 <libsqlite3-0.policy
+      EOE
+      libsqlite3 3.40.1 (libsqlite3-0 3.40.1-1) installed
+      EOO
+
+
+    : part-installed
+    :
+    cat <<EOI >=libsqlite3-dev.policy;
+      libsqlite3-dev:
+        Installed: (none)
+        Candidate: 3.40.1-1
+        Version table:
+           3.40.1-1 500
+              500 http://deb.debian.org/debian bookworm/main amd64 Packages
+      EOI
+    cat <<EOI >=libsqlite3-dev.show;
+      Package: libsqlite3-dev
+      Version: 3.40.1-1
+      Depends: libsqlite3-0 (= 3.40.1-1), libc-dev
+      EOI
+    cat <<EOI >=libsqlite3-0.policy;
+      libsqlite3-0:
+        Installed: 3.40.1-1
+        Candidate: 3.40.1-1
+        Version table:
+       *** 3.40.1-1 500
+              500 http://deb.debian.org/debian bookworm/main amd64 Packages
+              100 /var/lib/dpkg/status
+      EOI
+    $* libsqlite3 --install libsqlite3 <<EOI 2>>EOE >>EOO
+      apt-cache-policy:           libsqlite3-dev          libsqlite3-dev.policy
+      apt-cache-show:             libsqlite3-dev 3.40.1-1 libsqlite3-dev.show
+      apt-cache-policy:           libsqlite3-0            libsqlite3-0.policy
+      EOI
+      LC_ALL=C apt-cache policy --quiet libsqlite3-dev <libsqlite3-dev.policy
+      sudo apt-get update --quiet --assume-no
+      LC_ALL=C apt-cache policy --quiet libsqlite3-dev <libsqlite3-dev.policy
+      LC_ALL=C apt-cache show --quiet libsqlite3-dev=3.40.1-1 <libsqlite3-dev.show
+      LC_ALL=C apt-cache policy --quiet libsqlite3-0 <libsqlite3-0.policy
+      sudo apt-get install --quiet --assume-no libsqlite3-0 libsqlite3-dev
+      LC_ALL=C apt-cache policy --quiet libsqlite3-0 <libsqlite3-0.policy
+      EOE
+      libsqlite3 3.40.1 (libsqlite3-0 3.40.1-1) part installed
+      EOO
+
+
+    : part-installed-upgrade
+    :
+    cat <<EOI >=libsqlite3-dev.policy;
+      libsqlite3-dev:
+        Installed: (none)
+        Candidate: 3.39.4-1
+        Version table:
+           3.39.4-1 500
+              500 http://deb.debian.org/debian bookworm/main amd64 Packages
+      EOI
+    cat <<EOI >=libsqlite3-dev.policy-fetched;
+      libsqlite3-dev:
+        Installed: (none)
+        Candidate: 3.40.1-1
+        Version table:
+           3.40.1-1 500
+              500 http://deb.debian.org/debian bookworm/main amd64 Packages
+      EOI
+    cat <<EOI >=libsqlite3-dev.show-fetched;
+      Package: libsqlite3-dev
+      Version: 3.40.1-1
+      Depends: libsqlite3-0 (= 3.40.1-1), libc-dev
+      EOI
+    cat <<EOI >=libsqlite3-0.policy-fetched;
+      libsqlite3-0:
+        Installed: 3.39.4-1
+        Candidate: 3.40.1-1
+        Version table:
+           3.40.1-1 500
+              500 http://deb.debian.org/debian bookworm/main amd64 Packages
+       *** 3.39.4-1 100
+              100 /var/lib/dpkg/status
+      EOI
+    cat <<EOI >=libsqlite3-0.policy-installed;
+      libsqlite3-0:
+        Installed: 3.40.1-1
+        Candidate: 3.40.1-1
+        Version table:
+       *** 3.40.1-1 500
+              500 http://deb.debian.org/debian bookworm/main amd64 Packages
+              100 /var/lib/dpkg/status
+      EOI
+    $* libsqlite3 --install libsqlite3 <<EOI 2>>EOE >>EOO
+      apt-cache-policy:           libsqlite3-dev          libsqlite3-dev.policy
+      apt-cache-policy-fetched:   libsqlite3-dev          libsqlite3-dev.policy-fetched
+      apt-cache-show:             libsqlite3-dev 3.40.1-1 libsqlite3-dev.show-fetched
+      apt-cache-policy-fetched:   libsqlite3-0            libsqlite3-0.policy-fetched
+      apt-cache-policy-installed: libsqlite3-0            libsqlite3-0.policy-installed
+      EOI
+      LC_ALL=C apt-cache policy --quiet libsqlite3-dev <libsqlite3-dev.policy
+      sudo apt-get update --quiet --assume-no
+      LC_ALL=C apt-cache policy --quiet libsqlite3-dev <libsqlite3-dev.policy-fetched
+      LC_ALL=C apt-cache show --quiet libsqlite3-dev=3.40.1-1 <libsqlite3-dev.show-fetched
+      LC_ALL=C apt-cache policy --quiet libsqlite3-0 <libsqlite3-0.policy-fetched
+      sudo apt-get install --quiet --assume-no libsqlite3-0 libsqlite3-dev
+      LC_ALL=C apt-cache policy --quiet libsqlite3-0 <libsqlite3-0.policy-installed
+      EOE
+      libsqlite3 3.40.1 (libsqlite3-0 3.40.1-1) part installed
+      EOO
+
+
+    # Note that the semantics is unrealistic (maybe background apt-get update
+    # happenned in between).
+    #
+    : part-installed-upgrade-version-change
+    :
+    cat <<EOI >=libsqlite3-dev.policy;
+      libsqlite3-dev:
+        Installed: (none)
+        Candidate: 3.39.4-1
+        Version table:
+           3.39.4-1 500
+              500 http://deb.debian.org/debian bookworm/main amd64 Packages
+      EOI
+    cat <<EOI >=libsqlite3-dev.show;
+      Package: libsqlite3-dev
+      Version: 3.39.4-1
+      Depends: libsqlite3-0 (= 3.39.4-1), libc-dev
+      EOI
+    cat <<EOI >=libsqlite3-0.policy;
+      libsqlite3-0:
+        Installed: 3.39.4-1
+        Candidate: 3.39.4-1
+        Version table:
+       *** 3.39.4-1 500
+              500 http://deb.debian.org/debian bookworm/main amd64 Packages
+              100 /var/lib/dpkg/status
+      EOI
+    cat <<EOI >=libsqlite3-0.policy-installed;
+      libsqlite3-0:
+        Installed: 3.40.1-1
+        Candidate: 3.40.1-1
+        Version table:
+       *** 3.40.1-1 500
+              500 http://deb.debian.org/debian bookworm/main amd64 Packages
+              100 /var/lib/dpkg/status
+      EOI
+    $* libsqlite3 --install --no-fetch libsqlite3 <<EOI 2>>EOE >>EOO != 0
+      apt-cache-policy:           libsqlite3-dev          libsqlite3-dev.policy
+      apt-cache-show:             libsqlite3-dev 3.39.4-1 libsqlite3-dev.show
+      apt-cache-policy:           libsqlite3-0            libsqlite3-0.policy
+      apt-cache-policy-installed: libsqlite3-0            libsqlite3-0.policy-installed
+      EOI
+      LC_ALL=C apt-cache policy --quiet libsqlite3-dev <libsqlite3-dev.policy
+      LC_ALL=C apt-cache show --quiet libsqlite3-dev=3.39.4-1 <libsqlite3-dev.show
+      LC_ALL=C apt-cache policy --quiet libsqlite3-0 <libsqlite3-0.policy
+      sudo apt-get install --quiet --assume-no libsqlite3-0 libsqlite3-dev
+      LC_ALL=C apt-cache policy --quiet libsqlite3-0 <libsqlite3-0.policy-installed
+      error: unexpected debian package version for libsqlite3-0
+        info: expected: 3.39.4-1
+        info: installed: 3.40.1-1
+        info: consider retrying the bpkg command
+      EOE
+      libsqlite3 3.39.4 (libsqlite3-0 3.39.4-1) part installed
+      EOO
+
+
+    : not-installed
+    :
+    cat <<EOI >=libsqlite3-dev.policy;
+      libsqlite3-dev:
+        Installed: (none)
+        Candidate: 3.40.1-1
+        Version table:
+           3.40.1-1 500
+              500 http://deb.debian.org/debian bookworm/main amd64 Packages
+      EOI
+    cat <<EOI >=libsqlite3-dev.show;
+      Package: libsqlite3-dev
+      Version: 3.40.1-1
+      Depends: libsqlite3-0 (= 3.40.1-1), libc-dev
+      EOI
+    cat <<EOI >=libsqlite3-0.policy;
+      libsqlite3-0:
+        Installed: (none)
+        Candidate: 3.40.1-1
+        Version table:
+           3.40.1-1 500
+              500 http://deb.debian.org/debian bookworm/main amd64 Packages
+      EOI
+    cat <<EOI >=libsqlite3-0.policy-installed;
+      libsqlite3-0:
+        Installed: 3.40.1-1
+        Candidate: 3.40.1-1
+        Version table:
+       *** 3.40.1-1 500
+              500 http://deb.debian.org/debian bookworm/main amd64 Packages
+              100 /var/lib/dpkg/status
+      EOI
+    $* libsqlite3 --install libsqlite3 <<EOI 2>>EOE >>EOO
+      apt-cache-policy:           libsqlite3-dev          libsqlite3-dev.policy
+      apt-cache-show:             libsqlite3-dev 3.40.1-1 libsqlite3-dev.show
+      apt-cache-policy:           libsqlite3-0            libsqlite3-0.policy
+      apt-cache-policy-installed: libsqlite3-0            libsqlite3-0.policy-installed
+      EOI
+      LC_ALL=C apt-cache policy --quiet libsqlite3-dev <libsqlite3-dev.policy
+      sudo apt-get update --quiet --assume-no
+      LC_ALL=C apt-cache policy --quiet libsqlite3-dev <libsqlite3-dev.policy
+      LC_ALL=C apt-cache show --quiet libsqlite3-dev=3.40.1-1 <libsqlite3-dev.show
+      LC_ALL=C apt-cache policy --quiet libsqlite3-0 <libsqlite3-0.policy
+      sudo apt-get install --quiet --assume-no libsqlite3-0 libsqlite3-dev
+      LC_ALL=C apt-cache policy --quiet libsqlite3-0 <libsqlite3-0.policy-installed
+      EOE
+      libsqlite3 3.40.1 (libsqlite3-0 3.40.1-1) not installed
+      EOO
+
+
+    : no-install
+    :
+    cat <<EOI >=libsqlite3-dev.policy;
+      libsqlite3-dev:
+        Installed: (none)
+        Candidate: 3.40.1-1
+        Version table:
+           3.40.1-1 500
+              500 http://deb.debian.org/debian bookworm/main amd64 Packages
+      EOI
+    $* libsqlite3 <<EOI 2>>EOE != 0
+      apt-cache-policy:           libsqlite3-dev          libsqlite3-dev.policy
+      EOI
+      LC_ALL=C apt-cache policy --quiet libsqlite3-dev <libsqlite3-dev.policy
+      error: no installed system package for libsqlite3
+      EOE
+
+
+    : not-available
+    :
+    $* libsqlite3 --install libsqlite3 <<EOI 2>>EOE != 0
+      apt-cache-policy: libsqlite3-dev !
+      EOI
+      LC_ALL=C apt-cache policy --quiet libsqlite3-dev </dev/null
+      sudo apt-get update --quiet --assume-no
+      LC_ALL=C apt-cache policy --quiet libsqlite3-dev </dev/null
+      error: no installed or available system package for libsqlite3
+      EOE
+
+
+    : not-available-no-fetch
+    :
+    $* libsqlite3 --install --no-fetch libsqlite3 <<EOI 2>>EOE != 0
+      apt-cache-policy: libsqlite3-dev !
+      EOI
+      LC_ALL=C apt-cache policy --quiet libsqlite3-dev </dev/null
+      error: no installed or available system package for libsqlite3
+      EOE
+  }
+
+  : sqlite3
+  :
+  {
+    : installed
+    :
+    cat <<EOI >=sqlite3.policy;
+      sqlite3:
+        Installed: 3.40.1-1
+        Candidate: 3.40.1-1
+        Version table:
+       *** 3.40.1-1 500
+              500 http://deb.debian.org/debian bookworm/main amd64 Packages
+              100 /var/lib/dpkg/status
+      EOI
+    $* sqlite3 --install sqlite3 <<EOI 2>>EOE >>EOO
+      apt-cache-policy: sqlite3 sqlite3.policy
+      EOI
+      LC_ALL=C apt-cache policy --quiet sqlite3 <sqlite3.policy
+      sudo apt-get install --quiet --assume-no sqlite3=3.40.1-1
+      LC_ALL=C apt-cache policy --quiet sqlite3 <sqlite3.policy
+      EOE
+      sqlite3 3.40.1 (sqlite3 3.40.1-1) installed
+      EOO
+
+    : not-installed
+    :
+    cat <<EOI >=sqlite3.policy;
+      sqlite3:
+        Installed: (none)
+        Candidate: 3.39.4-1
+        Version table:
+           3.39.4-1 500
+              500 http://deb.debian.org/debian bookworm/main amd64 Packages
+      EOI
+    cat <<EOI >=sqlite3.policy-fetched;
+      sqlite3:
+        Installed: (none)
+        Candidate: 3.40.1-1
+        Version table:
+           3.40.1-1 500
+              500 http://deb.debian.org/debian bookworm/main amd64 Packages
+      EOI
+    cat <<EOI >=sqlite3.policy-installed;
+      sqlite3:
+        Installed: 3.40.1-1
+        Candidate: 3.40.1-1
+        Version table:
+       *** 3.40.1-1 500
+              500 http://deb.debian.org/debian bookworm/main amd64 Packages
+              100 /var/lib/dpkg/status
+      EOI
+    $* sqlite3 --install sqlite3 <<EOI 2>>EOE >>EOO
+      apt-cache-policy:           sqlite3 sqlite3.policy
+      apt-cache-policy-fetched:   sqlite3 sqlite3.policy-fetched
+      apt-cache-policy-installed: sqlite3 sqlite3.policy-installed
+      EOI
+      LC_ALL=C apt-cache policy --quiet sqlite3 <sqlite3.policy
+      sudo apt-get update --quiet --assume-no
+      LC_ALL=C apt-cache policy --quiet sqlite3 <sqlite3.policy-fetched
+      sudo apt-get install --quiet --assume-no sqlite3
+      LC_ALL=C apt-cache policy --quiet sqlite3 <sqlite3.policy-installed
+      EOE
+      sqlite3 3.40.1 (sqlite3 3.40.1-1) not installed
+      EOO
+  }
+
+  : libssl
+  :
+  {
+    +cat <<EOI >=libcrypto.manifest
+      : 1
+      name: libcrypto
+      version: 1.1.1+18
+      upstream-version: 1.1.1n
+      debian-name: libssl1.1 libssl-dev
+      debian-to-downstream-version: /1\.1\.1[a-z]/1.1.1/
+      summary: OpenSSL libcrypto
+      license: OpenSSL
+      EOI
+    +cat <<EOI >=libssl.manifest
+      : 1
+      name: libssl
+      version: 1.1.1+18
+      upstream-version: 1.1.1n
+      debian-name: libssl1.1 libssl-dev
+      debian-to-downstream-version: /1\.1\.1[a-z]/1.1.1/
+      summary: OpenSSL libssl
+      license: OpenSSL
+      EOI
+
+    : installed
+    :
+    ln -s ../libcrypto.manifest ./;
+    ln -s ../libssl.manifest ./;
+    cat <<EOI >=libssl1.1+libssl-dev.policy;
+      libssl1.1:
+        Installed: 1.1.1n-0+deb11u3
+        Candidate: 1.1.1n-0+deb11u3
+        Version table:
+       *** 1.1.1n-0+deb11u3 100
+              100 /var/lib/dpkg/status
+      libssl-dev:
+        Installed: 1.1.1n-0+deb11u3
+        Candidate: 1.1.1n-0+deb11u3
+        Version table:
+       *** 1.1.1n-0+deb11u3 100
+              100 /var/lib/dpkg/status
+      EOI
+    cat <<EOI >=libssl1.1.policy-installed;
+      libssl1.1:
+        Installed: 1.1.1n-0+deb11u3
+        Candidate: 1.1.1n-0+deb11u3
+        Version table:
+       *** 1.1.1n-0+deb11u3 100
+              100 /var/lib/dpkg/status
+      EOI
+    $* libcrypto libssl --install libcrypto libssl <<EOI 2>>EOE >>EOO
+      manifest: libcrypto libcrypto.manifest
+      manifest: libssl    libssl.manifest
+
+      apt-cache-policy:           libssl1.1 libssl-dev libssl1.1+libssl-dev.policy
+      apt-cache-policy-installed: libssl1.1            libssl1.1.policy-installed
+      EOI
+      LC_ALL=C apt-cache policy --quiet libssl1.1 libssl-dev <libssl1.1+libssl-dev.policy
+      LC_ALL=C apt-cache policy --quiet libssl1.1 libssl-dev <libssl1.1+libssl-dev.policy
+      sudo apt-get install --quiet --assume-no libssl1.1=1.1.1n-0+deb11u3 libssl-dev=1.1.1n-0+deb11u3
+      LC_ALL=C apt-cache policy --quiet libssl1.1 <libssl1.1.policy-installed
+      EOE
+      libcrypto 1.1.1 (libssl1.1 1.1.1n-0+deb11u3) installed
+      libssl 1.1.1 (libssl1.1 1.1.1n-0+deb11u3) installed
+      EOO
+
+    : part-installed
+    :
+    ln -s ../libcrypto.manifest ./;
+    ln -s ../libssl.manifest ./;
+    cat <<EOI >=libssl1.1+libssl-dev.policy;
+      libssl1.1:
+        Installed: 1.1.1n-0+deb11u3
+        Candidate: 1.1.1n-0+deb11u3
+        Version table:
+       *** 1.1.1n-0+deb11u3 100
+              100 /var/lib/dpkg/status
+      libssl-dev:
+        Installed: (none)
+        Candidate: 1.1.1n-0+deb11u3
+        Version table:
+           1.1.1n-0+deb11u3 500
+              500 http://deb.debian.org/debian bookworm/main amd64 Packages
+      EOI
+    cat <<EOI >=libssl1.1.policy-installed;
+      libssl1.1:
+        Installed: 1.1.1n-0+deb11u3
+        Candidate: 1.1.1n-0+deb11u3
+        Version table:
+       *** 1.1.1n-0+deb11u3 100
+              100 /var/lib/dpkg/status
+      EOI
+    $* libcrypto libssl --install libcrypto libssl <<EOI 2>>EOE >>EOO
+      manifest: libcrypto libcrypto.manifest
+      manifest: libssl    libssl.manifest
+
+      apt-cache-policy:           libssl1.1 libssl-dev libssl1.1+libssl-dev.policy
+      apt-cache-policy-installed: libssl1.1            libssl1.1.policy-installed
+      EOI
+      LC_ALL=C apt-cache policy --quiet libssl1.1 libssl-dev <libssl1.1+libssl-dev.policy
+      sudo apt-get update --quiet --assume-no
+      LC_ALL=C apt-cache policy --quiet libssl1.1 libssl-dev <libssl1.1+libssl-dev.policy
+      LC_ALL=C apt-cache policy --quiet libssl1.1 libssl-dev <libssl1.1+libssl-dev.policy
+      sudo apt-get install --quiet --assume-no libssl1.1 libssl-dev
+      LC_ALL=C apt-cache policy --quiet libssl1.1 <libssl1.1.policy-installed
+      EOE
+      libcrypto 1.1.1 (libssl1.1 1.1.1n-0+deb11u3) part installed
+      libssl 1.1.1 (libssl1.1 1.1.1n-0+deb11u3) part installed
+      EOO
+
+    : not-installed
+    :
+    ln -s ../libcrypto.manifest ./;
+    ln -s ../libssl.manifest ./;
+    cat <<EOI >=libssl1.1+libssl-dev.policy;
+      libssl1.1:
+        Installed: (none)
+        Candidate: 1.1.1n-0+deb11u3
+        Version table:
+       *** 1.1.1n-0+deb11u3 500
+              500 http://deb.debian.org/debian bookworm/main amd64 Packages
+      libssl-dev:
+        Installed: (none)
+        Candidate: 1.1.1n-0+deb11u3
+        Version table:
+           1.1.1n-0+deb11u3 500
+              500 http://deb.debian.org/debian bookworm/main amd64 Packages
+      EOI
+    cat <<EOI >=libssl1.1.policy-installed;
+      libssl1.1:
+        Installed: 1.1.1n-0+deb11u3
+        Candidate: 1.1.1n-0+deb11u3
+        Version table:
+       *** 1.1.1n-0+deb11u3 100
+              100 /var/lib/dpkg/status
+      EOI
+    $* libcrypto libssl --install libcrypto libssl <<EOI 2>>EOE >>EOO
+      manifest: libcrypto libcrypto.manifest
+      manifest: libssl    libssl.manifest
+
+      apt-cache-policy:           libssl1.1 libssl-dev libssl1.1+libssl-dev.policy
+      apt-cache-policy-installed: libssl1.1            libssl1.1.policy-installed
+      EOI
+      LC_ALL=C apt-cache policy --quiet libssl1.1 libssl-dev <libssl1.1+libssl-dev.policy
+      sudo apt-get update --quiet --assume-no
+      LC_ALL=C apt-cache policy --quiet libssl1.1 libssl-dev <libssl1.1+libssl-dev.policy
+      LC_ALL=C apt-cache policy --quiet libssl1.1 libssl-dev <libssl1.1+libssl-dev.policy
+      sudo apt-get install --quiet --assume-no libssl1.1 libssl-dev
+      LC_ALL=C apt-cache policy --quiet libssl1.1 <libssl1.1.policy-installed
+      EOE
+      libcrypto 1.1.1 (libssl1.1 1.1.1n-0+deb11u3) not installed
+      libssl 1.1.1 (libssl1.1 1.1.1n-0+deb11u3) not installed
+      EOO
+  }
+
+  : libcurl
+  :
+  {
+    # Note that libcurl3-gnutls libcurl4-gnutls-dev is not a mistake.
+    #
+    # Note also that there is a third flavor, libcurl3-nss libcurl4-nss-dev,
+    # but we omit it to keep the tests manageable.
+    #
+    #
+    +cat <<EOI >=libcurl.manifest
+      : 1
+      name: libcurl
+      version: 7.84.0
+      debian-name: libcurl4 libcurl4-openssl-dev libcurl4-doc
+      debian-name: libcurl3-gnutls libcurl4-gnutls-dev libcurl4-doc
+      summary: C library for transferring data with URLs
+      license: curl
+      EOI
+
+
+    : one-full-installed
+    :
+    ln -s ../libcurl.manifest ./;
+    cat <<EOI >=libcurl4+libcurl4-openssl-dev.policy;
+      libcurl4:
+        Installed: 7.85.0-1
+        Candidate: 7.87.0-2
+        Version table:
+           7.87.0-2 500
+              500 http://deb.debian.org/debian bookworm/main amd64 Packages
+       *** 7.85.0-1 100
+              100 /var/lib/dpkg/status
+      libcurl4-openssl-dev:
+        Installed: 7.85.0-1
+        Candidate: 7.87.0-2
+        Version table:
+           7.87.0-2 500
+              500 http://deb.debian.org/debian bookworm/main amd64 Packages
+       *** 7.85.0-1 100
+              100 /var/lib/dpkg/status
+      EOI
+    cat <<EOI >=libcurl3-gnutls+libcurl4-gnutls-dev.policy;
+      libcurl3-gnutls:
+        Installed: 7.85.0-1
+        Candidate: 7.87.0-2
+        Version table:
+           7.87.0-2 500
+              500 http://deb.debian.org/debian bookworm/main amd64 Packages
+       *** 7.85.0-1 100
+              100 /var/lib/dpkg/status
+      libcurl4-gnutls-dev:
+        Installed: (none)
+        Candidate: 7.87.0-2
+        Version table:
+           7.87.0-2 500
+              500 http://deb.debian.org/debian bookworm/main amd64 Packages
+      EOI
+    cat <<EOI >=libcurl4.policy-installed;
+      libcurl4:
+        Installed: 7.85.0-1
+        Candidate: 7.87.0-2
+        Version table:
+           7.87.0-2 500
+              500 http://deb.debian.org/debian bookworm/main amd64 Packages
+       *** 7.85.0-1 100
+              100 /var/lib/dpkg/status
+      EOI
+    $* libcurl --install libcurl <<EOI 2>>EOE >>EOO
+      manifest: libcurl libcurl.manifest
+
+      apt-cache-policy:           libcurl4 libcurl4-openssl-dev       libcurl4+libcurl4-openssl-dev.policy
+      apt-cache-policy:           libcurl3-gnutls libcurl4-gnutls-dev libcurl3-gnutls+libcurl4-gnutls-dev.policy
+      apt-cache-policy-installed: libcurl4                            libcurl4.policy-installed
+      EOI
+      LC_ALL=C apt-cache policy --quiet libcurl4 libcurl4-openssl-dev <libcurl4+libcurl4-openssl-dev.policy
+      LC_ALL=C apt-cache policy --quiet libcurl3-gnutls libcurl4-gnutls-dev <libcurl3-gnutls+libcurl4-gnutls-dev.policy
+      sudo apt-get install --quiet --assume-no libcurl4=7.85.0-1 libcurl4-openssl-dev=7.85.0-1
+      LC_ALL=C apt-cache policy --quiet libcurl4 <libcurl4.policy-installed
+      EOE
+      libcurl 7.85.0 (libcurl4 7.85.0-1) installed
+      EOO
+
+
+    : one-part-installed
+    :
+    ln -s ../libcurl.manifest ./;
+    cat <<EOI >=libcurl4+libcurl4-openssl-dev.policy;
+      libcurl4:
+        Installed: 7.85.0-1
+        Candidate: 7.87.0-2
+        Version table:
+           7.87.0-2 500
+              500 http://deb.debian.org/debian bookworm/main amd64 Packages
+       *** 7.85.0-1 100
+              100 /var/lib/dpkg/status
+      libcurl4-openssl-dev:
+        Installed: (none)
+        Candidate: 7.87.0-2
+        Version table:
+           7.87.0-2 500
+              500 http://deb.debian.org/debian bookworm/main amd64 Packages
+      EOI
+    cat <<EOI >=libcurl3-gnutls+libcurl4-gnutls-dev.policy;
+      libcurl3-gnutls:
+        Installed: (none)
+        Candidate: 7.87.0-2
+        Version table:
+           7.87.0-2 500
+              500 http://deb.debian.org/debian bookworm/main amd64 Packages
+      libcurl4-gnutls-dev:
+        Installed: (none)
+        Candidate: 7.87.0-2
+        Version table:
+           7.87.0-2 500
+              500 http://deb.debian.org/debian bookworm/main amd64 Packages
+      EOI
+    cat <<EOI >=libcurl4.policy-installed;
+      libcurl4:
+        Installed: 7.87.0-2
+        Candidate: 7.87.0-2
+        Version table:
+       *** 7.87.0-2 500
+              500 http://deb.debian.org/debian bookworm/main amd64 Packages
+              100 /var/lib/dpkg/status
+      EOI
+    $* libcurl --install libcurl <<EOI 2>>EOE >>EOO
+      manifest: libcurl libcurl.manifest
+
+      apt-cache-policy:           libcurl4 libcurl4-openssl-dev       libcurl4+libcurl4-openssl-dev.policy
+      apt-cache-policy:           libcurl3-gnutls libcurl4-gnutls-dev libcurl3-gnutls+libcurl4-gnutls-dev.policy
+      apt-cache-policy-installed: libcurl4                            libcurl4.policy-installed
+      EOI
+      LC_ALL=C apt-cache policy --quiet libcurl4 libcurl4-openssl-dev <libcurl4+libcurl4-openssl-dev.policy
+      LC_ALL=C apt-cache policy --quiet libcurl3-gnutls libcurl4-gnutls-dev <libcurl3-gnutls+libcurl4-gnutls-dev.policy
+      sudo apt-get update --quiet --assume-no
+      LC_ALL=C apt-cache policy --quiet libcurl4 libcurl4-openssl-dev <libcurl4+libcurl4-openssl-dev.policy
+      LC_ALL=C apt-cache policy --quiet libcurl3-gnutls libcurl4-gnutls-dev <libcurl3-gnutls+libcurl4-gnutls-dev.policy
+      sudo apt-get install --quiet --assume-no libcurl4 libcurl4-openssl-dev
+      LC_ALL=C apt-cache policy --quiet libcurl4 <libcurl4.policy-installed
+      EOE
+      libcurl 7.87.0 (libcurl4 7.87.0-2) part installed
+      EOO
+
+
+    : none-installed
+    :
+    ln -s ../libcurl.manifest ./;
+    cat <<EOI >=libcurl4+libcurl4-openssl-dev.policy;
+      libcurl4:
+        Installed: (none)
+        Candidate: 7.87.0-2
+        Version table:
+           7.87.0-2 500
+              500 http://deb.debian.org/debian bookworm/main amd64 Packages
+      libcurl4-openssl-dev:
+        Installed: (none)
+        Candidate: 7.87.0-2
+        Version table:
+           7.87.0-2 500
+              500 http://deb.debian.org/debian bookworm/main amd64 Packages
+      EOI
+    cat <<EOI >=libcurl3-gnutls+libcurl4-gnutls-dev.policy;
+      libcurl3-gnutls:
+        Installed: (none)
+        Candidate: 7.87.0-2
+        Version table:
+           7.87.0-2 500
+              500 http://deb.debian.org/debian bookworm/main amd64 Packages
+      libcurl4-gnutls-dev:
+        Installed: (none)
+        Candidate: 7.87.0-2
+        Version table:
+           7.87.0-2 500
+              500 http://deb.debian.org/debian bookworm/main amd64 Packages
+      EOI
+    $* libcurl --install libcurl <<EOI 2>>EOE != 0
+      manifest: libcurl libcurl.manifest
+
+      apt-cache-policy:           libcurl4 libcurl4-openssl-dev       libcurl4+libcurl4-openssl-dev.policy
+      apt-cache-policy:           libcurl3-gnutls libcurl4-gnutls-dev libcurl3-gnutls+libcurl4-gnutls-dev.policy
+      EOI
+      LC_ALL=C apt-cache policy --quiet libcurl4 libcurl4-openssl-dev <libcurl4+libcurl4-openssl-dev.policy
+      LC_ALL=C apt-cache policy --quiet libcurl3-gnutls libcurl4-gnutls-dev <libcurl3-gnutls+libcurl4-gnutls-dev.policy
+      sudo apt-get update --quiet --assume-no
+      LC_ALL=C apt-cache policy --quiet libcurl4 libcurl4-openssl-dev <libcurl4+libcurl4-openssl-dev.policy
+      LC_ALL=C apt-cache policy --quiet libcurl3-gnutls libcurl4-gnutls-dev <libcurl3-gnutls+libcurl4-gnutls-dev.policy
+      error: multiple available debian packages for libcurl
+        info: candidate: libcurl4 7.87.0-2
+        info: candidate: libcurl3-gnutls 7.87.0-2
+        info: consider installing the desired package manually and retrying the bpkg command
+      EOE
+
+
+    : both-part-installed
+    :
+    ln -s ../libcurl.manifest ./;
+    cat <<EOI >=libcurl4+libcurl4-openssl-dev.policy;
+      libcurl4:
+        Installed: 7.85.0-1
+        Candidate: 7.87.0-2
+        Version table:
+           7.87.0-2 500
+              500 http://deb.debian.org/debian bookworm/main amd64 Packages
+       *** 7.85.0-1 100
+              100 /var/lib/dpkg/status
+      libcurl4-openssl-dev:
+        Installed: (none)
+        Candidate: 7.87.0-2
+        Version table:
+           7.87.0-2 500
+              500 http://deb.debian.org/debian bookworm/main amd64 Packages
+      EOI
+    cat <<EOI >=libcurl3-gnutls+libcurl4-gnutls-dev.policy;
+      libcurl3-gnutls:
+        Installed: 7.85.0-1
+        Candidate: 7.87.0-2
+        Version table:
+           7.87.0-2 500
+              500 http://deb.debian.org/debian bookworm/main amd64 Packages
+       *** 7.85.0-1 100
+              100 /var/lib/dpkg/status
+      libcurl4-gnutls-dev:
+        Installed: (none)
+        Candidate: 7.87.0-2
+        Version table:
+           7.87.0-2 500
+              500 http://deb.debian.org/debian bookworm/main amd64 Packages
+      EOI
+    $* libcurl --install libcurl <<EOI 2>>EOE != 0
+      manifest: libcurl libcurl.manifest
+
+      apt-cache-policy:           libcurl4 libcurl4-openssl-dev       libcurl4+libcurl4-openssl-dev.policy
+      apt-cache-policy:           libcurl3-gnutls libcurl4-gnutls-dev libcurl3-gnutls+libcurl4-gnutls-dev.policy
+      EOI
+      LC_ALL=C apt-cache policy --quiet libcurl4 libcurl4-openssl-dev <libcurl4+libcurl4-openssl-dev.policy
+      LC_ALL=C apt-cache policy --quiet libcurl3-gnutls libcurl4-gnutls-dev <libcurl3-gnutls+libcurl4-gnutls-dev.policy
+      sudo apt-get update --quiet --assume-no
+      LC_ALL=C apt-cache policy --quiet libcurl4 libcurl4-openssl-dev <libcurl4+libcurl4-openssl-dev.policy
+      LC_ALL=C apt-cache policy --quiet libcurl3-gnutls libcurl4-gnutls-dev <libcurl3-gnutls+libcurl4-gnutls-dev.policy
+      error: multiple partially installed debian packages for libcurl
+        info: candidate: libcurl4 7.87.0-2, missing components: libcurl4-openssl-dev
+        info: candidate: libcurl3-gnutls 7.87.0-2, missing components: libcurl4-gnutls-dev
+        info: consider fully installing the desired package manually and retrying the bpkg command
+      EOE
+  }
+}

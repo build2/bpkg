@@ -349,7 +349,6 @@ namespace bpkg
     else
       config_orig = config;
 
-
     string = '[' + config_orig.representation () + ']';
 
     try

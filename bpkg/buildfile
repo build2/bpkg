@@ -97,8 +97,10 @@ for t: cxx{**.test...}
 
 # Build options.
 #
-obj{utility}: cxx.poptions += -DBPKG_EXE_PREFIX='"'$bin.exe.prefix'"' \
--DBPKG_EXE_SUFFIX='"'$bin.exe.suffix'"'
+obj{utility}: cxx.poptions += \
+"-DBPKG_EXE_PREFIX=\"$bin.exe.prefix\"" \
+"-DBPKG_EXE_SUFFIX=\"$bin.exe.suffix\"" \
+"-DBPKG_HOST_TRIPLET=\"$cxx.target\""
 
 # Pass the copyright notice extracted from the LICENSE file.
 #
@@ -107,7 +109,7 @@ copyright = $process.run_regex(                                 \
   'Copyright \(c\) (.+) \(see the AUTHORS and LEGAL files\)\.', \
   '\1')
 
-obj{bpkg}: cxx.poptions += -DBPKG_COPYRIGHT=\"$copyright\"
+obj{bpkg}: cxx.poptions += "-DBPKG_COPYRIGHT=\"$copyright\""
 
 # Disable "unknown pragma" warnings.
 #

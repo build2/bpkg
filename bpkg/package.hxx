@@ -847,7 +847,7 @@ namespace bpkg
     //
     #pragma db member(tests) id_column("") value_column("test_")
 
-    // distributions
+    // distribution_values
     //
     #pragma db member(distribution_values) id_column("") value_column("dist_")
 
@@ -887,6 +887,15 @@ namespace bpkg
     friend class odb::access;
     available_package () = default;
   };
+
+  // The available packages together with the repository fragments they belong
+  // to.
+  //
+  // Note that lazy_shared_ptr is used to also convey the databases the
+  // objects belong to.
+  //
+  using available_packages = vector<pair<shared_ptr<available_package>,
+                                         lazy_shared_ptr<repository_fragment>>>;
 
   #pragma db view object(available_package)
   struct available_package_count

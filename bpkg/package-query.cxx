@@ -311,11 +311,11 @@ namespace bpkg
   }
 
   // Sort the available package fragments in the package version descending
-  // order and suppress duplicate packages.
+  // order and suppress duplicate packages and, optionally, older package
+  // revisions.
   //
   static void
-  sort_dedup (vector<pair<shared_ptr<available_package>,
-                          lazy_shared_ptr<repository_fragment>>>& pfs)
+  sort_dedup (available_packages& pfs, bool suppress_older_revisions = false)
   {
     sort (pfs.begin (), pfs.end (),
           [] (const auto& x, const auto& y)
@@ -323,22 +323,22 @@ namespace bpkg
             return x.first->version > y.first->version;
           });
 
-    pfs.erase (unique (pfs.begin(), pfs.end(),
-                      [] (const auto& x, const auto& y)
-                      {
-                        return x.first->version == y.first->version;
-                      }),
-               pfs.end ());
+    pfs.erase (
+      unique (pfs.begin(), pfs.end(),
+              [suppress_older_revisions] (const auto& x, const auto& y)
+              {
+                return x.first->version.compare (y.first->version,
+                                                 suppress_older_revisions) == 0;
+              }),
+      pfs.end ());
   }
 
-  vector<pair<shared_ptr<available_package>,
-              lazy_shared_ptr<repository_fragment>>>
+  available_packages
   find_available (const linked_databases& dbs,
                   const package_name& name,
                   const optional<version_constraint>& c)
   {
-    vector<pair<shared_ptr<available_package>,
-                lazy_shared_ptr<repository_fragment>>> r;
+    available_packages r;
 
     for (database& db: dbs)
     {
@@ -376,15 +376,13 @@ namespace bpkg
     return r;
   }
 
-  vector<pair<shared_ptr<available_package>,
-              lazy_shared_ptr<repository_fragment>>>
+  available_packages
   find_available (const package_name& name,
                   const optional<version_constraint>& c,
                   const config_repo_fragments& rfs,
                   bool prereq)
   {
-    vector<pair<shared_ptr<available_package>,
-                lazy_shared_ptr<repository_fragment>>> r;
+    available_packages r;
 
     for (const auto& dfs: rfs)
     {
@@ -544,6 +542,74 @@ namespace bpkg
     }
 
     return make_pair (find_available (options, db, sp), nullptr);
+  }
+
+  available_packages
+  find_available_all (const linked_databases& dbs,
+                      const package_name& name,
+                      bool suppress_older_revisions)
+  {
+    // Collect all the databases linked explicitly and implicitly to the
+    // specified databases, recursively.
+    //
+    // Note that this is a superset of the database cluster, since we descend
+    // into the database links regardless of their types (see
+    // cluster_configs() for details).
+    //
+    linked_databases all_dbs;
+    all_dbs.reserve (dbs.size ());
+
+    auto add = [&all_dbs] (database& db, const auto& add)
+    {
+      if (find (all_dbs.begin (), all_dbs.end (), db) != all_dbs.end ())
+        return;
+
+      all_dbs.push_back (db);
+
+      {
+        const linked_configs& cs (db.explicit_links ());
+        for (auto i (cs.begin_linked ()); i != cs.end (); ++i)
+          add (i->db, add);
+      }
+
+      {
+        const linked_databases& cs (db.implicit_links ());
+        for (auto i (cs.begin_linked ()); i != cs.end (); ++i)
+          add (*i, add);
+      }
+    };
+
+    for (database& db: dbs)
+      add (db, add);
+
+    // Collect all the available packages from all the collected databases.
+    //
+    available_packages r;
+
+    for (database& db: all_dbs)
+    {
+      for (shared_ptr<available_package> ap:
+             pointer_result (
+               query_available (db, name, nullopt /* version_constraint */)))
+      {
+        // An available package should come from at least one fetched
+        // repository fragment.
+        //
+        assert (!ap->locations.empty ());
+
+        // All repository fragments the package comes from are equally good, so
+        // we pick the first one.
+        //
+        r.emplace_back (move (ap), ap->locations[0].repository_fragment);
+      }
+    }
+
+    // Sort the result in the package version descending order and suppress
+    // duplicates and, if requested, older package revisions.
+    //
+    sort_dedup (r, suppress_older_revisions);
+
+    return r;
   }
 
   pair<shared_ptr<available_package>,
