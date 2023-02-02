@@ -2299,12 +2299,18 @@ Enable caching.
 libbar-network-build-config:
 \\
 { config.libbar.network=true }+ ?libbar
-; Enable networking API in libbar.
+;
+Enable networking API in libbar.
 \\
 
 older-libz-build-config: \"?libz ^1.0.0\"; Test with older libz version.
 
-sys-build-config: ?sys:libbar/* ?sys:libz/*; Test with system dependencies.
+sys-build-config:
+\\
+?sys:libbar/* ?sys:libz/*
+;
+Test with system dependencies.
+\\
 \
 
 Note that options with values can only be specified using the single argument
