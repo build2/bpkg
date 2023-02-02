@@ -2266,9 +2266,9 @@ Note that the comment of the matching exclusion is used by the web interface
 \
 [*-build-config]: <args> [; <comment>]
 
-<args> = [<config-var>]* [<dependency-spec>]*
+<args> = [<option>]* [<config-var>]* [<dependency-spec>]*
 <dependency-spec> = [{ <config-var> [<config-var>]* }+] <dependency>
-<dependency> = ?[sys:]<name>[<version-spec>]
+<dependency> = (?[sys:]|sys:)<name>[<version-spec>]
 <version-spec> = /<version> | <version-constraint>
 
 [*-builds]: <class-expr> [; <comment>]
@@ -2304,8 +2304,11 @@ libbar-network-build-config:
 
 older-libz-build-config: \"?libz ^1.0.0\"; Test with older libz version.
 
-sys-build-config: ?sys:libbar ?sys:libz; Test with system dependencies.
+sys-build-config: ?sys:libbar/* ?sys:libz/*; Test with system dependencies.
 \
+
+Note that options with values can only be specified using the single argument
+notation, for example, \c{--verbose=4}.
 
 The package build configuration can also override the common build target
 configurations set (specified with \l{#manifest-package-builds \c{builds}} and
