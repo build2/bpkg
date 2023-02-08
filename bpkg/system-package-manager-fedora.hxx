@@ -172,15 +172,6 @@ namespace bpkg
 
       explicit
       package_info (string n): name (move (n)) {}
-
-      bool
-      unknown () const
-      {
-        return installed_version.empty () && candidate_version.empty ();
-      }
-
-      bool
-      known () const {return !unknown ();}
     };
 
     vector<package_info> package_infos;

@@ -1204,86 +1204,7 @@ namespace bpkg
               package_status::partially_installed);
     };
 
-    // First, choose between the package name-based and project-based system
-    // package names.
-    //
-    for (package_status& ps: candidates)
-    {
-      vector<package_info>& pis (ps.package_infos);
-
-      // Query both main and fallback packages with a single dns_list()
-      // invocation.
-      //
-      if (!ps.main.empty ())            pis.emplace_back (ps.main);
-      if (!ps.devel.empty ())           pis.emplace_back (ps.devel);
-      if (!ps.fallback.empty ())        pis.emplace_back (ps.fallback);
-      if (!ps.static_.empty ())         pis.emplace_back (ps.static_);
-      if (!ps.doc.empty () && need_doc) pis.emplace_back (ps.doc);
-
-      if (!ps.debuginfo.empty () && need_debuginfo)
-        pis.emplace_back (ps.debuginfo);
-
-      if (!ps.debugsource.empty () && need_debugsource)
-        pis.emplace_back (ps.debugsource);
-
-      if (!ps.common.empty () && false) pis.emplace_back (ps.common);
-      ps.package_infos_main = pis.size ();
-      for (const string& n: ps.extras)  pis.emplace_back (n);
-
-      dnf_list (pis);
-
-      // If the project-based (fallback) system package name is specified,
-      // then choose between the main/devel and fallback names depending on
-      // which of them is known to the system package manager.
-      //
-      // Specifically, if the main/devel system package exists we use that.
-      // Otherwise, if the fallback system package exists we use that and fail
-      // otherwise.
-      //
-      if (!ps.fallback.empty ())
-      {
-        assert (pis.size () > 1); // devel, fallback,... or main, fallback,...
-
-        // Either devel or main is specified.
-        //
-        bool devel (!ps.devel.empty ());
-        assert (devel == ps.main.empty ());
-
-        string& name (devel ? ps.devel : ps.main);
-
-        package_info& mi (pis[0]); // Main/devel package info.
-        package_info& fi (pis[1]); // Fallback package info.
-
-        if (mi.unknown ())
-        {
-          if (fi.known ())
-          {
-            name = move (ps.fallback);
-            mi = move (fi);
-          }
-          else
-          {
-            // @@ This feels incorrect: there can be another candidate that is
-            //    found. Double-check Debian semantics.
-            //
-            fail << "unable to guess " << (devel ? "devel" : "main")
-                 << ' ' << os_release.name_id << " package for " << pn <<
-              info << "neither " << name << " nor " << ps.fallback
-                   << ' ' << os_release.name_id << " package exists" <<
-              info << "consider specifying explicit mapping in " << pn
-                   << " package manifest";
-          }
-        }
-
-        // Whether it was used or not, cleanup the fallback information.
-        //
-        ps.fallback.clear ();
-        pis.erase (pis.begin () + 1);
-        --ps.package_infos_main;
-      }
-    }
-
-    // Next look for an already fully installed package.
+    // First look for an already fully installed package.
     //
     optional<package_status> r;
 
@@ -1293,6 +1214,68 @@ namespace bpkg
       for (package_status& ps: candidates)
       {
         vector<package_info>& pis (ps.package_infos);
+
+        // Query both main and fallback packages with a single dns_list()
+        // invocation.
+        //
+        if (!ps.main.empty ())            pis.emplace_back (ps.main);
+        if (!ps.devel.empty ())           pis.emplace_back (ps.devel);
+        if (!ps.fallback.empty ())        pis.emplace_back (ps.fallback);
+        if (!ps.static_.empty ())         pis.emplace_back (ps.static_);
+        if (!ps.doc.empty () && need_doc) pis.emplace_back (ps.doc);
+
+        if (!ps.debuginfo.empty () && need_debuginfo)
+          pis.emplace_back (ps.debuginfo);
+
+        if (!ps.debugsource.empty () && need_debugsource)
+          pis.emplace_back (ps.debugsource);
+
+        if (!ps.common.empty () && false) pis.emplace_back (ps.common);
+        ps.package_infos_main = pis.size ();
+        for (const string& n: ps.extras)  pis.emplace_back (n);
+
+        dnf_list (pis);
+
+        // Handle the fallback package name, if specified.
+        //
+        // Specifically, if the main/devel package is known to the system
+        // package manager we use that. Otherwise, if the fallback package is
+        // known we use that. And if neither is known, then we skip this
+        // candidate (ps).
+        //
+        if (!ps.fallback.empty ())
+        {
+          assert (pis.size () > 1); // devel+fallback or main+fallback
+
+          package_info& mp (pis[0]); // Main/devel package info.
+          package_info& fp (pis[1]); // Fallback package info.
+
+          // Note that at this stage we can only use the installed main/devel
+          // and fallback packages (since the candidate versions may change
+          // after fetch).
+          //
+          // Also note that this logic prefers installed fallback package to
+          // potentially available non-fallback package.
+          //
+          if (mp.installed_version.empty ())
+          {
+            if (!fp.installed_version.empty ())
+            {
+              // Use the fallback.
+              //
+              (ps.main.empty () ? ps.devel : ps.main) = move (ps.fallback);
+              mp = move (fp);
+            }
+            else
+              continue; // Skip the candidate at this stage.
+          }
+
+          // Whether it was used or not, cleanup the fallback information.
+          //
+          ps.fallback.clear ();
+          pis.erase (pis.begin () + 1);
+          --ps.package_infos_main;
+        }
 
         // Handle the unknown main package.
         //
@@ -1343,7 +1326,7 @@ namespace bpkg
         dr << info << "consider specifying the desired version manually";
     }
 
-    // Finally look for available versions if we are allowed to install.
+    // Next look for available versions if we are allowed to install.
     //
     if (!r && install_)
     {
@@ -1366,6 +1349,48 @@ namespace bpkg
 
           if (requery)
             dnf_list (pis);
+
+          // Handle the fallback package name, if specified.
+          //
+          if (!ps.fallback.empty ())
+          {
+            assert (pis.size () > 1); // devel+fallback or main+fallback
+
+            package_info& mp (pis[0]); // Main/devel package info.
+            package_info& fp (pis[1]); // Fallback package info.
+
+            // Note that this time we use the candidate versions.
+            //
+            if (mp.candidate_version.empty ())
+            {
+              if (!fp.candidate_version.empty ())
+              {
+                // Use the fallback.
+                //
+                (ps.main.empty () ? ps.devel : ps.main) = move (ps.fallback);
+                mp = move (fp);
+              }
+              else
+              {
+                // Otherwise, we would have resolved the name on the previous
+                // stage.
+                //
+                assert (mp.installed_version.empty () &&
+                        fp.installed_version.empty ());
+
+                // Main/devel package is not installable.
+                //
+                ps.main.clear ();
+                continue;
+              }
+            }
+
+            // Whether it was used or not, cleanup the fallback information.
+            //
+            ps.fallback.clear ();
+            pis.erase (pis.begin () + 1);
+            --ps.package_infos_main;
+          }
 
           // Handle the unknown main package.
           //

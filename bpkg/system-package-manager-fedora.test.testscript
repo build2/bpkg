@@ -267,10 +267,6 @@
 
   : libpq
   :
-  : Note that here we will test without package manifest, auto-creating a stub,
-  : and thus the -devel package name needs to be deducible from the package
-  : name (no project name fallback is available).
-  :
   {
     : installed
     :
@@ -323,14 +319,6 @@
       libpq-devel.i686                                                                                                       13.4-1.fc35                                                                                                       fedora
       libpq-devel.x86_64                                                                                                     13.4-1.fc35                                                                                                       fedora
       EOI
-    cat <<EOI >=libpq-devel.info;
-      Installed Packages
-      rpm.x86_64                                                                                                             4.17.1-2.fc35                                                                                                     @updates
-      Available Packages
-      rpm.x86_64                                                                                                             4.17.1-3.fc35                                                                                                     updates
-      libpq-devel.i686                                                                                                       13.4-1.fc35                                                                                                       fedora
-      libpq-devel.x86_64                                                                                                     13.4-1.fc35                                                                                                       fedora
-      EOI
     cat <<EOI >=libpq-devel.requires;
       glibc i686 0:2.34-49.fc35
       glibc x86_64 0:2.34-49.fc35
@@ -348,13 +336,12 @@
       EOI
     $* libpq --install libpq <<EOI 2>>EOE >>EOO
       dnf-list:               libpq-devel pq-devel           libpq-devel+pq-devel.info
-      dnf-list:               libpq-devel                    libpq-devel.info
       dnf-repoquery-requires: libpq-devel 13.4-1.fc35 x86_64 libpq-devel.requires
       dnf-list:               libpq                          libpq.info
       EOI
       LC_ALL=C dnf list --all --cacheonly --quiet libpq-devel pq-devel rpm <libpq-devel+pq-devel.info
       sudo dnf makecache --quiet --assumeno --refresh
-      LC_ALL=C dnf list --all --cacheonly --quiet libpq-devel rpm <libpq-devel.info
+      LC_ALL=C dnf list --all --cacheonly --quiet libpq-devel pq-devel rpm <libpq-devel+pq-devel.info
       LC_ALL=C dnf repoquery --requires --quiet --cacheonly --resolve --qf "%{name} %{arch} %{epoch}:%{version}-%{release}" libpq-devel-13.4-1.fc35.x86_64 <libpq-devel.requires
       LC_ALL=C dnf list --all --cacheonly --quiet libpq rpm <libpq.info
       sudo dnf install --quiet --assumeno libpq libpq-devel
@@ -375,7 +362,7 @@
       libpq-devel.i686                                                                                                       13.3-3.fc35                                                                                                       fedora
       libpq-devel.x86_64                                                                                                     13.3-3.fc35                                                                                                       fedora
       EOI
-    cat <<EOI >=libpq-devel.info-fetched;
+    cat <<EOI >=libpq-devel+pq-devel.info-fetched;
       Installed Packages
       rpm.x86_64                                                                                                             4.17.1-2.fc35                                                                                                     @updates
       Available Packages
@@ -409,14 +396,14 @@
       EOI
     $* libpq --install libpq <<EOI 2>>EOE >>EOO
       dnf-list:               libpq-devel pq-devel           libpq-devel+pq-devel.info
-      dnf-list-fetched:       libpq-devel                    libpq-devel.info-fetched
+      dnf-list-fetched:       libpq-devel pq-devel           libpq-devel+pq-devel.info-fetched
       dnf-repoquery-requires: libpq-devel 13.4-1.fc35 x86_64 libpq-devel.requires-fetched
       dnf-list-fetched:       libpq                          libpq.info-fetched
       dnf-list-installed:     libpq                          libpq.info-installed
       EOI
       LC_ALL=C dnf list --all --cacheonly --quiet libpq-devel pq-devel rpm <libpq-devel+pq-devel.info
       sudo dnf makecache --quiet --assumeno --refresh
-      LC_ALL=C dnf list --all --cacheonly --quiet libpq-devel rpm <libpq-devel.info-fetched
+      LC_ALL=C dnf list --all --cacheonly --quiet libpq-devel pq-devel rpm <libpq-devel+pq-devel.info-fetched
       LC_ALL=C dnf repoquery --requires --quiet --cacheonly --resolve --qf "%{name} %{arch} %{epoch}:%{version}-%{release}" libpq-devel-13.4-1.fc35.x86_64 <libpq-devel.requires-fetched
       LC_ALL=C dnf list --all --cacheonly --quiet libpq rpm <libpq.info-fetched
       sudo dnf install --quiet --assumeno libpq libpq-devel
@@ -495,14 +482,6 @@
       libpq-devel.i686                                                                                                       13.4-1.fc35                                                                                                       fedora
       libpq-devel.x86_64                                                                                                     13.4-1.fc35                                                                                                       @fedora
       EOI
-    cat <<EOI >=libpq-devel.info;
-      Installed Packages
-      rpm.x86_64                                                                                                             4.17.1-2.fc35                                                                                                     @updates
-      Available Packages
-      rpm.x86_64                                                                                                             4.17.1-3.fc35                                                                                                     updates
-      libpq-devel.i686                                                                                                       13.4-1.fc35                                                                                                       fedora
-      libpq-devel.x86_64                                                                                                     13.4-1.fc35                                                                                                       @fedora
-      EOI
     cat <<EOI >=libpq-devel.requires;
       glibc i686 0:2.34-49.fc35
       glibc x86_64 0:2.34-49.fc35
@@ -528,14 +507,13 @@
       EOI
     $* libpq --install libpq <<EOI 2>>EOE >>EOO
       dnf-list:               libpq-devel pq-devel           libpq-devel+pq-devel.info
-      dnf-list:               libpq-devel                    libpq-devel.info
       dnf-repoquery-requires: libpq-devel 13.4-1.fc35 x86_64 libpq-devel.requires
       dnf-list:               libpq                          libpq.info
       dnf-list-installed:     libpq                          libpq.info-installed
       EOI
       LC_ALL=C dnf list --all --cacheonly --quiet libpq-devel pq-devel rpm <libpq-devel+pq-devel.info
       sudo dnf makecache --quiet --assumeno --refresh
-      LC_ALL=C dnf list --all --cacheonly --quiet libpq-devel rpm <libpq-devel.info
+      LC_ALL=C dnf list --all --cacheonly --quiet libpq-devel pq-devel rpm <libpq-devel+pq-devel.info
       LC_ALL=C dnf repoquery --requires --quiet --cacheonly --resolve --qf "%{name} %{arch} %{epoch}:%{version}-%{release}" libpq-devel-13.4-1.fc35.x86_64 <libpq-devel.requires
       LC_ALL=C dnf list --all --cacheonly --quiet libpq rpm <libpq.info
       sudo dnf install --quiet --assumeno libpq libpq-devel
@@ -576,9 +554,9 @@
       dnf-list: libpq-devel pq-devel libpq-devel+pq-devel.info
       EOI
       LC_ALL=C dnf list --all --cacheonly --quiet libpq-devel pq-devel rpm <libpq-devel+pq-devel.info
-      error: unable to guess devel fedora package for libpq
-        info: neither libpq-devel nor pq-devel fedora package exists
-        info: consider specifying explicit mapping in libpq package manifest
+      sudo dnf makecache --quiet --assumeno --refresh
+      LC_ALL=C dnf list --all --cacheonly --quiet libpq-devel pq-devel rpm <libpq-devel+pq-devel.info
+      error: no installed or available system package for libpq
       EOE
 
 
@@ -594,9 +572,7 @@
       dnf-list: libpq-devel pq-devel libpq-devel+pq-devel.info
       EOI
       LC_ALL=C dnf list --all --cacheonly --quiet libpq-devel pq-devel rpm <libpq-devel+pq-devel.info
-      error: unable to guess devel fedora package for libpq
-        info: neither libpq-devel nor pq-devel fedora package exists
-        info: consider specifying explicit mapping in libpq package manifest
+      error: no installed or available system package for libpq
       EOE
   }
 
@@ -613,7 +589,7 @@
       EOI
 
 
-    : deduce-dev-fail
+    : dev-resolve-fail
     :
     cat <<EOI >=libsqlite3-devel+sqlite3-devel.info;
       Installed Packages
@@ -625,15 +601,15 @@
       dnf-list: libsqlite3-devel sqlite3-devel libsqlite3-devel+sqlite3-devel.info
       EOI
       LC_ALL=C dnf list --all --cacheonly --quiet libsqlite3-devel sqlite3-devel rpm <libsqlite3-devel+sqlite3-devel.info
-      error: unable to guess devel fedora package for libsqlite3
-        info: neither libsqlite3-devel nor sqlite3-devel fedora package exists
-        info: consider specifying explicit mapping in libsqlite3 package manifest
+      sudo dnf makecache --quiet --assumeno --refresh
+      LC_ALL=C dnf list --all --cacheonly --quiet libsqlite3-devel sqlite3-devel rpm <libsqlite3-devel+sqlite3-devel.info
+      error: no installed or available system package for libsqlite3
       EOE
 
 
     : installed
     :
-    : In particular test the project name-based deduction of the -devel
+    : In particular test the project name-based resolution of the -devel
     : package.
     :
     ln -s ../libsqlite3.manifest ./;
@@ -679,22 +655,24 @@
 
     : not-installed
     :
+    : Note that without fetch the -devel package could not be resolved since
+    : `dnf list libsqlite3-devel sqlite-devel` provides no information
+    : regarding any of these packages.
+    :
     ln -s ../libsqlite3.manifest ./;
     cat <<EOI >=libsqlite3-devel+sqlite-devel.info;
       Installed Packages
       rpm.x86_64                                                                                                                         4.17.1-2.fc35                                                                                                                @updates
       Available Packages
       rpm.x86_64                                                                                                                         4.17.1-3.fc35                                                                                                                updates
-      sqlite-devel.i686                                                                                                                  3.36.0-3.fc35                                                                                                                fedora
-      sqlite-devel.x86_64                                                                                                                3.36.0-3.fc35                                                                                                                @fedora
       EOI
-    cat <<EOI >=sqlite-devel.requires;
+    cat <<EOI >=sqlite-devel.requires-fetched;
       pkgconf-pkg-config i686 0:1.8.0-1.fc35
       pkgconf-pkg-config x86_64 0:1.8.0-1.fc35
       sqlite x86_64 0:3.36.0-3.fc35
       sqlite-libs x86_64 0:3.36.0-3.fc35
       EOI
-    cat <<EOI >=sqlite-devel.info-fetched;
+    cat <<EOI >=libsqlite3-devel+sqlite-devel.info-fetched;
       Installed Packages
       rpm.x86_64                                                                                                                         4.17.1-2.fc35                                                                                                                @updates
       Available Packages
@@ -721,16 +699,16 @@
     $* libsqlite3 --install libsqlite3 <<EOI 2>>EOE >>EOO
       manifest: libsqlite3 libsqlite3.manifest
 
-      dnf-list:               libsqlite3-devel sqlite-devel     libsqlite3-devel+sqlite-devel.info
-      dnf-repoquery-requires: sqlite-devel 3.36.0-3.fc35 x86_64 sqlite-devel.requires
-      dnf-list:               sqlite-devel                      sqlite-devel.info-fetched
-      dnf-list-fetched:       sqlite-libs                       sqlite-libs.info-fetched
-      dnf-list-installed:     sqlite-libs                       sqlite-libs.info-installed
+      dnf-list:                       libsqlite3-devel sqlite-devel     libsqlite3-devel+sqlite-devel.info
+      dnf-repoquery-requires-fetched: sqlite-devel 3.36.0-3.fc35 x86_64 sqlite-devel.requires-fetched
+      dnf-list-fetched:               libsqlite3-devel sqlite-devel     libsqlite3-devel+sqlite-devel.info-fetched
+      dnf-list-fetched:               sqlite-libs                       sqlite-libs.info-fetched
+      dnf-list-installed:             sqlite-libs                       sqlite-libs.info-installed
       EOI
       LC_ALL=C dnf list --all --cacheonly --quiet libsqlite3-devel sqlite-devel rpm <libsqlite3-devel+sqlite-devel.info
       sudo dnf makecache --quiet --assumeno --refresh
-      LC_ALL=C dnf list --all --cacheonly --quiet sqlite-devel rpm <sqlite-devel.info-fetched
-      LC_ALL=C dnf repoquery --requires --quiet --cacheonly --resolve --qf "%{name} %{arch} %{epoch}:%{version}-%{release}" sqlite-devel-3.36.0-3.fc35.x86_64 <sqlite-devel.requires
+      LC_ALL=C dnf list --all --cacheonly --quiet libsqlite3-devel sqlite-devel rpm <libsqlite3-devel+sqlite-devel.info-fetched
+      LC_ALL=C dnf repoquery --requires --quiet --cacheonly --resolve --qf "%{name} %{arch} %{epoch}:%{version}-%{release}" sqlite-devel-3.36.0-3.fc35.x86_64 <sqlite-devel.requires-fetched
       LC_ALL=C dnf list --all --cacheonly --quiet sqlite-libs rpm <sqlite-libs.info-fetched
       sudo dnf install --quiet --assumeno sqlite-libs sqlite-devel
       sudo dnf mark --quiet --assumeno install --cacheonly sqlite-libs sqlite-devel
@@ -753,7 +731,7 @@
       EOI
 
 
-    : deduce-main-fail
+    : main-resolve-fail
     :
     cat <<EOI >=sqlite3.info;
       Installed Packages
@@ -773,7 +751,7 @@
 
     : installed
     :
-    : In particular test the project name-based deduction of the main
+    : In particular test the project name-based resolution of the main
     : package.
     :
     ln -s ../sqlite3.manifest ./;
@@ -812,7 +790,7 @@
       sqlite.i686                                                                                                                     3.35.0-1.fc35                                                                                                                   fedora
       sqlite.x86_64                                                                                                                   3.35.0-1.fc35                                                                                                                   @fedora
       EOI
-    cat <<EOI >=sqlite.info-fetched;
+    cat <<EOI >=sqlite3+sqlite.info-fetched;
       Installed Packages
       rpm.x86_64                                                                                                                      4.17.1-2.fc35                                                                                                                   @updates
       Available Packages
@@ -832,12 +810,12 @@
       manifest: sqlite3 sqlite3.manifest
 
       dnf-list:           sqlite3 sqlite sqlite3+sqlite.info
-      dnf-list-fetched:   sqlite         sqlite.info-fetched
+      dnf-list-fetched:   sqlite3 sqlite sqlite3+sqlite.info-fetched
       dnf-list-installed: sqlite         sqlite.info-installed
       EOI
       LC_ALL=C dnf list --all --cacheonly --quiet sqlite3 sqlite rpm <sqlite3+sqlite.info
       sudo dnf makecache --quiet --assumeno --refresh
-      LC_ALL=C dnf list --all --cacheonly --quiet sqlite rpm <sqlite.info-fetched
+      LC_ALL=C dnf list --all --cacheonly --quiet sqlite3 sqlite rpm <sqlite3+sqlite.info-fetched
       sudo dnf install --quiet --assumeno sqlite
       sudo dnf mark --quiet --assumeno install --cacheonly sqlite
       LC_ALL=C dnf list --all --cacheonly --quiet sqlite rpm <sqlite.info-installed
@@ -957,14 +935,6 @@
       ncurses-devel.i686                                                                                      6.2-8.20210508.fc35                                                                              fedora
       ncurses-devel.x86_64                                                                                    6.2-8.20210508.fc35                                                                              @fedora
       EOI
-    cat <<EOI >=ncurses-devel.info-fetched;
-      Installed Packages
-      rpm.x86_64                                                                                              4.17.1-2.fc35                                                                                    @updates
-      Available Packages
-      rpm.x86_64                                                                                              4.17.1-3.fc35                                                                                    updates
-      ncurses-devel.i686                                                                                      6.2-8.20210508.fc35                                                                              fedora
-      ncurses-devel.x86_64                                                                                    6.2-8.20210508.fc35                                                                              fedora
-      EOI
     cat <<EOI >=ncurses-devel.requires-fetched;
       bash i686 0:5.1.8-3.fc35
       bash x86_64 0:5.1.8-3.fc35
@@ -1008,7 +978,6 @@
       manifest: libncurses-c++ libncurses-c++.manifest
 
       dnf-list:                       libncurses-devel ncurses-devel           libncurses-devel+ncurses-devel.info
-      dnf-list-fetched:               ncurses-devel                            ncurses-devel.info-fetched
       dnf-repoquery-requires-fetched: ncurses-devel 6.2-8.20210508.fc35 x86_64 ncurses-devel.requires-fetched
       dnf-list-fetched:               ncurses-libs                             ncurses-libs.info-fetched
       dnf-list-fetched:               ncurses-c++-libs ncurses-devel           ncurses-c++-libs+ncurses-devel.info-fetched
@@ -1016,7 +985,7 @@
       EOI
       LC_ALL=C dnf list --all --cacheonly --quiet libncurses-devel ncurses-devel rpm <libncurses-devel+ncurses-devel.info
       sudo dnf makecache --quiet --assumeno --refresh
-      LC_ALL=C dnf list --all --cacheonly --quiet ncurses-devel rpm <ncurses-devel.info-fetched
+      LC_ALL=C dnf list --all --cacheonly --quiet libncurses-devel ncurses-devel rpm <libncurses-devel+ncurses-devel.info
       LC_ALL=C dnf repoquery --requires --quiet --cacheonly --resolve --qf "%{name} %{arch} %{epoch}:%{version}-%{release}" ncurses-devel-6.2-8.20210508.fc35.x86_64 <ncurses-devel.requires-fetched
       LC_ALL=C dnf list --all --cacheonly --quiet ncurses-libs rpm <ncurses-libs.info-fetched
       LC_ALL=C dnf list --all --cacheonly --quiet ncurses-c++-libs ncurses-devel rpm <ncurses-c++-libs+ncurses-devel.info-fetched
@@ -1041,7 +1010,7 @@
       ncurses-devel.i686                                                                                      6.2-8.20210508.fc35                                                                              fedora
       ncurses-devel.x86_64                                                                                    6.2-8.20210508.fc35                                                                              @fedora
       EOI
-    cat <<EOI >=ncurses-devel.info-fetched;
+    cat <<EOI >=libncurses-devel+ncurses-devel.info-fetched;
       Installed Packages
       rpm.x86_64                                                                                              4.17.1-2.fc35                                                                                    @updates
       Available Packages
@@ -1092,7 +1061,7 @@
       manifest: libncurses-c++ libncurses-c++.manifest
 
       dnf-list:                       libncurses-devel ncurses-devel           libncurses-devel+ncurses-devel.info
-      dnf-list-fetched:               ncurses-devel                            ncurses-devel.info-fetched
+      dnf-list-fetched:               libncurses-devel ncurses-devel           libncurses-devel+ncurses-devel.info-fetched
       dnf-repoquery-requires-fetched: ncurses-devel 6.2-8.20210508.fc35 x86_64 ncurses-devel.requires-fetched
       dnf-list-fetched:               ncurses-libs                             ncurses-libs.info-fetched
       dnf-list-fetched:               ncurses-c++-libs ncurses-devel           ncurses-c++-libs+ncurses-devel.info-fetched
@@ -1100,7 +1069,7 @@
       EOI
       LC_ALL=C dnf list --all --cacheonly --quiet libncurses-devel ncurses-devel rpm <libncurses-devel+ncurses-devel.info
       sudo dnf makecache --quiet --assumeno --refresh
-      LC_ALL=C dnf list --all --cacheonly --quiet ncurses-devel rpm <ncurses-devel.info-fetched
+      LC_ALL=C dnf list --all --cacheonly --quiet libncurses-devel ncurses-devel rpm <libncurses-devel+ncurses-devel.info-fetched
       LC_ALL=C dnf repoquery --requires --quiet --cacheonly --resolve --qf "%{name} %{arch} %{epoch}:%{version}-%{release}" ncurses-devel-6.2-8.20210508.fc35.x86_64 <ncurses-devel.requires-fetched
       LC_ALL=C dnf list --all --cacheonly --quiet ncurses-libs rpm <ncurses-libs.info-fetched
       LC_ALL=C dnf list --all --cacheonly --quiet ncurses-c++-libs ncurses-devel rpm <ncurses-c++-libs+ncurses-devel.info-fetched
