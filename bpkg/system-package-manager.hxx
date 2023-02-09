@@ -17,7 +17,7 @@
 namespace bpkg
 {
   // The system/distribution package manager interface. Used by both pkg-build
-  // (to query and install system packages) and by pkg-bindist (to build
+  // (to query and install system packages) and by pkg-bindist (to generate
   // them).
   //
   // Note that currently the result of a query is a single available version.
@@ -103,6 +103,13 @@ namespace bpkg
     status_type status = not_installed;
   };
 
+  // As mentioned above the system package manager API has two parts:
+  // consumption (status() and install()) and production (generate()) and a
+  // particular implementation may only implement one, the other, or both. If
+  // a particular part is not implemented, then the correponding make_*()
+  // function below should never return an instance of such a system package
+  // manager.
+  //
   class system_package_manager
   {
   public:
@@ -148,7 +155,32 @@ namespace bpkg
     virtual void
     pkg_install (const vector<package_name>&) = 0;
 
+    // Generate a binary distribution package.
+    //
+    // @@ TODO: doc
+    //
+    // See the pkg-bindist(1) man page and the pkg_bindist() function
+    // implementation for background and details.
+    //
+    using packages =
+      vector<pair<shared_ptr<selected_package>, available_packages>>;
+
+    enum class recursive_mode {auto_, full};
+
+    virtual void
+    generate (packages&& pkgs,
+              packages&& deps,
+              strings&& vars,
+              const dir_path& out,
+              optional<recursive_mode>) = 0;
+
   public:
+    bpkg::os_release os_release;
+    target_triplet   host;
+    string           arch; // Architecture in system package manager spelling.
+
+    // Consumption constructor.
+    //
     // If install is true, then enable package installation.
     //
     // If fetch is false, then do not re-fetch the system package repository
@@ -156,20 +188,36 @@ namespace bpkg
     // available version of the not yet installed or partially installed
     // packages.
     //
-    system_package_manager (os_release&& osr,
-                            const target_triplet& host,
+    system_package_manager (bpkg::os_release&& osr,
+                            const target_triplet& h,
+                            string a,
+                            optional<bool> progress,
                             bool install,
                             bool fetch,
-                            optional<bool> progress,
                             bool yes,
                             string sudo)
-        : os_release_ (osr),
-          host_ (host),
+        : os_release (move (osr)),
+          host (h),
+          arch (move (a)),
           progress_ (progress),
           install_ (install),
           fetch_ (fetch),
           yes_ (yes),
           sudo_ (sudo != "false" ? move (sudo) : string ()) {}
+
+    // Production constructor.
+    //
+    system_package_manager (bpkg::os_release&& osr,
+                            const target_triplet& h,
+                            string a,
+                            optional<bool> progress)
+        : os_release (move (osr)),
+          host (h),
+          arch (move (a)),
+          progress_ (progress),
+          install_ (false),
+          fetch_ (false),
+          yes_ (false) {}
 
     virtual
     ~system_package_manager ();
@@ -235,8 +283,6 @@ namespace bpkg
                                 const string& version_id,
                                 const vector<string>& like_ids);
   protected:
-    os_release os_release_;
-    target_triplet host_;
     optional<bool> progress_; // --[no]-progress (see also stderr_term)
 
     // The --sys-* option values.
@@ -248,8 +294,10 @@ namespace bpkg
   };
 
   // Create a package manager instance corresponding to the specified host
-  // target and optional manager name. If name is empty, return NULL if there
-  // is no support for this platform. Currently recognized names:
+  // target triplet as well as optional distribution package manager name and
+  // architecture. If name is empty, return NULL if there is no support for
+  // this platform. If architecture is empty, then derive it automatically
+  // from the host target triplet. Currently recognized names:
   //
   //   debian -- Debian and alike (Ubuntu, etc) using the APT frontend.
   //   fedora -- Fedora and alike (RHEL, Centos, etc) using the DNF frontend.
@@ -258,13 +306,20 @@ namespace bpkg
   // implementation on platforms that support multiple.
   //
   unique_ptr<system_package_manager>
-  make_system_package_manager (const common_options&,
-                               const target_triplet&,
-                               bool install,
-                               bool fetch,
-                               bool yes,
-                               const string& sudo,
-                               const string& name);
+  make_consumption_system_package_manager (const common_options&,
+                                           const target_triplet&,
+                                           const string& name,
+                                           const string& arch,
+                                           bool install,
+                                           bool fetch,
+                                           bool yes,
+                                           const string& sudo);
+
+  unique_ptr<system_package_manager>
+  make_production_system_package_manager (const common_options&,
+                                          const target_triplet&,
+                                          const string& name,
+                                          const string& arch);
 }
 
 #endif // BPKG_SYSTEM_PACKAGE_MANAGER_HXX

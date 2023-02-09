@@ -27,70 +27,147 @@ namespace bpkg
     // vtable
   }
 
-  unique_ptr<system_package_manager>
-  make_system_package_manager (const common_options& co,
-                               const target_triplet& host,
-                               bool install,
-                               bool fetch,
-                               bool yes,
-                               const string& sudo,
-                               const string& name)
+  // Return true if the specified operating system is or like the specified
+  // id.
+  //
+  static inline bool
+  is_or_like (const os_release& os, const char* id)
   {
+    return (os.name_id == id ||
+            find_if (os.like_ids.begin (), os.like_ids.end (),
+                     [id] (const string& n)
+                     {
+                       return n == id;
+                     }) != os.like_ids.end ());
+  }
+
+  unique_ptr<system_package_manager>
+  make_consumption_system_package_manager (const common_options& co,
+                                           const target_triplet& host,
+                                           const string& name,
+                                           const string& arch,
+                                           bool install,
+                                           bool fetch,
+                                           bool yes,
+                                           const string& sudo)
+  {
+    // Note: similar to make_consumption_system_package_manager() below.
+
     optional<bool> progress (co.progress () ? true :
                              co.no_progress () ? false :
                              optional<bool> ());
 
     unique_ptr<system_package_manager> r;
 
-    if (optional<os_release> osr = host_os_release (host))
+    if (optional<os_release> oos = host_os_release (host))
     {
-      auto is_or_like = [&osr] (const char* id)
-      {
-        return (osr->name_id == id ||
-                find_if (osr->like_ids.begin (), osr->like_ids.end (),
-                         [id] (const string& n)
-                         {
-                           return n == id;
-                         }) != osr->like_ids.end ());
-      };
+      os_release& os (*oos);
 
       if (host.class_ == "linux")
       {
-        if (is_or_like ("debian") ||
-            is_or_like ("ubuntu"))
+        if (is_or_like (os, "debian") ||
+            is_or_like (os, "ubuntu"))
         {
           if (!name.empty () && name != "debian")
             fail << "unsupported package manager '" << name << "' for "
-                 << osr->name_id << " host";
+                 << os.name_id << " host";
 
           // If we recognized this as Debian-like in an ad hoc manner, then
           // add debian to like_ids.
           //
-          if (osr->name_id != "debian" && !is_or_like ("debian"))
-            osr->like_ids.push_back ("debian");
+          if (os.name_id != "debian" && !is_or_like (os, "debian"))
+            os.like_ids.push_back ("debian");
 
           r.reset (new system_package_manager_debian (
-                     move (*osr), host, install, fetch, progress, yes, sudo));
+                     move (os), host, arch,
+                     progress, install, fetch, yes, sudo));
         }
-        else if (is_or_like ("fedora") ||
-                 is_or_like ("rhel")   ||
-                 is_or_like ("centos") ||
-                 is_or_like ("rocky")  ||
-                 is_or_like ("almalinux"))
+        else if (is_or_like (os, "fedora") ||
+                 is_or_like (os, "rhel")   ||
+                 is_or_like (os, "centos") ||
+                 is_or_like (os, "rocky")  ||
+                 is_or_like (os, "almalinux"))
         {
           if (!name.empty () && name != "fedora")
             fail << "unsupported package manager '" << name << "' for "
-                 << osr->name_id << " host";
+                 << os.name_id << " host";
 
           // If we recognized this as Fedora-like in an ad hoc manner, then
           // add fedora to like_ids.
           //
-          if (osr->name_id != "fedora" && !is_or_like ("fedora"))
-            osr->like_ids.push_back ("fedora");
+          if (os.name_id != "fedora" && !is_or_like (os, "fedora"))
+            os.like_ids.push_back ("fedora");
 
           r.reset (new system_package_manager_fedora (
-                     move (*osr), host, install, fetch, progress, yes, sudo));
+                     move (os), host, arch,
+                     progress, install, fetch, yes, sudo));
         }
+        // NOTE: remember to update the --sys-distribution pkg-build option
+        //       documentation if adding support for another package manager.
+      }
+    }
+
+    if (r == nullptr)
+    {
+      if (!name.empty ())
+        fail << "unsupported package manager '" << name << "' for host "
+             << host;
+    }
+
+    return r;
+  }
+
+  unique_ptr<system_package_manager>
+  make_production_system_package_manager (const common_options& co,
+                                          const target_triplet& host,
+                                          const string& name,
+                                          const string& arch)
+  {
+    // Note: similar to make_production_system_package_manager() above.
+
+    optional<bool> progress (co.progress () ? true :
+                             co.no_progress () ? false :
+                             optional<bool> ());
+
+    unique_ptr<system_package_manager> r;
+
+    if (optional<os_release> oos = host_os_release (host))
+    {
+      os_release& os (*oos);
+
+      if (host.class_ == "linux")
+      {
+        if (is_or_like (os, "debian") ||
+            is_or_like (os, "ubuntu"))
+        {
+          if (!name.empty () && name != "debian")
+            fail << "unsupported package manager '" << name << "' for "
+                 << os.name_id << " host";
+
+          if (os.name_id != "debian" && !is_or_like (os, "debian"))
+            os.like_ids.push_back ("debian");
+
+          r.reset (new system_package_manager_debian (
+                     move (os), host, arch, progress));
+        }
+        else if (is_or_like (os, "fedora") ||
+                 is_or_like (os, "rhel")   ||
+                 is_or_like (os, "centos") ||
+                 is_or_like (os, "rocky")  ||
+                 is_or_like (os, "almalinux"))
+        {
+          if (!name.empty () && name != "fedora")
+            fail << "unsupported package manager '" << name << "' for "
+                 << os.name_id << " host";
+
+          if (os.name_id != "fedora" && !is_or_like (os, "fedora"))
+            os.like_ids.push_back ("fedora");
+
+          r.reset (new system_package_manager_fedora (
+                     move (os), host, arch, progress));
+        }
+        // NOTE: remember to update the --distribution pkg-bindist option
+        //       documentation if adding support for another package manager.
       }
     }
 

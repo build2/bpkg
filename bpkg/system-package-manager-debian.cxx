@@ -11,6 +11,19 @@ namespace bpkg
 {
   using package_status = system_package_status_debian;
 
+  // Translate host CPU to Debian package architecture.
+  //
+  string system_package_manager_debian::
+  arch_from_target (const target_triplet& h)
+  {
+    const string& c (h.cpu);
+    return
+      c == "x86_64"                                            ? "amd64" :
+      c == "aarch64"                                           ? "arm64" :
+      c == "i386" || c == "i486" || c == "i586" || c == "i686" ? "i386"  :
+      c;
+  }
+
   // Parse the debian-name (or alike) value.
   //
   // Note that for now we treat all the packages from the non-main groups as
@@ -757,7 +770,7 @@ namespace bpkg
       if (verb >= 2)
         print_process (args);
       else if (verb == 1)
-        text << "updating " << os_release_.name_id << " package index...";
+        text << "updating " << os_release.name_id << " package index...";
 
       process pr;
       if (!simulate_)
@@ -781,7 +794,7 @@ namespace bpkg
       }
 
       if (verb == 1)
-        text << "updated " << os_release_.name_id << " package index";
+        text << "updated " << os_release.name_id << " package index";
     }
     catch (const process_error& e)
     {
@@ -817,7 +830,7 @@ namespace bpkg
       if (verb >= 2)
         print_process (args);
       else if (verb == 1)
-        text << "installing " << os_release_.name_id << " packages...";
+        text << "installing " << os_release.name_id << " packages...";
 
       process pr;
       if (!simulate_)
@@ -844,7 +857,7 @@ namespace bpkg
       }
 
       if (verb == 1)
-        text << "installed " << os_release_.name_id << " packages";
+        text << "installed " << os_release.name_id << " packages";
     }
     catch (const process_error& e)
     {
@@ -889,15 +902,15 @@ namespace bpkg
         [this, &pn] (diag_record& dr)
         {
           dr << info << "while mapping " << pn << " to "
-             << os_release_.name_id << " package name";
+             << os_release.name_id << " package name";
         });
 
       strings ns;
       if (!aps->empty ())
         ns = system_package_names (*aps,
-                                   os_release_.name_id,
-                                   os_release_.version_id,
-                                   os_release_.like_ids);
+                                   os_release.name_id,
+                                   os_release.version_id,
+                                   os_release.like_ids);
       if (ns.empty ())
       {
         // Attempt to automatically translate our package name (see above for
@@ -970,7 +983,7 @@ namespace bpkg
 
       if (s.main.empty ())
       {
-        fail << "unable to guess main " << os_release_.name_id
+        fail << "unable to guess main " << os_release.name_id
              << " package for " << s.dev << ' ' << ver <<
           info << s.dev << " Depends value: " << depends <<
           info << "consider specifying explicit mapping in " << pn
@@ -1073,7 +1086,7 @@ namespace bpkg
 
         if (dr.empty ())
         {
-          dr << fail << "multiple installed " << os_release_.name_id
+          dr << fail << "multiple installed " << os_release.name_id
              << " packages for " << pn <<
             info << "candidate: " << r->main << " " << r->system_version;
         }
@@ -1172,7 +1185,7 @@ namespace bpkg
           if (dr.empty ())
           {
             dr << fail << "multiple partially installed "
-               << os_release_.name_id << " packages for " << pn;
+               << os_release.name_id << " packages for " << pn;
 
             dr << info << "candidate: " << r->main << " " << r->system_version
                << ", missing components:";
@@ -1208,7 +1221,7 @@ namespace bpkg
 
           if (dr.empty ())
           {
-            dr << fail << "multiple available " << os_release_.name_id
+            dr << fail << "multiple available " << os_release.name_id
                << " packages for " << pn <<
               info << "candidate: " << r->main << " " << r->system_version;
           }
@@ -1238,9 +1251,9 @@ namespace bpkg
       if (!aps->empty ())
         v = downstream_package_version (sv,
                                         *aps,
-                                        os_release_.name_id,
-                                        os_release_.version_id,
-                                        os_release_.like_ids);
+                                        os_release.name_id,
+                                        os_release.version_id,
+                                        os_release.like_ids);
 
       if (!v)
       {
@@ -1257,10 +1270,10 @@ namespace bpkg
         }
         catch (const invalid_argument& e)
         {
-          fail << "unable to map " << os_release_.name_id << " package "
+          fail << "unable to map " << os_release.name_id << " package "
                << r->system_name << " version " << sv << " to bpkg package "
                << pn << " version" <<
-            info << os_release_.name_id << " version is not a valid bpkg "
+            info << os_release.name_id << " version is not a valid bpkg "
                  << "version: " << e.what () <<
             info << "consider specifying explicit mapping in " << pn
                  << " package manifest";
@@ -1403,7 +1416,7 @@ namespace bpkg
 
         if (pp.installed_version != ps.system_version)
         {
-          fail << "unexpected " << os_release_.name_id << " package version "
+          fail << "unexpected " << os_release.name_id << " package version "
                << "for " << ps.system_name <<
             info << "expected: " << ps.system_version <<
             info << "installed: " << pp.installed_version <<
@@ -1411,5 +1424,79 @@ namespace bpkg
         }
       }
     }
+  }
+
+  // Some background on creating Debian packages (for a bit more detailed
+  // overview see the Debian Packaging Tutorial).
+  //
+  // A binary Debian package (.deb) is an ar archive which itself contains a
+  // few tar archives normally compressed with gz or xz. So it's possible to
+  // create the package completely manually without using any of the Debian
+  // tools and while some implementations (for example, cargo-deb) do it this
+  // way, we are not going to go this route because it does not scale well to
+  // more complex packages which may require additional functionality, such as
+  // managing systemd files, and which is covered by the Debian tools (for an
+  // example of where this leads, see the partial debhelper re-implementation
+  // in cargo-deb). Another issues with this approach is that it's not
+  // amenable to customizations, at least not in a way familiar to Debian
+  // users.
+  //
+  // At the lowest level of the Debian tools for creating packages sits the
+  // dpkg-deb --build|-b command (also accessible as dpkg --build|-b). Given a
+  // directory with all the binary contents (including the package metadata,
+  // such as the control file, in the debian/ subdirectory) this command will
+  // pack everything up into a .deb file. While an improvement over the fully
+  // manual packaging, this approach has essentially the same drawbacks. In
+  // particular, this command generates a single package which means we will
+  // have to manually sort out things into -dev, -doc, etc.
+  //
+  // Next up the stack is dpkg-buildpackage. This tool expects the package to
+  // follow the Debian way, that is, to provide the debian/rules makefile with
+  // a number of required targets which it then invokes to build, install, and
+  // pack a package from source (and somewhere in this process it calls
+  // dpkg-deb --build). The dpkg-buildpackage(1) man page has an overview of
+  // all the steps that this command performs and it is the recommended,
+  // lower-level, way to build packages on Debian.
+  //
+  // At the top of the stack sits debuild which calls dpkg-buildpackage, then
+  // lintian and finally design (though signing can also be performed by
+  // dpkg-buildpackage).
+  //
+  // Based on this our plan is to use dpkg-buildpackage which brings us to the
+  // Debian way of packaging with debian/rules at its core. As it turns out,
+  // it can also be implemented in a number of alternative ways. So let's
+  // discuss those.
+  //
+  // As mentioned earlier, debian/rules is a makefile that is expected to
+  // provide a number of targets, such as build, install, etc. And
+  // theoretically these targets can be implemented completely manually. In
+  // practice, however, the Debian way is to use the debhelper(1) packaging
+  // helper tools. For example, there are helpers for stripping binaries,
+  // compressing man pages, fixing permissions, and managing systemd files.
+  //
+  // While debhelper tools definitely simplify debian/rules, there is often
+  // still a lot of boilerplate code. So second-level helpers are often used,
+  // with the dominant option being the dh(1) command sequencer (there is also
+  // CDBS but it appears to be mostly obsolete).
+  //
+  // Based on that our options appear to be classic debhelper and dh. Looking
+  // at the statistics, it's clear that the majority of packages (including
+  // fairly complex ones) tend to prefer dh and there is no reason for us to
+  // try to buck this trend.
+  //
+  // So, to sum up, the plan is to produce debian/rules that uses the dh
+  // command sequencer and then invoke dpkg-buildpackage to produce the binary
+  // package from that. While this approach is normally used to build things
+  // from source, it feels like we should be able to pretend that we are by,
+  // for example, overriding the install target to invoke the build system to
+  // install all the packages directly from their bpkg locations.
+  //
+  void system_package_manager_debian::
+  generate (packages&&,
+            packages&&,
+            strings&&,
+            const dir_path&,
+            optional<recursive_mode>)
+  {
   }
 }

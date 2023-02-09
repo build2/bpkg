@@ -5,7 +5,6 @@
 #define BPKG_PKG_UPDATE_HXX
 
 #include <bpkg/types.hxx>
-#include <bpkg/forward.hxx> // selected_package
 #include <bpkg/utility.hxx>
 
 #include <bpkg/pkg-command.hxx>

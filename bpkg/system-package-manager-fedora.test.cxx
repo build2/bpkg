@@ -100,9 +100,10 @@ namespace bpkg
 
       system_package_manager_fedora m (move (osr),
                                        host_triplet,
+                                       ""      /* arch */,
+                                       nullopt /* progress */,
                                        false   /* install */,
                                        false   /* fetch */,
-                                       nullopt /* progress */,
                                        false   /* yes */,
                                        "sudo");
       m.simulate_ = &s;
@@ -129,9 +130,10 @@ namespace bpkg
 
       system_package_manager_fedora m (move (osr),
                                        host_triplet,
+                                       ""      /* arch */,
+                                       nullopt /* progress */,
                                        false   /* install */,
                                        false   /* fetch */,
-                                       nullopt /* progress */,
                                        false   /* yes */,
                                        "sudo");
       m.simulate_ = &s;
@@ -317,9 +319,10 @@ namespace bpkg
 
       system_package_manager_fedora m (move (osr),
                                        host_triplet,
+                                       ""      /* arch */,
+                                       nullopt /* progress */,
                                        install,
                                        fetch,
-                                       nullopt /* progress */,
                                        false   /* yes */,
                                        "sudo");
       m.simulate_ = &s;

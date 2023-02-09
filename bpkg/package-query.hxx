@@ -154,7 +154,11 @@ namespace bpkg
                       bool revision = false);
 
   // Try to find an available package corresponding to the specified selected
-  // package and, if not found, return a transient one.
+  // package and, if not found, return a transient one. The search is
+  // performed in the ultimate dependent configurations of the selected
+  // package (see dependent_repo_configs() for details).
+  //
+  // NOTE: repo_configs needs to be filled prior to the function call.
   //
   shared_ptr<available_package>
   find_available (const common_options&,
@@ -165,6 +169,8 @@ namespace bpkg
   // the available package comes from. Note that the package locations list is
   // left empty and that the returned repository fragment could be NULL if the
   // package is an orphan.
+  //
+  // NOTE: repo_configs needs to be filled prior to the function call.
   //
   pair<shared_ptr<available_package>,
        lazy_shared_ptr<repository_fragment>>
@@ -191,10 +197,16 @@ namespace bpkg
   // locations list is left empty and that the returned repository fragment
   // could be NULL if the package is an orphan.
   //
-  // Note also that in our model we assume that make_available_fragment() is
+  // Note that the repository fragment is searched in the ultimate dependent
+  // configurations of the selected package (see dependent_repo_configs() for
+  // details).
+  //
+  // Also note that in our model we assume that make_available_fragment() is
   // only called if there is no real available_package. This makes sure that
   // if the package moves (e.g., from testing to stable), then we will be
   // using stable to resolve its dependencies.
+  //
+  // NOTE: repo_configs needs to be filled prior to the function call.
   //
   pair<shared_ptr<available_package>,
        lazy_shared_ptr<repository_fragment>>
@@ -229,6 +241,11 @@ namespace bpkg
 
   // Return the ultimate dependent configurations for packages in this
   // configuration.
+  //
+  // Specifically, this is an intersection of all the dependent configurations
+  // for the specified configuration (see database::dependent_configs() for
+  // details) and configurations which contain repository information
+  // (repo_configs).
   //
   linked_databases
   dependent_repo_configs (database&);

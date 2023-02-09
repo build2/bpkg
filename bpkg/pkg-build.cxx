@@ -1688,14 +1688,14 @@ namespace bpkg
         if (!sys_pkg_mgr)
           sys_pkg_mgr = o.sys_no_query ()
             ? nullptr
-            : make_system_package_manager (o,
-                                           host_triplet,
-                                           o.sys_install (),
-                                           !o.sys_no_fetch (),
-                                           o.sys_yes (),
-                                           o.sys_sudo (),
-                                           "" /* name */);
-
+            : make_consumption_system_package_manager (o,
+                                                       host_triplet,
+                                                       o.sys_distribution (),
+                                                       o.sys_architecture (),
+                                                       o.sys_install (),
+                                                       !o.sys_no_fetch (),
+                                                       o.sys_yes (),
+                                                       o.sys_sudo ());
         if (*sys_pkg_mgr != nullptr)
         {
           system_package_manager& spm (**sys_pkg_mgr);

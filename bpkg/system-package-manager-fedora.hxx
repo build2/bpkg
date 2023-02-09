@@ -205,10 +205,42 @@ namespace bpkg
     virtual void
     pkg_install (const vector<package_name>&) override;
 
+    virtual void
+    generate (packages&&,
+              packages&&,
+              strings&&,
+              const dir_path&,
+              optional<recursive_mode>) override;
+
   public:
-    // Expects os_release::name_id to be "fedora" or os_release::like_ids to
+    // Expect os_release::name_id to be "fedora" or os_release::like_ids to
     // contain "fedora".
-    using system_package_manager::system_package_manager;
+    //
+    system_package_manager_fedora (bpkg::os_release&& osr,
+                                   const target_triplet& h,
+                                   string a,
+                                   optional<bool> progress,
+                                   bool install,
+                                   bool fetch,
+                                   bool yes,
+                                   string sudo)
+        : system_package_manager (move (osr),
+                                  h,
+                                  a.empty () ? arch_from_target (h) : move (a),
+                                  progress,
+                                  install,
+                                  fetch,
+                                  yes,
+                                  move (sudo)) {}
+
+    system_package_manager_fedora (bpkg::os_release&& osr,
+                                   const target_triplet& h,
+                                   string a,
+                                   optional<bool> progress)
+        : system_package_manager (move (osr),
+                                  h,
+                                  a.empty () ? arch_from_target (h) : move (a),
+                                  progress) {}
 
     // Implementation details exposed for testing (see definitions for
     // documentation).
@@ -239,6 +271,9 @@ namespace bpkg
     main_from_devel (const string&,
                      const string&,
                      const vector<pair<string, string>>&);
+
+    static string
+    arch_from_target (const target_triplet&);
 
     // If simulate is not NULL, then instead of executing the actual dnf
     // commands simulate their execution: (1) for `dnf list` and `dnf

@@ -466,6 +466,25 @@ namespace bpkg
        with the \cb{--sys-install} option."
     }
 
+    string --sys-distribution
+    {
+      "<name>",
+      "Alternative system/distribution package manager to interact with. The
+       valid <name> values are \cb{debian} (Debian and alike, such as Ubuntu,
+       etc) and \cb{fedora} (Fedora and alike, such as RHEL, CentOS, etc).
+       Note that some package managers may only be supported when running on
+       certain host operating systems."
+    }
+
+    string --sys-architecture
+    {
+      "<name>",
+      "Alternative architecture to use when interacting with the system
+       package manager. The valid <name> values are system/distribution
+       package manager-specific. If unspecified, the host architecture
+       is used."
+    }
+
     dir_paths --directory|-d
     {
       "<dir>",

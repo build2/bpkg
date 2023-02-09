@@ -18,7 +18,7 @@ namespace bpkg
 {
   // A map of discovered system package versions. The information can be
   // authoritative (i.e., it was provided by the user or auto-discovered
-  // on this run) or non-authoritative (i.e., comes from selected_packages
+  // on this run) or non-authoritative (i.e., comes from selected packages
   // that are present in the database; in a sence it was authoritative but
   // on some previous run.
   //

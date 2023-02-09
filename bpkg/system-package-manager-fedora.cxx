@@ -11,6 +11,17 @@ namespace bpkg
 {
   using package_status = system_package_status_fedora;
 
+  // Translate host CPU to Fedora package architecture.
+  //
+  string system_package_manager_fedora::
+  arch_from_target (const target_triplet& h)
+  {
+    const string& c (h.cpu);
+    return
+      c == "i386" || c == "i486" || c == "i586" || c == "i686" ? "i686" :
+      c;
+  }
+
   // Parse the fedora-name (or alike) value.
   //
   // Note that for now we treat all the packages from the non-main groups as
@@ -413,9 +424,7 @@ namespace bpkg
             // Skip the package if its architecture differs from the host
             // architecture.
             //
-            // @@ TODO: arch translation.
-            //
-            if (a != host_.cpu && a != "noarch")
+            if (a != arch && a != "noarch")
               continue;
 
             p.resize (e);
@@ -537,7 +546,7 @@ namespace bpkg
   vector<pair<string, string>> system_package_manager_fedora::
   dnf_repoquery_requires (const string& name,
                           const string& ver,
-                          const string& arch)
+                          const string& qarch)
   {
     assert (!name.empty () && !ver.empty () && !arch.empty ());
 
@@ -547,7 +556,7 @@ namespace bpkg
     // dependencies with different architecture (see the below example). It
     // feels sensible to just skip them.
     //
-    string spec (name + '-' + ver + '.' + arch);
+    string spec (name + '-' + ver + '.' + qarch);
 
     // The --quiet option makes sure we don't get 'Last metadata expiration
     // check: <timestamp>' printed to stderr. It does not appear to affect
@@ -593,7 +602,7 @@ namespace bpkg
                       evars);
       else
       {
-        simulation::package k {name, ver, arch};
+        simulation::package k {name, ver, qarch};
 
         const path* f (nullptr);
         if (fetched_)
@@ -685,7 +694,7 @@ namespace bpkg
           // Skip a potential self-dependency and dependencies of a different
           // architecture.
           //
-          if (p == name || (a != host_.cpu && a != "noarch"))
+          if (p == name || (a != arch && a != "noarch"))
             continue;
 
           r.emplace_back (move (p), move (v));
@@ -821,8 +830,7 @@ namespace bpkg
       if (verb >= 2)
         print_process (args);
       else if (verb == 1)
-        text << "updating " << os_release_.name_id
-             << " repositories metadata...";
+        text << "updating " << os_release.name_id << " repositories metadata...";
 
       process pr;
       if (!simulate_)
@@ -846,7 +854,7 @@ namespace bpkg
       }
 
       if (verb == 1)
-        text << "updated " << os_release_.name_id << " repositories metadata";
+        text << "updated " << os_release.name_id << " repositories metadata";
     }
     catch (const process_error& e)
     {
@@ -902,7 +910,7 @@ namespace bpkg
         if (verb >= 2)
           print_process (args);
         else if (verb == 1)
-          text << "installing " << os_release_.name_id << " packages...";
+          text << "installing " << os_release.name_id << " packages...";
 
         process pr;
         if (!simulate_)
@@ -985,7 +993,7 @@ namespace bpkg
         }
 
         if (verb == 1)
-          text << "installed " << os_release_.name_id << " packages";
+          text << "installed " << os_release.name_id << " packages";
       }
       catch (const process_error& e)
       {
@@ -1031,16 +1039,16 @@ namespace bpkg
       auto df = make_diag_frame (
         [this, &pn] (diag_record& dr)
         {
-          dr << info << "while mapping " << pn << " to "
-             << os_release_.name_id << " package name";
+          dr << info << "while mapping " << pn << " to " << os_release.name_id
+             << " package name";
         });
 
       strings ns;
       if (!aps->empty ())
         ns = system_package_names (*aps,
-                                   os_release_.name_id,
-                                   os_release_.version_id,
-                                   os_release_.like_ids);
+                                   os_release.name_id,
+                                   os_release.version_id,
+                                   os_release.like_ids);
       if (ns.empty ())
       {
         // Attempt to automatically translate our package name. Failed that we
@@ -1134,17 +1142,17 @@ namespace bpkg
     //
     auto guess_main = [this, &pn] (package_status& s,
                                    const string& ver,
-                                   const string& arch)
+                                   const string& qarch)
     {
       vector<pair<string, string>> depends (
-        dnf_repoquery_requires (s.devel, ver, arch));
+        dnf_repoquery_requires (s.devel, ver, qarch));
 
       s.main = main_from_devel (s.devel, ver, depends);
 
       if (s.main.empty ())
       {
         diag_record dr (fail);
-        dr << "unable to guess main " << os_release_.name_id
+        dr << "unable to guess main " << os_release.name_id
            << " package for " << s.devel << ' ' << ver <<
           info << "depends on";
 
@@ -1259,9 +1267,9 @@ namespace bpkg
             //    found. Double-check Debian semantics.
             //
             fail << "unable to guess " << (devel ? "devel" : "main")
-                 << ' ' << os_release_.name_id << " package for " << pn <<
+                 << ' ' << os_release.name_id << " package for " << pn <<
               info << "neither " << name << " nor " << ps.fallback
-                   << ' ' << os_release_.name_id << " package exists" <<
+                   << ' ' << os_release.name_id << " package exists" <<
               info << "consider specifying explicit mapping in " << pn
                    << " package manifest";
           }
@@ -1323,7 +1331,7 @@ namespace bpkg
 
         if (dr.empty ())
         {
-          dr << fail << "multiple installed " << os_release_.name_id
+          dr << fail << "multiple installed " << os_release.name_id
              << " packages for " << pn <<
             info << "candidate: " << r->main << " " << r->system_version;
         }
@@ -1423,7 +1431,7 @@ namespace bpkg
           if (dr.empty ())
           {
             dr << fail << "multiple partially installed "
-               << os_release_.name_id << " packages for " << pn;
+               << os_release.name_id << " packages for " << pn;
 
             dr << info << "candidate: " << r->main << " " << r->system_version
                << ", missing components:";
@@ -1459,7 +1467,7 @@ namespace bpkg
 
           if (dr.empty ())
           {
-            dr << fail << "multiple available " << os_release_.name_id
+            dr << fail << "multiple available " << os_release.name_id
                << " packages for " << pn <<
               info << "candidate: " << r->main << " " << r->system_version;
           }
@@ -1488,9 +1496,9 @@ namespace bpkg
       if (!aps->empty ())
         v = downstream_package_version (sv,
                                         *aps,
-                                        os_release_.name_id,
-                                        os_release_.version_id,
-                                        os_release_.like_ids);
+                                        os_release.name_id,
+                                        os_release.version_id,
+                                        os_release.like_ids);
 
       if (!v)
       {
@@ -1507,10 +1515,10 @@ namespace bpkg
         }
         catch (const invalid_argument& e)
         {
-          fail << "unable to map " << os_release_.name_id << " package "
+          fail << "unable to map " << os_release.name_id << " package "
                << r->system_name << " version " << sv << " to bpkg package "
                << pn << " version" <<
-            info << os_release_.name_id << " version is not a valid bpkg "
+            info << os_release.name_id << " version is not a valid bpkg "
                  << "version: " << e.what () <<
             info << "consider specifying explicit mapping in " << pn
                  << " package manifest";
@@ -1653,7 +1661,7 @@ namespace bpkg
 
         if (pi.installed_version != ps.system_version)
         {
-          fail << "unexpected " << os_release_.name_id << " package version "
+          fail << "unexpected " << os_release.name_id << " package version "
                << "for " << ps.system_name <<
             info << "expected: " << ps.system_version <<
             info << "installed: " << pi.installed_version <<
@@ -1661,5 +1669,14 @@ namespace bpkg
         }
       }
     }
+  }
+
+  void system_package_manager_fedora::
+  generate (packages&&,
+            packages&&,
+            strings&&,
+            const dir_path&,
+            optional<recursive_mode>)
+  {
   }
 }

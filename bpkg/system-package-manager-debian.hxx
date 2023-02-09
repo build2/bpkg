@@ -14,7 +14,9 @@
 namespace bpkg
 {
   // The system package manager implementation for Debian and alike (Ubuntu,
-  // etc) using the APT frontend.
+  // etc) using the apt frontend (specifically, apt-get and apt-cache) for
+  // consumption and the dpkg-buildpackage/debhelper/dh tooling for
+  // production.
   //
   // NOTE: the below description is also reproduced in the bpkg manual.
   //
@@ -26,13 +28,16 @@ namespace bpkg
   // (e.g., libfoo1-common). All the packages except -dev are optional
   // and there is quite a bit of variability here. Here are a few examples:
   //
-  // libz3-4 libz3-dev
+  // libsqlite3-0 libsqlite3-dev
   //
   // libssl1.1 libssl-dev libssl-doc
   // libssl3 libssl-dev libssl-doc
   //
   // libcurl4 libcurl4-openssl-dev libcurl4-doc
   // libcurl3-gnutls libcurl4-gnutls-dev libcurl4-doc  (yes, 3 and 4)
+  //
+  // Note that while most library package names in Debian start with lib (per
+  // the policy), there are exceptions (e.g., zlib1g zlib1g-dev).
   //
   // Based on that, it seems our best bet when trying to automatically map our
   // library package name to Debian package names is to go for the -dev
@@ -124,11 +129,44 @@ namespace bpkg
     virtual void
     pkg_install (const vector<package_name>&) override;
 
+    virtual void
+    generate (packages&&,
+              packages&&,
+              strings&&,
+              const dir_path&,
+              optional<recursive_mode>) override;
+
   public:
-    // Expects os_release::name_id to be "debian" or os_release::like_ids to
+    // Expect os_release::name_id to be "debian" or os_release::like_ids to
     // contain "debian".
     //
-    using system_package_manager::system_package_manager;
+    // @@ TODO: we currently don't handle non-host arch in consumption.
+    //
+    system_package_manager_debian (bpkg::os_release&& osr,
+                                   const target_triplet& h,
+                                   string a,
+                                   optional<bool> progress,
+                                   bool install,
+                                   bool fetch,
+                                   bool yes,
+                                   string sudo)
+        : system_package_manager (move (osr),
+                                  h,
+                                  a.empty () ? arch_from_target (h) : move (a),
+                                  progress,
+                                  install,
+                                  fetch,
+                                  yes,
+                                  move (sudo)) {}
+
+    system_package_manager_debian (bpkg::os_release&& osr,
+                                   const target_triplet& h,
+                                   string a,
+                                   optional<bool> progress)
+        : system_package_manager (move (osr),
+                                  h,
+                                  a.empty () ? arch_from_target (h) : move (a),
+                                  progress) {}
 
     // Implementation details exposed for testing (see definitions for
     // documentation).
@@ -157,6 +195,9 @@ namespace bpkg
 
     static string
     main_from_dev (const string&, const string&, const string&);
+
+    static string
+    arch_from_target (const target_triplet&);
 
     // If simulate is not NULL, then instead of executing the actual apt-cache
     // and apt-get commands simulate their execution: (1) for apt-cache by
