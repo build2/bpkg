@@ -780,6 +780,17 @@ namespace bpkg
       args.push_back ("--assumeno");
     }
 
+    // @@ Should we also add --setopt=timeout=... and --setopt=minrate=...
+    //    options if --fetch-timeout common is specified? For example:
+    //
+    //    string t;
+    //    if (fetch_timeout_)
+    //    {
+    //      t = "--setopt=timeout=" + to_string (*fetch_timeout_);
+    //      args.push_back (t.c_str ());
+    //      args.push_back ("--setopt=minrate=0");
+    //    }
+
     try
     {
       const process_path* pp (nullptr);
@@ -834,7 +845,11 @@ namespace bpkg
 
       process pr;
       if (!simulate_)
+      {
+        // Redirect stdout to stderr.
+        //
         pr = process (pp, args, 0 /* stdin */, 2 /* stdout */);
+      }
       else
       {
         print_process (args);
@@ -867,143 +882,184 @@ namespace bpkg
     }
   }
 
-  // Execute `dnf install` to install the specified packages/versions (e.g.,
-  // libfoo or libfoo-1.2.3-1.fc35) and then `dnf mark install` to mark the
-  // specified packages as installed by user.
+  // Execute `dnf install` to install the specified packages (e.g., libfoo or
+  // libfoo-1.2.3-1.fc35.x86_64).
   //
-  // @@ TODO: need to understand this strange semantics better. E.g., what
-  //    happens on upgrade?
+  // Note that the package name can only contain alpha-numeric characters,
+  // '-', '.', '_', and '+' (see Guidelines for Naming Fedora Packages for
+  // details). If specified, both the version (1.2.3) and release (1.fc35)
+  // parts are mandatory and may only contain alpha-numeric characters, `.`,
+  // `_`, `+`, `~`, and `^` (see the RPM spec file format documentation for
+  // details). Thus, package specs (which are actually wildcards) are
+  // generally ambiguous, so that libfoo-1.2.3-1.fc35.x86_64 may theoretically
+  // be a package name and libfoo-bar a specific package version.
+  //
+  // By default, `dnf install` tries to interpret the spec as the
+  // <name>-[<epoch>:]<version>-<release>.<arch> form prior to trying the
+  // <name> form until any matched packages are found (see SPECIFYING PACKAGES
+  // section of dnf(8) for more details on the spec matching rules). We could
+  // potentially use `dnf install-nevra` command for the package version specs
+  // and `dnf install-n` for the package name specs. Let's, however, keep it
+  // simple for now given that clashes for our use-case are presumably not
+  // very likely.
   //
   void system_package_manager_fedora::
   dnf_install (const strings& pkgs)
   {
     assert (!pkgs.empty ());
 
-    // Install.
+    pair<cstrings, const process_path&> args_pp (dnf_common ("install"));
+
+    cstrings& args (args_pp.first);
+    const process_path& pp (args_pp.second);
+
+    // Note that we can't use --cacheonly here to prevent the metadata update,
+    // since the install command then expects the package RPM files to also be
+    // cached and fails if that's not the case. Thus we have to override the
+    // metadata_expire=never configuration option instead. Which makes the
+    // whole thing quite hairy and of dubious value -- there is nothing wrong
+    // with letting it re-fetch the metadata during install (which in fact may
+    // save us from attempting to download no longer existing packages).
     //
-    {
-      pair<cstrings, const process_path&> args_pp (dnf_common ("install"));
-
-      cstrings& args (args_pp.first);
-      const process_path& pp (args_pp.second);
-
-      // Note that we can't use --cacheonly here to prevent the metadata
-      // update, since the install command then expects the package RPM files
-      // to also be cached and fails if that's not the case. Thus we have to
-      // override the metadata_expire=never configuration option instead.
-      // Which makes the whole thing quite hairy and of dubious value -- there
-      // is nothing wrong with letting it re-fetch the metadata during install
-      // (which in fact may save us from attempting to download no longer
-      // existing packages).
-      //
 #if 0
-      args.push_back ("--setopt=metadata_expire=never");
+    args.push_back ("--setopt=metadata_expire=never");
 #endif
 
-      for (const string& p: pkgs)
-        args.push_back (p.c_str ());
+    for (const string& p: pkgs)
+      args.push_back (p.c_str ());
 
-      args.push_back (nullptr);
+    args.push_back (nullptr);
 
-      try
+    try
+    {
+      if (verb >= 2)
+        print_process (args);
+      else if (verb == 1)
+        text << "installing " << os_release.name_id << " packages...";
+
+      process pr;
+      if (!simulate_)
       {
-        if (verb >= 2)
-          print_process (args);
-        else if (verb == 1)
-          text << "installing " << os_release.name_id << " packages...";
-
-        process pr;
-        if (!simulate_)
-          pr = process (pp, args, 0 /* stdin */, 2 /* stdout */);
-        else
-        {
-          print_process (args);
-          pr = process (process_exit (simulate_->dnf_install_fail_ ? 100 : 0));
-        }
-
-        if (!pr.wait ())
-        {
-          diag_record dr (fail);
-          dr << "dnf install exited with non-zero code";
-
-          if (verb < 2)
-          {
-            dr << info << "command line: ";
-            print_process (dr, args);
-          }
-
-          dr << info << "consider resolving the issue manually and retrying "
-             << "the bpkg command";
-        }
+        // Redirect stdout to stderr.
+        //
+        pr = process (pp, args, 0 /* stdin */, 2 /* stdout */);
       }
-      catch (const process_error& e)
+      else
       {
-        error << "unable to execute " << args[0] << ": " << e;
+        print_process (args);
+        pr = process (process_exit (simulate_->dnf_install_fail_ ? 100 : 0));
+      }
 
-        if (e.child)
-          exit (1);
+      if (!pr.wait ())
+      {
+        diag_record dr (fail);
+        dr << "dnf install exited with non-zero code";
 
-        throw failed ();
+        if (verb < 2)
+        {
+          dr << info << "command line: ";
+          print_process (dr, args);
+        }
+
+        dr << info << "consider resolving the issue manually and retrying "
+           << "the bpkg command";
+      }
+
+      if (verb == 1)
+        text << "installed " << os_release.name_id << " packages";
+    }
+    catch (const process_error& e)
+    {
+      error << "unable to execute " << args[0] << ": " << e;
+
+      if (e.child)
+        exit (1);
+
+      throw failed ();
+    }
+  }
+
+  // Execute `dnf mark install` to mark the installed packages as installed by
+  // the user (see dnf_install() for details on the package specs).
+  //
+  // Note that an installed package may be marked as installed by the user
+  // rather than as a dependency. In particular, such a package will never be
+  // automatically removed as an unused dependency. This mark can be added and
+  // removed by the `dnf mark install` and `dnf mark remove` commands,
+  // respectively. Besides that, this mark is automatically added by `dnf
+  // install` for a package specified on the command line, but only if it is
+  // not yet installed. Note that this mark will not be added automatically
+  // for an already installed package even if it is upgraded explicitly. For
+  // example:
+  //
+  // $ sudo dnf install libsigc++30-devel-3.0.2-2.fc32 --repofrompath test,./repo --setopt=gpgcheck=0 --assumeyes
+  // Installed: libsigc++30-3.0.2-2.fc32.x86_64 libsigc++30-devel-3.0.2-2.fc32.x86_64
+  //
+  // $ sudo dnf install --best libsigc++30 --assumeyes
+  // Upgraded: libsigc++30-3.0.7-2.fc35.x86_64 libsigc++30-devel-3.0.7-2.fc35.x86_64
+  //
+  // $ sudo dnf remove libsigc++30-devel --assumeyes
+  // Removed: libsigc++30-3.0.7-2.fc35.x86_64 libsigc++30-devel-3.0.7-2.fc35.x86_64
+  //
+  void system_package_manager_fedora::
+  dnf_mark_install (const strings& pkgs)
+  {
+    assert (!pkgs.empty ());
+
+    pair<cstrings, const process_path&> args_pp (dnf_common ("mark"));
+
+    cstrings& args (args_pp.first);
+    const process_path& pp (args_pp.second);
+
+    args.push_back ("install");
+    args.push_back ("--cacheonly");
+
+    for (const string& p: pkgs)
+      args.push_back (p.c_str ());
+
+    args.push_back (nullptr);
+
+    try
+    {
+      if (verb >= 2)
+        print_process (args);
+
+      process pr;
+      if (!simulate_)
+      {
+        // Redirect stdout to stderr.
+        //
+        pr = process (pp, args, 0 /* stdin */, 2 /* stdout */);
+      }
+      else
+      {
+        print_process (args);
+        pr = process (process_exit (simulate_->dnf_mark_install_fail_ ? 1 : 0));
+      }
+
+      if (!pr.wait ())
+      {
+        diag_record dr (fail);
+        dr << "dnf mark install exited with non-zero code";
+
+        if (verb < 2)
+        {
+          dr << info << "command line: ";
+          print_process (dr, args);
+        }
+
+        dr << info << "consider resolving the issue manually and retrying "
+           << "the bpkg command";
       }
     }
-
-    // Mark as installed.
-    //
+    catch (const process_error& e)
     {
-      pair<cstrings, const process_path&> args_pp (dnf_common ("mark"));
+      error << "unable to execute " << args[0] << ": " << e;
 
-      cstrings& args (args_pp.first);
-      const process_path& pp (args_pp.second);
+      if (e.child)
+        exit (1);
 
-      args.push_back ("install");
-      args.push_back ("--cacheonly");
-
-      for (const string& p: pkgs)
-        args.push_back (p.c_str ());
-
-      args.push_back (nullptr);
-
-      try
-      {
-        if (verb >= 2)
-          print_process (args);
-
-        process pr;
-        if (!simulate_)
-          pr = process (pp, args, 0 /* stdin */, 2 /* stdout */);
-        else
-        {
-          print_process (args);
-          pr = process (process_exit (simulate_->dnf_mark_install_fail_ ? 1 : 0));
-        }
-
-        if (!pr.wait ())
-        {
-          diag_record dr (fail);
-          dr << "dnf mark install exited with non-zero code";
-
-          if (verb < 2)
-          {
-            dr << info << "command line: ";
-            print_process (dr, args);
-          }
-
-          dr << info << "consider resolving the issue manually and retrying "
-             << "the bpkg command";
-        }
-
-        if (verb == 1)
-          text << "installed " << os_release.name_id << " packages";
-      }
-      catch (const process_error& e)
-      {
-        error << "unable to execute " << args[0] << ": " << e;
-
-        if (e.child)
-          exit (1);
-
-        throw failed ();
-      }
+      throw failed ();
     }
   }
 
@@ -1511,10 +1567,6 @@ namespace bpkg
       // Map the Fedora version to the bpkg version. But first strip the
       // release from Fedora version ([<epoch>:]<version>-<release>).
       //
-      // Note that both the version and release parts are mandatory and may
-      // only contain alpha-numeric characters, `.`, `_`, `+`, `~`, and `^`
-      // (see the RPM spec file format documentation for details).
-      //
       string sv (r->system_version, 0, r->system_version.rfind ('-'));
 
       optional<version> v;
@@ -1574,8 +1626,29 @@ namespace bpkg
     {
       string name;
       string version; // Empty if unspecified.
+      string arch;    // Empty if version is empty.
     };
     vector<package> pkgs;
+
+    // At first it may seem we don't need to do anything for already fully
+    // installed packages. But it's possible some of them were automatically
+    // installed, meaning that they can be automatically removed if they no
+    // longer have any dependents (see dnf(8) for details). Which in turn
+    // means that things may behave differently depending on whether we've
+    // installed a package ourselves or if it was already installed.
+    //
+    // So what we are going to do is to run `dnf install` only if there are
+    // any non-fully installed packages. In this case we will pass all the
+    // packages, including the fully installed ones. But we must be careful
+    // not to force their upgrade. To achieve this we will specify the
+    // installed version as the desired version. Whether we run `dnf install`
+    // or not we will also always run `dnf mark install` afterwards for all
+    // the packages to mark them as installed by the user.
+    //
+    // Note also that for partially/not installed we don't specify the
+    // version, expecting the candidate version to be installed.
+    //
+    bool install (false);
 
     for (const package_name& pn: pns)
     {
@@ -1583,27 +1656,16 @@ namespace bpkg
       assert (it != status_cache_.end () && it->second);
 
       const package_status& ps (*it->second);
-
-      // At first it may seem we don't need to do anything for already fully
-      // installed packages. But it's possible some of them were automatically
-      // installed, meaning that they can be automatically removed if they no
-      // longer have any dependents (see dnf(8) for details). Which in
-      // turn means that things may behave differently depending on whether
-      // we've installed a package ourselves or if it was already installed.
-      // So instead we are going to also pass the already fully installed
-      // packages which will make sure they are all set to manually installed.
-      // But we must be careful not to force their upgrade. To achieve this
-      // we will specify the installed version as the desired version.
-      //
-      // Note also that for partially/not installed we don't specify the
-      // version, expecting the candidate version to be installed.
-      //
       bool fi (ps.status == package_status::installed);
+
+      if (!fi)
+        install = true;
 
       for (const package_info& pi: ps.package_infos)
       {
         string n (pi.name);
         string v (fi ? pi.installed_version : string ());
+        string a (fi ? pi.installed_arch    : string ());
 
         auto i (find_if (pkgs.begin (), pkgs.end (),
                          [&n] (const package& p)
@@ -1614,42 +1676,53 @@ namespace bpkg
         if (i != pkgs.end ())
         {
           if (i->version.empty ())
+          {
             i->version = move (v);
+            i->arch = move (a);
+          }
           else
             // Feels like this cannot happen since we always use the installed
             // version of the package.
             //
-            assert (i->version == v);
+            assert (i->version == v && i->arch == a);
         }
         else
-          pkgs.push_back (package {move (n), move (v)});
+          pkgs.push_back (package {move (n), move (v), move (a)});
       }
+    }
+
+    // Convert to the <name>-[<epoch>:]<version>-<release>.<arch> package spec
+    // for the installed packages and to the <name> spec for partially/not
+    // installed ones (see dnf_install() for details on the package specs).
+    //
+    strings specs;
+    specs.reserve (pkgs.size ());
+    for (const package& p: pkgs)
+    {
+      string s (p.name);
+      if (!p.version.empty ())
+      {
+        s += '-';
+        s += p.version;
+        s += '.';
+        s += p.arch;
+      }
+      specs.push_back (move (s));
     }
 
     // Install.
     //
-    {
-      // Convert to the `dnf install` <pkg>[-<ver>] form.
-      //
-      strings specs;
-      specs.reserve (pkgs.size ());
-      for (const package& p: pkgs)
-      {
-        string s (p.name);
-        if (!p.version.empty ())
-        {
-          s += '-';
-          s += p.version;
-        }
-        specs.push_back (move (s));
-      }
-
+    if (install)
       dnf_install (specs);
-    }
+
+    // Mark as installed by the user.
+    //
+    dnf_mark_install (specs);
 
     // Verify that versions we have promised in pkg_status() match what
     // actually got installed.
     //
+    if (install)
     {
       vector<package_info> pis;
 

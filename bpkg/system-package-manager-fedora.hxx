@@ -252,6 +252,9 @@ namespace bpkg
     void
     dnf_install (const strings&);
 
+    void
+    dnf_mark_install (const strings&);
+
     pair<cstrings, const process_path&>
     dnf_common (const char*);
 
