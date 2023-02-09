@@ -4,11 +4,10 @@
 #ifndef BPKG_SYSTEM_PACKAGE_MANAGER_HXX
 #define BPKG_SYSTEM_PACKAGE_MANAGER_HXX
 
-#include <libbpkg/manifest.hxx>     // version
-#include <libbpkg/package-name.hxx>
-
 #include <bpkg/types.hxx>
 #include <bpkg/utility.hxx>
+
+#include <libbutl/path-map.hxx>
 
 #include <bpkg/package.hxx>
 #include <bpkg/common-options.hxx>
@@ -155,23 +154,53 @@ namespace bpkg
     virtual void
     pkg_install (const vector<package_name>&) = 0;
 
-    // Generate a binary distribution package.
+    // Generate a binary distribution package. See the pkg-bindist(1) man page
+    // for background and the pkg_bindist() function implementation for
+    // details.
     //
-    // @@ TODO: doc
+    // The available packages are loaded for all the packages in pkgs and
+    // deps. For non-system packages (so for all in pkgs) there is always a
+    // single available package that corresponds to the selected package. The
+    // out_root is only set for packages in pkgs. Note also that all the
+    // packages in pkgs and deps are guaranteed to belong to the same build
+    // configuration (as opposed to being spread over multiple linked
+    // configurations). Its absolute path is bassed in cfg_dir.
     //
-    // See the pkg-bindist(1) man page and the pkg_bindist() function
-    // implementation for background and details.
+    // The passed package manifest corresponds to the first package in pkgs
+    // (normally used as a source of additional package metadata such as
+    // summary, emails, urls, etc).
     //
-    using packages =
-      vector<pair<shared_ptr<selected_package>, available_packages>>;
+    // The passed package type corresponds to the first package in pkgs while
+    // the languages -- to all the packages in pkgs plus, in the recursive
+    // mode, to all the non-system dependencies. In other words, the languages
+    // list contains every language that is used by anything that ends up in
+    // the package.
+    //
+    // Return the list of paths to binary packages and any other associated
+    // files (build metadata, etc) that could be useful for consumption of
+    // binary packages. If the result is empty, assume the prepare-only mode
+    // (or similar) with appropriate result diagnostics having been already
+    // issued.
+    //
+    struct package
+    {
+      shared_ptr<selected_package> selected;
+      available_packages           available;
+      dir_path                     out_root; // Absolute and normalized.
+    };
+
+    using packages = vector<package>;
 
     enum class recursive_mode {auto_, full};
 
-    virtual void
-    generate (packages&& pkgs,
-              packages&& deps,
-              strings&& vars,
-              const dir_path& out,
+    virtual paths
+    generate (const packages& pkgs,
+              const packages& deps,
+              const strings& vars,
+              const dir_path& cfg_dir,
+              const package_manifest&,
+              const string& type,
+              const small_vector<language, 1>&,
               optional<recursive_mode>) = 0;
 
   public:
@@ -243,7 +272,7 @@ namespace bpkg
     // is a semver-like version (e.g, 10, 10.15, or 10.15.1) and return all
     // the values that are equal or less than the specified version_id
     // (include the value with the absent <version>). In a sense, absent
-    // <version> can be treated as a 0 semver-like version.
+    // <version> is treated as a 0 semver-like version.
     //
     // If no value is found then repeat the above process for every like_ids
     // entry (from left to right) instead of name_id with version_id equal 0.
@@ -259,6 +288,15 @@ namespace bpkg
     // debian_10-name: libcurl4 libcurl4-doc libcurl4-openssl-dev
     // debian_10-name: libcurl3-gnutls libcurl4-gnutls-dev    (yes, 3 and 4)
     //
+    // The <distribution> value in the <name>_0 form is the special "non-
+    // native" name mapping. If the native argument is false, then such a
+    // mapping is preferred over any other mapping. If it is true, then such a
+    // mapping is ignored. The purpose of this special value is to allow
+    // specifying different package names for production compared to
+    // consumption. Note, however, that such a deviation may make it
+    // impossible to use native and non-native binary packages
+    // interchangeably, for example, to satisfy dependencies.
+    //
     // Note also that the values are returned in the "override order", that is
     // from the newest package version to oldest and then from the highest
     // distribution version to lowest.
@@ -267,7 +305,31 @@ namespace bpkg
     system_package_names (const available_packages&,
                           const string& name_id,
                           const string& version_id,
-                          const vector<string>& like_ids);
+                          const vector<string>& like_ids,
+                          bool native);
+
+    // Given the available package and the repository fragment it belongs to,
+    // return the system package version as mapped by one of the
+    // <distribution>-version values.
+    //
+    // The rest of the arguments as well as the overalls semantics is the same
+    // as in system_package_names() above. That is, first consider
+    // <distribution>-version values corresponding to name_id. If none match,
+    // then repeat the above process for every like_ids entry with version_id
+    // equal 0. If still no match, then return nullopt (in which case the
+    // caller may choose to fallback to the upstream/bpkg package version or
+    // do something more elaborate).
+    //
+    // Note that lazy_shared_ptr<repository_fragment> is used only for
+    // diagnostics and conveys the database the available package object
+    // belongs to.
+    //
+    static optional<string>
+    system_package_version (const shared_ptr<available_package>&,
+                            const lazy_shared_ptr<repository_fragment>&,
+                            const string& name_id,
+                            const string& version_id,
+                            const vector<string>& like_ids);
 
     // Given the system package version and available packages (as returned by
     // find_available_all()) return the downstream package version as mapped
@@ -287,6 +349,48 @@ namespace bpkg
                                 const string& name_id,
                                 const string& version_id,
                                 const vector<string>& like_ids);
+
+    // Return the map of filesystem entries (files and symlinks) that would be
+    // installed for the specified packages with the specified configuration
+    // variables.
+    //
+    // In essence, this function runs:
+    //
+    // b --dry-run --quiet <vars> !config.install.scope=<scope>
+    //   !config.install.manifest=- install: <pkgs>
+    //
+    // And converts the printed installation manifest into the path map.
+    //
+    // Note that this function prints an appropriate progress indicator since
+    // even in the dry-run mode it may take some time (see the --dry-run
+    // option documentation for details).
+    //
+    struct installed_entry
+    {
+      string mode;                                     // Empty if symlink.
+      const pair<const path, installed_entry>* target; // Target if symlink.
+    };
+
+    class installed_entry_map: public butl::path_map<installed_entry>
+    {
+    public:
+      // Return true if there are filesystem entries in the specified
+      // directory or its subdirectories.
+      //
+      bool
+      contains_sub (const dir_path& d)
+      {
+        auto p (find_sub (d));
+        return p.first != p.second;
+      }
+    };
+
+    installed_entry_map
+    installed_entries (const common_options&,
+                       const packages& pkgs,
+                       const strings& vars,
+                       const string& scope);
+
   protected:
     optional<bool>   progress_;      // --[no]-progress (see also stderr_term)
     optional<size_t> fetch_timeout_; // --fetch-timeout
@@ -321,8 +425,13 @@ namespace bpkg
                                            bool yes,
                                            const string& sudo);
 
+  // Note that the reference to options is expected to outlive the returned
+  // instance.
+  //
+  class pkg_bindist_options;
+
   unique_ptr<system_package_manager>
-  make_production_system_package_manager (const common_options&,
+  make_production_system_package_manager (const pkg_bindist_options&,
                                           const target_triplet&,
                                           const string& name,
                                           const string& arch);

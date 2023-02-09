@@ -22,7 +22,8 @@ namespace bpkg
       c;
   }
 
-  // Parse the fedora-name (or alike) value.
+  // Parse the fedora-name (or alike) value. The first argument is the package
+  // type.
   //
   // Note that for now we treat all the packages from the non-main groups as
   // extras omitting the -common package (assuming it's pulled by the main
@@ -31,7 +32,7 @@ namespace bpkg
   // we can't know whether the static library is needed or not).
   //
   package_status system_package_manager_fedora::
-  parse_name_value (const package_name& pn,
+  parse_name_value (const string& pt,
                     const string& nv,
                     bool extra_doc,
                     bool extra_debuginfo,
@@ -52,8 +53,7 @@ namespace bpkg
       return nn > sn && n.compare (nn - sn, sn, s) == 0;
     };
 
-    auto parse_group = [&split, &suffix] (const string& g,
-                                          const package_name* pn)
+    auto parse_group = [&split, &suffix] (const string& g, const string* pt)
     {
       strings ns (split (g, ' '));
 
@@ -64,8 +64,6 @@ namespace bpkg
 
       // Handle the "devel instead of main" special case for libraries.
       //
-      // Note: the lib prefix check is based on the bpkg package name.
-       //
       // Check that the following name does not end with -devel. This will be
       // the only way to disambiguate the case where the library name happens
       // to end with -devel (e.g., libfoo-devel libfoo-devel-devel).
@@ -73,10 +71,9 @@ namespace bpkg
       {
         string& m (ns[0]);
 
-        if (pn != nullptr                            &&
-            pn->string ().compare (0, 3, "lib") == 0 &&
-            pn->string ().size () > 3                &&
-            suffix (m, "-devel")                     &&
+        if (pt != nullptr        &&
+            *pt == "lib"         &&
+            suffix (m, "-devel") &&
             !(ns.size () > 1 && suffix (ns[1], "-devel")))
         {
           r = package_status ("", move (m));
@@ -120,7 +117,7 @@ namespace bpkg
     for (size_t i (0); i != gs.size (); ++i)
     {
       if (i == 0) // Main group.
-        r = parse_group (gs[i], &pn);
+        r = parse_group (gs[i], &pt);
       else
       {
         package_status g (parse_group (gs[i], nullptr));
@@ -1079,15 +1076,6 @@ namespace bpkg
   optional<const system_package_status*> system_package_manager_fedora::
   pkg_status (const package_name& pn, const available_packages* aps)
   {
-    // For now we ignore -doc and -debug* package components (but we may want
-    // to have options controlling this later). Note also that we assume
-    // -common is pulled automatically by the base package so we ignore it as
-    // well (see equivalent logic in parse_name_value()).
-    //
-    bool need_doc (false);
-    bool need_debuginfo (false);
-    bool need_debugsource (false);
-
     // First check the cache.
     //
     {
@@ -1099,6 +1087,26 @@ namespace bpkg
       if (aps == nullptr)
         return nullopt;
     }
+
+    optional<package_status> r (status (pn, *aps));
+
+    // Cache.
+    //
+    auto i (status_cache_.emplace (pn, move (r)).first);
+    return i->second ? &*i->second : nullptr;
+  }
+
+  optional<package_status> system_package_manager_fedora::
+  status (const package_name& pn, const available_packages& aps)
+  {
+    // For now we ignore -doc and -debug* package components (but we may want
+    // to have options controlling this later). Note also that we assume
+    // -common is pulled automatically by the base package so we ignore it as
+    // well (see equivalent logic in parse_name_value()).
+    //
+    bool need_doc (false);
+    bool need_debuginfo (false);
+    bool need_debugsource (false);
 
     vector<package_status> candidates;
 
@@ -1112,12 +1120,25 @@ namespace bpkg
              << " package name";
         });
 
+      // Without explicit type, the best we can do in trying to detect whether
+      // this is a library is to check for the lib prefix. Libraries without
+      // the lib prefix and non-libraries with the lib prefix (both of which
+      // we do not recomment) will have to provide a manual mapping.
+      //
+      // Note that using the first (latest) available package as a source of
+      // type information seems like a reasonable choice.
+      //
+      const string& pt (!aps.empty ()
+                        ? aps.front ().first->effective_type ()
+                        : package_manifest::effective_type (nullopt, pn));
+
       strings ns;
-      if (!aps->empty ())
-        ns = system_package_names (*aps,
+      if (!aps.empty ())
+        ns = system_package_names (aps,
                                    os_release.name_id,
                                    os_release.version_id,
-                                   os_release.like_ids);
+                                   os_release.like_ids,
+                                   true /* native */);
       if (ns.empty ())
       {
         // Attempt to automatically translate our package name. Failed that we
@@ -1126,23 +1147,18 @@ namespace bpkg
         const string& n (pn.string ());
 
         // Note that theoretically different available packages can have
-        // different project names. But taking it form the latest version
+        // different project names. But taking it from the latest version
         // feels good enough.
         //
-        const shared_ptr<available_package>& ap (!aps->empty ()
-                                                 ? aps->front ().first
+        const shared_ptr<available_package>& ap (!aps.empty ()
+                                                 ? aps.front ().first
                                                  : nullptr);
 
         string f (ap != nullptr && ap->project && *ap->project != pn
                   ? ap->project->string ()
                   : empty_string);
 
-        // The best we can do in trying to detect whether this is a library is
-        // to check for the lib prefix. Libraries without the lib prefix and
-        // non-libraries with the lib prefix (both of which we do not
-        // recomment) will have to provide a manual mapping.
-        //
-        if (n.compare (0, 3, "lib") == 0 && n.size () > 3)
+        if (pt == "lib")
         {
           // If there is no project name let's try to use the package name
           // with the lib prefix stripped as a fallback. Note that naming
@@ -1168,7 +1184,7 @@ namespace bpkg
         //
         for (const string& n: ns)
         {
-          package_status s (parse_name_value (pn,
+          package_status s (parse_name_value (pt,
                                               n,
                                               need_doc,
                                               need_debuginfo,
@@ -1583,9 +1599,9 @@ namespace bpkg
       string sv (r->system_version, 0, r->system_version.rfind ('-'));
 
       optional<version> v;
-      if (!aps->empty ())
+      if (!aps.empty ())
         v = downstream_package_version (sv,
-                                        *aps,
+                                        aps,
                                         os_release.name_id,
                                         os_release.version_id,
                                         os_release.like_ids);
@@ -1618,10 +1634,7 @@ namespace bpkg
       r->version = move (*v);
     }
 
-    // Cache.
-    //
-    auto i (status_cache_.emplace (pn, move (r)).first);
-    return i->second ? &*i->second : nullptr;
+    return r;
   }
 
   void system_package_manager_fedora::
@@ -1782,12 +1795,20 @@ namespace bpkg
     }
   }
 
-  void system_package_manager_fedora::
-  generate (packages&&,
-            packages&&,
-            strings&&,
+  paths system_package_manager_fedora::
+  generate (const packages&,
+            const packages&,
+            const strings&,
             const dir_path&,
+            const package_manifest&,
+            const string&,
+            const small_vector<language, 1>&,
             optional<recursive_mode>)
   {
+    // @@ TODO: make sure --output-root is not specified or matched the
+    //    rpm standard directory.
+
+    paths r;
+    return r;
   }
 }

@@ -88,6 +88,8 @@ namespace bpkg
   // <libbutl/path.hxx>
   //
   using butl::path;
+  using butl::path_name;
+  using butl::path_name_view;
   using butl::dir_path;
   using butl::basic_path;
   using butl::invalid_path;
@@ -232,6 +234,14 @@ namespace std
     string r (p.representation ());
     ::butl::path::traits_type::canonicalize (r);
     return os << r;
+  }
+
+  inline ostream&
+  operator<< (ostream& os, const ::butl::path_name_view& v)
+  {
+    assert (!v.empty ());
+
+    return v.name != nullptr && *v.name ? (os << **v.name) : (os << *v.path);
   }
 }
 

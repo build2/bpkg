@@ -36,6 +36,8 @@ namespace bpkg
   //
   //   main-from-dev <dev-pkg> <dev-ver>  depends comes from stdin
   //
+  //   map-package [<build-metadata>]     manifest comes from stdin
+  //
   //   build <query-pkg>... [--install [--no-fetch] <install-pkg>...]
   //
   // The stdin of the build command is used to read the simulation description
@@ -135,12 +137,13 @@ namespace bpkg
       assert (argc == 3); // <pkg>
 
       package_name pn (argv[2]);
+      string pt (package_manifest::effective_type (nullopt, pn));
 
       string v;
       getline (cin, v);
 
       package_status s (
-        system_package_manager_debian::parse_name_value (pn, v, false, false));
+        system_package_manager_debian::parse_name_value (pt, v, false, false));
 
       if (!s.main.empty ())   cout << "main: "   << s.main   << '\n';
       if (!s.dev.empty ())    cout << "dev: "    << s.dev    << '\n';
@@ -165,6 +168,35 @@ namespace bpkg
       getline (cin, d);
 
       cout << system_package_manager_debian::main_from_dev (n, v, d) << '\n';
+    }
+    else if (cmd == "map-package")
+    {
+      assert (argc >= 2 && argc <= 3); // [<build-metadata>]
+
+      optional<string> bm;
+      if (argc > 2)
+        bm = argv[2];
+
+      available_packages aps;
+      aps.push_back (make_available_from_manifest ("", "-"));
+
+      const package_name& n (aps.front ().first->id.name);
+      const version& v (aps.front ().first->version);
+
+      system_package_manager_debian m (move (osr),
+                                       host_triplet,
+                                       ""      /* arch */,
+                                       nullopt /* progress */,
+                                       nullptr /* options */);
+
+      package_status s (m.map_package (n, v, aps, bm));
+
+      cout <<                         "version: " << s.system_version << '\n'
+           <<                         "main: "    << s.main           << '\n';
+      if (!s.dev.empty ())    cout << "dev: "     << s.dev            << '\n';
+      if (!s.doc.empty ())    cout << "doc: "     << s.doc            << '\n';
+      if (!s.dbg.empty ())    cout << "dbg: "     << s.dbg            << '\n';
+      if (!s.common.empty ()) cout << "common: "  << s.common         << '\n';
     }
     else if (cmd == "build")
     {

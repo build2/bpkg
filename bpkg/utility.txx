@@ -7,6 +7,56 @@ namespace bpkg
 {
   // *_b()
   //
+  template <typename V>
+  void
+  map_verb_b (const common_options& co, verb_b v, V& ops, string& verb_arg)
+  {
+    // Map verbosity level. If we are running quiet or at level 1,
+    // then run build2 quiet. Otherwise, run it at the same level
+    // as us.
+    //
+    bool progress    (co.progress ());
+    bool no_progress (co.no_progress ());
+
+    if (verb == 0)
+    {
+      ops.push_back ("-q");
+      no_progress = false;  // Already suppressed with -q.
+    }
+    else if (verb == 1)
+    {
+      if (v != verb_b::normal)
+      {
+        ops.push_back ("-q");
+
+        if (!no_progress)
+        {
+          if (v == verb_b::progress && stderr_term)
+          {
+            ops.push_back ("--progress");
+              progress = false; // The option is already added.
+          }
+        }
+        else
+          no_progress = false; // Already suppressed with -q.
+      }
+    }
+    else if (verb == 2)
+      ops.push_back ("-v");
+    else
+    {
+      verb_arg = to_string (verb);
+      ops.push_back ("--verbose");
+      ops.push_back (verb_arg.c_str ());
+    }
+
+    if (progress)
+      ops.push_back ("--progress");
+
+    if (no_progress)
+      ops.push_back ("--no-progress");
+  }
+
   template <typename O, typename E, typename... A>
   process
   start_b (const common_options& co,
@@ -15,64 +65,17 @@ namespace bpkg
            verb_b v,
            A&&... args)
   {
-    const char* b (name_b (co));
+    process_path pp (search_b (co));
 
     try
     {
-      // Use our executable directory as a fallback search since normally the
-      // entire toolchain is installed into one directory. This way, for
-      // example, if we installed into /opt/build2 and run bpkg with absolute
-      // path (and without PATH), then bpkg will be able to find "its" b.
-      //
-      process_path pp (process::path_search (b, exec_dir));
-
       small_vector<const char*, 1> ops;
 
-      // Map verbosity level. If we are running quiet or at level 1,
-      // then run build2 quiet. Otherwise, run it at the same level
-      // as us.
-      //
-      string vl;
-      bool progress    (co.progress ());
-      bool no_progress (co.no_progress ());
+      // NOTE: see custom versions in system_package_manager* if adding
+      //       anything new here (search for search_b()).
 
-      if (verb == 0)
-      {
-        ops.push_back ("-q");
-        no_progress = false;  // Already suppressed with -q.
-      }
-      else if (verb == 1)
-      {
-        if (v != verb_b::normal)
-        {
-          ops.push_back ("-q");
-
-          if (!no_progress)
-          {
-            if (v == verb_b::progress && stderr_term)
-            {
-              ops.push_back ("--progress");
-              progress = false; // The option is already added.
-            }
-          }
-          else
-            no_progress = false; // Already suppressed with -q.
-        }
-      }
-      else if (verb == 2)
-        ops.push_back ("-v");
-      else
-      {
-        vl = to_string (verb);
-        ops.push_back ("--verbose");
-        ops.push_back (vl.c_str ());
-      }
-
-      if (progress)
-        ops.push_back ("--progress");
-
-      if (no_progress)
-        ops.push_back ("--no-progress");
+      string verb_arg;
+      map_verb_b (co, v, ops, verb_arg);
 
       // Forward our --[no]diag-color options.
       //
@@ -98,7 +101,7 @@ namespace bpkg
     }
     catch (const process_error& e)
     {
-      fail << "unable to execute " << b << ": " << e << endf;
+      fail << "unable to execute " << pp.recall_string () << ": " << e << endf;
     }
   }
 

@@ -790,6 +790,18 @@ namespace bpkg
     bool
     stub () const {return version.compare (wildcard_version, true) == 0;}
 
+    string
+    effective_type () const
+    {
+      return package_manifest::effective_type (type, id.name);
+    }
+
+    small_vector<language, 1>
+    effective_languages () const
+    {
+      return package_manifest::effective_languages (languages, id.name);
+    }
+
     // Return package system version if one has been discovered. Note that
     // we do not implicitly assume a wildcard version.
     //
@@ -1319,8 +1331,7 @@ namespace bpkg
       return src_root->absolute () ? *src_root : configuration / *src_root;
     }
 
-    // Return the output directory using the configuration directory. Note
-    // that the output directory is always relative.
+    // Return the output directory using the configuration directory.
     //
     dir_path
     effective_out_root (const dir_path& configuration) const
@@ -1328,6 +1339,9 @@ namespace bpkg
       // Cast for compiling with ODB (see above).
       //
       assert (static_cast<bool> (out_root));
+
+      // Note that out_root is always relative.
+      //
       return configuration / *out_root;
     }
 

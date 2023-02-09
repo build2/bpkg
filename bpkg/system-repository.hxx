@@ -12,10 +12,10 @@
 #include <bpkg/types.hxx>
 #include <bpkg/utility.hxx>
 
-#include <bpkg/system-package-manager.hxx>
-
 namespace bpkg
 {
+  struct system_package_status; // <bpkg/system-package-manager.hxx>
+
   // A map of discovered system package versions. The information can be
   // authoritative (i.e., it was provided by the user or auto-discovered
   // on this run) or non-authoritative (i.e., comes from selected packages

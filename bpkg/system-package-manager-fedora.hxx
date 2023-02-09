@@ -16,7 +16,7 @@ namespace bpkg
   // The system package manager implementation for Fedora and alike (Red Hat
   // Enterprise Linux, CentOS, etc) using the DNF frontend.
   //
-  // NOTE: the below description is also reproduced in the bpkg manual.
+  // NOTE: THE BELOW DESCRIPTION IS ALSO REPRODUCED IN THE BPKG MANUAL.
   //
   // For background, a library in Fedora is normally split up into several
   // packages: the shared library package (e.g., libfoo), the development
@@ -196,11 +196,14 @@ namespace bpkg
     virtual void
     pkg_install (const vector<package_name>&) override;
 
-    virtual void
-    generate (packages&&,
-              packages&&,
-              strings&&,
+    virtual paths
+    generate (const packages&,
+              const packages&,
+              const strings&,
               const dir_path&,
+              const package_manifest&,
+              const string&,
+              const small_vector<language, 1>&,
               optional<recursive_mode>) override;
 
   public:
@@ -263,7 +266,7 @@ namespace bpkg
                 strings& args_storage);
 
     static package_status
-    parse_name_value (const package_name&, const string&, bool, bool, bool);
+    parse_name_value (const string&, const string&, bool, bool, bool);
 
     static string
     main_from_devel (const string&,
@@ -327,7 +330,11 @@ namespace bpkg
 
     const simulation* simulate_ = nullptr;
 
-  protected:
+  private:
+    optional<system_package_status_fedora>
+    status (const package_name&, const available_packages&);
+
+  private:
     bool fetched_ = false;   // True if already fetched metadata.
     bool installed_ = false; // True if already installed.
 

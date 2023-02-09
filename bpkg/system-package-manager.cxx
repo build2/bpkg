@@ -7,11 +7,14 @@
 
 #include <libbutl/regex.hxx>
 #include <libbutl/semantic-version.hxx>
+#include <libbutl/json/parser.hxx>
 
 #include <bpkg/package.hxx>
 #include <bpkg/package-odb.hxx>
 #include <bpkg/database.hxx>
 #include <bpkg/diagnostics.hxx>
+
+#include <bpkg/pkg-bindist-options.hxx>
 
 #include <bpkg/system-package-manager-debian.hxx>
 #include <bpkg/system-package-manager-fedora.hxx>
@@ -122,15 +125,15 @@ namespace bpkg
   }
 
   unique_ptr<system_package_manager>
-  make_production_system_package_manager (const common_options& co,
+  make_production_system_package_manager (const pkg_bindist_options& o,
                                           const target_triplet& host,
                                           const string& name,
                                           const string& arch)
   {
     // Note: similar to make_production_system_package_manager() above.
 
-    optional<bool> progress (co.progress () ? true :
-                             co.no_progress () ? false :
+    optional<bool> progress (o.progress () ? true :
+                             o.no_progress () ? false :
                              optional<bool> ());
 
     unique_ptr<system_package_manager> r;
@@ -152,7 +155,7 @@ namespace bpkg
             os.like_ids.push_back ("debian");
 
           r.reset (new system_package_manager_debian (
-                     move (os), host, arch, progress));
+                     move (os), host, arch, progress, &o));
         }
         else if (is_or_like (os, "fedora") ||
                  is_or_like (os, "rhel")   ||
@@ -210,18 +213,19 @@ namespace bpkg
 
   // Parse the <distribution> component of the specified <distribution>-*
   // value into the distribution name and version (return as "0" if not
-  // present). Issue diagnostics and fail on parsing errors.
+  // present). Leave in the d argument the string representation of the
+  // version (used to detect the special non-native <name>_0). Issue
+  // diagnostics and fail on parsing errors.
   //
   // Note: the value_name, ap, and af arguments are only used for diagnostics.
   //
   static pair<string, semantic_version>
-  parse_distribution (string&& d,
+  parse_distribution (string& d, // <name>[_<version>]
                       const string& value_name,
                       const shared_ptr<available_package>& ap,
                       const lazy_shared_ptr<repository_fragment>& af)
   {
-    string dn (move (d));      // <name>[_<version>]
-    size_t p (dn.rfind ('_')); // Version-separating underscore.
+    size_t p (d.rfind ('_')); // Version-separating underscore.
 
     // If the '_' separator is present, then make sure that the right-hand
     // part looks like a version (not empty and only contains digits and
@@ -229,11 +233,11 @@ namespace bpkg
     //
     if (p != string::npos)
     {
-      if (p != dn.size () - 1)
+      if (p != d.size () - 1)
       {
-        for (size_t i (p + 1); i != dn.size (); ++i)
+        for (size_t i (p + 1); i != d.size (); ++i)
         {
-          if (!digit (dn[i]) && dn[i] != '.')
+          if (!digit (d[i]) && d[i] != '.')
           {
             p = string::npos;
             break;
@@ -246,36 +250,43 @@ namespace bpkg
 
     // Parse the distribution version if present and leave it "0" otherwise.
     //
+    string dn;
     semantic_version dv (0, 0, 0);
     if (p != string::npos)
-    try
     {
-      dv = semantic_version (dn,
-                             p + 1,
-                             semantic_version::allow_omit_minor);
+      dn.assign (d, 0, p);
+      d.erase (0, p + 1);
 
-      dn.resize (p);
+      try
+      {
+        dv = semantic_version (d, semantic_version::allow_omit_minor);
+      }
+      catch (const invalid_argument& e)
+      {
+        // Note: the repository fragment may have no database associated when
+        // used in tests.
+        //
+        shared_ptr<repository_fragment> f (af.get_eager ());
+        database* db (!(f != nullptr && !af.loaded ()) // Not transient?
+                      ? &af.database ()
+                      : nullptr);
+
+        diag_record dr (fail);
+        dr << "invalid distribution version '" << d << "' in value "
+           << value_name << " for package " << ap->id.name << ' '
+           << ap->version;
+
+        if (db != nullptr)
+          dr << *db;
+
+        dr << " in repository " << (f != nullptr ? f : af.load ())->location
+           << ": " << e;
+      }
     }
-    catch (const invalid_argument& e)
+    else
     {
-      // Note: the repository fragment may have no database associated when
-      // used in tests.
-      //
-      shared_ptr<repository_fragment> f (af.get_eager ());
-      database* db (!(f != nullptr && !af.loaded ()) // Not transient?
-                    ? &af.database ()
-                    : nullptr);
-
-      diag_record dr (fail);
-      dr << "invalid distribution version '" << string (dn, p + 1)
-         << "' in value " << value_name << " for package " << ap->id.name
-         << ' ' << ap->version;
-
-      if (db != nullptr)
-        dr << *db;
-
-      dr << " in repository " << (f != nullptr ? f : af.load ())->location
-         << ": " << e;
+      dn = move (d);
+      d.clear ();
     }
 
     return make_pair (move (dn), move (dv));
@@ -285,7 +296,8 @@ namespace bpkg
   system_package_names (const available_packages& aps,
                         const string& name_id,
                         const string& version_id,
-                        const vector<string>& like_ids)
+                        const vector<string>& like_ids,
+                        bool native)
   {
     assert (!aps.empty ());
 
@@ -297,7 +309,8 @@ namespace bpkg
     // if not present) is less or equal the specified distribution version.
     // Suppress duplicate values.
     //
-    auto name_values = [&aps] (const string& n, const semantic_version& v)
+    auto name_values = [&aps, native] (const string& n,
+                                       const semantic_version& v)
     {
       strings r;
 
@@ -319,13 +332,32 @@ namespace bpkg
           if (optional<string> d = dv.distribution ("-name"))
           {
             pair<string, semantic_version> dnv (
-              parse_distribution (move (*d), dv.name, ap, a.second));
+              parse_distribution (*d, dv.name, ap, a.second));
 
-            if (dnv.first == n && dnv.second <= v)
+            // Skip <name>_0 if we are only interested in the native mappings.
+            // If we are interested in the non-native mapping, then we treat
+            // <name>_0 as the matching version.
+            //
+            bool nn (*d == "0");
+            if (nn && native)
+              continue;
+
+            semantic_version& dvr (dnv.second);
+
+            if (dnv.first == n && (nn || dvr <= v))
             {
               // Add the name/version pair to the sorted vector.
               //
-              name_version nv (make_pair (dv.value, move (dnv.second)));
+              // If this is the non-native mapping, then return just that.
+              //
+              if (nn)
+              {
+                r.clear (); // Drop anything we have accumulated so far.
+                r.push_back (move (dv.value));
+                return r;
+              }
+
+              name_version nv (make_pair (dv.value, move (dvr)));
 
               nvs.insert (upper_bound (nvs.begin (), nvs.end (), nv,
                                        [] (const name_version& x,
@@ -374,6 +406,89 @@ namespace bpkg
     return r;
   }
 
+  optional<string> system_package_manager::
+  system_package_version (const shared_ptr<available_package>& ap,
+                          const lazy_shared_ptr<repository_fragment>& af,
+                          const string& name_id,
+                          const string& version_id,
+                          const vector<string>& like_ids)
+  {
+    semantic_version vid (parse_version_id (version_id, name_id));
+
+    // Iterate over the <name>[_<version>]-version distribution values of the
+    // passed available package. Only consider those values whose <name>
+    // component matches the specified distribution name and the <version>
+    // component (assumed as "0" if not present) is less or equal the
+    // specified distribution version. Return the system package version if
+    // the distribution version is equal to the specified one. Otherwise (the
+    // version is less), continue iterating while preferring system version
+    // candidates for greater distribution versions. Note that here we are
+    // trying to pick the system version with distribution version closest to
+    // (but never greater than) the specified distribution version, similar to
+    // what we do in downstream_package_version() (see its
+    // downstream_version() lambda for details).
+    //
+    auto system_version = [&ap, &af] (const string& n,
+                                      const semantic_version& v)
+      -> optional<string>
+    {
+      optional<string> r;
+      semantic_version rv;
+
+      for (const distribution_name_value& dv: ap->distribution_values)
+      {
+        if (optional<string> d = dv.distribution ("-version"))
+        {
+          pair<string, semantic_version> dnv (
+            parse_distribution (*d, dv.name, ap, af));
+
+          semantic_version& dvr (dnv.second);
+
+          if (dnv.first == n && dvr <= v)
+          {
+            // If the distribution version is equal to the specified one, then
+            // we are done. Otherwise, save the system version if it is
+            // preferable and continue iterating.
+            //
+            if (dvr == v)
+              return move (dv.value);
+
+            if (!r || rv < dvr)
+            {
+              r = move (dv.value);
+              rv = move (dvr);
+            }
+          }
+        }
+      }
+
+      return r;
+    };
+
+    // Try to deduce the system package version using the
+    // <distribution>-version values that match the name id and refer to the
+    // version which is less or equal than the version id.
+    //
+    optional<string> r (system_version (name_id, vid));
+
+    // If the system package version is not deduced and the like ids are
+    // specified, then re-try but now using the like id and "0" version id
+    // instead.
+    //
+    if (!r)
+    {
+      for (const string& like_id: like_ids)
+      {
+        r = system_version (like_id, semantic_version (0, 0, 0));
+        if (r)
+          break;
+      }
+    }
+
+    return r;
+
+  }
+
   optional<version> system_package_manager::
   downstream_package_version (const string& system_version,
                               const available_packages& aps,
@@ -397,7 +512,7 @@ namespace bpkg
     // specified one. Otherwise (the version is less), continue iterating
     // while preferring downstream version candidates for greater distribution
     // versions. Note that here we are trying to use a version mapping for the
-    // distribution version closest (but never greater) to the specified
+    // distribution version closest to (but never greater than) the specified
     // distribution version. So, for example, if both following values contain
     // a matching mapping, then for debian 11 we prefer the downstream version
     // produced by the debian_10-to-downstream-version value:
@@ -421,9 +536,11 @@ namespace bpkg
           if (optional<string> d = nv.distribution ("-to-downstream-version"))
           {
             pair<string, semantic_version> dnv (
-              parse_distribution (move (*d), nv.name, ap, a.second));
+              parse_distribution (*d, nv.name, ap, a.second));
 
-            if (dnv.first == n && dnv.second <= v)
+            semantic_version& dvr (dnv.second);
+
+            if (dnv.first == n && dvr <= v)
             {
               auto bad_value = [&nv, &ap, &a] (const string& d)
               {
@@ -502,21 +619,21 @@ namespace bpkg
                 version ver (dv);
 
                 // If the distribution version is equal to the specified one,
-                // then we are done. Otherwise, save the version if it is
-                // preferable and continue iterating.
+                // then we are done. Otherwise, save the downstream version if
+                // it is preferable and continue iterating.
                 //
                 // Note that bailing out immediately in the former case is
                 // essential. Otherwise, we can potentially fail later on, for
                 // example, some ill-formed regex which is already fixed in
                 // some newer package.
                 //
-                if (dnv.second == v)
+                if (dvr == v)
                   return ver;
 
-                if (!r || rv < dnv.second)
+                if (!r || rv < dvr)
                 {
                   r = move (ver);
-                  rv = move (dnv.second);
+                  rv = move (dvr);
                 }
               }
               catch (const invalid_argument& e)
@@ -550,6 +667,246 @@ namespace bpkg
         if (r)
           break;
       }
+    }
+
+    return r;
+  }
+
+  auto system_package_manager::
+  installed_entries (const common_options& co,
+                     const packages& pkgs,
+                     const strings& vars,
+                     const string& scope) -> installed_entry_map
+  {
+    process_path pp (search_b (co));
+
+    // Note that we don't use start_b() here since we want to be consistent
+    // with how things will be run when building the package.
+    //
+    cstrings args {
+      pp.recall_string (),
+      "--quiet", // Note: implies --no-progress.
+      "--dry-run"};
+
+    // Pass our --jobs value, if any.
+    //
+    string jobs;
+    if (size_t n = co.jobs_specified () ? co.jobs () : 0)
+    {
+      jobs = to_string (n);
+      args.push_back ("--jobs");
+      args.push_back (jobs.c_str ());
+    }
+
+    // Pass any --build-option.
+    //
+    for (const string& o: co.build_option ()) args.push_back (o.c_str ());
+
+    // Configuration variables.
+    //
+    for (const string& v: vars) args.push_back (v.c_str ());
+
+    string scope_arg;
+    args.push_back ((scope_arg = "!config.install.scope=" + scope).c_str ());
+
+    args.push_back ("!config.install.manifest=-");
+
+    // Package directories to install.
+    //
+    strings dirs;
+    for (const package& p: pkgs) dirs.push_back (p.out_root.representation ());
+    args.push_back ("install:");
+    for (const string& d: dirs) args.push_back (d.c_str ());
+
+    args.push_back (nullptr);
+
+    installed_entry_map r;
+    try
+    {
+      if (verb >= 2)
+        print_process (args);
+      else if (verb == 1)
+        text << "determining filesystem entries that would be installed...";
+
+      // Redirect stdout to a pipe.
+      //
+      process pr (pp,
+                  args,
+                  0  /* stdin */,
+                  -1 /* stdout */,
+                  2  /* stderr */);
+      try
+      {
+        ifdstream is (move (pr.in_ofd), fdstream_mode::skip);
+
+        json::parser p (is,
+                        args[0] /* input_name */,
+                        true    /* multi_value */,
+                        "\n"    /* value_separators */);
+
+        using event = json::event;
+
+        // Note: recursive lambda.
+        //
+        auto parse_entry = [&r, &p] (const auto& parse_entry) -> void
+        {
+          optional<event> e (p.next ());
+
+          // @@ This is really ugly, need to add next_expect() helpers to JSON
+          //    parser (similar to libstudxml).
+
+          if (*e != event::begin_object)
+            fail << "entry object expected";
+
+          // type
+          //
+          if (!(e = p.next ()) || *e != event::name || p.name () != "type")
+            fail << "type member expected";
+
+          if (!(e = p.next ()) || *e != event::string)
+            fail << "type member string value expected";
+
+          string t (p.value ()); // Note: value invalidated after p.next().
+
+          if (t == "target")
+          {
+            // name
+            //
+            if (!(e = p.next ()) || *e != event::name || p.name () != "name")
+              fail << "name member expected";
+
+            if (!(e = p.next ()) || *e != event::string)
+              fail << "name member string value expected";
+
+            // entries
+            //
+            if (!(e = p.next ()) || *e != event::name || p.name () != "entries")
+              fail << "entries member expected";
+
+            if (!(e = p.next ()) || *e != event::begin_array)
+              fail << "entries member array value expected";
+
+            while ((e = p.peek ()) && *e != event::end_array)
+              parse_entry (parse_entry);
+
+            if (!(e = p.next ()) || *e != event::end_array)
+              fail << "entries member array value end expected";
+          }
+          else if (t == "file" || t == "symlink" || t == "directory")
+          {
+            // path
+            //
+            if (!(e = p.next ()) || *e != event::name || p.name () != "path")
+              fail << "path member expected";
+
+            if (!(e = p.next ()) || *e != event::string)
+              fail << "path member string value expected";
+
+            path ep (p.value ());
+            assert (ep.absolute () && ep.normalized (false /* separators */));
+
+            if (t == "file" || t == "directory")
+            {
+              // mode
+              //
+              if (!(e = p.next ()) || *e != event::name || p.name () != "mode")
+                fail << "mode member expected";
+
+              if (!(e = p.next ()) || *e != event::string)
+                fail << "mode member string value expected";
+
+              string em (p.value ());
+
+              if (t == "file")
+              {
+                auto p (
+                  r.emplace (
+                    move (ep), installed_entry {move (em), nullptr}));
+
+                if (!p.second)
+                  fail << p.first->first << " is installed multiple times";
+              }
+            }
+            else
+            {
+              // target
+              //
+              if (!(e = p.next ()) || *e != event::name || p.name () != "target")
+                fail << "target member expected";
+
+              if (!(e = p.next ()) || *e != event::string)
+                fail << "target member string value expected";
+
+              path et (p.value ());
+              if (et.relative ())
+              {
+                et = ep.directory () / et;
+                et.normalize ();
+              }
+
+              auto i (r.find (et));
+              if (i == r.end ())
+                fail << "symlink " << ep << " target " << et << " does not "
+                     << "refer to previously installed entry";
+
+              auto p (r.emplace (move (ep), installed_entry {"", &*i}));
+
+              if (!p.second)
+                fail << p.first->first << " is installed multiple times";
+            }
+          }
+          else
+            fail << "unknown entry type '" << t << "'";
+
+          if (!(e = p.next ()) || *e != event::end_object)
+            fail << "entry object end expected";
+        };
+
+        while (p.peek ()) // More values.
+        {
+          parse_entry (parse_entry);
+
+          if (p.next ()) // Consume value-terminating nullopt.
+            fail << "unexpected data after entry object";
+        }
+
+        is.close ();
+      }
+      catch (const json::invalid_json_input& e)
+      {
+        if (pr.wait ())
+          fail << "invalid " << args[0] << " json input: " << e;
+
+        // Fall through.
+      }
+      catch (const io_error& e)
+      {
+        if (pr.wait ())
+          fail << "unable to read " << args[0] << " output: " << e;
+
+        // Fall through.
+      }
+
+      if (!pr.wait ())
+      {
+        diag_record dr (fail);
+        dr << args[0] << " exited with non-zero code";
+
+        if (verb < 2)
+        {
+          dr << info << "command line: ";
+          print_process (dr, args);
+        }
+      }
+    }
+    catch (const process_error& e)
+    {
+      error << "unable to execute " << args[0] << ": " << e;
+
+      if (e.child)
+        exit (1);
+
+      throw failed ();
     }
 
     return r;

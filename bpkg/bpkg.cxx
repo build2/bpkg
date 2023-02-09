@@ -49,6 +49,7 @@
 #include <bpkg/cfg-link.hxx>
 #include <bpkg/cfg-unlink.hxx>
 
+#include <bpkg/pkg-bindist.hxx>
 #include <bpkg/pkg-build.hxx>
 #include <bpkg/pkg-checkout.hxx>
 #include <bpkg/pkg-clean.hxx>
@@ -767,6 +768,7 @@ try
 
     // These commands need the '--' separator to be kept in args.
     //
+    PKG_COMMAND (bindist,   true,  true);
     PKG_COMMAND (build,     true,  false);
     PKG_COMMAND (clean,     true,  true);
     PKG_COMMAND (configure, true,  true);

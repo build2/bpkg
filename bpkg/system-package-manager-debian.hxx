@@ -18,15 +18,15 @@ namespace bpkg
   // consumption and the dpkg-buildpackage/debhelper/dh tooling for
   // production.
   //
-  // NOTE: the below description is also reproduced in the bpkg manual.
+  // NOTE: THE BELOW DESCRIPTION IS ALSO REPRODUCED IN THE BPKG MANUAL.
   //
   // For background, a library in Debian is normally split up into several
   // packages: the shared library package (e.g., libfoo1 where 1 is the ABI
   // version), the development files package (e.g., libfoo-dev), the
-  // documentation files package (e.g., libfoo-doc), the debug symbols
-  // package (e.g., libfoo1-dbg), and the architecture-independent files
-  // (e.g., libfoo1-common). All the packages except -dev are optional
-  // and there is quite a bit of variability here. Here are a few examples:
+  // documentation files package (e.g., libfoo-doc), the debug symbols package
+  // (e.g., libfoo1-dbg), and the (usually) architecture-independent files
+  // (e.g., libfoo1-common). All the packages except -dev are optional and
+  // there is quite a bit of variability here. Here are a few examples:
   //
   // libsqlite3-0 libsqlite3-dev
   //
@@ -38,6 +38,10 @@ namespace bpkg
   //
   // Note that while most library package names in Debian start with lib (per
   // the policy), there are exceptions (e.g., zlib1g zlib1g-dev).
+  //
+  // Also note that manual -dbg packages are obsolete in favor of automatic
+  // -dbgsym packages from Debian 9. So while we support -dbg for consumption,
+  // we only generate -dbgsym.
   //
   // Based on that, it seems our best bet when trying to automatically map our
   // library package name to Debian package names is to go for the -dev
@@ -129,11 +133,14 @@ namespace bpkg
     virtual void
     pkg_install (const vector<package_name>&) override;
 
-    virtual void
-    generate (packages&&,
-              packages&&,
-              strings&&,
+    virtual paths
+    generate (const packages&,
+              const packages&,
+              const strings&,
               const dir_path&,
+              const package_manifest&,
+              const string&,
+              const small_vector<language, 1>&,
               optional<recursive_mode>) override;
 
   public:
@@ -161,14 +168,19 @@ namespace bpkg
                                   yes,
                                   move (sudo)) {}
 
+    // Note: options can only be NULL when testing functions that don't need
+    // them.
+    //
     system_package_manager_debian (bpkg::os_release&& osr,
                                    const target_triplet& h,
                                    string a,
-                                   optional<bool> progress)
+                                   optional<bool> progress,
+                                   const pkg_bindist_options* ops)
         : system_package_manager (move (osr),
                                   h,
                                   a.empty () ? arch_from_target (h) : move (a),
-                                  progress) {}
+                                  progress),
+          ops_ (ops) {}
 
     // Implementation details exposed for testing (see definitions for
     // documentation).
@@ -193,13 +205,19 @@ namespace bpkg
     apt_get_common (const char*, strings& args_storage);
 
     static package_status
-    parse_name_value (const package_name&, const string&, bool, bool);
+    parse_name_value (const string&, const string&, bool, bool);
 
     static string
     main_from_dev (const string&, const string&, const string&);
 
     static string
     arch_from_target (const target_triplet&);
+
+    package_status
+    map_package (const package_name&,
+                 const version&,
+                 const available_packages&,
+                 const optional<string>&) const;
 
     // If simulate is not NULL, then instead of executing the actual apt-cache
     // and apt-get commands simulate their execution: (1) for apt-cache by
@@ -233,11 +251,17 @@ namespace bpkg
 
     const simulation* simulate_ = nullptr;
 
-  protected:
+  private:
+    optional<system_package_status_debian>
+    status (const package_name&, const available_packages&);
+
+  private:
     bool fetched_ = false;   // True if already fetched metadata.
     bool installed_ = false; // True if already installed.
 
     std::map<package_name, optional<system_package_status_debian>> status_cache_;
+
+    const pkg_bindist_options* ops_ = nullptr; // Only for production.
   };
 }
 

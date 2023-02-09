@@ -43,6 +43,63 @@
   $* ubuntu 16.04 debian -- libcurl libcurl7.64.manifest libcurl7.84.manifest >>EOO
     libcurl2 libcurl2-dev
     EOO
+
+  : native
+  :
+  cat <<EOI >=libcurl.manifest;
+    : 1
+    name: libcurl
+    version: 7.84.0
+    debian-name: libcurl4 libcurl4-openssl-dev
+    debian_0-name: libcurl libcurl-dev
+    summary: curl
+    license: curl
+    EOI
+  $* debian 10 -- libcurl libcurl.manifest >>EOO;
+    libcurl4 libcurl4-openssl-dev
+    EOO
+  $* debian 10 -- --non-native libcurl libcurl.manifest >>EOO
+    libcurl libcurl-dev
+    EOO
+}
+
+: system-package-version
+:
+{
+  test.arguments += system-package-version
+
+  : basics
+  :
+  cat <<EOI >=libssl1.1.1+19.manifest;
+    : 1
+    name: libssl
+    version: 1.1.1+19
+    fedora-name: openssl-libs
+    fedora-version: 1:1.1.1q-1
+    fedora_35-version: 1:1.1.1q-1.fc35
+    fedora_36-version: 1:1.1.1q-1.fc36
+    summary: openssl
+    license: openssl
+    EOI
+
+  $* fedora 34 -- libssl libssl1.1.1+19.manifest >>EOO;
+    1:1.1.1q-1
+    EOO
+  $* fedora 35 -- libssl libssl1.1.1+19.manifest >>EOO;
+    1:1.1.1q-1.fc35
+    EOO
+  $* fedora 36 -- libssl libssl1.1.1+19.manifest >>EOO;
+    1:1.1.1q-1.fc36
+    EOO
+  $* fedora 37 -- libssl libssl1.1.1+19.manifest >>EOO;
+    1:1.1.1q-1.fc36
+    EOO
+  $* fedora '' -- libssl libssl1.1.1+19.manifest >>EOO;
+    1:1.1.1q-1
+    EOO
+  $* rhel 7.8 fedora -- libssl libssl1.1.1+19.manifest >>EOO
+    1:1.1.1q-1
+    EOO
 }
 
 : downstream-package-version

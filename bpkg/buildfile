@@ -34,6 +34,7 @@ cfg-unlink-options         \
 common-options             \
 configuration-options      \
 help-options               \
+pkg-bindist-options        \
 pkg-build-options          \
 pkg-checkout-options       \
 pkg-clean-options          \
@@ -148,6 +149,7 @@ if $cli.configured
 
   # pkg-* command.
   #
+  cli.cxx{pkg-bindist-options}:   cli{pkg-bindist}
   cli.cxx{pkg-build-options}:     cli{pkg-build}
   cli.cxx{pkg-checkout-options}:  cli{pkg-checkout}
   cli.cxx{pkg-clean-options}:     cli{pkg-clean}
@@ -212,6 +214,9 @@ if $cli.configured
 
   cli.cxx{pkg-build-options}: cli.options += --class-doc \
 bpkg::pkg_build_pkg_options=exclude-base --generate-modifier
+
+  cli.cxx{pkg-bindist-options}: cli.options += --class-doc \
+bpkg::pkg_bindist_debian_options=exclude-base
 
   # Avoid generating CLI runtime and empty inline file for help topics.
   #

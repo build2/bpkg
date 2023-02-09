@@ -21,7 +21,11 @@ namespace bpkg
   //
   // Where <command> is one of:
   //
-  //   system-package-names <name-id> <ver-id> [<like-id>...] -- <pkg> <file>...
+  //   system-package-names <name-id> <ver-id> [<like-id>...] -- [--non-native] <pkg> <file>...
+  //
+  //     Where <pkg> is a package name, <file> is a package manifest file.
+  //
+  //   system-package-version <name-id> <ver-id> [<like-id>...] -- <pkg> <file>
   //
   //     Where <pkg> is a package name, <file> is a package manifest file.
   //
@@ -41,6 +45,7 @@ namespace bpkg
 
     os_release osr;
     if (cmd == "system-package-names" ||
+        cmd == "system-package-version" ||
         cmd == "downstream-package-version")
     {
       assert (argc >= 4); // <name-id> <ver-id>
@@ -65,6 +70,14 @@ namespace bpkg
       string a (argv[argi++]);
       assert (a == "--");
 
+      assert (argi != argc);
+      bool native (true);
+      if ((a = argv[argi]) == "--non-native")
+      {
+        native = false;
+        argi++;
+      }
+
       assert (argi != argc); // <pkg>
       string pn (argv[argi++]);
 
@@ -76,10 +89,33 @@ namespace bpkg
 
       strings ns (
         system_package_manager::system_package_names (
-          aps, osr.name_id, osr.version_id, osr.like_ids));
+          aps, osr.name_id, osr.version_id, osr.like_ids, native));
 
       for (const string& n: ns)
         cout << n << '\n';
+    }
+    else if (cmd == "system-package-version")
+    {
+      assert (argi != argc); // --
+      string a (argv[argi++]);
+      assert (a == "--");
+
+      assert (argi != argc); // <pkg>
+      string pn (argv[argi++]);
+
+      assert (argi != argc); // <file>
+      pair<shared_ptr<available_package>,
+           lazy_shared_ptr<repository_fragment>> apf (
+             make_available_from_manifest (pn, argv[argi++]));
+
+      assert (argi == argc); // No trailing junk.
+
+      if (optional<string> v =
+          system_package_manager::system_package_version (
+            apf.first, apf.second, osr.name_id, osr.version_id, osr.like_ids))
+      {
+        cout << *v << '\n';
+      }
     }
     else if (cmd == "downstream-package-version")
     {
