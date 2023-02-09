@@ -327,7 +327,7 @@ namespace bpkg
 
     const simulation* simulate_ = nullptr;
 
-  protected:
+  private:
     bool fetched_ = false;   // True if already fetched metadata.
     bool installed_ = false; // True if already installed.
 

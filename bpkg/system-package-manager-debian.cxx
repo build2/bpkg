@@ -894,14 +894,6 @@ namespace bpkg
   optional<const system_package_status*> system_package_manager_debian::
   pkg_status (const package_name& pn, const available_packages* aps)
   {
-    // For now we ignore -doc and -dbg package components (but we may want to
-    // have options controlling this later). Note also that we assume -common
-    // is pulled automatically by the main package so we ignore it as well
-    // (see equivalent logic in parse_name_value()).
-    //
-    bool need_doc (false);
-    bool need_dbg (false);
-
     // First check the cache.
     //
     {
@@ -913,6 +905,25 @@ namespace bpkg
       if (aps == nullptr)
         return nullopt;
     }
+
+    optional<package_status> r (status (pn, *aps));
+
+    // Cache.
+    //
+    auto i (status_cache_.emplace (pn, move (r)).first);
+    return i->second ? &*i->second : nullptr;
+  }
+
+  optional<package_status> system_package_manager_debian::
+  status (const package_name& pn, const available_packages& aps)
+  {
+    // For now we ignore -doc and -dbg package components (but we may want to
+    // have options controlling this later). Note also that we assume -common
+    // is pulled automatically by the main package so we ignore it as well
+    // (see equivalent logic in parse_name_value()).
+    //
+    bool need_doc (false);
+    bool need_dbg (false);
 
     vector<package_status> candidates;
 
@@ -927,8 +938,8 @@ namespace bpkg
         });
 
       strings ns;
-      if (!aps->empty ())
-        ns = system_package_names (*aps,
+      if (!aps.empty ())
+        ns = system_package_names (aps,
                                    os_release.name_id,
                                    os_release.version_id,
                                    os_release.like_ids);
@@ -1269,9 +1280,9 @@ namespace bpkg
       string sv (r->system_version, 0, r->system_version.rfind ('-'));
 
       optional<version> v;
-      if (!aps->empty ())
+      if (!aps.empty ())
         v = downstream_package_version (sv,
-                                        *aps,
+                                        aps,
                                         os_release.name_id,
                                         os_release.version_id,
                                         os_release.like_ids);
@@ -1304,10 +1315,7 @@ namespace bpkg
       r->version = move (*v);
     }
 
-    // Cache.
-    //
-    auto i (status_cache_.emplace (pn, move (r)).first);
-    return i->second ? &*i->second : nullptr;
+    return r;
   }
 
   void system_package_manager_debian::
@@ -1455,8 +1463,8 @@ namespace bpkg
   // create the package completely manually without using any of the Debian
   // tools and while some implementations (for example, cargo-deb) do it this
   // way, we are not going to go this route because it does not scale well to
-  // more complex packages which may require additional functionality, such as
-  // managing systemd files, and which is covered by the Debian tools (for an
+  // more complex packages which may require additional functionality (such as
+  // managing systemd files) and which is covered by the Debian tools (for an
   // example of where this leads, see the partial debhelper re-implementation
   // in cargo-deb). Another issues with this approach is that it's not
   // amenable to customizations, at least not in a way familiar to Debian
@@ -1464,24 +1472,24 @@ namespace bpkg
   //
   // At the lowest level of the Debian tools for creating packages sits the
   // dpkg-deb --build|-b command (also accessible as dpkg --build|-b). Given a
-  // directory with all the binary contents (including the package metadata,
-  // such as the control file, in the debian/ subdirectory) this command will
-  // pack everything up into a .deb file. While an improvement over the fully
-  // manual packaging, this approach has essentially the same drawbacks. In
-  // particular, this command generates a single package which means we will
-  // have to manually sort out things into -dev, -doc, etc.
+  // directory with all the binary package contents (including the package
+  // metadata, such as the control file, in the debian/ subdirectory) this
+  // command will pack everything up into a .deb file. While an improvement
+  // over the fully manual packaging, this approach has essentially the same
+  // drawbacks. In particular, this command generates a single package which
+  // means we will have to manually sort out things into -dev, -doc, etc.
   //
   // Next up the stack is dpkg-buildpackage. This tool expects the package to
-  // follow the Debian way, that is, to provide the debian/rules makefile with
-  // a number of required targets which it then invokes to build, install, and
-  // pack a package from source (and somewhere in this process it calls
-  // dpkg-deb --build). The dpkg-buildpackage(1) man page has an overview of
-  // all the steps that this command performs and it is the recommended,
-  // lower-level, way to build packages on Debian.
+  // follow the Debian way of packaging, that is, to provide the debian/rules
+  // makefile with a number of required targets which it then invokes to
+  // build, install, and pack a package from source (and sometime during this
+  // process it calls dpkg-deb --build). The dpkg-buildpackage(1) man page has
+  // an overview of all the steps that this command performs and it is the
+  // recommended, lower-level, way to build packages on Debian.
   //
   // At the top of the stack sits debuild which calls dpkg-buildpackage, then
-  // lintian and finally design (though signing can also be performed by
-  // dpkg-buildpackage).
+  // lintian, and finally design (though signing can also be performed by
+  // dpkg-buildpackage itself).
   //
   // Based on this our plan is to use dpkg-buildpackage which brings us to the
   // Debian way of packaging with debian/rules at its core. As it turns out,
@@ -1498,7 +1506,7 @@ namespace bpkg
   // While debhelper tools definitely simplify debian/rules, there is often
   // still a lot of boilerplate code. So second-level helpers are often used,
   // with the dominant option being the dh(1) command sequencer (there is also
-  // CDBS but it appears to be mostly obsolete).
+  // CDBS but it appears to be fading into obsolescence).
   //
   // Based on that our options appear to be classic debhelper and dh. Looking
   // at the statistics, it's clear that the majority of packages (including
@@ -1508,16 +1516,104 @@ namespace bpkg
   // So, to sum up, the plan is to produce debian/rules that uses the dh
   // command sequencer and then invoke dpkg-buildpackage to produce the binary
   // package from that. While this approach is normally used to build things
-  // from source, it feels like we should be able to pretend that we are by,
-  // for example, overriding the install target to invoke the build system to
-  // install all the packages directly from their bpkg locations.
+  // from source, it feels like we should be able to pretend that we are.
+  // Specifially, we can override the install target to invoke the build
+  // system and install all the packages directly from their bpkg locations.
   //
   void system_package_manager_debian::
-  generate (packages&&,
-            packages&&,
+  generate (packages&& pkgs,
+            packages&& deps,
             strings&&,
             const dir_path&,
             optional<recursive_mode>)
   {
+    // @@ What are we doing with extras, in both deps and the package being
+    //    generated?
+
+    // Map non-system bpkg package to system package name(s) and version.
+    //
+    auto map_package = [this] (const selected_package& sp,
+                               const available_packages& aps) -> package_status
+    {
+      // We should only have one available package corresponding to the
+      // selected package.
+      //
+      assert (sp.substate != package_substate::system && aps.size () == 1);
+
+      strings ns (system_package_names (aps,
+                                        os_release.name_id,
+                                        os_release.version_id,
+                                        os_release.like_ids));
+      package_status r;
+      if (ns.empty ())
+      {
+        // Automatically translate our package name similar to the consumption
+        // case above. Except here we don't attempt to deduce main from -dev,
+        // naturally.
+        //
+        const string& pn (sp.name.string ());
+
+        // The best we can do in trying to detect whether this is a library is
+        // to check for the lib prefix. Libraries without the lib prefix and
+        // non-libraries with the lib prefix (both of which we do not
+        // recomment) will have to provide a manual mapping.
+        //
+        if (pn.compare (0, 3, "lib") == 0 && pn.size () > 3)
+        {
+          r = package_status (pn, pn + "-dev");
+        }
+        else
+          r = package_status (pn);
+      }
+      else
+      {
+        // Even though we only pass one available package, we may still end up
+        // with multiple mappings. In this case we take the first per the
+        // documentation.
+        //
+        r = parse_name_value (sp.name,
+                              ns.front (),
+                              false /* need_doc */,
+                              false /* need_dbg */);
+      }
+
+      return r;
+    };
+
+    // As a first step, figure out the system names and version of the package
+    // we are generating and all the dependencies, diagnosing anything fishy.
+    //
+    // Note that there should be no duplicate dependencies and we can sidestep
+    // the status cache.
+    //
+    const selected_package& sp (*pkgs.front ().first);
+    const available_packages& aps (pkgs.front ().second);
+    package_status s (map_package (sp, aps));
+
+    vector<package_status> sdeps;
+    sdeps.reserve (deps.size ());
+    for (const pair<shared_ptr<selected_package>, available_packages>& p: deps)
+    {
+      const selected_package& sp (*p.first);
+      const available_packages& aps (p.second);
+
+      package_status s;
+      if (sp.substate == package_substate::system)
+      {
+        optional<package_status> os (status (sp.name, aps));
+
+        if (!os)
+          fail << "bad boy";
+
+        // @@ We should confirm configured version matches mapped back.
+        //    Can be `*`!
+
+        s = move (*os);
+      }
+      else
+        s = map_package (sp, aps);
+
+      sdeps.push_back (move (s));
+    }
   }
 }

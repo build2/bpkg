@@ -257,6 +257,11 @@ namespace bpkg
       "\l{bpkg-pkg-clean(1)} \- clean package"
     }
 
+    bool pkg-bindist|bindist
+    {
+      "\l{bpkg-pkg-bindist(1)} \- generate binary distribution package"
+    }
+
     bool pkg-verify
     {
       "\l{bpkg-pkg-verify(1)} \- verify package archive"

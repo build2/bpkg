@@ -34,6 +34,7 @@ cfg-unlink-options         \
 common-options             \
 configuration-options      \
 help-options               \
+pkg-bindist-options        \
 pkg-build-options          \
 pkg-checkout-options       \
 pkg-clean-options          \
@@ -148,6 +149,7 @@ if $cli.configured
 
   # pkg-* command.
   #
+  cli.cxx{pkg-bindist-options}:   cli{pkg-bindist}
   cli.cxx{pkg-build-options}:     cli{pkg-build}
   cli.cxx{pkg-checkout-options}:  cli{pkg-checkout}
   cli.cxx{pkg-clean-options}:     cli{pkg-clean}

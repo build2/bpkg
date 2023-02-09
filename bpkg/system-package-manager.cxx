@@ -13,6 +13,8 @@
 #include <bpkg/database.hxx>
 #include <bpkg/diagnostics.hxx>
 
+#include <bpkg/pkg-bindist-options.hxx>
+
 #include <bpkg/system-package-manager-debian.hxx>
 #include <bpkg/system-package-manager-fedora.hxx>
 
@@ -122,15 +124,15 @@ namespace bpkg
   }
 
   unique_ptr<system_package_manager>
-  make_production_system_package_manager (const common_options& co,
+  make_production_system_package_manager (const pkg_bindist_options& o,
                                           const target_triplet& host,
                                           const string& name,
                                           const string& arch)
   {
     // Note: similar to make_production_system_package_manager() above.
 
-    optional<bool> progress (co.progress () ? true :
-                             co.no_progress () ? false :
+    optional<bool> progress (o.progress () ? true :
+                             o.no_progress () ? false :
                              optional<bool> ());
 
     unique_ptr<system_package_manager> r;

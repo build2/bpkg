@@ -233,7 +233,11 @@ namespace bpkg
 
     const simulation* simulate_ = nullptr;
 
-  protected:
+  private:
+    optional<system_package_status_debian>
+    status (const package_name&, const available_packages&);
+
+  private:
     bool fetched_ = false;   // True if already fetched metadata.
     bool installed_ = false; // True if already installed.
 

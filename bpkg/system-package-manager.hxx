@@ -155,9 +155,11 @@ namespace bpkg
     virtual void
     pkg_install (const vector<package_name>&) = 0;
 
-    // Generate a binary distribution package.
+    // Generate a binary distribution package. @@ TODO: doc more
     //
-    // @@ TODO: doc
+    // The available packages are loaded for the first package in pkgs and for
+    // all the packages in deps. For non-system packages there is always a
+    // single available package that corresponds to the selected package.
     //
     // See the pkg-bindist(1) man page and the pkg_bindist() function
     // implementation for background and details.
@@ -321,8 +323,10 @@ namespace bpkg
                                            bool yes,
                                            const string& sudo);
 
+  class pkg_bindist_options;
+
   unique_ptr<system_package_manager>
-  make_production_system_package_manager (const common_options&,
+  make_production_system_package_manager (const pkg_bindist_options&,
                                           const target_triplet&,
                                           const string& name,
                                           const string& arch);
