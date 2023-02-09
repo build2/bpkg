@@ -219,7 +219,7 @@ namespace bpkg
   static pair<string, semantic_version>
   parse_distribution (string&& d,
                       const string& value_name,
-                      const shared_ptr<available_package>& ap,
+                      const available_package& ap,
                       const lazy_shared_ptr<repository_fragment>& af)
   {
     string dn (move (d));      // <name>[_<version>]
@@ -270,8 +270,8 @@ namespace bpkg
 
       diag_record dr (fail);
       dr << "invalid distribution version '" << string (dn, p + 1)
-         << "' in value " << value_name << " for package " << ap->id.name
-         << ' ' << ap->version;
+         << "' in value " << value_name << " for package " << ap.id.name
+         << ' ' << ap.version;
 
       if (db != nullptr)
         dr << *db;
@@ -321,13 +321,15 @@ namespace bpkg
           if (optional<string> d = dv.distribution ("-name"))
           {
             pair<string, semantic_version> dnv (
-              parse_distribution (move (*d), dv.name, ap, a.second));
+              parse_distribution (move (*d), dv.name, *ap, a.second));
 
-            if (dnv.first == n && dnv.second <= v)
+            semantic_version& dvr (dnv.second);
+
+            if (dnv.first == n && dvr <= v)
             {
               // Add the name/version pair to the sorted vector.
               //
-              name_version nv (make_pair (dv.value, move (dnv.second)));
+              name_version nv (make_pair (dv.value, move (dvr)));
 
               nvs.insert (upper_bound (nvs.begin (), nvs.end (), nv,
                                        [] (const name_version& x,
@@ -374,6 +376,89 @@ namespace bpkg
     }
 
     return r;
+  }
+
+  optional<string> system_package_manager::
+  system_package_version (const available_package& ap,
+                          const lazy_shared_ptr<repository_fragment>& af,
+                          const string& name_id,
+                          const string& version_id,
+                          const vector<string>& like_ids)
+  {
+    semantic_version vid (parse_version_id (version_id, name_id));
+
+    // Iterate over the <name>[_<version>]-version distribution values of the
+    // passed available package. Only consider those values whose <name>
+    // component matches the specified distribution name and the <version>
+    // component (assumed as "0" if not present) is less or equal the
+    // specified distribution version. Return the system package version if
+    // the distribution version is equal to the specified one. Otherwise (the
+    // version is less), continue iterating while preferring system version
+    // candidates for greater distribution versions. Note that here we are
+    // trying to pick the system version which distribution version closest
+    // (but never greater) to the specified distribution version, similar to
+    // what we do in downstream_package_version() (see its
+    // downstream_version() lambda for details).
+    //
+    auto system_version = [&ap, &af] (const string& n,
+                                      const semantic_version& v)
+      -> optional<string>
+    {
+      optional<string> r;
+      semantic_version rv;
+
+      for (const distribution_name_value& dv: ap.distribution_values)
+      {
+        if (optional<string> d = dv.distribution ("-version"))
+        {
+          pair<string, semantic_version> dnv (
+            parse_distribution (move (*d), dv.name, ap, af));
+
+          semantic_version& dvr (dnv.second);
+
+          if (dnv.first == n && dvr <= v)
+          {
+            // If the distribution version is equal to the specified one, then
+            // we are done. Otherwise, save the system version if it is
+            // preferable and continue iterating.
+            //
+            if (dvr == v)
+              return move (dv.value);
+
+            if (!r || rv < dvr)
+            {
+              r = move (dv.value);
+              rv = move (dvr);
+            }
+          }
+        }
+      }
+
+      return r;
+    };
+
+    // Try to deduce the system package version using the
+    // <distribution>-version values that match the name id and refer to the
+    // version which is less or equal than the version id.
+    //
+    optional<string> r (system_version (name_id, vid));
+
+    // If the system package version is not deduced and the like ids are
+    // specified, then re-try but now using the like id and "0" version id
+    // instead.
+    //
+    if (!r)
+    {
+      for (const string& like_id: like_ids)
+      {
+        r = system_version (like_id, semantic_version (0, 0, 0));
+        if (r)
+          break;
+      }
+    }
+
+    return r;
+
   }
 
   optional<version> system_package_manager::
@@ -423,9 +508,11 @@ namespace bpkg
           if (optional<string> d = nv.distribution ("-to-downstream-version"))
           {
             pair<string, semantic_version> dnv (
-              parse_distribution (move (*d), nv.name, ap, a.second));
+              parse_distribution (move (*d), nv.name, *ap, a.second));
 
-            if (dnv.first == n && dnv.second <= v)
+            semantic_version& dvr (dnv.second);
+
+            if (dnv.first == n && dvr <= v)
             {
               auto bad_value = [&nv, &ap, &a] (const string& d)
               {
@@ -504,21 +591,21 @@ namespace bpkg
                 version ver (dv);
 
                 // If the distribution version is equal to the specified one,
-                // then we are done. Otherwise, save the version if it is
-                // preferable and continue iterating.
+                // then we are done. Otherwise, save the downstream version if
+                // it is preferable and continue iterating.
                 //
                 // Note that bailing out immediately in the former case is
                 // essential. Otherwise, we can potentially fail later on, for
                 // example, some ill-formed regex which is already fixed in
                 // some newer package.
                 //
-                if (dnv.second == v)
+                if (dvr == v)
                   return ver;
 
-                if (!r || rv < dnv.second)
+                if (!r || rv < dvr)
                 {
                   r = move (ver);
-                  rv = move (dnv.second);
+                  rv = move (dvr);
                 }
               }
               catch (const invalid_argument& e)

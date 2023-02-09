@@ -271,6 +271,29 @@ namespace bpkg
                           const string& version_id,
                           const vector<string>& like_ids);
 
+    // Given the available package and the repository fragment it belongs to,
+    // return the system package version as mapped by one of the
+    // <distribution>-version values.
+    //
+    // The rest of the arguments as well as the overalls semantics is the same
+    // as in system_package_names() above. That is, first consider
+    // <distribution>-version values corresponding to name_id. If none match,
+    // then repeat the above process for every like_ids entry with version_id
+    // equal 0. If still no match, then return nullopt (in which case the
+    // caller may choose to fallback to the upstream package version or do
+    // something more elaborate).
+    //
+    // Note that lazy_shared_ptr<repository_fragment> is used only for
+    // diagnostics and conveys the database the available package object
+    // belongs to.
+    //
+    static optional<string>
+    system_package_version (const available_package&,
+                            const lazy_shared_ptr<repository_fragment>&,
+                            const string& name_id,
+                            const string& version_id,
+                            const vector<string>& like_ids);
+
     // Given the system package version and available packages (as returned by
     // find_available_all()) return the downstream package version as mapped
     // by one of the <distribution>-to-downstream-version values.
