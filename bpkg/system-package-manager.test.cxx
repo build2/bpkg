@@ -25,6 +25,10 @@ namespace bpkg
   //
   //     Where <pkg> is a package name, <file> is a package manifest file.
   //
+  //   system-package-version <name-id> <ver-id> [<like-id>...] -- <pkg> <file>
+  //
+  //     Where <pkg> is a package name, <file> is a package manifest file.
+  //
   //   downstream-package-version <name-id> <ver-id> [<like-id>...] -- <ver> <pkg> <file>...
   //
   //     Where <ver> is a system version to translate, <pkg> is a package
@@ -41,6 +45,7 @@ namespace bpkg
 
     os_release osr;
     if (cmd == "system-package-names" ||
+        cmd == "system-package-version" ||
         cmd == "downstream-package-version")
     {
       assert (argc >= 4); // <name-id> <ver-id>
@@ -80,6 +85,29 @@ namespace bpkg
 
       for (const string& n: ns)
         cout << n << '\n';
+    }
+    else if (cmd == "system-package-version")
+    {
+      assert (argi != argc); // --
+      string a (argv[argi++]);
+      assert (a == "--");
+
+      assert (argi != argc); // <pkg>
+      string pn (argv[argi++]);
+
+      assert (argi != argc); // <file>
+      pair<shared_ptr<available_package>,
+           lazy_shared_ptr<repository_fragment>> apf (
+             make_available_from_manifest (pn, argv[argi++]));
+
+      assert (argi == argc); // No trailing junk.
+
+      if (optional<string> v =
+          system_package_manager::system_package_version (
+            apf.first, apf.second, osr.name_id, osr.version_id, osr.like_ids))
+      {
+        cout << *v << '\n';
+      }
     }
     else if (cmd == "downstream-package-version")
     {
