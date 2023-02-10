@@ -211,6 +211,7 @@ namespace bpkg
                                    const target_triplet& h,
                                    string a,
                                    optional<bool> progress,
+                                   optional<size_t> fetch_timeout,
                                    bool install,
                                    bool fetch,
                                    bool yes,
@@ -219,6 +220,7 @@ namespace bpkg
                                   h,
                                   a.empty () ? arch_from_target (h) : move (a),
                                   progress,
+                                  fetch_timeout,
                                   install,
                                   fetch,
                                   yes,
@@ -256,7 +258,9 @@ namespace bpkg
     dnf_mark_install (const strings&);
 
     pair<cstrings, const process_path&>
-    dnf_common (const char*);
+    dnf_common (const char*,
+                optional<size_t> fetch_timeout,
+                strings& args_storage);
 
     static package_status
     parse_name_value (const package_name&, const string&, bool, bool, bool);

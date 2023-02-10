@@ -53,9 +53,13 @@ namespace bpkg
   {
     // Note: similar to make_consumption_system_package_manager() below.
 
-    optional<bool> progress (co.progress () ? true :
+    optional<bool> progress (co.progress ()    ? true  :
                              co.no_progress () ? false :
                              optional<bool> ());
+
+    optional<size_t> fetch_timeout (co.fetch_timeout_specified ()
+                                    ? co.fetch_timeout ()
+                                    : optional<size_t> ());
 
     unique_ptr<system_package_manager> r;
 
@@ -80,7 +84,7 @@ namespace bpkg
 
           r.reset (new system_package_manager_debian (
                      move (os), host, arch,
-                     progress, install, fetch, yes, sudo));
+                     progress, fetch_timeout, install, fetch, yes, sudo));
         }
         else if (is_or_like (os, "fedora") ||
                  is_or_like (os, "rhel")   ||
@@ -100,7 +104,7 @@ namespace bpkg
 
           r.reset (new system_package_manager_fedora (
                      move (os), host, arch,
-                     progress, install, fetch, yes, sudo));
+                     progress, fetch_timeout, install, fetch, yes, sudo));
         }
         // NOTE: remember to update the --sys-distribution pkg-build option
         //       documentation if adding support for another package manager.

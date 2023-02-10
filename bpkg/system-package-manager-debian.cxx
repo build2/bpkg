@@ -670,8 +670,13 @@ namespace bpkg
   // Prepare the common `apt-get <command>` options.
   //
   pair<cstrings, const process_path&> system_package_manager_debian::
-  apt_get_common (const char* command)
+  apt_get_common (const char* command, strings& args_storage)
   {
+    // Pre-allocate the required number of entries in the arguments storage.
+    //
+    if (fetch_timeout_)
+      args_storage.reserve (1);
+
     cstrings args;
 
     if (!sudo_.empty ())
@@ -721,6 +726,18 @@ namespace bpkg
       args.push_back ("--assume-no");
     }
 
+    // Add the network operations timeout options, if requested.
+    //
+    if (fetch_timeout_)
+    {
+      args.push_back ("-o");
+
+      args_storage.push_back (
+        "Acquire::http::Timeout=" + to_string (*fetch_timeout_));
+
+      args.push_back (args_storage.back ().c_str ());
+    }
+
     try
     {
       const process_path* pp (nullptr);
@@ -758,7 +775,9 @@ namespace bpkg
   void system_package_manager_debian::
   apt_get_update ()
   {
-    pair<cstrings, const process_path&> args_pp (apt_get_common ("update"));
+    strings args_storage;
+    pair<cstrings, const process_path&> args_pp (
+      apt_get_common ("update", args_storage));
 
     cstrings& args (args_pp.first);
     const process_path& pp (args_pp.second);
@@ -815,7 +834,9 @@ namespace bpkg
   {
     assert (!pkgs.empty ());
 
-    pair<cstrings, const process_path&> args_pp (apt_get_common ("install"));
+    strings args_storage;
+    pair<cstrings, const process_path&> args_pp (
+      apt_get_common ("install", args_storage));
 
     cstrings& args (args_pp.first);
     const process_path& pp (args_pp.second);

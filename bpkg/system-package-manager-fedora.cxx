@@ -739,8 +739,15 @@ namespace bpkg
   // Prepare the common options for commands which update the system.
   //
   pair<cstrings, const process_path&> system_package_manager_fedora::
-  dnf_common (const char* command)
+  dnf_common (const char* command,
+              optional<size_t> fetch_timeout,
+              strings& args_storage)
   {
+    // Pre-allocate the required number of entries in the arguments storage.
+    //
+    if (fetch_timeout)
+      args_storage.reserve (1);
+
     cstrings args;
 
     if (!sudo_.empty ())
@@ -780,16 +787,16 @@ namespace bpkg
       args.push_back ("--assumeno");
     }
 
-    // @@ Should we also add --setopt=timeout=... and --setopt=minrate=...
-    //    options if --fetch-timeout common is specified? For example:
+    // Add the network operations timeout configuration options, if requested.
     //
-    //    string t;
-    //    if (fetch_timeout_)
-    //    {
-    //      t = "--setopt=timeout=" + to_string (*fetch_timeout_);
-    //      args.push_back (t.c_str ());
-    //      args.push_back ("--setopt=minrate=0");
-    //    }
+    if (fetch_timeout)
+    {
+      args_storage.push_back (
+        "--setopt=timeout=" + to_string (*fetch_timeout));
+
+      args.push_back (args_storage.back ().c_str ());
+      args.push_back ("--setopt=minrate=0");
+    }
 
     try
     {
@@ -828,7 +835,9 @@ namespace bpkg
   void system_package_manager_fedora::
   dnf_makecache ()
   {
-    pair<cstrings, const process_path&> args_pp (dnf_common ("makecache"));
+    strings args_storage;
+    pair<cstrings, const process_path&> args_pp (
+      dnf_common ("makecache", fetch_timeout_, args_storage));
 
     cstrings& args (args_pp.first);
     const process_path& pp (args_pp.second);
@@ -908,7 +917,9 @@ namespace bpkg
   {
     assert (!pkgs.empty ());
 
-    pair<cstrings, const process_path&> args_pp (dnf_common ("install"));
+    strings args_storage;
+    pair<cstrings, const process_path&> args_pp (
+      dnf_common ("install", fetch_timeout_, args_storage));
 
     cstrings& args (args_pp.first);
     const process_path& pp (args_pp.second);
@@ -1006,7 +1017,9 @@ namespace bpkg
   {
     assert (!pkgs.empty ());
 
-    pair<cstrings, const process_path&> args_pp (dnf_common ("mark"));
+    strings args_storage;
+    pair<cstrings, const process_path&> args_pp (
+      dnf_common ("mark", nullopt /* fetch_timeout */, args_storage));
 
     cstrings& args (args_pp.first);
     const process_path& pp (args_pp.second);

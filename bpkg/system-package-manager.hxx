@@ -188,10 +188,14 @@ namespace bpkg
     // available version of the not yet installed or partially installed
     // packages.
     //
+    // If fetch timeout (in seconds) is specified, then use it for all the
+    // underlying network operations.
+    //
     system_package_manager (bpkg::os_release&& osr,
                             const target_triplet& h,
                             string a,
                             optional<bool> progress,
+                            optional<size_t> fetch_timeout,
                             bool install,
                             bool fetch,
                             bool yes,
@@ -200,6 +204,7 @@ namespace bpkg
           host (h),
           arch (move (a)),
           progress_ (progress),
+          fetch_timeout_ (fetch_timeout),
           install_ (install),
           fetch_ (fetch),
           yes_ (yes),
@@ -283,7 +288,8 @@ namespace bpkg
                                 const string& version_id,
                                 const vector<string>& like_ids);
   protected:
-    optional<bool> progress_; // --[no]-progress (see also stderr_term)
+    optional<bool>   progress_;      // --[no]-progress (see also stderr_term)
+    optional<size_t> fetch_timeout_; // --fetch-timeout
 
     // The --sys-* option values.
     //
