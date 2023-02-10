@@ -219,7 +219,7 @@ namespace bpkg
   static pair<string, semantic_version>
   parse_distribution (string&& d,
                       const string& value_name,
-                      const available_package& ap,
+                      const shared_ptr<available_package>& ap,
                       const lazy_shared_ptr<repository_fragment>& af)
   {
     string dn (move (d));      // <name>[_<version>]
@@ -270,8 +270,8 @@ namespace bpkg
 
       diag_record dr (fail);
       dr << "invalid distribution version '" << string (dn, p + 1)
-         << "' in value " << value_name << " for package " << ap.id.name
-         << ' ' << ap.version;
+         << "' in value " << value_name << " for package " << ap->id.name
+         << ' ' << ap->version;
 
       if (db != nullptr)
         dr << *db;
@@ -321,7 +321,7 @@ namespace bpkg
           if (optional<string> d = dv.distribution ("-name"))
           {
             pair<string, semantic_version> dnv (
-              parse_distribution (move (*d), dv.name, *ap, a.second));
+              parse_distribution (move (*d), dv.name, ap, a.second));
 
             semantic_version& dvr (dnv.second);
 
@@ -379,7 +379,7 @@ namespace bpkg
   }
 
   optional<string> system_package_manager::
-  system_package_version (const available_package& ap,
+  system_package_version (const shared_ptr<available_package>& ap,
                           const lazy_shared_ptr<repository_fragment>& af,
                           const string& name_id,
                           const string& version_id,
@@ -395,8 +395,8 @@ namespace bpkg
     // the distribution version is equal to the specified one. Otherwise (the
     // version is less), continue iterating while preferring system version
     // candidates for greater distribution versions. Note that here we are
-    // trying to pick the system version which distribution version closest
-    // (but never greater) to the specified distribution version, similar to
+    // trying to pick the system version with distribution version closest to
+    // (but never greater than) the specified distribution version, similar to
     // what we do in downstream_package_version() (see its
     // downstream_version() lambda for details).
     //
@@ -407,7 +407,7 @@ namespace bpkg
       optional<string> r;
       semantic_version rv;
 
-      for (const distribution_name_value& dv: ap.distribution_values)
+      for (const distribution_name_value& dv: ap->distribution_values)
       {
         if (optional<string> d = dv.distribution ("-version"))
         {
@@ -484,7 +484,7 @@ namespace bpkg
     // specified one. Otherwise (the version is less), continue iterating
     // while preferring downstream version candidates for greater distribution
     // versions. Note that here we are trying to use a version mapping for the
-    // distribution version closest (but never greater) to the specified
+    // distribution version closest to (but never greater than) the specified
     // distribution version. So, for example, if both following values contain
     // a matching mapping, then for debian 11 we prefer the downstream version
     // produced by the debian_10-to-downstream-version value:
@@ -508,7 +508,7 @@ namespace bpkg
           if (optional<string> d = nv.distribution ("-to-downstream-version"))
           {
             pair<string, semantic_version> dnv (
-              parse_distribution (move (*d), nv.name, *ap, a.second));
+              parse_distribution (move (*d), nv.name, ap, a.second));
 
             semantic_version& dvr (dnv.second);
 

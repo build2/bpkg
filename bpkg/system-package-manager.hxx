@@ -280,15 +280,15 @@ namespace bpkg
     // <distribution>-version values corresponding to name_id. If none match,
     // then repeat the above process for every like_ids entry with version_id
     // equal 0. If still no match, then return nullopt (in which case the
-    // caller may choose to fallback to the upstream package version or do
-    // something more elaborate).
+    // caller may choose to fallback to the upstream/bpkg package version or
+    // do something more elaborate).
     //
     // Note that lazy_shared_ptr<repository_fragment> is used only for
     // diagnostics and conveys the database the available package object
     // belongs to.
     //
     static optional<string>
-    system_package_version (const available_package&,
+    system_package_version (const shared_ptr<available_package>&,
                             const lazy_shared_ptr<repository_fragment>&,
                             const string& name_id,
                             const string& version_id,
