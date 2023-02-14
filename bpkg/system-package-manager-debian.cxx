@@ -1567,7 +1567,7 @@ namespace bpkg
     //
     //   On one hand, if we keep the epoch, it won't necessarily match
     //   Debian's native package epoch. But on the other it will allow our
-    //   binary packages form different epochs to co-exist. Seeing that this
+    //   binary packages from different epochs to co-exist. Seeing that this
     //   can be easily overridden with a custom distribution version, let's
     //   keep it.
     //
@@ -1921,7 +1921,7 @@ namespace bpkg
       {
         if (!ops_->wipe_out ())
           fail << "directory " << out << " is not empty" <<
-            info << "use --wipe to clean it up but be careful";
+            info << "use --wipe-out to clean it up but be careful";
 
         rm_r (out, false);
       }
