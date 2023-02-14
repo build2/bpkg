@@ -164,11 +164,13 @@ namespace bpkg
     system_package_manager_debian (bpkg::os_release&& osr,
                                    const target_triplet& h,
                                    string a,
-                                   optional<bool> progress)
+                                   optional<bool> progress,
+                                   const pkg_bindist_options& ops)
         : system_package_manager (move (osr),
                                   h,
                                   a.empty () ? arch_from_target (h) : move (a),
-                                  progress) {}
+                                  progress),
+          ops_ (&ops) {}
 
     // Implementation details exposed for testing (see definitions for
     // documentation).
@@ -200,6 +202,11 @@ namespace bpkg
 
     static string
     arch_from_target (const target_triplet&);
+
+    package_status
+    map_package (const package_name&,
+                 const version&,
+                 const available_packages&);
 
     // If simulate is not NULL, then instead of executing the actual apt-cache
     // and apt-get commands simulate their execution: (1) for apt-cache by
@@ -242,6 +249,8 @@ namespace bpkg
     bool installed_ = false; // True if already installed.
 
     std::map<package_name, optional<system_package_status_debian>> status_cache_;
+
+    const pkg_bindist_options* ops_ = nullptr; // Only for production.
   };
 }
 

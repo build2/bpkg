@@ -154,7 +154,7 @@ namespace bpkg
             os.like_ids.push_back ("debian");
 
           r.reset (new system_package_manager_debian (
-                     move (os), host, arch, progress));
+                     move (os), host, arch, progress, o));
         }
         else if (is_or_like (os, "fedora") ||
                  is_or_like (os, "rhel")   ||

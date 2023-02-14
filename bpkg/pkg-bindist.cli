@@ -98,6 +98,19 @@ namespace bpkg
        documentation in the build system manual for details. This option
        only makes sense together with \cb{--recursive}."
     }
+
+    bool --wipe-out
+    {
+      "Wipe the output directory (\ci{out-dir}) clean before using it to
+       generate the binary package."
+    }
+
+    bool --keep-out
+    {
+      "Keep intermediate files in the output directory (\ci{out-dir}) that
+       were used to generate the binary package. This is primarily useful
+       for troubleshooting."
+    }
   };
 
   "

@@ -346,6 +346,9 @@ namespace bpkg
                                            bool yes,
                                            const string& sudo);
 
+  // Note that the reference to options is expected to outlive the returned
+  // instance.
+  //
   class pkg_bindist_options;
 
   unique_ptr<system_package_manager>
