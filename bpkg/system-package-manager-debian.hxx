@@ -23,10 +23,10 @@ namespace bpkg
   // For background, a library in Debian is normally split up into several
   // packages: the shared library package (e.g., libfoo1 where 1 is the ABI
   // version), the development files package (e.g., libfoo-dev), the
-  // documentation files package (e.g., libfoo-doc), the debug symbols
-  // package (e.g., libfoo1-dbg), and the architecture-independent files
-  // (e.g., libfoo1-common). All the packages except -dev are optional
-  // and there is quite a bit of variability here. Here are a few examples:
+  // documentation files package (e.g., libfoo-doc), the debug symbols package
+  // (e.g., libfoo1-dbg), and the (usually) architecture-independent files
+  // (e.g., libfoo1-common). All the packages except -dev are optional and
+  // there is quite a bit of variability here. Here are a few examples:
   //
   // libsqlite3-0 libsqlite3-dev
   //
@@ -130,9 +130,10 @@ namespace bpkg
     pkg_install (const vector<package_name>&) override;
 
     virtual void
-    generate (packages&&,
-              packages&&,
-              strings&&,
+    generate (const packages&,
+              const packages&,
+              const strings&,
+              const package_manifest&,
               const dir_path&,
               optional<recursive_mode>) override;
 

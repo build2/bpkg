@@ -197,9 +197,10 @@ namespace bpkg
     pkg_install (const vector<package_name>&) override;
 
     virtual void
-    generate (packages&&,
-              packages&&,
-              strings&&,
+    generate (const packages&,
+              const packages&,
+              const strings&,
+              const package_manifest&,
               const dir_path&,
               optional<recursive_mode>) override;
 

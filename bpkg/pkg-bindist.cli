@@ -48,11 +48,50 @@ namespace bpkg
      "
   }
 
-  // @@ Have section for each package manager with options?
-
-  class pkg_bindist_options: configuration_options
+  // Place distribution-specific options into separate classes in case one day
+  // we want to only pass their own options to each implementation.
+  //
+  class pkg_bindist_debian_options
   {
-    "\h|PKG-BINDIST OPTIONS|"
+    "\h|PKG-BINDIST DEBIAN OPTIONS|"
+
+    string --debian-section
+    {
+      "<val>",
+      "Alternative \cb{Section} field value in the \cb{control} file for
+       the main binary package. The default is either \cb{libs} or \cb{devel},
+       depending on the package type."
+    }
+
+    string --debian-priority
+    {
+      "<val>",
+      "Alternative \cb{Priority} field value in the \cb{control} file. The
+       default is \cb{optional}."
+    }
+
+    string --debian-maintainer
+    {
+      "<val>",
+      "Alternative \cb{Maintainer} field value in the \cb{control} file. The
+       default is the \cb{package-email} value from package \cb{manifest}."
+    }
+
+    string --debian-architecture
+    {
+      "<vl>",
+      "Alternative \cb{Architecture} field value in the \cb{control} file for
+       the main binary package. The default is \cb{any}."
+    }
+  };
+
+  // NOTE: remember to add the corresponding `--class-doc ...=exclude-base`
+  //       (both in bpkg/ and doc/) if adding a new base class.
+  //
+  class pkg_bindist_options: configuration_options,
+                             pkg_bindist_debian_options
+  {
+    "\h|PKG-BINDIST COMMON OPTIONS|"
 
     string --distribution
     {

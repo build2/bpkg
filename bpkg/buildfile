@@ -215,6 +215,9 @@ if $cli.configured
   cli.cxx{pkg-build-options}: cli.options += --class-doc \
 bpkg::pkg_build_pkg_options=exclude-base --generate-modifier
 
+  cli.cxx{pkg-bindist-options}: cli.options += --class-doc \
+bpkg::pkg_bindist_debian_options=exclude-base
+
   # Avoid generating CLI runtime and empty inline file for help topics.
   #
   cli.cxx{repository-signing repository-types argument-grouping \

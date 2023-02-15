@@ -1830,9 +1830,10 @@ namespace bpkg
   // system and install all the packages directly from their bpkg locations.
   //
   void system_package_manager_debian::
-  generate (packages&& pkgs,
-            packages&& deps,
-            strings&&,
+  generate (const packages& pkgs,
+            const packages& deps,
+            const strings&,
+            const package_manifest& pm,
             const dir_path& out,
             optional<recursive_mode>)
   {
@@ -1845,7 +1846,13 @@ namespace bpkg
     const shared_ptr<selected_package>& sp (pkgs.front ().first);
     const package_name& pn (sp->name);
     const version& pv (sp->version);
-    package_status s (map_package (pn, pv, pkgs.front ().second));
+
+    // @@ TODO: need to factor this to system_package_manager.
+    //
+    bool lib (pn.string ().compare (0, 3, "lib") == 0 && pn.string ().size () > 3);
+
+    const available_packages& aps (pkgs.front ().second);
+    package_status st (map_package (pn, pv, aps));
 
     vector<package_status> sdeps;
     sdeps.reserve (deps.size ());
@@ -1898,12 +1905,12 @@ namespace bpkg
       };
 
       diag_record dr (text);
-      print_status (dr, s);
+      print_status (dr, st);
 
-      for (const package_status& ds: sdeps)
+      for (const package_status& st: sdeps)
       {
         dr << "\n  ";
-        print_status (dr, ds);
+        print_status (dr, st);
       }
     }
 
@@ -1934,6 +1941,172 @@ namespace bpkg
     dir_path deb (src / dir_path ("debian"));
     mk_p (deb);
 
+    // The control file.
+    //
+    // See the "Control files and their fields" chapter in the Debian Policy
+    // Manual for details (for example, which fields are mandatory).
+    //
+    // Note that we try to do a reasonably thorough job (e.g., filling in
+    // sections, etc) with the view that this can be used as a starting point
+    // for manual packaging (and perhaps we could add a mode for this in the
+    // future).
+    //
+    path ctrl (deb / "control");
+    try
+    {
+      ofdstream os (ctrl);
+
+      // First comes the general (source package) stanza.
+      //
+      // Note that Priority semantics is not the same as our priority. Rather
+      // it should reflect the overall functionality of the package. Our
+      // priority is more appropriately mapped to urgency in the changelog.
+      //
+      // If this is not a library, then by default we assume its some kind of
+      // a development tool and use the devel section.
+      //
+      string section (
+        ops_->debian_section_specified () ? ops_->debian_section () :
+        lib                               ? "libs"                  :
+        "devel");
+
+      string priority (
+        ops_->debian_priority_specified () ? ops_->debian_priority () :
+        "optional");
+
+      string maintainer (
+        ops_->debian_maintainer_specified () ? ops_->debian_maintainer () :
+        pm.package_email ? static_cast<const string&> (*pm.package_email) :
+        pm.email         ? static_cast<const string&> (*pm.email)         :
+        string ());
+
+      if (maintainer.empty ())
+        fail << "unable to determine package maintainer from manifest" <<
+          info << "specify explicitly with --debian-maintainer";
+
+      optional<string> homepage (pm.package_url ? pm.package_url->string () :
+                                 pm.url         ? pm.url->string ()         :
+                                 optional<string> ());
+
+      os <<   "Source: "              << pn.string ()               << '\n'
+         <<   "Section: "             << section                    << '\n'
+         <<   "Priority: "            << priority                   << '\n'
+         <<   "Maintainer: "          << maintainer                 << '\n'
+         <<   "Standards-Version: "   << "4.6.2"                    << '\n'
+         <<   "Build-Depends: "       << "debhelper-compat (= 13)"  << '\n'
+         <<   "Rules-Requires-Root: " << "no"                       << '\n';
+      if (homepage)
+        os << "Homepage: "            << *homepage                  << '\n';
+      if (pm.src_url)
+        os << "Vcs-Browser: "         << pm.src_url->string ()      << '\n';
+
+      // Then we have one or more binary package stanzas.
+      //
+      // Note that values from the source package (such as Section, Priority)
+      // are used as defaults for the binary packages.
+      //
+      // We cannot easily detect architecture-independent packages (think
+      // libbutl.bash) and providing an option feels like the best we can do.
+      // Note that the value `any` means architecture-dependent while `all`
+      // means architecture-independent.
+      //
+      // The Multi-Arch hint can be `same` or `foreign`. The former means that
+      // a separate copy of the package may be installed for each architecture
+      // (e.g., library) while the latter -- that a single copy may be used by
+      // all architectures (e.g., executable, -doc, -common). Not that for
+      // some murky reasons Multi-Arch:foreign needs to be explicitly
+      // specified for Architecture:all.
+      //
+      // The Description field is quite messy: it requires both the short
+      // description (our summary) as a first line and a long description (our
+      // description) as the following lines in the multiline format.
+      // Converting our description to the Debian format is not going to be
+      // easy: it can be arbitrarily long and may not even be plain text (it's
+      // commonly the contents of the README.md file). So for now we fake it
+      // with a description of the package component.
+      //
+      string arch (ops_->debian_architecture_specified ()
+                   ? ops_->debian_architecture ()
+                   : "any");
+
+      string march (arch == "all" || !lib ? "foreign" : "same");
+
+      os << '\n'
+         << "Package: "      << st.main                  << '\n'
+         << "Architecture: " << arch                     << '\n'
+         << "Multi-Arch: "   << march                    << '\n'
+         << "Description: "  << pm.summary               << '\n'
+         << " This package contains the runtime files."  << '\n';
+
+      // @@ Depends: common (if any)
+
+      if (!st.dev.empty ())
+      {
+        // Feels like the architecture should be the same as for the main
+        // package.
+        //
+        os <<   '\n'
+           <<   "Package: "      << st.dev                        << '\n'
+           <<   "Section: "      << (lib ? "libdevel" : "devel")  << '\n'
+           <<   "Architecture: " << arch                          << '\n'
+           <<   "Multi-Arch: "   << march                         << '\n';
+        if (!st.doc.empty ())
+          os << "Suggests: "     << st.doc                        << '\n';
+        os <<   "Description: "  << pm.summary                    << '\n'
+           <<   " This package contains the development files."   << '\n';
+
+        // @@ Depends: main
+      }
+
+      if (!st.doc.empty ())
+      {
+        os << '\n'
+           << "Package: "      << st.doc                   << '\n'
+           << "Section: "      << "doc"                    << '\n'
+           << "Architecture: " << "all"                    << '\n'
+           << "Multi-Arch: "   << "foreign"                << '\n'
+           << "Description: "  << pm.summary               << '\n'
+           << " This package contains the documentation."  << '\n';
+      }
+
+      if (!st.dbg.empty ())
+      {
+        os << '\n'
+           << "Package: "      << st.dbg                           << '\n'
+           << "Section: "      << "debug"                          << '\n'
+           << "Priority: "     << "extra"                          << '\n'
+           << "Architecture: " << arch                             << '\n'
+           << "Multi-Arch: "   << march                            << '\n'
+           << "Description: "  << pm.summary                       << '\n'
+           << " This package contains the debugging information."  << '\n';
+
+        // @@ Depends: main
+      }
+
+      if (!st.common.empty ())
+      {
+        // Generally, this package is not necessarily architecture-independent
+        // (for example, it could contain something shared between multiple
+        // binary packages produced from the same source package rather than
+        // something shared between all the architectures of a binary
+        // package). But seeing that we always generate one binary package,
+        // for us it only makes sense as architecture-independent.
+        //
+        os << '\n'
+           << "Package: "      << st.common                                << '\n'
+           << "Architecture: " << "all"                                    << '\n'
+           << "Multi-Arch: "   << "foreign"                                << '\n'
+           << "Description: "  << pm.summary                               << '\n'
+           << " This package contains the architecture-independent files." << '\n';
+      }
+
+      os.close ();
+    }
+    catch (const io_error& e)
+    {
+      fail << "unable to write to " << ctrl << ": " << e;
+    }
+
     // The rules makefile. Note that it must be executable.
     //
     path rules (deb / "rules");
@@ -1958,6 +2131,8 @@ namespace bpkg
         os << "export DH_QUIET=1\n";
       else if (verb >= 2)
         os << "export DH_VERBOSE=1\n";
+
+      // @@ TODO: remember to override config.install.sudo.
 
       os.close ();
     }

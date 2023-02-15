@@ -7,6 +7,7 @@
 #include <bpkg/package-odb.hxx>
 #include <bpkg/package-query.hxx>
 #include <bpkg/database.hxx>
+#include <bpkg/pkg-verify.hxx>
 #include <bpkg/diagnostics.hxx>
 #include <bpkg/system-package-manager.hxx>
 
@@ -269,6 +270,20 @@ namespace bpkg
 
     t.commit ();
 
+    // Load the package manifest (source of extra metadata). This should be
+    // always possible since the package is configured and is not system.
+    //
+    const shared_ptr<selected_package>& sp (pkgs.front ().first);
+
+    package_manifest pm (
+      pkg_verify (o,
+                  sp->effective_src_root (db.config_orig),
+                  true  /* ignore_unknown */,
+                  false /* ignore_toolchain */,
+                  false /* load_buildfiles */,
+                  // Copy potentially fixed up version from selected package.
+                  [&sp] (version& v) {v = sp->version;}));
+
     // Note that we shouldn't need to install anything or use sudo.
     //
     unique_ptr<system_package_manager> spm (
@@ -286,20 +301,10 @@ namespace bpkg
 
     // @@ TODO: pass/handle --private.
 
-    // Note that we certain move the arguments to allow the implementation to
-    // rearrange things if/as convenient.
-    //
-    spm->generate (move (pkgs),
-                   move (deps),
-                   move (vars),
-                   out,
-                   rec);
+    spm->generate (pkgs, deps, vars, pm, out, rec);
 
-
-    // @@ TODO: need to save name/version (or change the output, maybe
-    //    to something returned by spm?
+    // @@ TODO: change the output, maybe to something returned by spm?
     //
-#if 0
     if (verb && !o.no_result ())
     {
       const selected_package& p (*pkgs.front ().first);
@@ -307,7 +312,6 @@ namespace bpkg
       text << "generated " << spm->os_release.name_id << " package for "
            << p.name << '/' << p.version;
     }
-#endif
 
     return 0;
   }

@@ -1783,9 +1783,10 @@ namespace bpkg
   }
 
   void system_package_manager_fedora::
-  generate (packages&&,
-            packages&&,
-            strings&&,
+  generate (const packages&,
+            const packages&,
+            const strings&,
+            const package_manifest&,
             const dir_path&,
             optional<recursive_mode>)
   {

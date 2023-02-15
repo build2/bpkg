@@ -4,9 +4,6 @@
 #ifndef BPKG_SYSTEM_PACKAGE_MANAGER_HXX
 #define BPKG_SYSTEM_PACKAGE_MANAGER_HXX
 
-#include <libbpkg/manifest.hxx>     // version
-#include <libbpkg/package-name.hxx>
-
 #include <bpkg/types.hxx>
 #include <bpkg/utility.hxx>
 
@@ -161,6 +158,10 @@ namespace bpkg
     // all the packages in deps. For non-system packages there is always a
     // single available package that corresponds to the selected package.
     //
+    // The passed package manifest corresponds to the first package in pkgs
+    // (normally used as a source of additional package metadata such as
+    // summary, emails, urls, etc).
+    //
     // See the pkg-bindist(1) man page and the pkg_bindist() function
     // implementation for background and details.
     //
@@ -170,9 +171,10 @@ namespace bpkg
     enum class recursive_mode {auto_, full};
 
     virtual void
-    generate (packages&& pkgs,
-              packages&& deps,
-              strings&& vars,
+    generate (const packages& pkgs,
+              const packages& deps,
+              const strings& vars,
+              const package_manifest&,
               const dir_path& out,
               optional<recursive_mode>) = 0;
 
