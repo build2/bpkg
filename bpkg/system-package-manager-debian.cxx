@@ -1951,6 +1951,15 @@ namespace bpkg
     // for manual packaging (and perhaps we could add a mode for this in the
     // future).
     //
+    // Also note that this file supports variable substitutions (for example,
+    // ${binary:Version}) as described in deb-substvars(5). While we could do
+    // without, it is widely used in manual packages so we do the same. Note,
+    // however, that we don't use the shlibs:Depends/misc:Depends mechanism
+    // (which automatically detects dependencies) since we have an accurate
+    // set and some of them may not be system packages.
+    //
+    // @@ How do we disable this *:Depends mechanism in debhelper?
+    //
     path ctrl (deb / "control");
     try
     {
@@ -1958,8 +1967,8 @@ namespace bpkg
 
       // First comes the general (source package) stanza.
       //
-      // Note that Priority semantics is not the same as our priority. Rather
-      // it should reflect the overall functionality of the package. Our
+      // Note that the Priority semantics is not the same as our priority.
+      // Rather it should reflect the overall importance of the package. Our
       // priority is more appropriately mapped to urgency in the changelog.
       //
       // If this is not a library, then by default we assume its some kind of
@@ -1984,9 +1993,9 @@ namespace bpkg
         fail << "unable to determine package maintainer from manifest" <<
           info << "specify explicitly with --debian-maintainer";
 
-      optional<string> homepage (pm.package_url ? pm.package_url->string () :
-                                 pm.url         ? pm.url->string ()         :
-                                 optional<string> ());
+      string homepage (pm.package_url ? pm.package_url->string () :
+                       pm.url         ? pm.url->string ()         :
+                       string ());
 
       os <<   "Source: "              << pn.string ()               << '\n'
          <<   "Section: "             << section                    << '\n'
@@ -1995,15 +2004,15 @@ namespace bpkg
          <<   "Standards-Version: "   << "4.6.2"                    << '\n'
          <<   "Build-Depends: "       << "debhelper-compat (= 13)"  << '\n'
          <<   "Rules-Requires-Root: " << "no"                       << '\n';
-      if (homepage)
-        os << "Homepage: "            << *homepage                  << '\n';
+      if (!homepage.empty ())
+        os << "Homepage: "            << homepage                   << '\n';
       if (pm.src_url)
         os << "Vcs-Browser: "         << pm.src_url->string ()      << '\n';
 
       // Then we have one or more binary package stanzas.
       //
-      // Note that values from the source package (such as Section, Priority)
-      // are used as defaults for the binary packages.
+      // Note that values from the source package stanza (such as Section,
+      // Priority) are used as defaults for the binary packages.
       //
       // We cannot easily detect architecture-independent packages (think
       // libbutl.bash) and providing an option feels like the best we can do.
@@ -2023,7 +2032,8 @@ namespace bpkg
       // Converting our description to the Debian format is not going to be
       // easy: it can be arbitrarily long and may not even be plain text (it's
       // commonly the contents of the README.md file). So for now we fake it
-      // with a description of the package component.
+      // with a description of the package component. Note also that
+      // traditionally the Description field comes last.
       //
       string arch (ops_->debian_architecture_specified ()
                    ? ops_->debian_architecture ()
@@ -2031,17 +2041,58 @@ namespace bpkg
 
       string march (arch == "all" || !lib ? "foreign" : "same");
 
-      os << '\n'
-         << "Package: "      << st.main                  << '\n'
-         << "Architecture: " << arch                     << '\n'
-         << "Multi-Arch: "   << march                    << '\n'
-         << "Description: "  << pm.summary               << '\n'
-         << " This package contains the runtime files."  << '\n';
+      {
+        string depends;
 
-      // @@ Depends: common (if any)
+        if (!st.common.empty ())
+          depends = st.common + " (= ${binary:Version})";
+
+        for (const package_status& st: sdeps)
+        {
+          if (!depends.empty ())
+            depends += ", ";
+
+          depends += st.main + " (>= " + st.system_version + ')';
+        }
+
+        // @@ libc, libstdc++N? -- need language(s)
+
+        os <<   '\n'
+           <<   "Package: "      << st.main                  << '\n'
+           <<   "Architecture: " << arch                     << '\n'
+           <<   "Multi-Arch: "   << march                    << '\n';
+        if (!depends.empty ())
+          os << "Depends: "      << depends                  << '\n';
+        os <<   "Description: "  << pm.summary               << '\n'
+           <<   " This package contains the runtime files."  << '\n';
+      }
 
       if (!st.dev.empty ())
       {
+        string depends (st.main + " (= ${binary:Version})");
+
+        for (const package_status& st: sdeps)
+        {
+          // Doesn't look like we can distinguish between interface and
+          // implementation dependencies here. So better to over- than
+          // under-specify.
+          //
+          if (!st.dev.empty ())
+          {
+            if (!depends.empty ())
+              depends += ", ";
+
+            depends += st.dev + " (>= " + st.system_version + ')';
+          }
+        }
+
+        // @@ libc-dev, libc6-dev, libc6-dev | libc-dev, libstdc++NN-dev -- need language(s)
+        //
+        // Note: libc6-dev provides libc-dev and libstdc++NN-dev provides
+        // libstdc++-dev. Though it would probably be better to depends on the
+        // exact version.
+        //
+
         // Feels like the architecture should be the same as for the main
         // package.
         //
@@ -2052,10 +2103,10 @@ namespace bpkg
            <<   "Multi-Arch: "   << march                         << '\n';
         if (!st.doc.empty ())
           os << "Suggests: "     << st.doc                        << '\n';
+        if (!depends.empty ())
+          os << "Depends: "      << depends                       << '\n';
         os <<   "Description: "  << pm.summary                    << '\n'
            <<   " This package contains the development files."   << '\n';
-
-        // @@ Depends: main
       }
 
       if (!st.doc.empty ())
@@ -2071,16 +2122,18 @@ namespace bpkg
 
       if (!st.dbg.empty ())
       {
-        os << '\n'
-           << "Package: "      << st.dbg                           << '\n'
-           << "Section: "      << "debug"                          << '\n'
-           << "Priority: "     << "extra"                          << '\n'
-           << "Architecture: " << arch                             << '\n'
-           << "Multi-Arch: "   << march                            << '\n'
-           << "Description: "  << pm.summary                       << '\n'
-           << " This package contains the debugging information."  << '\n';
+        string depends (st.main + " (= ${binary:Version})");
 
-        // @@ Depends: main
+        os <<   '\n'
+           <<   "Package: "      << st.dbg                           << '\n'
+           <<   "Section: "      << "debug"                          << '\n'
+           <<   "Priority: "     << "extra"                          << '\n'
+           <<   "Architecture: " << arch                             << '\n'
+           <<   "Multi-Arch: "   << march                            << '\n';
+        if (!depends.empty ())
+          os << "Depends: "      << depends                          << '\n';
+        os <<   "Description: "  << pm.summary                       << '\n'
+           <<   " This package contains the debugging information."  << '\n';
       }
 
       if (!st.common.empty ())
@@ -2091,6 +2144,10 @@ namespace bpkg
         // something shared between all the architectures of a binary
         // package). But seeing that we always generate one binary package,
         // for us it only makes sense as architecture-independent.
+        //
+        // It's also not clear what dependencies we can deduce for this
+        // package. Assuming that it depends on all the dependency -common
+        // packages is probably unreasonable.
         //
         os << '\n'
            << "Package: "      << st.common                                << '\n'
