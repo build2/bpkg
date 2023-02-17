@@ -1851,6 +1851,40 @@ namespace bpkg
     //
     bool lib (pn.string ().compare (0, 3, "lib") == 0 && pn.string ().size () > 3);
 
+    // @@ While it doesn't look like we need lang in available_package, we
+    //    do need type since it's used to map dependencies.
+    //
+    // @@ Effective (contain `cc`)?
+    //
+    struct package_lang
+    {
+      string name;
+      bool   impl; // True if implementation-only.
+    };
+    small_vector<package_lang, 1> langs {{"cc", false}};
+
+    // For now we only know how to package C-common libraries. But we allow
+    // other implementation languages.
+    //
+    if (lib)
+    {
+      for (const package_lang& l: langs)
+        if (!l.impl && l.name != "c" && l.name != "c++" && l.name != "cc")
+          fail << l.name << " libraries are not yet supported";
+    }
+
+    // Return true if this package uses the specified language, only as
+    // interface language if intf_only is true.
+    //
+    auto lang = [&langs] (const char* n, bool intf_only = false) -> bool
+    {
+      return find_if (langs.begin (), langs.end (),
+                      [n, intf_only] (const package_lang& l)
+                      {
+                        return (!intf_only || !l.impl) && l.name == n;
+                      }) != langs.end ();
+    };
+
     const available_packages& aps (pkgs.front ().second);
     package_status st (map_package (pn, pv, aps));
 
@@ -2055,7 +2089,11 @@ namespace bpkg
           depends += st.main + " (>= " + st.system_version + ')';
         }
 
-        // @@ libc, libstdc++N? -- need language(s)
+        // Note that we are not going to add dependencies on libcN (currently
+        // libc6) or libstdc++N (currently libstdc++6) because it's not easy
+        // to determine N and they both are normally part of the base system.
+
+        // @@ What about other language runtimes?
 
         os <<   '\n'
            <<   "Package: "      << st.main                  << '\n'
@@ -2086,12 +2124,27 @@ namespace bpkg
           }
         }
 
-        // @@ libc-dev, libc6-dev, libc6-dev | libc-dev, libstdc++NN-dev -- need language(s)
+        // Add dependency on libcN-dev and libstdc++-N-dev.
         //
-        // Note: libc6-dev provides libc-dev and libstdc++NN-dev provides
-        // libstdc++-dev. Though it would probably be better to depends on the
-        // exact version.
+        // Note: that libcN-dev provides libc-dev and libstdc++N-dev provides
+        // libstdc++-dev. While it would be better to depend on the exact
+        // versions, determining N is not easy (and in case of listdc++
+        // there could be multiple installed at the same time and we would
+        // actually
         //
+        // Note that we haven't seen just libc-dev in any native packages,
+        // it's always either libc6-dev or libc6-dev|libc-dev. So we will
+        // see how it goes.
+        //
+        // @@ Add --debian-main-depends, --debian-dev-depends options as
+        //    overrides?
+        //
+        // If this is an undetermined C-common library, we assume it may be
+        // C++ (better to over- than under-specify).
+        //
+        bool cc (lang ("cc", true));
+        if (cc || (cc = lang ("c++", true))) depends += ", libstdc++-dev";
+        if (cc || (cc = lang ("c",   true))) depends += ", libc-dev";
 
         // Feels like the architecture should be the same as for the main
         // package.
