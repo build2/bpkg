@@ -1041,6 +1041,8 @@ a full package manifest they can be interleaved with non-header values.
 name: <name>
 version: <version>
 [upstream-version]: <string>
+[type]: <type>
+[language]: <lang>
 [project]: <name>
 [priority]: <priority> [; <comment>]
 summary: <text>
@@ -1127,6 +1129,46 @@ as a \c{bpkg} package version or simply be inconvenient to work with. In this
 case you would need to come up with an upstream-to-downstream version mapping
 and use the \c{upstream-version} value to preserve the original version for
 information.
+
+
+\h2#manifest-package-type-language|\c{type, language}|
+
+\
+[type]: <type>
+[language]: <lang>
+
+<type> = <name>
+<lang> = <name>[=impl]
+\
+
+The package type and programming language(s).
+
+The currently recognized package types are \c{exe}, \c{lib}, and \c{other}. If
+the type is not specified, then if the package name starts with \c{lib}, then
+it is assumed to be \c{lib} and \c{exe} otherwise (see \l{#package-name
+Package Name} for details). Other package types may be added in the future and
+code that does not recognize a certain package type should treat it as
+\c{other}.
+
+The package language must be in the lower case, for example, \c{c}, \c{c++},
+\c{rust}, \c{bash}. If the language is not specified, then if the package name
+has an extension (as in, for example, \c{libbutl.bash}; see \l{#package-name
+Package Name} for details) the extension is assumed to name the package
+language. Otherwise, \c{cc} (unspecified \c{c}-common language) is assumed. If
+a package uses multiple languages, then multiple \c{language} values must be
+specified. The languages which are only used in a library's implementation (as
+opposed to also in its interface) should be marked as such. For example, for a
+C library with C++ implementation:
+
+\
+type: lib
+language: c
+language: c++=impl
+\
+
+\N|If the use of a language, such as C++, also always implies the use of
+another language, such as C, then such an implied language need not be
+explicitly specified.|
 
 
 \h2#manifest-package-project|\c{project}|

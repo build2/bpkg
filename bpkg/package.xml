@@ -1,4 +1,48 @@
 <changelog xmlns="http://www.codesynthesis.com/xmlns/odb/changelog" database="sqlite" version="1">
+  <changeset version="23">
+    <alter-table name="main.available_package">
+      <add-column name="type" type="TEXT" null="true"/>
+    </alter-table>
+    <add-table name="main.available_package_languages" kind="container">
+      <column name="name" type="TEXT" null="true" options="COLLATE NOCASE"/>
+      <column name="version_epoch" type="INTEGER" null="true"/>
+      <column name="version_canonical_upstream" type="TEXT" null="true"/>
+      <column name="version_canonical_release" type="TEXT" null="true" options="COLLATE BINARY"/>
+      <column name="version_revision" type="INTEGER" null="true"/>
+      <column name="version_iteration" type="INTEGER" null="true"/>
+      <column name="index" type="INTEGER" null="true"/>
+      <column name="language_name" type="TEXT" null="true"/>
+      <column name="language_impl" type="INTEGER" null="true"/>
+      <foreign-key name="object_id_fk" on-delete="CASCADE">
+        <column name="name"/>
+        <column name="version_epoch"/>
+        <column name="version_canonical_upstream"/>
+        <column name="version_canonical_release"/>
+        <column name="version_revision"/>
+        <column name="version_iteration"/>
+        <references table="main.available_package">
+          <column name="name"/>
+          <column name="version_epoch"/>
+          <column name="version_canonical_upstream"/>
+          <column name="version_canonical_release"/>
+          <column name="version_revision"/>
+          <column name="version_iteration"/>
+        </references>
+      </foreign-key>
+      <index name="available_package_languages_object_id_i">
+        <column name="name"/>
+        <column name="version_epoch"/>
+        <column name="version_canonical_upstream"/>
+        <column name="version_canonical_release"/>
+        <column name="version_revision"/>
+        <column name="version_iteration"/>
+      </index>
+      <index name="available_package_languages_index_i">
+        <column name="index"/>
+      </index>
+    </add-table>
+  </changeset>
+
   <changeset version="22">
     <alter-table name="main.available_package">
       <add-column name="upstream_version" type="TEXT" null="true"/>

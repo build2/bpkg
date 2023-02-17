@@ -11,6 +11,7 @@
 #include <type_traits> // static_assert
 
 #include <odb/core.hxx>
+#include <odb/section.hxx>
 #include <odb/nested-container.hxx>
 
 #include <libbutl/timestamp.hxx>
@@ -27,7 +28,7 @@
 //
 #define DB_SCHEMA_VERSION_BASE 12
 
-#pragma db model version(DB_SCHEMA_VERSION_BASE, 22, closed)
+#pragma db model version(DB_SCHEMA_VERSION_BASE, 23, closed)
 
 namespace bpkg
 {
@@ -513,6 +514,10 @@ namespace bpkg
     operator size_t () const {return result;}
   };
 
+  // language
+  //
+  #pragma db value(language) definition
+
   // package_location
   //
   #pragma db value
@@ -685,6 +690,11 @@ namespace bpkg
     upstream_version_type version;
 
     optional<string> upstream_version;
+    optional<string> type;
+
+    small_vector<language, 1> languages;
+    odb::section languages_section;
+
     optional<package_name> project;
 
     // List of repository fragments to which this package version belongs
@@ -743,6 +753,8 @@ namespace bpkg
         : id (move (m.name), m.version),
           version (move (m.version)),
           upstream_version (move (m.upstream_version)),
+          type (move (m.type)),
+          languages (move (m.languages)),
           project (move (m.project)),
           dependencies (convert (move (m.dependencies))),
           tests (move (m.tests)),
@@ -794,6 +806,16 @@ namespace bpkg
     //
     #pragma db member(id) id column("")
     #pragma db member(version) set(this.version.init (this.id.version, (?)))
+
+    // languages
+    //
+    #pragma db member(languages) id_column("") value_column("language_") \
+      section(languages_section)
+
+    #pragma db member(languages_section) load(lazy) update(always)
+
+    // locations
+    //
     #pragma db member(locations) id_column("") value_column("") \
       unordered value_not_null
 
