@@ -1534,6 +1534,15 @@ namespace bpkg
                             ns.front (),
                             false /* need_doc */,
                             false /* need_dbg */);
+
+      // If this is -dev without main, then derive main by stripping the -dev
+      // suffix. This feels tighter than just using the bpkg package name.
+      //
+      if (r.main.empty ())
+      {
+        assert (!r.dev.empty ());
+        r.main.assign (r.dev, 0, r.dev.size () - 4);
+      }
     }
 
     // Map the version.
