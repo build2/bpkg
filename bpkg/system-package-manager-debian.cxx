@@ -3,6 +3,9 @@
 
 #include <bpkg/system-package-manager-debian.hxx>
 
+#include <locale>
+
+#include <libbutl/timestamp.hxx>
 #include <libbutl/filesystem.hxx> // permissions
 
 #include <bpkg/diagnostics.hxx>
@@ -1860,11 +1863,6 @@ namespace bpkg
     //
     bool lib (pn.string ().compare (0, 3, "lib") == 0 && pn.string ().size () > 3);
 
-    // @@ While it doesn't look like we need lang in available_package, we
-    //    do need type since it's used to map dependencies.
-    //
-    // @@ Effective (contain `cc`)?
-    //
     struct package_lang
     {
       string name;
@@ -1872,8 +1870,8 @@ namespace bpkg
     };
     small_vector<package_lang, 1> langs {{"cc", false}};
 
-    // For now we only know how to package C-common libraries. But we allow
-    // other implementation languages.
+    // For now we only know how to handle libraries with C-common interface
+    // languages. But we allow other implementation languages.
     //
     if (lib)
     {
@@ -2003,6 +2001,20 @@ namespace bpkg
     //
     // @@ How do we disable this *:Depends mechanism in debhelper?
     //
+    string homepage (pm.package_url ? pm.package_url->string () :
+                     pm.url         ? pm.url->string ()         :
+                     string ());
+
+    string maintainer (
+      ops_->debian_maintainer_specified () ? ops_->debian_maintainer () :
+      pm.package_email ? static_cast<const string&> (*pm.package_email) :
+      pm.email         ? static_cast<const string&> (*pm.email)         :
+      string ());
+
+    if (maintainer.empty ())
+      fail << "unable to determine package maintainer from manifest" <<
+        info << "specify explicitly with --debian-maintainer";
+
     path ctrl (deb / "control");
     try
     {
@@ -2026,21 +2038,7 @@ namespace bpkg
         ops_->debian_priority_specified () ? ops_->debian_priority () :
         "optional");
 
-      string maintainer (
-        ops_->debian_maintainer_specified () ? ops_->debian_maintainer () :
-        pm.package_email ? static_cast<const string&> (*pm.package_email) :
-        pm.email         ? static_cast<const string&> (*pm.email)         :
-        string ());
-
-      if (maintainer.empty ())
-        fail << "unable to determine package maintainer from manifest" <<
-          info << "specify explicitly with --debian-maintainer";
-
-      string homepage (pm.package_url ? pm.package_url->string () :
-                       pm.url         ? pm.url->string ()         :
-                       string ());
-
-      os <<   "Source: "              << pn.string ()               << '\n'
+      os <<   "Source: "              << pn                         << '\n'
          <<   "Section: "             << section                    << '\n'
          <<   "Priority: "            << priority                   << '\n'
          <<   "Maintainer: "          << maintainer                 << '\n'
@@ -2098,11 +2096,28 @@ namespace bpkg
           depends += st.main + " (>= " + st.system_version + ')';
         }
 
-        // Note that we are not going to add dependencies on libcN (currently
-        // libc6) or libstdc++N (currently libstdc++6) because it's not easy
-        // to determine N and they both are normally part of the base system.
+        if (ops_->debian_main_depends_specified ())
+        {
+          if (!ops_->debian_main_depends ().empty ())
+          {
+            if (!depends.empty ())
+              depends += ", ";
 
-        // @@ What about other language runtimes?
+            depends += ops_->debian_main_depends ();
+          }
+        }
+        else
+        {
+          // Note that we are not going to add dependencies on libcN
+          // (currently libc6) or libstdc++N (currently libstdc++6) because
+          // it's not easy to determine N and they both are normally part of
+          // the base system.
+          //
+          // What about other language runtimes? Well, it doesn't seem like we
+          // can deduce those automatically so we will either have to add ad
+          // hoc support or the user will have to provide them manually with
+          // --debian-main-depends.
+        }
 
         os <<   '\n'
            <<   "Package: "      << st.main                  << '\n'
@@ -2125,35 +2140,36 @@ namespace bpkg
           // under-specify.
           //
           if (!st.dev.empty ())
-          {
-            if (!depends.empty ())
-              depends += ", ";
-
-            depends += st.dev + " (>= " + st.system_version + ')';
-          }
+            depends += ", " + st.dev + " (>= " + st.system_version + ')';
         }
 
-        // Add dependency on libcN-dev and libstdc++-N-dev.
-        //
-        // Note: that libcN-dev provides libc-dev and libstdc++N-dev provides
-        // libstdc++-dev. While it would be better to depend on the exact
-        // versions, determining N is not easy (and in case of listdc++
-        // there could be multiple installed at the same time and we would
-        // actually
-        //
-        // Note that we haven't seen just libc-dev in any native packages,
-        // it's always either libc6-dev or libc6-dev|libc-dev. So we will
-        // see how it goes.
-        //
-        // @@ Add --debian-main-depends, --debian-dev-depends options as
-        //    overrides?
-        //
-        // If this is an undetermined C-common library, we assume it may be
-        // C++ (better to over- than under-specify).
-        //
-        bool cc (lang ("cc", true));
-        if (cc || (cc = lang ("c++", true))) depends += ", libstdc++-dev";
-        if (cc || (cc = lang ("c",   true))) depends += ", libc-dev";
+        if (ops_->debian_dev_depends_specified ())
+        {
+          if (!ops_->debian_dev_depends ().empty ())
+          {
+            depends += ", " + ops_->debian_dev_depends ();
+          }
+        }
+        else
+        {
+          // Add dependency on libcN-dev and libstdc++-N-dev.
+          //
+          // Note: libcN-dev provides libc-dev and libstdc++N-dev provides
+          // libstdc++-dev. While it would be better to depend on the exact
+          // versions, determining N is not easy (and in case of listdc++
+          // there could be multiple installed at the same time).
+          //
+          // Note that we haven't seen just libc-dev in any native packages,
+          // it's always either libc6-dev or libc6-dev|libc-dev. So we will
+          // see how it goes.
+          //
+          // If this is an undetermined C-common library, we assume it may be
+          // C++ (better to over- than under-specify).
+          //
+          bool cc (lang ("cc", true));
+          if (cc || (cc = lang ("c++", true))) depends += ", libstdc++-dev";
+          if (cc || (cc = lang ("c",   true))) depends += ", libc-dev";
+        }
 
         // Feels like the architecture should be the same as for the main
         // package.
@@ -2224,6 +2240,139 @@ namespace bpkg
     catch (const io_error& e)
     {
       fail << "unable to write to " << ctrl << ": " << e;
+    }
+
+    // The changelog file.
+    //
+    // See the "Debian changelog" section in the Debian Policy Manual for
+    // details.
+    //
+    // In particular, this is the sole source of the package version.
+    //
+    timestamp now (system_clock::now ());
+
+    path chlog (deb / "changelog");
+    try
+    {
+      ofdstream os (chlog);
+
+      // The first line has the following format:
+      //
+      // <src-package> (<version>) <distribution>; urgency=<urgency>
+      //
+      // Note that <distribution> doesn't end up in the binary package.
+      // Normally all Debian packages start in unstable or experimental.
+      //
+      string urgency;
+      switch (pm.priority ? pm.priority->value : priority::low)
+      {
+      case priority::low:      urgency = "low";      break;
+      case priority::medium:   urgency = "medium";   break;
+      case priority::high:     urgency = "high";     break;
+      case priority::security: urgency = "critical"; break;
+      }
+
+      os << pn << " (" << st.system_version << ") "
+         << (pv.release ? "experimental" : "unstable") << "; "
+         << "urgency=" << urgency << '\n';
+
+      // Next we have a bunch of "change details" lines that start with `*`
+      // indented with two spaces. They are traditionally seperated from the
+      // first and last lines with blank lines.
+      //
+      os << '\n'
+         << "  * New bpkg package release " << pv.string () << '.' << '\n'
+         << '\n';
+
+      // The last line is the "maintainer signoff" and has the following
+      // form:
+      //
+      //  -- <name> <email>  <date>
+      //
+      // The <date> component shall have the following form in the English
+      // locale (Mon, Jan, etc):
+      //
+      // <day-of-week>, <dd> <month> <yyyy> <hh>:<mm>:<ss> +<zzzz>
+      //
+      // @@ We may need to "complete" the maintainer if it's just an email.
+      //
+      timestamp now (system_clock::now ());
+      os << " -- " << maintainer << "  ";
+      std::locale l (os.imbue (std::locale ("C")));
+      to_stream (os,
+                 now,
+                 "%a, %d %b %Y %T %z",
+                 false /* special */,
+                 true  /* local */);
+      os.imbue (l);
+      os << '\n';
+
+      os.close ();
+    }
+    catch (const io_error& e)
+    {
+      fail << "unable to write to " << chlog << ": " << e;
+    }
+
+    // The copyright file.
+    //
+    // See the "Machine-readable debian/copyright file" document for
+    // details.
+    //
+    // Note that while not entirely clear, it looks like there should be at
+    // least one Files stanza.
+    //
+    // Note also that there is currently no way for us to get accurate
+    // copyright information.
+    //
+    // @@ Also, strictly speaking, in the recursive mode, we should collect
+    //    licenses of all the dependencies we are bundling.
+    //
+    path copyr (deb / "copyright");
+    try
+    {
+      ofdstream os (copyr);
+
+      string license;
+      for (const licenses& ls: pm.license_alternatives)
+      {
+        if (!license.empty ())
+          license += " or ";
+
+        for (auto b (ls.begin ()), i (b); i != ls.end (); ++i)
+        {
+          if (i != b)
+            license += " and ";
+
+          license += *i;
+        }
+      }
+
+      os <<   "Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/" << '\n'
+         <<   "Upstream-Name: "    << pn          << '\n'
+         <<   "Upstream-Contact: " << maintainer  << '\n';
+      if (!homepage.empty ())
+        os << "Source: "           << homepage    << '\n';
+      os <<   "License: "          << license     << '\n'
+         <<   "Comment: See accompanying files for exact copyright information" << '\n'
+         <<   " and full license text(s)." << '\n';
+
+      // Note that for licenses mentioned in the Files stanza we either have
+      // to provide the license text(s) inline or as separate License stanzas.
+      //
+      os << '\n'
+         << "Files: *" << '\n'
+         << "Copyright: ";
+      to_stream (os, now, "%Y", false /* special */, true  /* local */);
+      os << " the " << pn << " authors (see accompanying files for details)" << '\n'
+         << "License: " << license << '\n'
+         << " See accompanying files for full license text(s)." << '\n';
+
+      os.close ();
+    }
+    catch (const io_error& e)
+    {
+      fail << "unable to write to " << copyr << ": " << e;
     }
 
     // The rules makefile. Note that it must be executable.

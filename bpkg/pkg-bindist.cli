@@ -57,31 +57,46 @@ namespace bpkg
 
     string --debian-section
     {
-      "<val>",
-      "Alternative \cb{Section} field value in the \cb{control} file for
-       the main binary package. The default is either \cb{libs} or \cb{devel},
+      "<v>",
+      "Alternative \cb{Section} \cb{control} file field value for the main
+       binary package. The default is either \cb{libs} or \cb{devel},
        depending on the package type."
     }
 
     string --debian-priority
     {
-      "<val>",
-      "Alternative \cb{Priority} field value in the \cb{control} file. The
-       default is \cb{optional}."
+      "<v>",
+      "Alternative \cb{Priority} \cb{control} file field value. The default
+       is \cb{optional}."
     }
 
     string --debian-maintainer
     {
-      "<val>",
-      "Alternative \cb{Maintainer} field value in the \cb{control} file. The
+      "<v>",
+      "Alternative \cb{Maintainer} \cb{control} file field value. The
        default is the \cb{package-email} value from package \cb{manifest}."
     }
 
     string --debian-architecture
     {
-      "<vl>",
-      "Alternative \cb{Architecture} field value in the \cb{control} file for
+      "<v>",
+      "Alternative \cb{Architecture} \cb{control} file field value for
        the main binary package. The default is \cb{any}."
+    }
+
+    string --debian-main-depends
+    {
+      "<v>",
+      "Override the language runtime dependencies in the \cb{Depends}
+       \cb{control} file field value of the main binary package."
+    }
+
+    string --debian-dev-depends
+    {
+      "<v>",
+      "Override the language runtime dependencies in the \cb{Depends}
+       \cb{control} file field value of the development (\cb{-dev}) binary
+       package."
     }
   };
 
