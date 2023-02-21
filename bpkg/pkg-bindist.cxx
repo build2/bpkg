@@ -55,15 +55,56 @@ namespace bpkg
     return r;
   }
 
+  // Merge dependency languages for the (ultimate) dependent of the specified
+  // type.
+  //
+  static void
+  merge_languages (const string& type,
+                   small_vector<language, 1>& langs,
+                   const available_package& ap)
+  {
+    for (const language& l: ap.effective_languages ())
+    {
+      // Unless both the dependent and dependency types are libraries, the
+      // interface/implementation distinction does not apply.
+      //
+      bool lib (type == "lib" && ap.effective_type () == "lib");
+
+      auto i (find_if (langs.begin (), langs.end (),
+                       [&l] (const language& x)
+                       {
+                         return x.name == l.name;
+                       }));
+
+      if (i == langs.end ())
+      {
+        // If this is an implementation language for a dependency, then it is
+        // also an implementation language for a dependent. The converse,
+        // howevere, depends on whether this dependency is an interface or
+        // imlementation of this dependent, which we do not know. So we have
+        // to assume it's interface.
+        //
+        langs.push_back (language {l.name, lib && l.impl});
+      }
+      else
+      {
+        i->impl = i->impl && (lib && l.impl); // Merge.
+      }
+    }
+  }
+
   // Collect dependencies of the specified package, potentially recursively.
   // System dependencies go to deps, non-system -- to pkgs, which could be the
   // same as deps or NULL, depending on the desired semantics (see the call
-  // site for details). Find available packages for deps.
+  // site for details). Find available packages for pkgs and deps and merge
+  // languages.
   //
   static void
   collect_dependencies (const common_options& co,
                         packages* pkgs,
                         packages& deps,
+                        const string& type,
+                        small_vector<language, 1>& langs,
                         const selected_package& p,
                         bool recursive)
   {
@@ -98,17 +139,27 @@ namespace bpkg
                      return p.first == d;
                    }) == ps->end ())
       {
-        available_packages aps;
-        if (ps == &deps) // Note: covers the (pkgs == &deps) case.
-          aps = find_available_packages (co, db, d);
-
         const selected_package& p (*d);
 
-        if (ps != nullptr)
-          ps->push_back (make_pair (move (d), move (aps)));
+        if (ps != nullptr || (recursive && !sys))
+        {
+          available_packages aps (find_available_packages (co, db, d));
+
+          // Load and merge languages.
+          //
+          if (recursive && !sys)
+          {
+            const shared_ptr<available_package>& ap (aps.front ().first);
+            db.load (*ap, ap->languages_section);
+            merge_languages (type, langs, *ap);
+          }
+
+          if (ps != nullptr)
+            ps->push_back (make_pair (move (d), move (aps)));
+        }
 
         if (recursive && !sys)
-          collect_dependencies (co, pkgs, deps, p, recursive);
+          collect_dependencies (co, pkgs, deps, type, langs, p, recursive);
       }
     }
   }
@@ -221,9 +272,11 @@ namespace bpkg
 
     // Resolve package names to selected packages and verify they are all
     // configured. While at it collect their available packages and
-    // dependencies.
+    // dependencies as well as figure out type and languages.
     //
     packages pkgs, deps;
+    string type;
+    small_vector<language, 1> langs;
 
     for (const package_name& n: pns)
     {
@@ -239,12 +292,20 @@ namespace bpkg
       if (p->substate == package_substate::system)
         fail << "package " << n << " is configured as system";
 
-      // If this is the first package, load its available package for the
-      // mapping information. We don't need it for any additional packages.
+      // Load the available package for type/languages as well as the mapping
+      // information.
       //
-      available_packages aps;
-      if (pkgs.empty ())
-        aps = find_available_packages (o, db, p);
+      available_packages aps (find_available_packages (o, db, p));
+      const shared_ptr<available_package>& ap (aps.front ().first);
+      db.load (*ap, ap->languages_section);
+
+      if (pkgs.empty ()) // First.
+      {
+        type = ap->effective_type ();
+        langs = ap->effective_languages ();
+      }
+      else
+        merge_languages (type, langs, *ap);
 
       const selected_package& r (*p);
       pkgs.push_back (make_pair (move (p), move (aps)));
@@ -264,6 +325,8 @@ namespace bpkg
                              ? *rec == recursive_mode::full ? &pkgs : nullptr
                              : &deps),
                             deps,
+                            type,
+                            langs,
                             r,
                             rec.has_value ());
     }
@@ -301,7 +364,11 @@ namespace bpkg
 
     // @@ TODO: pass/handle --private.
 
-    spm->generate (pkgs, deps, vars, pm, out, rec);
+    // Note that we pass type from here in case one day we want to provide an
+    // option to specify/override it (along with languages). Note that there
+    // will probably be no way to override type for dependencies.
+    //
+    spm->generate (pkgs, deps, vars, pm, type, langs, out, rec);
 
     // @@ TODO: change the output, maybe to something returned by spm?
     //

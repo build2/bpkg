@@ -1850,31 +1850,27 @@ namespace bpkg
             const packages& deps,
             const strings&,
             const package_manifest& pm,
+            const string& pt,
+            const small_vector<language, 1>& langs,
             const dir_path& out,
             optional<recursive_mode>)
   {
+    assert (!langs.empty ()); // Should be effective.
+
     const shared_ptr<selected_package>& sp (pkgs.front ().first);
     const package_name& pn (sp->name);
     const version& pv (sp->version);
 
     const available_packages& aps (pkgs.front ().second);
-    const shared_ptr<available_package>& ap (aps.front ().first);
 
-    bool lib (ap->effective_type () == "lib");
-
-    struct package_lang
-    {
-      string name;
-      bool   impl; // True if implementation-only.
-    };
-    small_vector<package_lang, 1> langs {{"cc", false}};
+    bool lib (pt == "lib");
 
     // For now we only know how to handle libraries with C-common interface
     // languages. But we allow other implementation languages.
     //
     if (lib)
     {
-      for (const package_lang& l: langs)
+      for (const language& l: langs)
         if (!l.impl && l.name != "c" && l.name != "c++" && l.name != "cc")
           fail << l.name << " libraries are not yet supported";
     }
@@ -1885,7 +1881,7 @@ namespace bpkg
     auto lang = [&langs] (const char* n, bool intf_only = false) -> bool
     {
       return find_if (langs.begin (), langs.end (),
-                      [n, intf_only] (const package_lang& l)
+                      [n, intf_only] (const language& l)
                       {
                         return (!intf_only || !l.impl) && l.name == n;
                       }) != langs.end ();

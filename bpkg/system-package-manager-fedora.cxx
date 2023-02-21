@@ -1787,6 +1787,8 @@ namespace bpkg
             const packages&,
             const strings&,
             const package_manifest&,
+            const string&,
+            const small_vector<language, 1>&,
             const dir_path&,
             optional<recursive_mode>)
   {

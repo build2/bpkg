@@ -154,13 +154,19 @@ namespace bpkg
 
     // Generate a binary distribution package. @@ TODO: doc more
     //
-    // The available packages are loaded for the first package in pkgs and for
-    // all the packages in deps. For non-system packages there is always a
+    // The available packages are loaded for all the packages in pkgs and
+    // deps. For non-system packages (so for all in pkgs) there is always a
     // single available package that corresponds to the selected package.
     //
     // The passed package manifest corresponds to the first package in pkgs
     // (normally used as a source of additional package metadata such as
     // summary, emails, urls, etc).
+    //
+    // The passed package type corresponds to the first package in pkgs while
+    // the languages -- to all the packages in pkgs plus, in the recursive
+    // mode, to all the non-system dependencies. In other words, the languages
+    // list contains every language that is used by anything that ends up in
+    // the package.
     //
     // See the pkg-bindist(1) man page and the pkg_bindist() function
     // implementation for background and details.
@@ -175,6 +181,8 @@ namespace bpkg
               const packages& deps,
               const strings& vars,
               const package_manifest&,
+              const string& type,
+              const small_vector<language, 1>&,
               const dir_path& out,
               optional<recursive_mode>) = 0;
 
