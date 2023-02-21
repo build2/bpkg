@@ -2005,15 +2005,38 @@ namespace bpkg
                      pm.url         ? pm.url->string ()         :
                      string ());
 
-    string maintainer (
-      ops_->debian_maintainer_specified () ? ops_->debian_maintainer () :
-      pm.package_email ? static_cast<const string&> (*pm.package_email) :
-      pm.email         ? static_cast<const string&> (*pm.email)         :
-      string ());
+    string maintainer;
+    if (ops_->debian_maintainer_specified ())
+      maintainer = ops_->debian_maintainer ();
+    else
+    {
+      const email* e (pm.package_email ? &*pm.package_email :
+                      pm.email         ? &*pm.email         :
+                      nullptr);
 
-    if (maintainer.empty ())
-      fail << "unable to determine package maintainer from manifest" <<
-        info << "specify explicitly with --debian-maintainer";
+      if (e == nullptr)
+        fail << "unable to determine package maintainer from manifest" <<
+          info << "specify explicitly with --debian-maintainer";
+
+      // In certain places (e.g., changelog), Debian expect this to be in the
+      // `John Doe <john@example.org>` form while we often specify just the
+      // email address (e.g., to the mailing list). Try to detect such a case
+      // and complete it to the desired format.
+      //
+      if (e->find (' ') == string::npos && e->find ('@') != string::npos)
+      {
+        // Try to use comment as name, if any.
+        //
+        if (!e->comment.empty ())
+          maintainer = e->comment;
+        else
+          maintainer = pn.string () + " maintainer";
+
+        maintainer += " <" + *e + '>';
+      }
+      else
+        maintainer = *e;
+    }
 
     path ctrl (deb / "control");
     try
@@ -2375,7 +2398,53 @@ namespace bpkg
       fail << "unable to write to " << copyr << ": " << e;
     }
 
+    // The source/format file.
+    //
+    dir_path deb_src (deb / dir_path ("source"));
+    mk (deb_src);
+
+    path format (deb_src / "format");
+    try
+    {
+      ofdstream os (format);
+      os << "3.0 (quilt)\n";
+      os.close ();
+    }
+    catch (const io_error& e)
+    {
+      fail << "unable to write to " << format << ": " << e;
+    }
+
     // The rules makefile. Note that it must be executable.
+    //
+    // This file is executed by dpkg-buildpackage(1) which expects it to
+    // provide the following "API" make targets:
+    //
+    // clean
+    //
+    // build        -- configure and build for all package
+    // build-arch   -- configure and build for Architecture:any packages
+    // build-indep  -- configure and build for Architecture:all packages
+    //
+    // binary       -- make all binary packages
+    // binary-arch  -- make Architecture:any binary packages
+    // binary-indep -- make Architecture:all binary packages
+    //
+    // The dh command sequencer provides the standard implementation of these
+    // API targets with the following customization point targets (for an
+    // overview of dh, start with the slides from the "Not Your Grandpa's
+    // Debhelper" presentation at DebConf 9 followed by the dh(1) man page):
+    //
+    // override_dh_auto_configure   # ./configure --prefix=/usr
+    // override_dh_auto_build       # make
+    // override_dh_auto_test        # make test
+    // override_dh_auto_install     # make install
+    // override_dh_auto_clean       # make distclean
+    //
+    // Note that pretty much any dh_xxx command invoked by dh in order to
+    // implement the API targets can be customized with the corresponding
+    // override_dh_xxx target. To see what commands are executed for an API
+    // target, run `dh <target> --no-act`.
     //
     path rules (deb / "rules");
     try
@@ -2396,9 +2465,26 @@ namespace bpkg
       // See debhelper(7) for details on these.
       //
       if (verb == 0)
-        os << "export DH_QUIET=1\n";
-      else if (verb >= 2)
-        os << "export DH_VERBOSE=1\n";
+        os << "export DH_QUIET=1\n"
+           << '\n';
+      else if (verb == 1)
+        os << "# Uncomment this to turn on verbose mode.\n"
+           << "#export DH_VERBOSE=1\n"
+           << '\n';
+      else
+        os << "export DH_VERBOSE=1\n"
+           << '\n';
+
+      os << "%:\n"
+         << "\tdh $@\n"
+         << '\n';
+
+      // Override dh_auto_configure.
+      //
+      os << "# Everything is already configured.\n"
+         << "#\n"
+         << "override_dh_auto_configure:\n"
+         << '\n';
 
       // @@ TODO: remember to override config.install.sudo.
 
