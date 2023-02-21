@@ -151,13 +151,14 @@ namespace bpkg
       assert (argc == 3); // <pkg>
 
       package_name pn (argv[2]);
+      string pt (package_manifest::effective_type (nullopt, pn));
 
       string v;
       getline (cin, v);
 
       package_status s (
         system_package_manager_fedora::parse_name_value (
-          pn, v, false, false, false));
+          pt, v, false, false, false));
 
       if (!s.main.empty ())        cout << "main: "        << s.main        << '\n';
       if (!s.devel.empty ())       cout << "devel: "       << s.devel       << '\n';
