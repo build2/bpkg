@@ -31,7 +31,8 @@ namespace bpkg
       c;
   }
 
-  // Parse the debian-name (or alike) value.
+  // Parse the debian-name (or alike) value. The first argument is the package
+  // type.
   //
   // Note that for now we treat all the packages from the non-main groups as
   // extras omitting the -common package (assuming it's pulled by the main
@@ -39,7 +40,7 @@ namespace bpkg
   // extra_{doc,dbg} arguments.
   //
   package_status system_package_manager_debian::
-  parse_name_value (const package_name& pn,
+  parse_name_value (const string& pt,
                     const string& nv,
                     bool extra_doc,
                     bool extra_dbg)
@@ -59,8 +60,7 @@ namespace bpkg
       return nn > sn && n.compare (nn - sn, sn, s) == 0;
     };
 
-    auto parse_group = [&split, &suffix] (const string& g,
-                                          const package_name* pn)
+    auto parse_group = [&split, &suffix] (const string& g, const string* pt)
     {
       strings ns (split (g, ' '));
 
@@ -71,8 +71,6 @@ namespace bpkg
 
       // Handle the "dev instead of main" special case for libraries.
       //
-      // Note: the lib prefix check is based on the bpkg package name.
-      //
       // Check that the following name does not end with -dev. This will be
       // the only way to disambiguate the case where the library name happens
       // to end with -dev (e.g., libfoo-dev libfoo-dev-dev).
@@ -80,10 +78,9 @@ namespace bpkg
       {
         string& m (ns[0]);
 
-        if (pn != nullptr                            &&
-            pn->string ().compare (0, 3, "lib") == 0 &&
-            pn->string ().size () > 3                &&
-            suffix (m, "-dev")                       &&
+        if (pt != nullptr      &&
+            *pt == "lib"       &&
+            suffix (m, "-dev") &&
             !(ns.size () > 1 && suffix (ns[1], "-dev")))
         {
           r = package_status ("", move (m));
@@ -124,7 +121,7 @@ namespace bpkg
     for (size_t i (0); i != gs.size (); ++i)
     {
       if (i == 0) // Main group.
-        r = parse_group (gs[i], &pn);
+        r = parse_group (gs[i], &pt);
       else
       {
         package_status g (parse_group (gs[i], nullptr));
@@ -944,6 +941,18 @@ namespace bpkg
              << os_release.name_id << " package name";
         });
 
+      // Without explicit type, the best we can do in trying to detect whether
+      // this is a library is to check for the lib prefix. Libraries without
+      // the lib prefix and non-libraries with the lib prefix (both of which
+      // we do not recomment) will have to provide a manual mapping.
+      //
+      // Note that using the first (latest) available package as a source of
+      // type information seems like a reasonable choice.
+      //
+      const string& pt (!aps.empty ()
+                        ? aps.front ().first->effective_type ()
+                        : package_manifest::effective_type (nullopt, pn));
+
       strings ns;
       if (!aps.empty ())
         ns = system_package_names (aps,
@@ -957,12 +966,7 @@ namespace bpkg
         //
         const string& n (pn.string ());
 
-        // The best we can do in trying to detect whether this is a library is
-        // to check for the lib prefix. Libraries without the lib prefix and
-        // non-libraries with the lib prefix (both of which we do not
-        // recomment) will have to provide a manual mapping.
-        //
-        if (n.compare (0, 3, "lib") == 0 && n.size () > 3)
+        if (pt == "lib")
         {
           // Keep the main package name empty as an indication that it is to
           // be discovered.
@@ -978,7 +982,7 @@ namespace bpkg
         //
         for (const string& n: ns)
         {
-          package_status s (parse_name_value (pn, n, need_doc, need_dbg));
+          package_status s (parse_name_value (pt, n, need_doc, need_dbg));
 
           // Suppress duplicates for good measure based on the main package
           // name (and falling back to -dev if empty).
@@ -1502,6 +1506,16 @@ namespace bpkg
     //
     assert (aps.size () == 1);
 
+    const shared_ptr<available_package>&        ap (aps.front ().first);
+    const lazy_shared_ptr<repository_fragment>& rf (aps.front ().second);
+
+    // Without explicit type, the best we can do in trying to detect whether
+    // this is a library is to check for the lib prefix. Libraries without the
+    // lib prefix and non-libraries with the lib prefix (both of which we do
+    // not recomment) will have to provide a manual mapping.
+    //
+    const string& pt (ap->effective_type ());
+
     strings ns (system_package_names (aps,
                                       os_release.name_id,
                                       os_release.version_id,
@@ -1515,15 +1529,8 @@ namespace bpkg
       //
       const string& n (pn.string ());
 
-      // The best we can do in trying to detect whether this is a library is
-      // to check for the lib prefix. Libraries without the lib prefix and
-      // non-libraries with the lib prefix (both of which we do not
-      // recomment) will have to provide a manual mapping.
-      //
-      if (n.compare (0, 3, "lib") == 0 && n.size () > 3)
-      {
+      if (pt == "lib")
         r = package_status (n, n + "-dev");
-      }
       else
         r = package_status (n);
     }
@@ -1533,7 +1540,7 @@ namespace bpkg
       // with multiple mappings. In this case we take the first, per the
       // documentation.
       //
-      r = parse_name_value (pn,
+      r = parse_name_value (pt,
                             ns.front (),
                             false /* need_doc */,
                             false /* need_dbg */);
@@ -1663,9 +1670,6 @@ namespace bpkg
     // explicitly, respectively. Note that the bpkg upstream version may not
     // contain either.
     //
-    const shared_ptr<available_package>&        ap (aps.front ().first);
-    const lazy_shared_ptr<repository_fragment>& rf (aps.front ().second);
-
     string& sv (r.system_version);
 
     if (optional<string> ov = system_package_version (ap,
@@ -1849,19 +1853,14 @@ namespace bpkg
             const dir_path& out,
             optional<recursive_mode>)
   {
-    // As a first step, figure out the system names and version of the package
-    // we are generating and all the dependencies, diagnosing anything fishy.
-    //
-    // Note that there should be no duplicate dependencies and we can sidestep
-    // the status cache.
-    //
     const shared_ptr<selected_package>& sp (pkgs.front ().first);
     const package_name& pn (sp->name);
     const version& pv (sp->version);
 
-    // @@ TODO: need to factor this to system_package_manager.
-    //
-    bool lib (pn.string ().compare (0, 3, "lib") == 0 && pn.string ().size () > 3);
+    const available_packages& aps (pkgs.front ().second);
+    const shared_ptr<available_package>& ap (aps.front ().first);
+
+    bool lib (ap->effective_type () == "lib");
 
     struct package_lang
     {
@@ -1892,7 +1891,12 @@ namespace bpkg
                       }) != langs.end ();
     };
 
-    const available_packages& aps (pkgs.front ().second);
+    // As a first step, figure out the system names and version of the package
+    // we are generating and all the dependencies, diagnosing anything fishy.
+    //
+    // Note that there should be no duplicate dependencies and we can sidestep
+    // the status cache.
+    //
     package_status st (map_package (pn, pv, aps));
 
     vector<package_status> sdeps;

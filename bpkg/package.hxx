@@ -790,6 +790,18 @@ namespace bpkg
     bool
     stub () const {return version.compare (wildcard_version, true) == 0;}
 
+    string
+    effective_type () const
+    {
+      return package_manifest::effective_type (type, id.name);
+    }
+
+    small_vector<language, 1>
+    effective_languages () const
+    {
+      return package_manifest::effective_languages (languages, id.name);
+    }
+
     // Return package system version if one has been discovered. Note that
     // we do not implicitly assume a wildcard version.
     //

@@ -196,7 +196,7 @@ namespace bpkg
     apt_get_common (const char*, strings& args_storage);
 
     static package_status
-    parse_name_value (const package_name&, const string&, bool, bool);
+    parse_name_value (const string&, const string&, bool, bool);
 
     static string
     main_from_dev (const string&, const string&, const string&);
