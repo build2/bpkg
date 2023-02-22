@@ -15,17 +15,10 @@ namespace bpkg
            verb_b v,
            A&&... args)
   {
-    const char* b (name_b (co));
+    process_path pp (search_b (co));
 
     try
     {
-      // Use our executable directory as a fallback search since normally the
-      // entire toolchain is installed into one directory. This way, for
-      // example, if we installed into /opt/build2 and run bpkg with absolute
-      // path (and without PATH), then bpkg will be able to find "its" b.
-      //
-      process_path pp (process::path_search (b, exec_dir));
-
       small_vector<const char*, 1> ops;
 
       // Map verbosity level. If we are running quiet or at level 1,
@@ -98,7 +91,7 @@ namespace bpkg
     }
     catch (const process_error& e)
     {
-      fail << "unable to execute " << b << ": " << e << endf;
+      fail << "unable to execute " << pp.recall_string () << ": " << e << endf;
     }
   }
 

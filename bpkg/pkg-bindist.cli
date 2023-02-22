@@ -145,12 +145,12 @@ namespace bpkg
     bool --private
     {
       "Enable the private installation subdirectory functionality using the
-       binary package name as the private subdirectory. This is primarily
-       useful when bundling dependencies, such as shared libraries, of an
-       executable that is being installed into a shared location, such as
-       \cb{/usr/}. See the \cb{config.install.private} configuration variable
-       documentation in the build system manual for details. This option
-       only makes sense together with \cb{--recursive}."
+       package name as the private subdirectory. This is primarily useful
+       when bundling dependencies, such as shared libraries, of an executable
+       that is being installed into a shared location, such as \cb{/usr/}.
+       See the \cb{config.install.private} configuration variable
+       documentation in the build system manual for details. This option only
+       makes sense together with \cb{--recursive}."
     }
 
     bool --wipe-out

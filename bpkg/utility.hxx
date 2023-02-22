@@ -247,6 +247,9 @@ namespace bpkg
   const char*
   name_b (const common_options&);
 
+  process_path
+  search_b (const common_options&);
+
   template <typename O, typename E, typename... A>
   process
   start_b (const common_options&, O&& out, E&& err, verb_b, A&&... args);

@@ -1853,15 +1853,15 @@ namespace bpkg
             const string& pt,
             const small_vector<language, 1>& langs,
             const dir_path& out,
-            optional<recursive_mode>)
+            optional<recursive_mode> recur)
   {
     assert (!langs.empty ()); // Should be effective.
 
-    const shared_ptr<selected_package>& sp (pkgs.front ().first);
+    const shared_ptr<selected_package>& sp (pkgs.front ().selected);
     const package_name& pn (sp->name);
     const version& pv (sp->version);
 
-    const available_packages& aps (pkgs.front ().second);
+    const available_packages& aps (pkgs.front ().available);
 
     bool lib (pt == "lib");
 
@@ -1897,10 +1897,10 @@ namespace bpkg
 
     vector<package_status> sdeps;
     sdeps.reserve (deps.size ());
-    for (const pair<shared_ptr<selected_package>, available_packages>& p: deps)
+    for (const package& p: deps)
     {
-      const shared_ptr<selected_package>& sp (p.first);
-      const available_packages& aps (p.second);
+      const shared_ptr<selected_package>& sp (p.selected);
+      const available_packages& aps (p.available);
 
       package_status s;
       if (sp->substate == package_substate::system)
@@ -2030,7 +2030,7 @@ namespace bpkg
         if (!e->comment.empty ())
           maintainer = e->comment;
         else
-          maintainer = pn.string () + " maintainer";
+          maintainer = pn.string () + " package maintainer";
 
         maintainer += " <" + *e + '>';
       }
@@ -2465,18 +2465,131 @@ namespace bpkg
       // See debhelper(7) for details on these.
       //
       if (verb == 0)
-        os << "export DH_QUIET=1\n"
+        os << "export DH_QUIET := 1\n"
            << '\n';
       else if (verb == 1)
         os << "# Uncomment this to turn on verbose mode.\n"
-           << "#export DH_VERBOSE=1\n"
+           << "#export DH_VERBOSE := 1\n"
            << '\n';
       else
-        os << "export DH_VERBOSE=1\n"
+        os << "export DH_VERBOSE := 1\n"
            << '\n';
 
+      // We could have instead included architecture.mk but let's avoid an
+      // extra dependency (most packages that we sampled do it directly).
+      //
+      os << "DEB_HOST_MULTIARCH ?= $(shell dpkg-architecture -qDEB_HOST_MULTIARCH)\n"
+         << '\n';
+
+      // The debian/tmp/ subdirectory appears to be the canonical destination
+      // directory (see dh_auto_install(1) for details).
+      //
+      os << "DESTDIR := $(CURDIR)/debian/tmp" << '\n'
+         << '\n';
+
+      // Let's use absolute path to the build system driver in case we are
+      // invoked with altered environment or some such.
+      //
+      // See --jobs documentation in dpkg-buildpackage(1) for details on
+      // parallel=N.
+      //
+      os << "b := " << search_b (*ops_).effect_string ()            << '\n'
+         << '\n'
+         << "parallel := $(filter parallel=%,$(DEB_BUILD_OPTIONS))" << '\n'
+         << "ifneq ($(parallel),)"                                  << '\n'
+         << "  parallel := $(patsubst parallel=%,%,$(parallel))"    << '\n'
+         << "  ifeq ($(parallel),1)"                                << '\n'
+         << "    b += --serial-stop"                                << '\n'
+         << "  else"                                                << '\n'
+         << "    b += --jobs=$(parallel)"                           << '\n'
+         << "  endif"                                               << '\n'
+         << "endif"                                                 << '\n'
+         << '\n';
+
+      // Note that we override every config.install.* variable in order not to
+      // pick anything configured.
+      //
+      // We make use of the <project> substitution since in the recursive mode
+      // we may be installing multiple projects. Note that the <private>
+      // directory component is automatically removed if this functionality is
+      // not enabled. One side-effect of using <project> is that we will be
+      // using the bpkg package name instead of the main Debian package name.
+      // But perhaps that's correct: on Debian it's usually the source package
+      // name, which is the same. To keep things consistent we use the bpkg
+      // package name for <private> as well.
+      //
+      // @@ Some libraries install what looks like architecture-specific
+      //    configuration files to /usr/include/$(DEB_HOST_MULTIARCH). Maybe
+      //    we should invent something like config.install.include_arch to
+      //    support this distinction?
+      //
+      bool priv (ops_->private_ ());
+
+      os << "config :=  config.install.chroot=$(DESTDIR)/"    << '\n'
+         << "config += 'config.install.sudo=[null]'"          << '\n'
+
+         << "config +=  config.install.root=/usr/"            << '\n'
+         << "config +=  config.install.data_root=root/"       << '\n'
+         << "config +=  config.install.exec_root=root/"       << '\n'
+
+         << "config +=  config.install.bin=exec_root/bin/"    << '\n'
+         << "config +=  config.install.sbin=exec_root/sbin/"  << '\n'
+
+         // On Debian shared libraries should not be executable. Also,
+         // libexec/ is the same as lib/ (note that executables that get
+         // installed there will still have the executable bit set).
+         //
+         << "config += 'config.install.lib=exec_root/lib/$(DEB_HOST_MULTIARCH)/<private>/'" << '\n'
+         << "config +=  config.install.lib.mode=644"               << '\n'
+         << "config += 'config.install.libexec=lib/<project>/'"    << '\n'
+         << "config +=  config.install.pkgconfig=lib/pkgconfig/"   << '\n'
+
+         << "config +=  config.install.etc=data_root/etc/"               << '\n'
+         << "config += 'config.install.include=data_root/include/<private>/'" << '\n'
+         << "config +=  config.install.share=data_root/share/"           << '\n'
+         << "config += 'config.install.data=share/<private>/<project>/'" << '\n'
+
+         << "config += 'config.install.doc=share/doc/<private>/<project>/'" << '\n'
+         << "config +=  config.install.legal=doc/"                  << '\n'
+         << "config +=  config.install.man=share/man/"              << '\n'
+         << "config +=  config.install.man1=share/man1/"            << '\n'
+         << "config +=  config.install.man2=share/man2/"            << '\n'
+         << "config +=  config.install.man3=share/man3/"            << '\n'
+         << "config +=  config.install.man4=share/man4/"            << '\n'
+         << "config +=  config.install.man5=share/man5/"            << '\n'
+         << "config +=  config.install.man6=share/man6/"            << '\n'
+         << "config +=  config.install.man7=share/man7/"            << '\n'
+         << "config +=  config.install.man8=share/man8/"            << '\n'
+
+         << "config += 'config.install.private="
+         <<            (priv ? pn.string () : "[null]")  << "'" << '\n';
+
+      // If this is a C-based language, add rpath for private installation.
+      //
+      if (priv && (lang ("c") || lang ("c++") || lang ("cc")))
+        os << "config += config.bin.rpath=/usr/lib/$(DEB_HOST_MULTIARCH)/"
+           <<            pn << "/" << '\n';
+
+      os << '\n';
+
+      // List of packages we need to install.
+      //
+      for (auto b (pkgs.begin ()), i (b); i != pkgs.end (); ++i)
+      {
+        os << "packages" << (i == b ? " := " : " += ")
+           << i->out_root.representation () << '\n';
+      }
+      os << '\n';
+
+      // Disable synchronization hooks for good measure.
+      //
+      os << "export BDEP_SYNC := 0\n"
+         << '\n';
+
+      // Default to the dh command sequencer.
+      //
       os << "%:\n"
-         << "\tdh $@\n"
+         << '\t' << "dh $@" << '\n'
          << '\n';
 
       // Override dh_auto_configure.
@@ -2486,7 +2599,43 @@ namespace bpkg
          << "override_dh_auto_configure:\n"
          << '\n';
 
-      // @@ TODO: remember to override config.install.sudo.
+      // Override dh_auto_build.
+      //
+      os << "override_dh_auto_build:\n"
+         << '\t' << "$b $(config) update-for-install: $(packages)" << '\n'
+         << '\n';
+
+      // Override dh_auto_test.
+      //
+      // Note that running tests after update-for-install may cause rebuild
+      // (e.g., relinking without rpath, etc) before tests and again before
+      // install. So doesn't seem worth the trouble.
+      //
+      os << "# Assume any testing has already been done.\n"
+         << "#\n"
+         << "override_dh_auto_test:\n"
+         << '\n';
+
+      // Override dh_auto_install.
+      //
+      // Note that we have to use global install scope for the auto recursive
+      // mode since things can be spread over multiple linked configurations.
+      //
+      string scope (!recur || *recur == recursive_mode::full
+                    ? "project"
+                    : "global");
+
+      os << "override_dh_auto_install:\n"
+         << '\t' << "$b $(config) '!config.install.scope=" << scope << "' "
+         <<         "install: $(packages)" << '\n'
+         << '\n';
+
+      // Override dh_auto_clean.
+      //
+      os << "# This is not a real source directory so nothing to clean.\n"
+         << "#\n"
+         << "override_dh_auto_clean:\n"
+         << '\n';
 
       os.close ();
     }
@@ -2494,6 +2643,17 @@ namespace bpkg
     {
       fail << "unable to write to " << rules << ": " << e;
     }
+
+    // Call dpkg-buildpackage.
+    //
+    // @@ Pass our --jobs as --jobs=N.
+    // @@ Buildinfo stuff fuzzy.
+    //
+    // --no-sign
+    // --target-arch
+    //
+    // cd src/
+    // dpkg-buildpackage --no-sign --build=binary
 
     // Cleanup intermediate files unless requested not to.
     //

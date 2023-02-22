@@ -369,6 +369,26 @@ namespace bpkg
       : BPKG_EXE_PREFIX "b" BPKG_EXE_SUFFIX;
   }
 
+  process_path
+  search_b (const common_options& co)
+  {
+    const char* b (name_b (co));
+
+    try
+    {
+      // Use our executable directory as a fallback search since normally the
+      // entire toolchain is installed into one directory. This way, for
+      // example, if we installed into /opt/build2 and run bpkg with absolute
+      // path (and without PATH), then bpkg will be able to find "its" b.
+      //
+      return process::path_search (b, exec_dir);
+    }
+    catch (const process_error& e)
+    {
+      fail << "unable to execute " << b << ": " << e << endf;
+    }
+  }
+
   void
   dump_stderr (auto_fd&& fd)
   {

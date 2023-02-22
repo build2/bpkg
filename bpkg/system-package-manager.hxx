@@ -156,7 +156,8 @@ namespace bpkg
     //
     // The available packages are loaded for all the packages in pkgs and
     // deps. For non-system packages (so for all in pkgs) there is always a
-    // single available package that corresponds to the selected package.
+    // single available package that corresponds to the selected package. The
+    // out_root is only set for packages in pkgs.
     //
     // The passed package manifest corresponds to the first package in pkgs
     // (normally used as a source of additional package metadata such as
@@ -171,8 +172,14 @@ namespace bpkg
     // See the pkg-bindist(1) man page and the pkg_bindist() function
     // implementation for background and details.
     //
-    using packages =
-      vector<pair<shared_ptr<selected_package>, available_packages>>;
+    struct package // @@ TODO: any better name?
+    {
+      shared_ptr<selected_package> selected;
+      available_packages           available;
+      dir_path                     out_root; // Absolute and normalized.
+    };
+
+    using packages = vector<package>;
 
     enum class recursive_mode {auto_, full};
 

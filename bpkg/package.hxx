@@ -1331,8 +1331,7 @@ namespace bpkg
       return src_root->absolute () ? *src_root : configuration / *src_root;
     }
 
-    // Return the output directory using the configuration directory. Note
-    // that the output directory is always relative.
+    // Return the output directory using the configuration directory.
     //
     dir_path
     effective_out_root (const dir_path& configuration) const
@@ -1340,6 +1339,9 @@ namespace bpkg
       // Cast for compiling with ODB (see above).
       //
       assert (static_cast<bool> (out_root));
+
+      // Note that out_root is always relative.
+      //
       return configuration / *out_root;
     }
 

@@ -16,6 +16,7 @@ using namespace butl;
 
 namespace bpkg
 {
+  using package = system_package_manager::package;
   using packages = system_package_manager::packages;
   using recursive_mode = system_package_manager::recursive_mode;
 
@@ -131,13 +132,11 @@ namespace bpkg
 
       // Skip duplicates.
       //
-      if (ps == nullptr ||
-          find_if (ps->begin (), ps->end (),
-                   [&d] (const pair<shared_ptr<selected_package>,
-                                    available_packages>& p)
-                   {
-                     return p.first == d;
-                   }) == ps->end ())
+      if (ps == nullptr || find_if (ps->begin (), ps->end (),
+                                    [&d] (const package& p)
+                                    {
+                                      return p.selected == d;
+                                    }) == ps->end ())
       {
         const selected_package& p (*d);
 
@@ -155,7 +154,13 @@ namespace bpkg
           }
 
           if (ps != nullptr)
-            ps->push_back (make_pair (move (d), move (aps)));
+          {
+            dir_path out;
+            if (ps != &deps)
+              out = p.effective_out_root (db.config);
+
+            ps->push_back (package {move (d), move (aps), move (out)});
+          }
         }
 
         if (recursive && !sys)
@@ -308,7 +313,8 @@ namespace bpkg
         merge_languages (type, langs, *ap);
 
       const selected_package& r (*p);
-      pkgs.push_back (make_pair (move (p), move (aps)));
+      pkgs.push_back (
+        package {move (p), move (aps), r.effective_out_root (db.config)});
 
       // If --recursive is not specified then we want all the immediate
       // (system and non-) dependecies in deps. Otherwise, if the recursive
@@ -336,7 +342,7 @@ namespace bpkg
     // Load the package manifest (source of extra metadata). This should be
     // always possible since the package is configured and is not system.
     //
-    const shared_ptr<selected_package>& sp (pkgs.front ().first);
+    const shared_ptr<selected_package>& sp (pkgs.front ().selected);
 
     package_manifest pm (
       pkg_verify (o,
@@ -374,7 +380,7 @@ namespace bpkg
     //
     if (verb && !o.no_result ())
     {
-      const selected_package& p (*pkgs.front ().first);
+      const selected_package& p (*pkgs.front ().selected);
 
       text << "generated " << spm->os_release.name_id << " package for "
            << p.name << '/' << p.version;
