@@ -2644,16 +2644,78 @@ namespace bpkg
       fail << "unable to write to " << rules << ": " << e;
     }
 
-    // Call dpkg-buildpackage.
+    // Run dpkg-buildpackage.
     //
-    // @@ Pass our --jobs as --jobs=N.
+    // Note that there doesn't seem to be any way to control its verbosity or
+    // progress.
+    //
     // @@ Buildinfo stuff fuzzy.
     //
-    // --no-sign
-    // --target-arch
+    // @@ Why does stuff keep recompiling on every run (e.g., byacc)? Running
+    //    the same commands from the command line does not trigger rebuild.
+    //    Could dpkg-buildpackage somehow forcing rebuild? Via environment?
     //
-    // cd src/
-    // dpkg-buildpackage --no-sign --build=binary
+    //
+    cstrings args {
+      "dpkg-buildpackage",
+      "--build=binary",                // Only build binary packages.
+      "--no-sign",                     // Do not sign anything.
+      "--target-arch", arch.c_str ()};
+
+    // Pass our --jobs value, if any.
+    //
+    string jobs_arg;
+    if (size_t n = ops_->jobs_specified () ? ops_->jobs () : 0)
+    {
+      // Note: only accepts the --jobs=N form.
+      //
+      args.push_back ((jobs_arg = "--jobs=" + to_string (n)).c_str ());
+    }
+
+    args.push_back (nullptr);
+
+    try
+    {
+      process_path pp (process::path_search (args[0]));
+      process_env pe (pp, src /* cwd */);
+
+      // There is going to be quite a bit of diagnostics so print the command
+      // line unless quiet.
+      //
+      if (verb >= 1)
+        print_process (pe, args);
+
+      // Redirect stdout to stderr since half of dpkg-buildpackage diagnostics
+      // goes there. For good measure also redirect stdin to /dev/null to make
+      // sure there are no prompts of any kind.
+      //
+      process pr (pp,
+                  args,
+                  -2 /* stdin */,
+                  2  /* stdout */,
+                  2  /* stderr */,
+                  pe.cwd->string ().c_str (),
+                  pe.vars);
+
+      if (!pr.wait ())
+      {
+        // Let's repeat the command line even if it was printed at the
+        // beginning to save the user a rummage through the logs.
+        //
+        diag_record dr (fail);
+        dr << args[0] << " exited with non-zero code" <<
+          info << "command line: "; print_process (dr, pe, args);
+      }
+    }
+    catch (const process_error& e)
+    {
+      error << "unable to execute " << args[0] << ": " << e;
+
+      if (e.child)
+        exit (1);
+
+      throw failed ();
+    }
 
     // Cleanup intermediate files unless requested not to.
     //
