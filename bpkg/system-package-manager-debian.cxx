@@ -1864,6 +1864,7 @@ namespace bpkg
     const available_packages& aps (pkgs.front ().available);
 
     bool lib (pt == "lib");
+    bool priv (ops_->private_ ()); // Private installation.
 
     // For now we only know how to handle libraries with C-common interface
     // languages. But we allow other implementation languages.
@@ -1999,8 +2000,6 @@ namespace bpkg
     // (which automatically detects dependencies) since we have an accurate
     // set and some of them may not be system packages.
     //
-    // @@ How do we disable this *:Depends mechanism in debhelper?
-    //
     string homepage (pm.package_url ? pm.package_url->string () :
                      pm.url         ? pm.url->string ()         :
                      string ());
@@ -2051,6 +2050,11 @@ namespace bpkg
       //
       // If this is not a library, then by default we assume its some kind of
       // a development tool and use the devel section.
+      //
+      // Note also that we require the debhelper compatibility level 13 which
+      // has more advanced features that we rely on. Such as:
+      //
+      //   - Variable substitutions in the debhelper config files.
       //
       string section (
         ops_->debian_section_specified () ? ops_->debian_section () :
@@ -2478,7 +2482,10 @@ namespace bpkg
       // We could have instead included architecture.mk but let's avoid an
       // extra dependency (most packages that we sampled do it directly).
       //
-      os << "DEB_HOST_MULTIARCH ?= $(shell dpkg-architecture -qDEB_HOST_MULTIARCH)\n"
+      // @@ Add --debian-no-multiarch? Will get quite messy (see .install
+      //    files).
+      //
+      os << "export DEB_HOST_MULTIARCH ?= $(shell dpkg-architecture -qDEB_HOST_MULTIARCH)\n"
          << '\n';
 
       // The debian/tmp/ subdirectory appears to be the canonical destination
@@ -2492,6 +2499,10 @@ namespace bpkg
       //
       // See --jobs documentation in dpkg-buildpackage(1) for details on
       // parallel=N.
+      //
+      // @@ Need to map verbosity! Also looks like progress is disabled
+      //    (probably because stderr redirected to pipe). @@ No, there is
+      //    progress. Maybe just keep, doesn't seem harmful. Or pass ours.
       //
       os << "b := " << search_b (*ops_).effect_string ()            << '\n'
          << '\n'
@@ -2523,8 +2534,9 @@ namespace bpkg
       //    we should invent something like config.install.include_arch to
       //    support this distinction?
       //
-      bool priv (ops_->private_ ());
-
+      // NOTE: make sure to update .install files below if changing anyting
+      //       here.
+      //
       os << "config :=  config.install.chroot=$(DESTDIR)/"    << '\n'
          << "config += 'config.install.sudo=[null]'"          << '\n'
 
@@ -2552,14 +2564,14 @@ namespace bpkg
          << "config += 'config.install.doc=share/doc/<private>/<project>/'" << '\n'
          << "config +=  config.install.legal=doc/"                  << '\n'
          << "config +=  config.install.man=share/man/"              << '\n'
-         << "config +=  config.install.man1=share/man1/"            << '\n'
-         << "config +=  config.install.man2=share/man2/"            << '\n'
-         << "config +=  config.install.man3=share/man3/"            << '\n'
-         << "config +=  config.install.man4=share/man4/"            << '\n'
-         << "config +=  config.install.man5=share/man5/"            << '\n'
-         << "config +=  config.install.man6=share/man6/"            << '\n'
-         << "config +=  config.install.man7=share/man7/"            << '\n'
-         << "config +=  config.install.man8=share/man8/"            << '\n'
+         << "config +=  config.install.man1=man/man1/"              << '\n'
+         << "config +=  config.install.man2=man/man2/"              << '\n'
+         << "config +=  config.install.man3=man/man3/"              << '\n'
+         << "config +=  config.install.man4=man/man4/"              << '\n'
+         << "config +=  config.install.man5=man/man5/"              << '\n'
+         << "config +=  config.install.man6=man/man6/"              << '\n'
+         << "config +=  config.install.man7=man/man7/"              << '\n'
+         << "config +=  config.install.man8=man/man8/"              << '\n'
 
          << "config += 'config.install.private="
          <<            (priv ? pn.string () : "[null]")  << "'" << '\n';
@@ -2637,6 +2649,21 @@ namespace bpkg
          << "override_dh_auto_clean:\n"
          << '\n';
 
+      // Override dh_shlibdeps.
+      //
+      // Failed that we get a warning about calculated ${shlibs:Depends} being
+      // unused.
+      //
+      // Note that there is also dh_makeshlibs which is invoked just before
+      // but we shouldn't override it because (quoting its man page): "It will
+      // also ensure that ldconfig is invoked during install and removal when
+      // it finds shared libraries."
+      //
+      os << "# Disable dh_shlibdeps since we don't use ${shlibs:Depends}.\n"
+         << "#\n"
+         << "override_dh_shlibdeps:\n"
+         << '\n';
+
       os.close ();
     }
     catch (const io_error& e)
@@ -2644,12 +2671,62 @@ namespace bpkg
       fail << "unable to write to " << rules << ": " << e;
     }
 
+    // Generate the dh_install (.install) config files for each package in
+    // order to sort out which files belong where.
+    //
+    // For documentation of the config file format see debhelper(1) and
+    // dh_install(1). But the summary is:
+    //
+    //   - Supports only simple wildcards (?, *, [...]; no recursive/**).
+    //   - But can install whole directories recursively.
+    //   - Supports variable substitutions (${...}; since compat level 13).
+    //   - Can be a script for more complex logic.
+    //   - An entry that doesn't match anything is an error (say, /usr/sbin/*).
+    //
+    // Keep in mind that wherever there is <project> in the config.install.*
+    // variable, we can end up with multiple different directories (bundled
+    // package).
+    //
+    string privdir (priv ? pn.string () + '/' : "");
+    string libdir ("usr/lib/${DEB_HOST_MULTIARCH}/" + privdir);
+    string incdir ("usr/include/" + privdir);
+    string docdir ("usr/share/doc/" + privdir);
+
+    path main_install (deb / (st.main + ".install"));
+    try
+    {
+      ofdstream os (main_install);
+
+      // The main package contains everything that doesn't go to another
+      // package.
+      //
+      os//<< "usr/bin/*"   << '\n'
+        //<< "usr/sbin/*"  << '\n'
+
+         << libdir << '\n'
+
+         << incdir << '\n'
+
+         << docdir << "*" << '\n'
+        //<< "/usr/share/man/man1"
+
+        ;
+
+      os.close ();
+    }
+    catch (const io_error& e)
+    {
+      fail << "unable to write to " << main_install << ": " << e;
+    }
+
+    return;
+
     // Run dpkg-buildpackage.
     //
     // Note that there doesn't seem to be any way to control its verbosity or
     // progress.
     //
-    // @@ Buildinfo stuff fuzzy.
+    // @@ Buildinfo stuff is fuzzy.
     //
     // @@ Why does stuff keep recompiling on every run (e.g., byacc)? Running
     //    the same commands from the command line does not trigger rebuild.
