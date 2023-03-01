@@ -21,6 +21,9 @@ namespace bpkg
     {
       small_vector<const char*, 1> ops;
 
+      // NOTE: see custom versions in system_package_manager* if adding
+      //       anything new here (search for search_b()).
+
       // Map verbosity level. If we are running quiet or at level 1,
       // then run build2 quiet. Otherwise, run it at the same level
       // as us.

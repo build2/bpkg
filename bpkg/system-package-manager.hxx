@@ -7,6 +7,8 @@
 #include <bpkg/types.hxx>
 #include <bpkg/utility.hxx>
 
+#include <libbutl/path-map.hxx>
+
 #include <bpkg/package.hxx>
 #include <bpkg/common-options.hxx>
 #include <bpkg/host-os-release.hxx>
@@ -329,6 +331,52 @@ namespace bpkg
                                 const string& name_id,
                                 const string& version_id,
                                 const vector<string>& like_ids);
+
+    // Return the map of filesystem entries (files and symlinks) that would be
+    // installed for the specified packages with the specified configuration
+    // variables.
+    //
+    // In essence, this function runs:
+    //
+    // b --dry-run --quiet <vars> !config.install.manifest=- install: <pkgs>
+    //
+    // And converts the printed installation manifest into the path map.
+    //
+    // Note that this function prints an appropriate progress indicator since
+    // even in the dry-run mode it may take some time (see the --dry-run
+    // option documentation for details).
+    //
+    struct installed_entry
+    {
+      string mode;                                     // Empty if symlink.
+      const pair<const path, installed_entry>* target; // Target if symlink.
+    };
+
+    class installed_entry_map: public butl::path_map<installed_entry>
+    {
+    public:
+      // Return true if there are filesystem entries in the specified
+      // directory or its subdirectories.
+      //
+      bool
+      contains (const dir_path& d)
+      {
+        auto p (find_sub (d));
+        return p.first != p.second;
+      }
+
+      bool
+      contains (string d)
+      {
+        return contains (dir_path (move (d)));
+      }
+    };
+
+    installed_entry_map
+    installed_entries (const common_options&,
+                       const packages& pkgs,
+                       const strings& vars);
+
   protected:
     optional<bool>   progress_;      // --[no]-progress (see also stderr_term)
     optional<size_t> fetch_timeout_; // --fetch-timeout

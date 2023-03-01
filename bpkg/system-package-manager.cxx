@@ -7,6 +7,7 @@
 
 #include <libbutl/regex.hxx>
 #include <libbutl/semantic-version.hxx>
+#include <libbutl/json/parser.hxx>
 
 #include <bpkg/package.hxx>
 #include <bpkg/package-odb.hxx>
@@ -639,6 +640,240 @@ namespace bpkg
         if (r)
           break;
       }
+    }
+
+    return r;
+  }
+
+  auto system_package_manager::
+  installed_entries (const common_options& co,
+                     const packages& pkgs,
+                     const strings& vars) -> installed_entry_map
+  {
+    process_path pp (search_b (co));
+
+    // Note that we don't use start_b() here since we want to be consistent
+    // with how things will be run when building the package.
+    //
+    cstrings args {
+      pp.recall_string (),
+      "--quiet", // Note: implies --no-progress.
+      "--dry-run"};
+
+    // Pass our --jobs value, if any.
+    //
+    string jobs;
+    if (size_t n = co.jobs_specified () ? co.jobs () : 0)
+    {
+      jobs = to_string (n);
+      args.push_back ("--jobs");
+      args.push_back (jobs.c_str ());
+    }
+
+    // Pass any --build-option.
+    //
+    for (const string& o: co.build_option ()) args.push_back (o.c_str ());
+
+    // Configuration variables.
+    //
+    for (const string& v: vars) args.push_back (v.c_str ());
+    args.push_back ("!config.install.manifest=-");
+
+    // Package directories to install.
+    //
+    strings dirs;
+    for (const package& p: pkgs) dirs.push_back (p.out_root.representation ());
+    args.push_back ("install:");
+    for (const string& d: dirs) args.push_back (d.c_str ());
+
+    args.push_back (nullptr);
+
+    installed_entry_map r;
+    try
+    {
+      if (verb >= 2)
+        print_process (args);
+      else if (verb == 1)
+        text << "determining filesystem entries that would be installed...";
+
+      // Redirect stdout to a pipe.
+      //
+      process pr (pp,
+                  args,
+                  0  /* stdin */,
+                  -1 /* stdout */,
+                  2  /* stderr */);
+      try
+      {
+        ifdstream is (move (pr.in_ofd), fdstream_mode::skip);
+
+        json::parser p (is,
+                        args[0] /* input_name */,
+                        true    /* multi_value */,
+                        "\n"    /* value_separators */);
+
+        using event = json::event;
+
+        // Note: recursive lambda.
+        //
+        auto parse_entry = [&r, &p] (const auto& parse_entry) -> void
+        {
+          optional<event> e (p.next ());
+
+          // @@ This is really ugly, need to add next_expect() helpers to JSON
+          //    parser (similar to libstudxml).
+
+          if (*e != event::begin_object)
+            fail << "entry object expected";
+
+          // type
+          //
+          if (!(e = p.next ()) || *e != event::name || p.name () != "type")
+            fail << "type member expected";
+
+          if (!(e = p.next ()) || *e != event::string)
+            fail << "type member string value expected";
+
+          string t (p.value ()); // Note: value invalidated after p.next().
+
+          if (t == "target")
+          {
+            // name
+            //
+            if (!(e = p.next ()) || *e != event::name || p.name () != "name")
+              fail << "name member expected";
+
+            if (!(e = p.next ()) || *e != event::string)
+              fail << "name member string value expected";
+
+            // entries
+            //
+            if (!(e = p.next ()) || *e != event::name || p.name () != "entries")
+              fail << "entries member expected";
+
+            if (!(e = p.next ()) || *e != event::begin_array)
+              fail << "entries member array value expected";
+
+            while ((e = p.peek ()) && *e != event::end_array)
+              parse_entry (parse_entry);
+
+            if (!(e = p.next ()) || *e != event::end_array)
+              fail << "entries member array value end expected";
+          }
+          else if (t == "file" || t == "symlink" || t == "directory")
+          {
+            // path
+            //
+            if (!(e = p.next ()) || *e != event::name || p.name () != "path")
+              fail << "path member expected";
+
+            if (!(e = p.next ()) || *e != event::string)
+              fail << "path member string value expected";
+
+            path ep (p.value ()); // Assuming normalized.
+
+            if (t == "file" || t == "directory")
+            {
+              // mode
+              //
+              if (!(e = p.next ()) || *e != event::name || p.name () != "mode")
+                fail << "mode member expected";
+
+              if (!(e = p.next ()) || *e != event::string)
+                fail << "mode member string value expected";
+
+              string em (p.value ());
+
+              if (t == "file")
+              {
+                auto p (
+                  r.emplace (
+                    move (ep), installed_entry {move (em), nullptr}));
+
+                if (!p.second)
+                  fail << p.first->first << " is installed multiple times";
+              }
+            }
+            else
+            {
+              // target
+              //
+              if (!(e = p.next ()) || *e != event::name || p.name () != "target")
+                fail << "target member expected";
+
+              if (!(e = p.next ()) || *e != event::string)
+                fail << "target member string value expected";
+
+              path et (p.value ());
+              if (et.relative ())
+              {
+                et = ep.directory () / et;
+                et.normalize ();
+              }
+
+              auto i (r.find (et));
+              if (i == r.end ())
+                fail << "symlink " << ep << " target " << et << " does not "
+                     << "refer to previously installed entry";
+
+              auto p (r.emplace (move (ep), installed_entry {"", &*i}));
+
+              if (!p.second)
+                fail << p.first->first << " is installed multiple times";
+            }
+          }
+          else
+            fail << "unknown entry type '" << t << "'";
+
+          if (!(e = p.next ()) || *e != event::end_object)
+            fail << "entry object end expected";
+        };
+
+        while (p.peek ()) // More values.
+        {
+          parse_entry (parse_entry);
+
+          if (p.next ()) // Consume value-terminating nullopt.
+            fail << "unexpected data after entry object";
+        }
+
+        is.close ();
+      }
+      catch (const json::invalid_json_input& e)
+      {
+        if (pr.wait ())
+          fail << "invalid " << args[0] << " json input: " << e;
+
+        // Fall through.
+      }
+      catch (const io_error& e)
+      {
+        if (pr.wait ())
+          fail << "unable to read " << args[0] << " output: " << e;
+
+        // Fall through.
+      }
+
+      if (!pr.wait ())
+      {
+        diag_record dr (fail);
+        dr << args[0] << " exited with non-zero code";
+
+        if (verb < 2)
+        {
+          dr << info << "command line: ";
+          print_process (dr, args);
+        }
+      }
+    }
+    catch (const process_error& e)
+    {
+      error << "unable to execute " << args[0] << ": " << e;
+
+      if (e.child)
+        exit (1);
+
+      throw failed ();
     }
 
     return r;

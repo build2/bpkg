@@ -1848,7 +1848,7 @@ namespace bpkg
   void system_package_manager_debian::
   generate (const packages& pkgs,
             const packages& deps,
-            const strings&,
+            const strings& vars,
             const package_manifest& pm,
             const string& pt,
             const small_vector<language, 1>& langs,
@@ -1955,6 +1955,83 @@ namespace bpkg
         print_status (dr, st);
       }
     }
+
+    // We override every config.install.* variable in order not to pick
+    // anything configured. Note that we add some more in the rules file
+    // below.
+    //
+    // We make use of the <project> substitution since in the recursive mode
+    // we may be installing multiple projects. Note that the <private>
+    // directory component is automatically removed if this functionality is
+    // not enabled. One side-effect of using <project> is that we will be
+    // using the bpkg package name instead of the main Debian package name.
+    // But perhaps that's correct: on Debian it's usually the source package
+    // name, which is the same. To keep things consistent we use the bpkg
+    // package name for <private> as well.
+    //
+    // @@ Some libraries install what looks like architecture-specific
+    //    configuration files to /usr/include/$(DEB_HOST_MULTIARCH). Maybe we
+    //    should invent something like config.install.include_arch to support
+    //    this distinction?
+    //
+    // NOTE: make sure to update .install files below if changing anyting
+    //       here.
+    //
+    // Note: we need to quote values that contain `$` so that they don't get
+    // expanded as build2 variables in the installed_entries() call.
+    //
+    strings config {
+      "config.install.root=/usr/",
+      "config.install.data_root=root/",
+      "config.install.exec_root=root/",
+
+      "config.install.bin=exec_root/bin/",
+      "config.install.sbin=exec_root/sbin/",
+
+      // On Debian shared libraries should not be executable. Also,
+      // libexec/ is the same as lib/ (note that executables that get
+      // installed there will still have the executable bit set).
+      //
+      "config.install.lib='exec_root/lib/$(DEB_HOST_MULTIARCH)/<private>/'",
+      "config.install.lib.mode=644",
+      "config.install.libexec=lib/<project>/",
+      "config.install.pkgconfig=lib/pkgconfig/",
+
+      "config.install.etc=data_root/etc/",
+      "config.install.include=data_root/include/<private>/",
+      "config.install.share=data_root/share/",
+      "config.install.data=share/<private>/<project>/",
+
+      "config.install.doc=share/doc/<private>/<project>/",
+      "config.install.legal=doc/",
+      "config.install.man=share/man/",
+      "config.install.man1=man/man1/",
+      "config.install.man2=man/man2/",
+      "config.install.man3=man/man3/",
+      "config.install.man4=man/man4/",
+      "config.install.man5=man/man5/",
+      "config.install.man6=man/man6/",
+      "config.install.man7=man/man7/",
+      "config.install.man8=man/man8/"};
+
+    config.push_back ("config.install.private=" +
+                      (priv ? pn.string () : "[null]"));
+
+    // Add user-specified configuration variables last to allow them to
+    // override anything.
+    //
+    for (const string& v: vars)
+      config.push_back (v);
+
+    // Get the map of files that will end up in the binary packages.
+    //
+    // Note that we are passing quoted values with $(DEB_HOST_MULTIARCH) which
+    // will be treated literally.
+    //
+    installed_entry_map ies (installed_entries (*ops_, pkgs, config));
+
+    if (ies.empty ())
+      fail << "specified package(s) do not install any files";
 
     // Start assembling the package "source" directory.
     //
@@ -2504,7 +2581,12 @@ namespace bpkg
       //    (probably because stderr redirected to pipe). @@ No, there is
       //    progress. Maybe just keep, doesn't seem harmful. Or pass ours.
       //
-      os << "b := " << search_b (*ops_).effect_string ()            << '\n'
+      // Note: should be consistent with the invocation in installed_entries()
+      //       above.
+      //
+      os << "b := " << search_b (*ops_).effect_string ();
+      for (const string& o: ops_->build_option ()) os << ' ' << o;
+      os << '\n'
          << '\n'
          << "parallel := $(filter parallel=%,$(DEB_BUILD_OPTIONS))" << '\n'
          << "ifneq ($(parallel),)"                                  << '\n'
@@ -2517,70 +2599,47 @@ namespace bpkg
          << "endif"                                                 << '\n'
          << '\n';
 
-      // Note that we override every config.install.* variable in order not to
-      // pick anything configured.
+      // Configuration variables.
       //
-      // We make use of the <project> substitution since in the recursive mode
-      // we may be installing multiple projects. Note that the <private>
-      // directory component is automatically removed if this functionality is
-      // not enabled. One side-effect of using <project> is that we will be
-      // using the bpkg package name instead of the main Debian package name.
-      // But perhaps that's correct: on Debian it's usually the source package
-      // name, which is the same. To keep things consistent we use the bpkg
-      // package name for <private> as well.
+      // Note: we need to quote values that contain `<>`, `[]`, since they
+      // will be passed through shell. For simplicity, let's just quote
+      // everything.
       //
-      // @@ Some libraries install what looks like architecture-specific
-      //    configuration files to /usr/include/$(DEB_HOST_MULTIARCH). Maybe
-      //    we should invent something like config.install.include_arch to
-      //    support this distinction?
-      //
-      // NOTE: make sure to update .install files below if changing anyting
-      //       here.
-      //
-      os << "config :=  config.install.chroot=$(DESTDIR)/"    << '\n'
-         << "config += 'config.install.sudo=[null]'"          << '\n'
-
-         << "config +=  config.install.root=/usr/"            << '\n'
-         << "config +=  config.install.data_root=root/"       << '\n'
-         << "config +=  config.install.exec_root=root/"       << '\n'
-
-         << "config +=  config.install.bin=exec_root/bin/"    << '\n'
-         << "config +=  config.install.sbin=exec_root/sbin/"  << '\n'
-
-         // On Debian shared libraries should not be executable. Also,
-         // libexec/ is the same as lib/ (note that executables that get
-         // installed there will still have the executable bit set).
-         //
-         << "config += 'config.install.lib=exec_root/lib/$(DEB_HOST_MULTIARCH)/<private>/'" << '\n'
-         << "config +=  config.install.lib.mode=644"               << '\n'
-         << "config += 'config.install.libexec=lib/<project>/'"    << '\n'
-         << "config +=  config.install.pkgconfig=lib/pkgconfig/"   << '\n'
-
-         << "config +=  config.install.etc=data_root/etc/"               << '\n'
-         << "config += 'config.install.include=data_root/include/<private>/'" << '\n'
-         << "config +=  config.install.share=data_root/share/"           << '\n'
-         << "config += 'config.install.data=share/<private>/<project>/'" << '\n'
-
-         << "config += 'config.install.doc=share/doc/<private>/<project>/'" << '\n'
-         << "config +=  config.install.legal=doc/"                  << '\n'
-         << "config +=  config.install.man=share/man/"              << '\n'
-         << "config +=  config.install.man1=man/man1/"              << '\n'
-         << "config +=  config.install.man2=man/man2/"              << '\n'
-         << "config +=  config.install.man3=man/man3/"              << '\n'
-         << "config +=  config.install.man4=man/man4/"              << '\n'
-         << "config +=  config.install.man5=man/man5/"              << '\n'
-         << "config +=  config.install.man6=man/man6/"              << '\n'
-         << "config +=  config.install.man7=man/man7/"              << '\n'
-         << "config +=  config.install.man8=man/man8/"              << '\n'
-
-         << "config += 'config.install.private="
-         <<            (priv ? pn.string () : "[null]")  << "'" << '\n';
+      os << "config := config.install.chroot='$(DESTDIR)/'"   << '\n'
+         << "config += config.install.sudo='[null]'"          << '\n';
 
       // If this is a C-based language, add rpath for private installation.
       //
       if (priv && (lang ("c") || lang ("c++") || lang ("cc")))
-        os << "config += config.bin.rpath=/usr/lib/$(DEB_HOST_MULTIARCH)/"
-           <<            pn << "/" << '\n';
+        os << "config += config.bin.rpath='/usr/lib/$(DEB_HOST_MULTIARCH)/"
+           <<            pn << "/'" << '\n';
+
+      // Keep last to allow user-specified configuration variables to override
+      // anything.
+      //
+      for (const string& c: config)
+      {
+        // Quote the value unless already quoted (see above). Presense of
+        // potentially-quoted user variables complicates things a bit (can
+        // be partially quoted, double-quoted, etc).
+        //
+        size_t p (c.find_first_of ("=+ \t")); // End of name.
+        if (p != string::npos)
+        {
+          p = c.find_first_not_of ("=+ \t", p); // Beginning of value.
+          if (p != string::npos)
+          {
+            if (c.find_first_of ("'\"", p) == string::npos) // Not quoted.
+            {
+              os << "config += " << string (c, 0, p) << '\''
+                 << string (c, p) << "'\n";
+              continue;
+            }
+          }
+        }
+
+        os << "config += " << c << '\n';
+      }
 
       os << '\n';
 
@@ -2687,11 +2746,6 @@ namespace bpkg
     // variable, we can end up with multiple different directories (bundled
     // package).
     //
-    string privdir (priv ? pn.string () + '/' : "");
-    string libdir ("usr/lib/${DEB_HOST_MULTIARCH}/" + privdir);
-    string incdir ("usr/include/" + privdir);
-    string docdir ("usr/share/doc/" + privdir);
-
     path main_install (deb / (st.main + ".install"));
     try
     {
@@ -2700,17 +2754,16 @@ namespace bpkg
       // The main package contains everything that doesn't go to another
       // package.
       //
-      os//<< "usr/bin/*"   << '\n'
-        //<< "usr/sbin/*"  << '\n'
+      if (ies.contains ("/usr/bin/"))  os << "usr/bin/*"  << '\n';
+      if (ies.contains ("/usr/sbin/")) os << "usr/sbin/*" << '\n';
 
-         << libdir << '\n'
+      if (ies.contains ("/usr/lib/$(DEB_HOST_MULTIARCH)/"))
+        os << "usr/lib/${DEB_HOST_MULTIARCH}/*" << '\n';
 
-         << incdir << '\n'
+      if (ies.contains ("/usr/include/")) os << "usr/include/*" << '\n';
 
-         << docdir << "*" << '\n'
-        //<< "/usr/share/man/man1"
-
-        ;
+      if (ies.contains ("/usr/share/doc/")) os << "usr/share/doc/*" << '\n';
+      if (ies.contains ("/usr/share/man/")) os << "usr/share/man/*" << '\n';
 
       os.close ();
     }
@@ -2718,8 +2771,6 @@ namespace bpkg
     {
       fail << "unable to write to " << main_install << ": " << e;
     }
-
-    return;
 
     // Run dpkg-buildpackage.
     //
