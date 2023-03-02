@@ -1974,11 +1974,11 @@ namespace bpkg
     //    should invent something like config.install.include_arch to support
     //    this distinction?
     //
-    // NOTE: make sure to update .install files below if changing anyting
-    //       here.
-    //
     // Note: we need to quote values that contain `$` so that they don't get
     // expanded as build2 variables in the installed_entries() call.
+    //
+    // NOTE: make sure to update .install files below if changing anyting
+    //       here.
     //
     strings config {
       "config.install.root=/usr/",
@@ -1997,7 +1997,7 @@ namespace bpkg
       "config.install.libexec=lib/<project>/",
       "config.install.pkgconfig=lib/pkgconfig/",
 
-      "config.install.etc=data_root/etc/",
+      "config.install.etc=/etc/",
       "config.install.include=data_root/include/<private>/",
       "config.install.share=data_root/share/",
       "config.install.data=share/<private>/<project>/",
@@ -2023,15 +2023,27 @@ namespace bpkg
     for (const string& v: vars)
       config.push_back (v);
 
+    // Note that we have to use global install scope for the auto recursive
+    // mode since things can be spread over multiple linked configurations.
+    //
+    string scope (!recur || *recur == recursive_mode::full
+                  ? "project"
+                  : "global");
+
     // Get the map of files that will end up in the binary packages.
     //
     // Note that we are passing quoted values with $(DEB_HOST_MULTIARCH) which
     // will be treated literally.
     //
-    installed_entry_map ies (installed_entries (*ops_, pkgs, config));
+    installed_entry_map ies (installed_entries (*ops_, pkgs, config, scope));
 
     if (ies.empty ())
       fail << "specified package(s) do not install any files";
+
+#if 0
+    for (const auto& p: ies)
+      text << p.first;
+#endif
 
     // Start assembling the package "source" directory.
     //
@@ -2689,13 +2701,6 @@ namespace bpkg
 
       // Override dh_auto_install.
       //
-      // Note that we have to use global install scope for the auto recursive
-      // mode since things can be spread over multiple linked configurations.
-      //
-      string scope (!recur || *recur == recursive_mode::full
-                    ? "project"
-                    : "global");
-
       os << "override_dh_auto_install:\n"
          << '\t' << "$b $(config) '!config.install.scope=" << scope << "' "
          <<         "install: $(packages)" << '\n'
@@ -2738,38 +2743,243 @@ namespace bpkg
     //
     //   - Supports only simple wildcards (?, *, [...]; no recursive/**).
     //   - But can install whole directories recursively.
-    //   - Supports variable substitutions (${...}; since compat level 13).
-    //   - Can be a script for more complex logic.
     //   - An entry that doesn't match anything is an error (say, /usr/sbin/*).
+    //   - Supports variable substitutions (${...}; since compat level 13).
     //
     // Keep in mind that wherever there is <project> in the config.install.*
     // variable, we can end up with multiple different directories (bundled
-    // package).
+    // packages).
     //
-    path main_install (deb / (st.main + ".install"));
+    path main_install;
+    path dev_install;
+    path doc_install;
+    path dbg_install;
+    path common_install;
+
+    const path* cur_install (nullptr); // File being opened/written to.
     try
     {
-      ofdstream os (main_install);
+      pair<path&, ofdstream> main (main_install, nullfd);
+      pair<path&, ofdstream> dev  (dev_install, nullfd);
+      pair<path&, ofdstream> doc  (doc_install, nullfd);
+      pair<path&, ofdstream> dbg  (dbg_install, nullfd);
+      pair<path&, ofdstream> com  (common_install, nullfd);
+
+      auto open = [&deb, &cur_install] (pair<path&, ofdstream>& os,
+                                        const string& n)
+      {
+        if (!n.empty ())
+        {
+          cur_install = &(os.first = deb / (n + ".install"));
+          os.second.open (os.first);
+        }
+      };
+
+      open (main, st.main);
+      open (dev, st.dev);
+      open (doc, st.doc);
+      open (dbg, st.dbg);
+      open (com, st.common);
+
+      auto is_open = [] (pair<path&, ofdstream>& os)
+      {
+        return os.second.is_open ();
+      };
+
+      auto add = [&cur_install] (pair<path&, ofdstream>& os, const path& p)
+      {
+        // Strip root.
+        //
+        string s (p.leaf (p.root_directory ()).string ());
+
+        // Replace () with {}.
+        //
+        for (char& c: s)
+        {
+          if (c == '(') c = '{';
+          if (c == ')') c = '}';
+        }
+
+        cur_install = &os.first;
+        os.second << s  << '\n';
+      };
+
+      // Let's tighten things up and only look in <private>/ (if specified) to
+      // make sure there is nothing stray.
+      //
+      string pd (priv ? pn.string () + '/' : "");
+
+      // NOTE: keep consistent with the config.install.* values above.
+      //
+      dir_path bindir   ("/usr/bin/");
+      dir_path sbindir  ("/usr/sbin/");
+      dir_path etcdir   ("/etc/");
+      dir_path incdir   ("/usr/include/" + pd);
+      dir_path libdir   ("/usr/lib/$(DEB_HOST_MULTIARCH)/" + pd);
+      dir_path pkgdir   (libdir / dir_path ("pkgconfig"));
+      dir_path sharedir ("/usr/share/" + pd);
+      dir_path docdir   ("/usr/share/doc/" + pd);
+      dir_path mandir   ("/usr/share/man/");
 
       // The main package contains everything that doesn't go to another
-      // package.
+      // packages.
       //
-      if (ies.contains ("/usr/bin/"))  os << "usr/bin/*"  << '\n';
-      if (ies.contains ("/usr/sbin/")) os << "usr/sbin/*" << '\n';
+      if (ies.contains_sub (bindir))  add (main,  bindir / "*");
+      if (ies.contains_sub (sbindir)) add (main, sbindir / "*");
 
-      if (ies.contains ("/usr/lib/$(DEB_HOST_MULTIARCH)/"))
-        os << "usr/lib/${DEB_HOST_MULTIARCH}/*" << '\n';
+      // This could potentially go to -common but it could also be target-
+      // specific, who knows. So let's keep it in main for now.
+      //
+      if (ies.contains_sub (etcdir)) add (main, etcdir / "*");
 
-      if (ies.contains ("/usr/include/")) os << "usr/include/*" << '\n';
+      if (!is_open (dev))
+      {
+        if (ies.contains_sub (incdir)) add (main, incdir / "*");
+        if (ies.contains_sub (libdir)) add (main, libdir / "*");
+      }
+      else
+      {
+        if (ies.contains_sub (incdir)) add (dev, incdir / "*");
 
-      if (ies.contains ("/usr/share/doc/")) os << "usr/share/doc/*" << '\n';
-      if (ies.contains ("/usr/share/man/")) os << "usr/share/man/*" << '\n';
+        // Ok, time for things to get hairy: we need to split the contents
+        // of lib/ into the main and -dev packages. The -dev package should
+        // contain three things:
+        //
+        // 1. Static libraries (.a).
+        // 2. Non-versioned shared library symlinks (.so).
+        // 3. Contents of the pkgconfig/ subdirectory.
+        //
+        // Everything else should go into the main package. In particular, we
+        // assume any subdirectories other than pkgconfig/ are the libexec
+        // stuff or similar.
+        //
+        // The (2) case (shared library) is tricky. Here we can have three
+        // plausible arrangements:
+        //
+        // A. Portably-versioned library:
+        //
+        //    libfoo-1.2.so
+        //    libfoo.so     -> libfoo-1.2.so
+        //
+        // B. Natively-versioned library:
+        //
+        //    libfoo.so.1.2.3
+        //    libfoo.so.1.2   -> libfoo.so.1.2.3
+        //    libfoo.so.1     -> libfoo.so.1.2
+        //    libfoo.so       -> libfoo.so.1
+        //
+        // C. Non-versioned library:
+        //
+        //    libfoo.so
+        //
+        // Note that in the (C) case the library should go into the main
+        // package. Based on this, the criteria appears to be straightforwrad:
+        // the extension is .so and it's a symlink. For good measure we also
+        // check that there is the `lib` prefix (plugins, etc).
+        //
+        for (auto p (ies.find_sub (libdir)); p.first != p.second; )
+        {
+          const path& f (p.first->first);
+          const installed_entry& ie ((p.first++)->second);
 
-      os.close ();
+          path l (f.leaf (libdir));
+
+          if (l.simple ())
+          {
+            string e (l.extension ());
+            const string& n (l.string ());
+
+            bool d (n.size () > 3 && n.compare (0, 3, "lib") == 0 &&
+                    ((e == "a"                         ) ||
+                     (e == "so" && ie.target != nullptr)));
+
+            add (d ? dev : main, libdir / l);
+          }
+          else
+          {
+            // Let's keep things tidy and use a wildcard rather than listing
+            // all the entries in subdirectories verbatim.
+            //
+            dir_path d (libdir / dir_path (*l.begin ()));
+
+            add (d == pkgdir ? dev : main, d / "*");
+
+            // Skip all the other entries in this subdirectory (in the prefix
+            // map they will all be in a contiguous range).
+            //
+            while (p.first != p.second && p.first->first.sub (d))
+              ++p.first;
+          }
+        }
+      }
+
+      // We cannot just do usr/share/* since it will clash with doc/ and man/
+      // below. So we have to list all the top-level entries in usr/share/
+      // that are not doc/ or man/.
+      //
+      for (auto p (ies.find_sub (sharedir)); p.first != p.second; )
+      {
+        const path& f ((p.first++)->first);
+
+        if (f.sub (docdir) || f.sub (mandir))
+          continue;
+
+        path l (f.leaf (sharedir));
+
+        if (l.simple ())
+          add (is_open (com) ? com : main, sharedir / l);
+        else
+        {
+          // Let's keep things tidy and use a wildcard rather than listing all
+          // the entries in subdirectories verbatim.
+          //
+          dir_path d (sharedir / dir_path (*l.begin ()));
+
+          add (is_open (com) ? com : main, d / "*");
+
+          // Skip all the other entries in this subdirectory (in the prefix
+          // map they will all be in a contiguous range).
+          //
+          while (p.first != p.second && p.first->first.sub (d))
+            ++p.first;
+        }
+      }
+
+      // Should we put the documentation into -common if there is no -doc?
+      // While there doesn't seem to be anything explicit in the policy, there
+      // are packages that do it this way (e.g., libao, libaudit). And the
+      // same logic seems to apply to -dev (e.g., zlib).
+      //
+      {
+        auto& os (is_open (doc) ? doc :
+                  is_open (com) ? com :
+                  is_open (dev) ? dev :
+                  main);
+
+        if (ies.contains_sub (docdir)) add (os, docdir / "*");
+        if (ies.contains_sub (mandir)) add (os, mandir / "*");
+      }
+
+      // Close.
+      //
+      auto close = [&cur_install] (pair<path&, ofdstream>& os)
+      {
+        if (os.second.is_open ())
+        {
+          cur_install = &os.first;
+          os.second.close ();
+        }
+      };
+
+      close (main);
+      close (dev);
+      close (doc);
+      close (dbg);
+      close (com);
     }
     catch (const io_error& e)
     {
-      fail << "unable to write to " << main_install << ": " << e;
+      fail << "unable to write to " << *cur_install << ": " << e;
     }
 
     // Run dpkg-buildpackage.
@@ -2777,12 +2987,11 @@ namespace bpkg
     // Note that there doesn't seem to be any way to control its verbosity or
     // progress.
     //
-    // @@ Buildinfo stuff is fuzzy.
+    // @@ Buildinfo stuff is fuzzy. There is also debug symbols warnings.
     //
     // @@ Why does stuff keep recompiling on every run (e.g., byacc)? Running
     //    the same commands from the command line does not trigger rebuild.
     //    Could dpkg-buildpackage somehow forcing rebuild? Via environment?
-    //
     //
     cstrings args {
       "dpkg-buildpackage",

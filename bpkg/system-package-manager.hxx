@@ -338,7 +338,8 @@ namespace bpkg
     //
     // In essence, this function runs:
     //
-    // b --dry-run --quiet <vars> !config.install.manifest=- install: <pkgs>
+    // b --dry-run --quiet <vars> !config.install.scope=<scope>
+    //   !config.install.manifest=- install: <pkgs>
     //
     // And converts the printed installation manifest into the path map.
     //
@@ -359,23 +360,18 @@ namespace bpkg
       // directory or its subdirectories.
       //
       bool
-      contains (const dir_path& d)
+      contains_sub (const dir_path& d)
       {
         auto p (find_sub (d));
         return p.first != p.second;
-      }
-
-      bool
-      contains (string d)
-      {
-        return contains (dir_path (move (d)));
       }
     };
 
     installed_entry_map
     installed_entries (const common_options&,
                        const packages& pkgs,
-                       const strings& vars);
+                       const strings& vars,
+                       const string& scope);
 
   protected:
     optional<bool>   progress_;      // --[no]-progress (see also stderr_term)

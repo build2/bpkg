@@ -648,7 +648,8 @@ namespace bpkg
   auto system_package_manager::
   installed_entries (const common_options& co,
                      const packages& pkgs,
-                     const strings& vars) -> installed_entry_map
+                     const strings& vars,
+                     const string& scope) -> installed_entry_map
   {
     process_path pp (search_b (co));
 
@@ -677,6 +678,10 @@ namespace bpkg
     // Configuration variables.
     //
     for (const string& v: vars) args.push_back (v.c_str ());
+
+    string scope_arg;
+    args.push_back ((scope_arg = "!config.install.scope=" + scope).c_str ());
+
     args.push_back ("!config.install.manifest=-");
 
     // Package directories to install.
