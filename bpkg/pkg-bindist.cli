@@ -77,6 +77,16 @@ namespace bpkg
        options, if any, are used as configured."
     }
 
+    string --debian-build-meta
+    {
+      "<data>",
+      "Alternative build metadata to include in the binary package version.
+       If empty value is specified, then no build metadata is included. By
+       default, the build metadata is the \cb{ID} and \cb{VERSION_ID}
+       components from \cb{os-release(5)}, for example, \cb{debian10} in
+       version \cb{1.2.3-0~debian10}."
+    }
+
     string --debian-section
     {
       "<v>",

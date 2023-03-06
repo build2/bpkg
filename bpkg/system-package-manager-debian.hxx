@@ -212,7 +212,8 @@ namespace bpkg
     package_status
     map_package (const package_name&,
                  const version&,
-                 const available_packages&);
+                 const available_packages&,
+                 const optional<string>&);
 
     // If simulate is not NULL, then instead of executing the actual apt-cache
     // and apt-get commands simulate their execution: (1) for apt-cache by

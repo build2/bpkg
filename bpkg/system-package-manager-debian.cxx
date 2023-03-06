@@ -1499,7 +1499,8 @@ namespace bpkg
   package_status system_package_manager_debian::
   map_package (const package_name& pn,
                const version& pv,
-               const available_packages& aps)
+               const available_packages& aps,
+               const optional<string>& build_metadata)
   {
     // We should only have one available package corresponding to this package
     // name/version.
@@ -1672,6 +1673,8 @@ namespace bpkg
     //
     string& sv (r.system_version);
 
+    bool no_build_metadata (build_metadata && build_metadata->empty ());
+
     if (optional<string> ov = system_package_version (ap,
                                                       rf,
                                                       os_release.name_id,
@@ -1711,19 +1714,21 @@ namespace bpkg
 
       // Add revision copying over the bpkg version value if empty.
       //
+      // Omit the default -0 revision if we have no build metadata.
+      //
       if (rp != string::npos)
       {
         if (size_t rn = n - (rp + 1))
         {
           sv.append (dv, rp, rn + 1);
         }
-        else
+        else if (pv.revision || !no_build_metadata)
         {
           sv += '-';
           sv += to_string (pv.revision ? *pv.revision : 0);
         }
       }
-      else
+      else if (!no_build_metadata)
         sv += "-0"; // Default revision (for build metadata; see below).
     }
     else
@@ -1767,15 +1772,26 @@ namespace bpkg
 
       // Add revision.
       //
-      sv += '-';
-      sv += to_string (pv.revision ? *pv.revision : 0);
+      if (pv.revision || !no_build_metadata)
+      {
+        sv += '-';
+        sv += to_string (pv.revision ? *pv.revision : 0);
+      }
     }
 
     // Add build matadata.
     //
-    sv += '~';
-    sv += os_release.name_id;
-    sv += os_release.version_id; // Could be empty.
+    if (!no_build_metadata)
+    {
+      sv += '~';
+      if (build_metadata)
+        sv += *build_metadata;
+      else
+      {
+        sv += os_release.name_id;
+        sv += os_release.version_id; // Could be empty.
+      }
+    }
 
     return r;
   }
@@ -1870,6 +1886,10 @@ namespace bpkg
 
     const dir_path& out (ops_->output_root ()); // Cannot be empty.
 
+    optional<string> build_metadata;
+    if (ops_->debian_build_meta_specified ())
+      build_metadata = ops_->debian_build_meta ();
+
     const shared_ptr<selected_package>& sp (pkgs.front ().selected);
     const package_name& pn (sp->name);
     const version& pv (sp->version);
@@ -1907,7 +1927,7 @@ namespace bpkg
     // Note that there should be no duplicate dependencies and we can sidestep
     // the status cache.
     //
-    package_status st (map_package (pn, pv, aps));
+    package_status st (map_package (pn, pv, aps, build_metadata));
 
     vector<package_status> sdeps;
     sdeps.reserve (deps.size ());
@@ -1943,7 +1963,7 @@ namespace bpkg
         s = move (*os);
       }
       else
-        s = map_package (sp->name, sp->version, aps);
+        s = map_package (sp->name, sp->version, aps, build_metadata);
 
       sdeps.push_back (move (s));
     }
@@ -2245,7 +2265,8 @@ namespace bpkg
           // ~debian10). While it may be tempting to strip it, we cannot since
           // the order is inverse. We could just make it empty `~`, though
           // that will look a bit strange. But keeping it shouldn't cause any
-          // issues.
+          // issues. Also note that the build metadata is part of the revision
+          // so we could strip the whole thing.
           //
           depends += st.main + " (>= " + st.system_version + ')';
         }
