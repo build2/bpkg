@@ -244,6 +244,10 @@ namespace bpkg
     normal    // Run normally (at verbosity 1).
   };
 
+  template <typename V>
+  void
+  map_verb_b (const common_options&, verb_b, V& args, string& verb_arg);
+
   const char*
   name_b (const common_options&);
 

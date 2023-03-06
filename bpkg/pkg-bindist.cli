@@ -55,6 +55,26 @@ namespace bpkg
   {
     "\h|PKG-BINDIST DEBIAN OPTIONS|"
 
+    bool --debian-prepare-only
+    {
+      "Prepare all the package metadata files (\cb{control}, \cb{rules}, etc)
+       but do not invoke \cb{bpkg-buildpackage} to generate the binary
+       package, printing its command line instead unless requested to be
+       quiet. Implies \cb{--keep-out}."
+    }
+
+    string --debian-buildflags = "assign"
+    {
+      "<mode>",
+      "Package build flags (\cb{dpkg-buildflags}) usage mode. Valid <mode>
+       values are \cb{assign} (use the build flags instead of configured),
+       \cb{append} (use the build flags in addition to configured, putting
+       them last), \cb{prepend} (use the build flags in addition to
+       configured, putting them first), and \cb{ignore} (ignore build
+       flags). The default mode is \cb{assign}. Note that compiler mode
+       options, if any, are used as configured."
+    }
+
     string --debian-section
     {
       "<v>",

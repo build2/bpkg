@@ -7,6 +7,56 @@ namespace bpkg
 {
   // *_b()
   //
+  template <typename V>
+  void
+  map_verb_b (const common_options& co, verb_b v, V& ops, string& verb_arg)
+  {
+    // Map verbosity level. If we are running quiet or at level 1,
+    // then run build2 quiet. Otherwise, run it at the same level
+    // as us.
+    //
+    bool progress    (co.progress ());
+    bool no_progress (co.no_progress ());
+
+    if (verb == 0)
+    {
+      ops.push_back ("-q");
+      no_progress = false;  // Already suppressed with -q.
+    }
+    else if (verb == 1)
+    {
+      if (v != verb_b::normal)
+      {
+        ops.push_back ("-q");
+
+        if (!no_progress)
+        {
+          if (v == verb_b::progress && stderr_term)
+          {
+            ops.push_back ("--progress");
+              progress = false; // The option is already added.
+          }
+        }
+        else
+          no_progress = false; // Already suppressed with -q.
+      }
+    }
+    else if (verb == 2)
+      ops.push_back ("-v");
+    else
+    {
+      verb_arg = to_string (verb);
+      ops.push_back ("--verbose");
+      ops.push_back (verb_arg.c_str ());
+    }
+
+    if (progress)
+      ops.push_back ("--progress");
+
+    if (no_progress)
+      ops.push_back ("--no-progress");
+  }
+
   template <typename O, typename E, typename... A>
   process
   start_b (const common_options& co,
@@ -24,51 +74,8 @@ namespace bpkg
       // NOTE: see custom versions in system_package_manager* if adding
       //       anything new here (search for search_b()).
 
-      // Map verbosity level. If we are running quiet or at level 1,
-      // then run build2 quiet. Otherwise, run it at the same level
-      // as us.
-      //
-      string vl;
-      bool progress    (co.progress ());
-      bool no_progress (co.no_progress ());
-
-      if (verb == 0)
-      {
-        ops.push_back ("-q");
-        no_progress = false;  // Already suppressed with -q.
-      }
-      else if (verb == 1)
-      {
-        if (v != verb_b::normal)
-        {
-          ops.push_back ("-q");
-
-          if (!no_progress)
-          {
-            if (v == verb_b::progress && stderr_term)
-            {
-              ops.push_back ("--progress");
-              progress = false; // The option is already added.
-            }
-          }
-          else
-            no_progress = false; // Already suppressed with -q.
-        }
-      }
-      else if (verb == 2)
-        ops.push_back ("-v");
-      else
-      {
-        vl = to_string (verb);
-        ops.push_back ("--verbose");
-        ops.push_back (vl.c_str ());
-      }
-
-      if (progress)
-        ops.push_back ("--progress");
-
-      if (no_progress)
-        ops.push_back ("--no-progress");
+      string verb_arg;
+      map_verb_b (co, v, ops, verb_arg);
 
       // Forward our --[no]diag-color options.
       //

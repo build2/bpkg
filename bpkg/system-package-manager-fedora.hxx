@@ -196,7 +196,7 @@ namespace bpkg
     virtual void
     pkg_install (const vector<package_name>&) override;
 
-    virtual void
+    virtual paths
     generate (const packages&,
               const packages&,
               const strings&,

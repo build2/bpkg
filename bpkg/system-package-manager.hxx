@@ -154,12 +154,17 @@ namespace bpkg
     virtual void
     pkg_install (const vector<package_name>&) = 0;
 
-    // Generate a binary distribution package. @@ TODO: doc more
+    // Generate a binary distribution package. See the pkg-bindist(1) man page
+    // for background and the pkg_bindist() function implementation for
+    // details.
     //
     // The available packages are loaded for all the packages in pkgs and
     // deps. For non-system packages (so for all in pkgs) there is always a
     // single available package that corresponds to the selected package. The
-    // out_root is only set for packages in pkgs.
+    // out_root is only set for packages in pkgs. Note also that all the
+    // packages in pkgs and deps are guaranteed to belong to the same build
+    // configuration (as opposed to being spread over multiple linked
+    // configurations).
     //
     // The passed package manifest corresponds to the first package in pkgs
     // (normally used as a source of additional package metadata such as
@@ -171,10 +176,12 @@ namespace bpkg
     // list contains every language that is used by anything that ends up in
     // the package.
     //
-    // See the pkg-bindist(1) man page and the pkg_bindist() function
-    // implementation for background and details.
+    // Return the list of paths to binary packages and any other associated
+    // files (build metadata, etc). If the result is empty, assume the
+    // prepare-only mode (or similar) with appropriate result diagnostics
+    // having been already issued.
     //
-    struct package // @@ TODO: any better name?
+    struct package
     {
       shared_ptr<selected_package> selected;
       available_packages           available;
@@ -185,7 +192,7 @@ namespace bpkg
 
     enum class recursive_mode {auto_, full};
 
-    virtual void
+    virtual paths
     generate (const packages& pkgs,
               const packages& deps,
               const strings& vars,

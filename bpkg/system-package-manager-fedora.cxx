@@ -1794,7 +1794,7 @@ namespace bpkg
     }
   }
 
-  void system_package_manager_fedora::
+  paths system_package_manager_fedora::
   generate (const packages&,
             const packages&,
             const strings&,
@@ -1804,5 +1804,7 @@ namespace bpkg
             const dir_path&,
             optional<recursive_mode>)
   {
+    paths r;
+    return r;
   }
 }

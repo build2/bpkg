@@ -775,7 +775,8 @@ namespace bpkg
             if (!(e = p.next ()) || *e != event::string)
               fail << "path member string value expected";
 
-            path ep (p.value ()); // Assuming normalized.
+            path ep (p.value ());
+            assert (ep.absolute () && ep.normalized (false /* separators */));
 
             if (t == "file" || t == "directory")
             {

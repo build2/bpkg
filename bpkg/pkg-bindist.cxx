@@ -102,6 +102,7 @@ namespace bpkg
   //
   static void
   collect_dependencies (const common_options& co,
+                        database& db,
                         packages* pkgs,
                         packages& deps,
                         const string& type,
@@ -116,11 +117,20 @@ namespace bpkg
       // We only consider dependencies from target configurations, similar
       // to pkg-install.
       //
-      database& db (ld.database ());
-      if (db.type == host_config_type || db.type == build2_config_type)
+      database& pdb (ld.database ());
+      if (pdb.type == host_config_type || pdb.type == build2_config_type)
         continue;
 
       shared_ptr<selected_package> d (ld.load ());
+
+      // Packaging stuff that is spread over multiple configurations is just
+      // to hairy so we don't support it. Specifically, it becomes tricky to
+      // override build options since using a global override will also affect
+      // host/build2 configurations.
+      //
+      if (db != pdb)
+        fail << "dependency package " << *d << " belongs to different "
+             << "configuration " << pdb.config_orig;
 
       // The selected package can only be configured if all its dependencies
       // are configured.
@@ -164,7 +174,7 @@ namespace bpkg
         }
 
         if (recursive && !sys)
-          collect_dependencies (co, pkgs, deps, type, langs, p, recursive);
+          collect_dependencies (co, db, pkgs, deps, type, langs, p, recursive);
       }
     }
   }
@@ -327,6 +337,7 @@ namespace bpkg
       // for us to detect this and it's better to over- than under-specify.
       //
       collect_dependencies (o,
+                            db,
                             (rec
                              ? *rec == recursive_mode::full ? &pkgs : nullptr
                              : &deps),
@@ -374,16 +385,22 @@ namespace bpkg
     // option to specify/override it (along with languages). Note that there
     // will probably be no way to override type for dependencies.
     //
-    spm->generate (pkgs, deps, vars, pm, type, langs, out, rec);
+    paths r (spm->generate (pkgs, deps, vars, pm, type, langs, out, rec));
 
-    // @@ TODO: change the output, maybe to something returned by spm?
-    //
+    if (r.empty ())
+      return 0; // Assume prepare-only mode or similar.
+
     if (verb && !o.no_result ())
     {
       const selected_package& p (*pkgs.front ().selected);
 
-      text << "generated " << spm->os_release.name_id << " package for "
-           << p.name << '/' << p.version;
+      diag_record dr (text);
+
+      dr << "generated " << spm->os_release.name_id << " package for "
+         << p.name << '/' << p.version << ':';
+
+      for (const path& p: r)
+        dr << "\n  " << p;
     }
 
     return 0;

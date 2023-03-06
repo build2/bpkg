@@ -39,6 +39,10 @@ namespace bpkg
   // Note that while most library package names in Debian start with lib (per
   // the policy), there are exceptions (e.g., zlib1g zlib1g-dev).
   //
+  // Also note that manual -dbg packages are obsolete in favor of automatic
+  // -dbgsym packages from Debian 9. So while we support -dbg for consumption,
+  // we only generate -dbgsym.
+  //
   // Based on that, it seems our best bet when trying to automatically map our
   // library package name to Debian package names is to go for the -dev
   // package first and figure out the shared library package from that based
@@ -129,7 +133,7 @@ namespace bpkg
     virtual void
     pkg_install (const vector<package_name>&) override;
 
-    virtual void
+    virtual paths
     generate (const packages&,
               const packages&,
               const strings&,
