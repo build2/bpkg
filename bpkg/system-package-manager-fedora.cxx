@@ -1801,9 +1801,11 @@ namespace bpkg
             const package_manifest&,
             const string&,
             const small_vector<language, 1>&,
-            const dir_path&,
             optional<recursive_mode>)
   {
+    // @@ TODO: make sure --output-root is not specified or matched the
+    //    rpm standard directory.
+
     paths r;
     return r;
   }

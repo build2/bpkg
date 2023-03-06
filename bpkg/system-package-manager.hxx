@@ -199,7 +199,6 @@ namespace bpkg
               const package_manifest&,
               const string& type,
               const small_vector<language, 1>&,
-              const dir_path& out,
               optional<recursive_mode>) = 0;
 
   public:

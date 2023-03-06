@@ -1856,12 +1856,19 @@ namespace bpkg
             const package_manifest& pm,
             const string& pt,
             const small_vector<language, 1>& langs,
-            const dir_path& out,
             optional<recursive_mode> recur)
   {
     tracer trace ("system_package_manager_debian::generate");
 
     assert (!langs.empty ()); // Should be effective.
+
+    // We require explicit output root.
+    //
+    if (!ops_->output_root_specified ())
+      fail << "output root directory must be specified explicitly with "
+           << "--output-root|-o";
+
+    const dir_path& out (ops_->output_root ()); // Cannot be empty.
 
     const shared_ptr<selected_package>& sp (pkgs.front ().selected);
     const package_name& pn (sp->name);
@@ -2082,9 +2089,9 @@ namespace bpkg
     {
       if (!empty (out))
       {
-        if (!ops_->wipe_out ())
-          fail << "directory " << out << " is not empty" <<
-            info << "use --wipe-out to clean it up but be careful";
+        if (!ops_->wipe_output ())
+          fail << "output root directory " << out << " is not empty" <<
+            info << "use --wipe-output to clean it up but be careful";
 
         rm_r (out, false);
       }
@@ -3179,7 +3186,7 @@ namespace bpkg
 
     // Cleanup intermediate files unless requested not to.
     //
-    if (!ops_->keep_out ())
+    if (!ops_->keep_output ())
     {
       rm_r (src);
     }

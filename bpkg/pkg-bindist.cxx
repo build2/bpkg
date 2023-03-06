@@ -209,10 +209,8 @@ namespace bpkg
         dr << info << "run 'bpkg help pkg-bindist' for more information";
     }
 
-    // Sort arguments into the output directory, package names, and
-    // configuration variables.
+    // Sort arguments into package names and configuration variables.
     //
-    dir_path out;
     vector<package_name> pns;
     strings vars;
     {
@@ -234,17 +232,6 @@ namespace bpkg
 
         if (a.find ('=') != string::npos)
           vars.push_back (move (trim (a)));
-        else if (out.empty ())
-        {
-          try
-          {
-            out = dir_path (move (a));
-          }
-          catch (const invalid_path& e)
-          {
-            fail << "invalid output directory '" << e.path << "'";
-          }
-        }
         else
         {
           try
@@ -258,8 +245,8 @@ namespace bpkg
         }
       }
 
-      if (out.empty () || pns.empty ())
-        fail << "output directory or package name argument expected" <<
+      if (pns.empty ())
+        fail << "package name argument expected" <<
           info << "run 'bpkg help pkg-bindist' for more information";
     }
 
@@ -385,7 +372,7 @@ namespace bpkg
     // option to specify/override it (along with languages). Note that there
     // will probably be no way to override type for dependencies.
     //
-    paths r (spm->generate (pkgs, deps, vars, pm, type, langs, out, rec));
+    paths r (spm->generate (pkgs, deps, vars, pm, type, langs, rec));
 
     if (r.empty ())
       return 0; // Assume prepare-only mode or similar.

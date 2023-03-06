@@ -10,11 +10,11 @@ include <bpkg/configuration.cli>;
 namespace bpkg
 {
   {
-    "<options> <vars> <out-dir> <pkg>",
+    "<options> <dir> <vars> <pkg>",
 
     "\h|SYNOPSIS|
 
-     \c{\b{bpkg pkg-bindist}|\b{bindist} [<options>] [<vars>] <out-dir> <pkg> [<pkg>...]}
+     \c{\b{bpkg pkg-bindist}|\b{bindist} [\b{--output-root}|\b{-o} <dir>] [<options>] [<vars>] <pkg>...}
 
      \h|DESCRIPTION|
 
@@ -22,8 +22,10 @@ namespace bpkg
      the specified package. If additional packages are specified, then they
      are bundled in the same distribution package. All the specified packages
      must have been previously configured with \l{bpkg-pkg-build(1)} or
-     \l{bpkg-pkg-configure(1)}. The intermediate files and the resulting
-     binary package are created in the <out-dir> directory.
+     \l{bpkg-pkg-configure(1)}. For some system package managers a directory
+     for intermediate files and subdirectories as well as the resulting binary
+     package may have to be specified explicitly with the
+     \c{\b{--output-root}|\b{-o}} option.
 
      Underneath, this command roughly performs the following steps: First it
      installs the specified packages similar to the \l{bpkg-pkg-install(1)}
@@ -60,7 +62,7 @@ namespace bpkg
       "Prepare all the package metadata files (\cb{control}, \cb{rules}, etc)
        but do not invoke \cb{bpkg-buildpackage} to generate the binary
        package, printing its command line instead unless requested to be
-       quiet. Implies \cb{--keep-out}."
+       quiet. Implies \cb{--keep-output}."
     }
 
     string --debian-buildflags = "assign"
@@ -173,17 +175,27 @@ namespace bpkg
        makes sense together with \cb{--recursive}."
     }
 
-    bool --wipe-out
+    dir_path --output-root|-o
     {
-      "Wipe the output directory (\ci{out-dir}) clean before using it to
-       generate the binary package."
+      "<dir>",
+      "Directory for intermediate files and subdirectories as well as the
+       resulting binary package. Note that this option may be required for
+       some system package managers and may not be specified for others."
     }
 
-    bool --keep-out
+    bool --wipe-output
     {
-      "Keep intermediate files in the output directory (\ci{out-dir}) that
-       were used to generate the binary package. This is primarily useful
-       for troubleshooting."
+      "Wipe the output root directory (either specified with \ci{--output-root}
+       or system package manager-specific) clean before using it to generate
+       the binary package."
+    }
+
+    bool --keep-output
+    {
+      "Keep intermediate files in the output root directory (either specified
+       with \ci{--output-root} or system package manager-specific) that were
+       used to generate the binary package. This is primarily useful for
+       troubleshooting."
     }
   };
 
