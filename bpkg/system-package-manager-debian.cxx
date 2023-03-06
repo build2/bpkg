@@ -3145,6 +3145,11 @@ namespace bpkg
       args.push_back ((jobs_arg = "--jobs=" + to_string (n)).c_str ());
     }
 
+    // Pass any additional options specified by the user.
+    //
+    for (const string& o: ops_->debian_build_option ())
+      args.push_back (o.c_str ());
+
     args.push_back (nullptr);
 
     if (ops_->debian_prepare_only ())

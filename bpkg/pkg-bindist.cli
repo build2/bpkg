@@ -77,6 +77,13 @@ namespace bpkg
        options, if any, are used as configured."
     }
 
+    strings --debian-build-option
+    {
+      "<o>",
+      "Additional option to pass to the \cb{dpkg-buildpackage} program. Repeat
+       this option to specify multiple build options."
+    }
+
     string --debian-build-meta
     {
       "<data>",
