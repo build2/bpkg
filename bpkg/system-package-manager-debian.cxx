@@ -2011,10 +2011,9 @@ namespace bpkg
     // name, which is the same. To keep things consistent we use the bpkg
     // package name for <private> as well.
     //
-    // @@ Some libraries install what looks like architecture-specific
-    //    configuration files to /usr/include/$(DEB_HOST_MULTIARCH). Maybe we
-    //    should invent something like config.install.include_arch to support
-    //    this distinction?
+    // Note that some libraries have what looks like architecture-specific
+    // configuration files in /usr/include/$(DEB_HOST_MULTIARCH)/ which is
+    // what we use for our config.install.include_arch location.
     //
     // Note: we need to quote values that contain `$` so that they don't get
     // expanded as build2 variables in the installed_entries() call.
@@ -2041,6 +2040,7 @@ namespace bpkg
 
       "config.install.etc=/etc/",
       "config.install.include=data_root/include/<private>/",
+      "config.install.include_arch='data_root/include/$(DEB_HOST_MULTIARCH)/<private>/'",
       "config.install.share=data_root/share/",
       "config.install.data=share/<private>/<project>/",
 
@@ -2949,15 +2949,16 @@ namespace bpkg
 
       // NOTE: keep consistent with the config.install.* values above.
       //
-      dir_path bindir   ("/usr/bin/");
-      dir_path sbindir  ("/usr/sbin/");
-      dir_path etcdir   ("/etc/");
-      dir_path incdir   ("/usr/include/" + pd);
-      dir_path libdir   ("/usr/lib/$(DEB_HOST_MULTIARCH)/" + pd);
-      dir_path pkgdir   (libdir / dir_path ("pkgconfig"));
-      dir_path sharedir ("/usr/share/" + pd);
-      dir_path docdir   ("/usr/share/doc/" + pd);
-      dir_path mandir   ("/usr/share/man/");
+      dir_path bindir     ("/usr/bin/");
+      dir_path sbindir    ("/usr/sbin/");
+      dir_path etcdir     ("/etc/");
+      dir_path incdir     ("/usr/include/" + pd);
+      dir_path incarchdir ("/usr/include/$(DEB_HOST_MULTIARCH)/" + pd);
+      dir_path libdir     ("/usr/lib/$(DEB_HOST_MULTIARCH)/" + pd);
+      dir_path pkgdir     (libdir / dir_path ("pkgconfig"));
+      dir_path sharedir   ("/usr/share/" + pd);
+      dir_path docdir     ("/usr/share/doc/" + pd);
+      dir_path mandir     ("/usr/share/man/");
 
       // The main package contains everything that doesn't go to another
       // packages.
@@ -2972,12 +2973,14 @@ namespace bpkg
 
       if (!is_open (dev))
       {
-        if (ies.contains_sub (incdir)) add (main, incdir / "*");
-        if (ies.contains_sub (libdir)) add (main, libdir / "*");
+        if (ies.contains_sub (incdir))     add (main, incdir / "*");
+        if (ies.contains_sub (incarchdir)) add (main, incarchdir / "*");
+        if (ies.contains_sub (libdir))     add (main, libdir / "*");
       }
       else
       {
-        if (ies.contains_sub (incdir)) add (dev, incdir / "*");
+        if (ies.contains_sub (incdir))     add (dev, incdir / "*");
+        if (ies.contains_sub (incarchdir)) add (dev, incarchdir / "*");
 
         // Ok, time for things to get hairy: we need to split the contents
         // of lib/ into the main and -dev packages. The -dev package should
