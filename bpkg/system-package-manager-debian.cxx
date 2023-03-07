@@ -1865,6 +1865,9 @@ namespace bpkg
   // to do from our side is to compile with debug information (-g), failed
   // which we get a warning from debhelper.
   //
+  // Note: this setup requires dpkg-dev (or build-essential) and debhelper
+  // packages.
+  //
   paths system_package_manager_debian::
   generate (const packages& pkgs,
             const packages& deps,
@@ -2639,7 +2642,8 @@ namespace bpkg
       // We could have instead called dpkg-architecture directly but seeing
       // that we are also include buildflags.mk below, might as well use
       // architecture.mk (in the packages that we sampled you see both
-      // approaches).
+      // approaches). Note that these come in the dpkg-dev package, the same
+      // as dpkg-buildpackage.
       //
       os << "# DEB_HOST_* (DEB_HOST_MULTIARCH, etc)"
          << "#" << '\n'
@@ -2808,6 +2812,9 @@ namespace bpkg
          << '\n';
 
       // Default to the dh command sequencer.
+      //
+      // Note that passing --buildsystem=none doesn't seem to make any
+      // difference (other than add some noise).
       //
       os << "%:\n"
          << '\t' << "dh $@" << '\n'
