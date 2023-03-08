@@ -177,9 +177,10 @@ namespace bpkg
     // the package.
     //
     // Return the list of paths to binary packages and any other associated
-    // files (build metadata, etc). If the result is empty, assume the
-    // prepare-only mode (or similar) with appropriate result diagnostics
-    // having been already issued.
+    // files (build metadata, etc) that could be useful for consumption of
+    // binary packages. If the result is empty, assume the prepare-only mode
+    // (or similar) with appropriate result diagnostics having been already
+    // issued.
     //
     struct package
     {

@@ -3140,7 +3140,9 @@ namespace bpkg
     //
     // Note also that dpkg-buildpackage causes recompilation on every run by
     // changing the SOURCE_DATE_EPOCH environment variable (which we track for
-    // changes since it affects GCC).
+    // changes since it affects GCC). Note that since we don't have this
+    // SOURCE_DATE_EPOCH during dry-run caused by installed_entries(), there
+    // would be a recompilation even if the value weren't changing.
     //
     cstrings args {
       "dpkg-buildpackage",
