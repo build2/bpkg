@@ -20,25 +20,33 @@
 namespace bpkg
 {
   // Parse the manifest as if it comes from a git repository with a single
-  // package and make an available package out of it.
+  // package and make an available package out of it. If the file name is
+  // `-` then read fro stdin. If the package name is empty, then take the
+  // name from the manifest. Otherwise, assert they match.
   //
   inline
   pair<shared_ptr<available_package>, lazy_shared_ptr<repository_fragment>>
-  make_available_from_manifest (const string& n, const string& f)
+  make_available_from_manifest (const string& pn, const string& f)
   {
     using butl::manifest_parser;
     using butl::manifest_parsing;
 
+    path fp (f);
+    path_name fn (fp);
+
     try
     {
-      ifdstream ifs (f);
-      manifest_parser mp (ifs, f);
+      ifdstream ifds;
+      istream& ifs (butl::open_file_or_stdin (fn, ifds));
+
+      manifest_parser mp (ifs, fn.name ? *fn.name : fn.path->string ());
 
       package_manifest m (mp,
                           false /* ignore_unknown */,
                           true /* complete_values */);
 
-      assert (m.name.string () == n);
+      const string& n (m.name.string ());
+      assert (pn.empty () || n == pn);
 
       m.alt_naming = false;
       m.bootstrap_build = "project = " + n + '\n';
@@ -61,7 +69,7 @@ namespace bpkg
     }
     catch (const io_error& e)
     {
-      fail << "unable to read from " << f << ": " << e << endf;
+      fail << "unable to read from " << fn << ": " << e << endf;
     }
   }
 

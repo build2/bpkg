@@ -155,7 +155,7 @@ namespace bpkg
             os.like_ids.push_back ("debian");
 
           r.reset (new system_package_manager_debian (
-                     move (os), host, arch, progress, o));
+                     move (os), host, arch, progress, &o));
         }
         else if (is_or_like (os, "fedora") ||
                  is_or_like (os, "rhel")   ||
@@ -213,18 +213,19 @@ namespace bpkg
 
   // Parse the <distribution> component of the specified <distribution>-*
   // value into the distribution name and version (return as "0" if not
-  // present). Issue diagnostics and fail on parsing errors.
+  // present). Leave in the d argument the string representation of the
+  // version (used to detect the special non-native <name>_0). Issue
+  // diagnostics and fail on parsing errors.
   //
   // Note: the value_name, ap, and af arguments are only used for diagnostics.
   //
   static pair<string, semantic_version>
-  parse_distribution (string&& d,
+  parse_distribution (string& d, // <name>[_<version>]
                       const string& value_name,
                       const shared_ptr<available_package>& ap,
                       const lazy_shared_ptr<repository_fragment>& af)
   {
-    string dn (move (d));      // <name>[_<version>]
-    size_t p (dn.rfind ('_')); // Version-separating underscore.
+    size_t p (d.rfind ('_')); // Version-separating underscore.
 
     // If the '_' separator is present, then make sure that the right-hand
     // part looks like a version (not empty and only contains digits and
@@ -232,11 +233,11 @@ namespace bpkg
     //
     if (p != string::npos)
     {
-      if (p != dn.size () - 1)
+      if (p != d.size () - 1)
       {
-        for (size_t i (p + 1); i != dn.size (); ++i)
+        for (size_t i (p + 1); i != d.size (); ++i)
         {
-          if (!digit (dn[i]) && dn[i] != '.')
+          if (!digit (d[i]) && d[i] != '.')
           {
             p = string::npos;
             break;
@@ -249,36 +250,43 @@ namespace bpkg
 
     // Parse the distribution version if present and leave it "0" otherwise.
     //
+    string dn;
     semantic_version dv (0, 0, 0);
     if (p != string::npos)
-    try
     {
-      dv = semantic_version (dn,
-                             p + 1,
-                             semantic_version::allow_omit_minor);
+      dn.assign (d, 0, p);
+      d.erase (0, p + 1);
 
-      dn.resize (p);
+      try
+      {
+        dv = semantic_version (d, semantic_version::allow_omit_minor);
+      }
+      catch (const invalid_argument& e)
+      {
+        // Note: the repository fragment may have no database associated when
+        // used in tests.
+        //
+        shared_ptr<repository_fragment> f (af.get_eager ());
+        database* db (!(f != nullptr && !af.loaded ()) // Not transient?
+                      ? &af.database ()
+                      : nullptr);
+
+        diag_record dr (fail);
+        dr << "invalid distribution version '" << d << "' in value "
+           << value_name << " for package " << ap->id.name << ' '
+           << ap->version;
+
+        if (db != nullptr)
+          dr << *db;
+
+        dr << " in repository " << (f != nullptr ? f : af.load ())->location
+           << ": " << e;
+      }
     }
-    catch (const invalid_argument& e)
+    else
     {
-      // Note: the repository fragment may have no database associated when
-      // used in tests.
-      //
-      shared_ptr<repository_fragment> f (af.get_eager ());
-      database* db (!(f != nullptr && !af.loaded ()) // Not transient?
-                    ? &af.database ()
-                    : nullptr);
-
-      diag_record dr (fail);
-      dr << "invalid distribution version '" << string (dn, p + 1)
-         << "' in value " << value_name << " for package " << ap->id.name
-         << ' ' << ap->version;
-
-      if (db != nullptr)
-        dr << *db;
-
-      dr << " in repository " << (f != nullptr ? f : af.load ())->location
-         << ": " << e;
+      dn = move (d);
+      d.clear ();
     }
 
     return make_pair (move (dn), move (dv));
@@ -288,7 +296,8 @@ namespace bpkg
   system_package_names (const available_packages& aps,
                         const string& name_id,
                         const string& version_id,
-                        const vector<string>& like_ids)
+                        const vector<string>& like_ids,
+                        bool native)
   {
     assert (!aps.empty ());
 
@@ -300,7 +309,8 @@ namespace bpkg
     // if not present) is less or equal the specified distribution version.
     // Suppress duplicate values.
     //
-    auto name_values = [&aps] (const string& n, const semantic_version& v)
+    auto name_values = [&aps, native] (const string& n,
+                                       const semantic_version& v)
     {
       strings r;
 
@@ -322,14 +332,31 @@ namespace bpkg
           if (optional<string> d = dv.distribution ("-name"))
           {
             pair<string, semantic_version> dnv (
-              parse_distribution (move (*d), dv.name, ap, a.second));
+              parse_distribution (*d, dv.name, ap, a.second));
+
+            // Skip <name>_0 if we are only interested in the native mappings.
+            // If we are interested in the non-native mapping, then we treat
+            // <name>_0 as the matching version.
+            //
+            bool nn (*d == "0");
+            if (nn && native)
+              continue;
 
             semantic_version& dvr (dnv.second);
 
-            if (dnv.first == n && dvr <= v)
+            if (dnv.first == n && (nn || dvr <= v))
             {
               // Add the name/version pair to the sorted vector.
               //
+              // If this is the non-native mapping, then return just that.
+              //
+              if (nn)
+              {
+                r.clear (); // Drop anything we have accumulated so far.
+                r.push_back (move (dv.value));
+                return r;
+              }
+
               name_version nv (make_pair (dv.value, move (dvr)));
 
               nvs.insert (upper_bound (nvs.begin (), nvs.end (), nv,
@@ -413,7 +440,7 @@ namespace bpkg
         if (optional<string> d = dv.distribution ("-version"))
         {
           pair<string, semantic_version> dnv (
-            parse_distribution (move (*d), dv.name, ap, af));
+            parse_distribution (*d, dv.name, ap, af));
 
           semantic_version& dvr (dnv.second);
 
@@ -509,7 +536,7 @@ namespace bpkg
           if (optional<string> d = nv.distribution ("-to-downstream-version"))
           {
             pair<string, semantic_version> dnv (
-              parse_distribution (move (*d), nv.name, ap, a.second));
+              parse_distribution (*d, nv.name, ap, a.second));
 
             semantic_version& dvr (dnv.second);
 

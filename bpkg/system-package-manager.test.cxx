@@ -21,7 +21,7 @@ namespace bpkg
   //
   // Where <command> is one of:
   //
-  //   system-package-names <name-id> <ver-id> [<like-id>...] -- <pkg> <file>...
+  //   system-package-names <name-id> <ver-id> [<like-id>...] -- [--non-native] <pkg> <file>...
   //
   //     Where <pkg> is a package name, <file> is a package manifest file.
   //
@@ -70,6 +70,14 @@ namespace bpkg
       string a (argv[argi++]);
       assert (a == "--");
 
+      assert (argi != argc);
+      bool native (true);
+      if ((a = argv[argi]) == "--non-native")
+      {
+        native = false;
+        argi++;
+      }
+
       assert (argi != argc); // <pkg>
       string pn (argv[argi++]);
 
@@ -81,7 +89,7 @@ namespace bpkg
 
       strings ns (
         system_package_manager::system_package_names (
-          aps, osr.name_id, osr.version_id, osr.like_ids));
+          aps, osr.name_id, osr.version_id, osr.like_ids, native));
 
       for (const string& n: ns)
         cout << n << '\n';

@@ -270,7 +270,7 @@ namespace bpkg
     // is a semver-like version (e.g, 10, 10.15, or 10.15.1) and return all
     // the values that are equal or less than the specified version_id
     // (include the value with the absent <version>). In a sense, absent
-    // <version> can be treated as a 0 semver-like version.
+    // <version> is treated as a 0 semver-like version.
     //
     // If no value is found then repeat the above process for every like_ids
     // entry (from left to right) instead of name_id with version_id equal 0.
@@ -286,6 +286,15 @@ namespace bpkg
     // debian_10-name: libcurl4 libcurl4-doc libcurl4-openssl-dev
     // debian_10-name: libcurl3-gnutls libcurl4-gnutls-dev    (yes, 3 and 4)
     //
+    // The <distribution> value in the <name>_0 form is the special "non-
+    // native" name mapping. If the native argument is false, then such a
+    // mapping is preferred over any other mapping. If it is true, then such a
+    // mapping is ignored. The purpose of this special value is to allow
+    // specifying different package names for production compared to
+    // consumption. Note, however, that such a deviation may make it
+    // impossible to use native and non-native binary packages
+    // interchangeably, for example, to satisfy dependencies.
+    //
     // Note also that the values are returned in the "override order", that is
     // from the newest package version to oldest and then from the highest
     // distribution version to lowest.
@@ -294,7 +303,8 @@ namespace bpkg
     system_package_names (const available_packages&,
                           const string& name_id,
                           const string& version_id,
-                          const vector<string>& like_ids);
+                          const vector<string>& like_ids,
+                          bool native);
 
     // Given the available package and the repository fragment it belongs to,
     // return the system package version as mapped by one of the

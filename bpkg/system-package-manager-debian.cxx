@@ -944,7 +944,8 @@ namespace bpkg
       // Without explicit type, the best we can do in trying to detect whether
       // this is a library is to check for the lib prefix. Libraries without
       // the lib prefix and non-libraries with the lib prefix (both of which
-      // we do not recomment) will have to provide a manual mapping.
+      // we do not recomment) will have to provide a manual mapping (or
+      // explicit type).
       //
       // Note that using the first (latest) available package as a source of
       // type information seems like a reasonable choice.
@@ -958,7 +959,8 @@ namespace bpkg
         ns = system_package_names (aps,
                                    os_release.name_id,
                                    os_release.version_id,
-                                   os_release.like_ids);
+                                   os_release.like_ids,
+                                   true /* native */);
       if (ns.empty ())
       {
         // Attempt to automatically translate our package name (see above for
@@ -1492,15 +1494,14 @@ namespace bpkg
   // differently or fixes a critical bug), we will just have to provide
   // appropriate manual mapping that makes sure the names match (the extras is
   // still a potential problem though -- we will only have them as
-  // dependencies if we build against a native system package).
-  //
-  // @@ TODO: test, especially distribution version logic.
+  // dependencies if we build against a native system package; maybe we can
+  // add them manually with an option).
   //
   package_status system_package_manager_debian::
   map_package (const package_name& pn,
                const version& pv,
                const available_packages& aps,
-               const optional<string>& build_metadata)
+               const optional<string>& build_metadata) const
   {
     // We should only have one available package corresponding to this package
     // name/version.
@@ -1513,14 +1514,16 @@ namespace bpkg
     // Without explicit type, the best we can do in trying to detect whether
     // this is a library is to check for the lib prefix. Libraries without the
     // lib prefix and non-libraries with the lib prefix (both of which we do
-    // not recomment) will have to provide a manual mapping.
+    // not recomment) will have to provide a manual mapping (or explicit
+    // type).
     //
     const string& pt (ap->effective_type ());
 
     strings ns (system_package_names (aps,
                                       os_release.name_id,
                                       os_release.version_id,
-                                      os_release.like_ids));
+                                      os_release.like_ids,
+                                      false /* native */));
     package_status r;
     if (ns.empty ())
     {
@@ -1616,7 +1619,7 @@ namespace bpkg
     //
     //   Similar to epoch, our revision won't necessarily match Debian's
     //   native package revision. But on the other hand it will allow us to
-    //   establish a correspondence between source and binary packages.  Plus,
+    //   establish a correspondence between source and binary packages. Plus,
     //   upgrades between binary package revisions will be handled naturally.
     //   Seeing that we allow overriding the revision with a custom
     //   distribution version (see below), let's keep it.
@@ -2904,11 +2907,11 @@ namespace bpkg
     const path* cur_install (nullptr); // File being opened/written to.
     try
     {
-      pair<path&, ofdstream> main (main_install, nullfd);
-      pair<path&, ofdstream> dev  (dev_install, nullfd);
-      pair<path&, ofdstream> doc  (doc_install, nullfd);
-      pair<path&, ofdstream> dbg  (dbg_install, nullfd);
-      pair<path&, ofdstream> com  (common_install, nullfd);
+      pair<path&, ofdstream> main (main_install,   auto_fd ());
+      pair<path&, ofdstream> dev  (dev_install,    auto_fd ());
+      pair<path&, ofdstream> doc  (doc_install,    auto_fd ());
+      pair<path&, ofdstream> dbg  (dbg_install,    auto_fd ());
+      pair<path&, ofdstream> com  (common_install, auto_fd ());
 
       auto open = [&deb, &cur_install] (pair<path&, ofdstream>& os,
                                         const string& n)

@@ -1137,7 +1137,8 @@ namespace bpkg
         ns = system_package_names (aps,
                                    os_release.name_id,
                                    os_release.version_id,
-                                   os_release.like_ids);
+                                   os_release.like_ids,
+                                   true /* native */);
       if (ns.empty ())
       {
         // Attempt to automatically translate our package name. Failed that we

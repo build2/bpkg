@@ -167,16 +167,19 @@ namespace bpkg
                                   yes,
                                   move (sudo)) {}
 
+    // Note: options can only be NULL when testing functions that don't need
+    // them.
+    //
     system_package_manager_debian (bpkg::os_release&& osr,
                                    const target_triplet& h,
                                    string a,
                                    optional<bool> progress,
-                                   const pkg_bindist_options& ops)
+                                   const pkg_bindist_options* ops)
         : system_package_manager (move (osr),
                                   h,
                                   a.empty () ? arch_from_target (h) : move (a),
                                   progress),
-          ops_ (&ops) {}
+          ops_ (ops) {}
 
     // Implementation details exposed for testing (see definitions for
     // documentation).
@@ -213,7 +216,7 @@ namespace bpkg
     map_package (const package_name&,
                  const version&,
                  const available_packages&,
-                 const optional<string>&);
+                 const optional<string>&) const;
 
     // If simulate is not NULL, then instead of executing the actual apt-cache
     // and apt-get commands simulate their execution: (1) for apt-cache by
