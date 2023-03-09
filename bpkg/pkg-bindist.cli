@@ -150,7 +150,7 @@ namespace bpkg
        the main binary package. The default is \cb{any}."
     }
 
-    string --debian-main-depends
+    string --debian-main-langdep
     {
       "<v>",
       "Override the language runtime dependencies (such as \cb{libc6},
@@ -158,11 +158,25 @@ namespace bpkg
        value of the main binary package."
     }
 
-    string --debian-dev-depends
+    string --debian-dev-langdep
     {
       "<v>",
       "Override the language runtime dependencies (such as \cb{libc-dev},
        \cb{libstdc++-dev}, etc) in the \cb{Depends} \cb{control} file field
+       value of the development (\cb{-dev}) binary package."
+    }
+
+    string --debian-main-extradep
+    {
+      "<v>",
+      "Extra dependencies to add to the \cb{Depends} \cb{control} file field
+       value of the main binary package."
+    }
+
+    string --debian-dev-extradep
+    {
+      "<v>",
+      "Extra dependencies to add to the \cb{Depends} \cb{control} file field
        value of the development (\cb{-dev}) binary package."
     }
   };

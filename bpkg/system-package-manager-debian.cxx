@@ -2281,14 +2281,14 @@ namespace bpkg
           depends += st.main + " (>= " + st.system_version + ')';
         }
 
-        if (ops_->debian_main_depends_specified ())
+        if (ops_->debian_main_langdep_specified ())
         {
-          if (!ops_->debian_main_depends ().empty ())
+          if (!ops_->debian_main_langdep ().empty ())
           {
             if (!depends.empty ())
               depends += ", ";
 
-            depends += ops_->debian_main_depends ();
+            depends += ops_->debian_main_langdep ();
           }
         }
         else
@@ -2302,6 +2302,14 @@ namespace bpkg
           // can deduce those automatically so we will either have to add ad
           // hoc support or the user will have to provide them manually with
           // --debian-main-depends.
+        }
+
+        if (!ops_->debian_main_extradep ().empty ())
+        {
+          if (!depends.empty ())
+            depends += ", ";
+
+          depends += ops_->debian_main_extradep ();
         }
 
         os <<   '\n'
@@ -2328,11 +2336,11 @@ namespace bpkg
             depends += ", " + st.dev + " (>= " + st.system_version + ')';
         }
 
-        if (ops_->debian_dev_depends_specified ())
+        if (ops_->debian_dev_langdep_specified ())
         {
-          if (!ops_->debian_dev_depends ().empty ())
+          if (!ops_->debian_dev_langdep ().empty ())
           {
-            depends += ", " + ops_->debian_dev_depends ();
+            depends += ", " + ops_->debian_dev_langdep ();
           }
         }
         else
@@ -2354,6 +2362,11 @@ namespace bpkg
           bool cc (lang ("cc", true));
           if (cc || (cc = lang ("c++", true))) depends += ", libstdc++-dev";
           if (cc || (cc = lang ("c",   true))) depends += ", libc-dev";
+        }
+
+        if (!ops_->debian_dev_extradep ().empty ())
+        {
+          depends += ", " + ops_->debian_dev_extradep ();
         }
 
         // Feels like the architecture should be the same as for the main
