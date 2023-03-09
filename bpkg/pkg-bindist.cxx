@@ -23,11 +23,11 @@ namespace bpkg
   // Find the available package(s) for the specified selected package.
   //
   // Specifically, for non-system packages we look for a single available
-  // package failing if it's an orphan. For system packages we look for all
-  // the available packages analogous to pkg-build. If none are found then
-  // we assume the --sys-no-stub option was used to configure this package
-  // and return an empty list. @@ What if it was configured with a specific
-  // bpkg version or `*`?
+  // package. For system packages we look for all the available packages
+  // analogous to pkg-build. If none are found then we assume the
+  // --sys-no-stub option was used to configure this package and return an
+  // empty list. @@ What if it was configured with a specific bpkg version or
+  // `*`?
   //
   static available_packages
   find_available_packages (const common_options& co,
@@ -48,7 +48,38 @@ namespace bpkg
              find_available_fragment (co, db, p));
 
       if (ap.second.loaded () && ap.second == nullptr)
-        fail << "package " << p->name << " is orphaned";
+      {
+        // This is an orphan. We used to fail but there is no reason we cannot
+        // just load its manifest and make an available package out of that.
+        // And it's handy to be able to run this command on packages built
+        // from archives.
+        //
+        package_manifest m (
+          pkg_verify (co,
+                      p->effective_src_root (db.config_orig),
+                      true  /* ignore_unknown */,
+                      false /* ignore_toolchain */,
+                      false /* load_buildfiles */,
+                      // Copy potentially fixed up version from selected package.
+                      [&p] (version& v) {v = p->version;}));
+
+        // Fake the buildfile information (not used).
+        //
+        m.alt_naming = false;
+        m.bootstrap_build = "project = " + p->name.string () + '\n';
+
+        ap.first = make_shared<available_package> (move (m));
+
+        // Fake the location (only used for diagnostics).
+        //
+        ap.second = make_shared<repository_fragment> (
+          repository_location (
+            p->effective_src_root (db.config).representation (),
+            repository_type::dir));
+
+        ap.first->locations.push_back (
+          package_location {ap.second, current_dir});
+      }
 
       r.push_back (move (ap));
     }
