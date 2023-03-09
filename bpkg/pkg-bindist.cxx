@@ -155,7 +155,7 @@ namespace bpkg
       shared_ptr<selected_package> d (ld.load ());
 
       // Packaging stuff that is spread over multiple configurations is just
-      // to hairy so we don't support it. Specifically, it becomes tricky to
+      // too hairy so we don't support it. Specifically, it becomes tricky to
       // override build options since using a global override will also affect
       // host/build2 configurations.
       //

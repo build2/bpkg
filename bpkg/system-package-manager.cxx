@@ -205,7 +205,7 @@ namespace bpkg
             os.like_ids.push_back ("fedora");
 
           r.reset (new system_package_manager_fedora (
-                     move (os), host, arch, progress));
+                     move (os), host, arch, progress, &o));
         }
         // NOTE: remember to update the --distribution pkg-bindist option
         //       documentation if adding support for another package manager.

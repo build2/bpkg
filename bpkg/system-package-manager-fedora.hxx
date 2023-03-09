@@ -71,6 +71,9 @@ namespace bpkg
   //
   // keyutils keyutils-libs keyutils-libs-devel
   //
+  // Note that while we support arbitrary -debug* sub-package names for
+  // consumption, we only generate <main-package>-debug*.
+  //
   // Based on that, it seems our best bet when trying to automatically map our
   // library package name to Fedora package names is to go for the -devel
   // package first and figure out the shared library package from that based
@@ -229,14 +232,19 @@ namespace bpkg
                                   yes,
                                   move (sudo)) {}
 
+    // Note: options can only be NULL when testing functions that don't need
+    // them.
+    //
     system_package_manager_fedora (bpkg::os_release&& osr,
                                    const target_triplet& h,
                                    string a,
-                                   optional<bool> progress)
+                                   optional<bool> progress,
+                                   const pkg_bindist_options* ops)
         : system_package_manager (move (osr),
                                   h,
                                   a.empty () ? arch_from_target (h) : move (a),
-                                  progress) {}
+                                  progress),
+          ops_ (ops) {}
 
     // Implementation details exposed for testing (see definitions for
     // documentation).
@@ -275,6 +283,14 @@ namespace bpkg
 
     static string
     arch_from_target (const target_triplet&);
+
+    package_status
+    map_package (const package_name&,
+                 const version&,
+                 const available_packages&) const;
+
+    static strings
+    rpm_eval (const cstrings& opts, const cstrings& expressions);
 
     // If simulate is not NULL, then instead of executing the actual dnf
     // commands simulate their execution: (1) for `dnf list` and `dnf
@@ -343,6 +359,8 @@ namespace bpkg
     bool installed_ = false; // True if already installed.
 
     std::map<package_name, optional<system_package_status_fedora>> status_cache_;
+
+    const pkg_bindist_options* ops_ = nullptr; // Only for production.
   };
 }
 

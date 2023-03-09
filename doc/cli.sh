@@ -76,10 +76,11 @@ o="--suppress-undocumented --output-prefix bpkg- --class-doc bpkg::common_option
 compile "common" $o --output-suffix "-options" --class-doc bpkg::common_options=long
 compile "bpkg" $o --output-prefix "" --class-doc bpkg::commands=short --class-doc bpkg::topics=short
 
-compile "pkg-build" $o --class-doc  bpkg::pkg_build_pkg_options=exclude-base
+compile "pkg-build" $o --class-doc bpkg::pkg_build_pkg_options=exclude-base
 
 compile "pkg-bindist" $o \
   --class-doc bpkg::pkg_bindist_debian_options=exclude-base \
+  --class-doc bpkg::pkg_bindist_fedora_options=exclude-base \
   --class-doc bpkg::pkg_bindist_archive_options=exclude-base
 
 # NOTE: remember to update a similar list in buildfile and bpkg.cli as well as

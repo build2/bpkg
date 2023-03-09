@@ -3187,7 +3187,7 @@ Finally, we have the distribution version. The Debian \c{<epoch>} and
 distribution version as required. This leaves pre-release and revision. It
 feels like in most cases we would want these copied over from the \c{bpkg}
 version automatically \- it's too tedious and error-prone to maintain them
-manually.  However, we want the user to have the full override ability. So
+manually. However, we want the user to have the full override ability. So
 instead, if empty revision is specified, as in \c{1.2.3-}, then we
 automatically add the \c{bpkg} revision. Similarly, if empty pre-release is
 specified, as in \c{1.2.3~}, then we add the \c{bpkg} pre-release. To add both
@@ -3262,6 +3262,9 @@ ncurses ncurses-libs ncurses-c++-libs ncurses-devel ncurses-static
 keyutils keyutils-libs keyutils-libs-devel
 \
 
+Note that while we support arbitrary \c{-debug*} sub-package names for
+consumption, we only generate \c{<main-package>-debug*}.
+
 Based on that, our approach when trying to automatically map a \c{bpkg}
 library package name to Fedora package names is to go for the \c{-devel}
 package first and figure out the shared library package from that based on the
@@ -3313,10 +3316,126 @@ to the \c{bpkg} version is specified with the \c{fedora-to-downstream-version}
 then we match it against the \c{[<epoch>:]<version>} parts ignoring
 \c{<release>}.
 
+
 \h2#bindist-mapping-fedora-produce|Fedora Package Mapping for Production|
 
-@@ TODO
+The same \c{fedora-name} (or alike) manifest values as used for consumption
+are also used to derive the package names for production except here we have
+the option to specify alternative non-native package names using the special
+\c{fedora_0-name} (or alike) value. If only the \c{-devel} package is
+specified, then the main package name is derived from that by removing the
+\c{-devel} suffix.
 
+The generated binary package version can be specified with the
+\c{fedora-version} (or alike) manifest value. If it's not specified, then the
+\c{upstream-version} is used if specified. Otherwise, the \c{bpkg} version
+is translated to the Fedora version as described next.
+
+To recap, a Fedora package version has the following form:
+
+\
+[<epoch>:]<version>-<release>
+\
+
+Where <release> has the following form:
+
+\
+<release-number>[.<distribution-tag>]
+\
+
+For details on the ordering semantics, see the Fedora Versioning Guidelines.
+While overall unsurprising, the only notable exceptions are \c{~}, which sorts
+before anything else and is commonly used for upstream pre-releases, and
+\c{^}, which sorts after anything else and is supposedly used for upstream
+post-release snapshots. For example, \c{0.1.0~alpha.1-1.fc35} sorts earlier
+than \c{0.1.0-1.fc35}.
+
+To recap, the bpkg version has the following form (see
+\l{#package-version Package Version} for details):
+
+\
+[+<epoch>-]<upstream>[-<prerel>][+<revision>]
+\
+
+Let's start with the case where neither distribution (\c{fedora-version}) nor
+upstream version (\c{upstream-version}) is specified and we need to derive
+everything from the \c{bpkg} version (what follows is as much description as
+rationale).
+
+\dl|
+
+\li|\c{<epoch>}
+
+  On one hand, if we keep our (as in, \c{bpkg}) epoch, it won't necessarily
+  match Fedora's native package epoch. But on the other it will allow our
+  binary packages from different epochs to co-exist. Seeing that this can be
+  easily overridden with a custom distribution version (see below), we keep
+  it.
+
+  Note that while the Fedora start/default epoch is 0, ours is 1 (we use the 0
+  epoch for stub packages). So we shift this value range.|
+
+\li|\c{<upstream>[-<prerel>]}
+
+  Our upstream version maps naturally to Fedora's \c{<version>}. That is, our
+  upstream version format/semantics is a subset of Fedora's \c{<version>}.
+
+  If this is a pre-release, then we could fail (that is, don't allow
+  pre-releases) but then we won't be able to test on pre-release packages, for
+  example, to make sure the name mapping is correct. Plus sometimes it's
+  useful to publish pre-releases. We could ignore it, but then such packages
+  will be indistinguishable from each other and the final release, which is
+  not ideal. On the other hand, Fedora has the mechanism (\c{~}) which is
+  essentially meant for this, so we use it. We will use \c{<prerel>} as is
+  since its format is the same as \c{<upstream>} and thus should map
+  naturally.|
+
+\li|\c{<revision>}
+
+  Similar to epoch, our revision won't necessarily match Fedora's native
+  package release number. But on the other hand it will allow us to establish a
+  correspondence between source and binary packages. Plus, upgrades between
+  binary package releases will be handled naturally. Also note that the
+  revision is mandatory in Fedora. Seeing that we allow overriding the
+  releases with a custom distribution version (see below), we use it.
+
+  Note that the Fedora start release number is 1 and our revision is 0. So we
+  shift this value range.
+
+  Also we automatically add the trailing distribution tag (\c{.fc35},
+  \c{.el8}, etc) to the Fedora release. The tag is deduced automatically
+  unless overridden on the command line (see \l{bpkg-pkg-bindist(1)} command
+  for details).
+
+||
+
+The next case to consider is when we have the upstream version
+(\c{upstream-version} manifest value). After some rumination it feels correct
+to use it in place of the \c{<epoch>-<upstream>} components in the above
+mapping (upstream version itself cannot have epoch). In other words, we will
+add the pre-release and revision components from the \c{bpkg} version. If this
+is not the desired semantics, then it can always be overridden with the
+distribution version (see below).
+
+Finally, we have the distribution version. The Fedora \c{<epoch>} and
+\c{<version>} components are straightforward: they should be specified by the
+distribution version as required. This leaves pre-release and release. It
+feels like in most cases we would want these copied over from the \c{bpkg}
+version automatically \- it's too tedious and error-prone to maintain them
+manually. However, we want the user to have the full override ability. So
+instead, if empty release is specified, as in \c{1.2.3-}, then we
+automatically add the \c{bpkg} revision. Similarly, if empty pre-release is
+specified, as in \c{1.2.3~}, then we add the \c{bpkg} pre-release. To add both
+automatically, we would specify \c{1.2.3~-} (other combinations are
+\c{1.2.3~b.1-} and \c{1.2.3~-1}). If specified, the release must not contain
+the distribution tag, since it is deduced automatically unless overridden on
+the command line (see \l{bpkg-pkg-bindist(1)} command for details). Also,
+since the release component is mandatory in Fedora, if it is omitted together
+with the separating dash we will add the release 1 automatically.
+
+Note also that per the RPM spec file format documentation neither version nor
+release components may contain \c{:} or \c{-}. Note that the \c{bpkg} upstream
+version may not contain either.
 "
 
 //@@ TODO items (grep).

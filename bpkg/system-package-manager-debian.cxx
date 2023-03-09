@@ -1326,11 +1326,20 @@ namespace bpkg
       if (!v)
       {
         // Fallback to using system version as downstream version. But first
-        // strip the epoch, if any.
+        // strip the epoch, if any. Also convert the potential pre-release
+        // separator to the bpkg version pre-release separator.
         //
         size_t p (sv.find (':'));
         if (p != string::npos)
           sv.erase (0, p + 1);
+
+        // Consider the first '~' character as a pre-release separator. Note
+        // that if there are more of them, then we will fail since '~' is an
+        // invalid character for bpkg version.
+        //
+        p = sv.find ('~');
+        if (p != string::npos)
+          sv[p] = '-';
 
         try
         {
@@ -1513,7 +1522,7 @@ namespace bpkg
   // while native names are libsqlite3-0 and libsqlite3-dev. While this
   // duality is not ideal, presumably we will normally only be producing our
   // binary packages if there are no suitable native packages. And for a few
-  // exception (e.g., our package is "better" in some way, such as configured
+  // exceptions (e.g., our package is "better" in some way, such as configured
   // differently or fixes a critical bug), we will just have to provide
   // appropriate manual mapping that makes sure the names match (the extras is
   // still a potential problem though -- we will only have them as
@@ -2052,7 +2061,7 @@ namespace bpkg
     // Note: we need to quote values that contain `$` so that they don't get
     // expanded as build2 variables in the installed_entries() call.
     //
-    // NOTE: make sure to update .install files below if changing anyting
+    // NOTE: make sure to update .install files below if changing anything
     //       here.
     //
     strings config {
@@ -2265,7 +2274,7 @@ namespace bpkg
       // The Multi-Arch hint can be `same` or `foreign`. The former means that
       // a separate copy of the package may be installed for each architecture
       // (e.g., library) while the latter -- that a single copy may be used by
-      // all architectures (e.g., executable, -doc, -common). Not that for
+      // all architectures (e.g., executable, -doc, -common). Note that for
       // some murky reasons Multi-Arch:foreign needs to be explicitly
       // specified for Architecture:all.
       //
@@ -2518,7 +2527,6 @@ namespace bpkg
       //
       // <day-of-week>, <dd> <month> <yyyy> <hh>:<mm>:<ss> +<zzzz>
       //
-      timestamp now (system_clock::now ());
       os << " -- " << maintainer << "  ";
       std::locale l (os.imbue (std::locale ("C")));
       to_stream (os,
@@ -2892,11 +2900,6 @@ namespace bpkg
       }
       os << '\n';
 
-      // Disable synchronization hooks for good measure.
-      //
-      os << "export BDEP_SYNC := 0\n"
-         << '\n';
-
       // Default to the dh command sequencer.
       //
       // Note that passing --buildsystem=none doesn't seem to make any
@@ -3113,7 +3116,7 @@ namespace bpkg
         //    libfoo.so
         //
         // Note that in the (C) case the library should go into the main
-        // package. Based on this, the criteria appears to be straightforwrad:
+        // package. Based on this, the criteria appears to be straightforward:
         // the extension is .so and it's a symlink. For good measure we also
         // check that there is the `lib` prefix (plugins, etc).
         //

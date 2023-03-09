@@ -39,6 +39,8 @@ namespace bpkg
   //                                              the `<dep-pkg> <dep-ver>`
   //                                              per line form
   //
+  //   map-package                                manifest comes from stdin
+  //
   //   build <query-pkg>... [--install [--no-fetch] <install-pkg>...]
   //
   // The stdin of the build command is used to read the simulation description
@@ -201,6 +203,33 @@ namespace bpkg
       }
 
       cout << system_package_manager_fedora::main_from_devel (n, v, ds) << '\n';
+    }
+    else if (cmd == "map-package")
+    {
+      assert (argc == 2);
+
+      available_packages aps;
+      aps.push_back (make_available_from_manifest ("", "-"));
+
+      const package_name& n (aps.front ().first->id.name);
+      const version& v (aps.front ().first->version);
+
+      system_package_manager_fedora m (move (osr),
+                                       host_triplet,
+                                       ""      /* arch */,
+                                       nullopt /* progress */,
+                                       nullptr /* options */);
+
+      package_status s (m.map_package (n, v, aps));
+
+      cout <<                              "version: "     << s.system_version << '\n'
+           <<                              "main: "        << s.main           << '\n';
+      if (!s.devel.empty ())       cout << "devel: "       << s.devel          << '\n';
+      if (!s.static_.empty ())     cout << "static: "      << s.static_        << '\n';
+      if (!s.doc.empty ())         cout << "doc: "         << s.doc            << '\n';
+      if (!s.debuginfo.empty ())   cout << "debuginfo: "   << s.debuginfo      << '\n';
+      if (!s.debugsource.empty ()) cout << "debugsource: " << s.debugsource    << '\n';
+      if (!s.common.empty ())      cout << "common: "      << s.common         << '\n';
     }
     else if (cmd == "build")
     {
