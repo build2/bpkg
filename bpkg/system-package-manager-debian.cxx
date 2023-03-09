@@ -2708,9 +2708,24 @@ namespace bpkg
         // example, they also cover Assembler, Fortran, and potentially others
         // in the future).
         //
+        string mo; // Include leading space if not empty.
+        if (ops_->debian_maint_option_specified ())
+        {
+          for (const string& o: ops_->debian_maint_option ())
+          {
+            if (!o.empty ())
+            {
+              mo += ' ';
+              mo += o;
+            }
+          }
+        }
+        else
+          mo = " hardening=+all";
+
         os << "# *FLAGS (CFLAGS, CXXFLAGS, etc)"                  << '\n'
            << "#"                                                 << '\n'
-           << "export DEB_BUILD_MAINT_OPTIONS := hardening=+all"  << '\n'
+           << "export DEB_BUILD_MAINT_OPTIONS :=" << mo          << '\n'
            << "include /usr/share/dpkg/buildflags.mk"             << '\n'
            << '\n';
 

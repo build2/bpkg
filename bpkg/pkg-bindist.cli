@@ -104,6 +104,15 @@ namespace bpkg
        options, if any, are used as configured."
     }
 
+    strings --debian-maint-option
+    {
+      "<o>",
+      "Alternative options to specify in the \cb{DEB_BUILD_MAINT_OPTIONS}
+       variable of the \cb{rules} file. To specify multiple maintainer options
+       repeat this option and/or specify them as a single value separated
+       with spaces."
+    }
+
     strings --debian-build-option
     {
       "<o>",
