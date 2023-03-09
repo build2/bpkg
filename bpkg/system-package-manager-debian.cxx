@@ -1907,6 +1907,7 @@ namespace bpkg
   generate (const packages& pkgs,
             const packages& deps,
             const strings& vars,
+            const dir_path& cfg_dir,
             const package_manifest& pm,
             const string& pt,
             const small_vector<language, 1>& langs,
@@ -2693,9 +2694,9 @@ namespace bpkg
       // approaches). Note that these come in the dpkg-dev package, the same
       // as dpkg-buildpackage.
       //
-      os << "# DEB_HOST_* (DEB_HOST_MULTIARCH, etc)"
-         << "#" << '\n'
-         << "include /usr/share/dpkg/architecture.mk" << '\n'
+      os << "# DEB_HOST_* (DEB_HOST_MULTIARCH, etc)"   << '\n'
+         << "#"                                        << '\n'
+         << "include /usr/share/dpkg/architecture.mk"  << '\n'
          << '\n';
 
       if (ops_->debian_buildflags () != "ignore")
@@ -2707,11 +2708,36 @@ namespace bpkg
         // example, they also cover Assembler, Fortran, and potentially others
         // in the future).
         //
-        os << "# *FLAGS (CFLAGS, CXXFLAGS, etc)"
-           << "#" << '\n'
-           << "export DEB_BUILD_MAINT_OPTIONS := hardening=+all" << '\n'
-           << "include /usr/share/dpkg/buildflags.mk" << '\n'
+        os << "# *FLAGS (CFLAGS, CXXFLAGS, etc)"                  << '\n'
+           << "#"                                                 << '\n'
+           << "export DEB_BUILD_MAINT_OPTIONS := hardening=+all"  << '\n'
+           << "include /usr/share/dpkg/buildflags.mk"             << '\n'
            << '\n';
+
+        // Fixup -ffile-prefix-map option (if specified) which is used to
+        // strip source file path prefix in debug information (besides other
+        // places). By default it points to the source directory. We change it
+        // to point to the bpkg configuration directory. Note that this won't
+        // work for external packages with source out of configuration (e.g.,
+        // managed by bdep).
+        //
+        if (lang_c || lang_cc)
+        {
+          // @@ TODO: OBJCFLAGS.
+
+          os << "CFLAGS := $(patsubst -ffile-prefix-map=%,-ffile-prefix-map="
+             << cfg_dir.string () << "=.,$(CFLAGS))" << '\n'
+             << '\n';
+        }
+
+        if (lang_cxx || lang_cc)
+        {
+          // @@ TODO: OBJCXXFLAGS.
+
+          os << "CXXFLAGS := $(patsubst -ffile-prefix-map=%,-ffile-prefix-map="
+             << cfg_dir.string () << "=.,$(CXXFLAGS))" << '\n'
+             << '\n';
+        }
       }
 
       // The debian/tmp/ subdirectory appears to be the canonical destination
@@ -2798,6 +2824,7 @@ namespace bpkg
         if (lang_c || lang_cc)
         {
           // @@ TODO: OBJCFLAGS (we currently don't have separate options).
+          //          Also see -ffile-prefix-map fixup above.
 
           os << "config += config.c.poptions" << o << "'$(CPPFLAGS)'" << '\n'
              << "config += config.c.coptions" << o << "'$(CFLAGS)'"   << '\n'
@@ -2807,6 +2834,7 @@ namespace bpkg
         if (lang_cxx || lang_cc)
         {
           // @@ TODO: OBJCXXFLAGS (we currently don't have separate options).
+          //          Also see -ffile-prefix-map fixup above.
 
           os << "config += config.cxx.poptions" << o << "'$(CPPFLAGS)'" << '\n'
              << "config += config.cxx.coptions" << o << "'$(CXXFLAGS)'" << '\n'

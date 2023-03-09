@@ -164,7 +164,7 @@ namespace bpkg
     // out_root is only set for packages in pkgs. Note also that all the
     // packages in pkgs and deps are guaranteed to belong to the same build
     // configuration (as opposed to being spread over multiple linked
-    // configurations).
+    // configurations). Its absolute path is bassed in cfg_dir.
     //
     // The passed package manifest corresponds to the first package in pkgs
     // (normally used as a source of additional package metadata such as
@@ -197,6 +197,7 @@ namespace bpkg
     generate (const packages& pkgs,
               const packages& deps,
               const strings& vars,
+              const dir_path& cfg_dir,
               const package_manifest&,
               const string& type,
               const small_vector<language, 1>&,

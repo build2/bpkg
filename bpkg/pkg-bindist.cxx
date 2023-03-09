@@ -397,13 +397,11 @@ namespace bpkg
            << "manager with --distribution";
     }
 
-    // @@ TODO: pass/handle --private.
-
     // Note that we pass type from here in case one day we want to provide an
     // option to specify/override it (along with languages). Note that there
     // will probably be no way to override type for dependencies.
     //
-    paths r (spm->generate (pkgs, deps, vars, pm, type, langs, rec));
+    paths r (spm->generate (pkgs, deps, vars, db.config, pm, type, langs, rec));
 
     if (r.empty ())
       return 0; // Assume prepare-only mode or similar.

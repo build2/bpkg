@@ -200,6 +200,7 @@ namespace bpkg
     generate (const packages&,
               const packages&,
               const strings&,
+              const dir_path&,
               const package_manifest&,
               const string&,
               const small_vector<language, 1>&,
