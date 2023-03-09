@@ -1292,13 +1292,41 @@ namespace bpkg
       //
       string sv (r->system_version, 0, r->system_version.rfind ('-'));
 
+      // Debian package versions sometimes include metadata introduced with
+      // the `+` character that established relationships between Debian and
+      // upstream packages, backports, and some other murky stuff (see Debian
+      // Policy with a strong cup of coffee for details). Normally such
+      // metadata is included in the revision, as in, for example,
+      // 1.4.0-1+deb10u1. However, sometimes you see it included in the
+      // version directly, as in, for example: 3.2.4+debian-1 (see Debian bug
+      // 542288 for a potential explanation; might need to refill you cup).
+      //
+      // Since our upstream version may not contain `+`, it feels reasonable
+      // to remove such metadata. What's less clear is whether we should do
+      // the same before trying the to-downstream mapping. In fact, it's
+      // possible `+` belongs to the upstream version rather than Debian
+      // metadata or that there are both (there is also no guarantee that
+      // Debian metadata may not contain multiple `+`). So what we are going
+      // to do is try the mapping with more and more `+` components stripped
+      // (naturally ending up with all of them stripped for the fallback
+      // below).
+      //
       optional<version> v;
-      if (!aps.empty ())
-        v = downstream_package_version (sv,
-                                        aps,
-                                        os_release.name_id,
-                                        os_release.version_id,
-                                        os_release.like_ids);
+      for (size_t p (sv.size ()); p != string::npos; p = sv.rfind ('+'))
+      {
+        sv.resize (p);
+
+        if (!aps.empty ())
+        {
+          v = downstream_package_version (sv,
+                                          aps,
+                                          os_release.name_id,
+                                          os_release.version_id,
+                                          os_release.like_ids);
+          if (v)
+            break;
+        }
+      }
 
       if (!v)
       {
