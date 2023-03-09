@@ -18,7 +18,7 @@ namespace bpkg
   // consumption and the dpkg-buildpackage/debhelper/dh tooling for
   // production.
   //
-  // NOTE: the below description is also reproduced in the bpkg manual.
+  // NOTE: THE BELOW DESCRIPTION IS ALSO REPRODUCED IN THE BPKG MANUAL.
   //
   // For background, a library in Debian is normally split up into several
   // packages: the shared library package (e.g., libfoo1 where 1 is the ABI

@@ -16,7 +16,7 @@ namespace bpkg
   // The system package manager implementation for Fedora and alike (Red Hat
   // Enterprise Linux, CentOS, etc) using the DNF frontend.
   //
-  // NOTE: the below description is also reproduced in the bpkg manual.
+  // NOTE: THE BELOW DESCRIPTION IS ALSO REPRODUCED IN THE BPKG MANUAL.
   //
   // For background, a library in Fedora is normally split up into several
   // packages: the shared library package (e.g., libfoo), the development

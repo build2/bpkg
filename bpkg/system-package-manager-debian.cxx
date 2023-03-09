@@ -1561,6 +1561,8 @@ namespace bpkg
 
     // Map the version.
     //
+    // NOTE: THE BELOW DESCRIPTION IS ALSO REPRODUCED IN THE BPKG MANUAL.
+    //
     // To recap, a Debian package version has the following form:
     //
     // [<epoch>:]<upstream>[-<revision>]
@@ -1646,28 +1648,28 @@ namespace bpkg
     //   to revision. Note that this also means we will have to make the 0
     //   revision explicit. For example:
     //
-    //   1.2.3-0~ubuntu20.04
     //   1.2.3-1~debian10
+    //   1.2.3-0~ubuntu20.04
     //
     // The next case to consider is when we have the upstream version
     // (upstream-version manifest value). After some rumination it feels
-    // correct to use it instead of the <epoch>-<upstream> components in the
+    // correct to use it in place of the <epoch>-<upstream> components in the
     // above mapping (upstream version itself cannot have epoch). In other
     // words, we will add the pre-release and revision components from the
     // bpkg version. If this is not the desired semantics, then it can always
     // be overrided with the distribution version.
     //
-    // Finally, we have the distribution version. The <epoch> and <upstream>
-    // components are straightforward: they should be specified by the
-    // distribution version as required. This leaves pre-release and
+    // Finally, we have the distribution version. The Debian <epoch> and
+    // <upstream> components are straightforward: they should be specified by
+    // the distribution version as required. This leaves pre-release and
     // revision. It feels like in most cases we would want these copied over
     // from the bpkg version automatically -- it's too tedious and error-
     // prone to maintain them manually. However, we want the user to have the
     // full override ability. So instead, if empty revision is specified, as
-    // in 1.2.3-, then we automatically add bpkg revision. Similarly, if empty
-    // pre-release is specified, as in 1.2.3~, then we add bpkg pre-release.
-    // To add both automatically, we would specify 1.2.3~- (other combinations
-    // are 1.2.3~b.1- and 1.2.3~-1).
+    // in 1.2.3-, then we automatically add the bpkg revision. Similarly, if
+    // empty pre-release is specified, as in 1.2.3~, then we add the bpkg
+    // pre-release. To add both automatically, we would specify 1.2.3~- (other
+    // combinations are 1.2.3~b.1- and 1.2.3~-1).
     //
     // Note also that per the Debian version specification, if upstream
     // contains `:` and/or `-`, then epoch and/or revision must be specified
@@ -1856,6 +1858,8 @@ namespace bpkg
   // at the statistics, it's clear that the majority of packages (including
   // fairly complex ones) tend to prefer dh and there is no reason for us to
   // try to buck this trend.
+  //
+  // NOTE: THE BELOW DESCRIPTION IS ALSO REWORDED IN BPKG-PKG-BINDIST(1).
   //
   // So, to sum up, the plan is to produce debian/rules that uses the dh
   // command sequencer and then invoke dpkg-buildpackage to produce the binary

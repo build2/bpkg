@@ -1387,8 +1387,8 @@ need not be repeated in this value.
 \
 
 The detailed description of the package. It can be provided either inline as a
-text fragment or by referring to a file within a package (e.g., \c{README}),
-but not both.
+text fragment or by referring to a file within a package (for example,
+\c{README}), but not both.
 
 In the web interface (\c{brep}) the description is displayed according to its
 type. Currently, pre-formatted plain text, \l{https://github.github.com/gfm
@@ -2458,7 +2458,7 @@ unspecified, then appropriate name(s) are automatically derived from the
 \c{bpkg} package name (\l{#manifest-package-name \c{name}}). Similarly, the
 \c{-version} value specifies the distribution package version. If unspecified,
 then the \c{upstream-version} value is used if specified and the \c{bpkg}
-version otherwise (\l{#manifest-package-version \c{version}}). While the
+version (\l{#manifest-package-version \c{version}}) otherwise. While the
 \c{-to-downstream-version} values specify the reverse mapping, that is, from
 the distribution version to the \c{bpkg} version. If unspecified or none
 match, then the appropriate part of the distribution version is used. For
@@ -2503,11 +2503,32 @@ Note also that some distributions are like others (for example, \c{ubuntu} is
 like \c{debian}) and the corresponding \"base\" distribution values are
 considered if no \"derived\" values are specified.
 
-The exact format of the \c{-name} value and the distribution version part that
-is matched against the \c{-to-downstream-version} pattern are
-distribution-specific. For details, see
-\l{#bindist-mapping-debian Debian Package Mapping} and
-\l{#bindist-mapping-fedora Fedora Package Mapping}.
+The \c{-name} value is used both during package consumption as a system
+package and production with the \l{bpkg-pkg-bindist(1)} command. During
+production, if multiple mappings match, then the value with the highest
+matching distribution version from the package \c{manifest} with the latest
+version is used. If it's necessary to use different names for the generated
+binary packages (called \"non-native packages\" in contrast to \"native
+packages\" that come from the distribution), the special \c{0} distribution
+version can be used to specify such a mapping. For example:
+
+\
+name: libsqlite3
+debian_9-name: libsqlite3-0 libsqlite3-dev
+debian_0-name: libsqlite3 libsqlite3-dev
+\
+
+Note that this special non-native mapping is ignored during consumption and a
+deviation in the package names that it introduces may make it impossible to
+use native and non-native binary packages interchangeably, for example, to
+satisfy dependencies.
+
+
+The exact format of the \c{-name} and \c{-version} values and the distribution
+version part that is matched against the \c{-to-downstream-version} pattern
+are distribution-specific. For details, see \l{#bindist-mapping-debian Debian
+Package Mapping} and \l{#bindist-mapping-fedora Fedora Package Mapping}.
+
 
 \h#manifest-package-list-pkg|Package List Manifest for \cb{pkg} Repositories|
 
@@ -2972,6 +2993,8 @@ private key and then \c{base64}-encoding the result.
 This section describes the distribution package mapping for Debian and
 alike (Ubuntu, etc).
 
+\h2#bindist-mapping-debian-consume|Debian Package Mapping for Consumption|
+
 A library in Debian is normally split up into several packages: the shared
 library package (e.g., \c{libfoo1} where \c{1} is the ABI version), the
 development files package (e.g., \c{libfoo-dev}), the documentation files
@@ -2981,7 +3004,7 @@ package (e.g., \c{libfoo-doc}), the debug symbols package (e.g.,
 is quite a bit of variability. Here are a few examples:
 
 \
-libz3-4 libz3-dev
+libsqlite3-0 libsqlite3-dev
 
 libssl1.1 libssl-dev libssl-doc
 libssl3 libssl-dev libssl-doc
@@ -2989,6 +3012,11 @@ libssl3 libssl-dev libssl-doc
 libcurl4 libcurl4-openssl-dev libcurl4-doc
 libcurl3-gnutls libcurl4-gnutls-dev libcurl4-doc
 \
+
+Note that while most library package names in Debian start with \c{lib} (per
+the policy), there are exceptions (e.g., \c{zlib1g} \c{zlib1g-dev}). Also note
+that manual \c{-dbg} packages are obsolete in favor of automatic \c{-dbgsym}
+packages from Debian 9.
 
 For executable packages there is normally no \c{-dev} packages but \c{-dbg},
 \c{-doc}, and \c{-common} are plausible.
@@ -3023,11 +3051,11 @@ group is called the main package. Note that all the groups are consumed
 (installed) but only the main group is produced (packaged).
 
 We allow/recommend specifying the \c{-dev} package instead of the main package
-for libraries (the \c{bpkg} package name starts with \c{lib}), seeing that we
-are capable of detecting the main package automatically (see above). If the
-library name happens to end with \c{-dev} (which poses an ambiguity), then the
-\c{-dev} package should be specified explicitly as the second package to
-disambiguate this situation.
+for libraries (see \l{#manifest-package-type-language \c{type}} for details),
+seeing that we are capable of detecting the main package automatically (see
+above). If the library name happens to end with \c{-dev} (which poses an
+ambiguity), then the \c{-dev} package should be specified explicitly as the
+second package to disambiguate this situation.
 
 The Debian package version has the \c{[<epoch>:]<upstream>[-<revision>]} form
 (see \cb{deb-version(5)} for details). If no explicit mapping to the \c{bpkg}
@@ -3037,10 +3065,146 @@ part as the \c{bpkg} version. If explicit mapping is specified, then we match
 it against the \c{[<epoch>:]<upstream>} parts ignoring \c{<revision>}.
 
 
+\h2#bindist-mapping-debian-produce|Debian Package Mapping for Production|
+
+The same \c{debian-name} (or alike) manifest values as used for consumption
+are also used to derive the package names for production except here we have
+the option to specify alternative non-native package names using the special
+\c{debian_0-name} (or alike) value. If only the \c{-dev} package is specified,
+then the main package name is derived from that by removing the \c{-dev}
+suffix.
+
+The generated binary package version can be specified with the
+\c{debian-version} (or alike) manifest value. If it's not specified, then the
+\c{upstream-version} is used if specified. Otherwise, the \c{bpkg} version
+is translated to the Debian version as described next.
+
+To recap, a Debian package version has the following form:
+
+\
+[<epoch>:]<upstream>[-<revision>]
+\
+
+For details on the ordering semantics, see the \c{Version} \c{control} file
+field documentation in the Debian Policy Manual. While overall unsurprising,
+one notable exception is \c{~}, which sorts before anything else and is
+commonly used for upstream pre-releases. For example, \c{1.0~beta1~svn1245}
+sorts earlier than \c{1.0~beta1}, which sorts earlier than \c{1.0}.
+
+There are also various special version conventions (such as all the revision
+components in \c{1.4-5+deb10u1~bpo9u1}) but they all appear to express
+relationships between native packages and/or their upstream and thus do not
+apply to our case.
+
+To recap, the \c{bpkg} version has the following form (see
+\l{#package-version Package Version} for details):
+
+\
+[+<epoch>-]<upstream>[-<prerel>][+<revision>]
+\
+
+Let's start with the case where neither distribution (\c{debian-version}) nor
+upstream version (\c{upstream-version}) is specified and we need to derive
+everything from the \c{bpkg} version (what follows is as much description as
+rationale).
+
+\dl|
+
+\li|\c{<epoch>}
+
+  On one hand, if we keep our (as in, \c{bpkg}) epoch, it won't necessarily
+  match Debian's native package epoch. But on the other it will allow our
+  binary packages from different epochs to co-exist. Seeing that this can be
+  easily overridden with a custom distribution version (see below), we keep
+  it.
+
+  Note that while the Debian start/default epoch is 0, ours is 1 (we use the 0
+  epoch for stub packages). So we shift this value range.|
+
+\li|\c{<upstream>[-<prerel>]}
+
+  Our upstream version maps naturally to Debian's. That is, our upstream
+  version format/semantics is a subset of Debian's.
+
+  If this is a pre-release, then we could fail (that is, don't allow
+  pre-releases) but then we won't be able to test on pre-release packages, for
+  example, to make sure the name mapping is correct. Plus sometimes it's
+  useful to publish pre-releases. We could ignore it, but then such packages
+  will be indistinguishable from each other and the final release, which is
+  not ideal. On the other hand, Debian has the mechanism (\c{~}) which is
+  essentially meant for this, so we use it. We will use \c{<prerel>} as is
+  since its format is the same as upstream and thus should map naturally.|
+
+\li|\c{<revision>}
+
+  Similar to epoch, our revision won't necessarily match Debian's native
+  package revision. But on the other hand it will allow us to establish a
+  correspondence between source and binary packages. Plus, upgrades between
+  binary package revisions will be handled naturally. Seeing that we allow
+  overriding the revision with a custom distribution version (see below),
+  we keep it.
+
+  Note also that both Debian and our revision start/default is 0. However, it
+  is Debian's convention to start revision from 1. But it doesn't seem worth
+  it for us to do any shifting here and so we will use our revision as is.
+
+  Another related question is whether we should also include some metadata
+  that identifies the distribution and its version that this package is
+  for. The strongest precedent here is probably Ubuntu's PPA. While there
+  doesn't appear to be a consistent approach, one can often see versions like
+  these:
+
+  \
+  2.1.0-1~ppa0~ubuntu14.04.1,
+  1.4-5-1.2.1~ubuntu20.04.1~ppa1
+  22.12.2-0ubuntu1~ubuntu23.04~ppa1
+  \
+
+  Seeing that this is a non-sortable component (what in semver would be called
+  \"build metadata\"), using \c{~} is probably not the worst choice.
+
+  So we follow this lead and add the \c{~<ID><VERSION_ID>} \c{os-release(5)}
+  component to revision. Note that this also means we will have to make the 0
+  revision explicit. For example:
+
+  \
+  1.2.3-1~debian10
+  1.2.3-0~ubuntu20.04
+  \
+
+||
+
+The next case to consider is when we have the upstream version
+(\c{upstream-version} manifest value). After some rumination it feels correct
+to use it in place of the \c{<epoch>-<upstream>} components in the above
+mapping (upstream version itself cannot have epoch). In other words, we will
+add the pre-release and revision components from the \c{bpkg} version. If this
+is not the desired semantics, then it can always be overridden with the
+distribution version (see below).
+
+Finally, we have the distribution version. The Debian \c{<epoch>} and
+\c{<upstream>} components are straightforward: they should be specified by the
+distribution version as required. This leaves pre-release and revision. It
+feels like in most cases we would want these copied over from the \c{bpkg}
+version automatically \- it's too tedious and error-prone to maintain them
+manually.  However, we want the user to have the full override ability. So
+instead, if empty revision is specified, as in \c{1.2.3-}, then we
+automatically add the \c{bpkg} revision. Similarly, if empty pre-release is
+specified, as in \c{1.2.3~}, then we add the \c{bpkg} pre-release. To add both
+automatically, we would specify \c{1.2.3~-} (other combinations are
+\c{1.2.3~b.1-} and \c{1.2.3~-1}).
+
+Note also that per the Debian version specification, if upstream contains
+\c{:} and/or \c{-}, then epoch and/or revision must be specified explicitly,
+respectively. Note that the \c{bpkg} upstream version may not contain either.
+
+
 \h#bindist-mapping-fedora|Fedora Package Mapping|
 
 This section describes the distribution package mapping for Fedora and alike
 (Red Hat Enterprise Linux, Centos, etc).
+
+\h2#bindist-mapping-fedora-consume|Fedora Package Mapping for Consumption|
 
 A library in Fedora is normally split up into several packages: the shared
 library package (e.g., \c{libfoo}), the development files package (e.g.,
@@ -3135,11 +3299,11 @@ package\" since the main package may not be the base package, for example
 being the \c{-libs} subpackage.)
 
 We allow/recommend specifying the \c{-devel} package instead of the main
-package for libraries (the \c{bpkg} package name starts with \c{lib}), seeing
-that we are capable of detecting the main package automatically (see
-above). If the library name happens to end with \c{-devel} (which poses an
-ambiguity), then the \c{-devel} package should be specified explicitly as the
-second package to disambiguate this situation.
+package for libraries (see \l{#manifest-package-type-language \c{type}} for
+details), seeing that we are capable of detecting the main package
+automatically (see above). If the library name happens to end with \c{-devel}
+(which poses an ambiguity), then the \c{-devel} package should be specified
+explicitly as the second package to disambiguate this situation.
 
 The Fedora package version has the \c{[<epoch>:]<version>-<release>} form (see
 Fedora Package Versioning Guidelines for details). If no explicit mapping
@@ -3148,6 +3312,10 @@ to the \c{bpkg} version is specified with the \c{fedora-to-downstream-version}
 \c{<version>} part as the \c{bpkg} version. If explicit mapping is specified,
 then we match it against the \c{[<epoch>:]<version>} parts ignoring
 \c{<release>}.
+
+\h2#bindist-mapping-fedora-produce|Fedora Package Mapping for Production|
+
+@@ TODO
 
 "
 
