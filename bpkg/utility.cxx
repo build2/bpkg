@@ -381,7 +381,7 @@ namespace bpkg
       // example, if we installed into /opt/build2 and run bpkg with absolute
       // path (and without PATH), then bpkg will be able to find "its" b.
       //
-      return process::path_search (b, exec_dir);
+      return process::path_search (b, true /* init */, exec_dir);
     }
     catch (const process_error& e)
     {
