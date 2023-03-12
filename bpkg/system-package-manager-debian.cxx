@@ -2995,13 +2995,19 @@ namespace bpkg
     const path* cur_install (nullptr); // File being opened/written to.
     try
     {
-      pair<path&, ofdstream> main (main_install,   auto_fd ());
-      pair<path&, ofdstream> dev  (dev_install,    auto_fd ());
-      pair<path&, ofdstream> doc  (doc_install,    auto_fd ());
-      pair<path&, ofdstream> dbg  (dbg_install,    auto_fd ());
-      pair<path&, ofdstream> com  (common_install, auto_fd ());
+      ofdstream main_os;
+      ofdstream dev_os;
+      ofdstream doc_os;
+      ofdstream dbg_os;
+      ofdstream com_os;
 
-      auto open = [&deb, &cur_install] (pair<path&, ofdstream>& os,
+      pair<path&, ofdstream&> main (main_install,   main_os);
+      pair<path&, ofdstream&> dev  (dev_install,    dev_os);
+      pair<path&, ofdstream&> doc  (doc_install,    doc_os);
+      pair<path&, ofdstream&> dbg  (dbg_install,    dbg_os);
+      pair<path&, ofdstream&> com  (common_install, com_os);
+
+      auto open = [&deb, &cur_install] (pair<path&, ofdstream&>& os,
                                         const string& n)
       {
         if (!n.empty ())
@@ -3017,12 +3023,12 @@ namespace bpkg
       open (dbg, st.dbg);
       open (com, st.common);
 
-      auto is_open = [] (pair<path&, ofdstream>& os)
+      auto is_open = [] (pair<path&, ofdstream&>& os)
       {
         return os.second.is_open ();
       };
 
-      auto add = [&cur_install] (pair<path&, ofdstream>& os, const path& p)
+      auto add = [&cur_install] (pair<path&, ofdstream&>& os, const path& p)
       {
         // Strip root.
         //
@@ -3201,7 +3207,7 @@ namespace bpkg
 
       // Close.
       //
-      auto close = [&cur_install] (pair<path&, ofdstream>& os)
+      auto close = [&cur_install] (pair<path&, ofdstream&>& os)
       {
         if (os.second.is_open ())
         {
