@@ -30,6 +30,17 @@ namespace bpkg
     // vtable
   }
 
+  static optional<os_release>
+  host_release (const target_triplet& host)
+  try
+  {
+    return butl::host_os_release (host);
+  }
+  catch (const runtime_error& e)
+  {
+    fail << "unable to determine host operating system release: " << e << endf;
+  }
+
   // Return true if the specified operating system is or like the specified
   // id.
   //
@@ -66,7 +77,7 @@ namespace bpkg
 
     unique_ptr<system_package_manager> r;
 
-    if (optional<os_release> oos = host_os_release (host))
+    if (optional<os_release> oos = host_release (host))
     {
       os_release& os (*oos);
 
@@ -138,7 +149,7 @@ namespace bpkg
 
     unique_ptr<system_package_manager> r;
 
-    if (optional<os_release> oos = host_os_release (host))
+    if (optional<os_release> oos = host_release (host))
     {
       os_release& os (*oos);
 

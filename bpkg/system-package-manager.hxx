@@ -8,13 +8,15 @@
 #include <bpkg/utility.hxx>
 
 #include <libbutl/path-map.hxx>
+#include <libbutl/host-os-release.hxx>
 
 #include <bpkg/package.hxx>
 #include <bpkg/common-options.hxx>
-#include <bpkg/host-os-release.hxx>
 
 namespace bpkg
 {
+  using os_release = butl::os_release;
+
   // The system/distribution package manager interface. Used by both pkg-build
   // (to query and install system packages) and by pkg-bindist (to generate
   // them).
