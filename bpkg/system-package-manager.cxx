@@ -18,6 +18,7 @@
 
 #include <bpkg/system-package-manager-debian.hxx>
 #include <bpkg/system-package-manager-fedora.hxx>
+#include <bpkg/system-package-manager-archive.hxx>
 
 using namespace std;
 using namespace butl;
@@ -147,13 +148,35 @@ namespace bpkg
                              o.no_progress () ? false :
                              optional<bool> ());
 
-    unique_ptr<system_package_manager> r;
+    optional<os_release> oos;
+    if (o.os_release_id_specified ())
+    {
+      oos = os_release ();
+      oos->name_id = o.os_release_id ();
+    }
+    else
+      oos = host_release (host);
 
-    if (optional<os_release> oos = host_release (host))
+    if (o.os_release_name_specified ())
+      oos->name = o.os_release_name ();
+
+    if (o.os_release_version_id_specified ())
+      oos->version_id = o.os_release_version_id ();
+
+    unique_ptr<system_package_manager> r;
+    if (oos)
     {
       os_release& os (*oos);
 
-      if (host.class_ == "linux")
+      // Note that we don't make archive the default on any platform in case
+      // we later want to support its native package format.
+      //
+      if (name == "archive")
+      {
+        r.reset (new system_package_manager_archive (
+                   move (os), host, arch, progress, &o));
+      }
+      else if (host.class_ == "linux")
       {
         if (is_or_like (os, "debian") ||
             is_or_like (os, "ubuntu"))

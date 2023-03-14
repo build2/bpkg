@@ -411,8 +411,9 @@ namespace bpkg
   // this platform. If architecture is empty, then derive it automatically
   // from the host target triplet. Currently recognized names:
   //
-  //   debian -- Debian and alike (Ubuntu, etc) using the APT frontend.
-  //   fedora -- Fedora and alike (RHEL, Centos, etc) using the DNF frontend.
+  //   debian  -- Debian and alike (Ubuntu, etc) using the APT frontend.
+  //   fedora  -- Fedora and alike (RHEL, Centos, etc) using the DNF frontend.
+  //   archive -- Installation archive, any platform, production only.
   //
   // Note: the name can be used to select an alternative package manager
   // implementation on platforms that support multiple.

@@ -394,7 +394,11 @@ namespace bpkg
       fail << "no standard distribution package manager for this host "
            << "or it is not yet supported" <<
         info << "consider specifying alternative distribution package "
-           << "manager with --distribution";
+           << "manager with --distribution" <<
+        info << "specify --distribution=archive to generate installation "
+           << "archive" <<
+        info << "consider specifying --os-release-* if unable to correctly "
+           << "auto-detect host operating system";
     }
 
     // Note that we pass type from here in case one day we want to provide an
@@ -412,8 +416,12 @@ namespace bpkg
 
       diag_record dr (text);
 
-      dr << "generated " << spm->os_release.name_id << " package for "
-         << p.name << '/' << p.version << ':';
+      const string& d (o.distribution_specified ()
+                       ? o.distribution ()
+                       : spm->os_release.name_id);
+
+      dr << "generated " << d << " package for " << p.name << '/' << p.version
+         << ':';
 
       for (const path& p: r)
         dr << "\n  " << p;

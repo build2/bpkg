@@ -201,7 +201,7 @@ if $cli.configured
 --generate-vector-scanner --generate-file-scanner --generate-group-scanner \
 --keep-separator --generate-specifier --generate-parse --generate-merge \
 --page-usage 'bpkg::print_$name$_' --ansi-color --ascii-tree \
---include-base-last --suppress-undocumented --option-length 24
+--include-base-last --suppress-undocumented --option-length 25
 
   # Both --*-usage options.
   #
@@ -212,11 +212,12 @@ if $cli.configured
 
   cli.options += --long-usage # All other pages -- long usage.
 
-  cli.cxx{pkg-build-options}: cli.options += --class-doc \
-bpkg::pkg_build_pkg_options=exclude-base --generate-modifier
+  cli.cxx{pkg-build-options}: cli.options += --generate-modifier \
+--class-doc bpkg::pkg_build_pkg_options=exclude-base
 
-  cli.cxx{pkg-bindist-options}: cli.options += --class-doc \
-bpkg::pkg_bindist_debian_options=exclude-base
+  cli.cxx{pkg-bindist-options}: cli.options += \
+--class-doc bpkg::pkg_bindist_debian_options=exclude-base \
+--class-doc bpkg::pkg_bindist_archive_options=exclude-base
 
   # Avoid generating CLI runtime and empty inline file for help topics.
   #
