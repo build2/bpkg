@@ -249,7 +249,7 @@ namespace bpkg
     dnf_list (vector<package_info>&, size_t = 0);
 
     vector<pair<string, string>>
-    dnf_repoquery_requires (const string&, const string&, const string&);
+    dnf_repoquery_requires (const string&, const string&, const string&, bool);
 
     void
     dnf_makecache ();
@@ -306,6 +306,7 @@ namespace bpkg
         string name;
         string version;
         string arch;
+        bool installed;
 
         bool
         operator< (const package& p) const
@@ -316,7 +317,10 @@ namespace bpkg
           if (int r = version.compare (p.version))
             return r < 0;
 
-          return arch < p.arch;
+          if (int r = arch.compare (p.arch))
+            return r < 0;
+
+          return installed < p.installed;
         }
       };
 

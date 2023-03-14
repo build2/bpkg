@@ -98,7 +98,7 @@
 
   : basics
   :
-  $* openssl-devel '1:1.1.1q-1.fc35' x86_64 <<EOI 2>>EOE >>EOO
+  $* openssl-devel '1:1.1.1q-1.fc35' x86_64 true <<EOI 2>>EOE >>EOO
     opae-devel x86_64 0:2.0.0-2.3.fc35
     openssl-devel i686 1:1.1.1q-1.fc35
     openssl-devel x86_64 1:1.1.1q-1.fc35
@@ -109,7 +109,7 @@
     pkgconf-pkg-config i686 0:1.8.0-1.fc35
     pkgconf-pkg-config x86_64 0:1.8.0-1.fc35
     EOI
-    LC_ALL=C dnf repoquery --requires --quiet --cacheonly --resolve --qf "%{name} %{arch} %{epoch}:%{version}-%{release}" openssl-devel-1:1.1.1q-1.fc35.x86_64 <-
+    LC_ALL=C dnf repoquery --requires --quiet --cacheonly --resolve --qf "%{name} %{arch} %{epoch}:%{version}-%{release}" --installed --disableexcludes=all openssl-devel-1:1.1.1q-1.fc35.x86_64 <-
     EOE
     opae-devel 2.0.0-2.3.fc35
     openssl-libs 1:1.1.1q-1.fc35
@@ -120,7 +120,7 @@
 
   : no-arch
   :
-  $* rust-uuid+std-devel 1.2.1-1.fc35 noarch <<EOI 2>>EOE >>EOO
+  $* rust-uuid+std-devel 1.2.1-1.fc35 noarch false <<EOI 2>>EOE >>EOO
     cargo x86_64 0:1.65.0-1.fc35
     rust-uuid-devel noarch 0:1.2.1-1.fc35
     EOI
@@ -132,7 +132,7 @@
 
   : no-arch-dependency
   :
-  $* dhcp-client '12:4.4.3-4.P1.fc35' x86_64 <<EOI 2>>EOE >>EOO
+  $* dhcp-client '12:4.4.3-4.P1.fc35' x86_64 true <<EOI 2>>EOE >>EOO
     bash i686 0:5.1.8-3.fc35
     bash x86_64 0:5.1.8-3.fc35
     coreutils x86_64 0:8.32-36.fc35
@@ -151,7 +151,7 @@
     systemd i686 0:249.13-6.fc35
     systemd x86_64 0:249.13-6.fc35
     EOI
-    LC_ALL=C dnf repoquery --requires --quiet --cacheonly --resolve --qf "%{name} %{arch} %{epoch}:%{version}-%{release}" dhcp-client-12:4.4.3-4.P1.fc35.x86_64 <-
+    LC_ALL=C dnf repoquery --requires --quiet --cacheonly --resolve --qf "%{name} %{arch} %{epoch}:%{version}-%{release}" --installed --disableexcludes=all dhcp-client-12:4.4.3-4.P1.fc35.x86_64 <-
     EOE
     bash 5.1.8-3.fc35
     coreutils 8.32-36.fc35
@@ -170,13 +170,13 @@
 
   : no-depends
   :
-  $* glibc 2.34-38.fc35 x86_64 <:'' 2>>EOE >:''
-    LC_ALL=C dnf repoquery --requires --quiet --cacheonly --resolve --qf "%{name} %{arch} %{epoch}:%{version}-%{release}" glibc-2.34-38.fc35.x86_64 <-
+  $* glibc 2.34-38.fc35 x86_64 true <:'' 2>>EOE >:''
+    LC_ALL=C dnf repoquery --requires --quiet --cacheonly --resolve --qf "%{name} %{arch} %{epoch}:%{version}-%{release}" --installed --disableexcludes=all glibc-2.34-38.fc35.x86_64 <-
     EOE
 
   : unknown
   :
-  $* glibg 2.34-38.fc35 x86_64 <:'' 2>>EOE >:''
+  $* glibg 2.34-38.fc35 x86_64 false <:'' 2>>EOE >:''
     LC_ALL=C dnf repoquery --requires --quiet --cacheonly --resolve --qf "%{name} %{arch} %{epoch}:%{version}-%{release}" glibg-2.34-38.fc35.x86_64 <-
     EOE
 }
@@ -294,12 +294,12 @@
       libpq.i686                                                                                                          13.4-1.fc35                                                                                                          fedora
       EOI
     $* libpq --install libpq <<EOI 2>>EOE >>EOO
-      dnf-list:               libpq-devel pq-devel           libpq-devel+pq-devel.info
-      dnf-repoquery-requires: libpq-devel 13.4-1.fc35 x86_64 libpq-devel.requires
-      dnf-list:               libpq                          libpq.info
+      dnf-list:               libpq-devel pq-devel                libpq-devel+pq-devel.info
+      dnf-repoquery-requires: libpq-devel 13.4-1.fc35 x86_64 true libpq-devel.requires
+      dnf-list:               libpq                               libpq.info
       EOI
       LC_ALL=C dnf list --all --cacheonly --quiet libpq-devel pq-devel rpm <libpq-devel+pq-devel.info
-      LC_ALL=C dnf repoquery --requires --quiet --cacheonly --resolve --qf "%{name} %{arch} %{epoch}:%{version}-%{release}" libpq-devel-13.4-1.fc35.x86_64 <libpq-devel.requires
+      LC_ALL=C dnf repoquery --requires --quiet --cacheonly --resolve --qf "%{name} %{arch} %{epoch}:%{version}-%{release}" --installed --disableexcludes=all libpq-devel-13.4-1.fc35.x86_64 <libpq-devel.requires
       LC_ALL=C dnf list --all --cacheonly --quiet libpq rpm <libpq.info
       sudo dnf mark --quiet --assumeno install --cacheonly libpq-13.4-1.fc35.x86_64 libpq-devel-13.4-1.fc35.x86_64
       EOE
@@ -333,9 +333,9 @@
       libpq.i686                                                                                                          13.4-1.fc35                                                                                                          fedora
       EOI
     $* libpq --install libpq <<EOI 2>>EOE >>EOO
-      dnf-list:               libpq-devel pq-devel           libpq-devel+pq-devel.info
-      dnf-repoquery-requires: libpq-devel 13.4-1.fc35 x86_64 libpq-devel.requires
-      dnf-list:               libpq                          libpq.info
+      dnf-list:               libpq-devel pq-devel                 libpq-devel+pq-devel.info
+      dnf-repoquery-requires: libpq-devel 13.4-1.fc35 x86_64 false libpq-devel.requires
+      dnf-list:               libpq                                libpq.info
       EOI
       LC_ALL=C dnf list --all --cacheonly --quiet libpq-devel pq-devel rpm <libpq-devel+pq-devel.info
       sudo dnf makecache --quiet --assumeno --refresh
@@ -393,11 +393,11 @@
       libpq.i686                                                                                                          13.4-1.fc35                                                                                                          fedora
       EOI
     $* libpq --install libpq <<EOI 2>>EOE >>EOO
-      dnf-list:               libpq-devel pq-devel           libpq-devel+pq-devel.info
-      dnf-list-fetched:       libpq-devel pq-devel           libpq-devel+pq-devel.info-fetched
-      dnf-repoquery-requires: libpq-devel 13.4-1.fc35 x86_64 libpq-devel.requires-fetched
-      dnf-list-fetched:       libpq                          libpq.info-fetched
-      dnf-list-installed:     libpq                          libpq.info-installed
+      dnf-list:               libpq-devel pq-devel                 libpq-devel+pq-devel.info
+      dnf-list-fetched:       libpq-devel pq-devel                 libpq-devel+pq-devel.info-fetched
+      dnf-repoquery-requires: libpq-devel 13.4-1.fc35 x86_64 false libpq-devel.requires-fetched
+      dnf-list-fetched:       libpq                                libpq.info-fetched
+      dnf-list-installed:     libpq                                libpq.info-installed
       EOI
       LC_ALL=C dnf list --all --cacheonly --quiet libpq-devel pq-devel rpm <libpq-devel+pq-devel.info
       sudo dnf makecache --quiet --assumeno --refresh
@@ -450,10 +450,10 @@
       libpq.i686                                                                                                          13.4-1.fc35                                                                                                          fedora
       EOI
     $* libpq --install --no-fetch libpq <<EOI 2>>EOE >>EOO != 0
-      dnf-list:               libpq-devel pq-devel           libpq-devel+pq-devel.info
-      dnf-repoquery-requires: libpq-devel 13.3-3.fc35 x86_64 libpq-devel.requires
-      dnf-list:               libpq                          libpq.info
-      dnf-list-installed:     libpq                          libpq.info-installed
+      dnf-list:               libpq-devel pq-devel                 libpq-devel+pq-devel.info
+      dnf-repoquery-requires: libpq-devel 13.3-3.fc35 x86_64 false libpq-devel.requires
+      dnf-list:               libpq                                libpq.info
+      dnf-list-installed:     libpq                                libpq.info-installed
       EOI
       LC_ALL=C dnf list --all --cacheonly --quiet libpq-devel pq-devel rpm <libpq-devel+pq-devel.info
       LC_ALL=C dnf repoquery --requires --quiet --cacheonly --resolve --qf "%{name} %{arch} %{epoch}:%{version}-%{release}" libpq-devel-13.3-3.fc35.x86_64 <libpq-devel.requires
@@ -504,10 +504,10 @@
       libpq.i686                                                                                                          13.4-1.fc35                                                                                                          fedora
       EOI
     $* libpq --install libpq <<EOI 2>>EOE >>EOO
-      dnf-list:               libpq-devel pq-devel           libpq-devel+pq-devel.info
-      dnf-repoquery-requires: libpq-devel 13.4-1.fc35 x86_64 libpq-devel.requires
-      dnf-list:               libpq                          libpq.info
-      dnf-list-installed:     libpq                          libpq.info-installed
+      dnf-list:               libpq-devel pq-devel                 libpq-devel+pq-devel.info
+      dnf-repoquery-requires: libpq-devel 13.4-1.fc35 x86_64 false libpq-devel.requires
+      dnf-list:               libpq                                libpq.info
+      dnf-list-installed:     libpq                                libpq.info-installed
       EOI
       LC_ALL=C dnf list --all --cacheonly --quiet libpq-devel pq-devel rpm <libpq-devel+pq-devel.info
       sudo dnf makecache --quiet --assumeno --refresh
@@ -636,12 +636,12 @@
     $* libsqlite3 --install libsqlite3 <<EOI 2>>EOE >>EOO
       manifest: libsqlite3 libsqlite3.manifest
 
-      dnf-list:               libsqlite3-devel sqlite-devel     libsqlite3-devel+sqlite-devel.info
-      dnf-repoquery-requires: sqlite-devel 3.36.0-3.fc35 x86_64 sqlite-devel.requires
-      dnf-list:               sqlite-libs                       sqlite-libs.info
+      dnf-list:               libsqlite3-devel sqlite-devel          libsqlite3-devel+sqlite-devel.info
+      dnf-repoquery-requires: sqlite-devel 3.36.0-3.fc35 x86_64 true sqlite-devel.requires
+      dnf-list:               sqlite-libs                            sqlite-libs.info
       EOI
       LC_ALL=C dnf list --all --cacheonly --quiet libsqlite3-devel sqlite-devel rpm <libsqlite3-devel+sqlite-devel.info
-      LC_ALL=C dnf repoquery --requires --quiet --cacheonly --resolve --qf "%{name} %{arch} %{epoch}:%{version}-%{release}" sqlite-devel-3.36.0-3.fc35.x86_64 <sqlite-devel.requires
+      LC_ALL=C dnf repoquery --requires --quiet --cacheonly --resolve --qf "%{name} %{arch} %{epoch}:%{version}-%{release}" --installed --disableexcludes=all sqlite-devel-3.36.0-3.fc35.x86_64 <sqlite-devel.requires
       LC_ALL=C dnf list --all --cacheonly --quiet sqlite-libs rpm <sqlite-libs.info
       sudo dnf mark --quiet --assumeno install --cacheonly sqlite-libs-3.36.0-3.fc35.x86_64 sqlite-devel-3.36.0-3.fc35.x86_64
       EOE
@@ -695,11 +695,11 @@
     $* libsqlite3 --install libsqlite3 <<EOI 2>>EOE >>EOO
       manifest: libsqlite3 libsqlite3.manifest
 
-      dnf-list:                       libsqlite3-devel sqlite-devel     libsqlite3-devel+sqlite-devel.info
-      dnf-repoquery-requires-fetched: sqlite-devel 3.36.0-3.fc35 x86_64 sqlite-devel.requires-fetched
-      dnf-list-fetched:               libsqlite3-devel sqlite-devel     libsqlite3-devel+sqlite-devel.info-fetched
-      dnf-list-fetched:               sqlite-libs                       sqlite-libs.info-fetched
-      dnf-list-installed:             sqlite-libs                       sqlite-libs.info-installed
+      dnf-list:                       libsqlite3-devel sqlite-devel           libsqlite3-devel+sqlite-devel.info
+      dnf-repoquery-requires-fetched: sqlite-devel 3.36.0-3.fc35 x86_64 false sqlite-devel.requires-fetched
+      dnf-list-fetched:               libsqlite3-devel sqlite-devel           libsqlite3-devel+sqlite-devel.info-fetched
+      dnf-list-fetched:               sqlite-libs                             sqlite-libs.info-fetched
+      dnf-list-installed:             sqlite-libs                             sqlite-libs.info-installed
       EOI
       LC_ALL=C dnf list --all --cacheonly --quiet libsqlite3-devel sqlite-devel rpm <libsqlite3-devel+sqlite-devel.info
       sudo dnf makecache --quiet --assumeno --refresh
@@ -886,13 +886,13 @@
       manifest: libncurses     libncurses.manifest
       manifest: libncurses-c++ libncurses-c++.manifest
 
-      dnf-list:               libncurses-devel ncurses-devel           libncurses-devel+ncurses-devel.info
-      dnf-repoquery-requires: ncurses-devel 6.2-8.20210508.fc35 x86_64 ncurses-devel.requires
-      dnf-list:               ncurses-libs                             ncurses-libs.info
-      dnf-list:               ncurses-c++-libs ncurses-devel           ncurses-c++-libs+ncurses-devel.info
+      dnf-list:               libncurses-devel ncurses-devel                libncurses-devel+ncurses-devel.info
+      dnf-repoquery-requires: ncurses-devel 6.2-8.20210508.fc35 x86_64 true ncurses-devel.requires
+      dnf-list:               ncurses-libs                                  ncurses-libs.info
+      dnf-list:               ncurses-c++-libs ncurses-devel                ncurses-c++-libs+ncurses-devel.info
       EOI
       LC_ALL=C dnf list --all --cacheonly --quiet libncurses-devel ncurses-devel rpm <libncurses-devel+ncurses-devel.info
-      LC_ALL=C dnf repoquery --requires --quiet --cacheonly --resolve --qf "%{name} %{arch} %{epoch}:%{version}-%{release}" ncurses-devel-6.2-8.20210508.fc35.x86_64 <ncurses-devel.requires
+      LC_ALL=C dnf repoquery --requires --quiet --cacheonly --resolve --qf "%{name} %{arch} %{epoch}:%{version}-%{release}" --installed --disableexcludes=all ncurses-devel-6.2-8.20210508.fc35.x86_64 <ncurses-devel.requires
       LC_ALL=C dnf list --all --cacheonly --quiet ncurses-libs rpm <ncurses-libs.info
       LC_ALL=C dnf list --all --cacheonly --quiet ncurses-c++-libs ncurses-devel rpm <ncurses-c++-libs+ncurses-devel.info
       sudo dnf mark --quiet --assumeno install --cacheonly ncurses-libs-6.2-8.20210508.fc35.x86_64 ncurses-devel-6.2-8.20210508.fc35.x86_64 ncurses-c++-libs-6.2-8.20210508.fc35.x86_64
@@ -956,11 +956,11 @@
       manifest: libncurses     libncurses.manifest
       manifest: libncurses-c++ libncurses-c++.manifest
 
-      dnf-list:                       libncurses-devel ncurses-devel           libncurses-devel+ncurses-devel.info
-      dnf-repoquery-requires-fetched: ncurses-devel 6.2-8.20210508.fc35 x86_64 ncurses-devel.requires-fetched
-      dnf-list-fetched:               ncurses-libs                             ncurses-libs.info-fetched
-      dnf-list-fetched:               ncurses-c++-libs ncurses-devel           ncurses-c++-libs+ncurses-devel.info-fetched
-      dnf-list-installed:             ncurses-libs ncurses-c++-libs            ncurses-libs+ncurses-c++-libs.info-installed
+      dnf-list:                       libncurses-devel ncurses-devel                 libncurses-devel+ncurses-devel.info
+      dnf-repoquery-requires-fetched: ncurses-devel 6.2-8.20210508.fc35 x86_64 false ncurses-devel.requires-fetched
+      dnf-list-fetched:               ncurses-libs                                   ncurses-libs.info-fetched
+      dnf-list-fetched:               ncurses-c++-libs ncurses-devel                 ncurses-c++-libs+ncurses-devel.info-fetched
+      dnf-list-installed:             ncurses-libs ncurses-c++-libs                  ncurses-libs+ncurses-c++-libs.info-installed
       EOI
       LC_ALL=C dnf list --all --cacheonly --quiet libncurses-devel ncurses-devel rpm <libncurses-devel+ncurses-devel.info
       sudo dnf makecache --quiet --assumeno --refresh
@@ -1039,12 +1039,12 @@
       manifest: libncurses     libncurses.manifest
       manifest: libncurses-c++ libncurses-c++.manifest
 
-      dnf-list:                       libncurses-devel ncurses-devel           libncurses-devel+ncurses-devel.info
-      dnf-list-fetched:               libncurses-devel ncurses-devel           libncurses-devel+ncurses-devel.info-fetched
-      dnf-repoquery-requires-fetched: ncurses-devel 6.2-8.20210508.fc35 x86_64 ncurses-devel.requires-fetched
-      dnf-list-fetched:               ncurses-libs                             ncurses-libs.info-fetched
-      dnf-list-fetched:               ncurses-c++-libs ncurses-devel           ncurses-c++-libs+ncurses-devel.info-fetched
-      dnf-list-installed:             ncurses-libs ncurses-c++-libs            ncurses-libs+ncurses-c++-libs.info-installed
+      dnf-list:                       libncurses-devel ncurses-devel                 libncurses-devel+ncurses-devel.info
+      dnf-list-fetched:               libncurses-devel ncurses-devel                 libncurses-devel+ncurses-devel.info-fetched
+      dnf-repoquery-requires-fetched: ncurses-devel 6.2-8.20210508.fc35 x86_64 false ncurses-devel.requires-fetched
+      dnf-list-fetched:               ncurses-libs                                   ncurses-libs.info-fetched
+      dnf-list-fetched:               ncurses-c++-libs ncurses-devel                 ncurses-c++-libs+ncurses-devel.info-fetched
+      dnf-list-installed:             ncurses-libs ncurses-c++-libs                  ncurses-libs+ncurses-c++-libs.info-installed
       EOI
       LC_ALL=C dnf list --all --cacheonly --quiet libncurses-devel ncurses-devel rpm <libncurses-devel+ncurses-devel.info
       sudo dnf makecache --quiet --assumeno --refresh

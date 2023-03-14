@@ -83,6 +83,12 @@ namespace bpkg
     //
     os_release osr {"fedora", {}, "35", "", "Fedora Linux", "", ""};
 
+    auto to_bool = [] (const string& s)
+    {
+      assert (s == "true" || s == "false");
+      return s == "true";
+    };
+
     if (cmd == "dnf-list")
     {
       assert (argc >= 3); // <pkg>...
@@ -122,9 +128,9 @@ namespace bpkg
     }
     else if (cmd == "dnf-repoquery-requires")
     {
-      assert (argc == 5); // <pkg> <ver> <arch>
+      assert (argc == 6); // <pkg> <ver> <arch> <installed>
 
-      package key {argv[2], argv[3], argv[4]};
+      package key {argv[2], argv[3], argv[4], to_bool (argv[5])};
 
       system_package_manager_fedora::simulation s;
       s.dnf_repoquery_requires_.emplace (key, path ("-"));
@@ -141,7 +147,10 @@ namespace bpkg
       m.simulate_ = &s;
 
       for (const pair<string, string>& d:
-             m.dnf_repoquery_requires (key.name, key.version, key.arch))
+             m.dnf_repoquery_requires (key.name,
+                                       key.version,
+                                       key.arch,
+                                       key.installed))
       {
         cout << d.first << ' ' << d.second << '\n';
       }
@@ -282,12 +291,16 @@ namespace bpkg
           string f (l, q + 1); trim (f);
 
           q = n.rfind (' '); assert (q != string::npos);
+          bool i (to_bool (string (n, q + 1)));
+          n.resize (q);
+
+          q = n.rfind (' '); assert (q != string::npos);
           string a (n, q + 1);
           n.resize (q);
 
           q = n.find (' '); assert (q != string::npos);
 
-          package pkg {string (n, 0, q), string (n, q + 1), move (a)};
+          package pkg {string (n, 0, q), string (n, q + 1), move (a), i};
 
           if (f == "!")
             f.clear ();

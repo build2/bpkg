@@ -543,7 +543,8 @@ namespace bpkg
   vector<pair<string, string>> system_package_manager_fedora::
   dnf_repoquery_requires (const string& name,
                           const string& ver,
-                          const string& qarch)
+                          const string& qarch,
+                          bool installed)
   {
     assert (!name.empty () && !ver.empty () && !arch.empty ());
 
@@ -559,14 +560,36 @@ namespace bpkg
     // check: <timestamp>' printed to stderr. It does not appear to affect
     // error diagnostics (try specifying an unknown option).
     //
-    const char* args[] = {
+    cstrings args {
       "dnf", "repoquery", "--requires",
       "--quiet",
       "--cacheonly", // Don't automatically update the metadata.
       "--resolve",   // Resolve requirements to packages/versions.
-      "--qf", "%{name} %{arch} %{epoch}:%{version}-%{release}",
-      spec.c_str (),
-      nullptr};
+      "--qf", "%{name} %{arch} %{epoch}:%{version}-%{release}"};
+
+    // Note that installed packages which are not available from configured
+    // repositories (e.g. packages installed from local rpm files or temporary
+    // local repositories, package versions not available anymore from their
+    // original repositories, etc) are not seen by `dnf repoquery` by
+    // default. It also turned out that the --installed option not only limits
+    // the resulting set to the installed packages, but also makes `dnf
+    // repoquery` to see all the installed packages, including the unavailable
+    // ones. Thus, we always add this option to query dependencies of the
+    // installed packages.
+    //
+    if (installed)
+    {
+      args.push_back ("--installed");
+
+      // dnf(8) also recommends to use --disableexcludes together with
+      // --install to make sure that all installed packages will be listed and
+      // no configuration file may influence the result.
+      //
+      args.push_back ("--disableexcludes=all");
+    }
+
+    args.push_back (spec.c_str ());
+    args.push_back (nullptr);
 
     // Note that for this command there seems to be no need to run with the C
     // locale since the output is presumably not localizable. But let's do it
@@ -599,7 +622,7 @@ namespace bpkg
                       evars);
       else
       {
-        simulation::package k {name, ver, qarch};
+        simulation::package k {name, ver, qarch, installed};
 
         const path* f (nullptr);
         if (fetched_)
@@ -1222,10 +1245,11 @@ namespace bpkg
     //
     auto guess_main = [this, &pn] (package_status& s,
                                    const string& ver,
-                                   const string& qarch)
+                                   const string& qarch,
+                                   bool installed)
     {
       vector<pair<string, string>> depends (
-        dnf_repoquery_requires (s.devel, ver, qarch));
+        dnf_repoquery_requires (s.devel, ver, qarch, installed));
 
       s.main = main_from_devel (s.devel, ver, depends);
 
@@ -1369,7 +1393,11 @@ namespace bpkg
           if (devel.installed_version.empty ())
             continue;
 
-          guess_main (ps, devel.installed_version, devel.installed_arch);
+          guess_main (ps,
+                      devel.installed_version,
+                      devel.installed_arch,
+                      true /* installed */);
+
           pis.emplace (pis.begin (), ps.main);
           ps.package_infos_main++;
           dnf_list (pis, 1);
@@ -1483,7 +1511,11 @@ namespace bpkg
             if (devel.candidate_version.empty ())
               continue; // Not installable.
 
-            guess_main (ps, devel.candidate_version, devel.candidate_arch);
+            guess_main (ps,
+                        devel.candidate_version,
+                        devel.candidate_arch,
+                        devel.candidate_version == devel.installed_version);
+
             pis.emplace (pis.begin (), ps.main);
             ps.package_infos_main++;
             dnf_list (pis, 1);
@@ -1604,11 +1636,18 @@ namespace bpkg
       if (!v)
       {
         // Fallback to using system version as downstream version. But first
-        // strip the epoch, if any.
+        // strip the epoch, if any. Also convert the potential pre-release
+        // separator to the bpkg version pre-release separator.
         //
         size_t p (sv.find (':'));
         if (p != string::npos)
           sv.erase (0, p + 1);
+
+        // @@ Do the same for Debian?
+        //
+        p = sv.find ('~');
+        if (p != string::npos)
+          sv[p] = '-';
 
         try
         {
