@@ -126,9 +126,9 @@ namespace bpkg
       };
 
       // For gzip it's a good idea to use -9 by default. While for xz, -9 is
-      // not recommended as the default due memory requirements, in our case
-      // (large binary archives on development machines), this is unlikely to
-      // be an issue.
+      // not recommended as the default due to memory requirements, in our
+      // case (large binary archives on development machines), this is
+      // unlikely to be an issue.
       //
       // Note also that the compression level can be altered via the GZIP
       // (GZIP_OPT also seems to work) and XZ_OPT environment variables,

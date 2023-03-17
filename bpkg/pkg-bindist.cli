@@ -668,7 +668,7 @@ namespace bpkg
       "Override the \cb{ID} component in \cb{os-release(5)} or equivalent.
        Note that unlike the rest of the \cb{--os-release-*} options, this
        option suppresses automatic detection of the host operating system
-       inormation."
+       information."
     }
 
     string --os-release-version-id
