@@ -1121,6 +1121,8 @@ namespace bpkg
   optional<package_status> system_package_manager_fedora::
   status (const package_name& pn, const available_packages& aps)
   {
+    tracer trace ("system_package_manager_fedora::status");
+
     // For now we ignore -doc and -debug* package components (but we may want
     // to have options controlling this later). Note also that we assume
     // -common is pulled automatically by the base package so we ignore it as
@@ -1246,12 +1248,13 @@ namespace bpkg
     }
 
     // Guess unknown main package given the -devel package, its version, and
-    // architecture.
+    // architecture. Failed that, assume the package to be a binless library
+    // and leave the main member of the package_status object empty.
     //
-    auto guess_main = [this, &pn] (package_status& s,
-                                   const string& ver,
-                                   const string& qarch,
-                                   bool installed)
+    auto guess_main = [this, &pn, &trace] (package_status& s,
+                                           const string& ver,
+                                           const string& qarch,
+                                           bool installed)
     {
       vector<pair<string, string>> depends (
         dnf_repoquery_requires (s.devel, ver, qarch, installed));
@@ -1260,19 +1263,21 @@ namespace bpkg
 
       if (s.main.empty ())
       {
-        diag_record dr (fail);
-        dr << "unable to guess main " << os_release.name_id
-           << " package for " << s.devel << ' ' << ver <<
-          info << "depends on";
-
-
-        for (auto b (depends.begin ()), i (b); i != depends.end (); ++i)
+        if (verb >= 4)
         {
-          dr << (i == b ? " " : ", ") << i->first << ' ' << i->second;
-        }
+          diag_record dr (trace);
+          dr << "unable to guess main package for " << s.devel << ' ' << ver;
 
-        dr << info << "consider specifying explicit mapping in " << pn
-                   << " package manifest";
+          if (!depends.empty ())
+          {
+            dr << ", depends on";
+
+            for (auto b (depends.begin ()), i (b); i != depends.end (); ++i)
+              dr << (i == b ? " " : ", ") << i->first << ' ' << i->second;
+          }
+          else
+            dr << ", has no dependencies";
+        }
       }
     };
 
@@ -1403,9 +1408,12 @@ namespace bpkg
                       devel.installed_arch,
                       true /* installed */);
 
-          pis.emplace (pis.begin (), ps.main);
-          ps.package_infos_main++;
-          dnf_list (pis, 1);
+          if (!ps.main.empty ()) // Not a binless library?
+          {
+            pis.emplace (pis.begin (), ps.main);
+            ps.package_infos_main++;
+            dnf_list (pis, 1);
+          }
         }
 
         optional<status_type> s (status (pis, ps.package_infos_main));
@@ -1413,7 +1421,7 @@ namespace bpkg
         if (!s || *s != package_status::installed)
           continue;
 
-        const package_info& main (pis.front ());
+        const package_info& main (pis.front ()); // Main/devel.
 
         ps.status = *s;
         ps.system_name = main.name;
@@ -1429,17 +1437,20 @@ namespace bpkg
         {
           dr << fail << "multiple installed " << os_release.name_id
              << " packages for " << pn <<
-            info << "candidate: " << r->main << " " << r->system_version;
+            info << "candidate: " << r->system_name << ' ' << r->system_version;
         }
 
-        dr << info << "candidate: " << ps.main << " " << ps.system_version;
+        dr << info << "candidate: " << ps.system_name << ' '
+           << ps.system_version;
       }
 
       if (!dr.empty ())
         dr << info << "consider specifying the desired version manually";
     }
 
-    // Next look for available versions if we are allowed to install.
+    // Next look for available versions if we are allowed to install. Indicate
+    // the non-installable candidates by setting both their main and -devel
+    // package names to empty strings.
     //
     if (!r && install_)
     {
@@ -1476,11 +1487,13 @@ namespace bpkg
             //
             if (mp.candidate_version.empty ())
             {
+              string& main (!ps.main.empty () ? ps.main : ps.devel);
+
               if (!fp.candidate_version.empty ())
               {
                 // Use the fallback.
                 //
-                (ps.main.empty () ? ps.devel : ps.main) = move (ps.fallback);
+                main = move (ps.fallback);
                 mp = move (fp);
               }
               else
@@ -1493,7 +1506,7 @@ namespace bpkg
 
                 // Main/devel package is not installable.
                 //
-                ps.main.clear ();
+                main.clear ();
                 continue;
               }
             }
@@ -1514,29 +1527,40 @@ namespace bpkg
             // Note that this time we use the candidate version.
             //
             if (devel.candidate_version.empty ())
-              continue; // Not installable.
+            {
+              // Not installable.
+              //
+              ps.devel.clear ();
+              continue;
+            }
 
             guess_main (ps,
                         devel.candidate_version,
                         devel.candidate_arch,
                         devel.candidate_version == devel.installed_version);
 
-            pis.emplace (pis.begin (), ps.main);
-            ps.package_infos_main++;
-            dnf_list (pis, 1);
+            if (!ps.main.empty ()) // Not a binless library?
+            {
+              pis.emplace (pis.begin (), ps.main);
+              ps.package_infos_main++;
+              dnf_list (pis, 1);
+            }
           }
 
           optional<status_type> s (status (pis, ps.package_infos_main));
 
           if (!s)
           {
-            ps.main.clear (); // Not installable.
+            // Not installable.
+            //
+            ps.main.clear ();
+            ps.devel.clear ();
             continue;
           }
 
           assert (*s != package_status::installed); // Sanity check.
 
-          const package_info& main (pis.front ());
+          const package_info& main (pis.front ()); // Main/devel.
 
           // Note that if we are installing something for this main package,
           // then we always go for the candidate version even though it may
@@ -1575,13 +1599,13 @@ namespace bpkg
             dr << fail << "multiple partially installed "
                << os_release.name_id << " packages for " << pn;
 
-            dr << info << "candidate: " << r->main << " " << r->system_version
-               << ", missing components:";
+            dr << info << "candidate: " << r->system_name << ' '
+               << r->system_version << ", missing components:";
             print_missing (*r);
           }
 
-          dr << info << "candidate: " << ps.main << " " << ps.system_version
-             << ", missing components:";
+          dr << info << "candidate: " << ps.system_name << ' '
+             << ps.system_version << ", missing components:";
           print_missing (ps);
         }
 
@@ -1596,7 +1620,7 @@ namespace bpkg
 
         for (package_status& ps: candidates)
         {
-          if (ps.main.empty ())
+          if (ps.main.empty () && ps.devel.empty ()) // Not installable?
             continue;
 
           assert (ps.status == package_status::not_installed); // Sanity check.
@@ -1611,10 +1635,12 @@ namespace bpkg
           {
             dr << fail << "multiple available " << os_release.name_id
                << " packages for " << pn <<
-              info << "candidate: " << r->main << " " << r->system_version;
+              info << "candidate: " << r->system_name << ' '
+                   << r->system_version;
           }
 
-          dr << info << "candidate: " << ps.main << " " << ps.system_version;
+          dr << info << "candidate: " << ps.system_name << ' '
+             << ps.system_version;
         }
 
         if (!dr.empty ())
@@ -2292,6 +2318,11 @@ namespace bpkg
     const package_name& pn (sp->name);
     const version& pv (sp->version);
 
+    // Use version without iteration in paths, etc.
+    //
+    string pvs (pv.string (false /* ignore_revision */,
+                           true  /* ignore_iteration */));
+
     const available_packages& aps (pkgs.front ().available);
 
     bool lib (pt == "lib");
@@ -2321,6 +2352,8 @@ namespace bpkg
 
     // As a first step, figure out the system names and version of the package
     // we are generating and all the dependencies, diagnosing anything fishy.
+    // If the main package is not present for a dependency, then set the main
+    // package name to an empty string.
     //
     // Note that there should be no duplicate dependencies and we can sidestep
     // the status cache.
@@ -2337,6 +2370,9 @@ namespace bpkg
       package_status s;
       if (sp->substate == package_substate::system)
       {
+        // Note that for a system dependency the main package name is already
+        // empty if it is not present in the distribution.
+        //
         optional<package_status> os (status (sp->name, aps));
 
         if (!os || os->status != package_status::installed)
@@ -2374,37 +2410,28 @@ namespace bpkg
           v.resize (p);
       }
       else
+      {
         s = map_package (sp->name, sp->version, aps);
 
+        // Set the main package name to an empty string if we wouldn't be
+        // generating the main package for this dependency (binless library
+        // without the -common sub-package).
+        //
+        assert (aps.size () == 1);
+
+        const optional<string>& t (aps.front ().first->type);
+
+        if (s.common.empty () &&
+            package_manifest::effective_type (t, sp->name) == "lib")
+        {
+          strings sos (package_manifest::effective_type_sub_options (t));
+
+          if (find (sos.begin (), sos.end (), "binless") != sos.end ())
+            s.main.clear ();
+        }
+      }
+
       sdeps.push_back (move (s));
-    }
-
-    if (verb >= 3)
-    {
-      auto print_status = [] (diag_record& dr, const package_status& s)
-      {
-        dr << s.main
-           << (s.devel.empty () ? "" : " ") << s.devel
-           << (s.static_.empty () ? "" : " ") << s.static_
-           << (s.doc.empty () ? "" : " ") << s.doc
-           << (s.debuginfo.empty () ? "" : " ") << s.debuginfo
-           << (s.debugsource.empty () ? "" : " ") << s.debugsource
-           << (s.common.empty () ? "" : " ") << s.common
-           << ' ' << s.system_version;
-      };
-
-      {
-        diag_record dr (trace);
-        dr << "package: ";
-        print_status (dr, st);
-      }
-
-      for (const package_status& st: sdeps)
-      {
-        diag_record dr (trace);
-        dr << "dependency: ";
-        print_status (dr, st);
-      }
     }
 
     // We only allow the standard -debug* sub-package names.
@@ -2412,12 +2439,12 @@ namespace bpkg
     if (!st.debuginfo.empty () && st.debuginfo != st.main + "-debuginfo")
       fail << "generation of -debuginfo packages with custom names not "
            << "supported" <<
-        info << "use " << st.main + "-debuginfo name instead";
+        info << "use " << st.main << "-debuginfo name instead";
 
     if (!st.debugsource.empty () && st.debuginfo != st.main + "-debugsource")
       fail << "generation of -debugsource packages with custom names not "
            << "supported" <<
-        info << "use " << st.main + "-debugsource name instead";
+        info << "use " << st.main << "-debugsource name instead";
 
     // Prepare the common extra options that need to be passed to both
     // rpmbuild and rpm.
@@ -2559,8 +2586,8 @@ namespace bpkg
     //
     strings  expansions;
 
-    // These are used for sorting out the installed files into the %files
-    // sections of the sub-packages.
+    // Installed entry directories for sorting out the installed files into
+    // the %files sections of the sub-packages.
     //
     dir_path bindir;
     dir_path sbindir;
@@ -2760,7 +2787,126 @@ namespace bpkg
         if (p.second.target != nullptr)
           dr << " -> " << p.second.target->first; // Symlink.
         else
-          dr << " " << p.second.mode;
+          dr << ' ' << p.second.mode;
+      }
+    }
+
+    // As an optimization, don't generate the main and -debug* packages for a
+    // binless library unless it also specifies the -common sub-package.
+    //
+    // If this is a binless library, then verify that it doesn't install any
+    // executable, library, or configuration files. Also verify that it has
+    // the -devel sub-package but doesn't specify the -static sub-package.
+    //
+    bool binless (false);
+
+    if (lib)
+    {
+      assert (aps.size () == 1);
+
+      const shared_ptr<available_package>& ap (aps.front ().first);
+      strings sos (package_manifest::effective_type_sub_options (ap->type));
+
+      if (find (sos.begin (), sos.end (), "binless") != sos.end ())
+      {
+        // Verify installed files.
+        //
+        auto bad_install = [&pn, &pv] (const string& w)
+        {
+          fail << "binless library " << pn << ' ' << pv << " installs " << w;
+        };
+
+        auto verify_not_installed = [&ies, &bad_install] (const dir_path& d)
+        {
+          auto p (ies.find_sub (d));
+          if (p.first != p.second)
+            bad_install (p.first->first.string ());
+        };
+
+        verify_not_installed (bindir);
+        verify_not_installed (sbindir);
+        verify_not_installed (libexecdir);
+
+        // It would probably be better not to fail here but generate the main
+        // package instead (as we do if the -common sub-package is also being
+        // generated). Then, however, it would not be easy to detect if a
+        // dependency has the main package or not (see sdeps initialization
+        // for details).
+        //
+        verify_not_installed (confdir);
+
+        for (auto p (ies.find_sub (libdir)); p.first != p.second; ++p.first)
+        {
+          const path& f (p.first->first);
+
+          if (!f.sub (pkgdir))
+            bad_install (f.string ());
+        }
+
+        // Verify sub-packages.
+        //
+        if (st.devel.empty ())
+          fail << "binless library " << pn << ' ' << pv << " doesn't have "
+               << os_release.name_id << " -devel package";
+
+        if (!st.static_.empty ())
+          fail << "binless library " << pn << ' ' << pv << " has "
+               << os_release.name_id << ' ' << st.static_ << " package";
+
+        binless = true;
+      }
+    }
+
+    bool gen_main (!binless || !st.common.empty ());
+
+    // If we don't generate the main package (and thus the -common
+    // sub-package), then fail if there are any data files installed. It would
+    // probably be better not to fail but generate the main package instead in
+    // this case. Then, however, it would not be easy to detect if a
+    // dependency has the main package or not.
+    //
+    if (!gen_main)
+    {
+      for (auto p (ies.find_sub (sharedir)); p.first != p.second; ++p.first)
+      {
+        const path& f (p.first->first);
+
+        if (!f.sub (docdir) && !f.sub (mandir) && !f.sub (licensedir))
+        {
+          fail << "binless library " << pn << ' ' << pv << " installs " << f <<
+            info << "consider specifying -common package in explicit "
+                 << os_release.name_id << " name mapping in package manifest";
+        }
+      }
+    }
+
+    if (verb >= 3)
+    {
+      auto print_status = [] (diag_record& dr,
+                              const package_status& s,
+                              const string& main)
+      {
+        dr << (main.empty () ? "" : " ") << main
+           << (s.devel.empty () ? "" : " ") << s.devel
+           << (s.static_.empty () ? "" : " ") << s.static_
+           << (s.doc.empty () ? "" : " ") << s.doc
+           << (s.debuginfo.empty () ? "" : " ") << s.debuginfo
+           << (s.debugsource.empty () ? "" : " ") << s.debugsource
+           << (s.common.empty () ? "" : " ") << s.common
+           << ' ' << s.system_version;
+      };
+
+      {
+        diag_record dr (trace);
+        dr << "package:";
+        print_status (dr, st, gen_main ? st.main : empty_string);
+      }
+
+      for (const package_status& s: sdeps)
+      {
+        diag_record dr (trace);
+        dr << "dependency:";
+        print_status (dr, s, s.main);
       }
     }
 
@@ -3025,10 +3171,11 @@ namespace bpkg
       // (it's commonly the contents of the README.md file).
       //
       // We will disable automatic dependency discovery for all sub-packages
-      // using the `AutoReqProv: no` directive.
+      // using the `AutoReqProv: no` directive since we have an accurate set
+      // and some of them may not be system packages.
       //
 
-      // The main package.
+      // The common information and the main package.
       //
       {
         os <<   "Name: " << st.main                                     << '\n'
@@ -3045,9 +3192,6 @@ namespace bpkg
         if (!packager.empty ())
           os << "Packager: " << packager                                << '\n';
 
-        if (!build_arch.empty ())
-          os << "BuildArch: " << build_arch                             << '\n';
-
 #if 0
         os <<   "#Source: https://pkg.cppget.org/1/???/"
            <<     pm.effective_project () << '/' << sp->name << '-'
@@ -3059,32 +3203,54 @@ namespace bpkg
         os <<   '\n'
            <<   "%global evr %{?epoch:%{epoch}:}%{version}-%{release}"  << '\n';
 
-        os <<   '\n'
-           <<   "# " << st.main                                         << '\n'
-           <<   "#"                                                     << '\n'
-           <<   "AutoReqProv: no"                                       << '\n';
-
-        // Requires directives.
-        //
+        if (gen_main)
         {
-          bool first (true);
-          if (!st.common.empty ())
-            add_requires (first, st.common + " = %{evr}");
+          os << '\n'
+             << "# " << st.main                                         << '\n'
+             << "#"                                                     << '\n';
 
-          for (const package_status& s: sdeps)
-            add_requires (first, s.main + " >= " + s.system_version);
+          if (!build_arch.empty ())
+            os << "BuildArch: " << build_arch                           << '\n';
 
-          add_lang_requires (first,
-                             "" /* suffix */,
-                             ops_->fedora_main_langreq ());
+          os << "AutoReqProv: no"                                       << '\n';
 
-          if (ops_->fedora_main_extrareq_specified ())
-            add_requires_list (first, ops_->fedora_main_extrareq ());
+          // Requires directives.
+          //
+          {
+            bool first (true);
+            if (!st.common.empty ())
+              add_requires (first, st.common + " = %{evr}");
+
+            for (const package_status& s: sdeps)
+            {
+              if (!s.main.empty ())
+                add_requires (first, s.main + " >= " + s.system_version);
+            }
+
+            add_lang_requires (first,
+                               "" /* suffix */,
+                               ops_->fedora_main_langreq ());
+
+            if (ops_->fedora_main_extrareq_specified ())
+              add_requires_list (first, ops_->fedora_main_extrareq ());
+          }
         }
 
-        os <<   '\n'
-           <<   "%description"                                          << '\n'
-           <<   "This package contains the runtime files."              << '\n';
+        // Note that we need to add the %description directive regardless if
+        // the main package is being generated or not.
+        //
+        if (!binless)
+        {
+          os << '\n'
+             << "%description"                                          << '\n'
+             << "This package contains the runtime files."              << '\n';
+        }
+        else
+        {
+          os << '\n'
+             << "%description"                                          << '\n'
+             << "This package contains the development files."          << '\n';
+        }
       }
 
       // The -devel sub-package.
@@ -3113,7 +3279,8 @@ namespace bpkg
 
           // Dependency on the main package.
           //
-          add_requires (first, "%{name}" + isa + " = %{evr}");
+          if (gen_main)
+            add_requires (first, "%{name}" + isa + " = %{evr}");
 
           for (const package_status& s: sdeps)
           {
@@ -3204,6 +3371,9 @@ namespace bpkg
           // The static libraries without headers doesn't seem to be of any
           // use. Thus, add dependency on the -devel or main sub-package, if
           // not being generated.
+          //
+          // Note that if there is no -devel package, then this cannot be a
+          // binless library and thus the main package is being generated.
           //
           add_requires (
             first,
@@ -3329,37 +3499,46 @@ namespace bpkg
         // Also note that we disable generating the -debugsource sub-packages
         // (see the generate() description above for the reasoning).
         //
-        os <<   "%undefine _debugsource_packages"                       << '\n';
-
-        // Append the -ffile-prefix-map option (if specified) which is used to
-        // strip source file path prefix in debug information (besides other
-        // places). By default it is not used, presumably since we disable
-        // generating the -debugsource sub-packages. We change it to point to
-        // the bpkg configuration directory. Note that this won't work for
-        // external packages with source out of configuration (e.g., managed
-        // by bdep).
+        // For a binless library no -debug* packages are supposed to be
+        // generated. Thus, we just drop their definitions by redefining the
+        // %{debug_package} macro as an empty string.
         //
-        // @@ Supposedly this code won't be necessary when we add support for
-        //    -debugsource sub-packages.
-        //
-        //    Note that adding this option may also result in notification
-        //    messages for probably all the source files as following:
-        //
-        //    cpio: libfoo-1.2.3/foo.cxx: Cannot stat: No such file or directory
-        //
-        //    This bloats the rpmbuild output but doesn't seem to break
-        //    anything.
-        //
-        if (ops_->fedora_buildflags () != "ignore")
+        if (!binless)
         {
-          if (lang_c || lang_cc)
-            os << "%global build_cflags %{?build_cflags} -ffile-prefix-map="
-               << cfg_dir.string () << "=." << '\n';
+          os << "%undefine _debugsource_packages"                       << '\n';
 
-          if (lang_cxx || lang_cc)
-            os << "%global build_cxxflags %{?build_cxxflags} -ffile-prefix-map="
-               << cfg_dir.string () << "=." << '\n';
+          // Append the -ffile-prefix-map option (if specified) which is used
+          // to strip source file path prefix in debug information (besides
+          // other places). By default it is not used, presumably since we
+          // disable generating the -debugsource sub-packages. We change it to
+          // point to the bpkg configuration directory. Note that this won't
+          // work for external packages with source out of configuration
+          // (e.g., managed by bdep).
+          //
+          // @@ Supposedly this code won't be necessary when we add support for
+          //    -debugsource sub-packages.
+          //
+          //    Note that adding this option may also result in notification
+          //    messages for probably all the source files as following:
+          //
+          //    cpio: libfoo-1.2.3/foo.cxx: Cannot stat: No such file or directory
+          //
+          //    This bloats the rpmbuild output but doesn't seem to break
+          //    anything.
+          //
+          if (ops_->fedora_buildflags () != "ignore")
+          {
+            if (lang_c || lang_cc)
+              os << "%global build_cflags %{?build_cflags} -ffile-prefix-map="
+                 << cfg_dir.string () << "=." << '\n';
+
+            if (lang_cxx || lang_cc)
+              os << "%global build_cxxflags %{?build_cxxflags} -ffile-prefix-map="
+                 << cfg_dir.string () << "=." << '\n';
+          }
         }
+        else
+          os << "%global debug_package %{nil}"                          << '\n';
 
         // Common arguments for build2 commands.
         //
@@ -3372,8 +3551,8 @@ namespace bpkg
         cstrings verb_args; string verb_arg;
         map_verb_b (*ops_, verb_b::normal, verb_args, verb_arg);
 
-        os <<     '\n'
-           <<     "%global build2 " << search_b (*ops_).effect_string ();
+        os <<   '\n'
+           <<   "%global build2 " << search_b (*ops_).effect_string ();
         for (const char* o: verb_args) os << ' ' << o;
         for (const string& o: ops_->build_option ()) os << ' ' << o;
 
@@ -3581,25 +3760,28 @@ namespace bpkg
         // The main package contains everything that doesn't go to another
         // packages.
         //
-        if (ies.contains_sub (bindir))  main += "%{_bindir}/*\n";
-        if (ies.contains_sub (sbindir)) main += "%{_sbindir}/*\n";
+        if (gen_main)
+        {
+          if (ies.contains_sub (bindir))  main += "%{_bindir}/*\n";
+          if (ies.contains_sub (sbindir)) main += "%{_sbindir}/*\n";
 
-        if (ies.contains_sub (libexecdir))
-          main += "%{_libexecdir}/" + (priv ? pd : "*") + '\n';
+          if (ies.contains_sub (libexecdir))
+            main += "%{_libexecdir}/" + (priv ? pd : "*") + '\n';
 
-        // This could potentially go to -common but it could also be target-
-        // specific, who knows. So let's keep it in main for now.
-        //
-        // Let's also specify that the confdir/ sub-entries are non-replacable
-        // configuration files. This, in particular, means that if edited they
-        // will not be replaced/removed on the package upgrade or
-        // uninstallation (see RPM Packaging Guide for more details on the
-        // %config(noreplace) directive). Also note that the binary package
-        // configuration files can later be queried by the user via the `rpm
-        // --query --configfiles` command.
-        //
-        if (ies.contains_sub (confdir))
-          main += "%config(noreplace) %{_sysconfdir}/*\n";
+          // This could potentially go to -common but it could also be target-
+          // specific, who knows. So let's keep it in main for now.
+          //
+          // Let's also specify that the confdir/ sub-entries are
+          // non-replacable configuration files. This, in particular, means
+          // that if edited they will not be replaced/removed on the package
+          // upgrade or uninstallation (see RPM Packaging Guide for more
+          // details on the %config(noreplace) directive). Also note that the
+          // binary package configuration files can later be queried by the
+          // user via the `rpm --query --configfiles` command.
+          //
+          if (ies.contains_sub (confdir))
+            main += "%config(noreplace) %{_sysconfdir}/*\n";
+        }
 
         if (ies.contains_sub (incdir))
           (!st.devel.empty () ? devel : main) +=
@@ -3607,6 +3789,8 @@ namespace bpkg
 
         if (st.devel.empty () && st.static_.empty ())
         {
+          assert (gen_main); // Shouldn't be here otherwise.
+
           if (ies.contains_sub (libdir))
             main += "%{_libdir}/" + (priv ? pd : "*") + '\n';
         }
@@ -3751,17 +3935,20 @@ namespace bpkg
                 else
                 {
                   fs = &devel;
-                  *fs += "%{_libdir}/" + pd + sd.string () + '/';
+                  *fs += "%{_libdir}/" + pd + sd.string () + (priv ? "/" : "/*");
                 }
               }
               else
                 *fs += "%{_libdir}/" + pd + sd.string () + '/';
 
-              // In the case of the directory (has the trailing slash) skip
-              // all the other entries in this subdirectory (in the prefix map
-              // they will all be in a contiguous range).
+              // In the case of the directory (has the trailing slash) or
+              // wildcard (has the trailing asterisk) skip all the other
+              // entries in this subdirectory (in the prefix map they will all
+              // be in a contiguous range).
               //
-              if (fs->back () == '/')
+              char c (fs->back ());
+
+              if (c == '/' || c == '*')
               {
                 while (p.first != p.second && p.first->first.sub (d))
                   ++p.first;
@@ -3769,6 +3956,10 @@ namespace bpkg
 
               *fs += '\n';
             }
+
+            // We can only add files to the main package if we generate it.
+            //
+            assert (fs != &main || gen_main);
 
             // Update the index of a sub-package which should own
             // libdir/<private>/.
@@ -3783,13 +3974,15 @@ namespace bpkg
             *owners[*private_owner] += "%dir %{_libdir}/" + pd + '\n';
 
           if (pkgconfig_owner)
-            *owners[*pkgconfig_owner] += "%dir %{_libdir}/" + pd + "pkgconfig/" + '\n';
+            *owners[*pkgconfig_owner] +=
+              "%dir %{_libdir}/" + pd + "pkgconfig/" + '\n';
         }
 
         // We cannot just do usr/share/* since it will clash with doc/, man/,
         // and licenses/ below. So we have to list all the top-level entries
         // in usr/share/ that are not doc/, man/, or licenses/.
         //
+        if (gen_main)
         {
           // Note that if <private>/ is specified, then we also need to
           // establish ownership of the sharedir/<private>/ directory (similar
@@ -3819,7 +4012,7 @@ namespace bpkg
               //
               dir_path sd (*l.begin ());
 
-              fs += "%{_datadir}/" + pd + sd.string () + '\n';
+              fs += "%{_datadir}/" + pd + sd.string () + '/' + '\n';
 
               // Skip all the other entries in this subdirectory (in the prefix
               // map they will all be in a contiguous range).
@@ -3853,6 +4046,11 @@ namespace bpkg
                       !st.devel.empty ()  ? devel  :
                       main);
 
+          // We can only add doc files to the main or -common packages if we
+          // generate the main package.
+          //
+          assert ((&fs != &main && &fs != &common) || gen_main);
+
           // Let's specify that the docdir/ sub-entries are documentation
           // files. Note that the binary package documentation files can later
           // be queried by the user via the `rpm --query --docfiles` command.
@@ -3877,12 +4075,15 @@ namespace bpkg
         // the user via the `rpm --query --licensefiles` command.
         //
         if (ies.contains_sub (licensedir))
-          main += "%license %{_licensedir}/" + (priv ? pd : "*") + '\n';
+          (gen_main ? main : devel) +=
+            "%license %{_licensedir}/" + (priv ? pd : "*") + '\n';
 
         // Finally, write the %files sections.
         //
         if (!main.empty ())
         {
+          assert (gen_main); // Shouldn't be here otherwise.
+
           os << '\n'
              << "# " << st.main << " files."                            << '\n'
              << "#"                                                     << '\n'
@@ -3970,7 +4171,7 @@ namespace bpkg
           os << sys_version.epoch << ':';
 
         os << sys_version.version << '-' << sys_version.release         << '\n'
-           <<   "- New bpkg package release " << pv.string () << '.'    << '\n';
+           <<   "- New bpkg package release " << pvs << '.'             << '\n';
       }
 
       os.close ();
@@ -4118,7 +4319,8 @@ namespace bpkg
         return np++;
       };
 
-      add_package (st.main, package_arch);
+      if (gen_main)
+        add_package (st.main, package_arch);
 
       if (!st.devel.empty ())
         add_package (st.devel, package_arch);
@@ -4132,7 +4334,9 @@ namespace bpkg
       if (!st.common.empty ())
         add_package (st.common, "noarch");
 
-      size_t di (add_package (st.main + "-debuginfo", arch));
+      optional<size_t> di (!binless
+                           ? add_package (st.main + "-debuginfo", arch)
+                           : optional<size_t> ());
 
       // Strip the trailing newline since rpm adds one.
       //
@@ -4161,7 +4365,7 @@ namespace bpkg
           //
           if (exists (p))
             r.push_back (move (p));
-          else if (i != di) // Not a -debuginfo sub-package?
+          else if (!di || i != *di) // Not a -debuginfo sub-package?
             fail << "expected output file " << p << " does not exist";
         }
         catch (const invalid_path& e)

@@ -313,6 +313,11 @@ namespace bpkg
     const package_name& pn (sp->name);
     const version& pv (sp->version);
 
+    // Use version without iteration in paths, etc.
+    //
+    string pvs (pv.string (false /* ignore_revision */,
+                           true  /* ignore_iteration */));
+
     bool lib (pt == "lib");
     bool priv (ops->private_ ()); // Private installation.
 
@@ -497,7 +502,7 @@ namespace bpkg
     // libhello-1.2.3-x86_64-windows10-msvc17.4
     // libhello-1.2.3-x86_64-debian11-gcc12-rust1.62
     //
-    string base (pn.string () + '-' + pv.string ());
+    string base (pn.string () + '-' + pvs);
 
     if (ops->archive_build_meta_specified ())
     {

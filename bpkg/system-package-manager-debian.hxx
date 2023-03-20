@@ -37,7 +37,9 @@ namespace bpkg
   // libcurl3-gnutls libcurl4-gnutls-dev libcurl4-doc  (yes, 3 and 4)
   //
   // Note that while most library package names in Debian start with lib (per
-  // the policy), there are exceptions (e.g., zlib1g zlib1g-dev).
+  // the policy), there are exceptions (e.g., zlib1g zlib1g-dev). The
+  // header-only library package names may or may not start with lib and end
+  // with -dev (e.g., libeigen3-dev, rapidjson-dev, catch2).
   //
   // Also note that manual -dbg packages are obsolete in favor of automatic
   // -dbgsym packages from Debian 9. So while we support -dbg for consumption,

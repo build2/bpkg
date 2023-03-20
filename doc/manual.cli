@@ -1137,7 +1137,7 @@ information.
 [type]: <type>
 [language]: <lang>
 
-<type> = <name>
+<type> = <name>[,<sub-options>]
 <lang> = <name>[=impl]
 \
 
@@ -1148,7 +1148,14 @@ the type is not specified, then if the package name starts with \c{lib}, then
 it is assumed to be \c{lib} and \c{exe} otherwise (see \l{#package-name
 Package Name} for details). Other package types may be added in the future and
 code that does not recognize a certain package type should treat it as
-\c{other}.
+\c{other}. The type name can be followed by a comma-separated list of
+sub-options. Currently, the only recognized sub-option is \c{binless} which
+applies to the \c{lib} type indicating a header-only (or equivalent) library.
+For example:
+
+\
+type: lib,binless
+\
 
 The package language must be in the lower case, for example, \c{c}, \c{c++},
 \c{rust}, \c{bash}. If the language is not specified, then if the package name
@@ -3014,9 +3021,11 @@ libcurl3-gnutls libcurl4-gnutls-dev libcurl4-doc
 \
 
 Note that while most library package names in Debian start with \c{lib} (per
-the policy), there are exceptions (e.g., \c{zlib1g} \c{zlib1g-dev}). Also note
-that manual \c{-dbg} packages are obsolete in favor of automatic \c{-dbgsym}
-packages from Debian 9.
+the policy), there are exceptions (e.g., \c{zlib1g} \c{zlib1g-dev}). The
+header-only library package names may or may not start with \c{lib} and end
+with \c{-dev} (e.g., \c{libeigen3-dev}, \c{rapidjson-dev}, \c{catch2}). Also
+note that manual \c{-dbg} packages are obsolete in favor of automatic
+\c{-dbgsym} packages from Debian 9.
 
 For executable packages there is normally no \c{-dev} packages but \c{-dbg},
 \c{-doc}, and \c{-common} are plausible.
@@ -3072,7 +3081,9 @@ are also used to derive the package names for production except here we have
 the option to specify alternative non-native package names using the special
 \c{debian_0-name} (or alike) value. If only the \c{-dev} package is specified,
 then the main package name is derived from that by removing the \c{-dev}
-suffix.
+suffix. Note that regardless of whether the main package name is specified or
+not, the \l{bpkg-pkg-bindist(1)} command may omit generating the main package
+for a binless library.
 
 The generated binary package version can be specified with the
 \c{debian-version} (or alike) manifest value. If it's not specified, then the
@@ -3240,6 +3251,10 @@ libpq libpq-devel
 
 zlib zlib-devel zlib-static
 
+catch-devel
+
+eigen3-devel eigen3-doc
+
 xerces-c xerces-c-devel xerces-c-doc
 
 libsigc++20 libsigc++20-devel libsigc++20-doc
@@ -3324,7 +3339,9 @@ are also used to derive the package names for production except here we have
 the option to specify alternative non-native package names using the special
 \c{fedora_0-name} (or alike) value. If only the \c{-devel} package is
 specified, then the main package name is derived from that by removing the
-\c{-devel} suffix.
+\c{-devel} suffix. Note that regardless of whether the main package name is
+specified or not, the \l{bpkg-pkg-bindist(1)} command may omit generating the
+main package for a binless library.
 
 The generated binary package version can be specified with the
 \c{fedora-version} (or alike) manifest value. If it's not specified, then the

@@ -50,6 +50,10 @@ namespace bpkg
   //
   // zlib zlib-devel zlib-static
   //
+  // catch-devel
+  //
+  // eigen3-devel eigen3-doc
+  //
   // xerces-c xerces-c-devel xerces-c-doc
   //
   // libsigc++20 libsigc++20-devel libsigc++20-doc

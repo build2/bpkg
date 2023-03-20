@@ -1755,7 +1755,7 @@ namespace bpkg
           {
             diag_record dr (fail);
 
-            dr << "no installed " << (o.sys_install () ? " or available " : "")
+            dr << "no installed " << (o.sys_install () ? "or available " : "")
                << "system package for " << nm;
 
             if (!o.sys_install ())

@@ -916,6 +916,8 @@ namespace bpkg
   optional<package_status> system_package_manager_debian::
   status (const package_name& pn, const available_packages& aps)
   {
+    tracer trace ("system_package_manager_debian::status");
+
     // For now we ignore -doc and -dbg package components (but we may want to
     // have options controlling this later). Note also that we assume -common
     // is pulled automatically by the main package so we ignore it as well
@@ -968,6 +970,12 @@ namespace bpkg
           // Keep the main package name empty as an indication that it is to
           // be discovered.
           //
+          // @@ It seems that quite often the header-only library -dev package
+          //    name doesn't start with 'lib'. Here are some randomly chosen
+          //    packages: libeigen3-dev, libmdds-dev, rapidjson-dev, etl-dev,
+          //    seqan-dev, catch2. Should we implement the fallback similar to
+          //    the Fedora implementation? Maybe one day.
+          //
           candidates.push_back (package_status ("", n + "-dev"));
         }
         else
@@ -1014,8 +1022,11 @@ namespace bpkg
     }
 
     // Guess unknown main package given the -dev package and its version.
+    // Failed that, assume the package to be a binless library and leave the
+    // main member of the package_status object empty.
     //
-    auto guess_main = [this, &pn] (package_status& s, const string& ver)
+    auto guess_main = [this, &pn, &trace] (package_status& s,
+                                           const string& ver)
     {
       string depends (apt_cache_show (s.dev, ver));
 
@@ -1023,11 +1034,8 @@ namespace bpkg
 
       if (s.main.empty ())
       {
-        fail << "unable to guess main " << os_release.name_id
-             << " package for " << s.dev << ' ' << ver <<
-          info << s.dev << " Depends value: " << depends <<
-          info << "consider specifying explicit mapping in " << pn
-             << " package manifest";
+        l4 ([&]{trace << "unable to guess main package for " << s.dev << ' '
+                      << ver << ", Depends value: " << depends;});
       }
     };
 
@@ -1102,9 +1110,13 @@ namespace bpkg
             continue;
 
           guess_main (ps, dev.installed_version);
-          pps.emplace (pps.begin (), ps.main);
-          ps.package_policies_main++;
-          apt_cache_policy (pps, 1);
+
+          if (!ps.main.empty ()) // Not a binless library?
+          {
+            pps.emplace (pps.begin (), ps.main);
+            ps.package_policies_main++;
+            apt_cache_policy (pps, 1);
+          }
         }
 
         optional<status_type> s (status (pps, ps.package_policies_main));
@@ -1112,7 +1124,7 @@ namespace bpkg
         if (!s || *s != package_status::installed)
           continue;
 
-        const package_policy& main (pps.front ());
+        const package_policy& main (pps.front ()); // Main/dev.
 
         ps.status = *s;
         ps.system_name = main.name;
@@ -1128,17 +1140,20 @@ namespace bpkg
         {
           dr << fail << "multiple installed " << os_release.name_id
              << " packages for " << pn <<
-            info << "candidate: " << r->main << " " << r->system_version;
+            info << "candidate: " << r->system_name << ' ' << r->system_version;
         }
 
-        dr << info << "candidate: " << ps.main << " " << ps.system_version;
+        dr << info << "candidate: " << ps.system_name << ' '
+           << ps.system_version;
       }
 
       if (!dr.empty ())
         dr << info << "consider specifying the desired version manually";
     }
 
-    // Next look for available versions if we are allowed to install.
+    // Next look for available versions if we are allowed to install. Indicate
+    // the non-installable candidates by setting both their main and -dev
+    // package names to empty strings.
     //
     if (!r && install_)
     {
@@ -1171,25 +1186,37 @@ namespace bpkg
             // Note that this time we use the candidate version.
             //
             if (dev.candidate_version.empty ())
-              continue; // Not installable.
+            {
+              // Not installable.
+              //
+              ps.dev.clear ();
+              continue;
+            }
 
             guess_main (ps, dev.candidate_version);
-            pps.emplace (pps.begin (), ps.main);
-            ps.package_policies_main++;
-            apt_cache_policy (pps, 1);
+
+            if (!ps.main.empty ()) // Not a binless library?
+            {
+              pps.emplace (pps.begin (), ps.main);
+              ps.package_policies_main++;
+              apt_cache_policy (pps, 1);
+            }
           }
 
           optional<status_type> s (status (pps, ps.package_policies_main));
 
           if (!s)
           {
-            ps.main.clear (); // Not installable.
+            // Not installable.
+            //
+            ps.main.clear ();
+            ps.dev.clear ();
             continue;
           }
 
           assert (*s != package_status::installed); // Sanity check.
 
-          const package_policy& main (pps.front ());
+          const package_policy& main (pps.front ()); // Main/dev.
 
           // Note that if we are installing something for this main package,
           // then we always go for the candidate version even though it may
@@ -1227,13 +1254,13 @@ namespace bpkg
             dr << fail << "multiple partially installed "
                << os_release.name_id << " packages for " << pn;
 
-            dr << info << "candidate: " << r->main << " " << r->system_version
-               << ", missing components:";
+            dr << info << "candidate: " << r->system_name << ' '
+               << r->system_version << ", missing components:";
             print_missing (*r);
           }
 
-          dr << info << "candidate: " << ps.main << " " << ps.system_version
-             << ", missing components:";
+          dr << info << "candidate: " << ps.system_name << ' '
+             << ps.system_version << ", missing components:";
           print_missing (ps);
         }
 
@@ -1248,7 +1275,7 @@ namespace bpkg
 
         for (package_status& ps: candidates)
         {
-          if (ps.main.empty ())
+          if (ps.main.empty () && ps.dev.empty ()) // Not installable?
             continue;
 
           assert (ps.status == package_status::not_installed); // Sanity check.
@@ -1263,10 +1290,12 @@ namespace bpkg
           {
             dr << fail << "multiple available " << os_release.name_id
                << " packages for " << pn <<
-              info << "candidate: " << r->main << " " << r->system_version;
+              info << "candidate: " << r->system_name << ' '
+                   << r->system_version;
           }
 
-          dr << info << "candidate: " << ps.main << " " << ps.system_version;
+          dr << info << "candidate: " << ps.system_name << ' '
+             << ps.system_version;
         }
 
         if (!dr.empty ())
@@ -1938,6 +1967,12 @@ namespace bpkg
     const package_name& pn (sp->name);
     const version& pv (sp->version);
 
+    // Use version without iteration in paths, etc (`#` breaks dpkg
+    // machinery).
+    //
+    string pvs (pv.string (false /* ignore_revision */,
+                           true  /* ignore_iteration */));
+
     const available_packages& aps (pkgs.front ().available);
 
     bool lib (pt == "lib");
@@ -1967,6 +2002,8 @@ namespace bpkg
 
     // As a first step, figure out the system names and version of the package
     // we are generating and all the dependencies, diagnosing anything fishy.
+    // If the main package is not present for a dependency, then set the main
+    // package name to an empty string.
     //
     // Note that there should be no duplicate dependencies and we can sidestep
     // the status cache.
@@ -1983,6 +2020,9 @@ namespace bpkg
       package_status s;
       if (sp->substate == package_substate::system)
       {
+        // Note that for a system dependency the main package name is already
+        // empty if it is not present in the distribution.
+        //
         optional<package_status> os (status (sp->name, aps));
 
         if (!os || os->status != package_status::installed)
@@ -2007,35 +2047,28 @@ namespace bpkg
         s = move (*os);
       }
       else
+      {
         s = map_package (sp->name, sp->version, aps, build_metadata);
 
+        // Set the main package name to an empty string if we wouldn't be
+        // generating the main package for this dependency (binless library
+        // without the -common package).
+        //
+        assert (aps.size () == 1);
+
+        const optional<string>& t (aps.front ().first->type);
+
+        if (s.common.empty () &&
+            package_manifest::effective_type (t, sp->name) == "lib")
+        {
+          strings sos (package_manifest::effective_type_sub_options (t));
+
+          if (find (sos.begin (), sos.end (), "binless") != sos.end ())
+            s.main.clear ();
+        }
+      }
+
       sdeps.push_back (move (s));
-    }
-
-    if (verb >= 3)
-    {
-      auto print_status = [] (diag_record& dr, const package_status& s)
-      {
-        dr << s.main
-           << (s.dev.empty () ? "" : " ") << s.dev
-           << (s.doc.empty () ? "" : " ") << s.doc
-           << (s.dbg.empty () ? "" : " ") << s.dbg
-           << (s.common.empty () ? "" : " ") << s.common
-           << ' ' << s.system_version;
-      };
-
-      {
-        diag_record dr (trace);
-        dr << "package: ";
-        print_status (dr, st);
-      }
-
-      for (const package_status& st: sdeps)
-      {
-        diag_record dr (trace);
-        dr << "dependency: ";
-        print_status (dr, st);
-      }
     }
 
     if (!st.dbg.empty ())
@@ -2135,7 +2168,139 @@ namespace bpkg
         if (p.second.target != nullptr)
           dr << " -> " << p.second.target->first; // Symlink.
         else
-          dr << " " << p.second.mode;
+          dr << ' ' << p.second.mode;
+      }
+    }
+
+    // Installed entry directories for sorting out which files belong where.
+    //
+    // Let's tighten things up and only look in <private>/ (if specified) to
+    // make sure there is nothing stray.
+    //
+    string pd (priv ? pn.string () + '/' : "");
+
+    // NOTE: keep consistent with the config.install.* values above.
+    //
+    dir_path bindir     ("/usr/bin/");
+    dir_path sbindir    ("/usr/sbin/");
+    dir_path etcdir     ("/etc/");
+    dir_path incdir     ("/usr/include/" + pd);
+    dir_path incarchdir ("/usr/include/$(DEB_HOST_MULTIARCH)/" + pd);
+    dir_path libdir     ("/usr/lib/$(DEB_HOST_MULTIARCH)/" + pd);
+    dir_path pkgdir     (libdir / dir_path ("pkgconfig"));
+    dir_path sharedir   ("/usr/share/" + pd);
+    dir_path docdir     ("/usr/share/doc/" + pd);
+    dir_path mandir     ("/usr/share/man/");
+
+    // As an optimization, don't generate the main and -dbgsym packages for a
+    // binless library unless it also specifies the -common package.
+    //
+    // If this is a binless library, then verify that it doesn't install any
+    // executable, library, or configuration files. Also verify that it has
+    // the -dev package.
+    //
+    bool binless (false);
+
+    if (lib)
+    {
+      assert (aps.size () == 1);
+
+      const shared_ptr<available_package>& ap (aps.front ().first);
+      strings sos (package_manifest::effective_type_sub_options (ap->type));
+
+      if (find (sos.begin (), sos.end (), "binless") != sos.end ())
+      {
+        // Verify installed files.
+        //
+        auto bad_install = [&pn, &pv] (const string& w)
+        {
+          fail << "binless library " << pn << ' ' << pv << " installs " << w;
+        };
+
+        auto verify_not_installed = [&ies, &bad_install] (const dir_path& d)
+        {
+          auto p (ies.find_sub (d));
+          if (p.first != p.second)
+            bad_install (p.first->first.string ());
+        };
+
+        verify_not_installed (bindir);
+        verify_not_installed (sbindir);
+
+        // It would probably be better not to fail here but generate the main
+        // package instead (as we do if the -common package is also being
+        // generated). Then, however, it would not be easy to detect if a
+        // dependency has the main package or not (see sdeps initialization
+        // for details).
+        //
+        verify_not_installed (etcdir);
+
+        for (auto p (ies.find_sub (libdir)); p.first != p.second; ++p.first)
+        {
+          const path& f (p.first->first);
+
+          if (!f.sub (pkgdir))
+            bad_install (f.string ());
+        }
+
+        // Verify packages.
+        //
+        if (st.dev.empty ())
+          fail << "binless library " << pn << ' ' << pv << " doesn't have "
+               << os_release.name_id << " -dev package";
+
+        binless = true;
+      }
+    }
+
+    bool gen_main (!binless || !st.common.empty ());
+
+    // If we don't generate the main package (and thus the -common package),
+    // then fail if there are any data files installed. It would probably be
+    // better not to fail but generate the main package instead in this
+    // case. Then, however, it would not be easy to detect if a dependency has
+    // the main package or not.
+    //
+    if (!gen_main)
+    {
+      for (auto p (ies.find_sub (sharedir)); p.first != p.second; ++p.first)
+      {
+        const path& f (p.first->first);
+
+        if (!f.sub (docdir) && !f.sub (mandir))
+        {
+          fail << "binless library " << pn << ' ' << pv << " installs " << f <<
+            info << "consider specifying -common package in explicit "
+                 << os_release.name_id << " name mapping in package manifest";
+        }
+      }
+    }
+
+    if (verb >= 3)
+    {
+      auto print_status = [] (diag_record& dr,
+                              const package_status& s,
+                              const string& main)
+      {
+        dr << (main.empty () ? "" : " ") << main
+           << (s.dev.empty () ? "" : " ") << s.dev
+           << (s.doc.empty () ? "" : " ") << s.doc
+           << (s.dbg.empty () ? "" : " ") << s.dbg
+           << (s.common.empty () ? "" : " ") << s.common
+           << ' ' << s.system_version;
+      };
+
+      {
+        diag_record dr (trace);
+        dr << "package:";
+        print_status (dr, st, gen_main ? st.main : empty_string);
+      }
+
+      for (const package_status& st: sdeps)
+      {
+        diag_record dr (trace);
+        dr << "dependency:";
+        print_status (dr, st, st.main);
       }
     }
 
@@ -2159,7 +2324,7 @@ namespace bpkg
     // Normally the source directory is called <name>-<upstream-version>
     // (e.g., as unpacked from the source archive).
     //
-    dir_path src (out / dir_path (pn.string () + '-' + pv.string ()));
+    dir_path src (out / dir_path (pn.string () + '-' + pvs));
     dir_path deb (src / dir_path ("debian"));
     mk_p (deb);
 
@@ -2289,17 +2454,23 @@ namespace bpkg
 
       string march (arch == "all" || !lib ? "foreign" : "same");
 
+      if (gen_main)
       {
         string depends;
 
-        if (!st.common.empty ())
-          depends = st.common + " (= ${binary:Version})";
-
-        for (const package_status& st: sdeps)
+        auto add_depends = [&depends] (const string& v)
         {
           if (!depends.empty ())
             depends += ", ";
 
+          depends += v;
+        };
+
+        if (!st.common.empty ())
+          add_depends (st.common + " (= ${binary:Version})");
+
+        for (const package_status& st: sdeps)
+        {
           // Note that the constraints will include build metadata (e.g.,
           // ~debian10). While it may be tempting to strip it, we cannot since
           // the order is inverse. We could just make it empty `~`, though
@@ -2307,7 +2478,8 @@ namespace bpkg
           // issues. Also note that the build metadata is part of the revision
           // so we could strip the whole thing.
           //
-          depends += st.main + " (>= " + st.system_version + ')';
+          if (!st.main.empty ())
+            add_depends (st.main + " (>= " + st.system_version + ')');
         }
 
         if (ops_->debian_main_langdep_specified ())
@@ -2353,7 +2525,15 @@ namespace bpkg
 
       if (!st.dev.empty ())
       {
-        string depends (st.main + " (= ${binary:Version})");
+        string depends (gen_main ? st.main + " (= ${binary:Version})" : "");
+
+        auto add_depends = [&depends] (const string& v)
+        {
+          if (!depends.empty ())
+            depends += ", ";
+
+          depends += v;
+        };
 
         for (const package_status& st: sdeps)
         {
@@ -2362,14 +2542,14 @@ namespace bpkg
           // under-specify.
           //
           if (!st.dev.empty ())
-            depends += ", " + st.dev + " (>= " + st.system_version + ')';
+            add_depends (st.dev + " (>= " + st.system_version + ')');
         }
 
         if (ops_->debian_dev_langdep_specified ())
         {
           if (!ops_->debian_dev_langdep ().empty ())
           {
-            depends += ", " + ops_->debian_dev_langdep ();
+            add_depends (ops_->debian_dev_langdep ());
           }
         }
         else
@@ -2389,13 +2569,13 @@ namespace bpkg
           // C++ (better to over- than under-specify).
           //
           bool cc (lang ("cc", true));
-          if (cc || (cc = lang ("c++", true))) depends += ", libstdc++-dev";
-          if (cc || (cc = lang ("c",   true))) depends += ", libc-dev";
+          if (cc || (cc = lang ("c++", true))) add_depends ("libstdc++-dev");
+          if (cc || (cc = lang ("c",   true))) add_depends ("libc-dev");
         }
 
         if (!ops_->debian_dev_extradep ().empty ())
         {
-          depends += ", " + ops_->debian_dev_extradep ();
+          add_depends (ops_->debian_dev_extradep ());
         }
 
         // Feels like the architecture should be the same as for the main
@@ -2427,7 +2607,7 @@ namespace bpkg
 
       // Keep this in case we want to support it in the "starting point" mode.
       //
-      if (!st.dbg.empty ())
+      if (!st.dbg.empty () && !binless)
       {
         string depends (st.main + " (= ${binary:Version})");
 
@@ -2510,7 +2690,7 @@ namespace bpkg
       // first and last lines with blank lines.
       //
       os << '\n'
-         << "  * New bpkg package release " << pv.string () << '.' << '\n'
+         << "  * New bpkg package release " << pvs << '.' << '\n'
          << '\n';
 
       // The last line is the "maintainer signoff" and has the following
@@ -2724,35 +2904,51 @@ namespace bpkg
 
         os << "# *FLAGS (CFLAGS, CXXFLAGS, etc)"                  << '\n'
            << "#"                                                 << '\n'
-           << "export DEB_BUILD_MAINT_OPTIONS :=" << mo          << '\n'
+           << "export DEB_BUILD_MAINT_OPTIONS :=" << mo           << '\n'
            << "include /usr/share/dpkg/buildflags.mk"             << '\n'
            << '\n';
 
-        // Fixup -ffile-prefix-map option (if specified) which is used to
-        // strip source file path prefix in debug information (besides other
-        // places). By default it points to the source directory. We change it
-        // to point to the bpkg configuration directory. Note that this won't
-        // work for external packages with source out of configuration (e.g.,
-        // managed by bdep).
-        //
-        if (lang_c || lang_cc)
+        if (!binless)
         {
-          // @@ TODO: OBJCFLAGS.
+          // Fixup -ffile-prefix-map option (if specified) which is used to
+          // strip source file path prefix in debug information (besides other
+          // places). By default it points to the source directory. We change
+          // it to point to the bpkg configuration directory. Note that this
+          // won't work for external packages with source out of configuration
+          // (e.g., managed by bdep).
+          //
+          if (lang_c || lang_cc)
+          {
+            // @@ TODO: OBJCFLAGS.
 
-          os << "CFLAGS := $(patsubst -ffile-prefix-map=%,-ffile-prefix-map="
-             << cfg_dir.string () << "=.,$(CFLAGS))" << '\n'
-             << '\n';
-        }
+            os << "CFLAGS := $(patsubst -ffile-prefix-map=%,-ffile-prefix-map="
+               << cfg_dir.string () << "=.,$(CFLAGS))" << '\n'
+               << '\n';
+          }
 
-        if (lang_cxx || lang_cc)
-        {
-          // @@ TODO: OBJCXXFLAGS.
+          if (lang_cxx || lang_cc)
+          {
+            // @@ TODO: OBJCXXFLAGS.
 
-          os << "CXXFLAGS := $(patsubst -ffile-prefix-map=%,-ffile-prefix-map="
-             << cfg_dir.string () << "=.,$(CXXFLAGS))" << '\n'
-             << '\n';
+            os << "CXXFLAGS := $(patsubst -ffile-prefix-map=%,-ffile-prefix-map="
+               << cfg_dir.string () << "=.,$(CXXFLAGS))" << '\n'
+               << '\n';
+          }
         }
       }
+
+      // For a binless library the -dbgsym package is not supposed to be
+      // generated. Thus, we disable its automatic generation by adding the
+      // noautodbgsym flag to the DEB_BUILD_OPTIONS variable.
+      //
+      // This doesn't seem to be necessary (probably because there is no
+      // .so/.a).
+      //
+#if 0
+      if (binless)
+        os << "export DEB_BUILD_OPTIONS += noautodbgsym" << '\n'
+           << '\n';
+#endif
 
       // The debian/tmp/ subdirectory appears to be the canonical destination
       // directory (see dh_auto_install(1) for details).
@@ -3011,7 +3207,7 @@ namespace bpkg
         }
       };
 
-      open (main, st.main);
+      open (main, gen_main ? st.main : empty_string);
       open (dev, st.dev);
       open (doc, st.doc);
       open (dbg, st.dbg);
@@ -3040,37 +3236,24 @@ namespace bpkg
         os.second << s  << '\n';
       };
 
-      // Let's tighten things up and only look in <private>/ (if specified) to
-      // make sure there is nothing stray.
-      //
-      string pd (priv ? pn.string () + '/' : "");
-
-      // NOTE: keep consistent with the config.install.* values above.
-      //
-      dir_path bindir     ("/usr/bin/");
-      dir_path sbindir    ("/usr/sbin/");
-      dir_path etcdir     ("/etc/");
-      dir_path incdir     ("/usr/include/" + pd);
-      dir_path incarchdir ("/usr/include/$(DEB_HOST_MULTIARCH)/" + pd);
-      dir_path libdir     ("/usr/lib/$(DEB_HOST_MULTIARCH)/" + pd);
-      dir_path pkgdir     (libdir / dir_path ("pkgconfig"));
-      dir_path sharedir   ("/usr/share/" + pd);
-      dir_path docdir     ("/usr/share/doc/" + pd);
-      dir_path mandir     ("/usr/share/man/");
-
       // The main package contains everything that doesn't go to another
       // packages.
       //
-      if (ies.contains_sub (bindir))  add (main,  bindir / "*");
-      if (ies.contains_sub (sbindir)) add (main, sbindir / "*");
+      if (gen_main)
+      {
+        if (ies.contains_sub (bindir))  add (main,  bindir / "*");
+        if (ies.contains_sub (sbindir)) add (main, sbindir / "*");
 
-      // This could potentially go to -common but it could also be target-
-      // specific, who knows. So let's keep it in main for now.
-      //
-      if (ies.contains_sub (etcdir)) add (main, etcdir / "*");
+        // This could potentially go to -common but it could also be target-
+        // specific, who knows. So let's keep it in main for now.
+        //
+        if (ies.contains_sub (etcdir)) add (main, etcdir / "*");
+      }
 
       if (!is_open (dev))
       {
+        assert (gen_main); // Shouldn't be here otherwise.
+
         if (ies.contains_sub (incdir))     add (main, incdir / "*");
         if (ies.contains_sub (incarchdir)) add (main, incarchdir / "*");
         if (ies.contains_sub (libdir))     add (main, libdir / "*");
@@ -3125,6 +3308,8 @@ namespace bpkg
 
           if (l.simple ())
           {
+            assert (gen_main); // Shouldn't be here otherwise.
+
             string e (l.extension ());
             const string& n (l.string ());
 
@@ -3141,6 +3326,11 @@ namespace bpkg
             //
             dir_path d (libdir / dir_path (*l.begin ()));
 
+            // Can only be a subdirectory of pkgdir/ if the main package is
+            // not being generated.
+            //
+            assert (d == pkgdir || gen_main);
+
             add (d == pkgdir ? dev : main, d / "*");
 
             // Skip all the other entries in this subdirectory (in the prefix
@@ -3156,31 +3346,34 @@ namespace bpkg
       // below. So we have to list all the top-level entries in usr/share/
       // that are not doc/ or man/.
       //
-      for (auto p (ies.find_sub (sharedir)); p.first != p.second; )
+      if (gen_main)
       {
-        const path& f ((p.first++)->first);
-
-        if (f.sub (docdir) || f.sub (mandir))
-          continue;
-
-        path l (f.leaf (sharedir));
-
-        if (l.simple ())
-          add (is_open (com) ? com : main, sharedir / l);
-        else
+        for (auto p (ies.find_sub (sharedir)); p.first != p.second; )
         {
-          // Let's keep things tidy and use a wildcard rather than listing all
-          // the entries in subdirectories verbatim.
-          //
-          dir_path d (sharedir / dir_path (*l.begin ()));
+          const path& f ((p.first++)->first);
 
-          add (is_open (com) ? com : main, d / "*");
+          if (f.sub (docdir) || f.sub (mandir))
+            continue;
 
-          // Skip all the other entries in this subdirectory (in the prefix
-          // map they will all be in a contiguous range).
-          //
-          while (p.first != p.second && p.first->first.sub (d))
-            ++p.first;
+          path l (f.leaf (sharedir));
+
+          if (l.simple ())
+            add (is_open (com) ? com : main, sharedir / l);
+          else
+          {
+            // Let's keep things tidy and use a wildcard rather than listing
+            // all the entries in subdirectories verbatim.
+            //
+            dir_path d (sharedir / dir_path (*l.begin ()));
+
+            add (is_open (com) ? com : main, d / "*");
+
+            // Skip all the other entries in this subdirectory (in the prefix
+            // map they will all be in a contiguous range).
+            //
+            while (p.first != p.second && p.first->first.sub (d))
+              ++p.first;
+          }
         }
       }
 
@@ -3194,6 +3387,11 @@ namespace bpkg
                   is_open (com) ? com :
                   is_open (dev) ? dev :
                   main);
+
+        // We can only add doc files to the main or -common packages if we
+        // generate the main package.
+        //
+        assert ((&os != &main && &os != &com) || gen_main);
 
         if (ies.contains_sub (docdir)) add (os, docdir / "*");
         if (ies.contains_sub (mandir)) add (os, mandir / "*");
@@ -3339,8 +3537,9 @@ namespace bpkg
     //
     const string& ver (st.system_version);
 
-    add (st.main + '_' + ver + '_' + arch + ".deb");
-    add (st.main + "-dbgsym_" + ver + '_' + arch + ".deb", true);
+    if (gen_main) add (st.main + '_' + ver + '_' + arch + ".deb");
+    if (!binless) add (st.main + "-dbgsym_" + ver + '_' + arch + ".deb", true);
+
     if (!st.dev.empty ()) add (st.dev + '_' + ver + '_' + arch + ".deb");
     if (!st.doc.empty ()) add (st.doc + '_' + ver + "_all.deb");
     if (!st.common.empty ()) add (st.common  + '_' + ver + "_all.deb");
