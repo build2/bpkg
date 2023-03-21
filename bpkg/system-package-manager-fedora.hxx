@@ -207,7 +207,8 @@ namespace bpkg
               const package_manifest&,
               const string&,
               const small_vector<language, 1>&,
-              optional<recursive_mode>) override;
+              optional<bool>,
+              bool) override;
 
   public:
     // Expect os_release::name_id to be "fedora" or os_release::like_ids to

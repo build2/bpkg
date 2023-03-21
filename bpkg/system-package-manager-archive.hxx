@@ -25,7 +25,8 @@ namespace bpkg
               const package_manifest&,
               const string&,
               const small_vector<language, 1>&,
-              optional<recursive_mode>) override;
+              optional<bool>,
+              bool) override;
 
     virtual optional<const system_package_status*>
     pkg_status (const package_name&, const available_packages*) override;

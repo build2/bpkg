@@ -1915,7 +1915,8 @@ namespace bpkg
             const package_manifest& pm,
             const string& pt,
             const small_vector<language, 1>& langs,
-            optional<recursive_mode> recur)
+            optional<bool> recursive_full,
+            bool first)
   {
     tracer trace ("system_package_manager_debian::generate");
 
@@ -2112,9 +2113,7 @@ namespace bpkg
     // since we know dependencies cannot be spread over multiple linked
     // configurations.
     //
-    string scope (!recur || *recur == recursive_mode::full
-                  ? "project"
-                  : "weak");
+    string scope (!recursive_full || *recursive_full ? "project" : "weak");
 
     // Get the map of files that will end up in the binary packages.
     //
@@ -2148,16 +2147,13 @@ namespace bpkg
     // Also, by default, we are going to keep all the intermediate files on
     // failure for troubleshooting.
     //
-    if (exists (out))
+    if (first && exists (out) && !empty (out))
     {
-      if (!empty (out))
-      {
-        if (!ops_->wipe_output ())
-          fail << "output root directory " << out << " is not empty" <<
-            info << "use --wipe-output to clean it up but be careful";
+      if (!ops_->wipe_output ())
+        fail << "output root directory " << out << " is not empty" <<
+          info << "use --wipe-output to clean it up but be careful";
 
-        rm_r (out, false);
-      }
+      rm_r (out, false);
     }
 
     // Normally the source directory is called <name>-<upstream-version>

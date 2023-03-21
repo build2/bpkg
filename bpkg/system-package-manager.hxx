@@ -158,7 +158,8 @@ namespace bpkg
 
     // Generate a binary distribution package. See the pkg-bindist(1) man page
     // for background and the pkg_bindist() function implementation for
-    // details.
+    // details. The recursive_full argument corresponds to the --recursive
+    // auto (present false) and full (present true) modes.
     //
     // The available packages are loaded for all the packages in pkgs and
     // deps. For non-system packages (so for all in pkgs) there is always a
@@ -179,10 +180,14 @@ namespace bpkg
     // the package.
     //
     // Return the list of paths to binary packages and any other associated
-    // files (build metadata, etc) that could be useful for consumption of
-    // binary packages. If the result is empty, assume the prepare-only mode
-    // (or similar) with appropriate result diagnostics having been already
-    // issued.
+    // files (build metadata, etc) that could be useful for their consumption.
+    // If the result is empty, assume the prepare-only mode (or similar) with
+    // appropriate result diagnostics having been already issued.
+    //
+    // Note that this function may be called multiple times in the
+    // --recursive=separate mode. In this case the first argument indicates
+    // whether this is the first call (can be used, for example, to adjust the
+    // --wipe-output semantics).
     //
     struct package
     {
@@ -193,8 +198,6 @@ namespace bpkg
 
     using packages = vector<package>;
 
-    enum class recursive_mode {auto_, full};
-
     virtual paths
     generate (const packages& pkgs,
               const packages& deps,
@@ -203,7 +206,8 @@ namespace bpkg
               const package_manifest&,
               const string& type,
               const small_vector<language, 1>&,
-              optional<recursive_mode>) = 0;
+              optional<bool> recursive_full,
+              bool first) = 0;
 
   public:
     bpkg::os_release os_release;

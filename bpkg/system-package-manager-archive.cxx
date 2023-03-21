@@ -43,7 +43,7 @@ namespace bpkg
     else
       target = host;
 
-    arch = target.cpu; // Set in case queried by someone else.
+    arch = target.string (); // Set in case queried by someone else.
   }
 
   // env --chdir=<root> tar|zip ... <base>.<ext> <base>
@@ -294,7 +294,8 @@ namespace bpkg
             const package_manifest& pm,
             const string& pt,
             const small_vector<language, 1>& langs,
-            optional<recursive_mode> recur)
+            optional<bool> recursive_full,
+            bool first)
   {
     tracer trace ("system_package_manager_archive::generate");
 
@@ -457,9 +458,7 @@ namespace bpkg
     // since we know dependencies cannot be spread over multiple linked
     // configurations.
     //
-    string scope (!recur || *recur == recursive_mode::full
-                  ? "project"
-                  : "weak");
+    string scope (!recursive_full || *recursive_full ? "project" : "weak");
 
     // The plan is to create the archive directory (with the same name as the
     // archive base; we call it "destination directory") inside the output
@@ -471,16 +470,13 @@ namespace bpkg
     // Also, by default, we are going to keep all the intermediate files on
     // failure for troubleshooting.
     //
-    if (exists (out))
+    if (first && exists (out) && !empty (out))
     {
-      if (!empty (out))
-      {
-        if (!ops->wipe_output ())
-          fail << "output root directory " << out << " is not empty" <<
-            info << "use --wipe-output to clean it up but be careful";
+      if (!ops->wipe_output ())
+        fail << "output root directory " << out << " is not empty" <<
+          info << "use --wipe-output to clean it up but be careful";
 
-        rm_r (out, false);
-      }
+      rm_r (out, false);
     }
 
     // NOTE: THE BELOW DESCRIPTION IS ALSO REWORDED IN BPKG-PKG-BINDIST(1).

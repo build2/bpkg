@@ -2281,7 +2281,8 @@ namespace bpkg
             const package_manifest& pm,
             const string& pt,
             const small_vector<language, 1>& langs,
-            optional<recursive_mode> recur)
+            optional<bool> recursive_full,
+            bool /* first */)
   {
     tracer trace ("system_package_manager_fedora::generate");
 
@@ -2739,9 +2740,7 @@ namespace bpkg
     // since we know dependencies cannot be spread over multiple linked
     // configurations.
     //
-    string scope (!recur || *recur == recursive_mode::full
-                  ? "project"
-                  : "weak");
+    string scope (!recursive_full || *recursive_full ? "project" : "weak");
 
     // Get the map of files that will end up in the binary packages.
     //
