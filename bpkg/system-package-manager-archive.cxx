@@ -522,24 +522,23 @@ namespace bpkg
       // @@ Maybe we should just do "soft" version like in <distribution>?
       //
       // Note that we allow multiple values for the same language to support
-      // cases like --archive-lang cc=gcc12 --archive-lang cc=g++12. @@ This
-      // is TODO (need cli support for std::multimap).
+      // cases like --archive-lang cc=gcc12 --archive-lang cc=g++12.
       //
       vector<reference_wrapper<const pair<const string, string>>> langrt;
 
-      auto find = [] (const std::map<string, string>& m, const string& n)
+      auto find = [] (const std::multimap<string, string>& m, const string& n)
       {
-        auto i (m.find (n));
+        auto p (m.equal_range (n));
 
-        if (i == m.end ())
+        if (p.first == p.second)
         {
           // If no mapping for c/c++, fallback to cc.
           //
           if (n == "c" || n == "c++")
-            i = m.find ("cc");
+            p = m.equal_range ("cc");
         }
 
-        return i != m.end () ? &*i : nullptr;
+        return p;
       };
 
       auto add = [&langrt] (const pair<const string, string>& p)
@@ -573,20 +572,23 @@ namespace bpkg
           if (l.impl)
             continue;
 
-          const pair<const string, string>* p (find (intfm, l.name));
+          auto p (find (intfm, l.name));
 
-          if (p == nullptr)
+          if (p.first == p.second)
             p = find (implm, l.name);
 
-          if (p == nullptr)
+          if (p.first == p.second)
             fail << "no runtime mapping for language " << l.name <<
               info << "consider specifying with --archive-lang[-impl]" <<
               info << "or alternatively specify --archive-build-meta";
 
-          if (p->second.empty ())
-            continue; // Unimportant.
+          for (auto i (p.first); i != p.second; ++i)
+          {
+            if (i->second.empty ())
+              continue; // Unimportant.
 
-          add (*p);
+            add (*i);
+          }
         }
       }
 
@@ -595,12 +597,18 @@ namespace bpkg
         if (lib && !l.impl)
           continue;
 
-        const pair<const string, string>* p (find (implm, l.name));
+        auto p (find (implm, l.name));
 
-        if (p == nullptr || p->second.empty ())
+        if (p.first == p.second)
           continue; // Unimportant.
 
-        add (*p);
+        for (auto i (p.first); i != p.second; ++i)
+        {
+          if (i->second.empty ())
+            continue; // Unimportant.
+
+          add (*i);
+        }
       }
 
       for (const pair<const string, string>& p: langrt)

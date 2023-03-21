@@ -531,7 +531,7 @@ namespace bpkg
        defaults may change in the future."
     }
 
-    std::map<string, string> --archive-lang
+    std::multimap<string, string> --archive-lang
     {
       "<ln>=<rt>",
       "Map interface language name <ln> to runtime id <rt>. If no mapping is
@@ -540,18 +540,20 @@ namespace bpkg
        fail. If the information about an interface language is unimportant and
        should be ignored, then empty runtime id can be specified. Note that
        the mapping specified with this option is only considered if the
-       package type is a library (for other package types all languages
-       used are implementation)."
+       package type is a library (for other package types all languages used
+       are implementation). Note also that multiple runtime ids specified for
+       the same language are combined."
     }
 
-    std::map<string, string> --archive-lang-impl
+    std::multimap<string, string> --archive-lang-impl
     {
       "<ln>=<rt>",
       "Map implementation language name <ln> to runtime id <rt>. If no mapping
        is found for an implementation language in this map, then assume
        the information about this implementation language is unimportant
        and ignore it (examples of such cases include static linking as well
-       as a language runtime that is always present)."
+       as a language runtime that is always present). See \cb{--archive-lang}
+       for background."
     }
 
     string --archive-build-meta
