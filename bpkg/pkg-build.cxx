@@ -1702,8 +1702,7 @@ namespace bpkg
 
           // First check the cache.
           //
-          optional<const system_package_status*> os (
-            spm.pkg_status (nm, nullptr));
+          optional<const system_package_status*> os (spm.status (nm, nullptr));
 
           available_packages aps;
           if (!os)
@@ -1732,7 +1731,7 @@ namespace bpkg
           }
 
           // This covers both our diagnostics below as well as anything that
-          // might be issued by pkg_status().
+          // might be issued by status().
           //
           auto df = make_diag_frame (
             [&nm] (diag_record& dr)
@@ -1746,7 +1745,7 @@ namespace bpkg
 
           if (!os)
           {
-            os = spm.pkg_status (nm, &aps);
+            os = spm.status (nm, &aps);
             assert (os);
           }
 
@@ -4911,7 +4910,7 @@ namespace bpkg
         //
         assert (sys_pkg_mgr && *sys_pkg_mgr != nullptr);
 
-        (*sys_pkg_mgr)->pkg_install (ps);
+        (*sys_pkg_mgr)->install (ps);
       }
     }
 

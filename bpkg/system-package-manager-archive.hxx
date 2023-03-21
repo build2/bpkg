@@ -29,10 +29,10 @@ namespace bpkg
               bool) override;
 
     virtual optional<const system_package_status*>
-    pkg_status (const package_name&, const available_packages*) override;
+    status (const package_name&, const available_packages*) override;
 
     virtual void
-    pkg_install (const vector<package_name>&) override;
+    install (const vector<package_name>&) override;
 
   public:
     // Note: options can only be NULL when testing functions that don't need

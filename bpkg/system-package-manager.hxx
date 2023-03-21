@@ -133,7 +133,7 @@ namespace bpkg
     // constructor below).
     //
     virtual optional<const system_package_status*>
-    pkg_status (const package_name&, const available_packages*) = 0;
+    status (const package_name&, const available_packages*) = 0;
 
     // Install the specified subset of the previously-queried packages.
     // Should only be called if installation is enabled (see the constructor
@@ -154,7 +154,7 @@ namespace bpkg
     // progress and diagnostics.
     //
     virtual void
-    pkg_install (const vector<package_name>&) = 0;
+    install (const vector<package_name>&) = 0;
 
     // Generate a binary distribution package. See the pkg-bindist(1) man page
     // for background and the pkg_bindist() function implementation for

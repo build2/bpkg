@@ -379,9 +379,9 @@ namespace bpkg
       {
         package_name pn (n);
 
-        const system_package_status* s (*m.pkg_status (pn, &aps[n]));
+        const system_package_status* s (*m.status (pn, &aps[n]));
 
-        assert (*m.pkg_status (pn, nullptr) == s); // Test caching.
+        assert (*m.status (pn, nullptr) == s); // Test caching.
 
         if (s == nullptr)
           fail << "no installed " << (install ? "or available " : "")
@@ -410,7 +410,7 @@ namespace bpkg
         for (; argi != argc; ++argi)
           ips.push_back (package_name (argv[argi]));
 
-        m.pkg_install (ips);
+        m.install (ips);
       }
     }
     else

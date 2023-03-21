@@ -891,7 +891,7 @@ namespace bpkg
   }
 
   optional<const system_package_status*> system_package_manager_debian::
-  pkg_status (const package_name& pn, const available_packages* aps)
+  status (const package_name& pn, const available_packages* aps)
   {
     // First check the cache.
     //
@@ -1364,7 +1364,7 @@ namespace bpkg
   }
 
   void system_package_manager_debian::
-  pkg_install (const vector<package_name>& pns)
+  install (const vector<package_name>& pns)
   {
     assert (!pns.empty ());
 
@@ -1451,8 +1451,8 @@ namespace bpkg
       apt_get_install (specs);
     }
 
-    // Verify that versions we have promised in pkg_status() match what
-    // actually got installed.
+    // Verify that versions we have promised in status() match what actually
+    // got installed.
     //
     {
       vector<package_policy> pps;

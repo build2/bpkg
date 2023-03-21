@@ -734,14 +734,14 @@ namespace bpkg
   }
 
   optional<const system_package_status*> system_package_manager_archive::
-  pkg_status (const package_name&, const available_packages*)
+  status (const package_name&, const available_packages*)
   {
     assert (false);
     return nullopt;
   }
 
   void system_package_manager_archive::
-  pkg_install (const vector<package_name>&)
+  install (const vector<package_name>&)
   {
     assert (false);
   }
