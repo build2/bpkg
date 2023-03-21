@@ -56,6 +56,112 @@ namespace bpkg
   // Place distribution-specific options into separate classes in case one day
   // we want to only pass their own options to each implementation.
   //
+  class pkg_bindist_common_options
+  {
+    "\h|PKG-BINDIST COMMON OPTIONS|"
+
+    string --distribution
+    {
+      "<name>",
+      "Alternative system/distribution package manager to generate the binary
+       package for. The valid <name> values are \cb{debian} (Debian and alike,
+       such as Ubuntu, etc), \cb{fedora} (Fedora and alike, such as RHEL,
+       CentOS, etc), and \cb{archive} (installation archive on any operating
+       system). Note that some package managers may only be supported when
+       running on certain host operating systems."
+    }
+
+    string --architecture
+    {
+      "<name>",
+      "Alternative architecture to generate the binary package for. The
+       valid <name> values are system/distribution package manager-specific.
+       If unspecified, the host architecture is used."
+    }
+
+    string --recursive
+    {
+      "<mode>",
+      "Bundle or generate dependencies of the specified packages. The <mode>
+       value can be either \cb{auto}, in which case only the required files
+       from each dependency package are bundled, \cb{full}, in which case
+       all the files are bundled, or \cb{separate}, in which case a separate
+       binary package is generated for each non-system dependency.
+
+       Specifically, in the \cb{auto} mode any required files, such as shared
+       libraries, are pulled implicitly by the \cb{install} build system
+       operation, for example, as part of installing an executable from one of
+       the specified packages. In contrast, in the \cb{full} mode, each
+       dependency package is installed explicitly and completely, as if they
+       were specified as additional package on the command line. The
+       \cb{separate} mode is equivalent to invoking the \cb{pkg-bindist}
+       command on each dependency package. See also the \cb{--private} option."
+    }
+
+    bool --private
+    {
+      "Enable the private installation subdirectory functionality using the
+       package name as the private subdirectory. This is primarily useful when
+       bundling dependencies, such as shared libraries, of an executable that
+       is being installed into a shared location, such as \cb{/usr/}.  See the
+       \cb{config.install.private} configuration variable documentation in the
+       build system manual for details. This option only makes sense together
+       with the \cb{--recursive} option \cb{auto} and \cb{full} modes."
+    }
+
+    dir_path --output-root|-o
+    {
+      "<dir>",
+      "Directory for intermediate files and subdirectories as well as the
+       resulting binary package. Note that this option may be required for
+       some system package managers and may not be specified for others."
+    }
+
+    bool --wipe-output
+    {
+      "Wipe the output root directory (either specified with \ci{--output-root}
+       or system package manager-specific) clean before using it to generate
+       the binary package."
+    }
+
+    bool --keep-output
+    {
+      "Keep intermediate files in the output root directory (either specified
+       with \ci{--output-root} or system package manager-specific) that were
+       used to generate the binary package. This is primarily useful for
+       troubleshooting."
+    }
+
+    bool --allow-dependent-config
+    {
+      "Allow configuration that is imposed by dependent packages. Normally
+       this is undesirable because the resulting binary packages become
+       configured specificaly for particular dependent packages."
+    }
+
+    string --os-release-id
+    {
+      "<v>",
+      "Override the \cb{ID} component in \cb{os-release(5)} or equivalent.
+       Note that unlike the rest of the \cb{--os-release-*} options, this
+       option suppresses automatic detection of the host operating system
+       information."
+    }
+
+    string --os-release-version-id
+    {
+      "<v>",
+      "Override the \cb{VERSION_ID} component in \cb{os-release(5)} or
+       equivalent."
+    }
+
+    string --os-release-name
+    {
+      "<v>",
+      "Override the \cb{NAME} component in \cb{os-release(5)} or equivalent."
+    }
+  };
+
   class pkg_bindist_debian_options
   {
     "\h|DEBIAN DESCRIPTION|
@@ -604,113 +710,10 @@ namespace bpkg
   //       (both in bpkg/ and doc/) if adding a new base class.
   //
   class pkg_bindist_options: configuration_options,
+                             pkg_bindist_common_options,
                              pkg_bindist_debian_options,
                              pkg_bindist_fedora_options,
-                             pkg_bindist_archive_options
-  {
-    "\h|PKG-BINDIST COMMON OPTIONS|"
-
-    string --distribution
-    {
-      "<name>",
-      "Alternative system/distribution package manager to generate the binary
-       package for. The valid <name> values are \cb{debian} (Debian and alike,
-       such as Ubuntu, etc), \cb{fedora} (Fedora and alike, such as RHEL,
-       CentOS, etc), and \cb{archive} (installation archive on any operating
-       system). Note that some package managers may only be supported when
-       running on certain host operating systems."
-    }
-
-    string --architecture
-    {
-      "<name>",
-      "Alternative architecture to generate the binary package for. The
-       valid <name> values are system/distribution package manager-specific.
-       If unspecified, the host architecture is used."
-    }
-
-    string --recursive
-    {
-      "<mode>",
-      "Bundle or generate dependencies of the specified packages. The <mode>
-       value can be either \cb{auto}, in which case only the required files
-       from each dependency package are bundled, \cb{full}, in which case
-       all the files are bundled, or \cb{separate}, in which case a separate
-       binary package is generated for each non-system dependency.
-
-       Specifically, in the \cb{auto} mode any required files, such as shared
-       libraries, are pulled implicitly by the \cb{install} build system
-       operation, for example, as part of installing an executable from one of
-       the specified packages. In contrast, in the \cb{full} mode, each
-       dependency package is installed explicitly and completely, as if they
-       were specified as additional package on the command line. The
-       \cb{separate} mode is equivalent to invoking the \cb{pkg-bindist}
-       command on each dependency package. See also the \cb{--private} option."
-    }
-
-    bool --private
-    {
-      "Enable the private installation subdirectory functionality using the
-       package name as the private subdirectory. This is primarily useful when
-       bundling dependencies, such as shared libraries, of an executable that
-       is being installed into a shared location, such as \cb{/usr/}.  See the
-       \cb{config.install.private} configuration variable documentation in the
-       build system manual for details. This option only makes sense together
-       with the \cb{--recursive} option \cb{auto} and \cb{full} modes."
-    }
-
-    dir_path --output-root|-o
-    {
-      "<dir>",
-      "Directory for intermediate files and subdirectories as well as the
-       resulting binary package. Note that this option may be required for
-       some system package managers and may not be specified for others."
-    }
-
-    bool --wipe-output
-    {
-      "Wipe the output root directory (either specified with \ci{--output-root}
-       or system package manager-specific) clean before using it to generate
-       the binary package."
-    }
-
-    bool --keep-output
-    {
-      "Keep intermediate files in the output root directory (either specified
-       with \ci{--output-root} or system package manager-specific) that were
-       used to generate the binary package. This is primarily useful for
-       troubleshooting."
-    }
-
-    bool --allow-dependent-config
-    {
-      "Allow configuration that is imposed by dependent packages. Normally
-       this is undesirable because the resulting binary packages become
-       configured specificaly for particular dependent packages."
-    }
-
-    string --os-release-id
-    {
-      "<v>",
-      "Override the \cb{ID} component in \cb{os-release(5)} or equivalent.
-       Note that unlike the rest of the \cb{--os-release-*} options, this
-       option suppresses automatic detection of the host operating system
-       information."
-    }
-
-    string --os-release-version-id
-    {
-      "<v>",
-      "Override the \cb{VERSION_ID} component in \cb{os-release(5)} or
-       equivalent."
-    }
-
-    string --os-release-name
-    {
-      "<v>",
-      "Override the \cb{NAME} component in \cb{os-release(5)} or equivalent."
-    }
-  };
+                             pkg_bindist_archive_options {};
 
   "
    \h|DEFAULT OPTIONS FILES|

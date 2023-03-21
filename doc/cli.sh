@@ -79,6 +79,7 @@ compile "bpkg" $o --output-prefix "" --class-doc bpkg::commands=short --class-do
 compile "pkg-build" $o --class-doc bpkg::pkg_build_pkg_options=exclude-base
 
 compile "pkg-bindist" $o \
+  --class-doc bpkg::pkg_bindist_common_options=exclude-base \
   --class-doc bpkg::pkg_bindist_debian_options=exclude-base \
   --class-doc bpkg::pkg_bindist_fedora_options=exclude-base \
   --class-doc bpkg::pkg_bindist_archive_options=exclude-base

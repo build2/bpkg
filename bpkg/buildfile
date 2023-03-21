@@ -216,6 +216,7 @@ if $cli.configured
 --class-doc bpkg::pkg_build_pkg_options=exclude-base
 
   cli.cxx{pkg-bindist-options}: cli.options += \
+--class-doc bpkg::pkg_bindist_common_options=exclude-base \
 --class-doc bpkg::pkg_bindist_debian_options=exclude-base \
 --class-doc bpkg::pkg_bindist_fedora_options=exclude-base \
 --class-doc bpkg::pkg_bindist_archive_options=exclude-base
