@@ -505,8 +505,11 @@ namespace bpkg
     }
     else
     {
-      base += '-' + target.cpu;
-      base += '-' + os_release.name_id + os_release.version_id;
+      if (!ops->archive_no_cpu ())
+        base += '-' + target.cpu;
+
+      if (!ops->archive_no_os ())
+        base += '-' + os_release.name_id + os_release.version_id;
 
       // First collect the interface languages and then add implementation.
       // This way if different languages map to the same runtimes (e.g., C and

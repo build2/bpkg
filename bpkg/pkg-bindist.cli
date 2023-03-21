@@ -427,13 +427,16 @@ namespace bpkg
 
      \c{\i{cpu}-\i{os}[-\i{langrt}...]}
 
-     Where \ci{cpu} is the target CPU (for example, \cb{x86_64}), \ci{os} is
+     Where \ci{cpu} is the target CPU (for example, \cb{x86_64} or
+     \cb{aarch64}; omitted if \cb{--archive-no-cpu} is specified), \ci{os} is
      the \cb{ID} and \cb{VERSION_ID} components from \cb{os-release(5)} (or
-     equivalent, for example, \cb{debian11} or \cb{windows10}), and
-     \ci{langrt} are the language runtimes as mapped by the
-     \cb{--archive-lang*} options (for example, \cb{gcc12}, \cb{msvc17.4}).
+     equivalent, for example, \cb{debian11} or \cb{windows10}; omitted if
+     \cb{--archive-no-os} is specified), and \ci{langrt} are the language
+     runtimes as mapped by the \cb{--archive-lang*} options (for example,
+     \cb{gcc12} or \cb{msvc17.4}).
 
-     For example, given the following invocation on Debian 11:
+     For example, given the following invocation on Debian 11 running on
+     \cb{x86_64}:
 
      \
      bpkg build libhello
@@ -554,6 +557,18 @@ namespace bpkg
        and ignore it (examples of such cases include static linking as well
        as a language runtime that is always present). See \cb{--archive-lang}
        for background."
+    }
+
+    bool --archive-no-cpu
+    {
+      "Assume the package is CPU architecture-independent and omit it from
+       the binary package directory name and archive file base."
+    }
+
+    bool --archive-no-os
+    {
+      "Assume the package is operating system-independent and omit it from
+       the binary package directory name and archive file base."
     }
 
     string --archive-build-meta
