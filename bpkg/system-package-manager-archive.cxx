@@ -438,9 +438,10 @@ namespace bpkg
 
         add ("private=" + (priv ? pn.string () : "[null]"));
 
-        // If this is a C-based language, add rpath for private installation.
+        // If this is a C-based language, add rpath for private installation,
+        // unless targeting Windows.
         //
-        if (priv && (lang_c || lang_cxx || lang_cc))
+        if (priv && (lang_c || lang_cxx || lang_cc) && c != "windows")
         {
           dir_path l ((dir_path (root) /= "lib") /= pn.string ());
           config.push_back ("config.bin.rpath='" + l.representation () + '\'');
