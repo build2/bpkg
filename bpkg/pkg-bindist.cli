@@ -597,6 +597,21 @@ namespace bpkg
         -C / --strip-components=1
      \
 
+     If you expect the binary package to be unpacked into a directory other
+     than its original installation directory (\cb{--archive-install-root}),
+     then it's recommended to make it relocatable by specifying the
+     \cb{config.install.relocatable=true} configuration variable. For example:
+
+     \
+     bpkg bindist                      \
+       ...                             \
+       config.install.relocatable=true \
+       libhello
+     \
+
+     Note that not all source packages support relocatable installation (see
+     the \l{b#module-install \cb{install}} module documentation for details).
+
      The installation archive package can be generated for a target other than
      the host by specifying the target triplet with the \cb{--architecture}
      option. In this case the \cb{bpkg} configuration is assumed to be
