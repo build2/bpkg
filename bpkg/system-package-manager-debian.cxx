@@ -1025,8 +1025,7 @@ namespace bpkg
     // Failed that, assume the package to be a binless library and leave the
     // main member of the package_status object empty.
     //
-    auto guess_main = [this, &pn, &trace] (package_status& s,
-                                           const string& ver)
+    auto guess_main = [this, &trace] (package_status& s, const string& ver)
     {
       string depends (apt_cache_show (s.dev, ver));
 

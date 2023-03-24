@@ -1251,10 +1251,10 @@ namespace bpkg
     // architecture. Failed that, assume the package to be a binless library
     // and leave the main member of the package_status object empty.
     //
-    auto guess_main = [this, &pn, &trace] (package_status& s,
-                                           const string& ver,
-                                           const string& qarch,
-                                           bool installed)
+    auto guess_main = [this, &trace] (package_status& s,
+                                      const string& ver,
+                                      const string& qarch,
+                                      bool installed)
     {
       vector<pair<string, string>> depends (
         dnf_repoquery_requires (s.devel, ver, qarch, installed));
