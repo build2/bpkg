@@ -256,7 +256,7 @@ namespace bpkg
     try
     {
       if (apt_cache_path.empty () && !simulate_)
-        apt_cache_path = process::path_search (args[0]);
+        apt_cache_path = process::path_search (args[0], false /* init */);
 
       process_env pe (apt_cache_path, evars);
 
@@ -476,7 +476,7 @@ namespace bpkg
     try
     {
       if (apt_cache_path.empty () && !simulate_)
-        apt_cache_path = process::path_search (args[0]);
+        apt_cache_path = process::path_search (args[0], false /* init */);
 
       process_env pe (apt_cache_path, evars);
 
@@ -749,14 +749,14 @@ namespace bpkg
       if (!sudo_.empty ())
       {
         if (sudo_path.empty () && !simulate_)
-          sudo_path = process::path_search (args[0]);
+          sudo_path = process::path_search (args[0], false /* init */);
 
         pp = &sudo_path;
       }
       else
       {
         if (apt_get_path.empty () && !simulate_)
-          apt_get_path = process::path_search (args[0]);
+          apt_get_path = process::path_search (args[0], false /* init */);
 
         pp = &apt_get_path;
       }

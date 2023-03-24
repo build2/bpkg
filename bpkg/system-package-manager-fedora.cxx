@@ -248,7 +248,7 @@ namespace bpkg
     try
     {
       if (dnf_path.empty () && !simulate_)
-        dnf_path = process::path_search (args[0]);
+        dnf_path = process::path_search (args[0], false /* init */);
 
       process_env pe (dnf_path, evars);
 
@@ -605,7 +605,7 @@ namespace bpkg
     try
     {
       if (dnf_path.empty () && !simulate_)
-        dnf_path = process::path_search (args[0]);
+        dnf_path = process::path_search (args[0], false /* init */);
 
       process_env pe (dnf_path, evars);
 
@@ -829,14 +829,14 @@ namespace bpkg
       if (!sudo_.empty ())
       {
         if (sudo_path.empty () && !simulate_)
-          sudo_path = process::path_search (args[0]);
+          sudo_path = process::path_search (args[0], false /* init */);
 
         pp = &sudo_path;
       }
       else
       {
         if (dnf_path.empty () && !simulate_)
-          dnf_path = process::path_search (args[0]);
+          dnf_path = process::path_search (args[0], false /* init */);
 
         pp = &dnf_path;
       }
