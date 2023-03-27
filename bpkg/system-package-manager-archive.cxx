@@ -3,6 +3,8 @@
 
 #include <bpkg/system-package-manager-archive.hxx>
 
+#include <map>
+
 #include <bpkg/diagnostics.hxx>
 
 #include <bpkg/pkg-bindist-options.hxx>
@@ -503,93 +505,134 @@ namespace bpkg
     // libhello-1.2.3-x86_64-debian11-gcc12-rust1.62
     //
     string base (pn.string () + '-' + pvs);
-
-    if (ops->archive_build_meta_specified ())
     {
-      if (!ops->archive_build_meta ().empty ())
-        base += '-' + ops->archive_build_meta ();
-    }
-    else
-    {
-      if (!ops->archive_no_cpu ())
-        base += '-' + target.cpu;
+      bool md_s (ops->archive_build_meta_specified ());
+      const string& md (ops->archive_build_meta ());
 
-      if (!ops->archive_no_os ())
-        base += '-' + os_release.name_id + os_release.version_id;
-
-      // First collect the interface languages and then add implementation.
-      // This way if different languages map to the same runtimes (e.g., C and
-      // C++ mapped to gcc12), then we will always prefer the interface
-      // version over the implementation (which could be different, for
-      // example, libstdc++6 vs libstdc++-12-dev; but it's not clear how this
-      // will be specified, won't they end up with different names as opposed
-      // to gcc6 and gcc12 -- still fuzzy/unclear).
-      //
-      // @@ We will need to split id and version to be able to pick the
-      //    highest version.
-      //
-      // @@ Maybe we should just do "soft" version like in <distribution>?
-      //
-      // Note that we allow multiple values for the same language to support
-      // cases like --archive-lang cc=gcc12 --archive-lang cc=g++12.
-      //
-      vector<reference_wrapper<const pair<const string, string>>> langrt;
-
-      auto find = [] (const std::multimap<string, string>& m, const string& n)
+      bool md_f (false);
+      bool md_b (false);
+      if (md_s && !md.empty ())
       {
-        auto p (m.equal_range (n));
+        md_f = md.front () == '+';
+        md_b = md.back () == '+';
 
-        if (p.first == p.second)
+        if (md_f && md_b) // Note: covers just `+`.
+          fail << "invalid build metadata '" << md << "'";
+      }
+
+      if (md_s && !(md_f || md_b))
+      {
+        if (!md.empty ())
+          base += '-' + md;
+      }
+      else
+      {
+        if (md_b)
         {
-          // If no mapping for c/c++, fallback to cc.
-          //
-          if (n == "c" || n == "c++")
-            p = m.equal_range ("cc");
+          base += '-';
+          base.append (md, 0, md.size () - 1);
         }
 
-        return p;
-      };
+        if (!ops->archive_no_cpu ())
+          base += '-' + target.cpu;
 
-      auto add = [&langrt] (const pair<const string, string>& p)
-      {
-        // Suppress duplicates.
+        if (!ops->archive_no_os ())
+          base += '-' + os_release.name_id + os_release.version_id;
+
+        // First collect the interface languages and then add implementation.
+        // This way if different languages map to the same runtimes (e.g., C
+        // and C++ mapped to gcc12), then we will always prefer the interface
+        // version over the implementation (which could be different, for
+        // example, libstdc++6 vs libstdc++-12-dev; but it's not clear how
+        // this will be specified, won't they end up with different names as
+        // opposed to gcc6 and gcc12 -- still fuzzy/unclear).
         //
-        if (find_if (langrt.begin (), langrt.end (),
-                     [&p] (const pair<const string, string>& x)
-                     {
-                       // @@ TODO: keep highest version.
+        // @@ We will need to split id and version to be able to pick the
+        //    highest version.
+        //
+        // @@ Maybe we should just do "soft" version like in <distribution>?
+        //
+        // Note that we allow multiple values for the same language to support
+        // cases like --archive-lang cc=gcc12 --archive-lang cc=g++12.
+        //
+        vector<reference_wrapper<const pair<const string, string>>> langrt;
 
-                       return p.second == x.second;
-                     }) == langrt.end ())
+        auto find = [] (const std::multimap<string, string>& m,
+                        const string& n)
         {
-          langrt.push_back (p);
+          auto p (m.equal_range (n));
+
+          if (p.first == p.second)
+          {
+            // If no mapping for c/c++, fallback to cc.
+            //
+            if (n == "c" || n == "c++")
+              p = m.equal_range ("cc");
+          }
+
+          return p;
+        };
+
+        auto add = [&langrt] (const pair<const string, string>& p)
+        {
+          // Suppress duplicates.
+          //
+          if (find_if (langrt.begin (), langrt.end (),
+                       [&p] (const pair<const string, string>& x)
+                       {
+                         // @@ TODO: keep highest version.
+
+                         return p.second == x.second;
+                       }) == langrt.end ())
+          {
+            langrt.push_back (p);
+          }
+        };
+
+        auto& implm (ops->archive_lang_impl ());
+
+        // The interface/implementation distinction is only relevant to
+        // libraries. For everything else we treat all the languages as
+        // implementation.
+        //
+        if (lib)
+        {
+          auto& intfm (ops->archive_lang ());
+
+          for (const language& l: langs)
+          {
+            if (l.impl)
+              continue;
+
+            auto p (find (intfm, l.name));
+
+            if (p.first == p.second)
+              p = find (implm, l.name);
+
+            if (p.first == p.second)
+              fail << "no runtime mapping for language " << l.name <<
+                info << "consider specifying with --archive-lang[-impl]" <<
+                info << "or alternatively specify --archive-build-meta";
+
+            for (auto i (p.first); i != p.second; ++i)
+            {
+              if (i->second.empty ())
+                continue; // Unimportant.
+
+              add (*i);
+            }
+          }
         }
-      };
-
-      auto& implm (ops->archive_lang_impl ());
-
-      // The interface/implementation distinction is only relevant to
-      // libraries. For everything else we treat all the languages as
-      // implementation.
-      //
-      if (lib)
-      {
-        auto& intfm (ops->archive_lang ());
 
         for (const language& l: langs)
         {
-          if (l.impl)
+          if (lib && !l.impl)
             continue;
 
-          auto p (find (intfm, l.name));
+          auto p (find (implm, l.name));
 
           if (p.first == p.second)
-            p = find (implm, l.name);
-
-          if (p.first == p.second)
-            fail << "no runtime mapping for language " << l.name <<
-              info << "consider specifying with --archive-lang[-impl]" <<
-              info << "or alternatively specify --archive-build-meta";
+            continue; // Unimportant.
 
           for (auto i (p.first); i != p.second; ++i)
           {
@@ -599,29 +642,16 @@ namespace bpkg
             add (*i);
           }
         }
-      }
 
-      for (const language& l: langs)
-      {
-        if (lib && !l.impl)
-          continue;
+        for (const pair<const string, string>& p: langrt)
+          base += '-' + p.second;
 
-        auto p (find (implm, l.name));
-
-        if (p.first == p.second)
-          continue; // Unimportant.
-
-        for (auto i (p.first); i != p.second; ++i)
+        if (md_f)
         {
-          if (i->second.empty ())
-            continue; // Unimportant.
-
-          add (*i);
+          base += '-';
+          base.append (md, 1, md.size () - 1);
         }
       }
-
-      for (const pair<const string, string>& p: langrt)
-        base += '-' + p.second;
     }
 
     dir_path dst (out / dir_path (base));

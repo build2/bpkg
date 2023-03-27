@@ -1849,12 +1849,35 @@ namespace bpkg
     if (!no_build_metadata)
     {
       sv += '~';
-      if (build_metadata)
-        sv += *build_metadata;
-      else
+
+      if (!build_metadata)
       {
         sv += os_release.name_id;
         sv += os_release.version_id; // Could be empty.
+      }
+      else
+      {
+        const string& md (*build_metadata);
+
+        bool f (md.front () == '+');
+        bool b (md.back () == '+');
+
+        if (f && b) // Note: covers just `+`.
+          fail << "invalid build metadata '" << md << "'";
+
+        if (f || b)
+        {
+          if (b)
+            sv.append (md, 0, md.size () - 1);
+
+          sv += os_release.name_id;
+          sv += os_release.version_id;
+
+          if (f)
+            sv.append (md, 1, md.size () - 1);
+        }
+        else
+          sv += md;
       }
     }
 
