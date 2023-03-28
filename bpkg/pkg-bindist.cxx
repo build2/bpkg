@@ -4,6 +4,9 @@
 #include <bpkg/pkg-bindist.hxx>
 
 #include <list>
+#include <iostream> // cout
+
+#include <libbutl/json/serializer.hxx>
 
 #include <bpkg/package.hxx>
 #include <bpkg/package-odb.hxx>
@@ -235,7 +238,7 @@ namespace bpkg
         else if (m == "full")     rec = recursive_mode::full;
         else if (m == "separate") rec = recursive_mode::separate;
         else
-          dr << fail << "unknown mode '" << m << "' specified with --recursive";
+          dr << fail << "unknown --recursive mode '" << m << "'";
       }
 
       if (o.private_ ())
@@ -252,6 +255,16 @@ namespace bpkg
 
       if (!dr.empty ())
         dr << info << "run 'bpkg help pkg-bindist' for more information";
+    }
+
+    if (o.structured_result_specified ())
+    {
+      if (o.no_result ())
+        fail << "both --structured-result and --no-result specified";
+
+      if (o.structured_result () != "json")
+        fail << "unknown --structured-result format '"
+             << o.structured_result () << "'";
     }
 
     // Sort arguments into package names and configuration variables.
@@ -297,12 +310,12 @@ namespace bpkg
 
     // Note that we shouldn't need to install anything or use sudo.
     //
-    unique_ptr<system_package_manager> spm (
+    pair<unique_ptr<system_package_manager>, string> spm (
       make_production_system_package_manager (o,
                                               host_triplet,
                                               o.distribution (),
                                               o.architecture ()));
-    if (spm == nullptr)
+    if (spm.first == nullptr)
     {
       fail << "no standard distribution package manager for this host "
            << "or it is not yet supported" <<
@@ -338,17 +351,23 @@ namespace bpkg
 
     // Generate one binary package.
     //
+    using binary_file = system_package_manager::binary_file;
+    using binary_files = system_package_manager::binary_files;
+
     struct result
     {
-      paths    bins;
-      packages deps;
+      binary_files bins;
+      packages     deps;
       shared_ptr<selected_package> pkg;
     };
 
+    bool dependent_config (false);
+
     auto generate = [&o, &vars,
                      rec, &spm,
-                     &c, &db] (const vector<package_name>& pns,
-                               bool first) -> result
+                     &c, &db,
+                     &dependent_config] (const vector<package_name>& pns,
+                                         bool first) -> result
     {
       // Resolve package names to selected packages and verify they are all
       // configured. While at it collect their available packages and
@@ -377,24 +396,30 @@ namespace bpkg
         // binary package in a configuration that is specific to some
         // dependents.
         //
-        if (!o.allow_dependent_config ())
+        for (const config_variable& v: p->config_variables)
         {
-          for (const config_variable& v: p->config_variables)
+          switch (v.source)
           {
-            switch (v.source)
+          case config_source::dependent:
             {
-            case config_source::dependent:
+              if (!o.allow_dependent_config ())
               {
                 fail << "configuration variable " << v.name << " is imposed "
                      << " by dependent package" <<
                   info << "specify it as user configuration to allow" <<
-                  info << "or specify --allow-dependent-config" << endf;
+                  info << "or specify --allow-dependent-config";
               }
-            case config_source::user:
-            case config_source::reflect:
+
+              dependent_config = true;
               break;
             }
+          case config_source::user:
+          case config_source::reflect:
+            break;
           }
+
+          if (dependent_config)
+            break;
         }
 
         // Load the available package for type/languages as well as the
@@ -462,14 +487,14 @@ namespace bpkg
       // an option to specify/override it (along with languages). Note that
       // there will probably be no way to override type for dependencies.
       //
-      paths r (spm->generate (pkgs,
-                              deps,
-                              vars,
-                              db.config,
-                              pm,
-                              type, langs,
-                              recursive_full,
-                              first));
+      binary_files r (spm.first->generate (pkgs,
+                                           deps,
+                                           vars,
+                                           db.config,
+                                           pm,
+                                           type, langs,
+                                           recursive_full,
+                                           first));
 
       return result {move (r), move (deps), move (pkgs.front ().selected)};
     };
@@ -522,25 +547,117 @@ namespace bpkg
     if (rs.front ().bins.empty ())
       return 0; // Assume prepare-only mode or similar.
 
-    if (verb && !o.no_result ())
+    if (o.no_result ())
+      ;
+    else if (!o.structured_result_specified ())
     {
-      const string& d (o.distribution_specified ()
-                       ? o.distribution ()
-                       : spm->os_release.name_id);
-
-      for (auto b (rs.begin ()), i (b); i != rs.end (); ++i)
+      if (verb)
       {
-        const selected_package& p (*i->pkg);
+        const string& d (o.distribution_specified ()
+                         ? o.distribution ()
+                         : spm.first->os_release.name_id);
 
-        diag_record dr (text);
+        for (auto b (rs.begin ()), i (b); i != rs.end (); ++i)
+        {
+          const selected_package& p (*i->pkg);
 
-        dr << "generated " << d << " package for "
-           << (i != b ? "dependency " : "")
-           << p.name << '/' << p.version << ':';
+          string ver (p.version.string (false /* ignore_revision */,
+                                        true  /* ignore_iteration */));
 
-        for (const path& p: i->bins)
-          dr << "\n  " << p;
+          diag_record dr (text);
+
+          dr << "generated " << d << " package for "
+             << (i != b ? "dependency " : "")
+             << p.name << '/' << ver << ':';
+
+          for (const binary_file& f: i->bins)
+            dr << "\n  " << f.path;
+        }
       }
+    }
+    else
+    {
+      json::stream_serializer s (cout);
+
+      auto member = [&s] (const char* n, const string& v)
+      {
+        if (!v.empty ())
+          s.member (n, v);
+      };
+
+      auto package = [&s, &member] (const result& r)
+      {
+        const selected_package& p (*r.pkg);
+        const binary_files& bfs (r.bins);
+
+        string ver (p.version.string (false /* ignore_revision */,
+                                      true  /* ignore_iteration */));
+
+        s.begin_object (); // package
+        {
+          member ("name",    p.name.string ());
+          member ("version", ver);
+          member ("system_name",    bfs.system_name);
+          member ("system_version", bfs.system_version);
+          s.member_begin_array ("files");
+          for (const binary_file& bf: bfs)
+          {
+            s.begin_object (); // file
+            {
+              member ("path", bf.path.string ());
+              member ("type", bf.type);
+            }
+            s.end_object (); // file
+          };
+          s.end_array ();
+        }
+        s.end_object (); // package
+      };
+
+      s.begin_object (); // bindist_result
+      {
+        member ("distribution", spm.second);
+        member ("architecture", spm.first->arch);
+
+        s.member_begin_object ("os_release");
+        {
+          const auto& r (spm.first->os_release);
+
+          member ("name_id", r.name_id);
+
+          if (!r.like_ids.empty ())
+          {
+            s.member_begin_array ("like_ids");
+            for (const string& id: r.like_ids) s.value (id);
+            s.end_array ();
+          }
+
+          member ("version_id", r.version_id);
+          member ("variant_id", r.variant_id);
+
+          member ("name",             r.name);
+          member ("version_codename", r.version_codename);
+          member ("variant",          r.variant);
+        }
+        s.end_object (); // os_release
+
+        member ("recursive", o.recursive ());
+        if (o.private_ ()) s.member ("private", true);
+        if (dependent_config) s.member ("dependent_config", true);
+
+        s.member_name ("package");
+        package (rs.front ());
+
+        if (rs.size () > 1)
+        {
+          s.member_begin_array ("dependencies");
+          for (auto i (rs.begin ()); ++i != rs.end (); ) package (*i);
+          s.end_array ();
+        }
+      }
+      s.end_object (); // bindist_result
+
+      cout << endl;
     }
 
     return 0;

@@ -181,6 +181,7 @@ namespace bpkg
     //
     // Return the list of paths to binary packages and any other associated
     // files (build metadata, etc) that could be useful for their consumption.
+    // Each returned file has a distribution-specific type that classifies it.
     // If the result is empty, assume the prepare-only mode (or similar) with
     // appropriate result diagnostics having been already issued.
     //
@@ -198,7 +199,21 @@ namespace bpkg
 
     using packages = vector<package>;
 
-    virtual paths
+    struct binary_file
+    {
+      bpkg::path path;
+      string     type;
+    };
+
+    struct binary_files: public vector<binary_file>
+    {
+      // Empty if not applicable.
+      //
+      string system_name;
+      string system_version;
+    };
+
+    virtual binary_files
     generate (const packages& pkgs,
               const packages& deps,
               const strings& vars,
@@ -432,12 +447,15 @@ namespace bpkg
                                            bool yes,
                                            const string& sudo);
 
+  // Create for production. The second half of the result is the effective
+  // distribution name.
+  //
   // Note that the reference to options is expected to outlive the returned
   // instance.
   //
   class pkg_bindist_options;
 
-  unique_ptr<system_package_manager>
+  pair<unique_ptr<system_package_manager>, string>
   make_production_system_package_manager (const pkg_bindist_options&,
                                           const target_triplet&,
                                           const string& name,

@@ -136,7 +136,7 @@ namespace bpkg
     return r;
   }
 
-  unique_ptr<system_package_manager>
+  pair<unique_ptr<system_package_manager>, string>
   make_production_system_package_manager (const pkg_bindist_options& o,
                                           const target_triplet& host,
                                           const string& name,
@@ -163,7 +163,7 @@ namespace bpkg
     if (o.os_release_version_id_specified ())
       oos->version_id = o.os_release_version_id ();
 
-    unique_ptr<system_package_manager> r;
+    pair<unique_ptr<system_package_manager>, string> r;
     if (oos)
     {
       os_release& os (*oos);
@@ -173,8 +173,9 @@ namespace bpkg
       //
       if (name == "archive")
       {
-        r.reset (new system_package_manager_archive (
-                   move (os), host, arch, progress, &o));
+        r.first.reset (new system_package_manager_archive (
+                         move (os), host, arch, progress, &o));
+        r.second = "archive";
       }
       else if (host.class_ == "linux")
       {
@@ -188,8 +189,9 @@ namespace bpkg
           if (os.name_id != "debian" && !is_or_like (os, "debian"))
             os.like_ids.push_back ("debian");
 
-          r.reset (new system_package_manager_debian (
-                     move (os), host, arch, progress, &o));
+          r.first.reset (new system_package_manager_debian (
+                           move (os), host, arch, progress, &o));
+          r.second = "debian";
         }
         else if (is_or_like (os, "fedora") ||
                  is_or_like (os, "rhel")   ||
@@ -204,15 +206,16 @@ namespace bpkg
           if (os.name_id != "fedora" && !is_or_like (os, "fedora"))
             os.like_ids.push_back ("fedora");
 
-          r.reset (new system_package_manager_fedora (
-                     move (os), host, arch, progress, &o));
+          r.first.reset (new system_package_manager_fedora (
+                           move (os), host, arch, progress, &o));
+          r.second = "fedora";
         }
         // NOTE: remember to update the --distribution pkg-bindist option
         //       documentation if adding support for another package manager.
       }
     }
 
-    if (r == nullptr)
+    if (r.first == nullptr)
     {
       if (!name.empty ())
         fail << "unsupported package manager '" << name << "' for host "

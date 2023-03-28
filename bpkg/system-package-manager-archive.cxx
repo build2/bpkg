@@ -45,7 +45,7 @@ namespace bpkg
     else
       target = host;
 
-    arch = target.string (); // Set in case queried by someone else.
+    arch = target.string (); // Set since queried (e.g., JSON value).
   }
 
   // env --chdir=<root> tar|zip ... <base>.<ext> <base>
@@ -288,7 +288,7 @@ namespace bpkg
   // directory as a chroot. Then tar/zip this directory to produce one or more
   // binary package archives.
   //
-  paths system_package_manager_archive::
+  auto system_package_manager_archive::
   generate (const packages& pkgs,
             const packages& deps,
             const strings& vars,
@@ -297,7 +297,7 @@ namespace bpkg
             const string& pt,
             const small_vector<language, 1>& langs,
             optional<bool> recursive_full,
-            bool first)
+            bool first) -> binary_files
   {
     tracer trace ("system_package_manager_archive::generate");
 
@@ -730,7 +730,7 @@ namespace bpkg
       if (verb >= 1)
         text << "prepared " << dst;
 
-      return paths {};
+      return binary_files {};
     }
 
     // Create the archive.
@@ -743,7 +743,7 @@ namespace bpkg
     //    We don't do anything for source archives, not sure why we should
     //    do something here.
     //
-    paths r;
+    binary_files r;
     {
       const strings& ts (
         ops->archive_type_specified ()
@@ -758,7 +758,10 @@ namespace bpkg
         if (t.size () > 1 && t.front () == '.')
           t.erase (0, 1);
 
-        r.push_back (archive (out, base, t));
+        // Using archive type as file type seems appropriate.
+        //
+        path f (archive (out, base, t));
+        r.push_back (binary_file {move (f), move (t)});
       }
     }
 

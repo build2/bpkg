@@ -728,6 +728,110 @@ namespace bpkg
     }
   };
 
+  "
+   \h|STRUCTURED RESULT|
+
+   Instead of printing to \cb{stderr} the list of generated binary packages in
+   a format more suitable for human consumption, the \cb{pkg-bindist} command
+   can be instructed to write it to \cb{stdout} in a machine-readable form by
+   specifying the \cb{--structured-result} option. Currently, the only
+   recognized format value for this option is \cb{json} with the output being
+   a JSON object that is a serialized representation of the following C++
+   struct \cb{bindist_result}:
+
+   \
+   struct os_release
+   {
+     string           name_id;     // ID
+     vector<string>   like_ids;    // ID_LIKE
+     optional<string> version_id;  // VERSION_ID
+     optional<string> variant_id;  // VARIANT_ID
+
+     optional<string> name;              // NAME
+     optional<string> version_codename;  // VERSION_CODENAME
+     optional<string> variant;           // VARIANT
+   };
+
+   struct file
+   {
+     string path;
+     string type;
+   };
+
+   struct package
+   {
+     string           name;
+     string           version;
+     optional<string> system_name;
+     optional<string> system_version;
+     vector<file>     files;
+   };
+
+   struct bindist_result
+   {
+     string           distribution;     // --distribution or auto-detected
+     string           architecture;     // --architecture or auto-detected
+     os_release       os_release;       // --os-release-* or auto-detected
+     optional<string> recursive;        // --recursive
+     bool             private;          // --private
+     bool             dependent_config; // See --allow-dependent-config
+
+     package          package;
+     vector<package>  dependencies;     // Only in --recursive=separate
+   };
+   \
+
+   For example:
+
+   \
+   {
+     \"distribution\": \"debian\",
+     \"architecture\": \"amd64\",
+     \"os_release\": {
+       \"name_id\": \"debian\",
+       \"version_id\": \"11\",
+       \"name\": \"Debian GNU/Linux\"
+     },
+     \"package\": {
+       \"name\": \"libfoo\",
+       \"version\": \"2.5.0-b.23\",
+       \"system_name\": \"libfoo\",
+       \"system_version\": \"2.5.0~b.23-0~debian11\",
+       \"files\": [
+         {
+           \"path\": \"/tmp/libfoo_2.5.0~b.23-0~debian11_amd64.deb\",
+           \"type\": \"main.deb\"
+         },
+         {
+           \"path\": \"/tmp/libfoo-dev_2.5.0~b.23-0~debian11_amd64.deb\",
+           \"type\": \"dev.deb\"
+         },
+         ...
+       ]
+     }
+   }
+   \
+
+   See the JSON OUTPUT section in \l{bpkg-common-options(1)} for details on
+   the overall properties of this format and the semantics of the \cb{struct}
+   serialization.
+
+   The \cb{file::type} member is a distribution-specific value that classifies
+   the file. For the \cb{debian} distribution the possible values are
+   \cb{main.deb}, \cb{dev.deb}, \cb{doc.deb}, \cb{common.deb},
+   \cb{dbgsym.deb}, \cb{changes} (\cb{.changes} file), and \cb{buildid}
+   (\cb{.buildid} file); see \l{bpkg#bindist-mapping-debian-produce Debian
+   Package Mapping for Production} for background. For the \cb{fedora}
+   distribution the possible values are \cb{main.rpm}, \cb{devel.rpm},
+   \cb{static.rpm}, \cb{doc.rpm}, \cb{common.rpm}, and \cb{debuginfo.rpm}; see
+   \l{bpkg#bindist-mapping-fedora-produce Fedora Package Mapping for
+   Production} for background. For the \cb{archive} distribution this is the
+   archive type (\cb{--archive-type}), for example, \cb{tar.xz} or \cb{zip}.
+
+   The \cb{system_name} and \cb{system_version} members in \cb{package} are
+   absent if not applicable to the distribution (for example, \cb{archive}).
+  "
+
   // NOTE: remember to add the corresponding `--class-doc ...=exclude-base`
   //       (both in bpkg/ and doc/) if adding a new base class.
   //

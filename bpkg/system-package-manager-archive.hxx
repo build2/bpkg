@@ -17,7 +17,7 @@ namespace bpkg
   class system_package_manager_archive: public system_package_manager
   {
   public:
-    virtual paths
+    virtual binary_files
     generate (const packages&,
               const packages&,
               const strings&,

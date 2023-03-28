@@ -1958,7 +1958,7 @@ namespace bpkg
   // Note: this setup requires dpkg-dev (or build-essential) and debhelper
   // packages.
   //
-  paths system_package_manager_debian::
+  auto system_package_manager_debian::
   generate (const packages& pkgs,
             const packages& deps,
             const strings& vars,
@@ -1967,7 +1967,7 @@ namespace bpkg
             const string& pt,
             const small_vector<language, 1>& langs,
             optional<bool> recursive_full,
-            bool first)
+            bool first) -> binary_files
   {
     tracer trace ("system_package_manager_debian::generate");
 
@@ -3487,7 +3487,7 @@ namespace bpkg
         print_process (dr, args);
       }
 
-      return paths {};
+      return binary_files {};
     }
 
     try
@@ -3542,13 +3542,17 @@ namespace bpkg
 
     // Collect and return the binary package paths.
     //
-    paths r;
-    auto add = [&out, &r] (const string& n, bool opt = false)
+    binary_files r;
+
+    r.system_name    = gen_main ? st.main : st.dev;
+    r.system_version = st.system_version;
+
+    auto add = [&out, &r] (const string& n, const char* t, bool opt = false)
     {
       path p (out / n);
 
       if (exists (p))
-        r.push_back (move (p));
+        r.push_back (binary_file {move (p), t});
       else if (!opt)
         fail << "expected output file " << p << " does not exist";
     };
@@ -3559,19 +3563,19 @@ namespace bpkg
     //
     const string& ver (st.system_version);
 
-    if (gen_main) add (st.main + '_' + ver + '_' + arch + ".deb");
-    if (!binless) add (st.main + "-dbgsym_" + ver + '_' + arch + ".deb", true);
+    if (gen_main) add (st.main + '_' + ver + '_' + arch + ".deb", "main.deb");
+    if (!binless) add (st.main + "-dbgsym_" + ver + '_' + arch + ".deb", "dbgsym.deb", true);
 
-    if (!st.dev.empty ()) add (st.dev + '_' + ver + '_' + arch + ".deb");
-    if (!st.doc.empty ()) add (st.doc + '_' + ver + "_all.deb");
-    if (!st.common.empty ()) add (st.common  + '_' + ver + "_all.deb");
+    if (!st.dev.empty ()) add (st.dev + '_' + ver + '_' + arch + ".deb", "dev.deb");
+    if (!st.doc.empty ()) add (st.doc + '_' + ver + "_all.deb", "doc.deb");
+    if (!st.common.empty ()) add (st.common  + '_' + ver + "_all.deb", "common.deb");
 
     // Besides the binary packages (.deb) we also get the .buildinfo and
     // .changes files, which could be useful. Note that their names are based
     // on the source package name.
     //
-    add (pn.string () + '_' + ver + '_' + arch + ".buildinfo");
-    add (pn.string () + '_' + ver + '_' + arch + ".changes");
+    add (pn.string () + '_' + ver + '_' + arch + ".buildinfo", "buildinfo");
+    add (pn.string () + '_' + ver + '_' + arch + ".changes", "changes");
 
     return r;
   }

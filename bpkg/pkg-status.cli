@@ -218,7 +218,7 @@ namespace bpkg
      ]
      \
 
-     See the JSON OUTPUT section in \l{bdep-common-options(1)} for details on
+     See the JSON OUTPUT section in \l{bpkg-common-options(1)} for details on
      the overall properties of this format and the semantics of the
      \cb{struct} serialization.
 

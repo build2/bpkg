@@ -98,15 +98,24 @@ namespace bpkg
        \cb{test}, etc."
     }
 
-    // In the future we may also have --structured-result, similar to the
-    // build system.
-    //
     bool --no-result
     {
       "Don't print informational messages about the outcome of performing
        a command or some of its parts. Note that if this option is specified,
        then for certain long-running command parts progress is displayed
        instead, unless suppressed with \cb{--no-progress}."
+    }
+
+    string --structured-result
+    {
+      "<fmt>",
+      "Write the result of performing a command in a structured form. In
+       this mode, instead of printing to \cb{stderr} informational messages
+       about the outcome of performing a command or some of its parts,
+       \cb{bpkg} writes to \cb{stdout} a machine-readable result description
+       in the specified format. Not all commands support producing structured
+       result and valid <fmt> values are command-specific. Consult the command
+       documentation for details."
     }
 
     // When it comes to external programs (such as curl, git, etc), if stderr

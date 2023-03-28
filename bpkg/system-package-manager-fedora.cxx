@@ -2299,7 +2299,7 @@ namespace bpkg
   // Note: this setup requires rpmdevtools (rpmdev-setuptree) and its
   // dependency rpm-build and rpm packages.
   //
-  paths system_package_manager_fedora::
+  auto system_package_manager_fedora::
   generate (const packages& pkgs,
             const packages& deps,
             const strings& vars,
@@ -2308,7 +2308,7 @@ namespace bpkg
             const string& pt,
             const small_vector<language, 1>& langs,
             optional<bool> recursive_full,
-            bool /* first */)
+            bool /* first */) -> binary_files
   {
     tracer trace ("system_package_manager_fedora::generate");
 
@@ -4244,7 +4244,7 @@ namespace bpkg
         print_process (dr, args);
       }
 
-      return paths {};
+      return binary_files {};
     }
 
     try
@@ -4295,7 +4295,9 @@ namespace bpkg
     //
     // Here we will use `rpm --eval` to resolve the RPM sub-package paths.
     //
-    paths r;
+    binary_files r;
+    r.system_name    = gen_main ? st.main : st.devel;
+    r.system_version = st.system_version;
     {
       string expressions;
 
@@ -4309,34 +4311,37 @@ namespace bpkg
 
       const string& package_arch (!build_arch.empty () ? build_arch : arch);
 
-      size_t np (0);
-      auto add_package = [&expressions, &rpmfile, &np, &add_macro]
-                         (const string& name, const string& arch) -> size_t
+      auto add_package = [&r, &expressions, &rpmfile, &add_macro]
+                         (const string& name,
+                          const string& arch,
+                          const char* type) -> size_t
       {
         add_macro ("NAME", name);
         add_macro ("ARCH", arch);
         expressions += rpmfile + '\n';
-        return np++;
+        r.push_back (binary_file {path (), type}); // Reserve.
+        return r.size () - 1;
       };
 
       if (gen_main)
-        add_package (st.main, package_arch);
+        add_package (st.main, package_arch, "main.rpm");
 
       if (!st.devel.empty ())
-        add_package (st.devel, package_arch);
+        add_package (st.devel, package_arch, "devel.rpm");
 
       if (!st.static_.empty ())
-        add_package (st.static_, package_arch);
+        add_package (st.static_, package_arch, "static.rpm");
 
       if (!st.doc.empty ())
-        add_package (st.doc, "noarch");
+        add_package (st.doc, "noarch", "doc.rpm");
 
       if (!st.common.empty ())
-        add_package (st.common, "noarch");
+        add_package (st.common, "noarch", "common.rpm");
 
-      optional<size_t> di (!binless
-                           ? add_package (st.main + "-debuginfo", arch)
-                           : optional<size_t> ());
+      optional<size_t> di (
+        !binless
+        ? add_package (st.main + "-debuginfo", arch, "debuginfo.rpm")
+        : optional<size_t> ());
 
       // Strip the trailing newline since rpm adds one.
       //
@@ -4344,13 +4349,11 @@ namespace bpkg
 
       strings expansions (eval (cstrings ({expressions.c_str ()})));
 
-      if (expansions.size () != np)
+      if (expansions.size () != r.size ())
         fail << "number of RPM file path expansions differs from number "
              << "of path expressions";
 
-      r.reserve (np);
-
-      for (size_t i (0); i != expansions.size(); ++i)
+      for (size_t i (0); i != r.size(); ++i)
       {
         try
         {
@@ -4364,7 +4367,7 @@ namespace bpkg
           // etc).
           //
           if (exists (p))
-            r.push_back (move (p));
+            r[i].path = move (p);
           else if (!di || i != *di) // Not a -debuginfo sub-package?
             fail << "expected output file " << p << " does not exist";
         }
