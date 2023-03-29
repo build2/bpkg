@@ -2117,7 +2117,7 @@ The \c{bootstrap} value should be used to mark build system modules that
 require bootstrapping. The \c{host} value should be used to mark packages,
 such source code generators, that are normally specified as build-time
 dependencies by other packages and therefore should be built in a host
-configuration. See the \c{bbot} documentation for details.
+configuration. See the \l{bbot \c{bbot} documentation} for details.
 
 
 \h2#manifest-package-tests-examples-benchmarks|\c{tests, examples, benchmarks}|
@@ -2135,8 +2135,8 @@ specified package. Otherwise it is \i{run-time}. See the
 dependencies.
 
 These packages are built and tested by automated build bots together with the
-primary package (see the \c{bbot} documentation for details). This, in
-particular, implies that these packages must be available from the primary
+primary package (see the \l{bbot \c{bbot} documentation} for details). This,
+in particular, implies that these packages must be available from the primary
 package's repository or its complement repositories, recursively. The
 recommended naming convention for these packages is the primary package name
 followed by \c{-tests}, \c{-examples}, or \c{-benchmarks}, respectively. For
@@ -2274,11 +2274,11 @@ The common package build inclusions and exclusions. The \c{build-include} and
 \c{build-exclude} values further reduce the configuration set produced by
 evaluating the \l{#manifest-package-builds \c{builds}} values. The \i{config}
 and \i{target} values are filesystem wildcard patterns which are matched
-against the build target configuration names and target names (see the
-\c{bbot} documentation for details). In particular, the \c{*} wildcard matches
-zero or more characters within the name component while the \c{**} sequence
-matches across the components. Plus, wildcard-only pattern components match
-absent name components. For example:
+against the build target configuration names and target names (see the \l{bbot
+\c{bbot} documentation} for details). In particular, the \c{*} wildcard
+matches zero or more characters within the name component while the \c{**}
+sequence matches across the components. Plus, wildcard-only pattern components
+match absent name components. For example:
 
 \
 build-exclude: windows**    # matches windows_10-msvc_15
@@ -2315,7 +2315,10 @@ Note that the comment of the matching exclusion is used by the web interface
 \
 [*-build-config]: <args> [; <comment>]
 
-<args> = [<option>]* [<config-var>]* [<dependency-spec>]*
+<args> = [[[+|-]<prefix>:](<option>|<config-var>)]* \\
+         [(+|-)<prefix>:]*                          \\
+         [<dependency-spec>]*
+
 <dependency-spec> = [{ <config-var> [<config-var>]* }+] <dependency>
 <dependency> = (?[sys:]|sys:)<name>[<version-spec>]
 <version-spec> = /<version> | <version-constraint>
@@ -2331,8 +2334,16 @@ package is built in these configurations by automated build bots in addition
 to the default configuration (which is called \c{default}).
 
 The \c{*-build-config} values contain whitespace separated lists of
-potentially double/single-quoted package configuration arguments to the
-\l{bpkg-pkg-build(1)} command. For example:
+potentially double/single-quoted package configuration arguments. The global
+(as opposed to package-specific) options and variables can be prefixed with
+the build bot worker script step ids or a leading portion thereof to restrict
+it to a specific step, operation, phase, or tool (see \l{bbot#arch-worker
+\cb{bbot} worker step ids}). The prefix can optionally begin with the \c{+} or
+\c{-} character (in this case the argument can be omitted) to enable or
+disable the respective step (see the list of \l{bbot#arch-controller worker
+steps} which can be enabled or disabled). Unprefixed global options,
+variables, and dependencies are passed to the \l{bpkg-pkg-build(1)} command at
+the \c{bpkg.configure.build} step. For example:
 
 \
 network-build-config: config.libfoo.network=true; Enable networking API.
@@ -2359,6 +2370,14 @@ sys-build-config:
 ?sys:libbar/* ?sys:libz/*
 ;
 Test with system dependencies.
+\\
+
+bindist-build-config:
+\\
++bpkg.bindist:--recursive=full
+-bbot.sys-install:
+;
+Generate binary distribution package but don't test its installation.
 \\
 \
 

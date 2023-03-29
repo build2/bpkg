@@ -123,6 +123,7 @@ cli -I .. \
 --html-epilogue-file doc-epilogue.xhtml \
 --link-regex '%b([-.].+)%../../build2/doc/b$1%' \
 --link-regex '%b(#.+)?%../../build2/doc/build2-build-system-manual.xhtml$1%' \
+--link-regex '%bbot(#.+)?%../../bbot/doc/build2-build-bot-manual.xhtml$1%' \
 --output-prefix build2-package-manager- \
 manual.cli
 
