@@ -754,15 +754,15 @@ namespace bpkg
 
    struct file
    {
-     string path;
      string type;
+     string path;
+     optional<string> system_name;
    };
 
    struct package
    {
      string           name;
      string           version;
-     optional<string> system_name;
      optional<string> system_version;
      vector<file>     files;
    };
@@ -795,16 +795,17 @@ namespace bpkg
      \"package\": {
        \"name\": \"libfoo\",
        \"version\": \"2.5.0-b.23\",
-       \"system_name\": \"libfoo\",
        \"system_version\": \"2.5.0~b.23-0~debian11\",
        \"files\": [
          {
+           \"type\": \"main.deb\",
            \"path\": \"/tmp/libfoo_2.5.0~b.23-0~debian11_amd64.deb\",
-           \"type\": \"main.deb\"
+           \"system_name\": \"libfoo\"
          },
          {
+           \"type\": \"dev.deb\",
            \"path\": \"/tmp/libfoo-dev_2.5.0~b.23-0~debian11_amd64.deb\",
-           \"type\": \"dev.deb\"
+           \"system_name\": \"libfoo-dev\"
          },
          ...
        ]
@@ -828,8 +829,11 @@ namespace bpkg
    Production} for background. For the \cb{archive} distribution this is the
    archive type (\cb{--archive-type}), for example, \cb{tar.xz} or \cb{zip}.
 
-   The \cb{system_name} and \cb{system_version} members in \cb{package} are
+   The \cb{package::system_version} and \cb{file::system_name} members are
    absent if not applicable to the distribution (for example, \cb{archive}).
+   The \cb{file::system_name} member is also absent if the file is not a
+   binary package (for example, \cb{.changes} and \cb{.buildid} files in the
+   \cb{debian} distribution).
   "
 
   // NOTE: remember to add the corresponding `--class-doc ...=exclude-base`

@@ -201,16 +201,14 @@ namespace bpkg
 
     struct binary_file
     {
-      bpkg::path path;
       string     type;
+      bpkg::path path;
+      string     system_name; // Empty if not applicable.
     };
 
     struct binary_files: public vector<binary_file>
     {
-      // Empty if not applicable.
-      //
-      string system_name;
-      string system_version;
+      string system_version; // Empty if not applicable.
     };
 
     virtual binary_files

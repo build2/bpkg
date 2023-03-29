@@ -597,15 +597,15 @@ namespace bpkg
         {
           member ("name",    p.name.string ());
           member ("version", ver);
-          member ("system_name",    bfs.system_name);
           member ("system_version", bfs.system_version);
           s.member_begin_array ("files");
           for (const binary_file& bf: bfs)
           {
             s.begin_object (); // file
             {
-              member ("path", bf.path.string ());
               member ("type", bf.type);
+              member ("path", bf.path.string ());
+              member ("system_name", bf.system_name);
             }
             s.end_object (); // file
           };

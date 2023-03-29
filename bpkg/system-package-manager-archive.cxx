@@ -761,7 +761,7 @@ namespace bpkg
         // Using archive type as file type seems appropriate.
         //
         path f (archive (out, base, t));
-        r.push_back (binary_file {move (f), move (t)});
+        r.push_back (binary_file {move (t), move (f), "" /* system_name */});
       }
     }
 

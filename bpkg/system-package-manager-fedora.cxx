@@ -4296,7 +4296,6 @@ namespace bpkg
     // Here we will use `rpm --eval` to resolve the RPM sub-package paths.
     //
     binary_files r;
-    r.system_name    = gen_main ? st.main : st.devel;
     r.system_version = st.system_version;
     {
       string expressions;
@@ -4319,7 +4318,7 @@ namespace bpkg
         add_macro ("NAME", name);
         add_macro ("ARCH", arch);
         expressions += rpmfile + '\n';
-        r.push_back (binary_file {path (), type}); // Reserve.
+        r.push_back (binary_file {type, path (), name}); // Reserve.
         return r.size () - 1;
       };
 
