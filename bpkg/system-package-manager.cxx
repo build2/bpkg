@@ -787,94 +787,38 @@ namespace bpkg
         //
         auto parse_entry = [&r, &p] (const auto& parse_entry) -> void
         {
-          optional<event> e (p.next ());
+          // enter: after begin_object
+          // leave: after end_object
 
-          // @@ This is really ugly, need to add next_expect() helpers to JSON
-          //    parser (similar to libstudxml).
-
-          if (*e != event::begin_object)
-            fail << "entry object expected";
-
-          // type
-          //
-          if (!(e = p.next ()) || *e != event::name || p.name () != "type")
-            fail << "type member expected";
-
-          if (!(e = p.next ()) || *e != event::string)
-            fail << "type member string value expected";
-
-          string t (p.value ()); // Note: value invalidated after p.next().
+          string t (p.next_expect_member_string ("type"));
 
           if (t == "target")
           {
-            // name
-            //
-            if (!(e = p.next ()) || *e != event::name || p.name () != "name")
-              fail << "name member expected";
+            p.next_expect_member_string ("name");
 
-            if (!(e = p.next ()) || *e != event::string)
-              fail << "name member string value expected";
-
-            // entries
-            //
-            if (!(e = p.next ()) || *e != event::name || p.name () != "entries")
-              fail << "entries member expected";
-
-            if (!(e = p.next ()) || *e != event::begin_array)
-              fail << "entries member array value expected";
-
-            while ((e = p.peek ()) && *e != event::end_array)
+            p.next_expect_member_array ("entries");
+            while (p.next_expect (event::begin_object, event::end_array))
               parse_entry (parse_entry);
-
-            if (!(e = p.next ()) || *e != event::end_array)
-              fail << "entries member array value end expected";
           }
-          else if (t == "file" || t == "symlink" || t == "directory")
+          else if (t == "file" || t == "symlink")
           {
-            // path
-            //
-            if (!(e = p.next ()) || *e != event::name || p.name () != "path")
-              fail << "path member expected";
-
-            if (!(e = p.next ()) || *e != event::string)
-              fail << "path member string value expected";
-
-            path ep (p.value ());
+            path ep (p.next_expect_member_string ("path"));
             assert (ep.absolute () && ep.normalized (false /* separators */));
 
-            if (t == "file" || t == "directory")
+            if (t == "file")
             {
-              // mode
-              //
-              if (!(e = p.next ()) || *e != event::name || p.name () != "mode")
-                fail << "mode member expected";
+              string em (p.next_expect_member_string ("mode"));
 
-              if (!(e = p.next ()) || *e != event::string)
-                fail << "mode member string value expected";
+              auto p (
+                r.emplace (
+                  move (ep), installed_entry {move (em), nullptr}));
 
-              string em (p.value ());
-
-              if (t == "file")
-              {
-                auto p (
-                  r.emplace (
-                    move (ep), installed_entry {move (em), nullptr}));
-
-                if (!p.second)
-                  fail << p.first->first << " is installed multiple times";
-              }
+              if (!p.second)
+                fail << p.first->first << " is installed multiple times";
             }
             else
             {
-              // target
-              //
-              if (!(e = p.next ()) || *e != event::name || p.name () != "target")
-                fail << "target member expected";
-
-              if (!(e = p.next ()) || *e != event::string)
-                fail << "target member string value expected";
-
-              path et (p.value ());
+              path et (p.next_expect_member_string ("target"));
               if (et.relative ())
               {
                 et = ep.directory () / et;
@@ -893,14 +837,22 @@ namespace bpkg
             }
           }
           else
-            fail << "unknown entry type '" << t << "'";
+          {
+            // Fall through to skip all members of an unknown entry type.
+            //
+            // Note that this also covers the directory entires which we
+            // don't care about.
+          }
 
-          if (!(e = p.next ()) || *e != event::end_object)
-            fail << "entry object end expected";
+          // Skip unknown members.
+          //
+          while (p.next_expect (event::name, event::end_object))
+            p.next_expect_value_skip ();
         };
 
         while (p.peek ()) // More values.
         {
+          p.next_expect (event::begin_object); // entry
           parse_entry (parse_entry);
 
           if (p.next ()) // Consume value-terminating nullopt.
@@ -912,7 +864,8 @@ namespace bpkg
       catch (const json::invalid_json_input& e)
       {
         if (pr.wait ())
-          fail << "invalid " << args[0] << " json input: " << e;
+          fail (location ("<stdin>", e.line, e.column))
+            << "invalid install manifest json input: " << e;
 
         // Fall through.
       }
