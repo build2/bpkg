@@ -219,7 +219,8 @@ if $cli.configured
 --class-doc bpkg::pkg_bindist_common_options=exclude-base \
 --class-doc bpkg::pkg_bindist_debian_options=exclude-base \
 --class-doc bpkg::pkg_bindist_fedora_options=exclude-base \
---class-doc bpkg::pkg_bindist_archive_options=exclude-base
+--class-doc bpkg::pkg_bindist_archive_options=exclude-base \
+--omit-link-check --link-regex '%#.+%%'
 
   # Avoid generating CLI runtime and empty inline file for help topics.
   #

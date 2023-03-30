@@ -63,6 +63,7 @@ function compile ()
 --man-epilogue-file man-epilogue.1 \
 --link-regex '%b(#.+)?%$1%' \
 --link-regex '%bpkg(#.+)?%$1%' \
+--link-regex '%#.+%%' \
 ../bpkg/$n.cli
 }
 

@@ -40,8 +40,14 @@ namespace bpkg
      the binary package is generated for the host architecture using the
      host's standard system package manager. Additional command line variables
      (<vars>, normally \cb{config.*}) can be passed to the build system during
-     the installation step. See distribution-specific description sections
-     below for details and invocation examples.
+     the installation step. See the following distribution-specific
+     description sections below for details and invocation examples:
+
+     \l{#debian  DEBIAN DESCRIPTION}
+
+     \l{#fedora  FEDORA DESCRIPTION}
+
+     \l{#archive ARCHIVE DESCRIPTION}
 
      The specified packages may have dependencies and the default behavior is
      to not bundle them but rather to specify them as dependencies in the
@@ -49,16 +55,25 @@ namespace bpkg
      behavior can be overridden with the \cb{--recursive} option (see the
      option description for the available modes). Note, however, that
      dependencies that are satisfied by system packages are always specified
-     as dependencies in the distribution package metadata.
+     as dependencies in the distribution package metadata (if applicable).
      "
   }
 
   // Place distribution-specific options into separate classes in case one day
   // we want to only pass their own options to each implementation.
   //
-  class pkg_bindist_common_options
+  class pkg_bindist_common_options: configuration_options
   {
-    "\h|PKG-BINDIST COMMON OPTIONS|"
+    "\h|PKG-BINDIST OPTIONS|
+
+     See the following sections below for distribution-specific options:
+
+     \l{#debian-options  PKG-BINDIST DEBIAN OPTIONS}
+
+     \l{#fedora-options  PKG-BINDIST FEDORA OPTIONS}
+
+     \l{#archive-options PKG-BINDIST ARCHIVE OPTIONS}
+    "
 
     string --distribution
     {
@@ -218,7 +233,7 @@ namespace bpkg
      mapping.
      "
 
-    "\h|PKG-BINDIST DEBIAN OPTIONS|"
+    "\h#debian-options|PKG-BINDIST DEBIAN OPTIONS|"
 
     bool --debian-prepare-only
     {
@@ -385,7 +400,7 @@ namespace bpkg
      mapping.
      "
 
-    "\h|PKG-BINDIST FEDORA OPTIONS|"
+    "\h#fedora-options|PKG-BINDIST FEDORA OPTIONS|"
 
     bool --fedora-prepare-only
     {
@@ -519,10 +534,13 @@ namespace bpkg
      \cb{bpkg} configuration locations and installing them into the binary
      package directory using the \cb{config.install.chroot} mechanism. Then
      this directory is packaged with \cb{tar} or \cb{zip} to produce one or
-     more binary package archives. The installation directory layout and
-     the package archives to generate can be specified with the
-     \cb{--archive-install-*} and \cb{--archive-type} options (also refer
-     to their documentation for defaults).
+     more binary package archives.
+
+     The generation of installation archive packages is never the default and
+     should be requested explicitly with the \cb{--distribution=archive}
+     option. The installation directory layout and the package archives to
+     generate can be specified with the \cb{--archive-install-*} and
+     \cb{--archive-type} options (refer to their documentation for defaults).
 
      The binary package directory (the top-level directory inside the
      archive) as well as the archive file base (the file name without
@@ -639,7 +657,7 @@ namespace bpkg
      \
      "
 
-    "\h|PKG-BINDIST ARCHIVE OPTIONS|"
+    "\h#archive-options|PKG-BINDIST ARCHIVE OPTIONS|"
 
     bool --archive-prepare-only
     {
@@ -839,8 +857,7 @@ namespace bpkg
   // NOTE: remember to add the corresponding `--class-doc ...=exclude-base`
   //       (both in bpkg/ and doc/) if adding a new base class.
   //
-  class pkg_bindist_options: configuration_options,
-                             pkg_bindist_common_options,
+  class pkg_bindist_options: pkg_bindist_common_options,
                              pkg_bindist_debian_options,
                              pkg_bindist_fedora_options,
                              pkg_bindist_archive_options {};
