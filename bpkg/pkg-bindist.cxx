@@ -481,7 +481,7 @@ namespace bpkg
 
       optional<bool> recursive_full;
       if (rec && *rec != recursive_mode::separate)
-        recursive_full = *rec != recursive_mode::full;
+        recursive_full = (*rec == recursive_mode::full);
 
       // Note that we pass type from here in case one day we want to provide
       // an option to specify/override it (along with languages). Note that
