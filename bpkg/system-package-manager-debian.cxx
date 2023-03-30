@@ -792,7 +792,12 @@ namespace bpkg
 
       process pr;
       if (!simulate_)
-        pr = process (pp, args);
+      {
+        // Redirect stdout to stderr since apt-get prints some of its
+        // diagnostics to stdout.
+        //
+        pr = process (pp, args, 0 /* stdin */, 2 /* stdout */);
+      }
       else
       {
         print_process (args);
@@ -854,7 +859,12 @@ namespace bpkg
 
       process pr;
       if (!simulate_)
-        pr = process (pp, args);
+      {
+        // Redirect stdout to stderr since apt-get prints some of its
+        // diagnostics to stdout.
+        //
+        pr = process (pp, args, 0 /* stdin */, 2 /* stdout */);
+      }
       else
       {
         print_process (args);
