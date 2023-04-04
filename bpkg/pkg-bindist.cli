@@ -632,7 +632,12 @@ namespace bpkg
      \
 
      Note that not all source packages support relocatable installation (see
-     the \l{b#module-install \cb{install}} module documentation for details).
+     \l{b#install-reloc Rolocatable Installation} for details).
+
+     Another mechanism that can useful when generating archive packages is the
+     ability to filter the files being installed. This, for example, can be
+     used to create binary packages that don't contain any development-related
+     files. See \l{b#install-filter Installation Filtering} for details.
 
      The installation archive package can be generated for a target other than
      the host by specifying the target triplet with the \cb{--architecture}
