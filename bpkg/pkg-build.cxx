@@ -4435,9 +4435,9 @@ namespace bpkg
       system_map sys_map;
 
       // Iterate in the reverse order as we will do for printing the action
-      // lines. This way a system-install action line will be printed right
+      // lines. This way a sys-install action line will be printed right
       // before the bpkg action line of a package which appears first in the
-      // system-install action's 'required by' list.
+      // sys-install action's 'required by' list.
       //
       for (const build_package& p: reverse_iterate (pkgs))
       {
@@ -4459,12 +4459,12 @@ namespace bpkg
 
       // Print the bpkg package action lines.
       //
-      // Also print the system-install action lines for system/distribution
+      // Also print the sys-install action lines for system/distribution
       // packages which require installation by the system package manager.
       // Print them before the respective system package action lines, but
       // only once per (main) system/distribution package. For example:
       //
-      // system-install libssl1.1/1.1.1l (required by sys:libssl, sys:libcrypto)
+      // sys-install libssl1.1/1.1.1l (required by sys:libssl, sys:libcrypto)
       // configure sys:libssl/1.1.1 (required by foo)
       // configure sys:libcrypto/1.1.1 (required by bar)
       //
@@ -4481,7 +4481,7 @@ namespace bpkg
         if ((s = p.system_install ()) != nullptr &&
             (j = sys_map.find (s->system_name)) != sys_map.end ())
         {
-          act = "system-install ";
+          act = "sys-install ";
           act += s->system_name;
           act += '/';
           act += s->system_version;
@@ -4503,7 +4503,7 @@ namespace bpkg
 
           need_prompt = true;
 
-          // Make sure that we print this system-install action just once.
+          // Make sure that we print this sys-install action just once.
           //
           sys_map.erase (j);
 
@@ -4765,7 +4765,7 @@ namespace bpkg
 
     // Ok, we have "all systems go". The overall action plan is as follows.
     //
-    // 1.  system-install  not installed system/distribution
+    // 1.  sys-install     not installed system/distribution
     // 2.  disfigure       up/down-graded, reconfigured       [left to right]
     // 3.  purge           up/down-graded                     [right to left]
     // 4.a fetch/unpack    new, up/down-graded
@@ -4880,7 +4880,7 @@ namespace bpkg
 
     size_t prog_i, prog_n, prog_percent;
 
-    // system-install
+    // sys-install
     //
     // Install the system/distribution packages required by the respective
     // system packages (see build_package::system_install() for details).
