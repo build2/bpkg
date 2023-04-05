@@ -1261,13 +1261,12 @@ namespace bpkg
     //
     optional<std::string> buildfiles_checksum;
 
-    // Path to the output directory of this package, if any. It is
-    // always relative to the configuration directory, and is <name>
-    // for external packages and <name>-<version> for others. It is
-    // only set once the package is configured and its main purse is
-    // to keep track of what needs to be cleaned by the user before
-    // a broken package can be purged. Note that it could be the
-    // same as src_root.
+    // Path to the output directory of this package, if any. It is always
+    // relative to the configuration directory, and is <name> for external
+    // packages and <name>-<version> for others. It is only set once the
+    // package is configured and its main purpose is to keep track of what
+    // needs to be cleaned by the user before a broken package can be
+    // purged. Note that it could be the same as src_root.
     //
     optional<dir_path> out_root;
 

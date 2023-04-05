@@ -31,7 +31,7 @@ using namespace butl;
 
 namespace bpkg
 {
-  // These are defined in bpkg.cxx and initialized in main().
+  // These are defined in bpkg.cxx and initialized by build2_init().
   //
   extern strings                build2_cmd_vars;
   extern build2::scheduler      build2_sched;

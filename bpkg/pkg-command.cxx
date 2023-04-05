@@ -5,6 +5,9 @@
 
 #include <libbutl/path-pattern.hxx>
 
+#include <libbuild2/file.hxx>
+#include <libbuild2/context.hxx>
+
 #include <bpkg/package.hxx>
 #include <bpkg/package-odb.hxx>
 #include <bpkg/database.hxx>
@@ -54,6 +57,8 @@ namespace bpkg
       }
     };
 
+    unique_ptr<build2::context> ctx; // Create lazily.
+
     for (const pkg_command_vars& pv: ps)
     {
       if (!pv.vars.empty () || pv.cwd)
@@ -74,11 +79,48 @@ namespace bpkg
 
       const shared_ptr<selected_package>& p (pv.pkg);
 
-      assert (p->state == package_state::configured);
-      assert (p->out_root); // Should be present since configured.
+      assert (p->state == package_state::configured &&
+              p->substate != package_substate::system);
+      assert (p->out_root &&
+              p->src_root); // Should be present since configured, not system.
 
       dir_path out_root (p->effective_out_root (pv.config_orig));
       l4 ([&]{trace << p->name << " out_root: " << out_root;});
+
+      // Figure out if the source directory is forwarded to this out_root. If
+      // it is, then we need to build via src_root. Failed that, backlinks
+      // won't be created.
+      //
+      if (*p->out_root != *p->src_root)
+      {
+        dir_path src_root (p->effective_src_root (pv.config_orig));
+
+        // For us to switch to src_root, it should not only be configured as
+        // forwarded, but also be forwarded to our out_root. So we actually
+        // need to first check if the build/bootstrap/out-root.build (or its
+        // alt naming equivalent) exists and, if so, extract the out_root
+        // value and compare it to ours. This is all done by bootstrap_fwd()
+        // from libbuild2 so seeing that we act as a special build system
+        // driver, we might as well use that. Note that this could potentially
+        // be improved by only creating context if the file exists.
+        //
+        try
+        {
+          if (ctx == nullptr)
+            ctx.reset (new build2::context ());
+
+          optional<bool> altn;
+          if (build2::bootstrap_fwd (*ctx, src_root, altn) == out_root)
+          {
+            out_root = move (src_root);
+            l4 ([&]{trace << p->name << " src_root: " << out_root;});
+          }
+        }
+        catch (const build2::failed&)
+        {
+          throw failed (); // Assume the diagnostics has already been issued.
+        }
+      }
 
       if (bspec.back () != '(')
         bspec += ' ';
