@@ -2374,7 +2374,7 @@ Test with system dependencies.
 
 bindist-build-config:
 \\
-+bpkg.bindist:--recursive=full
++bpkg.bindist.debian:--recursive=full
 -bbot.sys-install:
 ;
 Generate binary distribution package but don't test its installation.
