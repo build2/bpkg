@@ -443,11 +443,13 @@ namespace bpkg
     string --fedora-dist-tag
     {
       "<tag>",
-      "Alternative distribution tag to use in the binary package release. If
-       empty value is specified, then no distribution tag is included. The
-       default is a value that identifies the distribution being used to build
-       the package, for example, \cb{fc35} for Fedora 35 or \cb{el8} for RHEL
-       8."
+      "Alternative or additional distribution tag to use in the binary package
+       release. If the specified value starts/ends with \cb{+} then the value
+       (with \cb{+} removed) is added after/before the default distribution
+       tag. Otherwise it is used as is instead of the default tag. If empty
+       value is specified, then no distribution tag is included. The default
+       is a value that identifies the distribution being used to build the
+       package, for example, \cb{fc35} for Fedora 35 or \cb{el8} for RHEL 8."
     }
 
     string --fedora-packager

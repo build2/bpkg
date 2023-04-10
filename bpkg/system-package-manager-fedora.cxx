@@ -2459,10 +2459,48 @@ namespace bpkg
 
       if (!dist.empty ())
       {
-        // Insert the leading dot into the distribution tag if missing.
+        bool f (dist.front () == '+');
+        bool b (dist.back () == '+');
+
+        if (f && b) // Note: covers just `+`.
+          fail << "invalid distribution tag '" << dist << "'";
+
+        // If the distribution tag is specified with a leading/trailing '+',
+        // then we query the default tag value and modify it using the
+        // specified suffix/prefix.
         //
-        if (dist.front () != '.')
-          dist.insert (dist.begin (), '.');
+        // Note that we rely on the fact that the dist tag doesn't depend on
+        // the --target option which we also pass to rpmbuild.
+        //
+        if (f || b)
+        {
+          string affix (move (dist));
+          strings expansions (rpm_eval (cstrings (), cstrings {"%{?dist}"}));
+
+          if (expansions.size () != 1)
+            fail << "one line expected as an expansion of macro %{?dist}";
+
+          dist = move (expansions[0]);
+
+          // Normally, the default distribution tag starts with the dot, in
+          // which case we insert the prefix after it. Note, however, that the
+          // tag can potentially be re/un-defined (for example in
+          // ~/.rpmmacros), so we need to also handle the potential absence of
+          // the leading dot inserting the prefix right at the beginning in
+          // this case.
+          //
+          if (f)
+            dist.append (affix, 1, affix.size () - 1);
+          else
+            dist.insert (dist[0] == '.' ? 1 : 0, affix, 0, affix.size () - 1);
+        }
+        else
+        {
+          // Insert the leading dot into the distribution tag if missing.
+          //
+          if (dist.front () != '.')
+            dist.insert (dist.begin (), '.');
+        }
 
         common_opts.push_back ("--define=dist " + dist);
       }
