@@ -504,21 +504,141 @@ namespace bpkg
     // libhello-1.2.3-x86_64-windows10-msvc17.4
     // libhello-1.2.3-x86_64-debian11-gcc12-rust1.62
     //
-    string base (pn.string () + '-' + pvs);
+    bool md_s (ops->archive_build_meta_specified ());
+    const string& md (ops->archive_build_meta ());
+
+    bool md_f (false);
+    bool md_b (false);
+    if (md_s && !md.empty ())
     {
-      bool md_s (ops->archive_build_meta_specified ());
-      const string& md (ops->archive_build_meta ());
+      md_f = md.front () == '+';
+      md_b = md.back () == '+';
 
-      bool md_f (false);
-      bool md_b (false);
-      if (md_s && !md.empty ())
+      if (md_f && md_b) // Note: covers just `+`.
+        fail << "invalid build metadata '" << md << "'";
+    }
+
+    vector<reference_wrapper<const pair<const string, string>>> langrt;
+    if (!md_s || md_f || md_b)
+    {
+      // First collect the interface languages and then add implementation.
+      // This way if different languages map to the same runtimes (e.g., C and
+      // C++ mapped to gcc12), then we will always prefer the interface
+      // version over the implementation (which could be different, for
+      // example, libstdc++6 vs libstdc++-12-dev; but it's not clear how this
+      // will be specified, won't they end up with different names as opposed
+      // to gcc6 and gcc12 -- still fuzzy/unclear).
+      //
+      // @@ We will need to split id and version to be able to pick the
+      //    highest version.
+      //
+      // @@ Maybe we should just do "soft" version like in <distribution>?
+      //
+      // Note that we allow multiple values for the same language to support
+      // cases like --archive-lang cc=gcc12 --archive-lang cc=g++12.
+      //
+
+      auto find = [] (const std::multimap<string, string>& m, const string& n)
       {
-        md_f = md.front () == '+';
-        md_b = md.back () == '+';
+        auto p (m.equal_range (n));
 
-        if (md_f && md_b) // Note: covers just `+`.
-          fail << "invalid build metadata '" << md << "'";
+        if (p.first == p.second)
+        {
+          // If no mapping for c/c++, fallback to cc.
+          //
+          if (n == "c" || n == "c++")
+            p = m.equal_range ("cc");
+        }
+
+        return p;
+      };
+
+      auto add = [&langrt] (const pair<const string, string>& p)
+      {
+        // Suppress duplicates.
+        //
+        if (find_if (langrt.begin (), langrt.end (),
+                     [&p] (const pair<const string, string>& x)
+                     {
+                       // @@ TODO: keep highest version.
+                       return p.second == x.second;
+                     }) == langrt.end ())
+        {
+          langrt.push_back (p);
+        }
+      };
+
+      auto& implm (ops->archive_lang_impl ());
+
+      // The interface/implementation distinction is only relevant to
+      // libraries. For everything else we treat all the languages as
+      // implementation.
+      //
+      if (lib)
+      {
+        auto& intfm (ops->archive_lang ());
+
+        for (const language& l: langs)
+        {
+          if (l.impl)
+            continue;
+
+          auto p (find (intfm, l.name));
+
+          if (p.first == p.second)
+            p = find (implm, l.name);
+
+          if (p.first == p.second)
+            fail << "no runtime mapping for language " << l.name <<
+              info << "consider specifying with --archive-lang[-impl]" <<
+              info << "or alternatively specify --archive-build-meta";
+
+          for (auto i (p.first); i != p.second; ++i)
+          {
+            if (i->second.empty ())
+              continue; // Unimportant.
+
+            add (*i);
+          }
+        }
       }
+
+      for (const language& l: langs)
+      {
+        if (lib && !l.impl)
+          continue;
+
+        auto p (find (implm, l.name));
+
+        if (p.first == p.second)
+          continue; // Unimportant.
+
+        for (auto i (p.first); i != p.second; ++i)
+        {
+          if (i->second.empty ())
+            continue; // Unimportant.
+
+          add (*i);
+        }
+      }
+    }
+
+    // If there is no split, reduce to empty key and empty filter.
+    //
+    binary_files r;
+    for (const pair<const string, string>& kf:
+           ops->archive_split_specified ()
+           ? ops->archive_split ()
+           : std::map<string, string> {{string (), string ()}})
+    {
+      string sys_name (pn.string ());
+
+      if (!kf.first.empty ())
+        sys_name += '-' + kf.first;
+
+      string base (sys_name);
+
+      base += '-' + pvs;
 
       if (md_s && !(md_f || md_b))
       {
@@ -539,110 +659,6 @@ namespace bpkg
         if (!ops->archive_no_os ())
           base += '-' + os_release.name_id + os_release.version_id;
 
-        // First collect the interface languages and then add implementation.
-        // This way if different languages map to the same runtimes (e.g., C
-        // and C++ mapped to gcc12), then we will always prefer the interface
-        // version over the implementation (which could be different, for
-        // example, libstdc++6 vs libstdc++-12-dev; but it's not clear how
-        // this will be specified, won't they end up with different names as
-        // opposed to gcc6 and gcc12 -- still fuzzy/unclear).
-        //
-        // @@ We will need to split id and version to be able to pick the
-        //    highest version.
-        //
-        // @@ Maybe we should just do "soft" version like in <distribution>?
-        //
-        // Note that we allow multiple values for the same language to support
-        // cases like --archive-lang cc=gcc12 --archive-lang cc=g++12.
-        //
-        vector<reference_wrapper<const pair<const string, string>>> langrt;
-
-        auto find = [] (const std::multimap<string, string>& m,
-                        const string& n)
-        {
-          auto p (m.equal_range (n));
-
-          if (p.first == p.second)
-          {
-            // If no mapping for c/c++, fallback to cc.
-            //
-            if (n == "c" || n == "c++")
-              p = m.equal_range ("cc");
-          }
-
-          return p;
-        };
-
-        auto add = [&langrt] (const pair<const string, string>& p)
-        {
-          // Suppress duplicates.
-          //
-          if (find_if (langrt.begin (), langrt.end (),
-                       [&p] (const pair<const string, string>& x)
-                       {
-                         // @@ TODO: keep highest version.
-
-                         return p.second == x.second;
-                       }) == langrt.end ())
-          {
-            langrt.push_back (p);
-          }
-        };
-
-        auto& implm (ops->archive_lang_impl ());
-
-        // The interface/implementation distinction is only relevant to
-        // libraries. For everything else we treat all the languages as
-        // implementation.
-        //
-        if (lib)
-        {
-          auto& intfm (ops->archive_lang ());
-
-          for (const language& l: langs)
-          {
-            if (l.impl)
-              continue;
-
-            auto p (find (intfm, l.name));
-
-            if (p.first == p.second)
-              p = find (implm, l.name);
-
-            if (p.first == p.second)
-              fail << "no runtime mapping for language " << l.name <<
-                info << "consider specifying with --archive-lang[-impl]" <<
-                info << "or alternatively specify --archive-build-meta";
-
-            for (auto i (p.first); i != p.second; ++i)
-            {
-              if (i->second.empty ())
-                continue; // Unimportant.
-
-              add (*i);
-            }
-          }
-        }
-
-        for (const language& l: langs)
-        {
-          if (lib && !l.impl)
-            continue;
-
-          auto p (find (implm, l.name));
-
-          if (p.first == p.second)
-            continue; // Unimportant.
-
-          for (auto i (p.first); i != p.second; ++i)
-          {
-            if (i->second.empty ())
-              continue; // Unimportant.
-
-            add (*i);
-          }
-        }
-
         for (const pair<const string, string>& p: langrt)
           base += '-' + p.second;
 
@@ -652,105 +668,65 @@ namespace bpkg
           base.append (md, 1, md.size () - 1);
         }
       }
-    }
 
-    dir_path dst (out / dir_path (base));
-    mk_p (dst);
+      dir_path dst (out / dir_path (base));
+      mk_p (dst);
 
-    // Update and install.
-    //
-    // In a sense, this is a special version of pkg-install.
-    //
-    {
-      strings dirs;
-      for (const package& p: pkgs)
-        dirs.push_back (p.out_root.representation ());
-
-      run_b (*ops,
-             verb_b::normal,
-             (ops->jobs_specified ()
-              ? strings ({"--jobs", to_string (ops->jobs ())})
-              : strings ()),
-             "config.install.chroot='" + dst.representation () + '\'',
-             (ovr_install ? "config.install.sudo=[null]" : nullptr),
-             config,
-             "!config.install.scope=" + scope,
-             "install:",
-             dirs);
-
-      // @@ TODO: call install.json? Or manifest-install.json. Place in data/
-      //    (would need support in build2 to use install.* values)?
+      // Install.
       //
-#if 0
-      args.push_back ("!config.install.manifest=-");
-#endif
-    }
-
-    // @@ TODO: metadata manifest.
-    //
-    // @@ TODO: add homepage, maintainer to manifest?
-    // @@ TODO: also add dependencies?
-    // @@ TODO: also add timestamp, priority like in Debian?
-    // @@ TODO: also add licenses like in Debian?
-    // @@ TODO: include languages in manifest (both intf and impl)?
-    //
-#if 0
-    string homepage (pm.package_url ? pm.package_url->string () :
-                     pm.url         ? pm.url->string ()         :
-                     string ());
-
-    string maintainer;
-    if ( const email* e = (pm.package_email ? &*pm.package_email :
-                           pm.email         ? &*pm.email         :
-                           nullptr))
-    {
-      // In certain places (e.g., changelog), Debian expect this to be in the
-      // `John Doe <john@example.org>` form while we often specify just the
-      // email address (e.g., to the mailing list). Try to detect such a case
-      // and complete it to the desired format.
+      // In a sense, this is a special version of pkg-install.
       //
-      if (e->find (' ') == string::npos && e->find ('@') != string::npos)
       {
-        // Try to use comment as name, if any.
+        strings dirs;
+        for (const package& p: pkgs)
+          dirs.push_back (p.out_root.representation ());
+
+        string filter;
+        if (!kf.second.empty ())
+          filter = "config.install.filter=" + kf.second;
+
+        run_b (*ops,
+               verb_b::normal,
+               (ops->jobs_specified ()
+                ? strings ({"--jobs", to_string (ops->jobs ())})
+                : strings ()),
+               "config.install.chroot='" + dst.representation () + '\'',
+               (ovr_install ? "config.install.sudo=[null]" : nullptr),
+               (!filter.empty () ? filter.c_str () : nullptr),
+               config,
+               "!config.install.scope=" + scope,
+               "install:",
+               dirs);
+
+        // @@ TODO: call install.json? Or manifest-install.json. Place in
+        //    data/ (would need support in build2 to use install.* values)?
         //
-        if (!e->comment.empty ())
-          maintainer = e->comment;
-        else
-          maintainer = pn.string () + " package maintainer";
-
-        maintainer += " <" + *e + '>';
-      }
-      else
-        maintainer = *e;
-    }
+#if 0
+        args.push_back ("!config.install.manifest=-");
 #endif
+      }
 
-    if (ops->archive_prepare_only ())
-    {
-      if (verb >= 1)
-        text << "prepared " << dst;
+      if (ops->archive_prepare_only ())
+      {
+        if (verb >= 1)
+          text << "prepared " << dst;
 
-      return binary_files {};
-    }
+        continue;
+      }
 
-    // Create the archive.
-    //
-    // Should the default archive type be based on host or target? I guess
-    // that depends on where the result will be unpacked, and it feels like
-    // target is more likely.
-    //
-    // @@ What about the ownerhip of the resulting file in the archive?
-    //    We don't do anything for source archives, not sure why we should
-    //    do something here.
-    //
-    binary_files r;
-    {
-      const strings& ts (
-        ops->archive_type_specified ()
-        ? ops->archive_type ()
-        : strings {target.class_ == "windows" ? "zip" : "tar.xz"});
-
-      for (string t: ts)
+      // Create the archive.
+      //
+      // Should the default archive type be based on host or target? I guess
+      // that depends on where the result will be unpacked, and it feels like
+      // target is more likely.
+      //
+      // @@ What about the ownerhip of the resulting file in the archive?
+      //    We don't do anything for source archives, not sure why we should
+      //    do something here.
+      //
+      for (string t: (ops->archive_type_specified ()
+                      ? ops->archive_type ()
+                      : strings {target.class_ == "windows" ? "zip" : "tar.xz"}))
       {
         // Help the user out if the extension is specified with the leading
         // dot.
@@ -758,18 +734,23 @@ namespace bpkg
         if (t.size () > 1 && t.front () == '.')
           t.erase (0, 1);
 
-        // Using archive type as file type seems appropriate.
-        //
         path f (archive (out, base, t));
-        r.push_back (binary_file {move (t), move (f), "" /* system_name */});
-      }
-    }
 
-    // Cleanup intermediate files unless requested not to.
-    //
-    if (!ops->keep_output ())
-    {
-      rm_r (dst);
+        // Using archive type as file type seems appropriate. Add key before
+        // the archive type, if any.
+        //
+        if (!kf.first.empty ())
+          t = kf.first + '.' + t;
+
+        r.push_back (binary_file {move (t), move (f), sys_name});
+      }
+
+      // Cleanup intermediate files unless requested not to.
+      //
+      if (!ops->keep_output ())
+      {
+        rm_r (dst);
+      }
     }
 
     return r;

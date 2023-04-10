@@ -637,7 +637,8 @@ namespace bpkg
      Another mechanism that can useful when generating archive packages is the
      ability to filter the files being installed. This, for example, can be
      used to create binary packages that don't contain any development-related
-     files. See \l{b#install-filter Installation Filtering} for details.
+     files. See \l{b#install-filter Installation Filtering} for details. See
+     also the \cb{--archive-split} option.
 
      The installation archive package can be generated for a target other than
      the host by specifying the target triplet with the \cb{--architecture}
@@ -749,6 +750,17 @@ namespace bpkg
        is still overridden with the \cb{--archive-install-root} option value
        if specified."
     }
+
+    std::map<string, string> --archive-split
+    {
+      "<key>=<filt>",
+      "Split the installation into multiple binary packages. Specifically,
+       for each <key>=<filt> pair, perform the \cb{install} operation with
+       \c{\b{config.install.filter=}\i{filt}} and package the resulting files
+       as \ci{package-key-version-build_metadata} omitting the \ci{-key} part
+       if <key> is empty. Note that wildcard patterns in <filt> must be
+       quoted. See \l{b#install-filter Installation Filtering} for background."
+    }
   };
 
   "
@@ -850,13 +862,14 @@ namespace bpkg
    \cb{static.rpm}, \cb{doc.rpm}, \cb{common.rpm}, and \cb{debuginfo.rpm}; see
    \l{bpkg#bindist-mapping-fedora-produce Fedora Package Mapping for
    Production} for background. For the \cb{archive} distribution this is the
-   archive type (\cb{--archive-type}), for example, \cb{tar.xz} or \cb{zip}.
+   archive type (\cb{--archive-type}), for example, \cb{tar.xz} or \cb{zip},
+   potentially prefixed with \ci{key} if the \cb{--archive-split}
+   functionality is used, for example, \cb{dev.tar.xz}.
 
-   The \cb{package::system_version} and \cb{file::system_name} members are
-   absent if not applicable to the distribution (for example, \cb{archive}).
-   The \cb{file::system_name} member is also absent if the file is not a
-   binary package (for example, \cb{.changes} and \cb{.buildid} files in the
-   \cb{debian} distribution).
+   The \cb{package::system_version} and/or \cb{file::system_name} members are
+   absent if not applicable to the distribution. The \cb{file::system_name}
+   member is also absent if the file is not a binary package (for example,
+   \cb{.changes} and \cb{.buildid} files in the \cb{debian} distribution).
   "
 
   // NOTE: remember to add the corresponding `--class-doc ...=exclude-base`
