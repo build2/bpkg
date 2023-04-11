@@ -5350,14 +5350,17 @@ namespace bpkg
       return true;
     };
 
-    if (progress)
+    // On the first pass collect all the build_package's to be configured and
+    // calculate their configure_prerequisites_result's.
+    //
+    struct configure_package
     {
-      prog_i = 0;
-      prog_n = static_cast<size_t> (count_if (build_pkgs.begin (),
-                                              build_pkgs.end (),
-                                              configure_pred));
-      prog_percent = 100;
-    }
+      reference_wrapper<build_package> pkg;
+      configure_prerequisites_result   res; // Unused for system package.
+    };
+    vector<configure_package> configure_packages;
+
+    configure_packages.reserve (build_pkgs.size ());
 
     for (build_package& p: reverse_iterate (build_pkgs))
     {
@@ -5369,7 +5372,7 @@ namespace bpkg
       shared_ptr<selected_package>& sp (p.selected);
       const shared_ptr<available_package>& ap (p.available);
 
-      // Configure the package.
+      // Collect the package.
       //
       // At this stage the package is either selected, in which case it's a
       // source code one, or just available, in which case it is a system
@@ -5380,8 +5383,13 @@ namespace bpkg
       //
       assert (sp != nullptr || p.system);
 
-      database& pdb (p.db);
+      if (p.system)
+      {
+        configure_packages.push_back (configure_package {p, {}});
+        continue;
+      }
 
+      database& pdb (p.db);
       transaction t (pdb, !simulate /* start */);
 
       // Show how we got here if things go wrong, for example selecting a
@@ -5401,16 +5409,8 @@ namespace bpkg
         return i != previous_prerequisites.end () ? &i->second : nullptr;
       };
 
-      // Note that pkg_configure() commits the transaction.
-      //
-      if (p.system)
-      {
-        sp = pkg_configure_system (ap->id.name,
-                                   p.available_version (),
-                                   pdb,
-                                   t);
-      }
-      else if (ap != nullptr)
+      configure_prerequisites_result cpr;
+      if (ap != nullptr)
       {
         assert (*p.action == build_package::build);
 
@@ -5437,17 +5437,15 @@ namespace bpkg
         {
           assert (p.skeleton);
 
-          pkg_configure (o,
-                         pdb,
-                         t,
-                         sp,
-                         *p.dependencies,
-                         &*p.alternatives,
-                         move (*p.skeleton),
-                         nullptr /* previous_prerequisites */,
-                         p.disfigure,
-                         simulate,
-                         fdb);
+          cpr = pkg_configure_prerequisites (o,
+                                             pdb,
+                                             t,
+                                             *p.dependencies,
+                                             &*p.alternatives,
+                                             move (*p.skeleton),
+                                             nullptr /* prev_prerequisites */,
+                                             simulate,
+                                             fdb);
         }
         else
         {
@@ -5460,17 +5458,15 @@ namespace bpkg
           if (!p.skeleton)
             p.init_skeleton (o);
 
-          pkg_configure (o,
-                         pdb,
-                         t,
-                         sp,
-                         ap->dependencies,
-                         nullptr /* alternatives */,
-                         move (*p.skeleton),
-                         prereqs (),
-                         p.disfigure,
-                         simulate,
-                         fdb);
+          cpr = pkg_configure_prerequisites (o,
+                                             pdb,
+                                             t,
+                                             ap->dependencies,
+                                             nullptr /* alternatives */,
+                                             move (*p.skeleton),
+                                             prereqs (),
+                                             simulate,
+                                             fdb);
         }
       }
       else // Dependent.
@@ -5479,9 +5475,7 @@ namespace bpkg
         // (otherwise it wouldn't be a dependent) and cannot become system
         // (otherwise it would be a build).
         //
-        assert (*p.action == build_package::adjust &&
-                !p.system &&
-                !sp->system ());
+        assert (*p.action == build_package::adjust && !sp->system ());
 
         // Must be in the unpacked state since it was disfigured on the first
         // pass (see above).
@@ -5512,20 +5506,84 @@ namespace bpkg
         //    build, which can be quite surprising. Should we store this
         //    information in the database?
         //
-        //    I believe this now works for external packages via package
-        //    skeleton (which extracts user configuration).
+        //    Note: this now works for external packages via package skeleton
+        //    (which extracts user configuration).
         //
+        cpr = pkg_configure_prerequisites (o,
+                                           pdb,
+                                           t,
+                                           deps,
+                                           nullptr /* alternatives */,
+                                           move (*p.skeleton),
+                                           prereqs (),
+                                           simulate,
+                                           fdb);
+      }
+
+      configure_packages.push_back (configure_package {p, move (cpr)});
+
+      t.commit ();
+    }
+
+    if (progress)
+    {
+      prog_i = 0;
+      prog_n = configure_packages.size ();
+      prog_percent = 100;
+    }
+
+    for (configure_package& cp: configure_packages)
+    {
+      build_package& p (cp.pkg);
+
+      shared_ptr<selected_package>& sp (p.selected);
+      const shared_ptr<available_package>& ap (p.available);
+
+      // Configure the package.
+      //
+      // NOTE: remember to update the preparation of the plan to be presented
+      // to the user if changing anything here.
+      //
+      database& pdb (p.db);
+      transaction t (pdb, !simulate /* start */);
+
+      // Show how we got here if things go wrong.
+      //
+      auto g (
+        make_exception_guard (
+          [&p] ()
+          {
+            info << "while configuring " << p.name () << p.db;
+          }));
+
+      // Note that pkg_configure*() commits the transaction.
+      //
+      if (p.system)
+      {
+        sp = pkg_configure_system (ap->id.name,
+                                   p.available_version (),
+                                   pdb,
+                                   t);
+      }
+      else if (ap != nullptr)
+      {
         pkg_configure (o,
                        pdb,
                        t,
                        sp,
-                       deps,
-                       nullptr /* alternatives */,
-                       move (*p.skeleton),
-                       prereqs (),
+                       move (cp.res),
+                       p.disfigure,
+                       simulate);
+      }
+      else // Dependent.
+      {
+        pkg_configure (o,
+                       pdb,
+                       t,
+                       sp,
+                       move (cp.res),
                        false /* disfigured */,
-                       simulate,
-                       fdb);
+                       simulate);
       }
 
       r = true;

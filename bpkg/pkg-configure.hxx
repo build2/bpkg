@@ -21,6 +21,14 @@ namespace bpkg
   int
   pkg_configure (const pkg_configure_options&, cli::scanner& args);
 
+  // Configure a system package and commit the transaction.
+  //
+  shared_ptr<selected_package>
+  pkg_configure_system (const package_name&,
+                        const version&,
+                        database&,
+                        transaction&);
+
   // The custom search function. If specified, it is called by pkg_configure()
   // to obtain the database to search for the prerequisite in, instead of
   // searching for it in the linked databases, recursively. If the function
@@ -58,18 +66,56 @@ namespace bpkg
                  const dependencies&,
                  const vector<size_t>* alternatives,
                  package_skeleton&&,
-                 const vector<package_name>* prerequisites,
+                 const vector<package_name>* prev_prerequisites,
                  bool disfigured,
                  bool simulate,
                  const function<find_database_function>& = {});
 
-  // Configure a system package and commit the transaction.
+
+  // Given dependencies of a package, return its prerequisite packages,
+  // configuration variables that resulted from selection of these
+  // prerequisites (import, reflection, etc), and sources of the configuration
+  // variables resulted from evaluating the reflect clauses. See
+  // pkg_configure() for the semantics of the dependency list. Fail if for
+  // some of the dependency alternative lists there is no satisfactory
+  // alternative (all its dependencies are configured, satisfy the respective
+  // constraints, etc).
   //
-  shared_ptr<selected_package>
-  pkg_configure_system (const package_name&,
-                        const version&,
-                        database&,
-                        transaction&);
+  struct configure_prerequisites_result
+  {
+    package_prerequisites   prerequisites;
+    strings                 config_variables; // Note: name and value.
+
+    // Only contains sources of configuration variables collected using the
+    // package skeleton, excluding those user-specified variables which are
+    // not the project variables for the specified package (module
+    // configuration variables, etc). Thus, it is not parallel to the
+    // config_variables member.
+    //
+    vector<config_variable> config_sources; // Note: name and source.
+  };
+
+  // Note: loads selected packages.
+  //
+  configure_prerequisites_result
+  pkg_configure_prerequisites (const common_options&,
+                               database&,
+                               transaction&,
+                               const dependencies&,
+                               const vector<size_t>* alternatives,
+                               package_skeleton&&,
+                               const vector<package_name>* prev_prerequisites,
+                               bool simulate,
+                               const function<find_database_function>&);
+
+  void
+  pkg_configure (const common_options&,
+                 database&,
+                 transaction&,
+                 const shared_ptr<selected_package>&,
+                 configure_prerequisites_result&&,
+                 bool disfigured,
+                 bool simulate);
 }
 
 #endif // BPKG_PKG_CONFIGURE_HXX
