@@ -5362,6 +5362,26 @@ namespace bpkg
 
     configure_packages.reserve (build_pkgs.size ());
 
+    // Return the "would be" state of packages that would be configured
+    // by this stage.
+    //
+    function<find_package_state_function> configured_state (
+      [&configure_packages] (const shared_ptr<selected_package>& sp)
+      -> optional<pair<package_state, package_substate>>
+      {
+        for (const configure_package& cp: configure_packages)
+        {
+          const build_package& p (cp.pkg);
+
+          if (p.selected == sp)
+            return make_pair (
+              package_state::configured,
+              p.system ? package_substate::system : package_substate::none);
+        }
+
+        return nullopt;
+      });
+
     for (build_package& p: reverse_iterate (build_pkgs))
     {
       assert (p.action);
@@ -5382,12 +5402,6 @@ namespace bpkg
       // to the user if changing anything here.
       //
       assert (sp != nullptr || p.system);
-
-      if (p.system)
-      {
-        configure_packages.push_back (configure_package {p, {}});
-        continue;
-      }
 
       database& pdb (p.db);
       transaction t (pdb, !simulate /* start */);
@@ -5410,119 +5424,142 @@ namespace bpkg
       };
 
       configure_prerequisites_result cpr;
-      if (ap != nullptr)
+      if (p.system)
       {
-        assert (*p.action == build_package::build);
-
-        // If the package prerequisites builds are collected, then use the
-        // resulting package skeleton and the pre-selected dependency
-        // alternatives.
+        // We have no choice but to configure system packages on the first
+        // pass since otherwise there will be no selected package for
+        // pkg_configure_prerequisites() to find. Luckily they have no
+        // dependencies and so can be configured in any order. We will print
+        // their progress/result on the second pass in the proper order.
         //
-        // Note that we may not collect the package prerequisites builds if
-        // the package is already configured but we still need to reconfigure
-        // it due, for example, to an upgrade of its dependency. In this case
-        // we pass to pkg_configure() the newly created package skeleton which
-        // contains the package configuration variables specified on the
-        // command line but (naturally) no reflection configuration variables.
-        // Note, however, that in this case pkg_configure() call will evaluate
-        // the reflect clauses itself and so the proper reflection variables
-        // will still end up in the package configuration.
+        // Note: commits the transaction.
         //
-        // @@ Note that if we ever allow the user to override the alternative
-        //    selection, this will break (and also if the user re-configures
-        //    the package manually). Maybe that a good reason not to allow
-        //    this? Or we could store this information in the database.
-        //
-        if (p.dependencies)
+        sp = pkg_configure_system (ap->id.name,
+                                   p.available_version (),
+                                   pdb,
+                                   t);
+      }
+      else
+      {
+        if (ap != nullptr)
         {
-          assert (p.skeleton);
+          assert (*p.action == build_package::build);
 
-          cpr = pkg_configure_prerequisites (o,
-                                             pdb,
-                                             t,
-                                             *p.dependencies,
-                                             &*p.alternatives,
-                                             move (*p.skeleton),
-                                             nullptr /* prev_prerequisites */,
-                                             simulate,
-                                             fdb);
-        }
-        else
-        {
-          assert (sp != nullptr); // See above.
-
-          // Note that the skeleton can be present if, for example, this is a
-          // dependency which configuration has been negotiated but it is not
-          // collected recursively since it has no buildfile clauses.
+          // If the package prerequisites builds are collected, then use the
+          // resulting package skeleton and the pre-selected dependency
+          // alternatives.
           //
-          if (!p.skeleton)
-            p.init_skeleton (o);
+          // Note that we may not collect the package prerequisites builds if
+          // the package is already configured but we still need to
+          // reconfigure it due, for example, to an upgrade of its dependency.
+          // In this case we pass to pkg_configure() the newly created package
+          // skeleton which contains the package configuration variables
+          // specified on the command line but (naturally) no reflection
+          // configuration variables. Note, however, that in this case
+          // pkg_configure() call will evaluate the reflect clauses itself and
+          // so the proper reflection variables will still end up in the
+          // package configuration.
+          //
+          // @@ Note that if we ever allow the user to override the
+          //    alternative selection, this will break (and also if the user
+          //    re-configures the package manually). Maybe that a good reason
+          //    not to allow this? Or we could store this information in the
+          //    database.
+          //
+          if (p.dependencies)
+          {
+            assert (p.skeleton);
 
+            cpr = pkg_configure_prerequisites (o,
+                                               pdb,
+                                               t,
+                                               *p.dependencies,
+                                               &*p.alternatives,
+                                               move (*p.skeleton),
+                                               nullptr /* prev_prerequisites */,
+                                               simulate,
+                                               fdb,
+                                               configured_state);
+          }
+          else
+          {
+            assert (sp != nullptr); // See above.
+
+            // Note that the skeleton can be present if, for example, this is
+            // a dependency which configuration has been negotiated but it is
+            // not collected recursively since it has no buildfile clauses.
+            //
+            if (!p.skeleton)
+              p.init_skeleton (o);
+
+            cpr = pkg_configure_prerequisites (o,
+                                               pdb,
+                                               t,
+                                               ap->dependencies,
+                                               nullptr /* alternatives */,
+                                               move (*p.skeleton),
+                                               prereqs (),
+                                               simulate,
+                                               fdb,
+                                               configured_state);
+          }
+        }
+        else // Dependent.
+        {
+          // This is an adjustment of a dependent which cannot be system
+          // (otherwise it wouldn't be a dependent) and cannot become system
+          // (otherwise it would be a build).
+          //
+          assert (*p.action == build_package::adjust && !sp->system ());
+
+          // Must be in the unpacked state since it was disfigured on the
+          // first pass (see above).
+          //
+          assert (sp->state == package_state::unpacked);
+
+          // Initialize the skeleton if it is not initialized yet.
+          //
+          // Note that the skeleton can only be present here if it was
+          // initialized during the preparation of the plan and so this plan
+          // execution is not simulated (see above for details).
+          //
+          // Also note that there is no available package specified for the
+          // build package object here and so we need to find it (or create a
+          // transient one).
+          //
+          assert (p.available == nullptr && (!p.skeleton || !simulate));
+
+          if (!p.skeleton)
+            p.init_skeleton (o, find_available (o, pdb, sp));
+
+          assert (p.skeleton->available != nullptr); // Can't be system.
+
+          const dependencies& deps (p.skeleton->available->dependencies);
+
+          // @@ Note that on reconfiguration the dependent looses the
+          //    potential configuration variables specified by the user on
+          //    some previous build, which can be quite surprising. Should we
+          //    store this information in the database?
+          //
+          //    Note: this now works for external packages via package
+          //    skeleton (which extracts user configuration).
+          //
           cpr = pkg_configure_prerequisites (o,
                                              pdb,
                                              t,
-                                             ap->dependencies,
+                                             deps,
                                              nullptr /* alternatives */,
                                              move (*p.skeleton),
                                              prereqs (),
                                              simulate,
-                                             fdb);
+                                             fdb,
+                                             configured_state);
         }
-      }
-      else // Dependent.
-      {
-        // This is an adjustment of a dependent which cannot be system
-        // (otherwise it wouldn't be a dependent) and cannot become system
-        // (otherwise it would be a build).
-        //
-        assert (*p.action == build_package::adjust && !sp->system ());
 
-        // Must be in the unpacked state since it was disfigured on the first
-        // pass (see above).
-        //
-        assert (sp->state == package_state::unpacked);
-
-        // Initialize the skeleton if it is not initialized yet.
-        //
-        // Note that the skeleton can only be present here if it was
-        // initialized during the preparation of the plan and so this plan
-        // execution is not simulated (see above for details).
-        //
-        // Also note that there is no available package specified for the
-        // build package object here and so we need to find it (or create a
-        // transient one).
-        //
-        assert (p.available == nullptr && (!p.skeleton || !simulate));
-
-        if (!p.skeleton)
-          p.init_skeleton (o, find_available (o, pdb, sp));
-
-        assert (p.skeleton->available != nullptr); // Can't be system.
-
-        const dependencies& deps (p.skeleton->available->dependencies);
-
-        // @@ Note that on reconfiguration the dependent looses the potential
-        //    configuration variables specified by the user on some previous
-        //    build, which can be quite surprising. Should we store this
-        //    information in the database?
-        //
-        //    Note: this now works for external packages via package skeleton
-        //    (which extracts user configuration).
-        //
-        cpr = pkg_configure_prerequisites (o,
-                                           pdb,
-                                           t,
-                                           deps,
-                                           nullptr /* alternatives */,
-                                           move (*p.skeleton),
-                                           prereqs (),
-                                           simulate,
-                                           fdb);
+        t.commit ();
       }
 
       configure_packages.push_back (configure_package {p, move (cpr)});
-
-      t.commit ();
     }
 
     if (progress)
@@ -5536,54 +5573,52 @@ namespace bpkg
     {
       build_package& p (cp.pkg);
 
-      shared_ptr<selected_package>& sp (p.selected);
-      const shared_ptr<available_package>& ap (p.available);
+      const shared_ptr<selected_package>& sp (p.selected);
 
-      // Configure the package.
+      // Configure the package (system already configured).
       //
       // NOTE: remember to update the preparation of the plan to be presented
       // to the user if changing anything here.
       //
       database& pdb (p.db);
-      transaction t (pdb, !simulate /* start */);
 
-      // Show how we got here if things go wrong.
-      //
-      auto g (
-        make_exception_guard (
-          [&p] ()
-          {
-            info << "while configuring " << p.name () << p.db;
-          }));
+      if (!p.system)
+      {
+        const shared_ptr<available_package>& ap (p.available);
 
-      // Note that pkg_configure*() commits the transaction.
-      //
-      if (p.system)
-      {
-        sp = pkg_configure_system (ap->id.name,
-                                   p.available_version (),
-                                   pdb,
-                                   t);
-      }
-      else if (ap != nullptr)
-      {
-        pkg_configure (o,
-                       pdb,
-                       t,
-                       sp,
-                       move (cp.res),
-                       p.disfigure,
-                       simulate);
-      }
-      else // Dependent.
-      {
-        pkg_configure (o,
-                       pdb,
-                       t,
-                       sp,
-                       move (cp.res),
-                       false /* disfigured */,
-                       simulate);
+        transaction t (pdb, !simulate /* start */);
+
+        // Show how we got here if things go wrong.
+        //
+        auto g (
+          make_exception_guard (
+            [&p] ()
+            {
+              info << "while configuring " << p.name () << p.db;
+            }));
+
+        // Note that pkg_configure() commits the transaction.
+        //
+        if (ap != nullptr)
+        {
+          pkg_configure (o,
+                         pdb,
+                         t,
+                         sp,
+                         move (cp.res),
+                         p.disfigure,
+                         simulate);
+        }
+        else // Dependent.
+        {
+          pkg_configure (o,
+                         pdb,
+                         t,
+                         sp,
+                         move (cp.res),
+                         false /* disfigured */,
+                         simulate);
+        }
       }
 
       r = true;

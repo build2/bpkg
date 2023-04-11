@@ -28,7 +28,8 @@ namespace bpkg
                                package_skeleton&& ps,
                                const vector<package_name>* prev_prereqs,
                                bool simulate,
-                               const function<find_database_function>& fdb)
+                               const function<find_database_function>& fdb,
+                               const function<find_package_state_function>& fps)
   {
     tracer trace ("pkg_configure_prerequisites");
 
@@ -146,9 +147,15 @@ namespace bpkg
 
             const shared_ptr<selected_package>& dp (spd.first);
 
-            if (dp == nullptr                          ||
-                dp->state != package_state::configured ||
-                !satisfies (dp->version, d.constraint) ||
+            if (dp == nullptr)
+              break;
+
+            optional<pair<package_state, package_substate>> dps;
+            if (fps != nullptr)
+              dps = fps (dp);
+
+            if ((dps ? dps->first : dp->state) != package_state::configured ||
+                !satisfies (dp->version, d.constraint)                      ||
                 (pps != nullptr &&
                  find (pps->begin (), pps->end (), dp->name) == pps->end ()))
               break;
@@ -223,7 +230,13 @@ namespace bpkg
               {
                 shared_ptr<selected_package> sp (pr.first.load ());
 
-                if (!sp->system ())
+                optional<pair<package_state, package_substate>> ps;
+                if (fps != nullptr)
+                  ps = fps (sp);
+
+                if (ps
+                    ? ps->second != package_substate::system
+                    : !sp->system ())
                 {
                   // @@ Note that this doesn't work for build2 modules that
                   //    require bootstrap. For their dependents we need to
@@ -246,7 +259,22 @@ namespace bpkg
                   //    in the shared build2 context (but could probably do,
                   //    if necessary).
                   //
-                  dir_path od (sp->effective_out_root (pdb.config));
+
+                  dir_path od;
+                  if (ps)
+                  {
+                    // There is no out_root for a would-be configured package.
+                    // So we calculate it like in pkg_configure() below (yeah,
+                    // it's an ugly hack).
+                    //
+                    od = sp->external ()
+                      ? pdb.config / dir_path (sp->name.string ())
+                      : pdb.config / dir_path (sp->name.string () + '-' +
+                                               sp->version.string ());
+                  }
+                  else
+                    od = sp->effective_out_root (pdb.config);
+
                   vars.push_back ("config.import." + sp->name.variable () +
                                   "='" + od.representation () + '\'');
                 }
@@ -337,6 +365,8 @@ namespace bpkg
     dir_path src_root (p->effective_src_root (c));
 
     // Calculate package's out_root.
+    //
+    // Note: see a version of this in pkg_configure_prerequisites().
     //
     dir_path out_root (
       p->external ()
@@ -440,7 +470,8 @@ namespace bpkg
                                    move (ps),
                                    pps,
                                    simulate,
-                                   fdb));
+                                   fdb,
+                                   nullptr));
 
     pkg_configure (o, db, t, p, move (cpr), disfigured, simulate);
   }

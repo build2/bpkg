@@ -95,6 +95,13 @@ namespace bpkg
     vector<config_variable> config_sources; // Note: name and source.
   };
 
+  // Return the "would be" state for packages that would be configured
+  // by this stage.
+  //
+  using find_package_state_function =
+    optional<pair<package_state, package_substate>> (
+      const shared_ptr<selected_package>&);
+
   // Note: loads selected packages.
   //
   configure_prerequisites_result
@@ -106,7 +113,8 @@ namespace bpkg
                                package_skeleton&&,
                                const vector<package_name>* prev_prerequisites,
                                bool simulate,
-                               const function<find_database_function>&);
+                               const function<find_database_function>&,
+                               const function<find_package_state_function>&);
 
   void
   pkg_configure (const common_options&,
