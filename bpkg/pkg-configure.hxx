@@ -39,7 +39,14 @@ namespace bpkg
                                             const package_name&,
                                             bool buildtime);
 
-  // Configure the package, update its state, and commit the transaction.
+  // Given dependencies of a package, return its prerequisite packages,
+  // configuration variables that resulted from selection of these
+  // prerequisites (import, reflection, etc), and sources of the configuration
+  // variables resulted from evaluating the reflect clauses. See
+  // pkg_configure() for the semantics of the dependency list. Fail if for
+  // some of the dependency alternative lists there is no satisfactory
+  // alternative (all its dependencies are configured, satisfy the respective
+  // constraints, etc).
   //
   // The package dependency constraints are expected to be complete.
   //
@@ -57,29 +64,6 @@ namespace bpkg
   // alternative where dependencies all belong to this list (the "recreate
   // dependency decisions" mode). Failed that, select an alternative as if no
   // prerequisites are specified (the "make dependency decisions" mode).
-  //
-  void
-  pkg_configure (const common_options&,
-                 database&,
-                 transaction&,
-                 const shared_ptr<selected_package>&,
-                 const dependencies&,
-                 const vector<size_t>* alternatives,
-                 package_skeleton&&,
-                 const vector<package_name>* prev_prerequisites,
-                 bool disfigured,
-                 bool simulate,
-                 const function<find_database_function>& = {});
-
-
-  // Given dependencies of a package, return its prerequisite packages,
-  // configuration variables that resulted from selection of these
-  // prerequisites (import, reflection, etc), and sources of the configuration
-  // variables resulted from evaluating the reflect clauses. See
-  // pkg_configure() for the semantics of the dependency list. Fail if for
-  // some of the dependency alternative lists there is no satisfactory
-  // alternative (all its dependencies are configured, satisfy the respective
-  // constraints, etc).
   //
   struct configure_prerequisites_result
   {
@@ -116,6 +100,8 @@ namespace bpkg
                                const function<find_database_function>&,
                                const function<find_package_state_function>&);
 
+  // Configure the package, update its state, and commit the transaction.
+  //
   void
   pkg_configure (const common_options&,
                  database&,
@@ -124,6 +110,21 @@ namespace bpkg
                  configure_prerequisites_result&&,
                  bool disfigured,
                  bool simulate);
+
+  // Note: loads selected packages.
+  //
+  void
+  pkg_configure (const common_options&,
+                 database&,
+                 transaction&,
+                 const shared_ptr<selected_package>&,
+                 const dependencies&,
+                 const vector<size_t>* alternatives,
+                 package_skeleton&&,
+                 const vector<package_name>* prev_prerequisites,
+                 bool disfigured,
+                 bool simulate,
+                 const function<find_database_function>& = {});
 }
 
 #endif // BPKG_PKG_CONFIGURE_HXX
