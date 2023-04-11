@@ -19,32 +19,7 @@ using namespace butl;
 
 namespace bpkg
 {
-  // Given dependencies of a package, return its prerequisite packages,
-  // configuration variables that resulted from selection of these
-  // prerequisites (import, reflection, etc), and sources of the configuration
-  // variables resulted from evaluating the reflect clauses. See
-  // pkg_configure() for the semantics of the dependency list. Fail if for
-  // some of the dependency alternative lists there is no satisfactory
-  // alternative (all its dependencies are configured, satisfy the respective
-  // constraints, etc).
-  //
-  struct configure_prerequisites_result
-  {
-    package_prerequisites   prerequisites;
-    strings                 config_variables; // Note: name and value.
-
-    // Only contains sources of configuration variables collected using the
-    // package skeleton, excluding those user-specified variables which are
-    // not the project variables for the specified package (module
-    // configuration variables, etc). Thus, it is not parallel to the
-    // config_variables member.
-    //
-    vector<config_variable> config_sources; // Note: name and source.
-  };
-
-  // Note: loads selected packages.
-  //
-  static configure_prerequisites_result
+  configure_prerequisites_result
   pkg_configure_prerequisites (const common_options& o,
                                database& db,
                                transaction&,
@@ -53,8 +28,13 @@ namespace bpkg
                                package_skeleton&& ps,
                                const vector<package_name>* prev_prereqs,
                                bool simulate,
-                               const function<find_database_function>& fdb)
+                               const function<find_database_function>& fdb,
+                               const function<find_package_state_function>& fps)
   {
+    tracer trace ("pkg_configure_prerequisites");
+
+    tracer_guard tg (db, trace);
+
     package_prerequisites prereqs;
     strings               vars;
 
@@ -167,9 +147,15 @@ namespace bpkg
 
             const shared_ptr<selected_package>& dp (spd.first);
 
-            if (dp == nullptr                          ||
-                dp->state != package_state::configured ||
-                !satisfies (dp->version, d.constraint) ||
+            if (dp == nullptr)
+              break;
+
+            optional<pair<package_state, package_substate>> dps;
+            if (fps != nullptr)
+              dps = fps (dp);
+
+            if ((dps ? dps->first : dp->state) != package_state::configured ||
+                !satisfies (dp->version, d.constraint)                      ||
                 (pps != nullptr &&
                  find (pps->begin (), pps->end (), dp->name) == pps->end ()))
               break;
@@ -244,7 +230,13 @@ namespace bpkg
               {
                 shared_ptr<selected_package> sp (pr.first.load ());
 
-                if (!sp->system ())
+                optional<pair<package_state, package_substate>> ps;
+                if (fps != nullptr)
+                  ps = fps (sp);
+
+                if (ps
+                    ? ps->second != package_substate::system
+                    : !sp->system ())
                 {
                   // @@ Note that this doesn't work for build2 modules that
                   //    require bootstrap. For their dependents we need to
@@ -263,7 +255,26 @@ namespace bpkg
                   //    Also note that such modules are marked with `requires:
                   //    bootstrap` in their manifest.
                   //
-                  dir_path od (sp->effective_out_root (pdb.config));
+                  //    Note that we currently don't support global overrides
+                  //    in the shared build2 context (but could probably do,
+                  //    if necessary).
+                  //
+
+                  dir_path od;
+                  if (ps)
+                  {
+                    // There is no out_root for a would-be configured package.
+                    // So we calculate it like in pkg_configure() below (yeah,
+                    // it's an ugly hack).
+                    //
+                    od = sp->external ()
+                      ? pdb.config / dir_path (sp->name.string ())
+                      : pdb.config / dir_path (sp->name.string () + '-' +
+                                               sp->version.string ());
+                  }
+                  else
+                    od = sp->effective_out_root (pdb.config);
+
                   vars.push_back ("config.import." + sp->name.variable () +
                                   "='" + od.representation () + '\'');
                 }
@@ -339,13 +350,9 @@ namespace bpkg
                  database& db,
                  transaction& t,
                  const shared_ptr<selected_package>& p,
-                 const dependencies& deps,
-                 const vector<size_t>* alts,
-                 package_skeleton&& ps,
-                 const vector<package_name>* pps,
+                 configure_prerequisites_result&& cpr,
                  bool disfigured,
-                 bool simulate,
-                 const function<find_database_function>& fdb)
+                 bool simulate)
   {
     tracer trace ("pkg_configure");
 
@@ -359,6 +366,8 @@ namespace bpkg
 
     // Calculate package's out_root.
     //
+    // Note: see a version of this in pkg_configure_prerequisites().
+    //
     dir_path out_root (
       p->external ()
       ? c / dir_path (p->name.string ())
@@ -367,41 +376,13 @@ namespace bpkg
     l4 ([&]{trace << "src_root: " << src_root << ", "
                   << "out_root: " << out_root;});
 
-    // Verify all our prerequisites are configured and populate the
-    // prerequisites list.
-    //
     assert (p->prerequisites.empty ());
-
-    configure_prerequisites_result cpr (
-      pkg_configure_prerequisites (o,
-                                   db,
-                                   t,
-                                   deps,
-                                   alts,
-                                   move (ps),
-                                   pps,
-                                   simulate,
-                                   fdb));
-
     p->prerequisites = move (cpr.prerequisites);
 
+    // Configure.
+    //
     if (!simulate)
     {
-      // Form the buildspec.
-      //
-      string bspec;
-
-      // Use path representation to get canonical trailing slash.
-      //
-      if (src_root == out_root)
-        bspec = "configure('" + out_root.representation () + "')";
-      else
-        bspec = "configure('" +
-          src_root.representation () + "'@'" +
-          out_root.representation () + "')";
-
-      l4 ([&]{trace << "buildspec: " << bspec;});
-
       // Unless this package has been completely disfigured, disfigure all the
       // package configuration variables to reset all the old values to
       // defaults (all the new user/dependent/reflec values, including old
@@ -424,8 +405,21 @@ namespace bpkg
         dvar += "**'";
       }
 
-      // Configure.
+      // Form the buildspec.
       //
+      string bspec;
+
+      // Use path representation to get canonical trailing slash.
+      //
+      if (src_root == out_root)
+        bspec = "configure('" + out_root.representation () + "')";
+      else
+        bspec = "configure('" +
+          src_root.representation () + "'@'" +
+          out_root.representation () + "')";
+
+      l4 ([&]{trace << "buildspec: " << bspec;});
+
       try
       {
         run_b (o,
@@ -436,25 +430,11 @@ namespace bpkg
       }
       catch (const failed&)
       {
-        // If we failed to configure the package, make sure we revert
-        // it back to the unpacked state by running disfigure (it is
-        // valid to run disfigure on an un-configured build). And if
-        // disfigure fails as well, then the package will be set into
-        // the broken state.
-        //
-
-        // Indicate to pkg_disfigure() we are partially configured.
+        // See below for comments.
         //
         p->out_root = out_root.leaf ();
         p->state = package_state::broken;
-
-        // Commits the transaction.
-        //
-        pkg_disfigure (o, db, t,
-                       p,
-                       true /* clean */,
-                       true /* disfigure */,
-                       false /* simulate */);
+        pkg_disfigure (o, db, t, p, true, true, false);
         throw;
       }
 
@@ -466,6 +446,34 @@ namespace bpkg
 
     db.update (p);
     t.commit ();
+  }
+
+  void
+  pkg_configure (const common_options& o,
+                 database& db,
+                 transaction& t,
+                 const shared_ptr<selected_package>& p,
+                 const dependencies& deps,
+                 const vector<size_t>* alts,
+                 package_skeleton&& ps,
+                 const vector<package_name>* pps,
+                 bool disfigured,
+                 bool simulate,
+                 const function<find_database_function>& fdb)
+  {
+    configure_prerequisites_result cpr (
+      pkg_configure_prerequisites (o,
+                                   db,
+                                   t,
+                                   deps,
+                                   alts,
+                                   move (ps),
+                                   pps,
+                                   simulate,
+                                   fdb,
+                                   nullptr));
+
+    pkg_configure (o, db, t, p, move (cpr), disfigured, simulate);
   }
 
   shared_ptr<selected_package>
