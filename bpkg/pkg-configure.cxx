@@ -3,6 +3,17 @@
 
 #include <bpkg/pkg-configure.hxx>
 
+#include <libbuild2/types.hxx>
+#include <libbuild2/utility.hxx>
+#include <libbuild2/diagnostics.hxx>
+
+#include <libbuild2/file.hxx>
+#include <libbuild2/scope.hxx>
+#include <libbuild2/operation.hxx>
+#include <libbuild2/config/operation.hxx>
+
+#include <bpkg/bpkg.hxx> // build2_init(), etc
+
 #include <bpkg/package.hxx>
 #include <bpkg/package-odb.hxx>
 #include <bpkg/database.hxx>
@@ -405,6 +416,9 @@ namespace bpkg
         dvar += "**'";
       }
 
+      // Original implementation that runs the standard build system driver.
+      //
+#if 1
       // Form the buildspec.
       //
       string bspec;
@@ -437,6 +451,211 @@ namespace bpkg
         pkg_disfigure (o, db, t, p, true, true, false);
         throw;
       }
+#else
+      // @@ Would be good to print the equivalent command line in -v.
+      //
+      try
+      {
+        using namespace build2;
+        using build2::fail;
+        using build2::info;
+        using build2::endf;
+        using build2::location;
+
+        if (pctx == nullptr)
+        {
+          // Initialize the build system.
+          //
+          // Note that this takes into account --build-option and default
+          // options files (which may have global overrides and which end
+          // up in build2_cmd_vars).
+          //
+          // @@ Uses verb_b::normal, we need verb_b::quiet. Temporarily
+          //    adjust build2::verb then restore?
+          //
+          if (!build2_sched.started ())
+            build2_init (o);
+
+          // Re-tune the scheduler for parallel execution (see build2_init()
+          // for details).
+          //
+          if (!build2_sched.serial ())
+            build2_sched.tune (0);
+
+          // Shouldn't we shared the module context with package skeleton
+          // contexts? Maybe we don't have to since we don't build modules in
+          // them concurrently (in a sence, we didn't share it when we were
+          // invoking the build system driver).
+          //
+          pctx.reset (new context (build2_sched,
+                                   build2_mutexes,
+                                   build2_fcache,
+                                   false /* match_only */,
+                                   false /* no_external_modules */,
+                                   false /* dry_run */,
+                                   false /* no_diag_buffer */,
+                                   false /* keep_going */,
+                                   build2_cmd_vars,
+                                   context::reserves {
+                                     30000 /* targets */,
+                                     1100  /* variables */}));
+
+          assert (pctx->var_overrides.empty ()); // Global only.
+
+          context& ctx (*pctx);
+          scope& gs (ctx.global_scope.rw ());
+
+          const string mname ("configure");
+
+          ctx.current_mname = mname;
+          ctx.current_oname = string (); // default
+          gs.assign (ctx.var_build_meta_operation) = mname;
+        }
+
+        context& ctx (*pctx);
+
+        // Bootstrap and load the project.
+        //
+        // Note: in many ways similar to package_skeleton code.
+        //
+        scope& rs (*create_root (ctx, out_root, src_root)->second.front ());
+
+        // If we are configuring in the dependency order (as we should), then
+        // it feels like the only situation where we can end up with an
+        // already bootstrapped project is an unspecified dependency. Note
+        // that this is a hard fail since it would have been loaded without
+        // the proper configuration.
+        //
+        if (bootstrapped (rs))
+        {
+          fail << p->name << db << " loaded ahead of its dependents" <<
+            info << "likely unspecified dependency on package " << p->name;
+        }
+
+        optional<bool> altn;
+        value& v (bootstrap_out (rs, altn));
+
+        if (!v)
+          v = src_root;
+        else
+        {
+          dir_path& p (cast<dir_path> (v));
+
+          if (src_root != p)
+          {
+            // @@ fuzzy if need this or can do as package skeleto (seeing
+            //    that we know we are re-configuring).
+
+            ctx.new_src_root = src_root;
+            ctx.old_src_root = move (p);
+            p = src_root;
+          }
+        }
+
+        setup_root (rs, false /* forwarded */);
+
+        // Note: we already know our amalgamation.
+        //
+        bootstrap_pre (rs, altn);
+        bootstrap_src (rs, altn,
+                       db.config.relative (out_root) /* amalgamation */,
+                       true                          /* subprojects */);
+
+        create_bootstrap_outer (rs, true /* subprojects */);
+        bootstrap_post (rs);
+
+        values mparams;
+        const meta_operation_info& mif (config::mo_configure);
+        const operation_info& oif (op_default);
+
+        // Skip configure_pre() and configure_operation_pre() calls since we
+        // don't pass any parameteres and pass default operation. We also know
+        // that op_default has no pre/post operations, naturally.
+        //
+        ctx.current_meta_operation (mif);
+
+        // Find the root buildfile. Note that the implied buildfile logic does
+        // not apply (our target is the project root directory).
+        //
+        optional<path> bf (find_buildfile (src_root, src_root, altn));
+
+        if (!bf)
+          fail << "no buildfile in " << src_root;
+
+        // @@ TODO: var overrides.
+        //
+        {
+          // @@ We have the careful order of when we do stuff -- this is
+          //    all messed up now, right? Maybe we need to pre-enter them
+          //    ahead of time all at once (also that index shit).
+
+          variable_overrides ovrs;
+
+          ctx.enter_project_overrides (rs, out_root, ovrs);
+        }
+
+        // The goal here is to be more or less semantically equivalent to
+        // configuring several projects at once. Except that here we have
+        // interleaving load/match instead of first all load then all
+        // match. But presumably this shouldn't be a problem (we can already
+        // have match interrupted by load and the "island append" requirement
+        // should hold here as well).
+        //
+        // Note that either way we will be potentially re-matching the same
+        // dependency targets multiple times (see build2::configure_execute()
+        // for details).
+        //
+        const path_name bsn ("<buildspec>");
+        const location loc (bsn, 0, 0);
+
+        // out_root/dir{./}
+        //
+        target_key tk {
+          &dir::static_type,
+          &out_root,
+          &empty_dir_path,
+          &empty_string,
+          nullopt};
+
+        action_targets tgs;
+        mif.load (mparams, rs, *bf, out_root, src_root, loc);
+        mif.search (mparams, rs, rs, *bf, tk, loc, tgs);
+
+        ctx.current_operation (oif, nullptr);
+        action a (ctx.current_action ());
+
+        mif.match   (mparams, a, tgs, 2 /* diag */, true /* progress */);
+        mif.execute (mparams, a, tgs, 2 /* diag */, true /* progress */);
+
+        // Note: no operation_post/meta_operation_post for configure.
+      }
+      catch (const build2::failed&)
+      {
+        // Assume the diagnostics has already been issued.
+
+        // If we failed to configure the package, make sure we revert
+        // it back to the unpacked state by running disfigure (it is
+        // valid to run disfigure on an un-configured build). And if
+        // disfigure fails as well, then the package will be set into
+        // the broken state.
+
+        // Indicate to pkg_disfigure() we are partially configured.
+        //
+        p->out_root = out_root.leaf ();
+        p->state = package_state::broken;
+
+        // Commits the transaction.
+        //
+        pkg_disfigure (o, db, t,
+                       p,
+                       true /* clean */,
+                       true /* disfigure */,
+                       false /* simulate */);
+
+
+        throw failed ();
+      }
+#endif
 
       p->config_variables = move (cpr.config_sources);
     }

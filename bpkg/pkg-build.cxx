@@ -5569,6 +5569,12 @@ namespace bpkg
       prog_percent = 100;
     }
 
+    // Reuse the build state to avoid reloading the dependencies over and over
+    // again. This is a valid optimization since we are configuring in the
+    // dependency-dependent order.
+    //
+    unique_ptr<build2::context> configure_ctx;
+
     for (configure_package& cp: configure_packages)
     {
       build_package& p (cp.pkg);
@@ -5642,6 +5648,8 @@ namespace bpkg
         }
       }
     }
+
+    configure_ctx.reset (); // Free.
 
     // Clear the progress if shown.
     //

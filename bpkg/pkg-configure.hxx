@@ -7,6 +7,8 @@
 #include <libbpkg/manifest.hxx>     // version
 #include <libbpkg/package-name.hxx>
 
+#include <libbuild2/context.hxx>
+
 #include <bpkg/types.hxx>
 #include <bpkg/forward.hxx> // transaction, selected_package
 #include <bpkg/utility.hxx>
@@ -100,7 +102,11 @@ namespace bpkg
                                const function<find_database_function>&,
                                const function<find_package_state_function>&);
 
+
   // Configure the package, update its state, and commit the transaction.
+  //
+  // The build2::context argument allows re-using the build state in
+  // subsequent pkg_configure() calls. @@ TODO
   //
   void
   pkg_configure (const common_options&,
