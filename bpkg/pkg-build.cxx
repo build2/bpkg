@@ -1245,7 +1245,13 @@ namespace bpkg
               if (a.find ('=') == string::npos)
                 fail << "unexpected group argument '" << a << "'";
 
-              cvs.push_back (move (trim (a)));
+              trim (a);
+
+              if (a[0] == '!')
+                fail << "global override in package-specific configuration "
+                     << "variable '" << a << "'";
+
+              cvs.push_back (move (a));
             }
           }
 
@@ -5356,11 +5362,22 @@ namespace bpkg
     struct configure_package
     {
       reference_wrapper<build_package> pkg;
-      configure_prerequisites_result   res; // Unused for system package.
+
+      // These are unused for system packages.
+      //
+      configure_prerequisites_result   res;
+      build2::variable_overrides       ovrs;
     };
     vector<configure_package> configure_packages;
-
     configure_packages.reserve (build_pkgs.size ());
+
+    // While at it also extract global configuration variable overrides from
+    // each configure_prerequisites_result::config_variables and merge them
+    // into configure_global_vars.
+    //
+#ifndef BPKG_OUTPROC_CONFIGURE
+    strings configure_global_vars;
+#endif
 
     // Return the "would be" state of packages that would be configured
     // by this stage.
@@ -5557,16 +5574,57 @@ namespace bpkg
         }
 
         t.commit ();
+
+        /*
+        if (!simulate && !cpr.config_variables.empty ())
+        {
+          diag_record dr (text);
+
+          dr << sp->name << pdb << ':';
+
+          for (const string& cv: cpr.config_variables)
+            dr << "\n  " << cv;
+        }
+        */
+
+        if (!simulate)
+        {
+
+#ifndef BPKG_OUTPROC_CONFIGURE
+          auto& gvs (configure_global_vars);
+
+          for (auto i (cpr.config_variables.begin ());
+               i != cpr.config_variables.end (); )
+          {
+            // Each package should have exactly the same set of global
+            // overrides by construction since we don't allow package-
+            // specific global overrides.
+            //
+            string& v (*i);
+
+            if (v[0] == '!')
+            {
+              if (find (gvs.begin (), gvs.end (), v) == gvs.end ())
+                gvs.push_back (move (v));
+
+              i = cpr.config_variables.erase (i);
+            }
+            else
+              ++i;
+          }
+#endif
+          // Add config.config.disfigure unless already disfigured (see the
+          // high-level pkg_configure() version for background).
+          //
+          if (ap == nullptr || !p.disfigure)
+          {
+            cpr.config_variables.push_back (
+              "config.config.disfigure='config." + sp->name.variable () + "**'");
+          }
+        }
       }
 
-      configure_packages.push_back (configure_package {p, move (cpr)});
-    }
-
-    if (progress)
-    {
-      prog_i = 0;
-      prog_n = configure_packages.size ();
-      prog_percent = 100;
+      configure_packages.push_back (configure_package {p, move (cpr), {}});
     }
 
     // Reuse the build state to avoid reloading the dependencies over and over
@@ -5574,6 +5632,20 @@ namespace bpkg
     // dependency-dependent order.
     //
     unique_ptr<build2::context> configure_ctx;
+
+#ifndef BPKG_OUTPROC_CONFIGURE
+    // @@ TODO: create context. Unless simulating.
+
+    // @@ TODO
+    //assert (ctx->var_overrides.empty ()); // Global only.
+#endif
+
+    if (progress)
+    {
+      prog_i = 0;
+      prog_n = configure_packages.size ();
+      prog_percent = 100;
+    }
 
     for (configure_package& cp: configure_packages)
     {
@@ -5612,7 +5684,8 @@ namespace bpkg
                          t,
                          sp,
                          move (cp.res),
-                         p.disfigure,
+                         configure_ctx,
+                         cp.ovrs,
                          simulate);
         }
         else // Dependent.
@@ -5622,7 +5695,8 @@ namespace bpkg
                          t,
                          sp,
                          move (cp.res),
-                         false /* disfigured */,
+                         configure_ctx,
+                         cp.ovrs,
                          simulate);
         }
       }
@@ -5649,7 +5723,9 @@ namespace bpkg
       }
     }
 
+#ifndef BPKG_OUTPROC_CONFIGURE
     configure_ctx.reset (); // Free.
+#endif
 
     // Clear the progress if shown.
     //

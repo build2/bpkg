@@ -8,6 +8,7 @@
 #include <libbpkg/package-name.hxx>
 
 #include <libbuild2/context.hxx>
+#include <libbuild2/variable.hxx> // variable_overrides
 
 #include <bpkg/types.hxx>
 #include <bpkg/forward.hxx> // transaction, selected_package
@@ -105,8 +106,11 @@ namespace bpkg
 
   // Configure the package, update its state, and commit the transaction.
   //
-  // The build2::context argument allows re-using the build state in
-  // subsequent pkg_configure() calls. @@ TODO
+  // This is a lower-level version meant for sharing the same build context
+  // to configure multiple packages (in the dependency order).
+  //
+  // Note: variable_overrides must include config.config.disfigure, if
+  //       required.
   //
   void
   pkg_configure (const common_options&,
@@ -114,7 +118,8 @@ namespace bpkg
                  transaction&,
                  const shared_ptr<selected_package>&,
                  configure_prerequisites_result&&,
-                 bool disfigured,
+                 const unique_ptr<build2::context>&,
+                 const build2::variable_overrides&,
                  bool simulate);
 
   // Note: loads selected packages.

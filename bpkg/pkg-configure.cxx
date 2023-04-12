@@ -356,13 +356,86 @@ namespace bpkg
                                            move (srcs)};
   }
 
+
+  unique_ptr<build2::context>
+  pkg_configure_context (
+    const common_options& o,
+    strings&& cmd_vars,
+    const function<build2::context::var_override_function>& var_ovr_func)
+  {
+    using namespace build2;
+
+    // Initialize the build system.
+    //
+    // Note that this takes into account --build-option and default options
+    // files (which may have global overrides and which end up in
+    // build2_cmd_vars).
+    //
+    if (!build2_sched.started ())
+      build2_init (o);
+
+    // Re-tune the scheduler for parallel execution (see build2_init()
+    // for details).
+    //
+    if (!build2_sched.serial ())
+      build2_sched.tune (0);
+
+    auto merge_cmd_vars = [&cmd_vars] () -> const strings&
+    {
+      if (cmd_vars.empty ())
+        return build2_cmd_vars;
+
+      if (!build2_cmd_vars.empty ())
+        cmd_vars.insert (cmd_vars.begin (),
+                         build2_cmd_vars.begin (), build2_cmd_vars.end ());
+
+      return cmd_vars;
+    };
+
+    // Shouldn't we shared the module context with package skeleton
+    // contexts? Maybe we don't have to since we don't build modules in
+    // them concurrently (in a sence, we didn't share it when we were
+    // invoking the build system driver).
+    //
+    unique_ptr<context> ctx (
+      new context (build2_sched,
+                   build2_mutexes,
+                   build2_fcache,
+                   false /* match_only */,
+                   false /* no_external_modules */,
+                   false /* dry_run */,
+                   false /* no_diag_buffer */,
+                   false /* keep_going */,
+                   merge_cmd_vars (),
+                   context::reserves {
+                     30000 /* targets */,
+                     1100  /* variables */},
+                   nullptr /* module_context */,
+                   nullptr /* inherited_mudules_lock */,
+                   var_ovr_func));
+
+    scope& gs (ctx->global_scope.rw ());
+
+    ctx->current_mname = "configure";
+    ctx->current_oname = string (); // default
+    gs.assign (ctx->var_build_meta_operation) = "configure";
+
+    return ctx;
+  }
+
   void
   pkg_configure (const common_options& o,
                  database& db,
                  transaction& t,
                  const shared_ptr<selected_package>& p,
                  configure_prerequisites_result&& cpr,
-                 bool disfigured,
+#ifndef BPKG_OUTPROC_CONFIGURE
+                 const unique_ptr<build2::context>& pctx,
+                 const build2::variable_overrides& ovrs,
+#else
+                 const unique_ptr<build2::context>&,
+                 const build2::variable_overrides&, // Still in cpr.config_variables.
+#endif
                  bool simulate)
   {
     tracer trace ("pkg_configure");
@@ -394,31 +467,14 @@ namespace bpkg
     //
     if (!simulate)
     {
-      // Unless this package has been completely disfigured, disfigure all the
-      // package configuration variables to reset all the old values to
-      // defaults (all the new user/dependent/reflec values, including old
-      // user, are returned by collect_config() and specified as overrides).
-      // Note that this semantics must be consistent with how we load things
-      // in the package skeleton during configuration negotiation.
-      //
-      // Note also that this means we don't really use the dependent and
-      // reflect sources that we save in the database. But let's keep them
-      // for the completeness of information (maybe could be useful during
-      // configuration reset or some such).
-      //
-      string dvar;
-      if (!disfigured)
-      {
-        // Note: must be quoted to preserve the pattern.
-        //
-        dvar = "config.config.disfigure='config.";
-        dvar += p->name.variable ();
-        dvar += "**'";
-      }
-
       // Original implementation that runs the standard build system driver.
       //
-#if 1
+      // Note that the semantics doesn't match 100%. In particular, in the
+      // in-process implementation we enter unqualified variable in each
+      // project instead of the amalgamation (which is probably more accurate,
+      // since we don't re-configure the amalgamation or some dependencies).
+      //
+#ifdef BPKG_OUTPROC_CONFIGURE
       // Form the buildspec.
       //
       string bspec;
@@ -436,11 +492,7 @@ namespace bpkg
 
       try
       {
-        run_b (o,
-               verb_b::quiet,
-               cpr.config_variables,
-               (!dvar.empty () ? dvar.c_str () : nullptr),
-               bspec);
+        run_b (o, verb_b::quiet, cpr.config_variables, bspec);
       }
       catch (const failed&)
       {
@@ -462,55 +514,9 @@ namespace bpkg
         using build2::endf;
         using build2::location;
 
-        if (pctx == nullptr)
-        {
-          // Initialize the build system.
-          //
-          // Note that this takes into account --build-option and default
-          // options files (which may have global overrides and which end
-          // up in build2_cmd_vars).
-          //
-          // @@ Uses verb_b::normal, we need verb_b::quiet. Temporarily
-          //    adjust build2::verb then restore?
-          //
-          if (!build2_sched.started ())
-            build2_init (o);
-
-          // Re-tune the scheduler for parallel execution (see build2_init()
-          // for details).
-          //
-          if (!build2_sched.serial ())
-            build2_sched.tune (0);
-
-          // Shouldn't we shared the module context with package skeleton
-          // contexts? Maybe we don't have to since we don't build modules in
-          // them concurrently (in a sence, we didn't share it when we were
-          // invoking the build system driver).
-          //
-          pctx.reset (new context (build2_sched,
-                                   build2_mutexes,
-                                   build2_fcache,
-                                   false /* match_only */,
-                                   false /* no_external_modules */,
-                                   false /* dry_run */,
-                                   false /* no_diag_buffer */,
-                                   false /* keep_going */,
-                                   build2_cmd_vars,
-                                   context::reserves {
-                                     30000 /* targets */,
-                                     1100  /* variables */}));
-
-          assert (pctx->var_overrides.empty ()); // Global only.
-
-          context& ctx (*pctx);
-          scope& gs (ctx.global_scope.rw ());
-
-          const string mname ("configure");
-
-          ctx.current_mname = mname;
-          ctx.current_oname = string (); // default
-          gs.assign (ctx.var_build_meta_operation) = mname;
-        }
+        // @@ Uses verb_b::normal, we need verb_b::quiet. Temporarily
+        //    adjust build2::verb then restore?
+        //
 
         context& ctx (*pctx);
 
@@ -582,17 +588,9 @@ namespace bpkg
         if (!bf)
           fail << "no buildfile in " << src_root;
 
-        // @@ TODO: var overrides.
+        // Enter project-wide overrides.
         //
-        {
-          // @@ We have the careful order of when we do stuff -- this is
-          //    all messed up now, right? Maybe we need to pre-enter them
-          //    ahead of time all at once (also that index shit).
-
-          variable_overrides ovrs;
-
-          ctx.enter_project_overrides (rs, out_root, ovrs);
-        }
+        ctx.enter_project_overrides (rs, out_root, ovrs);
 
         // The goal here is to be more or less semantically equivalent to
         // configuring several projects at once. Except that here we have
@@ -692,7 +690,40 @@ namespace bpkg
                                    fdb,
                                    nullptr));
 
-    pkg_configure (o, db, t, p, move (cpr), disfigured, simulate);
+    if (!simulate)
+    {
+      // Unless this package has been completely disfigured, disfigure all the
+      // package configuration variables to reset all the old values to
+      // defaults (all the new user/dependent/reflec values, including old
+      // user, are returned by collect_config() and specified as overrides).
+      // Note that this semantics must be consistent with how we load things
+      // in the package skeleton during configuration negotiation.
+      //
+      // Note also that this means we don't really use the dependent and
+      // reflect sources that we save in the database. But let's keep them
+      // for the completeness of information (maybe could be useful during
+      // configuration reset or some such).
+      //
+      if (!disfigured)
+      {
+        // Note: must be quoted to preserve the pattern.
+        //
+        cpr.config_variables.push_back (
+          "config.config.disfigure='config." + p->name.variable () + "**'");
+      }
+    }
+
+    unique_ptr<build2::context> ctx;
+    build2::variable_overrides ovrs;
+
+#ifndef BPKG_OUTPROC_CONFIGURE
+
+    // @@ TODO: create context unless simulating, populate ovrs from
+    //    cpr via callback.
+    //
+#endif
+
+    pkg_configure (o, db, t, p, move (cpr), ctx, ovrs, simulate);
   }
 
   shared_ptr<selected_package>
