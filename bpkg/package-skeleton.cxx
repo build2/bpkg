@@ -16,31 +16,20 @@
 #include <libbuild2/context.hxx>
 #include <libbuild2/variable.hxx>
 #include <libbuild2/operation.hxx>
+#include <libbuild2/diagnostics.hxx>
 
 #include <libbuild2/lexer.hxx>
 #include <libbuild2/parser.hxx>
 
 #include <libbuild2/config/utility.hxx>
 
+#include <bpkg/bpkg.hxx>
 #include <bpkg/package.hxx>
 #include <bpkg/database.hxx>
 #include <bpkg/manifest-utility.hxx>
 
 using namespace std;
 using namespace butl;
-
-namespace bpkg
-{
-  // These are defined in bpkg.cxx and initialized by build2_init().
-  //
-  extern strings                build2_cmd_vars;
-  extern build2::scheduler      build2_sched;
-  extern build2::global_mutexes build2_mutexes;
-  extern build2::file_cache     build2_fcache;
-
-  void
-  build2_init (const common_options&);
-}
 
 namespace bpkg
 {

@@ -12,7 +12,7 @@ import libs = build2%lib{build2}
 
 # NOTE: see also module loading in bpkg.cxx if adding anything here.
 #
-for m: bin c cc cxx in version
+for m: bash bin c cc cli cxx in version
   import libs += build2%lib{build2-$m}
 
 import libs += libbpkg%lib{bpkg}
@@ -98,6 +98,9 @@ for t: cxx{**.test...}
 
 # Build options.
 #
+
+#cxx.poptions += -DBPKG_OUTPROC_CONFIGURE
+
 obj{utility}: cxx.poptions += \
 "-DBPKG_EXE_PREFIX=\"$bin.exe.prefix\"" \
 "-DBPKG_EXE_SUFFIX=\"$bin.exe.suffix\"" \

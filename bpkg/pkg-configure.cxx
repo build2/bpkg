@@ -3,6 +3,17 @@
 
 #include <bpkg/pkg-configure.hxx>
 
+#include <libbuild2/types.hxx>
+#include <libbuild2/utility.hxx>
+#include <libbuild2/diagnostics.hxx>
+
+#include <libbuild2/file.hxx>
+#include <libbuild2/scope.hxx>
+#include <libbuild2/operation.hxx>
+#include <libbuild2/config/operation.hxx>
+
+#include <bpkg/bpkg.hxx> // build2_init(), etc
+
 #include <bpkg/package.hxx>
 #include <bpkg/package-odb.hxx>
 #include <bpkg/database.hxx>
@@ -275,6 +286,25 @@ namespace bpkg
                   else
                     od = sp->effective_out_root (pdb.config);
 
+                  // We tried to use global overrides to recreate the original
+                  // behavior of not warning about unused config.import.*
+                  // variables (achived via the config.config.persist value in
+                  // amalgamation). Even though it's probably misguided (we
+                  // don't actually save the unused values anywhere, just
+                  // don't warn about them).
+                  //
+                  // Can we somehow cause a clash, say if the same package
+                  // comes from different configurations? Yeah, we probably
+                  // can. So could add it as undermined (?), detect a clash,
+                  // and "fallforward" to the correct behavior.
+                  //
+                  // But we can clash with an absent value -- that is, we
+                  // force importing from a wrong configuration where without
+                  // any import things would have been found in the same
+                  // amalgamation. Maybe we could detect that (no import
+                  // for the same package -- but it could be for a package
+                  // we are not configuring).
+                  //
                   vars.push_back ("config.import." + sp->name.variable () +
                                   "='" + od.representation () + '\'');
                 }
@@ -345,13 +375,87 @@ namespace bpkg
                                            move (srcs)};
   }
 
+
+  unique_ptr<build2::context>
+  pkg_configure_context (
+    const common_options& o,
+    strings&& cmd_vars,
+    const function<build2::context::var_override_function>& var_ovr_func)
+  {
+    using namespace build2;
+
+    // Initialize the build system.
+    //
+    // Note that this takes into account --build-option and default options
+    // files (which may have global overrides and which end up in
+    // build2_cmd_vars).
+    //
+    if (!build2_sched.started ())
+      build2_init (o);
+
+    // Re-tune the scheduler for parallel execution (see build2_init()
+    // for details).
+    //
+    if (build2_sched.tuned ())
+      build2_sched.tune (0);
+
+    auto merge_cmd_vars = [&cmd_vars] () -> const strings&
+    {
+      if (cmd_vars.empty ())
+        return build2_cmd_vars;
+
+      if (!build2_cmd_vars.empty ())
+        cmd_vars.insert (cmd_vars.begin (),
+                         build2_cmd_vars.begin (), build2_cmd_vars.end ());
+
+      return cmd_vars;
+    };
+
+    // Shouldn't we shared the module context with package skeleton
+    // contexts? Maybe we don't have to since we don't build modules in
+    // them concurrently (in a sence, we didn't share it when we were
+    // invoking the build system driver).
+    //
+    unique_ptr<context> ctx (
+      new context (build2_sched,
+                   build2_mutexes,
+                   build2_fcache,
+                   false /* match_only */,
+                   false /* no_external_modules */,
+                   false /* dry_run */,
+                   false /* no_diag_buffer */,
+                   false /* keep_going */,
+                   merge_cmd_vars (),
+                   context::reserves {
+                     30000 /* targets */,
+                     1100  /* variables */},
+                   nullptr /* module_context */,
+                   nullptr /* inherited_mudules_lock */,
+                   var_ovr_func));
+
+    // Set the current meta-operation once per context so that we don't reset
+    // ctx->current_on. Note that this function also sets ctx->current_mname
+    // and var_build_meta_operation on global scope.
+    //
+    ctx->current_meta_operation (config::mo_configure);
+    ctx->current_oname = string (); // default
+
+    return ctx;
+  }
+
   void
   pkg_configure (const common_options& o,
                  database& db,
                  transaction& t,
                  const shared_ptr<selected_package>& p,
                  configure_prerequisites_result&& cpr,
-                 bool disfigured,
+#ifndef BPKG_OUTPROC_CONFIGURE
+                 const unique_ptr<build2::context>& pctx,
+                 const build2::variable_overrides& ovrs,
+#else
+                 const unique_ptr<build2::context>&,
+                 const build2::variable_overrides&, // Still in cpr.config_variables.
+#endif
                  bool simulate)
   {
     tracer trace ("pkg_configure");
@@ -361,15 +465,22 @@ namespace bpkg
 
     tracer_guard tg (db, trace);
 
-    const dir_path& c (db.config_orig);
+#ifndef BPKG_OUTPROC_CONFIGURE
+    const dir_path& c (db.config); // Absolute.
+#else
+    const dir_path& c (db.config_orig); // Relative.
+#endif
+
     dir_path src_root (p->effective_src_root (c));
 
     // Calculate package's out_root.
     //
     // Note: see a version of this in pkg_configure_prerequisites().
     //
+    bool external (p->external ());
+
     dir_path out_root (
-      p->external ()
+      external
       ? c / dir_path (p->name.string ())
       : c / dir_path (p->name.string () + '-' + p->version.string ()));
 
@@ -383,28 +494,18 @@ namespace bpkg
     //
     if (!simulate)
     {
-      // Unless this package has been completely disfigured, disfigure all the
-      // package configuration variables to reset all the old values to
-      // defaults (all the new user/dependent/reflec values, including old
-      // user, are returned by collect_config() and specified as overrides).
-      // Note that this semantics must be consistent with how we load things
-      // in the package skeleton during configuration negotiation.
+      // Original implementation that runs the standard build system driver.
       //
-      // Note also that this means we don't really use the dependent and
-      // reflect sources that we save in the database. But let's keep them
-      // for the completeness of information (maybe could be useful during
-      // configuration reset or some such).
+      // Note that the semantics doesn't match 100%. In particular, in the
+      // in-process implementation we enter overrides with global visibility
+      // in each project instead of the amalgamation (which is probably more
+      // accurate, since we don't re-configure the amalgamation nor some
+      // dependencies which could be affected by such overrides). In a sense,
+      // we enter them as if they were specified with the special .../ scope
+      // (but not with the % project visibility -- they must still be visible
+      // in subprojects).
       //
-      string dvar;
-      if (!disfigured)
-      {
-        // Note: must be quoted to preserve the pattern.
-        //
-        dvar = "config.config.disfigure='config.";
-        dvar += p->name.variable ();
-        dvar += "**'";
-      }
-
+#ifdef BPKG_OUTPROC_CONFIGURE
       // Form the buildspec.
       //
       string bspec;
@@ -422,11 +523,7 @@ namespace bpkg
 
       try
       {
-        run_b (o,
-               verb_b::quiet,
-               cpr.config_variables,
-               (!dvar.empty () ? dvar.c_str () : nullptr),
-               bspec);
+        run_b (o, verb_b::quiet, cpr.config_variables, bspec);
       }
       catch (const failed&)
       {
@@ -437,6 +534,214 @@ namespace bpkg
         pkg_disfigure (o, db, t, p, true, true, false);
         throw;
       }
+#else
+      // Print the out-process command line in the verbose mode.
+      //
+      if (verb >= 2)
+      {
+        string bspec;
+
+        // Use path representation to get canonical trailing slash.
+        //
+        if (src_root == out_root)
+          bspec = "configure('" + out_root.representation () + "')";
+        else
+          bspec = "configure('" +
+            src_root.representation () + "'@'" +
+            out_root.representation () + "')";
+
+        print_b (o, verb_b::quiet, cpr.config_variables, bspec);
+      }
+
+      try
+      {
+        // Note: no bpkg::failed should be thrown from this block.
+        //
+        using namespace build2;
+        using build2::fail;
+        using build2::info;
+        using build2::endf;
+        using build2::location;
+
+        // The build2_init() function initializes the build system verbosity
+        // as if running with verb_b::normal while we need verb_b::quiet. So
+        // we temporarily adjust the build2 verbosity (see map_verb_b() for
+        // details).
+        //
+        auto verbg (make_guard ([ov = build2::verb] () {build2::verb = ov;}));
+        if (bpkg::verb == 1)
+          build2::verb = 0;
+
+        context& ctx (*pctx);
+
+        // Bootstrap and load the project.
+        //
+        // Note: in many ways similar to package_skeleton code.
+        //
+        scope& rs (*create_root (ctx, out_root, src_root)->second.front ());
+
+        // If we are configuring in the dependency order (as we should), then
+        // it feels like the only situation where we can end up with an
+        // already bootstrapped project is an unspecified dependency. Note
+        // that this is a hard fail since it would have been loaded without
+        // the proper configuration.
+        //
+        if (bootstrapped (rs))
+        {
+          fail << p->name << db << " loaded ahead of its dependents" <<
+            info << "likely unspecified dependency on package " << p->name;
+        }
+
+        optional<bool> altn;
+        value& v (bootstrap_out (rs, altn));
+
+        if (!v)
+          v = src_root;
+        else
+        {
+          dir_path& p (cast<dir_path> (v));
+
+          if (src_root != p)
+          {
+            // @@ Fuzzy if need this or can do as package skeleton (seeing
+            //    that we know we are re-configuring).
+            //
+            ctx.new_src_root = src_root;
+            ctx.old_src_root = move (p);
+            p = src_root;
+          }
+        }
+
+        setup_root (rs, false /* forwarded */);
+
+        // Note: we already know our amalgamation.
+        //
+        bootstrap_pre (rs, altn);
+        bootstrap_src (rs, altn,
+                       db.config.relative (out_root) /* amalgamation */,
+                       true                          /* subprojects */);
+
+        create_bootstrap_outer (rs, true /* subprojects */);
+        bootstrap_post (rs);
+
+        values mparams;
+        const meta_operation_info& mif (config::mo_configure);
+        const operation_info& oif (op_default);
+
+        // Skip configure_pre() and configure_operation_pre() calls since we
+        // don't pass any parameteres and pass default operation. We also know
+        // that op_default has no pre/post operations, naturally.
+
+        // Find the root buildfile. Note that the implied buildfile logic does
+        // not apply (our target is the project root directory).
+        //
+        optional<path> bf (find_buildfile (src_root, src_root, altn));
+
+        if (!bf)
+          fail << "no buildfile in " << src_root;
+
+        // Enter project-wide overrides.
+        //
+        // Note that the use of the root scope as amalgamation makes sure
+        // scenarious like below work correctly (see above for background).
+        //
+        // bpkg create -d cfg cc config.cc.coptions=-Wall
+        // bpkg build { config.cc.coptions+=-g }+ libfoo
+        //            { config.cc.coptions+=-O }+ libbar
+        //
+        ctx.enter_project_overrides (rs, out_root, ovrs, &rs);
+
+        // The goal here is to be more or less semantically equivalent to
+        // configuring several projects at once. Except that here we have
+        // interleaving load/match instead of first all load then all
+        // match. But presumably this shouldn't be a problem (we can already
+        // have match interrupted by load and the "island append" requirement
+        // should hold here as well).
+        //
+        // Note that either way we will be potentially re-matching the same
+        // dependency targets multiple times (see build2::configure_execute()
+        // for details).
+        //
+        const path_name bsn ("<buildspec>");
+        const location loc (bsn, 0, 0);
+
+        // out_root/dir{./}
+        //
+        target_key tk {
+          &dir::static_type,
+          &out_root,
+          &empty_dir_path,
+          &empty_string,
+          nullopt};
+
+        action_targets tgs;
+        mif.load (mparams, rs, *bf, out_root, src_root, loc);
+        mif.search (mparams, rs, rs, *bf, tk, loc, tgs);
+
+        ctx.current_operation (oif, nullptr);
+        action a (ctx.current_action ());
+
+        mif.match   (mparams, a, tgs, 2 /* diag */, true /* progress */);
+        mif.execute (mparams, a, tgs, 2 /* diag */, true /* progress */);
+
+        // Note: no operation_post/meta_operation_post for configure.
+
+        // Here is a tricky part: if this is a normal package, then it will be
+        // discovered as a subproject of the bpkg configuration when we load
+        // it for the first time (because they are all unpacked). However, if
+        // this is an external package, there could be no out_root directory
+        // for it in the bpkg configuration yet. As a result, we need to
+        // manually add it as a newly discovered subproject.
+        //
+        if (external)
+        {
+          scope* as (rs.parent_scope ()->root_scope ());
+          assert (as != nullptr); // No bpkg configuration?
+
+          // Kept NULL if there are no subprojects, so we may need to
+          // initialize it (see build2::bootstrap_src() for details).
+          //
+          subprojects* sp (*as->root_extra->subprojects);
+          if (sp == nullptr)
+          {
+            value& v (as->vars.assign (*ctx.var_subprojects));
+            v = subprojects {};
+            sp = *(as->root_extra->subprojects = &cast<subprojects> (v));
+          }
+
+          const project_name& n (**rs.root_extra->project);
+
+          if (sp->find (n) == sp->end ())
+            sp->emplace (n, out_root.leaf ());
+        }
+      }
+      catch (const build2::failed&)
+      {
+        // Assume the diagnostics has already been issued.
+
+        // If we failed to configure the package, make sure we revert
+        // it back to the unpacked state by running disfigure (it is
+        // valid to run disfigure on an un-configured build). And if
+        // disfigure fails as well, then the package will be set into
+        // the broken state.
+
+        // Indicate to pkg_disfigure() we are partially configured.
+        //
+        p->out_root = out_root.leaf ();
+        p->state = package_state::broken;
+
+        // Commits the transaction.
+        //
+        pkg_disfigure (o, db, t,
+                       p,
+                       true /* clean */,
+                       true /* disfigure */,
+                       false /* simulate */);
+
+
+        throw bpkg::failed ();
+      }
+#endif
 
       p->config_variables = move (cpr.config_sources);
     }
@@ -473,7 +778,46 @@ namespace bpkg
                                    fdb,
                                    nullptr));
 
-    pkg_configure (o, db, t, p, move (cpr), disfigured, simulate);
+    if (!simulate)
+    {
+      // Unless this package has been completely disfigured, disfigure all the
+      // package configuration variables to reset all the old values to
+      // defaults (all the new user/dependent/reflec values, including old
+      // user, are returned by collect_config() and specified as overrides).
+      // Note that this semantics must be consistent with how we load things
+      // in the package skeleton during configuration negotiation.
+      //
+      // Note also that this means we don't really use the dependent and
+      // reflect sources that we save in the database. But let's keep them
+      // for the completeness of information (maybe could be useful during
+      // configuration reset or some such).
+      //
+      if (!disfigured)
+      {
+        // Note: must be quoted to preserve the pattern.
+        //
+        cpr.config_variables.push_back (
+          "config.config.disfigure='config." + p->name.variable () + "**'");
+      }
+    }
+
+    unique_ptr<build2::context> ctx;
+
+#ifndef BPKG_OUTPROC_CONFIGURE
+    if (!simulate)
+      ctx = pkg_configure_context (o, move (cpr.config_variables));
+#endif
+
+    pkg_configure (o,
+                   db,
+                   t,
+                   p,
+                   move (cpr),
+                   ctx,
+                   (ctx != nullptr
+                    ? ctx->var_overrides
+                    : build2::variable_overrides {}),
+                   simulate);
   }
 
   shared_ptr<selected_package>

@@ -1,6 +1,8 @@
 // file      : bpkg/bpkg.cxx -*- C++ -*-
 // license   : MIT; see accompanying LICENSE file
 
+#include <bpkg/bpkg.hxx>
+
 #include <limits>
 #include <cstdlib>     // getenv()
 #include <cstring>     // strcmp()
@@ -15,9 +17,6 @@
 #include <libbuild2/types.hxx>
 #include <libbuild2/utility.hxx>
 #include <libbuild2/module.hxx>
-#include <libbuild2/context.hxx>
-#include <libbuild2/scheduler.hxx>
-#include <libbuild2/file-cache.hxx>
 
 #include <libbuild2/b-options.hxx>
 #include <libbuild2/b-cmdline.hxx>
@@ -33,6 +32,9 @@
 #include <libbuild2/cc/init.hxx>
 #include <libbuild2/cxx/init.hxx>
 #include <libbuild2/version/init.hxx>
+
+#include <libbuild2/bash/init.hxx>
+#include <libbuild2/cli/init.hxx>
 
 #include <bpkg/types.hxx>
 #include <bpkg/utility.hxx>
@@ -109,8 +111,6 @@ namespace bpkg
 
   static const char*     build2_argv0;
 
-  // Use build2_sched.started() to check if already initialized.
-  //
   void
   build2_init (const common_options& co)
   {
@@ -174,13 +174,12 @@ namespace bpkg
                  bo.no_column (),
                  bpkg::stderr_term.has_value ());
 
-      // Note that we pretend to be in the serial-stop mode even though we may
-      // build build system modules in parallel in order to get better
-      // diagnostics for the common case.
+      // Also note that we now use this in pkg_configure(), but serial-stop
+      // is good for it as well.
       //
       init (&build2_terminate,
             build2_argv0,
-            true /* serial_stop */,
+            false /* serial_stop */,
             bc.mtime_check,
             bc.config_sub,
             bc.config_guess);
@@ -197,6 +196,9 @@ namespace bpkg
       load_builtin_module (&build2::version::build2_version_load);
       load_builtin_module (&build2::in::build2_in_load);
 
+      load_builtin_module (&build2::bash::build2_bash_load);
+      load_builtin_module (&build2::cli::build2_cli_load);
+
       // Note that while all we need is serial execution (all we do is load),
       // in the process we may need to update some build system modules (while
       // we only support built-in and standard pre-installed modules here, we
@@ -205,6 +207,10 @@ namespace bpkg
       // cheap. So what we will do is start a parallel scheduler pre-tuned to
       // serial execution, which is relatively cheap. The module building
       // logic will then re-tune it to parallel if and when necessary.
+      //
+      // Note that we now also use this in pkg_configure() where we re-tune
+      // the scheduler (it may already have been initialized as part of the
+      // package skeleton work).
       //
       build2_sched.startup (1 /* max_active */,
                             1 /* init_active */,
@@ -218,7 +224,7 @@ namespace bpkg
     }
     catch (const build2::failed&)
     {
-      throw failed (); // Assume the diagnostics has already been issued.
+      throw bpkg::failed (); // Assume the diagnostics has already been issued.
     }
   }
 

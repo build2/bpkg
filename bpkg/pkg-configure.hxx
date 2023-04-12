@@ -7,6 +7,9 @@
 #include <libbpkg/manifest.hxx>     // version
 #include <libbpkg/package-name.hxx>
 
+#include <libbuild2/context.hxx>
+#include <libbuild2/variable.hxx> // variable_overrides
+
 #include <bpkg/types.hxx>
 #include <bpkg/forward.hxx> // transaction, selected_package
 #include <bpkg/utility.hxx>
@@ -100,7 +103,17 @@ namespace bpkg
                                const function<find_database_function>&,
                                const function<find_package_state_function>&);
 
+
   // Configure the package, update its state, and commit the transaction.
+  //
+  // This is a lower-level version meant for sharing the same build context
+  // to configure multiple packages (in the dependency order).
+  //
+  // Note: variable_overrides must include config.config.disfigure, if
+  //       required.
+  //
+  // Note: expects all the non-external packages to be configured to be
+  //       already unpackged (for subproject discovery).
   //
   void
   pkg_configure (const common_options&,
@@ -108,9 +121,20 @@ namespace bpkg
                  transaction&,
                  const shared_ptr<selected_package>&,
                  configure_prerequisites_result&&,
-                 bool disfigured,
+                 const unique_ptr<build2::context>&,
+                 const build2::variable_overrides&,
                  bool simulate);
 
+  // Create a build context suitable for configuring packages.
+  //
+  unique_ptr<build2::context>
+  pkg_configure_context (
+    const common_options&,
+    strings&& cmd_vars,
+    const function<build2::context::var_override_function>& = nullptr);
+
+  // This is a higher-level version meant for configuring a single package.
+  //
   // Note: loads selected packages.
   //
   void

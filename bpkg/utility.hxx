@@ -66,6 +66,7 @@ namespace bpkg
   // <libbutl/process.hxx>
   //
   using butl::process_start_callback;
+  using butl::process_print_callback;
 
   // <libbutl/filesystem.hxx>
   //
@@ -253,6 +254,10 @@ namespace bpkg
 
   process_path
   search_b (const common_options&);
+
+  template <typename... A>
+  void
+  print_b (const common_options&, verb_b, A&&... args);
 
   template <typename O, typename E, typename... A>
   process

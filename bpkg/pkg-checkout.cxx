@@ -15,7 +15,6 @@
 
 #include <bpkg/pkg-purge.hxx>
 #include <bpkg/pkg-verify.hxx>
-#include <bpkg/pkg-configure.hxx>
 
 using namespace std;
 using namespace butl;

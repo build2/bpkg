@@ -119,10 +119,11 @@ namespace bpkg
      Additional configuration variables (<cfg-var>), if any, should be
      specified before packages (<pkg-spec>) and should be separated with
      \cb{--}. Such variables are effective only when configuring and only for
-     packages that were explicitly specified on the command line (they can
-     also be specified to only apply to specific packages using the argument
-     grouping mechanism discussed below). See \l{bpkg-pkg-configure(1)} for
-     more information on configuration variables.
+     packages that were explicitly specified on the command line (unless
+     global overrides). They can also be specified to only apply to specific
+     packages using the argument grouping mechanism discussed below. See
+     \l{bpkg-pkg-configure(1)} for more information on configuration
+     variables.
 
      By default a package that is specified explicitly on the command line is
      built to \i{hold}: it will not be considered for automatic removal if it
