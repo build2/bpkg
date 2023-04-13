@@ -34,6 +34,7 @@
 #include <libbuild2/version/init.hxx>
 
 #include <libbuild2/bash/init.hxx>
+#include <libbuild2/cli/init.hxx>
 
 #include <bpkg/types.hxx>
 #include <bpkg/utility.hxx>
@@ -195,7 +196,8 @@ namespace bpkg
       load_builtin_module (&build2::version::build2_version_load);
       load_builtin_module (&build2::in::build2_in_load);
 
-      load_builtin_module (&bash::build2_bash_load);
+      load_builtin_module (&build2::bash::build2_bash_load);
+      load_builtin_module (&build2::cli::build2_cli_load);
 
       // Note that while all we need is serial execution (all we do is load),
       // in the process we may need to update some build system modules (while

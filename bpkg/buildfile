@@ -12,7 +12,7 @@ import libs = build2%lib{build2}
 
 # NOTE: see also module loading in bpkg.cxx if adding anything here.
 #
-for m: bash bin c cc cxx in version
+for m: bash bin c cc cli cxx in version
   import libs += build2%lib{build2-$m}
 
 import libs += libbpkg%lib{bpkg}
