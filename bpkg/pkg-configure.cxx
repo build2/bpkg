@@ -287,6 +287,8 @@ namespace bpkg
                     od = sp->effective_out_root (pdb.config);
 
 #ifndef BPKG_OUTPROC_CONFIGURE
+                  // @@
+                  //
                   // Use global overrides to recreate the original behavior of
                   // not warning about unused config.import.* variables
                   // (achived via the config.config.persist value in
@@ -294,12 +296,17 @@ namespace bpkg
                   // don't actually save the unused values anywhere, just
                   // don't warn about them).
                   //
-                  // @@ Can we somehow cause a clash, say if the same package
-                  //    comes from different configurations? Yeah, we probably
-                  //    can. Maybe detect a clash somehow and "fallforward" to
-                  //    the correct behavior?
+                  // Can we somehow cause a clash, say if the same package
+                  // comes from different configurations? Yeah, we probably
+                  // can. So could add it as undermined (?), detect a clash,
+                  // and "fallforward" to the correct behavior.
                   //
-                  vars.push_back ("!config.import." + sp->name.variable () +
+                  // But we can clash with an absent value -- that is, we
+                  // force importing from a wrong configuration where without
+                  // any import things would have been found in the same
+                  // amalgamation.
+                  //
+                  vars.push_back ("config.import." + sp->name.variable () +
                                   "='" + od.representation () + '\'');
 #else
                   vars.push_back ("config.import." + sp->name.variable () +
@@ -533,8 +540,24 @@ namespace bpkg
         throw;
       }
 #else
-      // @@ Would be good to print the equivalent command line in -v.
+      // Print the out-process command line in the verbose mode.
       //
+      if (verb >= 2)
+      {
+        string bspec;
+
+        // Use path representation to get canonical trailing slash.
+        //
+        if (src_root == out_root)
+          bspec = "configure('" + out_root.representation () + "')";
+        else
+          bspec = "configure('" +
+            src_root.representation () + "'@'" +
+            out_root.representation () + "')";
+
+        print_b (o, verb_b::quiet, cpr.config_variables, bspec);
+      }
+
       try
       {
         // Note: no bpkg::failed should be thrown from this block.
@@ -585,9 +608,9 @@ namespace bpkg
 
           if (src_root != p)
           {
-            // @@ fuzzy if need this or can do as package skeleton (seeing
+            // @@ Fuzzy if need this or can do as package skeleton (seeing
             //    that we know we are re-configuring).
-
+            //
             ctx.new_src_root = src_root;
             ctx.old_src_root = move (p);
             p = src_root;

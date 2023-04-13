@@ -59,6 +59,36 @@ namespace bpkg
       ops.push_back ("--no-progress");
   }
 
+  template <typename... A>
+  void
+  print_b (const common_options& co, verb_b v, A&&... args)
+  {
+    process_path pp (search_b (co));
+
+    small_vector<const char*, 1> ops;
+
+    // As in start_b() below.
+    //
+    string verb_arg;
+    map_verb_b (co, v, ops, verb_arg);
+
+    if (co.diag_color ())
+      ops.push_back ("--diag-color");
+
+    if (co.no_diag_color ())
+      ops.push_back ("--no-diag-color");
+
+    process_print_callback (
+      [] (const char* const args[], size_t n)
+      {
+        print_process (args, n);
+      },
+      pp,
+      ops,
+      co.build_option (),
+      forward<A> (args)...);
+  }
+
   template <typename O, typename E, typename... A>
   process
   start_b (const common_options& co,
@@ -73,6 +103,8 @@ namespace bpkg
     {
       small_vector<const char*, 1> ops;
 
+      // NOTE: see print_b() above if changing anything here.
+      //
       // NOTE: see custom versions in system_package_manager* if adding
       //       anything new here (search for search_b()).
 

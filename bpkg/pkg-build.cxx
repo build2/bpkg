@@ -5371,7 +5371,7 @@ namespace bpkg
     vector<configure_package> configure_packages;
     configure_packages.reserve (build_pkgs.size ());
 
-    // While at it also extract global configuration variable overrides from
+    // While at it also collect global configuration variable overrides from
     // each configure_prerequisites_result::config_variables and merge them
     // into configure_global_vars.
     //
@@ -5575,42 +5575,35 @@ namespace bpkg
 
         t.commit ();
 
-        /*
-        if (!simulate && !cpr.config_variables.empty ())
+        if (verb >= 5 && !simulate && !cpr.config_variables.empty ())
         {
-          diag_record dr (text);
+          diag_record dr (trace);
 
-          dr << sp->name << pdb << ':';
+          dr << sp->name << pdb << " configuration variables:";
 
           for (const string& cv: cpr.config_variables)
             dr << "\n  " << cv;
         }
-        */
 
         if (!simulate)
         {
-
 #ifndef BPKG_OUTPROC_CONFIGURE
           auto& gvs (configure_global_vars);
 
-          for (auto i (cpr.config_variables.begin ());
-               i != cpr.config_variables.end (); )
+          // Note that we keep global overrides in cpr.config_variables for
+          // diagnostics and skip them in var_override_function below.
+          //
+          for (const string& v: cpr.config_variables)
           {
             // Each package should have exactly the same set of global
             // overrides by construction since we don't allow package-
             // specific global overrides.
             //
-            string& v (*i);
-
             if (v[0] == '!')
             {
               if (find (gvs.begin (), gvs.end (), v) == gvs.end ())
-                gvs.push_back (move (v));
-
-              i = cpr.config_variables.erase (i);
+                gvs.push_back (v);
             }
-            else
-              ++i;
           }
 #endif
           // Add config.config.disfigure unless already disfigured (see the
@@ -5646,6 +5639,9 @@ namespace bpkg
           {
             for (const string& v: cp.res.config_variables)
             {
+              if (v[0] == '!') // Skip global overrides (see above).
+                continue;
+
               pair<char, variable_override> p (
                 ctx.parse_variable_override (v, i++, false /* buildspec */));
 
