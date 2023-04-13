@@ -304,9 +304,11 @@ namespace bpkg
                   // But we can clash with an absent value -- that is, we
                   // force importing from a wrong configuration where without
                   // any import things would have been found in the same
-                  // amalgamation.
+                  // amalgamation. Maybe we could detect that (no import
+                  // for the same package -- but it could be for a package
+                  // we are not configuring).
                   //
-                  vars.push_back ("config.import." + sp->name.variable () +
+                  vars.push_back ("!config.import." + sp->name.variable () +
                                   "='" + od.representation () + '\'');
 #else
                   vars.push_back ("config.import." + sp->name.variable () +
