@@ -286,8 +286,25 @@ namespace bpkg
                   else
                     od = sp->effective_out_root (pdb.config);
 
+#ifndef BPKG_OUTPROC_CONFIGURE
+                  // Use global overrides to recreate the original behavior of
+                  // not warning about unused config.import.* variables
+                  // (achived via the config.config.persist value in
+                  // amalgamation). Even though it's probably misguided (we
+                  // don't actually save the unused values anywhere, just
+                  // don't warn about them).
+                  //
+                  // @@ Can we somehow cause a clash, say if the same package
+                  //    comes from different configurations? Yeah, we probably
+                  //    can. Maybe detect a clash somehow and "fallforward" to
+                  //    the correct behavior?
+                  //
+                  vars.push_back ("!config.import." + sp->name.variable () +
+                                  "='" + od.representation () + '\'');
+#else
                   vars.push_back ("config.import." + sp->name.variable () +
                                   "='" + od.representation () + '\'');
+#endif
                 }
               }
             }
@@ -377,7 +394,7 @@ namespace bpkg
     // Re-tune the scheduler for parallel execution (see build2_init()
     // for details).
     //
-    if (!build2_sched.serial ())
+    if (build2_sched.tuned ())
       build2_sched.tune (0);
 
     auto merge_cmd_vars = [&cmd_vars] () -> const strings&
@@ -414,11 +431,12 @@ namespace bpkg
                    nullptr /* inherited_mudules_lock */,
                    var_ovr_func));
 
-    scope& gs (ctx->global_scope.rw ());
-
-    ctx->current_mname = "configure";
+    // Set the current meta-operation once per context so that we don't reset
+    // ctx->current_on. Note that this function also sets ctx->current_mname
+    // and var_build_meta_operation on global scope.
+    //
+    ctx->current_meta_operation (config::mo_configure);
     ctx->current_oname = string (); // default
-    gs.assign (ctx->var_build_meta_operation) = "configure";
 
     return ctx;
   }
@@ -445,15 +463,22 @@ namespace bpkg
 
     tracer_guard tg (db, trace);
 
-    const dir_path& c (db.config_orig);
+#ifndef BPKG_OUTPROC_CONFIGURE
+    const dir_path& c (db.config); // Absolute.
+#else
+    const dir_path& c (db.config_orig); // Relative.
+#endif
+
     dir_path src_root (p->effective_src_root (c));
 
     // Calculate package's out_root.
     //
     // Note: see a version of this in pkg_configure_prerequisites().
     //
+    bool external (p->external ());
+
     dir_path out_root (
-      p->external ()
+      external
       ? c / dir_path (p->name.string ())
       : c / dir_path (p->name.string () + '-' + p->version.string ()));
 
@@ -470,9 +495,13 @@ namespace bpkg
       // Original implementation that runs the standard build system driver.
       //
       // Note that the semantics doesn't match 100%. In particular, in the
-      // in-process implementation we enter unqualified variable in each
-      // project instead of the amalgamation (which is probably more accurate,
-      // since we don't re-configure the amalgamation or some dependencies).
+      // in-process implementation we enter overrides with global visibility
+      // in each project instead of the amalgamation (which is probably more
+      // accurate, since we don't re-configure the amalgamation nor some
+      // dependencies which could be affected by such overrides). In a sense,
+      // we enter them as if they were specified with the special .../ scope
+      // (but not with the % project visibility -- they must still be visible
+      // in subprojects).
       //
 #ifdef BPKG_OUTPROC_CONFIGURE
       // Form the buildspec.
@@ -508,15 +537,22 @@ namespace bpkg
       //
       try
       {
+        // Note: no bpkg::failed should be thrown from this block.
+        //
         using namespace build2;
         using build2::fail;
         using build2::info;
         using build2::endf;
         using build2::location;
 
-        // @@ Uses verb_b::normal, we need verb_b::quiet. Temporarily
-        //    adjust build2::verb then restore?
+        // The build2_init() function initializes the build system verbosity
+        // as if running with verb_b::normal while we need verb_b::quiet. So
+        // we temporarily adjust the build2 verbosity (see map_verb_b() for
+        // details).
         //
+        auto verbg (make_guard ([ov = build2::verb] () {build2::verb = ov;}));
+        if (bpkg::verb == 1)
+          build2::verb = 0;
 
         context& ctx (*pctx);
 
@@ -549,7 +585,7 @@ namespace bpkg
 
           if (src_root != p)
           {
-            // @@ fuzzy if need this or can do as package skeleto (seeing
+            // @@ fuzzy if need this or can do as package skeleton (seeing
             //    that we know we are re-configuring).
 
             ctx.new_src_root = src_root;
@@ -577,8 +613,6 @@ namespace bpkg
         // Skip configure_pre() and configure_operation_pre() calls since we
         // don't pass any parameteres and pass default operation. We also know
         // that op_default has no pre/post operations, naturally.
-        //
-        ctx.current_meta_operation (mif);
 
         // Find the root buildfile. Note that the implied buildfile logic does
         // not apply (our target is the project root directory).
@@ -590,7 +624,14 @@ namespace bpkg
 
         // Enter project-wide overrides.
         //
-        ctx.enter_project_overrides (rs, out_root, ovrs);
+        // Note that the use of the root scope as amalgamation makes sure
+        // scenarious like below work correctly (see above for background).
+        //
+        // bpkg create -d cfg cc config.cc.coptions=-Wall
+        // bpkg build { config.cc.coptions+=-g }+ libfoo
+        //            { config.cc.coptions+=-O }+ libbar
+        //
+        ctx.enter_project_overrides (rs, out_root, ovrs, &rs);
 
         // The goal here is to be more or less semantically equivalent to
         // configuring several projects at once. Except that here we have
@@ -626,6 +667,35 @@ namespace bpkg
         mif.execute (mparams, a, tgs, 2 /* diag */, true /* progress */);
 
         // Note: no operation_post/meta_operation_post for configure.
+
+        // Here is a tricky part: if this is a normal package, then it will be
+        // discovered as a subproject of the bpkg configuration when we load
+        // it for the first time (because they are all unpacked). However, if
+        // this is an external package, there could be no out_root directory
+        // for it in the bpkg configuration yet. As a result, we need to
+        // manually add it as a newly discovered subproject.
+        //
+        if (external)
+        {
+          scope* as (rs.parent_scope ()->root_scope ());
+          assert (as != nullptr); // No bpkg configuration?
+
+          // Kept NULL if there are no subprojects, so we may need to
+          // initialize it (see build2::bootstrap_src() for details).
+          //
+          subprojects* sp (*as->root_extra->subprojects);
+          if (sp == nullptr)
+          {
+            value& v (as->vars.assign (*ctx.var_subprojects));
+            v = subprojects {};
+            sp = *(as->root_extra->subprojects = &cast<subprojects> (v));
+          }
+
+          const project_name& n (**rs.root_extra->project);
+
+          if (sp->find (n) == sp->end ())
+            sp->emplace (n, out_root.leaf ());
+        }
       }
       catch (const build2::failed&)
       {
@@ -651,7 +721,7 @@ namespace bpkg
                        false /* simulate */);
 
 
-        throw failed ();
+        throw bpkg::failed ();
       }
 #endif
 
@@ -714,16 +784,22 @@ namespace bpkg
     }
 
     unique_ptr<build2::context> ctx;
-    build2::variable_overrides ovrs;
 
 #ifndef BPKG_OUTPROC_CONFIGURE
-
-    // @@ TODO: create context unless simulating, populate ovrs from
-    //    cpr via callback.
-    //
+    if (!simulate)
+      ctx = pkg_configure_context (o, move (cpr.config_variables));
 #endif
 
-    pkg_configure (o, db, t, p, move (cpr), ctx, ovrs, simulate);
+    pkg_configure (o,
+                   db,
+                   t,
+                   p,
+                   move (cpr),
+                   ctx,
+                   (ctx != nullptr
+                    ? ctx->var_overrides
+                    : build2::variable_overrides {}),
+                   simulate);
   }
 
   shared_ptr<selected_package>

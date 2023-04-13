@@ -222,7 +222,7 @@ namespace bpkg
     }
     catch (const build2::failed&)
     {
-      throw failed (); // Assume the diagnostics has already been issued.
+      throw bpkg::failed (); // Assume the diagnostics has already been issued.
     }
   }
 

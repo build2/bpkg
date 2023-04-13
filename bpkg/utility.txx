@@ -25,6 +25,8 @@ namespace bpkg
     }
     else if (verb == 1)
     {
+      // NOTE: search for verb_b usage if changing anything here.
+      //
       if (v != verb_b::normal)
       {
         ops.push_back ("-q");

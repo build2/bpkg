@@ -5634,10 +5634,39 @@ namespace bpkg
     unique_ptr<build2::context> configure_ctx;
 
 #ifndef BPKG_OUTPROC_CONFIGURE
-    // @@ TODO: create context. Unless simulating.
+    if (!simulate)
+    {
+      using build2::context;
+      using build2::variable_override;
 
-    // @@ TODO
-    //assert (ctx->var_overrides.empty ()); // Global only.
+      function<context::var_override_function> vof (
+        [&configure_packages] (context& ctx, size_t& i)
+        {
+          for (configure_package& cp: configure_packages)
+          {
+            for (const string& v: cp.res.config_variables)
+            {
+              pair<char, variable_override> p (
+                ctx.parse_variable_override (v, i++, false /* buildspec */));
+
+              variable_override& vo (p.second);
+
+              // @@ TODO: put absolute scope overrides into global_vars.
+              //
+              assert (!(p.first == '!' || (vo.dir && vo.dir->absolute ())));
+
+              cp.ovrs.push_back (move (vo));
+            }
+          }
+        });
+
+      configure_ctx = pkg_configure_context (
+        o, move (configure_global_vars), vof);
+
+      // Only global in configure_global_vars.
+      //
+      assert (configure_ctx->var_overrides.empty ());
+    }
 #endif
 
     if (progress)
