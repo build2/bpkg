@@ -107,6 +107,7 @@
 # |
 # |-- t5
 # |   |-- libbar-1.2.0.tar.gz
+# |   |-- libbox-1.2.0.tar.gz
 # |   `-- repositories.manifest
 # |
 # |-- t6
@@ -2079,6 +2080,41 @@ test.arguments += --sys-no-query
       }
     }
   }
+
+  : config-vars
+  :
+  {
+    $cfg_create -d cfg cc config.cc.coptions=-Wall 2>- &cfg/***;
+    $rep_add $rep/t5 && $rep_fetch;
+
+    $* --configure-only { config.cc.coptions+=-g }+ libbar \
+                        { config.cc.coptions+=-O }+ libbox 2>>EOE;
+      fetched libbar/1.2.0
+      unpacked libbar/1.2.0
+      fetched libbox/1.2.0
+      unpacked libbox/1.2.0
+      configured libbar/1.2.0
+      configured libbox/1.2.0
+      EOE
+
+    cat cfg/build/config.build >>~%EOO%;
+      %.*
+      config.cc.coptions = -Wall
+      %.*
+      EOO
+
+    cat cfg/libbar-1.2.0/build/config.build >>~%EOO%;
+      %.*
+      config.cc.coptions = -Wall -g
+      %.*
+      EOO
+
+    cat cfg/libbox-1.2.0/build/config.build >>~%EOO%
+      %.*
+      config.cc.coptions = -Wall -O
+      %.*
+      EOO
+  }
 }
 
 : dependency
@@ -3949,6 +3985,7 @@ test.arguments += --sys-no-query
             cat cfg/box-1.0.0/build/config.build >>~%EOO%;
               %.*
               config.box.backend = libbox
+              %.*
               EOO
 
             $pkg_drop box;
@@ -3994,6 +4031,7 @@ test.arguments += --sys-no-query
             cat cfg/box-1.0.0/build/config.build >>~%EOO%;
               %.*
               config.box.backend = libbiz
+              %.*
               EOO
 
             $pkg_drop box
@@ -4055,6 +4093,7 @@ test.arguments += --sys-no-query
             cat cfg/box-1.0.0/build/config.build >>~%EOO%;
               %.*
               config.box.backend = libbiz
+              %.*
               EOO
 
             $pkg_drop box;
@@ -4095,6 +4134,7 @@ test.arguments += --sys-no-query
           cat cfg/box-1.0.0/build/config.build >>~%EOO%;
             %.*
             config.box.backend = libbox
+            %.*
             EOO
 
           # Downgrade libbaz to reconfigure box and make sure we still keep
@@ -4130,6 +4170,7 @@ test.arguments += --sys-no-query
           cat cfg/box-1.0.0/build/config.build >>~%EOO%;
             %.*
             config.box.backend = libbox
+            %.*
             EOO
 
           # Make sure the decision is hold for downgraded dependency either.
@@ -4158,6 +4199,7 @@ test.arguments += --sys-no-query
           cat cfg/box-1.0.0/build/config.build >>~%EOO%;
             %.*
             config.box.backend = libbox
+            %.*
             EOO
 
           $pkg_drop box;
@@ -14440,6 +14482,7 @@ test.arguments += --sys-no-query
   +cp -r $src/libhello-1.0.0 ./libhello
   +cat <<EOI >+libhello/build/root.build
     config [bool] config.libhello.develop ?= false
+    config [bool] config.libhello.extras ?= false
     if ($build.mode != 'skeleton')
       text "develop=$config.libhello.develop"
     EOI
@@ -14455,9 +14498,9 @@ test.arguments += --sys-no-query
     $clone_cfg;
     $* libhello 2>!; # Update after output directory change.
 
-    # Use bogus configuration variable to trigger reconfiguration.
+    # Specify a configuration variable to trigger reconfiguration.
     #
-    $* config.libhello.bogus=true -- libhello 2>>~%EOE%
+    $* config.libhello.extras=true -- libhello 2>>~%EOE%
         disfigured libhello/1.0.0
         %.*: develop=true%
         configured libhello/1.0.0

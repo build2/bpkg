@@ -276,6 +276,11 @@ if ($posix && "$uid" != '0')
 : dependency-management
 :
 {
+  # Remove the config.cxx variable override to avoid the 'dropping no longer
+  # used variable' warning.
+  #
+  test.arguments = $regex.filter_out_match($test.arguments, 'config.cxx=.*')
+
   +$clone_cfg && $rep_add $rep/stable && $rep_fetch --trust-yes
 
   : still-has-deps
@@ -420,6 +425,11 @@ if ($posix && "$uid" != '0')
 : dependency-alternatives
 :
 {
+  # Remove the config.cxx variable override to avoid the 'dropping no longer
+  # used variable' warning.
+  #
+  test.arguments = $regex.filter_out_match($test.arguments, 'config.cxx=.*')
+
   +$clone_root_cfg && $rep_add $rep/t8a && $rep_fetch --trust-yes
 
   : multiple-dependencies
