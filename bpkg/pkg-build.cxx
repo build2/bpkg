@@ -5375,6 +5375,9 @@ namespace bpkg
     // each configure_prerequisites_result::config_variables and merge them
     // into configure_global_vars.
     //
+    // @@ TODO: Note that the current global override semantics is quite
+    //    broken in that we don't force reconfiguration of all the packages.
+    //
 #ifndef BPKG_OUTPROC_CONFIGURE
     strings configure_global_vars;
 #endif
