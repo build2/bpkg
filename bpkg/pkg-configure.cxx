@@ -286,12 +286,9 @@ namespace bpkg
                   else
                     od = sp->effective_out_root (pdb.config);
 
-#ifndef BPKG_OUTPROC_CONFIGURE
-                  // @@
-                  //
-                  // Use global overrides to recreate the original behavior of
-                  // not warning about unused config.import.* variables
-                  // (achived via the config.config.persist value in
+                  // We tried to use global overrides to recreate the original
+                  // behavior of not warning about unused config.import.*
+                  // variables (achived via the config.config.persist value in
                   // amalgamation). Even though it's probably misguided (we
                   // don't actually save the unused values anywhere, just
                   // don't warn about them).
@@ -308,12 +305,8 @@ namespace bpkg
                   // for the same package -- but it could be for a package
                   // we are not configuring).
                   //
-                  vars.push_back ("!config.import." + sp->name.variable () +
-                                  "='" + od.representation () + '\'');
-#else
                   vars.push_back ("config.import." + sp->name.variable () +
                                   "='" + od.representation () + '\'');
-#endif
                 }
               }
             }
