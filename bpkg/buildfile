@@ -99,7 +99,7 @@ for t: cxx{**.test...}
 # Build options.
 #
 
-#cxx.poptions += -DBPKG_OUTPROC_CONFIGURE
+cxx.poptions += -DBPKG_OUTPROC_CONFIGURE
 
 obj{utility}: cxx.poptions += \
 "-DBPKG_EXE_PREFIX=\"$bin.exe.prefix\"" \
