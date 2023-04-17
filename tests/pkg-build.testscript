@@ -2084,36 +2084,71 @@ test.arguments += --sys-no-query
   : config-vars
   :
   {
-    $cfg_create -d cfg cc config.cc.coptions=-Wall 2>- &cfg/***;
-    $rep_add $rep/t5 && $rep_fetch;
+    +$cfg_create -d cfg cc config.cc.coptions=-Wall 2>- &cfg/***
+    +$rep_add $rep/t5 && $rep_fetch
 
-    $* --configure-only { config.cc.coptions+=-g }+ libbar \
-                        { config.cc.coptions+=-O }+ libbox 2>>EOE;
-      fetched libbar/1.2.0
-      unpacked libbar/1.2.0
-      fetched libbox/1.2.0
-      unpacked libbox/1.2.0
-      configured libbar/1.2.0
-      configured libbox/1.2.0
-      EOE
+    : override-package-specific
+    :
+    {
+      $clone_cfg;
 
-    cat cfg/build/config.build >>~%EOO%;
-      %.*
-      config.cc.coptions = -Wall
-      %.*
-      EOO
+      $* --configure-only { config.cc.coptions+=-g }+ libbar \
+                          { config.cc.coptions+=-O }+ libbox 2>>EOE;
+        fetched libbar/1.2.0
+        unpacked libbar/1.2.0
+        fetched libbox/1.2.0
+        unpacked libbox/1.2.0
+        configured libbar/1.2.0
+        configured libbox/1.2.0
+        EOE
 
-    cat cfg/libbar-1.2.0/build/config.build >>~%EOO%;
-      %.*
-      config.cc.coptions = -Wall -g
-      %.*
-      EOO
+      cat cfg/build/config.build >>~%EOO%;
+        %.*
+        config.cc.coptions = -Wall
+        %.*
+        EOO
 
-    cat cfg/libbox-1.2.0/build/config.build >>~%EOO%
-      %.*
-      config.cc.coptions = -Wall -O
-      %.*
-      EOO
+      cat cfg/libbar-1.2.0/build/config.build >>~%EOO%;
+        %.*
+        config.cc.coptions = -Wall -g
+        %.*
+        EOO
+
+      cat cfg/libbox-1.2.0/build/config.build >>~%EOO%;
+        %.*
+        config.cc.coptions = -Wall -O
+        %.*
+        EOO
+
+      $pkg_drop libbar libbox
+    }
+
+    : override-globally
+    :
+    {
+      $clone_cfg;
+
+      $* --configure-only config.cc.coptions+=-g \
+                          config.cc.coptions+=-O -- libbar 2>>EOE;
+        fetched libbar/1.2.0
+        unpacked libbar/1.2.0
+        configured libbar/1.2.0
+        EOE
+
+      cat cfg/build/config.build >>~%EOO%;
+        %.*
+        config.cc.coptions = -Wall
+        %.*
+        EOO
+
+      cat cfg/libbar-1.2.0/build/config.build >>~%EOO%;
+        %.*
+        config.cc.coptions = -Wall -g -O
+        %.*
+        EOO
+
+      $pkg_drop libbar
+    }
   }
 }
 
