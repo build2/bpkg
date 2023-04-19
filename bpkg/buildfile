@@ -131,10 +131,34 @@ switch $cxx.class
 if ($cxx.id == 'msvc' && $cxx.version.major == 19 && $cxx.version.minor < 10)
   cxx.coptions += /wd4503
 
-# Make sure backtrace includes function names.
+# Similar option to the build system driver.
 #
-if ($cxx.target.class == 'linux')
-  cxx.loptions += -rdynamic
+switch $cxx.target.class
+{
+  case 'linux'
+  {
+    # Make sure backtrace includes function names.
+    #
+    if ($cc.stdlib == 'glibc')
+      cxx.loptions += -rdynamic
+
+    # Make sure we use RPATH and not RUNPATH since the latter messes up
+    # dlopen().
+    #
+    cxx.loptions += -Wl,--disable-new-dtags
+  }
+  case 'windows'
+  {
+    # Adjust stack size (affects all threads).
+    #
+    #                                                8M        4M
+    stack_size = ($cxx.target.cpu == "x86_64" ? 8388608 : 4194304)
+
+    cxx.loptions += ($cxx.target.system == 'win32-msvc' \
+                     ? "/STACK:$stack_size"             \
+                     : "-Wl,--stack,$stack_size")
+  }
+}
 
 # Generated options parser.
 #
