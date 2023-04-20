@@ -2317,11 +2317,13 @@ Note that the comment of the matching exclusion is used by the web interface
 
 <args> = [[[+|-]<prefix>:](<option>|<config-var>)]* \\
          [(+|-)<prefix>:]*                          \\
-         [<dependency-spec>]*
+         [<dependency-spec>]*                       \\
+         [<package-specific-vars>]*
 
 <dependency-spec> = [{ <config-var> [<config-var>]* }+] <dependency>
 <dependency> = (?[sys:]|sys:)<name>[<version-spec>]
 <version-spec> = /<version> | <version-constraint>
+<package-specific-vars> = { <config-var> [<config-var>]* }+ <name>
 
 [*-builds]: <class-expr> [; <comment>]
 [*-build-include]: <config>[/<target>] [; <comment>]
@@ -2343,7 +2345,10 @@ it to a specific step, operation, phase, or tool (see \l{bbot#arch-worker
 disable the respective step (see the list of \l{bbot#arch-controller worker
 steps} which can be enabled or disabled). Unprefixed global options,
 variables, and dependencies are passed to the \l{bpkg-pkg-build(1)} command at
-the \c{bpkg.configure.build} step. For example:
+the \c{bpkg.configure.build} step. The package-specific configuration
+variables for this and/or the separate test packages are passed to
+\l{bpkg-pkg-build(1)} at the \c{bpkg.configure.build} and
+\c{bpkg.test-separate-installed.configure.build} steps. For example:
 
 \
 network-build-config: config.libfoo.network=true; Enable networking API.
@@ -2378,6 +2383,13 @@ bindist-build-config:
 -bbot.sys-install:
 ;
 Generate binary distribution package but don't test its installation.
+\\
+
+load-tests-build-config:
+\\
+{ config.libfoo_tests.load=true }+ libfoo-tests
+;
+Enable load testing.
 \\
 \
 
