@@ -2381,8 +2381,9 @@ bindist-build-config:
 \\
 +bpkg.bindist.debian:--recursive=full
 -bbot.sys-install:
++bbot.bindist.upload:
 ;
-Generate binary distribution package but don't test its installation.
+Generate and upload binary distribution package but don't test its installation.
 \\
 
 load-tests-build-config:
