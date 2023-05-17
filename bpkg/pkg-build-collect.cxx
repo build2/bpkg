@@ -400,6 +400,84 @@ namespace bpkg
     }
   }
 
+  // unsatisfied_dependents
+  //
+  unsatisfied_dependent* unsatisfied_dependents::
+  find_dependent (const package_key& dk)
+  {
+    auto i (find_if (begin (), end (),
+                     [&dk] (const unsatisfied_dependent& v)
+                     {
+                       return dk == v.dependent;
+                     }));
+    return i != end () ? &*i : nullptr;
+  }
+
+  void unsatisfied_dependents::
+  diag ()
+  {
+    assert (!empty ());
+
+    const unsatisfied_dependent& dpt (front ());
+
+    assert (!dpt.dependencies.empty ());
+
+    const package_key& dk (dpt.dependent);
+    build_package& p (*dpt.dependencies.front ().first);
+    const version_constraint& c (dpt.dependencies.front ().second);
+
+    database& pdb (p.db);
+    const shared_ptr<selected_package>& sp (p.selected);
+
+    const package_name& n (sp->name);
+    const version& av (p.available_version ());
+
+    // See if we are up/downgrading this package. In particular, the available
+    // package could be NULL meaning we are just adjusting.
+    //
+    int ud (p.available != nullptr
+            ? sp->version.compare (p.available_version ())
+            : 0);
+
+    // Otherwise, the dependent must be satisfied with the already configured
+    // dependency.
+    //
+    assert (ud != 0);
+
+    diag_record dr (fail);
+
+    dr << "unable to " << (ud < 0 ? "up" : "down") << "grade "
+       << "package " << *sp << pdb << " to ";
+
+    // Print both (old and new) package names in full if the system
+    // attribution changes.
+    //
+    if (p.system != sp->system ())
+      dr << p.available_name_version ();
+    else
+      dr << av; // Can't be the wildcard otherwise would satisfy.
+
+    dr << info << "because package " << dk << " depends on (" << n << " "
+       << c << ")";
+
+    string rb;
+    if (!p.user_selection ())
+    {
+      for (const package_key& pk: p.required_by)
+        rb += (rb.empty () ? " " : ", ") + pk.string ();
+    }
+
+    if (!rb.empty ())
+      dr << info << "package " << p.available_name_version ()
+         << " required by" << rb;
+
+    dr << info << "explicitly request up/downgrade of package "
+       << dk.name;
+
+    dr << info << "or explicitly specify package " << n
+       << " version to manually satisfy these constraints" << endf;
+  }
+
   // postponed_configuration
   //
   postponed_configuration::dependency*
@@ -1131,40 +1209,39 @@ namespace bpkg
     // Add the version replacement entry, call the verification function if
     // specified, and throw replace_version.
     //
-    auto replace_ver = [&pk, &vpb, &vi, &replaced_vers]
-      (const build_package& p)
-      {
-        replaced_version rv (p.available, p.repository_fragment, p.system);
+    auto replace_ver = [&pk, &vpb, &vi, &replaced_vers] (const build_package& p)
+    {
+      replaced_version rv (p.available, p.repository_fragment, p.system);
 
-        if (vi != replaced_vers.end ())
-          vi->second = move (rv);
-        else
-          replaced_vers.emplace (move (pk), move (rv));
+      if (vi != replaced_vers.end ())
+        vi->second = move (rv);
+      else
+        replaced_vers.emplace (move (pk), move (rv));
 
-        if (vpb)
-          vpb (p, true /* scratch */);
+      if (vpb)
+        vpb (p, true /* scratch */);
 
-        throw replace_version ();
-      };
+      throw replace_version ();
+    };
 
     auto i (map_.find (pk));
 
-    // If we already have an entry for this package name, then we have to
-    // pick one over the other.
+    // If we already have an entry for this package name, then we have to pick
+    // one over the other.
     //
     // If the existing entry is a drop, then we override it. If the existing
     // entry is a pre-entered or is non-build one, then we merge it into the
-    // new build entry. Otherwise (both are builds), we pick one and merge
-    // the other into it.
+    // new build entry. Otherwise (both are builds), we pick one and merge the
+    // other into it.
     //
     if (i != map_.end ())
     {
       build_package& bp (i->second.package);
 
       // Note that we used to think that the scenario when the build could
-      // replace drop could never happen since we would start collecting
-      // from scratch. This has changed when we introduced replaced_versions
-      // for collecting drops.
+      // replace drop could never happen since we would start collecting from
+      // scratch. This has changed when we introduced replaced_versions for
+      // collecting drops.
       //
       if (bp.action && *bp.action == build_package::drop)        // Drop.
       {
@@ -1177,16 +1254,15 @@ namespace bpkg
       }
       else                                                       // Build.
       {
-        // At the end we want p1 to point to the object that we keep
-        // and p2 to the object that we merge from.
+        // At the end we want p1 to point to the object that we keep and p2 to
+        // the object that we merge from.
         //
         build_package* p1 (&bp);
         build_package* p2 (&pkg);
 
         // Pick with the following preference order: user selection over
-        // implicit one, source package over a system one, newer version
-        // over an older one. So get the preferred into p1 and the other
-        // into p2.
+        // implicit one, source package over a system one, newer version over
+        // an older one. So get the preferred into p1 and the other into p2.
         //
         {
           int us (p1->user_selection () - p2->user_selection ());
@@ -1254,8 +1330,8 @@ namespace bpkg
         }
 
         // See if we are replacing the object. If not, then we don't need to
-        // collect its prerequisites since that should have already been
-        // done. Remember, p1 points to the object we want to keep.
+        // collect its prerequisites since that should have already been done.
+        // Remember, p1 points to the object we want to keep.
         //
         bool replace (p1 != &i->second.package);
 
@@ -3018,7 +3094,7 @@ namespace bpkg
                                                  das.buildtime,
                                                  prereqs,
                                                  nullptr /* diag_record */,
-                                                 true /* dru_run */));
+                                                 true /* dry_run */));
 
                 if (r.builds && r.reused)
                 {
@@ -3046,7 +3122,7 @@ namespace bpkg
                                                      das.buildtime,
                                                      nullptr /* prereqs */,
                                                      nullptr /* diag_record */,
-                                                     true /* dru_run */));
+                                                     true /* dry_run */));
 
                     if (r.builds && r.reused)
                     {
@@ -5690,7 +5766,8 @@ namespace bpkg
   }
 
   void build_packages::
-  collect_order_dependents (const repointed_dependents& rpt_depts)
+  collect_order_dependents (const repointed_dependents& rpt_depts,
+                            unsatisfied_dependents& unsatisfied_depts)
   {
     // For each package on the list we want to insert all its dependents
     // before it so that they get configured after the package on which they
@@ -5710,13 +5787,14 @@ namespace bpkg
       // Dropped package may have no dependents.
       //
       if (*p.action != build_package::drop && p.reconfigure ())
-        collect_order_dependents (i, rpt_depts);
+        collect_order_dependents (i, rpt_depts, unsatisfied_depts);
     }
   }
 
   void build_packages::
   collect_order_dependents (iterator pos,
-                            const repointed_dependents& rpt_depts)
+                            const repointed_dependents& rpt_depts,
+                            unsatisfied_dependents& unsatisfied_depts)
   {
     tracer trace ("collect_order_dependents");
 
@@ -5788,47 +5866,45 @@ namespace bpkg
         if (check)
         {
           const version& av (p.available_version ());
-          const version_constraint& c (*pd.constraint);
+          version_constraint& c (*pd.constraint);
 
+          // If the new dependency version doesn't satisfy the existing
+          // dependent, then postpone the failure in the hope that this
+          // problem will be resolved naturally (the dependent will also be
+          // up/downgraded, etc; see unsatisfied_dependents for details).
+          //
           if (!satisfies (av, c))
           {
-            diag_record dr (fail);
+            package_key dk (ddb, dn);
+            unsatisfied_dependent* ud (unsatisfied_depts.find_dependent (dk));
 
-            dr << "unable to " << (ud < 0 ? "up" : "down") << "grade "
-               << "package " << *sp << pdb << " to ";
-
-            // Print both (old and new) package names in full if the system
-            // attribution changes.
-            //
-            if (p.system != sp->system ())
-              dr << p.available_name_version ();
-            else
-              dr << av; // Can't be the wildcard otherwise would satisfy.
-
-            dr << info << "because package " << dn << ddb << " depends on ("
-               << n << " " << c << ")";
-
-            string rb;
-            if (!p.user_selection ())
+            if (ud != nullptr)
             {
-              for (const package_key& pk: p.required_by)
-                rb += (rb.empty () ? " " : ", ") + pk.string ();
+              vector<pair<build_package*, version_constraint>>& deps (
+                ud->dependencies);
+
+              auto i (find_if (deps.begin (), deps.end (),
+                               [&p] (const auto& v) {return v.first == &p;}));
+
+              // It doesn't seems that we can be adding the same
+              // unsatisfactory dependency twice.
+              //
+              assert (i == deps.end ());
+
+              deps.push_back (make_pair (&p, move (c)));
             }
-
-            if (!rb.empty ())
-              dr << info << "package " << p.available_name_version ()
-                 << " required by" << rb;
-
-            dr << info << "explicitly request up/downgrade of package "
-               << dn;
-
-            dr << info << "or explicitly specify package " << n
-               << " version to manually satisfy these constraints";
+            else
+            {
+              unsatisfied_depts.push_back (
+                unsatisfied_dependent {move (dk), {make_pair (&p, move (c))}});
+            }
           }
-
-          // Add this contraint to the list for completeness.
-          //
-          p.constraints.emplace_back (ddb, dn.string (), c);
+          else
+          {
+            // Add this contraint to the list for completeness.
+            //
+            p.constraints.emplace_back (ddb, dn.string (), move (c));
+          }
         }
 
         auto adjustment = [&dn, &ddb, &n, &pdb] () -> build_package
@@ -5927,7 +6003,9 @@ namespace bpkg
         // configured packages due to a dependency cycle (see order() for
         // details).
         //
-        collect_order_dependents (i->second.position, rpt_depts);
+        collect_order_dependents (i->second.position,
+                                  rpt_depts,
+                                  unsatisfied_depts);
       }
     }
   }
@@ -5987,6 +6065,14 @@ namespace bpkg
 
     lazy_shared_ptr<selected_package> sp (db, name);
 
+    // Lazily search for the dependency build and detect if it is being
+    // up/downgraded. Note that we will only do that if the dependency has an
+    // existing dependent which imposes a version constraint on this
+    // dependency.
+    //
+    const build_package* dep (nullptr);
+    int ud (0);
+
     for (database& ddb: db.dependent_configs ())
     {
       for (auto& pd: query_dependents (ddb, name, db))
@@ -6045,6 +6131,49 @@ namespace bpkg
                           << " of dependency " << name << db;});
 
             continue;
+          }
+
+          // Ignore dependent if this dependency up/downgrade won't satisfy
+          // the dependent's constraint. The thinking here is that we will
+          // either fail for this reason later or the problem will be resolved
+          // naturally due to the execution plan refinement (see
+          // unsatisfied_dependents for details).
+          //
+          if (pd.constraint)
+          {
+            // Search for the dependency build and detect if it is being
+            // up/downgraded, if not done yet. In particular, the available
+            // package could be NULL meaning we are just adjusting.
+            //
+            if (dep == nullptr)
+            {
+              dep = entered_build (db, name);
+
+              assert (dep != nullptr); // Expected to be being built.
+
+              if (dep->available != nullptr)
+              {
+                const shared_ptr<selected_package>& sp (dep->selected);
+
+                // Expected to be selected since it has an existing dependent.
+                //
+                assert (sp != nullptr);
+
+                ud = sp->version.compare (dep->available_version ());
+              }
+            }
+
+            if (ud != 0 &&
+                !satisfies (dep->available_version (), *pd.constraint))
+            {
+              l5 ([&]{trace << "skip unsatisfied existing dependent " << pk
+                            << " of dependency "
+                            << dep->available_name_version_db () << " due to "
+                            << "constraint (" << name << ' ' << *pd.constraint
+                            << ')';});
+
+              continue;
+            }
           }
 
           r.push_back (existing_dependent {ddb, move (dsp), pos});

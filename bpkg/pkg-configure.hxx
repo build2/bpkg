@@ -68,6 +68,9 @@ namespace bpkg
   // dependency decisions" mode). Failed that, select an alternative as if no
   // prerequisites are specified (the "make dependency decisions" mode).
   //
+  // Optionally, remove constraints from the specified dependencies
+  // (unconstrain_deps). Only allowed in the simulation mode.
+  //
   struct configure_prerequisites_result
   {
     package_prerequisites   prerequisites;
@@ -92,17 +95,18 @@ namespace bpkg
   // Note: loads selected packages.
   //
   configure_prerequisites_result
-  pkg_configure_prerequisites (const common_options&,
-                               database&,
-                               transaction&,
-                               const dependencies&,
-                               const vector<size_t>* alternatives,
-                               package_skeleton&&,
-                               const vector<package_name>* prev_prerequisites,
-                               bool simulate,
-                               const function<find_database_function>&,
-                               const function<find_package_state_function>&);
-
+  pkg_configure_prerequisites (
+    const common_options&,
+    database&,
+    transaction&,
+    const dependencies&,
+    const vector<size_t>* alternatives,
+    package_skeleton&&,
+    const vector<package_name>* prev_prerequisites,
+    bool simulate,
+    const function<find_database_function>&,
+    const function<find_package_state_function>&,
+    const vector<package_key>* unconstrain_deps = nullptr);
 
   // Configure the package, update its state, and commit the transaction.
   //

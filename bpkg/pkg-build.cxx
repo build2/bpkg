@@ -897,12 +897,13 @@ namespace bpkg
     return r && r->available == nullptr ? nullopt : r;
   }
 
-  // Return false if the plan execution was noop.
+  // Return false if the plan execution was noop. If unsatisfied dependents
+  // are specified then we are in the simulation mode.
   //
   static bool
   execute_plan (const pkg_build_options&,
                 build_package_list&,
-                bool simulate,
+                unsatisfied_dependents* simulate,
                 const function<find_database_function>&);
 
   using pkg_options = pkg_build_pkg_options;
@@ -3374,6 +3375,7 @@ namespace bpkg
         postponed_packages       postponed_alts;
         postponed_configurations postponed_cfgs;
         strings                  postponed_cfgs_history;
+        unsatisfied_dependents   unsatisfied_depts;
 
         try
         {
@@ -3751,7 +3753,7 @@ namespace bpkg
         // reconfigure because of the up/down-grades of packages that are now
         // on the list.
         //
-        pkgs.collect_order_dependents (rpt_depts);
+        pkgs.collect_order_dependents (rpt_depts, unsatisfied_depts);
 
         // And, finally, make sure all the packages that we need to unhold
         // are on the list.
@@ -3832,7 +3834,7 @@ namespace bpkg
 
           changed = execute_plan (o,
                                   bl,
-                                  true /* simulate */,
+                                  &unsatisfied_depts,
                                   find_prereq_database);
 
           if (changed)
@@ -4385,6 +4387,13 @@ namespace bpkg
             }
           }
 
+          // Issue diagnostics and fail if the execution plan is finalized and
+          // any existing dependents are not satisfied with their
+          // dependencies.
+          //
+          if (!refine && !unsatisfied_depts.empty ())
+            unsatisfied_depts.diag ();
+
           // Re-link the private configurations that were created during the
           // collection of the package builds with their parent
           // configurations. Note that these links were lost on the previous
@@ -4794,7 +4803,7 @@ namespace bpkg
     //
     bool noop (!execute_plan (o,
                               pkgs,
-                              false /* simulate */,
+                              nullptr /* simulate */,
                               find_prereq_database));
 
     if (o.configure_only ())
@@ -4869,12 +4878,15 @@ namespace bpkg
   static bool
   execute_plan (const pkg_build_options& o,
                 build_package_list& build_pkgs,
-                bool simulate,
+                unsatisfied_dependents* simulate,
                 const function<find_database_function>& fdb)
   {
     tracer trace ("execute_plan");
 
     l4 ([&]{trace << "simulate: " << (simulate ? "yes" : "no");});
+
+    // If unsatisfied dependents are specified then we are in the simulation
+    // mode and thus simulate can be used as bool.
 
     bool r (false);
     uint16_t verb (!simulate ? bpkg::verb : 0);
@@ -5524,7 +5536,7 @@ namespace bpkg
                                                configured_state);
           }
         }
-        else // Dependent.
+        else // Existing dependent.
         {
           // This is an adjustment of a dependent which cannot be system
           // (otherwise it wouldn't be a dependent) and cannot become system
@@ -5556,6 +5568,28 @@ namespace bpkg
 
           const dependencies& deps (p.skeleton->available->dependencies);
 
+          // In the simulation mode unconstrain all the unsatisfactory
+          // dependencies, if any, while configuring the dependent.
+          //
+          vector<package_key> unconstrain_deps;
+
+          if (simulate)
+          {
+            unsatisfied_dependent* ud (
+              simulate->find_dependent (package_key (pdb, p.name ())));
+
+            if (ud != nullptr)
+            {
+              unconstrain_deps.reserve (ud->dependencies.size ());
+
+              for (const auto& d: ud->dependencies)
+              {
+                const build_package& p (*d.first);
+                unconstrain_deps.emplace_back (p.db, p.name ());
+              }
+            }
+          }
+
           // @@ Note that on reconfiguration the dependent looses the
           //    potential configuration variables specified by the user on
           //    some previous build, which can be quite surprising. Should we
@@ -5573,7 +5607,10 @@ namespace bpkg
                                              prereqs (),
                                              simulate,
                                              fdb,
-                                             configured_state);
+                                             configured_state,
+                                             (!unconstrain_deps.empty ()
+                                              ? &unconstrain_deps
+                                              : nullptr));
         }
 
         t.commit ();

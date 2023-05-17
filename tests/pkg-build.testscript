@@ -260,7 +260,7 @@
 # |   |-- libbar-0.1.0.tar.gz   -> libbaz
 # |   `-- repositories.manifest
 # |
-# |-- t12b                      -> t12b (prerequisite repository)
+# |-- t12b                      -> t12a (prerequisite repository)
 # |   |-- libbaz-0.1.0.tar.gz
 # |   |-- libbar-1.0.0.tar.gz   -> libbaz == 0.1.0
 # |   |-- foo-0.1.0.tar.gz
@@ -1156,8 +1156,9 @@ test.arguments += --sys-no-query
     :
     {
       $clone_cfg;
-      $pkg_fetch libfoo/1.1.0 && $pkg_unpack libfoo && $pkg_configure libfoo;
-      $pkg_fetch libbar/1.1.0 && $pkg_unpack libbar && $pkg_configure libbar;
+
+      $rep_add $rep/t4a $rep/t4b && $rep_fetch;
+      $pkg_build libfoo/1.1.0 libbar/1.1.0 -d cfg 2>!;
 
       $* libfoo-1.2.0.tar.gz 2>>EOE != 0;
         error: unknown package libfoo-1.2.0.tar.gz
@@ -1186,10 +1187,11 @@ test.arguments += --sys-no-query
     {
       $clone_cfg;
       $cfg_create -d cfg2 &cfg2/***;
-      $rep_add -d cfg2 $rep/t4c && $rep_fetch -d cfg2;
+      $rep_add -d cfg2 $rep/t4a $rep/t4b $rep/t4c && $rep_fetch -d cfg2;
       $cfg_link -d cfg2 cfg;
-      $pkg_fetch libfoo/1.1.0 && $pkg_unpack libfoo && $pkg_configure libfoo;
-      $pkg_fetch libbar/1.1.0 && $pkg_unpack libbar && $pkg_configure libbar;
+
+      $rep_add $rep/t4a $rep/t4b && $rep_fetch;
+      $pkg_build libfoo/1.1.0 libbar/1.1.0 -d cfg 2>!;
 
       $* libfoo-1.2.0.tar.gz 2>>EOE != 0;
         error: unknown package libfoo-1.2.0.tar.gz
@@ -1213,6 +1215,49 @@ test.arguments += --sys-no-query
 
       $pkg_disfigure libfoo 2>'disfigured libfoo/1.1.0';
       $pkg_purge     libfoo 2>'purged libfoo/1.1.0'
+    }
+
+    : able-downgrade
+    :
+    : Similar to the above unable-downgrade, but this time libfoo and libbar
+    : are configured manually and so are not held. Thus, libfoo downgrades
+    : successfully since libbar is just dropped having no dependents.
+    :
+    {
+      $clone_cfg;
+
+      $pkg_fetch libfoo/1.1.0 && $pkg_unpack libfoo && $pkg_configure libfoo;
+      $pkg_fetch libbar/1.1.0 && $pkg_unpack libbar && $pkg_configure libbar;
+
+      $* libfoo/1.0.0 >>EOO;
+        downgrade libfoo/1.0.0
+        drop libbar/1.1.0 (unused)
+        EOO
+
+      $pkg_drop libbar libfoo
+    }
+
+    : able-downgrade-config
+    :
+    : As above but with a linked configuration.
+    :
+    {
+      $clone_cfg;
+      $cfg_create -d cfg2 &cfg2/***;
+      $rep_add -d cfg2 $rep/t4c && $rep_fetch -d cfg2;
+      $cfg_link -d cfg2 cfg;
+
+      $pkg_fetch libfoo/1.1.0 && $pkg_unpack libfoo && $pkg_configure libfoo;
+      $pkg_fetch libbar/1.1.0 && $pkg_unpack libbar && $pkg_configure libbar;
+
+      test.arguments = $regex.apply($test.arguments, cfg, cfg2);
+
+      $* libfoo/1.0.0 +{ --config-id 1 } >>~%EOO%;
+        %downgrade libfoo/1.0.0 \[cfg.\]%
+        %drop libbar/1.1.0 \[cfg.\] \(unused\)%
+        EOO
+
+      $pkg_drop libbar libfoo
     }
   }
 
@@ -4994,21 +5039,6 @@ test.arguments += --sys-no-query
     : dropped, which will happen some later execution plan refinement
     : iteration.
     :
-    : @@ This scenario is not supported yet and fails with:
-    :
-    :    error: unable to upgrade package libbaz/0.1.0 to 1.0.0
-    :      info: because package libbar depends on (libbaz == 0.1.0)
-    :      info: package libbaz/1.0.0 required by baz
-    :      info: explicitly request up/downgrade of package libbar
-    :      info: or explicitly specify package libbaz version to manually satisfy these constraints
-    :
-    :    We could probably fix this postponing the constraints check in
-    :    collect_order_dependents() until the final execution plan is produced
-    :    (after all that refinement iterations). We could have an additional
-    :    iteration after all the refinements which would enable the constraint
-    :    check in collect_order_dependents().
-    :
-    if false
     {
       $clone_cfg;
 
@@ -5020,12 +5050,15 @@ test.arguments += --sys-no-query
             libbaz configured 0.1.0 available [1.0.0]
         EOO
 
-      $* baz foo/0.1.0 2>|;
+      $* baz foo/0.1.0 2>!;
 
       $pkg_status -r >>EOO;
+        !foo configured !0.1.0 available 1.0.0
+        !baz configured 1.0.0
+          libbaz configured 1.0.0
         EOO
 
-      $pkg_drop foo
+      $pkg_drop baz foo
     }
   }
 

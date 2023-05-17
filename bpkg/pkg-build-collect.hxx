@@ -733,6 +733,50 @@ namespace bpkg
     cancel_bogus (tracer&, bool scratch);
   };
 
+  // Existing dependents with their up/downgraded dependencies which don't
+  // satisfy the version constraints.
+  //
+  // Note that after collecting/ordering of all the explicitly specified
+  // packages and their dependencies for the build we also collect/order their
+  // existing dependents for reconfiguration, recursively. It may happen that
+  // some of the up/downgraded dependencies don't satisfy the version
+  // constraints which some of the existing dependents impose on them. Rather
+  // than fail immediately in such a case, we postpone the failure in the hope
+  // that these problems will be resolved naturally as a result of the
+  // execution plan refinement (dependents will also be up/downgraded or
+  // dropped, dependencies will be up/downgraded to a different versions,
+  // etc).
+  //
+  // Specifically, we cache such unsatisfied constraints, pretend that the
+  // dependents don't impose them and proceed with the remaining
+  // collecting/ordering, simulating the plan execution, and evaluating the
+  // dependency versions. After that we check if the execution plan is
+  // finalized or a further refinement is required. In the former case we
+  // report the first encountered unsatisfied dependency constraint and
+  // fail. Otherwise, we drop the cache and proceed with the next iteration of
+  // the execution plan refinement which may resolve these problem naturally.
+  //
+  struct unsatisfied_dependent
+  {
+    package_key dependent;
+    vector<pair<build_package*, version_constraint>> dependencies;
+  };
+
+  class unsatisfied_dependents: public vector<unsatisfied_dependent>
+  {
+  public:
+    // Try to find the dependent entry and return NULL if not found.
+    //
+    unsatisfied_dependent*
+    find_dependent (const package_key&);
+
+    // Issue the diagnostics for the first unsatisfied dependency constraint
+    // and throw failed.
+    //
+    [[noreturn]] void
+    diag ();
+  };
+
   // List of dependency groups whose recursive processing should be postponed
   // due to dependents with configuration clauses, together with these
   // dependents (we will call them package clusters).
@@ -1376,9 +1420,12 @@ namespace bpkg
 
     // If a configured package is being up/down-graded then that means all its
     // dependents could be affected and we have to reconfigure them. This
-    // function examines every package that is already on the list and collects
-    // and orders all its dependents. We also need to make sure the dependents
-    // are ok with the up/downgrade.
+    // function examines every package that is already on the list and
+    // collects and orders all its dependents. We also need to make sure the
+    // dependents are ok with the up/downgrade. If some dependency constraints
+    // are not satisfied, then cache them and proceed further as if no
+    // problematic constraints are imposed (see unsatisfied_dependents for
+    // details).
     //
     // Should we reconfigure just the direct depends or also include indirect,
     // recursively? Consider this plauisible scenario as an example: We are
@@ -1389,10 +1436,13 @@ namespace bpkg
     // package's indirect ones) to also notice this.
     //
     void
-    collect_order_dependents (const repointed_dependents&);
+    collect_order_dependents (const repointed_dependents&,
+                              unsatisfied_dependents&);
 
     void
-    collect_order_dependents (iterator, const repointed_dependents&);
+    collect_order_dependents (iterator,
+                              const repointed_dependents&,
+                              unsatisfied_dependents&);
 
     void
     clear ();
@@ -1411,7 +1461,10 @@ namespace bpkg
     // Return the list of existing dependents that has a configuration clause
     // for the specified dependency. Skip dependents which are being built and
     // require recursive recollection or dropped (present in the map) or
-    // expected to be built or dropped (present in rpt_depts or replaced_vers).
+    // expected to be built or dropped (present in rpt_depts or
+    // replaced_vers). Also skip dependents which impose the version
+    // constraint on this dependency and the dependency doesn't satisfy this
+    // constraint.
     //
     // Optionally, specify the function which can verify the dependent build
     // and decide whether to override the default behavior and still add the

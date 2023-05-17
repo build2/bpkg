@@ -30,6 +30,8 @@ using namespace butl;
 
 namespace bpkg
 {
+  static optional<version_constraint> absent_constraint;
+
   configure_prerequisites_result
   pkg_configure_prerequisites (const common_options& o,
                                database& db,
@@ -40,9 +42,14 @@ namespace bpkg
                                const vector<package_name>* prev_prereqs,
                                bool simulate,
                                const function<find_database_function>& fdb,
-                               const function<find_package_state_function>& fps)
+                               const function<find_package_state_function>& fps,
+                               const vector<package_key>* unconstrain_deps)
   {
     tracer trace ("pkg_configure_prerequisites");
+
+    // Unconstraining dependencies are only allowed in the simulation mode.
+    //
+    assert (unconstrain_deps == nullptr || simulate);
 
     tracer_guard tg (db, trace);
 
@@ -161,12 +168,28 @@ namespace bpkg
             if (dp == nullptr)
               break;
 
+            database& pdb (*spd.second);
+
             optional<pair<package_state, package_substate>> dps;
             if (fps != nullptr)
               dps = fps (dp);
 
+            const optional<version_constraint>* dc (&d.constraint);
+
+            // Unconstrain this dependency, if requested.
+            //
+            if (unconstrain_deps != nullptr)
+            {
+              const vector<package_key>& uds (*unconstrain_deps);
+              if (find (uds.begin (), uds.end (), package_key (pdb, n)) !=
+                  uds.end ())
+              {
+                dc = &absent_constraint;
+              }
+            }
+
             if ((dps ? dps->first : dp->state) != package_state::configured ||
-                !satisfies (dp->version, d.constraint)                      ||
+                !satisfies (dp->version, *dc)                               ||
                 (pps != nullptr &&
                  find (pps->begin (), pps->end (), dp->name) == pps->end ()))
               break;
@@ -177,8 +200,8 @@ namespace bpkg
             bool conf (da.prefer || da.require);
 
             prerequisites.emplace_back (
-              lazy_shared_ptr<selected_package> (*spd.second, dp),
-              prerequisite_info {d.constraint,
+              lazy_shared_ptr<selected_package> (pdb, dp),
+              prerequisite_info {*dc,
                                  make_pair (conf ? di  + 1 : 0,
                                             conf ? dai + 1 : 0)});
           }
