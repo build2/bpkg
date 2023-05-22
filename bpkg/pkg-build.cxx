@@ -763,12 +763,45 @@ namespace bpkg
   // upgraded or patched. Return true if it must be upgraded, false if
   // patched, and nullopt otherwise.
   //
+  // Cache the results of this function calls to avoid multiple traversals of
+  // the same dependency graphs.
+  //
+  struct upgrade_dependency_key
+  {
+    package_key dependent;
+    bool recursion;
+
+    bool
+    operator< (const upgrade_dependency_key& v) const
+    {
+      if (recursion != v.recursion)
+        return recursion < v.recursion;
+
+      return dependent < v.dependent;
+    }
+  };
+
+  using upgrade_dependency_cache = map<upgrade_dependency_key, optional<bool>>;
+
   static optional<bool>
   upgrade_dependencies (database& db,
                         const package_name& nm,
                         const recursive_packages& rs,
+                        upgrade_dependency_cache& cache,
                         bool recursion = false)
   {
+    // If the result of the upgrade_dependencies() call for these dependent
+    // and recursion flag value is cached, then return that. Otherwise, cache
+    // the calculated result prior to returning it to the caller.
+    //
+    upgrade_dependency_key k {package_key (db, nm), recursion};
+    {
+      auto i (cache.find (k));
+
+      if (i != cache.end ())
+        return i->second;
+    }
+
     auto i (find_if (rs.begin (), rs.end (),
                      [&nm, &db] (const recursive_package& i) -> bool
                      {
@@ -782,7 +815,10 @@ namespace bpkg
       r = i->upgrade;
 
       if (*r) // Upgrade (vs patch)?
+      {
+        cache[move (k)] = r;
         return r;
+      }
     }
 
     for (database& ddb: db.dependent_configs ())
@@ -793,19 +829,27 @@ namespace bpkg
         // configured packages due to a dependency cycle (see order() for
         // details).
         //
-        if (optional<bool> u = upgrade_dependencies (ddb, pd.name, rs, true))
+        if (optional<bool> u = upgrade_dependencies (ddb,
+                                                     pd.name,
+                                                     rs,
+                                                     cache,
+                                                     true /* recursion */))
         {
           if (!r || *r < *u) // Upgrade wins patch.
           {
             r = u;
 
             if (*r) // Upgrade (vs patch)?
+            {
+              cache[move (k)] = r;
               return r;
+            }
           }
         }
       }
     }
 
+    cache[move (k)] = r;
     return r;
   }
 
@@ -824,7 +868,8 @@ namespace bpkg
   evaluate_recursive (database& db,
                       const shared_ptr<selected_package>& sp,
                       const recursive_packages& recs,
-                      bool ignore_unsatisfiable)
+                      bool ignore_unsatisfiable,
+                      upgrade_dependency_cache& cache)
   {
     tracer trace ("evaluate_recursive");
 
@@ -851,7 +896,7 @@ namespace bpkg
 
         dpt_constrs.emplace_back (ddb, p, move (pd.constraint));
 
-        if (optional<bool> u = upgrade_dependencies (ddb, pd.name, recs))
+        if (optional<bool> u = upgrade_dependencies (ddb, pd.name, recs, cache))
         {
           if (!upgrade || *upgrade < *u) // Upgrade wins patch.
             upgrade = u;
@@ -3858,10 +3903,14 @@ namespace bpkg
         // value covers both the "no change is required" and the "no
         // recommendation available" cases.
         //
-        auto eval_dep = [&dep_pkgs, &rec_pkgs, &o] (
-          database& db,
-          const shared_ptr<selected_package>& sp,
-          bool ignore_unsatisfiable = true) -> optional<evaluate_result>
+        auto eval_dep = [&dep_pkgs,
+                         &rec_pkgs,
+                         &o,
+                         cache = upgrade_dependency_cache {}] (
+                         database& db,
+                         const shared_ptr<selected_package>& sp,
+                         bool ignore_unsatisfiable = true) mutable
+          -> optional<evaluate_result>
         {
           optional<evaluate_result> r;
 
@@ -3881,7 +3930,11 @@ namespace bpkg
           // configured as such for a reason.
           //
           if (!r && !sp->system () && !rec_pkgs.empty ())
-            r = evaluate_recursive (db, sp, rec_pkgs, ignore_unsatisfiable);
+            r = evaluate_recursive (db,
+                                    sp,
+                                    rec_pkgs,
+                                    ignore_unsatisfiable,
+                                    cache);
 
           // Translate the "no change" result to nullopt.
           //
