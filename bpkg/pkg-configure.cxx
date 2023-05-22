@@ -477,10 +477,8 @@ namespace bpkg
     //
     // Note: see a version of this in pkg_configure_prerequisites().
     //
-    bool external (p->external ());
-
     dir_path out_root (
-      external
+      p->external ()
       ? c / dir_path (p->name.string ())
       : c / dir_path (p->name.string () + '-' + p->version.string ()));
 
@@ -618,8 +616,8 @@ namespace bpkg
         //
         bootstrap_pre (rs, altn);
         bootstrap_src (rs, altn,
-                       db.config.relative (out_root) /* amalgamation */,
-                       true                          /* subprojects */);
+                       c.relative (out_root) /* amalgamation */,
+                       true                  /* subprojects */);
 
         create_bootstrap_outer (rs, true /* subprojects */);
         bootstrap_post (rs);
@@ -689,11 +687,13 @@ namespace bpkg
         // Here is a tricky part: if this is a normal package, then it will be
         // discovered as a subproject of the bpkg configuration when we load
         // it for the first time (because they are all unpacked). However, if
-        // this is an external package, there could be no out_root directory
-        // for it in the bpkg configuration yet. As a result, we need to
-        // manually add it as a newly discovered subproject.
+        // this is a package with src_root!=out_root (such as an external
+        // package or a package with a custom checkout_root) then there could
+        // be no out_root directory for it in the bpkg configuration yet. As a
+        // result, we need to manually add it as a newly discovered
+        // subproject.
         //
-        if (external)
+        if (!rs.out_eq_src ())
         {
           scope* as (rs.parent_scope ()->root_scope ());
           assert (as != nullptr); // No bpkg configuration?
