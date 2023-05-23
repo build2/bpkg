@@ -5886,12 +5886,20 @@ namespace bpkg
               auto i (find_if (deps.begin (), deps.end (),
                                [&p] (const auto& v) {return v.first == &p;}));
 
-              // It doesn't seems that we can be adding the same
-              // unsatisfactory dependency twice.
+              // Skip the dependency if it is already in the list.
               //
-              assert (i == deps.end ());
+              // Note that we can be adding the same unsatisfactory dependency
+              // multiple times via different dependency paths. For example:
+              //
+              // 1. libboost-core    -> libboost-mpl -> libboost-regex
+              // 2. libboost-utility -> libboost-mpl -> libboost-regex
+              //
+              // In this case, however, the constraint should be the same.
+              //
+              assert (i == deps.end () || i->second == c);
 
-              deps.push_back (make_pair (&p, move (c)));
+              if (i == deps.end ())
+                deps.push_back (make_pair (&p, move (c)));
             }
             else
             {
