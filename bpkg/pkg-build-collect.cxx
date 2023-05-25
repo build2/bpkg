@@ -5769,6 +5769,10 @@ namespace bpkg
   collect_order_dependents (const repointed_dependents& rpt_depts,
                             unsatisfied_dependents& unsatisfied_depts)
   {
+    // Note: the pointer is stable (points to a value in std::map).
+    //
+    set<const build_package*> visited_deps;
+
     // For each package on the list we want to insert all its dependents
     // before it so that they get configured after the package on which they
     // depend is configured (remember, our build order is reverse, with the
@@ -5787,20 +5791,30 @@ namespace bpkg
       // Dropped package may have no dependents.
       //
       if (*p.action != build_package::drop && p.reconfigure ())
-        collect_order_dependents (i, rpt_depts, unsatisfied_depts);
+        collect_order_dependents (i,
+                                  rpt_depts,
+                                  unsatisfied_depts,
+                                  visited_deps);
     }
   }
 
   void build_packages::
   collect_order_dependents (iterator pos,
                             const repointed_dependents& rpt_depts,
-                            unsatisfied_dependents& unsatisfied_depts)
+                            unsatisfied_dependents& unsatisfied_depts,
+                            set<const build_package*>& visited_deps)
   {
     tracer trace ("collect_order_dependents");
 
     assert (pos != end ());
 
     build_package& p (*pos);
+
+    // Bail out if the dependency has already been visited and add it to the
+    // visited set otherwise.
+    //
+    if (!visited_deps.insert (&p).second)
+      return;
 
     database& pdb (p.db);
     const shared_ptr<selected_package>& sp (p.selected);
@@ -5988,6 +6002,12 @@ namespace bpkg
               {
                 erase (dpos);
                 dpos = insert (pos, dp);
+
+                // Remove the moved dependent from the visited dependencies
+                // set, if present, so its own dependents can be reordered to
+                // the left of this dependent.
+                //
+                visited_deps.erase (&dp);
                 break;
               }
             }
@@ -6013,7 +6033,8 @@ namespace bpkg
         //
         collect_order_dependents (i->second.position,
                                   rpt_depts,
-                                  unsatisfied_depts);
+                                  unsatisfied_depts,
+                                  visited_deps);
       }
     }
   }

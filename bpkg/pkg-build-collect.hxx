@@ -1440,11 +1440,6 @@ namespace bpkg
                               unsatisfied_dependents&);
 
     void
-    collect_order_dependents (iterator,
-                              const repointed_dependents&,
-                              unsatisfied_dependents&);
-
-    void
     clear ();
 
     void
@@ -1524,6 +1519,26 @@ namespace bpkg
            package_refs& chain,
            const function<find_database_function>&,
            bool reorder);
+
+    // Skip the dependents collection/ordering for the specified dependency if
+    // that has already be done.
+    //
+    // Note that if this function has already been called for this dependency,
+    // then all its dependents are already in the map and the dependency
+    // constraints have been checked for them. Also they are in the list and
+    // are ordered to the left of this dependency, unless this dependency has
+    // been moved to the left itself since the previous visit. Such a move can
+    // only happen if this dependency is a dependent of some other dependency
+    // whose dependents have been collected/ordered since that previous visit.
+    // This function tracks such moves and just removes the moved dependencies
+    // from the visited set, so their dependents can be properly reordered
+    // after the move.
+    //
+    void
+    collect_order_dependents (iterator,
+                              const repointed_dependents&,
+                              unsatisfied_dependents&,
+                              std::set<const build_package*>& visited_deps);
 
   private:
     struct data_type
