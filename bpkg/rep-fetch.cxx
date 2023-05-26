@@ -481,25 +481,35 @@ namespace bpkg
 
         // Load *-file values.
         //
-        m.load_files (
-          [ev, &rd, &rl, &pl]
-          (const string& n, const path& p) -> optional<string>
-          {
-            // Always expand the build-file values.
-            //
-            if (ev || n == "build-file")
+        try
+        {
+          m.load_files (
+            [ev, &rd, &rl, &pl]
+            (const string& n, const path& p) -> optional<string>
             {
-              return read_package_file (p,
-                                        n,
-                                        pl,
-                                        rd,
-                                        rl,
-                                        empty_string /* fragment */);
-            }
-            else
-              return nullopt;
-          },
-          iu);
+              // Always expand the build-file values.
+              //
+              if (ev || n == "build-file")
+              {
+                return read_package_file (p,
+                                          n,
+                                          pl,
+                                          rd,
+                                          rl,
+                                          empty_string /* fragment */);
+              }
+              else
+                return nullopt;
+            },
+            iu);
+        }
+        catch (const manifest_parsing& e)
+        {
+          diag_record dr (fail);
+          dr << e << info;
+          print_package_info (dr, pl, rl, nullopt /* fragment */);
+          dr << endf;
+        }
 
         // Load the bootstrap, root, and config/*.build buildfiles into the
         // respective *-build values, if requested and if they are not already
@@ -679,38 +689,49 @@ namespace bpkg
 
           // Load *-file values.
           //
-          m.load_files (
-            [ev, &td, &rl, &pl, &fr, &checkout_submodules]
-            (const string& n, const path& p) -> optional<string>
-            {
-              // Always expand the build-file values.
-              //
-              if (ev || n == "build-file")
+          try
+          {
+            m.load_files (
+              [ev, &td, &rl, &pl, &fr, &checkout_submodules]
+              (const string& n, const path& p) -> optional<string>
               {
-                // Check out submodules if the referenced file doesn't exist.
+                // Always expand the build-file values.
                 //
-                // Note that this doesn't work for symlinks on Windows where
-                // git normally creates filesystem-agnostic symlinks that are
-                // indistinguishable from regular files (see fixup_worktree()
-                // for details). It seems like the only way to deal with that
-                // is to unconditionally checkout submodules on Windows. Let's
-                // not pessimize things for now (if someone really wants this
-                // to work, they can always enable real symlinks in git).
-                //
-                if (!exists (td / pl / p))
-                  checkout_submodules ();
+                if (ev || n == "build-file")
+                {
+                  // Check out submodules if the referenced file doesn't exist.
+                  //
+                  // Note that this doesn't work for symlinks on Windows where
+                  // git normally creates filesystem-agnostic symlinks that
+                  // are indistinguishable from regular files (see
+                  // fixup_worktree() for details). It seems like the only way
+                  // to deal with that is to unconditionally checkout
+                  // submodules on Windows. Let's not pessimize things for now
+                  // (if someone really wants this to work, they can always
+                  // enable real symlinks in git).
+                  //
+                  if (!exists (td / pl / p))
+                    checkout_submodules ();
 
-                return read_package_file (p,
-                                          n,
-                                          pl,
-                                          td,
-                                          rl,
-                                          fr.friendly_name);
-              }
-              else
-                return nullopt;
-            },
-            iu);
+                  return read_package_file (p,
+                                            n,
+                                            pl,
+                                            td,
+                                            rl,
+                                            fr.friendly_name);
+                }
+                else
+                  return nullopt;
+              },
+              iu);
+          }
+          catch (const manifest_parsing& e)
+          {
+            diag_record dr (fail);
+            dr << e << info;
+            print_package_info (dr, pl, rl, fr.friendly_name);
+            dr << endf;
+          }
 
           // Load the bootstrap, root, and config/*.build buildfiles into the
           // respective *-build values, if requested and if they are not

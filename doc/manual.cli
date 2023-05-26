@@ -1055,8 +1055,12 @@ license: <licenses> [; <comment>]
 [description]: <text>
 [description-file]: <path> [; <comment>]
 [description-type]: <text-type>
+[package-description]: <text>
+[package-description-file]: <path> [; <comment>]
+[package-description-type]: <text-type>
 [changes]: <text>
 [changes-file]: <path> [; <comment>]
+[changes-type]: <text-type>
 
 [url]: <url> [; <comment>]
 [doc-url]: <url> [; <comment>]
@@ -1131,7 +1135,7 @@ and use the \c{upstream-version} value to preserve the original version for
 information.
 
 
-\h2#manifest-package-type-language|\c{type, language}|
+\h2#manifest-package-type-language|\c{type}, \c{language}|
 
 \
 [type]: <type>
@@ -1385,23 +1389,30 @@ as well as words from its summary are already considered to be keywords and
 need not be repeated in this value.
 
 
-\h2#manifest-package-description|\c{description}|
+\h2#manifest-package-description|\c{description}, \c{package-description}|
 
 \
 [description]: <text>
 [description-file]: <path> [; <comment>]
 [description-type]: <text-type>
+[package-description]: <text>
+[package-description-file]: <path> [; <comment>]
+[package-description-type]: <text-type>
 \
 
-The detailed description of the package. It can be provided either inline as a
-text fragment or by referring to a file within a package (for example,
-\c{README}), but not both.
+The detailed description of the project (\c{description}) and package
+(\c{package-description}). If the package description is not specified, it is
+assumed to be the same as the project description. It only makes sense to
+specify the \c{package-description} value if the project and package are
+maintained separately. A description can be provided either inline as a text
+fragment or by referring to a file within a package (for example, \c{README}),
+but not both. For \c{package-description-file} the recommended file name is
+\c{PACKAGE-README} or \c{README-PACKAGE}.
 
 In the web interface (\c{brep}) the description is displayed according to its
 type. Currently, pre-formatted plain text, \l{https://github.github.com/gfm
 GitHub-Flavored Markdown}, and \l{https://spec.commonmark.org/current
-CommonMark} are supported with the following \c{description-type} values,
-respectively:
+CommonMark} are supported with the following \c{*-type} values, respectively:
 
 \
 text/plain
@@ -1412,13 +1423,13 @@ text/markdown;variant=CommonMark
 If just \c{text/markdown} is specified, then the GitHub-Flavored Markdown
 (which is a superset of CommonMark) is assumed.
 
-If the description type is not explicitly specified and the description is
-specified as \c{description-file}, then an attempt to derive the type from the
-file extension is made. Specifically, the \cb{.md} and \cb{.markdown}
-extensions are mapped to \c{text/markdown}, the \cb{.txt} and no extension are
-mapped to \c{text/plain}, and all other extensions are treated as an unknown
-type, similar to unknown \c{description-type} values. And if the description
-is not specified as a file, \c{text/plain} is assumed.
+If a description type is not explicitly specified and the description is
+specified as \c{*-file}, then an attempt to derive the type from the file
+extension is made. Specifically, the \cb{.md} and \cb{.markdown} extensions
+are mapped to \c{text/markdown}, the \cb{.txt} and no extension are mapped to
+\c{text/plain}, and all other extensions are treated as an unknown type,
+similar to unknown \c{*-type} values. And if a description is not specified as
+a file, \c{text/plain} is assumed.
 
 
 \h2#manifest-package-changes|\c{changes}|
@@ -1426,6 +1437,7 @@ is not specified as a file, \c{text/plain} is assumed.
 \
 [changes]: <text>
 [changes-file]: <path> [; <comment>]
+[changes-type]: <text-type>
 \
 
 The description of changes in the release.
@@ -1459,8 +1471,11 @@ changes:
 changes-file: NEWS
 \
 
-In the web interface (\c{brep}) the changes are displayed as pre-formatted
-plain text, similar to the package description.
+In the web interface (\c{brep}) the changes are displayed according to their
+type, similar to the package description (see the
+\l{#manifest-package-description \c{description}} value for details). If
+the changes type is not explicitly specified, then the types deduced for
+individual \c{changes} values must all be the same.
 
 
 \h2#manifest-package-url|\c{url}|
@@ -2120,7 +2135,7 @@ dependencies by other packages and therefore should be built in a host
 configuration. See the \l{bbot \c{bbot} documentation} for details.
 
 
-\h2#manifest-package-tests-examples-benchmarks|\c{tests, examples, benchmarks}|
+\h2#manifest-package-tests-examples-benchmarks|\c{tests}, \c{examples}, \c{benchmarks}|
 
 \
 [tests]: [*] <name> [<version-constraint>]

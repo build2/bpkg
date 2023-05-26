@@ -88,6 +88,7 @@ $* --deep --ignore-unknown --manifest $src/foo-2.tar.gz >>EOO
     * First public release.
 
   \
+  changes-type: text/plain
   url: http://www.example.org/foo
   email: foo-users@example.org
   depends: bar == 2
