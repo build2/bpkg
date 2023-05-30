@@ -72,7 +72,9 @@ else
 
     $pkg_status style-basic | sed -n -e 's/style-basic available \[.+\] ([^ ]+)/\1/p' | set v;
 
-    $* "style-basic/$v" 2>>"EOE";
+    $* "style-basic/$v" 2>>~"%EOE%";
+      verifying symlinks...
+      %fixing up symlinks...%?
       distributing style-basic/$v
       checked out style-basic/$v
       EOE
@@ -151,6 +153,8 @@ else
 
     $* links/0.0.1 2>>~%EOE%;
       checking out links/0.0.1
+      verifying symlinks...
+      %fixing up symlinks...%?
       distributing links/0.0.1
       checked out links/0.0.1
       EOE
@@ -178,6 +182,8 @@ else
     if $posix
       $* links/1.0.1 2>>~%EOE% != 0
         checking out links/1.0.1
+        verifying symlinks...
+        %fixing up symlinks...%?
         distributing links/1.0.1
         %warning: skipping dangling symlink .+%
         %error: unable to stat .+%

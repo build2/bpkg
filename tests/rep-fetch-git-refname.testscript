@@ -93,6 +93,8 @@
       %fetching submodule 'libbar/extras' from .+style-basic\.git+%
       $info4
       %submodule path 'libbar/extras': checked out .+%
+      verifying symlinks...
+      %fixing up symlinks...%?
       distributing libfoo/1.0.0
       checked out libfoo/1.0.0
       EOE
@@ -149,6 +151,8 @@
       %fetching submodule 'libbaz' from .+libbaz\.git%
       $info2
       %submodule path 'libbaz': checked out .+%
+      verifying symlinks...
+      %fixing up symlinks...%?
       distributing libfoo/1.0.0
       checked out libfoo/1.0.0
       EOE

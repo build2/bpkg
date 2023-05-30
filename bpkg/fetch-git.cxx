@@ -2692,6 +2692,9 @@ namespace bpkg
   void
   git_verify_symlinks (const common_options& co, const dir_path& dir)
   {
+    if ((verb && !co.no_progress ()) || co.progress ())
+      text << "verifying symlinks...";
+
     verify_symlinks (co, dir, dir_path () /* prefix */);
   }
 
@@ -3003,6 +3006,9 @@ namespace bpkg
                       bool revert,
                       bool ie)
   {
+    if (!revert && ((verb && !co.no_progress ()) || co.progress ()))
+      text << "fixing up symlinks...";
+
     try
     {
       optional<bool> r (
