@@ -1411,7 +1411,6 @@ namespace bpkg
           (pkg.selected->version != pkg.available_version () ||
            pkg.system))
       {
-
         for (const postponed_configuration& cfg: postponed_cfgs)
         {
           auto i (cfg.dependents.find (pk));

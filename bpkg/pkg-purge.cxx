@@ -50,6 +50,7 @@ namespace bpkg
       //
       p->src_root = nullopt;
       p->manifest_checksum = nullopt;
+      p->buildfiles_checksum = nullopt;
 
       if (archive)
       {

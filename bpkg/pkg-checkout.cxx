@@ -170,9 +170,6 @@ namespace bpkg
     const repository_location& rl (pl->repository_fragment->location);
 
     auto_rmdir rmd;
-    optional<string> mc;
-    optional<string> bc;
-
     const dir_path& ord (output_root ? *output_root : c);
     dir_path d (ord / dir_path (n.string () + '-' + v.string ()));
 
@@ -312,21 +309,6 @@ namespace bpkg
              "!config.dist.bootstrap=true",
              "config.dist.root='" + ord.representation () + '\'',
              bspec);
-
-      mc = package_checksum (o, d, nullptr /* package_info */);
-
-      // Calculate the buildfiles checksum if the package has any buildfile
-      // clauses in the dependencies.
-      //
-      // Note that the available package already has all the buildfiles
-      // loaded.
-      //
-      if ((p != nullptr && p->manifest_checksum == mc)
-          ? p->buildfiles_checksum.has_value ()
-          : has_buildfile_clause (ap->dependencies))
-        bc = package_buildfiles_checksum (ap->bootstrap_build,
-                                          ap->root_build,
-                                          ap->buildfiles);
     }
 
     if (p != nullptr)
@@ -360,13 +342,16 @@ namespace bpkg
 
     if (p != nullptr)
     {
+      // Note: we can be replacing an external package and thus we reset the
+      // manifest/subprojects and buildfiles checksums.
+      //
       p->version = move (v);
       p->state = package_state::unpacked;
       p->repository_fragment = rl;
       p->src_root = move (d);
       p->purge_src = purge;
-      p->manifest_checksum = move (mc);
-      p->buildfiles_checksum = move (bc);
+      p->manifest_checksum = nullopt;
+      p->buildfiles_checksum = nullopt;
 
       pdb.update (p);
     }
@@ -386,8 +371,8 @@ namespace bpkg
         false,
         move (d),  // Source root.
         purge,     // Purge directory.
-        move (mc),
-        move (bc),
+        nullopt,   // No manifest/subprojects checksum.
+        nullopt,   // No buildfiles checksum.
         nullopt,   // No output directory yet.
         {}});      // No prerequisites captured yet.
 

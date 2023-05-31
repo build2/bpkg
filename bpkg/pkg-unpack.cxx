@@ -162,7 +162,10 @@ namespace bpkg
     optional<string> mc;
     optional<string> bc;
 
-    if (!simulate)
+    // Only calculate the manifest/subprojects and buildfiles checksums for
+    // external packages (see selected_package::external() for details).
+    //
+    if (!simulate && (rl.empty () || rl.directory_based ()))
     {
       mc = package_checksum (o, d, pi);
 
@@ -334,7 +337,6 @@ namespace bpkg
   shared_ptr<selected_package>
   pkg_unpack (const common_options& co,
               database& db,
-              database& rdb,
               transaction& t,
               const package_name& name,
               bool simulate)
@@ -371,8 +373,6 @@ namespace bpkg
       fail << "package directory " << d << " already exists";
 
     auto_rmdir arm;
-    optional<string> mc;
-    optional<string> bc;
 
     if (!simulate)
     {
@@ -402,61 +402,10 @@ namespace bpkg
       {
         fail << "unable to extract " << a << " to " << c << ": " << e;
       }
-
-      mc = package_checksum (co, d, nullptr /* package_info */);
-
-      // Calculate the buildfiles checksum if the package has any buildfile
-      // clauses in the dependencies.
-      //
-      // Note that we may not have the available package (e.g., fetched as an
-      // existing package archive rather than from an archive repository), in
-      // which case we need to parse the manifest to retrieve the
-      // dependencies. This is unfortunate, but is probably not a big deal
-      // performance-wise given that this is not too common and we are running
-      // an archive unpacking process anyway.
-      //
-      shared_ptr<available_package> ap (
-        rdb.find<available_package> (available_package_id (n, v)));
-
-      if (ap != nullptr)
-      {
-        // Note that the available package already has all the buildfiles
-        // loaded.
-        //
-        if (has_buildfile_clause (ap->dependencies))
-          bc = package_buildfiles_checksum (ap->bootstrap_build,
-                                            ap->root_build,
-                                            ap->buildfiles);
-      }
-      else
-      {
-        // Note that we don't need to translate the package version here since
-        // the manifest comes from an archive and so has a proper version
-        // already.
-        //
-        package_manifest m (
-          pkg_verify (co,
-                      d,
-                      true  /* ignore_unknown */,
-                      false /* ignore_toolchain */,
-                      false /* load_buildfiles */,
-                      function<package_manifest::translate_function> ()));
-
-        if (has_buildfile_clause (m.dependencies))
-          bc = package_buildfiles_checksum (m.bootstrap_build,
-                                            m.root_build,
-                                            m.buildfiles,
-                                            d,
-                                            m.buildfile_paths,
-                                            m.alt_naming);
-      }
     }
 
     p->src_root = d.leaf (); // For now assuming to be in configuration.
     p->purge_src = true;
-
-    p->manifest_checksum = move (mc);
-    p->buildfiles_checksum = move (bc);
 
     p->state = package_state::unpacked;
 
@@ -522,7 +471,6 @@ namespace bpkg
       p = v.empty ()
         ? pkg_unpack (o,
                       db /* pdb */,
-                      db /* rdb */,
                       t,
                       n,
                       false /* simulate */)

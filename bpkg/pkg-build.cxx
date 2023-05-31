@@ -5370,7 +5370,7 @@ namespace bpkg
 
             // Commits the transaction.
             //
-            sp = pkg_unpack (o, pdb, af.database (), t, ap->id.name, simulate);
+            sp = pkg_unpack (o, pdb, t, ap->id.name, simulate);
 
             if (result)
               text << "unpacked " << *sp << pdb;

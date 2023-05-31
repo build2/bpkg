@@ -4625,33 +4625,36 @@ test.arguments += --sys-no-query
                 $backend_configured
               EOO
 
-            # No upgrade after turning a package from the archive-based repo
-            # into an external package.
+            # Iteration increment and upgrade after turning a package from the
+            # archive-based repo into an external package.
             #
-            $* fax/ 2>>~%EOE%;
-              %info: .+fax-1.0.0.+ is up to date%
-              updated fax/1.0.0
-              EOE
-
-            $pkg_status -r >>"EOO";
-              !fax configured !1.0.0
-                $backend_configured
-              EOO
-
-            # Upgrade after the package' buildfile is edited.
-            #
-            echo '' >+fax/build/root.build;
-
             $* fax/ 2>>~%EOE%;
               disfigured fax/1.0.0
               using fax/1.0.0#1 (external)
               configured fax/1.0.0#1
-              %info: .+fax.+ is up to date%
+              %info: .+dir.fax.+ is up to date%
               updated fax/1.0.0#1
               EOE
 
             $pkg_status -r >>"EOO";
               !fax configured !1.0.0#1
+                $backend_configured
+              EOO
+
+            # Further upgrade after the package' buildfile is edited.
+            #
+            echo '' >+fax/build/root.build;
+
+            $* fax/ 2>>~%EOE%;
+              disfigured fax/1.0.0#1
+              using fax/1.0.0#2 (external)
+              configured fax/1.0.0#2
+              %info: .+fax.+ is up to date%
+              updated fax/1.0.0#2
+              EOE
+
+            $pkg_status -r >>"EOO";
+              !fax configured !1.0.0#2
                 $backend_configured
               EOO
 
@@ -4659,11 +4662,11 @@ test.arguments += --sys-no-query
             #
             $* fax/ 2>>~%EOE%;
               %info: .+fax.+ is up to date%
-              updated fax/1.0.0#1
+              updated fax/1.0.0#2
               EOE
 
             $pkg_status -r >>"EOO";
-              !fax configured !1.0.0#1
+              !fax configured !1.0.0#2
                 $backend_configured
               EOO
 
@@ -4692,37 +4695,40 @@ test.arguments += --sys-no-query
                 $backend_configured
               EOO
 
-            # No upgrade after turning a package from the archive-based repo
-            # into an external package.
+            # Iteration increment and upgrade after turning a package from the
+            # archive-based repo into an external package.
             #
             $rep_add --type dir fax/ && $rep_fetch;
 
             $* fax 2>>~%EOE%;
-              %info: .+fax-1.0.0.+ is up to date%
-              updated fax/1.0.0
+              disfigured fax/1.0.0
+              using fax/1.0.0#1 (external)
+              configured fax/1.0.0#1
+              %info: .+dir.fax.+ is up to date%
+              updated fax/1.0.0#1
               EOE
 
             $pkg_status -r >>"EOO";
-              !fax configured 1.0.0
+              !fax configured 1.0.0#1
                 $backend_configured
               EOO
 
-            # Upgrade after the package' buildfile is edited.
+            # Further upgrade after the package' buildfile is edited.
             #
             echo '' >+fax/build/root.build;
 
             $rep_fetch;
 
             $* fax 2>>~%EOE%;
-              disfigured fax/1.0.0
-              using fax/1.0.0#1 (external)
-              configured fax/1.0.0#1
+              disfigured fax/1.0.0#1
+              using fax/1.0.0#2 (external)
+              configured fax/1.0.0#2
               %info: .+fax.+ is up to date%
-              updated fax/1.0.0#1
+              updated fax/1.0.0#2
               EOE
 
             $pkg_status -r >>"EOO";
-              !fax configured 1.0.0#1
+              !fax configured 1.0.0#2
                 $backend_configured
               EOO
 
@@ -4732,11 +4738,11 @@ test.arguments += --sys-no-query
 
             $* fax 2>>~%EOE%;
               %info: .+fax.+ is up to date%
-              updated fax/1.0.0#1
+              updated fax/1.0.0#2
               EOE
 
             $pkg_status -r >>"EOO";
-              !fax configured 1.0.0#1
+              !fax configured 1.0.0#2
                 $backend_configured
               EOO
 

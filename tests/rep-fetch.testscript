@@ -631,11 +631,15 @@ if! $remote
 
       : unchanged-external
       :
+      : Test that iteration is still incremented when a non-external package
+      : from a pkg repository is switched to the same unedited external
+      : package.
+      :
       {
         $clone_cfg && $rep_add $src/libhello-1.0.0;
         $* 2>!;
 
-        $pkg_status libhello >'libhello unpacked 1.0.0'
+        $pkg_status libhello >'libhello unpacked 1.0.0 available 1.0.0#1'
       }
 
       : changed-external
@@ -655,6 +659,9 @@ if! $remote
 
     : git-rep
     :
+    : Test that iteration is still incremented when a non-external package
+    : from a git repository is switched to the same unedited external package.
+    :
     if ($git_supported && !$remote)
     {
       rep = $canonicalize([dir_path] $out_git/state0);
@@ -668,7 +675,7 @@ if! $remote
       $rep_add $rep/style.git;
       $* 2>!;
 
-      $pkg_status style >"style unpacked 1.0.0";
+      $pkg_status style >"style unpacked 1.0.0 available 1.0.0#1";
 
       $pkg_purge style 2>"purged style/1.0.0"
     }

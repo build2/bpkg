@@ -389,45 +389,54 @@ namespace bpkg
                             false /* iteration */))
       return nullopt;
 
-    string mc (package_checksum (o, d, pi));
+    bool changed (!p->external ());
 
-    // The selected package must not be "simulated" (see pkg-build for
-    // details).
+    // If the selected package is not external, then increment the iteration
+    // number to make the external package preferable. Note that for such
+    // packages the manifest/subprojects and buildfiles checksums are absent.
     //
-    assert (p->manifest_checksum);
-
-    bool changed (mc != *p->manifest_checksum);
-
-    // If the manifest hasn't changed and the package has buildfile clauses in
-    // the dependencies, then check if the buildfiles haven't changed either.
-    //
-    if (!changed && p->buildfiles_checksum)
+    if (!changed)
     {
-      // Always calculate the checksum over the buildfiles since the package
-      // is external.
+      // The selected package must not be "simulated" (see pkg-build for
+      // details).
       //
-      changed = package_buildfiles_checksum (
-        nullopt /* bootstrap_build */,
-        nullopt /* root_build */,
-        {}      /* buildfiles */,
-        d) != *p->buildfiles_checksum;
-    }
+      assert (p->manifest_checksum);
 
-    // If the manifest hasn't changed but the selected package points to an
-    // external source directory, then we also check if the directory have
-    // moved.
-    //
-    if (!changed && p->external ())
-    {
-      dir_path src_root (p->effective_src_root (db.config));
+      changed = (package_checksum (o, d, pi) != *p->manifest_checksum);
 
-      // We need to complete and normalize the source directory as it may
-      // generally be completed against the configuration directory (unlikely
-      // but possible), that can be relative and/or not normalized.
+      // If the manifest hasn't changed and the package has buildfile clauses
+      // in the dependencies, then check if the buildfiles haven't changed
+      // either.
       //
-      normalize (src_root, "package source");
+      if (!changed && p->buildfiles_checksum)
+      {
+        // Always calculate the checksum over the buildfiles since the package
+        // is external.
+        //
+        changed = package_buildfiles_checksum (
+          nullopt /* bootstrap_build */,
+          nullopt /* root_build */,
+          {}      /* buildfiles */,
+          d) != *p->buildfiles_checksum;
+      }
 
-      changed = src_root != normalize (d, "package source");
+      // If the manifest hasn't changed but the selected package points to an
+      // external source directory, then we also check if the directory have
+      // moved.
+      //
+      if (!changed)
+      {
+        dir_path src_root (p->effective_src_root (db.config));
+
+        // We need to complete and normalize the source directory as it may
+        // generally be completed against the configuration directory
+        // (unlikely but possible), that can be relative and/or not
+        // normalized.
+        //
+        normalize (src_root, "package source");
+
+        changed = src_root != normalize (d, "package source");
+      }
     }
 
     return !changed

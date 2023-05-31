@@ -1237,9 +1237,9 @@ namespace bpkg
     // package version revision increment. In particular, new subprojects
     // should trigger the package reconfiguration.
     //
-    // Must be present if the source directory is present, unless the object
-    // is created/updated during the package build simulation (see pkg-build
-    // for details). Note that during the simulation the manifest may not be
+    // Only present for external packages, unless the objects are
+    // created/updated during the package build simulation (see pkg-build for
+    // details). Note that during the simulation the manifest may not be
     // available.
     //
     // @@ Currently we don't consider subprojects recursively (would most
@@ -1251,13 +1251,13 @@ namespace bpkg
     //
     optional<std::string> manifest_checksum;
 
-    // Absent if the package has no buildfile clauses in the dependencies.
-    // Otherwise, the checksum of the buildfiles calculated over the *-build
-    // manifest values or, if unspecified, the files in the package source
-    // directory.
+    // Only present for external packages which have buildfile clauses in the
+    // dependencies, unless the objects are created/updated during the package
+    // build simulation (see pkg-build for details).
     //
-    // Note that for external packages the checksum is always calculated over
-    // the files. This is "parallel" to the package skeleton logic.
+    // Note that the checksum is always calculated over the files rather than
+    // the *-build manifest values. This is "parallel" to the package skeleton
+    // logic.
     //
     optional<std::string> buildfiles_checksum;
 
@@ -1429,15 +1429,17 @@ namespace bpkg
   //
   // - The package directory is considered an iteration of the package if this
   //   upstream version and revision is already present (selected) in the
-  //   configuration and has a source directory. If that's the case, then the
-  //   specified directory path and the package checksum (see
-  //   package_checksum() for details) are compared to the ones of the package
-  //   present in the configuration. If both match, then the present package
-  //   version (including its iteration, if any) is returned.  Otherwise (the
-  //   package has moved and/or the package information has changed), the
-  //   present package version with the incremented iteration number is
-  //   returned. Note that the directory path is matched only for the external
-  //   selected packages.
+  //   configuration and has a source directory. If that's the case and if the
+  //   present version is not external (the package is being switched to a
+  //   local potentially amended version), then the present package version
+  //   with the incremented iteration number is returned. Otherwise (the
+  //   present package is external), the specified directory path and the
+  //   package checksum (see package_checksum() for details) are compared to
+  //   the ones of the package present in the configuration. If both match,
+  //   then the present package version (including its iteration, if any) is
+  //   returned. Otherwise (the package has moved and/or the package
+  //   information has changed), the present package version with the
+  //   incremented iteration number is returned.
   //
   // - Only a single package iteration is valid per version in the
   //   configuration. This, in particular, means that a package of the
