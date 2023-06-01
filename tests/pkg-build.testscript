@@ -384,6 +384,34 @@
 # |   |-- bix-1.0.0.tar.gz      -> bar  {prefer {...} accept (...)}
 # |   `-- repositories.manifest
 # |
+# |-- t14a
+# |   |-- libfoo-1.0.0.tar.gz
+# |   `-- repositories.manifest
+# |
+# |-- t14b
+# |   |-- libfoo-1.1.0.tar.gz
+# |   `-- repositories.manifest
+# |
+# |-- t14c
+# |   |-- libfoo-1.1.0+1.tar.gz
+# |   `-- repositories.manifest
+# |
+# |-- t14d
+# |   |-- libfoo-1.1.0+2.tar.gz
+# |   `-- repositories.manifest
+# |
+# |-- t14e
+# |   |-- libfoo-1.1.0+3.tar.gz
+# |   `-- repositories.manifest
+# |
+# |-- t14f
+# |   |-- libfoo-1.1.1.tar.gz
+# |   `-- repositories.manifest
+# |
+# |-- t14i
+# |   |-- libfoo-1.2.0.tar.gz
+# |   `-- repositories.manifest
+# |
 # `-- git
 #     |-- libbar.git            -> style-basic.git (prerequisite repository)
 #     |-- libbaz.git
@@ -433,6 +461,13 @@ posix = ($cxx.target.class != 'windows')
   cp -r $src/t13m $out/t13m && $rep_create $out/t13m &$out/t13m/packages.manifest
   cp -r $src/t13n $out/t13n && $rep_create $out/t13n &$out/t13n/packages.manifest
   cp -r $src/t13o $out/t13o && $rep_create $out/t13o &$out/t13o/packages.manifest
+  cp -r $src/t14a $out/t14a && $rep_create $out/t14a &$out/t14a/packages.manifest
+  cp -r $src/t14b $out/t14b && $rep_create $out/t14b &$out/t14b/packages.manifest
+  cp -r $src/t14c $out/t14c && $rep_create $out/t14c &$out/t14c/packages.manifest
+  cp -r $src/t14d $out/t14d && $rep_create $out/t14d &$out/t14d/packages.manifest
+  cp -r $src/t14e $out/t14e && $rep_create $out/t14e &$out/t14e/packages.manifest
+  cp -r $src/t14f $out/t14f && $rep_create $out/t14f &$out/t14f/packages.manifest
+  cp -r $src/t14i $out/t14i && $rep_create $out/t14i &$out/t14i/packages.manifest
 
   # Create git repositories.
   #
@@ -16285,11 +16320,42 @@ else
 
       $rep_add -d h2 $rep/t7a && $rep_fetch -d h2;
 
-      $* libbaz +{ --config-name h2 } 2>>EOE != 0
+      $* libbaz +{ --config-name h2 } 2>>EOE != 0;
         error: package foo/1.1.0 is orphaned
           info: explicitly upgrade it to a new version
         info: while satisfying foo/1.1.0
         EOE
+
+      # While at it, test foo deorphaning.
+      #
+      $* foo +{ --deorphan } libbaz +{ --config-name h2 } --yes --plan "" 2>>~%EOE%;
+        %  new libbuild2-bar/1.0.0 \[h1.\.bpkg.build2.\] \(required by foo\)%
+        %  new libbaz/1.0.0 \[h2.\]%
+          drop libbaz/1.1.0 (unused)
+          deorphan/downgrade foo/1.0.0
+        disfigured foo/1.1.0
+        disfigured libbaz/1.1.0
+        %fetched libbuild2-bar/1.0.0 \[h1.\.bpkg.build2.\]%
+        %unpacked libbuild2-bar/1.0.0 \[h1.\.bpkg.build2.\]%
+        %fetched libbaz/1.0.0 \[h2.\]%
+        %unpacked libbaz/1.0.0 \[h2.\]%
+        purged libbaz/1.1.0
+        fetched foo/1.0.0
+        unpacked foo/1.0.0
+        %configured libbuild2-bar/1.0.0 \[h1.\.bpkg.build2.\]%
+        %configured libbaz/1.0.0 \[h2.\]%
+        configured foo/1.0.0
+        %info: h2.+libbaz-1.0.0.+ is up to date%
+        %info: h1.+foo-1.0.0.+ is up to date%
+        %updated libbaz/1.0.0 \[h2.\]%
+        updated foo/1.0.0
+        EOE
+
+      $pkg_status -d h1 -r >>/EOO
+        !foo configured 1.0.0
+          !libbaz [h2/] configured 1.0.0
+          libbuild2-bar [h1/.bpkg/build2/] configured 1.0.0
+        EOO
     }
 
     : unhold-repointed
@@ -17562,6 +17628,1161 @@ else
 
         $pkg_drop libbox
       }
+    }
+  }
+}
+
+: deorphan
+:
+{
+  test.arguments += --yes --plan ""
+
+  : dependency
+  :
+  {
+    : unhold
+    :
+    {
+      : basics
+      :
+      {
+        $clone_root_cfg;
+
+        cp -r $src/libfoo-1.1.0 libfoo;
+        $rep_add --type dir libfoo/ && $rep_fetch;
+
+        $* libfoo 2>!;
+        $rep_fetch $rep/t4b;
+
+        $* libbar 2>!;
+
+        $pkg_status -r libbar >>EOO;
+          !libbar configured 1.1.0
+            !libfoo configured 1.1.0
+          EOO
+
+        echo "" >+ libfoo/manifest;
+        $rep_fetch;
+
+        $pkg_status -r libbar >>EOO;
+          !libbar configured 1.1.0
+            !libfoo configured 1.1.0 available 1.1.0#1
+          EOO
+
+        $rep_remove $~/libfoo/;
+
+        # Deorphan libfoo/1.1.0 to ?libfoo/1.1.0.
+        #
+        $* --deorphan ?libfoo 2>>~%EOE%;
+            deorphan/update/unhold libfoo/1.1.0
+            reconfigure libbar (dependent of libfoo)
+          disfigured libbar/1.1.0
+          disfigured libfoo/1.1.0
+          fetched libfoo/1.1.0
+          unpacked libfoo/1.1.0
+          configured libfoo/1.1.0
+          configured libbar/1.1.0
+          %info: .+libbar-1.1.0.+ is up to date%
+          updated libbar/1.1.0
+          EOE
+
+        $pkg_status -r libbar >>EOO;
+          !libbar configured 1.1.0
+            libfoo configured 1.1.0
+          EOO
+
+        # Deorphan libfoo/1.1.0#1 to ?libfoo/1.1.0.
+        #
+        $rep_add --type dir libfoo/ && $rep_fetch;
+        $* libfoo 2>!;
+
+        $pkg_status -r libbar >>EOO;
+          !libbar configured 1.1.0
+            !libfoo configured 1.1.0#1
+          EOO
+
+        $rep_remove $~/libfoo/;
+
+        $* --deorphan ?libfoo 2>>~%EOE%;
+            deorphan/downgrade/unhold libfoo/1.1.0
+            reconfigure libbar (dependent of libfoo)
+          disfigured libbar/1.1.0
+          disfigured libfoo/1.1.0#1
+          fetched libfoo/1.1.0
+          unpacked libfoo/1.1.0
+          configured libfoo/1.1.0
+          configured libbar/1.1.0
+          %info: .+libbar-1.1.0.+ is up to date%
+          updated libbar/1.1.0
+          EOE
+
+        $pkg_status -r libbar >>EOO;
+          !libbar configured 1.1.0
+            libfoo configured 1.1.0
+          EOO
+
+        $pkg_drop libbar
+      }
+
+      : drop
+      :
+      {
+        $clone_root_cfg;
+
+        cp -r $src/libfoo-1.1.0 libfoo;
+        $rep_add --type dir libfoo/ && $rep_fetch;
+
+        $* libfoo 2>!;
+        $rep_fetch $rep/t4b;
+
+        $* libbar 2>!;
+
+        echo "" >+ libfoo/manifest;
+        $rep_fetch;
+        $* libfoo 2>!;
+
+        $pkg_status -r libbar >>EOO;
+          !libbar configured 1.1.0
+            !libfoo configured 1.1.0#1
+          EOO
+
+        $rep_remove $~/libfoo/;
+
+        $* --deorphan ?libfoo ?libbar 2>>EOE
+            drop libfoo/1.1.0#1 (unused)
+            drop libbar/1.1.0 (unused)
+          disfigured libbar/1.1.0
+          disfigured libfoo/1.1.0#1
+          purged libfoo/1.1.0#1
+          purged libbar/1.1.0
+          EOE
+      }
+
+      : no-dependent
+      :
+      {
+        $clone_root_cfg;
+
+        cp -r $src/libfoo-1.1.0 libfoo;
+        $rep_add --type dir libfoo/ && $rep_fetch;
+
+        echo "" >+ libfoo/manifest;
+        $rep_fetch;
+        $* libfoo 2>!;
+
+        $rep_fetch $rep/t4b;
+        $rep_remove $~/libfoo/;
+
+        $pkg_status libfoo >'!libfoo configured 1.1.0';
+
+        $* --deorphan ?libfoo 2>>EOE
+            drop libfoo/1.1.0 (unused)
+          disfigured libfoo/1.1.0
+          purged libfoo/1.1.0
+          EOE
+      }
+
+      : preference
+      :
+      {
+        $clone_root_cfg;
+
+        tar (!$posix ? --force-local : ) -xf $src/t14d/libfoo-1.1.0+2.tar.gz &libfoo-1.1.0+2/***;
+        mv libfoo-1.1.0+2 libfoo;
+
+        $rep_add --type dir libfoo/ && $rep_fetch;
+
+        $* libfoo 2>!;
+
+        tar (!$posix ? --force-local : ) -xf $src/t2/libbar-1.0.0.tar.gz &libbar-1.0.0/***;
+        mv libbar-1.0.0 libbar;
+
+        cat <<"EOI" >=libbar/repositories.manifest;
+          : 1
+          :
+          location: $rep/t14a
+          role: prerequisite
+          :
+          location: $rep/t14b
+          role: prerequisite
+          :
+          location: $rep/t14c
+          role: prerequisite
+          :
+          location: $rep/t14d
+          role: prerequisite
+          :
+          location: $rep/t14e
+          role: prerequisite
+          :
+          location: $rep/t14f
+          role: prerequisite
+          :
+          location: $rep/t14i
+          role: prerequisite
+          EOI
+
+        $rep_add --type dir libbar/ && $rep_fetch;
+        $* libbar 2>!;
+
+        $pkg_status -or libbar >>EOO;
+          !libbar configured 1.0.0 available (1.0.0)
+            !libfoo configured 1.1.0+2 available [1.2.0] [1.1.1] [1.1.0+3] (1.1.0+2) [1.1.0+1] [1.1.0] [1.0.0]
+          EOO
+
+        # Deorphan/unhold libfoo/1.1.0+2 to the same version.
+        #
+        $rep_remove $~/libfoo/;
+
+        $* --deorphan ?libfoo 2>>~%EOE%;
+            deorphan/update/unhold libfoo/1.1.0+2
+            reconfigure libbar (dependent of libfoo)
+          disfigured libbar/1.0.0
+          disfigured libfoo/1.1.0+2
+          fetched libfoo/1.1.0+2
+          unpacked libfoo/1.1.0+2
+          configured libfoo/1.1.0+2
+          configured libbar/1.0.0
+          %info: .+libbar.+ is up to date%
+          updated libbar/1.0.0
+          EOE
+
+        $pkg_status -or libbar >>EOO;
+          !libbar configured 1.0.0 available (1.0.0)
+            libfoo configured 1.1.0+2 available [1.2.0] [1.1.1] [1.1.0+3] (1.1.0+2) [1.1.0+1] [1.1.0] [1.0.0]
+          EOO
+
+        # Deorphan libfoo/1.1.0+2 to the highest revision (up to 1.1.0+3).
+        #
+        cat <<"EOI" >=libbar/repositories.manifest;
+          : 1
+          :
+          location: $rep/t14a
+          role: prerequisite
+          :
+          location: $rep/t14b
+          role: prerequisite
+          :
+          location: $rep/t14c
+          role: prerequisite
+          :
+          location: $rep/t14e
+          role: prerequisite
+          :
+          location: $rep/t14f
+          role: prerequisite
+          :
+          location: $rep/t14i
+          role: prerequisite
+          EOI
+
+        $rep_fetch;
+
+        $* --deorphan ?libfoo 2>>~%EOE%;
+            deorphan/upgrade libfoo/1.1.0+3
+            reconfigure libbar (dependent of libfoo)
+          disfigured libbar/1.0.0
+          disfigured libfoo/1.1.0+2
+          fetched libfoo/1.1.0+3
+          unpacked libfoo/1.1.0+3
+          configured libfoo/1.1.0+3
+          configured libbar/1.0.0
+          %info: .+libbar.+ is up to date%
+          updated libbar/1.0.0
+          EOE
+
+        $pkg_status -or libbar >>EOO;
+          !libbar configured 1.0.0 available (1.0.0)
+            libfoo configured 1.1.0+3 available [1.2.0] [1.1.1] (1.1.0+3) [1.1.0+1] [1.1.0] [1.0.0]
+          EOO
+
+        # Deorphan libfoo/1.1.0+3 to the highest revision (down to 1.1.0+1).
+        #
+        cat <<"EOI" >=libbar/repositories.manifest;
+          : 1
+          :
+          location: $rep/t14a
+          role: prerequisite
+          :
+          location: $rep/t14b
+          role: prerequisite
+          :
+          location: $rep/t14c
+          role: prerequisite
+          :
+          location: $rep/t14f
+          role: prerequisite
+          :
+          location: $rep/t14i
+          role: prerequisite
+          EOI
+
+        $rep_fetch;
+
+        $* --deorphan ?libfoo 2>>~%EOE%;
+            deorphan/downgrade libfoo/1.1.0+1
+            reconfigure libbar (dependent of libfoo)
+          disfigured libbar/1.0.0
+          disfigured libfoo/1.1.0+3
+          fetched libfoo/1.1.0+1
+          unpacked libfoo/1.1.0+1
+          configured libfoo/1.1.0+1
+          configured libbar/1.0.0
+          %info: .+libbar.+ is up to date%
+          updated libbar/1.0.0
+          EOE
+
+        $pkg_status -or libbar >>EOO;
+          !libbar configured 1.0.0 available (1.0.0)
+            libfoo configured 1.1.0+1 available [1.2.0] [1.1.1] (1.1.0+1) [1.1.0] [1.0.0]
+          EOO
+
+        # Deorphan libfoo/1.1.0+1 to highest revision (down to 1.1.0).
+        #
+        cat <<"EOI" >=libbar/repositories.manifest;
+          : 1
+          :
+          location: $rep/t14a
+          role: prerequisite
+          :
+          location: $rep/t14b
+          role: prerequisite
+          :
+          location: $rep/t14f
+          role: prerequisite
+          :
+          location: $rep/t14i
+          role: prerequisite
+          EOI
+
+        $rep_fetch;
+
+        $* --deorphan ?libfoo 2>>~%EOE%;
+            deorphan/downgrade libfoo/1.1.0
+            reconfigure libbar (dependent of libfoo)
+          disfigured libbar/1.0.0
+          disfigured libfoo/1.1.0+1
+          fetched libfoo/1.1.0
+          unpacked libfoo/1.1.0
+          configured libfoo/1.1.0
+          configured libbar/1.0.0
+          %info: .+libbar.+ is up to date%
+          updated libbar/1.0.0
+          EOE
+
+        $pkg_status -or libbar >>EOO;
+          !libbar configured 1.0.0 available (1.0.0)
+            libfoo configured 1.1.0 available [1.2.0] [1.1.1] (1.1.0) [1.0.0]
+          EOO
+
+        # Deorphan libfoo/1.1.0 to patch (up to 1.1.1).
+        #
+        cat <<"EOI" >=libbar/repositories.manifest;
+          : 1
+          :
+          location: $rep/t14a
+          role: prerequisite
+          :
+          location: $rep/t14f
+          role: prerequisite
+          :
+          location: $rep/t14i
+          role: prerequisite
+          EOI
+
+        $rep_fetch;
+
+        $* --deorphan ?libfoo 2>>~%EOE%;
+            deorphan/upgrade libfoo/1.1.1
+            reconfigure libbar (dependent of libfoo)
+          disfigured libbar/1.0.0
+          disfigured libfoo/1.1.0
+          fetched libfoo/1.1.1
+          unpacked libfoo/1.1.1
+          configured libfoo/1.1.1
+          configured libbar/1.0.0
+          %info: .+libbar.+ is up to date%
+          updated libbar/1.0.0
+          EOE
+
+        $pkg_status -or libbar >>EOO;
+          !libbar configured 1.0.0 available (1.0.0)
+            libfoo configured 1.1.1 available [1.2.0] (1.1.1) [1.0.0]
+          EOO
+
+        # Deorphan libfoo/1.1.1 to latest (up to 1.2.0).
+        #
+        cat <<"EOI" >=libbar/repositories.manifest;
+          : 1
+          :
+          location: $rep/t14a
+          role: prerequisite
+          :
+          location: $rep/t14i
+          role: prerequisite
+          EOI
+
+        $rep_fetch;
+
+        $* --deorphan ?libfoo 2>>~%EOE%;
+            deorphan/upgrade libfoo/1.2.0
+            reconfigure libbar (dependent of libfoo)
+          disfigured libbar/1.0.0
+          disfigured libfoo/1.1.1
+          fetched libfoo/1.2.0
+          unpacked libfoo/1.2.0
+          configured libfoo/1.2.0
+          configured libbar/1.0.0
+          %info: .+libbar.+ is up to date%
+          updated libbar/1.0.0
+          EOE
+
+        $pkg_status -or libbar >>EOO;
+          !libbar configured 1.0.0 available (1.0.0)
+            libfoo configured 1.2.0 available (1.2.0) [1.0.0]
+          EOO
+
+        # Deorphan libfoo/1.2.0 to latest (down to 1.0.0).
+        #
+        cat <<"EOI" >=libbar/repositories.manifest;
+          : 1
+          :
+          location: $rep/t14a
+          role: prerequisite
+          EOI
+
+        $rep_fetch;
+
+        $* --deorphan ?libfoo 2>>~%EOE%;
+            deorphan/downgrade libfoo/1.0.0
+            reconfigure libbar (dependent of libfoo)
+          disfigured libbar/1.0.0
+          disfigured libfoo/1.2.0
+          fetched libfoo/1.0.0
+          unpacked libfoo/1.0.0
+          configured libfoo/1.0.0
+          configured libbar/1.0.0
+          %info: .+libbar.+ is up to date%
+          updated libbar/1.0.0
+          EOE
+
+        $pkg_status -or libbar >>EOO;
+          !libbar configured 1.0.0 available (1.0.0)
+            libfoo configured 1.0.0 available (1.0.0)
+          EOO
+
+        # Deorphan fails (none available).
+        #
+        cat <<"EOI" >=libbar/repositories.manifest;
+          : 1
+          EOI
+
+        $rep_fetch;
+
+        $* --deorphan ?libfoo 2>>/EOE != 0;
+          error: unknown package libfoo
+          EOE
+
+        $pkg_status -or libbar >>EOO;
+          !libbar configured 1.0.0 available (1.0.0)
+            libfoo configured 1.0.0
+          EOO
+
+        $pkg_drop libbar
+      }
+    }
+
+    : recursive
+    :
+    {
+      +tar (!$posix ? --force-local : ) -xf $src/t2/libbar-1.0.0.tar.gz &libbar-1.0.0/***
+      +mv libbar-1.0.0 libbar
+
+      +cat <<"EOI" >=libbar/repositories.manifest
+        : 1
+        :
+        location: $rep/t14b
+        role: prerequisite
+        :
+        location: $rep/t14f
+        role: prerequisite
+        :
+        location: $rep/t14i
+        role: prerequisite
+        EOI
+
+      : immediate
+      :
+      {
+        $clone_root_cfg;
+        cp -rp ../libbar ./;
+
+        $rep_add --type dir libbar/ && $rep_fetch;
+        $* libbar ?libfoo/1.1.0 2>!;
+
+        $pkg_status -or libbar >>EOO;
+          !libbar configured 1.0.0 available (1.0.0)
+            libfoo configured !1.1.0 available [1.2.0] [1.1.1] (1.1.0)
+          EOO
+
+        $rep_remove $~/libbar/;
+        $rep_add $rep/t2 $rep/t4b $rep/t14c && $rep_fetch;
+
+        $* --deorphan --immediate libbar 2>>~%EOE%;
+            deorphan/downgrade libfoo/1.0.0
+            deorphan/update libbar/1.0.0
+          disfigured libbar/1.0.0
+          disfigured libfoo/1.1.0
+          fetched libfoo/1.0.0
+          unpacked libfoo/1.0.0
+          fetched libbar/1.0.0
+          unpacked libbar/1.0.0
+          configured libfoo/1.0.0
+          configured libbar/1.0.0
+          %info: .+libbar.+ is up to date%
+          updated libbar/1.0.0
+          EOE
+
+        $pkg_status -or libbar >>EOO;
+          !libbar configured 1.0.0 available 1.1.0 (1.0.0)
+            libfoo configured !1.0.0 available 1.1.0+1 [1.1.0] (1.0.0)
+          EOO
+
+        $pkg_drop libbar
+      }
+
+      : recursive
+      :
+      {
+        $clone_root_cfg;
+        cp -rp ../libbar ./;
+
+        $rep_add --type dir libbar/ && $rep_fetch;
+        $* libbar ?libfoo/1.1.0 2>!;
+
+        $pkg_status -or libbar >>EOO;
+          !libbar configured 1.0.0 available (1.0.0)
+            libfoo configured !1.1.0 available [1.2.0] [1.1.1] (1.1.0)
+          EOO
+
+        $rep_remove $~/libbar/;
+        $rep_add $rep/t2 $rep/t4b $rep/t14c && $rep_fetch;
+
+        $* --deorphan --recursive libbar 2>>~%EOE%;
+            deorphan/downgrade libfoo/1.0.0
+            deorphan/update libbar/1.0.0
+          disfigured libbar/1.0.0
+          disfigured libfoo/1.1.0
+          fetched libfoo/1.0.0
+          unpacked libfoo/1.0.0
+          fetched libbar/1.0.0
+          unpacked libbar/1.0.0
+          configured libfoo/1.0.0
+          configured libbar/1.0.0
+          %info: .+libbar.+ is up to date%
+          updated libbar/1.0.0
+          EOE
+
+        $pkg_status -or libbar >>EOO;
+          !libbar configured 1.0.0 available 1.1.0 (1.0.0)
+            libfoo configured !1.0.0 available 1.1.0+1 [1.1.0] (1.0.0)
+          EOO
+
+        $pkg_drop libbar
+      }
+
+      : deorphan-immediate
+      :
+      {
+        $clone_root_cfg;
+        cp -rp ../libbar ./;
+
+        $rep_add --type dir libbar/ && $rep_fetch;
+        $* libbar ?libfoo/1.1.0 2>!;
+
+        $pkg_status -or libbar >>EOO;
+          !libbar configured 1.0.0 available (1.0.0)
+            libfoo configured !1.1.0 available [1.2.0] [1.1.1] (1.1.0)
+          EOO
+
+        cat <<"EOI" >=libbar/repositories.manifest;
+          : 1
+          :
+          location: $rep/t14f
+          role: prerequisite
+          :
+          location: $rep/t14i
+          role: prerequisite
+          EOI
+
+        $rep_fetch;
+
+        $* --deorphan-immediate libbar 2>>~%EOE%;
+            deorphan/upgrade libfoo/1.1.1
+            reconfigure/update libbar/1.0.0
+          disfigured libbar/1.0.0
+          disfigured libfoo/1.1.0
+          fetched libfoo/1.1.1
+          unpacked libfoo/1.1.1
+          configured libfoo/1.1.1
+          configured libbar/1.0.0
+          %info: .+libbar.+ is up to date%
+          updated libbar/1.0.0
+          EOE
+
+        $pkg_status -or libbar >>EOO;
+          !libbar configured 1.0.0 available (1.0.0)
+            libfoo configured !1.1.1 available [1.2.0] (1.1.1)
+          EOO
+
+        $pkg_drop libbar
+      }
+
+      : deorphan-recursive
+      :
+      {
+        $clone_root_cfg;
+        cp -rp ../libbar ./;
+
+        $rep_add --type dir libbar/ && $rep_fetch;
+        $* libbar ?libfoo/1.1.0 2>!;
+
+        $rep_add $rep/t3 && $rep_fetch;
+        $* libbaz 2>!;
+
+        $pkg_status -or libbaz >>EOO;
+          !libbaz configured 1.0.0 available (1.0.0)
+            !libbar configured 1.0.0 available (1.0.0)
+              libfoo configured !1.1.0 available [1.2.0] [1.1.1] (1.1.0) [1.0.0]
+          EOO
+
+        cat <<"EOI" >=libbar/repositories.manifest;
+          : 1
+          :
+          location: $rep/t14f
+          role: prerequisite
+          :
+          location: $rep/t14i
+          role: prerequisite
+          EOI
+
+        $rep_fetch;
+
+        $* --deorphan-recursive libbaz 2>>~%EOE%;
+            deorphan/upgrade libfoo/1.1.1
+            reconfigure libbar (dependent of libfoo)
+            reconfigure/update libbaz/1.0.0
+          disfigured libbaz/1.0.0
+          disfigured libbar/1.0.0
+          disfigured libfoo/1.1.0
+          fetched libfoo/1.1.1
+          unpacked libfoo/1.1.1
+          configured libfoo/1.1.1
+          configured libbar/1.0.0
+          configured libbaz/1.0.0
+          %info: .+libbaz.+ is up to date%
+          %info: .+libbar.+ is up to date%
+          updated libbaz/1.0.0
+          updated libbar/1.0.0
+          EOE
+
+        $pkg_status -or libbaz >>EOO;
+          !libbaz configured 1.0.0 available (1.0.0)
+            !libbar configured 1.0.0 available (1.0.0)
+              libfoo configured !1.1.1 available [1.2.0] (1.1.1) [1.0.0]
+          EOO
+
+        $pkg_drop libbaz libbar
+      }
+    }
+
+    : recursive-all-held
+    :
+    : As above but uses 'deorphan all held packages form'.
+    :
+    {
+      +tar (!$posix ? --force-local : ) -xf $src/t2/libbar-1.0.0.tar.gz &libbar-1.0.0/***
+      +mv libbar-1.0.0 libbar
+
+      +cat <<"EOI" >=libbar/repositories.manifest
+        : 1
+        :
+        location: $rep/t14b
+        role: prerequisite
+        :
+        location: $rep/t14f
+        role: prerequisite
+        :
+        location: $rep/t14i
+        role: prerequisite
+        EOI
+
+      : immediate
+      :
+      {
+        $clone_root_cfg;
+        cp -rp ../libbar ./;
+
+        $rep_add --type dir libbar/ && $rep_fetch;
+        $* libbar ?libfoo/1.1.0 2>!;
+
+        $pkg_status -or libbar >>EOO;
+          !libbar configured 1.0.0 available (1.0.0)
+            libfoo configured !1.1.0 available [1.2.0] [1.1.1] (1.1.0)
+          EOO
+
+        $rep_remove $~/libbar/;
+        $rep_add $rep/t2 $rep/t4b $rep/t14c && $rep_fetch;
+
+        $* --deorphan --immediate 2>>~%EOE%;
+            deorphan/downgrade libfoo/1.0.0
+            deorphan/update libbar/1.0.0
+          disfigured libbar/1.0.0
+          disfigured libfoo/1.1.0
+          fetched libfoo/1.0.0
+          unpacked libfoo/1.0.0
+          fetched libbar/1.0.0
+          unpacked libbar/1.0.0
+          configured libfoo/1.0.0
+          configured libbar/1.0.0
+          %info: .+libbar.+ is up to date%
+          updated libbar/1.0.0
+          EOE
+
+        $pkg_status -or libbar >>EOO;
+          !libbar configured 1.0.0 available 1.1.0 (1.0.0)
+            libfoo configured !1.0.0 available 1.1.0+1 [1.1.0] (1.0.0)
+          EOO
+
+        $pkg_drop libbar
+      }
+
+      : recursive
+      :
+      {
+        $clone_root_cfg;
+        cp -rp ../libbar ./;
+
+        $rep_add --type dir libbar/ && $rep_fetch;
+        $* libbar ?libfoo/1.1.0 2>!;
+
+        $pkg_status -or libbar >>EOO;
+          !libbar configured 1.0.0 available (1.0.0)
+            libfoo configured !1.1.0 available [1.2.0] [1.1.1] (1.1.0)
+          EOO
+
+        $rep_remove $~/libbar/;
+        $rep_add $rep/t2 $rep/t4b $rep/t14c && $rep_fetch;
+
+        $* --deorphan --recursive 2>>~%EOE%;
+            deorphan/downgrade libfoo/1.0.0
+            deorphan/update libbar/1.0.0
+          disfigured libbar/1.0.0
+          disfigured libfoo/1.1.0
+          fetched libfoo/1.0.0
+          unpacked libfoo/1.0.0
+          fetched libbar/1.0.0
+          unpacked libbar/1.0.0
+          configured libfoo/1.0.0
+          configured libbar/1.0.0
+          %info: .+libbar.+ is up to date%
+          updated libbar/1.0.0
+          EOE
+
+        $pkg_status -or libbar >>EOO;
+          !libbar configured 1.0.0 available 1.1.0 (1.0.0)
+            libfoo configured !1.0.0 available 1.1.0+1 [1.1.0] (1.0.0)
+          EOO
+
+        $pkg_drop libbar
+      }
+    }
+  }
+
+  : held
+  :
+  {
+    : basics
+    :
+    {
+      $clone_root_cfg;
+
+      cp -r $src/libfoo-1.1.0 libfoo;
+      sed -i -e 's/(version:).+/\1 1.0.0/' libfoo/manifest;
+
+      $rep_add --type dir libfoo/ && $rep_fetch;
+
+      $* libfoo 2>!;
+
+      echo "" >+ libfoo/manifest;
+      $rep_fetch;
+      $* libfoo 2>!;
+
+      $rep_fetch $rep/t4a $rep/t4c;
+
+      $pkg_status -ro libfoo >>EOO;
+        !libfoo configured 1.0.0#1 available 1.1.0 (1.0.0#1) 1.0.0
+        EOO
+
+      # Deorphan libfoo/1.0.0#1 to libfoo/1.0.0.
+      #
+      $rep_remove $~/libfoo/;
+
+      $* --deorphan libfoo 2>>~%EOE%;
+          deorphan/downgrade libfoo/1.0.0
+        disfigured libfoo/1.0.0#1
+        fetched libfoo/1.0.0
+        unpacked libfoo/1.0.0
+        configured libfoo/1.0.0
+        %info: .+libfoo-1.0.0.+ is up to date%
+        updated libfoo/1.0.0
+        EOE
+
+      $pkg_status libfoo >'!libfoo configured 1.0.0 available 1.1.0';
+
+      # Deorphan libfoo/1.0.0 to libfoo/1.1.0.
+      #
+      $rep_remove $rep/t4c;
+
+      # While at it, use the 'deorphan all held packages' form.
+      #
+      $* --deorphan 2>>~%EOE%;
+          deorphan/upgrade libfoo/1.1.0
+        disfigured libfoo/1.0.0
+        fetched libfoo/1.1.0
+        unpacked libfoo/1.1.0
+        configured libfoo/1.1.0
+        %info: .+libfoo-1.1.0.+ is up to date%
+        updated libfoo/1.1.0
+        EOE
+
+      $pkg_status libfoo >'!libfoo configured 1.1.0';
+
+      $pkg_drop libfoo
+    }
+
+    : preference
+    :
+    {
+      $clone_root_cfg;
+
+      tar (!$posix ? --force-local : ) -xf $src/t14d/libfoo-1.1.0+2.tar.gz &libfoo-1.1.0+2/***;
+      mv libfoo-1.1.0+2 libfoo;
+
+      $rep_add --type dir libfoo/ && $rep_fetch;
+
+      $* libfoo 2>!;
+
+      $rep_fetch $rep/t14a $rep/t14b $rep/t14c $rep/t14d $rep/t14e $rep/t14f $rep/t14i;
+
+      $pkg_status -o libfoo >>EOO;
+        !libfoo configured 1.1.0+2 available 1.2.0 1.1.1 1.1.0+3 (1.1.0+2) 1.1.0+1 1.1.0 1.0.0
+        EOO
+
+      # Deorphan libfoo/1.1.0+2 to the same version.
+      #
+      $rep_remove $~/libfoo/;
+
+      $* --deorphan libfoo 2>>~%EOE%;
+          deorphan/update libfoo/1.1.0+2
+        disfigured libfoo/1.1.0+2
+        fetched libfoo/1.1.0+2
+        unpacked libfoo/1.1.0+2
+        configured libfoo/1.1.0+2
+        %info: .+libfoo-1.1.0\+2.+ is up to date%
+        updated libfoo/1.1.0+2
+        EOE
+
+      $pkg_status -o libfoo >>EOO;
+        !libfoo configured 1.1.0+2 available 1.2.0 1.1.1 1.1.0+3 (1.1.0+2) 1.1.0+1 1.1.0 1.0.0
+        EOO
+
+      # Deorphan libfoo/1.1.0+2 to the highest revision (up to 1.1.0+3).
+      #
+      $rep_remove $rep/t14d;
+
+      $* --deorphan libfoo 2>>~%EOE%;
+          deorphan/upgrade libfoo/1.1.0+3
+        disfigured libfoo/1.1.0+2
+        fetched libfoo/1.1.0+3
+        unpacked libfoo/1.1.0+3
+        configured libfoo/1.1.0+3
+        %info: .+libfoo-1.1.0\+3.+ is up to date%
+        updated libfoo/1.1.0+3
+        EOE
+
+      $pkg_status -o libfoo >>EOO;
+        !libfoo configured 1.1.0+3 available 1.2.0 1.1.1 (1.1.0+3) 1.1.0+1 1.1.0 1.0.0
+        EOO
+
+      # Deorphan libfoo/1.1.0+3 to the highest revision (down to 1.1.0+1).
+      #
+      $rep_remove $rep/t14e;
+
+      $* --deorphan libfoo 2>>~%EOE%;
+          deorphan/downgrade libfoo/1.1.0+1
+        disfigured libfoo/1.1.0+3
+        fetched libfoo/1.1.0+1
+        unpacked libfoo/1.1.0+1
+        configured libfoo/1.1.0+1
+        %info: .+libfoo-1.1.0\+1.+ is up to date%
+        updated libfoo/1.1.0+1
+        EOE
+
+      $pkg_status -o libfoo >>EOO;
+        !libfoo configured 1.1.0+1 available 1.2.0 1.1.1 (1.1.0+1) 1.1.0 1.0.0
+        EOO
+
+      # Deorphan libfoo/1.1.0+1 to highest revision (down to 1.1.0).
+      #
+      $rep_remove $rep/t14c;
+
+      $* --deorphan libfoo 2>>~%EOE%;
+          deorphan/downgrade libfoo/1.1.0
+        disfigured libfoo/1.1.0+1
+        fetched libfoo/1.1.0
+        unpacked libfoo/1.1.0
+        configured libfoo/1.1.0
+        %info: .+libfoo-1.1.0.+ is up to date%
+        updated libfoo/1.1.0
+        EOE
+
+      $pkg_status -o libfoo >>EOO;
+        !libfoo configured 1.1.0 available 1.2.0 1.1.1 (1.1.0) 1.0.0
+        EOO
+
+      # Deorphan libfoo/1.1.0 to patch (up to 1.1.1).
+      #
+      $rep_remove $rep/t14b;
+
+      $* --deorphan libfoo 2>>~%EOE%;
+          deorphan/upgrade libfoo/1.1.1
+        disfigured libfoo/1.1.0
+        fetched libfoo/1.1.1
+        unpacked libfoo/1.1.1
+        configured libfoo/1.1.1
+        %info: .+libfoo-1.1.1.+ is up to date%
+        updated libfoo/1.1.1
+        EOE
+
+      $pkg_status -o libfoo >>EOO;
+        !libfoo configured 1.1.1 available 1.2.0 (1.1.1) 1.0.0
+        EOO
+
+      # Deorphan libfoo/1.1.1 to latest (up to 1.2.0).
+      #
+      $rep_remove $rep/t14f;
+
+      $* --deorphan libfoo 2>>~%EOE%;
+          deorphan/upgrade libfoo/1.2.0
+        disfigured libfoo/1.1.1
+        fetched libfoo/1.2.0
+        unpacked libfoo/1.2.0
+        configured libfoo/1.2.0
+        %info: .+libfoo-1.2.0.+ is up to date%
+        updated libfoo/1.2.0
+        EOE
+
+      $pkg_status -o libfoo >>EOO;
+        !libfoo configured 1.2.0 available (1.2.0) 1.0.0
+        EOO
+
+      # Deorphan libfoo/1.2.0 to latest (down to 1.0.0).
+      #
+      $rep_remove $rep/t14i;
+
+      $* --deorphan libfoo 2>>~%EOE%;
+          deorphan/downgrade libfoo/1.0.0
+        disfigured libfoo/1.2.0
+        fetched libfoo/1.0.0
+        unpacked libfoo/1.0.0
+        configured libfoo/1.0.0
+        %info: .+libfoo-1.0.0.+ is up to date%
+        updated libfoo/1.0.0
+        EOE
+
+      $pkg_status -o libfoo >>EOO;
+        !libfoo configured 1.0.0 available (1.0.0)
+        EOO
+
+      # Deorphan fails (none available).
+      #
+      $rep_remove $rep/t14a;
+
+      $* --deorphan libfoo 2>>/EOE != 0;
+        error: unknown package libfoo
+          info: configuration cfg/ has no repositories
+          info: use 'bpkg rep-add' to add a repository
+        EOE
+
+      $pkg_status -o libfoo >>EOO;
+        !libfoo configured 1.0.0
+        EOO
+
+      $pkg_drop libfoo
+    }
+
+    : preference-all-held
+    :
+    : As above but uses 'deorphan all held packages form'.
+    :
+    {
+      $clone_root_cfg;
+
+      tar (!$posix ? --force-local : ) -xf $src/t14d/libfoo-1.1.0+2.tar.gz &libfoo-1.1.0+2/***;
+      mv libfoo-1.1.0+2 libfoo;
+
+      $rep_add --type dir libfoo/ && $rep_fetch;
+
+      $* libfoo 2>!;
+
+      $rep_fetch $rep/t14a $rep/t14b $rep/t14c $rep/t14d $rep/t14e $rep/t14f $rep/t14i;
+
+      $pkg_status -o libfoo >>EOO;
+        !libfoo configured 1.1.0+2 available 1.2.0 1.1.1 1.1.0+3 (1.1.0+2) 1.1.0+1 1.1.0 1.0.0
+        EOO
+
+      # Deorphan libfoo/1.1.0+2 to the same version.
+      #
+      $rep_remove $~/libfoo/;
+
+      $* --deorphan 2>>~%EOE%;
+          deorphan/update libfoo/1.1.0+2
+        disfigured libfoo/1.1.0+2
+        fetched libfoo/1.1.0+2
+        unpacked libfoo/1.1.0+2
+        configured libfoo/1.1.0+2
+        %info: .+libfoo-1.1.0\+2.+ is up to date%
+        updated libfoo/1.1.0+2
+        EOE
+
+      $pkg_status -o libfoo >>EOO;
+        !libfoo configured 1.1.0+2 available 1.2.0 1.1.1 1.1.0+3 (1.1.0+2) 1.1.0+1 1.1.0 1.0.0
+        EOO
+
+      # Deorphan libfoo/1.1.0+2 to the highest revision (up to 1.1.0+3).
+      #
+      $rep_remove $rep/t14d;
+
+      $* --deorphan 2>>~%EOE%;
+          deorphan/upgrade libfoo/1.1.0+3
+        disfigured libfoo/1.1.0+2
+        fetched libfoo/1.1.0+3
+        unpacked libfoo/1.1.0+3
+        configured libfoo/1.1.0+3
+        %info: .+libfoo-1.1.0\+3.+ is up to date%
+        updated libfoo/1.1.0+3
+        EOE
+
+      $pkg_status -o libfoo >>EOO;
+        !libfoo configured 1.1.0+3 available 1.2.0 1.1.1 (1.1.0+3) 1.1.0+1 1.1.0 1.0.0
+        EOO
+
+      # Deorphan libfoo/1.1.0+3 to the highest revision (down to 1.1.0+1).
+      #
+      $rep_remove $rep/t14e;
+
+      $* --deorphan 2>>~%EOE%;
+          deorphan/downgrade libfoo/1.1.0+1
+        disfigured libfoo/1.1.0+3
+        fetched libfoo/1.1.0+1
+        unpacked libfoo/1.1.0+1
+        configured libfoo/1.1.0+1
+        %info: .+libfoo-1.1.0\+1.+ is up to date%
+        updated libfoo/1.1.0+1
+        EOE
+
+      $pkg_status -o libfoo >>EOO;
+        !libfoo configured 1.1.0+1 available 1.2.0 1.1.1 (1.1.0+1) 1.1.0 1.0.0
+        EOO
+
+      # Deorphan libfoo/1.1.0+1 to highest revision (down to 1.1.0).
+      #
+      $rep_remove $rep/t14c;
+
+      $* --deorphan 2>>~%EOE%;
+          deorphan/downgrade libfoo/1.1.0
+        disfigured libfoo/1.1.0+1
+        fetched libfoo/1.1.0
+        unpacked libfoo/1.1.0
+        configured libfoo/1.1.0
+        %info: .+libfoo-1.1.0.+ is up to date%
+        updated libfoo/1.1.0
+        EOE
+
+      $pkg_status -o libfoo >>EOO;
+        !libfoo configured 1.1.0 available 1.2.0 1.1.1 (1.1.0) 1.0.0
+        EOO
+
+      # Deorphan libfoo/1.1.0 to patch (up to 1.1.1).
+      #
+      $rep_remove $rep/t14b;
+
+      $* --deorphan 2>>~%EOE%;
+          deorphan/upgrade libfoo/1.1.1
+        disfigured libfoo/1.1.0
+        fetched libfoo/1.1.1
+        unpacked libfoo/1.1.1
+        configured libfoo/1.1.1
+        %info: .+libfoo-1.1.1.+ is up to date%
+        updated libfoo/1.1.1
+        EOE
+
+      $pkg_status -o libfoo >>EOO;
+        !libfoo configured 1.1.1 available 1.2.0 (1.1.1) 1.0.0
+        EOO
+
+      # Deorphan libfoo/1.1.1 to latest (up to 1.2.0).
+      #
+      $rep_remove $rep/t14f;
+
+      $* --deorphan 2>>~%EOE%;
+          deorphan/upgrade libfoo/1.2.0
+        disfigured libfoo/1.1.1
+        fetched libfoo/1.2.0
+        unpacked libfoo/1.2.0
+        configured libfoo/1.2.0
+        %info: .+libfoo-1.2.0.+ is up to date%
+        updated libfoo/1.2.0
+        EOE
+
+      $pkg_status -o libfoo >>EOO;
+        !libfoo configured 1.2.0 available (1.2.0) 1.0.0
+        EOO
+
+      # Deorphan libfoo/1.2.0 to latest (down to 1.0.0).
+      #
+      $rep_remove $rep/t14i;
+
+      $* --deorphan 2>>~%EOE%;
+          deorphan/downgrade libfoo/1.0.0
+        disfigured libfoo/1.2.0
+        fetched libfoo/1.0.0
+        unpacked libfoo/1.0.0
+        configured libfoo/1.0.0
+        %info: .+libfoo-1.0.0.+ is up to date%
+        updated libfoo/1.0.0
+        EOE
+
+      $pkg_status -o libfoo >>EOO;
+        !libfoo configured 1.0.0 available (1.0.0)
+        EOO
+
+      # Deorphan fails (none available).
+      #
+      $rep_remove $rep/t14a;
+
+      $* --deorphan 2>>/EOE != 0;
+        error: libfoo is not available
+          info: configuration cfg/ has no repositories
+          info: use 'bpkg rep-add' to add a repository
+        EOE
+
+      $pkg_status -o libfoo >>EOO;
+        !libfoo configured 1.0.0
+        EOO
+
+      $pkg_drop libfoo
     }
   }
 }

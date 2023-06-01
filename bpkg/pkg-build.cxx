@@ -102,30 +102,29 @@ namespace bpkg
     }
   }
 
-  // Return a patch version constraint for the selected package if it has a
-  // standard version, otherwise, if requested, issue a warning and return
-  // nullopt.
+  // Return a patch version constraint for the specified package version if it
+  // is a standard version. Otherwise, if requested, issue a warning and
+  // return nullopt.
   //
   // Note that the function may also issue a warning and return nullopt if the
-  // selected package minor version reached the limit (see
-  // standard-version.cxx for details).
+  // package minor version reached the limit (see standard-version.cxx for
+  // details).
   //
   static optional<version_constraint>
-  patch_constraint (const shared_ptr<selected_package>& sp, bool quiet = false)
+  patch_constraint (const package_name& nm,
+                    const version& pv,
+                    bool quiet = false)
   {
-    const package_name& nm (sp->name);
-    const version&      sv (sp->version);
-
     // Note that we don't pass allow_stub flag so the system wildcard version
     // will (naturally) not be patched.
     //
-    string vs (sv.string ());
+    string vs (pv.string ());
     optional<standard_version> v (parse_standard_version (vs));
 
     if (!v)
     {
       if (!quiet)
-        warn << "unable to patch " << package_string (nm, sv) <<
+        warn << "unable to patch " << package_string (nm, pv) <<
           info << "package is not using semantic/standard version";
 
       return nullopt;
@@ -142,11 +141,41 @@ namespace bpkg
     catch (const invalid_argument&)
     {
       if (!quiet)
-        warn << "unable to patch " << package_string (nm, sv) <<
+        warn << "unable to patch " << package_string (nm, pv) <<
           info << "minor version limit reached";
 
       return nullopt;
     }
+  }
+
+  static inline optional<version_constraint>
+  patch_constraint (const shared_ptr<selected_package>& sp, bool quiet = false)
+  {
+    return patch_constraint (sp->name, sp->version, quiet);
+  }
+
+  // Return true if the selected package is not configured as system and its
+  // repository fragment is not present in the ultimate dependent
+  // configurations (see dependent_repo_configs() for details) of this
+  // package.
+  //
+  static bool
+  orphan_package (database& db, const shared_ptr<selected_package>& sp)
+  {
+    assert (sp != nullptr);
+
+    if (sp->system ())
+      return false;
+
+    const string& cn (sp->repository_fragment.canonical_name ());
+
+    for (database& ddb: dependent_repo_configs (db))
+    {
+      if (ddb.find<repository_fragment> (cn) != nullptr)
+        return false;
+    }
+
+    return true;
   }
 
   // List of dependency packages (specified with ? on the command line).
@@ -167,7 +196,12 @@ namespace bpkg
     optional<version_constraint> constraint;     // nullopt if unspecified.
     shared_ptr<selected_package> selected;
     bool                         system;
-    bool                         patch;          // Only for an empty version.
+
+    // true -- upgrade, false -- patch.
+    //
+    optional<bool>               upgrade;        // Only for absent constraint.
+
+    bool                         deorphan;
     bool                         keep_out;
     bool                         disfigure;
     optional<dir_path>           checkout_root;
@@ -182,8 +216,27 @@ namespace bpkg
   // this dependency. If the result is a NULL available_package, then it is
   // either no longer used and can be dropped, or no changes to the dependency
   // are necessary. Otherwise, the result is available_package to
-  // upgrade/downgrade to as well as the repository fragment it must come
-  // from, and the system flag.
+  // upgrade/downgrade/deorphan to as well as the repository fragment it must
+  // come from, the system flag, and the database it must be configured in.
+  //
+  // If in the deorphan mode it turns out that the package is not an orphan
+  // and there is no version constraint specified and upgrade/patch is not
+  // requested, then assume that no changes are necessary for the dependency.
+  // Otherwise, if the package version is not constrained and no upgrade/patch
+  // is requested, then pick the version that matches the dependency version
+  // best in the following preference order: same version (up to iteration),
+  // latest iteration (think of deorphaning after renaming a directory
+  // repository), same revision (zero iteration), latest revision, latest
+  // patch, latest available package. Otherwise, always upgrade/downgrade the
+  // orphan or fail if no satisfactory version is available. Note that in the
+  // both cases (deorphan and upgrade/downgrade+deorphan) we may end up with
+  // the available package version being the same as the selected package
+  // version. In this case the dependency needs to be re-fetched from an
+  // existing repository. Also note that if the dependency needs to be
+  // deorphaned the caller may need to cache the original orphan version. This
+  // way on the subsequent calls this function still considers this package as
+  // an orphan and uses its original version to deduce the best match, which
+  // may change due, for example, a change of the constraining dependents set.
   //
   // If the package version that satisfies explicitly specified dependency
   // version constraint can not be found in the dependents repositories, then
@@ -194,13 +247,19 @@ namespace bpkg
   //
   struct evaluate_result
   {
-    // The system flag is meaningless if the unused flag is true.
+    // The system and orphan members are meaningless if the unused flag is
+    // true.
     //
     reference_wrapper<database>                db;
     shared_ptr<available_package>              available;
     lazy_shared_ptr<bpkg::repository_fragment> repository_fragment;
     bool                                       unused;
     bool                                       system;
+
+    // Original orphan version which needs to be deorphaned. May only present
+    // for the deorphan mode.
+    //
+    optional<version>                          orphan;
   };
 
   struct dependent_constraint
@@ -216,18 +275,21 @@ namespace bpkg
   };
 
   using dependent_constraints = vector<dependent_constraint>;
+  using deorphaned_dependencies = map<package_key, version>;
 
-  static optional<evaluate_result>
+  static evaluate_result
   evaluate_dependency (database&,
                        const shared_ptr<selected_package>&,
                        const optional<version_constraint>& desired,
                        bool desired_sys,
                        database& desired_db,
                        const shared_ptr<selected_package>& desired_db_sp,
-                       bool patch,
+                       optional<bool> upgrade,
+                       bool deorphan,
                        bool explicitly,
                        const config_repo_fragments&,
                        const dependent_constraints&,
+                       const deorphaned_dependencies&,
                        bool ignore_unsatisfiable);
 
   // If there are no user expectations regarding this dependency, then we give
@@ -242,6 +304,7 @@ namespace bpkg
                        const shared_ptr<selected_package>& sp,
                        const dependency_packages& deps,
                        bool no_move,
+                       const deorphaned_dependencies& deorphaned_deps,
                        bool ignore_unsatisfiable)
   {
     tracer trace ("evaluate_dependency");
@@ -256,7 +319,8 @@ namespace bpkg
                               nullptr /* available */,
                               nullptr /* repository_fragment */,
                               false   /* unused */,
-                              false   /* system */};
+                              false   /* system */,
+                              nullopt /* orphan */};
     };
 
     // Only search for the user expectations regarding this dependency if it
@@ -391,7 +455,8 @@ namespace bpkg
                               nullptr /* available */,
                               nullptr /* repository_fragment */,
                               true    /* unused */,
-                              false   /* system */};
+                              false   /* system */,
+                              nullopt /* orphan */};
     }
 
     // The requested dependency database, version constraint, and system flag.
@@ -455,10 +520,12 @@ namespace bpkg
                                 dsys,
                                 ddb,
                                 dsp,
-                                i->patch,
+                                i->upgrade,
+                                i->deorphan,
                                 true /* explicitly */,
                                 repo_frags,
                                 dpt_constrs,
+                                deorphaned_deps,
                                 ignore_unsatisfiable);
   }
 
@@ -485,17 +552,19 @@ namespace bpkg
     }
   };
 
-  static optional<evaluate_result>
+  static evaluate_result
   evaluate_dependency (database& db,
                        const shared_ptr<selected_package>& sp,
                        const optional<version_constraint>& dvc,
                        bool dsys,
                        database& ddb,
                        const shared_ptr<selected_package>& dsp,
-                       bool patch,
+                       optional<bool> upgrade,
+                       bool deorphan,
                        bool explicitly,
                        const config_repo_fragments& rfs,
                        const dependent_constraints& dpt_constrs,
+                       const deorphaned_dependencies& deorphaned_deps,
                        bool ignore_unsatisfiable)
   {
     tracer trace ("evaluate_dependency");
@@ -508,7 +577,8 @@ namespace bpkg
                               nullptr /* available */,
                               nullptr /* repository_fragment */,
                               false   /* unused */,
-                              false   /* system */};
+                              false   /* system */,
+                              nullopt /* orphan */};
     };
 
     // Build the list of available packages for the potential up/down-grade
@@ -520,6 +590,7 @@ namespace bpkg
     // picking the latest one just to make sure the package is recognized.
     //
     optional<version_constraint> c;
+    bool patch (upgrade && !*upgrade);
 
     if (!dvc)
     {
@@ -544,9 +615,62 @@ namespace bpkg
     if (afs.empty () && dsys && c)
       afs = find_available (nm, nullopt, rfs);
 
+    // In the deorphan mode check that the dependency is an orphan or was
+    // deorphaned on some previous refinement iteration. If that's not the
+    // case, then just disable the deorphan mode for this dependency and, if
+    // the version is not constrained and upgrade/patch is not requested, bail
+    // out indicating that no change is required.
+    //
+    // Note that in the move mode (dsp != sp) we deorphan the dependency in
+    // its destination configuration, if present. In the worst case scenario
+    // both the source and destination selected packages may need to be
+    // deorphaned since the source selected package may also stay if some
+    // dependents were not repointed to the new dependency (remember that the
+    // move mode is actually a copy mode). We, however, have no easy way to
+    // issue recommendations for both the old and the new dependencies at the
+    // moment. Given that in the common case the old dependency get dropped,
+    // let's keep it simple and do nothing about the old dependency and see
+    // how it goes.
+    //
+    const version* deorphaned (nullptr);
+
+    if (deorphan)
+    {
+      bool orphan (dsp != nullptr && !dsp->system () && !dsys);
+
+      if (orphan)
+      {
+        auto i (deorphaned_deps.find (package_key (ddb, nm)));
+
+        if (i == deorphaned_deps.end ())
+        {
+          orphan = orphan_package (ddb, dsp);
+        }
+        else
+          deorphaned = &i->second;
+      }
+
+      if (!orphan)
+      {
+        if (!dvc && !upgrade)
+        {
+          l5 ([&]{trace << *sp << db << ": non-orphan";});
+          return no_change ();
+        }
+
+        deorphan = false;
+      }
+    }
+
     // Go through up/down-grade candidates and pick the first one that
-    // satisfies all the dependents. Collect (and sort) unsatisfied dependents
-    // per the unsatisfiable version in case we need to print them.
+    // satisfies all the dependents. In the deorphan mode if the package
+    // version is not constrained and upgrade/patch is not requested, then
+    // pick the version that matches the dependency version best (see the
+    // function description for details). Collect (and sort) unsatisfied
+    // dependents per the unsatisfiable version in case we need to print them.
+    //
+    // NOTE: don't forget to update the find_orphan_match() lambda if changing
+    // anything deorphan-related here.
     //
     using sp_set = set<config_selected_package>;
 
@@ -558,14 +682,72 @@ namespace bpkg
             (ddb.system_repository &&
              ddb.system_repository->find (nm) != nullptr));
 
-    for (auto& af: afs)
+    // Version to deorphan (original orphan version).
+    //
+    const version* dov (deorphaned != nullptr ? deorphaned    :
+                        deorphan              ? &dsp->version :
+                        nullptr);
+
+    optional<version> dovr;            // Revision of the above.
+    optional<version_constraint> dopc; // Patch constraint for the above.
+
+    if (deorphan && !dvc && !upgrade) // Pick orphan version best match?
+    {
+      dovr = version (dov->epoch,
+                      dov->upstream,
+                      dov->release,
+                      dov->revision,
+                      0 /* iteration */);
+
+      dopc = patch_constraint (nm, *dovr, true /* quiet */);
+    }
+
+    using available = pair<shared_ptr<available_package>,
+                           lazy_shared_ptr<repository_fragment>>;
+
+    available deorphan_latest_iteration;
+    available deorphan_same_revision;
+    available deorphan_latest_revision;
+    available deorphan_patch;
+    available deorphan_available;
+
+    // If the dependency is deorphaned to the same version as on the previous
+    // call, then return the "no change" result. Otherwise, return the
+    // deorphan result.
+    //
+    auto deorphan_result = [&sp, &db,
+                            &ddb, &dsp,
+                            dsys,
+                            deorphaned, dov,
+                            &no_change,
+                            &trace] (available&& a, const char* what)
+    {
+      if (deorphaned != nullptr && dsp->version == a.first->version)
+      {
+        l5 ([&]{trace << *sp << db << ": already deorphaned";});
+        return no_change ();
+      }
+
+      l5 ([&]{trace << *sp << db << ": deorphan to " << what << ' '
+                    << package_string (sp->name, a.first->version)
+                    << ddb;});
+
+      return evaluate_result {
+        ddb, move (a.first), move (a.second),
+        false /* unused */,
+        dsys,
+        *dov};
+    };
+
+    for (available& af: afs)
     {
       shared_ptr<available_package>& ap (af.first);
       const version& av (!dsys ? ap->version : *ap->system_version (ddb));
 
       // If we aim to upgrade to the latest version and it tends to be less
       // then the selected one, then what we currently have is the best that
-      // we can get, and so we return the "no change" result.
+      // we can get, and so we return the "no change" result, unless we are
+      // deorphaning.
       //
       // Note that we also handle a package stub here.
       //
@@ -576,14 +758,13 @@ namespace bpkg
         // For the selected system package we still need to pick a source
         // package version to downgrade to.
         //
-        if (!dsp->system ())
+        if (!dsp->system () && !deorphan)
         {
           l5 ([&]{trace << *dsp << ddb << ": best";});
           return no_change ();
         }
 
-        // We can not upgrade the (system) package to a stub version, so just
-        // skip it.
+        // We can not upgrade the package to a stub version, so just skip it.
         //
         if (ap->stub ())
         {
@@ -629,28 +810,103 @@ namespace bpkg
         continue;
       }
 
-      // If the best satisfactory version and the desired system flag perfectly
-      // match the ones of the selected package, then no package change is
-      // required. Otherwise, recommend an up/down-grade.
-      //
-      if (dsp != nullptr && av == dsp->version && dsp->system () == dsys)
+      if (dovr) // Deorphan picking the best match?
       {
-        l5 ([&]{trace << *dsp << ddb << ": unchanged";});
-        return no_change ();
+        // If the orphan version is encountered, then we are done. Otherwise,
+        // save the version if it matches any of the orphan match preferences.
+        //
+        if (av == *dov)
+          return deorphan_result (move (af), "same version");
+
+        if (deorphan_latest_iteration.first == nullptr &&
+            av.compare (*dovr, true /* revision */, false /* iteration */) == 0)
+          deorphan_latest_iteration = af;
+
+        if (av == *dovr)
+        {
+          // Can only appear once.
+          //
+          assert (deorphan_same_revision.first == nullptr);
+
+          deorphan_same_revision = af;
+        }
+
+        if (deorphan_latest_revision.first == nullptr &&
+            av.compare (*dovr, false /* revision */) == 0)
+          deorphan_latest_revision = af;
+
+        if (deorphan_patch.first == nullptr && dopc && satisfies (av, *dopc))
+          deorphan_patch = af;
+
+        if (deorphan_available.first == nullptr)
+          deorphan_available = af;
+
+        // If the available version is less then the orphan revision then we
+        // can bail out from the loop, since all the versions from the
+        // preference list has already been encountered, if present.
+        //
+        if (av.compare (*dovr, false /* revision */) < 0)
+        {
+          assert (deorphan_latest_iteration.first != nullptr ||
+                  deorphan_same_revision.first != nullptr    ||
+                  deorphan_latest_revision.first != nullptr  ||
+                  deorphan_patch.first != nullptr            ||
+                  deorphan_available.first != nullptr);
+          break;
+        }
       }
+      else
+      {
+        // If the best satisfactory version and the desired system flag
+        // perfectly match the ones of the selected package, then no package
+        // change is required, unless we are deorphaning. Otherwise, recommend
+        // an upgrade/downgrade/deorphaning.
+        //
+        if (dsp != nullptr         &&
+            av == dsp->version     &&
+            dsp->system () == dsys &&
+            !deorphan)
+        {
+          l5 ([&]{trace << *dsp << ddb << ": unchanged";});
+          return no_change ();
+        }
 
-      l5 ([&]{trace << *sp << db << ": update to "
-                    << package_string (nm, av, dsys) << ddb;});
+        l5 ([&]{trace << *sp << db << ": update"
+                      << (deorphan ? "/deorphan" : "") << " to "
+                      << package_string (nm, av, dsys) << ddb;});
 
-      return evaluate_result {
-        ddb, move (ap), move (af.second), false /* unused */, dsys};
+        return evaluate_result {
+          ddb, move (ap), move (af.second),
+          false /* unused */,
+          dsys,
+          deorphan ? *dov : optional<version> ()};
+      }
     }
+
+    if (deorphan_latest_iteration.first != nullptr)
+      return deorphan_result (move (deorphan_latest_iteration),
+                              "latest iteration");
+
+    if (deorphan_same_revision.first != nullptr)
+      return deorphan_result (move (deorphan_same_revision),
+                              "same revision");
+
+    if (deorphan_latest_revision.first != nullptr)
+      return deorphan_result (move (deorphan_latest_revision),
+                              "latest revision");
+
+    if (deorphan_patch.first != nullptr)
+      return deorphan_result (move (deorphan_patch), "patch");
+
+    if (deorphan_available.first != nullptr)
+      return deorphan_result (move (deorphan_available), "latest available");
 
     // If we aim to upgrade to the latest version, then what we currently have
     // is the only thing that we can get, and so returning the "no change"
-    // result, unless we need to upgrade a package configured as system.
+    // result, unless we need to upgrade a package configured as system or to
+    // deorphan.
     //
-    if (!dvc && dsp != nullptr && !dsp->system ())
+    if (!dvc && dsp != nullptr && !dsp->system () && !deorphan)
     {
       assert (!dsys); // Version cannot be empty for the system package.
 
@@ -682,9 +938,10 @@ namespace bpkg
 
       if (!dvc && patch)
       {
-        // Otherwise, we should have bailed out earlier (see above).
+        // Otherwise, we should have bailed out earlier returning "no change"
+        // (see above).
         //
-        assert (dsp != nullptr && dsp->system ());
+        assert (dsp != nullptr && (dsp->system () || deorphan));
 
         // Patch (as any upgrade) of a system package is always explicit, so
         // we always fail and never treat the package as being up to date.
@@ -699,10 +956,10 @@ namespace bpkg
              << " is not available from its dependents' repositories";
       else // The only available package is a stub.
       {
-        // Note that we don't advise to "build" the package as a system one as
-        // it is already as such (see above).
+        // Otherwise, we should have bailed out earlier, returning "no change"
+        // rather then setting the stub flag to true (see above).
         //
-        assert (!dvc && !dsys && dsp != nullptr && dsp->system ());
+        assert (!dvc && !dsys && dsp != nullptr && (dsp->system () || deorphan));
 
         fail << package_string (nm, dvc) << ddb << " is not available in "
              << "source from its dependents' repositories";
@@ -748,31 +1005,38 @@ namespace bpkg
   }
 
   // List of dependent packages whose immediate/recursive dependencies must be
-  // upgraded (specified with -i/-r on the command line).
+  // upgraded and/or deorphaned (specified with -i/-r on the command line).
   //
   struct recursive_package
   {
-    database&    db;
-    package_name name;
-    bool         upgrade;   // true -- upgrade,   false -- patch.
-    bool         recursive; // true -- recursive, false -- immediate.
+    database&      db;
+    package_name   name;
+
+    // Recursive/immediate upgrade/patch. Note the upgrade member is only
+    // meaningful if recursive is present.
+    //
+    optional<bool> recursive; // true -- recursive, false -- immediate.
+    bool           upgrade;   // true -- upgrade,   false -- patch.
+
+    // Recursive/immediate deorphaning.
+    //
+    optional<bool> deorphan;  // true -- recursive, false -- immediate.
   };
   using recursive_packages = vector<recursive_package>;
 
   // Recursively check if immediate dependencies of this dependent must be
-  // upgraded or patched. Return true if it must be upgraded, false if
-  // patched, and nullopt otherwise.
+  // upgraded or patched and/or deorphaned.
   //
   // Cache the results of this function calls to avoid multiple traversals of
   // the same dependency graphs.
   //
-  struct upgrade_dependency_key
+  struct upgrade_dependencies_key
   {
     package_key dependent;
     bool recursion;
 
     bool
-    operator< (const upgrade_dependency_key& v) const
+    operator< (const upgrade_dependencies_key& v) const
     {
       if (recursion != v.recursion)
         return recursion < v.recursion;
@@ -781,20 +1045,27 @@ namespace bpkg
     }
   };
 
-  using upgrade_dependency_cache = map<upgrade_dependency_key, optional<bool>>;
+  struct upgrade_deorphan
+  {
+    optional<bool> upgrade; // true -- upgrade, false -- patch.
+    bool deorphan;
+  };
 
-  static optional<bool>
+  using upgrade_dependencies_cache = map<upgrade_dependencies_key,
+                                         upgrade_deorphan>;
+
+  static upgrade_deorphan
   upgrade_dependencies (database& db,
                         const package_name& nm,
                         const recursive_packages& rs,
-                        upgrade_dependency_cache& cache,
+                        upgrade_dependencies_cache& cache,
                         bool recursion = false)
   {
     // If the result of the upgrade_dependencies() call for these dependent
     // and recursion flag value is cached, then return that. Otherwise, cache
     // the calculated result prior to returning it to the caller.
     //
-    upgrade_dependency_key k {package_key (db, nm), recursion};
+    upgrade_dependencies_key k {package_key (db, nm), recursion};
     {
       auto i (cache.find (k));
 
@@ -808,13 +1079,21 @@ namespace bpkg
                        return i.name == nm && i.db == db;
                      }));
 
-    optional<bool> r;
+    upgrade_deorphan r {nullopt /* upgrade */, false /* deorphan */};
 
-    if (i != rs.end () && i->recursive >= recursion)
+    if (i != rs.end ())
     {
-      r = i->upgrade;
+      if (i->recursive && *i->recursive >= recursion)
+        r.upgrade = i->upgrade;
 
-      if (*r) // Upgrade (vs patch)?
+      if (i->deorphan && *i->deorphan >= recursion)
+        r.deorphan = true;
+
+      // If we both upgrade and deorphan, then we can bail out since the value
+      // may not change any further (upgrade wins patch and deorphaning can't
+      // be canceled).
+      //
+      if (r.upgrade && *r.upgrade && r.deorphan)
       {
         cache[move (k)] = r;
         return r;
@@ -829,21 +1108,26 @@ namespace bpkg
         // configured packages due to a dependency cycle (see order() for
         // details).
         //
-        if (optional<bool> u = upgrade_dependencies (ddb,
-                                                     pd.name,
-                                                     rs,
-                                                     cache,
-                                                     true /* recursion */))
-        {
-          if (!r || *r < *u) // Upgrade wins patch.
-          {
-            r = u;
+        upgrade_deorphan ud (
+          upgrade_dependencies (ddb, pd.name, rs, cache, true /* recursion */));
 
-            if (*r) // Upgrade (vs patch)?
-            {
-              cache[move (k)] = r;
-              return r;
-            }
+        if (ud.upgrade || ud.deorphan)
+        {
+          // Upgrade wins patch.
+          //
+          if (ud.upgrade && (!r.upgrade || *r.upgrade < *ud.upgrade))
+            r.upgrade = *ud.upgrade;
+
+          if (ud.deorphan)
+            r.deorphan = true;
+
+          // If we both upgrade and deorphan, then we can bail out (see above
+          // for details).
+          //
+          if (r.upgrade && *r.upgrade && r.deorphan)
+          {
+            cache[move (k)] = r;
+            return r;
           }
         }
       }
@@ -868,8 +1152,9 @@ namespace bpkg
   evaluate_recursive (database& db,
                       const shared_ptr<selected_package>& sp,
                       const recursive_packages& recs,
+                      const deorphaned_dependencies& deorphaned_deps,
                       bool ignore_unsatisfiable,
-                      upgrade_dependency_cache& cache)
+                      upgrade_dependencies_cache& cache)
   {
     tracer trace ("evaluate_recursive");
 
@@ -886,7 +1171,7 @@ namespace bpkg
     // (immediate) dependents that have a hit (direct or indirect) in recs.
     // Note, however, that we collect constraints from all the dependents.
     //
-    optional<bool> upgrade;
+    upgrade_deorphan ud {nullopt /* upgrade */, false /* deorphan */};
 
     for (database& ddb: db.dependent_configs ())
     {
@@ -896,10 +1181,17 @@ namespace bpkg
 
         dpt_constrs.emplace_back (ddb, p, move (pd.constraint));
 
-        if (optional<bool> u = upgrade_dependencies (ddb, pd.name, recs, cache))
+        upgrade_deorphan u (upgrade_dependencies (ddb, pd.name, recs, cache));
+
+        if (u.upgrade || u.deorphan)
         {
-          if (!upgrade || *upgrade < *u) // Upgrade wins patch.
-            upgrade = u;
+          // Upgrade wins patch.
+          //
+          if (u.upgrade && (!ud.upgrade || *ud.upgrade < *u.upgrade))
+            ud.upgrade = *u.upgrade;
+
+          if (u.deorphan)
+            ud.deorphan = true;
         }
         else
           continue;
@@ -915,7 +1207,7 @@ namespace bpkg
       }
     }
 
-    if (!upgrade)
+    if (!ud.upgrade && !ud.deorphan)
     {
       l5 ([&]{trace << *sp << db << ": no hit";});
       return nullopt;
@@ -930,10 +1222,12 @@ namespace bpkg
                            false /* desired_sys */,
                            db,
                            sp,
-                           !*upgrade /* patch */,
+                           ud.upgrade,
+                           ud.deorphan,
                            false /* explicitly */,
                            repo_frags,
                            dpt_constrs,
+                           deorphaned_deps,
                            ignore_unsatisfiable));
 
     // Translate the "no change" result into nullopt.
@@ -965,13 +1259,14 @@ namespace bpkg
       dr << fail << "both --immediate|-i and --recursive|-r specified";
 
     // The --immediate or --recursive option can only be specified with an
-    // explicit --upgrade or --patch.
+    // explicit --upgrade, --patch, or --deorphan.
     //
     if (const char* n = (o.immediate () ? "--immediate" :
                          o.recursive () ? "--recursive" : nullptr))
     {
-      if (!o.upgrade () && !o.patch ())
-        dr << fail << n << " requires explicit --upgrade|-u or --patch|-p";
+      if (!o.upgrade () && !o.patch () && !o.deorphan ())
+        dr << fail << n << " requires explicit --upgrade|-u, --patch|-p, or "
+                   << "--deorphan";
     }
 
     if (((o.upgrade_immediate () ? 1 : 0) +
@@ -979,6 +1274,10 @@ namespace bpkg
          (o.patch_immediate ()   ? 1 : 0) +
          (o.patch_recursive ()   ? 1 : 0)) > 1)
       dr << fail << "multiple --(upgrade|patch)-(immediate|recursive) "
+                 << "specified";
+
+    if (o.deorphan_immediate () && o.deorphan_recursive ())
+      dr << fail << "both --deorphan-immediate and --deorphan-recursive "
                  << "specified";
 
     if (multi_config ())
@@ -1007,13 +1306,16 @@ namespace bpkg
       dst.recursive (src.recursive ());
 
       // If -r|-i was specified at the package level, then so should
-      // -u|-p.
+      // -u|-p and --deorphan.
       //
       if (!(dst.upgrade () || dst.patch ()))
       {
         dst.upgrade (src.upgrade ());
         dst.patch   (src.patch ());
       }
+
+      if (!dst.deorphan ())
+        dst.deorphan (src.deorphan ());
     }
 
     if (!(dst.upgrade_immediate () || dst.upgrade_recursive () ||
@@ -1023,6 +1325,12 @@ namespace bpkg
       dst.upgrade_recursive (src.upgrade_recursive ());
       dst.patch_immediate   (src.patch_immediate ());
       dst.patch_recursive   (src.patch_recursive ());
+    }
+
+    if (!(dst.deorphan_immediate () || dst.deorphan_recursive ()))
+    {
+      dst.deorphan_immediate (src.deorphan_immediate ());
+      dst.deorphan_recursive (src.deorphan_recursive ());
     }
 
     dst.dependency (src.dependency () || dst.dependency ());
@@ -1068,19 +1376,22 @@ namespace bpkg
   static bool
   compare_options (const pkg_options& x, const pkg_options& y)
   {
-    return x.keep_out ()          == y.keep_out ()          &&
-           x.disfigure ()         == y.disfigure ()         &&
-           x.dependency ()        == y.dependency ()        &&
-           x.upgrade ()           == y.upgrade ()           &&
-           x.patch ()             == y.patch ()             &&
-           x.immediate ()         == y.immediate ()         &&
-           x.recursive ()         == y.recursive ()         &&
-           x.upgrade_immediate () == y.upgrade_immediate () &&
-           x.upgrade_recursive () == y.upgrade_recursive () &&
-           x.patch_immediate ()   == y.patch_immediate ()   &&
-           x.patch_recursive ()   == y.patch_recursive ()   &&
-           x.checkout_root ()     == y.checkout_root ()     &&
-           x.checkout_purge ()    == y.checkout_purge ();
+    return x.keep_out ()           == y.keep_out ()           &&
+           x.disfigure ()          == y.disfigure ()          &&
+           x.dependency ()         == y.dependency ()         &&
+           x.upgrade ()            == y.upgrade ()            &&
+           x.patch ()              == y.patch ()              &&
+           x.deorphan ()           == y.deorphan ()           &&
+           x.immediate ()          == y.immediate ()          &&
+           x.recursive ()          == y.recursive ()          &&
+           x.upgrade_immediate ()  == y.upgrade_immediate ()  &&
+           x.upgrade_recursive ()  == y.upgrade_recursive ()  &&
+           x.patch_immediate ()    == y.patch_immediate ()    &&
+           x.patch_recursive ()    == y.patch_recursive ()    &&
+           x.deorphan_immediate () == y.deorphan_immediate () &&
+           x.deorphan_recursive () == y.deorphan_recursive () &&
+           x.checkout_root ()      == y.checkout_root ()      &&
+           x.checkout_purge ()     == y.checkout_purge ();
   }
 
   int
@@ -1122,7 +1433,7 @@ namespace bpkg
       fail << "both --sys-no-query and --sys-install specified" <<
         info << "run 'bpkg help pkg-build' for more information";
 
-    if (!args.more () && !o.upgrade () && !o.patch ())
+    if (!args.more () && !o.upgrade () && !o.patch () && !o.deorphan ())
       fail << "package name argument expected" <<
         info << "run 'bpkg help pkg-build' for more information";
 
@@ -1668,16 +1979,19 @@ namespace bpkg
 
         const pkg_options& o (a.options);
 
-        add_bool ("--keep-out",          o.keep_out ());
-        add_bool ("--disfigure",         o.disfigure ());
-        add_bool ("--upgrade",           o.upgrade ());
-        add_bool ("--patch",             o.patch ());
-        add_bool ("--immediate",         o.immediate ());
-        add_bool ("--recursive",         o.recursive ());
-        add_bool ("--upgrade-immediate", o.upgrade_immediate ());
-        add_bool ("--upgrade-recursive", o.upgrade_recursive ());
-        add_bool ("--patch-immediate",   o.patch_immediate ());
-        add_bool ("--patch-recursive",   o.patch_recursive ());
+        add_bool ("--keep-out",           o.keep_out ());
+        add_bool ("--disfigure",          o.disfigure ());
+        add_bool ("--upgrade",            o.upgrade ());
+        add_bool ("--patch",              o.patch ());
+        add_bool ("--deorphan",           o.deorphan ());
+        add_bool ("--immediate",          o.immediate ());
+        add_bool ("--recursive",          o.recursive ());
+        add_bool ("--upgrade-immediate",  o.upgrade_immediate ());
+        add_bool ("--upgrade-recursive",  o.upgrade_recursive ());
+        add_bool ("--patch-immediate",    o.patch_immediate ());
+        add_bool ("--patch-recursive",    o.patch_recursive ());
+        add_bool ("--deorphan-immediate", o.deorphan_immediate ());
+        add_bool ("--deorphan-recursive", o.deorphan_recursive ());
 
         if (o.checkout_root_specified ())
           add_string ("--checkout-root", o.checkout_root ().string ());
@@ -2324,6 +2638,93 @@ namespace bpkg
 
       transaction t (mdb);
 
+      // Return the available package that matches the specified orphan best
+      // in the following version preference order: same version, latest
+      // iteration, same revision, latest revision, latest patch, latest
+      // available (see evaluate_dependency() description for details). Also
+      // return the repository fragment the package comes from. Return a pair
+      // of NULLs if no suitable package has been found.
+      //
+      auto find_orphan_match =
+        [] (const shared_ptr<selected_package>& sp,
+            const lazy_shared_ptr<repository_fragment>& root)
+      {
+        using available = pair<shared_ptr<available_package>,
+                               lazy_shared_ptr<repository_fragment>>;
+
+        assert (sp != nullptr);
+
+        const package_name& n (sp->name);
+        const version&      v (sp->version);
+        optional<version_constraint> vc {version_constraint (v)};
+
+        version vr (v.epoch,
+                    v.upstream,
+                    v.release,
+                    v.revision,
+                    0 /* iteration */);
+
+        optional<version_constraint> vrc {version_constraint (vr)};
+
+        optional<version_constraint> pc (
+          patch_constraint (n, vr, true /* quiet */));
+
+        // Note: explicit revision makes query_available() to always consider
+        // revisions (but not iterations) regardless of the revision argument
+        // value.
+        //
+        optional<version_constraint> verc {
+          version_constraint (version (v.epoch,
+                                       v.upstream,
+                                       v.release,
+                                       v.revision ? v.revision : 0,
+                                       0 /* iteration */))};
+
+        optional<version_constraint> vlc {
+          version_constraint (version (v.epoch,
+                                       v.upstream,
+                                       v.release,
+                                       nullopt,
+                                       0 /* iteration */))};
+
+        // Find the latest available non-stub package, optionally matching a
+        // constraint and considering revision. If a package is found, then
+        // cache it together with the repository fragment it comes from and
+        // return true.
+        //
+        available find_result;
+        auto find = [&n,
+                     &root,
+                     &find_result] (const optional<version_constraint>& c,
+                                    bool revision = false) -> bool
+        {
+          available r (
+            find_available_one (n, c, root, false /* prereq */, revision));
+
+          const shared_ptr<available_package>& ap (r.first);
+
+          if (ap != nullptr && !ap->stub ())
+          {
+            find_result = move (r);
+            return true;
+          }
+          else
+            return false;
+        };
+
+        if (find (vc,   true)  || // Same iteration.
+            find (verc, false) || // Latest iteration.
+            find (vrc,  true)  || // Same revision.
+            find (vlc,  false) || // Latest revision.
+            find (pc)          || // Patch.
+            find (nullopt))       // Latest available.
+        {
+          return find_result;
+        }
+
+        return available ();
+      };
+
       // Here is what happens here: for unparsed package args we are going to
       // try and guess whether we are dealing with a package archive, package
       // directory, or package name/version by first trying it as an archive,
@@ -2509,6 +2910,7 @@ namespace bpkg
         //
         shared_ptr<selected_package> sp;
         bool patch (false);
+        bool deorphan (false);
 
         if (ap == nullptr)
         {
@@ -2548,12 +2950,13 @@ namespace bpkg
 
               lazy_shared_ptr<repository_fragment> root (*pdb, empty_string);
 
-              // Either get the user-specified version or the latest allowed
-              // for a source code package. For a system package we will try
-              // to find the available package that matches the user-specified
-              // system version (preferable for the configuration negotiation
-              // machinery) and, if fail, fallback to picking the latest one
-              // just to make sure the package is recognized.
+              // Get the user-specified version, the latest allowed version,
+              // or the orphan best match for a source code package. For a
+              // system package we will try to find the available package that
+              // matches the user-specified system version (preferable for the
+              // configuration negotiation machinery) and, if fail, fallback
+              // to picking the latest one just to make sure the package is
+              // recognized.
               //
               optional<version_constraint> c;
 
@@ -2583,7 +2986,39 @@ namespace bpkg
               else if (!sys || !wildcard (*pa.constraint))
                 c = pa.constraint;
 
-              auto rp (find_available_one (pa.name, c, root));
+              if (pa.options.deorphan ())
+              {
+                if (!sys)
+                {
+                  if (sp == nullptr)
+                    sp = pdb->find<selected_package> (pa.name);
+
+                  if (sp != nullptr && orphan_package (*pdb, sp))
+                    deorphan = true;
+                }
+
+                // If the package is not an orphan, its version is not
+                // constrained and upgrade/patch is not requested, then just
+                // skip the package.
+                //
+                if (!deorphan              &&
+                    !pa.constraint         &&
+                    !pa.options.upgrade () &&
+                    !pa.options.patch ())
+                {
+                  ++i;
+                  continue;
+                }
+              }
+
+              pair<shared_ptr<available_package>,
+                   lazy_shared_ptr<repository_fragment>> rp (
+                     deorphan               &&
+                     !pa.constraint         &&
+                     !pa.options.upgrade () &&
+                     !pa.options.patch ()
+                     ? find_orphan_match (sp, root)
+                     : find_available_one (pa.name, c, root));
 
               if (rp.first == nullptr && sys && c)
                 rp = find_available_one (pa.name, nullopt, root);
@@ -2606,22 +3041,55 @@ namespace bpkg
           continue;
 
         // Save (both packages to hold and dependencies) as dependents for
-        // recursive upgrade.
+        // recursive upgrade/deorphaning.
         //
         {
-          optional<bool> u;
-          optional<bool> r;
+          // Recursive/immediate upgrade/patch.
+          //
+          optional<bool> r; // true -- recursive, false -- immediate.
+          optional<bool> u; // true -- upgrade,   false -- patch.
+
+          // Recursive/immediate deorphaning.
+          //
+          optional<bool> d; // true -- recursive, false -- immediate.
 
           const auto& po (pa.options);
 
-          if      (po.upgrade_immediate ()) { u = true;          r = false; }
-          else if (po.upgrade_recursive ()) { u = true;          r = true;  }
-          else if (  po.patch_immediate ()) { u = false;         r = false; }
-          else if (  po.patch_recursive ()) { u = false;         r = true;  }
-          else if (        po.immediate ()) { u = po.upgrade (); r = false; }
-          else if (        po.recursive ()) { u = po.upgrade (); r = true;  }
+          // Note that, for example, --upgrade-immediate wins over the
+          // --upgrade --recursive options pair.
+          //
+          if (po.immediate ())
+          {
+            if (po.upgrade () || po.patch ())
+            {
+              r = false;
+              u = po.upgrade ();
+            }
 
-          if (r)
+            if (po.deorphan ())
+              d = false;
+          }
+          else if (po.recursive ())
+          {
+            if (po.upgrade () || po.patch ())
+            {
+              r = true;
+              u = po.upgrade ();
+            }
+
+            if (po.deorphan ())
+              d = true;
+          }
+
+          if      (po.upgrade_immediate ()) { u = true;  r = false; }
+          else if (po.upgrade_recursive ()) { u = true;  r = true;  }
+          else if (  po.patch_immediate ()) { u = false; r = false; }
+          else if (  po.patch_recursive ()) { u = false; r = true;  }
+
+          if      (po.deorphan_immediate ()) { d = false; }
+          else if (po.deorphan_recursive ()) { d = true;  }
+
+          if (r || d)
           {
             l4 ([&]{trace << "stash recursive package " << arg_string (pa);});
 
@@ -2630,7 +3098,9 @@ namespace bpkg
             // configuration.
             //
             if (pdb != nullptr)
-              rec_pkgs.push_back (recursive_package {*pdb, pa.name, *u, *r});
+              rec_pkgs.push_back (recursive_package {*pdb, pa.name,
+                                                     r, u && *u,
+                                                     d});
           }
         }
 
@@ -2680,7 +3150,10 @@ namespace bpkg
                                 move (pa.constraint),
                                 move (sp),
                                 sys,
-                                pa.options.patch (),
+                                (pa.options.upgrade () || pa.options.patch ()
+                                 ? pa.options.upgrade ()
+                                 : optional<bool> ()),
+                                pa.options.deorphan (),
                                 pa.options.keep_out (),
                                 pa.options.disfigure (),
                                 (pa.options.checkout_root_specified ()
@@ -2754,11 +3227,12 @@ namespace bpkg
                 break;
 
               // Otherwise, our only chance is that the already selected object
-              // satisfies the version constraint.
+              // satisfies the version constraint, unless we are deorphaning.
               //
-              if (sp != nullptr  &&
-                  !sp->system () &&
-                  satisfies (sp->version, pa.constraint))
+              if (sp != nullptr                          &&
+                  !sp->system ()                         &&
+                  satisfies (sp->version, pa.constraint) &&
+                  !deorphan)
                 break; // Derive ap from sp below.
 
               found = false;
@@ -2778,14 +3252,17 @@ namespace bpkg
               // we have a newer version, we treat it as an upgrade request;
               // otherwise, why specify the package in the first place? We just
               // need to check if what we already have is "better" (i.e.,
-              // newer).
+              // newer), unless we are deorphaning.
               //
-              if (sp != nullptr && !sp->system () && ap->version < sp->version)
+              if (sp != nullptr             &&
+                  !sp->system ()            &&
+                  ap->version < sp->version &&
+                  !deorphan)
                 ap = nullptr; // Derive ap from sp below.
             }
             else
             {
-              if (sp == nullptr || sp->system ())
+              if (sp == nullptr || sp->system () || deorphan)
                 found = false;
 
               // Otherwise, derive ap from sp below.
@@ -2892,7 +3369,7 @@ namespace bpkg
           move (pa.config_vars),
           {package_key {mdb, ""}},    // Required by (command line).
           false,                      // Required by dependents.
-          0};                         // State flags.
+          deorphan ? build_package::build_deorphan : uint16_t (0)};
 
         l4 ([&]{trace << "stash held package "
                       << p.available_name_version_db ();});
@@ -2919,7 +3396,7 @@ namespace bpkg
       // command line option to enable this behavior.
       //
       if (hold_pkgs.empty () && dep_pkgs.empty () &&
-          (o.upgrade () || o.patch ()))
+          (o.upgrade () || o.patch () || o.deorphan ()))
       {
         for (database& cdb: current_configs)
         {
@@ -2953,7 +3430,26 @@ namespace bpkg
                 continue;
             }
 
-            auto apr (find_available_one (name, pc, root));
+            bool deorphan (false);
+
+            if (o.deorphan ())
+            {
+              // If the package is not an orphan and upgrade/patch is not
+              // requested, then just skip the package.
+              //
+              if (orphan_package (cdb, sp))
+                deorphan = true;
+              else if (!o.upgrade () && !o.patch ())
+                continue;
+            }
+
+            // In the deorphan mode with no upgrade/patch requested pick the
+            // version that matches the orphan best. Otherwise, pick the patch
+            // or the latest available version, as requested.
+            //
+            auto apr (deorphan && !o.upgrade () && !o.patch ()
+                      ? find_orphan_match (sp, root)
+                      : find_available_one (name, pc, root));
 
             shared_ptr<available_package> ap (move (apr.first));
             if (ap == nullptr || ap->stub ())
@@ -2961,11 +3457,13 @@ namespace bpkg
               diag_record dr (fail);
               dr << name << " is not available";
 
-              if (ap != nullptr)
+              if (ap != nullptr) // Stub?
+              {
                 dr << " in source" <<
                   info << "consider building it as "
-                   << package_string (name, version (), true /* system */)
-                   << " if it is available from the system";
+                       << package_string (name, version (), true /* system */)
+                       << " if it is available from the system";
+              }
 
               // Let's help the new user out here a bit.
               //
@@ -3003,19 +3501,28 @@ namespace bpkg
                 strings (),              // Configuration variables.
                 {package_key {mdb, ""}}, // Required by (command line).
                 false,                   // Required by dependents.
-                0};                      // State flags.
+                deorphan ? build_package::build_deorphan : uint16_t (0)};
 
             l4 ([&]{trace << "stash held package "
                           << p.available_name_version_db ();});
 
             hold_pkgs.push_back (move (p));
 
-            // If there are also -i|-r, then we are also upgrading dependencies
-            // of all held packages.
+            // If there are also -i|-r, then we are also upgrading and/or
+            // deorphaning dependencies of all held packages.
             //
             if (o.immediate () || o.recursive ())
-              rec_pkgs.push_back (
-                recursive_package {cdb, name, o.upgrade (), o.recursive ()});
+            {
+              rec_pkgs.push_back (recursive_package {
+                  cdb, name,
+                  (o.upgrade () || o.patch ()
+                   ? o.recursive ()
+                   : optional<bool> ()),
+                  o.upgrade (),
+                  (o.deorphan ()
+                   ? o.recursive ()
+                   : optional<bool> ())});
+            }
           }
         }
       }
@@ -3130,8 +3637,10 @@ namespace bpkg
         lazy_shared_ptr<bpkg::repository_fragment> repository_fragment;
 
         bool system;
+        bool deorphan;
       };
       vector<dep> deps;
+      deorphaned_dependencies deorphaned_deps;
 
       replaced_versions         replaced_vers;
       postponed_dependencies    postponed_deps;
@@ -3642,7 +4151,7 @@ namespace bpkg
                 strings (),              // Configuration variables.
                 {package_key {mdb, ""}}, // Required by (command line).
                 false,                   // Required by dependents.
-                0};                      // State flags.
+                d.deorphan ? build_package::build_deorphan : uint16_t (0)};
 
               build_package_refs dep_chain;
 
@@ -3906,7 +4415,8 @@ namespace bpkg
         auto eval_dep = [&dep_pkgs,
                          &rec_pkgs,
                          &o,
-                         cache = upgrade_dependency_cache {}] (
+                         &deorphaned_deps,
+                         cache = upgrade_dependencies_cache {}] (
                          database& db,
                          const shared_ptr<selected_package>& sp,
                          bool ignore_unsatisfiable = true) mutable
@@ -3921,6 +4431,7 @@ namespace bpkg
                                      sp,
                                      dep_pkgs,
                                      o.no_move (),
+                                     deorphaned_deps,
                                      ignore_unsatisfiable);
 
           // If none, then see for the recursive dependency upgrade
@@ -3933,6 +4444,7 @@ namespace bpkg
             r = evaluate_recursive (db,
                                     sp,
                                     rec_pkgs,
+                                    deorphaned_deps,
                                     ignore_unsatisfiable,
                                     cache);
 
@@ -3969,11 +4481,12 @@ namespace bpkg
           bool s (false);
 
           database& db (i->db);
+          const package_name& nm (i->name);
 
           // Here we scratch if evaluate changed its mind or if the resulting
           // version doesn't match what we expect it to be.
           //
-          if (auto sp = db.find<selected_package> (i->name))
+          if (auto sp = db.find<selected_package> (nm))
           {
             const version& dv (target_version (db, i->available, i->system));
 
@@ -3989,6 +4502,8 @@ namespace bpkg
           if (s)
           {
             scratch_exe = true; // Rebuild the plan from scratch.
+
+            deorphaned_deps.erase (package_key (db, nm));
             i = deps.erase (i);
           }
           else
@@ -4022,8 +4537,12 @@ namespace bpkg
           // make sure that the unsatisfiable dependency, if left, is
           // reported.
           //
-          auto need_refinement = [&eval_dep, &deps, &rec_pkgs, &dep_dbs, &o] (
-            bool diag = false) -> bool
+          auto need_refinement = [&eval_dep,
+                                  &deps,
+                                  &rec_pkgs,
+                                  &dep_dbs,
+                                  &deorphaned_deps,
+                                  &o] (bool diag = false) -> bool
           {
             // Examine the new dependency set for any up/down-grade/drops.
             //
@@ -4054,11 +4573,20 @@ namespace bpkg
                     continue;
 
                   if (!diag)
+                  {
                     deps.push_back (dep {er->db,
                                          sp->name,
                                          move (er->available),
                                          move (er->repository_fragment),
-                                         er->system});
+                                         er->system,
+                                         er->orphan.has_value ()});
+
+                    if (er->orphan)
+                    {
+                      deorphaned_deps[package_key (er->db, sp->name)] =
+                        move (*er->orphan);
+                    }
+                  }
 
                   r = true;
                 }
@@ -4655,6 +5183,8 @@ namespace bpkg
             {
               assert (p.available != nullptr); // This is a package build.
 
+              bool deorphan (p.deorphan ());
+
               // Even if we already have this package selected, we have to
               // make sure it is configured and updated.
               //
@@ -4690,8 +5220,8 @@ namespace bpkg
                   ? "reconfigure"
                   : (p.reconfigure ()
                      ? (o.configure_only () || p.configure_only ()
-                        ? "reconfigure"
-                        : "reconfigure/update")
+                        ? (deorphan ? "deorphan"        : "reconfigure")
+                        : (deorphan ? "deorphan/update" : "reconfigure/update"))
                      : "update");
 
                 if (p.reconfigure ())
@@ -4705,9 +5235,9 @@ namespace bpkg
               {
                 act += p.system
                   ? "reconfigure"
-                  : sp->version < p.available_version ()
-                                  ? "upgrade"
-                                  : "downgrade";
+                  : (sp->version < p.available_version ()
+                     ? (deorphan ? "deorphan/upgrade"   : "upgrade")
+                     : (deorphan ? "deorphan/downgrade" : "downgrade"));
 
                 // For a non-system package up/downgrade the skeleton must
                 // already be initialized.
@@ -5207,9 +5737,11 @@ namespace bpkg
         }
 
         // Fetch or checkout if this is a new package or if we are
-        // up/down-grading.
+        // up/down-grading or deorphaning.
         //
-        if (sp == nullptr || sp->version != p.available_version ())
+        if (sp == nullptr                         ||
+            sp->version != p.available_version () ||
+            p.deorphan ())
         {
           sp = nullptr; // For the directory case below.
 

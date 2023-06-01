@@ -20,10 +20,11 @@ namespace bpkg
 
     "\h|SYNOPSIS|
 
-     \c{\b{bpkg pkg-build}|\b{build} [<options>] [\b{--upgrade}|\b{-u} | \b{--patch}|\b{-p}]\n
+     \c{\b{bpkg pkg-build}|\b{build} [<options>] [\b{--upgrade}|\b{-u} | \b{--patch}|\b{-p}] [\b{--deorphan}]\n
         \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ [<cfg-var>... \b{--}] <pkg-spec>...\n
-        \b{bpkg pkg-build}|\b{build} [<options>] \ \b{--upgrade}|\b{-u} | \b{--patch}|\b{-p}\n
-        \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ [<cfg-var>... \b{--}]}
+        \b{bpkg pkg-build}|\b{build} [<options>] (\b{--upgrade}|\b{-u} | \b{--patch}|\b{-p}) [\b{--deorphan}]\n
+        \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ [<cfg-var>... \b{--}]\n
+        \b{bpkg pkg-build}|\b{build} [<options>] \ \b{--deorphan} [<cfg-var>... \b{--}]}
 
      \c{<pkg-spec> = [<flags>](([<scheme>\b{:}]<pkg>[<ver-spec>])\b{,}...[\b{@}<rep-loc>] | \n
         \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ [\b{@}]<rep-loc> \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ | \n
@@ -37,24 +38,28 @@ namespace bpkg
 
      The \cb{pkg-build} command builds one or more packages including all
      their dependencies. Besides building new packages, this command is also
-     used to upgrade or downgrade packages that are already present in the
-     configuration. And unless the \c{\b{--keep-unused}|\b{-K}} option is
+     used to upgrade or downgrade and/or deorphan packages that are already
+     present in the configuration (see below for details on orphan
+     packages). And unless the \c{\b{--keep-unused}|\b{-K}} option is
      specified, \cb{pkg-build} will also drop dependency packages that would
      otherwise no longer be used.
 
      The first form (one or more packages are specified) builds new or
      upgrades (by default or if \cb{--upgrade} is specified) or patches (if
-     \cb{--patch} is specified) the specified packages. The second form (no
-     arguments but either \cb{--upgrade} or \cb{--patch} is specified)
-     upgrades or patches all the held packages in the configuration (see
-     below for details on held package).
+     \cb{--patch} is specified) and/or deorphans (if \cb{--deorphan} is
+     specified) the specified packages. The second form (no arguments but
+     either \cb{--upgrade} or \cb{--patch} is specified) upgrades or patches
+     all the held packages in the configuration (see below for details on held
+     package). The third form (no arguments but \cb{--deorphan} is specified)
+     deorphans all the held packages in the configuration.
 
-     In both forms specifying the \c{\b{--immediate}|\b{-i}} or
+     In all forms specifying the \c{\b{--immediate}|\b{-i}} or
      \c{\b{--recursive}|\b{-r}} option causes \cb{pkg-build} to also upgrade
-     or patch the immediate or all dependencies of the specified (first form)
-     or held (second form) packages, respectively. Note also that in the first
-     form these options can only be specified with an explicit \cb{--upgrade}
-     or \cb{--patch}.
+     or patch and/or deorphan the immediate or all dependencies of the
+     specified (first form) or held (second and third forms) packages,
+     respectively. Note also that in the first form these options can only be
+     specified with an explicit \cb{--upgrade}, \cb{--patch}, or
+     \cb{--deorphan}.
 
      Each package can be specified as just the name (<pkg>) with optional
      version specification (<ver-spec>), in which case the source code for the
@@ -144,6 +149,19 @@ namespace bpkg
      will have their versions held, that is, they will not be automatically
      upgraded.
 
+     It may happen that the repository where the source code for a package has
+     been fetched from is wiped from the configuration (e.g., as a result of
+     \l{bpkg-rep-fetch(1)} or \l{bpkg-rep-remove(1)}). We call such packages
+     \i{orphans}. Unless \cb{--deorphan} is specified, an orphan upgrade,
+     downgrade, or patching may leave it unchanged if there is no more
+     suitable version of the package available. If the \cb{--deorphan} option
+     is specified in the absence of the \cb{--upgrade} and \cb{--patch}
+     options and the package version is not explicitly specified, then the
+     version matching the orphan best in the following preference order will
+     be (re-)fetched from an existing repository and built: same version,
+     latest iteration, same revision, latest revision, latest patch, latest
+     available (see \l{bpkg#package-version Package Version} for details).
+
      As an illustration, let's assume in the following example that the stable
      repository contains packages \cb{foo} \cb{1.0.0} as well as
      \cb{libfoo} \cb{1.0.0} and \cb{1.1.0} while testing \- \cb{libfoo}
@@ -203,18 +221,25 @@ namespace bpkg
        all the constraints."
     }
 
+    bool --deorphan
+    {
+      "Replace orphan packages with the best matching available package
+       versions which satisfy all the constraints."
+    }
+
     bool --immediate|-i
     {
-      "Also upgrade or patch immediate dependencies."
+      "Also upgrade, patch, or deorphan immediate dependencies."
     }
 
     bool --recursive|-r
     {
-      "Also upgrade or patch all dependencies, recursively."
+      "Also upgrade, patch, or deorphan all dependencies, recursively."
     }
 
     // Sometimes we may want to upgrade/patch the package itself but to
-    // patch/upgrade its dependencies.
+    // patch/upgrade its dependencies. Also we may want to deorphan
+    // dependencies, potentially upgrading/patching the package itself.
     //
     bool --upgrade-immediate
     {
@@ -226,6 +251,11 @@ namespace bpkg
       "Patch immediate dependencies."
     }
 
+    bool --deorphan-immediate
+    {
+      "Deorphan immediate dependencies."
+    }
+
     bool --upgrade-recursive
     {
       "Upgrade all dependencies, recursively."
@@ -234,6 +264,11 @@ namespace bpkg
     bool --patch-recursive
     {
       "Patch all dependencies, recursively."
+    }
+
+    bool --deorphan-recursive
+    {
+      "Deorphan all dependencies, recursively."
     }
 
     bool --dependency

@@ -345,6 +345,19 @@ namespace bpkg
     //
     static const uint16_t build_reevaluate = 0x0008;
 
+    // Set if this build action is for deorphaning of an existing package.
+    //
+    // Note that to deorphan a package we need to re-fetch it from an existing
+    // repository fragment (even if its version doesn't change).
+    //
+    static const uint16_t build_deorphan = 0x0010;
+
+    bool
+    deorphan () const
+    {
+      return (flags & build_deorphan) != 0;
+    }
+
     bool
     configure_only () const;
 
