@@ -203,18 +203,44 @@ namespace bpkg
        all the constraints."
     }
 
+    bool --deorphan
+    {
+      "Replace orphaned packages with the best matching available package
+       versions which satisfy all the constraints.
+
+       It may happen that a built package no longer has the corresponding
+       package available in the repository it came from (for example, as a
+       result of \l{bpkg-rep-fetch(1)} or \l{bpkg-rep-remove(1)}). Such a
+       package is called an \i{orphan}. Without the \cb{--deorphan} option,
+       upgrading, downgrading, or patching an orphan will leave it unchanged
+       if a more suitable version of the package is not available. If the
+       \cb{--deorphan} option is specified, then an orphan will be replaced
+       with a non-orphan. In this case, if \cb{--upgrade}, \cb{--patch}, or
+       the package version is specified, then the new version is selected
+       accordingly. Otherwise, the closest version to the orphaned version is
+       selected using the following preference order:
+       (1) same version, revision, and iteration,
+       (2) latest iteration of same version and revision,
+       (3) later revision of same version,
+       (4) later patch of same version,
+       (5) later minor of same version,
+       (6) latest available version, including earlier
+       (see \l{bpkg#package-version Package Version} for details)."
+    }
+
     bool --immediate|-i
     {
-      "Also upgrade or patch immediate dependencies."
+      "Also upgrade, patch, or deorphan immediate dependencies."
     }
 
     bool --recursive|-r
     {
-      "Also upgrade or patch all dependencies, recursively."
+      "Also upgrade, patch, or deorphan all dependencies, recursively."
     }
 
     // Sometimes we may want to upgrade/patch the package itself but to
-    // patch/upgrade its dependencies.
+    // patch/upgrade its dependencies. Also we may want to deorphan
+    // dependencies, potentially upgrading/patching the package itself.
     //
     bool --upgrade-immediate
     {
@@ -226,6 +252,11 @@ namespace bpkg
       "Patch immediate dependencies."
     }
 
+    bool --deorphan-immediate
+    {
+      "Deorphan immediate dependencies."
+    }
+
     bool --upgrade-recursive
     {
       "Upgrade all dependencies, recursively."
@@ -234,6 +265,11 @@ namespace bpkg
     bool --patch-recursive
     {
       "Patch all dependencies, recursively."
+    }
+
+    bool --deorphan-recursive
+    {
+      "Deorphan all dependencies, recursively."
     }
 
     bool --dependency
