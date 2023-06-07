@@ -158,6 +158,17 @@ namespace bpkg
 
         if (bo.help () || bo.version ())
           fail << "--help or --version specified with --build-option";
+
+        // Make sure someone didn't specify a non-global override with
+        // --build-option, which messes our global/package-specific config
+        // variable split.
+        //
+        for (const string& v: bc.cmd_vars)
+        {
+          if (v[0] != '!')
+            fail << "non-global configuration variable '" << v
+                 <<  "' specified with --build-option";
+        }
       }
 
       build2_cmd_vars = move (bc.cmd_vars);
