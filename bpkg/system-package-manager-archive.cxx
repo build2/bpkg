@@ -430,6 +430,7 @@ namespace bpkg
         add ("include_arch=include/");
         add ("share=data_root/share/");
         add ("data=share/<private>/<project>/");
+        add ("buildfile=share/build2/export/<project>/");
 
         add ("doc=share/doc/<private>/<project>/");
         add ("legal=doc/");

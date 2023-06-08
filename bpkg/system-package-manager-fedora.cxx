@@ -2588,6 +2588,7 @@ namespace bpkg
       "config.install.include_arch=include/",
       "config.install.share=%{_datadir}/",
       "config.install.data=share/<private>/<project>/",
+      "config.install.buildfile=share/build2/export/<project>/",
 
       "config.install.doc=%{_docdir}/<private>/<project>/",
       "config.install.legal=%{_licensedir}/<private>/<project>/",
@@ -2627,11 +2628,17 @@ namespace bpkg
     // Installed entry directories for sorting out the installed files into
     // the %files sections of the sub-packages.
     //
+    // We put exported buildfiles into the main package, which makes sense
+    // after some meditation: they normally contain rules and are bundled
+    // either with a tool (say, thrift), a module (say, libbuild2-thrift), or
+    // an add-on package (say, thrift-build2).
+    //
     dir_path bindir;
     dir_path sbindir;
     dir_path libexecdir;
     dir_path confdir;
     dir_path incdir;
+    dir_path bfdir;
     dir_path libdir;
     dir_path pkgdir;     // Not queried, set as libdir/pkgconfig/.
     dir_path sharedir;
@@ -2757,7 +2764,9 @@ namespace bpkg
       licensedir = pop_dir () / pd;
       mandir     = pop_dir ();
       docdir     = pop_dir () / pd;
-      sharedir   = pop_dir () / pd;
+      sharedir   = pop_dir ();
+      bfdir      = sharedir / dir_path ("build2/export");
+      sharedir  /= pd;
       libdir     = pop_dir () / pd;
       pkgdir     = libdir / dir_path ("pkgconfig");
       incdir     = pop_dir () / pd;
@@ -2915,6 +2924,15 @@ namespace bpkg
             info << "consider specifying -common package in explicit "
                  << os_release.name_id << " name mapping in package manifest";
         }
+      }
+
+      for (auto p (ies.find_sub (bfdir)); p.first != p.second; ++p.first)
+      {
+        const path& f (p.first->first);
+
+        fail << "binless library " << pn << ' ' << pv << " installs " << f <<
+            info << "consider specifying -common package in explicit "
+             << os_release.name_id << " name mapping in package manifest";
       }
     }
 
@@ -4025,6 +4043,8 @@ namespace bpkg
           // Note that if <private>/ is specified, then we also need to
           // establish ownership of the sharedir/<private>/ directory (similar
           // to what we do for libdir/<private>/ above).
+          //
+          // @@ TODO: same for bfdir?
           //
           string* private_owner (nullptr);
 

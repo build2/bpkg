@@ -2152,6 +2152,7 @@ namespace bpkg
       "config.install.include_arch='data_root/include/$(DEB_HOST_MULTIARCH)/<private>/'",
       "config.install.share=data_root/share/",
       "config.install.data=share/<private>/<project>/",
+      "config.install.buildfile=share/build2/export/<project>/",
 
       "config.install.doc=share/doc/<private>/<project>/",
       "config.install.legal=doc/",
@@ -2213,11 +2214,17 @@ namespace bpkg
 
     // NOTE: keep consistent with the config.install.* values above.
     //
+    // We put exported buildfiles into the main package, which makes sense
+    // after some meditation: they normally contain rules and are bundled
+    // either with a tool (say, thrift), a module (say, libbuild2-thrift), or
+    // an add-on package (say, thrift-build2).
+    //
     dir_path bindir     ("/usr/bin/");
     dir_path sbindir    ("/usr/sbin/");
     dir_path etcdir     ("/etc/");
     dir_path incdir     ("/usr/include/" + pd);
     dir_path incarchdir ("/usr/include/$(DEB_HOST_MULTIARCH)/" + pd);
+    //dir_path bfdir      ("/usr/share/build2/export/");
     dir_path libdir     ("/usr/lib/$(DEB_HOST_MULTIARCH)/" + pd);
     dir_path pkgdir     (libdir / dir_path ("pkgconfig"));
     dir_path sharedir   ("/usr/share/" + pd);
@@ -2295,6 +2302,8 @@ namespace bpkg
     //
     if (!gen_main)
     {
+      // Note: covers bfdir.
+      //
       for (auto p (ies.find_sub (sharedir)); p.first != p.second; ++p.first)
       {
         const path& f (p.first->first);
@@ -3380,6 +3389,8 @@ namespace bpkg
       //
       if (gen_main)
       {
+        // Note: covers bfdir.
+        //
         for (auto p (ies.find_sub (sharedir)); p.first != p.second; )
         {
           const path& f ((p.first++)->first);
