@@ -2588,6 +2588,7 @@ namespace bpkg
       "config.install.include_arch=include/",
       "config.install.share=%{_datadir}/",
       "config.install.data=share/<private>/<project>/",
+      "config.install.buildfile=share/build2/export/<project>/",
 
       "config.install.doc=%{_docdir}/<private>/<project>/",
       "config.install.legal=%{_licensedir}/<private>/<project>/",
@@ -2627,17 +2628,24 @@ namespace bpkg
     // Installed entry directories for sorting out the installed files into
     // the %files sections of the sub-packages.
     //
+    // We put exported buildfiles into the main package, which makes sense
+    // after some meditation: they normally contain rules and are bundled
+    // either with a tool (say, thrift), a module (say, libbuild2-thrift), or
+    // an add-on package (say, thrift-build2).
+    //
     dir_path bindir;
     dir_path sbindir;
     dir_path libexecdir;
     dir_path confdir;
     dir_path incdir;
+    dir_path bfdir;
     dir_path libdir;
     dir_path pkgdir;     // Not queried, set as libdir/pkgconfig/.
     dir_path sharedir;
     dir_path docdir;
     dir_path mandir;
     dir_path licensedir;
+    dir_path build2dir;
 
     // Note that the ~/rpmbuild/{BUILD,BUILDROOT,RPMS,SOURCES,SPECS,SRPMS}
     // directory paths used by rpmbuild are actually defined as the
@@ -2757,7 +2765,10 @@ namespace bpkg
       licensedir = pop_dir () / pd;
       mandir     = pop_dir ();
       docdir     = pop_dir () / pd;
-      sharedir   = pop_dir () / pd;
+      sharedir   = pop_dir ();
+      build2dir  = sharedir / dir_path ("build2");
+      bfdir      = build2dir / dir_path ("export");
+      sharedir  /= pd;
       libdir     = pop_dir () / pd;
       pkgdir     = libdir / dir_path ("pkgconfig");
       incdir     = pop_dir () / pd;
@@ -2915,6 +2926,15 @@ namespace bpkg
             info << "consider specifying -common package in explicit "
                  << os_release.name_id << " name mapping in package manifest";
         }
+      }
+
+      for (auto p (ies.find_sub (bfdir)); p.first != p.second; ++p.first)
+      {
+        const path& f (p.first->first);
+
+        fail << "binless library " << pn << ' ' << pv << " installs " << f <<
+            info << "consider specifying -common package in explicit "
+             << os_release.name_id << " name mapping in package manifest";
       }
     }
 
@@ -4018,7 +4038,7 @@ namespace bpkg
 
         // We cannot just do usr/share/* since it will clash with doc/, man/,
         // and licenses/ below. So we have to list all the top-level entries
-        // in usr/share/ that are not doc/, man/, or licenses/.
+        // in usr/share/ that are not doc/, man/, licenses/, or build2/.
         //
         if (gen_main)
         {
@@ -4034,7 +4054,10 @@ namespace bpkg
           {
             const path& f ((p.first++)->first);
 
-            if (f.sub (docdir) || f.sub (mandir) || f.sub (licensedir))
+            if (f.sub (docdir)     ||
+                f.sub (mandir)     ||
+                f.sub (licensedir) ||
+                f.sub (build2dir))
               continue;
 
             path l (f.leaf (sharedir));
@@ -4071,6 +4094,42 @@ namespace bpkg
           //
           if (private_owner != nullptr)
             *private_owner += "%dir %{_datadir}/" + pd + '\n';
+        }
+
+        // Note that we only consider the bfdir/<project>/* sub-entries,
+        // adding the bfdir/<project>/ subdirectories to the %files
+        // section. This way no additional directory ownership entry needs to
+        // be added. Any immediate sub-entries of bfdir/, if present, will be
+        // ignored, which will end up with the 'unpackaged files' rpmbuild
+        // error.
+        //
+        // Also note that the bfdir/ directory is not owned by any package.
+        //
+        if (gen_main)
+        {
+          for (auto p (ies.find_sub (bfdir)); p.first != p.second; )
+          {
+            const path& f ((p.first++)->first);
+
+            path l (f.leaf (bfdir));
+
+            if (!l.simple ())
+            {
+              // Let's keep things tidy and use a sub-directory rather than
+              // listing all its sub-entries verbatim.
+              //
+              dir_path sd (*l.begin ());
+
+              main += "%{_datadir}/build2/export/" + sd.string () + '/' + '\n';
+
+              // Skip all the other entries in this subdirectory (in the
+              // prefix map they will all be in a contiguous range).
+              //
+              dir_path d (bfdir / sd);
+              while (p.first != p.second && p.first->first.sub (d))
+                ++p.first;
+            }
+          }
         }
 
         // Should we put the documentation into -common if there is no -doc?
