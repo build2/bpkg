@@ -2645,6 +2645,7 @@ namespace bpkg
     dir_path docdir;
     dir_path mandir;
     dir_path licensedir;
+    dir_path build2dir;
 
     // Note that the ~/rpmbuild/{BUILD,BUILDROOT,RPMS,SOURCES,SPECS,SRPMS}
     // directory paths used by rpmbuild are actually defined as the
@@ -2765,7 +2766,8 @@ namespace bpkg
       mandir     = pop_dir ();
       docdir     = pop_dir () / pd;
       sharedir   = pop_dir ();
-      bfdir      = sharedir / dir_path ("build2/export");
+      build2dir  = sharedir / dir_path ("build2");
+      bfdir      = build2dir / dir_path ("export");
       sharedir  /= pd;
       libdir     = pop_dir () / pd;
       pkgdir     = libdir / dir_path ("pkgconfig");
@@ -4036,15 +4038,13 @@ namespace bpkg
 
         // We cannot just do usr/share/* since it will clash with doc/, man/,
         // and licenses/ below. So we have to list all the top-level entries
-        // in usr/share/ that are not doc/, man/, or licenses/.
+        // in usr/share/ that are not doc/, man/, licenses/, or build2/.
         //
         if (gen_main)
         {
           // Note that if <private>/ is specified, then we also need to
           // establish ownership of the sharedir/<private>/ directory (similar
           // to what we do for libdir/<private>/ above).
-          //
-          // @@ TODO: same for bfdir?
           //
           string* private_owner (nullptr);
 
@@ -4054,7 +4054,10 @@ namespace bpkg
           {
             const path& f ((p.first++)->first);
 
-            if (f.sub (docdir) || f.sub (mandir) || f.sub (licensedir))
+            if (f.sub (docdir)     ||
+                f.sub (mandir)     ||
+                f.sub (licensedir) ||
+                f.sub (build2dir))
               continue;
 
             path l (f.leaf (sharedir));
@@ -4091,6 +4094,42 @@ namespace bpkg
           //
           if (private_owner != nullptr)
             *private_owner += "%dir %{_datadir}/" + pd + '\n';
+        }
+
+        // Note that we only consider the bfdir/<project>/* sub-entries,
+        // adding the bfdir/<project>/ subdirectories to the %files
+        // section. This way no additional directory ownership entry needs to
+        // be added. Any immediate sub-entries of bfdir/, if present, will be
+        // ignored, which will end up with the 'unpackaged files' rpmbuild
+        // error.
+        //
+        // Also note that the bfdir/ directory is not owned by any package.
+        //
+        if (gen_main)
+        {
+          for (auto p (ies.find_sub (bfdir)); p.first != p.second; )
+          {
+            const path& f ((p.first++)->first);
+
+            path l (f.leaf (bfdir));
+
+            if (!l.simple ())
+            {
+              // Let's keep things tidy and use a sub-directory rather than
+              // listing all its sub-entries verbatim.
+              //
+              dir_path sd (*l.begin ());
+
+              main += "%{_datadir}/build2/export/" + sd.string () + '/' + '\n';
+
+              // Skip all the other entries in this subdirectory (in the
+              // prefix map they will all be in a contiguous range).
+              //
+              dir_path d (bfdir / sd);
+              while (p.first != p.second && p.first->first.sub (d))
+                ++p.first;
+            }
+          }
         }
 
         // Should we put the documentation into -common if there is no -doc?
