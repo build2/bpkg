@@ -369,13 +369,13 @@ namespace bpkg
 
     dir_path d (c / dir_path (n.string () + '-' + v.string ()));
 
-    if (exists (d))
-      fail << "package directory " << d << " already exists";
-
     auto_rmdir arm;
 
     if (!simulate)
     {
+      if (exists (d))
+        fail << "package directory " << d << " already exists";
+
       // If the archive path is not absolute, then it must be relative
       // to the configuration.
       //
