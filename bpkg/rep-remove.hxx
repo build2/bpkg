@@ -57,6 +57,9 @@ namespace bpkg
   rep_remove_package_locations (database&,
                                 transaction&,
                                 const string& fragment_name);
+
+  void
+  rep_mask (const strings&);
 }
 
 #endif // BPKG_REP_REMOVE_HXX

@@ -23,6 +23,98 @@ namespace bpkg
   const path signature_file    ("signature.manifest");
   const path manifest_file     ("manifest");
 
+  // Masked repositories.
+  //
+  static strings                masked_repository_names;
+  static vector<repository_url> masked_repository_urls;
+
+  void
+  mask_repository (const string& r)
+  {
+    if (repository_name (r))
+    {
+      // Verify that the canonical name is of the pkg or dir type.
+      //
+      size_t p (r.find (':'));
+      if (p == string::npos)
+        fail << "invalid repository name '" << r << "': expected to start "
+             << "with colon-separated type";
+
+      try
+      {
+        repository_type t (to_repository_type (string (r, 0, p)));
+
+        if (t != repository_type::pkg && t != repository_type::dir)
+          fail << "invalid repository name '" << r << "': only repositories "
+               << "of pkg and dir types can be masked";
+
+        masked_repository_names.push_back (r);
+      }
+      catch (const invalid_argument& e)
+      {
+        fail << "invalid repository name '" << r << "': " << e;
+      }
+    }
+    else
+    {
+      repository_location rl (parse_location (r, nullopt /* type */));
+
+      if (rl.type () != repository_type::pkg &&
+          rl.type () != repository_type::dir)
+        fail << "invalid repository location '" << r << "': only repositories "
+             << "of pkg and dir types can be masked";
+
+      masked_repository_urls.push_back (rl.url ());
+    }
+  }
+
+  bool
+  masked_repository (const repository_location& rl)
+  {
+    // Optimize for the common case when no repositories are masked.
+    //
+    if (masked_repository_names.empty () && masked_repository_urls.empty ())
+      return false;
+
+    const string&         n (rl.canonical_name ());
+    const repository_url& u (rl.url ());
+
+    bool r (find (masked_repository_names.begin (),
+                  masked_repository_names.end (),
+                  n) != masked_repository_names.end () ||
+            find_if (masked_repository_urls.begin (),
+                     masked_repository_urls.end (),
+                     [&u] (const repository_url& ru) {return ru == u;}) !=
+            masked_repository_urls.end ());
+
+    // Note that the parse_location() function called by mask_repository()
+    // could potentially mis-guess the type of the git repository (for
+    // example, mistakenly deciding it is a pkg repository). If that's the
+    // case, we would silently mask it, despite the fact we don't support
+    // masking of git repositories. By checking the type here we at least
+    // don't erroneously consider a git repository as masked and fail, which
+    // is better late then never. The solution feels more as a hack but to
+    // properly fix that we just need to add support for masking git
+    // repositories.
+    //
+    if (r                                  &&
+        rl.type () != repository_type::pkg &&
+        rl.type () != repository_type::dir)
+      fail << "invalid repository location '" << u << "': only repositories "
+           << "of pkg and dir types can be masked";
+
+    return r;
+  }
+
+  bool
+  masked_repositories ()
+  {
+    return !masked_repository_names.empty () ||
+           !masked_repository_urls.empty ();
+  }
+
+  // package
+  //
   vector<package_info>
   package_b_info (const common_options& o,
                   const dir_paths& ds,

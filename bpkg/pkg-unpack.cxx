@@ -70,6 +70,8 @@ namespace bpkg
               bool purge,
               bool simulate)
   {
+    assert (!masked_repository_fragment (rl));
+
     // Make the package path absolute and normalized. If the package is inside
     // the configuration, use the relative path. This way we can move the
     // configuration around.
@@ -304,7 +306,8 @@ namespace bpkg
 
     for (const package_location& l: ap->locations)
     {
-      if (l.repository_fragment.load ()->location.directory_based ())
+      if (!masked_repository_fragment (l.repository_fragment) &&
+          l.repository_fragment.load ()->location.directory_based ())
       {
         pl = &l;
         break;

@@ -17,6 +17,41 @@ namespace bpkg
 {
   const version wildcard_version (0, "0", nullopt, nullopt, 0);
 
+  // repository
+  //
+  bool
+  masked_repository (const lazy_weak_ptr<repository>& rf)
+  {
+    // Optimize for the common case when no repositories are masked to avoid
+    // an unnecessary load of the lazy pointer.
+    //
+    return masked_repositories () && masked_repository (rf.load ()->location);
+  }
+
+  bool
+  masked_repository (const shared_ptr<repository>& rf)
+  {
+    return masked_repository (rf->location);
+  }
+
+  // repository_fragment
+  //
+  bool
+  masked_repository_fragment (const lazy_shared_ptr<repository_fragment>& rf)
+  {
+    // Optimize for the common case when no repositories are masked to avoid
+    // an unnecessary load of the lazy pointer.
+    //
+    return masked_repositories () &&
+           masked_repository_fragment (rf.load ()->location);
+  }
+
+  bool
+  masked_repository_fragment (const shared_ptr<repository_fragment>& rf)
+  {
+    return masked_repository_fragment (rf->location);
+  }
+
   // configuration
   //
   configuration::
@@ -373,7 +408,8 @@ namespace bpkg
       {
         const shared_ptr<repository_fragment>& rf (prf.repository_fragment);
 
-        if (rf->location.directory_based ())
+        if (!masked_repository_fragment (rf) &&
+            rf->location.directory_based ())
           fail << "external package " << n << '/' << v
                << " is already available from "
                << rf->location.canonical_name ();

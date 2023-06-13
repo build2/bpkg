@@ -75,6 +75,17 @@ namespace bpkg
                                 const available_package_id& id,
                                 config_repo_fragments& r)
   {
+#ifndef NDEBUG
+    if (masked_repositories ())
+    {
+      for (const auto& v: r)
+      {
+        for (const shared_ptr<repository_fragment>& f: v.second)
+          assert (!masked_repository_fragment (f));
+      }
+    }
+#endif
+
     for (database& ddb: dependent_repo_configs (db))
     {
       shared_ptr<available_package> dap (ddb.find<available_package> (id));
@@ -93,11 +104,24 @@ namespace bpkg
 
         for (const auto& pl: dap->locations)
         {
-          shared_ptr<repository_fragment> rf (pl.repository_fragment.load ());
+          const lazy_shared_ptr<repository_fragment>& lrf (
+            pl.repository_fragment);
 
-          if (find (rfs.begin (), rfs.end (), rf) == rfs.end ())
-            rfs.push_back (move (rf));
+          if (!masked_repository_fragment (lrf))
+          {
+            shared_ptr<repository_fragment> rf (lrf.load ());
+
+            if (find (rfs.begin (), rfs.end (), rf) == rfs.end ())
+              rfs.push_back (move (rf));
+          }
         }
+
+        // If we didn't add any repository fragments from this database since
+        // all of the available package repositories are masked, then just
+        // erase the entry in the map if it contains no fragments.
+        //
+        if (rfs.empty ())
+          r.erase (i);
       }
     }
   }
@@ -171,8 +195,12 @@ namespace bpkg
 
     for (database& ddb: dependent_repo_configs (db))
     {
-      if (ddb.find<repository_fragment> (cn) != nullptr)
-        return false;
+      if (shared_ptr<repository_fragment> f =
+          ddb.find<repository_fragment> (cn))
+      {
+        if (!masked_repository_fragment (f))
+          return false;
+      }
     }
 
     return true;
@@ -1485,6 +1513,11 @@ namespace bpkg
 
     validate_options (o, ""); // Global package options.
 
+    // Mask the repositories.
+    //
+    for (const string& r: o.mask_repository ())
+      mask_repository (r);
+
     // Note that the session spans all our transactions. The idea here is that
     // selected_package objects in build_packages below will be cached in this
     // session. When subsequent transactions modify any of these objects, they
@@ -1740,6 +1773,10 @@ namespace bpkg
             fail << "unexpected repository location in '?" << a << "'" <<
               info << "repository location cannot be specified for "
                    << "dependencies";
+
+          if (masked_repositories ())
+            fail << "package repository location may not be specified "
+                 << "together with --mask-repository option";
 
           string pks (p > 1 ? string (a, 0, p - 1) : empty_string);
 
@@ -2337,6 +2374,10 @@ namespace bpkg
         // repository information.
         //
         database& pdb (ps.db);
+
+        // Should have failed earlier.
+        //
+        assert (!masked_repository (ps.location));
 
         // Expand the [[<packages>]@]<location> spec. Fail if the repository
         // is not found in this configuration, that can be the case in the
@@ -5763,18 +5804,24 @@ namespace bpkg
 
             for (const package_location& l: ap->locations)
             {
-              const repository_location& rl (
-                l.repository_fragment.load ()->location);
-
-              if (!basis || rl.local ()) // First or local?
+              if (!masked_repository_fragment (l.repository_fragment))
               {
-                basis = rl.basis ();
+                const repository_location& rl (
+                  l.repository_fragment.load ()->location);
 
-                if (rl.directory_based ())
-                  break;
+                if (!basis || rl.local ()) // First or local?
+                {
+                  basis = rl.basis ();
+
+                  if (rl.directory_based ())
+                    break;
+                }
               }
             }
 
+            // We should have failed earlier if all the package repository
+            // fragments are masked.
+            //
             assert (basis);
 
             // All calls commit the transaction.

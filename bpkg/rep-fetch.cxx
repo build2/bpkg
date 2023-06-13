@@ -871,6 +871,8 @@ namespace bpkg
       }
     }
 
+    assert (!masked_repository_fragment (rfl));
+
     shared_ptr<repository_fragment> rf (
       db.find<repository_fragment> (rfl.canonical_name ()));
 
@@ -1228,6 +1230,8 @@ namespace bpkg
     tracer trace ("rep_fetch(rep)");
 
     tracer_guard tg (db, trace);
+
+    assert (!masked_repository (r));
 
     // Check that the repository is not fetched yet and register it as fetched
     // otherwise.

@@ -112,6 +112,42 @@ namespace bpkg
   bool
   repository_name (const string&);
 
+  // To pretend that repositories don't exist in the configurations, mask them
+  // by specifying either repository location canonical name or URL.
+  //
+  // Note that specifying a canonical name masks potentially multiple
+  // repositories (think of local and remote pkg repository locations), while
+  // specifying a URL masks a single repository.
+  //
+  // Also note that there is no straightforward way to deduce the list of
+  // repositories a specific repository fragment belongs to. To keep things
+  // simple, we currently only support masking of pkg and dir repositories.
+  // Such repositories have the only non-shared fragment which name and
+  // location are equal to the ones of the containing repository. Once we
+  // decide to also support repositories which support fragmentation (git),
+  // the potential implementation can preload all the masked fragments from
+  // all the databases, so that the masked_repository_fragment() predicate can
+  // refer to them.
+  //
+  void
+  mask_repository (const string&);
+
+  // Return true if a repository is masked either by name or by URL.
+  //
+  bool
+  masked_repository (const repository_location&);
+
+  // Return true if a repository fragment belongs to the masked repositories
+  // only (see package.hxx for the fragment/repository relationship details).
+  //
+  bool
+  masked_repository_fragment (const repository_location&);
+
+  // Return true if any repositories are masked.
+  //
+  bool
+  masked_repositories ();
+
   // Return the versions of packages as provided by the build2 version module
   // together with the build2 project info the versions originate from (in
   // case the caller may want to reuse it). Return nullopt as a package
@@ -189,5 +225,7 @@ namespace bpkg
                            const dir_path& src_dir,
                            bool err_path_relative = false);
 }
+
+#include <bpkg/manifest-utility.ixx>
 
 #endif // BPKG_MANIFEST_UTILITY_HXX

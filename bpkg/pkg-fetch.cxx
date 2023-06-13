@@ -224,14 +224,17 @@ namespace bpkg
 
     for (const package_location& l: ap->locations)
     {
-      const repository_location& rl (l.repository_fragment.load ()->location);
-
-      if (rl.archive_based () && (pl == nullptr || rl.local ()))
+      if (!masked_repository_fragment (l.repository_fragment))
       {
-        pl = &l;
+        const repository_location& rl (l.repository_fragment.load ()->location);
 
-        if (rl.local ())
-          break;
+        if (rl.archive_based () && (pl == nullptr || rl.local ()))
+        {
+          pl = &l;
+
+          if (rl.local ())
+            break;
+        }
       }
     }
 

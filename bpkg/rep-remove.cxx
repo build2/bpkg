@@ -284,6 +284,28 @@ namespace bpkg
   }
 
   void
+  rep_mask (const strings& repos)
+  {
+    // @@ Do we want to fail if a name or url is not present in all the dbs?
+    //
+
+    for (database& db: repo_configs)
+    {
+      for (const string& repo: repos)
+      {
+        if (repository_name (repo))
+        {
+          if (shared_ptr<repository> r
+        }
+        else
+        {
+
+        }
+      }
+    }
+  }
+
+  void
   rep_remove_clean (const common_options& o, database& db, bool quiet)
   {
     tracer trace ("rep_remove_clean");

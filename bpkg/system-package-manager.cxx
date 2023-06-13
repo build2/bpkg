@@ -13,6 +13,7 @@
 #include <bpkg/package-odb.hxx>
 #include <bpkg/database.hxx>
 #include <bpkg/diagnostics.hxx>
+#include <bpkg/manifest-utility.hxx>
 
 #include <bpkg/pkg-bindist-options.hxx>
 
@@ -566,6 +567,8 @@ namespace bpkg
 
       for (const auto& a: aps)
       {
+        assert (!masked_repository_fragment (a.second));
+
         const shared_ptr<available_package>& ap (a.first);
 
         for (const distribution_name_value& nv: ap->distribution_values)

@@ -454,6 +454,18 @@ namespace bpkg
     operator size_t () const {return result;}
   };
 
+  bool
+  masked_repository (const lazy_weak_ptr<repository>&);
+
+  bool
+  masked_repository (const shared_ptr<repository>&);
+
+  bool
+  masked_repository_fragment (const lazy_shared_ptr<repository_fragment>&);
+
+  bool
+  masked_repository_fragment (const shared_ptr<repository_fragment>&);
+
   // repository
   //
   #pragma db object pointer(shared_ptr) session
