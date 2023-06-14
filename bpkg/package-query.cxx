@@ -191,33 +191,33 @@ namespace bpkg
             return lrf.load ();
         }
       }
+    }
 
-      // Finally, load the complements and prerequisites and check them
-      // recursively.
-      //
-      for (const lazy_weak_ptr<repository>& cr: cs)
+    // Finally, load the complements and prerequisites and check them
+    // recursively.
+    //
+    for (const lazy_weak_ptr<repository>& cr: cs)
+    {
+      for (const auto& fr: cr.load ()->fragments)
       {
-        for (const auto& fr: cr.load ()->fragments)
+        // Should we consider prerequisites of our complements as our
+        // prerequisites? I'd say not.
+        //
+        if (shared_ptr<repository_fragment> r =
+            find (fr.fragment.load (), ap, chain, false))
+          return r;
+      }
+    }
+
+    if (prereq)
+    {
+      for (const lazy_weak_ptr<repository>& pr: ps)
+      {
+        for (const auto& fr: pr.load ()->fragments)
         {
-          // Should we consider prerequisites of our complements as our
-          // prerequisites? I'd say not.
-          //
           if (shared_ptr<repository_fragment> r =
               find (fr.fragment.load (), ap, chain, false))
             return r;
-        }
-      }
-
-      if (prereq)
-      {
-        for (const lazy_weak_ptr<repository>& pr: ps)
-        {
-          for (const auto& fr: pr.load ()->fragments)
-          {
-            if (shared_ptr<repository_fragment> r =
-                find (fr.fragment.load (), ap, chain, false))
-              return r;
-          }
         }
       }
     }
