@@ -21,6 +21,7 @@
 #include <bpkg/common-options.hxx>
 
 #include <bpkg/cfg-link.hxx>
+#include <bpkg/rep-mask.hxx>
 #include <bpkg/pkg-purge.hxx>
 #include <bpkg/pkg-fetch.hxx>
 #include <bpkg/rep-fetch.hxx>
@@ -93,11 +94,23 @@ namespace bpkg
 
         for (const auto& pl: dap->locations)
         {
-          shared_ptr<repository_fragment> rf (pl.repository_fragment.load ());
+          const lazy_shared_ptr<repository_fragment>& lrf (
+            pl.repository_fragment);
 
-          if (find (rfs.begin (), rfs.end (), rf) == rfs.end ())
-            rfs.push_back (move (rf));
+          if (!rep_masked_fragment (lrf))
+          {
+            shared_ptr<repository_fragment> rf (lrf.load ());
+
+            if (find (rfs.begin (), rfs.end (), rf) == rfs.end ())
+              rfs.push_back (move (rf));
+          }
         }
+
+        // Erase the entry from the map if it contains no fragments, which may
+        // happen if all the available package repositories are masked.
+        //
+        if (rfs.empty ())
+          r.erase (i);
       }
     }
   }
@@ -202,6 +215,11 @@ namespace bpkg
   // (see dependent_repo_configs() for details) and this exact version is
   // available from this repository fragment or from its complement.
   //
+  // Note that the orphan definition here is stronger than in the rest of the
+  // code, since we request the available package to also be present in the
+  // repository fragment. It feels that such a definition aligns better with
+  // the user expectations about deorphaning.
+  //
   static bool
   orphan_package (database& db, const shared_ptr<selected_package>& sp)
   {
@@ -217,7 +235,7 @@ namespace bpkg
       const shared_ptr<repository_fragment> rf (
         ddb.find<repository_fragment> (cn));
 
-      if (rf != nullptr)
+      if (rf != nullptr && !rep_masked_fragment (ddb, rf))
       {
         auto af (
           find_available_one (sp->name,
@@ -1574,6 +1592,8 @@ namespace bpkg
         if (!current (db))
           current_configs.push_back (db);
       }
+
+      t.commit ();
     }
 
     validate_options (o, ""); // Global package options.
@@ -1976,6 +1996,12 @@ namespace bpkg
                    o.fetch_shallow (),
                    string () /* reason for "fetching ..." */);
     }
+
+    // Now, as repo_configs is filled and the repositories are fetched mask
+    // the repositories, if any.
+    //
+    if (o.mask_repository_specified ())
+      rep_mask (o.mask_repository ());
 
     // Expand the package specs into individual package args, parsing them
     // into the package scheme, name, and version constraint components, and
@@ -5883,19 +5909,22 @@ namespace bpkg
 
             for (const package_location& l: ap->locations)
             {
-              const repository_location& rl (
-                l.repository_fragment.load ()->location);
-
-              if (!basis || rl.local ()) // First or local?
+              if (!rep_masked_fragment (l.repository_fragment))
               {
-                basis = rl.basis ();
+                const repository_location& rl (
+                  l.repository_fragment.load ()->location);
 
-                if (rl.directory_based ())
-                  break;
+                if (!basis || rl.local ()) // First or local?
+                {
+                  basis = rl.basis ();
+
+                  if (rl.directory_based ())
+                    break;
+                }
               }
             }
 
-            assert (basis);
+            assert (basis); // Shouldn't be here otherwise.
 
             // All calls commit the transaction.
             //

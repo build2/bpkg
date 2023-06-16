@@ -717,15 +717,26 @@ namespace bpkg
     public small_vector<pair<reference_wrapper<database>, V>, 16>
   {
   public:
-    using value_type = pair<reference_wrapper<database>, V>;
-    using base_type  = small_vector<value_type, 16>;
-    using iterator   = typename base_type::iterator;
+    using value_type     = pair<reference_wrapper<database>, V>;
+    using base_type      = small_vector<value_type, 16>;
+    using iterator       = typename base_type::iterator;
+    using const_iterator = typename base_type::const_iterator;
 
     using base_type::begin;
     using base_type::end;
 
     iterator
     find (database& db)
+    {
+      return find_if (begin (), end (),
+                      [&db] (const value_type& i) -> bool
+                      {
+                        return i.first == db;
+                      });
+    }
+
+    const_iterator
+    find (database& db) const
     {
       return find_if (begin (), end (),
                       [&db] (const value_type& i) -> bool

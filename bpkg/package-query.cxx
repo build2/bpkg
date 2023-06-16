@@ -6,6 +6,7 @@
 #include <bpkg/package.hxx>
 #include <bpkg/package-odb.hxx>
 #include <bpkg/database.hxx>
+#include <bpkg/rep-mask.hxx>
 
 using namespace std;
 
@@ -159,6 +160,9 @@ namespace bpkg
     {
       const lazy_shared_ptr<repository_fragment>& lrf (pl.repository_fragment);
 
+      if (rep_masked_fragment (lrf))
+        continue;
+
       // First check the repository itself.
       //
       if (lrf.object_id () == rf->name)
@@ -175,20 +179,26 @@ namespace bpkg
 
       for (const lazy_weak_ptr<repository>& r: cs)
       {
-        const auto& frs (r.load ()->fragments);
+        if (!rep_masked (r))
+        {
+          const auto& frs (r.load ()->fragments);
 
-        if (find_if (frs.begin (), frs.end (), pr) != frs.end ())
-          return lrf.load ();
+          if (find_if (frs.begin (), frs.end (), pr) != frs.end ())
+            return lrf.load ();
+        }
       }
 
       if (prereq)
       {
         for (const lazy_weak_ptr<repository>& r: ps)
         {
-          const auto& frs (r.load ()->fragments);
+          if (!rep_masked (r))
+          {
+            const auto& frs (r.load ()->fragments);
 
-          if (find_if (frs.begin (), frs.end (), pr) != frs.end ())
-            return lrf.load ();
+            if (find_if (frs.begin (), frs.end (), pr) != frs.end ())
+              return lrf.load ();
+          }
         }
       }
     }
@@ -198,14 +208,17 @@ namespace bpkg
     //
     for (const lazy_weak_ptr<repository>& cr: cs)
     {
-      for (const auto& fr: cr.load ()->fragments)
+      if (!rep_masked (cr))
       {
-        // Should we consider prerequisites of our complements as our
-        // prerequisites? I'd say not.
-        //
-        if (shared_ptr<repository_fragment> r =
-            find (fr.fragment.load (), ap, chain, false))
-          return r;
+        for (const auto& fr: cr.load ()->fragments)
+        {
+          // Should we consider prerequisites of our complements as our
+          // prerequisites? I'd say not.
+          //
+          if (shared_ptr<repository_fragment> r =
+              find (fr.fragment.load (), ap, chain, false))
+            return r;
+        }
       }
     }
 
@@ -213,11 +226,14 @@ namespace bpkg
     {
       for (const lazy_weak_ptr<repository>& pr: ps)
       {
-        for (const auto& fr: pr.load ()->fragments)
+        if (!rep_masked (pr))
         {
-          if (shared_ptr<repository_fragment> r =
-              find (fr.fragment.load (), ap, chain, false))
-            return r;
+          for (const auto& fr: pr.load ()->fragments)
+          {
+            if (shared_ptr<repository_fragment> r =
+                find (fr.fragment.load (), ap, chain, false))
+              return r;
+          }
         }
       }
     }
@@ -345,15 +361,20 @@ namespace bpkg
       for (shared_ptr<available_package> ap:
              pointer_result (query_available (db, name, c)))
       {
-        // An available package should come from at least one fetched
-        // repository fragment.
+        // All repository fragments the package comes from are equally good,
+        // so we pick the first unmasked one.
         //
-        assert (!ap->locations.empty ());
+        for (const auto& pl: ap->locations)
+        {
+          const lazy_shared_ptr<repository_fragment>& lrf (
+            pl.repository_fragment);
 
-        // All repository fragments the package comes from are equally good, so
-        // we pick the first one.
-        //
-        r.emplace_back (move (ap), ap->locations[0].repository_fragment);
+          if (!rep_masked_fragment (lrf))
+          {
+            r.emplace_back (move (ap), lrf);
+            break;
+          }
+        }
       }
     }
 
@@ -415,6 +436,8 @@ namespace bpkg
                   const lazy_shared_ptr<repository_fragment>& rf,
                   bool prereq)
   {
+    assert (!rep_masked_fragment (rf));
+
     vector<shared_ptr<available_package>> r;
 
     database& db (rf.database ());
@@ -438,6 +461,8 @@ namespace bpkg
                       bool prereq,
                       bool revision)
   {
+    assert (!rep_masked_fragment (rf));
+
     // Filter the result based on the repository fragment to which each
     // version belongs.
     //
@@ -527,17 +552,22 @@ namespace bpkg
                            const shared_ptr<selected_package>& sp)
   {
     available_package_id pid (sp->name, sp->version);
+    const string& cn (sp->repository_fragment.canonical_name ());
+
     for (database& ddb: dependent_repo_configs (db))
     {
       shared_ptr<available_package> ap (ddb.find<available_package> (pid));
 
       if (ap != nullptr && !ap->stub ())
       {
-        if (shared_ptr<repository_fragment> f = ddb.find<repository_fragment> (
-              sp->repository_fragment.canonical_name ()))
-          return make_pair (ap,
-                            lazy_shared_ptr<repository_fragment> (ddb,
-                                                                  move (f)));
+        if (shared_ptr<repository_fragment> f =
+            ddb.find<repository_fragment> (cn))
+        {
+          if (!rep_masked_fragment (ddb, f))
+            return make_pair (ap,
+                              lazy_shared_ptr<repository_fragment> (ddb,
+                                                                    move (f)));
+        }
       }
     }
 
@@ -592,15 +622,20 @@ namespace bpkg
              pointer_result (
                query_available (db, name, nullopt /* version_constraint */)))
       {
-        // An available package should come from at least one fetched
-        // repository fragment.
+        // All repository fragments the package comes from are equally good,
+        // so we pick the first unmasked one.
         //
-        assert (!ap->locations.empty ());
+        for (const auto& pl: ap->locations)
+        {
+          const lazy_shared_ptr<repository_fragment>& lrf (
+            pl.repository_fragment);
 
-        // All repository fragments the package comes from are equally good, so
-        // we pick the first one.
-        //
-        r.emplace_back (move (ap), ap->locations[0].repository_fragment);
+          if (!rep_masked_fragment (lrf))
+          {
+            r.emplace_back (move (ap), lrf);
+            break;
+          }
+        }
       }
     }
 
@@ -638,14 +673,18 @@ namespace bpkg
     // anyway.
     //
     lazy_shared_ptr<repository_fragment> rf;
+    const string& cn (sp->repository_fragment.canonical_name ());
 
     for (database& ddb: dependent_repo_configs (db))
     {
-      if (shared_ptr<repository_fragment> f = ddb.find<repository_fragment> (
-            sp->repository_fragment.canonical_name ()))
+      if (shared_ptr<repository_fragment> f =
+          ddb.find<repository_fragment> (cn))
       {
-        rf = lazy_shared_ptr<repository_fragment> (ddb, move (f));
-        break;
+        if (!rep_masked_fragment (ddb, f))
+        {
+          rf = lazy_shared_ptr<repository_fragment> (ddb, move (f));
+          break;
+        }
       }
     }
 

@@ -6,6 +6,7 @@
 
 #include <bpkg/database.hxx>
 #include <bpkg/checksum.hxx>
+#include <bpkg/rep-mask.hxx>
 #include <bpkg/pkg-verify.hxx>
 #include <bpkg/diagnostics.hxx>
 #include <bpkg/satisfaction.hxx>
@@ -373,7 +374,7 @@ namespace bpkg
       {
         const shared_ptr<repository_fragment>& rf (prf.repository_fragment);
 
-        if (rf->location.directory_based ())
+        if (!rep_masked_fragment (db, rf) && rf->location.directory_based ())
           fail << "external package " << n << '/' << v
                << " is already available from "
                << rf->location.canonical_name ();

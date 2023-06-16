@@ -582,6 +582,20 @@ test.arguments += --sys-no-query
       info: use 'bpkg rep-add' to add a repository
     EOE
 
+  : mask-repository-not-found
+  :
+  $clone_root_cfg;
+  $* --mask-repository 'https://example.com/1' libfoo 2>>EOE != 0
+    error: repository 'https://example.com/1' cannot be masked: not found
+    EOE
+
+  : mask-repository-empty
+  :
+  $clone_root_cfg;
+  $* --mask-repository '' libfoo 2>>EOE != 0
+    error: repository '' cannot be masked: invalid repository location: empty URL
+    EOE
+
   : archive
   :
   $clone_root_cfg;
@@ -1810,6 +1824,12 @@ test.arguments += --sys-no-query
       EOE
 
     $pkg_status libbar >'!libbar configured 1.2.0';
+
+    # While at it, test using --mask-repository instead of rep-remove.
+    #
+    $* --upgrade --mask-repository $rep/t2 --mask-repository $rep/t5 2>>/EOE != 0;
+      error: libbar is not available
+      EOE
 
     $rep_remove $rep/t2 $rep/t5;
 
@@ -3240,6 +3260,71 @@ test.arguments += --sys-no-query
         $pkg_drop libbar libbox
       }
 
+      : satisfy-masked
+      :
+      : As above but using --mask-repository instead of rep-remove.
+      :
+      {
+        $clone_cfg;
+        $rep_fetch $rep/t0b;
+
+        $* libbar/0.0.1 2>!;
+
+        $pkg_status libbaz >'libbaz configured 0.0.1 available 0.1.0 0.0.4 0.0.3 0.0.2';
+
+        $* libbar/0.0.2 ?libbaz 2>>EOE;
+          disfigured libbar/0.0.1
+          disfigured libbaz/0.0.1
+          disfigured libfox/0.0.1
+          purged libfox/0.0.1
+          fetched libfoo/1.0.0
+          unpacked libfoo/1.0.0
+          fetched libbaz/0.0.2
+          unpacked libbaz/0.0.2
+          fetched libbar/0.0.2
+          unpacked libbar/0.0.2
+          configured libfoo/1.0.0
+          configured libbaz/0.0.2
+          configured libbar/0.0.2
+          EOE
+
+        $pkg_status libbaz >'libbaz configured 0.0.2 available 0.1.0 0.0.4 0.0.3';
+
+        # Test that the selected package, that is "better" than the available
+        # one, is left.
+        #
+        $* --mask-repository $rep/t0b libbox ?libbaz 2>>EOE;
+          fetched libbox/0.0.1
+          unpacked libbox/0.0.1
+          configured libbox/0.0.1
+          EOE
+
+        $pkg_status libbaz >'libbaz configured 0.0.2 available 0.1.0 0.0.4 0.0.3';
+
+        # Test that the selected package is left as there is no satisfactory
+        # available package.
+        #
+        $* --mask-repository $rep/t0b --mask-repository $rep/t0a ?libbaz;
+
+        # Test that the above behavior is not triggered for the system package.
+        #
+        $* --mask-repository $rep/t0b --mask-repository $rep/t0a '?sys:libbaz' 2>>EOE;
+          disfigured libbar/0.0.2
+          disfigured libbox/0.0.1
+          disfigured libbaz/0.0.2
+          disfigured libfoo/1.0.0
+          purged libfoo/1.0.0
+          purged libbaz/0.0.2
+          configured sys:libbaz/*
+          configured libbox/0.0.1
+          configured libbar/0.0.2
+          EOE
+
+        $pkg_status libbaz >'libbaz configured,system !* available 0.1.0 0.0.4 0.0.3 0.0.2 0.0.1';
+
+        $pkg_drop libbar libbox
+      }
+
       : unsatisfied
       :
       {
@@ -3759,6 +3844,17 @@ test.arguments += --sys-no-query
       $rep_remove $rep/t0a $rep/t0b $rep/t0c;
 
       $* libbar --recursive --yes
+    }
+
+    : unavailable-masked
+    :
+    : As above but using --mask-repository instead of rep-remove.
+    :
+    {
+      $clone_cfg;
+
+      $* libbar --mask-repository $rep/t0a --mask-repository $rep/t0b \
+                --mask-repository $rep/t0c --recursive --yes
     }
 
     -$pkg_drop libbar libbaz libfoo
@@ -14194,6 +14290,32 @@ test.arguments += --sys-no-query
         EOE
     }
 
+    : unavailable-masked
+    :
+    : As above but using --mask-repository instead of rep-remove.
+    :
+    {
+      $clone_cfg;
+
+      $* '?sys:libbaz/0.0.3' 2>>EOE;
+        disfigured libbox/0.0.1
+        disfigured libfix/0.0.3
+        disfigured libbaz/0.0.3
+        disfigured libfoo/1.0.0
+        purged libfoo/1.0.0
+        purged libbaz/0.0.3
+        configured sys:libbaz/0.0.3
+        configured libfix/0.0.3
+        configured libbox/0.0.1
+        EOE
+
+      $rep_fetch $rep/t0b;
+
+      $* --mask-repository $rep/t0c ?libbaz --patch --yes 2>>EOE != 0
+        error: patch version for sys:libbaz/0.0.3 is not available from its dependents' repositories
+        EOE
+    }
+
     -$pkg_drop libbox libfix libbaz libfoo
   }
 
@@ -16358,6 +16480,64 @@ else
         EOO
     }
 
+    : orphan-repointed-masked
+    :
+    : As above but using --mask-repository instead of rep-remove.
+    :
+    {
+      $cfg_create -d h1 --type host --name h1 &h1/***;
+      $cfg_create -d h2 --type host --name h2 &h2/***;
+
+      $cfg_link -d h1 h2;
+
+      $rep_add -d h1 $rep/t7b && $rep_fetch -d h1;
+
+      test.arguments = $regex.apply($test.arguments, cfg, h1);
+
+      $* foo --yes 2>!;
+
+      $rep_add -d h1 $rep/t7a && $rep_fetch -d h1;
+      $rep_add -d h2 $rep/t7a && $rep_fetch -d h2;
+
+      $* libbaz +{ --config-name h2 } --mask-repository $rep/t7b 2>>EOE != 0;
+        error: package foo/1.1.0 is orphaned
+          info: explicitly upgrade it to a new version
+        info: while satisfying foo/1.1.0
+        EOE
+
+      # While at it, test foo deorphaning.
+      #
+      $* foo +{ --deorphan } libbaz +{ --config-name h2 } --yes --plan "" \
+             --mask-repository $rep/t7b 2>>~%EOE%;
+        %  new libbuild2-bar/1.0.0 \[h1.\.bpkg.build2.\] \(required by foo\)%
+        %  new libbaz/1.0.0 \[h2.\]%
+          drop libbaz/1.1.0 (unused)
+          deorphan/downgrade foo/1.0.0
+        disfigured foo/1.1.0
+        disfigured libbaz/1.1.0
+        %fetched libbuild2-bar/1.0.0 \[h1.\.bpkg.build2.\]%
+        %unpacked libbuild2-bar/1.0.0 \[h1.\.bpkg.build2.\]%
+        %fetched libbaz/1.0.0 \[h2.\]%
+        %unpacked libbaz/1.0.0 \[h2.\]%
+        purged libbaz/1.1.0
+        fetched foo/1.0.0
+        unpacked foo/1.0.0
+        %configured libbuild2-bar/1.0.0 \[h1.\.bpkg.build2.\]%
+        %configured libbaz/1.0.0 \[h2.\]%
+        configured foo/1.0.0
+        %info: h2.+libbaz-1.0.0.+ is up to date%
+        %info: h1.+foo-1.0.0.+ is up to date%
+        %updated libbaz/1.0.0 \[h2.\]%
+        updated foo/1.0.0
+        EOE
+
+      $pkg_status -d h1 -r >>/EOO
+        !foo configured 1.0.0 available 1.1.0
+          !libbaz [h2/] configured 1.0.0 available 1.1.0
+          libbuild2-bar [h1/.bpkg/build2/] configured 1.0.0
+        EOO
+    }
+
     : unhold-repointed
     :
     {
@@ -17777,6 +17957,146 @@ else
         $pkg_drop libbar
       }
 
+      : basics-masked
+      :
+      : As above but using --mask-repository instead of rep-remove.
+      :
+      {
+        $clone_root_cfg;
+
+        cp -r $src/libfoo-1.1.0 libfoo;
+        $rep_add --type dir libfoo/ && $rep_fetch;
+
+        $* libfoo 2>!;
+        $rep_fetch $rep/t4b;
+
+        $* libbar 2>!;
+
+        $pkg_status -r libbar >>EOO;
+          !libbar configured 1.1.0
+            !libfoo configured 1.1.0
+          EOO
+
+        echo "" >+ libfoo/manifest;
+        $rep_fetch;
+
+        $pkg_status -r libbar >>EOO;
+          !libbar configured 1.1.0
+            !libfoo configured 1.1.0 available 1.1.0#1
+          EOO
+
+        # Deorphan libfoo/1.1.0 to libfoo/1.1.0#1.
+        #
+        # Note that libfoo/1.1.0 is considered as an orphan since its version
+        # is replaced with 1.1.0#1 in its existing repository fragment. This is
+        # in contrast to the subsequent tests where the package repository is
+        # removed.
+        #
+        $* --deorphan libfoo 2>>~%EOE%;
+            deorphan/upgrade libfoo/1.1.0#1
+            reconfigure libbar (dependent of libfoo)
+          disfigured libbar/1.1.0
+          disfigured libfoo/1.1.0
+          using libfoo/1.1.0#1 (external)
+          configured libfoo/1.1.0#1
+          configured libbar/1.1.0
+          %info: .+libfoo.+ is up to date%
+          %info: .+libbar-1.1.0.+ is up to date%
+          updated libfoo/1.1.0#1
+          updated libbar/1.1.0
+          EOE
+
+        $pkg_status -r libbar >>EOO;
+          !libbar configured 1.1.0
+            !libfoo configured 1.1.0#1
+          EOO
+
+        # Noop.
+        #
+        $* --deorphan libfoo 2>'info: nothing to build';
+
+        $pkg_status -r libbar >>EOO;
+          !libbar configured 1.1.0
+            !libfoo configured 1.1.0#1
+          EOO
+
+        # Deorphan libfoo/1.1.0#1 to ?libfoo/1.1.0.
+        #
+        # Note that on Windows the local repository canonical name path part
+        # is converted to lower case.
+        #
+        cn = "$canonicalize([dir_path] $~/libfoo)";
+        if! $posix
+          cn = $lcase([string] $cn)
+        end;
+        cn = "dir:$cn";
+
+        $* --mask-repository $cn --deorphan ?libfoo 2>>~%EOE%;
+            deorphan/downgrade/unhold libfoo/1.1.0
+            reconfigure libbar (dependent of libfoo)
+          disfigured libbar/1.1.0
+          disfigured libfoo/1.1.0#1
+          fetched libfoo/1.1.0
+          unpacked libfoo/1.1.0
+          configured libfoo/1.1.0
+          configured libbar/1.1.0
+          %info: .+libbar-1.1.0.+ is up to date%
+          updated libbar/1.1.0
+          EOE
+
+        $pkg_status -r libbar >>EOO;
+          !libbar configured 1.1.0
+            libfoo configured 1.1.0 available 1.1.0#1
+          EOO
+
+        # Noop.
+        #
+        $* --mask-repository $cn --deorphan ?libfoo;
+
+        $pkg_status -r libbar >>EOO;
+          !libbar configured 1.1.0
+            libfoo configured 1.1.0 available 1.1.0#1
+          EOO
+
+        # Deorphan libfoo/1.1.0#1 to ?libfoo/1.1.0.
+        #
+        $* libfoo 2>!;
+
+        $pkg_status -r libbar >>EOO;
+          !libbar configured 1.1.0
+            !libfoo configured 1.1.0#1
+          EOO
+
+        $* --mask-repository $cn --deorphan ?libfoo 2>>~%EOE%;
+            deorphan/downgrade/unhold libfoo/1.1.0
+            reconfigure libbar (dependent of libfoo)
+          disfigured libbar/1.1.0
+          disfigured libfoo/1.1.0#1
+          fetched libfoo/1.1.0
+          unpacked libfoo/1.1.0
+          configured libfoo/1.1.0
+          configured libbar/1.1.0
+          %info: .+libbar-1.1.0.+ is up to date%
+          updated libbar/1.1.0
+          EOE
+
+        $pkg_status -r libbar >>EOO;
+          !libbar configured 1.1.0
+            libfoo configured 1.1.0 available 1.1.0#1
+          EOO
+
+        # Noop.
+        #
+        $* --mask-repository $cn --deorphan ?libfoo;
+
+        $pkg_status -r libbar >>EOO;
+          !libbar configured 1.1.0
+            libfoo configured 1.1.0 available 1.1.0#1
+          EOO
+
+        $pkg_drop libbar
+      }
+
       : drop
       :
       {
@@ -17813,6 +18133,51 @@ else
         $pkg_status -ar 2>'info: no packages in the configuration'
       }
 
+      : drop-masked
+      :
+      : As above but using --mask-repository instead of rep-remove.
+      :
+      {
+        $clone_root_cfg;
+
+        cp -r $src/libfoo-1.1.0 libfoo;
+        $rep_add --type dir libfoo/ && $rep_fetch;
+
+        $* libfoo 2>!;
+        $rep_fetch $rep/t4b;
+
+        $* libbar 2>!;
+
+        echo "" >+ libfoo/manifest;
+        $rep_fetch;
+        $* libfoo 2>!;
+
+        $pkg_status -r libbar >>EOO;
+          !libbar configured 1.1.0
+            !libfoo configured 1.1.0#1
+          EOO
+
+        # Note that on Windows the local repository canonical name path part
+        # is converted to lower case.
+        #
+        cn = "$canonicalize([dir_path] $~/libfoo)";
+        if! $posix
+          cn = $lcase([string] $cn)
+        end;
+        cn = "dir:$cn";
+
+        $* --mask-repository $cn --deorphan ?libfoo ?libbar 2>>EOE;
+            drop libfoo/1.1.0#1 (unused)
+            drop libbar/1.1.0 (unused)
+          disfigured libbar/1.1.0
+          disfigured libfoo/1.1.0#1
+          purged libfoo/1.1.0#1
+          purged libbar/1.1.0
+          EOE
+
+        $pkg_status -ar 2>'info: no packages in the configuration'
+      }
+
       : no-dependent
       :
       {
@@ -17831,6 +18196,42 @@ else
         $pkg_status libfoo >'!libfoo configured 1.1.0';
 
         $* --deorphan ?libfoo 2>>EOE;
+            drop libfoo/1.1.0 (unused)
+          disfigured libfoo/1.1.0
+          purged libfoo/1.1.0
+          EOE
+
+        $pkg_status -ar 2>'info: no packages in the configuration'
+      }
+
+      : no-dependent-masked
+      :
+      : As above but using --mask-repository instead of rep-remove.
+      :
+      {
+        $clone_root_cfg;
+
+        cp -r $src/libfoo-1.1.0 libfoo;
+        $rep_add --type dir libfoo/ && $rep_fetch;
+
+        echo "" >+ libfoo/manifest;
+        $rep_fetch;
+        $* libfoo 2>!;
+
+        $rep_fetch $rep/t4b;
+
+        $pkg_status libfoo >'!libfoo configured 1.1.0';
+
+        # Note that on Windows the local repository canonical name path part
+        # is converted to lower case.
+        #
+        cn = "$canonicalize([dir_path] $~/libfoo)";
+        if! $posix
+          cn = $lcase([string] $cn)
+        end;
+        cn = "dir:$cn";
+
+        $* --mask-repository $cn --deorphan ?libfoo 2>>EOE;
             drop libfoo/1.1.0 (unused)
           disfigured libfoo/1.1.0
           purged libfoo/1.1.0
@@ -18272,6 +18673,56 @@ else
         $pkg_drop libbar
       }
 
+      : immediate-masked
+      :
+      : As above but using --mask-repository instead of rep-remove.
+      :
+      {
+        $clone_root_cfg;
+        cp -rp ../libbar ./;
+
+        $rep_add --type dir libbar/ && $rep_fetch;
+        $* libbar ?libfoo/1.1.0 2>!;
+
+        $pkg_status -or libbar >>EOO;
+          !libbar configured 1.0.0 available (1.0.0)
+            libfoo configured !1.1.0 available [1.2.0] [1.1.1] (1.1.0)
+          EOO
+
+        $rep_add $rep/t2 $rep/t4b $rep/t14c && $rep_fetch;
+
+        # Note that on Windows the local repository canonical name path part
+        # is converted to lower case.
+        #
+        cn = "$canonicalize([dir_path] $~/libbar)";
+        if! $posix
+          cn = $lcase([string] $cn)
+        end;
+        cn = "dir:$cn";
+
+        $* --mask-repository $cn --deorphan --immediate libbar 2>>~%EOE%;
+            deorphan/downgrade libfoo/1.0.0
+            deorphan/update libbar/1.0.0
+          disfigured libbar/1.0.0
+          disfigured libfoo/1.1.0
+          fetched libfoo/1.0.0
+          unpacked libfoo/1.0.0
+          fetched libbar/1.0.0
+          unpacked libbar/1.0.0
+          configured libfoo/1.0.0
+          configured libbar/1.0.0
+          %info: .+libbar.+ is up to date%
+          updated libbar/1.0.0
+          EOE
+
+        $pkg_status -or libbar >>EOO;
+          !libbar configured 1.0.0 available 1.1.0 (1.0.0)
+            libfoo configured !1.0.0 available [1.2.0] [1.1.1] 1.1.0+1 [1.1.0] (1.0.0)
+          EOO
+
+        $pkg_drop libbar
+      }
+
       : recursive
       :
       {
@@ -18610,6 +19061,107 @@ else
       # Noop.
       #
       $* --deorphan libfoo 2>'info: nothing to build';
+
+      $pkg_status libfoo >'!libfoo configured 1.1.0';
+
+      $pkg_drop libfoo
+    }
+
+    : basics-masked
+    :
+    : As above but using --mask-repository instead of rep-remove.
+    :
+    {
+      $clone_root_cfg;
+
+      cp -r $src/libfoo-1.1.0 libfoo;
+      sed -i -e 's/(version:).+/\1 1.0.0/' libfoo/manifest;
+
+      $rep_add --type dir libfoo/ && $rep_fetch;
+
+      $* libfoo 2>!;
+
+      echo "" >+ libfoo/manifest;
+      $rep_fetch;
+
+      $pkg_status -ro libfoo >>EOO;
+        !libfoo configured 1.0.0 available 1.0.0#1
+        EOO
+
+      # Deorphan libfoo/1.0.0 to libfoo/1.0.0#1.
+      #
+      $* --deorphan libfoo 2>>~%EOE%;
+          deorphan/upgrade libfoo/1.0.0#1
+        disfigured libfoo/1.0.0
+        using libfoo/1.0.0#1 (external)
+        configured libfoo/1.0.0#1
+        %info: .+libfoo.+ is up to date%
+        updated libfoo/1.0.0#1
+        EOE
+
+      $pkg_status -ro libfoo >>EOO;
+        !libfoo configured 1.0.0#1 available (1.0.0#1)
+        EOO
+
+      # Noop.
+      #
+      $* --deorphan libfoo 2>'info: nothing to build';
+
+      $rep_fetch $rep/t4a $rep/t4c;
+
+      $pkg_status -ro libfoo >>EOO;
+        !libfoo configured 1.0.0#1 available 1.1.0 (1.0.0#1) 1.0.0
+        EOO
+
+      # Deorphan libfoo/1.0.0#1 to libfoo/1.0.0.
+      #
+      # Note that on Windows the local repository canonical name path part is
+      # converted to lower case.
+      #
+      cn = "$canonicalize([dir_path] $~/libfoo)";
+      if! $posix
+        cn = $lcase([string] $cn)
+      end;
+      cn = "dir:$cn";
+
+      $* --mask-repository $cn --deorphan libfoo 2>>~%EOE%;
+          deorphan/downgrade libfoo/1.0.0
+        disfigured libfoo/1.0.0#1
+        fetched libfoo/1.0.0
+        unpacked libfoo/1.0.0
+        configured libfoo/1.0.0
+        %info: .+libfoo-1.0.0.+ is up to date%
+        updated libfoo/1.0.0
+        EOE
+
+      $pkg_status libfoo >'!libfoo configured 1.0.0 available 1.1.0 1.0.0#1';
+
+      # Noop.
+      #
+      $* --mask-repository $cn --deorphan libfoo 2>'info: nothing to build';
+
+      $pkg_status libfoo >'!libfoo configured 1.0.0 available 1.1.0 1.0.0#1';
+
+      # Deorphan libfoo/1.0.0 to libfoo/1.1.0.
+      #
+      # While at it, use the 'deorphan all held packages' form.
+      #
+      $* --mask-repository $cn --mask-repository $rep/t4c --deorphan 2>>~%EOE%;
+          deorphan/upgrade libfoo/1.1.0
+        disfigured libfoo/1.0.0
+        fetched libfoo/1.1.0
+        unpacked libfoo/1.1.0
+        configured libfoo/1.1.0
+        %info: .+libfoo-1.1.0.+ is up to date%
+        updated libfoo/1.1.0
+        EOE
+
+      $pkg_status libfoo >'!libfoo configured 1.1.0';
+
+      # Noop.
+      #
+      $* --mask-repository $cn --mask-repository $rep/t4c --deorphan libfoo \
+         2>'info: nothing to build';
 
       $pkg_status libfoo >'!libfoo configured 1.1.0';
 
@@ -19047,6 +19599,232 @@ else
 
       $pkg_status -o libfoo >>EOO;
         !libfoo configured 1.0.0
+        EOO
+
+      $pkg_drop libfoo
+    }
+
+    : preference-all-held-masked
+    :
+    : As above but using --mask-repository instead of rep-remove.
+    :
+    {
+      $clone_root_cfg;
+
+      tar (!$posix ? --force-local : ) -xf $src/t14d/libfoo-1.1.0+2.tar.gz &libfoo-1.1.0+2/***;
+      mv libfoo-1.1.0+2 libfoo;
+
+      $rep_add --type dir libfoo/ && $rep_fetch;
+
+      $* libfoo 2>!;
+
+      $rep_fetch $rep/t14a $rep/t14b $rep/t14c $rep/t14d $rep/t14e $rep/t14f $rep/t14i;
+
+      $pkg_status -o libfoo >>EOO;
+        !libfoo configured 1.1.0+2 available 1.2.0 1.1.1 1.1.0+3 (1.1.0+2) 1.1.0+1 1.1.0 1.0.0
+        EOO
+
+      # Deorphan libfoo/1.1.0+2 to the exactly same version.
+      #
+      # Note that on Windows the local repository canonical name path part is
+      # converted to lower case.
+      #
+      cn = "$canonicalize([dir_path] $~/libfoo)";
+      if! $posix
+        cn = $lcase([string] $cn)
+      end;
+      cn = "dir:$cn";
+
+      mask = --mask-repository $cn;
+
+      $* $mask --deorphan 2>>~%EOE%;
+          deorphan/update libfoo/1.1.0+2
+        disfigured libfoo/1.1.0+2
+        fetched libfoo/1.1.0+2
+        unpacked libfoo/1.1.0+2
+        configured libfoo/1.1.0+2
+        %info: .+libfoo-1.1.0\+2.+ is up to date%
+        updated libfoo/1.1.0+2
+        EOE
+
+      $pkg_status -o libfoo >>EOO;
+        !libfoo configured 1.1.0+2 available 1.2.0 1.1.1 1.1.0+3 (1.1.0+2) 1.1.0+1 1.1.0 1.0.0
+        EOO
+
+      # Noop.
+      #
+      $* $mask --deorphan 2>'info: nothing to build';
+
+      $pkg_status -o libfoo >>EOO;
+        !libfoo configured 1.1.0+2 available 1.2.0 1.1.1 1.1.0+3 (1.1.0+2) 1.1.0+1 1.1.0 1.0.0
+        EOO
+
+      # Deorphan libfoo/1.1.0+2 to the later revision of same version (1.1.0+3).
+      #
+      mask += --mask-repository $rep/t14d;
+
+      $* $mask --deorphan 2>>~%EOE%;
+          deorphan/upgrade libfoo/1.1.0+3
+        disfigured libfoo/1.1.0+2
+        fetched libfoo/1.1.0+3
+        unpacked libfoo/1.1.0+3
+        configured libfoo/1.1.0+3
+        %info: .+libfoo-1.1.0\+3.+ is up to date%
+        updated libfoo/1.1.0+3
+        EOE
+
+      $pkg_status -o libfoo >>EOO;
+        !libfoo configured 1.1.0+3 available 1.2.0 1.1.1 (1.1.0+3) 1.1.0+2 1.1.0+1 1.1.0 1.0.0
+        EOO
+
+      # Noop.
+      #
+      $* $mask --deorphan 2>'info: nothing to build';
+
+      $pkg_status -o libfoo >>EOO;
+        !libfoo configured 1.1.0+3 available 1.2.0 1.1.1 (1.1.0+3) 1.1.0+2 1.1.0+1 1.1.0 1.0.0
+        EOO
+
+      # Deorphan libfoo/1.1.0+3 to the later patch of same version (1.1.1).
+      #
+      mask += --mask-repository $rep/t14e;
+
+      $* $mask --deorphan 2>>~%EOE%;
+          deorphan/upgrade libfoo/1.1.1
+        disfigured libfoo/1.1.0+3
+        fetched libfoo/1.1.1
+        unpacked libfoo/1.1.1
+        configured libfoo/1.1.1
+        %info: .+libfoo-1.1.1.+ is up to date%
+        updated libfoo/1.1.1
+        EOE
+
+      $pkg_status -o libfoo >>EOO;
+        !libfoo configured 1.1.1 available 1.2.0 (1.1.1) 1.1.0+3 1.1.0+2 1.1.0+1 1.1.0 1.0.0
+        EOO
+
+      # Noop.
+      #
+      $* $mask --deorphan 2>'info: nothing to build';
+
+      $pkg_status -o libfoo >>EOO;
+        !libfoo configured 1.1.1 available 1.2.0 (1.1.1) 1.1.0+3 1.1.0+2 1.1.0+1 1.1.0 1.0.0
+        EOO
+
+      # Deorphan libfoo/1.1.1 to later minor of same version (1.2.0).
+      #
+      mask += --mask-repository $rep/t14f;
+
+      $* $mask --deorphan 2>>~%EOE%;
+          deorphan/upgrade libfoo/1.2.0
+        disfigured libfoo/1.1.1
+        fetched libfoo/1.2.0
+        unpacked libfoo/1.2.0
+        configured libfoo/1.2.0
+        %info: .+libfoo-1.2.0.+ is up to date%
+        updated libfoo/1.2.0
+        EOE
+
+      $pkg_status -o libfoo >>EOO;
+        !libfoo configured 1.2.0 available (1.2.0) 1.1.1 1.1.0+3 1.1.0+2 1.1.0+1 1.1.0 1.0.0
+        EOO
+
+      # Noop.
+      #
+      $* $mask --deorphan 2>'info: nothing to build';
+
+      $pkg_status -o libfoo >>EOO;
+        !libfoo configured 1.2.0 available (1.2.0) 1.1.1 1.1.0+3 1.1.0+2 1.1.0+1 1.1.0 1.0.0
+        EOO
+
+      # Deorphan libfoo/1.2.0 to latest available version (1.1.0+1).
+      #
+      mask += --mask-repository $rep/t14i;
+
+      $* $mask --deorphan 2>>~%EOE%;
+          deorphan/downgrade libfoo/1.1.0+1
+        disfigured libfoo/1.2.0
+        fetched libfoo/1.1.0+1
+        unpacked libfoo/1.1.0+1
+        configured libfoo/1.1.0+1
+        %info: .+libfoo-1.1.0\+1.+ is up to date%
+        updated libfoo/1.1.0+1
+        EOE
+
+      $pkg_status -o libfoo >>EOO;
+        !libfoo configured 1.1.0+1 available 1.2.0 1.1.1 1.1.0+3 1.1.0+2 (1.1.0+1) 1.1.0 1.0.0
+        EOO
+
+      # Noop.
+      #
+      $* $mask --deorphan 2>'info: nothing to build';
+
+      $pkg_status -o libfoo >>EOO;
+        !libfoo configured 1.1.0+1 available 1.2.0 1.1.1 1.1.0+3 1.1.0+2 (1.1.0+1) 1.1.0 1.0.0
+        EOO
+
+      # Deorphan libfoo/1.1.0+1 to latest available version (1.1.0).
+      #
+      mask += --mask-repository $rep/t14c;
+
+      $* $mask --deorphan 2>>~%EOE%;
+          deorphan/downgrade libfoo/1.1.0
+        disfigured libfoo/1.1.0+1
+        fetched libfoo/1.1.0
+        unpacked libfoo/1.1.0
+        configured libfoo/1.1.0
+        %info: .+libfoo-1.1.0.+ is up to date%
+        updated libfoo/1.1.0
+        EOE
+
+      $pkg_status -o libfoo >>EOO;
+        !libfoo configured 1.1.0 available 1.2.0 1.1.1 1.1.0+3 1.1.0+2 1.1.0+1 (1.1.0) 1.0.0
+        EOO
+
+      # Noop.
+      #
+      $* $mask --deorphan 2>'info: nothing to build';
+
+      $pkg_status -o libfoo >>EOO;
+        !libfoo configured 1.1.0 available 1.2.0 1.1.1 1.1.0+3 1.1.0+2 1.1.0+1 (1.1.0) 1.0.0
+        EOO
+
+      # Deorphan libfoo/1.1.0 to latest available version (1.0.0).
+      #
+      mask += --mask-repository $rep/t14b;
+
+      $* $mask --deorphan 2>>~%EOE%;
+          deorphan/downgrade libfoo/1.0.0
+        disfigured libfoo/1.1.0
+        fetched libfoo/1.0.0
+        unpacked libfoo/1.0.0
+        configured libfoo/1.0.0
+        %info: .+libfoo-1.0.0.+ is up to date%
+        updated libfoo/1.0.0
+        EOE
+
+      $pkg_status -o libfoo >>EOO;
+        !libfoo configured 1.0.0 available 1.2.0 1.1.1 1.1.0+3 1.1.0+2 1.1.0+1 1.1.0 (1.0.0)
+        EOO
+
+      # Noop.
+      #
+      $* $mask --deorphan 2>'info: nothing to build';
+
+      $pkg_status -o libfoo >>EOO;
+        !libfoo configured 1.0.0 available 1.2.0 1.1.1 1.1.0+3 1.1.0+2 1.1.0+1 1.1.0 (1.0.0)
+        EOO
+
+      # Deorphan fails (none available).
+      #
+      mask += --mask-repository $rep/t14a;
+
+      $* $mask --deorphan 2>>/EOE != 0;
+        error: libfoo is not available
+        EOE
+
+      $pkg_status -o libfoo >>EOO;
+        !libfoo configured 1.0.0 available 1.2.0 1.1.1 1.1.0+3 1.1.0+2 1.1.0+1 1.1.0 (1.0.0)
         EOO
 
       $pkg_drop libfoo

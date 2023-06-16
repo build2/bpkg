@@ -143,8 +143,20 @@ namespace bpkg
     rm_r (td, true /* dir_itself */, 3, rm_error_mode::warn);
   }
 
+  static void
+  rep_remove_fragment (database&,
+                       transaction&,
+                       const shared_ptr<repository_fragment>&,
+                       bool mask);
+
+  // In the mask repositories mode don't cleanup the repository state in the
+  // filesystem (see rep-mask.hxx for the details on repository masking).
+  //
   void
-  rep_remove (database& db, transaction& t, const shared_ptr<repository>& r)
+  rep_remove (database& db,
+              transaction& t,
+              const shared_ptr<repository>& r,
+              bool mask)
   {
     assert (!r->name.empty ()); // Can't be the root repository.
 
@@ -164,7 +176,7 @@ namespace bpkg
     // Remove dangling repository fragments.
     //
     for (const repository::fragment_type& fr: r->fragments)
-      rep_remove_fragment (db, t, fr.fragment.load ());
+      rep_remove_fragment (db, t, fr.fragment.load (), mask);
 
     // If there are no repositories stayed in the database then no repository
     // fragments should stay either.
@@ -172,8 +184,8 @@ namespace bpkg
     if (db.query_value<repository_count> () == 0)
       assert (db.query_value<repository_fragment_count> () == 0);
 
-    // Cleanup the repository state if present and there are no more
-    // repositories referring this state.
+    // Unless in the mask repositories mode, cleanup the repository state if
+    // present and there are no more repositories referring this state.
     //
     // Note that this step is irreversible on failure. If something goes wrong
     // we will end up with a state-less fetched repository and the
@@ -184,44 +196,58 @@ namespace bpkg
     // then remove them after committing the transaction. Though, we still may
     // fail in the middle due to the filesystem error.
     //
-    dir_path d (repository_state (r->location));
-
-    if (!d.empty ())
+    if (!mask)
     {
-      dir_path sd (db.config_orig / repos_dir / d);
+      dir_path d (repository_state (r->location));
 
-      if (exists (sd))
+      if (!d.empty ())
       {
-        // There is no way to get the list of repositories that share this
-        // state other than traversing all repositories of this type.
-        //
-        bool rm (true);
+        dir_path sd (db.config_orig / repos_dir / d);
 
-        using query = query<repository>;
-
-        for (shared_ptr<repository> rp:
-               pointer_result (
-                 db.query<repository> (
-                   query::name != "" &&
-                   query::location.type == to_string (r->location.type ()))))
+        if (exists (sd))
         {
-          if (repository_state (rp->location) == d)
-          {
-            rm = false;
-            break;
-          }
-        }
+          // There is no way to get the list of repositories that share this
+          // state other than traversing all repositories of this type.
+          //
+          bool rm (true);
 
-        if (rm)
-          rmdir (db.config_orig, sd);
+          using query = query<repository>;
+
+          for (shared_ptr<repository> rp:
+                 pointer_result (
+                   db.query<repository> (
+                     query::name != "" &&
+                     query::location.type == to_string (r->location.type ()))))
+          {
+            if (repository_state (rp->location) == d)
+            {
+              rm = false;
+              break;
+            }
+          }
+
+          if (rm)
+            rmdir (db.config_orig, sd);
+        }
       }
     }
   }
 
   void
+  rep_remove (database& db, transaction& t, const shared_ptr<repository>& r)
+  {
+    rep_remove (db, t, r, false /* mask */);
+  }
+
+  // In the mask repositories mode don't remove the repository fragment from
+  // locations of the available packages it contains (see rep-mask.hxx for the
+  // details on repository masking).
+  //
+  static void
   rep_remove_fragment (database& db,
                        transaction& t,
-                       const shared_ptr<repository_fragment>& rf)
+                       const shared_ptr<repository_fragment>& rf,
+                       bool mask)
   {
     tracer trace ("rep_remove_fragment");
 
@@ -235,11 +261,12 @@ namespace bpkg
           "fragment=" + query::_val (rf->name)) != 0)
       return;
 
-    // Remove the repository fragment from locations of the available packages
-    // it contains. Note that this must be done before the repository fragment
-    // removal.
+    // Unless in the mask repositories mode, remove the repository fragment
+    // from locations of the available packages it contains. Note that this
+    // must be done before the repository fragment removal.
     //
-    rep_remove_package_locations (db, t, rf->name);
+    if (!mask)
+      rep_remove_package_locations (db, t, rf->name);
 
     // Remove the repository fragment.
     //
@@ -255,8 +282,8 @@ namespace bpkg
     //
     if (db.query_value<repository_fragment_count> () == 0)
     {
-      assert (db.query_value<repository_count> ()        == 0);
-      assert (db.query_value<available_package_count> () == 0);
+      assert (db.query_value<repository_count> () == 0);
+      assert (mask || db.query_value<available_package_count> () == 0);
     }
 
     // Remove dangling complements and prerequisites.
@@ -264,10 +291,10 @@ namespace bpkg
     // Prior to removing a prerequisite/complement we need to make sure it
     // still exists, which may not be the case due to the dependency cycle.
     //
-    auto remove = [&db, &t] (const lazy_weak_ptr<repository>& rp)
+    auto remove = [&db, &t, mask] (const lazy_weak_ptr<repository>& rp)
     {
       if (shared_ptr<repository> r = db.find<repository> (rp.object_id ()))
-        rep_remove (db, t, r);
+        rep_remove (db, t, r, mask);
     };
 
     for (const lazy_weak_ptr<repository>& cr: rf->complements)
@@ -281,6 +308,14 @@ namespace bpkg
 
     for (const lazy_weak_ptr<repository>& pr: rf->prerequisites)
       remove (pr);
+  }
+
+  void
+  rep_remove_fragment (database& db,
+                       transaction& t,
+                       const shared_ptr<repository_fragment>& rf)
+  {
+    return rep_remove_fragment (db, t, rf, false /* mask */);
   }
 
   void

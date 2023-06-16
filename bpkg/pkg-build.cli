@@ -398,6 +398,19 @@ namespace bpkg
        option in \l{bpkg-rep-fetch(1)} for details."
     }
 
+    strings --mask-repository
+    {
+      "<rep>",
+      "For the duration of the command execution pretend the specified
+       repository was removed as if by performing the \cb{rep-remove}
+       command. The repository can be specified either as a repository name or
+       as a repository location (URL or a directory path). Note that the
+       repository's complement and prerequisite repositories are also
+       considered masked, recursively, unless they are complements and/or
+       prerequisites of other unmasked repositories. Repeat this option to
+       mask multiple repositories."
+    }
+
     bool --no-refinement
     {
       "Don't try to refine the configuration by offering to drop any unused

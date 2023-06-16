@@ -13,6 +13,7 @@
 #include <bpkg/package.hxx>
 #include <bpkg/package-odb.hxx>
 #include <bpkg/database.hxx>
+#include <bpkg/rep-mask.hxx>
 #include <bpkg/diagnostics.hxx>
 #include <bpkg/satisfaction.hxx>
 
@@ -153,7 +154,23 @@ namespace bpkg
 
     // If adjustment or orphan, then new and old are the same.
     //
-    if (available == nullptr || available->locations.empty ())
+    // Note that in the common case a package version doesn't come from too
+    // many repositories (8).
+    //
+    small_vector<reference_wrapper<const package_location>, 8> locations;
+
+    if (available != nullptr) // Not adjustment?
+    {
+      locations.reserve (available->locations.size ());
+
+      for (const package_location& pl: available->locations)
+      {
+        if (!rep_masked_fragment (pl.repository_fragment))
+          locations.push_back (pl);
+      }
+    }
+
+    if (locations.empty ())
     {
       assert (selected != nullptr);
 
@@ -169,7 +186,7 @@ namespace bpkg
     }
     else
     {
-      const package_location& pl (available->locations[0]);
+      const package_location& pl (locations[0]);
 
       if (pl.repository_fragment.object_id () == "") // Special root?
       {
@@ -189,7 +206,7 @@ namespace bpkg
         // Note that such repository fragments are always preferred over
         // others (see below).
         //
-        for (const package_location& pl: available->locations)
+        for (const package_location& pl: locations)
         {
           const repository_location& rl (
             pl.repository_fragment.load ()->location);
@@ -1127,7 +1144,7 @@ namespace bpkg
   void build_packages::
   enter (package_name name, build_package pkg)
   {
-    assert (!pkg.action);
+    assert (!pkg.action && pkg.repository_fragment == nullptr);
 
     database& db (pkg.db); // Save before the move() call.
     auto p (map_.emplace (package_key {db, move (name)},
@@ -1156,6 +1173,9 @@ namespace bpkg
     using std::swap; // ...and not list::swap().
 
     tracer trace ("collect_build");
+
+    assert (pkg.repository_fragment == nullptr ||
+            !rep_masked_fragment (pkg.repository_fragment));
 
     // See the above notes.
     //

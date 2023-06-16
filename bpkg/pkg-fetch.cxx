@@ -10,6 +10,7 @@
 #include <bpkg/package-odb.hxx>
 #include <bpkg/checksum.hxx>
 #include <bpkg/database.hxx>
+#include <bpkg/rep-mask.hxx>
 #include <bpkg/diagnostics.hxx>
 #include <bpkg/manifest-utility.hxx>
 
@@ -224,14 +225,17 @@ namespace bpkg
 
     for (const package_location& l: ap->locations)
     {
-      const repository_location& rl (l.repository_fragment.load ()->location);
-
-      if (rl.archive_based () && (pl == nullptr || rl.local ()))
+      if (!rep_masked_fragment (l.repository_fragment))
       {
-        pl = &l;
+        const repository_location& rl (l.repository_fragment.load ()->location);
 
-        if (rl.local ())
-          break;
+        if (rl.archive_based () && (pl == nullptr || rl.local ()))
+        {
+          pl = &l;
+
+          if (rl.local ())
+            break;
+        }
       }
     }
 
