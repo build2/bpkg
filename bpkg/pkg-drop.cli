@@ -81,6 +81,13 @@ namespace bpkg
       "Issue an error if attempting to drop dependent packages."
     }
 
+    uint16_t --dependent-exit
+    {
+      "<code>",
+      "Silently exit with the specified error code if attempting to drop
+       dependent packages."
+    }
+
     bool --disfigure-only
     {
       "Disfigure all the packages but don't purge."

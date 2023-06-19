@@ -51,23 +51,23 @@ namespace bpkg
   };
   using dependent_names = vector<dependent_name>;
 
-  // A "dependency-ordered" list of packages and their prerequisites.
-  // That is, every package on the list only possibly depending on the
-  // ones after it. In a nutshell, the usage is as follows: we first add
-  // the packages specified by the user (the "user selection"). We then
-  // collect all the dependent packages of the user selection, if any.
-  // These will either have to be dropped as well or we cannot continue.
-  // If the user gave the go ahead to drop the dependents, then, for our
-  // purposes, this list of dependents can from now own be treated as if
-  // it was a part of the user selection. The next step is to collect all
-  // the non-held prerequisites of the user selection with the goal of
-  // figuring out which ones will no longer be needed and offering to
-  // drop them as well. This part is a bit tricky and has to be done in
-  // three steps: We first collect all the prerequisites that we could
-  // possibly be dropping. We then order all the packages. And, finally,
-  // we filter out prerequisites that we cannot drop. See the comment to
-  // the call to collect_prerequisites() for details on why it has to be
-  // done this way.
+  // A "dependency-ordered" list of packages and their prerequisites. That is,
+  // every package on the list only possibly depending on the ones after it.
+  // In a nutshell, the usage is as follows: we first add the packages
+  // specified by the user (the "user selection"). We then collect all the
+  // dependent packages of the user selection, if any. These will either have
+  // to be dropped as well or we cannot continue and need to either issue
+  // diagnostics and fail or exit with the specified (via --dependent-exit)
+  // code. If the user gave the go ahead to drop the dependents, then, for our
+  // purposes, this list of dependents can from now own be treated as if it
+  // was a part of the user selection. The next step is to collect all the
+  // non-held prerequisites of the user selection with the goal of figuring
+  // out which ones will no longer be needed and offering to drop them as
+  // well. This part is a bit tricky and has to be done in three steps: We
+  // first collect all the prerequisites that we could possibly be dropping.
+  // We then order all the packages. And, finally, we filter out prerequisites
+  // that we cannot drop. See the comment to the call to
+  // collect_prerequisites() for details on why it has to be done this way.
   //
   struct drop_packages: list<reference_wrapper<drop_package>>
   {
@@ -520,6 +520,16 @@ namespace bpkg
         dr << fail << "both --drop-dependent and --keep-dependent|-K "
                    << "specified";
       }
+      else if (o.drop_dependent () && o.dependent_exit_specified ())
+      {
+        dr << fail << "both --drop-dependent and --dependent-exit "
+                   << "specified";
+      }
+      else if (o.keep_dependent () && o.dependent_exit_specified ())
+      {
+        dr << fail << "both --keep-dependent|-K and --dependent-exit "
+                   << "specified";
+      }
       else if (o.all ())
       {
         if (o.all_pattern_specified ())
@@ -632,11 +642,18 @@ namespace bpkg
 
       // The next step is to see if there are any dependents that are not
       // already on the list. We will either have to drop those as well or
-      // abort.
+      // issue diagnostics and fail or silently indicate that with an exit
+      // code.
       //
       dependent_names dnames (pkgs.collect_dependents ());
       if (!dnames.empty () && !o.drop_dependent ())
       {
+        if (o.dependent_exit_specified ())
+        {
+          t.commit ();
+          return o.dependent_exit ();
+        }
+
         {
           diag_record dr;
 

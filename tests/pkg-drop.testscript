@@ -386,12 +386,13 @@ $* libfoo/1.0.0 2>>~%EOE% != 0
 
 : keep-drop-options
 :
-: Test --drop-dependent, --keep-dependent, --keep-unused, option.
+: Test --drop-dependent, --keep-dependent, --dependent-exit, --keep-unused
+: options.
 :
 {
   +$clone_cfg && $rep_add $rep/t4b && $rep_fetch
 
-  : keep-drop-dependent
+  : keep-exit-drop-dependent
   :
   {
     $clone_cfg && $pkg_build libbar;
@@ -400,6 +401,8 @@ $* libfoo/1.0.0 2>>~%EOE% != 0
       error: following dependent packages will have to be dropped as well:
         libbar (requires libfoo)
       EOE
+
+    $* --dependent-exit 100 libfoo == 100;
 
     $* --drop-dependent libfoo 2>>EOE
       disfigured libbar
