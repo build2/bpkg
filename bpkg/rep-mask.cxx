@@ -26,16 +26,26 @@ namespace bpkg
               const shared_ptr<repository>&,
               bool mask);
 
-  // The idea here is to start the transaction, remove all the specified
-  // repositories recursively in all the configurations specified by
-  // repo_configs, collect the remaining repositories and repository fragments
-  // as unmasked, and rollback the transaction. Later on, the rep_masked*()
-  // functions will refer to the configuration-specific unmasked repositories
-  // and repository fragments lists to decide if the repository is masked or
-  // not in the specific configuration.
+  // The overall plan is as follows:
+  //
+  // - Start the transaction.
+  //
+  // - Remove all the specified repositories recursively in all the
+  //   configurations specified by repo_configs (repos) and/or configurations
+  //   specified explicitly via UUIDs (config_uuid_repos).
+  //
+  // - Collect the remaining repositories and repository fragments as unmasked.
+  //
+  // - Rollback the transaction.
+  //
+  // Later on, the rep_masked*() functions will refer to the configuration-
+  // specific unmasked repositories and repository fragments lists to decide
+  // if the repository/fragment is masked or not in the specific configuration.
   //
   void
-  rep_mask (const strings& repos)
+  rep_mask (const strings& repos,
+            const strings& config_uuid_repos,
+            linked_databases& current_configs)
   {
     tracer trace ("rep_mask");
 
@@ -55,22 +65,31 @@ namespace bpkg
 
     transaction t (mdb);
 
+    // Add a repository from a database, suppressing duplicates.
+    //
+    auto add_repo = [&rs] (database& db, shared_ptr<repository>&& r)
+    {
+      if (find_if (rs.begin (), rs.end (),
+                   [&db, &r] (const lazy_weak_ptr<repository>& lr)
+                   {
+                     return lr.database () == db && lr.object_id () == r->name;
+                   }) == rs.end ())
+        rs.emplace_back (db, move (r));
+    };
+
+    // Collect the repositories masked in all configurations.
+    //
     for (database& db: repo_configs)
     {
       for (size_t i (0); i != repos.size (); ++i)
       {
         // Add a repository, suppressing duplicates, and mark it as found.
         //
-        auto add = [&db, &rs, &found_repos, i] (shared_ptr<repository>&& r)
+        auto add = [&db,
+                    &found_repos, i,
+                    &add_repo] (shared_ptr<repository>&& r)
         {
-          if (find_if (rs.begin (), rs.end (),
-                       [&db, &r] (const lazy_weak_ptr<repository>& lr)
-                       {
-                         return lr.database () == db &&
-                                lr.object_id () == r->name;
-                       }) == rs.end ())
-            rs.emplace_back (db, move (r));
-
+          add_repo (db, move (r));
           found_repos[i] = true;
         };
 
@@ -112,6 +131,89 @@ namespace bpkg
     {
       if (!found_repos[i])
         fail << "repository '" << repos[i] << "' cannot be masked: not found";
+    }
+
+    // Collect the repositories masked in specific configurations.
+    //
+    for (const string& cr: config_uuid_repos)
+    {
+      auto bad = [&cr] (const string& d)
+      {
+        fail << "configuration repository '" << cr << "' cannot be masked: "
+             << d;
+      };
+
+      size_t p (cr.find ('='));
+
+      if (p == string::npos)
+        bad ("missing '='");
+
+      uuid uid;
+      string uid_str (cr, 0, p);
+
+      try
+      {
+        uid = uuid (uid_str);
+      }
+      catch (const invalid_argument& e)
+      {
+        bad ("invalid configuration uuid '" + uid_str + "': " + e.what ());
+      }
+
+      database* db (nullptr);
+
+      for (database& cdb: current_configs)
+      {
+        if ((db = cdb.try_find_dependency_config (uid)) != nullptr)
+          break;
+      }
+
+      if (db == nullptr)
+        bad ("no configuration with uuid " + uid.string () +
+             " is linked with "                            +
+             (current_configs.size () == 1
+              ? mdb.config_orig.representation ()
+              : "specified current configurations"));
+
+      string rp (cr, p + 1);
+
+      if (repository_name (rp))
+      {
+        if (shared_ptr<repository> r = db->find<repository> (rp))
+          add_repo (*db, move (r));
+        else
+          bad ("repository name '" + rp + "' not found in configuration " +
+               uid.string ());
+      }
+      else
+      {
+        using query = query<repository>;
+
+        // Verify that the repository URL is not misspelled or empty.
+        //
+        try
+        {
+          repository_url u (rp);
+          assert (!u.empty ());
+        }
+        catch (const invalid_argument& e)
+        {
+          bad ("invalid repository location '" + rp + "': " + e.what ());
+        }
+
+        bool found (false);
+        for (shared_ptr<repository> r:
+               pointer_result (
+                 db->query<repository> (query::location.url == rp)))
+        {
+          add_repo (*db, move (r));
+          found = true;
+        }
+
+        if (!found)
+          bad ("repository location '" + rp + "' not found in configuration " +
+               uid.string ());
+      }
     }
 
     // First, remove the repository references from the dependent repository

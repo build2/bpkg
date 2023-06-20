@@ -13,14 +13,19 @@ namespace bpkg
   // Note: not a command (at least not yet).
   //
   // Mask repositories to pretend they don't exist in the configurations that
-  // are used as the repository information sources (repo_configs). Also mask
-  // their complement and prerequisite repositories, recursively, excluding
-  // those which are complements and/or prerequisites of other unmasked
-  // repositories. The repositories can be specified either as repository
-  // location canonical names or URLs. Issue diagnostics and fail if any of
-  // the specified repositories don't exist in any configuration.
+  // are used as the repository information sources (repo_configs;
+  // repositories argument) and/or specific configurations
+  // (config_uuid_repositories argument). Also mask their complement and
+  // prerequisite repositories, recursively, excluding those which are
+  // complements and/or prerequisites of other unmasked repositories. The
+  // repositories can be specified either as repository location canonical
+  // names or URLs. Issue diagnostics and fail if any of the specified
+  // repositories don't exist in any configuration.
   //
   // Notes:
+  //
+  // - The current configurations are only used to resolve the configuration
+  //   UUIDs, if any.
   //
   // - A repository may end up being masked in one configuration but not in
   //   another.
@@ -36,7 +41,9 @@ namespace bpkg
   // NOTE: repo_configs needs to be filled prior to the function call.
   //
   void
-  rep_mask (const strings&);
+  rep_mask (const strings& repositories,             // <rep>
+            const strings& config_uuid_repositories, // <config-uuid>=<rep>
+            linked_databases& current_configs);
 
   // Return true if a repository is masked in the specified configuration.
   //

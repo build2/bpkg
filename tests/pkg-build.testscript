@@ -596,6 +596,27 @@ test.arguments += --sys-no-query
     error: repository '' cannot be masked: invalid repository location: empty URL
     EOE
 
+  : mask-repository-uuid-db-not-found
+  :
+  $clone_root_cfg;
+  $* --mask-repository-uuid '00000000-0000-0000-0000-123456789012=repo' libfoo 2>>/EOE != 0
+    error: configuration repository '00000000-0000-0000-0000-123456789012=repo' cannot be masked: no configuration with uuid 00000000-0000-0000-0000-123456789012 is linked with cfg/
+    EOE
+
+  : mask-repository-uuid-empty
+  :
+  $clone_root_cfg;
+  $* --mask-repository-uuid "$cfg_uuid=" libfoo 2>>EOE != 0
+    error: configuration repository '00000000-0000-0000-0000-000000000001=' cannot be masked: invalid repository location '': empty URL
+    EOE
+
+  : mask-repository-uuid-not-found
+  :
+  $clone_root_cfg;
+  $* --mask-repository-uuid "$cfg_uuid=https://example.com/1" libfoo 2>>/EOE != 0
+    error: configuration repository '00000000-0000-0000-0000-000000000001=https://example.com/1' cannot be masked: repository location 'https://example.com/1' not found in configuration 00000000-0000-0000-0000-000000000001
+    EOE
+
   : archive
   :
   $clone_root_cfg;
@@ -1825,9 +1846,14 @@ test.arguments += --sys-no-query
 
     $pkg_status libbar >'!libbar configured 1.2.0';
 
-    # While at it, test using --mask-repository instead of rep-remove.
+    # While at it, test using --mask-repository* instead of rep-remove.
     #
     $* --upgrade --mask-repository $rep/t2 --mask-repository $rep/t5 2>>/EOE != 0;
+      error: libbar is not available
+      EOE
+
+    $* --upgrade --mask-repository-uuid "$cfg_uuid=($rep/t2)" \
+                 --mask-repository-uuid "$cfg_uuid=($rep/t5)" 2>>/EOE != 0;
       error: libbar is not available
       EOE
 
@@ -3262,7 +3288,7 @@ test.arguments += --sys-no-query
 
       : satisfy-masked
       :
-      : As above but using --mask-repository instead of rep-remove.
+      : As above but using --mask-repository* instead of rep-remove.
       :
       {
         $clone_cfg;
@@ -3304,7 +3330,7 @@ test.arguments += --sys-no-query
         # Test that the selected package is left as there is no satisfactory
         # available package.
         #
-        $* --mask-repository $rep/t0b --mask-repository $rep/t0a ?libbaz;
+        $* --mask-repository $rep/t0b --mask-repository-uuid "$cfg_uuid=($rep/t0a)" ?libbaz;
 
         # Test that the above behavior is not triggered for the system package.
         #
@@ -3848,13 +3874,13 @@ test.arguments += --sys-no-query
 
     : unavailable-masked
     :
-    : As above but using --mask-repository instead of rep-remove.
+    : As above but using --mask-repository* instead of rep-remove.
     :
     {
       $clone_cfg;
 
       $* libbar --mask-repository $rep/t0a --mask-repository $rep/t0b \
-                --mask-repository $rep/t0c --recursive --yes
+                --mask-repository-uuid "$cfg_uuid=($rep/t0c)" --recursive --yes
     }
 
     -$pkg_drop libbar libbaz libfoo
@@ -17959,7 +17985,7 @@ else
 
       : basics-masked
       :
-      : As above but using --mask-repository instead of rep-remove.
+      : As above but using --mask-repository* instead of rep-remove.
       :
       {
         $clone_root_cfg;
@@ -18051,7 +18077,7 @@ else
 
         # Noop.
         #
-        $* --mask-repository $cn --deorphan ?libfoo;
+        $* --mask-repository-uuid "$cfg_uuid=$cn" --deorphan ?libfoo;
 
         $pkg_status -r libbar >>EOO;
           !libbar configured 1.1.0

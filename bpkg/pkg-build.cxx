@@ -2000,8 +2000,10 @@ namespace bpkg
     // Now, as repo_configs is filled and the repositories are fetched mask
     // the repositories, if any.
     //
-    if (o.mask_repository_specified ())
-      rep_mask (o.mask_repository ());
+    if (o.mask_repository_specified () || o.mask_repository_uuid_specified ())
+      rep_mask (o.mask_repository (),
+                o.mask_repository_uuid (),
+                current_configs);
 
     // Expand the package specs into individual package args, parsing them
     // into the package scheme, name, and version constraint components, and

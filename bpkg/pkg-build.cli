@@ -411,6 +411,19 @@ namespace bpkg
        mask multiple repositories."
     }
 
+    strings --mask-repository-uuid
+    {
+      "<v>",
+      "For the duration of the command execution pretend the specified
+       repository was removed from the specified configuration. Similar to
+       \cb{--mask-repository} but only masks the repository in a single
+       configuration. The option value is a key-value pair in the form:
+
+       \c{\i{config-uuid}\b{=}\i{rep}}
+
+       Repeat this option to mask multiple repositories."
+    }
+
     bool --no-refinement
     {
       "Don't try to refine the configuration by offering to drop any unused
