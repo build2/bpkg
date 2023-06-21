@@ -910,8 +910,8 @@ namespace bpkg
     }
   }
 
-  // Execute `dnf install` to install the specified packages (e.g., libfoo or
-  // libfoo-1.2.3-1.fc35.x86_64).
+  // Execute `dnf install` to install the specified packages (e.g.,
+  // libfoo.x86_64 or libfoo-1.2.3-1.fc35.x86_64).
   //
   // Note that the package name can only contain alpha-numeric characters,
   // '-', '.', '_', and '+' (see Guidelines for Naming Fedora Packages for
@@ -924,12 +924,12 @@ namespace bpkg
   //
   // By default, `dnf install` tries to interpret the spec as the
   // <name>-[<epoch>:]<version>-<release>.<arch> form prior to trying the
-  // <name> form until any matched packages are found (see SPECIFYING PACKAGES
-  // section of dnf(8) for more details on the spec matching rules). We could
-  // potentially use `dnf install-nevra` command for the package version specs
-  // and `dnf install-n` for the package name specs. Let's, however, keep it
-  // simple for now given that clashes for our use-case are presumably not
-  // very likely.
+  // <name>.<arch> form until any matched packages are found (see SPECIFYING
+  // PACKAGES section of dnf(8) for more details on the spec matching
+  // rules). We could potentially use `dnf install-nevra` command for the
+  // package version specs and `dnf install-na` for the package name specs.
+  // Let's, however, keep it simple for now given that clashes for our
+  // use-case are presumably not very likely.
   //
   void system_package_manager_fedora::
   dnf_install (const strings& pkgs)
@@ -1719,7 +1719,7 @@ namespace bpkg
     {
       string name;
       string version; // Empty if unspecified.
-      string arch;    // Empty if version is empty.
+      string arch;    // Always specified.
     };
     vector<package> pkgs;
 
@@ -1739,7 +1739,10 @@ namespace bpkg
     // the packages to mark them as installed by the user.
     //
     // Note also that for partially/not installed we don't specify the
-    // version, expecting the candidate version to be installed.
+    // version, expecting the candidate version to be installed. We, however,
+    // still specify the candidate architecture in this case, since for
+    // reasons unknown dnf may install a package of a different architecture
+    // otherwise.
     //
     bool install (false);
 
@@ -1758,7 +1761,7 @@ namespace bpkg
       {
         string n (pi.name);
         string v (fi ? pi.installed_version : string ());
-        string a (fi ? pi.installed_arch    : string ());
+        string a (fi ? pi.installed_arch    : pi.candidate_arch);
 
         auto i (find_if (pkgs.begin (), pkgs.end (),
                          [&n] (const package& p)
@@ -1797,9 +1800,10 @@ namespace bpkg
       {
         s += '-';
         s += p.version;
-        s += '.';
-        s += p.arch;
       }
+      s += '.';
+      s += p.arch;
+
       specs.push_back (move (s));
     }
 
