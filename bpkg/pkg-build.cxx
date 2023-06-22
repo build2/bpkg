@@ -5368,8 +5368,8 @@ namespace bpkg
                   ? "reconfigure"
                   : (p.reconfigure ()
                      ? (o.configure_only () || p.configure_only ()
-                        ? (deorphan ? "deorphan"        : "reconfigure")
-                        : (deorphan ? "deorphan/update" : "reconfigure/update"))
+                        ? (deorphan ? "replace"        : "reconfigure")
+                        : (deorphan ? "replace/update" : "reconfigure/update"))
                      : "update");
 
                 if (p.reconfigure ())
@@ -5384,8 +5384,8 @@ namespace bpkg
                 act += p.system
                   ? "reconfigure"
                   : (sp->version < p.available_version ()
-                     ? (deorphan ? "deorphan/upgrade"   : "upgrade")
-                     : (deorphan ? "deorphan/downgrade" : "downgrade"));
+                     ? (deorphan ? "replace/upgrade"   : "upgrade")
+                     : (deorphan ? "replace/downgrade" : "downgrade"));
 
                 // For a non-system package up/downgrade the skeleton must
                 // already be initialized.

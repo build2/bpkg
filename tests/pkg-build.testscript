@@ -16480,7 +16480,7 @@ else
         %  new libbuild2-bar/1.0.0 \[h1.\.bpkg.build2.\] \(required by foo\)%
         %  new libbaz/1.0.0 \[h2.\]%
           drop libbaz/1.1.0 (unused)
-          deorphan/downgrade foo/1.0.0
+          replace/downgrade foo/1.0.0
         disfigured foo/1.1.0
         disfigured libbaz/1.1.0
         %fetched libbuild2-bar/1.0.0 \[h1.\.bpkg.build2.\]%
@@ -16538,7 +16538,7 @@ else
         %  new libbuild2-bar/1.0.0 \[h1.\.bpkg.build2.\] \(required by foo\)%
         %  new libbaz/1.0.0 \[h2.\]%
           drop libbaz/1.1.0 (unused)
-          deorphan/downgrade foo/1.0.0
+          replace/downgrade foo/1.0.0
         disfigured foo/1.1.0
         disfigured libbaz/1.1.0
         %fetched libbuild2-bar/1.0.0 \[h1.\.bpkg.build2.\]%
@@ -17883,7 +17883,7 @@ else
         # removed.
         #
         $* --deorphan libfoo 2>>~%EOE%;
-            deorphan/upgrade libfoo/1.1.0#1
+            replace/upgrade libfoo/1.1.0#1
             reconfigure libbar (dependent of libfoo)
           disfigured libbar/1.1.0
           disfigured libfoo/1.1.0
@@ -17915,7 +17915,7 @@ else
         $rep_remove $~/libfoo/;
 
         $* --deorphan ?libfoo 2>>~%EOE%;
-            deorphan/downgrade/unhold libfoo/1.1.0
+            replace/downgrade/unhold libfoo/1.1.0
             reconfigure libbar (dependent of libfoo)
           disfigured libbar/1.1.0
           disfigured libfoo/1.1.0#1
@@ -17954,7 +17954,7 @@ else
         $rep_remove $~/libfoo/;
 
         $* --deorphan ?libfoo 2>>~%EOE%;
-            deorphan/downgrade/unhold libfoo/1.1.0
+            replace/downgrade/unhold libfoo/1.1.0
             reconfigure libbar (dependent of libfoo)
           disfigured libbar/1.1.0
           disfigured libfoo/1.1.0#1
@@ -18019,7 +18019,7 @@ else
         # removed.
         #
         $* --deorphan libfoo 2>>~%EOE%;
-            deorphan/upgrade libfoo/1.1.0#1
+            replace/upgrade libfoo/1.1.0#1
             reconfigure libbar (dependent of libfoo)
           disfigured libbar/1.1.0
           disfigured libfoo/1.1.0
@@ -18058,7 +18058,7 @@ else
         cn = "dir:$cn";
 
         $* --mask-repository $cn --deorphan ?libfoo 2>>~%EOE%;
-            deorphan/downgrade/unhold libfoo/1.1.0
+            replace/downgrade/unhold libfoo/1.1.0
             reconfigure libbar (dependent of libfoo)
           disfigured libbar/1.1.0
           disfigured libfoo/1.1.0#1
@@ -18094,7 +18094,7 @@ else
           EOO
 
         $* --mask-repository $cn --deorphan ?libfoo 2>>~%EOE%;
-            deorphan/downgrade/unhold libfoo/1.1.0
+            replace/downgrade/unhold libfoo/1.1.0
             reconfigure libbar (dependent of libfoo)
           disfigured libbar/1.1.0
           disfigured libfoo/1.1.0#1
@@ -18319,7 +18319,7 @@ else
         $rep_remove $~/libfoo/;
 
         $* --deorphan ?libfoo 2>>~%EOE%;
-            deorphan/update/unhold libfoo/1.1.0+2
+            replace/update/unhold libfoo/1.1.0+2
             reconfigure libbar (dependent of libfoo)
           disfigured libbar/1.0.0
           disfigured libfoo/1.1.0+2
@@ -18373,7 +18373,7 @@ else
         $rep_fetch;
 
         $* --deorphan ?libfoo 2>>~%EOE%;
-            deorphan/upgrade libfoo/1.1.0+3
+            replace/upgrade libfoo/1.1.0+3
             reconfigure libbar (dependent of libfoo)
           disfigured libbar/1.0.0
           disfigured libfoo/1.1.0+2
@@ -18423,7 +18423,7 @@ else
         $rep_fetch;
 
         $* --deorphan ?libfoo 2>>~%EOE%;
-            deorphan/upgrade libfoo/1.1.1
+            replace/upgrade libfoo/1.1.1
             reconfigure libbar (dependent of libfoo)
           disfigured libbar/1.0.0
           disfigured libfoo/1.1.0+3
@@ -18470,7 +18470,7 @@ else
         $rep_fetch;
 
         $* --deorphan ?libfoo 2>>~%EOE%;
-            deorphan/upgrade libfoo/1.2.0
+            replace/upgrade libfoo/1.2.0
             reconfigure libbar (dependent of libfoo)
           disfigured libbar/1.0.0
           disfigured libfoo/1.1.1
@@ -18514,7 +18514,7 @@ else
         $rep_fetch;
 
         $* --deorphan ?libfoo 2>>~%EOE%;
-            deorphan/downgrade libfoo/1.1.0+1
+            replace/downgrade libfoo/1.1.0+1
             reconfigure libbar (dependent of libfoo)
           disfigured libbar/1.0.0
           disfigured libfoo/1.2.0
@@ -18555,7 +18555,7 @@ else
         $rep_fetch;
 
         $* --deorphan ?libfoo 2>>~%EOE%;
-            deorphan/downgrade libfoo/1.1.0
+            replace/downgrade libfoo/1.1.0
             reconfigure libbar (dependent of libfoo)
           disfigured libbar/1.0.0
           disfigured libfoo/1.1.0+1
@@ -18593,7 +18593,7 @@ else
         $rep_fetch;
 
         $* --deorphan ?libfoo 2>>~%EOE%;
-            deorphan/downgrade libfoo/1.0.0
+            replace/downgrade libfoo/1.0.0
             reconfigure libbar (dependent of libfoo)
           disfigured libbar/1.0.0
           disfigured libfoo/1.1.0
@@ -18677,8 +18677,8 @@ else
         $rep_add $rep/t2 $rep/t4b $rep/t14c && $rep_fetch;
 
         $* --deorphan --immediate libbar 2>>~%EOE%;
-            deorphan/downgrade libfoo/1.0.0
-            deorphan/update libbar/1.0.0
+            replace/downgrade libfoo/1.0.0
+            replace/update libbar/1.0.0
           disfigured libbar/1.0.0
           disfigured libfoo/1.1.0
           fetched libfoo/1.0.0
@@ -18727,8 +18727,8 @@ else
         cn = "dir:$cn";
 
         $* --mask-repository $cn --deorphan --immediate libbar 2>>~%EOE%;
-            deorphan/downgrade libfoo/1.0.0
-            deorphan/update libbar/1.0.0
+            replace/downgrade libfoo/1.0.0
+            replace/update libbar/1.0.0
           disfigured libbar/1.0.0
           disfigured libfoo/1.1.0
           fetched libfoo/1.0.0
@@ -18767,8 +18767,8 @@ else
         $rep_add $rep/t2 $rep/t4b $rep/t14c && $rep_fetch;
 
         $* --deorphan --recursive libbar 2>>~%EOE%;
-            deorphan/downgrade libfoo/1.0.0
-            deorphan/update libbar/1.0.0
+            replace/downgrade libfoo/1.0.0
+            replace/update libbar/1.0.0
           disfigured libbar/1.0.0
           disfigured libfoo/1.1.0
           fetched libfoo/1.0.0
@@ -18816,7 +18816,7 @@ else
         $rep_fetch;
 
         $* --deorphan-immediate libbar 2>>~%EOE%;
-            deorphan/upgrade libfoo/1.1.1
+            replace/upgrade libfoo/1.1.1
             reconfigure/update libbar/1.0.0
           disfigured libbar/1.0.0
           disfigured libfoo/1.1.0
@@ -18867,7 +18867,7 @@ else
         $rep_fetch;
 
         $* --deorphan-recursive libbaz 2>>~%EOE%;
-            deorphan/upgrade libfoo/1.1.1
+            replace/upgrade libfoo/1.1.1
             reconfigure libbar (dependent of libfoo)
             reconfigure/update libbaz/1.0.0
           disfigured libbaz/1.0.0
@@ -18933,8 +18933,8 @@ else
         $rep_add $rep/t2 $rep/t4b $rep/t14c && $rep_fetch;
 
         $* --deorphan --immediate 2>>~%EOE%;
-            deorphan/downgrade libfoo/1.0.0
-            deorphan/update libbar/1.0.0
+            replace/downgrade libfoo/1.0.0
+            replace/update libbar/1.0.0
           disfigured libbar/1.0.0
           disfigured libfoo/1.1.0
           fetched libfoo/1.0.0
@@ -18973,8 +18973,8 @@ else
         $rep_add $rep/t2 $rep/t4b $rep/t14c && $rep_fetch;
 
         $* --deorphan --recursive 2>>~%EOE%;
-            deorphan/downgrade libfoo/1.0.0
-            deorphan/update libbar/1.0.0
+            replace/downgrade libfoo/1.0.0
+            replace/update libbar/1.0.0
           disfigured libbar/1.0.0
           disfigured libfoo/1.1.0
           fetched libfoo/1.0.0
@@ -19022,7 +19022,7 @@ else
       # Deorphan libfoo/1.0.0 to libfoo/1.0.0#1.
       #
       $* --deorphan libfoo 2>>~%EOE%;
-          deorphan/upgrade libfoo/1.0.0#1
+          replace/upgrade libfoo/1.0.0#1
         disfigured libfoo/1.0.0
         using libfoo/1.0.0#1 (external)
         configured libfoo/1.0.0#1
@@ -19049,7 +19049,7 @@ else
       $rep_remove $~/libfoo/;
 
       $* --deorphan libfoo 2>>~%EOE%;
-          deorphan/downgrade libfoo/1.0.0
+          replace/downgrade libfoo/1.0.0
         disfigured libfoo/1.0.0#1
         fetched libfoo/1.0.0
         unpacked libfoo/1.0.0
@@ -19073,7 +19073,7 @@ else
       # While at it, use the 'deorphan all held packages' form.
       #
       $* --deorphan 2>>~%EOE%;
-          deorphan/upgrade libfoo/1.1.0
+          replace/upgrade libfoo/1.1.0
         disfigured libfoo/1.0.0
         fetched libfoo/1.1.0
         unpacked libfoo/1.1.0
@@ -19117,7 +19117,7 @@ else
       # Deorphan libfoo/1.0.0 to libfoo/1.0.0#1.
       #
       $* --deorphan libfoo 2>>~%EOE%;
-          deorphan/upgrade libfoo/1.0.0#1
+          replace/upgrade libfoo/1.0.0#1
         disfigured libfoo/1.0.0
         using libfoo/1.0.0#1 (external)
         configured libfoo/1.0.0#1
@@ -19151,7 +19151,7 @@ else
       cn = "dir:$cn";
 
       $* --mask-repository $cn --deorphan libfoo 2>>~%EOE%;
-          deorphan/downgrade libfoo/1.0.0
+          replace/downgrade libfoo/1.0.0
         disfigured libfoo/1.0.0#1
         fetched libfoo/1.0.0
         unpacked libfoo/1.0.0
@@ -19173,7 +19173,7 @@ else
       # While at it, use the 'deorphan all held packages' form.
       #
       $* --mask-repository $cn --mask-repository $rep/t4c --deorphan 2>>~%EOE%;
-          deorphan/upgrade libfoo/1.1.0
+          replace/upgrade libfoo/1.1.0
         disfigured libfoo/1.0.0
         fetched libfoo/1.1.0
         unpacked libfoo/1.1.0
@@ -19217,7 +19217,7 @@ else
       $rep_remove $~/libfoo/;
 
       $* --deorphan libfoo 2>>~%EOE%;
-          deorphan/update libfoo/1.1.0+2
+          replace/update libfoo/1.1.0+2
         disfigured libfoo/1.1.0+2
         fetched libfoo/1.1.0+2
         unpacked libfoo/1.1.0+2
@@ -19243,7 +19243,7 @@ else
       $rep_remove $rep/t14d;
 
       $* --deorphan libfoo 2>>~%EOE%;
-          deorphan/upgrade libfoo/1.1.0+3
+          replace/upgrade libfoo/1.1.0+3
         disfigured libfoo/1.1.0+2
         fetched libfoo/1.1.0+3
         unpacked libfoo/1.1.0+3
@@ -19269,7 +19269,7 @@ else
       $rep_remove $rep/t14e;
 
       $* --deorphan libfoo 2>>~%EOE%;
-          deorphan/upgrade libfoo/1.1.1
+          replace/upgrade libfoo/1.1.1
         disfigured libfoo/1.1.0+3
         fetched libfoo/1.1.1
         unpacked libfoo/1.1.1
@@ -19295,7 +19295,7 @@ else
       $rep_remove $rep/t14f;
 
       $* --deorphan libfoo 2>>~%EOE%;
-          deorphan/upgrade libfoo/1.2.0
+          replace/upgrade libfoo/1.2.0
         disfigured libfoo/1.1.1
         fetched libfoo/1.2.0
         unpacked libfoo/1.2.0
@@ -19321,7 +19321,7 @@ else
       $rep_remove $rep/t14i;
 
       $* --deorphan libfoo 2>>~%EOE%;
-          deorphan/downgrade libfoo/1.1.0+1
+          replace/downgrade libfoo/1.1.0+1
         disfigured libfoo/1.2.0
         fetched libfoo/1.1.0+1
         unpacked libfoo/1.1.0+1
@@ -19347,7 +19347,7 @@ else
       $rep_remove $rep/t14c;
 
       $* --deorphan libfoo 2>>~%EOE%;
-          deorphan/downgrade libfoo/1.1.0
+          replace/downgrade libfoo/1.1.0
         disfigured libfoo/1.1.0+1
         fetched libfoo/1.1.0
         unpacked libfoo/1.1.0
@@ -19373,7 +19373,7 @@ else
       $rep_remove $rep/t14b;
 
       $* --deorphan libfoo 2>>~%EOE%;
-          deorphan/downgrade libfoo/1.0.0
+          replace/downgrade libfoo/1.0.0
         disfigured libfoo/1.1.0
         fetched libfoo/1.0.0
         unpacked libfoo/1.0.0
@@ -19436,7 +19436,7 @@ else
       $rep_remove $~/libfoo/;
 
       $* --deorphan 2>>~%EOE%;
-          deorphan/update libfoo/1.1.0+2
+          replace/update libfoo/1.1.0+2
         disfigured libfoo/1.1.0+2
         fetched libfoo/1.1.0+2
         unpacked libfoo/1.1.0+2
@@ -19462,7 +19462,7 @@ else
       $rep_remove $rep/t14d;
 
       $* --deorphan 2>>~%EOE%;
-          deorphan/upgrade libfoo/1.1.0+3
+          replace/upgrade libfoo/1.1.0+3
         disfigured libfoo/1.1.0+2
         fetched libfoo/1.1.0+3
         unpacked libfoo/1.1.0+3
@@ -19488,7 +19488,7 @@ else
       $rep_remove $rep/t14e;
 
       $* --deorphan 2>>~%EOE%;
-          deorphan/upgrade libfoo/1.1.1
+          replace/upgrade libfoo/1.1.1
         disfigured libfoo/1.1.0+3
         fetched libfoo/1.1.1
         unpacked libfoo/1.1.1
@@ -19514,7 +19514,7 @@ else
       $rep_remove $rep/t14f;
 
       $* --deorphan 2>>~%EOE%;
-          deorphan/upgrade libfoo/1.2.0
+          replace/upgrade libfoo/1.2.0
         disfigured libfoo/1.1.1
         fetched libfoo/1.2.0
         unpacked libfoo/1.2.0
@@ -19540,7 +19540,7 @@ else
       $rep_remove $rep/t14i;
 
       $* --deorphan 2>>~%EOE%;
-          deorphan/downgrade libfoo/1.1.0+1
+          replace/downgrade libfoo/1.1.0+1
         disfigured libfoo/1.2.0
         fetched libfoo/1.1.0+1
         unpacked libfoo/1.1.0+1
@@ -19566,7 +19566,7 @@ else
       $rep_remove $rep/t14c;
 
       $* --deorphan 2>>~%EOE%;
-          deorphan/downgrade libfoo/1.1.0
+          replace/downgrade libfoo/1.1.0
         disfigured libfoo/1.1.0+1
         fetched libfoo/1.1.0
         unpacked libfoo/1.1.0
@@ -19592,7 +19592,7 @@ else
       $rep_remove $rep/t14b;
 
       $* --deorphan 2>>~%EOE%;
-          deorphan/downgrade libfoo/1.0.0
+          replace/downgrade libfoo/1.0.0
         disfigured libfoo/1.1.0
         fetched libfoo/1.0.0
         unpacked libfoo/1.0.0
@@ -19664,7 +19664,7 @@ else
       mask = --mask-repository $cn;
 
       $* $mask --deorphan 2>>~%EOE%;
-          deorphan/update libfoo/1.1.0+2
+          replace/update libfoo/1.1.0+2
         disfigured libfoo/1.1.0+2
         fetched libfoo/1.1.0+2
         unpacked libfoo/1.1.0+2
@@ -19690,7 +19690,7 @@ else
       mask += --mask-repository $rep/t14d;
 
       $* $mask --deorphan 2>>~%EOE%;
-          deorphan/upgrade libfoo/1.1.0+3
+          replace/upgrade libfoo/1.1.0+3
         disfigured libfoo/1.1.0+2
         fetched libfoo/1.1.0+3
         unpacked libfoo/1.1.0+3
@@ -19716,7 +19716,7 @@ else
       mask += --mask-repository $rep/t14e;
 
       $* $mask --deorphan 2>>~%EOE%;
-          deorphan/upgrade libfoo/1.1.1
+          replace/upgrade libfoo/1.1.1
         disfigured libfoo/1.1.0+3
         fetched libfoo/1.1.1
         unpacked libfoo/1.1.1
@@ -19742,7 +19742,7 @@ else
       mask += --mask-repository $rep/t14f;
 
       $* $mask --deorphan 2>>~%EOE%;
-          deorphan/upgrade libfoo/1.2.0
+          replace/upgrade libfoo/1.2.0
         disfigured libfoo/1.1.1
         fetched libfoo/1.2.0
         unpacked libfoo/1.2.0
@@ -19768,7 +19768,7 @@ else
       mask += --mask-repository $rep/t14i;
 
       $* $mask --deorphan 2>>~%EOE%;
-          deorphan/downgrade libfoo/1.1.0+1
+          replace/downgrade libfoo/1.1.0+1
         disfigured libfoo/1.2.0
         fetched libfoo/1.1.0+1
         unpacked libfoo/1.1.0+1
@@ -19794,7 +19794,7 @@ else
       mask += --mask-repository $rep/t14c;
 
       $* $mask --deorphan 2>>~%EOE%;
-          deorphan/downgrade libfoo/1.1.0
+          replace/downgrade libfoo/1.1.0
         disfigured libfoo/1.1.0+1
         fetched libfoo/1.1.0
         unpacked libfoo/1.1.0
@@ -19820,7 +19820,7 @@ else
       mask += --mask-repository $rep/t14b;
 
       $* $mask --deorphan 2>>~%EOE%;
-          deorphan/downgrade libfoo/1.0.0
+          replace/downgrade libfoo/1.0.0
         disfigured libfoo/1.1.0
         fetched libfoo/1.0.0
         unpacked libfoo/1.0.0
