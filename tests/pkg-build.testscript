@@ -613,7 +613,7 @@ test.arguments += --sys-no-query
   : mask-repository-uuid-not-found
   :
   $clone_root_cfg;
-  $* --mask-repository-uuid "$cfg_uuid=https://example.com/1" libfoo 2>>/EOE != 0
+  $* --mask-repository-uuid "$cfg_uuid=https://example.com/1" libfoo 2>>EOE != 0
     error: configuration repository '00000000-0000-0000-0000-000000000001=https://example.com/1' cannot be masked: repository location 'https://example.com/1' not found in configuration 00000000-0000-0000-0000-000000000001
     EOE
 
