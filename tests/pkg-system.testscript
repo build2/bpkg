@@ -849,11 +849,6 @@ rep_remove += -d cfg 2>!
       info: while satisfying foo/2
       EOE
 
-    $pkg_build 'sys:libbar' 2>>EOE != 0;
-      error: unknown package sys:libbar
-        info: consider specifying sys:libbar/*
-      EOE
-
     $pkg_build foo 'sys:libbar/1' 2>>EOE != 0;
       error: dependency libbar >= 2 of package foo is not available in source
         info: sys:libbar/1 does not satisfy the constrains
@@ -872,11 +867,26 @@ rep_remove += -d cfg 2>!
     $pkg_status libbar >'libbar unknown'
   }
 
+  : find-all
+  :
+  : Test that sys:libbar can be built to hold even if its stub package is not
+  : available from the configured repository but only from its prerequisite
+  : repository.
+  :
+  {
+    $clone_cfg;
+
+    $pkg_build 'sys:libbar' 2>>EOE;
+      configured sys:libbar/*
+      EOE
+
+    $pkg_status libbar >'!libbar configured,system !*'
+  }
+
   : syslibbar1-foo-syslibbar-drop-foo
   :
-  : The overall plan is to build foo ?sys:libbar/2, fail to build sys:libbar
-  : and foo 'sys:libbar', but succeed to build foo ?sys:libbar/3 and foo
-  : ?sys:libbar.
+  : The overall plan is to build foo ?sys:libbar/2, then foo ?sys:libbar/3,
+  : and then foo ?sys:libbar.
   :
   {
     $clone_cfg;
@@ -895,22 +905,6 @@ rep_remove += -d cfg 2>!
 
     $pkg_status foo    >'!foo configured 2';
     $pkg_status libbar >'libbar configured,system !2';
-
-    # Fail as libbar while being selected is still unknown (not present in t3
-    # repo).
-    #
-    $pkg_build 'sys:libbar' 2>>EOE != 0;
-      error: unknown package sys:libbar
-        info: consider specifying sys:libbar/*
-      EOE
-
-    $pkg_build foo 'sys:libbar' 2>>EOE != 0;
-      error: unknown package sys:libbar
-        info: consider specifying sys:libbar/*
-      EOE
-
-    $pkg_status foo    1>'!foo configured 2';
-    $pkg_status libbar 1>'libbar configured,system !2';
 
     # Build foo and ?sys:libbar/3.
     #

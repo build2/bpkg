@@ -3168,8 +3168,14 @@ namespace bpkg
                      ? find_orphan_match (sp, root)
                      : find_available_one (pa.name, c, root));
 
-              if (rp.first == nullptr && sys && c)
-                rp = find_available_one (pa.name, nullopt, root);
+              if (rp.first == nullptr && sys)
+              {
+                available_packages aps (
+                  find_available_all (repo_configs, pa.name));
+
+                if (!aps.empty ())
+                  rp = move (aps.front ());
+              }
 
               ap = move (rp.first);
               af = move (rp.second);
