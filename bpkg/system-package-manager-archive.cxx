@@ -139,7 +139,17 @@ namespace bpkg
       const char* c (nullptr);
 
       if      (e == "tar.gz")  { c = "gzip";  l = "-9"; }
-      else if (e == "tar.xz")  { c = "xz";    l = "-9"; }
+      else if (e == "tar.xz")
+      {
+        // At least as of Mac OS 13 and Xcode 15, there is no standalone xz
+        // utility but tar seem to be capable of producing .tar.xz.
+        //
+#ifdef __APPLE__
+        l = "--options=compression-level=9";
+#else
+        c = "xz";    l = "-9";
+#endif
+      }
 
       if (c != nullptr)
       {
