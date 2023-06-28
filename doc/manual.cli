@@ -2387,7 +2387,7 @@ older-libz-build-config: \"?libz ^1.0.0\"; Test with older libz version.
 
 sys-build-config:
 \\
-?sys:libbar/* ?sys:libz/*
+?sys:libbar ?sys:libz
 ;
 Test with system dependencies.
 \\
