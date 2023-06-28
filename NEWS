@@ -1,3 +1,115 @@
+Version 0.16.0
+
+  * System package manager query/installation support for Debian and Fedora
+    (and alike).
+
+    The pkg-build command will now query (unless --sys-no-query is specified)
+    the system package manager on Debian (and alike, such as Ubuntu) and
+    Fedora (and alike, such as RHEL) for versions of packages that are
+    specified as coming from the system (the sys: scheme). For example, if
+    running the following command on one of these distributions:
+
+    bpkg build hello ?sys:libsqlite3
+
+    Then pkg-build will query the system package manager for the installed
+    version of libsqlite3 and fail if none is present.
+
+    Additionally, if --sys-install is specified, pkg-build will attempt to
+    install such packages if not present but available from the system package
+    repository.
+
+    Other relevant options include --sys-yes, --sys-no-fetch, --sys-no-stub,
+    and --sys-sudo. See bpkg-pkg-build(1) for details.
+
+    See also the `*-{name, version, to-downstream-version}` package manifest
+    values in the manual for details on the bpkg to distribution package name
+    and version mapping.
+
+  * Binary distribution package generation support for Debian and Fedora (and
+    alike).
+
+    The new pkg-bindist command can be used to automatically generate binary
+    distribution packages from bpkg packages for Debian (and alike, such as
+    Ubuntu), Fedora (and alike, such as RHEL), and for other operating systems
+    as archives. For Debian and Fedora, dependencies can be satisfied with
+    system packages, bpkg packages, or bundled. See bpkg-pkg-bindist(1) for
+    details.
+
+  * Package build configuration support (*-build-config manifest values).
+
+    A package can now customize in its manifest the build configuration used
+    by automated build bots. This includes specifying configuration variable
+    values, forcing specific versions of dependencies, satisfying dependencies
+    with system packages, and enabling/disabling build bot steps. For example:
+
+    # Test with extras enabled.
+    #
+    extras-build-config: config.libfoo.extra=true
+
+    # Test with system-installed libsqlite3.
+    #
+    system-builds: sys
+    system-build-config: ?sys:libsqlite3
+
+    # Enable Debian binary distribution generation and upload.
+    #
+    bindist-debian-builds: bindist
+    bindist-debian-build-include: linux_debian*-**
+    bindist-debian-build-include: linux_ubuntu*-**
+    bindist-debian-build-exclude: **
+    bindist-debian-build-config:
+    \
+    +bpkg.bindist.debian:
+    +bbot.bindist.upload:
+    \
+
+    See the `*-build-config` package manifest values in the manual for
+    details.
+
+  * New package-description and package-description-{file,type} package
+    manifest values.
+
+    Compared to the description* values, these can be used to provide a bpkg
+    package-specific description, such as the recommended usage, configuration
+    variables, etc. See the `description`, `package-description` package
+    manifest values in the manual for details.
+
+  * New changes-type package manifest value and type auto-detection, similar
+    to description.
+
+    See the `changes` package manifest value in the manual for details.
+
+  * New --deorphan pkg-build option.
+
+    This option can be used to replace orphaned packages (packages that no
+    longer have the corresponding package available in the repository it came
+    from) with the closest available package versions that satisfy all the
+    constraints.
+
+  * New --mask-repository* pkg-build options.
+
+    These options allow pretending for the duration of the pkg-build command
+    execution that the specified repository was removed as if by performing
+    the rep-remove command.
+
+  * New --dependent-exit pkg-drop option.
+
+    This option causes the pkg-drop command to silently exit with the
+    specified error code if attempting to drop dependent packages.
+
+  * New --git-capabilities common option to override auto-detected git
+    capabilities.
+
+    We now also assume the git repository protocol is smart if the HTTP
+    response code is 401 (requires authentication).
+
+  * curl is now used instead of wget as the default fetch program.
+
+    We used to prefer wget 1.16 because it has --show-progress which results
+    in nicer progress. But experience shows that wget is quite unreliable plus
+    with bdep always using curl, it would be strange to use both curl and wget
+    (and expecting the user to setup proxy, authentication, etc., for both).
+
 Version 0.15.0
 
   * New dependency declaration features:
