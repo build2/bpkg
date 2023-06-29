@@ -3353,7 +3353,8 @@ namespace bpkg
                 // then we wouldn't be able to continue using it if
                 // negotiate_configuration() below returns false. So it seems
                 // the most sensible approach is to make a temporary copy and
-                // reset that.
+                // reset that (see the similar code in
+                // collect_build_postponed()).
                 //
                 small_vector<reference_wrapper<package_skeleton>, 1> depcs;
                 forward_list<package_skeleton> depcs_storage; // Ref stability.
@@ -4802,8 +4803,15 @@ namespace bpkg
           dept = &*b->skeleton;
         }
 
+        // If a dependency has already been recursively collected, then we can
+        // no longer call reload_defaults() or verify_sensible() on its
+        // skeleton. Thus, we make a temporary copy and reset that (see the
+        // collect() lambda in collect_build_prerequisites() for more
+        // details).
+        //
         pair<size_t, size_t> pos;
         small_vector<reference_wrapper<package_skeleton>, 1> depcs;
+        forward_list<package_skeleton> depcs_storage; // Ref stability.
         bool has_alt;
         {
           // A non-negotiated cluster must only have one depends position for
@@ -4830,9 +4838,21 @@ namespace bpkg
             build_package* b (entered_build (pk));
             assert (b != nullptr);
 
-            depcs.push_back (b->skeleton
-                             ? *b->skeleton
-                             : b->init_skeleton (o /* options */));
+            package_skeleton* depc;
+            if (b->recursive_collection)
+            {
+              assert (b->skeleton);
+
+              depcs_storage.push_front (*b->skeleton);
+              depc = &depcs_storage.front ();
+              depc->reset ();
+            }
+            else
+              depc = &(b->skeleton
+                       ? *b->skeleton
+                       : b->init_skeleton (o /* options */));
+
+            depcs.push_back (*depc);
           }
         }
 
