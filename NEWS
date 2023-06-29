@@ -31,9 +31,9 @@ Version 0.16.0
     The new pkg-bindist command can be used to automatically generate binary
     distribution packages from bpkg packages for Debian (and alike, such as
     Ubuntu), Fedora (and alike, such as RHEL), and for other operating systems
-    as archives. For Debian and Fedora, dependencies can be satisfied with
-    system packages, bpkg packages, or bundled. See bpkg-pkg-bindist(1) for
-    details.
+    as installation archives. For Debian and Fedora, dependencies can be
+    satisfied with system packages, bpkg packages, or bundled. See
+    bpkg-pkg-bindist(1) for details.
 
   * Package build configuration support (*-build-config manifest values).
 
