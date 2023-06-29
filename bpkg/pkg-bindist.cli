@@ -224,8 +224,8 @@ namespace bpkg
      than a package name. For example:
 
      \
-     apt-get install ./libhello_1.2.3-0~debian11_amd64.deb \
-                     ./libhello-dev_1.2.3-0~debian11_amd64.deb
+     sudo apt-get install ./libhello_1.2.3-0~debian11_amd64.deb \
+                          ./libhello-dev_1.2.3-0~debian11_amd64.deb
      \
 
      See \l{bpkg#bindist-mapping-debian-produce Debian Package Mapping for
@@ -391,8 +391,8 @@ namespace bpkg
      For example:
 
      \
-     dnf install libhello-1.2.3-1.fc35.x86_64.rpm \
-                 libhello-devel-1.2.3-1.fc35.x86_64.rpm
+     sudo dnf install libhello-1.2.3-1.fc35.x86_64.rpm \
+                      libhello-devel-1.2.3-1.fc35.x86_64.rpm
      \
 
      See \l{bpkg#bindist-mapping-fedora-produce Fedora Package Mapping for
@@ -618,7 +618,7 @@ namespace bpkg
 
      \
      sudo tar -xf libhello-1.2.3-x86_64-debian11-gcc12.tar.xz \
-        -C / --strip-components=1
+       -C / --strip-components=1
      \
 
      If you expect the binary package to be unpacked into a directory other
