@@ -515,17 +515,22 @@ namespace bpkg
   {
     if (dependency* d = find_dependency (dep.position))
     {
-      // Feels like we can accumulate dependencies into an existing
-      // position only for an existing dependent.
-      //
-      assert (existing);
-
       for (package_key& p: dep)
       {
         // Add the dependency unless it's already there.
         //
         if (find (d->begin (), d->end (), p) == d->end ())
+        {
+          // Feels like we can accumulate new dependencies into an existing
+          // position only for an existing dependent. Note that we could still
+          // try to add an (supposedly) identical entry for a non-existent
+          // dependent (via some murky paths). Feels like this should be
+          // harmless.
+          //
+          assert (existing);
+
           d->push_back (move (p));
+        }
       }
 
       // Set the has_alternative flag for an existing dependent. Note that
@@ -534,7 +539,10 @@ namespace bpkg
       if (dep.has_alternative)
       {
         if (!d->has_alternative)
+        {
+          assert (existing); // As above.
           d->has_alternative = *dep.has_alternative;
+        }
         else
           assert (*d->has_alternative == *dep.has_alternative);
       }
