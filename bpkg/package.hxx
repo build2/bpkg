@@ -26,9 +26,13 @@
 
 // Used by the data migration entries.
 //
+// NOTE: drop all the `#pragma db member(...) default(...)` pragmas when
+//       migration is no longer supported (i.e., the current and base schema
+//       versions are the same).
+//
 #define DB_SCHEMA_VERSION_BASE 12
 
-#pragma db model version(DB_SCHEMA_VERSION_BASE, 23, closed)
+#pragma db model version(DB_SCHEMA_VERSION_BASE, 24, closed)
 
 namespace bpkg
 {
@@ -618,9 +622,6 @@ namespace bpkg
   //
   #pragma db value(test_dependency) definition
 
-  // @@ TMP Drop when database migration to the schema version 11 is no longer
-  //    supported.
-  //
   #pragma db member(test_dependency::buildtime) default(false)
 
   using optional_test_dependency_type = optional<test_dependency_type>;
@@ -887,29 +888,21 @@ namespace bpkg
 
     // alt_naming
     //
-    // @@ TMP Drop when database migration to the schema version 20 is no
-    //    longer supported.
-    //
-    //    Note that since no real packages with alternative buildfile naming
-    //    use conditional dependencies yet, we can just set alt_naming to
-    //    false during migration to the database schema version 20. Also we
-    //    never rely on alt_naming to be nullopt for the stub packages, so
-    //    let's not complicate things and set alt_naming to false for them
-    //    either.
+    // Note that since no real packages with alternative buildfile naming use
+    // conditional dependencies yet, we can just set alt_naming to false
+    // during migration to the database schema version 20. Also we never rely
+    // on alt_naming to be nullopt for the stub packages, so let's not
+    // complicate things and set alt_naming to false for them either.
     //
     #pragma db member(alt_naming) default(false)
 
     // *_build
     //
-    // @@ TMP Drop when database migration to the schema version 15 is no
-    //    longer supported.
-    //
-    //    Note that since no real packages use conditional dependencies yet,
-    //    we can just set bootstrap_build to the empty string during migration
-    //    to the database schema version 15. Also we never rely on
-    //    bootstrap_build to be nullopt for the stub packages, so let's not
-    //    complicate things and set bootstrap_build to the empty string for
-    //    them either.
+    // Note that since no real packages use conditional dependencies yet, we
+    // can just set bootstrap_build to the empty string during migration to
+    // the database schema version 15. Also we never rely on bootstrap_build
+    // to be nullopt for the stub packages, so let's not complicate things and
+    // set bootstrap_build to the empty string for them either.
     //
     #pragma db member(bootstrap_build) default("")
 
@@ -1272,7 +1265,14 @@ namespace bpkg
 
     package_prerequisites prerequisites;
 
+    // Project configuration variable names and their sources.
+    //
     vector<config_variable> config_variables;
+
+    // SHA256 checksum of variables (names and values) referred to by the
+    // config_variables member.
+    //
+    std::string config_checksum;
 
   public:
     bool
@@ -1352,6 +1352,14 @@ namespace bpkg
       key_column("") value_column("")
 
     #pragma db member(config_variables) id_column("package") value_column("")
+
+    // For the sake of simplicity let's not calculate the checksum during
+    // migration. It seems that the only drawback of this approach is a
+    // (single) spurious reconfiguration of a dependency of a dependent with
+    // configuration clause previously configured by bpkg with the database
+    // schema version prior to 24.
+    //
+    #pragma db member(config_checksum) default("")
 
     // Explicit aggregate initialization for C++20 (private default ctor).
     //

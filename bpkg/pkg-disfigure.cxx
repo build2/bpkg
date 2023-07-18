@@ -200,7 +200,10 @@ namespace bpkg
       }
 
       if (disfigure)
+      {
         p->config_variables.clear ();
+        p->config_checksum.clear ();
+      }
     }
 
     p->out_root = nullopt;

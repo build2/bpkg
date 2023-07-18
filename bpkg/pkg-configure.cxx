@@ -371,9 +371,12 @@ namespace bpkg
     // etc) as well as their sources.
     //
     vector<config_variable> srcs;
+    string checksum;
 
     if (!simulate)
     {
+      checksum = ps.config_checksum ();
+
       pair<strings, vector<config_variable>> rvs (move (ps).collect_config ());
 
       strings& vs (rvs.first);
@@ -395,7 +398,8 @@ namespace bpkg
 
     return configure_prerequisites_result {move (prereqs),
                                            move (vars),
-                                           move (srcs)};
+                                           move (srcs),
+                                           move (checksum)};
   }
 
 
@@ -767,6 +771,7 @@ namespace bpkg
 #endif
 
       p->config_variables = move (cpr.config_sources);
+      p->config_checksum  = move (cpr.config_checksum);
     }
 
     p->out_root = out_root.leaf ();

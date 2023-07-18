@@ -1943,6 +1943,8 @@ namespace bpkg
   pair<strings, vector<config_variable>> package_skeleton::
   collect_config () &&
   {
+    // NOTE: remember to update config_checksum() if changing anything here.
+
     assert (db_ != nullptr); // Must be called only once.
 
     using build2::config::variable_origin;
@@ -1985,11 +1987,19 @@ namespace bpkg
         // variables which are project variables (i.e., names start with
         // config.<project>).
         //
+        size_t pn (var_prefix_.size ());
         for (const string& v: config_vars_)
         {
-          if (project_override (v, var_prefix_))
+          size_t vn;
+          if (project_override (v, var_prefix_, &vn))
           {
-            string n (var_name (v));
+            // Skip config.<project>.develop (can potentially be passed by
+            // bdep-init) if the package doesn't use it.
+            //
+            if (!develop_ && v.compare (pn, vn - pn, ".develop") == 0)
+              continue;
+
+            string n (v, 0, vn);
 
             // Check for a duplicate.
             //
@@ -2053,6 +2063,54 @@ namespace bpkg
     db_ = nullptr;
 
     return make_pair (move (vars), move (srcs));
+  }
+
+  string package_skeleton::
+  config_checksum ()
+  {
+    // Note: this is parallel to collect_config() logic but is not destructive.
+
+    assert (db_ != nullptr); // Must be called before collect_config().
+
+    if (!loaded_old_config_)
+      load_old_config ();
+
+    sha256 cs;
+
+    if (!config_vars_.empty ())
+    {
+      cstrings vs;
+      size_t pn (var_prefix_.size ());
+      for (const string& v: config_vars_)
+      {
+        size_t vn;
+        if (project_override (v, var_prefix_, &vn))
+        {
+          // Skip config.<project>.develop (can potentially be passed by
+          // bdep-init) if the package doesn't use it.
+          //
+          if (develop_ || v.compare (pn, vn - pn, ".develop") != 0)
+            cs.append (v);
+        }
+      }
+    }
+
+    if (!dependent_vars_.empty ())
+    {
+      for (const string& v: dependent_vars_)
+        cs.append (v);
+    }
+
+    if (!reflect_.empty ())
+    {
+      for (const reflect_variable_value& v: reflect_)
+      {
+        if (v.origin != build2::config::variable_origin::override_)
+          cs.append (serialize_cmdline (v.name, v.value));
+      }
+    }
+
+    return !cs.empty () ? cs.string () : string ();
   }
 
   const strings& package_skeleton::

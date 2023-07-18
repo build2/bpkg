@@ -82,6 +82,7 @@ namespace bpkg
     // ? dependent_config()
     // * evaluate_*()
     // * empty() | print_config()
+    // * config_checksum()
     //   collect_config()
     //
     // Note that a copy of the skeleton is expected to continue with the
@@ -180,6 +181,12 @@ namespace bpkg
     //
     pair<strings, vector<config_variable>>
     collect_config () &&;
+
+    // Return the checksum of the project configuration variables that will be
+    // returned by the collect_config() function call.
+    //
+    string
+    config_checksum ();
 
     // Implementation details.
     //

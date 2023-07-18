@@ -3456,13 +3456,6 @@ namespace bpkg
                 build_package* b (entered_build (p));
                 assert (b != nullptr);
 
-                // Reconfigure the configured dependencies (see
-                // collect_build_postponed() for details).
-                //
-                if (b->selected != nullptr &&
-                    b->selected->state == package_state::configured)
-                  b->flags |= build_package::adjust_reconfigure;
-
                 if (!b->recursive_collection)
                 {
                   l5 ([&]{trace << "collecting cfg-postponed dependency "
@@ -3470,17 +3463,19 @@ namespace bpkg
                                 << " of dependent "
                                 << pkg.available_name_version_db ();});
 
+                  assert (b->skeleton); // Should have been init'ed above.
+
+                  package_skeleton& ps (*b->skeleton);
+
                   // Similar to the inital negotiation case, verify and set
                   // the dependent configuration for this dependency.
                   //
                   {
-                    assert (b->skeleton); // Should have been init'ed above.
-
                     const package_configuration& pc (
                       cfg.dependency_configurations[p]);
 
-                    pair<bool, string> pr (b->skeleton->available != nullptr
-                                           ? b->skeleton->verify_sensible (pc)
+                    pair<bool, string> pr (ps.available != nullptr
+                                           ? ps.verify_sensible (pc)
                                            : make_pair (true, string ()));
 
                     if (!pr.first)
@@ -3494,7 +3489,7 @@ namespace bpkg
                       pc.print (dr, "    ");
                     }
 
-                    b->skeleton->dependent_config (pc);
+                    ps.dependent_config (pc);
                   }
 
                   collect_build_prerequisites (options,
@@ -3512,6 +3507,21 @@ namespace bpkg
                                                postponed_cfgs,
                                                postponed_poss,
                                                unacceptable_alts);
+
+                  // Unless the dependency is already being reconfigured,
+                  // reconfigure it if its configuration changes.
+                  //
+                  if (!b->reconfigure ())
+                  {
+                    const shared_ptr<selected_package>& sp (b->selected);
+
+                    if (sp != nullptr                          &&
+                        sp->state == package_state::configured &&
+                        sp->config_checksum != ps.config_checksum ())
+                    {
+                      b->flags |= build_package::adjust_reconfigure;
+                    }
+                  }
                 }
                 else
                   l5 ([&]{trace << "dependency "
@@ -4933,38 +4943,27 @@ namespace bpkg
         build_package* b (entered_build (p));
         assert (b != nullptr);
 
-        // Reconfigure the configured dependencies.
-        //
-        // Note that potentially this can be an overkill if the dependency
-        // configuration doesn't really change. Later we can implement some
-        // precise detection for that using configuration checksum or similar.
-        //
-        // Also note that for configured dependents which belong to the
-        // configuration cluster this flag is already set (see above).
-        //
-        if (b->selected != nullptr &&
-            b->selected->state == package_state::configured)
-          b->flags |= build_package::adjust_reconfigure;
-
         // Skip the dependencies which are already collected recursively.
         //
         if (!b->recursive_collection)
         {
+          assert (b->skeleton); // Should have been init'ed above.
+
+          package_skeleton& ps (*b->skeleton);
+
           // Verify and set the dependent configuration for this dependency.
           //
           // Note: see similar code for the up-negotiation case.
           //
           {
-            assert (b->skeleton); // Should have been init'ed above.
-
             const package_configuration& pc (
               pcfg->dependency_configurations[p]);
 
             // Skip the verification if this is a system package without
             // skeleton info.
             //
-            pair<bool, string> pr (b->skeleton->available != nullptr
-                                   ? b->skeleton->verify_sensible (pc)
+            pair<bool, string> pr (ps.available != nullptr
+                                   ? ps.verify_sensible (pc)
                                    : make_pair (true, string ()));
 
             if (!pr.first)
@@ -4983,7 +4982,7 @@ namespace bpkg
               pc.print (dr, "    "); // Note 4 spaces since in nested info.
             }
 
-            b->skeleton->dependent_config (pc);
+            ps.dependent_config (pc);
           }
 
           build_package_refs dep_chain;
@@ -5002,6 +5001,24 @@ namespace bpkg
                                        postponed_cfgs,
                                        postponed_poss,
                                        unacceptable_alts);
+
+          // Unless the dependency is already being reconfigured, reconfigure
+          // it if its configuration changes.
+          //
+          // Note that for configured dependents which belong to the
+          // configuration cluster this flag is already set (see above).
+          //
+          if (!b->reconfigure ())
+          {
+            const shared_ptr<selected_package>& sp (b->selected);
+
+            if (sp != nullptr                          &&
+                sp->state == package_state::configured &&
+                sp->config_checksum != ps.config_checksum ())
+            {
+              b->flags |= build_package::adjust_reconfigure;
+            }
+          }
         }
         else
           l5 ([&]{trace << "dependency " << b->available_name_version_db ()

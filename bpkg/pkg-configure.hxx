@@ -83,6 +83,11 @@ namespace bpkg
     // config_variables member.
     //
     vector<config_variable> config_sources; // Note: name and source.
+
+    // SHA256 checksum of variables (names and values) referred to by the
+    // config_sources member.
+    //
+    string config_checksum;
   };
 
   // Return the "would be" state for packages that would be configured
