@@ -1606,7 +1606,9 @@ namespace bpkg
       {
         for (existing_dependent& ed: eds)
         {
-          package_key dpk (ed.db, ed.selected->name);
+          package_key dpt (ed.db, ed.selected->name);
+          package_key dep (pk);
+
           size_t& di (ed.dependency_position.first);
 
           const build_package* bp (&pkg);
@@ -1623,7 +1625,7 @@ namespace bpkg
           // for details).
           //
           {
-            auto pi (postponed_poss.find (dpk));
+            auto pi (postponed_poss.find (dpt));
 
             if (pi != postponed_poss.end () && pi->second.first < di)
             {
@@ -1654,7 +1656,7 @@ namespace bpkg
                   replaced_vers,
                   postponed_cfgs);
 
-                pk = package_key (bp->db, bp->name ());
+                dep = package_key (bp->db, bp->name ());
 
                 // Note that here we side-step the bogus logic (by not setting
                 // the skipped flag) because in this case (replace=true) our
@@ -1676,7 +1678,7 @@ namespace bpkg
           for (const postponed_configuration& cfg: postponed_cfgs)
           {
             if (const pair<size_t, size_t>* p =
-                cfg.existing_dependent_position (pk))
+                cfg.existing_dependent_position (dpt))
             {
               size_t ei (p->first);
 
@@ -1687,7 +1689,7 @@ namespace bpkg
                 postponed_position pp (ed.dependency_position,
                                        false /* replace */);
 
-                auto p (postponed_poss.emplace (move (pk), pp));
+                auto p (postponed_poss.emplace (move (dpt), pp));
                 if (!p.second)
                 {
                   assert (p.first->second > pp);
@@ -1726,7 +1728,23 @@ namespace bpkg
                         << " of existing dependent " << *ed.selected
                         << ed.db;});
 
-          postponed_cfgs.add (move (dpk), ed.dependency_position, move (pk));
+          // Only add this dependent/dependency to the newly created cluster
+          // if this dependency doesn't belong to any cluster yet, which may
+          // not be the case if there are multiple existing dependents with
+          // configuration clause for this dependency.
+          //
+          // To put it another way, if there are multiple such an existing
+          // dependents for this dependency, here we will create the
+          // configuration cluster only for the first one. The remaining
+          // dependents will be added to this dependency's cluster when the
+          // existing dependents of dependencies in this cluster are all
+          // discovered and reevaluated (see collect_build_postponed() for
+          // details).
+          //
+          if (postponed_cfgs.find_dependency (dep) == nullptr)
+            postponed_cfgs.add (move (dpt),
+                                ed.dependency_position,
+                                move (dep));
         }
 
         return;
@@ -1861,12 +1879,12 @@ namespace bpkg
     package_skeleton& skel (*pkg.skeleton);
 
     auto fail_reeval = [&pkg] ()
-      {
-        fail << "unable to re-create dependency information of already "
-        << "configured package " << pkg.available_name_version_db () <<
+    {
+      fail << "unable to re-create dependency information of already "
+           << "configured package " << pkg.available_name_version_db () <<
         info << "likely cause is change in external environment" <<
         info << "consider resetting the build configuration";
-      };
+    };
 
     bool postponed (false);
     bool reevaluated (false);
@@ -2633,14 +2651,14 @@ namespace bpkg
               reused = false;
 
             r.push_back (prebuild {d,
-                  *ddb,
-                  move (dsp),
-                  move (dap),
-                  move (rp.second),
-                  system,
-                  specified,
-                  force,
-                  ru});
+                                   *ddb,
+                                   move (dsp),
+                                   move (dap),
+                                   move (rp.second),
+                                   system,
+                                   specified,
+                                   force,
+                                    ru});
           }
 
           // Now, as we have pre-collected the dependency builds, go through
@@ -5292,7 +5310,7 @@ namespace bpkg
             // Note that in this case we keep the accumulated configuration,
             // if any.
 
-            pc->depth = 0;
+            pc->depth = 0; // Mark as non-negotiated.
 
             // If requested, "replace" the "later" dependent-dependency
             // cluster with an earlier.

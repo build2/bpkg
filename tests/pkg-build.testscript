@@ -6060,6 +6060,107 @@ test.arguments += --sys-no-query
           $pkg_drop libfoo
         }
 
+        : multiple-dependents
+        :
+        {
+          $clone_cfg;
+
+          $* libfoo/0.1.0 foo/1.0.0 fox/1.0.0 2>!;
+
+          $pkg_status -r >>EOO;
+            !libfoo configured !0.1.0 available 1.0.0
+            !foo configured !1.0.0
+              !libfoo configured !0.1.0 available 1.0.0
+            !fox configured !1.0.0
+              !libfoo configured !0.1.0 available 1.0.0
+            EOO
+
+          $* libfoo 2>>~%EOE%;
+            %.*
+            trace: pkg_build: refine package collection/plan execution from scratch
+            %.*
+            trace: collect_build: add libfoo/1.0.0
+            %.*
+            trace: collect_build_prerequisites: cfg-postpone dependency libfoo/1.0.0 of existing dependent foo/1.0.0
+            trace: postponed_configurations::add: create {foo^ | libfoo->{foo/1,1}}
+            trace: collect_build_prerequisites: cfg-postpone dependency libfoo/1.0.0 of existing dependent fox/1.0.0
+            trace: collect_build_postponed (0): begin
+            trace: collect_build_postponed (1): begin {foo^ | libfoo->{foo/1,1}}
+            %.*
+            trace: collect_build_postponed (1): re-evaluate existing dependents for {foo^ | libfoo->{foo/1,1}}
+            %.*
+            trace: collect_build: add foo/1.0.0
+            trace: collect_build_prerequisites: reeval foo/1.0.0
+            %.*
+            trace: collect_build: pick libfoo/1.0.0 over libfoo/0.1.0
+            trace: postponed_configurations::add: add {foo^ 1,1: libfoo} to {foo^ | libfoo->{foo/1,1}}
+            trace: collect_build_prerequisites: re-evaluating dependent foo/1.0.0 results in {foo^ | libfoo->{foo/1,1}}
+            trace: collect_build_prerequisites: re-evaluated foo/1.0.0
+            %.*
+            trace: collect_build: add fox/1.0.0
+            trace: collect_build_prerequisites: reeval fox/1.0.0
+            %.*
+            trace: collect_build: pick libfoo/1.0.0 over libfoo/0.1.0
+            trace: postponed_configurations::add: add {fox^ 1,1: libfoo} to {foo^ | libfoo->{foo/1,1}}
+            trace: collect_build_prerequisites: re-evaluating dependent fox/1.0.0 results in {foo^ fox^ | libfoo->{foo/1,1 fox/1,1}}
+            trace: collect_build_prerequisites: re-evaluated fox/1.0.0
+            trace: collect_build_postponed (1): cfg-negotiate begin {foo^ fox^ | libfoo->{foo/1,1 fox/1,1}}
+            %.*
+            trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
+            trace: collect_build_prerequisites: begin libfoo/1.0.0
+            trace: collect_build_prerequisites: end libfoo/1.0.0
+            trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
+            trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent foo/1.0.0
+            trace: collect_build_prerequisites: resume foo/1.0.0
+            trace: collect_build_prerequisites: end foo/1.0.0
+            trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent fox/1.0.0
+            trace: collect_build_prerequisites: resume fox/1.0.0
+            trace: collect_build_prerequisites: end fox/1.0.0
+            trace: collect_build_postponed (1): cfg-negotiate end {foo^ fox^ | libfoo->{foo/1,1 fox/1,1}}!
+            trace: collect_build_postponed (1): end {foo^ | libfoo->{foo/1,1}}
+            trace: collect_build_postponed (0): end
+            %.*
+            trace: execute_plan: simulate: yes
+            %.*
+            build plan:
+              upgrade libfoo/1.0.0
+                config.libfoo.extras=true (set by foo)
+              reconfigure fox/1.0.0 (dependent of libfoo)
+              reconfigure foo/1.0.0 (dependent of libfoo)
+            %.*
+            disfigured foo/1.0.0
+            %.*
+            disfigured fox/1.0.0
+            %.*
+            disfigured libfoo/0.1.0
+            %.*
+            fetched libfoo/1.0.0
+            %.*
+            unpacked libfoo/1.0.0
+            %.*
+            configured libfoo/1.0.0
+            %.*
+            configured foo/1.0.0
+            %.*
+            updated libfoo/1.0.0
+            %.*
+            updated fox/1.0.0
+            %.*
+            updated foo/1.0.0
+            %.*
+            EOE
+
+          $pkg_status -r >>EOO;
+            !libfoo configured 1.0.0
+            !foo configured !1.0.0
+              !libfoo configured 1.0.0
+            !fox configured !1.0.0
+              !libfoo configured 1.0.0
+            EOO
+
+          $pkg_drop libfoo foo fox
+        }
+
         : postpone-existing
         :
         {
