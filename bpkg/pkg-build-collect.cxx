@@ -4716,6 +4716,16 @@ namespace bpkg
                    lazy_shared_ptr<repository_fragment>> rp (
                      find_available_fragment (o, pk.db, ed.selected));
 
+              // Note that a re-evaluated package doesn't necessarily needs to
+              // be reconfigured and thus we don't add the
+              // build_package::adjust_reconfigure flag here.
+              //
+              // Specifically, if none of its dependencies get reconfigured,
+              // then it doesn't need to be reconfigured either since nothing
+              // changes for its config clauses. Otherwise, the
+              // build_package::adjust_reconfigure flag will be added normally
+              // by collect_order_dependents().
+              //
               build_package p {
                 build_package::build,
                   pk.db,
@@ -4740,7 +4750,6 @@ namespace bpkg
                   set<package_key> (          // Required by (dependency).
                     ds.begin (), ds.end ()),
                   false,                      // Required by dependents.
-                  build_package::adjust_reconfigure |
                   build_package::build_reevaluate};
 
               // Note: not recursive.
@@ -5004,9 +5013,6 @@ namespace bpkg
 
           // Unless the dependency is already being reconfigured, reconfigure
           // it if its configuration changes.
-          //
-          // Note that for configured dependents which belong to the
-          // configuration cluster this flag is already set (see above).
           //
           if (!b->reconfigure ())
           {

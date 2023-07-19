@@ -275,6 +275,7 @@
 # |   |-- bar-1.0.0.tar.gz      -> liba {prefer {...} accept (...)}
 # |   |-- baz-1.0.0.tar.gz      -> liba {prefer {...} accept (...)}
 # |   |-- biz-1.0.0.tar.gz      -> liba {prefer {...} accept (...)}
+# |   |-- box-1.0.0.tar.gz      -> liba {prefer {} accept (true) reflect (...)}
 # |   `-- repositories.manifest
 # |
 # |-- t13b
@@ -12010,7 +12011,7 @@ test.arguments += --sys-no-query
     {
       +$clone_root_cfg && $rep_add $rep/t13a && $rep_fetch
 
-      : bar
+      : bar-baz-biz
       :
       {
         $clone_cfg;
@@ -12040,7 +12041,75 @@ test.arguments += --sys-no-query
           config.liba.backend = cli
           EOO
 
-        $pkg_drop bar
+        # Make sure that since baz doesn't reconfigure liba (it also accepts
+        # the cli backend for liba) the re-evaluated existing dependents bar
+        # and the liba dependency doesn't get reconfigured.
+        #
+        $* baz 2>>~%EOE%;
+          build plan:
+            new baz/1.0.0
+          fetched baz/1.0.0
+          unpacked baz/1.0.0
+          configured baz/1.0.0
+          %info: .+baz.+ is up to date%
+          updated baz/1.0.0
+          EOE
+
+        $pkg_status -r >>EOO;
+          !bar configured 1.0.0
+            liba configured 1.0.0
+          !baz configured 1.0.0
+            liba configured 1.0.0
+          EOO
+
+        cat cfg/liba-1.0.0/build/config.build >>~%EOO%;
+          %.*
+          config.liba.backend = cli
+          EOO
+
+        # Make sure that when biz reconfigures liba (it only accepts the gui
+        # backend for liba), the re-evaluated existing dependents bar and baz
+        # are also reconfigured.
+        #
+        $* biz 2>>~%EOE%;
+          build plan:
+            reconfigure/update liba/1.0.0 (required by bar, baz, biz)
+              config.liba.backend=gui (set by biz)
+            reconfigure baz/1.0.0 (dependent of liba)
+            reconfigure bar/1.0.0 (dependent of liba)
+            new biz/1.0.0
+          disfigured bar/1.0.0
+          disfigured baz/1.0.0
+          disfigured liba/1.0.0
+          fetched biz/1.0.0
+          unpacked biz/1.0.0
+          configured liba/1.0.0
+          configured baz/1.0.0
+          configured bar/1.0.0
+          configured biz/1.0.0
+          %info: .+biz.+ is up to date%
+          %info: .+baz.+ is up to date%
+          %info: .+bar.+ is up to date%
+          updated biz/1.0.0
+          updated baz/1.0.0
+          updated bar/1.0.0
+          EOE
+
+        $pkg_status -r >>EOO;
+          !bar configured 1.0.0
+            liba configured 1.0.0
+          !baz configured 1.0.0
+            liba configured 1.0.0
+          !biz configured 1.0.0
+            liba configured 1.0.0
+          EOO
+
+        cat cfg/liba-1.0.0/build/config.build >>~%EOO%;
+          %.*
+          config.liba.backend = gui
+          EOO
+
+        $pkg_drop bar baz biz
       }
 
       : baz
@@ -12161,7 +12230,7 @@ test.arguments += --sys-no-query
         $pkg_drop baz bar
       }
 
-      : bar-baz-biz
+      : bar-baz-biz-box
       :
       {
         $clone_cfg;
@@ -12207,7 +12276,44 @@ test.arguments += --sys-no-query
           config.liba.backend = gui
           EOO
 
-        $pkg_drop bar baz biz
+        # Make sure that since box doesn't reconfigure liba (it accepts any
+        # backend for liba and just reflects it in its own configuration) none
+        # of the re-evaluated existing dependents nor the liba dependency get
+        # reconfigured.
+        #
+        $* box 2>>~%EOE%;
+          build plan:
+            new box/1.0.0
+              config.box.liba_backend=gui (set by box)
+          fetched box/1.0.0
+          unpacked box/1.0.0
+          configured box/1.0.0
+          %info: .+box.+ is up to date%
+          updated box/1.0.0
+          EOE
+
+        $pkg_status -r >>EOO;
+          !bar configured 1.0.0
+            liba configured 1.0.0
+          !baz configured 1.0.0
+            liba configured 1.0.0
+          !biz configured 1.0.0
+            liba configured 1.0.0
+          !box configured 1.0.0
+            liba configured 1.0.0
+          EOO
+
+        cat cfg/liba-1.0.0/build/config.build >>~%EOO%;
+          %.*
+          config.liba.backend = gui
+          EOO
+
+        cat cfg/box-1.0.0/build/config.build >>~%EOO%;
+          %.*
+          config.box.liba_backend = gui
+          EOO
+
+        $pkg_drop bar baz biz box
       }
     }
 

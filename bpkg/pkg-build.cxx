@@ -5589,10 +5589,14 @@ namespace bpkg
 
         database& db (p.db);
 
+        // Note: don't update the re-evaluated dependent unless it is
+        // reconfigured.
+        //
         if ((*p.action == build_package::adjust && p.reconfigure ()) ||
             (*p.action == build_package::build &&
-             (p.flags & (build_package::build_repoint |
-                         build_package::build_reevaluate)) != 0))
+             ((p.flags & build_package::build_repoint) != 0 ||
+              ((p.flags & build_package::build_reevaluate) != 0 &&
+               p.reconfigure ()))))
           upkgs.push_back (pkg_command_vars {db.config_orig,
                                              !multi_config () && db.main (),
                                              p.selected,
