@@ -5333,9 +5333,26 @@ namespace bpkg
                   replaced_vers,
                   postponed_cfgs));
 
-              postponed_cfgs.add (package_key (ed.db, ed.selected->name),
-                                  pos,
-                                  package_key (bp->db, bp->selected->name));
+              // Can this dependency already belong to some configuration
+              // cluster? It feels like potentially it can. However, if it
+              // does then this cluster cannot be current (we would throw
+              // postpone_position) nor (being) negotiated (the dependent
+              // would have already been re-evaluated). Thus, if the
+              // dependency already belongs to some cluster we assume that
+              // this existing dependent will naturally be reevaluated up to
+              // this dependency later when their cluster is negotiated.
+              // Otherwise, we just create such a cluster.
+              //
+              package_key dep (bp->db, bp->selected->name);
+
+              const postponed_configuration* cfg (
+                postponed_cfgs.find_dependency (dep));
+
+              if (cfg == nullptr)
+                postponed_cfgs.add (
+                  package_key (ed.db, ed.selected->name), pos, move (dep));
+              else
+                assert (cfg != pc && !cfg->negotiated);
             }
 
             l5 ([&]{trace << "postpone cfg-negotiation of " << *pc;});
