@@ -144,35 +144,57 @@ namespace bpkg
                const string& user_agent = {},
                const butl::url& proxy = {});
 
-  // Similar to the above but can only be used for HTTP(S) URLs. Additionally
-  // return the HTTP status code, if the underlying fetch program provides an
-  // easy way to retrieve it, and 0 otherwise.
+  // Similar to the above but can only be used for fetching HTTP(S) URL to a
+  // file. Additionally return the HTTP status code, if the underlying fetch
+  // program provides an easy way to retrieve it, and 0 otherwise.
   //
-  // In the former case redirect the fetch process stderr to a pipe, so that
-  // depending on the returned status code the caller can either drop or dump
-  // the fetch process diagnostics. May also redirect stderr in the latter
-  // case for some implementation-specific reasons (to prevent the underlying
-  // fetch program from interacting with the user, etc). The caller can detect
-  // whether stderr is redirected by checking process::in_efd.
+  pair<process, uint16_t>
+  start_fetch_http (const common_options&,
+                    const string& url,
+                    const path& out,
+                    const string& user_agent = {},
+                    const butl::url& proxy = {});
+
+  // As above but fetches HTTP(S) URL to stdout, which can be read by the
+  // caller from the specified stream. On HTTP errors (e.g., 404) this stream
+  // may contain the error description returned by the server and the process
+  // may exit with 0 code.
   //
-  // In contrast to start_fetch() always fetch to stdout, which can be read by
-  // the caller from the specified stream. On HTTP errors (e.g., 404) this
-  // stream may contain the error description returned by the server and the
-  // process may exit with 0 code.
+  // Fetch process stderr redirect mode.
   //
-  // If the quiet argument is true, then, if stderr is redirected, minimize
-  // the amount of diagnostics printed by the fetch program by only printing
-  // errors. That allows the caller to read stdout and stderr streams
-  // sequentially in the blocking mode by assuming that the diagnostics always
-  // fits into the pipe buffer. If stderr is not redirected, then the quiet
-  // argument is ignored in favor of the more informative diagnostics.
-  //
+  enum class stderr_mode
+  {
+    // Don't redirect stderr.
+    //
+    pass,
+
+    // If the underlying fetch program provides an easy way to retrieve the
+    // HTTP status code, then redirect the fetch process stderr to a pipe, so
+    // that depending on the returned status code the caller can either drop
+    // or dump the fetch process diagnostics. Otherwise, may still redirect
+    // stderr for some implementation-specific reasons (to prevent the
+    // underlying fetch program from interacting with the user, etc). The
+    // caller can detect whether stderr is redirected or not by checking
+    // process::in_efd.
+    //
+    redirect,
+
+    // As above but if stderr is redirected, minimize the amount of
+    // diagnostics printed by the fetch program by only printing errors. That
+    // allows the caller to read stdout and stderr streams sequentially in the
+    // blocking mode by assuming that the diagnostics always fits into the
+    // pipe buffer. If stderr is not redirected, then ignore this mode in
+    // favor of the more informative diagnostics.
+    //
+    redirect_quiet
+  };
+
   pair<process, uint16_t>
   start_fetch_http (const common_options&,
                     const string& url,
                     ifdstream& out,
                     fdstream_mode out_mode,
-                    bool quiet,
+                    stderr_mode,
                     const string& user_agent = {},
                     const butl::url& proxy = {});
 }

@@ -603,7 +603,7 @@ namespace bpkg
                         u,
                         is /* out */,
                         fdstream_mode::skip | fdstream_mode::binary,
-                        true /* quiet */,
+                        stderr_mode::redirect_quiet,
                         "git/" + git_ver.string ()));
 
     process& pr (ps.first);

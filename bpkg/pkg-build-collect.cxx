@@ -2586,8 +2586,8 @@ namespace bpkg
                     (!dep_constr || system))
                   dr << info << "repository " << af->location << " appears "
                      << "to be broken" <<
-                    info << "or the repository state could be stale" <<
-                    info << "run 'bpkg rep-fetch' to update";
+                    info << "or the repository metadata could be stale" <<
+                    info << "run 'bpkg rep-fetch' (or equivalent) to update";
               }
 
               // If all that's available is a stub then we need to make sure

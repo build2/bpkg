@@ -97,20 +97,80 @@ namespace bpkg
     if (exists (df))
       fail << "file " << df << " already exists";
 
-    auto_rmfile arm (df);
-    process pr (start_fetch (o,
-                             u.string (),
-                             df,
-                             string () /* user_agent */,
-                             o.pkg_proxy ()));
+    // Currently we only expect fetching a package archive via the HTTP(S)
+    // protocol.
+    //
+    switch (u.scheme)
+    {
+    case repository_protocol::git:
+    case repository_protocol::ssh:
+    case repository_protocol::file: assert (false);
+    case repository_protocol::http:
+    case repository_protocol::https: break;
+    }
 
-    if (!pr.wait ())
+    auto_rmfile arm (df);
+
+    // Note that a package file may not be present in the repository due to
+    // outdated repository information. Thus, while fetching the file we also
+    // try to retrieve the HTTP status code. If the HTTP status code is
+    // retrieved and is 404 (not found) or the fetch program doesn't support
+    // its retrieval and fails, then we also advise the user to re-fetch the
+    // repositories.
+    //
+    pair<process, uint16_t> ps (
+      start_fetch_http (o,
+                        u.string (),
+                        df,
+                        string () /* user_agent */,
+                        o.pkg_proxy ()));
+
+    process& pr (ps.first);
+    uint16_t sc (ps.second);
+
+    // Fail if the fetch process didn't exit normally with 0 code or the HTTP
+    // status code is retrieved and differs from 200.
+    //
+    // Note that the diagnostics may potentially look as follows:
+    //
+    // foo-1.0.0.tar.gz:
+    // ###################################################### 100.0%
+    // error: unable to fetch package https://example.org/1/foo-1.0.0.tar.gz
+    //  info: repository metadata could be stale
+    //  info: run 'bpkg rep-fetch' (or equivalent) to update
+    //
+    // It's a bit unfortunate that the 100% progress indicator can be shown
+    // for a potential HTTP error and it doesn't seem that we can easily fix
+    // that. Note, however, that this situation is not very common and
+    // probably that's fine.
+    //
+    if (!pr.wait () || (sc != 0 && sc != 200))
     {
       // While it is reasonable to assuming the child process issued
       // diagnostics, some may not mention the URL.
       //
-      fail << "unable to fetch " << u <<
-        info << "re-run with -v for more information";
+      diag_record dr (fail);
+      dr << "unable to fetch package " << u;
+
+      // Print the HTTP status code in the diagnostics on the request failure,
+      // unless it cannot be retrieved or is 404. Note that the fetch program
+      // may even exit successfully on such a failure (see start_fetch_http()
+      // for details) and issue no diagnostics at all.
+      //
+      if (sc != 0 && sc != 200 && sc != 404)
+        dr << info << "HTTP status code " << sc;
+
+      // If not found, advise the user to re-fetch the repositories. Note that
+      // if the status code cannot be retrieved, we assume it could be 404 and
+      // advise.
+      //
+      if (sc == 404 || sc == 0)
+      {
+        dr << info << "repository metadata could be stale" <<
+              info << "run 'bpkg rep-fetch' (or equivalent) to update";
+      }
+      else if (verb < 2)
+        dr << info << "re-run with -v for more information";
     }
 
     arm.cancel ();

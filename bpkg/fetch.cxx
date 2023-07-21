@@ -6,6 +6,7 @@
 #include <bpkg/diagnostics.hxx>
 
 using namespace std;
+using namespace butl;
 
 namespace bpkg
 {
@@ -87,14 +88,14 @@ namespace bpkg
   // Note that there is no easy way to retrieve the HTTP status code for wget
   // (there is no reliable way to redirect the status line/headers to stdout)
   // and thus we always return 0. Due to the status code unavailability there
-  // is no need to redirect stderr and thus we ignore the quiet mode.
+  // is no need to redirect stderr and thus we ignore the stderr mode.
   //
   static pair<process, uint16_t>
   start_wget (const path& prog,
               const optional<size_t>& timeout,
               bool progress,
               bool no_progress,
-              bool /* quiet */,
+              stderr_mode,
               const strings& ops,
               const string& url,
               ifdstream* out_is,
@@ -239,7 +240,7 @@ namespace bpkg
                            0, -1, 2,
                            nullptr /* cwd */, env.vars));
 
-    if (out_is != nullptr)
+    if (!fo && out_is != nullptr)
       out_is->open (move (pr.in_ofd), out_ism);
 
     return make_pair (move (pr), 0);
@@ -290,17 +291,19 @@ namespace bpkg
     return false;
   }
 
-  // If HTTP status code needs to be retrieved, then open the passed stream
-  // and read out the status line(s) extracting the status code and the
-  // headers. Otherwise, return 0 indicating that the status code is not
-  // available. In the former case redirect stderr and respect the quiet mode.
+  // If HTTP status code needs to be retrieved (out_is != NULL), then open the
+  // passed stream and read out the status line(s) extracting the status code
+  // and the headers. Otherwise, return 0 indicating that the status code is
+  // not available. In the former case if the output file is also specified,
+  // then read out and save the file if the status code is 200 and drop the
+  // HTTP response body otherwise.
   //
   static pair<process, uint16_t>
   start_curl (const path& prog,
               const optional<size_t>& timeout,
               bool progress,
               bool no_progress,
-              bool quiet,
+              stderr_mode err_mode,
               const strings& ops,
               const string& url,
               ifdstream* out_is,
@@ -335,6 +338,8 @@ namespace bpkg
     // Higher than that -- run it verbose. Always show the progress
     // bar if requested explicitly, even in the quiet mode.
     //
+    bool quiet (err_mode == stderr_mode::redirect_quiet);
+
     if (!quiet)
     {
       if (verb < (fo ? 1 : 2))
@@ -380,7 +385,7 @@ namespace bpkg
 
     // Output. By default curl writes to stdout.
     //
-    if (fo)
+    if (fo && out_is == nullptr) // Output to file and don't query HTTP status?
     {
       args.push_back ("-o");
       args.push_back (out.string ().c_str ());
@@ -407,11 +412,7 @@ namespace bpkg
     // print the response status line and headers.
     //
     if (out_is != nullptr)
-    {
-      assert (!fo); // Currently unsupported (see start_fetch() for details).
-
       args.push_back ("-i");
-    }
     else
       args.push_back ("-f");
 
@@ -435,10 +436,10 @@ namespace bpkg
 
     // Process exceptions must be handled by the caller.
     //
-    process pr (fo
+    process pr (fo && out_is == nullptr
                 ? process (pp, args.data ())
                 : process (pp, args.data (),
-                           0, -1, out_is != nullptr ? -1 : 2));
+                           0, -1, err_mode == stderr_mode::pass ? 2 : -1));
 
     // Close the process stdout stream and read stderr stream out and dump.
     //
@@ -446,13 +447,16 @@ namespace bpkg
     // blocked writing to stdout and so that stderr get dumped before the
     // error message we issue.
     //
-    auto close_streams = [&pr, out_is] ()
+    auto close_streams = [&pr, out_is, err_mode] ()
     {
       try
       {
+        assert (out_is != nullptr);
+
         out_is->close ();
 
-        bpkg::dump_stderr (move (pr.in_efd));
+        if (err_mode != stderr_mode::pass)
+          bpkg::dump_stderr (move (pr.in_efd));
       }
       catch (const io_error&)
       {
@@ -476,12 +480,13 @@ namespace bpkg
       // reason for the exception mask choice. When done, we will restore the
       // original exception mask.
       //
-      ifdstream::iostate es (out_is->exceptions ());
+      ifdstream&         is (*out_is);
+      ifdstream::iostate es (is.exceptions ());
 
-      out_is->exceptions (
+      is.exceptions (
         ifdstream::badbit | ifdstream::failbit | ifdstream::eofbit);
 
-      out_is->open (move (pr.in_ofd), out_ism);
+      is.open (move (pr.in_ofd), out_ism);
 
       // Parse and return the HTTP status code. Return 0 if the argument is
       // invalid.
@@ -500,10 +505,10 @@ namespace bpkg
       // Read the CRLF-terminated line from the stream stripping the trailing
       // CRLF.
       //
-      auto read_line = [out_is] ()
+      auto read_line = [&is] ()
       {
         string l;
-        getline (*out_is, l); // Strips the trailing LF (0xA).
+        getline (is, l); // Strips the trailing LF (0xA).
 
         // Note that on POSIX CRLF is not automatically translated into LF, so
         // we need to strip CR (0xD) manually.
@@ -559,13 +564,64 @@ namespace bpkg
 
       while (!read_line ().empty ()) ;   // Skips headers.
 
-      out_is->exceptions (es);
+      is.exceptions (es);
     }
     catch (const io_error&)
     {
       close_streams ();
 
       fail << "unable to read HTTP response status line for " << url;
+    }
+
+    // If the output file is specified and the HTTP status code needs to also
+    // be retrieved, then read out and save the file if the status code is 200
+    // and drop the HTTP response body otherwise.
+    //
+    bool io_read; // If true then io_error relates to a read operation.
+    if (fo && out_is != nullptr)
+    try
+    {
+      ifdstream& is (*out_is);
+
+      // Read and save the file if the HTTP status code is 200.
+      //
+      if (sc == 200)
+      {
+        io_read = false;
+        ofdstream os (out, fdopen_mode::binary);
+
+        bufstreambuf* buf (dynamic_cast<bufstreambuf*> (is.rdbuf ()));
+        assert (buf != nullptr);
+
+        for (io_read = true;
+             is.peek () != istream::traits_type::eof (); // Potentially reads.
+             io_read = true)
+        {
+          size_t n (buf->egptr () - buf->gptr ());
+
+          io_read = false;
+          os.write (buf->gptr (), n);
+
+          buf->gbump (static_cast<int> (n));
+        }
+
+        io_read = false;
+        os.close ();
+      }
+
+      // Close the stream, skipping the remaining content, if present.
+      //
+      io_read = true;
+      is.close ();
+    }
+    catch (const io_error& e)
+    {
+      close_streams ();
+
+      if (io_read)
+        fail << "unable to read fetched " << url << ": " << e;
+      else
+        fail << "unable to write to " << out << ": " << e;
     }
 
     return make_pair (move (pr), sc);
@@ -621,17 +677,17 @@ namespace bpkg
   // Note that there is no easy way to retrieve the HTTP status code for the
   // fetch program and thus we always return 0.
   //
-  // Also note that in the HTTP status code retrieval mode (out_is != NULL) we
-  // nevertheless redirect stderr to prevent the fetch program from
-  // interactively querying the user for the credentials. Thus, we also
-  // respect the quiet mode in contrast to start_wget().
+  // Also note that in the redirect* stderr modes we nevertheless redirect
+  // stderr to prevent the fetch program from interactively querying the user
+  // for the credentials. Thus, we also respect the redirect_quiet mode in
+  // contrast to start_wget().
   //
   static pair<process, uint16_t>
   start_fetch (const path& prog,
                const optional<size_t>& timeout,
                bool progress,
                bool no_progress,
-               bool quiet,
+               stderr_mode err_mode,
                const strings& ops,
                const string& url,
                ifdstream* out_is,
@@ -667,6 +723,8 @@ namespace bpkg
     // unless the verbosity level is greater than three, in which case we will
     // run verbose (and with progress). That's the best we can do.
     //
+    bool quiet (err_mode == stderr_mode::redirect_quiet);
+
     if (!quiet)
     {
       if (verb < (fo ? 1 : 2))
@@ -745,10 +803,10 @@ namespace bpkg
                            out.directory ().string ().c_str (),
                            env.vars)
                 : process (pp, args.data (),
-                           0, -1, out_is != nullptr ? -1 : 2,
+                           0, -1, err_mode == stderr_mode::pass ? 2 : -1,
                            nullptr /* cwd */, env.vars));
 
-    if (out_is != nullptr)
+    if (!fo && out_is != nullptr)
       out_is->open (move (pr.in_ofd), out_ism);
 
     return make_pair (move (pr), 0);
@@ -879,26 +937,29 @@ namespace bpkg
                const string& src,
                ifdstream* out_is,
                fdstream_mode out_ism,
-               bool quiet,
+               stderr_mode err_mode,
                const path& out,
                const string& user_agent,
                const url& proxy)
   {
-    // Currently, for the sake of simplicity, we don't support retrieving the
-    // HTTP status code if we fetch into a file.
+    // Currently, for the sake of simplicity, we don't support redirecting
+    // stderr if we fetch into a file.
     //
-    assert (out.empty () || out_is == nullptr);
+    assert (out.empty () || err_mode == stderr_mode::pass);
 
-    // Quiet mode is only meaningful if HTTP status code needs to be
-    // retrieved.
+    // If out_is is not NULL and out is not empty, then the former argument is
+    // unused by the caller and only indicates that the HTTP status code still
+    // needs to be retrieved while the requested file needs to be saved. In
+    // this case if the fetch program doesn't provide an easy way to retrieve
+    // the HTTP status code, then the respective start_*() function can just
+    // ignore the referred stream. Otherwise, it may or may not use it for
+    // convenience but should close it before returning if it does.
     //
-    assert (!quiet || out_is != nullptr);
-
     pair<process, uint16_t> (*f) (const path&,
                                   const optional<size_t>&,
                                   bool,
                                   bool,
-                                  bool,
+                                  stderr_mode,
                                   const strings&,
                                   const string&,
                                   ifdstream*,
@@ -1013,7 +1074,7 @@ namespace bpkg
                 timeout,
                 o.progress (),
                 o.no_progress (),
-                quiet,
+                err_mode,
                 os,
                 !http_url.empty () ? http_url : src,
                 out_is,
@@ -1044,7 +1105,7 @@ namespace bpkg
                         src,
                         nullptr /* out_is */,
                         fdstream_mode::none,
-                        false /* quiet */,
+                        stderr_mode::pass,
                         out,
                         user_agent,
                         proxy).first;
@@ -1055,7 +1116,7 @@ namespace bpkg
                     const string& src,
                     ifdstream& out,
                     fdstream_mode out_mode,
-                    bool quiet,
+                    stderr_mode err_mode,
                     const string& user_agent,
                     const url& proxy)
   {
@@ -1063,8 +1124,29 @@ namespace bpkg
                         src,
                         &out,
                         out_mode,
-                        quiet,
+                        err_mode,
                         path () /* out */,
+                        user_agent,
+                        proxy);
+  }
+
+  pair<process, uint16_t>
+  start_fetch_http (const common_options& o,
+                    const string& src,
+                    const path& out,
+                    const string& user_agent,
+                    const url& proxy)
+  {
+    assert (!out.empty ());
+
+    ifdstream is (ifdstream::badbit | ifdstream::failbit);
+
+    return start_fetch (o,
+                        src,
+                        &is,
+                        fdstream_mode::skip | fdstream_mode::binary,
+                        stderr_mode::pass,
+                        out,
                         user_agent,
                         proxy);
   }
