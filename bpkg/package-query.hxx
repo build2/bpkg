@@ -93,7 +93,6 @@ namespace bpkg
   using config_repo_fragments =
     database_map<vector<shared_ptr<repository_fragment>>>;
 
-
   available_packages
   find_available (const package_name&,
                   const optional<version_constraint>&,

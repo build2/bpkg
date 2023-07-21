@@ -34,13 +34,19 @@ namespace bpkg
     //
     if (c.min_version)
     {
-      int i (ev.compare (*c.min_version, !c.min_version->revision));
+      int i (ev.compare (*c.min_version,
+                         !c.min_version->revision,
+                         true /* ignore_iteration */));
+
       s = c.min_open ? i > 0 : i >= 0;
     }
 
     if (s && c.max_version)
     {
-      int i (ev.compare (*c.max_version, !c.max_version->revision));
+      int i (ev.compare (*c.max_version,
+                         !c.max_version->revision,
+                         true /* ignore_iteration */));
+
       s = c.max_open ? i < 0 : i <= 0;
     }
 
@@ -85,7 +91,10 @@ namespace bpkg
         version lv (norm (*l.min_version, true /* min */, l.min_open));
         version rv (norm (*r.min_version, true /* min */, r.min_open));
 
-        int i (lv.compare (rv, false /* ignore_revision */));
+        int i (lv.compare (rv,
+                           false /* ignore_revision */,
+                           true  /* ignore_iteration */));
+
         if (l.min_open)
           // Doesn't matter if r is min_open or not.
           //
@@ -108,7 +117,10 @@ namespace bpkg
           version lv (norm (*l.max_version, false /* min */, l.max_open));
           version rv (norm (*r.max_version, false /* min */, r.max_open));
 
-          int i (lv.compare (rv, false /* ignore_revision */));
+          int i (lv.compare (rv,
+                             false /* ignore_revision */,
+                             true  /* ignore_iteration */));
+
           if (l.max_open)
             // Doesn't matter if r is max_open or not.
             //

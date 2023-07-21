@@ -12,8 +12,13 @@
 
 namespace bpkg
 {
-  // Note: all of the following functions expect the package version
-  // constraints to be complete.
+  // Notes:
+  //
+  // - All of the following functions expect the package version constraints
+  //   to be complete.
+  //
+  // - The version iterations are ignored on version comparisons.
+  //
 
   // Return true if version satisfies the constraint.
   //
