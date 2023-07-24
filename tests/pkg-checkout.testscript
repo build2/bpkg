@@ -191,6 +191,8 @@ else
     else
       $* links/1.0.1 2>>~%EOE% != 0
         checking out links/1.0.1
+        verifying symlinks...
+        %fixing up symlinks...%?
         error: target 'bl' for symlink 'lc' does not exist
           info: re-run with -v for more information
         warning: repository state is now broken
