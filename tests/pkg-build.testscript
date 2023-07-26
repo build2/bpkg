@@ -146,17 +146,27 @@
 # |   |-- libbox-0.1.0.tar.gz
 # |   |-- libbox-0.1.1.tar.gz
 # |   |-- libbox-1.0.0.tar.gz
-# |   |-- foo-1.0.0.tar.gz      -> {libbar libbaz} ^1.0.0
-# |   |-- fox-1.0.0.tar.gz      -> libbar ^1.0.0 | libbaz ^1.0.0
-# |   |-- fix-1.0.0.tar.gz      -> libbaz ^1.0.0 | libbar ^1.0.0
+# |   |-- libfoo-1.0.0.tar.gz
+# |   |-- libfoo-2.0.0.tar.gz
+# |   |-- bar                   -> libbar
+# |   |-- baz                   -> libbaz
+# |   |-- box                   -> libbiz ^1.0.0 config.box.backend=libbiz |
+# |   |                            libbox >= 0.1.1 config.box.backend=libbox,
+# |   |                            libbaz
 # |   |-- fax-1.0.0.tar.gz      -> libbar ^1.0.0 ? ($cxx.target.class == 'windows') config.fax.backend=libbar |
 # |   |                            libbaz ^1.0.0 ? ($cxx.target.class != 'windows') config.fax.backend=libbaz,
 # |   |                            libbiz ? ($config.fax.libbiz) config.fax.extras='[b\i$z]',
 # |   |                            libbox ? ($config.fax.libbox && $config.fax.backend == libbaz && $config.fax.extras == '[b\i$z]')
+# |   |-- fix-1.0.0.tar.gz      -> libbaz ^1.0.0 | libbar ^1.0.0
+# |   |-- foo-1.0.0.tar.gz      -> {libbar libbaz} ^1.0.0
+# |   |-- fox-1.0.0.tar.gz      -> libbar ^1.0.0 | libbaz ^1.0.0
 # |   |-- fux                   -> libbiz ? (!$config.fux.libbiz_old) | libbiz ^0.1.0 ? ($config.fux.libbiz_old)
-# |   |-- box                   -> libbiz ^1.0.0 config.box.backend=libbiz |
-# |   |                            libbox >= 0.1.1 config.box.backend=libbox,
-# |   |                            libbaz
+# |   |-- tax                   -> libfoo == 1.0.0 | libfoo == 2.0.0
+# |   |-- tex                   -> libfoo {prefer{} accept(false) reflect {...}}
+# |   |-- tix                   -> libfoo >= 2.0.0 reflect {...} | libfoo >= 1.0.0 reflect {...}
+# |   |-- tox                   -> libfoo >= 2.0.0 {prefer{} accept(false) reflect {...}} | libfoo >= 1.0.0 reflect {...}
+# |   |-- tux                   -> libfoo {prefer{config.libfoo.protocol = "1"} accept(false)
+# |   |                         -> libbox ? (config.libfoo.protocol == "1")
 # |   `-- repositories.manifest
 # |
 # |-- t9
@@ -275,7 +285,7 @@
 # |   |-- bar-1.0.0.tar.gz      -> liba {prefer {...} accept (...)}
 # |   |-- baz-1.0.0.tar.gz      -> liba {prefer {...} accept (...)}
 # |   |-- biz-1.0.0.tar.gz      -> liba {prefer {...} accept (...)}
-# |   |-- box-1.0.0.tar.gz      -> liba {prefer {} accept (true) reflect (...)}
+# |   |-- box-1.0.0.tar.gz      -> liba {prefer {} accept (true) reflect {...}}
 # |   `-- repositories.manifest
 # |
 # |-- t13b
@@ -287,14 +297,14 @@
 # |
 # |-- t13c
 # |   |-- liba-0.1.0.tar.gz
-# |   |-- bar-1.0.0.tar.gz      -> liba {prefer {...} accept (...) reflect (...)}
+# |   |-- bar-1.0.0.tar.gz      -> liba {prefer {...} accept (...) reflect {...}}
 # |   |-- baz-1.0.0.tar.gz      -> liba {require {...}}
 # |   `-- repositories.manifest
 # |
 # |-- t13d
 # |   |-- liba-0.1.0.tar.gz
 # |   |-- libb-0.1.0.tar.gz
-# |   |-- bar-1.0.0.tar.gz      -> liba {prefer {...} accept (...) reflect (...)},
+# |   |-- bar-1.0.0.tar.gz      -> liba {prefer {...} accept (...) reflect {...}},
 # |   |                            libb ? (...)
 # |   |-- baz-1.0.0.tar.gz      -> bar, liba {require {...}}
 # |   `-- repositories.manifest
@@ -317,14 +327,14 @@
 # |-- t13g
 # |   |-- liba-0.1.0.tar.gz
 # |   |-- libb-0.1.0.tar.gz
-# |   |-- bar-1.0.0.tar.gz      -> liba {prefer {...} accept (...) reflect (...)},
-# |   |                            libb {prefer {...} accept (...) reflect (...)}
-# |   |-- baz-1.0.0.tar.gz      -> liba {prefer {...} accept (...) reflect (...)},
+# |   |-- bar-1.0.0.tar.gz      -> liba {prefer {...} accept (...) reflect {...}},
+# |   |                            libb {prefer {...} accept (...) reflect {...}}
+# |   |-- baz-1.0.0.tar.gz      -> liba {prefer {...} accept (...) reflect {...}},
 # |   |                            libb ? (...)
-# |   |-- biz-1.0.0.tar.gz      -> liba {prefer {...} accept (...) reflect (...)},
-# |   |                            libb {prefer {...} accept (...) reflect (...)}
-# |   |-- box-1.0.0.tar.gz      -> liba {prefer {...} accept (...) reflect (...)},
-# |   |                            libb {prefer {...} accept (...) reflect (...)}
+# |   |-- biz-1.0.0.tar.gz      -> liba {prefer {...} accept (...) reflect {...}},
+# |   |                            libb {prefer {...} accept (...) reflect {...}}
+# |   |-- box-1.0.0.tar.gz      -> liba {prefer {...} accept (...) reflect {...}},
+# |   |                            libb {prefer {...} accept (...) reflect {...}}
 # |   `-- repositories.manifest
 # |
 # |-- t13h
@@ -335,7 +345,7 @@
 # |
 # |-- t13i
 # |   |-- liba-0.1.0.tar.gz
-# |   |-- bar-1.0.0.tar.gz      -> liba {require {...} reflect (...)}
+# |   |-- bar-1.0.0.tar.gz      -> liba {require {...} reflect {...}}
 # |   `-- repositories.manifest
 # |
 # |-- t13j
@@ -5021,6 +5031,227 @@ test.arguments += --sys-no-query
         end;
 
         $pkg_drop fax
+      }
+    }
+
+    : reconfigure-dependent
+    :
+    : Test some cases when a dependent needs to be reconfigured due to an
+    : upgraded dependency.
+    :
+    {
+      +$clone_cfg
+
+      test.arguments += --yes
+
+      : keep-alternative
+      :
+      {
+        $clone_cfg;
+
+        $* tax ?libfoo/1.0.0 2>!;
+
+        $pkg_status -r >>EOO;
+          !tax configured 1.0.0
+            libfoo configured !1.0.0 available 2.0.0
+          EOO
+
+        $* --upgrade --recursive 2>!; # Noop.
+
+        $pkg_status -r >>EOO;
+          !tax configured 1.0.0
+            libfoo configured !1.0.0 available 2.0.0
+          EOO
+
+        $* ?libfoo 2>!;               # Noop.
+
+        $pkg_status -r >>EOO;
+          !tax configured 1.0.0
+            libfoo configured !1.0.0 available 2.0.0
+          EOO
+
+        $* ?libfoo/2.0.0 2>>EOE != 0;
+          error: package libfoo doesn't satisfy its dependents
+            info: libfoo/2.0.0 doesn't satisfy tax/1.0.0
+          EOE
+
+        $pkg_status -r >>EOO;
+          !tax configured 1.0.0
+            libfoo configured !1.0.0 available 2.0.0
+          EOO
+
+        $pkg_drop tax
+      }
+
+      : re-evaluate-dependent
+      :
+      {
+        $clone_cfg;
+
+        $* tex ?libfoo/1.0.0 2>!;
+
+        $pkg_status -r >>EOO;
+          !tex configured 1.0.0
+            libfoo configured !1.0.0 available 2.0.0
+          EOO
+
+        cat cfg/tex-1.0.0/build/config.build >>~%EOO%;
+          %.*
+          config.tex.libfoo_protocol = 1
+          %.*
+          EOO
+
+        # @@ Strangely, if upgrade with -ur instead of ?libfoo, then status
+        #    prints 'libfoo configured !2.0.0' instead of
+        #    'libfoo configured 2.0.0'.
+        #
+        $* ?libfoo 2>>~%EOE%;
+          disfigured tex/1.0.0
+          disfigured libfoo/1.0.0
+          fetched libfoo/2.0.0
+          unpacked libfoo/2.0.0
+          configured libfoo/2.0.0
+          configured tex/1.0.0
+          %info: .+tex-1.0.0.+ is up to date%
+          updated tex/1.0.0
+          EOE
+
+        cat cfg/tex-1.0.0/build/config.build >>~%EOO%;
+          %.*
+          config.tex.libfoo_protocol = 2
+          %.*
+          EOO
+
+        $pkg_status -r >>EOO;
+          !tex configured 1.0.0
+            libfoo configured 2.0.0
+          EOO
+
+        $pkg_drop tex
+      }
+
+      : re-evaluate-reflect
+      :
+      {
+        $clone_cfg;
+
+        # @@ The fact that `$* tix` fails as follows but `$* tix ?libfoo`
+        #    doesn't looks confusing:
+        #
+        #    error: unable to select dependency alternative for package tix/1.0.0
+        #      info: explicitly specify dependency packages to manually select the alternative
+        #      info: alternative: libfoo
+        #      info: alternative: libfoo
+        #    info: while satisfying tix/1.0.0
+        #
+        #    Note:
+        #
+        #    tix -> libfoo>=2.0.0 reflect{...} | libfoo>=1.0.0 reflect{...}
+        #
+        $* tix ?libfoo/1.0.0 2>!;
+
+        $pkg_status -r >>EOO;
+          !tix configured 1.0.0
+            libfoo configured !1.0.0 available 2.0.0
+          EOO
+
+        cat cfg/tix-1.0.0/build/config.build >>~%EOO%;
+          %.*
+          config.tix.reflect = 1
+          %.*
+          EOO
+
+        $* ?libfoo 2>>~%EOE%;
+          disfigured tix/1.0.0
+          disfigured libfoo/1.0.0
+          fetched libfoo/2.0.0
+          unpacked libfoo/2.0.0
+          configured libfoo/2.0.0
+          configured tix/1.0.0
+          %info: .+tix-1.0.0.+ is up to date%
+          updated tix/1.0.0
+          EOE
+
+        $pkg_status -r >>EOO;
+          !tix configured 1.0.0
+            libfoo configured 2.0.0
+          EOO
+
+        cat cfg/tix-1.0.0/build/config.build >>~%EOO%;
+          %.*
+          config.tix.reflect = 2
+          %.*
+          EOO
+
+        $pkg_drop tix
+      }
+
+      : fail-select-alt-with-reflect
+      :
+      {
+        $clone_cfg;
+
+        $* tox ?libfoo/1.0.0 2>!;
+
+        $pkg_status -r >>EOO;
+          !tox configured 1.0.0
+            libfoo configured !1.0.0 available 2.0.0
+          EOO
+
+        cat cfg/tox-1.0.0/build/config.build >>~%EOO%;
+          %.*
+          config.tox.libfoo_protocol = '1 or 2'
+          %.*
+          EOO
+
+        # Note that the current behavior should actually be considered as a
+        # bug which we will fix eventually. The proper behaviour would be to
+        # re-evaluate this dependent rather than just to re-configure.
+        #
+        $* ?libfoo 2>>~%EOE% != 0;
+          error: unable to reconfigure dependent tox with reflect clause that refers to dependency configuration variables
+          info: while configuring tox
+          EOE
+
+        $pkg_status -r >>EOO;
+          !tox configured 1.0.0
+            libfoo configured !1.0.0 available 2.0.0
+          EOO
+
+        cat cfg/tox-1.0.0/build/config.build >>~%EOO%;
+          %.*
+          config.tox.libfoo_protocol = '1 or 2'
+          %.*
+          EOO
+
+        $pkg_drop tox
+      }
+
+      : fail-enable-banned-var
+      :
+      {
+        $clone_cfg;
+
+        $* tux ?libbox/0.1.0 2>!;
+
+        $pkg_status -r >>EOO;
+          !tux configured 1.0.0
+            libbox configured !0.1.0 available 1.0.0 0.1.1
+            libfoo configured 2.0.0
+          EOO
+
+        $* ?libbox 2>>EOE != 0;
+          error: unable to reconfigure dependent tux with enable clause that refers to dependency configuration variables
+          info: while configuring tux
+          EOE
+
+        $pkg_status -r >>EOO;
+          !tux configured 1.0.0
+            libbox configured !0.1.0 available 1.0.0 0.1.1
+            libfoo configured 2.0.0
+          EOO
+
+        $pkg_drop tux
       }
     }
   }

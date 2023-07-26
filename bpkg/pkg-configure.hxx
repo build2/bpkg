@@ -45,11 +45,10 @@ namespace bpkg
   // Given dependencies of a package, return its prerequisite packages,
   // configuration variables that resulted from selection of these
   // prerequisites (import, reflection, etc), and sources of the configuration
-  // variables resulted from evaluating the reflect clauses. See
-  // pkg_configure() for the semantics of the dependency list. Fail if for
-  // some of the dependency alternative lists there is no satisfactory
-  // alternative (all its dependencies are configured, satisfy the respective
-  // constraints, etc).
+  // variables resulted from evaluating the reflect clauses. Fail if for some
+  // of the dependency alternative lists there is no satisfactory alternative
+  // (all its dependencies are configured, satisfy the respective constraints,
+  // etc).
   //
   // The package dependency constraints are expected to be complete.
   //
@@ -62,11 +61,40 @@ namespace bpkg
   // be parallel to the dependencies argument and specify indexes of the
   // selected alternatives.
   //
-  // If prerequisites corresponding to the previous configured state of the
-  // package are specified, then for each depends value try to select an
-  // alternative where dependencies all belong to this list (the "recreate
+  // If the dependency alternatives are not pre-selected (alternatives ==
+  // NULL), then for each depends value select the first satisfactory
+  // alternative encountered. If, however, prerequisites corresponding to the
+  // previous configured state of the package are specified
+  // (prev_prerequisites != NULL), then for each depends value try to select
+  // an alternative where dependencies all belong to this list (the "recreate
   // dependency decisions" mode). Failed that, select an alternative as if no
   // prerequisites are specified (the "make dependency decisions" mode).
+  //
+  // Note that there are actually 3 possible use cases for
+  // pkg_configure_prerequisites():
+  //
+  // - The package is being configured manually. In this case its dependency
+  //   alternatives are not pre-selected and there is no information about its
+  //   previous configured state (alternatives == NULL, prev_prerequisites ==
+  //   NULL).
+  //
+  // - The package is being built, upgraded, or re-evaluated. In this case its
+  //   dependency alternatives are pre-selected, their enable, prefer, and
+  //   require clauses are evaluated, and there is no need in the previous
+  //   configured state information (alternatives != NULL, prev_prerequisites
+  //   == NULL).
+  //
+  // - The package is being reconfigured for a reason other than any of the
+  //   mentioned above (dependency up/down-grade/reconfiguration, deorphaning,
+  //   pkg-build --disfigure is specified, etc). In this case its dependency
+  //   alternatives are not pre-selected but the previous configured state
+  //   information is provided (alternatives == NULL, prev_prerequisites !=
+  //   NULL).
+  //
+  // - There are no use cases when both dependency alternatives are
+  //   pre-selected and the previous configured state information needs to be
+  //   provided. Thus, alternatives and prev_prerequisites must never be both
+  //   NULL.
   //
   // Optionally, remove constraints from the specified dependencies
   // (unconstrain_deps). Only allowed in the simulation mode.
@@ -122,7 +150,7 @@ namespace bpkg
   //       required.
   //
   // Note: expects all the non-external packages to be configured to be
-  //       already unpackged (for subproject discovery).
+  //       already unpacked (for subproject discovery).
   //
   void
   pkg_configure (const common_options&,

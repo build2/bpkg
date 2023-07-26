@@ -51,10 +51,108 @@ namespace bpkg
     //
     assert (unconstrain_deps == nullptr || simulate);
 
+    // No use case for both being specified.
+    //
+    assert (alts == nullptr || prev_prereqs == nullptr);
+
     tracer_guard tg (db, trace);
 
     package_prerequisites prereqs;
     strings               vars;
+
+    // Notes on the buildfile clauses evaluation:
+    //
+    // - In the manual configuration mode (alts == NULL, prev_prereqs == NULL)
+    //   we always evaluate the enable and reflect clauses. We, however, fail
+    //   if any of the prefer or require clauses are specified in any of the
+    //   enabled dependency alternatives, assuming that this package didn't
+    //   negotiate its preferences/requirements for the dependency
+    //   configurations.
+    //
+    //   Note that evaluating the require and prefer clauses in this case is
+    //   meaningless since we don't reconfigure the dependencies nor negotiate
+    //   configurations with other dependents. What we should probably do is
+    //   load configurations of the dependencies and use them while evaluating
+    //   the dependent's enable and reflect clauses as we go along. Probably
+    //   we should still evaluate the accept clauses to make sure that the
+    //   dependency is configured acceptably for the dependent.
+    //
+    // - In the pre-selected alternatives mode (alts != NULL, prev_prereqs ==
+    //   NULL) we don't evaluate the enable, prefer, and require clauses since
+    //   they have already been evaluated as a part of the dependency
+    //   alternatives selection and the dependency configurations negotiation.
+    //   We, however always evaluate the reflect clauses.
+    //
+    // - In the reconfiguration mode (prev_prereqs != NULL, alts == NULL) we
+    //   don't evaluate the prefer and require clauses, assuming that was done
+    //   on some previous pkg-build run when this package and its dependencies
+    //   have been configured. But because of this we may not evaluate the
+    //   enable and reflect clauses which refer to dependency configuration
+    //   variables. Thus, for now we fail if such an enable or reflect clause
+    //   is encountered and evaluate all the enable and reflect clauses
+    //   otherwise. In the future it feels like such cases should somehow
+    //   be handled at the pkg-build level (e.g., detect such situations and
+    //   cause the dependent re-evaluation instead of re-configuration). Note
+    //   that if/when this is implemented, the current logic could still be
+    //   used as an optimization (reflection of dependency configuration is
+    //   not very common).
+    //
+    //   @@ It seems there is a hole in the reconfiguration mode:
+    //
+    //      foo -> libfoo {require {config.libfoo.proto=1}
+    //                     reflect {config.foo.reflect=1}} |
+    //             libfoo {require {config.libfoo.proto=2}
+    //                     reflect {config.foo.reflect=2}}
+    //          -> libbar {require {config.libfoo.proto=2}}
+    //          -> libbaz
+    //
+    //      foo is configured with config.foo.reflect=2
+    //
+    //      If afterwords libbaz is upgraded, the foo is
+    //      reconfigured with config.foo.reflect=1
+    //
+    //      It feels more and more that the proper solution here is to go
+    //      "nuclear" and to always "upgrade" re-configuration for a package
+    //      with any prefer/require into a complete re-evaluation. The most
+    //      likely drawback of this approach would be unnecessary
+    //      re-evaluations if we use the "any prefer/require in any
+    //      alternative" condition. So we may need to exclude some common
+    //      simple cases where such an upgrade is not needed. For example:
+    //
+    //      foo -> libfoo require {config.libfoo.proto=1}
+    //      foo -> libbar require {config.libbar.proto=1}
+    //      foo -> libbaz
+    //
+    //      Feels like the condition will have to be based on the presence
+    //      of clauses plus their textual analysis.
+    //
+    bool manual (alts == nullptr && prev_prereqs == nullptr);
+
+    // In the reconfiguration mode keep track of configuration variable
+    // prefixes (in the 'config.<dependency>.' form) for dependencies in the
+    // selected alternatives with the prefer or require clauses specified and
+    // fail if any enable or reflect clause refers to them.
+    //
+    // Note that the enable and reflect clauses may only refer to dependency
+    // configuration variables of already selected alternatives with the
+    // prefer or require clauses specified.
+    //
+    vector<string> banned_var_prefixes;
+
+    auto verify_banned_vars = [&ps,
+                               &banned_var_prefixes] (const string& clause,
+                                                      const char* what)
+    {
+      for (const string& p: banned_var_prefixes)
+      {
+        if (clause.find (p) != string::npos)
+        {
+          fail << "unable to reconfigure dependent " << ps.package.name
+               << " with " << what << " clause that refers to dependency "
+               << "configuration variables";
+        }
+      }
+    };
 
     // Alternatives argument must be parallel to the dependencies argument if
     // specified.
@@ -75,18 +173,6 @@ namespace bpkg
                         size_t>,
                    2> edas;
 
-      // If the dependency alternatives are not pre-selected, then evaluate
-      // the enable clauses.
-      //
-      // Note that evaluating the require and prefer clauses in this case is
-      // meaningless since we don't reconfigure the dependencies nor negotiate
-      // configurations with other dependents. What we should probably do is
-      // load configurations of the dependencies and use them while evaluating
-      // the dependent's enable and reflect clauses as we go along. Probably
-      // we should still evaluate the accept clauses to make sure that the
-      // dependency is configured acceptably for the dependent. For now we
-      // fail and will support this maybe later.
-      //
       if (alts == nullptr)
       {
         if (toolchain_buildtime_dependency (o, das, &ps.package.name))
@@ -96,14 +182,23 @@ namespace bpkg
         {
           const dependency_alternative& da (das[i]);
 
-          if (!da.enable || ps.evaluate_enable (*da.enable, make_pair (di, i)))
+          // Evaluate the dependency alternative enable clause, if present,
+          // unless it refers to any banned variables in which case we fail.
+          //
+          if (da.enable)
           {
-            if (da.prefer || da.require)
-              fail << "manual configuration of dependents with prefer or "
-                   << "require clauses is not yet supported";
+            if (!banned_var_prefixes.empty ())
+              verify_banned_vars (*da.enable, "enable");
 
-            edas.push_back (make_pair (ref (da), i));
+            if (!ps.evaluate_enable (*da.enable, make_pair (di, i)))
+              continue;
           }
+
+          if (manual && (da.prefer || da.require))
+            fail << "manual configuration of dependents with prefer or "
+                 << "require clauses is not yet supported";
+
+          edas.push_back (make_pair (ref (da), i));
         }
 
         if (edas.empty ())
@@ -130,7 +225,9 @@ namespace bpkg
       //
       for (const vector<package_name>* pps (prev_prereqs);;)
       {
-        bool satisfied (false);
+        const pair<reference_wrapper<const dependency_alternative>,
+                   size_t>* selected_alt (nullptr);
+
         for (const auto& eda: edas)
         {
           const dependency_alternative& da (eda.first);
@@ -335,12 +432,7 @@ namespace bpkg
             }
           }
 
-          // Evaluate the dependency alternative reflect clause, if present.
-          //
-          if (da.reflect)
-            ps.evaluate_reflect (*da.reflect, make_pair (di, dai));
-
-          satisfied = true;
+          selected_alt = &eda;
           break;
         }
 
@@ -348,7 +440,7 @@ namespace bpkg
         // "recreate dependency decisions" mode. In the latter case fall back
         // to the "make dependency decisions" mode and retry.
         //
-        if (!satisfied)
+        if (selected_alt == nullptr)
         {
           if (pps != nullptr)
           {
@@ -357,6 +449,32 @@ namespace bpkg
           }
 
           fail << "unable to satisfy dependency on " << das;
+        }
+
+        const dependency_alternative& da (selected_alt->first);
+
+        // In the reconfiguration mode ban the usage of the selected
+        // alternative dependency configuration variables in the subsequent
+        // enable and reflect clauses.
+        //
+        if (alts == nullptr && !manual && (da.prefer || da.require))
+        {
+          for (const dependency& d: da)
+            banned_var_prefixes.push_back (
+              "config." + d.name.variable () + '.');
+        }
+
+        // Evaluate the selected dependency alternative reflect clause, if
+        // present, unless it refers to any banned variables in which case we
+        // fail.
+        //
+        if (da.reflect)
+        {
+          if (!banned_var_prefixes.empty ())
+            verify_banned_vars (*da.reflect, "reflect");
+
+          ps.evaluate_reflect (*da.reflect,
+                               make_pair (di, selected_alt->second));
         }
 
         // The dependency alternative is selected and its dependencies are

@@ -5699,10 +5699,9 @@ namespace bpkg
 
     // On the package reconfiguration we will try to resolve dependencies to
     // the same prerequisites (see pkg_configure() for details). For that, we
-    // will save prerequisites before disfiguring the dependents. Note,
-    // though, that this is not required for dependents with the collected
-    // prerequisites builds since the dependency alternatives are already
-    // selected for them.
+    // will save prerequisites before disfiguring a package. Note, though,
+    // that this is not required for the recursively collected packages since
+    // the dependency alternatives are already selected for them.
     //
     map<const build_package*, vector<package_name>> previous_prerequisites;
 
@@ -5727,7 +5726,7 @@ namespace bpkg
       bool external (false);
       if (!simulate)
       {
-        external = sp != nullptr && sp->external () && p.external ();
+        external = (sp != nullptr && sp->external () && p.external ());
 
         // Reset the keep_out flag if the package being unpacked is not
         // external.
@@ -5736,16 +5735,27 @@ namespace bpkg
           p.keep_out = false;
       }
 
-      if (*p.action != build_package::drop &&
-          !p.dependencies                  &&
-          !sp->prerequisites.empty ())
+      // Save prerequisites before disfiguring the package.
+      //
+      // Note that we add the prerequisites list to the map regardless if
+      // there are any prerequisites or not to, in particular, indicate the
+      // package reconfiguration mode to the subsequent
+      // pkg_configure_prerequisites() call (see the function documentation
+      // for details).
+      //
+      if (*p.action != build_package::drop && !p.dependencies && !p.system)
       {
         vector<package_name>& ps (previous_prerequisites[&p]);
 
-        ps.reserve (sp->prerequisites.size ());
+        assert (sp != nullptr); // Shouldn't be here otherwise.
 
-        for (const auto& pp: sp->prerequisites)
-          ps.push_back (pp.first.object_id ());
+        if (!sp->prerequisites.empty ())
+        {
+          ps.reserve (sp->prerequisites.size ());
+
+          for (const auto& pp: sp->prerequisites)
+            ps.push_back (pp.first.object_id ());
+        }
       }
 
       // For an external package being replaced with another external, keep
@@ -6195,12 +6205,6 @@ namespace bpkg
             info << "while configuring " << p.name () << p.db;
           }));
 
-      auto prereqs = [&p, &previous_prerequisites] ()
-      {
-        auto i (previous_prerequisites.find (&p));
-        return i != previous_prerequisites.end () ? &i->second : nullptr;
-      };
-
       configure_prerequisites_result cpr;
       if (p.system)
       {
@@ -6219,6 +6223,15 @@ namespace bpkg
       }
       else
       {
+        // Should only be called for packages whose prerequisites are saved.
+        //
+        auto prereqs = [&p, &previous_prerequisites] ()
+        {
+          auto i (previous_prerequisites.find (&p));
+          assert (i != previous_prerequisites.end ());
+          return &i->second;
+        };
+
         if (ap != nullptr)
         {
           assert (*p.action == build_package::build);
