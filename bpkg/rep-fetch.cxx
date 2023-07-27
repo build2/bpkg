@@ -314,7 +314,10 @@ namespace bpkg
           if (bs                  &&
               r.build2_dependency &&
               !satisfy_build2 (co, *r.build2_dependency))
+          {
             bs = false;
+            pds.clear (); // Won't now be used.
+          }
 
           nvs.push_back (move (r));
         }
@@ -328,7 +331,9 @@ namespace bpkg
         }
 
         mfs.push_back (move (f));
-        pds.push_back (move (d));
+
+        if (bs)
+          pds.push_back (move (d));
       }
 
       // Note that for the directory-based repositories we also query
@@ -1110,12 +1115,6 @@ namespace bpkg
       //
       if (rl.directory_based ())
       {
-        // Wouldn't be here otherwise. Note that rep_fetch_data is retrieved
-        // by rep_fetch() with false passed as the ignore_toolchain argument
-        // (see rep_fetch() for more details).
-        //
-        assert (!pis.empty ());
-
         // Note that we can't check if the external package of this upstream
         // version and revision is already available in the configuration
         // until we fetch all the repositories, as some of the available
@@ -1129,7 +1128,7 @@ namespace bpkg
             path_cast<dir_path> (rl.path () / *pm.location),
             pm.name,
             pm.version,
-            &pis[i],
+            !pis.empty () ? &pis[i] : nullptr,
             false   /* check_external */));
 
         if (v)
@@ -1314,6 +1313,12 @@ namespace bpkg
     // repository fragments list, as well as its prerequisite and complement
     // repository sets.
     //
+    // Note that we do this in the forward compatible manner ignoring
+    // unrecognized manifest values and unsatisfied build2 toolchain
+    // constraints in the package manifests. This approach allows older
+    // toolchains to work with newer repositories, successfully building the
+    // toolchain-satisfied packages and only failing for unsatisfied ones.
+    //
     rep_fetch_data rfd (
       rep_fetch (co,
                  &db.config_orig,
@@ -1321,7 +1326,7 @@ namespace bpkg
                  rl,
                  dependent_trust,
                  true /* ignore_unknow */,
-                 false /* ignore_toolchain */,
+                 true /* ignore_toolchain */,
                  false /* expand_values */,
                  true /* load_buildfiles */));
 

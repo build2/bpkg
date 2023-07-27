@@ -8,6 +8,7 @@
 # pkg-verify
 # |-- foo-1.tar.gz
 # |-- foo-2.tar.gz         (manifest with unknown name)
+# |-- libbaz-1.0.0.tar.gz  (manifest with unsatisfiable toolchain constraint)
 # `-- not-a-package.tar.gz
 
 : valid-package
@@ -136,4 +137,30 @@ $* --ignore-unknown --manifest $src/foo-2.tar.gz >>EOO
   $* --deep --manifest $src/foo-3.tar.gz 2>>/~%EOE% != 0
     %error: unable to find bootstrap.build file in package archive .+/foo-3.tar.gz%
     EOE
+}
+
+: compatibility
+:
+{
+  : fail
+  :
+  $* --manifest $src/libbaz-1.0.0.tar.gz 2>>/~%EOE% != 0
+    %error: unable to satisfy constraint \(build2 >= 65536.0.0\) for package .+/libbaz-1.0.0.tar.gz%
+    %  info: available build2 version is .+%
+    EOE
+
+  : success
+  :
+  $* --manifest --ignore-unknown $src/libbaz-1.0.0.tar.gz >>EOO
+    : 1
+    name: libbaz
+    version: 1.0.0
+    summary: libbaz
+    license: MIT
+    description: libbaz library
+    url: http://example.org
+    email: pkg@example.org
+    depends: * build2 >= 65536.0.0
+    depends: * bpkg >= 65536.0.0
+    EOO
 }

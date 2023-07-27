@@ -13,6 +13,8 @@
 # |   |-- foo-1.tar.gz
 # |   `-- repositories.manifest
 # |
+# |-- t15 (see pkg-build for details)
+# |
 # `-- git
 #     |-- libbar.git      -> style-basic.git (prerequisite)
 #     `-- style-basic.git
@@ -34,6 +36,11 @@
 
   $rc --key $key $out/signed &$out/signed/packages.manifest \
                              &$out/signed/signature.manifest
+
+  # Create the compatibility repository.
+  #
+  cp -r $src/t15 $out/compatibility
+  $rc $out/compatibility &$out/compatibility/packages.manifest --ignore-unknown
 
   # Create git repositories.
   #
@@ -430,5 +437,62 @@ else
     $* --name  -d '' $rep/testing >>"EOO"
       pkg:build2.org/rep-info/testing ($rep/testing)
       EOO
+  }
+}
+
+: compatibility
+:
+{
+  : packages
+  :
+  {
+    $* --packages $rep/compatibility >>EOO
+
+      libbar/1.0.0
+      libbaz/1.0.0
+      libbiz/1.0.0
+      libfoo/1.0.0
+      EOO
+  }
+
+  : package-manifests-ignore-toolchain
+  :
+  {
+    $* --packages --manifest --ignore-unknown $rep/compatibility >>~%EOO%
+      : 1
+      name: libbar
+      version: 1.0.0
+      %.+
+      depends: * build2 >= 0.16.0
+      depends: * bpkg >= 0.16.0
+      %.+
+      :
+      name: libbaz
+      version: 1.0.0
+      summary: libbaz
+      %.+
+      depends: * build2 >= 65536.0.0
+      depends: * bpkg >= 65536.0.0
+      %.+
+      :
+      name: libbiz
+      version: 1.0.0
+      summary: libbiz
+      %.+
+      :
+      name: libfoo
+      version: 1.0.0
+      summary: libfoo
+      %.+
+      EOO
+  }
+
+  : package-manifests-fail
+  :
+  {
+    $* --packages --manifest $rep/compatibility 2>>~%EOE% != 0
+      error: unable to satisfy constraint (build2 >= 65536.0.0) for package libbaz
+      %  info: available build2 version is .+%
+      EOE
   }
 }

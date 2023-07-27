@@ -479,6 +479,7 @@ posix = ($cxx.target.class != 'windows')
   cp -r $src/t14e $out/t14e && $rep_create $out/t14e &$out/t14e/packages.manifest
   cp -r $src/t14f $out/t14f && $rep_create $out/t14f &$out/t14f/packages.manifest
   cp -r $src/t14i $out/t14i && $rep_create $out/t14i &$out/t14i/packages.manifest
+  cp -r $src/t15  $out/t15  && $rep_create $out/t15  &$out/t15/packages.manifest --ignore-unknown
 
   # Create git repositories.
   #
@@ -20292,6 +20293,67 @@ else
         EOO
 
       $pkg_drop libfoo
+    }
+  }
+}
+
+: compatibility
+:
+{
+  +$clone_cfg
+  +$rep_add $rep/t15 && $rep_fetch
+
+  test.arguments += --yes
+
+  : toolchain
+  :
+  {
+    +$clone_cfg
+
+    : build-satisfied
+    :
+    {
+      $clone_cfg;
+
+      $* libfoo libbar 2>>~%EOE%;
+        fetched libfoo/1.0.0
+        unpacked libfoo/1.0.0
+        fetched libbar/1.0.0
+        unpacked libbar/1.0.0
+        configured libfoo/1.0.0
+        configured libbar/1.0.0
+        %info: .+libfoo-1.0.0.+ is up to date%
+        %info: .+libbar-1.0.0.+ is up to date%
+        updated libfoo/1.0.0
+        updated libbar/1.0.0
+        EOE
+
+      $pkg_drop libfoo libbar
+    }
+
+    : build-fail-unsatisfied
+    :
+    {
+      $clone_cfg;
+
+      $* libbaz 2>>~%EOE% != 0
+        error: unable to satisfy constraint (build2 >= 65536.0.0) for package libbaz
+        %  info: available build2 version is .+%
+        info: while satisfying libbaz/1.0.0
+        EOE
+    }
+
+    : build-fail-unsatisfied-dependency
+    :
+    {
+      $clone_cfg;
+
+      $* libbiz 2>>~%EOE% != 0
+        error: unable to satisfy constraint (build2 >= 65536.0.0) for package libbaz
+        %  info: available build2 version is .+%
+        info: while satisfying libbaz/1.0.0
+        info: while satisfying libbiz/1.0.0
+        EOE
     }
   }
 }
