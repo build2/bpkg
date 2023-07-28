@@ -7,6 +7,7 @@
 #include <bpkg/package-odb.hxx>
 #include <bpkg/database.hxx>
 #include <bpkg/rep-mask.hxx>
+#include <bpkg/satisfaction.hxx>
 
 using namespace std;
 
@@ -24,6 +25,34 @@ namespace bpkg
                      }));
 
     return i != imaginary_stubs.end () ? *i : nullptr;
+  }
+
+  vector<pair<reference_wrapper<database>,
+              shared_ptr<available_package>>> existing_packages;
+
+  pair<shared_ptr<available_package>, lazy_shared_ptr<repository_fragment>>
+  find_existing (const package_name& name,
+                 const optional<version_constraint>& c,
+                 const lazy_shared_ptr<repository_fragment>& rf)
+  {
+    database& db (rf.database ());
+
+    pair<shared_ptr<available_package>,
+         lazy_shared_ptr<repository_fragment>> r;
+
+    for (const auto& p: existing_packages)
+    {
+      if (p.first == db             &&
+          p.second->id.name == name &&
+          (!c || satisfies (p.second->version, *c)))
+      {
+        r.first = p.second;
+        r.second = lazy_shared_ptr<repository_fragment> (db, empty_string);
+        break;
+      }
+    }
+
+    return r;
   }
 
   linked_databases repo_configs;

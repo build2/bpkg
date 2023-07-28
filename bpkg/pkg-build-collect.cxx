@@ -2507,7 +2507,10 @@ namespace bpkg
               // recognized. An unrecognized package means the broken/stale
               // repository (see below).
               //
-              rp = find_available_one (dn, d.constraint, af);
+              rp = find_existing (dn, d.constraint, af);
+
+              if (dap == nullptr)
+                rp = find_available_one (dn, d.constraint, af);
 
               if (dap == nullptr && system && d.constraint)
                 rp = find_available_one (dn, nullopt, af);
@@ -2658,7 +2661,7 @@ namespace bpkg
                                    system,
                                    specified,
                                    force,
-                                    ru});
+                                   ru});
           }
 
           // Now, as we have pre-collected the dependency builds, go through

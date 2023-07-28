@@ -226,6 +226,25 @@ namespace bpkg
   shared_ptr<available_package>
   find_imaginary_stub (const package_name&);
 
+  // Try to find an available package in the existing packages registry. Such
+  // a registry is configuration-specific and contains package versions
+  // specified by the user on the command line as archives or directories for
+  // specific configurations (see pkg-build for details on such packages).
+  //
+  // Note that semantically such a registry can be considered as an imaginary
+  // repository which complements all the real repositories fetched in the
+  // respective configuration. Also note that normally this repository is used
+  // first (by calling this function) when trying to resolve a dependency
+  // package, prior to searching in the real repositories.
+  //
+  extern vector<pair<reference_wrapper<database>,
+                     shared_ptr<available_package>>> existing_packages;
+
+  pair<shared_ptr<available_package>, lazy_shared_ptr<repository_fragment>>
+  find_existing (const package_name&,
+                 const optional<version_constraint>&,
+                 const lazy_shared_ptr<repository_fragment>&);
+
   // Configurations to use as the repository information sources.
   //
   // The list normally contains the current configurations and configurations

@@ -133,7 +133,7 @@ namespace bpkg
 
     check_any_available (rdb, t);
 
-    // Note that here we compare including the revision (see pkg-fetch()
+    // Note that here we compare including the revision (see pkg_fetch()
     // implementation for more details).
     //
     shared_ptr<available_package> ap (

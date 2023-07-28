@@ -2946,6 +2946,8 @@ namespace bpkg
               af = root;
               ap = make_shared<available_package> (move (m));
               ap->locations.push_back (package_location {root, move (a)});
+
+              existing_packages.push_back (make_pair (ref (*pdb), ap));
             }
           }
           catch (const invalid_path&)
@@ -3037,6 +3039,8 @@ namespace bpkg
                 ap = make_shared<available_package> (move (m));
                 af = root;
                 ap->locations.push_back (package_location {root, move (d)});
+
+                existing_packages.push_back (make_pair (ref (*pdb), ap));
               }
             }
             catch (const invalid_path&)

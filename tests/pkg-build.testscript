@@ -490,6 +490,8 @@ end
 
 config_cxx = [cmdline] config.cxx=$quote($recall($cxx.path) $cxx.config.mode, true)
 
+tar = [cmdline] tar (!$posix ? --force-local : )
+
 cfg_create    += 2>!
 cfg_link      += 2>!
 pkg_configure += -d cfg 2>!
@@ -4658,7 +4660,7 @@ test.arguments += --sys-no-query
       {
         +$clone_cfg
 
-        +tar (!$posix ? --force-local : ) -xzf $src/t8a/fax-1.0.0.tar.gz &fax-1.0.0/***
+        +$tar -xzf $src/t8a/fax-1.0.0.tar.gz &fax-1.0.0/***
         +mv fax-1.0.0 fax
 
         : change-manifest
@@ -18759,14 +18761,14 @@ else
       {
         $clone_root_cfg;
 
-        tar (!$posix ? --force-local : ) -xf $src/t14d/libfoo-1.1.0+2.tar.gz &libfoo-1.1.0+2/***;
+        $tar -xf $src/t14d/libfoo-1.1.0+2.tar.gz &libfoo-1.1.0+2/***;
         mv libfoo-1.1.0+2 libfoo;
 
         $rep_add --type dir libfoo/ && $rep_fetch;
 
         $* libfoo 2>!;
 
-        tar (!$posix ? --force-local : ) -xf $src/t2/libbar-1.0.0.tar.gz &libbar-1.0.0/***;
+        $tar -xf $src/t2/libbar-1.0.0.tar.gz &libbar-1.0.0/***;
         mv libbar-1.0.0 libbar;
 
         cat <<"EOI" >=libbar/repositories.manifest;
@@ -19131,7 +19133,7 @@ else
     : recursive
     :
     {
-      +tar (!$posix ? --force-local : ) -xf $src/t2/libbar-1.0.0.tar.gz &libbar-1.0.0/***
+      +$tar -xf $src/t2/libbar-1.0.0.tar.gz &libbar-1.0.0/***
       +mv libbar-1.0.0 libbar
 
       +cat <<"EOI" >=libbar/repositories.manifest
@@ -19387,7 +19389,7 @@ else
     : As above but uses 'deorphan all held packages form'.
     :
     {
-      +tar (!$posix ? --force-local : ) -xf $src/t2/libbar-1.0.0.tar.gz &libbar-1.0.0/***
+      +$tar -xf $src/t2/libbar-1.0.0.tar.gz &libbar-1.0.0/***
       +mv libbar-1.0.0 libbar
 
       +cat <<"EOI" >=libbar/repositories.manifest
@@ -19687,7 +19689,7 @@ else
     {
       $clone_root_cfg;
 
-      tar (!$posix ? --force-local : ) -xf $src/t14d/libfoo-1.1.0+2.tar.gz &libfoo-1.1.0+2/***;
+      $tar -xf $src/t14d/libfoo-1.1.0+2.tar.gz &libfoo-1.1.0+2/***;
       mv libfoo-1.1.0+2 libfoo;
 
       $rep_add --type dir libfoo/ && $rep_fetch;
@@ -19906,7 +19908,7 @@ else
     {
       $clone_root_cfg;
 
-      tar (!$posix ? --force-local : ) -xf $src/t14d/libfoo-1.1.0+2.tar.gz &libfoo-1.1.0+2/***;
+      $tar -xf $src/t14d/libfoo-1.1.0+2.tar.gz &libfoo-1.1.0+2/***;
       mv libfoo-1.1.0+2 libfoo;
 
       $rep_add --type dir libfoo/ && $rep_fetch;
@@ -20125,7 +20127,7 @@ else
     {
       $clone_root_cfg;
 
-      tar (!$posix ? --force-local : ) -xf $src/t14d/libfoo-1.1.0+2.tar.gz &libfoo-1.1.0+2/***;
+      $tar -xf $src/t14d/libfoo-1.1.0+2.tar.gz &libfoo-1.1.0+2/***;
       mv libfoo-1.1.0+2 libfoo;
 
       $rep_add --type dir libfoo/ && $rep_fetch;
@@ -20403,6 +20405,217 @@ else
         info: while satisfying libbaz/1.0.0
         info: while satisfying libbiz/1.0.0
         EOE
+    }
+  }
+}
+
+: existing-package
+:
+{
+  +$clone_cfg
+
+  test.arguments += --yes
+
+  : archive
+  :
+  {
+    +$clone_cfg
+
+    : dependency-archive
+    :
+    : Test that libbar/1.0.0 specified as an archive is picked as a
+    : dependency for libbaz, despite the fact the repository contains
+    : libbar/1.2.0.
+    :
+    {
+      $clone_cfg;
+      $rep_add $rep/t5 && $rep_fetch;
+
+      $* $src/libbaz-1.1.0.tar.gz \
+         $src/libfoo-1.0.0.tar.gz \
+         $src/libbar-1.0.0.tar.gz 2>>~%EOE%;
+        fetched libfoo/1.0.0
+        unpacked libfoo/1.0.0
+        fetched libbar/1.0.0
+        unpacked libbar/1.0.0
+        fetched libbaz/1.1.0
+        unpacked libbaz/1.1.0
+        configured libfoo/1.0.0
+        configured libbar/1.0.0
+        configured libbaz/1.1.0
+        %info: .+libfoo-1.0.0.+ is up to date%
+        %info: .+libbar-1.0.0.+ is up to date%
+        %info: .+libbaz-1.1.0.+ is up to date%
+        updated libfoo/1.0.0
+        updated libbar/1.0.0
+        updated libbaz/1.1.0
+        EOE
+
+      $pkg_status -r libbaz >>EOO;
+        !libbaz configured !1.1.0
+          !libbar configured !1.0.0 available 1.2.0
+            !libfoo configured !1.0.0
+          !libfoo configured !1.0.0
+        EOO
+
+      $pkg_drop libbaz libfoo libbar
+    }
+
+    : dependency-repository
+    :
+    : Picks the libbar/1.2.0 dependency from the repository for the
+    : dependent libbaz/1.1.0 specified as an archive.
+    :
+    {
+      $clone_cfg;
+      $rep_add $rep/t5 && $rep_fetch;
+
+      $* $src/libbaz-1.1.0.tar.gz \
+         $src/libfoo-1.0.0.tar.gz 2>>~%EOE%;
+        fetched libbar/1.2.0
+        unpacked libbar/1.2.0
+        fetched libfoo/1.0.0
+        unpacked libfoo/1.0.0
+        fetched libbaz/1.1.0
+        unpacked libbaz/1.1.0
+        configured libbar/1.2.0
+        configured libfoo/1.0.0
+        configured libbaz/1.1.0
+        %info: .+libfoo-1.0.0.+ is up to date%
+        %info: .+libbaz-1.1.0.+ is up to date%
+        updated libfoo/1.0.0
+        updated libbaz/1.1.0
+        EOE
+
+      $pkg_status -r libbaz >>EOO;
+        !libbaz configured !1.1.0
+          libbar configured 1.2.0
+          !libfoo configured !1.0.0
+        EOO
+
+      $pkg_drop libbaz libfoo libbar
+    }
+
+    : unsatisfactory-dependency
+    :
+    {
+      $clone_cfg;
+      $rep_add $rep/t4b && $rep_fetch;
+
+      $* libbar $src/libfoo-1.0.0.tar.gz 2>>~%EOE% != 0
+        error: unable to satisfy constraints on package libfoo
+          info: command line depends on (libfoo == 1.0.0)
+          info: libbar depends on (libfoo == 1.1.0)
+          info: available libfoo/1.0.0
+          info: available libfoo/1.1.0
+          info: explicitly specify libfoo version to manually satisfy both constraints
+        info: while satisfying libbar/1.1.0
+        EOE
+    }
+
+    : unsatisfactory-dependency-archive-dependent
+    :
+    : Save as above but the dependent is specified as an archive.
+    :
+    {
+      $clone_cfg;
+      $rep_add $rep/t4a && $rep_fetch; # Note: libfoo/1.1.0 belongs to t4a.
+
+      $* $src/libbar-1.1.0.tar.gz $src/libfoo-1.0.0.tar.gz 2>>~%EOE% != 0
+        error: unable to satisfy constraints on package libfoo
+          info: command line depends on (libfoo == 1.0.0)
+          info: libbar depends on (libfoo == 1.1.0)
+          info: available libfoo/1.0.0
+          info: available libfoo/1.1.0
+          info: explicitly specify libfoo version to manually satisfy both constraints
+        info: while satisfying libbar/1.1.0
+        EOE
+    }
+
+    : dependency-alternative
+    :
+    : Note: by specifying an unsatisfactory dependency alternative as an
+    : archive we resolve the alternatives ambiguity here, building both libbar
+    : and libbaz packages as a result.
+    :
+    {
+      $clone_cfg;
+      $rep_add $rep/t8a && $rep_fetch;
+
+      $* fox 2>>EOE != 0;
+        error: unable to select dependency alternative for package fox/1.0.0
+          info: explicitly specify dependency packages to manually select the alternative
+          info: alternative: libbar
+          info: alternative: libbaz
+        info: while satisfying fox/1.0.0
+        EOE
+
+      $* fox $src/libbar-0.0.3.tar.gz 2>>~%EOE%;
+        fetched libbaz/1.1.0
+        unpacked libbaz/1.1.0
+        fetched fox/1.0.0
+        unpacked fox/1.0.0
+        fetched libbar/0.0.3
+        unpacked libbar/0.0.3
+        configured libbaz/1.1.0
+        configured fox/1.0.0
+        configured libbar/0.0.3
+        %info: .+fox-1.0.0.+ is up to date%
+        %info: .+libbar-0.0.3.+ is up to date%
+        updated fox/1.0.0
+        updated libbar/0.0.3
+        EOE
+
+      $pkg_status -r fox libbar >>EOO;
+        !fox configured 1.0.0
+          libbaz configured 1.1.0
+        !libbar configured !0.0.3 available 1.0.0
+          libbaz configured 1.1.0
+        EOO
+
+      $pkg_drop fox libbar
+    }
+  }
+
+  : directory
+  :
+  {
+    +$clone_cfg
+
+    : dependency-directory
+    :
+    {
+      $clone_cfg;
+
+      $tar -xf $src/libbaz-1.1.0.tar.gz &libbaz-1.1.0/***;
+      $tar -xf $src/libfoo-1.0.0.tar.gz &libfoo-1.0.0/***;
+      $tar -xf $src/libbar-1.0.0.tar.gz &libbar-1.0.0/***;
+
+      $* libbaz-1.1.0/ \
+         libfoo-1.0.0/ \
+         libbar-1.0.0/ 2>>~%EOE%;
+        using libfoo/1.0.0 (external)
+        using libbar/1.0.0 (external)
+        using libbaz/1.1.0 (external)
+        configured libfoo/1.0.0
+        configured libbar/1.0.0
+        configured libbaz/1.1.0
+        %info: .+libfoo.+ is up to date%
+        %info: .+libbar.+ is up to date%
+        %info: .+libbaz.+ is up to date%
+        updated libfoo/1.0.0
+        updated libbar/1.0.0
+        updated libbaz/1.1.0
+        EOE
+
+      $pkg_status -r libbaz >>EOO;
+        !libbaz configured !1.1.0
+          !libbar configured !1.0.0
+            !libfoo configured !1.0.0
+          !libfoo configured !1.0.0
+        EOO
+
+      $pkg_drop libbaz libfoo libbar
     }
   }
 }
