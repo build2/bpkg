@@ -5205,9 +5205,9 @@ test.arguments += --sys-no-query
           %.*
           EOO
 
-        # Note that the current behavior should actually be considered as a
-        # bug which we will fix eventually. The proper behaviour would be to
-        # re-evaluate this dependent rather than just to re-configure.
+        # @@ Note that the current behavior should actually be considered as a
+        #    bug which we will fix eventually. The proper behaviour would be
+        #    to re-evaluate this dependent rather than just to re-configure.
         #
         $* ?libfoo 2>>~%EOE% != 0;
           error: unable to reconfigure dependent tox with reflect clause that refers to dependency configuration variables
@@ -5253,6 +5253,55 @@ test.arguments += --sys-no-query
           EOO
 
         $pkg_drop tux
+      }
+
+      : dont-re-evaluate-dependent
+      :
+      {
+        $clone_cfg;
+
+        $* tvx ?libfoo/1.0.0 2>!;
+
+        $pkg_status -r >>EOO;
+          !tvx configured 1.0.0
+            libfoo configured !1.0.0 available 2.0.0
+            libfox configured 1.0.0
+          EOO
+
+        cat cfg/libfox-1.0.0/build/config.build >>~%EOO%;
+          %.*
+          config.libfox.level = 1
+          %.*
+          EOO
+
+        # @@ Note that the current behavior should actually be considered as a
+        #    bug which we will fix eventually. The proper behaviour would be
+        #    to re-evaluate this dependent rather than just to re-configure.
+        #
+        $* ?libfoo 2>>~%EOE%;
+          disfigured tvx/1.0.0
+          disfigured libfoo/1.0.0
+          fetched libfoo/2.0.0
+          unpacked libfoo/2.0.0
+          configured libfoo/2.0.0
+          configured tvx/1.0.0
+          %info: .+tvx-1.0.0.+ is up to date%
+          updated tvx/1.0.0
+          EOE
+
+        $pkg_status -r >>EOO;
+          !tvx configured 1.0.0
+            libfoo configured 2.0.0
+            libfox configured 1.0.0
+          EOO
+
+        cat cfg/libfox-1.0.0/build/config.build >>~%EOO%;
+          %.*
+          config.libfox.level = 1
+          %.*
+          EOO
+
+        $pkg_drop tvx
       }
     }
   }

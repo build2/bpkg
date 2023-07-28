@@ -99,17 +99,20 @@ namespace bpkg
     //
     //   @@ It seems there is a hole in the reconfiguration mode:
     //
-    //      foo -> libfoo {require {config.libfoo.proto=1}
+    //      foo -> libfoo {prefer {config.libfoo.proto=1} accept(true)
     //                     reflect {config.foo.reflect=1}} |
-    //             libfoo {require {config.libfoo.proto=2}
+    //             libfoo {prefer {config.libfoo.proto=2} accept(true)
     //                     reflect {config.foo.reflect=2}}
-    //          -> libbar {require {config.libfoo.proto=2}}
+    //          -> libbar {prefer {config.libbar.proto=$config.libfoo.proto}
+    //                     accept (config.libbar.proto=2)}
     //          -> libbaz
     //
-    //      foo is configured with config.foo.reflect=2
+    //      foo is configured with config.foo.reflect=2 initially.
     //
-    //      If afterwords libbaz is upgraded, the foo is
-    //      reconfigured with config.foo.reflect=1
+    //      If afterwords libbaz is upgraded, the foo is reconfigured with
+    //      config.foo.reflect=1 just because we erroneously pick the first
+    //      libfoo alternative (which has been banned by libbar accept clause
+    //      on the previous pkg-build run during negotiation).
     //
     //      It feels more and more that the proper solution here is to go
     //      "nuclear" and to always "upgrade" re-configuration for a package
