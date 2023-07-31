@@ -754,6 +754,17 @@ namespace bpkg
 
       return make_pair (base_type::emplace (end (), db, move (v)), true);
     }
+
+    V&
+    operator[] (database& db)
+    {
+      iterator i (find (db));
+
+      if (i == end ())
+        i = base_type::emplace (end (), db, V ());
+
+      return i->second;
+    }
   };
 }
 

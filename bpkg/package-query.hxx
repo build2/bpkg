@@ -241,9 +241,18 @@ namespace bpkg
                      shared_ptr<available_package>>> existing_packages;
 
   pair<shared_ptr<available_package>, lazy_shared_ptr<repository_fragment>>
-  find_existing (const package_name&,
-                 const optional<version_constraint>&,
-                 const lazy_shared_ptr<repository_fragment>&);
+  find_existing (database&,
+                 const package_name&,
+                 const optional<version_constraint>&);
+
+  inline pair<shared_ptr<available_package>,
+              lazy_shared_ptr<repository_fragment>>
+  find_existing (const package_name& n,
+                 const optional<version_constraint>& c,
+                 const lazy_shared_ptr<repository_fragment>& rf)
+  {
+    return find_existing (rf.database (), n, c);
+  }
 
   // Configurations to use as the repository information sources.
   //

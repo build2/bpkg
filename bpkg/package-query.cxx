@@ -13,6 +13,8 @@ using namespace std;
 
 namespace bpkg
 {
+  // Search in the imaginary system repository.
+  //
   vector<shared_ptr<available_package>> imaginary_stubs;
 
   shared_ptr<available_package>
@@ -27,16 +29,16 @@ namespace bpkg
     return i != imaginary_stubs.end () ? *i : nullptr;
   }
 
+  // Search in the existing packages registry.
+  //
   vector<pair<reference_wrapper<database>,
               shared_ptr<available_package>>> existing_packages;
 
   pair<shared_ptr<available_package>, lazy_shared_ptr<repository_fragment>>
-  find_existing (const package_name& name,
-                 const optional<version_constraint>& c,
-                 const lazy_shared_ptr<repository_fragment>& rf)
+  find_existing (database& db,
+                 const package_name& name,
+                 const optional<version_constraint>& c)
   {
-    database& db (rf.database ());
-
     pair<shared_ptr<available_package>,
          lazy_shared_ptr<repository_fragment>> r;
 
@@ -55,6 +57,8 @@ namespace bpkg
     return r;
   }
 
+  // Search in real repositories.
+  //
   linked_databases repo_configs;
 
   linked_databases

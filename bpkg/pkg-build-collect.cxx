@@ -118,7 +118,7 @@ namespace bpkg
             (*action == build &&
              (selected->system () != system             ||
               selected->version != available_version () ||
-              deorphan ()                               ||
+              replace ()                                ||
               (!system && (!config_vars.empty () || disfigure)))));
   }
 

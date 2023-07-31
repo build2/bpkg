@@ -71,11 +71,31 @@ namespace bpkg
   // ultimate dependent configurations and add them to the respective
   // configuration-associated fragment lists.
   //
+  // If this package's repository fragment is a root fragment (package is
+  // fetched/unpacked using the existing archive/directory), then also add
+  // this repository fragment to the resulting list assuming that this
+  // package's dependencies can be resolved from this repository fragment or
+  // its complements (user-added repositories) as well.
+  //
   static void
   add_dependent_repo_fragments (database& db,
-                                const available_package_id& id,
+                                const shared_ptr<selected_package>& p,
                                 config_repo_fragments& r)
   {
+    available_package_id id (p->name, p->version);
+
+    // Add a repository fragment to the specified list, suppressing duplicates.
+    //
+    auto add = [] (shared_ptr<repository_fragment>&& rf,
+                   vector<shared_ptr<repository_fragment>>& rfs)
+    {
+      if (find (rfs.begin (), rfs.end (), rf) == rfs.end ())
+        rfs.push_back (move (rf));
+    };
+
+    if (p->repository_fragment.empty ()) // Root repository fragment?
+      add (db.find<repository_fragment> (empty_string), r[db]);
+
     for (database& ddb: dependent_repo_configs (db))
     {
       shared_ptr<available_package> dap (ddb.find<available_package> (id));
@@ -98,12 +118,7 @@ namespace bpkg
             pl.repository_fragment);
 
           if (!rep_masked_fragment (lrf))
-          {
-            shared_ptr<repository_fragment> rf (lrf.load ());
-
-            if (find (rfs.begin (), rfs.end (), rf) == rfs.end ())
-              rfs.push_back (move (rf));
-          }
+            add (lrf.load (), rfs);
         }
 
         // Erase the entry from the map if it contains no fragments, which may
@@ -210,15 +225,19 @@ namespace bpkg
     }
   }
 
-  // Return false if the selected package is configured as system or this
-  // repository fragment is present in the ultimate dependent configurations
-  // (see dependent_repo_configs() for details) and this exact version is
-  // available from this repository fragment or from its complement.
+  // Return true if the selected package is not configured as system and its
+  // repository fragment is not present in any ultimate dependent
+  // configuration (see dependent_repo_configs() for details) or this exact
+  // version is not available from this repository fragment nor from its
+  // complements. Also return true if the selected package repository fragment
+  // is a root fragment (package is fetched/unpacked using the existing
+  // archive/directory).
   //
   // Note that the orphan definition here is stronger than in the rest of the
   // code, since we request the available package to also be present in the
-  // repository fragment. It feels that such a definition aligns better with
-  // the user expectations about deorphaning.
+  // repository fragment and consider packages built as existing archives or
+  // directories as orphans. It feels that such a definition aligns better
+  // with the user expectations about deorphaning.
   //
   static bool
   orphan_package (database& db, const shared_ptr<selected_package>& sp)
@@ -229,6 +248,9 @@ namespace bpkg
       return false;
 
     const string& cn (sp->repository_fragment.canonical_name ());
+
+    if (cn.empty ()) // Root repository fragment?
+      return true;
 
     for (database& ddb: dependent_repo_configs (db))
     {
@@ -268,23 +290,24 @@ namespace bpkg
   //
   struct dependency_package
   {
-    database*                    db;             // Can only be NULL if system.
+    database*                    db;            // Can only be NULL if system.
     package_name                 name;
-    optional<version_constraint> constraint;     // nullopt if unspecified.
+    optional<version_constraint> constraint;    // nullopt if unspecified.
     shared_ptr<selected_package> selected;
     bool                         system;
+    bool                         existing;      // Build as archive or directory.
 
     // true -- upgrade, false -- patch.
     //
-    optional<bool>               upgrade;        // Only for absent constraint.
+    optional<bool>               upgrade;       // Only for absent constraint.
 
     bool                         deorphan;
     bool                         keep_out;
     bool                         disfigure;
     optional<dir_path>           checkout_root;
     bool                         checkout_purge;
-    strings                      config_vars;    // Only if not system.
-    const system_package_status* system_status;  // See struct pkg_arg.
+    strings                      config_vars;   // Only if not system.
+    const system_package_status* system_status; // See struct pkg_arg.
   };
   using dependency_packages = vector<dependency_package>;
 
@@ -293,8 +316,19 @@ namespace bpkg
   // this dependency. If the result is a NULL available_package, then it is
   // either no longer used and can be dropped, or no changes to the dependency
   // are necessary. Otherwise, the result is available_package to
-  // upgrade/downgrade/deorphan to as well as the repository fragment it must
-  // come from, the system flag, and the database it must be configured in.
+  // upgrade/downgrade to or replace with the same version (deorphan, rebuild
+  // as an existing archive or directory, etc) as well as the repository
+  // fragment it must come from, the system flag, and the database it must be
+  // configured in.
+  //
+  // If the dependency is being rebuilt as an existing archive or directory we
+  // may end up with the available package version being the same as the
+  // selected package version. In this case the dependency needs to be
+  // re-fetched/re-unpacked from this archive/directory. Also note that if the
+  // dependency needs to be rebuilt as an existing archive or directory the
+  // caller may need to stash its name/database. This way on the subsequent
+  // call this function may return the "no change" recommendation rather than
+  // the "replace" recommendation.
   //
   // If in the deorphan mode it turns out that the package is not an orphan
   // and there is no version constraint specified and upgrade/patch is not
@@ -330,14 +364,15 @@ namespace bpkg
   //
   struct evaluate_result
   {
-    // The system and orphan members are meaningless if the unused flag is
-    // true.
+    // The system, existing, and orphan members are meaningless if the unused
+    // flag is true.
     //
     reference_wrapper<database>                db;
     shared_ptr<available_package>              available;
     lazy_shared_ptr<bpkg::repository_fragment> repository_fragment;
     bool                                       unused;
     bool                                       system;
+    bool                                       existing;
 
     // Original orphan version which needs to be deorphaned. May only be
     // present for the deorphan mode.
@@ -359,12 +394,14 @@ namespace bpkg
 
   using dependent_constraints = vector<dependent_constraint>;
   using deorphaned_dependencies = map<package_key, version>;
+  using existing_dependencies = vector<package_key>;
 
   static evaluate_result
   evaluate_dependency (database&,
                        const shared_ptr<selected_package>&,
                        const optional<version_constraint>& desired,
                        bool desired_sys,
+                       bool existing,
                        database& desired_db,
                        const shared_ptr<selected_package>& desired_db_sp,
                        optional<bool> upgrade,
@@ -372,12 +409,13 @@ namespace bpkg
                        bool explicitly,
                        const config_repo_fragments&,
                        const dependent_constraints&,
+                       const existing_dependencies&,
                        const deorphaned_dependencies&,
                        bool ignore_unsatisfiable);
 
   // If there are no user expectations regarding this dependency, then we give
-  // no up/down-grade recommendation, unless there are no dependents in which
-  // case we recommend to drop the dependency.
+  // no up/down-grade/replace recommendation, unless there are no dependents
+  // in which case we recommend to drop the dependency.
   //
   // Note that the user expectations are only applied for dependencies that
   // have dependents in the current configurations.
@@ -387,6 +425,7 @@ namespace bpkg
                        const shared_ptr<selected_package>& sp,
                        const dependency_packages& deps,
                        bool no_move,
+                       const existing_dependencies& existing_deps,
                        const deorphaned_dependencies& deorphaned_deps,
                        bool ignore_unsatisfiable)
   {
@@ -403,6 +442,7 @@ namespace bpkg
                               nullptr /* repository_fragment */,
                               false   /* unused */,
                               false   /* system */,
+                              false   /* existing */,
                               nullopt /* orphan */};
     };
 
@@ -539,6 +579,7 @@ namespace bpkg
                               nullptr /* repository_fragment */,
                               true    /* unused */,
                               false   /* system */,
+                              false   /* existing */,
                               nullopt /* orphan */};
     }
 
@@ -549,6 +590,7 @@ namespace bpkg
     database& ddb (i->db != nullptr ? *i->db : db);
     const optional<version_constraint>& dvc (i->constraint); // May be nullopt.
     bool dsys (i->system);
+    bool existing (i->existing);
     bool deorphan (i->deorphan);
 
     // The selected package in the desired database which we copy over.
@@ -562,14 +604,16 @@ namespace bpkg
 
     // If a package in the desired database is already selected and matches
     // the user expectations then no package change is required, unless the
-    // package also needs to be deorphaned.
+    // package is also being built as an existing archive or directory or
+    // needs to be deorphaned.
     //
     if (dsp != nullptr && dvc)
     {
       const version& sv (dsp->version);
       bool ssys (dsp->system ());
 
-      if (!deorphan    &&
+      if (!existing    &&
+          !deorphan    &&
           ssys == dsys &&
           (ssys ? sv == *dvc->min_version : satisfies (sv, dvc)))
       {
@@ -591,11 +635,7 @@ namespace bpkg
       package_dependent& dep (pd.second);
 
       shared_ptr<selected_package> p (ddb.load<selected_package> (dep.name));
-
-      add_dependent_repo_fragments (
-        ddb,
-        available_package_id (p->name, p->version),
-        repo_frags);
+      add_dependent_repo_fragments (ddb, p, repo_frags);
 
       dpt_constrs.emplace_back (ddb, move (p), move (dep.constraint));
     }
@@ -604,6 +644,7 @@ namespace bpkg
                                 sp,
                                 dvc,
                                 dsys,
+                                existing,
                                 ddb,
                                 dsp,
                                 i->upgrade,
@@ -611,6 +652,7 @@ namespace bpkg
                                 true /* explicitly */,
                                 repo_frags,
                                 dpt_constrs,
+                                existing_deps,
                                 deorphaned_deps,
                                 ignore_unsatisfiable);
   }
@@ -643,6 +685,7 @@ namespace bpkg
                        const shared_ptr<selected_package>& sp,
                        const optional<version_constraint>& dvc,
                        bool dsys,
+                       bool existing,
                        database& ddb,
                        const shared_ptr<selected_package>& dsp,
                        optional<bool> upgrade,
@@ -650,6 +693,7 @@ namespace bpkg
                        bool explicitly,
                        const config_repo_fragments& rfs,
                        const dependent_constraints& dpt_constrs,
+                       const existing_dependencies& existing_deps,
                        const deorphaned_dependencies& deorphaned_deps,
                        bool ignore_unsatisfiable)
   {
@@ -664,6 +708,7 @@ namespace bpkg
                               nullptr /* repository_fragment */,
                               false   /* unused */,
                               false   /* system */,
+                              false   /* existing */,
                               nullopt /* orphan */};
     };
 
@@ -675,31 +720,59 @@ namespace bpkg
     // the configuration negotiation machinery) and, if fail, fallback to
     // picking the latest one just to make sure the package is recognized.
     //
-    optional<version_constraint> c;
-    bool patch (upgrade && !*upgrade);
+    // But first check if this package is specified as an existing archive or
+    // directory. If that's the case, then only consider its (transient)
+    // available package instead of the above.
+    //
+    bool patch (false);
+    available_packages afs;
 
-    if (!dvc)
+    if (existing)
     {
-      assert (!dsys); // The version can't be empty for the system package.
+      // By definition such a dependency has a version specified and may not
+      // be system.
+      //
+      assert (dvc && !dsys);
 
-      if (patch)
+      pair<shared_ptr<available_package>,
+           lazy_shared_ptr<repository_fragment>> rp (
+             find_existing (ddb, nm, *dvc));
+
+      // Must have been added to the existing packages registry.
+      //
+      assert (rp.first != nullptr);
+
+      afs.push_back (move (rp));
+    }
+    else
+    {
+      optional<version_constraint> c;
+
+      if (!dvc)
       {
-        c = patch_constraint (sp, ignore_unsatisfiable);
+        assert (!dsys); // The version can't be empty for the system package.
 
-        if (!c)
+        patch = (upgrade && !*upgrade);
+
+        if (patch)
         {
-          l5 ([&]{trace << *sp << db << ": non-patchable";});
-          return no_change ();
+          c = patch_constraint (sp, ignore_unsatisfiable);
+
+          if (!c)
+          {
+            l5 ([&]{trace << *sp << db << ": non-patchable";});
+            return no_change ();
+          }
         }
       }
+      else if (!dsys || !wildcard (*dvc))
+        c = dvc;
+
+      afs = find_available (nm, c, rfs);
+
+      if (afs.empty () && dsys && c)
+        afs = find_available (nm, nullopt, rfs);
     }
-    else if (!dsys || !wildcard (*dvc))
-      c = dvc;
-
-    available_packages afs (find_available (nm, c, rfs));
-
-    if (afs.empty () && dsys && c)
-      afs = find_available (nm, nullopt, rfs);
 
     // In the deorphan mode check that the dependency is an orphan or was
     // deorphaned on some previous refinement iteration. If that's not the
@@ -729,9 +802,7 @@ namespace bpkg
         auto i (deorphaned_deps.find (package_key (ddb, nm)));
 
         if (i == deorphaned_deps.end ())
-        {
           orphan = orphan_package (ddb, dsp);
-        }
         else
           deorphaned = &i->second;
       }
@@ -811,6 +882,7 @@ namespace bpkg
                             &ddb, &dsp,
                             dsys,
                             deorphaned, dov,
+                            existing,
                             &no_change,
                             &trace] (available&& a, const char* what)
     {
@@ -828,6 +900,7 @@ namespace bpkg
         ddb, move (a.first), move (a.second),
         false /* unused */,
         dsys,
+        existing,
         *dov};
     };
 
@@ -981,9 +1054,20 @@ namespace bpkg
         // For the regular up/downgrade if the best satisfactory version and
         // the desired system flag perfectly match the ones of the selected
         // package, then no package change is required. Otherwise, recommend
-        // an upgrade/downgrade.
+        // an upgrade/downgrade/replacement.
         //
-        if (dsp != nullptr && av == dsp->version && dsp->system () == dsys)
+        // Note: we need to be careful here not to start yo-yo'ing for a
+        // dependency being built as an existing archive or directory. For
+        // such a dependency we need to return the "no change" recommendation
+        // if any version recommendation (which may not change) has already
+        // been returned.
+        //
+        if (dsp != nullptr         &&
+            av == dsp->version     &&
+            dsp->system () == dsys &&
+            (!existing ||
+             find (existing_deps.begin (), existing_deps.end (),
+                   package_key (ddb, nm)) != existing_deps.end ()))
         {
           l5 ([&]{trace << *dsp << ddb << ": unchanged";});
           return no_change ();
@@ -996,6 +1080,7 @@ namespace bpkg
           ddb, move (ap), move (af.second),
           false /* unused */,
           dsys,
+          existing,
           nullopt /* orphan */};
       }
     }
@@ -1053,7 +1138,7 @@ namespace bpkg
     {
       diag_record dr (fail);
 
-      if (!dvc && patch)
+      if (patch)
       {
         // Otherwise, we should have bailed out earlier returning "no change"
         // (see above).
@@ -1257,8 +1342,8 @@ namespace bpkg
   // Evaluate a package (not necessarily dependency) and return a new desired
   // version. If the result is absent (nullopt), then no changes to the
   // package are necessary. Otherwise, the result is available_package to
-  // upgrade/downgrade to as well as the repository fragment it must come
-  // from.
+  // upgrade/downgrade to or replace with, as well as the repository fragment
+  // it must come from.
   //
   // If the system package cannot be upgraded to the source one, not being
   // found in the dependents repositories, then return nullopt if
@@ -1269,6 +1354,7 @@ namespace bpkg
   evaluate_recursive (database& db,
                       const shared_ptr<selected_package>& sp,
                       const recursive_packages& recs,
+                      const existing_dependencies& existing_deps,
                       const deorphaned_dependencies& deorphaned_deps,
                       bool ignore_unsatisfiable,
                       upgrade_dependencies_cache& cache)
@@ -1317,10 +1403,7 @@ namespace bpkg
         // continue to iterate over dependents, collecting the repository
         // fragments and the constraints.
         //
-        add_dependent_repo_fragments (
-          ddb,
-          available_package_id (p->name, p->version),
-          repo_frags);
+        add_dependent_repo_fragments (ddb, p, repo_frags);
       }
     }
 
@@ -1330,13 +1413,16 @@ namespace bpkg
       return nullopt;
     }
 
-    // Recommends the highest possible version.
-    //
+    pair<shared_ptr<available_package>,
+         lazy_shared_ptr<repository_fragment>> rp (
+           find_existing (db, sp->name, nullopt /* version_constraint */));
+
     optional<evaluate_result> r (
       evaluate_dependency (db,
                            sp,
                            nullopt /* desired */,
                            false /* desired_sys */,
+                           rp.first != nullptr /* existing */,
                            db,
                            sp,
                            ud.upgrade,
@@ -1344,6 +1430,7 @@ namespace bpkg
                            false /* explicitly */,
                            repo_frags,
                            dpt_constrs,
+                           existing_deps,
                            deorphaned_deps,
                            ignore_unsatisfiable));
 
@@ -2903,6 +2990,7 @@ namespace bpkg
         //
         lazy_shared_ptr<repository_fragment> af;
         shared_ptr<available_package> ap;
+        bool existing (false); // True if build as an archive or directory.
 
         if (!arg_parsed (pa))
         {
@@ -2935,13 +3023,6 @@ namespace bpkg
               //
               l4 ([&]{trace << "archive '" << a << "': " << arg_string (pa);});
 
-              // Supporting this would complicate things a bit, but we may add
-              // support for it one day.
-              //
-              if (pa.options.dependency ())
-                fail << "package archive '" << a
-                     << "' may not be built as a dependency";
-
               pa = arg_package (pdb,
                                 package_scheme::none,
                                 m.name,
@@ -2954,6 +3035,7 @@ namespace bpkg
               ap->locations.push_back (package_location {root, move (a)});
 
               existing_packages.push_back (make_pair (ref (*pdb), ap));
+              existing = true;
             }
           }
           catch (const invalid_path&)
@@ -3014,13 +3096,6 @@ namespace bpkg
                 l4 ([&]{trace << "directory '" << d << "': "
                               << arg_string (pa);});
 
-                // Supporting this would complicate things a bit, but we may
-                // add support for it one day.
-                //
-                if (pa.options.dependency ())
-                  fail << "package directory '" << d
-                       << "' may not be built as a dependency";
-
                 // Fix-up the package version to properly decide if we need to
                 // upgrade/downgrade the package.
                 //
@@ -3047,6 +3122,7 @@ namespace bpkg
                 ap->locations.push_back (package_location {root, move (d)});
 
                 existing_packages.push_back (make_pair (ref (*pdb), ap));
+                existing = true;
               }
             }
             catch (const invalid_path&)
@@ -3278,11 +3354,10 @@ namespace bpkg
 
           // Make sure that the package is known.
           //
-          auto apr (find_available (repo_configs,
-                                    pa.name,
-                                    !sys ? pa.constraint : nullopt));
-
-          if (apr.empty ())
+          if (!existing &&
+              find_available (repo_configs,
+                              pa.name,
+                              !sys ? pa.constraint : nullopt).empty ())
           {
             string n (arg_string (pa, false /* options */));
 
@@ -3314,6 +3389,7 @@ namespace bpkg
                                 move (pa.constraint),
                                 move (sp),
                                 sys,
+                                existing,
                                 (pa.options.upgrade () || pa.options.patch ()
                                  ? pa.options.upgrade ()
                                  : optional<bool> ()),
@@ -3503,6 +3579,8 @@ namespace bpkg
         bool keep_out (pa.options.keep_out () &&
                        sp != nullptr && sp->external ());
 
+        bool replace ((existing && sp != nullptr) || deorphan);
+
         // Finally add this package to the list.
         //
         // @@ Pass pa.configure_only() when support for package-specific
@@ -3533,7 +3611,7 @@ namespace bpkg
           move (pa.config_vars),
           {package_key {mdb, ""}},    // Required by (command line).
           false,                      // Required by dependents.
-          deorphan ? build_package::build_deorphan : uint16_t (0)};
+          replace ? build_package::build_replace : uint16_t (0)};
 
         l4 ([&]{trace << "stash held package "
                       << p.available_name_version_db ();});
@@ -3665,7 +3743,7 @@ namespace bpkg
                 strings (),              // Configuration variables.
                 {package_key {mdb, ""}}, // Required by (command line).
                 false,                   // Required by dependents.
-                deorphan ? build_package::build_deorphan : uint16_t (0)};
+                deorphan ? build_package::build_replace : uint16_t (0)};
 
             l4 ([&]{trace << "stash held package "
                           << p.available_name_version_db ();});
@@ -3748,6 +3826,9 @@ namespace bpkg
     // dependencies to up/down-grade, and unused dependencies to drop. We call
     // this the plan.
     //
+    // Note: for the sake of brevity we also assume the package replacement
+    // wherever we mention the package up/down-grade in this description.
+    //
     // The way we do it is tricky: we first create the plan based on build-to-
     // holds (i.e., the user selected). Next, to decide whether we need to
     // up/down-grade or drop any dependecies we need to take into account an
@@ -3801,9 +3882,11 @@ namespace bpkg
         lazy_shared_ptr<bpkg::repository_fragment> repository_fragment;
 
         bool system;
+        bool existing; // Build as an existing archive or directory.
         bool deorphan;
       };
       vector<dep> deps;
+      existing_dependencies   existing_deps;
       deorphaned_dependencies deorphaned_deps;
 
       replaced_versions         replaced_vers;
@@ -4315,7 +4398,9 @@ namespace bpkg
                 strings (),              // Configuration variables.
                 {package_key {mdb, ""}}, // Required by (command line).
                 false,                   // Required by dependents.
-                d.deorphan ? build_package::build_deorphan : uint16_t (0)};
+                (d.existing || d.deorphan
+                 ? build_package::build_replace
+                 : uint16_t (0))};
 
               build_package_refs dep_chain;
 
@@ -4579,6 +4664,7 @@ namespace bpkg
         auto eval_dep = [&dep_pkgs,
                          &rec_pkgs,
                          &o,
+                         &existing_deps,
                          &deorphaned_deps,
                          cache = upgrade_dependencies_cache {}] (
                          database& db,
@@ -4595,6 +4681,7 @@ namespace bpkg
                                      sp,
                                      dep_pkgs,
                                      o.no_move (),
+                                     existing_deps,
                                      deorphaned_deps,
                                      ignore_unsatisfiable);
 
@@ -4608,6 +4695,7 @@ namespace bpkg
             r = evaluate_recursive (db,
                                     sp,
                                     rec_pkgs,
+                                    existing_deps,
                                     deorphaned_deps,
                                     ignore_unsatisfiable,
                                     cache);
@@ -4667,7 +4755,14 @@ namespace bpkg
           {
             scratch_exe = true; // Rebuild the plan from scratch.
 
-            deorphaned_deps.erase (package_key (db, nm));
+            package_key pk (db, nm);
+
+            auto j (find (existing_deps.begin (), existing_deps.end (), pk));
+            if (j != existing_deps.end ())
+              existing_deps.erase (j);
+
+            deorphaned_deps.erase (pk);
+
             i = deps.erase (i);
           }
           else
@@ -4705,6 +4800,7 @@ namespace bpkg
                                   &deps,
                                   &rec_pkgs,
                                   &dep_dbs,
+                                  &existing_deps,
                                   &deorphaned_deps,
                                   &o] (bool diag = false) -> bool
           {
@@ -4743,7 +4839,11 @@ namespace bpkg
                                          move (er->available),
                                          move (er->repository_fragment),
                                          er->system,
+                                         er->existing,
                                          er->orphan.has_value ()});
+
+                    if (er->existing)
+                      existing_deps.emplace_back (er->db, sp->name);
 
                     if (er->orphan)
                     {
@@ -5347,7 +5447,7 @@ namespace bpkg
             {
               assert (p.available != nullptr); // This is a package build.
 
-              bool deorphan (p.deorphan ());
+              bool replace (p.replace ());
 
               // Even if we already have this package selected, we have to
               // make sure it is configured and updated.
@@ -5384,8 +5484,8 @@ namespace bpkg
                   ? "reconfigure"
                   : (p.reconfigure ()
                      ? (o.configure_only () || p.configure_only ()
-                        ? (deorphan ? "replace"        : "reconfigure")
-                        : (deorphan ? "replace/update" : "reconfigure/update"))
+                        ? (replace ? "replace"        : "reconfigure")
+                        : (replace ? "replace/update" : "reconfigure/update"))
                      : "update");
 
                 if (p.reconfigure ())
@@ -5400,8 +5500,8 @@ namespace bpkg
                 act += p.system
                   ? "reconfigure"
                   : (sp->version < p.available_version ()
-                     ? (deorphan ? "replace/upgrade"   : "upgrade")
-                     : (deorphan ? "replace/downgrade" : "downgrade"));
+                     ? (replace ? "replace/upgrade"   : "upgrade")
+                     : (replace ? "replace/downgrade" : "downgrade"));
 
                 // For a non-system package up/downgrade the skeleton must
                 // already be initialized.
@@ -5915,11 +6015,11 @@ namespace bpkg
         }
 
         // Fetch or checkout if this is a new package or if we are
-        // up/down-grading or deorphaning.
+        // up/down-grading or replacing.
         //
         if (sp == nullptr                         ||
             sp->version != p.available_version () ||
-            p.deorphan ())
+            p.replace ())
         {
           sp = nullptr; // For the directory case below.
 
