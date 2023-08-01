@@ -549,6 +549,7 @@ namespace bpkg
     database& ddb (i->db != nullptr ? *i->db : db);
     const optional<version_constraint>& dvc (i->constraint); // May be nullopt.
     bool dsys (i->system);
+    bool deorphan (i->deorphan);
 
     // The selected package in the desired database which we copy over.
     //
@@ -560,14 +561,16 @@ namespace bpkg
                                       : ddb.find<selected_package> (nm));
 
     // If a package in the desired database is already selected and matches
-    // the user expectations then no package change is required.
+    // the user expectations then no package change is required, unless the
+    // package also needs to be deorphaned.
     //
     if (dsp != nullptr && dvc)
     {
       const version& sv (dsp->version);
       bool ssys (dsp->system ());
 
-      if (ssys == dsys &&
+      if (!deorphan    &&
+          ssys == dsys &&
           (ssys ? sv == *dvc->min_version : satisfies (sv, dvc)))
       {
         l5 ([&]{trace << *dsp << ddb << ": unchanged";});
@@ -604,7 +607,7 @@ namespace bpkg
                                 ddb,
                                 dsp,
                                 i->upgrade,
-                                i->deorphan,
+                                deorphan,
                                 true /* explicitly */,
                                 repo_frags,
                                 dpt_constrs,
@@ -968,29 +971,32 @@ namespace bpkg
       }
       else
       {
-        // If the best satisfactory version and the desired system flag
-        // perfectly match the ones of the selected package, then no package
-        // change is required, unless we are deorphaning. Otherwise, recommend
-        // an upgrade/downgrade/deorphaning.
+        // In the up/downgrade+deorphan mode always replace the dependency,
+        // re-fetching it from an existing repository if the version stays the
+        // same.
         //
-        if (dsp != nullptr         &&
-            av == dsp->version     &&
-            dsp->system () == dsys &&
-            !deorphan)
+        if (deorphan)
+          return deorphan_result (move (af), "constrained version");
+
+        // For the regular up/downgrade if the best satisfactory version and
+        // the desired system flag perfectly match the ones of the selected
+        // package, then no package change is required. Otherwise, recommend
+        // an upgrade/downgrade.
+        //
+        if (dsp != nullptr && av == dsp->version && dsp->system () == dsys)
         {
           l5 ([&]{trace << *dsp << ddb << ": unchanged";});
           return no_change ();
         }
 
-        l5 ([&]{trace << *sp << db << ": update"
-                      << (deorphan ? "/deorphan" : "") << " to "
+        l5 ([&]{trace << *sp << db << ": update to "
                       << package_string (nm, av, dsys) << ddb;});
 
         return evaluate_result {
           ddb, move (ap), move (af.second),
           false /* unused */,
           dsys,
-          deorphan ? *dov : optional<version> ()};
+          nullopt /* orphan */};
       }
     }
 

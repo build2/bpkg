@@ -19485,6 +19485,68 @@ else
         $pkg_drop libbar
       }
     }
+
+    : same-version
+    :
+    {
+      : best-match
+      :
+      {
+        $clone_root_cfg;
+
+        $rep_add $rep/t1 && $rep_fetch;
+        $* libfoo 2>!;
+
+        $rep_add $rep/t2 && $rep_fetch;
+        $* libbar ?libfoo 2>!;
+
+        $rep_remove $rep/t1;
+
+        $* --deorphan ?libfoo 2>>~%EOE%;
+            replace/update libfoo/1.0.0
+            reconfigure libbar (dependent of libfoo)
+          disfigured libbar/1.0.0
+          disfigured libfoo/1.0.0
+          fetched libfoo/1.0.0
+          unpacked libfoo/1.0.0
+          configured libfoo/1.0.0
+          configured libbar/1.0.0
+          %info: .+libbar-1.0.0.+ is up to date%
+          updated libbar/1.0.0
+          EOE
+
+        $pkg_drop libbar
+      }
+
+      : constrained
+      :
+      {
+        $clone_root_cfg;
+
+        $rep_add $rep/t1 && $rep_fetch;
+        $* libfoo 2>!;
+
+        $rep_add $rep/t2 && $rep_fetch;
+        $* libbar ?libfoo 2>!;
+
+        $rep_remove $rep/t1;
+
+        $* --deorphan ?libfoo/1.0.0 2>>~%EOE%;
+            replace/update libfoo/1.0.0
+            reconfigure libbar (dependent of libfoo)
+          disfigured libbar/1.0.0
+          disfigured libfoo/1.0.0
+          fetched libfoo/1.0.0
+          unpacked libfoo/1.0.0
+          configured libfoo/1.0.0
+          configured libbar/1.0.0
+          %info: .+libbar-1.0.0.+ is up to date%
+          updated libbar/1.0.0
+          EOE
+
+        $pkg_drop libbar
+      }
+    }
   }
 
   : held
