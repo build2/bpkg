@@ -58,7 +58,7 @@ namespace bpkg
         {
           if (!simulate)
           {
-            path a (p->archive->absolute () ? *p->archive : c / *p->archive);
+            path a (p->effective_archive (c));
 
             if (exists (a))
               rm (a);
@@ -192,7 +192,7 @@ namespace bpkg
 
       if (p->purge_archive)
       {
-        path a (p->archive->absolute () ? *p->archive : c / *p->archive);
+        path a (p->effective_archive (c));
 
         if (exists (a))
           fail << "archive file of broken package " << n << " still exists" <<

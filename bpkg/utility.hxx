@@ -214,6 +214,9 @@ namespace bpkg
   bool
   mv (const dir_path& from, const dir_path& to, bool ignore_errors = false);
 
+  bool
+  mv (const path& from, const path& to, bool ignore_errors = false);
+
   // Set (with diagnostics at verbosity level 3 or higher) the new and return
   // the previous working directory.
   //

@@ -313,6 +313,30 @@ namespace bpkg
     return true;
   }
 
+  bool
+  mv (const path& from, const path& to, bool ie)
+  {
+    if (verb >= 3)
+      text << "mv " << from << ' ' << to;
+
+    try
+    {
+      mvfile (from, to,
+              cpflags::overwrite_content | cpflags::overwrite_permissions);
+    }
+    catch (const system_error& e)
+    {
+      error << "unable to move file " << from << " to " << to << ": " << e;
+
+      if (ie)
+        return false;
+
+      throw failed ();
+    }
+
+    return true;
+  }
+
   dir_path
   change_wd (const dir_path& d)
   {

@@ -44,17 +44,24 @@ namespace bpkg
     //
     normalize (a, "archive");
 
+    // Only purge the existing archive if its path differs from the new path.
+    //
+    shared_ptr<selected_package> p (db.find<selected_package> (n));
+
+    bool purge_archive (p != nullptr &&
+                        p->archive   &&
+                        p->effective_archive (db.config) != a);
+
     if (a.sub (db.config))
       a = a.leaf (db.config);
 
-    shared_ptr<selected_package> p (db.find<selected_package> (n));
     if (p != nullptr)
     {
       // Clean up the source directory and archive of the package we are
-      // replacing. Once this is done, there is no going back. If things
-      // go badly, we can't simply abort the transaction.
+      // replacing. Once this is done, there is no going back. If things go
+      // badly, we can't simply abort the transaction.
       //
-      pkg_purge_fs (db, t, p, simulate);
+      pkg_purge_fs (db, t, p, simulate, purge_archive);
 
       // Note that if the package name spelling changed then we need to update
       // it, to make sure that the subsequent commands don't fail and the
@@ -197,6 +204,8 @@ namespace bpkg
              bool replace,
              bool simulate)
   {
+    assert (session::has_current ());
+
     tracer trace ("pkg_fetch");
 
     tracer_guard tg (pdb, trace); // NOTE: sets tracer for the whole cluster.
@@ -248,10 +257,76 @@ namespace bpkg
            << "from " << pl->repository_fragment->name;
 
     auto_rmfile arm;
-    path a (pdb.config_orig / pl->location.leaf ());
+    path an (pl->location.leaf ());
+    path a (pdb.config_orig / an);
+
+    // Note that in the replace mode we first fetch the new package version
+    // archive and then update the existing selected package object, dropping
+    // the previous package version archive, if present. This way we, in
+    // particular, keep the existing selected package/archive intact if the
+    // fetch operation fails. However, this approach requires to handle
+    // re-fetching (potentially from a different repository) of the same
+    // package version specially.
+    //
+    // Specifically, if we need to overwrite the package archive file, then we
+    // stash the existing archive in the temporary directory and remove it on
+    // success. On failure, we try to move the stashed archive to the original
+    // place. Failed that either, we mark the package as broken.
+    //
+    // (If you are wondering why don't we instead always fetch into a
+    // temporary file, the answer is Windows, where moving a newly created
+    // file may not succeed because it is being scanned by Windows Defender
+    // or some such.)
+    //
+    auto_rmfile earm;
+    shared_ptr<selected_package> sp;
+
+    auto g (
+      make_exception_guard (
+        [&arm, &a, &earm, &sp, &pdb, &t] ()
+        {
+          // Restore stashed archive.
+          //
+          if (!earm.path.empty () && exists (earm.path))
+          {
+            if (mv (earm.path, a, true /* ignore_error */))
+            {
+              earm.cancel ();
+              arm.cancel ();  // Note: may not be armed yet, which is ok.
+            }
+            //
+            // Note: can already be marked as broken by pkg_purge_fs().
+            //
+            else if (sp->state != package_state::broken)
+            {
+              sp->state = package_state::broken;
+              pdb.update (sp);
+              t.commit ();
+
+              // Here we assume that mv() has already issued the diagnostics.
+              //
+              info << "package " << sp->name << pdb << " is now broken; "
+                   << "use 'pkg-purge --force' to remove";
+            }
+          }
+        }));
 
     if (!simulate)
     {
+      // Stash the existing package archive if it needs to be overwritten (see
+      // above for details).
+      //
+      // Note: compare the archive absolute paths.
+      //
+      if (replace                                          &&
+          (sp = pdb.find<selected_package> (n)) != nullptr &&
+          sp->archive                                      &&
+          sp->effective_archive (pdb.config) == pdb.config / an)
+      {
+        earm = tmp_file (pdb.config_orig, n.string () + '-' + v.string ());
+        mv (a, earm.path);
+      }
+
       pkg_fetch_archive (
         co, pl->repository_fragment->location, pl->location, a);
 

@@ -1318,6 +1318,18 @@ namespace bpkg
     std::string
     string (database&) const;
 
+    // Return the relative archive path completed using the configuration
+    // directory. Return the absolute archive path as is.
+    //
+    path
+    effective_archive (const dir_path& configuration) const
+    {
+      // Cast for compiling with ODB (see above).
+      //
+      assert (static_cast<bool> (archive));
+      return archive->absolute () ? *archive : configuration / *archive;
+    }
+
     // Return the relative source directory completed using the configuration
     // directory. Return the absolute source directory as is.
     //

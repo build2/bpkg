@@ -37,6 +37,8 @@ namespace bpkg
   // Note that both package and repository information configurations need to
   // be passed.
   //
+  // Also note that it should be called in session.
+  //
   shared_ptr<selected_package>
   pkg_fetch (const common_options&,
              database& pdb,

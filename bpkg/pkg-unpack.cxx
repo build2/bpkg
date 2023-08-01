@@ -381,7 +381,7 @@ namespace bpkg
       // If the archive path is not absolute, then it must be relative
       // to the configuration.
       //
-      path a (p->archive->absolute () ? *p->archive : c / *p->archive);
+      path a (p->effective_archive (c));
 
       l4 ([&]{trace << "archive: " << a;});
 

@@ -160,7 +160,14 @@ $* libfoo/1.0.0 2>>/EOE != 0
     $* -e $src/t1/libfoo-1.0.0.tar.gz 2>'using libfoo/1.0.0 (external)';
     $pkg_status   libfoo/1.0.0        1>'libfoo fetched 1.0.0';
 
-    $pkg_purge libfoo 2>'purged libfoo/1.0.0'
+    $*            libfoo/1.1.0  2>'fetched libfoo/1.1.0';
+    $pkg_unpack   libfoo        2>'unpacked libfoo/1.1.0';
+    test -d   cfg/libfoo-1.1.0;
+    $*            libfoo/1.1.0  2>'fetched libfoo/1.1.0';
+    test -d   cfg/libfoo-1.1.0                             == 1;
+    $pkg_status   libfoo/1.1.0  1>'libfoo fetched 1.1.0';
+
+    $pkg_purge libfoo 2>'purged libfoo/1.1.0'
   }
 
   : purge-existing
