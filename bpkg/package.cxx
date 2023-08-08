@@ -296,12 +296,18 @@ namespace bpkg
     // The package is in at least fetched state, which means we should
     // be able to get its manifest.
     //
-    const optional<path>& a (sp->archive);
-
+    // @@ PERF We should probably implement the available package caching not
+    //    to parse the same manifests multiple times during all that build
+    //    plan refinement iterations. What should be the cache key? Feels like
+    //    it should be the archive/directory path. Note that the package
+    //    manifests can potentially differ in different external package
+    //    directories for the same version iteration. Testing showed 6%
+    //    speedup on tests (debug/sanitized).
+    //
     package_manifest m (
       sp->state == package_state::fetched
       ? pkg_verify (options,
-                    a->absolute () ? *a : db.config_orig / *a,
+                    sp->effective_archive (db.config_orig),
                     true /* ignore_unknown */,
                     false /* ignore_toolchain */,
                     false /* expand_values */,

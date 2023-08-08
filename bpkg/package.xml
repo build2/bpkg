@@ -1,4 +1,28 @@
 <changelog xmlns="http://www.codesynthesis.com/xmlns/odb/changelog" database="sqlite" version="1">
+  <changeset version="25">
+    <alter-table name="main.selected_package_prerequisites">
+      <drop-column name="config_dependency_index"/>
+      <drop-column name="config_alternative_index"/>
+    </alter-table>
+    <add-table name="main.selected_package_dependency_alternatives" kind="container">
+      <column name="package" type="TEXT" null="true" options="COLLATE NOCASE"/>
+      <column name="index" type="INTEGER" null="true"/>
+      <column name="position" type="INTEGER" null="true"/>
+      <foreign-key name="package_fk" on-delete="CASCADE">
+        <column name="package"/>
+        <references table="main.selected_package">
+          <column name="name"/>
+        </references>
+      </foreign-key>
+      <index name="selected_package_dependency_alternatives_package_i">
+        <column name="package"/>
+      </index>
+      <index name="selected_package_dependency_alternatives_index_i">
+        <column name="index"/>
+      </index>
+    </add-table>
+  </changeset>
+
   <changeset version="24">
     <alter-table name="main.selected_package">
       <add-column name="config_checksum" type="TEXT" null="true" default="''"/>

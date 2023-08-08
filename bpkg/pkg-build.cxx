@@ -1697,7 +1697,7 @@ namespace bpkg
     // will modify the cached instance, which means our list will always "see"
     // their updated state.
     //
-    // Also note that rep_fetch() must be called in session.
+    // Also note that rep_fetch() and pkg_fetch() must be called in session.
     //
     session ses;
 
@@ -3891,7 +3891,6 @@ namespace bpkg
 
       replaced_versions         replaced_vers;
       postponed_dependencies    postponed_deps;
-      postponed_positions       postponed_poss;
       unacceptable_alternatives unacceptable_alts;
 
       // Map the repointed dependents to the replacement flags (see
@@ -3959,12 +3958,12 @@ namespace bpkg
       // during the package collection) because we want to enter them before
       // collect_build_postponed() and they could be the dependents that have
       // the config clauses. In a sense, change to replaced_vers,
-      // postponed_deps, or postponed_poss maps should not affect the deps
+      // postponed_deps, or unacceptable_alts maps should not affect the deps
       // list. But not the other way around: a dependency erased from the deps
       // list could have caused an entry in the replaced_vers, postponed_deps,
-      // and/or postponed_poss maps. And so we clean replaced_vers,
-      // postponed_deps, and postponed_poss on scratch_exe (scratch during the
-      // plan execution).
+      // and/or unacceptable_alts maps. And so we clean replaced_vers,
+      // postponed_deps, and unacceptable_alts on scratch_exe (scratch during
+      // the plan execution).
       //
       for (bool refine (true), scratch_exe (true), scratch_col (false);
            refine; )
@@ -4172,11 +4171,13 @@ namespace bpkg
             }
           });
 
-        postponed_packages       postponed_repo;
-        postponed_packages       postponed_alts;
-        postponed_configurations postponed_cfgs;
-        strings                  postponed_cfgs_history;
-        unsatisfied_dependents   unsatisfied_depts;
+        postponed_packages              postponed_repo;
+        postponed_packages              postponed_alts;
+        postponed_packages              postponed_recs;
+        postponed_existing_dependencies postponed_edeps;
+        postponed_configurations        postponed_cfgs;
+        strings                         postponed_cfgs_history;
+        unsatisfied_dependents          unsatisfied_depts;
 
         try
         {
@@ -4188,7 +4189,6 @@ namespace bpkg
             {
               replaced_vers.clear ();
               postponed_deps.clear ();
-              postponed_poss.clear ();
               unacceptable_alts.clear ();
 
               scratch_exe = false;
@@ -4204,12 +4204,6 @@ namespace bpkg
               {
                 pd.second.wout_config = false;
                 pd.second.with_config = false;
-              }
-
-              for (auto& pd: postponed_poss)
-              {
-                pd.second.skipped = false;
-                pd.second.reevaluated = false;
               }
 
               scratch_col = false;
@@ -4244,14 +4238,7 @@ namespace bpkg
             // specify packages on the command line does not matter).
             //
             for (const build_package& p: hold_pkgs)
-              pkgs.collect_build (o,
-                                  p,
-                                  find_prereq_database,
-                                  rpt_depts,
-                                  add_priv_cfg,
-                                  true /* initial_collection */,
-                                  replaced_vers,
-                                  postponed_cfgs);
+              pkgs.collect_build (o, p, replaced_vers, postponed_cfgs);
 
             // Collect all the prerequisites of the user selection.
             //
@@ -4270,17 +4257,18 @@ namespace bpkg
                   o,
                   p.db,
                   p.name (),
-                  find_prereq_database,
-                  rpt_depts,
-                  add_priv_cfg,
                   true /* initial_collection */,
+                  find_prereq_database,
+                  add_priv_cfg,
+                  rpt_depts,
                   replaced_vers,
                   postponed_repo,
                   postponed_alts,
                   0 /* max_alt_index */,
+                  postponed_recs,
+                  postponed_edeps,
                   postponed_deps,
                   postponed_cfgs,
-                  postponed_poss,
                   unacceptable_alts);
               }
               else
@@ -4332,9 +4320,10 @@ namespace bpkg
                                                replaced_vers,
                                                postponed_repo,
                                                postponed_alts,
+                                               postponed_recs,
+                                               postponed_edeps,
                                                postponed_deps,
                                                postponed_cfgs,
-                                               postponed_poss,
                                                unacceptable_alts,
                                                find_prereq_database,
                                                add_priv_cfg);
@@ -4361,6 +4350,11 @@ namespace bpkg
             }
             else
             {
+              // Wouldn't be here otherwise.
+              //
+              assert (postponed_deps.find (package_key {ddb, d.name}) ==
+                      postponed_deps.end ());
+
               shared_ptr<selected_package> sp (
                 ddb.find<selected_package> (d.name));
 
@@ -4408,17 +4402,18 @@ namespace bpkg
               //
               pkgs.collect_build (o,
                                   move (p),
-                                  find_prereq_database,
-                                  rpt_depts,
-                                  add_priv_cfg,
-                                  true /* initial_collection */,
                                   replaced_vers,
                                   postponed_cfgs,
                                   &dep_chain,
+                                  true /* initial_collection */,
+                                  find_prereq_database,
+                                  add_priv_cfg,
+                                  &rpt_depts,
                                   &postponed_repo,
                                   &postponed_alts,
+                                  &postponed_recs,
+                                  &postponed_edeps,
                                   &postponed_deps,
-                                  &postponed_poss,
                                   &unacceptable_alts);
             }
           }
@@ -4446,18 +4441,24 @@ namespace bpkg
 
           // Handle the (combined) postponed collection.
           //
-          if (!postponed_repo.empty ()    ||
-              !postponed_alts.empty ()    ||
-              postponed_deps.has_bogus () ||
+          if (find_if (postponed_recs.begin (), postponed_recs.end (),
+                       [] (const build_package* p)
+                       {
+                         return !p->recursive_collection;
+                       }) != postponed_recs.end () ||
+              !postponed_repo.empty ()             ||
+              !postponed_alts.empty ()             ||
+              postponed_deps.has_bogus ()          ||
               !postponed_cfgs.empty ())
             pkgs.collect_build_postponed (o,
                                           replaced_vers,
                                           postponed_repo,
                                           postponed_alts,
+                                          postponed_recs,
+                                          postponed_edeps,
                                           postponed_deps,
                                           postponed_cfgs,
                                           postponed_cfgs_history,
-                                          postponed_poss,
                                           unacceptable_alts,
                                           find_prereq_database,
                                           rpt_depts,
@@ -4467,12 +4468,6 @@ namespace bpkg
           // (see replaced_versions for details).
           //
           replaced_vers.cancel_bogus (trace, true /* scratch */);
-
-          // Erase the bogus existing dependent re-evaluation postponements
-          // and re-collect from scratch, if any (see postponed_positions for
-          // details).
-          //
-          postponed_poss.cancel_bogus (trace);
         }
         catch (const scratch_collection& e)
         {
@@ -4552,6 +4547,16 @@ namespace bpkg
           }
         }
 
+        for (build_package* p: postponed_recs)
+        {
+          assert (p->recursive_collection);
+
+          pkgs.order (p->db,
+                      p->name (),
+                      nullopt /* buildtime */,
+                      find_prereq_database);
+        }
+
         // Collect and order all the dependents that we will need to
         // reconfigure because of the up/down-grades of packages that are now
         // on the list.
@@ -4586,6 +4591,32 @@ namespace bpkg
           {
             for (database& db: dep_dbs)
               order_unheld (db);
+          }
+        }
+
+        // Make sure all the postponed dependencies of existing dependents
+        // have been collected and fail if that's not the case.
+        //
+        for (const auto& pd: postponed_edeps)
+        {
+          const build_package* p (pkgs.entered_build (pd.first));
+          assert (p != nullptr && p->available != nullptr);
+
+          if (!p->recursive_collection)
+          {
+            // Feels like this shouldn't happen but who knows.
+            //
+            diag_record dr (fail);
+            dr << "package " << p->available_name_version_db () << " is not "
+               << "built due to its configured dependents deviation in "
+               << "dependency resolution" <<
+              info << "deviated dependents:";
+
+            for (const package_key& d: pd.second)
+              dr << ' ' << d;
+
+            dr << info << "please report in "
+               << "https://github.com/build2/build2/issues/302";
           }
         }
 
@@ -4959,10 +4990,10 @@ namespace bpkg
             // that the build-time dependency configuration type (host or
             // build2) differs from the dependent configuration type (target
             // is a common case) and doesn't work well, for example, for the
-            // self-hosted configurations. For them it can fail
-            // erroneously. We can potentially fix that by additionally
-            // storing the build-time flag for a prerequisite. However, let's
-            // first see if it ever becomes a problem.
+            // self-hosted configurations. For them it can fail erroneously.
+            // We can potentially fix that by additionally storing the
+            // build-time flag for a prerequisite. However, let's first see if
+            // it ever becomes a problem.
             //
             prerequisites r;
             const package_prerequisites& prereqs (sp->prerequisites);
@@ -5630,8 +5661,8 @@ namespace bpkg
     // 1.  sys-install     not installed system/distribution
     // 2.  disfigure       up/down-graded, reconfigured       [left to right]
     // 3.  purge           up/down-graded                     [right to left]
-    // 4.a fetch/unpack    new, up/down-graded
-    // 4.b checkout        new, up/down-graded
+    // 4.a fetch/unpack    new, up/down-graded, replaced
+    // 4.b checkout        new, up/down-graded, replaced
     // 5.  configure       all
     // 6.  unhold          unheld
     // 7.  build           user selection                     [right to left]
@@ -5699,13 +5730,14 @@ namespace bpkg
 
         database& db (p.db);
 
-        // Note: don't update the re-evaluated dependent unless it is
-        // reconfigured.
+        // Note: don't update the re-evaluated and re-collected dependents
+        // unless they are reconfigured.
         //
         if ((*p.action == build_package::adjust && p.reconfigure ()) ||
             (*p.action == build_package::build &&
-             ((p.flags & build_package::build_repoint) != 0 ||
-              ((p.flags & build_package::build_reevaluate) != 0 &&
+             ((p.flags & build_package::build_repoint) != 0   ||
+              ((p.flags & (build_package::build_reevaluate |
+                           build_package::build_recollect)) != 0 &&
                p.reconfigure ()))))
           upkgs.push_back (pkg_command_vars {db.config_orig,
                                              !multi_config () && db.main (),

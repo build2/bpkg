@@ -58,6 +58,7 @@ namespace bpkg
     tracer_guard tg (db, trace);
 
     package_prerequisites prereqs;
+    vector<size_t>        dep_alts;
     strings               vars;
 
     // Notes on the buildfile clauses evaluation:
@@ -88,46 +89,9 @@ namespace bpkg
     //   on some previous pkg-build run when this package and its dependencies
     //   have been configured. But because of this we may not evaluate the
     //   enable and reflect clauses which refer to dependency configuration
-    //   variables. Thus, for now we fail if such an enable or reflect clause
-    //   is encountered and evaluate all the enable and reflect clauses
-    //   otherwise. In the future it feels like such cases should somehow
-    //   be handled at the pkg-build level (e.g., detect such situations and
-    //   cause the dependent re-evaluation instead of re-configuration). Note
-    //   that if/when this is implemented, the current logic could still be
-    //   used as an optimization (reflection of dependency configuration is
-    //   not very common).
-    //
-    //   @@ It seems there is a hole in the reconfiguration mode:
-    //
-    //      foo -> libfoo {prefer {config.libfoo.proto=1} accept(true)
-    //                     reflect {config.foo.reflect=1}} |
-    //             libfoo {prefer {config.libfoo.proto=2} accept(true)
-    //                     reflect {config.foo.reflect=2}}
-    //          -> libbar {prefer {config.libbar.proto=$config.libfoo.proto}
-    //                     accept (config.libbar.proto=2)}
-    //          -> libbaz
-    //
-    //      foo is configured with config.foo.reflect=2 initially.
-    //
-    //      If afterwords libbaz is upgraded, the foo is reconfigured with
-    //      config.foo.reflect=1 just because we erroneously pick the first
-    //      libfoo alternative (which has been banned by libbar accept clause
-    //      on the previous pkg-build run during negotiation).
-    //
-    //      It feels more and more that the proper solution here is to go
-    //      "nuclear" and to always "upgrade" re-configuration for a package
-    //      with any prefer/require into a complete re-evaluation. The most
-    //      likely drawback of this approach would be unnecessary
-    //      re-evaluations if we use the "any prefer/require in any
-    //      alternative" condition. So we may need to exclude some common
-    //      simple cases where such an upgrade is not needed. For example:
-    //
-    //      foo -> libfoo require {config.libfoo.proto=1}
-    //      foo -> libbar require {config.libbar.proto=1}
-    //      foo -> libbaz
-    //
-    //      Feels like the condition will have to be based on the presence
-    //      of clauses plus their textual analysis.
+    //   variables. If such clauses are present, then this is considered an
+    //   implementation error since such packages should be handled in the
+    //   above pre-selected alternatives mode.
     //
     bool manual (alts == nullptr && prev_prereqs == nullptr);
 
@@ -152,7 +116,8 @@ namespace bpkg
         {
           fail << "unable to reconfigure dependent " << ps.package.name
                << " with " << what << " clause that refers to dependency "
-               << "configuration variables";
+               << "configuration variables" <<
+          info << "please report in https://github.com/build2/build2/issues/302";
         }
       }
     };
@@ -162,6 +127,8 @@ namespace bpkg
     //
     assert (alts == nullptr || alts->size () == deps.size ());
 
+    dep_alts.reserve (deps.size ());
+
     for (size_t di (0); di != deps.size (); ++di)
     {
       // Skip the toolchain build-time dependencies and dependencies without
@@ -170,7 +137,10 @@ namespace bpkg
       const dependency_alternatives_ex& das (deps[di]);
 
       if (das.empty ())
+      {
+        dep_alts.push_back (0);
         continue;
+      }
 
       small_vector<pair<reference_wrapper<const dependency_alternative>,
                         size_t>,
@@ -179,7 +149,10 @@ namespace bpkg
       if (alts == nullptr)
       {
         if (toolchain_buildtime_dependency (o, das, &ps.package.name))
+        {
+          dep_alts.push_back (0);
           continue;
+        }
 
         for (size_t i (0); i != das.size (); ++i)
         {
@@ -205,7 +178,10 @@ namespace bpkg
         }
 
         if (edas.empty ())
+        {
+          dep_alts.push_back (0);
           continue;
+        }
       }
       else
       {
@@ -226,6 +202,8 @@ namespace bpkg
       // the "make dependency decisions" mode and select the alternative
       // regardless of the former prerequisites.
       //
+      assert (!edas.empty ());
+
       for (const vector<package_name>* pps (prev_prereqs);;)
       {
         const pair<reference_wrapper<const dependency_alternative>,
@@ -234,7 +212,6 @@ namespace bpkg
         for (const auto& eda: edas)
         {
           const dependency_alternative& da (eda.first);
-          size_t dai (eda.second);
 
           // Cache the selected packages which correspond to the alternative
           // dependencies, pairing them with the respective constraints. If
@@ -297,13 +274,9 @@ namespace bpkg
             // See the package_prerequisites definition for details on
             // creating the map keys with the database passed.
             //
-            bool conf (da.prefer || da.require);
-
             prerequisites.emplace_back (
               lazy_shared_ptr<selected_package> (pdb, dp),
-              prerequisite_info {*dc,
-                                 make_pair (conf ? di  + 1 : 0,
-                                            conf ? dai + 1 : 0)});
+              prerequisite_info {*dc});
           }
 
           // Try the next alternative if there are unresolved dependencies for
@@ -342,15 +315,6 @@ namespace bpkg
 
               if (s2 && !s1)
                 c1 = c2;
-
-              // Keep position of the first dependency alternative with a
-              // configuration clause.
-              //
-              pair<size_t, size_t>& p1 (p.first->second.config_position);
-              pair<size_t, size_t>  p2 (pi.config_position);
-
-              if (p1.first == 0 && p2.first != 0)
-                p1 = p2;
             }
 
             // If the prerequisite is configured in the linked configuration,
@@ -480,6 +444,8 @@ namespace bpkg
                                make_pair (di, selected_alt->second));
         }
 
+        dep_alts.push_back (selected_alt->second + 1);
+
         // The dependency alternative is selected and its dependencies are
         // resolved to the selected packages. So proceed to the next depends
         // value.
@@ -487,6 +453,10 @@ namespace bpkg
         break;
       }
     }
+
+    // Make sure we didn't miss any selected dependency alternative.
+    //
+    assert (dep_alts.size () == deps.size ());
 
     // Add the rest of the configuration variables (user overrides, reflects,
     // etc) as well as their sources.
@@ -518,6 +488,7 @@ namespace bpkg
     }
 
     return configure_prerequisites_result {move (prereqs),
+                                           move (dep_alts),
                                            move (vars),
                                            move (srcs),
                                            move (checksum)};
@@ -633,8 +604,14 @@ namespace bpkg
     l4 ([&]{trace << "src_root: " << src_root << ", "
                   << "out_root: " << out_root;});
 
-    assert (p->prerequisites.empty ());
+    assert (p->prerequisites.empty () && p->dependency_alternatives.empty ());
+
     p->prerequisites = move (cpr.prerequisites);
+    p->dependency_alternatives = move (cpr.dependency_alternatives);
+
+    // Mark the section as loaded, so dependency alternatives are updated.
+    //
+    p->dependency_alternatives_section.load ();
 
     // Configure.
     //

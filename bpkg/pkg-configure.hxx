@@ -43,12 +43,13 @@ namespace bpkg
                                             bool buildtime);
 
   // Given dependencies of a package, return its prerequisite packages,
-  // configuration variables that resulted from selection of these
-  // prerequisites (import, reflection, etc), and sources of the configuration
-  // variables resulted from evaluating the reflect clauses. Fail if for some
-  // of the dependency alternative lists there is no satisfactory alternative
-  // (all its dependencies are configured, satisfy the respective constraints,
-  // etc).
+  // 1-based indexes of the selected dependency alternatives (0 for toolchain
+  // build-time dependencies, etc), configuration variables that resulted from
+  // selection of these prerequisites (import, reflection, etc), and sources
+  // of the configuration variables resulted from evaluating the reflect
+  // clauses. Fail if for some of the dependency alternative lists there is no
+  // satisfactory alternative (all its dependencies are configured, satisfy
+  // the respective constraints, etc).
   //
   // The package dependency constraints are expected to be complete.
   //
@@ -101,8 +102,9 @@ namespace bpkg
   //
   struct configure_prerequisites_result
   {
-    package_prerequisites   prerequisites;
-    strings                 config_variables; // Note: name and value.
+    package_prerequisites prerequisites;
+    vector<size_t>        dependency_alternatives;
+    strings               config_variables;        // Note: name and value.
 
     // Only contains sources of configuration variables collected using the
     // package skeleton, excluding those user-specified variables which are

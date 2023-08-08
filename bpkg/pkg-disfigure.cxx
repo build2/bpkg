@@ -72,6 +72,11 @@ namespace bpkg
     // Since we are no longer configured, clear the prerequisites list.
     //
     p->prerequisites.clear ();
+    p->dependency_alternatives.clear ();
+
+    // Mark the section as loaded, so dependency alternatives are updated.
+    //
+    p->dependency_alternatives_section.load ();
 
     assert (p->src_root); // Must be set since unpacked.
     assert (p->out_root); // Must be set since configured.

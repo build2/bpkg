@@ -32,7 +32,7 @@
 //
 #define DB_SCHEMA_VERSION_BASE 12
 
-#pragma db model version(DB_SCHEMA_VERSION_BASE, 24, closed)
+#pragma db model version(DB_SCHEMA_VERSION_BASE, 25, closed)
 
 namespace bpkg
 {
@@ -1086,37 +1086,9 @@ namespace bpkg
     //
     optional<version_constraint> constraint;
 
-    // Position of the first dependency alternative with a configuration
-    // clause, if any.
-    //
-    // Specifically, if there is such an alternative then this is a pair of
-    // 1-based indexes of the respective depends value (first) and the
-    // dependency alternative (second) in the dependent's manifest. Otherwise,
-    // this is a pair of zeros.
-    //
-    // For example, for the following dependent the position for libfoo/1.2.0
-    // prerequisite will be {2,2}:
-    //
-    // libbar: depends: libfoo >= 1.1.0
-    //         depends: libfox | libfoo >= 1.2.0 {require {...}}
-    //
-    pair<size_t, size_t> config_position;
-
     // Database mapping.
     //
     #pragma db member(constraint) column("")
-
-    #pragma db member(config_position) transient
-
-    #pragma db member(config_dependency_index) \
-      virtual(size_t)                          \
-      access(config_position.first)            \
-      default(0)
-
-    #pragma db member(config_alternative_index) \
-      virtual(size_t)                           \
-      access(config_position.second)            \
-      default(0)
   };
 
   // Note that the keys for this map need to be created with the database
@@ -1265,6 +1237,16 @@ namespace bpkg
 
     package_prerequisites prerequisites;
 
+    // 1-based indexes of the selected dependency alternatives which the
+    // prerequisite packages are resolved from. Parallel to the dependencies
+    // member of the respective available package. Entries which don't
+    // correspond to a selected alternative (toolchain build-time dependency,
+    // not enabled alternatives, etc) are set to 0.
+    //
+    using indexes_type = vector<size_t>; // Make sure ODB maps it portably.
+    indexes_type dependency_alternatives;
+    odb::section dependency_alternatives_section;
+
     // Project configuration variable names and their sources.
     //
     vector<config_variable> config_variables;
@@ -1362,6 +1344,11 @@ namespace bpkg
 
     #pragma db member(prerequisites) id_column("package") \
       key_column("") value_column("")
+
+    #pragma db member(dependency_alternatives) id_column("package") \
+      value_column("position") section(dependency_alternatives_section)
+
+    #pragma db member(dependency_alternatives_section) load(lazy) update(always)
 
     #pragma db member(config_variables) id_column("package") value_column("")
 
@@ -1594,21 +1581,6 @@ namespace bpkg
   {
     #pragma db column("pp.package")
     package_name name;
-
-    #pragma db transient
-    pair<size_t, size_t> config_position;
-
-    #pragma db member(config_dependency_index) \
-      column("pp.config_dependency_index")     \
-      virtual(size_t)                          \
-      access(config_position.first)            \
-      default(0)
-
-    #pragma db member(config_alternative_index) \
-      column("pp.config_alternative_index")     \
-      virtual(size_t)                           \
-      access(config_position.second)            \
-      default(0)
 
     #pragma db column("pp.")
     optional<version_constraint> constraint;
