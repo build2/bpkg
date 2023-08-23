@@ -5432,6 +5432,47 @@ test.arguments += --sys-no-query
 
         $pkg_drop tpx
       }
+
+      : fail-change-unsatisfactory-alternative
+      :
+      {
+        $clone_cfg;
+
+        $* tpx ?libfoo 2>!;
+
+        $pkg_status -r >>EOO;
+          !tpx configured 1.0.0
+            libfoo configured 2.0.0
+          EOO
+
+        cat cfg/tpx-1.0.0/build/config.build >>~%EOO%;
+          %.*
+          config.tpx.libfoo_protocol = 2
+          %.*
+          EOO
+
+        $* tax 2>>EOE != 0;
+          error: unable to downgrade package libfoo/2.0.0 to 1.0.0
+            info: because package tpx depends on (libfoo >= 2.0.0)
+            info: package libfoo/1.0.0 required by tax
+            info: explicitly request up/downgrade of package tpx
+            info: or explicitly specify package libfoo version to manually satisfy these constraints
+          EOE
+
+        # @@ Note that the above advises doesn't really work here since the
+        #    tpx package is not re-collected recursively. We should probably
+        #    invent the package-specific --rebuild option to re-collect a
+        #    configured package.
+        #
+        $* tax tpx ?libfoo/1.0.0 2>>EOE != 0;
+          error: unable to downgrade package libfoo/2.0.0 to 1.0.0
+            info: because package tpx depends on (libfoo >= 2.0.0)
+            info: explicitly request up/downgrade of package tpx
+            info: or explicitly specify package libfoo version to manually satisfy these constraints
+          EOE
+
+        $pkg_drop tpx
+      }
     }
   }
 

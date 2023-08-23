@@ -6374,6 +6374,38 @@ namespace bpkg
           return &i->second;
         };
 
+        // In the simulation mode unconstrain all the unsatisfactory
+        // dependencies, if any, while configuring the dependent (see
+        // build_packages::collect_order_dependents() for details).
+        //
+        // Note: must be called at most once.
+        //
+        auto unconstrain_deps = [simulate,
+                                 &p,
+                                 deps = vector<package_key> ()] () mutable
+        {
+          if (simulate)
+          {
+            unsatisfied_dependent* ud (
+              simulate->find_dependent (package_key (p.db, p.name ())));
+
+            if (ud != nullptr)
+            {
+              assert (deps.empty ());
+
+              deps.reserve (ud->dependencies.size ());
+
+              for (const auto& d: ud->dependencies)
+              {
+                const build_package& p (*d.first);
+                deps.emplace_back (p.db, p.name ());
+              }
+            }
+          }
+
+          return !deps.empty () ? &deps : nullptr;
+        };
+
         if (ap != nullptr)
         {
           assert (*p.action == build_package::build);
@@ -6434,7 +6466,8 @@ namespace bpkg
                                                prereqs (),
                                                simulate,
                                                fdb,
-                                               configured_state);
+                                               configured_state,
+                                               unconstrain_deps ());
           }
         }
         else // Existing dependent.
@@ -6469,28 +6502,6 @@ namespace bpkg
 
           const dependencies& deps (p.skeleton->available->dependencies);
 
-          // In the simulation mode unconstrain all the unsatisfactory
-          // dependencies, if any, while configuring the dependent.
-          //
-          vector<package_key> unconstrain_deps;
-
-          if (simulate)
-          {
-            unsatisfied_dependent* ud (
-              simulate->find_dependent (package_key (pdb, p.name ())));
-
-            if (ud != nullptr)
-            {
-              unconstrain_deps.reserve (ud->dependencies.size ());
-
-              for (const auto& d: ud->dependencies)
-              {
-                const build_package& p (*d.first);
-                unconstrain_deps.emplace_back (p.db, p.name ());
-              }
-            }
-          }
-
           // @@ Note that on reconfiguration the dependent looses the
           //    potential configuration variables specified by the user on
           //    some previous build, which can be quite surprising. Should we
@@ -6509,9 +6520,7 @@ namespace bpkg
                                              simulate,
                                              fdb,
                                              configured_state,
-                                             (!unconstrain_deps.empty ()
-                                              ? &unconstrain_deps
-                                              : nullptr));
+                                             unconstrain_deps ());
         }
 
         t.commit ();

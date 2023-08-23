@@ -422,9 +422,13 @@ namespace bpkg
 
         // In the reconfiguration mode ban the usage of the selected
         // alternative dependency configuration variables in the subsequent
-        // enable and reflect clauses.
+        // enable and reflect clauses, unless we are also unconstraining
+        // dependencies (which indicates it's a relaxed mode that precedes
+        // a drop or failure with better diagnostics).
         //
-        if (alts == nullptr && !manual && (da.prefer || da.require))
+        if (alts == nullptr && !manual  &&
+            unconstrain_deps == nullptr &&
+            (da.prefer || da.require))
         {
           for (const dependency& d: da)
             banned_var_prefixes.push_back (
