@@ -3164,35 +3164,60 @@ namespace bpkg
                     i->second.with_config = true;
                 }
 
-                // Prematurely collected before we saw any config clauses.
+                // Throw postpone_dependency if the dependency is prematurely
+                // collected before we saw any config clauses.
                 //
-                if (p->recursive_collection &&
-                    postponed_cfgs.find_dependency (dpk) == nullptr)
+                // Note that we don't throw if the dependency already belongs
+                // to some (being) negotiated cluster since we will
+                // up-negotiate its configuration (at the end of the loop)
+                // instead.
+                //
+                if (p->recursive_collection)
                 {
-                  if (reeval)
-                  {
-                    l5 ([&]{trace << "cannot re-evaluate existing dependent "
-                                  << pkg.available_name_version_db ()
-                                  << " due to dependencys "
-                                  << p->available_name_version_db ()
-                                  << " (collected prematurely), "
-                                  << "throwing postpone_dependency";});
-                  }
-                  else
-                  {
-                    l5 ([&]{trace << "cannot cfg-postpone dependency "
-                                  << p->available_name_version_db ()
-                                  << " of dependent "
-                                  << pkg.available_name_version_db ()
-                                  << " (collected prematurely), "
-                                  << "throwing postpone_dependency";});
-                  }
+                  const postponed_configuration* pcfg (
+                    postponed_cfgs.find_dependency (dpk));
 
-                  // Don't print the "while satisfying..." chain.
+                  // Note that it may well happen that a dependency was added
+                  // to a not-yet (being) negotiated cluster at the initial
+                  // collection phase, then the dependency was recursively
+                  // collected via some different dependent without
+                  // configuration clause during the postponed collection
+                  // phase (which was not prevented since its entry was
+                  // removed from postponed_deps at the end of the initial
+                  // collection phase), and now we are trying to collect this
+                  // dependency via some third dependent with the
+                  // configuration clause during the postponed collection
+                  // phase. If that's the case, we will throw
+                  // postpone_dependency and this is the reason why we check
+                  // if the cluster is (being) negotiated.
                   //
-                  dep_chain.clear ();
+                  if (!(pcfg != nullptr && pcfg->negotiated))
+                  {
+                    if (reeval)
+                    {
+                      l5 ([&]{trace << "cannot re-evaluate existing dependent "
+                                    << pkg.available_name_version_db ()
+                                    << " due to dependency "
+                                    << p->available_name_version_db ()
+                                    << " (collected prematurely), "
+                                    << "throwing postpone_dependency";});
+                    }
+                    else
+                    {
+                      l5 ([&]{trace << "cannot cfg-postpone dependency "
+                                    << p->available_name_version_db ()
+                                    << " of dependent "
+                                    << pkg.available_name_version_db ()
+                                    << " (collected prematurely), "
+                                    << "throwing postpone_dependency";});
+                    }
 
-                  throw postpone_dependency (move (dpk));
+                    // Don't print the "while satisfying..." chain.
+                    //
+                    dep_chain.clear ();
+
+                    throw postpone_dependency (move (dpk));
+                  }
                 }
 
                 if (!reeval)
@@ -3484,8 +3509,9 @@ namespace bpkg
               // To recap, r.second values mean:
               //
               //   absent  -- shadow cluster-based merge is/being negotiated
-              //   false   -- some non or being negotiated
-              //   true    -- all have been negotiated
+              //   false   -- some non or being negotiated clusters are merged
+              //   true    -- no clusters are merged or all merged have been
+              //              negotiated
               //
               if (r.second && !*r.second)
               {
