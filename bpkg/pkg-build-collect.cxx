@@ -1384,9 +1384,21 @@ namespace bpkg
             // toolchain build-time dependencies since they should be quite
             // common.
             //
+            // An update: it turned out that just the absence of dependencies
+            // is not the only condition that causes a package to be replaced
+            // in place. It must also not participate in any configuration
+            // negotiation on the dependency side (otherwise we could have
+            // missed collecting its existing dependents). Also, we need to
+            // make sure that the package up/downgrade doesn't cause the
+            // selection of a different dependency alternative for any of its
+            // dependents (see postponed_packages for possible outcomes). This
+            // all sounds quite hairy at the moment, so we won't be replacing
+            // in place for now (which is an optimization).
+            //
+#if 0
             if (!has_dependencies (options, p2->available->dependencies))
               scratch = false;
-
+#endif
             l5 ([&]{trace << p2->available_name_version_db ()
                           << " package version needs to be replaced "
                           << (!scratch ? "in-place " : "") << "with "
@@ -4456,7 +4468,7 @@ namespace bpkg
   }
 
   void build_packages::
-  collect_drop (const pkg_build_options& options,
+  collect_drop (const pkg_build_options&,
                 database& db,
                 shared_ptr<selected_package> sp,
                 replaced_versions& replaced_vers)
@@ -4538,8 +4550,17 @@ namespace bpkg
         // toolchain build-time dependencies since they should be quite
         // common.
         //
+        // An update: it turned out that just absence of dependencies is not
+        // the only condition that causes a package to be dropped in place. It
+        // must also not participate in any configuration negotiation on the
+        // dependency side (otherwise it could have been added to a cluster as
+        // a dependency). This feels quite hairy at the moment, so we won't be
+        // dropping in place for now.
+        //
+#if 0
         if (!has_dependencies (options, bp.available->dependencies))
           scratch = false;
+#endif
 
         l5 ([&]{trace << bp.available_name_version_db ()
                       << " package version needs to be replaced "
