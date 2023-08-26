@@ -4350,11 +4350,6 @@ namespace bpkg
             }
             else
             {
-              // Wouldn't be here otherwise.
-              //
-              assert (postponed_deps.find (package_key {ddb, d.name}) ==
-                      postponed_deps.end ());
-
               shared_ptr<selected_package> sp (
                 ddb.find<selected_package> (d.name));
 
@@ -4366,7 +4361,7 @@ namespace bpkg
               // Marking upgraded dependencies as "required by command line"
               // may seem redundant as they should already be pre-entered as
               // such (see above). But remember dependencies upgraded with
-              // -i|-r?  Note that the required_by data member should never be
+              // -i|-r? Note that the required_by data member should never be
               // empty, as it is used in prompts/diagnostics.
               //
               build_package p {
@@ -4396,25 +4391,46 @@ namespace bpkg
                  ? build_package::build_replace
                  : uint16_t (0))};
 
-              build_package_refs dep_chain;
+              package_key pk {ddb, d.name};
 
-              // Note: recursive.
+              // Similar to the user-selected packages, collect non-
+              // recursively the dependencies for which recursive collection
+              // is postponed (see above for details).
               //
-              pkgs.collect_build (o,
-                                  move (p),
-                                  replaced_vers,
-                                  postponed_cfgs,
-                                  &dep_chain,
-                                  true /* initial_collection */,
-                                  find_prereq_database,
-                                  add_priv_cfg,
-                                  &rpt_depts,
-                                  &postponed_repo,
-                                  &postponed_alts,
-                                  &postponed_recs,
-                                  &postponed_edeps,
-                                  &postponed_deps,
-                                  &unacceptable_alts);
+              auto i (postponed_deps.find (pk));
+              if (i == postponed_deps.end ())
+              {
+                build_package_refs dep_chain;
+
+                // Note: recursive.
+                //
+                pkgs.collect_build (o,
+                                    move (p),
+                                    replaced_vers,
+                                    postponed_cfgs,
+                                    &dep_chain,
+                                    true /* initial_collection */,
+                                    find_prereq_database,
+                                    add_priv_cfg,
+                                    &rpt_depts,
+                                    &postponed_repo,
+                                    &postponed_alts,
+                                    &postponed_recs,
+                                    &postponed_edeps,
+                                    &postponed_deps,
+                                    &unacceptable_alts);
+              }
+              else
+              {
+                i->second.wout_config = true;
+
+                l5 ([&]{trace << "dep-postpone user-specified dependency "
+                              << pk;});
+
+                // Note: not recursive.
+                //
+                pkgs.collect_build (o, move (p), replaced_vers, postponed_cfgs);
+              }
             }
           }
 

@@ -4736,8 +4736,8 @@ namespace bpkg
       assert (!pcfg->negotiated);
 
       // Re-evaluate existing dependents for dependencies in this
-      // configuration cluster. Omit dependents which are already being built
-      // or dropped.
+      // configuration cluster. Omit dependents which are already being built,
+      // dropped, or postponed.
       //
       // Note that the existing dependent can be re-evaluated to an earlier
       // position than the position of the dependency which has introduced
@@ -4754,6 +4754,15 @@ namespace bpkg
       // collected in the same way and at the same time as the new dependents
       // of the clusters they belong to.
       //
+      // Note that some of the postponed existing dependents may already be in
+      // the cluster. Thus, collect the postponed existing dependents to omit
+      // them from the configuration negotiation and from the subsequent
+      // recursive collection. Note that we will up-negotiate the
+      // configuration these dependents apply to their dependencies after
+      // these dependents will be collected via their own dependents with the
+      // configuration clauses.
+      //
+      set<package_key> postponed_existing_dependents;
       {
         // Map existing dependents to the dependencies they apply a
         // configuration to. Also, collect the information which is required
@@ -4825,6 +4834,7 @@ namespace bpkg
                   //
                   pi->second.wout_config = true;
 
+                  postponed_existing_dependents.insert (pk);
                   continue;
                 }
 
@@ -4978,6 +4988,16 @@ namespace bpkg
                 i (b),
                 e (pcfg->dependents.end ()); i != e; )
       {
+        if (postponed_existing_dependents.find (i->first) !=
+            postponed_existing_dependents.end ())
+        {
+          l5 ([&]{trace << "skip dep-postponed existing dependent "
+                        << i->first;});
+
+          ++i;
+          continue;
+        }
+
         // Resolve package skeletons for the dependent and its dependencies.
         //
         // For the dependent, the skeleton should be already there (since we
@@ -5119,7 +5139,20 @@ namespace bpkg
         //
         if (!b->recursive_collection)
         {
-          assert (b->skeleton); // Should have been init'ed above.
+          // Note that due to the existing dependents postponement some of the
+          // dependencies may have no dependent configuration applied to them
+          // at this time. In this case such dependencies may have no skeleton
+          // yet and thus we initialize it. Note that we will still apply the
+          // empty configuration to such dependencies and collect them
+          // recursively, since the negotiation machinery relies on the fact
+          // that the dependencies of a negotiated cluster are (being)
+          // recursively collected. When the time comes and such a dependency
+          // is collected via its (currently postponed) existing dependent,
+          // then its configuration will be up-negotiated (likely involving
+          // throwing the retry_configuration exception).
+          //
+          if (!b->skeleton)
+            b->init_skeleton (o /* options */);
 
           package_skeleton& ps (*b->skeleton);
 
@@ -5202,6 +5235,13 @@ namespace bpkg
 
       for (const auto& p: dependents)
       {
+        if (postponed_existing_dependents.find (p) !=
+            postponed_existing_dependents.end ())
+        {
+          l5 ([&]{trace << "skip dep-postponed existing dependent " << p;});
+          continue;
+        }
+
         // Select the dependency alternative for which configuration has been
         // negotiated and collect this dependent starting from the next
         // depends value.
@@ -5955,9 +5995,8 @@ namespace bpkg
     }
 
     // While the assumption is that we shouldn't leave any non-negotiated
-    // clusters, we can potentially miss some corner cases in the above "skip
-    // configuration" logic. Let's thus trace the non-negotiated clusters
-    // before the assertion.
+    // clusters, let's verify that for good measure. Let's thus trace the
+    // non-negotiated clusters before the assertion.
     //
 #ifndef NDEBUG
     for (const postponed_configuration& cfg: postponed_cfgs)
