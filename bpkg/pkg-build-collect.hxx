@@ -472,20 +472,16 @@ namespace bpkg
   // (e.g., because postponement caused cross-talk between dependency
   // alternatives). Thus we keep flags that indicate whether we have seen each
   // type of dependent and then just process dependencies that have the first
-  // (without config) but not the second (with config). We also need to track
-  // at which phase of collection an entry has been added to process the bogus
-  // entries accordingly.
+  // (without config) but not the second (with config).
   //
   struct postponed_dependency
   {
     bool wout_config; // Has dependent without config.
     bool with_config; // Has dependent with config.
-    bool initial_collection;
 
-    postponed_dependency (bool woc, bool wic, bool ic)
+    postponed_dependency (bool woc, bool wic)
         : wout_config (woc),
-          with_config (wic),
-          initial_collection (ic) {}
+          with_config (wic) {}
 
     bool
     bogus () const {return wout_config && !with_config;}
@@ -516,14 +512,14 @@ namespace bpkg
     };
 
     void
-    cancel_bogus (tracer& trace, bool initial_collection)
+    cancel_bogus (tracer& trace)
     {
       bool bogus (false);
       for (auto i (begin ()); i != end (); )
       {
         const postponed_dependency& d (i->second);
 
-        if (d.bogus () && (!initial_collection || d.initial_collection))
+        if (d.bogus ())
         {
           bogus = true;
 
@@ -1133,7 +1129,6 @@ namespace bpkg
                    replaced_versions&,
                    postponed_configurations&,
                    build_package_refs* dep_chain = nullptr,
-                   bool initial_collection = false,
                    const function<find_database_function>& = nullptr,
                    const function<add_priv_cfg_function>& = nullptr,
                    const repointed_dependents* = nullptr,
@@ -1199,17 +1194,17 @@ namespace bpkg
     // details).
     //
     // Always postpone recursive collection of dependencies for a dependent
-    // with configuration clauses, recording them in postponed_deps (see
-    // postponed_dependencies for details) and also recording the dependent in
-    // postponed_cfgs (see postponed_configurations for details). If it turns
-    // out that some dependency of such a dependent has already been collected
-    // via some other dependent without configuration clauses, then throw the
-    // postpone_dependency exception. This exception is handled via
-    // re-collecting packages from scratch, but now with the knowledge about
-    // premature dependency collection. If some dependency already belongs to
-    // some non or being negotiated cluster then throw merge_configuration.
-    // If some dependency configuration has already been negotiated between
-    // some other dependents, then up-negotiate the configuration and throw
+    // with configuration clauses, recording them together with the dependent
+    // in postponed_cfgs (see postponed_configurations for details). If it
+    // turns out that some dependency of such a dependent has already been
+    // collected via some other dependent without configuration clauses, then
+    // record it in postponed_deps and throw the postpone_dependency
+    // exception. This exception is handled via re-collecting packages from
+    // scratch, but now with the knowledge about premature dependency
+    // collection. If some dependency already belongs to some non or being
+    // negotiated cluster then throw merge_configuration. If some dependency
+    // configuration has already been negotiated between some other
+    // dependents, then up-negotiate the configuration and throw
     // retry_configuration exception so that the configuration refinement can
     // be performed. See the collect lambda implementation for details on the
     // configuration refinement machinery.
@@ -1287,7 +1282,6 @@ namespace bpkg
     collect_build_prerequisites (const pkg_build_options&,
                                  build_package&,
                                  build_package_refs& dep_chain,
-                                 bool initial_collection,
                                  const function<find_database_function>&,
                                  const function<add_priv_cfg_function>&,
                                  const repointed_dependents&,
@@ -1306,7 +1300,6 @@ namespace bpkg
     collect_build_prerequisites (const pkg_build_options&,
                                  database&,
                                  const package_name&,
-                                 bool initial_collection,
                                  const function<find_database_function>&,
                                  const function<add_priv_cfg_function>&,
                                  const repointed_dependents&,

@@ -4251,27 +4251,7 @@ namespace bpkg
 
               auto i (postponed_deps.find (pk));
 
-              if (i == postponed_deps.end ())
-              {
-                pkgs.collect_build_prerequisites (
-                  o,
-                  p.db,
-                  p.name (),
-                  true /* initial_collection */,
-                  find_prereq_database,
-                  add_priv_cfg,
-                  rpt_depts,
-                  replaced_vers,
-                  postponed_repo,
-                  postponed_alts,
-                  0 /* max_alt_index */,
-                  postponed_recs,
-                  postponed_edeps,
-                  postponed_deps,
-                  postponed_cfgs,
-                  unacceptable_alts);
-              }
-              else
+              if (i != postponed_deps.end ())
               {
                 // Even though the user selection may have a configuration, we
                 // treat it as a dependent without any configuration because
@@ -4281,6 +4261,36 @@ namespace bpkg
                 i->second.wout_config = true;
 
                 l5 ([&]{trace << "dep-postpone user-specified " << pk;});
+              }
+              else
+              {
+                const postponed_configuration* pcfg (
+                  postponed_cfgs.find_dependency (pk));
+
+                if (pcfg != nullptr)
+                {
+                  l5 ([&]{trace << "dep-postpone user-specified " << pk
+                                << " since already in cluster " << *pcfg;});
+                }
+                else
+                {
+                  pkgs.collect_build_prerequisites (
+                    o,
+                    p.db,
+                    p.name (),
+                    find_prereq_database,
+                    add_priv_cfg,
+                    rpt_depts,
+                    replaced_vers,
+                    postponed_repo,
+                    postponed_alts,
+                    0 /* max_alt_index */,
+                    postponed_recs,
+                    postponed_edeps,
+                    postponed_deps,
+                    postponed_cfgs,
+                    unacceptable_alts);
+                }
               }
             }
 
@@ -4398,61 +4408,58 @@ namespace bpkg
               // is postponed (see above for details).
               //
               auto i (postponed_deps.find (pk));
-              if (i == postponed_deps.end ())
-              {
-                build_package_refs dep_chain;
-
-                // Note: recursive.
-                //
-                pkgs.collect_build (o,
-                                    move (p),
-                                    replaced_vers,
-                                    postponed_cfgs,
-                                    &dep_chain,
-                                    true /* initial_collection */,
-                                    find_prereq_database,
-                                    add_priv_cfg,
-                                    &rpt_depts,
-                                    &postponed_repo,
-                                    &postponed_alts,
-                                    &postponed_recs,
-                                    &postponed_edeps,
-                                    &postponed_deps,
-                                    &unacceptable_alts);
-              }
-              else
+              if (i != postponed_deps.end ())
               {
                 i->second.wout_config = true;
-
-                l5 ([&]{trace << "dep-postpone user-specified dependency "
-                              << pk;});
 
                 // Note: not recursive.
                 //
                 pkgs.collect_build (o, move (p), replaced_vers, postponed_cfgs);
+
+                l5 ([&]{trace << "dep-postpone user-specified dependency "
+                              << pk;});
+              }
+              else
+              {
+                const postponed_configuration* pcfg (
+                  postponed_cfgs.find_dependency (pk));
+
+                if (pcfg != nullptr)
+                {
+                  // Note: not recursive.
+                  //
+                  pkgs.collect_build (o,
+                                      move (p),
+                                      replaced_vers,
+                                      postponed_cfgs);
+
+                  l5 ([&]{trace << "dep-postpone user-specified dependency "
+                                << pk << " since already in cluster "
+                                << *pcfg;});
+                }
+                else
+                {
+                  build_package_refs dep_chain;
+
+                  // Note: recursive.
+                  //
+                  pkgs.collect_build (o,
+                                      move (p),
+                                      replaced_vers,
+                                      postponed_cfgs,
+                                      &dep_chain,
+                                      find_prereq_database,
+                                      add_priv_cfg,
+                                      &rpt_depts,
+                                      &postponed_repo,
+                                      &postponed_alts,
+                                      &postponed_recs,
+                                      &postponed_edeps,
+                                      &postponed_deps,
+                                      &unacceptable_alts);
+                }
               }
             }
-          }
-
-          // Erase the bogus postponements and re-collect from scratch, if any
-          // (see postponed_dependencies for details).
-          //
-          // Note that we used to re-collect such postponements in-place but
-          // re-doing from scratch feels more correct (i.e., we may end up
-          // doing it earlier which will affect dependency alternatives).
-          //
-          postponed_deps.cancel_bogus (trace, true /* initial_collection */);
-
-          // Now remove all the dependencies postponed during the initial
-          // collection since all this information is already in
-          // postponed_cfgs.
-          //
-          for (auto i (postponed_deps.begin ()); i != postponed_deps.end (); )
-          {
-            if (i->second.initial_collection)
-              i = postponed_deps.erase (i);
-            else
-              ++i;
           }
 
           // Handle the (combined) postponed collection.
