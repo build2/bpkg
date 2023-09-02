@@ -248,11 +248,6 @@ namespace bpkg
     //
     assert ((flags & build_repoint) == 0 || (p.flags & build_repoint) == 0);
 
-    // We never merge two existing dependent re-evaluations.
-    //
-    assert ((flags & build_reevaluate) == 0 ||
-            (p.flags & build_reevaluate) == 0);
-
     // Copy the user-specified options/variables.
     //
     if (p.user_selection ())
@@ -324,14 +319,19 @@ namespace bpkg
     if (!hold_version || (p.hold_version && *p.hold_version > *hold_version))
       hold_version = p.hold_version;
 
-    // Copy state flags.
+    // Copy state flags and upgrade dependent repointments and re-evaluations
+    // to the full builds. But in contrast to the repointed dependents we may
+    // merge two dependent re-evaluations.
     //
-    flags |= p.flags;
+    flags |= (p.flags & ~build_reevaluate);
 
-    // Upgrade dependent repointments and re-evaluations to the full builds.
-    //
     if (*action == build)
-      flags &= ~(build_repoint | build_reevaluate);
+    {
+      flags &= ~build_repoint;
+
+      if ((p.flags & build_reevaluate) == 0)
+        flags &= ~build_reevaluate;
+    }
 
     // Note that we don't copy the build_package::system flag. If it was
     // set from the command line ("strong system") then we will also have
@@ -1422,32 +1422,6 @@ namespace bpkg
     }
     else
     {
-      // Treat the replacement of the existing dependent that is participating
-      // in the configuration negotiation also as a version replacement. This
-      // way we will not be treating the dependent as an existing on the
-      // re-collection (see query_existing_dependents() for details).
-      //
-      // Note: an existing dependent may not be configured as system.
-      //
-      if (pkg.selected != nullptr &&
-          (pkg.selected->version != pkg.available_version () ||
-           pkg.system))
-      {
-        for (const postponed_configuration& cfg: postponed_cfgs)
-        {
-          auto i (cfg.dependents.find (pk));
-
-          if (i != cfg.dependents.end () && i->second.existing)
-          {
-            l5 ([&]{trace << "existing dependent " << *pkg.selected << pkg.db
-                          << " needs to be replaced with "
-                          << pkg.available_name_version_db ();});
-
-            replace_ver (pkg);
-          }
-        }
-      }
-
       // This is the first time we are adding this package name to the map.
       //
       l4 ([&]{trace << "add " << pkg.available_name_version_db ();});
@@ -1645,6 +1619,12 @@ namespace bpkg
                           << " of existing dependent " << *ed.selected
                           << ed.db << " due to dependency "
                           << pkg.available_name_version_db ();});
+
+            collect_existing_dependent (options,
+                                        ed,
+                                        {pk},
+                                        replaced_vers,
+                                        postponed_cfgs);
 
             // Only add this dependent/dependency to the newly created cluster
             // if this dependency doesn't belong to any cluster yet, which may
@@ -4950,13 +4930,6 @@ namespace bpkg
               if (ed.reevaluated)
                 continue;
 
-              const package_key& pk (d.first);
-              packages& ds (ed.dependencies);
-
-              pair<shared_ptr<available_package>,
-                   lazy_shared_ptr<repository_fragment>> rp (
-                     find_available_fragment (o, pk.db, ed.selected));
-
               // Note that a re-evaluated package doesn't necessarily needs to
               // be reconfigured and thus we don't add the
               // build_package::adjust_reconfigure flag here.
@@ -4967,38 +4940,13 @@ namespace bpkg
               // build_package::adjust_reconfigure flag will be added normally
               // by collect_order_dependents().
               //
-              build_package p {
-                build_package::build,
-                pk.db,
-                move (ed.selected),
-                move (rp.first),
-                move (rp.second),
-                nullopt,                    // Dependencies.
-                nullopt,                    // Dependencies alternatives.
-                nullopt,                    // Package skeleton.
-                nullopt,                    // Postponed dependency alternatives.
-                false,                      // Recursive collection.
-                nullopt,                    // Hold package.
-                nullopt,                    // Hold version.
-                {},                         // Constraints.
-                false,                      // System.
-                false,                      // Keep output directory.
-                false,                      // Disfigure (from-scratch reconf).
-                false,                      // Configure-only.
-                nullopt,                    // Checkout root.
-                false,                      // Checkout purge.
-                strings (),                 // Configuration variables.
-                set<package_key> (          // Required by (dependency).
-                  make_move_iterator (ds.begin ()),
-                  make_move_iterator (ds.end ())),
-                false,                      // Required by dependents.
-                build_package::build_reevaluate};
+              collect_existing_dependent (o,
+                                          ed,
+                                          move (ed.dependencies),
+                                          replaced_vers,
+                                          postponed_cfgs);
 
-              // Note: not recursive.
-              //
-              collect_build (o, move (p), replaced_vers, postponed_cfgs);
-
-              build_package* b (entered_build (pk));
+              build_package* b (entered_build (d.first));
               assert (b != nullptr);
 
               // Re-evaluate up to the earliest position.
@@ -6706,7 +6654,7 @@ namespace bpkg
         strings (),                 // Configuration variables.
         {dpt},                      // Required by (dependent).
         true,                       // Required by dependents.
-        0};
+        0};                         // State flags.
 
     // Add constraints, if present.
     //
@@ -6725,6 +6673,51 @@ namespace bpkg
     collect_build (o, move (p), replaced_vers, postponed_cfgs);
 
     return entered_build (dep);
+  }
+
+  void build_packages::
+  collect_existing_dependent (const pkg_build_options& o,
+                              const existing_dependent& ed,
+                              postponed_configuration::packages&& ds,
+                              replaced_versions& replaced_vers,
+                              postponed_configurations& postponed_cfgs)
+  {
+    assert (ed.dependency); // May not be a deviated existing dependent.
+
+    pair<shared_ptr<available_package>,
+         lazy_shared_ptr<repository_fragment>> rp (
+           find_available_fragment (o, ed.db, ed.selected));
+
+    build_package p {
+      build_package::build,
+      ed.db,
+      ed.selected,
+      move (rp.first),
+      move (rp.second),
+      nullopt,                            // Dependencies.
+      nullopt,                            // Dependencies alternatives.
+      nullopt,                            // Package skeleton.
+      nullopt,                            // Postponed dependency alternatives.
+      false,                              // Recursive collection.
+      nullopt,                            // Hold package.
+      nullopt,                            // Hold version.
+      {},                                 // Constraints.
+      false,                              // System.
+      false,                              // Keep output directory.
+      false,                              // Disfigure (from-scratch reconf).
+      false,                              // Configure-only.
+      nullopt,                            // Checkout root.
+      false,                              // Checkout purge.
+      strings (),                         // Configuration variables.
+      set<package_key> (                  // Required by (dependency).
+        make_move_iterator (ds.begin ()),
+        make_move_iterator (ds.end ())),
+      false,                              // Required by dependents.
+      build_package::build_reevaluate};
+
+    // Note: not recursive.
+    //
+    collect_build (o, move (p), replaced_vers, postponed_cfgs);
   }
 
   void build_packages::

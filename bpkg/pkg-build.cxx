@@ -3867,6 +3867,11 @@ namespace bpkg
     // grade order where any subsequent entry does not affect the decision of
     // the previous ones.
     //
+    // Note that we also need to rebuild the plan from scratch on adding a new
+    // up/down-grade/drop if any dependency configuration negotiation has been
+    // performed, since any package replacement may affect the already
+    // negotiated configurations.
+    //
     // Package managers are an easy, already solved problem, right?
     //
     build_packages pkgs;
@@ -4916,8 +4921,16 @@ namespace bpkg
 
           refine = need_refinement ();
 
+          // If no further refinement is necessary, then perform the
+          // diagnostics run. Otherwise, if any dependency configuration
+          // negotiation has been performed during the current plan refinement
+          // iteration, then rebuild the plan from scratch (see above for
+          // details).
+          //
           if (!refine)
             need_refinement (true /* diag */);
+          else if (!postponed_cfgs.empty ())
+            scratch_exe = true;
         }
 
         // Note that we prevent building multiple instances of the same

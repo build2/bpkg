@@ -1090,8 +1090,6 @@ namespace bpkg
     // instead. Add entry to replaced_vers and throw replace_version if the
     // existing version needs to be replaced but the new version cannot be
     // re-collected recursively in-place (see replaced_versions for details).
-    // Also add an entry and throw if the existing dependent needs to be
-    // replaced.
     //
     // Optionally, pass the function which verifies the chosen package
     // version. It is called before replace_version is potentially thrown or
@@ -1467,6 +1465,18 @@ namespace bpkg
     collect_existing_dependent_dependency (
       const pkg_build_options&,
       const existing_dependent&,
+      replaced_versions&,
+      postponed_configurations&);
+
+    // Non-recursively collect an existing non-deviated dependent previously
+    // returned by the query_existing_dependents() function call for the
+    // subsequent re-evaluation.
+    //
+    void
+    collect_existing_dependent (
+      const pkg_build_options&,
+      const existing_dependent&,
+      postponed_configuration::packages&& dependencies,
       replaced_versions&,
       postponed_configurations&);
 
