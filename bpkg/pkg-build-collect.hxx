@@ -347,8 +347,8 @@ namespace bpkg
     //
     static const uint16_t build_reevaluate = 0x0008;
 
-    // Set if this build action is for recursive re-collecting of a deviated
-    // existing dependent.
+    // Set if this build action is for recursive re-collecting of an existing
+    // dependent due to deviation, detecting merge configuration cycle, etc.
     //
     static const uint16_t build_recollect = 0x0010;
 
@@ -931,6 +931,9 @@ namespace bpkg
     set_shadow_cluster (postponed_configuration&&);
 
     bool
+    is_shadow_cluster (const postponed_configuration&);
+
+    bool
     contains_in_shadow_cluster (package_key dependent,
                                 pair<size_t, size_t> pos) const;
 
@@ -1207,6 +1210,19 @@ namespace bpkg
     // be performed. See the collect lambda implementation for details on the
     // configuration refinement machinery.
     //
+    // If the reeval_pos argument is specified and is not {0,0}, then
+    // re-evaluate the package to the specified position. In this mode perform
+    // the regular dependency alternative selection and non-recursive
+    // dependency collection. When the specified position is reached, postpone
+    // the collection by recording the dependent together with the
+    // dependencies at that position in postponed_cfgs (see
+    // postponed_configurations for details). If the dependent/dependencies
+    // are added to an already negotiated cluster, then throw
+    // merge_configuration, similar to the regular collection mode (see
+    // above). Also check for the merge configuration cycles (see the function
+    // implementation for details) and throw the merge_configuration_cycle
+    // exception if such a cycle is detected.
+    //
     // If {0,0} is specified as the reeval_pos argument, then perform the
     // pre-reevaluation. In this read-only mode perform the regular dependency
     // alternative selection but not the actual dependency collection and stop
@@ -1214,7 +1230,7 @@ namespace bpkg
     // configuration clause is encountered. In the latter case return the list
     // of the selected alternative dependencies/positions, where the last
     // entry corresponds to the alternative with the encountered configuration
-    // clause. Return nullopt otherwise. Also lock for any deviation in the
+    // clause. Return nullopt otherwise. Also look for any deviation in the
     // dependency alternatives selection and throw reeval_deviated exception
     // if such a deviation is detected.
     //
@@ -1270,6 +1286,11 @@ namespace bpkg
     };
 
     struct merge_configuration
+    {
+      size_t depth;
+    };
+
+    struct merge_configuration_cycle
     {
       size_t depth;
     };
@@ -1440,10 +1461,18 @@ namespace bpkg
       reference_wrapper<database>    db;
       shared_ptr<selected_package>   selected;
 
-      // Dependency.
+      // Earliest dependency with config clause.
       //
       optional<package_key>          dependency;
       pair<size_t, size_t>           dependency_position;
+
+      // Original dependency.
+      //
+      // Note that we always know the original dependency but may not be able
+      // to obtain its position if it comes after the earliest dependency with
+      // config clause or the dependent deviates.
+      //
+      package_key                    orig_dependency;
       optional<pair<size_t, size_t>> orig_dependency_position;
     };
 
@@ -1485,12 +1514,12 @@ namespace bpkg
     // the postponed package recollections list.
     //
     void
-    collect_deviated_dependent (const pkg_build_options&,
-                                const existing_dependent&,
-                                package_key orig_dependency,
-                                replaced_versions&,
-                                postponed_packages& postponed_recs,
-                                postponed_configurations&);
+    recollect_existing_dependent (const pkg_build_options&,
+                                  const existing_dependent&,
+                                  bool reconfigure,
+                                  replaced_versions&,
+                                  postponed_packages& postponed_recs,
+                                  postponed_configurations&);
 
     struct package_ref
     {
