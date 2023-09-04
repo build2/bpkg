@@ -622,6 +622,9 @@ namespace bpkg
 
     merged_ids.push_back (c.id);
 
+    for (size_t mid: c.merged_ids)
+      merged_ids.push_back (mid);
+
     // Merge dependents.
     //
     for (auto& d: c.dependents)

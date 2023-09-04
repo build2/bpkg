@@ -691,7 +691,7 @@ namespace bpkg
   // finalized or a further refinement is required. In the former case we
   // report the first encountered unsatisfied dependency constraint and
   // fail. Otherwise, we drop the cache and proceed with the next iteration of
-  // the execution plan refinement which may resolve these problem naturally.
+  // the execution plan refinement which may resolve these problems naturally.
   //
   struct unsatisfied_dependent
   {
@@ -774,7 +774,7 @@ namespace bpkg
   {
   public:
     // The id of the cluster plus the ids of all the clusters that have been
-    // merged into it.
+    // merged into it directly or as their components.
     //
     size_t id;
     small_vector<size_t, 1> merged_ids;
