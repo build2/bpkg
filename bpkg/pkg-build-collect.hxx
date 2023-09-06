@@ -10,7 +10,6 @@
 #include <forward_list>
 
 #include <bpkg/types.hxx>
-#include <bpkg/forward.hxx> // database, linked_databases
 #include <bpkg/utility.hxx>
 
 #include <bpkg/package.hxx>
@@ -19,6 +18,7 @@
 #include <bpkg/common-options.hxx>
 #include <bpkg/pkg-build-options.hxx>
 
+#include <bpkg/database.hxx>
 #include <bpkg/pkg-configure.hxx>          // find_database_function()
 #include <bpkg/package-skeleton.hxx>
 #include <bpkg/system-package-manager.hxx>
@@ -441,7 +441,28 @@ namespace bpkg
   //   This, in particular, may end up in resolving different dependency
   //   packages and affect the dependent and dependency configurations.
   //
-  using postponed_packages = std::set<build_package*>;
+  // - Postponed recollection of configured dependents for resolving merge
+  //   configuration cycles and as a fallback for missed re-evaluations due to
+  //   the shadow-based configuration clusters merge (see
+  //   collect_build_prerequisites() for details).
+  //
+  // For the sake of testing, make sure the order in the set is stable.
+  //
+  struct compare_build_package
+  {
+    bool
+    operator() (const build_package* x, const build_package* y) const
+    {
+      const package_name& nx (x->name ());
+      const package_name& ny (y->name ());
+
+      if (int d = nx.compare (ny))
+        return d < 0;
+
+      return x->db.get () < y->db.get ();
+    }
+  };
+  using postponed_packages = std::set<build_package*, compare_build_package>;
 
   // Base for exception types that indicate an inability to collect a package
   // build because it was collected prematurely (version needs to be replaced,
@@ -1173,20 +1194,20 @@ namespace bpkg
     //   is {0,0}).
     //
     // - For an existing dependent being re-collected due to the selected
-    //   dependency alternatives deviation, which may be caused by its
-    //   dependency up/downgrade (see postponed prerequisites collection for
-    //   details).
+    //   dependency alternatives deviation, etc which may be caused by its
+    //   dependency up/downgrade (see postponed_packages and
+    //   build_package::build_recollect flag for details).
     //
     // Note that for these cases, as it was said above, we can potentially
     // fail if the dependent is an orphan, but this is exactly what we need to
     // do in that case, since we won't be able to re-collect its dependencies.
     //
     // Only a single true dependency alternative can be selected per function
-    // call. Such an alternative can only be selected if its index in the
-    // postponed alternatives list is less than the specified maximum (used by
-    // the heuristics that determines in which order to process packages with
-    // alternatives; if 0 is passed, then no true alternative will be
-    // selected).
+    // call, unless we are (pre-)re-evaluating. Such an alternative can only
+    // be selected if its index in the postponed alternatives list is less
+    // than the specified maximum (used by the heuristics that determines in
+    // which order to process packages with alternatives; if 0 is passed, then
+    // no true alternative will be selected).
     //
     // The idea here is to postpone the true alternatives selection till the
     // end of the packages collection and then try to optimize the overall
@@ -1203,8 +1224,11 @@ namespace bpkg
     // exception. This exception is handled via re-collecting packages from
     // scratch, but now with the knowledge about premature dependency
     // collection. If some dependency already belongs to some non or being
-    // negotiated cluster then throw merge_configuration. If some dependency
-    // configuration has already been negotiated between some other
+    // negotiated cluster then throw merge_configuration. If some dependencies
+    // have existing dependents with config clauses which have not been
+    // considered for the configuration negotiation yet, then throw
+    // recollect_existing_dependents exception to re-collect these dependents.
+    // If configuration has already been negotiated between some other
     // dependents, then up-negotiate the configuration and throw
     // retry_configuration exception so that the configuration refinement can
     // be performed. See the collect lambda implementation for details on the
@@ -1476,6 +1500,17 @@ namespace bpkg
       optional<pair<size_t, size_t>> orig_dependency_position;
     };
 
+    // This exception is thrown by collect_build_prerequisites() and
+    // collect_build_postponed() to resolve different kinds of existing
+    // dependent re-evaluation related cycles by re-collecting the problematic
+    // dependents from scratch.
+    //
+    struct recollect_existing_dependents
+    {
+      size_t depth;
+      vector<existing_dependent> dependents;
+    };
+
     vector<existing_dependent>
     query_existing_dependents (
       tracer&,
@@ -1509,14 +1544,19 @@ namespace bpkg
       replaced_versions&,
       postponed_configurations&);
 
-    // Non-recursively collect the deviated existing dependent previously
-    // returned by the query_existing_dependents() function call and add it to
-    // the postponed package recollections list.
+    // Non-recursively collect an existing dependent previously returned by
+    // the query_existing_dependents() function call with the
+    // build_package::build_recollect flag and add it to the postponed package
+    // recollections list. Also add the build_package::adjust_reconfigure flag
+    // for the deviated dependents (existing_dependent::dependency is absent).
+    //
+    // Note that after this function call the existing dependent may not be
+    // returned as a result by the query_existing_dependents() function
+    // anymore (due to the build_package::build_recollect flag presence).
     //
     void
     recollect_existing_dependent (const pkg_build_options&,
                                   const existing_dependent&,
-                                  bool reconfigure,
                                   replaced_versions&,
                                   postponed_packages& postponed_recs,
                                   postponed_configurations&);

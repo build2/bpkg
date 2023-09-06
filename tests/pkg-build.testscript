@@ -223,9 +223,10 @@
 # |   |-- bas-1.0.0.tar.gz      -> libbar {require {config.libbar.extras=true}},
 # |   |                            bus {require {config.bus.extras=true}}
 # |   |-- bus-0.1.0.tar.gz      -> foo {require {config.foo.extras=true}}
-# |   |-- bus-1.0.0.tar.gz      -> libaz {require {config.libbox.extras=true}},
+# |   |-- bus-1.0.0.tar.gz      -> libaz {require {config.libbaz.extras=true}},
 # |   |                            foo {require {config.foo.extras=true}}
-# |   |-- box-0.1.0.tar.gz      -> libbox {require {config.libbox.extras=true}}
+# |   |-- box-0.1.0.tar.gz      -> libbox == 0.1.0 {require {config.libbox.extras=true}}
+# |   |-- box-0.2.0.tar.gz      -> libbox {require {config.libbox.extras=true}}
 # |   |-- box-1.0.0.tar.gz      -> {libbar libfoo} {require {config.libbar.extras=true config.libfoo.extras=true}} |
 # |   |                            libbox
 # |   |-- bax-0.1.0.tar.gz      -> {libbox libbar} {require {config.libbox.extras=true}}
@@ -7304,6 +7305,8 @@ test.arguments += --sys-no-query
               trace: collect_build_prerequisites: cfg-postpone dependency libbar/1.0.0 of dependent bax/1.0.0
               trace: postponed_configurations::add: add {bax 2,1: libbox libbar} to {bax^ baz^ | libfoo->{bax/1,1 baz/1,1} libbar->{baz/1,1}}?
               %.*
+              trace: collect_build_prerequisites: skip being built existing dependent bax of dependency libbox
+              %.*
               trace: collect_build_prerequisites: cfg-postponing dependent bax/1.0.0 involves (being) negotiated configurations and results in {bax^ baz^ | libfoo->{bax/1,1 baz/1,1} libbar->{bax/2,1 baz/1,1} libbox->{bax/2,1}}?, throwing retry_configuration
               trace: collect_build_postponed (0): cfg-negotiation of {bax^ | libfoo->{bax/1,1}} failed due to dependent bax, refining configuration
               trace: collect_build_postponed (1): begin {bax^ | libfoo->{bax/1,1}}
@@ -7342,6 +7345,8 @@ test.arguments += --sys-no-query
               trace: collect_build_prerequisites: cfg-postpone dependency libbox/0.1.0 of dependent bax/1.0.0
               trace: collect_build_prerequisites: cfg-postpone dependency libbar/1.0.0 of dependent bax/1.0.0
               trace: postponed_configurations::add: add {bax 2,1: libbox libbar} to {bax^ baz^ | libfoo->{bax/1,1 baz/1,1} libbar->{baz/1,1}}?
+              %.*
+              trace: collect_build_prerequisites: skip being built existing dependent bax of dependency libbox
               trace: collect_build_prerequisites: configuration for cfg-postponed dependencies of dependent bax/1.0.0 is negotiated
               trace: collect_build_prerequisites: collecting cfg-postponed dependency libbox/0.1.0 of dependent bax/1.0.0
               trace: collect_build_prerequisites: begin libbox/0.1.0
@@ -7623,6 +7628,8 @@ test.arguments += --sys-no-query
               trace: collect_build_prerequisites: cfg-postpone dependency libbar/1.0.0 of dependent bax/1.0.0
               trace: postponed_configurations::add: add {bax 2,1: libbox libbar} to {bax^ baz^ | libfoo->{bax/1,1 baz/1,1} libbar->{baz/1,1}}?
               %.*
+              trace: collect_build_prerequisites: skip being built existing dependent bax of dependency libbox
+              %.*
               trace: collect_build_prerequisites: cfg-postponing dependent bax/1.0.0 involves (being) negotiated configurations and results in {bax^ baz^ | libfoo->{bax/1,1 baz/1,1} libbar->{bax/2,1 baz/1,1} libbox->{bax/2,1}}?, throwing retry_configuration
               trace: collect_build_postponed (0): cfg-negotiation of {bax^ | libfoo->{bax/1,1}} failed due to dependent bax, refining configuration
               trace: collect_build_postponed (1): begin {bax^ | libfoo->{bax/1,1}}
@@ -7660,6 +7667,8 @@ test.arguments += --sys-no-query
               trace: collect_build_prerequisites: cfg-postpone dependency libbox/0.1.0 of dependent bax/1.0.0
               trace: collect_build_prerequisites: cfg-postpone dependency libbar/1.0.0 of dependent bax/1.0.0
               trace: postponed_configurations::add: add {bax 2,1: libbox libbar} to {bax^ baz^ | libfoo->{bax/1,1 baz/1,1} libbar->{baz/1,1}}?
+              %.*
+              trace: collect_build_prerequisites: skip being built existing dependent bax of dependency libbox
               trace: collect_build_prerequisites: configuration for cfg-postponed dependencies of dependent bax/1.0.0 is negotiated
               trace: collect_build_prerequisites: collecting cfg-postponed dependency libbox/0.1.0 of dependent bax/1.0.0
               trace: collect_build_prerequisites: begin libbox/0.1.0
@@ -8364,6 +8373,7 @@ test.arguments += --sys-no-query
           trace: collect_build_prerequisites: cfg-postpone dependency libbox/1.0.0 of dependent bax/1.0.0
           trace: collect_build_prerequisites: cfg-postpone dependency libbar/1.0.0 of dependent bax/1.0.0
           trace: postponed_configurations::add: add {bax 2,1: libbox libbar} to {bar bas bix | libbar->{bar/1,1 bas/1,1 bix/1,1} bar->{bix/1,1}}!
+          %.*
           trace: collect_build_prerequisites: configuration for cfg-postponed dependencies of dependent bax/1.0.0 is negotiated
           trace: collect_build_prerequisites: collecting cfg-postponed dependency libbox/1.0.0 of dependent bax/1.0.0
           trace: collect_build_prerequisites: begin libbox/1.0.0
@@ -15685,8 +15695,9 @@ test.arguments += --sys-no-query
         %.*
         trace: postponed_configurations::add: add {tex^ 1,1: libbar} to {box | libbox->{box/1,1}}! (shadow cluster-based)
         trace: collect_build_prerequisites: merge configuration cycle detected for being re-evaluated dependent tex/1.0.0 since {box tex^ | libbox->{box/1,1} libbar->{tex/1,1}}! is a shadow of itself, throwing merge_configuration_cycle
-        trace: collect_build_postponed (2): re-evaluation of existing dependent tex/1.0.0 failed due to merge configuration cycle for {bax^ | libfoo->{bax/1,1}}, throwing recollect_dependent
-        trace: collect_build_postponed (0): cfg-negotiation of {box | libbox->{box/1,1}} failed due to merge configuration cycle while re-evaluating existing dependent tex/1.0.0, scheduling its re-collection
+        trace: collect_build_postponed (2): re-evaluation of existing dependent tex/1.0.0 failed due to merge configuration cycle for {bax^ | libfoo->{bax/1,1}}, throwing recollect_existing_dependents
+        trace: collect_build_postponed (0): cfg-negotiation of {box | libbox->{box/1,1}} failed due to some existing dependents related problem, scheduling their re-collection
+        trace: collect_build_postponed (0): schedule re-collection of existing dependent tex/1.0.0
         trace: collect_build: add tex/1.0.0
         trace: collect_build_postponed (1): begin {box | libbox->{box/1,1}}
         %.*
@@ -15759,6 +15770,9 @@ test.arguments += --sys-no-query
         trace: collect_build_prerequisites: cfg-postpone dependency libbar/1.0.0 of dependent tex/1.0.0
         trace: postponed_configurations::add: add {tex 1,1: libbar} to {box | libbox->{box/1,1}}! (shadow cluster-based)
         %.*
+        trace: collect_build_prerequisites: skip being built existing dependent bax of dependency libbar
+        trace: collect_build_prerequisites: skip being built existing dependent tex of dependency libbar
+        %.*
         trace: collect_build_prerequisites: cfg-postponing dependent tex/1.0.0 involves (being) negotiated configurations and results in {box tex | libbox->{box/1,1} libbar->{tex/1,1}}!, throwing retry_configuration
         trace: collect_build_postponed (0): cfg-negotiation of {box | libbox->{box/1,1}} failed due to dependent tex, refining configuration
         trace: collect_build_postponed (1): begin {box | libbox->{box/1,1}}
@@ -15787,6 +15801,9 @@ test.arguments += --sys-no-query
         trace: collect_build: add libbar/1.0.0
         trace: collect_build_prerequisites: cfg-postpone dependency libbar/1.0.0 of dependent tex/1.0.0
         trace: postponed_configurations::add: add {tex 1,1: libbar} to {box | libbox->{box/1,1}}! (shadow cluster-based)
+        %.*
+        trace: collect_build_prerequisites: skip being built existing dependent bax of dependency libbar
+        trace: collect_build_prerequisites: skip being built existing dependent tex of dependency libbar
         trace: collect_build_prerequisites: configuration for cfg-postponed dependencies of dependent tex/1.0.0 is shadow-negotiated
         trace: collect_build_prerequisites: collecting cfg-postponed dependency libbar/1.0.0 of dependent tex/1.0.0
         trace: collect_build_prerequisites: skip configured libbar/1.0.0
@@ -15840,6 +15857,1079 @@ test.arguments += --sys-no-query
         EOO
 
       $pkg_drop bax tex box
+    }
+
+    : up-negotiate-not-collected-existing-dependents
+    :
+    {
+      $clone_cfg;
+
+      #  Dependencies:
+      #
+      #  bax: depends: libfoo(c)
+      #       depends: {libbox libbar} (c)
+      #
+      #  tiz: depends: tex(c)
+      #       depends: libbar(c)
+      #
+      #  tex: depends: libbar(c)
+      #       depends: libfoo(c)
+      #
+      #  box/0.1.0: depends: libbox(c)
+      #
+      $* bax tiz 2>!;
+
+      $pkg_status -r >>EOO;
+        !bax configured 1.0.0
+          libbar configured 1.0.0
+          libbox configured 1.0.0
+          libfoo configured 1.0.0
+        !tiz configured 1.0.0
+          libbar configured 1.0.0
+          tex configured 1.0.0
+            libbar configured 1.0.0
+            libfoo configured 1.0.0
+        EOO
+
+      $* box/0.2.0 2>>~%EOE%;
+        %.*
+        trace: pkg_build: refine package collection/plan execution from scratch
+        %.*
+        trace: collect_build: add box/0.2.0
+        trace: collect_build_prerequisites: begin box/0.2.0
+        %.*
+        trace: collect_build: add libbox/1.0.0
+        trace: collect_build_prerequisites: cfg-postpone dependency libbox/1.0.0 of dependent box/0.2.0
+        trace: postponed_configurations::add: create {box | libbox->{box/1,1}}
+        trace: collect_build_prerequisites: postpone box/0.2.0
+        trace: collect_build_postponed (0): begin
+        trace: collect_build_postponed (1): begin {box | libbox->{box/1,1}}
+        %.*
+        trace: collect_build_prerequisites: pre-reeval bax/1.0.0
+        %.*
+        trace: collect_build_prerequisites: pre-reevaluated bax/1.0.0: 1,1
+        trace: collect_build: add libfoo/1.0.0
+        trace: collect_build_postponed (1): re-evaluate existing dependents for {box | libbox->{box/1,1}}
+        trace: collect_build: add bax/1.0.0
+        trace: collect_build_prerequisites: reeval bax/1.0.0
+        %.*
+        trace: postponed_configurations::add: create {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build_prerequisites: re-evaluating dependent bax/1.0.0 results in {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build_prerequisites: re-evaluated bax/1.0.0
+        trace: collect_build_postponed (1): cfg-negotiate begin {box | libbox->{box/1,1}}
+        %.*
+        trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
+        trace: collect_build_prerequisites: skip configured libbox/1.0.0
+        trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
+        trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent box/0.2.0
+        trace: collect_build_prerequisites: resume box/0.2.0
+        trace: collect_build_prerequisites: end box/0.2.0
+        trace: collect_build_postponed (1): cfg-negotiate end {box | libbox->{box/1,1}}!
+        trace: collect_build_postponed (2): begin {bax^ | libfoo->{bax/1,1}}
+        %.*
+        trace: collect_build_prerequisites: pre-reeval tex/1.0.0
+        %.*
+        trace: collect_build_prerequisites: pre-reevaluated tex/1.0.0: 1,1
+        trace: collect_build_postponed (2): skip being built existing dependent bax of dependency libfoo
+        trace: collect_build: add libbar/1.0.0
+        trace: collect_build_postponed (2): re-evaluate existing dependents for {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build: add tex/1.0.0
+        trace: collect_build_prerequisites: reeval tex/1.0.0
+        %.*
+        trace: postponed_configurations::add: create {tex^ | libbar->{tex/1,1}}
+        trace: collect_build_prerequisites: re-evaluating dependent tex/1.0.0 results in {tex^ | libbar->{tex/1,1}}
+        trace: collect_build_prerequisites: re-evaluated tex/1.0.0
+        trace: collect_build_postponed (2): cfg-negotiate begin {bax^ | libfoo->{bax/1,1}}
+        %.*
+        trace: collect_build_postponed (2): recursively collect cfg-negotiated dependencies
+        trace: collect_build_prerequisites: skip configured libfoo/1.0.0
+        trace: collect_build_postponed (2): recursively collect cfg-negotiated dependents
+        trace: collect_build_postponed (2): select cfg-negotiated dependency alternative for dependent bax/1.0.0
+        trace: collect_build_prerequisites: resume bax/1.0.0
+        %.*
+        trace: collect_build_prerequisites: cfg-postpone dependency libbox/1.0.0 of dependent bax/1.0.0
+        trace: collect_build_prerequisites: cfg-postpone dependency libbar/1.0.0 of dependent bax/1.0.0
+        trace: postponed_configurations::add: add {bax 2,1: libbox libbar} to {box | libbox->{box/1,1}}!
+        trace: postponed_configurations::add: merge {tex^ | libbar->{tex/1,1}} into {bax box | libbox->{bax/2,1 box/1,1} libbar->{bax/2,1}}!
+        trace: collect_build_prerequisites: cfg-postponing dependent bax/1.0.0 merges non-negotiated and/or being negotiated configurations in and results in {bax box tex^ | libbox->{bax/2,1 box/1,1} libbar->{bax/2,1 tex/1,1}}!, throwing merge_configuration
+        trace: collect_build_postponed (0): cfg-negotiation of {box | libbox->{box/1,1}} failed due to non-negotiated clusters, force-merging based on shadow cluster {bax box tex^ | libbox->{bax/2,1 box/1,1} libbar->{bax/2,1 tex/1,1}}!
+        trace: collect_build_postponed (1): begin {box | libbox->{box/1,1}}
+        %.*
+        trace: collect_build_prerequisites: pre-reeval bax/1.0.0
+        %.*
+        trace: collect_build_prerequisites: pre-reevaluated bax/1.0.0: 1,1
+        trace: collect_build: add libfoo/1.0.0
+        trace: collect_build_postponed (1): re-evaluate existing dependents for {box | libbox->{box/1,1}}
+        trace: collect_build: add bax/1.0.0
+        trace: collect_build_prerequisites: reeval bax/1.0.0
+        %.*
+        trace: postponed_configurations::add: create {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build_prerequisites: re-evaluating dependent bax/1.0.0 results in {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build_prerequisites: re-evaluated bax/1.0.0
+        trace: collect_build_postponed (1): cfg-negotiate begin {box | libbox->{box/1,1}}
+        trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
+        trace: collect_build_prerequisites: skip configured libbox/1.0.0
+        trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
+        trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent box/0.2.0
+        trace: collect_build_prerequisites: resume box/0.2.0
+        trace: collect_build_prerequisites: end box/0.2.0
+        trace: collect_build_postponed (1): cfg-negotiate end {box | libbox->{box/1,1}}!
+        trace: collect_build_postponed (2): begin {bax^ | libfoo->{bax/1,1}}
+        %.*
+        trace: collect_build_prerequisites: pre-reeval tex/1.0.0
+        %.*
+        trace: collect_build_prerequisites: pre-reevaluated tex/1.0.0: 1,1
+        trace: collect_build_postponed (2): skip being built existing dependent bax of dependency libfoo
+        trace: collect_build: add libbar/1.0.0
+        trace: collect_build_postponed (2): re-evaluate existing dependents for {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build: add tex/1.0.0
+        trace: collect_build_prerequisites: reeval tex/1.0.0
+        %.*
+        trace: postponed_configurations::add: add {tex^ 1,1: libbar} to {box | libbox->{box/1,1}}! (shadow cluster-based)
+        trace: collect_build_prerequisites: re-evaluating dependent tex/1.0.0 involves negotiated configurations and results in {box tex^ | libbox->{box/1,1} libbar->{tex/1,1}}!, throwing merge_configuration
+        trace: collect_build_postponed (0): cfg-negotiation of {box | libbox->{box/1,1}} failed due to non-negotiated clusters, force-merging based on shadow cluster {box tex^ | libbox->{box/1,1} libbar->{tex/1,1}}!
+        trace: collect_build_postponed (1): begin {box | libbox->{box/1,1}}
+        %.*
+        trace: collect_build_prerequisites: pre-reeval bax/1.0.0
+        %.*
+        trace: collect_build_prerequisites: pre-reevaluated bax/1.0.0: 1,1
+        trace: collect_build: add libfoo/1.0.0
+        trace: collect_build_postponed (1): re-evaluate existing dependents for {box | libbox->{box/1,1}}
+        trace: collect_build: add bax/1.0.0
+        trace: collect_build_prerequisites: reeval bax/1.0.0
+        %.*
+        trace: postponed_configurations::add: create {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build_prerequisites: re-evaluating dependent bax/1.0.0 results in {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build_prerequisites: re-evaluated bax/1.0.0
+        trace: collect_build_postponed (1): cfg-negotiate begin {box | libbox->{box/1,1}}
+        trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
+        trace: collect_build_prerequisites: skip configured libbox/1.0.0
+        trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
+        trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent box/0.2.0
+        trace: collect_build_prerequisites: resume box/0.2.0
+        trace: collect_build_prerequisites: end box/0.2.0
+        trace: collect_build_postponed (1): cfg-negotiate end {box | libbox->{box/1,1}}!
+        trace: collect_build_postponed (2): begin {bax^ | libfoo->{bax/1,1}}
+        %.*
+        trace: collect_build_prerequisites: pre-reeval tex/1.0.0
+        %.*
+        trace: collect_build_prerequisites: pre-reevaluated tex/1.0.0: 1,1
+        trace: collect_build_postponed (2): skip being built existing dependent bax of dependency libfoo
+        trace: collect_build: add libbar/1.0.0
+        trace: collect_build_postponed (2): re-evaluate existing dependents for {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build: add tex/1.0.0
+        trace: collect_build_prerequisites: reeval tex/1.0.0
+        %.*
+        trace: postponed_configurations::add: add {tex^ 1,1: libbar} to {box | libbox->{box/1,1}}! (shadow cluster-based)
+        trace: collect_build_prerequisites: merge configuration cycle detected for being re-evaluated dependent tex/1.0.0 since {box tex^ | libbox->{box/1,1} libbar->{tex/1,1}}! is a shadow of itself, throwing merge_configuration_cycle
+        trace: collect_build_postponed (2): re-evaluation of existing dependent tex/1.0.0 failed due to merge configuration cycle for {bax^ | libfoo->{bax/1,1}}, throwing recollect_existing_dependents
+        trace: collect_build_postponed (0): cfg-negotiation of {box | libbox->{box/1,1}} failed due to some existing dependents related problem, scheduling their re-collection
+        trace: collect_build_postponed (0): schedule re-collection of existing dependent tex/1.0.0
+        trace: collect_build: add tex/1.0.0
+        trace: collect_build_postponed (1): begin {box | libbox->{box/1,1}}
+        %.*
+        trace: collect_build_prerequisites: pre-reeval bax/1.0.0
+        %.*
+        trace: collect_build_prerequisites: pre-reevaluated bax/1.0.0: 1,1
+        trace: collect_build: add libfoo/1.0.0
+        trace: collect_build_postponed (1): re-evaluate existing dependents for {box | libbox->{box/1,1}}
+        trace: collect_build: add bax/1.0.0
+        trace: collect_build_prerequisites: reeval bax/1.0.0
+        %.*
+        trace: postponed_configurations::add: create {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build_prerequisites: re-evaluating dependent bax/1.0.0 results in {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build_prerequisites: re-evaluated bax/1.0.0
+        trace: collect_build_postponed (1): cfg-negotiate begin {box | libbox->{box/1,1}}
+        trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
+        trace: collect_build_prerequisites: skip configured libbox/1.0.0
+        trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
+        trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent box/0.2.0
+        trace: collect_build_prerequisites: resume box/0.2.0
+        trace: collect_build_prerequisites: end box/0.2.0
+        trace: collect_build_postponed (1): cfg-negotiate end {box | libbox->{box/1,1}}!
+        trace: collect_build_prerequisites: begin tex/1.0.0
+        %.*
+        trace: collect_build: add libbar/1.0.0
+        trace: collect_build_prerequisites: cfg-postpone dependency libbar/1.0.0 of dependent tex/1.0.0
+        trace: postponed_configurations::add: create {tex | libbar->{tex/1,1}}
+        trace: collect_build_prerequisites: postpone tex/1.0.0
+        trace: collect_build_postponed (2): begin {bax^ | libfoo->{bax/1,1}}
+        %.*
+        trace: collect_build_postponed (2): skip being built existing dependent tex of dependency libfoo
+        trace: collect_build_postponed (2): skip being built existing dependent bax of dependency libfoo
+        trace: collect_build_postponed (2): cfg-negotiate begin {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build_postponed (2): recursively collect cfg-negotiated dependencies
+        trace: collect_build_prerequisites: skip configured libfoo/1.0.0
+        trace: collect_build_postponed (2): recursively collect cfg-negotiated dependents
+        trace: collect_build_postponed (2): select cfg-negotiated dependency alternative for dependent bax/1.0.0
+        trace: collect_build_prerequisites: resume bax/1.0.0
+        %.*
+        trace: collect_build_prerequisites: cfg-postpone dependency libbox/1.0.0 of dependent bax/1.0.0
+        trace: collect_build_prerequisites: cfg-postpone dependency libbar/1.0.0 of dependent bax/1.0.0
+        trace: postponed_configurations::add: add {bax 2,1: libbox libbar} to {box | libbox->{box/1,1}}!
+        trace: postponed_configurations::add: merge {tex | libbar->{tex/1,1}} into {bax box | libbox->{bax/2,1 box/1,1} libbar->{bax/2,1}}!
+        trace: collect_build_prerequisites: cfg-postponing dependent bax/1.0.0 merges non-negotiated and/or being negotiated configurations in and results in {bax box tex | libbox->{bax/2,1 box/1,1} libbar->{bax/2,1 tex/1,1}}!, throwing merge_configuration
+        trace: collect_build_postponed (0): cfg-negotiation of {box | libbox->{box/1,1}} failed due to non-negotiated clusters, force-merging based on shadow cluster {bax box tex | libbox->{bax/2,1 box/1,1} libbar->{bax/2,1 tex/1,1}}!
+        trace: collect_build_postponed (1): begin {box | libbox->{box/1,1}}
+        %.*
+        trace: collect_build_prerequisites: pre-reeval bax/1.0.0
+        %.*
+        trace: collect_build_prerequisites: pre-reevaluated bax/1.0.0: 1,1
+        trace: collect_build: add libfoo/1.0.0
+        trace: collect_build_postponed (1): re-evaluate existing dependents for {box | libbox->{box/1,1}}
+        trace: collect_build: add bax/1.0.0
+        trace: collect_build_prerequisites: reeval bax/1.0.0
+        %.*
+        trace: postponed_configurations::add: create {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build_prerequisites: re-evaluating dependent bax/1.0.0 results in {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build_prerequisites: re-evaluated bax/1.0.0
+        trace: collect_build_postponed (1): cfg-negotiate begin {box | libbox->{box/1,1}}
+        trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
+        trace: collect_build_prerequisites: skip configured libbox/1.0.0
+        trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
+        trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent box/0.2.0
+        trace: collect_build_prerequisites: resume box/0.2.0
+        trace: collect_build_prerequisites: end box/0.2.0
+        trace: collect_build_postponed (1): cfg-negotiate end {box | libbox->{box/1,1}}!
+        trace: collect_build_prerequisites: begin tex/1.0.0
+        %.*
+        trace: collect_build: add libbar/1.0.0
+        trace: collect_build_prerequisites: cfg-postpone dependency libbar/1.0.0 of dependent tex/1.0.0
+        trace: postponed_configurations::add: add {tex 1,1: libbar} to {box | libbox->{box/1,1}}! (shadow cluster-based)
+        %.*
+        trace: collect_build_prerequisites: skip being built existing dependent tex of dependency libbar
+        trace: collect_build_prerequisites: skip being built existing dependent bax of dependency libbar
+        %.*
+        trace: collect_build_prerequisites: pre-reeval tiz/1.0.0
+        %.*
+        trace: collect_build_prerequisites: pre-reevaluated tiz/1.0.0: 1,1
+        trace: collect_build_prerequisites: cfg-postponing dependent tex/1.0.0 adds not (being) collected dependencies libbar/1.0.0 with not (being) collected existing dependents to (being) negotiated cluster and results in {box tex | libbox->{box/1,1} libbar->{tex/1,1}}!, throwing recollect_existing_dependents
+        trace: collect_build_postponed (0): cfg-negotiation of {box | libbox->{box/1,1}} failed due to some existing dependents related problem, scheduling their re-collection
+        trace: collect_build_postponed (0): schedule re-collection of existing dependent tiz/1.0.0
+        trace: collect_build: add tiz/1.0.0
+        trace: collect_build_postponed (1): begin {box | libbox->{box/1,1}}
+        %.*
+        trace: collect_build_prerequisites: pre-reeval bax/1.0.0
+        %.*
+        trace: collect_build_prerequisites: pre-reevaluated bax/1.0.0: 1,1
+        trace: collect_build: add libfoo/1.0.0
+        trace: collect_build_postponed (1): re-evaluate existing dependents for {box | libbox->{box/1,1}}
+        trace: collect_build: add bax/1.0.0
+        trace: collect_build_prerequisites: reeval bax/1.0.0
+        %.*
+        trace: postponed_configurations::add: create {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build_prerequisites: re-evaluating dependent bax/1.0.0 results in {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build_prerequisites: re-evaluated bax/1.0.0
+        trace: collect_build_postponed (1): cfg-negotiate begin {box | libbox->{box/1,1}}
+        trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
+        trace: collect_build_prerequisites: skip configured libbox/1.0.0
+        trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
+        trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent box/0.2.0
+        trace: collect_build_prerequisites: resume box/0.2.0
+        trace: collect_build_prerequisites: end box/0.2.0
+        trace: collect_build_postponed (1): cfg-negotiate end {box | libbox->{box/1,1}}!
+        trace: collect_build_prerequisites: begin tex/1.0.0
+        %.*
+        trace: collect_build: add libbar/1.0.0
+        trace: collect_build_prerequisites: cfg-postpone dependency libbar/1.0.0 of dependent tex/1.0.0
+        trace: postponed_configurations::add: create {tex | libbar->{tex/1,1}}
+        trace: collect_build_prerequisites: postpone tex/1.0.0
+        trace: collect_build_prerequisites: begin tiz/1.0.0
+        %.*
+        trace: collect_build_prerequisites: cannot cfg-postpone dependency tex/1.0.0 of dependent tiz/1.0.0 (collected prematurely), throwing postpone_dependency
+        trace: pkg_build: collection failed due to prematurely collected dependency (tex), retry from scratch
+        %.*
+        trace: pkg_build: refine package collection/plan execution from scratch
+        %.*
+        trace: collect_build: add box/0.2.0
+        trace: collect_build_prerequisites: begin box/0.2.0
+        %.*
+        trace: collect_build: add libbox/1.0.0
+        trace: collect_build_prerequisites: cfg-postpone dependency libbox/1.0.0 of dependent box/0.2.0
+        trace: postponed_configurations::add: create {box | libbox->{box/1,1}}
+        trace: collect_build_prerequisites: postpone box/0.2.0
+        trace: collect_build_postponed (0): begin
+        trace: collect_build_postponed (1): begin {box | libbox->{box/1,1}}
+        %.*
+        trace: collect_build_prerequisites: pre-reeval bax/1.0.0
+        %.*
+        trace: collect_build_prerequisites: pre-reevaluated bax/1.0.0: 1,1
+        trace: collect_build: add libfoo/1.0.0
+        trace: collect_build_postponed (1): re-evaluate existing dependents for {box | libbox->{box/1,1}}
+        trace: collect_build: add bax/1.0.0
+        trace: collect_build_prerequisites: reeval bax/1.0.0
+        %.*
+        trace: postponed_configurations::add: create {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build_prerequisites: re-evaluating dependent bax/1.0.0 results in {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build_prerequisites: re-evaluated bax/1.0.0
+        trace: collect_build_postponed (1): cfg-negotiate begin {box | libbox->{box/1,1}}
+        trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
+        trace: collect_build_prerequisites: skip configured libbox/1.0.0
+        trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
+        trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent box/0.2.0
+        trace: collect_build_prerequisites: resume box/0.2.0
+        trace: collect_build_prerequisites: end box/0.2.0
+        trace: collect_build_postponed (1): cfg-negotiate end {box | libbox->{box/1,1}}!
+        trace: collect_build_postponed (2): begin {bax^ | libfoo->{bax/1,1}}
+        %.*
+        trace: collect_build_prerequisites: pre-reeval tex/1.0.0
+        %.*
+        trace: collect_build_prerequisites: pre-reevaluated tex/1.0.0: 1,1
+        trace: collect_build_postponed (2): skip being built existing dependent bax of dependency libfoo
+        trace: collect_build_postponed (2): skip dep-postponed existing dependent tex of dependency libfoo
+        trace: collect_build_postponed (2): cfg-negotiate begin {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build_postponed (2): recursively collect cfg-negotiated dependencies
+        trace: collect_build_prerequisites: skip configured libfoo/1.0.0
+        trace: collect_build_postponed (2): recursively collect cfg-negotiated dependents
+        trace: collect_build_postponed (2): select cfg-negotiated dependency alternative for dependent bax/1.0.0
+        trace: collect_build_prerequisites: resume bax/1.0.0
+        %.*
+        trace: collect_build_prerequisites: cfg-postpone dependency libbox/1.0.0 of dependent bax/1.0.0
+        trace: collect_build: add libbar/1.0.0
+        trace: collect_build_prerequisites: cfg-postpone dependency libbar/1.0.0 of dependent bax/1.0.0
+        trace: postponed_configurations::add: add {bax 2,1: libbox libbar} to {box | libbox->{box/1,1}}!
+        %.*
+        trace: collect_build_prerequisites: pre-reeval tex/1.0.0
+        %.*
+        trace: collect_build_prerequisites: pre-reevaluated tex/1.0.0: 1,1
+        trace: collect_build_prerequisites: skip being built existing dependent bax of dependency libbar
+        trace: collect_build_prerequisites: pre-reeval tiz/1.0.0
+        %.*
+        trace: collect_build_prerequisites: pre-reevaluated tiz/1.0.0: 1,1
+        trace: collect_build_prerequisites: cfg-postponing dependent bax/1.0.0 adds not (being) collected dependencies libbar/1.0.0 with not (being) collected existing dependents to (being) negotiated cluster and results in {bax box | libbox->{bax/2,1 box/1,1} libbar->{bax/2,1}}!, throwing recollect_existing_dependents
+        trace: collect_build_postponed (0): cfg-negotiation of {box | libbox->{box/1,1}} failed due to some existing dependents related problem, scheduling their re-collection
+        trace: collect_build_postponed (0): schedule re-collection of existing dependent tex/1.0.0
+        trace: collect_build: add tex/1.0.0
+        trace: collect_build_postponed (0): schedule re-collection of existing dependent tiz/1.0.0
+        trace: collect_build: add tiz/1.0.0
+        trace: collect_build_postponed (1): begin {box | libbox->{box/1,1}}
+        %.*
+        trace: collect_build_prerequisites: pre-reeval bax/1.0.0
+        %.*
+        trace: collect_build_prerequisites: pre-reevaluated bax/1.0.0: 1,1
+        trace: collect_build: add libfoo/1.0.0
+        trace: collect_build_postponed (1): re-evaluate existing dependents for {box | libbox->{box/1,1}}
+        trace: collect_build: add bax/1.0.0
+        trace: collect_build_prerequisites: reeval bax/1.0.0
+        %.*
+        trace: postponed_configurations::add: create {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build_prerequisites: re-evaluating dependent bax/1.0.0 results in {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build_prerequisites: re-evaluated bax/1.0.0
+        trace: collect_build_postponed (1): cfg-negotiate begin {box | libbox->{box/1,1}}
+        trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
+        trace: collect_build_prerequisites: skip configured libbox/1.0.0
+        trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
+        trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent box/0.2.0
+        trace: collect_build_prerequisites: resume box/0.2.0
+        trace: collect_build_prerequisites: end box/0.2.0
+        trace: collect_build_postponed (1): cfg-negotiate end {box | libbox->{box/1,1}}!
+        trace: collect_build_postponed (1): skip re-collection of dep-postponed package tex
+        trace: collect_build_prerequisites: begin tiz/1.0.0
+        %.*
+        trace: collect_build_prerequisites: cfg-postpone dependency tex/1.0.0 of dependent tiz/1.0.0
+        trace: postponed_configurations::add: create {tiz | tex->{tiz/1,1}}
+        trace: collect_build_prerequisites: postpone tiz/1.0.0
+        trace: collect_build_postponed (1): skip re-collection of dep-postponed package tex
+        trace: collect_build_postponed (2): begin {bax^ | libfoo->{bax/1,1}}
+        %.*
+        trace: collect_build_postponed (2): skip being built existing dependent tex of dependency libfoo
+        trace: collect_build_postponed (2): skip being built existing dependent bax of dependency libfoo
+        trace: collect_build_postponed (2): cfg-negotiate begin {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build_postponed (2): recursively collect cfg-negotiated dependencies
+        trace: collect_build_prerequisites: skip configured libfoo/1.0.0
+        trace: collect_build_postponed (2): recursively collect cfg-negotiated dependents
+        trace: collect_build_postponed (2): select cfg-negotiated dependency alternative for dependent bax/1.0.0
+        trace: collect_build_prerequisites: resume bax/1.0.0
+        %.*
+        trace: collect_build_prerequisites: cfg-postpone dependency libbox/1.0.0 of dependent bax/1.0.0
+        trace: collect_build: add libbar/1.0.0
+        trace: collect_build_prerequisites: cfg-postpone dependency libbar/1.0.0 of dependent bax/1.0.0
+        trace: postponed_configurations::add: add {bax 2,1: libbox libbar} to {box | libbox->{box/1,1}}!
+        %.*
+        trace: collect_build_prerequisites: skip being built existing dependent tex of dependency libbar
+        trace: collect_build_prerequisites: skip being built existing dependent bax of dependency libbar
+        trace: collect_build_prerequisites: skip being built existing dependent tiz of dependency libbar
+        %.*
+        trace: collect_build_prerequisites: cfg-postponing dependent bax/1.0.0 involves (being) negotiated configurations and results in {bax box | libbox->{bax/2,1 box/1,1} libbar->{bax/2,1}}!, throwing retry_configuration
+        trace: collect_build_postponed (0): cfg-negotiation of {box | libbox->{box/1,1}} failed due to dependent bax, refining configuration
+        trace: collect_build_postponed (1): begin {box | libbox->{box/1,1}}
+        %.*
+        trace: collect_build_prerequisites: pre-reeval bax/1.0.0
+        %.*
+        trace: collect_build_prerequisites: pre-reevaluated bax/1.0.0: 1,1
+        trace: collect_build: add libfoo/1.0.0
+        trace: collect_build_postponed (1): re-evaluate existing dependents for {box | libbox->{box/1,1}}
+        trace: collect_build: add bax/1.0.0
+        trace: collect_build_prerequisites: reeval bax/1.0.0
+        %.*
+        trace: postponed_configurations::add: create {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build_prerequisites: re-evaluating dependent bax/1.0.0 results in {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build_prerequisites: re-evaluated bax/1.0.0
+        trace: collect_build_postponed (1): cfg-negotiate begin {box | libbox->{box/1,1}}
+        trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
+        trace: collect_build_prerequisites: skip configured libbox/1.0.0
+        trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
+        trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent box/0.2.0
+        trace: collect_build_prerequisites: resume box/0.2.0
+        trace: collect_build_prerequisites: end box/0.2.0
+        trace: collect_build_postponed (1): cfg-negotiate end {box | libbox->{box/1,1}}!
+        trace: collect_build_postponed (1): skip re-collection of dep-postponed package tex
+        trace: collect_build_prerequisites: begin tiz/1.0.0
+        %.*
+        trace: collect_build_prerequisites: cfg-postpone dependency tex/1.0.0 of dependent tiz/1.0.0
+        trace: postponed_configurations::add: create {tiz | tex->{tiz/1,1}}
+        trace: collect_build_prerequisites: postpone tiz/1.0.0
+        trace: collect_build_postponed (1): skip re-collection of dep-postponed package tex
+        trace: collect_build_postponed (2): begin {bax^ | libfoo->{bax/1,1}}
+        %.*
+        trace: collect_build_postponed (2): skip being built existing dependent tex of dependency libfoo
+        trace: collect_build_postponed (2): skip being built existing dependent bax of dependency libfoo
+        trace: collect_build_postponed (2): cfg-negotiate begin {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build_postponed (2): recursively collect cfg-negotiated dependencies
+        trace: collect_build_prerequisites: skip configured libfoo/1.0.0
+        trace: collect_build_postponed (2): recursively collect cfg-negotiated dependents
+        trace: collect_build_postponed (2): select cfg-negotiated dependency alternative for dependent bax/1.0.0
+        trace: collect_build_prerequisites: resume bax/1.0.0
+        %.*
+        trace: collect_build_prerequisites: cfg-postpone dependency libbox/1.0.0 of dependent bax/1.0.0
+        trace: collect_build: add libbar/1.0.0
+        trace: collect_build_prerequisites: cfg-postpone dependency libbar/1.0.0 of dependent bax/1.0.0
+        trace: postponed_configurations::add: add {bax 2,1: libbox libbar} to {box | libbox->{box/1,1}}!
+        %.*
+        trace: collect_build_prerequisites: skip being built existing dependent tex of dependency libbar
+        trace: collect_build_prerequisites: skip being built existing dependent bax of dependency libbar
+        trace: collect_build_prerequisites: skip being built existing dependent tiz of dependency libbar
+        trace: collect_build_prerequisites: configuration for cfg-postponed dependencies of dependent bax/1.0.0 is negotiated
+        trace: collect_build_prerequisites: dependency libbox/1.0.0 of dependent bax/1.0.0 is already (being) recursively collected, skipping
+        trace: collect_build_prerequisites: collecting cfg-postponed dependency libbar/1.0.0 of dependent bax/1.0.0
+        trace: collect_build_prerequisites: skip configured libbar/1.0.0
+        trace: collect_build_prerequisites: end bax/1.0.0
+        trace: collect_build_postponed (2): cfg-negotiate end {bax^ | libfoo->{bax/1,1}}!
+        trace: collect_build_postponed (2): skip re-collection of dep-postponed package tex
+        trace: collect_build_postponed (3): begin {tiz | tex->{tiz/1,1}}
+        %.*
+        trace: collect_build_postponed (3): skip being built existing dependent tiz of dependency tex
+        trace: collect_build_postponed (3): cfg-negotiate begin {tiz | tex->{tiz/1,1}}
+        %.*
+        trace: collect_build_postponed (3): recursively collect cfg-negotiated dependencies
+        trace: collect_build_prerequisites: begin tex/1.0.0
+        %.*
+        trace: collect_build_prerequisites: cfg-postpone dependency libbar/1.0.0 of dependent tex/1.0.0
+        trace: postponed_configurations::add: add {tex 1,1: libbar} to {bax box | libbox->{bax/2,1 box/1,1} libbar->{bax/2,1}}!
+        trace: collect_build_prerequisites: configuration for cfg-postponed dependencies of dependent tex/1.0.0 is negotiated
+        trace: collect_build_prerequisites: dependency libbar/1.0.0 of dependent tex/1.0.0 is already (being) recursively collected, skipping
+        %.*
+        trace: collect_build_prerequisites: cfg-postpone dependency libfoo/1.0.0 of dependent tex/1.0.0
+        trace: postponed_configurations::add: add {tex 2,1: libfoo} to {bax^ | libfoo->{bax/1,1}}!
+        trace: collect_build_prerequisites: configuration for cfg-postponed dependencies of dependent tex/1.0.0 is negotiated
+        trace: collect_build_prerequisites: dependency libfoo/1.0.0 of dependent tex/1.0.0 is already (being) recursively collected, skipping
+        trace: collect_build_prerequisites: end tex/1.0.0
+        trace: collect_build_postponed (3): recursively collect cfg-negotiated dependents
+        trace: collect_build_postponed (3): select cfg-negotiated dependency alternative for dependent tiz/1.0.0
+        trace: collect_build_prerequisites: resume tiz/1.0.0
+        %.*
+        trace: collect_build_prerequisites: cfg-postpone dependency libbar/1.0.0 of dependent tiz/1.0.0
+        trace: postponed_configurations::add: add {tiz 2,1: libbar} to {bax box tex | libbox->{bax/2,1 box/1,1} libbar->{bax/2,1 tex/1,1}}!
+        trace: collect_build_prerequisites: configuration for cfg-postponed dependencies of dependent tiz/1.0.0 is negotiated
+        trace: collect_build_prerequisites: dependency libbar/1.0.0 of dependent tiz/1.0.0 is already (being) recursively collected, skipping
+        trace: collect_build_prerequisites: end tiz/1.0.0
+        trace: collect_build_postponed (3): cfg-negotiate end {tiz | tex->{tiz/1,1}}!
+        trace: collect_build_postponed (3): end {tiz | tex->{tiz/1,1}}
+        trace: collect_build_postponed (2): end {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build_postponed (1): end {box | libbox->{box/1,1}}
+        trace: collect_build_postponed (0): end
+        trace: execute_plan: simulate: yes
+        %.*
+        build plan:
+          new box/0.2.0
+        trace: execute_plan: simulate: no
+        %.*
+        EOE
+
+      $pkg_status -r >>EOO;
+        !bax configured 1.0.0
+          libbar configured 1.0.0
+          libbox configured 1.0.0
+          libfoo configured 1.0.0
+        !tiz configured 1.0.0
+          libbar configured 1.0.0
+          tex configured 1.0.0
+            libbar configured 1.0.0
+            libfoo configured 1.0.0
+        !box configured !0.2.0 available 1.0.0
+          libbox configured 1.0.0
+        EOO
+
+      $pkg_drop bax tiz box
+    }
+
+    : up-negotiate-not-collected-existing-dependents2
+    :
+    : Similar to the above but more complicated.
+    :
+    {
+      $clone_cfg;
+
+      #  Dependencies:
+      #
+      #  bax: depends: libfoo(c)
+      #       depends: {libbox libbar} (c)
+      #
+      #  tiz: depends: tex(c)
+      #       depends: libbar(c)
+      #
+      #  tex: depends: libbar(c)
+      #       depends: libfoo(c)
+      #
+      #  tez: depends: libbox(c)
+      #       depends: toz == 0.1.0 (c)
+      #       depends: libbar(c)
+      #
+      #  toz/0.1.0:
+      #
+      $* bax tiz 2>!;
+
+      $pkg_status -r >>EOO;
+        !bax configured 1.0.0
+          libbar configured 1.0.0
+          libbox configured 1.0.0
+          libfoo configured 1.0.0
+        !tiz configured 1.0.0
+          libbar configured 1.0.0
+          tex configured 1.0.0
+            libbar configured 1.0.0
+            libfoo configured 1.0.0
+        EOO
+
+      $* tez 2>>~%EOE%;
+        %.*
+        trace: pkg_build: refine package collection/plan execution from scratch
+        %.*
+        trace: collect_build: add tez/1.0.0
+        trace: collect_build_prerequisites: begin tez/1.0.0
+        %.*
+        trace: collect_build: add libbox/1.0.0
+        trace: collect_build_prerequisites: cfg-postpone dependency libbox/1.0.0 of dependent tez/1.0.0
+        trace: postponed_configurations::add: create {tez | libbox->{tez/1,1}}
+        trace: collect_build_prerequisites: postpone tez/1.0.0
+        trace: collect_build_postponed (0): begin
+        trace: collect_build_postponed (1): begin {tez | libbox->{tez/1,1}}
+        %.*
+        trace: collect_build_prerequisites: pre-reeval bax/1.0.0
+        %.*
+        trace: collect_build_prerequisites: pre-reevaluated bax/1.0.0: 1,1
+        trace: collect_build: add libfoo/1.0.0
+        trace: collect_build_postponed (1): re-evaluate existing dependents for {tez | libbox->{tez/1,1}}
+        trace: collect_build: add bax/1.0.0
+        trace: collect_build_prerequisites: reeval bax/1.0.0
+        %.*
+        trace: postponed_configurations::add: create {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build_prerequisites: re-evaluating dependent bax/1.0.0 results in {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build_prerequisites: re-evaluated bax/1.0.0
+        trace: collect_build_postponed (1): cfg-negotiate begin {tez | libbox->{tez/1,1}}
+        %.*
+        trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
+        trace: collect_build_prerequisites: skip configured libbox/1.0.0
+        trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
+        trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent tez/1.0.0
+        trace: collect_build_prerequisites: resume tez/1.0.0
+        %.*
+        trace: collect_build: add toz/0.1.0
+        trace: collect_build_prerequisites: cfg-postpone dependency toz/0.1.0 of dependent tez/1.0.0
+        trace: postponed_configurations::add: create {tez | toz->{tez/2,1}}
+        trace: collect_build_prerequisites: postpone tez/1.0.0
+        trace: collect_build_postponed (1): cfg-negotiate end {tez | libbox->{tez/1,1}}!
+        trace: collect_build_postponed (2): begin {bax^ | libfoo->{bax/1,1}}
+        %.*
+        trace: collect_build_prerequisites: pre-reeval tex/1.0.0
+        %.*
+        trace: collect_build_prerequisites: pre-reevaluated tex/1.0.0: 1,1
+        trace: collect_build_postponed (2): skip being built existing dependent bax of dependency libfoo
+        trace: collect_build: add libbar/1.0.0
+        trace: collect_build_postponed (2): re-evaluate existing dependents for {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build: add tex/1.0.0
+        trace: collect_build_prerequisites: reeval tex/1.0.0
+        %.*
+        trace: postponed_configurations::add: create {tex^ | libbar->{tex/1,1}}
+        trace: collect_build_prerequisites: re-evaluating dependent tex/1.0.0 results in {tex^ | libbar->{tex/1,1}}
+        trace: collect_build_prerequisites: re-evaluated tex/1.0.0
+        trace: collect_build_postponed (2): cfg-negotiate begin {bax^ | libfoo->{bax/1,1}}
+        %.*
+        trace: collect_build_postponed (2): recursively collect cfg-negotiated dependencies
+        trace: collect_build_prerequisites: skip configured libfoo/1.0.0
+        trace: collect_build_postponed (2): recursively collect cfg-negotiated dependents
+        trace: collect_build_postponed (2): select cfg-negotiated dependency alternative for dependent bax/1.0.0
+        trace: collect_build_prerequisites: resume bax/1.0.0
+        %.*
+        trace: collect_build_prerequisites: cfg-postpone dependency libbox/1.0.0 of dependent bax/1.0.0
+        trace: collect_build_prerequisites: cfg-postpone dependency libbar/1.0.0 of dependent bax/1.0.0
+        trace: postponed_configurations::add: add {bax 2,1: libbox libbar} to {tez | libbox->{tez/1,1}}!
+        trace: postponed_configurations::add: merge {tex^ | libbar->{tex/1,1}} into {bax tez | libbox->{bax/2,1 tez/1,1} libbar->{bax/2,1}}!
+        trace: collect_build_prerequisites: cfg-postponing dependent bax/1.0.0 merges non-negotiated and/or being negotiated configurations in and results in {bax tex^ tez | libbox->{bax/2,1 tez/1,1} libbar->{bax/2,1 tex/1,1}}!, throwing merge_configuration
+        trace: collect_build_postponed (0): cfg-negotiation of {tez | libbox->{tez/1,1}} failed due to non-negotiated clusters, force-merging based on shadow cluster {bax tex^ tez | libbox->{bax/2,1 tez/1,1} libbar->{bax/2,1 tex/1,1}}!
+        trace: collect_build_postponed (1): begin {tez | libbox->{tez/1,1}}
+        %.*
+        trace: collect_build_prerequisites: pre-reeval bax/1.0.0
+        %.*
+        trace: collect_build_prerequisites: pre-reevaluated bax/1.0.0: 1,1
+        trace: collect_build: add libfoo/1.0.0
+        trace: collect_build_postponed (1): re-evaluate existing dependents for {tez | libbox->{tez/1,1}}
+        trace: collect_build: add bax/1.0.0
+        trace: collect_build_prerequisites: reeval bax/1.0.0
+        %.*
+        trace: postponed_configurations::add: create {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build_prerequisites: re-evaluating dependent bax/1.0.0 results in {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build_prerequisites: re-evaluated bax/1.0.0
+        trace: collect_build_postponed (1): cfg-negotiate begin {tez | libbox->{tez/1,1}}
+        trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
+        trace: collect_build_prerequisites: skip configured libbox/1.0.0
+        trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
+        trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent tez/1.0.0
+        trace: collect_build_prerequisites: resume tez/1.0.0
+        %.*
+        trace: collect_build: add toz/0.1.0
+        trace: collect_build_prerequisites: cfg-postpone dependency toz/0.1.0 of dependent tez/1.0.0
+        trace: postponed_configurations::add: create {tez | toz->{tez/2,1}}
+        trace: collect_build_prerequisites: postpone tez/1.0.0
+        trace: collect_build_postponed (1): cfg-negotiate end {tez | libbox->{tez/1,1}}!
+        trace: collect_build_postponed (2): begin {bax^ | libfoo->{bax/1,1}}
+        %.*
+        trace: collect_build_prerequisites: pre-reeval tex/1.0.0
+        %.*
+        trace: collect_build_prerequisites: pre-reevaluated tex/1.0.0: 1,1
+        trace: collect_build_postponed (2): skip being built existing dependent bax of dependency libfoo
+        trace: collect_build: add libbar/1.0.0
+        trace: collect_build_postponed (2): re-evaluate existing dependents for {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build: add tex/1.0.0
+        trace: collect_build_prerequisites: reeval tex/1.0.0
+        %.*
+        trace: postponed_configurations::add: add {tex^ 1,1: libbar} to {tez | libbox->{tez/1,1}}! (shadow cluster-based)
+        trace: collect_build_prerequisites: re-evaluating dependent tex/1.0.0 involves negotiated configurations and results in {tex^ tez | libbox->{tez/1,1} libbar->{tex/1,1}}!, throwing merge_configuration
+        trace: collect_build_postponed (0): cfg-negotiation of {tez | libbox->{tez/1,1}} failed due to non-negotiated clusters, force-merging based on shadow cluster {tex^ tez | libbox->{tez/1,1} libbar->{tex/1,1}}!
+        trace: collect_build_postponed (1): begin {tez | libbox->{tez/1,1}}
+        %.*
+        trace: collect_build_prerequisites: pre-reeval bax/1.0.0
+        %.*
+        trace: collect_build_prerequisites: pre-reevaluated bax/1.0.0: 1,1
+        trace: collect_build: add libfoo/1.0.0
+        trace: collect_build_postponed (1): re-evaluate existing dependents for {tez | libbox->{tez/1,1}}
+        trace: collect_build: add bax/1.0.0
+        trace: collect_build_prerequisites: reeval bax/1.0.0
+        %.*
+        trace: postponed_configurations::add: create {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build_prerequisites: re-evaluating dependent bax/1.0.0 results in {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build_prerequisites: re-evaluated bax/1.0.0
+        trace: collect_build_postponed (1): cfg-negotiate begin {tez | libbox->{tez/1,1}}
+        trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
+        trace: collect_build_prerequisites: skip configured libbox/1.0.0
+        trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
+        trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent tez/1.0.0
+        trace: collect_build_prerequisites: resume tez/1.0.0
+        %.*
+        trace: collect_build: add toz/0.1.0
+        trace: collect_build_prerequisites: cfg-postpone dependency toz/0.1.0 of dependent tez/1.0.0
+        trace: postponed_configurations::add: create {tez | toz->{tez/2,1}}
+        trace: collect_build_prerequisites: postpone tez/1.0.0
+        trace: collect_build_postponed (1): cfg-negotiate end {tez | libbox->{tez/1,1}}!
+        trace: collect_build_postponed (2): begin {bax^ | libfoo->{bax/1,1}}
+        %.*
+        trace: collect_build_prerequisites: pre-reeval tex/1.0.0
+        %.*
+        trace: collect_build_prerequisites: pre-reevaluated tex/1.0.0: 1,1
+        trace: collect_build_postponed (2): skip being built existing dependent bax of dependency libfoo
+        trace: collect_build: add libbar/1.0.0
+        trace: collect_build_postponed (2): re-evaluate existing dependents for {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build: add tex/1.0.0
+        trace: collect_build_prerequisites: reeval tex/1.0.0
+        %.*
+        trace: postponed_configurations::add: add {tex^ 1,1: libbar} to {tez | libbox->{tez/1,1}}! (shadow cluster-based)
+        trace: collect_build_prerequisites: merge configuration cycle detected for being re-evaluated dependent tex/1.0.0 since {tex^ tez | libbox->{tez/1,1} libbar->{tex/1,1}}! is a shadow of itself, throwing merge_configuration_cycle
+        trace: collect_build_postponed (2): re-evaluation of existing dependent tex/1.0.0 failed due to merge configuration cycle for {bax^ | libfoo->{bax/1,1}}, throwing recollect_existing_dependents
+        trace: collect_build_postponed (0): cfg-negotiation of {tez | libbox->{tez/1,1}} failed due to some existing dependents related problem, scheduling their re-collection
+        trace: collect_build_postponed (0): schedule re-collection of existing dependent tex/1.0.0
+        trace: collect_build: add tex/1.0.0
+        trace: collect_build_postponed (1): begin {tez | libbox->{tez/1,1}}
+        %.*
+        trace: collect_build_prerequisites: pre-reeval bax/1.0.0
+        %.*
+        trace: collect_build_prerequisites: pre-reevaluated bax/1.0.0: 1,1
+        trace: collect_build: add libfoo/1.0.0
+        trace: collect_build_postponed (1): re-evaluate existing dependents for {tez | libbox->{tez/1,1}}
+        trace: collect_build: add bax/1.0.0
+        trace: collect_build_prerequisites: reeval bax/1.0.0
+        %.*
+        trace: postponed_configurations::add: create {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build_prerequisites: re-evaluating dependent bax/1.0.0 results in {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build_prerequisites: re-evaluated bax/1.0.0
+        trace: collect_build_postponed (1): cfg-negotiate begin {tez | libbox->{tez/1,1}}
+        trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
+        trace: collect_build_prerequisites: skip configured libbox/1.0.0
+        trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
+        trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent tez/1.0.0
+        trace: collect_build_prerequisites: resume tez/1.0.0
+        %.*
+        trace: collect_build: add toz/0.1.0
+        trace: collect_build_prerequisites: cfg-postpone dependency toz/0.1.0 of dependent tez/1.0.0
+        trace: postponed_configurations::add: create {tez | toz->{tez/2,1}}
+        trace: collect_build_prerequisites: postpone tez/1.0.0
+        trace: collect_build_postponed (1): cfg-negotiate end {tez | libbox->{tez/1,1}}!
+        trace: collect_build_prerequisites: begin tex/1.0.0
+        %.*
+        trace: collect_build: add libbar/1.0.0
+        trace: collect_build_prerequisites: cfg-postpone dependency libbar/1.0.0 of dependent tex/1.0.0
+        trace: postponed_configurations::add: create {tex | libbar->{tex/1,1}}
+        trace: collect_build_prerequisites: postpone tex/1.0.0
+        trace: collect_build_postponed (2): begin {bax^ | libfoo->{bax/1,1}}
+        %.*
+        trace: collect_build_postponed (2): skip being built existing dependent tex of dependency libfoo
+        trace: collect_build_postponed (2): skip being built existing dependent bax of dependency libfoo
+        trace: collect_build_postponed (2): cfg-negotiate begin {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build_postponed (2): recursively collect cfg-negotiated dependencies
+        trace: collect_build_prerequisites: skip configured libfoo/1.0.0
+        trace: collect_build_postponed (2): recursively collect cfg-negotiated dependents
+        trace: collect_build_postponed (2): select cfg-negotiated dependency alternative for dependent bax/1.0.0
+        trace: collect_build_prerequisites: resume bax/1.0.0
+        %.*
+        trace: collect_build_prerequisites: cfg-postpone dependency libbox/1.0.0 of dependent bax/1.0.0
+        trace: collect_build_prerequisites: cfg-postpone dependency libbar/1.0.0 of dependent bax/1.0.0
+        trace: postponed_configurations::add: add {bax 2,1: libbox libbar} to {tez | libbox->{tez/1,1}}!
+        trace: postponed_configurations::add: merge {tex | libbar->{tex/1,1}} into {bax tez | libbox->{bax/2,1 tez/1,1} libbar->{bax/2,1}}!
+        trace: collect_build_prerequisites: cfg-postponing dependent bax/1.0.0 merges non-negotiated and/or being negotiated configurations in and results in {bax tex tez | libbox->{bax/2,1 tez/1,1} libbar->{bax/2,1 tex/1,1}}!, throwing merge_configuration
+        trace: collect_build_postponed (0): cfg-negotiation of {tez | libbox->{tez/1,1}} failed due to non-negotiated clusters, force-merging based on shadow cluster {bax tex tez | libbox->{bax/2,1 tez/1,1} libbar->{bax/2,1 tex/1,1}}!
+        trace: collect_build_postponed (1): begin {tez | libbox->{tez/1,1}}
+        %.*
+        trace: collect_build_prerequisites: pre-reeval bax/1.0.0
+        %.*
+        trace: collect_build_prerequisites: pre-reevaluated bax/1.0.0: 1,1
+        trace: collect_build: add libfoo/1.0.0
+        trace: collect_build_postponed (1): re-evaluate existing dependents for {tez | libbox->{tez/1,1}}
+        trace: collect_build: add bax/1.0.0
+        trace: collect_build_prerequisites: reeval bax/1.0.0
+        %.*
+        trace: postponed_configurations::add: create {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build_prerequisites: re-evaluating dependent bax/1.0.0 results in {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build_prerequisites: re-evaluated bax/1.0.0
+        trace: collect_build_postponed (1): cfg-negotiate begin {tez | libbox->{tez/1,1}}
+        trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
+        trace: collect_build_prerequisites: skip configured libbox/1.0.0
+        trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
+        trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent tez/1.0.0
+        trace: collect_build_prerequisites: resume tez/1.0.0
+        %.*
+        trace: collect_build: add toz/0.1.0
+        trace: collect_build_prerequisites: cfg-postpone dependency toz/0.1.0 of dependent tez/1.0.0
+        trace: postponed_configurations::add: create {tez | toz->{tez/2,1}}
+        trace: collect_build_prerequisites: postpone tez/1.0.0
+        trace: collect_build_postponed (1): cfg-negotiate end {tez | libbox->{tez/1,1}}!
+        trace: collect_build_prerequisites: begin tex/1.0.0
+        %.*
+        trace: collect_build: add libbar/1.0.0
+        trace: collect_build_prerequisites: cfg-postpone dependency libbar/1.0.0 of dependent tex/1.0.0
+        trace: postponed_configurations::add: add {tex 1,1: libbar} to {tez | libbox->{tez/1,1}}! (shadow cluster-based)
+        %.*
+        trace: collect_build_prerequisites: skip being built existing dependent tex of dependency libbar
+        trace: collect_build_prerequisites: skip being built existing dependent bax of dependency libbar
+        %.*
+        trace: collect_build_prerequisites: pre-reeval tiz/1.0.0
+        %.*
+        trace: collect_build_prerequisites: pre-reevaluated tiz/1.0.0: 1,1
+        trace: collect_build_prerequisites: cfg-postponing dependent tex/1.0.0 adds not (being) collected dependencies libbar/1.0.0 with not (being) collected existing dependents to (being) negotiated cluster and results in {tex tez | libbox->{tez/1,1} libbar->{tex/1,1}}!, throwing recollect_existing_dependents
+        trace: collect_build_postponed (0): cfg-negotiation of {tez | libbox->{tez/1,1}} failed due to some existing dependents related problem, scheduling their re-collection
+        trace: collect_build_postponed (0): schedule re-collection of existing dependent tiz/1.0.0
+        trace: collect_build: add tiz/1.0.0
+        trace: collect_build_postponed (1): begin {tez | libbox->{tez/1,1}}
+        %.*
+        trace: collect_build_prerequisites: pre-reeval bax/1.0.0
+        %.*
+        trace: collect_build_prerequisites: pre-reevaluated bax/1.0.0: 1,1
+        trace: collect_build: add libfoo/1.0.0
+        trace: collect_build_postponed (1): re-evaluate existing dependents for {tez | libbox->{tez/1,1}}
+        trace: collect_build: add bax/1.0.0
+        trace: collect_build_prerequisites: reeval bax/1.0.0
+        %.*
+        trace: postponed_configurations::add: create {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build_prerequisites: re-evaluating dependent bax/1.0.0 results in {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build_prerequisites: re-evaluated bax/1.0.0
+        trace: collect_build_postponed (1): cfg-negotiate begin {tez | libbox->{tez/1,1}}
+        trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
+        trace: collect_build_prerequisites: skip configured libbox/1.0.0
+        trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
+        trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent tez/1.0.0
+        trace: collect_build_prerequisites: resume tez/1.0.0
+        %.*
+        trace: collect_build: add toz/0.1.0
+        trace: collect_build_prerequisites: cfg-postpone dependency toz/0.1.0 of dependent tez/1.0.0
+        trace: postponed_configurations::add: create {tez | toz->{tez/2,1}}
+        trace: collect_build_prerequisites: postpone tez/1.0.0
+        trace: collect_build_postponed (1): cfg-negotiate end {tez | libbox->{tez/1,1}}!
+        trace: collect_build_prerequisites: begin tex/1.0.0
+        %.*
+        trace: collect_build: add libbar/1.0.0
+        trace: collect_build_prerequisites: cfg-postpone dependency libbar/1.0.0 of dependent tex/1.0.0
+        trace: postponed_configurations::add: create {tex | libbar->{tex/1,1}}
+        trace: collect_build_prerequisites: postpone tex/1.0.0
+        trace: collect_build_prerequisites: begin tiz/1.0.0
+        %.*
+        trace: collect_build_prerequisites: cannot cfg-postpone dependency tex/1.0.0 of dependent tiz/1.0.0 (collected prematurely), throwing postpone_dependency
+        trace: pkg_build: collection failed due to prematurely collected dependency (tex), retry from scratch
+        %.*
+        trace: pkg_build: refine package collection/plan execution from scratch
+        %.*
+        trace: collect_build: add tez/1.0.0
+        trace: collect_build_prerequisites: begin tez/1.0.0
+        %.*
+        trace: collect_build: add libbox/1.0.0
+        trace: collect_build_prerequisites: cfg-postpone dependency libbox/1.0.0 of dependent tez/1.0.0
+        trace: postponed_configurations::add: create {tez | libbox->{tez/1,1}}
+        trace: collect_build_prerequisites: postpone tez/1.0.0
+        trace: collect_build_postponed (0): begin
+        trace: collect_build_postponed (1): begin {tez | libbox->{tez/1,1}}
+        %.*
+        trace: collect_build_prerequisites: pre-reeval bax/1.0.0
+        %.*
+        trace: collect_build_prerequisites: pre-reevaluated bax/1.0.0: 1,1
+        trace: collect_build: add libfoo/1.0.0
+        trace: collect_build_postponed (1): re-evaluate existing dependents for {tez | libbox->{tez/1,1}}
+        trace: collect_build: add bax/1.0.0
+        trace: collect_build_prerequisites: reeval bax/1.0.0
+        %.*
+        trace: postponed_configurations::add: create {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build_prerequisites: re-evaluating dependent bax/1.0.0 results in {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build_prerequisites: re-evaluated bax/1.0.0
+        trace: collect_build_postponed (1): cfg-negotiate begin {tez | libbox->{tez/1,1}}
+        trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
+        trace: collect_build_prerequisites: skip configured libbox/1.0.0
+        trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
+        trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent tez/1.0.0
+        trace: collect_build_prerequisites: resume tez/1.0.0
+        %.*
+        trace: collect_build: add toz/0.1.0
+        trace: collect_build_prerequisites: cfg-postpone dependency toz/0.1.0 of dependent tez/1.0.0
+        trace: postponed_configurations::add: create {tez | toz->{tez/2,1}}
+        trace: collect_build_prerequisites: postpone tez/1.0.0
+        trace: collect_build_postponed (1): cfg-negotiate end {tez | libbox->{tez/1,1}}!
+        trace: collect_build_postponed (2): begin {bax^ | libfoo->{bax/1,1}}
+        %.*
+        trace: collect_build_prerequisites: pre-reeval tex/1.0.0
+        %.*
+        trace: collect_build_prerequisites: pre-reevaluated tex/1.0.0: 1,1
+        trace: collect_build_postponed (2): skip being built existing dependent bax of dependency libfoo
+        trace: collect_build_postponed (2): skip dep-postponed existing dependent tex of dependency libfoo
+        trace: collect_build_postponed (2): cfg-negotiate begin {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build_postponed (2): recursively collect cfg-negotiated dependencies
+        trace: collect_build_prerequisites: skip configured libfoo/1.0.0
+        trace: collect_build_postponed (2): recursively collect cfg-negotiated dependents
+        trace: collect_build_postponed (2): select cfg-negotiated dependency alternative for dependent bax/1.0.0
+        trace: collect_build_prerequisites: resume bax/1.0.0
+        %.*
+        trace: collect_build_prerequisites: cfg-postpone dependency libbox/1.0.0 of dependent bax/1.0.0
+        trace: collect_build: add libbar/1.0.0
+        trace: collect_build_prerequisites: cfg-postpone dependency libbar/1.0.0 of dependent bax/1.0.0
+        trace: postponed_configurations::add: add {bax 2,1: libbox libbar} to {tez | libbox->{tez/1,1}}!
+        %.*
+        trace: collect_build_prerequisites: pre-reeval tex/1.0.0
+        %.*
+        trace: collect_build_prerequisites: pre-reevaluated tex/1.0.0: 1,1
+        trace: collect_build_prerequisites: skip being built existing dependent bax of dependency libbar
+        trace: collect_build_prerequisites: pre-reeval tiz/1.0.0
+        %.*
+        trace: collect_build_prerequisites: pre-reevaluated tiz/1.0.0: 1,1
+        trace: collect_build_prerequisites: cfg-postponing dependent bax/1.0.0 adds not (being) collected dependencies libbar/1.0.0 with not (being) collected existing dependents to (being) negotiated cluster and results in {bax tez | libbox->{bax/2,1 tez/1,1} libbar->{bax/2,1}}!, throwing recollect_existing_dependents
+        trace: collect_build_postponed (0): cfg-negotiation of {tez | libbox->{tez/1,1}} failed due to some existing dependents related problem, scheduling their re-collection
+        trace: collect_build_postponed (0): schedule re-collection of existing dependent tex/1.0.0
+        trace: collect_build: add tex/1.0.0
+        trace: collect_build_postponed (0): schedule re-collection of existing dependent tiz/1.0.0
+        trace: collect_build: add tiz/1.0.0
+        trace: collect_build_postponed (1): begin {tez | libbox->{tez/1,1}}
+        %.*
+        trace: collect_build_prerequisites: pre-reeval bax/1.0.0
+        %.*
+        trace: collect_build_prerequisites: pre-reevaluated bax/1.0.0: 1,1
+        trace: collect_build: add libfoo/1.0.0
+        trace: collect_build_postponed (1): re-evaluate existing dependents for {tez | libbox->{tez/1,1}}
+        trace: collect_build: add bax/1.0.0
+        trace: collect_build_prerequisites: reeval bax/1.0.0
+        %.*
+        trace: postponed_configurations::add: create {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build_prerequisites: re-evaluating dependent bax/1.0.0 results in {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build_prerequisites: re-evaluated bax/1.0.0
+        trace: collect_build_postponed (1): cfg-negotiate begin {tez | libbox->{tez/1,1}}
+        trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
+        trace: collect_build_prerequisites: skip configured libbox/1.0.0
+        trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
+        trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent tez/1.0.0
+        trace: collect_build_prerequisites: resume tez/1.0.0
+        %.*
+        trace: collect_build: add toz/0.1.0
+        trace: collect_build_prerequisites: cfg-postpone dependency toz/0.1.0 of dependent tez/1.0.0
+        trace: postponed_configurations::add: create {tez | toz->{tez/2,1}}
+        trace: collect_build_prerequisites: postpone tez/1.0.0
+        trace: collect_build_postponed (1): cfg-negotiate end {tez | libbox->{tez/1,1}}!
+        trace: collect_build_postponed (1): skip re-collection of dep-postponed package tex
+        trace: collect_build_prerequisites: begin tiz/1.0.0
+        %.*
+        trace: collect_build_prerequisites: cfg-postpone dependency tex/1.0.0 of dependent tiz/1.0.0
+        trace: postponed_configurations::add: create {tiz | tex->{tiz/1,1}}
+        trace: collect_build_prerequisites: postpone tiz/1.0.0
+        trace: collect_build_postponed (1): skip re-collection of dep-postponed package tex
+        trace: collect_build_postponed (2): begin {bax^ | libfoo->{bax/1,1}}
+        %.*
+        trace: collect_build_postponed (2): skip being built existing dependent tex of dependency libfoo
+        trace: collect_build_postponed (2): skip being built existing dependent bax of dependency libfoo
+        trace: collect_build_postponed (2): cfg-negotiate begin {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build_postponed (2): recursively collect cfg-negotiated dependencies
+        trace: collect_build_prerequisites: skip configured libfoo/1.0.0
+        trace: collect_build_postponed (2): recursively collect cfg-negotiated dependents
+        trace: collect_build_postponed (2): select cfg-negotiated dependency alternative for dependent bax/1.0.0
+        trace: collect_build_prerequisites: resume bax/1.0.0
+        %.*
+        trace: collect_build_prerequisites: cfg-postpone dependency libbox/1.0.0 of dependent bax/1.0.0
+        trace: collect_build: add libbar/1.0.0
+        trace: collect_build_prerequisites: cfg-postpone dependency libbar/1.0.0 of dependent bax/1.0.0
+        trace: postponed_configurations::add: add {bax 2,1: libbox libbar} to {tez | libbox->{tez/1,1}}!
+        %.*
+        trace: collect_build_prerequisites: skip being built existing dependent tex of dependency libbar
+        trace: collect_build_prerequisites: skip being built existing dependent bax of dependency libbar
+        trace: collect_build_prerequisites: skip being built existing dependent tiz of dependency libbar
+        %.*
+        trace: collect_build_prerequisites: cfg-postponing dependent bax/1.0.0 involves (being) negotiated configurations and results in {bax tez | libbox->{bax/2,1 tez/1,1} libbar->{bax/2,1}}!, throwing retry_configuration
+        trace: collect_build_postponed (0): cfg-negotiation of {tez | libbox->{tez/1,1}} failed due to dependent bax, refining configuration
+        trace: collect_build_postponed (1): begin {tez | libbox->{tez/1,1}}
+        %.*
+        trace: collect_build_prerequisites: pre-reeval bax/1.0.0
+        %.*
+        trace: collect_build_prerequisites: pre-reevaluated bax/1.0.0: 1,1
+        trace: collect_build: add libfoo/1.0.0
+        trace: collect_build_postponed (1): re-evaluate existing dependents for {tez | libbox->{tez/1,1}}
+        trace: collect_build: add bax/1.0.0
+        trace: collect_build_prerequisites: reeval bax/1.0.0
+        %.*
+        trace: postponed_configurations::add: create {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build_prerequisites: re-evaluating dependent bax/1.0.0 results in {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build_prerequisites: re-evaluated bax/1.0.0
+        trace: collect_build_postponed (1): cfg-negotiate begin {tez | libbox->{tez/1,1}}
+        trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
+        trace: collect_build_prerequisites: skip configured libbox/1.0.0
+        trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
+        trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent tez/1.0.0
+        trace: collect_build_prerequisites: resume tez/1.0.0
+        %.*
+        trace: collect_build: add toz/0.1.0
+        trace: collect_build_prerequisites: cfg-postpone dependency toz/0.1.0 of dependent tez/1.0.0
+        trace: postponed_configurations::add: create {tez | toz->{tez/2,1}}
+        trace: collect_build_prerequisites: postpone tez/1.0.0
+        trace: collect_build_postponed (1): cfg-negotiate end {tez | libbox->{tez/1,1}}!
+        trace: collect_build_postponed (1): skip re-collection of dep-postponed package tex
+        trace: collect_build_prerequisites: begin tiz/1.0.0
+        %.*
+        trace: collect_build_prerequisites: cfg-postpone dependency tex/1.0.0 of dependent tiz/1.0.0
+        trace: postponed_configurations::add: create {tiz | tex->{tiz/1,1}}
+        trace: collect_build_prerequisites: postpone tiz/1.0.0
+        trace: collect_build_postponed (1): skip re-collection of dep-postponed package tex
+        trace: collect_build_postponed (2): begin {bax^ | libfoo->{bax/1,1}}
+        %.*
+        trace: collect_build_postponed (2): skip being built existing dependent tex of dependency libfoo
+        trace: collect_build_postponed (2): skip being built existing dependent bax of dependency libfoo
+        trace: collect_build_postponed (2): cfg-negotiate begin {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build_postponed (2): recursively collect cfg-negotiated dependencies
+        trace: collect_build_prerequisites: skip configured libfoo/1.0.0
+        trace: collect_build_postponed (2): recursively collect cfg-negotiated dependents
+        trace: collect_build_postponed (2): select cfg-negotiated dependency alternative for dependent bax/1.0.0
+        trace: collect_build_prerequisites: resume bax/1.0.0
+        %.*
+        trace: collect_build_prerequisites: cfg-postpone dependency libbox/1.0.0 of dependent bax/1.0.0
+        trace: collect_build: add libbar/1.0.0
+        trace: collect_build_prerequisites: cfg-postpone dependency libbar/1.0.0 of dependent bax/1.0.0
+        trace: postponed_configurations::add: add {bax 2,1: libbox libbar} to {tez | libbox->{tez/1,1}}!
+        %.*
+        trace: collect_build_prerequisites: skip being built existing dependent tex of dependency libbar
+        trace: collect_build_prerequisites: skip being built existing dependent bax of dependency libbar
+        trace: collect_build_prerequisites: skip being built existing dependent tiz of dependency libbar
+        trace: collect_build_prerequisites: configuration for cfg-postponed dependencies of dependent bax/1.0.0 is negotiated
+        trace: collect_build_prerequisites: dependency libbox/1.0.0 of dependent bax/1.0.0 is already (being) recursively collected, skipping
+        trace: collect_build_prerequisites: collecting cfg-postponed dependency libbar/1.0.0 of dependent bax/1.0.0
+        trace: collect_build_prerequisites: skip configured libbar/1.0.0
+        trace: collect_build_prerequisites: end bax/1.0.0
+        trace: collect_build_postponed (2): cfg-negotiate end {bax^ | libfoo->{bax/1,1}}!
+        trace: collect_build_postponed (2): skip re-collection of dep-postponed package tex
+        trace: collect_build_postponed (3): begin {tez | toz->{tez/2,1}}
+        %.*
+        trace: collect_build_postponed (3): cfg-negotiate begin {tez | toz->{tez/2,1}}
+        %.*
+        trace: collect_build_postponed (3): recursively collect cfg-negotiated dependencies
+        trace: collect_build_prerequisites: begin toz/0.1.0
+        trace: collect_build_prerequisites: end toz/0.1.0
+        trace: collect_build_postponed (3): recursively collect cfg-negotiated dependents
+        trace: collect_build_postponed (3): select cfg-negotiated dependency alternative for dependent tez/1.0.0
+        trace: collect_build_prerequisites: resume tez/1.0.0
+        %.*
+        trace: collect_build_prerequisites: cfg-postpone dependency libbar/1.0.0 of dependent tez/1.0.0
+        trace: postponed_configurations::add: add {tez 3,1: libbar} to {bax tez | libbox->{bax/2,1 tez/1,1} libbar->{bax/2,1}}!
+        trace: collect_build_prerequisites: configuration for cfg-postponed dependencies of dependent tez/1.0.0 is negotiated
+        trace: collect_build_prerequisites: dependency libbar/1.0.0 of dependent tez/1.0.0 is already (being) recursively collected, skipping
+        trace: collect_build_prerequisites: end tez/1.0.0
+        trace: collect_build_postponed (3): cfg-negotiate end {tez | toz->{tez/2,1}}!
+        trace: collect_build_postponed (3): skip re-collection of dep-postponed package tex
+        trace: collect_build_postponed (4): begin {tiz | tex->{tiz/1,1}}
+        %.*
+        trace: collect_build_postponed (4): skip being built existing dependent tiz of dependency tex
+        trace: collect_build_postponed (4): cfg-negotiate begin {tiz | tex->{tiz/1,1}}
+        %.*
+        trace: collect_build_postponed (4): recursively collect cfg-negotiated dependencies
+        trace: collect_build_prerequisites: begin tex/1.0.0
+        %.*
+        trace: collect_build_prerequisites: cfg-postpone dependency libbar/1.0.0 of dependent tex/1.0.0
+        trace: postponed_configurations::add: add {tex 1,1: libbar} to {bax tez | libbox->{bax/2,1 tez/1,1} libbar->{bax/2,1 tez/3,1}}!
+        trace: collect_build_prerequisites: configuration for cfg-postponed dependencies of dependent tex/1.0.0 is negotiated
+        trace: collect_build_prerequisites: dependency libbar/1.0.0 of dependent tex/1.0.0 is already (being) recursively collected, skipping
+        %.*
+        trace: collect_build_prerequisites: cfg-postpone dependency libfoo/1.0.0 of dependent tex/1.0.0
+        trace: postponed_configurations::add: add {tex 2,1: libfoo} to {bax^ | libfoo->{bax/1,1}}!
+        trace: collect_build_prerequisites: configuration for cfg-postponed dependencies of dependent tex/1.0.0 is negotiated
+        trace: collect_build_prerequisites: dependency libfoo/1.0.0 of dependent tex/1.0.0 is already (being) recursively collected, skipping
+        trace: collect_build_prerequisites: end tex/1.0.0
+        trace: collect_build_postponed (4): recursively collect cfg-negotiated dependents
+        trace: collect_build_postponed (4): select cfg-negotiated dependency alternative for dependent tiz/1.0.0
+        trace: collect_build_prerequisites: resume tiz/1.0.0
+        %.*
+        trace: collect_build_prerequisites: cfg-postpone dependency libbar/1.0.0 of dependent tiz/1.0.0
+        trace: postponed_configurations::add: add {tiz 2,1: libbar} to {bax tex tez | libbox->{bax/2,1 tez/1,1} libbar->{bax/2,1 tex/1,1 tez/3,1}}!
+        trace: collect_build_prerequisites: configuration for cfg-postponed dependencies of dependent tiz/1.0.0 is negotiated
+        trace: collect_build_prerequisites: dependency libbar/1.0.0 of dependent tiz/1.0.0 is already (being) recursively collected, skipping
+        trace: collect_build_prerequisites: end tiz/1.0.0
+        trace: collect_build_postponed (4): cfg-negotiate end {tiz | tex->{tiz/1,1}}!
+        trace: collect_build_postponed (4): end {tiz | tex->{tiz/1,1}}
+        trace: collect_build_postponed (3): end {tez | toz->{tez/2,1}}
+        trace: collect_build_postponed (2): end {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build_postponed (1): end {tez | libbox->{tez/1,1}}
+        trace: collect_build_postponed (0): end
+        trace: execute_plan: simulate: yes
+        %.*
+        build plan:
+          new toz/0.1.0 (required by tez)
+            config.toz.extras=true (set by tez)
+          new tez/1.0.0
+        trace: execute_plan: simulate: no
+        %.*
+        EOE
+
+      $pkg_status -r >>EOO;
+        !bax configured 1.0.0
+          libbar configured 1.0.0
+          libbox configured 1.0.0
+          libfoo configured 1.0.0
+        !tiz configured 1.0.0
+          libbar configured 1.0.0
+          tex configured 1.0.0
+            libbar configured 1.0.0
+            libfoo configured 1.0.0
+        !tez configured 1.0.0
+          libbar configured 1.0.0
+          libbox configured 1.0.0
+          toz configured 0.1.0 available 1.0.0 0.2.0
+        EOO
+
+      $pkg_drop bax tiz tez
     }
 
     : all-repo-packages

@@ -1681,9 +1681,12 @@ namespace bpkg
             // given that the deviated dependents are not very common, we just
             // postpone their re-collection.
             //
+            l5 ([&]{trace << "schedule re-collection of deviated "
+                          << "existing dependent " << *ed.selected
+                          << ed.db;});
+
             recollect_existing_dependent (options,
                                           ed,
-                                          true /* reconfigure */,
                                           replaced_vers,
                                           postponed_recs,
                                           postponed_cfgs);
@@ -3652,6 +3655,87 @@ namespace bpkg
                 throw merge_configuration {cfg.depth};
               }
 
+              // Note that there can be some non-negotiated clusters which
+              // have been merged based on the shadow cluster into the
+              // resulting (being) negotiated cluster. If we had negotiated
+              // such non-negotiated clusters normally, we would query
+              // existing dependents for the dependencies they contain and
+              // consider them in the negotiation process by re-evaluating
+              // them (see collect_build_postponed() for details). But if we
+              // force-merge a non-negotiated cluster into the (being)
+              // negotiated cluster then the existing dependents of its
+              // dependencies won't participate in the negotiation, unless we
+              // take care of that now. We will recognize such dependencies as
+              // not yet (being) recursively collected and re-collect their
+              // existing dependents, if any.
+              //
+              vector<existing_dependent> depts;
+              string deps_trace;
+
+              for (const package_key& d: cfg.dependencies)
+              {
+                build_package* p (entered_build (d));
+
+                // Must be collected at least non-recursively.
+                //
+                assert (p != nullptr);
+
+                if (p->recursive_collection)
+                  continue;
+
+                bool add_deps_trace (verb >= 5);
+
+                for (existing_dependent& ed:
+                       query_existing_dependents (trace,
+                                                  options,
+                                                  d.db,
+                                                  d.name,
+                                                  fdb,
+                                                  rpt_depts,
+                                                  replaced_vers))
+                {
+                  if (add_deps_trace)
+                  {
+                    deps_trace += p->available_name_version_db () + ' ';
+
+                    // Make sure the dependency is only listed once in the
+                    // trace record.
+                    //
+                    add_deps_trace = false;
+                  }
+
+                  // Add the existing dependent to the list, suppressing
+                  // duplicates.
+                  //
+                  if (find_if (depts.begin (), depts.end (),
+                               [&ed] (const existing_dependent& d)
+                               {
+                                 return d.selected->name == ed.selected->name &&
+                                        d.db == ed.db;
+                               }) == depts.end ())
+                  {
+                    depts.push_back (move (ed));
+                  }
+                }
+              }
+
+              if (!depts.empty ())
+              {
+                l5 ([&]{trace << "cfg-postponing dependent "
+                              << pkg.available_name_version_db ()
+                              << " adds not (being) collected dependencies "
+                              << deps_trace << "with not (being) collected "
+                              << "existing dependents to (being) negotiated "
+                              << "cluster and results in " << cfg
+                              << ", throwing recollect_existing_dependents";});
+
+                // Don't print the "while satisfying..." chain.
+                //
+                dep_chain.clear ();
+
+                throw recollect_existing_dependents {cfg.depth, move (depts)};
+              }
+
               // Up-negotiate the configuration and if it has changed, throw
               // retry_configuration to the try/catch frame corresponding to
               // the negotiation of the outermost merged cluster in order to
@@ -4809,12 +4893,6 @@ namespace bpkg
       postponed_configurations        postponed_cfgs_;
     };
 
-    struct recollect_dependent
-    {
-      size_t depth;
-      existing_dependent dependent;
-    };
-
     size_t depth (pcfg != nullptr ? pcfg->depth : 0);
 
     string t ("collect_build_postponed (" + to_string (depth) + ')');
@@ -4976,9 +5054,12 @@ namespace bpkg
               }
               else
               {
+                l5 ([&]{trace << "schedule re-collection of deviated "
+                              << "existing dependent " << *ed.selected
+                              << ed.db;});
+
                 recollect_existing_dependent (o,
                                               ed,
-                                              true /* reconfigure */,
                                               replaced_vers,
                                               postponed_recs,
                                               postponed_cfgs);
@@ -5049,9 +5130,10 @@ namespace bpkg
                 l5 ([&]{trace << "re-evaluation of existing dependent "
                               << b->available_name_version_db () << " failed "
                               << "due to merge configuration cycle for "
-                              << *pcfg << ", throwing recollect_dependent";});
+                              << *pcfg << ", throwing "
+                              << "recollect_existing_dependents";});
 
-                throw recollect_dependent {e.depth, move (ed)};
+                throw recollect_existing_dependents {e.depth, {move (ed)}};
               }
 
               ed.reevaluated = true;
@@ -5470,6 +5552,35 @@ namespace bpkg
       {
         if (!p->recursive_collection)
         {
+          package_key pk (p->db, p->name ());
+
+          auto pi (postponed_deps.find (pk));
+          if (pi != postponed_deps.end ())
+          {
+            l5 ([&]{trace << "skip re-collection of dep-postponed package "
+                          << pk;});
+
+            // Note that here we would re-collect the package without
+            // specifying any configuration for it.
+            //
+            pi->second.wout_config = true;
+
+            continue;
+          }
+          else
+          {
+            const postponed_configuration* pcfg (
+              postponed_cfgs.find_dependency (pk));
+
+            if (pcfg != nullptr)
+            {
+              l5 ([&]{trace << "skip re-collection of dep-postponed package "
+                            << pk << " since already in cluster " << *pcfg;});
+
+              continue;
+            }
+          }
+
           build_package_refs dep_chain;
           collect_build_prerequisites (o,
                                        *p,
@@ -5750,7 +5861,7 @@ namespace bpkg
 
             pc->set_shadow_cluster (move (shadow));
           }
-          catch (const recollect_dependent& e)
+          catch (const recollect_existing_dependents& e)
           {
             // If this is not "our problem", then keep looking.
             //
@@ -5784,18 +5895,23 @@ namespace bpkg
             //
             pc->shadow_cluster.clear ();
 
-            l5 ([&]{trace << "cfg-negotiation of " << *pc << " failed due "
-                          << "to merge configuration cycle while "
-                          << "re-evaluating existing dependent "
-                          << *e.dependent.selected << e.dependent.db
-                          << ", scheduling its re-collection";});
+            l5 ([&]{trace << "cfg-negotiation of " << *pc << " failed due to "
+                          << "some existing dependents related problem, "
+                          << "scheduling their re-collection";});
 
-            recollect_existing_dependent (o,
-                                          e.dependent,
-                                          false /* reconfigure */,
-                                          replaced_vers,
-                                          postponed_recs,
-                                          postponed_cfgs);
+            for (const existing_dependent& ed: e.dependents)
+            {
+              l5 ([&]{trace << "schedule re-collection of "
+                            << (!ed.dependency ? "deviated " : "")
+                            << "existing dependent " << *ed.selected
+                            << ed.db;});
+
+              recollect_existing_dependent (o,
+                                            ed,
+                                            replaced_vers,
+                                            postponed_recs,
+                                            postponed_cfgs);
+            }
           }
         }
       }
@@ -6732,8 +6848,9 @@ namespace bpkg
         catch (const reeval_deviated&)
         {
           r.push_back (
-            existing_dependent {
-              ddb, move (dsp), nullopt, {}, package_key {db, name}, nullopt});
+            existing_dependent {ddb, move (dsp),
+                                nullopt, {},
+                                package_key {db, name}, nullopt});
         }
       }
     }
@@ -6856,7 +6973,6 @@ namespace bpkg
   void build_packages::
   recollect_existing_dependent (const pkg_build_options& o,
                                 const existing_dependent& ed,
-                                bool reconfigure,
                                 replaced_versions& replaced_vers,
                                 postponed_packages& postponed_recs,
                                 postponed_configurations& postponed_cfgs)
@@ -6867,7 +6983,9 @@ namespace bpkg
 
     uint16_t flags (build_package::build_recollect);
 
-    if (reconfigure)
+    // Reconfigure the deviated dependents.
+    //
+    if (!ed.dependency)
       flags |= build_package::adjust_reconfigure;
 
     build_package p {
