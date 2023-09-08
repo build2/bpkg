@@ -3386,7 +3386,7 @@ namespace bpkg
                     unacceptable_alternative (pk,
                                               pkg.available->version,
                                               pos)) !=
-                  unacceptable_alts.end ();
+                    unacceptable_alts.end ();
                 };
 
               // See if there is any unprocessed reused alternative to the
@@ -4826,10 +4826,12 @@ namespace bpkg
                 const postponed_packages& postponed_repo,
                 const postponed_packages& postponed_alts,
                 const postponed_packages& postponed_recs,
+                const replaced_versions& replaced_vers,
                 const postponed_existing_dependencies& postponed_edeps,
                 const postponed_dependencies& postponed_deps,
                 const postponed_configurations& postponed_cfgs)
           : pkgs_ (pkgs),
+            replaced_vers_ (replaced_vers),
             postponed_edeps_ (postponed_edeps),
             postponed_deps_ (postponed_deps),
             postponed_cfgs_ (postponed_cfgs)
@@ -4852,11 +4854,13 @@ namespace bpkg
                postponed_packages& postponed_repo,
                postponed_packages& postponed_alts,
                postponed_packages& postponed_recs,
+               replaced_versions& replaced_vers,
                postponed_existing_dependencies& postponed_edeps,
                postponed_dependencies& postponed_deps,
                postponed_configurations& postponed_cfgs)
       {
         pkgs            = move (pkgs_);
+        replaced_vers   = move (replaced_vers_);
         postponed_cfgs  = move (postponed_cfgs_);
         postponed_deps  = move (postponed_deps_);
         postponed_edeps = move (postponed_edeps_);
@@ -4888,6 +4892,7 @@ namespace bpkg
       vector<package_key>             postponed_repo_;
       vector<package_key>             postponed_alts_;
       vector<package_key>             postponed_recs_;
+      replaced_versions               replaced_vers_;
       postponed_existing_dependencies postponed_edeps_;
       postponed_dependencies          postponed_deps_;
       postponed_configurations        postponed_cfgs_;
@@ -5696,6 +5701,7 @@ namespace bpkg
                       postponed_repo,
                       postponed_alts,
                       postponed_recs,
+                      replaced_vers,
                       postponed_edeps,
                       postponed_deps,
                       postponed_cfgs);
@@ -5747,6 +5753,7 @@ namespace bpkg
                        postponed_repo,
                        postponed_alts,
                        postponed_recs,
+                       replaced_vers,
                        postponed_edeps,
                        postponed_deps,
                        postponed_cfgs);
@@ -5795,6 +5802,7 @@ namespace bpkg
                        postponed_repo,
                        postponed_alts,
                        postponed_recs,
+                       replaced_vers,
                        postponed_edeps,
                        postponed_deps,
                        postponed_cfgs);
@@ -5876,6 +5884,7 @@ namespace bpkg
                        postponed_repo,
                        postponed_alts,
                        postponed_recs,
+                       replaced_vers,
                        postponed_edeps,
                        postponed_deps,
                        postponed_cfgs);
