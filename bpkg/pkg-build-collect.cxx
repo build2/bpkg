@@ -1404,7 +1404,7 @@ namespace bpkg
             // removing it from the dependency build_package. Maybe/later.
             //
             // NOTE: remember to update collect_drop() if changing anything
-            // here.
+            //       here.
             //
             bool scratch (true);
 
@@ -1522,7 +1522,8 @@ namespace bpkg
                                optional<pair<size_t, size_t>> reeval_pos)
   {
     // NOTE: don't forget to update collect_build_postponed() if changing
-    // anything in this function.
+    //       anything in this function. Also enable and run the tests with the
+    //       config.bpkg.tests.all=true variable when done.
     //
     tracer trace ("collect_build_prerequisites");
 
@@ -4815,6 +4816,10 @@ namespace bpkg
                            const function<add_priv_cfg_function>& apc,
                            postponed_configuration* pcfg)
   {
+    // NOTE: enable and run the tests with the config.bpkg.tests.all=true
+    //       variable if changing anything in this function.
+    //
+
     // Snapshot of the package builds collection state.
     //
     // Note: should not include postponed_cfgs_history.
@@ -5627,7 +5632,7 @@ namespace bpkg
 
       // Now, as there is no more progress made in recollecting of the not yet
       // collected packages, try to collect the repository-related
-      // postponments.
+      // postponements.
       //
       for (build_package* p: postponed_repo)
       {
@@ -5933,7 +5938,7 @@ namespace bpkg
       //
       if (!postponed_alts.empty ())
       {
-        // Sort the postponments in the unprocessed dependencies count
+        // Sort the postponements in the unprocessed dependencies count
         // descending order.
         //
         // The idea here is to preferably handle those postponed packages
@@ -6050,6 +6055,57 @@ namespace bpkg
       }
 
       assert (!prog);
+
+      // Note that a bogus dependency postponement may, in particular, happen
+      // to an existing dependent due to the cycle introduced by its own
+      // existing dependent. For example, an existing dependent (libfoo)
+      // re-evaluation can be postponed since it starts a chain of
+      // re-evaluations which ends up with its own existing dependent (foo)
+      // with config clause, which being collected after re-evaluation is
+      // unable to collect the prematurely collected libfoo. In this case
+      // postponing collection of libfoo will also prevent foo from being
+      // re-evaluated, the postponement will turn out to be bogus, and we may
+      // start yo-yoing (see the
+      // pkg-build/.../recollect-dependent-bogus-dependency-postponement test
+      // for the real example). To prevent that, let's try to collect a
+      // postponed bogus dependency by recollecting its existing dependents,
+      // if present, prior to considering it as really bogus and re-collecting
+      // everything from scratch.
+      //
+      for (const auto& pd: postponed_deps)
+      {
+        if (pd.second.bogus ())
+        {
+          const package_key& pk (pd.first);
+
+          for (existing_dependent& ed:
+                 query_existing_dependents (trace,
+                                            o,
+                                            pk.db,
+                                            pk.name,
+                                            fdb,
+                                            rpt_depts,
+                                            replaced_vers))
+          {
+            l5 ([&]{trace << "schedule re-collection of "
+                          << (!ed.dependency ? "deviated " : "")
+                          << "existing dependent " << *ed.selected
+                          << ed.db << " due to bogus postponement of "
+                          << "dependency " << pk;});
+
+            recollect_existing_dependent (o,
+                                          ed,
+                                          replaced_vers,
+                                          postponed_recs,
+                                          postponed_cfgs);
+            prog = true;
+            break;
+          }
+        }
+      }
+
+      if (prog)
+        continue;
 
       // Finally, erase the bogus postponements and re-collect from scratch,
       // if any (see postponed_dependencies for details).

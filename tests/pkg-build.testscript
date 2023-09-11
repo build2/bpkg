@@ -188,6 +188,10 @@
 # |   |-- libfoo-tests-1.0.0.tar.gz
 # |   `-- repositories.manifest
 # |
+# | NOTE: remember to update
+# |       pkg-build/dependency/config-negotiation-order/repo-packages/*
+# |       tests if adding any packages to the below repository.
+# |
 # |-- t11a
 # |   |-- libfoo-0.1.0.tar.gz
 # |   |-- libfoo-1.0.0.tar.gz
@@ -6079,7 +6083,7 @@ test.arguments += --sys-no-query
         $pkg_drop fux foo fox
       }
 
-      : bogus-postponment
+      : bogus-postponement
       :
       {
         $clone_cfg;
@@ -9022,7 +9026,7 @@ test.arguments += --sys-no-query
         }
       }
 
-      : bogus-postponment
+      : bogus-postponement
       :
       {
         $clone_cfg;
@@ -9287,6 +9291,7 @@ test.arguments += --sys-no-query
           trace: collect_build_prerequisites: dependency libbar/1.0.0 of dependent tez/1.0.0 is already (being) recursively collected, skipping
           trace: collect_build_prerequisites: end tez/1.0.0
           trace: collect_build_postponed (3): cfg-negotiate end {tez | toz->{tez/2,1}}!
+          %.*
           trace: collect_build_postponed (3): erase bogus postponement libfoo
           trace: collect_build_postponed (3): bogus postponements erased, throwing
           trace: pkg_build: collection failed due to bogus dependency collection postponement cancellation, retry from scratch
@@ -9757,6 +9762,7 @@ test.arguments += --sys-no-query
             trace: collect_build_prerequisites: no cfg-clause for dependency tix/0.1.0 of dependent tux/1.0.0
             trace: collect_build_prerequisites: end tux/1.0.0
             trace: collect_build_postponed (1): cfg-negotiate end {tux | libbox->{tux/1,1}}!
+            %.*
             trace: collect_build_postponed (1): erase bogus postponement tex
             trace: collect_build_postponed (1): bogus postponements erased, throwing
             trace: pkg_build: collection failed due to bogus dependency collection postponement cancellation, retry from scratch
@@ -10834,7 +10840,7 @@ test.arguments += --sys-no-query
           #  dox: dex(c)
           #
           #  dix: depends: libbar(c)
-          #       depends: libbox(c) # causes postponment and initial cluster finished negotiating
+          #       depends: libbox(c) # causes postponement and initial cluster finished negotiating
           #       depends: dox(c)
           #
           $* tax dex dix 2>>~%EOE%;
@@ -11176,7 +11182,7 @@ test.arguments += --sys-no-query
           #  dox: dex(c)
           #
           #  dix: depends: libbar(c)
-          #       depends: libbox(c) # causes postponment and initial cluster finished negotiating
+          #       depends: libbox(c) # causes postponement and initial cluster finished negotiating
           #       depends: dox(c)
           #
           $* dix 2>>~%EOE%;
@@ -12298,7 +12304,7 @@ test.arguments += --sys-no-query
             #  dox: dex(c)
             #
             #  dix: depends: libbar(c)
-            #       depends: libbox(c) # causes postponment and initial cluster finished negotiating
+            #       depends: libbox(c) # causes postponement and initial cluster finished negotiating
             #       depends: dox(c)
             #
             $* dex 2>!;
@@ -17592,7 +17598,531 @@ test.arguments += --sys-no-query
       $pkg_drop box bax toz tez
     }
 
-    : all-repo-packages
+    : recollect-dependent-bogus-dependency-postponement
+    :
+    {
+      $clone_cfg;
+
+      #  Dependencies:
+      #
+      #  bax: depends: libfoo(c)
+      #       depends: {libbox libbar} (c)
+      #
+      #  bas: depends: libbar(c)
+      #       depends: bus(c)
+      #
+      #  bus: depends: libbaz(c)
+      #       depends: foo(c)
+      #
+      #  foo: depends: libfoo(c)
+      #
+      #  bat: depends: libbaz(c)
+      #
+      $* bax bas 2>!;
+
+      $pkg_status -r >>EOO;
+        !bax configured 1.0.0
+          libbar configured 1.0.0
+          libbox configured 1.0.0
+          libfoo configured 1.0.0
+        !bas configured 1.0.0
+          bus configured 1.0.0
+            foo configured 1.0.0
+              libfoo configured 1.0.0
+            libbaz configured 1.0.0
+          libbar configured 1.0.0
+        EOO
+
+      $* bat 2>>~%EOE%;
+        %.*
+        trace: pkg_build: refine package collection/plan execution from scratch
+        %.*
+        trace: collect_build: add bat/1.0.0
+        trace: collect_build_prerequisites: begin bat/1.0.0
+        %.*
+        trace: collect_build: add libbaz/1.0.0
+        trace: collect_build_prerequisites: cfg-postpone dependency libbaz/1.0.0 of dependent bat/1.0.0
+        trace: postponed_configurations::add: create {bat | libbaz->{bat/1,1}}
+        trace: collect_build_prerequisites: postpone bat/1.0.0
+        trace: collect_build_postponed (0): begin
+        trace: collect_build_postponed (1): begin {bat | libbaz->{bat/1,1}}
+        %.*
+        trace: collect_build_prerequisites: pre-reeval bus/1.0.0
+        %.*
+        trace: collect_build_prerequisites: pre-reevaluated bus/1.0.0: 1,1
+        trace: collect_build_postponed (1): re-evaluate existing dependents for {bat | libbaz->{bat/1,1}}
+        trace: collect_build: add bus/1.0.0
+        trace: collect_build_prerequisites: reeval bus/1.0.0
+        %.*
+        trace: postponed_configurations::add: add {bus^ 1,1: libbaz} to {bat | libbaz->{bat/1,1}}
+        trace: collect_build_prerequisites: re-evaluating dependent bus/1.0.0 results in {bat bus^ | libbaz->{bat/1,1 bus/1,1}}
+        trace: collect_build_prerequisites: re-evaluated bus/1.0.0
+        trace: collect_build_postponed (1): cfg-negotiate begin {bat bus^ | libbaz->{bat/1,1 bus/1,1}}
+        %.*
+        trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
+        trace: collect_build_prerequisites: skip configured libbaz/1.0.0
+        trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
+        trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent bat/1.0.0
+        trace: collect_build_prerequisites: resume bat/1.0.0
+        trace: collect_build_prerequisites: end bat/1.0.0
+        trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent bus/1.0.0
+        trace: collect_build_prerequisites: resume bus/1.0.0
+        %.*
+        trace: collect_build: add foo/1.0.0
+        trace: collect_build_prerequisites: cfg-postpone dependency foo/1.0.0 of dependent bus/1.0.0
+        trace: postponed_configurations::add: create {bus | foo->{bus/2,1}}
+        trace: collect_build_prerequisites: postpone bus/1.0.0
+        trace: collect_build_postponed (1): cfg-negotiate end {bat bus^ | libbaz->{bat/1,1 bus/1,1}}!
+        trace: collect_build_postponed (2): begin {bus | foo->{bus/2,1}}
+        %.*
+        trace: collect_build_postponed (2): skip being built existing dependent bus of dependency foo
+        trace: collect_build_postponed (2): cfg-negotiate begin {bus | foo->{bus/2,1}}
+        %.*
+        trace: collect_build_postponed (2): recursively collect cfg-negotiated dependencies
+        trace: collect_build_prerequisites: begin foo/1.0.0
+        %.*
+        trace: collect_build: add libfoo/1.0.0
+        trace: collect_build_prerequisites: cfg-postpone dependency libfoo/1.0.0 of dependent foo/1.0.0
+        trace: postponed_configurations::add: create {foo | libfoo->{foo/1,1}}
+        trace: collect_build_prerequisites: postpone foo/1.0.0
+        trace: collect_build_postponed (2): recursively collect cfg-negotiated dependents
+        trace: collect_build_postponed (2): select cfg-negotiated dependency alternative for dependent bus/1.0.0
+        trace: collect_build_prerequisites: resume bus/1.0.0
+        trace: collect_build_prerequisites: end bus/1.0.0
+        trace: collect_build_postponed (2): cfg-negotiate end {bus | foo->{bus/2,1}}!
+        trace: collect_build_postponed (3): begin {foo | libfoo->{foo/1,1}}
+        %.*
+        trace: collect_build_postponed (3): skip being built existing dependent foo of dependency libfoo
+        %.*
+        trace: collect_build_prerequisites: pre-reeval bax/1.0.0
+        %.*
+        trace: collect_build_prerequisites: pre-reevaluated bax/1.0.0: 1,1
+        trace: collect_build_postponed (3): re-evaluate existing dependents for {foo | libfoo->{foo/1,1}}
+        trace: collect_build: add bax/1.0.0
+        trace: collect_build_prerequisites: reeval bax/1.0.0
+        %.*
+        trace: postponed_configurations::add: add {bax^ 1,1: libfoo} to {foo | libfoo->{foo/1,1}}
+        trace: collect_build_prerequisites: re-evaluating dependent bax/1.0.0 results in {bax^ foo | libfoo->{bax/1,1 foo/1,1}}
+        trace: collect_build_prerequisites: re-evaluated bax/1.0.0
+        trace: collect_build_postponed (3): cfg-negotiate begin {bax^ foo | libfoo->{bax/1,1 foo/1,1}}
+        %.*
+        trace: collect_build_postponed (3): recursively collect cfg-negotiated dependencies
+        trace: collect_build_prerequisites: skip configured libfoo/1.0.0
+        trace: collect_build_postponed (3): recursively collect cfg-negotiated dependents
+        trace: collect_build_postponed (3): select cfg-negotiated dependency alternative for dependent bax/1.0.0
+        trace: collect_build_prerequisites: resume bax/1.0.0
+        %.*
+        trace: collect_build: add libbox/1.0.0
+        trace: collect_build_prerequisites: cfg-postpone dependency libbox/1.0.0 of dependent bax/1.0.0
+        trace: collect_build: add libbar/1.0.0
+        trace: collect_build_prerequisites: cfg-postpone dependency libbar/1.0.0 of dependent bax/1.0.0
+        trace: postponed_configurations::add: create {bax | libbox->{bax/2,1} libbar->{bax/2,1}}
+        trace: collect_build_prerequisites: postpone bax/1.0.0
+        trace: collect_build_postponed (3): select cfg-negotiated dependency alternative for dependent foo/1.0.0
+        trace: collect_build_prerequisites: resume foo/1.0.0
+        trace: collect_build_prerequisites: end foo/1.0.0
+        trace: collect_build_postponed (3): cfg-negotiate end {bax^ foo | libfoo->{bax/1,1 foo/1,1}}!
+        trace: collect_build_postponed (4): begin {bax | libbox->{bax/2,1} libbar->{bax/2,1}}
+        %.*
+        trace: collect_build_postponed (4): skip being built existing dependent bax of dependency libbox
+        %.*
+        trace: collect_build_postponed (4): skip being built existing dependent bax of dependency libbar
+        %.*
+        trace: collect_build_prerequisites: pre-reeval bas/1.0.0
+        %.*
+        trace: collect_build_prerequisites: pre-reevaluated bas/1.0.0: 1,1
+        trace: collect_build_postponed (4): re-evaluate existing dependents for {bax | libbox->{bax/2,1} libbar->{bax/2,1}}
+        trace: collect_build: add bas/1.0.0
+        trace: collect_build_prerequisites: reeval bas/1.0.0
+        %.*
+        trace: postponed_configurations::add: add {bas^ 1,1: libbar} to {bax | libbox->{bax/2,1} libbar->{bax/2,1}}
+        trace: collect_build_prerequisites: re-evaluating dependent bas/1.0.0 results in {bas^ bax | libbox->{bax/2,1} libbar->{bas/1,1 bax/2,1}}
+        trace: collect_build_prerequisites: re-evaluated bas/1.0.0
+        trace: collect_build_postponed (4): cfg-negotiate begin {bas^ bax | libbox->{bax/2,1} libbar->{bas/1,1 bax/2,1}}
+        %.*
+        trace: collect_build_postponed (4): recursively collect cfg-negotiated dependencies
+        trace: collect_build_prerequisites: skip configured libbox/1.0.0
+        trace: collect_build_prerequisites: skip configured libbar/1.0.0
+        trace: collect_build_postponed (4): recursively collect cfg-negotiated dependents
+        trace: collect_build_postponed (4): select cfg-negotiated dependency alternative for dependent bas/1.0.0
+        trace: collect_build_prerequisites: resume bas/1.0.0
+        %.*
+        trace: collect_build_prerequisites: cannot cfg-postpone dependency bus/1.0.0 of dependent bas/1.0.0 (collected prematurely), throwing postpone_dependency
+        trace: pkg_build: collection failed due to prematurely collected dependency (bus), retry from scratch
+        %.*
+        trace: pkg_build: refine package collection/plan execution from scratch
+        %.*
+        trace: collect_build: add bat/1.0.0
+        trace: collect_build_prerequisites: begin bat/1.0.0
+        %.*
+        trace: collect_build: add libbaz/1.0.0
+        trace: collect_build_prerequisites: cfg-postpone dependency libbaz/1.0.0 of dependent bat/1.0.0
+        trace: postponed_configurations::add: create {bat | libbaz->{bat/1,1}}
+        trace: collect_build_prerequisites: postpone bat/1.0.0
+        trace: collect_build_postponed (0): begin
+        trace: collect_build_postponed (1): begin {bat | libbaz->{bat/1,1}}
+        %.*
+        trace: collect_build_prerequisites: pre-reeval bus/1.0.0
+        %.*
+        trace: collect_build_prerequisites: pre-reevaluated bus/1.0.0: 1,1
+        trace: collect_build_postponed (1): skip dep-postponed existing dependent bus of dependency libbaz
+        trace: collect_build_postponed (1): cfg-negotiate begin {bat | libbaz->{bat/1,1}}
+        trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
+        trace: collect_build_prerequisites: skip configured libbaz/1.0.0
+        trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
+        trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent bat/1.0.0
+        trace: collect_build_prerequisites: resume bat/1.0.0
+        trace: collect_build_prerequisites: end bat/1.0.0
+        trace: collect_build_postponed (1): cfg-negotiate end {bat | libbaz->{bat/1,1}}!
+        %.*
+        trace: collect_build_prerequisites: pre-reeval bas/1.0.0
+        %.*
+        trace: collect_build_prerequisites: pre-reevaluated bas/1.0.0: 1,1
+        trace: collect_build_postponed (1): schedule re-collection of existing dependent bas/1.0.0 due to bogus postponement of dependency bus
+        trace: collect_build: add bas/1.0.0
+        trace: collect_build_prerequisites: begin bas/1.0.0
+        %.*
+        trace: collect_build: add libbar/1.0.0
+        trace: collect_build_prerequisites: cfg-postpone dependency libbar/1.0.0 of dependent bas/1.0.0
+        trace: postponed_configurations::add: create {bas | libbar->{bas/1,1}}
+        trace: collect_build_prerequisites: postpone bas/1.0.0
+        trace: collect_build_postponed (2): begin {bas | libbar->{bas/1,1}}
+        %.*
+        trace: collect_build_prerequisites: pre-reeval bax/1.0.0
+        %.*
+        trace: collect_build_prerequisites: pre-reevaluated bax/1.0.0: 1,1
+        trace: collect_build_postponed (2): skip being built existing dependent bas of dependency libbar
+        trace: collect_build: add libfoo/1.0.0
+        trace: collect_build_postponed (2): re-evaluate existing dependents for {bas | libbar->{bas/1,1}}
+        trace: collect_build: add bax/1.0.0
+        trace: collect_build_prerequisites: reeval bax/1.0.0
+        %.*
+        trace: postponed_configurations::add: create {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build_prerequisites: re-evaluating dependent bax/1.0.0 results in {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build_prerequisites: re-evaluated bax/1.0.0
+        trace: collect_build_postponed (2): cfg-negotiate begin {bas | libbar->{bas/1,1}}
+        trace: collect_build_postponed (2): recursively collect cfg-negotiated dependencies
+        trace: collect_build_prerequisites: skip configured libbar/1.0.0
+        trace: collect_build_postponed (2): recursively collect cfg-negotiated dependents
+        trace: collect_build_postponed (2): select cfg-negotiated dependency alternative for dependent bas/1.0.0
+        trace: collect_build_prerequisites: resume bas/1.0.0
+        %.*
+        trace: collect_build: add bus/1.0.0
+        trace: collect_build_prerequisites: cfg-postpone dependency bus/1.0.0 of dependent bas/1.0.0
+        trace: postponed_configurations::add: create {bas | bus->{bas/2,1}}
+        trace: collect_build_prerequisites: postpone bas/1.0.0
+        trace: collect_build_postponed (2): cfg-negotiate end {bas | libbar->{bas/1,1}}!
+        trace: collect_build_postponed (3): begin {bax^ | libfoo->{bax/1,1}}
+        %.*
+        trace: collect_build_prerequisites: pre-reeval foo/1.0.0
+        %.*
+        trace: collect_build_prerequisites: pre-reevaluated foo/1.0.0: 1,1
+        trace: collect_build_postponed (3): skip being built existing dependent bax of dependency libfoo
+        trace: collect_build_postponed (3): re-evaluate existing dependents for {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build: add foo/1.0.0
+        trace: collect_build_prerequisites: reeval foo/1.0.0
+        %.*
+        trace: postponed_configurations::add: add {foo^ 1,1: libfoo} to {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build_prerequisites: re-evaluating dependent foo/1.0.0 results in {bax^ foo^ | libfoo->{bax/1,1 foo/1,1}}
+        trace: collect_build_prerequisites: re-evaluated foo/1.0.0
+        trace: collect_build_postponed (3): cfg-negotiate begin {bax^ foo^ | libfoo->{bax/1,1 foo/1,1}}
+        trace: collect_build_postponed (3): recursively collect cfg-negotiated dependencies
+        trace: collect_build_prerequisites: skip configured libfoo/1.0.0
+        trace: collect_build_postponed (3): recursively collect cfg-negotiated dependents
+        trace: collect_build_postponed (3): select cfg-negotiated dependency alternative for dependent bax/1.0.0
+        trace: collect_build_prerequisites: resume bax/1.0.0
+        %.*
+        trace: collect_build: add libbox/1.0.0
+        trace: collect_build_prerequisites: cfg-postpone dependency libbox/1.0.0 of dependent bax/1.0.0
+        trace: collect_build_prerequisites: cfg-postpone dependency libbar/1.0.0 of dependent bax/1.0.0
+        trace: postponed_configurations::add: add {bax 2,1: libbox libbar} to {bas | libbar->{bas/1,1}}!
+        %.*
+        trace: collect_build_prerequisites: skip being built existing dependent bax of dependency libbox
+        trace: collect_build_prerequisites: cfg-postponing dependent bax/1.0.0 involves (being) negotiated configurations and results in {bas bax | libbar->{bas/1,1 bax/2,1} libbox->{bax/2,1}}!, throwing retry_configuration
+        trace: collect_build_postponed (1): cfg-negotiation of {bas | libbar->{bas/1,1}} failed due to dependent bax, refining configuration
+        trace: collect_build_postponed (2): begin {bas | libbar->{bas/1,1}}
+        %.*
+        trace: collect_build_prerequisites: pre-reeval bax/1.0.0
+        %.*
+        trace: collect_build_prerequisites: pre-reevaluated bax/1.0.0: 1,1
+        trace: collect_build_postponed (2): skip being built existing dependent bas of dependency libbar
+        trace: collect_build: add libfoo/1.0.0
+        trace: collect_build_postponed (2): re-evaluate existing dependents for {bas | libbar->{bas/1,1}}
+        trace: collect_build: add bax/1.0.0
+        trace: collect_build_prerequisites: reeval bax/1.0.0
+        %.*
+        trace: postponed_configurations::add: create {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build_prerequisites: re-evaluating dependent bax/1.0.0 results in {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build_prerequisites: re-evaluated bax/1.0.0
+        trace: collect_build_postponed (2): cfg-negotiate begin {bas | libbar->{bas/1,1}}
+        trace: collect_build_postponed (2): recursively collect cfg-negotiated dependencies
+        trace: collect_build_prerequisites: skip configured libbar/1.0.0
+        trace: collect_build_postponed (2): recursively collect cfg-negotiated dependents
+        trace: collect_build_postponed (2): select cfg-negotiated dependency alternative for dependent bas/1.0.0
+        trace: collect_build_prerequisites: resume bas/1.0.0
+        %.*
+        trace: collect_build: add bus/1.0.0
+        trace: collect_build_prerequisites: cfg-postpone dependency bus/1.0.0 of dependent bas/1.0.0
+        trace: postponed_configurations::add: create {bas | bus->{bas/2,1}}
+        trace: collect_build_prerequisites: postpone bas/1.0.0
+        trace: collect_build_postponed (2): cfg-negotiate end {bas | libbar->{bas/1,1}}!
+        trace: collect_build_postponed (3): begin {bax^ | libfoo->{bax/1,1}}
+        %.*
+        trace: collect_build_prerequisites: pre-reeval foo/1.0.0
+        %.*
+        trace: collect_build_prerequisites: pre-reevaluated foo/1.0.0: 1,1
+        trace: collect_build_postponed (3): skip being built existing dependent bax of dependency libfoo
+        trace: collect_build_postponed (3): re-evaluate existing dependents for {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build: add foo/1.0.0
+        trace: collect_build_prerequisites: reeval foo/1.0.0
+        %.*
+        trace: postponed_configurations::add: add {foo^ 1,1: libfoo} to {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build_prerequisites: re-evaluating dependent foo/1.0.0 results in {bax^ foo^ | libfoo->{bax/1,1 foo/1,1}}
+        trace: collect_build_prerequisites: re-evaluated foo/1.0.0
+        trace: collect_build_postponed (3): cfg-negotiate begin {bax^ foo^ | libfoo->{bax/1,1 foo/1,1}}
+        trace: collect_build_postponed (3): recursively collect cfg-negotiated dependencies
+        trace: collect_build_prerequisites: skip configured libfoo/1.0.0
+        trace: collect_build_postponed (3): recursively collect cfg-negotiated dependents
+        trace: collect_build_postponed (3): select cfg-negotiated dependency alternative for dependent bax/1.0.0
+        trace: collect_build_prerequisites: resume bax/1.0.0
+        %.*
+        trace: collect_build: add libbox/1.0.0
+        trace: collect_build_prerequisites: cfg-postpone dependency libbox/1.0.0 of dependent bax/1.0.0
+        trace: collect_build_prerequisites: cfg-postpone dependency libbar/1.0.0 of dependent bax/1.0.0
+        trace: postponed_configurations::add: add {bax 2,1: libbox libbar} to {bas | libbar->{bas/1,1}}!
+        %.*
+        trace: collect_build_prerequisites: skip being built existing dependent bax of dependency libbox
+        trace: collect_build_prerequisites: configuration for cfg-postponed dependencies of dependent bax/1.0.0 is negotiated
+        trace: collect_build_prerequisites: collecting cfg-postponed dependency libbox/1.0.0 of dependent bax/1.0.0
+        trace: collect_build_prerequisites: skip configured libbox/1.0.0
+        trace: collect_build_prerequisites: dependency libbar/1.0.0 of dependent bax/1.0.0 is already (being) recursively collected, skipping
+        trace: collect_build_prerequisites: end bax/1.0.0
+        trace: collect_build_postponed (3): select cfg-negotiated dependency alternative for dependent foo/1.0.0
+        trace: collect_build_prerequisites: resume foo/1.0.0
+        trace: collect_build_prerequisites: end foo/1.0.0
+        trace: collect_build_postponed (3): cfg-negotiate end {bax^ foo^ | libfoo->{bax/1,1 foo/1,1}}!
+        trace: collect_build_postponed (4): begin {bas | bus->{bas/2,1}}
+        %.*
+        trace: collect_build_postponed (4): skip being built existing dependent bas of dependency bus
+        trace: collect_build_postponed (4): cfg-negotiate begin {bas | bus->{bas/2,1}}
+        trace: collect_build_postponed (4): recursively collect cfg-negotiated dependencies
+        trace: collect_build_prerequisites: begin bus/1.0.0
+        %.*
+        trace: collect_build_prerequisites: cfg-postpone dependency libbaz/1.0.0 of dependent bus/1.0.0
+        trace: postponed_configurations::add: add {bus 1,1: libbaz} to {bat | libbaz->{bat/1,1}}!
+        trace: collect_build_prerequisites: configuration for cfg-postponed dependencies of dependent bus/1.0.0 is negotiated
+        trace: collect_build_prerequisites: dependency libbaz/1.0.0 of dependent bus/1.0.0 is already (being) recursively collected, skipping
+        %.*
+        trace: collect_build_prerequisites: cannot cfg-postpone dependency foo/1.0.0 of dependent bus/1.0.0 (collected prematurely), throwing postpone_dependency
+        trace: pkg_build: collection failed due to prematurely collected dependency (foo), retry from scratch
+        %.*
+        trace: pkg_build: refine package collection/plan execution from scratch
+        %.*
+        trace: collect_build: add bat/1.0.0
+        trace: collect_build_prerequisites: begin bat/1.0.0
+        %.*
+        trace: collect_build: add libbaz/1.0.0
+        trace: collect_build_prerequisites: cfg-postpone dependency libbaz/1.0.0 of dependent bat/1.0.0
+        trace: postponed_configurations::add: create {bat | libbaz->{bat/1,1}}
+        trace: collect_build_prerequisites: postpone bat/1.0.0
+        trace: collect_build_postponed (0): begin
+        trace: collect_build_postponed (1): begin {bat | libbaz->{bat/1,1}}
+        %.*
+        trace: collect_build_prerequisites: pre-reeval bus/1.0.0
+        %.*
+        trace: collect_build_prerequisites: pre-reevaluated bus/1.0.0: 1,1
+        trace: collect_build_postponed (1): skip dep-postponed existing dependent bus of dependency libbaz
+        trace: collect_build_postponed (1): cfg-negotiate begin {bat | libbaz->{bat/1,1}}
+        trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
+        trace: collect_build_prerequisites: skip configured libbaz/1.0.0
+        trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
+        trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent bat/1.0.0
+        trace: collect_build_prerequisites: resume bat/1.0.0
+        trace: collect_build_prerequisites: end bat/1.0.0
+        trace: collect_build_postponed (1): cfg-negotiate end {bat | libbaz->{bat/1,1}}!
+        %.*
+        trace: collect_build_prerequisites: pre-reeval bas/1.0.0
+        %.*
+        trace: collect_build_prerequisites: pre-reevaluated bas/1.0.0: 1,1
+        trace: collect_build_postponed (1): schedule re-collection of existing dependent bas/1.0.0 due to bogus postponement of dependency bus
+        trace: collect_build: add bas/1.0.0
+        trace: collect_build_prerequisites: begin bas/1.0.0
+        %.*
+        trace: collect_build: add libbar/1.0.0
+        trace: collect_build_prerequisites: cfg-postpone dependency libbar/1.0.0 of dependent bas/1.0.0
+        trace: postponed_configurations::add: create {bas | libbar->{bas/1,1}}
+        trace: collect_build_prerequisites: postpone bas/1.0.0
+        trace: collect_build_postponed (2): begin {bas | libbar->{bas/1,1}}
+        %.*
+        trace: collect_build_prerequisites: pre-reeval bax/1.0.0
+        %.*
+        trace: collect_build_prerequisites: pre-reevaluated bax/1.0.0: 1,1
+        trace: collect_build_postponed (2): skip being built existing dependent bas of dependency libbar
+        trace: collect_build: add libfoo/1.0.0
+        trace: collect_build_postponed (2): re-evaluate existing dependents for {bas | libbar->{bas/1,1}}
+        trace: collect_build: add bax/1.0.0
+        trace: collect_build_prerequisites: reeval bax/1.0.0
+        %.*
+        trace: postponed_configurations::add: create {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build_prerequisites: re-evaluating dependent bax/1.0.0 results in {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build_prerequisites: re-evaluated bax/1.0.0
+        trace: collect_build_postponed (2): cfg-negotiate begin {bas | libbar->{bas/1,1}}
+        trace: collect_build_postponed (2): recursively collect cfg-negotiated dependencies
+        trace: collect_build_prerequisites: skip configured libbar/1.0.0
+        trace: collect_build_postponed (2): recursively collect cfg-negotiated dependents
+        trace: collect_build_postponed (2): select cfg-negotiated dependency alternative for dependent bas/1.0.0
+        trace: collect_build_prerequisites: resume bas/1.0.0
+        %.*
+        trace: collect_build: add bus/1.0.0
+        trace: collect_build_prerequisites: cfg-postpone dependency bus/1.0.0 of dependent bas/1.0.0
+        trace: postponed_configurations::add: create {bas | bus->{bas/2,1}}
+        trace: collect_build_prerequisites: postpone bas/1.0.0
+        trace: collect_build_postponed (2): cfg-negotiate end {bas | libbar->{bas/1,1}}!
+        trace: collect_build_postponed (3): begin {bax^ | libfoo->{bax/1,1}}
+        %.*
+        trace: collect_build_prerequisites: pre-reeval foo/1.0.0
+        %.*
+        trace: collect_build_prerequisites: pre-reevaluated foo/1.0.0: 1,1
+        trace: collect_build_postponed (3): skip being built existing dependent bax of dependency libfoo
+        trace: collect_build_postponed (3): skip dep-postponed existing dependent foo of dependency libfoo
+        trace: collect_build_postponed (3): cfg-negotiate begin {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build_postponed (3): recursively collect cfg-negotiated dependencies
+        trace: collect_build_prerequisites: skip configured libfoo/1.0.0
+        trace: collect_build_postponed (3): recursively collect cfg-negotiated dependents
+        trace: collect_build_postponed (3): select cfg-negotiated dependency alternative for dependent bax/1.0.0
+        trace: collect_build_prerequisites: resume bax/1.0.0
+        %.*
+        trace: collect_build: add libbox/1.0.0
+        trace: collect_build_prerequisites: cfg-postpone dependency libbox/1.0.0 of dependent bax/1.0.0
+        trace: collect_build_prerequisites: cfg-postpone dependency libbar/1.0.0 of dependent bax/1.0.0
+        trace: postponed_configurations::add: add {bax 2,1: libbox libbar} to {bas | libbar->{bas/1,1}}!
+        %.*
+        trace: collect_build_prerequisites: skip being built existing dependent bax of dependency libbox
+        trace: collect_build_prerequisites: cfg-postponing dependent bax/1.0.0 involves (being) negotiated configurations and results in {bas bax | libbar->{bas/1,1 bax/2,1} libbox->{bax/2,1}}!, throwing retry_configuration
+        trace: collect_build_postponed (1): cfg-negotiation of {bas | libbar->{bas/1,1}} failed due to dependent bax, refining configuration
+        trace: collect_build_postponed (2): begin {bas | libbar->{bas/1,1}}
+        %.*
+        trace: collect_build_prerequisites: pre-reeval bax/1.0.0
+        %.*
+        trace: collect_build_prerequisites: pre-reevaluated bax/1.0.0: 1,1
+        trace: collect_build_postponed (2): skip being built existing dependent bas of dependency libbar
+        trace: collect_build: add libfoo/1.0.0
+        trace: collect_build_postponed (2): re-evaluate existing dependents for {bas | libbar->{bas/1,1}}
+        trace: collect_build: add bax/1.0.0
+        trace: collect_build_prerequisites: reeval bax/1.0.0
+        %.*
+        trace: postponed_configurations::add: create {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build_prerequisites: re-evaluating dependent bax/1.0.0 results in {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build_prerequisites: re-evaluated bax/1.0.0
+        trace: collect_build_postponed (2): cfg-negotiate begin {bas | libbar->{bas/1,1}}
+        trace: collect_build_postponed (2): recursively collect cfg-negotiated dependencies
+        trace: collect_build_prerequisites: skip configured libbar/1.0.0
+        trace: collect_build_postponed (2): recursively collect cfg-negotiated dependents
+        trace: collect_build_postponed (2): select cfg-negotiated dependency alternative for dependent bas/1.0.0
+        trace: collect_build_prerequisites: resume bas/1.0.0
+        %.*
+        trace: collect_build: add bus/1.0.0
+        trace: collect_build_prerequisites: cfg-postpone dependency bus/1.0.0 of dependent bas/1.0.0
+        trace: postponed_configurations::add: create {bas | bus->{bas/2,1}}
+        trace: collect_build_prerequisites: postpone bas/1.0.0
+        trace: collect_build_postponed (2): cfg-negotiate end {bas | libbar->{bas/1,1}}!
+        trace: collect_build_postponed (3): begin {bax^ | libfoo->{bax/1,1}}
+        %.*
+        trace: collect_build_prerequisites: pre-reeval foo/1.0.0
+        %.*
+        trace: collect_build_prerequisites: pre-reevaluated foo/1.0.0: 1,1
+        trace: collect_build_postponed (3): skip being built existing dependent bax of dependency libfoo
+        trace: collect_build_postponed (3): skip dep-postponed existing dependent foo of dependency libfoo
+        trace: collect_build_postponed (3): cfg-negotiate begin {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build_postponed (3): recursively collect cfg-negotiated dependencies
+        trace: collect_build_prerequisites: skip configured libfoo/1.0.0
+        trace: collect_build_postponed (3): recursively collect cfg-negotiated dependents
+        trace: collect_build_postponed (3): select cfg-negotiated dependency alternative for dependent bax/1.0.0
+        trace: collect_build_prerequisites: resume bax/1.0.0
+        %.*
+        trace: collect_build: add libbox/1.0.0
+        trace: collect_build_prerequisites: cfg-postpone dependency libbox/1.0.0 of dependent bax/1.0.0
+        trace: collect_build_prerequisites: cfg-postpone dependency libbar/1.0.0 of dependent bax/1.0.0
+        trace: postponed_configurations::add: add {bax 2,1: libbox libbar} to {bas | libbar->{bas/1,1}}!
+        %.*
+        trace: collect_build_prerequisites: skip being built existing dependent bax of dependency libbox
+        trace: collect_build_prerequisites: configuration for cfg-postponed dependencies of dependent bax/1.0.0 is negotiated
+        trace: collect_build_prerequisites: collecting cfg-postponed dependency libbox/1.0.0 of dependent bax/1.0.0
+        trace: collect_build_prerequisites: skip configured libbox/1.0.0
+        trace: collect_build_prerequisites: dependency libbar/1.0.0 of dependent bax/1.0.0 is already (being) recursively collected, skipping
+        trace: collect_build_prerequisites: end bax/1.0.0
+        trace: collect_build_postponed (3): cfg-negotiate end {bax^ | libfoo->{bax/1,1}}!
+        trace: collect_build_postponed (4): begin {bas | bus->{bas/2,1}}
+        %.*
+        trace: collect_build_postponed (4): skip being built existing dependent bas of dependency bus
+        trace: collect_build_postponed (4): cfg-negotiate begin {bas | bus->{bas/2,1}}
+        trace: collect_build_postponed (4): recursively collect cfg-negotiated dependencies
+        trace: collect_build_prerequisites: begin bus/1.0.0
+        %.*
+        trace: collect_build_prerequisites: cfg-postpone dependency libbaz/1.0.0 of dependent bus/1.0.0
+        trace: postponed_configurations::add: add {bus 1,1: libbaz} to {bat | libbaz->{bat/1,1}}!
+        trace: collect_build_prerequisites: configuration for cfg-postponed dependencies of dependent bus/1.0.0 is negotiated
+        trace: collect_build_prerequisites: dependency libbaz/1.0.0 of dependent bus/1.0.0 is already (being) recursively collected, skipping
+        %.*
+        trace: collect_build: add foo/1.0.0
+        trace: collect_build_prerequisites: cfg-postpone dependency foo/1.0.0 of dependent bus/1.0.0
+        trace: postponed_configurations::add: create {bus | foo->{bus/2,1}}
+        trace: collect_build_prerequisites: postpone bus/1.0.0
+        trace: collect_build_postponed (4): recursively collect cfg-negotiated dependents
+        trace: collect_build_postponed (4): select cfg-negotiated dependency alternative for dependent bas/1.0.0
+        trace: collect_build_prerequisites: resume bas/1.0.0
+        trace: collect_build_prerequisites: end bas/1.0.0
+        trace: collect_build_postponed (4): cfg-negotiate end {bas | bus->{bas/2,1}}!
+        trace: collect_build_postponed (5): begin {bus | foo->{bus/2,1}}
+        %.*
+        trace: collect_build_postponed (5): skip being built existing dependent bus of dependency foo
+        trace: collect_build_postponed (5): cfg-negotiate begin {bus | foo->{bus/2,1}}
+        trace: collect_build_postponed (5): recursively collect cfg-negotiated dependencies
+        trace: collect_build_prerequisites: begin foo/1.0.0
+        %.*
+        trace: collect_build_prerequisites: cfg-postpone dependency libfoo/1.0.0 of dependent foo/1.0.0
+        trace: postponed_configurations::add: add {foo 1,1: libfoo} to {bax^ | libfoo->{bax/1,1}}!
+        trace: collect_build_prerequisites: configuration for cfg-postponed dependencies of dependent foo/1.0.0 is negotiated
+        trace: collect_build_prerequisites: dependency libfoo/1.0.0 of dependent foo/1.0.0 is already (being) recursively collected, skipping
+        trace: collect_build_prerequisites: end foo/1.0.0
+        trace: collect_build_postponed (5): recursively collect cfg-negotiated dependents
+        trace: collect_build_postponed (5): select cfg-negotiated dependency alternative for dependent bus/1.0.0
+        trace: collect_build_prerequisites: resume bus/1.0.0
+        trace: collect_build_prerequisites: end bus/1.0.0
+        trace: collect_build_postponed (5): cfg-negotiate end {bus | foo->{bus/2,1}}!
+        trace: collect_build_postponed (5): end {bus | foo->{bus/2,1}}
+        trace: collect_build_postponed (4): end {bas | bus->{bas/2,1}}
+        trace: collect_build_postponed (3): end {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build_postponed (2): end {bas | libbar->{bas/1,1}}
+        trace: collect_build_postponed (1): end {bat | libbaz->{bat/1,1}}
+        trace: collect_build_postponed (0): end
+        trace: execute_plan: simulate: yes
+        %.*
+        build plan:
+          new bat/1.0.0
+        trace: execute_plan: simulate: no
+        %.*
+        EOE
+
+      $pkg_status -r >>EOO;
+        !bax configured 1.0.0
+          libbar configured 1.0.0
+          libbox configured 1.0.0
+          libfoo configured 1.0.0
+        !bas configured 1.0.0
+          bus configured 1.0.0
+            foo configured 1.0.0
+              libfoo configured 1.0.0
+            libbaz configured 1.0.0
+          libbar configured 1.0.0
+        !bat configured 1.0.0
+          libbaz configured 1.0.0
+        EOO
+
+      $pkg_drop bax bas bat
+    }
+
+    : repo-packages
     :
     : Don't match the tracing but just make sure that pkg-build doesn't crash
     : or hang and ends up with an expected packages setup.
@@ -17600,7 +18130,7 @@ test.arguments += --sys-no-query
     {
       +$clone_cfg
 
-      : all-new
+      : new-all
       :
       {
         $clone_cfg;
@@ -17608,7 +18138,7 @@ test.arguments += --sys-no-query
         $* libfoo libbar ?libbaz/0.1.0 ?libbox/0.1.0 libbiz \
            foo fox fux fix fex bar baz bac bat bas bus \
            box bax bux bix bex boo biz buz buc tax tex \
-           tix tiz toz tez tux dex dix diz dox 2>!;
+           tix tiz toz tez tuz tux dex dix diz dox 2>!;
 
         $pkg_status -r >>EOO;
           !libfoo configured 1.0.0
@@ -17617,6 +18147,8 @@ test.arguments += --sys-no-query
             libbaz configured !0.1.0 available 1.0.0
           !tix configured 0.1.0 available 1.0.0
           !toz configured 0.1.0 available 1.0.0 0.2.0
+          !tuz configured 1.0.0
+            !toz configured 0.1.0 available 1.0.0 0.2.0
           !tux configured 1.0.0
             libbox configured !0.1.0 available 1.0.0
             !tix configured 0.1.0 available 1.0.0
@@ -17725,972 +18257,1485 @@ test.arguments += --sys-no-query
             libbox configured !0.1.0 available 1.0.0
           EOO
 
-        $pkg_drop libfoo libbar libbiz foo fox fux fix fex bar \
-                  baz bac bat bas bus box bax bux bix bex \
-                  boo biz buz buc tax tex tix tiz toz tez \
-                  tux dex dix diz dox
+        $pkg_drop libfoo libbar libbiz foo fox fux fix fex bar baz bac bat \
+                  bas bus box bax bux bix bex boo biz buz buc tax tex tix tiz \
+                  toz tez tuz tux dex dix diz dox
       }
 
-      : upgrade-recursive-libs
+      : upgrade
       :
       {
-        $clone_cfg;
+        +$clone_cfg
 
-        $* ?libfoo/0.1.0 libbar/0.1.0 ?libbaz/0.1.0 ?libbox/0.1.0 libbiz/0.1.0 \
-           foo fox fux fix fex bar baz bac bat bas bus \
-           box bax bux bix bex boo biz buz buc tax tex \
-           tix tiz toz tez tux dex dix diz dox 2>!;
+        : recursive
+        :
+        {
+          +$clone_cfg
 
-        $pkg_status -r >>EOO;
-          !libbar configured !0.1.0 available 1.0.0
-          !libbiz configured !0.1.0 available 1.0.0
-          !bat configured 1.0.0
-            libbaz configured !0.1.0 available 1.0.0
-          !tix configured 0.1.0 available 1.0.0
-          !toz configured 0.1.0 available 1.0.0 0.2.0
-          !tux configured 1.0.0
-            libbox configured !0.1.0 available 1.0.0
-            !tix configured 0.1.0 available 1.0.0
-          !bar configured 1.0.0
-            !libbar configured !0.1.0 available 1.0.0
-          !bux configured 1.0.0
-            !libbar configured !0.1.0 available 1.0.0
-          !bex configured 1.0.0
-            !libbar configured !0.1.0 available 1.0.0
-          !boo configured 1.0.0
-            !libbar configured !0.1.0 available 1.0.0
-          !biz configured 1.0.0
-            !boo configured 1.0.0
+          : libs
+          :
+          {
+            $clone_cfg;
+
+            $* ?libfoo/0.1.0 libbar/0.1.0 ?libbaz/0.1.0 ?libbox/0.1.0 \
+               libbiz/0.1.0 foo fox fux fix fex bar baz bac bat bas bus \
+               box bax bux bix bex boo biz buz buc tax tex tix tiz toz \
+               tez tuz tux dex dix diz dox 2>!;
+
+            $pkg_status -r >>EOO;
               !libbar configured !0.1.0 available 1.0.0
-          !buz configured 1.0.0
-            !bux configured 1.0.0
-              !libbar configured !0.1.0 available 1.0.0
-          !tez configured 1.0.0
-            !libbar configured !0.1.0 available 1.0.0
-            libbox configured !0.1.0 available 1.0.0
-            !toz configured 0.1.0 available 1.0.0 0.2.0
-          !bix configured 1.0.0
-            !bar configured 1.0.0
-              !libbar configured !0.1.0 available 1.0.0
-            !bux configured 1.0.0
-              !libbar configured !0.1.0 available 1.0.0
-            !libbar configured !0.1.0 available 1.0.0
-          !foo configured 1.0.0
-            libfoo configured !0.1.0 available 1.0.0
-          !fox configured 1.0.0
-            libfoo configured !0.1.0 available 1.0.0
-          !fux configured 1.0.0
-            libfoo configured !0.1.0 available 1.0.0
-          !baz configured 1.0.0
-            !libbar configured !0.1.0 available 1.0.0
-            libfoo configured !0.1.0 available 1.0.0
-          !bac configured 1.0.0
-            !libbar configured !0.1.0 available 1.0.0
-            libbaz configured !0.1.0 available 1.0.0
-            libfoo configured !0.1.0 available 1.0.0
-          !fix configured 1.0.0
-            !foo configured 1.0.0
-              libfoo configured !0.1.0 available 1.0.0
-          !fex configured 1.0.0
-            !foo configured 1.0.0
-              libfoo configured !0.1.0 available 1.0.0
-            libfoo configured !0.1.0 available 1.0.0
-          !bus configured 1.0.0
-            !foo configured 1.0.0
-              libfoo configured !0.1.0 available 1.0.0
-            libbaz configured !0.1.0 available 1.0.0
-          !bas configured 1.0.0
-            !bus configured 1.0.0
-              !foo configured 1.0.0
-                libfoo configured !0.1.0 available 1.0.0
-              libbaz configured !0.1.0 available 1.0.0
-            !libbar configured !0.1.0 available 1.0.0
-          !box configured 1.0.0
-            !libbar configured !0.1.0 available 1.0.0
-            libfoo configured !0.1.0 available 1.0.0
-          !bax configured 1.0.0
-            !libbar configured !0.1.0 available 1.0.0
-            libbox configured !0.1.0 available 1.0.0
-            libfoo configured !0.1.0 available 1.0.0
-          !buc configured 1.0.0
-            !bux configured 1.0.0
-              !libbar configured !0.1.0 available 1.0.0
-            libfoo configured !0.1.0 available 1.0.0
-          !tax configured 1.0.0
-            !libbar configured !0.1.0 available 1.0.0
-            libfoo configured !0.1.0 available 1.0.0
-          !tex configured 1.0.0
-            !libbar configured !0.1.0 available 1.0.0
-            libfoo configured !0.1.0 available 1.0.0
-          !tiz configured 1.0.0
-            !libbar configured !0.1.0 available 1.0.0
-            !tex configured 1.0.0
-              !libbar configured !0.1.0 available 1.0.0
-              libfoo configured !0.1.0 available 1.0.0
-          !dex configured 1.0.0
-            !bar configured 1.0.0
-              !libbar configured !0.1.0 available 1.0.0
-            libfoo configured !0.1.0 available 1.0.0
-          !dox configured 1.0.0
-            !dex configured 1.0.0
+              !libbiz configured !0.1.0 available 1.0.0
+              !bat configured 1.0.0
+                libbaz configured !0.1.0 available 1.0.0
+              !tix configured 0.1.0 available 1.0.0
+              !toz configured 0.1.0 available 1.0.0 0.2.0
+              !tuz configured 1.0.0
+                !toz configured 0.1.0 available 1.0.0 0.2.0
+              !tux configured 1.0.0
+                libbox configured !0.1.0 available 1.0.0
+                !tix configured 0.1.0 available 1.0.0
               !bar configured 1.0.0
                 !libbar configured !0.1.0 available 1.0.0
-              libfoo configured !0.1.0 available 1.0.0
-          !dix configured 1.0.0
-            !dox configured 1.0.0
-              !dex configured 1.0.0
+              !bux configured 1.0.0
+                !libbar configured !0.1.0 available 1.0.0
+              !bex configured 1.0.0
+                !libbar configured !0.1.0 available 1.0.0
+              !boo configured 1.0.0
+                !libbar configured !0.1.0 available 1.0.0
+              !biz configured 1.0.0
+                !boo configured 1.0.0
+                  !libbar configured !0.1.0 available 1.0.0
+              !buz configured 1.0.0
+                !bux configured 1.0.0
+                  !libbar configured !0.1.0 available 1.0.0
+              !tez configured 1.0.0
+                !libbar configured !0.1.0 available 1.0.0
+                libbox configured !0.1.0 available 1.0.0
+                !toz configured 0.1.0 available 1.0.0 0.2.0
+              !bix configured 1.0.0
                 !bar configured 1.0.0
                   !libbar configured !0.1.0 available 1.0.0
-                libfoo configured !0.1.0 available 1.0.0
-            !libbar configured !0.1.0 available 1.0.0
-            libbox configured !0.1.0 available 1.0.0
-          !diz configured 1.0.0
-            !dox configured 1.0.0
-              !dex configured 1.0.0
-                !bar configured 1.0.0
+                !bux configured 1.0.0
                   !libbar configured !0.1.0 available 1.0.0
-                libfoo configured !0.1.0 available 1.0.0
-            !libbar configured !0.1.0 available 1.0.0
-            libbox configured !0.1.0 available 1.0.0
-          EOO
-
-        $* --upgrade --recursive 2>!;
-
-        $pkg_status -r >>EOO;
-          !libbar configured 1.0.0
-          !libbiz configured 1.0.0
-            !libbar configured 1.0.0
-          !bat configured 1.0.0
-            libbaz configured !1.0.0
-          !tix configured 0.1.0 available 1.0.0
-          !toz configured 0.1.0 available 1.0.0 0.2.0
-          !tux configured 1.0.0
-            libbox configured !1.0.0
-            !tix configured 0.1.0 available 1.0.0
-          !bar configured 1.0.0
-            !libbar configured 1.0.0
-          !bux configured 1.0.0
-            !libbar configured 1.0.0
-          !bex configured 1.0.0
-            !libbar configured 1.0.0
-          !boo configured 1.0.0
-            !libbar configured 1.0.0
-          !biz configured 1.0.0
-            !boo configured 1.0.0
-              !libbar configured 1.0.0
-          !buz configured 1.0.0
-            !bux configured 1.0.0
-              !libbar configured 1.0.0
-          !tez configured 1.0.0
-            !libbar configured 1.0.0
-            libbox configured !1.0.0
-            !toz configured 0.1.0 available 1.0.0 0.2.0
-          !bix configured 1.0.0
-            !bar configured 1.0.0
-              !libbar configured 1.0.0
-            !bux configured 1.0.0
-              !libbar configured 1.0.0
-            !libbar configured 1.0.0
-          !foo configured 1.0.0
-            libfoo configured !1.0.0
-          !fox configured 1.0.0
-            libfoo configured !1.0.0
-          !fux configured 1.0.0
-            libfoo configured !1.0.0
-          !baz configured 1.0.0
-            !libbar configured 1.0.0
-            libfoo configured !1.0.0
-          !bac configured 1.0.0
-            !libbar configured 1.0.0
-            libbaz configured !1.0.0
-            libfoo configured !1.0.0
-          !fix configured 1.0.0
-            !foo configured 1.0.0
-              libfoo configured !1.0.0
-          !fex configured 1.0.0
-            !foo configured 1.0.0
-              libfoo configured !1.0.0
-            libfoo configured !1.0.0
-          !bus configured 1.0.0
-            !foo configured 1.0.0
-              libfoo configured !1.0.0
-            libbaz configured !1.0.0
-          !bas configured 1.0.0
-            !bus configured 1.0.0
+                !libbar configured !0.1.0 available 1.0.0
               !foo configured 1.0.0
-                libfoo configured !1.0.0
-              libbaz configured !1.0.0
-            !libbar configured 1.0.0
-          !box configured 1.0.0
-            !libbar configured 1.0.0
-            libfoo configured !1.0.0
-          !bax configured 1.0.0
-            !libbar configured 1.0.0
-            libbox configured !1.0.0
-            libfoo configured !1.0.0
-          !buc configured 1.0.0
-            !bux configured 1.0.0
+                libfoo configured !0.1.0 available 1.0.0
+              !fox configured 1.0.0
+                libfoo configured !0.1.0 available 1.0.0
+              !fux configured 1.0.0
+                libfoo configured !0.1.0 available 1.0.0
+              !baz configured 1.0.0
+                !libbar configured !0.1.0 available 1.0.0
+                libfoo configured !0.1.0 available 1.0.0
+              !bac configured 1.0.0
+                !libbar configured !0.1.0 available 1.0.0
+                libbaz configured !0.1.0 available 1.0.0
+                libfoo configured !0.1.0 available 1.0.0
+              !fix configured 1.0.0
+                !foo configured 1.0.0
+                  libfoo configured !0.1.0 available 1.0.0
+              !fex configured 1.0.0
+                !foo configured 1.0.0
+                  libfoo configured !0.1.0 available 1.0.0
+                libfoo configured !0.1.0 available 1.0.0
+              !bus configured 1.0.0
+                !foo configured 1.0.0
+                  libfoo configured !0.1.0 available 1.0.0
+                libbaz configured !0.1.0 available 1.0.0
+              !bas configured 1.0.0
+                !bus configured 1.0.0
+                  !foo configured 1.0.0
+                    libfoo configured !0.1.0 available 1.0.0
+                  libbaz configured !0.1.0 available 1.0.0
+                !libbar configured !0.1.0 available 1.0.0
+              !box configured 1.0.0
+                !libbar configured !0.1.0 available 1.0.0
+                libfoo configured !0.1.0 available 1.0.0
+              !bax configured 1.0.0
+                !libbar configured !0.1.0 available 1.0.0
+                libbox configured !0.1.0 available 1.0.0
+                libfoo configured !0.1.0 available 1.0.0
+              !buc configured 1.0.0
+                !bux configured 1.0.0
+                  !libbar configured !0.1.0 available 1.0.0
+                libfoo configured !0.1.0 available 1.0.0
+              !tax configured 1.0.0
+                !libbar configured !0.1.0 available 1.0.0
+                libfoo configured !0.1.0 available 1.0.0
+              !tex configured 1.0.0
+                !libbar configured !0.1.0 available 1.0.0
+                libfoo configured !0.1.0 available 1.0.0
+              !tiz configured 1.0.0
+                !libbar configured !0.1.0 available 1.0.0
+                !tex configured 1.0.0
+                  !libbar configured !0.1.0 available 1.0.0
+                  libfoo configured !0.1.0 available 1.0.0
+              !dex configured 1.0.0
+                !bar configured 1.0.0
+                  !libbar configured !0.1.0 available 1.0.0
+                libfoo configured !0.1.0 available 1.0.0
+              !dox configured 1.0.0
+                !dex configured 1.0.0
+                  !bar configured 1.0.0
+                    !libbar configured !0.1.0 available 1.0.0
+                  libfoo configured !0.1.0 available 1.0.0
+              !dix configured 1.0.0
+                !dox configured 1.0.0
+                  !dex configured 1.0.0
+                    !bar configured 1.0.0
+                      !libbar configured !0.1.0 available 1.0.0
+                    libfoo configured !0.1.0 available 1.0.0
+                !libbar configured !0.1.0 available 1.0.0
+                libbox configured !0.1.0 available 1.0.0
+              !diz configured 1.0.0
+                !dox configured 1.0.0
+                  !dex configured 1.0.0
+                    !bar configured 1.0.0
+                      !libbar configured !0.1.0 available 1.0.0
+                    libfoo configured !0.1.0 available 1.0.0
+                !libbar configured !0.1.0 available 1.0.0
+                libbox configured !0.1.0 available 1.0.0
+              EOO
+
+            $* --upgrade --recursive 2>!;
+
+            $pkg_status -r >>EOO;
               !libbar configured 1.0.0
-            libfoo configured !1.0.0
-          !tax configured 1.0.0
-            !libbar configured 1.0.0
-            libfoo configured !1.0.0
-          !tex configured 1.0.0
-            !libbar configured 1.0.0
-            libfoo configured !1.0.0
-          !tiz configured 1.0.0
-            !libbar configured 1.0.0
-            !tex configured 1.0.0
-              !libbar configured 1.0.0
-              libfoo configured !1.0.0
-          !dex configured 1.0.0
-            !bar configured 1.0.0
-              !libbar configured 1.0.0
-            libfoo configured !1.0.0
-          !dox configured 1.0.0
-            !dex configured 1.0.0
+              !libbiz configured 1.0.0
+                !libbar configured 1.0.0
+              !bat configured 1.0.0
+                libbaz configured !1.0.0
+              !tix configured 0.1.0 available 1.0.0
+              !toz configured 0.1.0 available 1.0.0 0.2.0
+              !tuz configured 1.0.0
+                !toz configured 0.1.0 available 1.0.0 0.2.0
+              !tux configured 1.0.0
+                libbox configured !1.0.0
+                !tix configured 0.1.0 available 1.0.0
               !bar configured 1.0.0
                 !libbar configured 1.0.0
-              libfoo configured !1.0.0
-          !dix configured 1.0.0
-            !dox configured 1.0.0
-              !dex configured 1.0.0
+              !bux configured 1.0.0
+                !libbar configured 1.0.0
+              !bex configured 1.0.0
+                !libbar configured 1.0.0
+              !boo configured 1.0.0
+                !libbar configured 1.0.0
+              !biz configured 1.0.0
+                !boo configured 1.0.0
+                  !libbar configured 1.0.0
+              !buz configured 1.0.0
+                !bux configured 1.0.0
+                  !libbar configured 1.0.0
+              !tez configured 1.0.0
+                !libbar configured 1.0.0
+                libbox configured !1.0.0
+                !toz configured 0.1.0 available 1.0.0 0.2.0
+              !bix configured 1.0.0
                 !bar configured 1.0.0
                   !libbar configured 1.0.0
-                libfoo configured !1.0.0
-            !libbar configured 1.0.0
-            libbox configured !1.0.0
-          !diz configured 1.0.0
-            !dox configured 1.0.0
-              !dex configured 1.0.0
-                !bar configured 1.0.0
+                !bux configured 1.0.0
                   !libbar configured 1.0.0
-                libfoo configured !1.0.0
-            !libbar configured 1.0.0
-            libbox configured !1.0.0
-          EOO
-
-        $pkg_drop libfoo libbar libbiz foo fox fux fix fex bar \
-                  baz bac bat bas bus box bax bux bix bex \
-                  boo biz buz buc tax tex tix tiz toz tez \
-                  tux dex dix diz dox
-      }
-
-      : upgrade-immediate-libs
-      :
-      {
-        $clone_cfg;
-
-        $* ?libfoo/0.1.0 libbar/0.1.0 ?libbaz/0.1.0 ?libbox/0.1.0 libbiz/0.1.0 \
-           foo fox fux fix fex bar baz bac bat bas bus \
-           box bax bux bix bex boo biz buz buc tax tex \
-           tix tiz toz tez tux dex dix diz dox 2>!;
-
-        $pkg_status -r >>EOO;
-          !libbar configured !0.1.0 available 1.0.0
-          !libbiz configured !0.1.0 available 1.0.0
-          !bat configured 1.0.0
-            libbaz configured !0.1.0 available 1.0.0
-          !tix configured 0.1.0 available 1.0.0
-          !toz configured 0.1.0 available 1.0.0 0.2.0
-          !tux configured 1.0.0
-            libbox configured !0.1.0 available 1.0.0
-            !tix configured 0.1.0 available 1.0.0
-          !bar configured 1.0.0
-            !libbar configured !0.1.0 available 1.0.0
-          !bux configured 1.0.0
-            !libbar configured !0.1.0 available 1.0.0
-          !bex configured 1.0.0
-            !libbar configured !0.1.0 available 1.0.0
-          !boo configured 1.0.0
-            !libbar configured !0.1.0 available 1.0.0
-          !biz configured 1.0.0
-            !boo configured 1.0.0
-              !libbar configured !0.1.0 available 1.0.0
-          !buz configured 1.0.0
-            !bux configured 1.0.0
-              !libbar configured !0.1.0 available 1.0.0
-          !tez configured 1.0.0
-            !libbar configured !0.1.0 available 1.0.0
-            libbox configured !0.1.0 available 1.0.0
-            !toz configured 0.1.0 available 1.0.0 0.2.0
-          !bix configured 1.0.0
-            !bar configured 1.0.0
-              !libbar configured !0.1.0 available 1.0.0
-            !bux configured 1.0.0
-              !libbar configured !0.1.0 available 1.0.0
-            !libbar configured !0.1.0 available 1.0.0
-          !foo configured 1.0.0
-            libfoo configured !0.1.0 available 1.0.0
-          !fox configured 1.0.0
-            libfoo configured !0.1.0 available 1.0.0
-          !fux configured 1.0.0
-            libfoo configured !0.1.0 available 1.0.0
-          !baz configured 1.0.0
-            !libbar configured !0.1.0 available 1.0.0
-            libfoo configured !0.1.0 available 1.0.0
-          !bac configured 1.0.0
-            !libbar configured !0.1.0 available 1.0.0
-            libbaz configured !0.1.0 available 1.0.0
-            libfoo configured !0.1.0 available 1.0.0
-          !fix configured 1.0.0
-            !foo configured 1.0.0
-              libfoo configured !0.1.0 available 1.0.0
-          !fex configured 1.0.0
-            !foo configured 1.0.0
-              libfoo configured !0.1.0 available 1.0.0
-            libfoo configured !0.1.0 available 1.0.0
-          !bus configured 1.0.0
-            !foo configured 1.0.0
-              libfoo configured !0.1.0 available 1.0.0
-            libbaz configured !0.1.0 available 1.0.0
-          !bas configured 1.0.0
-            !bus configured 1.0.0
+                !libbar configured 1.0.0
               !foo configured 1.0.0
+                libfoo configured !1.0.0
+              !fox configured 1.0.0
+                libfoo configured !1.0.0
+              !fux configured 1.0.0
+                libfoo configured !1.0.0
+              !baz configured 1.0.0
+                !libbar configured 1.0.0
+                libfoo configured !1.0.0
+              !bac configured 1.0.0
+                !libbar configured 1.0.0
+                libbaz configured !1.0.0
+                libfoo configured !1.0.0
+              !fix configured 1.0.0
+                !foo configured 1.0.0
+                  libfoo configured !1.0.0
+              !fex configured 1.0.0
+                !foo configured 1.0.0
+                  libfoo configured !1.0.0
+                libfoo configured !1.0.0
+              !bus configured 1.0.0
+                !foo configured 1.0.0
+                  libfoo configured !1.0.0
+                libbaz configured !1.0.0
+              !bas configured 1.0.0
+                !bus configured 1.0.0
+                  !foo configured 1.0.0
+                    libfoo configured !1.0.0
+                  libbaz configured !1.0.0
+                !libbar configured 1.0.0
+              !box configured 1.0.0
+                !libbar configured 1.0.0
+                libfoo configured !1.0.0
+              !bax configured 1.0.0
+                !libbar configured 1.0.0
+                libbox configured !1.0.0
+                libfoo configured !1.0.0
+              !buc configured 1.0.0
+                !bux configured 1.0.0
+                  !libbar configured 1.0.0
+                libfoo configured !1.0.0
+              !tax configured 1.0.0
+                !libbar configured 1.0.0
+                libfoo configured !1.0.0
+              !tex configured 1.0.0
+                !libbar configured 1.0.0
+                libfoo configured !1.0.0
+              !tiz configured 1.0.0
+                !libbar configured 1.0.0
+                !tex configured 1.0.0
+                  !libbar configured 1.0.0
+                  libfoo configured !1.0.0
+              !dex configured 1.0.0
+                !bar configured 1.0.0
+                  !libbar configured 1.0.0
+                libfoo configured !1.0.0
+              !dox configured 1.0.0
+                !dex configured 1.0.0
+                  !bar configured 1.0.0
+                    !libbar configured 1.0.0
+                  libfoo configured !1.0.0
+              !dix configured 1.0.0
+                !dox configured 1.0.0
+                  !dex configured 1.0.0
+                    !bar configured 1.0.0
+                      !libbar configured 1.0.0
+                    libfoo configured !1.0.0
+                !libbar configured 1.0.0
+                libbox configured !1.0.0
+              !diz configured 1.0.0
+                !dox configured 1.0.0
+                  !dex configured 1.0.0
+                    !bar configured 1.0.0
+                      !libbar configured 1.0.0
+                    libfoo configured !1.0.0
+                !libbar configured 1.0.0
+                libbox configured !1.0.0
+              EOO
+
+            $pkg_drop libfoo libbar libbiz foo fox fux fix fex bar baz bac \
+                      bat bas bus box bax bux bix bex boo biz buz buc \
+                      tax tex tix tiz toz tez tuz tux dex dix diz dox
+          }
+
+          : all
+          :
+          {
+            $clone_cfg;
+
+            $* ?libfoo/0.1.0 ?libbar/0.1.0 ?libbaz/0.1.0 ?libbox/0.1.0 \
+               ?libbiz/0.1.0 foo/0.1.0 fox/0.1.0 fux/1.0.0 fix/0.1.0 fex/1.0.0 \
+               bar/0.1.0 baz/0.1.0 bac/1.0.0 bat/1.0.0 bas/1.0.0 bus/0.1.0 \
+               box/0.1.0 bax/1.0.0 bux/1.0.0 bix/1.0.0 bex/1.0.0 boo/1.0.0 \
+               biz/0.1.0 buz/1.0.0 buc/1.0.0 tax/1.0.0 tex/0.1.0 tix/0.1.0 \
+               tiz/1.0.0 toz/0.1.0 tez/1.0.0 tuz/1.0.0 tux/1.0.0 dex/1.0.0 \
+               dix/1.0.0 diz/1.0.0 dox/1.0.0 2>!;
+
+            $pkg_status -r >>EOO;
+              !bat configured !1.0.0
+                libbaz configured !0.1.0 available 1.0.0
+              !biz configured !0.1.0 available 1.0.0
+                libbiz configured !0.1.0 available 1.0.0
+              !tix configured !0.1.0 available 1.0.0
+              !toz configured !0.1.0 available 1.0.0 0.2.0
+              !tuz configured !1.0.0
+                !toz configured !0.1.0 available 1.0.0 0.2.0
+              !box configured !0.1.0 available 1.0.0 0.2.0
+                libbox configured !0.1.0 available 1.0.0
+              !tux configured !1.0.0
+                libbox configured !0.1.0 available 1.0.0
+                !tix configured !0.1.0 available 1.0.0
+              !fox configured !0.1.0 available 1.0.0 0.2.0
+                libbar configured !0.1.0 available 1.0.0
+              !bar configured !0.1.0 available 1.0.0
+                libbar configured !0.1.0 available 1.0.0
+              !bux configured !1.0.0
+                libbar configured !0.1.0 available 1.0.0
+              !bex configured !1.0.0
+                libbar configured !0.1.0 available 1.0.0
+              !boo configured !1.0.0
+                libbar configured !0.1.0 available 1.0.0
+              !buz configured !1.0.0
+                !bux configured !1.0.0
+                  libbar configured !0.1.0 available 1.0.0
+              !tez configured !1.0.0
+                libbar configured !0.1.0 available 1.0.0
+                libbox configured !0.1.0 available 1.0.0
+                !toz configured !0.1.0 available 1.0.0 0.2.0
+              !bix configured !1.0.0
+                !bar configured !0.1.0 available 1.0.0
+                  libbar configured !0.1.0 available 1.0.0
+                !bux configured !1.0.0
+                  libbar configured !0.1.0 available 1.0.0
+                libbar configured !0.1.0 available 1.0.0
+              !foo configured !0.1.0 available 1.0.0 0.2.0
                 libfoo configured !0.1.0 available 1.0.0
-              libbaz configured !0.1.0 available 1.0.0
-            !libbar configured !0.1.0 available 1.0.0
-          !box configured 1.0.0
-            !libbar configured !0.1.0 available 1.0.0
-            libfoo configured !0.1.0 available 1.0.0
-          !bax configured 1.0.0
-            !libbar configured !0.1.0 available 1.0.0
-            libbox configured !0.1.0 available 1.0.0
-            libfoo configured !0.1.0 available 1.0.0
-          !buc configured 1.0.0
-            !bux configured 1.0.0
+              !fux configured !1.0.0
+                libfoo configured !0.1.0 available 1.0.0
+              !baz configured !0.1.0 available 1.0.0
+                libbar configured !0.1.0 available 1.0.0
+                libfoo configured !0.1.0 available 1.0.0
+              !bac configured !1.0.0
+                libbar configured !0.1.0 available 1.0.0
+                libbaz configured !0.1.0 available 1.0.0
+                libfoo configured !0.1.0 available 1.0.0
+              !fix configured !0.1.0 available 1.0.0
+                !foo configured !0.1.0 available 1.0.0 0.2.0
+                  libfoo configured !0.1.0 available 1.0.0
+              !fex configured !1.0.0
+                !foo configured !0.1.0 available 1.0.0 0.2.0
+                  libfoo configured !0.1.0 available 1.0.0
+                libfoo configured !0.1.0 available 1.0.0
+              !bus configured !0.1.0 available 1.0.0
+                !foo configured !0.1.0 available 1.0.0 0.2.0
+                  libfoo configured !0.1.0 available 1.0.0
+              !bas configured !1.0.0
+                !bus configured !0.1.0 available 1.0.0
+                  !foo configured !0.1.0 available 1.0.0 0.2.0
+                    libfoo configured !0.1.0 available 1.0.0
+                libbar configured !0.1.0 available 1.0.0
+              !bax configured !1.0.0
+                libbar configured !0.1.0 available 1.0.0
+                libbox configured !0.1.0 available 1.0.0
+                libfoo configured !0.1.0 available 1.0.0
+              !buc configured !1.0.0
+                !bux configured !1.0.0
+                  libbar configured !0.1.0 available 1.0.0
+                libfoo configured !0.1.0 available 1.0.0
+              !tax configured !1.0.0
+                libbar configured !0.1.0 available 1.0.0
+                libfoo configured !0.1.0 available 1.0.0
+              !tex configured !0.1.0 available 1.0.0 0.3.0 0.2.0
+                libfoo configured !0.1.0 available 1.0.0
+              !tiz configured !1.0.0
+                libbar configured !0.1.0 available 1.0.0
+                !tex configured !0.1.0 available 1.0.0 0.3.0 0.2.0
+                  libfoo configured !0.1.0 available 1.0.0
+              !dex configured !1.0.0
+                !bar configured !0.1.0 available 1.0.0
+                  libbar configured !0.1.0 available 1.0.0
+                libfoo configured !0.1.0 available 1.0.0
+              !dox configured !1.0.0
+                !dex configured !1.0.0
+                  !bar configured !0.1.0 available 1.0.0
+                    libbar configured !0.1.0 available 1.0.0
+                  libfoo configured !0.1.0 available 1.0.0
+              !dix configured !1.0.0
+                !dox configured !1.0.0
+                  !dex configured !1.0.0
+                    !bar configured !0.1.0 available 1.0.0
+                      libbar configured !0.1.0 available 1.0.0
+                    libfoo configured !0.1.0 available 1.0.0
+                libbar configured !0.1.0 available 1.0.0
+                libbox configured !0.1.0 available 1.0.0
+              !diz configured !1.0.0
+                !dox configured !1.0.0
+                  !dex configured !1.0.0
+                    !bar configured !0.1.0 available 1.0.0
+                      libbar configured !0.1.0 available 1.0.0
+                    libfoo configured !0.1.0 available 1.0.0
+                libbar configured !0.1.0 available 1.0.0
+                libbox configured !0.1.0 available 1.0.0
+              EOO
+
+            $* --upgrade --recursive 2>!;
+
+            $pkg_status -r >>EOO;
+              !bat configured 1.0.0
+                libbaz configured !1.0.0
+              !biz configured 1.0.0
+                !boo configured 1.0.0
+                  libbar configured !1.0.0
+              !tix configured 0.1.0 available 1.0.0
+              !toz configured 0.1.0 available 1.0.0 0.2.0
+              !tuz configured 1.0.0
+                !toz configured 0.1.0 available 1.0.0 0.2.0
+              !box configured 1.0.0
+                libbar configured !1.0.0
+                libfoo configured !1.0.0
+              !tux configured 1.0.0
+                libbox configured !1.0.0
+                !tix configured 0.1.0 available 1.0.0
+              !fox configured 1.0.0
+                libfoo configured !1.0.0
+              !bar configured 1.0.0
+                libbar configured !1.0.0
+              !bux configured 1.0.0
+                libbar configured !1.0.0
+              !bex configured 1.0.0
+                libbar configured !1.0.0
+              !boo configured 1.0.0
+                libbar configured !1.0.0
+              !buz configured 1.0.0
+                !bux configured 1.0.0
+                  libbar configured !1.0.0
+              !tez configured 1.0.0
+                libbar configured !1.0.0
+                libbox configured !1.0.0
+                !toz configured 0.1.0 available 1.0.0 0.2.0
+              !bix configured 1.0.0
+                !bar configured 1.0.0
+                  libbar configured !1.0.0
+                !bux configured 1.0.0
+                  libbar configured !1.0.0
+                libbar configured !1.0.0
+              !foo configured 1.0.0
+                libfoo configured !1.0.0
+              !fux configured 1.0.0
+                libfoo configured !1.0.0
+              !baz configured 1.0.0
+                libbar configured !1.0.0
+                libfoo configured !1.0.0
+              !bac configured 1.0.0
+                libbar configured !1.0.0
+                libbaz configured !1.0.0
+                libfoo configured !1.0.0
+              !fix configured 1.0.0
+                !foo configured 1.0.0
+                  libfoo configured !1.0.0
+              !fex configured 1.0.0
+                !foo configured 1.0.0
+                  libfoo configured !1.0.0
+                libfoo configured !1.0.0
+              !bus configured 1.0.0
+                !foo configured 1.0.0
+                  libfoo configured !1.0.0
+                libbaz configured !1.0.0
+              !bas configured 1.0.0
+                !bus configured 1.0.0
+                  !foo configured 1.0.0
+                    libfoo configured !1.0.0
+                  libbaz configured !1.0.0
+                libbar configured !1.0.0
+              !bax configured 1.0.0
+                libbar configured !1.0.0
+                libbox configured !1.0.0
+                libfoo configured !1.0.0
+              !buc configured 1.0.0
+                !bux configured 1.0.0
+                  libbar configured !1.0.0
+                libfoo configured !1.0.0
+              !tax configured 1.0.0
+                libbar configured !1.0.0
+                libfoo configured !1.0.0
+              !tex configured 1.0.0
+                libbar configured !1.0.0
+                libfoo configured !1.0.0
+              !tiz configured 1.0.0
+                libbar configured !1.0.0
+                !tex configured 1.0.0
+                  libbar configured !1.0.0
+                  libfoo configured !1.0.0
+              !dex configured 1.0.0
+                !bar configured 1.0.0
+                  libbar configured !1.0.0
+                libfoo configured !1.0.0
+              !dox configured 1.0.0
+                !dex configured 1.0.0
+                  !bar configured 1.0.0
+                    libbar configured !1.0.0
+                  libfoo configured !1.0.0
+              !dix configured 1.0.0
+                !dox configured 1.0.0
+                  !dex configured 1.0.0
+                    !bar configured 1.0.0
+                      libbar configured !1.0.0
+                    libfoo configured !1.0.0
+                libbar configured !1.0.0
+                libbox configured !1.0.0
+              !diz configured 1.0.0
+                !dox configured 1.0.0
+                  !dex configured 1.0.0
+                    !bar configured 1.0.0
+                      libbar configured !1.0.0
+                    libfoo configured !1.0.0
+                libbar configured !1.0.0
+                libbox configured !1.0.0
+              EOO
+
+            $pkg_drop foo fox fux fix fex bar baz bac bat bas bus box bax bux \
+                      bix bex boo biz buz buc tax tex tix tiz toz tez tuz tux \
+                      dex dix diz dox
+          }
+        }
+
+        : immediate
+        :
+        {
+          +$clone_cfg
+
+          : libs
+          :
+          {
+            $clone_cfg;
+
+            $* ?libfoo/0.1.0 libbar/0.1.0 ?libbaz/0.1.0 ?libbox/0.1.0 \
+               libbiz/0.1.0 foo fox fux fix fex bar baz bac bat bas bus \
+               box bax bux bix bex boo biz buz buc tax tex tix tiz toz \
+               tez tuz tux dex dix diz dox 2>!;
+
+            $pkg_status -r >>EOO;
               !libbar configured !0.1.0 available 1.0.0
-            libfoo configured !0.1.0 available 1.0.0
-          !tax configured 1.0.0
-            !libbar configured !0.1.0 available 1.0.0
-            libfoo configured !0.1.0 available 1.0.0
-          !tex configured 1.0.0
-            !libbar configured !0.1.0 available 1.0.0
-            libfoo configured !0.1.0 available 1.0.0
-          !tiz configured 1.0.0
-            !libbar configured !0.1.0 available 1.0.0
-            !tex configured 1.0.0
-              !libbar configured !0.1.0 available 1.0.0
-              libfoo configured !0.1.0 available 1.0.0
-          !dex configured 1.0.0
-            !bar configured 1.0.0
-              !libbar configured !0.1.0 available 1.0.0
-            libfoo configured !0.1.0 available 1.0.0
-          !dox configured 1.0.0
-            !dex configured 1.0.0
+              !libbiz configured !0.1.0 available 1.0.0
+              !bat configured 1.0.0
+                libbaz configured !0.1.0 available 1.0.0
+              !tix configured 0.1.0 available 1.0.0
+              !toz configured 0.1.0 available 1.0.0 0.2.0
+              !tuz configured 1.0.0
+                !toz configured 0.1.0 available 1.0.0 0.2.0
+              !tux configured 1.0.0
+                libbox configured !0.1.0 available 1.0.0
+                !tix configured 0.1.0 available 1.0.0
               !bar configured 1.0.0
                 !libbar configured !0.1.0 available 1.0.0
-              libfoo configured !0.1.0 available 1.0.0
-          !dix configured 1.0.0
-            !dox configured 1.0.0
+              !bux configured 1.0.0
+                !libbar configured !0.1.0 available 1.0.0
+              !bex configured 1.0.0
+                !libbar configured !0.1.0 available 1.0.0
+              !boo configured 1.0.0
+                !libbar configured !0.1.0 available 1.0.0
+              !biz configured 1.0.0
+                !boo configured 1.0.0
+                  !libbar configured !0.1.0 available 1.0.0
+              !buz configured 1.0.0
+                !bux configured 1.0.0
+                  !libbar configured !0.1.0 available 1.0.0
+              !tez configured 1.0.0
+                !libbar configured !0.1.0 available 1.0.0
+                libbox configured !0.1.0 available 1.0.0
+                !toz configured 0.1.0 available 1.0.0 0.2.0
+              !bix configured 1.0.0
+                !bar configured 1.0.0
+                  !libbar configured !0.1.0 available 1.0.0
+                !bux configured 1.0.0
+                  !libbar configured !0.1.0 available 1.0.0
+                !libbar configured !0.1.0 available 1.0.0
+              !foo configured 1.0.0
+                libfoo configured !0.1.0 available 1.0.0
+              !fox configured 1.0.0
+                libfoo configured !0.1.0 available 1.0.0
+              !fux configured 1.0.0
+                libfoo configured !0.1.0 available 1.0.0
+              !baz configured 1.0.0
+                !libbar configured !0.1.0 available 1.0.0
+                libfoo configured !0.1.0 available 1.0.0
+              !bac configured 1.0.0
+                !libbar configured !0.1.0 available 1.0.0
+                libbaz configured !0.1.0 available 1.0.0
+                libfoo configured !0.1.0 available 1.0.0
+              !fix configured 1.0.0
+                !foo configured 1.0.0
+                  libfoo configured !0.1.0 available 1.0.0
+              !fex configured 1.0.0
+                !foo configured 1.0.0
+                  libfoo configured !0.1.0 available 1.0.0
+                libfoo configured !0.1.0 available 1.0.0
+              !bus configured 1.0.0
+                !foo configured 1.0.0
+                  libfoo configured !0.1.0 available 1.0.0
+                libbaz configured !0.1.0 available 1.0.0
+              !bas configured 1.0.0
+                !bus configured 1.0.0
+                  !foo configured 1.0.0
+                    libfoo configured !0.1.0 available 1.0.0
+                  libbaz configured !0.1.0 available 1.0.0
+                !libbar configured !0.1.0 available 1.0.0
+              !box configured 1.0.0
+                !libbar configured !0.1.0 available 1.0.0
+                libfoo configured !0.1.0 available 1.0.0
+              !bax configured 1.0.0
+                !libbar configured !0.1.0 available 1.0.0
+                libbox configured !0.1.0 available 1.0.0
+                libfoo configured !0.1.0 available 1.0.0
+              !buc configured 1.0.0
+                !bux configured 1.0.0
+                  !libbar configured !0.1.0 available 1.0.0
+                libfoo configured !0.1.0 available 1.0.0
+              !tax configured 1.0.0
+                !libbar configured !0.1.0 available 1.0.0
+                libfoo configured !0.1.0 available 1.0.0
+              !tex configured 1.0.0
+                !libbar configured !0.1.0 available 1.0.0
+                libfoo configured !0.1.0 available 1.0.0
+              !tiz configured 1.0.0
+                !libbar configured !0.1.0 available 1.0.0
+                !tex configured 1.0.0
+                  !libbar configured !0.1.0 available 1.0.0
+                  libfoo configured !0.1.0 available 1.0.0
               !dex configured 1.0.0
                 !bar configured 1.0.0
                   !libbar configured !0.1.0 available 1.0.0
                 libfoo configured !0.1.0 available 1.0.0
-            !libbar configured !0.1.0 available 1.0.0
-            libbox configured !0.1.0 available 1.0.0
-          !diz configured 1.0.0
-            !dox configured 1.0.0
-              !dex configured 1.0.0
+              !dox configured 1.0.0
+                !dex configured 1.0.0
+                  !bar configured 1.0.0
+                    !libbar configured !0.1.0 available 1.0.0
+                  libfoo configured !0.1.0 available 1.0.0
+              !dix configured 1.0.0
+                !dox configured 1.0.0
+                  !dex configured 1.0.0
+                    !bar configured 1.0.0
+                      !libbar configured !0.1.0 available 1.0.0
+                    libfoo configured !0.1.0 available 1.0.0
+                !libbar configured !0.1.0 available 1.0.0
+                libbox configured !0.1.0 available 1.0.0
+              !diz configured 1.0.0
+                !dox configured 1.0.0
+                  !dex configured 1.0.0
+                    !bar configured 1.0.0
+                      !libbar configured !0.1.0 available 1.0.0
+                    libfoo configured !0.1.0 available 1.0.0
+                !libbar configured !0.1.0 available 1.0.0
+                libbox configured !0.1.0 available 1.0.0
+              EOO
+
+            $* --upgrade --immediate 2>!;
+
+            $pkg_status -r >>EOO;
+              !libbar configured 1.0.0
+              !libbiz configured 1.0.0
+                !libbar configured 1.0.0
+              !bat configured 1.0.0
+                libbaz configured !1.0.0
+              !tix configured 0.1.0 available 1.0.0
+              !toz configured 0.1.0 available 1.0.0 0.2.0
+              !tuz configured 1.0.0
+                !toz configured 0.1.0 available 1.0.0 0.2.0
+              !tux configured 1.0.0
+                libbox configured !1.0.0
+                !tix configured 0.1.0 available 1.0.0
+              !bar configured 1.0.0
+                !libbar configured 1.0.0
+              !bux configured 1.0.0
+                !libbar configured 1.0.0
+              !bex configured 1.0.0
+                !libbar configured 1.0.0
+              !boo configured 1.0.0
+                !libbar configured 1.0.0
+              !biz configured 1.0.0
+                !boo configured 1.0.0
+                  !libbar configured 1.0.0
+              !buz configured 1.0.0
+                !bux configured 1.0.0
+                  !libbar configured 1.0.0
+              !tez configured 1.0.0
+                !libbar configured 1.0.0
+                libbox configured !1.0.0
+                !toz configured 0.1.0 available 1.0.0 0.2.0
+              !bix configured 1.0.0
                 !bar configured 1.0.0
-                  !libbar configured !0.1.0 available 1.0.0
-                libfoo configured !0.1.0 available 1.0.0
-            !libbar configured !0.1.0 available 1.0.0
-            libbox configured !0.1.0 available 1.0.0
-          EOO
-
-        $* --upgrade --immediate 2>!;
-
-        $pkg_status -r >>EOO;
-          !libbar configured 1.0.0
-          !libbiz configured 1.0.0
-            !libbar configured 1.0.0
-          !bat configured 1.0.0
-            libbaz configured !1.0.0
-          !tix configured 0.1.0 available 1.0.0
-          !toz configured 0.1.0 available 1.0.0 0.2.0
-          !tux configured 1.0.0
-            libbox configured !1.0.0
-            !tix configured 0.1.0 available 1.0.0
-          !bar configured 1.0.0
-            !libbar configured 1.0.0
-          !bux configured 1.0.0
-            !libbar configured 1.0.0
-          !bex configured 1.0.0
-            !libbar configured 1.0.0
-          !boo configured 1.0.0
-            !libbar configured 1.0.0
-          !biz configured 1.0.0
-            !boo configured 1.0.0
-              !libbar configured 1.0.0
-          !buz configured 1.0.0
-            !bux configured 1.0.0
-              !libbar configured 1.0.0
-          !tez configured 1.0.0
-            !libbar configured 1.0.0
-            libbox configured !1.0.0
-            !toz configured 0.1.0 available 1.0.0 0.2.0
-          !bix configured 1.0.0
-            !bar configured 1.0.0
-              !libbar configured 1.0.0
-            !bux configured 1.0.0
-              !libbar configured 1.0.0
-            !libbar configured 1.0.0
-          !foo configured 1.0.0
-            libfoo configured !1.0.0
-          !fox configured 1.0.0
-            libfoo configured !1.0.0
-          !fux configured 1.0.0
-            libfoo configured !1.0.0
-          !baz configured 1.0.0
-            !libbar configured 1.0.0
-            libfoo configured !1.0.0
-          !bac configured 1.0.0
-            !libbar configured 1.0.0
-            libbaz configured !1.0.0
-            libfoo configured !1.0.0
-          !fix configured 1.0.0
-            !foo configured 1.0.0
-              libfoo configured !1.0.0
-          !fex configured 1.0.0
-            !foo configured 1.0.0
-              libfoo configured !1.0.0
-            libfoo configured !1.0.0
-          !bus configured 1.0.0
-            !foo configured 1.0.0
-              libfoo configured !1.0.0
-            libbaz configured !1.0.0
-          !bas configured 1.0.0
-            !bus configured 1.0.0
+                  !libbar configured 1.0.0
+                !bux configured 1.0.0
+                  !libbar configured 1.0.0
+                !libbar configured 1.0.0
               !foo configured 1.0.0
                 libfoo configured !1.0.0
-              libbaz configured !1.0.0
+              !fox configured 1.0.0
+                libfoo configured !1.0.0
+              !fux configured 1.0.0
+                libfoo configured !1.0.0
+              !baz configured 1.0.0
+                !libbar configured 1.0.0
+                libfoo configured !1.0.0
+              !bac configured 1.0.0
+                !libbar configured 1.0.0
+                libbaz configured !1.0.0
+                libfoo configured !1.0.0
+              !fix configured 1.0.0
+                !foo configured 1.0.0
+                  libfoo configured !1.0.0
+              !fex configured 1.0.0
+                !foo configured 1.0.0
+                  libfoo configured !1.0.0
+                libfoo configured !1.0.0
+              !bus configured 1.0.0
+                !foo configured 1.0.0
+                  libfoo configured !1.0.0
+                libbaz configured !1.0.0
+              !bas configured 1.0.0
+                !bus configured 1.0.0
+                  !foo configured 1.0.0
+                    libfoo configured !1.0.0
+                  libbaz configured !1.0.0
+                !libbar configured 1.0.0
+              !box configured 1.0.0
+                !libbar configured 1.0.0
+                libfoo configured !1.0.0
+              !bax configured 1.0.0
+                !libbar configured 1.0.0
+                libbox configured !1.0.0
+                libfoo configured !1.0.0
+              !buc configured 1.0.0
+                !bux configured 1.0.0
+                  !libbar configured 1.0.0
+                libfoo configured !1.0.0
+              !tax configured 1.0.0
+                !libbar configured 1.0.0
+                libfoo configured !1.0.0
+              !tex configured 1.0.0
+                !libbar configured 1.0.0
+                libfoo configured !1.0.0
+              !tiz configured 1.0.0
+                !libbar configured 1.0.0
+                !tex configured 1.0.0
+                  !libbar configured 1.0.0
+                  libfoo configured !1.0.0
+              !dex configured 1.0.0
+                !bar configured 1.0.0
+                  !libbar configured 1.0.0
+                libfoo configured !1.0.0
+              !dox configured 1.0.0
+                !dex configured 1.0.0
+                  !bar configured 1.0.0
+                    !libbar configured 1.0.0
+                  libfoo configured !1.0.0
+              !dix configured 1.0.0
+                !dox configured 1.0.0
+                  !dex configured 1.0.0
+                    !bar configured 1.0.0
+                      !libbar configured 1.0.0
+                    libfoo configured !1.0.0
+                !libbar configured 1.0.0
+                libbox configured !1.0.0
+              !diz configured 1.0.0
+                !dox configured 1.0.0
+                  !dex configured 1.0.0
+                    !bar configured 1.0.0
+                      !libbar configured 1.0.0
+                    libfoo configured !1.0.0
+                !libbar configured 1.0.0
+                libbox configured !1.0.0
+              EOO
+
+            $pkg_drop libfoo libbar libbiz foo fox fux fix fex bar baz bac \
+                      bat bas bus box bax bux bix bex boo biz buz buc tax \
+                      tex tix tiz toz tez tuz tux dex dix diz dox
+          }
+
+          : all
+          :
+          {
+            $clone_cfg;
+
+            $* ?libfoo/0.1.0 ?libbar/0.1.0 ?libbaz/0.1.0 ?libbox/0.1.0 \
+               ?libbiz/0.1.0 foo/0.1.0 fox/0.1.0 fux/1.0.0 fix/0.1.0 fex/1.0.0 \
+               bar/0.1.0 baz/0.1.0 bac/1.0.0 bat/1.0.0 bas/1.0.0 bus/0.1.0 \
+               box/0.1.0 bax/1.0.0 bux/1.0.0 bix/1.0.0 bex/1.0.0 boo/1.0.0 \
+               biz/0.1.0 buz/1.0.0 buc/1.0.0 tax/1.0.0 tex/0.1.0 tix/0.1.0 \
+               tiz/1.0.0 toz/0.1.0 tez/1.0.0 tuz/1.0.0 tux/1.0.0 dex/1.0.0 \
+               dix/1.0.0 diz/1.0.0 dox/1.0.0 2>!;
+
+            $pkg_status -r >>EOO;
+              !bat configured !1.0.0
+                libbaz configured !0.1.0 available 1.0.0
+              !biz configured !0.1.0 available 1.0.0
+                libbiz configured !0.1.0 available 1.0.0
+              !tix configured !0.1.0 available 1.0.0
+              !toz configured !0.1.0 available 1.0.0 0.2.0
+              !tuz configured !1.0.0
+                !toz configured !0.1.0 available 1.0.0 0.2.0
+              !box configured !0.1.0 available 1.0.0 0.2.0
+                libbox configured !0.1.0 available 1.0.0
+              !tux configured !1.0.0
+                libbox configured !0.1.0 available 1.0.0
+                !tix configured !0.1.0 available 1.0.0
+              !fox configured !0.1.0 available 1.0.0 0.2.0
+                libbar configured !0.1.0 available 1.0.0
+              !bar configured !0.1.0 available 1.0.0
+                libbar configured !0.1.0 available 1.0.0
+              !bux configured !1.0.0
+                libbar configured !0.1.0 available 1.0.0
+              !bex configured !1.0.0
+                libbar configured !0.1.0 available 1.0.0
+              !boo configured !1.0.0
+                libbar configured !0.1.0 available 1.0.0
+              !buz configured !1.0.0
+                !bux configured !1.0.0
+                  libbar configured !0.1.0 available 1.0.0
+              !tez configured !1.0.0
+                libbar configured !0.1.0 available 1.0.0
+                libbox configured !0.1.0 available 1.0.0
+                !toz configured !0.1.0 available 1.0.0 0.2.0
+              !bix configured !1.0.0
+                !bar configured !0.1.0 available 1.0.0
+                  libbar configured !0.1.0 available 1.0.0
+                !bux configured !1.0.0
+                  libbar configured !0.1.0 available 1.0.0
+                libbar configured !0.1.0 available 1.0.0
+              !foo configured !0.1.0 available 1.0.0 0.2.0
+                libfoo configured !0.1.0 available 1.0.0
+              !fux configured !1.0.0
+                libfoo configured !0.1.0 available 1.0.0
+              !baz configured !0.1.0 available 1.0.0
+                libbar configured !0.1.0 available 1.0.0
+                libfoo configured !0.1.0 available 1.0.0
+              !bac configured !1.0.0
+                libbar configured !0.1.0 available 1.0.0
+                libbaz configured !0.1.0 available 1.0.0
+                libfoo configured !0.1.0 available 1.0.0
+              !fix configured !0.1.0 available 1.0.0
+                !foo configured !0.1.0 available 1.0.0 0.2.0
+                  libfoo configured !0.1.0 available 1.0.0
+              !fex configured !1.0.0
+                !foo configured !0.1.0 available 1.0.0 0.2.0
+                  libfoo configured !0.1.0 available 1.0.0
+                libfoo configured !0.1.0 available 1.0.0
+              !bus configured !0.1.0 available 1.0.0
+                !foo configured !0.1.0 available 1.0.0 0.2.0
+                  libfoo configured !0.1.0 available 1.0.0
+              !bas configured !1.0.0
+                !bus configured !0.1.0 available 1.0.0
+                  !foo configured !0.1.0 available 1.0.0 0.2.0
+                    libfoo configured !0.1.0 available 1.0.0
+                libbar configured !0.1.0 available 1.0.0
+              !bax configured !1.0.0
+                libbar configured !0.1.0 available 1.0.0
+                libbox configured !0.1.0 available 1.0.0
+                libfoo configured !0.1.0 available 1.0.0
+              !buc configured !1.0.0
+                !bux configured !1.0.0
+                  libbar configured !0.1.0 available 1.0.0
+                libfoo configured !0.1.0 available 1.0.0
+              !tax configured !1.0.0
+                libbar configured !0.1.0 available 1.0.0
+                libfoo configured !0.1.0 available 1.0.0
+              !tex configured !0.1.0 available 1.0.0 0.3.0 0.2.0
+                libfoo configured !0.1.0 available 1.0.0
+              !tiz configured !1.0.0
+                libbar configured !0.1.0 available 1.0.0
+                !tex configured !0.1.0 available 1.0.0 0.3.0 0.2.0
+                  libfoo configured !0.1.0 available 1.0.0
+              !dex configured !1.0.0
+                !bar configured !0.1.0 available 1.0.0
+                  libbar configured !0.1.0 available 1.0.0
+                libfoo configured !0.1.0 available 1.0.0
+              !dox configured !1.0.0
+                !dex configured !1.0.0
+                  !bar configured !0.1.0 available 1.0.0
+                    libbar configured !0.1.0 available 1.0.0
+                  libfoo configured !0.1.0 available 1.0.0
+              !dix configured !1.0.0
+                !dox configured !1.0.0
+                  !dex configured !1.0.0
+                    !bar configured !0.1.0 available 1.0.0
+                      libbar configured !0.1.0 available 1.0.0
+                    libfoo configured !0.1.0 available 1.0.0
+                libbar configured !0.1.0 available 1.0.0
+                libbox configured !0.1.0 available 1.0.0
+              !diz configured !1.0.0
+                !dox configured !1.0.0
+                  !dex configured !1.0.0
+                    !bar configured !0.1.0 available 1.0.0
+                      libbar configured !0.1.0 available 1.0.0
+                    libfoo configured !0.1.0 available 1.0.0
+                libbar configured !0.1.0 available 1.0.0
+                libbox configured !0.1.0 available 1.0.0
+              EOO
+
+            $* --upgrade --immediate 2>!;
+
+            $pkg_status -r >>EOO;
+              !bat configured 1.0.0
+                libbaz configured !1.0.0
+              !biz configured 1.0.0
+                !boo configured 1.0.0
+                  libbar configured !1.0.0
+              !tix configured 0.1.0 available 1.0.0
+              !toz configured 0.1.0 available 1.0.0 0.2.0
+              !tuz configured 1.0.0
+                !toz configured 0.1.0 available 1.0.0 0.2.0
+              !box configured 1.0.0
+                libbar configured !1.0.0
+                libfoo configured !1.0.0
+              !tux configured 1.0.0
+                libbox configured !1.0.0
+                !tix configured 0.1.0 available 1.0.0
+              !fox configured 1.0.0
+                libfoo configured !1.0.0
+              !bar configured 1.0.0
+                libbar configured !1.0.0
+              !bux configured 1.0.0
+                libbar configured !1.0.0
+              !bex configured 1.0.0
+                libbar configured !1.0.0
+              !boo configured 1.0.0
+                libbar configured !1.0.0
+              !buz configured 1.0.0
+                !bux configured 1.0.0
+                  libbar configured !1.0.0
+              !tez configured 1.0.0
+                libbar configured !1.0.0
+                libbox configured !1.0.0
+                !toz configured 0.1.0 available 1.0.0 0.2.0
+              !bix configured 1.0.0
+                !bar configured 1.0.0
+                  libbar configured !1.0.0
+                !bux configured 1.0.0
+                  libbar configured !1.0.0
+                libbar configured !1.0.0
+              !foo configured 1.0.0
+                libfoo configured !1.0.0
+              !fux configured 1.0.0
+                libfoo configured !1.0.0
+              !baz configured 1.0.0
+                libbar configured !1.0.0
+                libfoo configured !1.0.0
+              !bac configured 1.0.0
+                libbar configured !1.0.0
+                libbaz configured !1.0.0
+                libfoo configured !1.0.0
+              !fix configured 1.0.0
+                !foo configured 1.0.0
+                  libfoo configured !1.0.0
+              !fex configured 1.0.0
+                !foo configured 1.0.0
+                  libfoo configured !1.0.0
+                libfoo configured !1.0.0
+              !bus configured 1.0.0
+                !foo configured 1.0.0
+                  libfoo configured !1.0.0
+                libbaz configured !1.0.0
+              !bas configured 1.0.0
+                !bus configured 1.0.0
+                  !foo configured 1.0.0
+                    libfoo configured !1.0.0
+                  libbaz configured !1.0.0
+                libbar configured !1.0.0
+              !bax configured 1.0.0
+                libbar configured !1.0.0
+                libbox configured !1.0.0
+                libfoo configured !1.0.0
+              !buc configured 1.0.0
+                !bux configured 1.0.0
+                  libbar configured !1.0.0
+                libfoo configured !1.0.0
+              !tax configured 1.0.0
+                libbar configured !1.0.0
+                libfoo configured !1.0.0
+              !tex configured 1.0.0
+                libbar configured !1.0.0
+                libfoo configured !1.0.0
+              !tiz configured 1.0.0
+                libbar configured !1.0.0
+                !tex configured 1.0.0
+                  libbar configured !1.0.0
+                  libfoo configured !1.0.0
+              !dex configured 1.0.0
+                !bar configured 1.0.0
+                  libbar configured !1.0.0
+                libfoo configured !1.0.0
+              !dox configured 1.0.0
+                !dex configured 1.0.0
+                  !bar configured 1.0.0
+                    libbar configured !1.0.0
+                  libfoo configured !1.0.0
+              !dix configured 1.0.0
+                !dox configured 1.0.0
+                  !dex configured 1.0.0
+                    !bar configured 1.0.0
+                      libbar configured !1.0.0
+                    libfoo configured !1.0.0
+                libbar configured !1.0.0
+                libbox configured !1.0.0
+              !diz configured 1.0.0
+                !dox configured 1.0.0
+                  !dex configured 1.0.0
+                    !bar configured 1.0.0
+                      libbar configured !1.0.0
+                    libfoo configured !1.0.0
+                libbar configured !1.0.0
+                libbox configured !1.0.0
+              EOO
+
+            $pkg_drop foo fox fux fix fex bar baz bac bat bas bus box bax bux \
+                      bix bex boo biz buz buc tax tex tix tiz toz tez tuz tux \
+                      dex dix diz dox
+          }
+        }
+      }
+
+      : incrementally
+      :
+      {
+        +$clone_cfg
+
+        : all
+        :
+        {
+          $clone_cfg;
+
+          ps = libfoo libbar libbaz libbox libbiz foo fox fux fix fex bar baz \
+               bac bat bas bus box bax bux bix bex boo biz buz buc tax tex \
+               tix tiz toz tez tuz tux dex dix diz dox;
+
+          for p: $ps
+            $* $p 2>!
+          end;
+
+          $pkg_status -r >>EOO;
+            !libfoo configured 1.0.0
             !libbar configured 1.0.0
-          !box configured 1.0.0
-            !libbar configured 1.0.0
-            libfoo configured !1.0.0
-          !bax configured 1.0.0
-            !libbar configured 1.0.0
-            libbox configured !1.0.0
-            libfoo configured !1.0.0
-          !buc configured 1.0.0
-            !bux configured 1.0.0
+            !libbaz configured 1.0.0
+            !libbox configured 1.0.0
+            !libbiz configured 1.0.0
               !libbar configured 1.0.0
-            libfoo configured !1.0.0
-          !tax configured 1.0.0
-            !libbar configured 1.0.0
-            libfoo configured !1.0.0
-          !tex configured 1.0.0
-            !libbar configured 1.0.0
-            libfoo configured !1.0.0
-          !tiz configured 1.0.0
-            !libbar configured 1.0.0
-            !tex configured 1.0.0
-              !libbar configured 1.0.0
-              libfoo configured !1.0.0
-          !dex configured 1.0.0
+            !foo configured 1.0.0
+              !libfoo configured 1.0.0
+            !fox configured 1.0.0
+              !libfoo configured 1.0.0
+            !fux configured 1.0.0
+              !libfoo configured 1.0.0
+            !fix configured 1.0.0
+              !foo configured 1.0.0
+                !libfoo configured 1.0.0
+            !fex configured 1.0.0
+              !foo configured 1.0.0
+                !libfoo configured 1.0.0
+              !libfoo configured 1.0.0
             !bar configured 1.0.0
               !libbar configured 1.0.0
-            libfoo configured !1.0.0
-          !dox configured 1.0.0
+            !baz configured 1.0.0
+              !libbar configured 1.0.0
+              !libfoo configured 1.0.0
+            !bac configured 1.0.0
+              !libbar configured 1.0.0
+              !libbaz configured 1.0.0
+              !libfoo configured 1.0.0
+            !bat configured 1.0.0
+              !libbaz configured 1.0.0
+            !bus configured 1.0.0
+              !foo configured 1.0.0
+                !libfoo configured 1.0.0
+              !libbaz configured 1.0.0
+            !bas configured 1.0.0
+              !bus configured 1.0.0
+                !foo configured 1.0.0
+                  !libfoo configured 1.0.0
+                !libbaz configured 1.0.0
+              !libbar configured 1.0.0
+            !box configured 1.0.0
+              !libbar configured 1.0.0
+              !libfoo configured 1.0.0
+            !bax configured 1.0.0
+              !libbar configured 1.0.0
+              !libbox configured 1.0.0
+              !libfoo configured 1.0.0
+            !bux configured 1.0.0
+              !libbar configured 1.0.0
+            !bix configured 1.0.0
+              !bar configured 1.0.0
+                !libbar configured 1.0.0
+              !bux configured 1.0.0
+                !libbar configured 1.0.0
+              !libbar configured 1.0.0
+            !bex configured 1.0.0
+              !libbar configured 1.0.0
+            !boo configured 1.0.0
+              !libbar configured 1.0.0
+            !biz configured 1.0.0
+              !boo configured 1.0.0
+                !libbar configured 1.0.0
+            !buz configured 1.0.0
+              !bux configured 1.0.0
+                !libbar configured 1.0.0
+            !buc configured 1.0.0
+              !bux configured 1.0.0
+                !libbar configured 1.0.0
+              !libfoo configured 1.0.0
+            !tax configured 1.0.0
+              !libbar configured 1.0.0
+              !libfoo configured 1.0.0
+            !tex configured 1.0.0
+              !libbar configured 1.0.0
+              !libfoo configured 1.0.0
+            !tix configured 0.1.0 available 1.0.0
+            !tiz configured 1.0.0
+              !libbar configured 1.0.0
+              !tex configured 1.0.0
+                !libbar configured 1.0.0
+                !libfoo configured 1.0.0
+            !toz configured 0.1.0 available 1.0.0 0.2.0
+            !tez configured 1.0.0
+              !libbar configured 1.0.0
+              !libbox configured 1.0.0
+              !toz configured 0.1.0 available 1.0.0 0.2.0
+            !tuz configured 1.0.0
+              !toz configured 0.1.0 available 1.0.0 0.2.0
+            !tux configured 1.0.0
+              !libbox configured 1.0.0
+              !tix configured 0.1.0 available 1.0.0
             !dex configured 1.0.0
               !bar configured 1.0.0
                 !libbar configured 1.0.0
-              libfoo configured !1.0.0
-          !dix configured 1.0.0
+              !libfoo configured 1.0.0
             !dox configured 1.0.0
               !dex configured 1.0.0
                 !bar configured 1.0.0
                   !libbar configured 1.0.0
-                libfoo configured !1.0.0
-            !libbar configured 1.0.0
-            libbox configured !1.0.0
-          !diz configured 1.0.0
-            !dox configured 1.0.0
-              !dex configured 1.0.0
-                !bar configured 1.0.0
-                  !libbar configured 1.0.0
-                libfoo configured !1.0.0
-            !libbar configured 1.0.0
-            libbox configured !1.0.0
-          EOO
+                !libfoo configured 1.0.0
+            !dix configured 1.0.0
+              !dox configured 1.0.0
+                !dex configured 1.0.0
+                  !bar configured 1.0.0
+                    !libbar configured 1.0.0
+                  !libfoo configured 1.0.0
+              !libbar configured 1.0.0
+              !libbox configured 1.0.0
+            !diz configured 1.0.0
+              !dox configured 1.0.0
+                !dex configured 1.0.0
+                  !bar configured 1.0.0
+                    !libbar configured 1.0.0
+                  !libfoo configured 1.0.0
+              !libbar configured 1.0.0
+              !libbox configured 1.0.0
+            EOO
 
-        $pkg_drop libfoo libbar libbiz foo fox fux fix fex bar \
-                  baz bac bat bas bus box bax bux bix bex \
-                  boo biz buz buc tax tex tix tiz toz tez \
-                  tux dex dix diz dox
-      }
+          # Drop the configured packages by sequentially turning all of them
+          # into dependencies.
+          #
+          for p: $ps
+            $* ?$p 2>!
+          end
+        }
 
-      : upgrade-recursive
-      :
-      {
-        $clone_cfg;
+        : applications
+        :
+        {
+          +$clone_cfg
 
-        $* ?libfoo/0.1.0 ?libbar/0.1.0 ?libbaz/0.1.0 ?libbox/0.1.0 \
-           ?libbiz/0.1.0 foo/0.1.0 fox/0.1.0 fux/1.0.0 fix/0.1.0 fex/1.0.0 \
-           bar/0.1.0 baz/0.1.0 bac/1.0.0 bat/1.0.0 bas/1.0.0 bus/0.1.0 \
-           box/0.1.0 bax/1.0.0 bux/1.0.0 bix/1.0.0 bex/1.0.0 boo/1.0.0 \
-           biz/0.1.0 buz/1.0.0 buc/1.0.0 tax/1.0.0 tex/0.1.0 tix/0.1.0 \
-           tiz/1.0.0 toz/0.1.0 tez/1.0.0 tux/1.0.0 dex/1.0.0 dix/1.0.0 \
-           diz/1.0.0 dox/1.0.0 2>!;
+          : direct-order
+          :
+          {
+            $clone_cfg;
 
-        $pkg_status -r >>EOO;
-          !bat configured !1.0.0
-            libbaz configured !0.1.0 available 1.0.0
-          !biz configured !0.1.0 available 1.0.0
-            libbiz configured !0.1.0 available 1.0.0
-          !tix configured !0.1.0 available 1.0.0
-          !toz configured !0.1.0 available 1.0.0 0.2.0
-          !box configured !0.1.0 available 1.0.0 0.2.0
-            libbox configured !0.1.0 available 1.0.0
-          !tux configured !1.0.0
-            libbox configured !0.1.0 available 1.0.0
-            !tix configured !0.1.0 available 1.0.0
-          !fox configured !0.1.0 available 1.0.0 0.2.0
-            libbar configured !0.1.0 available 1.0.0
-          !bar configured !0.1.0 available 1.0.0
-            libbar configured !0.1.0 available 1.0.0
-          !bux configured !1.0.0
-            libbar configured !0.1.0 available 1.0.0
-          !bex configured !1.0.0
-            libbar configured !0.1.0 available 1.0.0
-          !boo configured !1.0.0
-            libbar configured !0.1.0 available 1.0.0
-          !buz configured !1.0.0
-            !bux configured !1.0.0
-              libbar configured !0.1.0 available 1.0.0
-          !tez configured !1.0.0
-            libbar configured !0.1.0 available 1.0.0
-            libbox configured !0.1.0 available 1.0.0
-            !toz configured !0.1.0 available 1.0.0 0.2.0
-          !bix configured !1.0.0
-            !bar configured !0.1.0 available 1.0.0
-              libbar configured !0.1.0 available 1.0.0
-            !bux configured !1.0.0
-              libbar configured !0.1.0 available 1.0.0
-            libbar configured !0.1.0 available 1.0.0
-          !foo configured !0.1.0 available 1.0.0 0.2.0
-            libfoo configured !0.1.0 available 1.0.0
-          !fux configured !1.0.0
-            libfoo configured !0.1.0 available 1.0.0
-          !baz configured !0.1.0 available 1.0.0
-            libbar configured !0.1.0 available 1.0.0
-            libfoo configured !0.1.0 available 1.0.0
-          !bac configured !1.0.0
-            libbar configured !0.1.0 available 1.0.0
-            libbaz configured !0.1.0 available 1.0.0
-            libfoo configured !0.1.0 available 1.0.0
-          !fix configured !0.1.0 available 1.0.0
-            !foo configured !0.1.0 available 1.0.0 0.2.0
-              libfoo configured !0.1.0 available 1.0.0
-          !fex configured !1.0.0
-            !foo configured !0.1.0 available 1.0.0 0.2.0
-              libfoo configured !0.1.0 available 1.0.0
-            libfoo configured !0.1.0 available 1.0.0
-          !bus configured !0.1.0 available 1.0.0
-            !foo configured !0.1.0 available 1.0.0 0.2.0
-              libfoo configured !0.1.0 available 1.0.0
-          !bas configured !1.0.0
-            !bus configured !0.1.0 available 1.0.0
-              !foo configured !0.1.0 available 1.0.0 0.2.0
-                libfoo configured !0.1.0 available 1.0.0
-            libbar configured !0.1.0 available 1.0.0
-          !bax configured !1.0.0
-            libbar configured !0.1.0 available 1.0.0
-            libbox configured !0.1.0 available 1.0.0
-            libfoo configured !0.1.0 available 1.0.0
-          !buc configured !1.0.0
-            !bux configured !1.0.0
-              libbar configured !0.1.0 available 1.0.0
-            libfoo configured !0.1.0 available 1.0.0
-          !tax configured !1.0.0
-            libbar configured !0.1.0 available 1.0.0
-            libfoo configured !0.1.0 available 1.0.0
-          !tex configured !0.1.0 available 1.0.0 0.3.0 0.2.0
-            libfoo configured !0.1.0 available 1.0.0
-          !tiz configured !1.0.0
-            libbar configured !0.1.0 available 1.0.0
-            !tex configured !0.1.0 available 1.0.0 0.3.0 0.2.0
-              libfoo configured !0.1.0 available 1.0.0
-          !dex configured !1.0.0
-            !bar configured !0.1.0 available 1.0.0
-              libbar configured !0.1.0 available 1.0.0
-            libfoo configured !0.1.0 available 1.0.0
-          !dox configured !1.0.0
-            !dex configured !1.0.0
-              !bar configured !0.1.0 available 1.0.0
-                libbar configured !0.1.0 available 1.0.0
-              libfoo configured !0.1.0 available 1.0.0
-          !dix configured !1.0.0
-            !dox configured !1.0.0
-              !dex configured !1.0.0
-                !bar configured !0.1.0 available 1.0.0
-                  libbar configured !0.1.0 available 1.0.0
-                libfoo configured !0.1.0 available 1.0.0
-            libbar configured !0.1.0 available 1.0.0
-            libbox configured !0.1.0 available 1.0.0
-          !diz configured !1.0.0
-            !dox configured !1.0.0
-              !dex configured !1.0.0
-                !bar configured !0.1.0 available 1.0.0
-                  libbar configured !0.1.0 available 1.0.0
-                libfoo configured !0.1.0 available 1.0.0
-            libbar configured !0.1.0 available 1.0.0
-            libbox configured !0.1.0 available 1.0.0
-          EOO
+            ps = foo fox fux fix fex bar baz bac bat bas bus \
+                 box bax bux bix bex boo biz buz buc tax tex \
+                 tix tiz toz tez tuz tux dex dix diz dox;
 
-        $* --upgrade --recursive 2>!;
+            for p: $ps
+              $* $p 2>!
+            end;
 
-        $pkg_status -r >>EOO;
-          !bat configured 1.0.0
-            libbaz configured !1.0.0
-          !biz configured 1.0.0
-            !boo configured 1.0.0
-              libbar configured !1.0.0
-          !tix configured 0.1.0 available 1.0.0
-          !toz configured 0.1.0 available 1.0.0 0.2.0
-          !box configured 1.0.0
-            libbar configured !1.0.0
-            libfoo configured !1.0.0
-          !tux configured 1.0.0
-            libbox configured !1.0.0
-            !tix configured 0.1.0 available 1.0.0
-          !fox configured 1.0.0
-            libfoo configured !1.0.0
-          !bar configured 1.0.0
-            libbar configured !1.0.0
-          !bux configured 1.0.0
-            libbar configured !1.0.0
-          !bex configured 1.0.0
-            libbar configured !1.0.0
-          !boo configured 1.0.0
-            libbar configured !1.0.0
-          !buz configured 1.0.0
-            !bux configured 1.0.0
-              libbar configured !1.0.0
-          !tez configured 1.0.0
-            libbar configured !1.0.0
-            libbox configured !1.0.0
-            !toz configured 0.1.0 available 1.0.0 0.2.0
-          !bix configured 1.0.0
-            !bar configured 1.0.0
-              libbar configured !1.0.0
-            !bux configured 1.0.0
-              libbar configured !1.0.0
-            libbar configured !1.0.0
-          !foo configured 1.0.0
-            libfoo configured !1.0.0
-          !fux configured 1.0.0
-            libfoo configured !1.0.0
-          !baz configured 1.0.0
-            libbar configured !1.0.0
-            libfoo configured !1.0.0
-          !bac configured 1.0.0
-            libbar configured !1.0.0
-            libbaz configured !1.0.0
-            libfoo configured !1.0.0
-          !fix configured 1.0.0
-            !foo configured 1.0.0
-              libfoo configured !1.0.0
-          !fex configured 1.0.0
-            !foo configured 1.0.0
-              libfoo configured !1.0.0
-            libfoo configured !1.0.0
-          !bus configured 1.0.0
-            !foo configured 1.0.0
-              libfoo configured !1.0.0
-            libbaz configured !1.0.0
-          !bas configured 1.0.0
-            !bus configured 1.0.0
+            $pkg_status -r >>EOO;
               !foo configured 1.0.0
-                libfoo configured !1.0.0
-              libbaz configured !1.0.0
-            libbar configured !1.0.0
-          !bax configured 1.0.0
-            libbar configured !1.0.0
-            libbox configured !1.0.0
-            libfoo configured !1.0.0
-          !buc configured 1.0.0
-            !bux configured 1.0.0
-              libbar configured !1.0.0
-            libfoo configured !1.0.0
-          !tax configured 1.0.0
-            libbar configured !1.0.0
-            libfoo configured !1.0.0
-          !tex configured 1.0.0
-            libbar configured !1.0.0
-            libfoo configured !1.0.0
-          !tiz configured 1.0.0
-            libbar configured !1.0.0
-            !tex configured 1.0.0
-              libbar configured !1.0.0
-              libfoo configured !1.0.0
-          !dex configured 1.0.0
-            !bar configured 1.0.0
-              libbar configured !1.0.0
-            libfoo configured !1.0.0
-          !dox configured 1.0.0
-            !dex configured 1.0.0
+                libfoo configured 1.0.0
+              !fox configured 1.0.0
+                libfoo configured 1.0.0
+              !fux configured 1.0.0
+                libfoo configured 1.0.0
+              !fix configured 1.0.0
+                !foo configured 1.0.0
+                  libfoo configured 1.0.0
+              !fex configured 1.0.0
+                !foo configured 1.0.0
+                  libfoo configured 1.0.0
+                libfoo configured 1.0.0
               !bar configured 1.0.0
-                libbar configured !1.0.0
-              libfoo configured !1.0.0
-          !dix configured 1.0.0
-            !dox configured 1.0.0
+                libbar configured 1.0.0
+              !baz configured 1.0.0
+                libbar configured 1.0.0
+                libfoo configured 1.0.0
+              !bac configured 1.0.0
+                libbar configured 1.0.0
+                libbaz configured 1.0.0
+                libfoo configured 1.0.0
+              !bat configured 1.0.0
+                libbaz configured 1.0.0
+              !bus configured 1.0.0
+                !foo configured 1.0.0
+                  libfoo configured 1.0.0
+                libbaz configured 1.0.0
+              !bas configured 1.0.0
+                !bus configured 1.0.0
+                  !foo configured 1.0.0
+                    libfoo configured 1.0.0
+                  libbaz configured 1.0.0
+                libbar configured 1.0.0
+              !box configured 1.0.0
+                libbar configured 1.0.0
+                libfoo configured 1.0.0
+              !bax configured 1.0.0
+                libbar configured 1.0.0
+                libbox configured 1.0.0
+                libfoo configured 1.0.0
+              !bux configured 1.0.0
+                libbar configured 1.0.0
+              !bix configured 1.0.0
+                !bar configured 1.0.0
+                  libbar configured 1.0.0
+                !bux configured 1.0.0
+                  libbar configured 1.0.0
+                libbar configured 1.0.0
+              !bex configured 1.0.0
+                libbar configured 1.0.0
+              !boo configured 1.0.0
+                libbar configured 1.0.0
+              !biz configured 1.0.0
+                !boo configured 1.0.0
+                  libbar configured 1.0.0
+              !buz configured 1.0.0
+                !bux configured 1.0.0
+                  libbar configured 1.0.0
+              !buc configured 1.0.0
+                !bux configured 1.0.0
+                  libbar configured 1.0.0
+                libfoo configured 1.0.0
+              !tax configured 1.0.0
+                libbar configured 1.0.0
+                libfoo configured 1.0.0
+              !tex configured 1.0.0
+                libbar configured 1.0.0
+                libfoo configured 1.0.0
+              !tix configured 0.1.0 available 1.0.0
+              !tiz configured 1.0.0
+                libbar configured 1.0.0
+                !tex configured 1.0.0
+                  libbar configured 1.0.0
+                  libfoo configured 1.0.0
+              !toz configured 0.1.0 available 1.0.0 0.2.0
+              !tez configured 1.0.0
+                libbar configured 1.0.0
+                libbox configured 1.0.0
+                !toz configured 0.1.0 available 1.0.0 0.2.0
+              !tuz configured 1.0.0
+                !toz configured 0.1.0 available 1.0.0 0.2.0
+              !tux configured 1.0.0
+                libbox configured 1.0.0
+                !tix configured 0.1.0 available 1.0.0
               !dex configured 1.0.0
                 !bar configured 1.0.0
-                  libbar configured !1.0.0
-                libfoo configured !1.0.0
-            libbar configured !1.0.0
-            libbox configured !1.0.0
-          !diz configured 1.0.0
-            !dox configured 1.0.0
+                  libbar configured 1.0.0
+                libfoo configured 1.0.0
+              !dox configured 1.0.0
+                !dex configured 1.0.0
+                  !bar configured 1.0.0
+                    libbar configured 1.0.0
+                  libfoo configured 1.0.0
+              !dix configured 1.0.0
+                !dox configured 1.0.0
+                  !dex configured 1.0.0
+                    !bar configured 1.0.0
+                      libbar configured 1.0.0
+                    libfoo configured 1.0.0
+                libbar configured 1.0.0
+                libbox configured 1.0.0
+              !diz configured 1.0.0
+                !dox configured 1.0.0
+                  !dex configured 1.0.0
+                    !bar configured 1.0.0
+                      libbar configured 1.0.0
+                    libfoo configured 1.0.0
+                libbar configured 1.0.0
+                libbox configured 1.0.0
+              EOO
+
+            # Drop the configured packages by sequentially turning all of them
+            # into dependencies.
+            #
+            for p: $ps
+              $* ?$p 2>!
+            end
+          }
+
+          : reverse-order
+          :
+          {
+            $clone_cfg;
+
+            ps = dox diz dix dex tux tuz tez toz tiz tix tex tax buc buz biz \
+                 boo bex bix bux bax box bus bas bat bac baz bar fex fix fux \
+                 fox foo;
+
+            for p: $ps
+              $* $p 2>!
+            end;
+
+            $pkg_status -r >>EOO;
+              !bar configured 1.0.0
+                libbar configured 1.0.0
               !dex configured 1.0.0
                 !bar configured 1.0.0
-                  libbar configured !1.0.0
-                libfoo configured !1.0.0
-            libbar configured !1.0.0
-            libbox configured !1.0.0
-          EOO
-
-        $pkg_drop foo fox fux fix fex bar baz bac bat bas bus box bax bux bix \
-                  bex boo biz buz buc tax tex tix tiz toz tez tux dex dix diz \
-                  dox
-      }
-
-      : upgrade-immediate
-      :
-      {
-        $clone_cfg;
-
-        $* ?libfoo/0.1.0 ?libbar/0.1.0 ?libbaz/0.1.0 ?libbox/0.1.0 \
-           ?libbiz/0.1.0 foo/0.1.0 fox/0.1.0 fux/1.0.0 fix/0.1.0 fex/1.0.0 \
-           bar/0.1.0 baz/0.1.0 bac/1.0.0 bat/1.0.0 bas/1.0.0 bus/0.1.0 \
-           box/0.1.0 bax/1.0.0 bux/1.0.0 bix/1.0.0 bex/1.0.0 boo/1.0.0 \
-           biz/0.1.0 buz/1.0.0 buc/1.0.0 tax/1.0.0 tex/0.1.0 tix/0.1.0 \
-           tiz/1.0.0 toz/0.1.0 tez/1.0.0 tux/1.0.0 dex/1.0.0 dix/1.0.0 \
-           diz/1.0.0 dox/1.0.0 2>!;
-
-        $pkg_status -r >>EOO;
-          !bat configured !1.0.0
-            libbaz configured !0.1.0 available 1.0.0
-          !biz configured !0.1.0 available 1.0.0
-            libbiz configured !0.1.0 available 1.0.0
-          !tix configured !0.1.0 available 1.0.0
-          !toz configured !0.1.0 available 1.0.0 0.2.0
-          !box configured !0.1.0 available 1.0.0 0.2.0
-            libbox configured !0.1.0 available 1.0.0
-          !tux configured !1.0.0
-            libbox configured !0.1.0 available 1.0.0
-            !tix configured !0.1.0 available 1.0.0
-          !fox configured !0.1.0 available 1.0.0 0.2.0
-            libbar configured !0.1.0 available 1.0.0
-          !bar configured !0.1.0 available 1.0.0
-            libbar configured !0.1.0 available 1.0.0
-          !bux configured !1.0.0
-            libbar configured !0.1.0 available 1.0.0
-          !bex configured !1.0.0
-            libbar configured !0.1.0 available 1.0.0
-          !boo configured !1.0.0
-            libbar configured !0.1.0 available 1.0.0
-          !buz configured !1.0.0
-            !bux configured !1.0.0
-              libbar configured !0.1.0 available 1.0.0
-          !tez configured !1.0.0
-            libbar configured !0.1.0 available 1.0.0
-            libbox configured !0.1.0 available 1.0.0
-            !toz configured !0.1.0 available 1.0.0 0.2.0
-          !bix configured !1.0.0
-            !bar configured !0.1.0 available 1.0.0
-              libbar configured !0.1.0 available 1.0.0
-            !bux configured !1.0.0
-              libbar configured !0.1.0 available 1.0.0
-            libbar configured !0.1.0 available 1.0.0
-          !foo configured !0.1.0 available 1.0.0 0.2.0
-            libfoo configured !0.1.0 available 1.0.0
-          !fux configured !1.0.0
-            libfoo configured !0.1.0 available 1.0.0
-          !baz configured !0.1.0 available 1.0.0
-            libbar configured !0.1.0 available 1.0.0
-            libfoo configured !0.1.0 available 1.0.0
-          !bac configured !1.0.0
-            libbar configured !0.1.0 available 1.0.0
-            libbaz configured !0.1.0 available 1.0.0
-            libfoo configured !0.1.0 available 1.0.0
-          !fix configured !0.1.0 available 1.0.0
-            !foo configured !0.1.0 available 1.0.0 0.2.0
-              libfoo configured !0.1.0 available 1.0.0
-          !fex configured !1.0.0
-            !foo configured !0.1.0 available 1.0.0 0.2.0
-              libfoo configured !0.1.0 available 1.0.0
-            libfoo configured !0.1.0 available 1.0.0
-          !bus configured !0.1.0 available 1.0.0
-            !foo configured !0.1.0 available 1.0.0 0.2.0
-              libfoo configured !0.1.0 available 1.0.0
-          !bas configured !1.0.0
-            !bus configured !0.1.0 available 1.0.0
-              !foo configured !0.1.0 available 1.0.0 0.2.0
-                libfoo configured !0.1.0 available 1.0.0
-            libbar configured !0.1.0 available 1.0.0
-          !bax configured !1.0.0
-            libbar configured !0.1.0 available 1.0.0
-            libbox configured !0.1.0 available 1.0.0
-            libfoo configured !0.1.0 available 1.0.0
-          !buc configured !1.0.0
-            !bux configured !1.0.0
-              libbar configured !0.1.0 available 1.0.0
-            libfoo configured !0.1.0 available 1.0.0
-          !tax configured !1.0.0
-            libbar configured !0.1.0 available 1.0.0
-            libfoo configured !0.1.0 available 1.0.0
-          !tex configured !0.1.0 available 1.0.0 0.3.0 0.2.0
-            libfoo configured !0.1.0 available 1.0.0
-          !tiz configured !1.0.0
-            libbar configured !0.1.0 available 1.0.0
-            !tex configured !0.1.0 available 1.0.0 0.3.0 0.2.0
-              libfoo configured !0.1.0 available 1.0.0
-          !dex configured !1.0.0
-            !bar configured !0.1.0 available 1.0.0
-              libbar configured !0.1.0 available 1.0.0
-            libfoo configured !0.1.0 available 1.0.0
-          !dox configured !1.0.0
-            !dex configured !1.0.0
-              !bar configured !0.1.0 available 1.0.0
-                libbar configured !0.1.0 available 1.0.0
-              libfoo configured !0.1.0 available 1.0.0
-          !dix configured !1.0.0
-            !dox configured !1.0.0
-              !dex configured !1.0.0
-                !bar configured !0.1.0 available 1.0.0
-                  libbar configured !0.1.0 available 1.0.0
-                libfoo configured !0.1.0 available 1.0.0
-            libbar configured !0.1.0 available 1.0.0
-            libbox configured !0.1.0 available 1.0.0
-          !diz configured !1.0.0
-            !dox configured !1.0.0
-              !dex configured !1.0.0
-                !bar configured !0.1.0 available 1.0.0
-                  libbar configured !0.1.0 available 1.0.0
-                libfoo configured !0.1.0 available 1.0.0
-            libbar configured !0.1.0 available 1.0.0
-            libbox configured !0.1.0 available 1.0.0
-          EOO
-
-        $* --upgrade --immediate 2>!;
-
-        $pkg_status -r >>EOO;
-          !bat configured 1.0.0
-            libbaz configured !1.0.0
-          !biz configured 1.0.0
-            !boo configured 1.0.0
-              libbar configured !1.0.0
-          !tix configured 0.1.0 available 1.0.0
-          !toz configured 0.1.0 available 1.0.0 0.2.0
-          !box configured 1.0.0
-            libbar configured !1.0.0
-            libfoo configured !1.0.0
-          !tux configured 1.0.0
-            libbox configured !1.0.0
-            !tix configured 0.1.0 available 1.0.0
-          !fox configured 1.0.0
-            libfoo configured !1.0.0
-          !bar configured 1.0.0
-            libbar configured !1.0.0
-          !bux configured 1.0.0
-            libbar configured !1.0.0
-          !bex configured 1.0.0
-            libbar configured !1.0.0
-          !boo configured 1.0.0
-            libbar configured !1.0.0
-          !buz configured 1.0.0
-            !bux configured 1.0.0
-              libbar configured !1.0.0
-          !tez configured 1.0.0
-            libbar configured !1.0.0
-            libbox configured !1.0.0
-            !toz configured 0.1.0 available 1.0.0 0.2.0
-          !bix configured 1.0.0
-            !bar configured 1.0.0
-              libbar configured !1.0.0
-            !bux configured 1.0.0
-              libbar configured !1.0.0
-            libbar configured !1.0.0
-          !foo configured 1.0.0
-            libfoo configured !1.0.0
-          !fux configured 1.0.0
-            libfoo configured !1.0.0
-          !baz configured 1.0.0
-            libbar configured !1.0.0
-            libfoo configured !1.0.0
-          !bac configured 1.0.0
-            libbar configured !1.0.0
-            libbaz configured !1.0.0
-            libfoo configured !1.0.0
-          !fix configured 1.0.0
-            !foo configured 1.0.0
-              libfoo configured !1.0.0
-          !fex configured 1.0.0
-            !foo configured 1.0.0
-              libfoo configured !1.0.0
-            libfoo configured !1.0.0
-          !bus configured 1.0.0
-            !foo configured 1.0.0
-              libfoo configured !1.0.0
-            libbaz configured !1.0.0
-          !bas configured 1.0.0
-            !bus configured 1.0.0
+                  libbar configured 1.0.0
+                libfoo configured 1.0.0
+              !dox configured 1.0.0
+                !dex configured 1.0.0
+                  !bar configured 1.0.0
+                    libbar configured 1.0.0
+                  libfoo configured 1.0.0
+              !diz configured 1.0.0
+                !dox configured 1.0.0
+                  !dex configured 1.0.0
+                    !bar configured 1.0.0
+                      libbar configured 1.0.0
+                    libfoo configured 1.0.0
+                libbar configured 1.0.0
+                libbox configured 1.0.0
+              !dix configured 1.0.0
+                !dox configured 1.0.0
+                  !dex configured 1.0.0
+                    !bar configured 1.0.0
+                      libbar configured 1.0.0
+                    libfoo configured 1.0.0
+                libbar configured 1.0.0
+                libbox configured 1.0.0
+              !tix configured 0.1.0 available 1.0.0
+              !tux configured 1.0.0
+                libbox configured 1.0.0
+                !tix configured 0.1.0 available 1.0.0
+              !toz configured 0.1.0 available 1.0.0 0.2.0
+              !tuz configured 1.0.0
+                !toz configured 0.1.0 available 1.0.0 0.2.0
+              !tez configured 1.0.0
+                libbar configured 1.0.0
+                libbox configured 1.0.0
+                !toz configured 0.1.0 available 1.0.0 0.2.0
+              !tex configured 1.0.0
+                libbar configured 1.0.0
+                libfoo configured 1.0.0
+              !tiz configured 1.0.0
+                libbar configured 1.0.0
+                !tex configured 1.0.0
+                  libbar configured 1.0.0
+                  libfoo configured 1.0.0
+              !tax configured 1.0.0
+                libbar configured 1.0.0
+                libfoo configured 1.0.0
+              !bux configured 1.0.0
+                libbar configured 1.0.0
+              !buc configured 1.0.0
+                !bux configured 1.0.0
+                  libbar configured 1.0.0
+                libfoo configured 1.0.0
+              !buz configured 1.0.0
+                !bux configured 1.0.0
+                  libbar configured 1.0.0
+              !boo configured 1.0.0
+                libbar configured 1.0.0
+              !biz configured 1.0.0
+                !boo configured 1.0.0
+                  libbar configured 1.0.0
+              !bex configured 1.0.0
+                libbar configured 1.0.0
+              !bix configured 1.0.0
+                !bar configured 1.0.0
+                  libbar configured 1.0.0
+                !bux configured 1.0.0
+                  libbar configured 1.0.0
+                libbar configured 1.0.0
+              !bax configured 1.0.0
+                libbar configured 1.0.0
+                libbox configured 1.0.0
+                libfoo configured 1.0.0
+              !box configured 1.0.0
+                libbar configured 1.0.0
+                libfoo configured 1.0.0
               !foo configured 1.0.0
-                libfoo configured !1.0.0
-              libbaz configured !1.0.0
-            libbar configured !1.0.0
-          !bax configured 1.0.0
-            libbar configured !1.0.0
-            libbox configured !1.0.0
-            libfoo configured !1.0.0
-          !buc configured 1.0.0
-            !bux configured 1.0.0
-              libbar configured !1.0.0
-            libfoo configured !1.0.0
-          !tax configured 1.0.0
-            libbar configured !1.0.0
-            libfoo configured !1.0.0
-          !tex configured 1.0.0
-            libbar configured !1.0.0
-            libfoo configured !1.0.0
-          !tiz configured 1.0.0
-            libbar configured !1.0.0
-            !tex configured 1.0.0
-              libbar configured !1.0.0
-              libfoo configured !1.0.0
-          !dex configured 1.0.0
-            !bar configured 1.0.0
-              libbar configured !1.0.0
-            libfoo configured !1.0.0
-          !dox configured 1.0.0
-            !dex configured 1.0.0
-              !bar configured 1.0.0
-                libbar configured !1.0.0
-              libfoo configured !1.0.0
-          !dix configured 1.0.0
-            !dox configured 1.0.0
-              !dex configured 1.0.0
-                !bar configured 1.0.0
-                  libbar configured !1.0.0
-                libfoo configured !1.0.0
-            libbar configured !1.0.0
-            libbox configured !1.0.0
-          !diz configured 1.0.0
-            !dox configured 1.0.0
-              !dex configured 1.0.0
-                !bar configured 1.0.0
-                  libbar configured !1.0.0
-                libfoo configured !1.0.0
-            libbar configured !1.0.0
-            libbox configured !1.0.0
-          EOO
+                libfoo configured 1.0.0
+              !bus configured 1.0.0
+                !foo configured 1.0.0
+                  libfoo configured 1.0.0
+                libbaz configured 1.0.0
+              !bas configured 1.0.0
+                !bus configured 1.0.0
+                  !foo configured 1.0.0
+                    libfoo configured 1.0.0
+                  libbaz configured 1.0.0
+                libbar configured 1.0.0
+              !bat configured 1.0.0
+                libbaz configured 1.0.0
+              !bac configured 1.0.0
+                libbar configured 1.0.0
+                libbaz configured 1.0.0
+                libfoo configured 1.0.0
+              !baz configured 1.0.0
+                libbar configured 1.0.0
+                libfoo configured 1.0.0
+              !fex configured 1.0.0
+                !foo configured 1.0.0
+                  libfoo configured 1.0.0
+                libfoo configured 1.0.0
+              !fix configured 1.0.0
+                !foo configured 1.0.0
+                  libfoo configured 1.0.0
+              !fux configured 1.0.0
+                libfoo configured 1.0.0
+              !fox configured 1.0.0
+                libfoo configured 1.0.0
+              EOO
 
-        $pkg_drop foo fox fux fix fex bar baz bac bat bas bus box bax bux bix \
-                  bex boo biz buz buc tax tex tix tiz toz tez tux dex dix diz \
-                  dox
+            # Drop the configured packages by sequentially turning all of them
+            # into dependencies.
+            #
+            for p: $ps
+              $* ?$p 2>!
+            end
+          }
+
+          : reordered
+          :
+          : Vary the order of package builds. Note that the first order is the
+          : original direct package order and the last one is the reverse
+          : order.
+          :
+          if $all
+          {
+            $clone_cfg;
+
+            ds = foo fox fux fix fex bar baz bac bat bas bus box bax bux bix \
+                 bex boo biz buz buc tax tex tix tiz toz tez tuz tux dex dix \
+                 diz dox '';
+
+            # Prepare the package build list.
+            #
+            for i: $integer.integer_sequence(1, $name.size($ds))
+              d = ($ds[$i])
+              ps =
+
+              prepend = true
+              for p: $ds
+                if ($p == $d)
+                  prepend = false
+                end
+
+                if ($p != '')
+                  if $prepend
+                    ps =+ $p
+                  else
+                    ps += $p
+                  end
+                end
+              end
+
+              echo $ps >&2 2>|
+
+              # Build the packages, one at a time, creating the list of
+              # successfully built packages.
+              #
+              # Note that a package build may potentially fail due to some
+              # ambiguity which requires user's additional input. We just
+              # silently ignore such failures.
+              #
+              cps =
+              for p: $ps
+                timeout 60
+                if $* $p 2>&1 | $warn_to_info 2>!
+                  cps += $p
+                end
+              end
+
+              # Drop the configured packages by sequentially turning all of
+              # them into dependencies.
+              #
+              for p: $cps
+                timeout 60
+                $* ?$p 2>!
+              end
+            end
+          }
+        }
       }
     }
   }

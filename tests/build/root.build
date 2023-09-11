@@ -1,6 +1,10 @@
 # file      : tests/build/root.build
 # license   : MIT; see accompanying LICENSE file
 
+# Enable all tests, including those which takes a long time to execute.
+#
+config [bool] config.bpkg.tests.all ?= false
+
 # Use remote instead of local repository locations for tests.
 #
 # Note that this is an "instead of" rather than "in addition to" configuration
@@ -19,6 +23,7 @@ config [bool] config.bpkg.tests.git.ssh ?= false
 # Using the project configuration variables all over the testscripts makes
 # them look hairy. Thus, let's provide short aliases for these variables.
 #
+all     = $config.bpkg.tests.all
 remote  = $config.bpkg.tests.remote
 git_ssh = $config.bpkg.tests.git.ssh
 
