@@ -6219,7 +6219,7 @@ test.arguments += --sys-no-query
       {
         $clone_cfg;
 
-        $* libfoo 2>!;
+        $* libfoo --verbose 1 2>!;
 
         $* foo 2>>~%EOE%;
           %.*
@@ -6549,7 +6549,7 @@ test.arguments += --sys-no-query
           #  foo/1.0.0: depends: libfoo(c)
           #  fox/1.0.0: depends: libfoo(c)
           #
-          $* libfoo/0.1.0 foo/1.0.0 fox/1.0.0 2>!;
+          $* libfoo/0.1.0 foo/1.0.0 fox/1.0.0 --verbose 1 2>!;
 
           $pkg_status -r >>EOO;
             !libfoo configured !0.1.0 available 1.0.0
@@ -6674,7 +6674,7 @@ test.arguments += --sys-no-query
           #
           #  foo: depends: libfoo(c)
           #
-          $* bus/0.1.0 2>!;
+          $* bus/0.1.0 --verbose 1 2>!;
 
           $pkg_status -r >>EOO;
             !bus configured !0.1.0 available 1.0.0
@@ -6825,7 +6825,7 @@ test.arguments += --sys-no-query
           #  fix/0.1.0: depends: foo == 0.1.0
           #  foo/0.1.0: depends: libfoo(c)
           #
-          $* fix 2>!;
+          $* fix --verbose 1 2>!;
 
           $* libfoo/0.1.0 fix/0.1.0 2>>~%EOE%;
             %.*
@@ -6947,7 +6947,7 @@ test.arguments += --sys-no-query
           #  tex: depends: libbar(c)
           #       depends: libfoo(c)
           #
-          $* tex 2>!;
+          $* tex --verbose 1 2>!;
 
           $* libfoo/0.1.0 libbar/0.1.0 2>>~%EOE%;
             %.*
@@ -7043,7 +7043,7 @@ test.arguments += --sys-no-query
           #
           #  bar: depends: libbar == 0.1.0 (c)
           #
-          $* tex 2>!;
+          $* tex --verbose 1 2>!;
 
           $* libfoo/0.1.0 bar/0.1.0 2>>~%EOE%;
             %.*
@@ -7168,7 +7168,7 @@ test.arguments += --sys-no-query
           #
           #  baz: depends: {libbar libfoo} == 0.1.0 (c)
           #
-          $* tex 2>!;
+          $* tex --verbose 1 2>!;
 
           $* baz/0.1.0 2>>~%EOE%;
             %.*
@@ -7254,7 +7254,7 @@ test.arguments += --sys-no-query
             #
             #  baz: depends: {libbar libfoo} (c)
             #
-            $* bax baz 2>!;
+            $* bax baz --verbose 1 2>!;
 
             $* libbox/0.1.0 2>>~%EOE%;
               %.*
@@ -7402,7 +7402,7 @@ test.arguments += --sys-no-query
             #
             #  box: depends: libbox == 0.1.0 (c)
             #
-            $* bax baz 2>!;
+            $* bax baz --verbose 1 2>!;
 
             $* box/0.1.0 2>>~%EOE%;
               %.*
@@ -7569,7 +7569,7 @@ test.arguments += --sys-no-query
             #
             #  baz: depends: {libbar libfoo} (c)
             #
-            $* bax baz 2>!;
+            $* bax baz --verbose 1 2>!;
 
             $pkg_status -r >>EOO;
               !bax configured 1.0.0
@@ -10273,7 +10273,7 @@ test.arguments += --sys-no-query
             #  tix: depends: libbar(c)
             #       depends: tex(c)
             #
-            $* tex 2>!;
+            $* tex --verbose 1 2>!;
 
             # Build new dependency of an existing dependent.
             #
@@ -10507,7 +10507,7 @@ test.arguments += --sys-no-query
             #  tix: depends: libbar(c)
             #       depends: tex(c)
             #
-            $* tex tix 2>!;
+            $* tex tix --verbose 1 2>!;
 
             $* tix tex/0.1.0 2>>~%EOE%;
               %.*
@@ -10611,7 +10611,7 @@ test.arguments += --sys-no-query
             #  tix: depends: libbar(c)
             #       depends: tex(c)
             #
-            $* tex tix 2>!;
+            $* tex tix --verbose 1 2>!;
 
             $* tix ?tex/0.1.0 2>>~%EOE%;
               %.*
@@ -10720,7 +10720,7 @@ test.arguments += --sys-no-query
             #  tix: depends: libbar(c)
             #       depends: tex(c)
             #
-            $* tex tix 2>!;
+            $* tex tix --verbose 1 2>!;
 
             $* tix ?tex/0.2.0 2>>~%EOE%;
               %.*
@@ -12307,7 +12307,7 @@ test.arguments += --sys-no-query
             #       depends: libbox(c) # causes postponement and initial cluster finished negotiating
             #       depends: dox(c)
             #
-            $* dex 2>!;
+            $* dex --verbose 1 2>!;
 
             $* dix 2>>~%EOE%;
               %.*
@@ -12916,7 +12916,7 @@ test.arguments += --sys-no-query
       #  tex: depends: libbar(c)
       #       depends: libfoo(c)
       #
-      $* tix ?libfoo/0.1.0 2>!;
+      $* tix ?libfoo/0.1.0 --verbose 1 2>!;
 
       $pkg_status -r >>EOO;
         !tix configured 1.0.0
@@ -13106,7 +13106,7 @@ test.arguments += --sys-no-query
       #  tex: depends: libbar(c)
       #       depends: libfoo(c)
       #
-      $* tiz ?libfoo/0.1.0 2>!;
+      $* tiz ?libfoo/0.1.0 --verbose 1 2>!;
 
       $pkg_status -r >>EOO;
         !tiz configured 1.0.0
@@ -13313,7 +13313,7 @@ test.arguments += --sys-no-query
       #
       #  bar: depends: libbar(c)
       #
-      $* diz libbar/0.1.0 ?libbox/0.1.0 2>!;
+      $* diz libbar/0.1.0 ?libbox/0.1.0 --verbose 1 2>!;
 
       $pkg_status -r >>EOO;
         !libbar configured !0.1.0 available 1.0.0
@@ -13986,7 +13986,7 @@ test.arguments += --sys-no-query
       #
       #  bar: depends: libbar(c)
       #
-      $* diz dex libbar/0.1.0 2>!;
+      $* diz dex libbar/0.1.0 --verbose 1 2>!;
 
       $pkg_status -r >>EOO;
         !libbar configured !0.1.0 available 1.0.0
@@ -14406,7 +14406,7 @@ test.arguments += --sys-no-query
       #  tex: depends: libbar(c)
       #       depends: libfoo(c)
       #
-      $* tiz libbar/0.1.0 2>!;
+      $* tiz libbar/0.1.0 --verbose 1 2>!;
 
       $pkg_status -r >>EOO;
         !libbar configured !0.1.0 available 1.0.0
@@ -14627,7 +14627,7 @@ test.arguments += --sys-no-query
       #
       #  toz/0.1.0:
       #
-      $* tiz toz 2>!;
+      $* tiz toz --verbose 1 2>!;
 
       $pkg_status -r >>EOO;
         !tiz configured 1.0.0
@@ -15061,7 +15061,7 @@ test.arguments += --sys-no-query
       #             depends: libfoo(c)
       #             depends: libbar(c)
       #
-      $* tiz tez/0.1.0 tuz 2>!;
+      $* tiz tez/0.1.0 tuz --verbose 1 2>!;
 
       $pkg_status -r >>EOO;
         !tiz configured 1.0.0
@@ -15557,7 +15557,7 @@ test.arguments += --sys-no-query
       #
       #  box/0.1.0: depends: libbox(c)
       #
-      $* bax tex 2>!;
+      $* bax tex --verbose 1 2>!;
 
       $pkg_status -r >>EOO;
         !bax configured 1.0.0
@@ -15569,7 +15569,7 @@ test.arguments += --sys-no-query
           libfoo configured 1.0.0
         EOO
 
-      $* box/0.2.0  2>>~%EOE%;
+      $* box/0.2.0 2>>~%EOE%;
         %.*
         trace: pkg_build: refine package collection/plan execution from scratch
         %.*
@@ -15883,7 +15883,7 @@ test.arguments += --sys-no-query
       #
       #  box/0.1.0: depends: libbox(c)
       #
-      $* bax tiz 2>!;
+      $* bax tiz --verbose 1 2>!;
 
       $pkg_status -r >>EOO;
         !bax configured 1.0.0
@@ -16393,7 +16393,7 @@ test.arguments += --sys-no-query
       #
       #  toz/0.1.0:
       #
-      $* bax tiz 2>!;
+      $* bax tiz --verbose 1 2>!;
 
       $pkg_status -r >>EOO;
         !bax configured 1.0.0
@@ -16960,7 +16960,7 @@ test.arguments += --sys-no-query
       #
       #  toz/0.1.0:
       #
-      $* box bax toz 2>!;
+      $* box bax toz --verbose 1 2>!;
 
       $pkg_status -r >>EOO;
         !box configured 1.0.0
@@ -17618,7 +17618,7 @@ test.arguments += --sys-no-query
       #
       #  bat: depends: libbaz(c)
       #
-      $* bax bas 2>!;
+      $* bax bas --verbose 1 2>!;
 
       $pkg_status -r >>EOO;
         !bax configured 1.0.0
@@ -18130,6 +18130,17 @@ test.arguments += --sys-no-query
     {
       +$clone_cfg
 
+      # Note that we don't mach the configuration negotiation flows in the
+      # tests of this scope.
+      #
+      test.arguments += --verbose 1
+
+      # Convert specific warnings to infos since we expect them to
+      # appear. This, in particular, prevents bbot workers to set task result
+      # status to warning.
+      #
+      warn_to_info = [cmdline] sed -e 's/warning: (package .* is forcing .*)/info: \1/' >&2
+
       : new-all
       :
       {
@@ -18397,7 +18408,7 @@ test.arguments += --sys-no-query
                 libbox configured !0.1.0 available 1.0.0
               EOO
 
-            $* --upgrade --recursive 2>!;
+            $* --upgrade --recursive 2>&1 | $warn_to_info 2>!;
 
             $pkg_status -r >>EOO;
               !libbar configured 1.0.0
@@ -18640,7 +18651,7 @@ test.arguments += --sys-no-query
                 libbox configured !0.1.0 available 1.0.0
               EOO
 
-            $* --upgrade --recursive 2>!;
+            $* --upgrade --recursive 2>&1 | $warn_to_info 2>!;
 
             $pkg_status -r >>EOO;
               !bat configured 1.0.0
@@ -18891,7 +18902,7 @@ test.arguments += --sys-no-query
                 libbox configured !0.1.0 available 1.0.0
               EOO
 
-            $* --upgrade --immediate 2>!;
+            $* --upgrade --immediate 2>&1 | $warn_to_info 2>!;
 
             $pkg_status -r >>EOO;
               !libbar configured 1.0.0
@@ -19134,7 +19145,7 @@ test.arguments += --sys-no-query
                 libbox configured !0.1.0 available 1.0.0
               EOO
 
-            $* --upgrade --immediate 2>!;
+            $* --upgrade --immediate 2>&1 | $warn_to_info 2>!;
 
             $pkg_status -r >>EOO;
               !bat configured 1.0.0
@@ -19271,7 +19282,7 @@ test.arguments += --sys-no-query
                tix tiz toz tez tuz tux dex dix diz dox;
 
           for p: $ps
-            $* $p 2>!
+            $* $p 2>&1 | $warn_to_info 2>!
           end;
 
           $pkg_status -r >>EOO;
@@ -19416,7 +19427,7 @@ test.arguments += --sys-no-query
                  tix tiz toz tez tuz tux dex dix diz dox;
 
             for p: $ps
-              $* $p 2>!
+              $* $p 2>&1 | $warn_to_info 2>!
             end;
 
             $pkg_status -r >>EOO;
@@ -19536,7 +19547,7 @@ test.arguments += --sys-no-query
             # into dependencies.
             #
             for p: $ps
-              $* ?$p 2>!
+              $* ?$p 2>&1 | $warn_to_info 2>!
             end
           }
 
@@ -19550,7 +19561,7 @@ test.arguments += --sys-no-query
                  fox foo;
 
             for p: $ps
-              $* $p 2>!
+              $* $p 2>&1 | $warn_to_info 2>!
             end;
 
             $pkg_status -r >>EOO;
