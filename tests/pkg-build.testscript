@@ -17703,6 +17703,134 @@ test.arguments += --sys-no-query
       $pkg_drop bax bas bat
     }
 
+    : recollect-pruned-collection
+    :
+    {
+      $clone_cfg;
+
+      $* libbar/0.1.0 libbiz/0.1.0 bax 2>!;
+
+      $pkg_status -r >>EOO;
+        !libbar configured !0.1.0 available 1.0.0
+        !libbiz configured !0.1.0 available 1.0.0
+        !bax configured 1.0.0
+          !libbar configured !0.1.0 available 1.0.0
+          libbox configured 1.0.0
+          libfoo configured 1.0.0
+        EOO
+
+      $* --upgrade --immediate 2>&1 | $filter 2>>~%EOE%;
+        %.*
+        trace: pkg_build: refine package collection/plan execution from scratch
+        trace: collect_build: add libbar/1.0.0
+        trace: collect_build: add libbiz/1.0.0
+        trace: collect_build: add bax/1.0.0
+        trace: collect_build_prerequisites: pre-reeval bax/1.0.0
+        trace: collect_build_prerequisites: pre-reevaluated bax/1.0.0: 1,1
+        trace: collect_build: add libfoo/1.0.0
+        trace: collect_build_prerequisites: cfg-postpone dependency libfoo/1.0.0 of existing dependent bax/1.0.0 due to dependency libbar/1.0.0
+        trace: postponed_configurations::add: create {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build_prerequisites: begin libbiz/1.0.0
+        trace: collect_build: pick libbar/1.0.0 over libbar/0.1.0
+        trace: collect_build_prerequisites: no cfg-clause for dependency libbar/1.0.0 of dependent libbiz/1.0.0
+        trace: collect_build_prerequisites: begin libbar/1.0.0
+        trace: collect_build_prerequisites: end libbar/1.0.0
+        trace: collect_build_prerequisites: end libbiz/1.0.0
+        trace: collect_build_prerequisites: skip configured bax/1.0.0
+        trace: collect_build_postponed (0): begin
+        trace: collect_build_postponed (1): begin {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build_prerequisites: pre-reeval bax/1.0.0
+        trace: collect_build_prerequisites: pre-reevaluated bax/1.0.0: 1,1
+        trace: collect_build_postponed (1): re-evaluate existing dependents for {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build_prerequisites: reeval bax/1.0.0
+        trace: postponed_configurations::add: add {bax^ 1,1: libfoo} to {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build_prerequisites: re-evaluating dependent bax/1.0.0 results in {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build_prerequisites: re-evaluated bax/1.0.0
+        trace: collect_build_postponed (1): cfg-negotiate begin {bax^ | libfoo->{bax/1,1}}
+        trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
+        trace: collect_build_prerequisites: skip configured libfoo/1.0.0
+        trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
+        trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent bax/1.0.0
+        trace: collect_build_prerequisites: resume bax/1.0.0
+        trace: collect_build: add libbox/1.0.0
+        trace: collect_build_prerequisites: cfg-postpone dependency libbox/1.0.0 of dependent bax/1.0.0
+        trace: collect_build: pick libbar/1.0.0 over libbar/0.1.0
+        trace: collect_build_prerequisites: cannot cfg-postpone dependency libbar/1.0.0 of dependent bax/1.0.0 (collected prematurely), throwing postpone_dependency
+        trace: pkg_build: collection failed due to prematurely collected dependency (libbar), retry from scratch
+        trace: pkg_build: refine package collection/plan execution from scratch
+        trace: collect_build: add libbar/1.0.0
+        trace: collect_build: add libbiz/1.0.0
+        trace: collect_build: add bax/1.0.0
+        trace: pkg_build: dep-postpone user-specified libbar
+        trace: collect_build_prerequisites: begin libbiz/1.0.0
+        trace: collect_build: pick libbar/1.0.0 over libbar/0.1.0
+        trace: collect_build_prerequisites: dep-postpone dependency libbar/1.0.0 of dependent libbiz/1.0.0
+        trace: collect_build_prerequisites: end libbiz/1.0.0
+        trace: collect_build_prerequisites: skip configured bax/1.0.0
+        trace: collect_build_postponed (0): begin
+        trace: collect_build_prerequisites: pre-reeval bax/1.0.0
+        trace: collect_build_prerequisites: pre-reevaluated bax/1.0.0: 1,1
+        trace: collect_build_postponed (0): schedule re-collection of existing dependent bax/1.0.0 due to bogus postponement of dependency libbar
+        trace: collect_build_prerequisites: begin bax/1.0.0
+        trace: collect_build: add libfoo/1.0.0
+        trace: collect_build_prerequisites: cfg-postpone dependency libfoo/1.0.0 of dependent bax/1.0.0
+        trace: postponed_configurations::add: create {bax | libfoo->{bax/1,1}}
+        trace: collect_build_prerequisites: postpone bax/1.0.0
+        trace: collect_build_postponed (1): begin {bax | libfoo->{bax/1,1}}
+        trace: collect_build_postponed (1): skip being built existing dependent bax of dependency libfoo
+        trace: collect_build_postponed (1): cfg-negotiate begin {bax | libfoo->{bax/1,1}}
+        trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
+        trace: collect_build_prerequisites: skip configured libfoo/1.0.0
+        trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
+        trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent bax/1.0.0
+        trace: collect_build_prerequisites: resume bax/1.0.0
+        trace: collect_build: add libbox/1.0.0
+        trace: collect_build_prerequisites: cfg-postpone dependency libbox/1.0.0 of dependent bax/1.0.0
+        trace: collect_build: pick libbar/1.0.0 over libbar/0.1.0
+        trace: collect_build_prerequisites: cfg-postpone dependency libbar/1.0.0 of dependent bax/1.0.0
+        trace: postponed_configurations::add: create {bax | libbox->{bax/2,1} libbar->{bax/2,1}}
+        trace: collect_build_prerequisites: postpone bax/1.0.0
+        trace: collect_build_postponed (1): cfg-negotiate end {bax | libfoo->{bax/1,1}}!
+        trace: collect_build_postponed (2): begin {bax | libbox->{bax/2,1} libbar->{bax/2,1}}
+        trace: collect_build_postponed (2): skip being built existing dependent bax of dependency libbox
+        trace: collect_build_postponed (2): skip being built existing dependent bax of dependency libbar
+        trace: collect_build_postponed (2): cfg-negotiate begin {bax | libbox->{bax/2,1} libbar->{bax/2,1}}
+        trace: collect_build_postponed (2): recursively collect cfg-negotiated dependencies
+        trace: collect_build_prerequisites: skip configured libbox/1.0.0
+        trace: collect_build_prerequisites: begin libbar/1.0.0
+        trace: collect_build_prerequisites: end libbar/1.0.0
+        trace: collect_build_postponed (2): recursively collect cfg-negotiated dependents
+        trace: collect_build_postponed (2): select cfg-negotiated dependency alternative for dependent bax/1.0.0
+        trace: collect_build_prerequisites: resume bax/1.0.0
+        trace: collect_build_prerequisites: end bax/1.0.0
+        trace: collect_build_postponed (2): cfg-negotiate end {bax | libbox->{bax/2,1} libbar->{bax/2,1}}!
+        trace: collect_build_postponed (2): end {bax | libbox->{bax/2,1} libbar->{bax/2,1}}
+        trace: collect_build_postponed (1): end {bax | libfoo->{bax/1,1}}
+        trace: collect_build_postponed (0): end
+        trace: execute_plan: simulate: yes
+        %.*
+        build plan:
+          upgrade libbar/1.0.0
+            config.libbar.extras=true (set by bax)
+          reconfigure/update bax/1.0.0
+          upgrade libbiz/1.0.0
+        trace: execute_plan: simulate: no
+        %.*
+        EOE
+
+      $pkg_status -r >>EOO;
+        !libbar configured 1.0.0
+        !libbiz configured 1.0.0
+          !libbar configured 1.0.0
+        !bax configured 1.0.0
+          !libbar configured 1.0.0
+          libbox configured 1.0.0
+          libfoo configured 1.0.0
+        EOO
+
+      $pkg_drop libbar libbiz bax
+    }
+
     : repo-packages
     :
     : Don't match the tracing but just make sure that pkg-build doesn't crash

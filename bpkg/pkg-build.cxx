@@ -4472,7 +4472,11 @@ namespace bpkg
           if (find_if (postponed_recs.begin (), postponed_recs.end (),
                        [] (const build_package* p)
                        {
-                         return !p->recursive_collection;
+                         // Note that we check for the dependencies presence
+                         // rather than for the recursive_collection flag
+                         // (see collect_build_postponed() for details).
+                         //
+                         return !p->dependencies;
                        }) != postponed_recs.end () ||
               !postponed_repo.empty ()             ||
               !postponed_alts.empty ()             ||

@@ -3150,7 +3150,7 @@ namespace bpkg
 
             // Note that while collect_build() may prefer an existing entry in
             // the map and return NULL, the recursive collection of this
-            // preferred entry may have been postponed due to the existing
+            // preferred entry may has been postponed due to the existing
             // dependent (see collect_build_prerequisites() for details). Now,
             // we can potentially be recursively collecting such a dependent
             // after its re-evaluation to some earlier than this dependency
@@ -5544,7 +5544,12 @@ namespace bpkg
     for (bool prog (find_if (postponed_recs.begin (), postponed_recs.end (),
                              [] (const build_package* p)
                              {
-                               return !p->recursive_collection;
+                               // Note that we check for the dependencies
+                               // presence rather than for the
+                               // recursive_collection flag (see below for
+                               // details).
+                               //
+                               return !p->dependencies;
                              }) != postponed_recs.end () ||
                     !postponed_repo.empty ()             ||
                     !postponed_cfgs.negotiated ()        ||
@@ -5560,7 +5565,17 @@ namespace bpkg
       postponed_packages pcs;
       for (build_package* p: postponed_recs)
       {
-        if (!p->recursive_collection)
+        // Note that we check for the dependencies presence rather than for
+        // the recursive_collection flag to also recollect the existing
+        // dependents which, for example, may have been specified on the
+        // command line and whose recursive collection has been pruned since
+        // there were no reason to collect it (configured, no upgrade,
+        // etc). Also note that this time we expect the collection to be
+        // enforced with the build_recollect flag.
+        //
+        assert ((p->flags & build_package::build_recollect) != 0);
+
+        if (!p->dependencies)
         {
           package_key pk (p->db, p->name ());
 
@@ -5612,7 +5627,13 @@ namespace bpkg
           // due to it's own existing dependents.
           //
           if (p->recursive_collection)
+          {
+            // Must be present since the re-collection is enforced.
+            //
+            assert (p->dependencies);
+
             prog = true;
+          }
         }
       }
 
