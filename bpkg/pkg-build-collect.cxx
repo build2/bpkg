@@ -1503,7 +1503,7 @@ namespace bpkg
     return &p;
   }
 
-  optional<vector<postponed_configuration::dependency>> build_packages::
+  optional<build_packages::pre_reevaluate_result> build_packages::
   collect_build_prerequisites (const pkg_build_options& options,
                                build_package& pkg,
                                build_package_refs& dep_chain,
@@ -1519,7 +1519,8 @@ namespace bpkg
                                postponed_dependencies& postponed_deps,
                                postponed_configurations& postponed_cfgs,
                                unacceptable_alternatives& unacceptable_alts,
-                               optional<pair<size_t, size_t>> reeval_pos)
+                               optional<pair<size_t, size_t>> reeval_pos,
+                               const optional<package_key>& orig_dep)
   {
     // NOTE: don't forget to update collect_build_postponed() if changing
     //       anything in this function. Also enable and run the tests with the
@@ -1536,7 +1537,11 @@ namespace bpkg
     bool pre_reeval (reeval_pos && reeval_pos->first == 0);
     assert (!pre_reeval || reeval_pos->second == 0);
 
-    bool reeval  (reeval_pos && reeval_pos->first != 0);
+    // Must only be specified in the pre-reevaluation mode.
+    //
+    assert (orig_dep.has_value () == pre_reeval);
+
+    bool reeval (reeval_pos && reeval_pos->first != 0);
     assert (!reeval || reeval_pos->second != 0);
 
     // The being (pre-)re-evaluated dependent cannot be recursively collected
@@ -1569,12 +1574,16 @@ namespace bpkg
         postponed_edeps.find (pk) == postponed_edeps.end ())
     {
       // Note that there can be multiple existing dependents for a dependency.
+      // Also note that we skip the existing dependents for which re-
+      // evaluation is optional not to initiate any negotiation in a simple
+      // case (see collect_build_prerequisites() description for details).
       //
       vector<existing_dependent> eds (
         query_existing_dependents (trace,
                                    options,
                                    pk.db,
                                    pk.name,
+                                   true /* exclude_optional */,
                                    fdb,
                                    rpt_depts,
                                    replaced_vers));
@@ -1693,15 +1702,14 @@ namespace bpkg
                                           postponed_cfgs);
           }
 
-          // Postpone the original dependency recursive collection if the
-          // existing dependent has deviated or the dependency belongs to the
-          // earliest depends clause with configuration clause or to some
-          // later depends clause. It is supposed that it will be collected
-          // during its existing dependent re-collection.
+          // Postpone the recursive collection of a dependency if the existing
+          // dependent has deviated or the dependency belongs to the earliest
+          // depends clause with configuration clause or to some later depends
+          // clause. It is supposed that it will be collected during its
+          // existing dependent re-collection.
           //
-          if (!ed.dependency               || // Dependent has deviated.
-              !ed.orig_dependency_position || // Later depends clause.
-              *ed.orig_dependency_position == ed.dependency_position)
+          if (!ed.dependency || // Dependent has deviated.
+              ed.originating_dependency_position >= ed.dependency_position)
           {
             postpone = true;
             postponed_edeps[pk].emplace_back (ed.db, ed.selected->name);
@@ -1873,7 +1881,23 @@ namespace bpkg
     bool postponed (false);
     bool reevaluated (false);
 
-    vector<postponed_configuration::dependency> r;
+    // In the pre-reevaluation mode keep track of configuration variable
+    // prefixes similar to what we do in pkg_configure_prerequisites(). Stop
+    // tracking if we discovered that the dependent re-evaluation is not
+    // optional.
+    //
+    vector<string> banned_var_prefixes;
+
+    auto references_banned_var = [&banned_var_prefixes] (const string& clause)
+    {
+      for (const string& p: banned_var_prefixes)
+      {
+        if (clause.find (p) != string::npos)
+          return true;
+      }
+
+      return false;
+    };
 
     if (pre_reeval)
     {
@@ -1896,9 +1920,11 @@ namespace bpkg
                       << " deviated: number of depends clauses changed to "
                       << nn << " from " << on;});
 
-        throw reeval_deviated ();
+        throw reevaluation_deviated ();
       }
     }
+
+    pre_reevaluate_result r;
 
     for (size_t di (sdeps.size ()); di != deps.size (); ++di)
     {
@@ -1932,7 +1958,7 @@ namespace bpkg
                           << ": toolchain buildtime dependency replaced the "
                           << " regular one with selected alternative " << oi;});
 
-            throw reeval_deviated ();
+            throw reevaluation_deviated ();
           }
         }
 
@@ -1958,8 +1984,23 @@ namespace bpkg
         {
           const dependency_alternative& da (das[i]);
 
-          if (!da.enable ||
-              skel.evaluate_enable (*da.enable, make_pair (di, i)))
+          bool enabled;
+
+          if (da.enable)
+          {
+            if (pre_reeval              &&
+                r.reevaluation_optional &&
+                references_banned_var (*da.enable))
+            {
+              r.reevaluation_optional = false;
+            }
+
+            enabled = skel.evaluate_enable (*da.enable, make_pair (di, i));
+          }
+          else
+            enabled = true;
+
+          if (enabled)
             edas.push_back (make_pair (ref (da), i));
         }
       }
@@ -1978,7 +2019,7 @@ namespace bpkg
                           << ": dependency with previously selected "
                           << "alternative " << oi << " is now disabled";});
 
-            throw reeval_deviated ();
+            throw reevaluation_deviated ();
           }
         }
 
@@ -2106,7 +2147,7 @@ namespace bpkg
                               << " is now in build system module "
                               << "configuration";});
 
-                throw reeval_deviated ();
+                throw reevaluation_deviated ();
               }
 
               assert (dr == nullptr); // Should fail on the "silent" run.
@@ -2173,7 +2214,7 @@ namespace bpkg
                 if (!wildcard (*dep_constr) &&
                     !satisfies (*dep_constr, dp.constraint))
                 {
-                  // We should end up throwing reeval_deviated exception
+                  // We should end up throwing reevaluation_deviated exception
                   // before the diagnostics run in the pre-reevaluation mode.
                   //
                   assert (!pre_reeval || dr == nullptr);
@@ -2279,7 +2320,7 @@ namespace bpkg
                                 << " deviated: package " << dn << *ddb
                                 << " is broken";});
 
-                  throw reeval_deviated ();
+                  throw reevaluation_deviated ();
                 }
 
                 assert (dr == nullptr); // Should fail on the "silent" run.
@@ -2414,7 +2455,7 @@ namespace bpkg
                                     << db->config_orig << ", "
                                     << ldb.config_orig;});
 
-                      throw reeval_deviated ();
+                      throw reevaluation_deviated ();
                     }
 
                     assert (dr == nullptr); // Should fail on the "silent" run.
@@ -2448,7 +2489,7 @@ namespace bpkg
                                 << "is found for build-time dependency ("
                                 << dp << ')';});
 
-                  throw reeval_deviated ();
+                  throw reevaluation_deviated ();
                 }
 
                 // The private config should be created on the "silent" run
@@ -2560,7 +2601,7 @@ namespace bpkg
                               << "module " << dn << " in its dependent "
                               << "package configuration " << pdb.config_orig;});
 
-                throw reeval_deviated ();
+                throw reevaluation_deviated ();
               }
 
               assert (dr == nullptr); // Should fail on the "silent" run.
@@ -2596,7 +2637,7 @@ namespace bpkg
                                 << pkg.available_name_version_db ()
                                 << " deviated: is now orphaned";});
 
-                  throw reeval_deviated ();
+                  throw reevaluation_deviated ();
                 }
 
                 assert (dr == nullptr); // Should fail on the "silent" run.
@@ -2675,7 +2716,7 @@ namespace bpkg
                                 << (!dep_constr ? "" : "user-specified ")
                                 << "dependency constraint (" << d << ')';});
 
-                  throw reeval_deviated ();
+                  throw reevaluation_deviated ();
                 }
 
                 if (dep_constr && !system && postponed_repo != nullptr)
@@ -2774,7 +2815,7 @@ namespace bpkg
                 //
                 if (dap->system_version (*ddb) == nullptr)
                 {
-                  // We should end up throwing reeval_deviated exception
+                  // We should end up throwing reevaluation_deviated exception
                   // before the diagnostics run in the pre-reevaluation mode.
                   //
                   assert (!pre_reeval || dr == nullptr);
@@ -2790,7 +2831,7 @@ namespace bpkg
 
                 if (!satisfies (*dap->system_version (*ddb), d.constraint))
                 {
-                  // We should end up throwing reeval_deviated exception
+                  // We should end up throwing reevaluation_deviated exception
                   // before the diagnostics run in the pre-reevaluation mode.
                   //
                   assert (!pre_reeval || dr == nullptr);
@@ -2880,7 +2921,7 @@ namespace bpkg
                     {
                       if (!satisfies (v1, c2.value))
                       {
-                        // We should end up throwing reeval_deviated exception
+                        // We should end up throwing reevaluation_deviated exception
                         // before the diagnostics run in the pre-reevaluation
                         // mode.
                         //
@@ -3691,6 +3732,7 @@ namespace bpkg
                                                   options,
                                                   d.db,
                                                   d.name,
+                                                  false /* exclude_optional */,
                                                   fdb,
                                                   rpt_depts,
                                                   replaced_vers))
@@ -3944,31 +3986,101 @@ namespace bpkg
         };
 
       // Select a dependency alternative, copying it alone into the resulting
-      // dependencies list and evaluating its reflect clause, if present.
+      // dependencies list and evaluating its reflect clause, if present. In
+      // the pre-reevaluation mode update the variable prefixes list, if the
+      // selected alternative has config clause, and the pre-reevaluation
+      // resulting information (re-evaluation position, etc).
+      //
+      // Note that prebuilds are only used in the pre-reevaluation mode.
       //
       bool selected (false);
-      auto select = [&sdeps, &salts, &sdas, &skel, di, &selected]
-        (const dependency_alternative& da, size_t dai)
+      auto select = [&sdeps, &salts, &sdas,
+                     &skel,
+                     di,
+                     &selected,
+                     pre_reeval, &banned_var_prefixes, &references_banned_var,
+                     &orig_dep,
+                     &r] (const dependency_alternative& da,
+                          size_t dai,
+                          prebuilds&& pbs)
+      {
+        assert (sdas.empty ());
+
+        if (pre_reeval)
         {
-          assert (sdas.empty ());
+          pair<size_t, size_t> pos (di + 1, dai + 1);
 
-          // Avoid copying enable/reflect not to evaluate them repeatedly.
+          bool contains_orig_dep (
+            find_if (pbs.begin (), pbs.end (),
+                     [&orig_dep] (const prebuild& pb)
+                     {
+                       return pb.dependency.name == orig_dep->name &&
+                              pb.db == orig_dep->db;
+                     }) != pbs.end ());
+
+          // If the selected alternative contains the originating dependency,
+          // then set the originating dependency position, unless it is
+          // already set (note that the same dependency package may
+          // potentially be specified in multiple depends clauses).
           //
-          sdas.emplace_back (nullopt /* enable */,
-                             nullopt /* reflect */,
-                             da.prefer,
-                             da.accept,
-                             da.require,
-                             da /* dependencies */);
+          if (contains_orig_dep && r.originating_dependency_position.first == 0)
+            r.originating_dependency_position = pos;
 
-          sdeps.push_back (move (sdas));
-          salts.push_back (dai);
+          if (da.prefer || da.require)
+          {
+            if (contains_orig_dep)
+              r.reevaluation_optional = false;
 
-          if (da.reflect)
-            skel.evaluate_reflect (*da.reflect, make_pair (di, dai));
+            // If this is the first selected alternative with the config
+            // clauses, then save its position and the dependency packages.
+            //
+            if (r.reevaluation_position.first == 0)
+            {
+              r.reevaluation_position = pos;
 
-          selected = true;
-        };
+              for (prebuild& pb: pbs)
+                r.reevaluation_dependencies.emplace_back (
+                  pb.db, move (pb.dependency.name));
+            }
+
+            // Save the variable prefixes for the selected alternative
+            // dependencies, if we still track them.
+            //
+            if (r.reevaluation_optional)
+            {
+              for (const dependency& d: da)
+                banned_var_prefixes.push_back (
+                  "config." + d.name.variable () + '.');
+            }
+          }
+        }
+
+        // Avoid copying enable/reflect not to evaluate them repeatedly.
+        //
+        sdas.emplace_back (nullopt /* enable */,
+                           nullopt /* reflect */,
+                           da.prefer,
+                           da.accept,
+                           da.require,
+                           da /* dependencies */);
+
+        sdeps.push_back (move (sdas));
+        salts.push_back (dai);
+
+        if (da.reflect)
+        {
+          if (pre_reeval              &&
+              r.reevaluation_optional &&
+              references_banned_var (*da.reflect))
+          {
+            r.reevaluation_optional = false;
+          }
+
+          skel.evaluate_reflect (*da.reflect, make_pair (di, dai));
+        }
+
+        selected = true;
+      };
 
       // Postpone the prerequisite builds collection, optionally inserting the
       // package to the postponements set (can potentially already be there)
@@ -4038,18 +4150,6 @@ namespace bpkg
         // alternative case.
         //
         bool reused_only (false);
-
-        auto pre_reeval_append_result = [&r] (pair<size_t, size_t> pos,
-                                              prebuilds&& builds)
-        {
-          postponed_configuration::packages deps;
-          deps.reserve (builds.size ());
-
-          for (prebuild& b: builds)
-            deps.emplace_back (b.db, move (b.dependency.name));
-
-          r.emplace_back (pos, move (deps), nullopt /* has_alternative */);
-        };
 
         for (size_t i (0); i != edas.size (); ++i)
         {
@@ -4142,9 +4242,7 @@ namespace bpkg
                              &trace,
                              &postpone,
                              &collect,
-                             &select,
-                             &pre_reeval_append_result]
-                            (size_t index, precollect_result&& pcr)
+                             &select] (size_t index, precollect_result&& pcr)
           {
             const auto& eda (edas[index]);
             const dependency_alternative& da (eda.first);
@@ -4192,16 +4290,7 @@ namespace bpkg
                                 << ": selected alternative changed to " << ni
                                 << " from " << oi;});
 
-                  throw reeval_deviated ();
-                }
-
-                pre_reeval_append_result (make_pair (di + 1, ni),
-                                          move (*pcr.builds));
-
-                if (da.prefer || da.require)
-                {
-                  postpone (nullptr);
-                  return true;
+                  throw reevaluation_deviated ();
                 }
               }
               else if (!collect (da, dai, move (*pcr.builds), prereqs))
@@ -4210,7 +4299,7 @@ namespace bpkg
                 return true;
               }
 
-              select (da, dai);
+              select (da, dai, move (*pcr.builds));
 
               // Make sure no more true alternatives are selected during this
               // function call unless we are (pre-)reevaluating a dependent.
@@ -4284,16 +4373,7 @@ namespace bpkg
                               << ": selected alternative (single) changed to "
                               << ni << " from " << oi;});
 
-                  throw reeval_deviated ();
-              }
-
-              pre_reeval_append_result (make_pair (di + 1, ni),
-                                        move (*pcr.builds));
-
-              if (da.prefer || da.require)
-              {
-                postpone (nullptr);
-                break;
+                  throw reevaluation_deviated ();
               }
             }
             else if (!collect (da, dai, move (*pcr.builds), prereqs))
@@ -4302,7 +4382,7 @@ namespace bpkg
               break;
             }
 
-            select (da, dai);
+            select (da, dai, move (*pcr.builds));
           }
         }
 
@@ -4329,7 +4409,7 @@ namespace bpkg
                           << ": now can't select alternative, previously "
                           << oi << " was selected";});
 
-            throw reeval_deviated ();
+            throw reevaluation_deviated ();
           }
 
           if (reeval)
@@ -4445,7 +4525,15 @@ namespace bpkg
         }
       }
 
-      if (postponed)
+      // Bail out if the collection is postponed or we are in the
+      // pre-reevaluation mode and have already collected all the required
+      // information.
+      //
+      if (postponed ||
+          (pre_reeval                                   &&
+           r.reevaluation_position.first != 0           &&
+           r.originating_dependency_position.first != 0 &&
+           !r.reevaluation_optional))
         break;
     }
 
@@ -4459,18 +4547,34 @@ namespace bpkg
 
     if (pre_reeval)
     {
+      // It doesn't feel like it may happen in the pre-reevaluation mode. If
+      // it still happens, maybe due to some manual tampering, let's assume
+      // this as a deviation case.
+      //
+      if (r.originating_dependency_position.first == 0)
+      {
+        l5 ([&]{trace << "re-evaluation of dependent "
+                      << pkg.available_name_version_db ()
+                      << " deviated: previously selected dependency "
+                      << *orig_dep << " is not selected anymore";});
+
+        throw reevaluation_deviated ();
+      }
+
       l5 ([&]
           {
             diag_record dr (trace);
             dr << "pre-reevaluated " << pkg.available_name_version_db ()
                << ": ";
 
-            if (postponed)
-            {
-              assert (!r.empty ());
+            pair<size_t, size_t> pos (r.reevaluation_position);
 
-              dr << r.back ().position.first << ','
-                 << r.back ().position.second;
+            if (pos.first != 0)
+            {
+              dr << pos.first << ',' << pos.second;
+
+              if (r.reevaluation_optional)
+                dr << " re-evaluation is optional";
             }
             else
               dr << "end reached";
@@ -4486,9 +4590,9 @@ namespace bpkg
                     << pkg.available_name_version_db ();});
     }
 
-    return pre_reeval && postponed
-           ? optional<vector<postponed_configuration::dependency>> (move (r))
-           : nullopt;
+    return pre_reeval && r.reevaluation_position.first != 0
+           ? move (r)
+           : optional<pre_reevaluate_result> ();
   }
 
   void build_packages::
@@ -5002,6 +5106,7 @@ namespace bpkg
                                               o,
                                               p.db,
                                               p.name,
+                                              false /* exclude_optional */,
                                               fdb,
                                               rpt_depts,
                                               replaced_vers))
@@ -6104,6 +6209,7 @@ namespace bpkg
                                             o,
                                             pk.db,
                                             pk.name,
+                                            false /* exclude_optional */,
                                             fdb,
                                             rpt_depts,
                                             replaced_vers))
@@ -6712,6 +6818,7 @@ namespace bpkg
     const pkg_build_options& o,
     database& db,
     const package_name& name,
+    bool exclude_optional,
     const function<find_database_function>& fdb,
     const repointed_dependents& rpt_depts,
     const replaced_versions& replaced_vers)
@@ -6828,6 +6935,8 @@ namespace bpkg
              lazy_shared_ptr<repository_fragment>> rp (
                find_available_fragment (o, ddb, dsp));
 
+        optional<package_key> orig_dep (package_key {db, name});
+
         try
         {
           build_package p {
@@ -6865,7 +6974,7 @@ namespace bpkg
           unacceptable_alternatives unacceptable_alts;
           replaced_versions replaced_vers;
 
-          optional<vector<postponed_configuration::dependency>> deps (
+          optional<pre_reevaluate_result> pr (
             collect_build_prerequisites (o,
                                          p,
                                          dep_chain,
@@ -6881,7 +6990,8 @@ namespace bpkg
                                          postponed_deps,
                                          postponed_cfgs,
                                          unacceptable_alts,
-                                         pair<size_t, size_t> (0, 0)));
+                                         pair<size_t, size_t> (0, 0),
+                                         orig_dep));
 
           // Must be read-only.
           //
@@ -6894,49 +7004,36 @@ namespace bpkg
                   unacceptable_alts.empty () &&
                   replaced_vers.empty ());
 
-          if (deps)
+          if (pr && (!pr->reevaluation_optional || !exclude_optional))
           {
-            package_key pk {db, name};
-
-            assert (!deps->empty ());
-
-            // Try to retrieve the original dependency position. If we fail,
-            // then this dependency belongs to the depends clause which comes
-            // after the re-evaluation target position.
-            //
-            optional<pair<size_t, size_t>> odp;
-
-            for (const postponed_configuration::dependency& d: *deps)
-            {
-              if (find (d.begin (), d.end (), pk) != d.end ())
-              {
-                odp = d.position;
-                break;
-              }
-            }
-
-            // Try to preserve the name of the original dependency as the one
-            // which brings the existing dependent to the config cluster.
+            // Try to preserve the name of the originating dependency as the
+            // one which brings the existing dependent to the config cluster.
             // Failed that, use the first dependency in the alternative which
             // we will be re-evaluating to.
             //
-            postponed_configuration::dependency& d (deps->back ());
+            package_key dep (*orig_dep);
 
-            if (find (d.begin (), d.end (), pk) == d.end ())
-              pk = move (d.front ());
+            pre_reevaluate_result::packages& deps (
+              pr->reevaluation_dependencies);
+
+            assert (!deps.empty ());
+
+            if (find (deps.begin (), deps.end (), dep) == deps.end ())
+              dep = move (deps.front ());
 
             r.push_back (
-              existing_dependent {ddb, move (dsp),
-                                  move (pk), d.position,
-                                  package_key {db, name}, odp});
+              existing_dependent {
+                ddb, move (dsp),
+                move (dep), pr->reevaluation_position,
+                move (*orig_dep), pr->originating_dependency_position});
           }
         }
-        catch (const reeval_deviated&)
+        catch (const reevaluation_deviated&)
         {
           r.push_back (
             existing_dependent {ddb, move (dsp),
                                 nullopt, {},
-                                package_key {db, name}, nullopt});
+                                move (*orig_dep), {}});
         }
       }
     }
@@ -7080,23 +7177,23 @@ namespace bpkg
       ed.selected,
       move (rp.first),
       move (rp.second),
-      nullopt,                    // Dependencies.
-      nullopt,                    // Dependencies alternatives.
-      nullopt,                    // Package skeleton.
-      nullopt,                    // Postponed dependency alternatives.
-      false,                      // Recursive collection.
-      nullopt,                    // Hold package.
-      nullopt,                    // Hold version.
-      {},                         // Constraints.
-      false,                      // System.
-      false,                      // Keep output directory.
-      false,                      // Disfigure (from-scratch reconf).
-      false,                      // Configure-only.
-      nullopt,                    // Checkout root.
-      false,                      // Checkout purge.
-      strings (),                 // Configuration variables.
-      {ed.orig_dependency},       // Required by (dependency).
-      false,                      // Required by dependents.
+      nullopt,                     // Dependencies.
+      nullopt,                     // Dependencies alternatives.
+      nullopt,                     // Package skeleton.
+      nullopt,                     // Postponed dependency alternatives.
+      false,                       // Recursive collection.
+      nullopt,                     // Hold package.
+      nullopt,                     // Hold version.
+      {},                          // Constraints.
+      false,                       // System.
+      false,                       // Keep output directory.
+      false,                       // Disfigure (from-scratch reconf).
+      false,                       // Configure-only.
+      nullopt,                     // Checkout root.
+      false,                       // Checkout purge.
+      strings (),                  // Configuration variables.
+      {ed.originating_dependency}, // Required by (dependency).
+      false,                       // Required by dependents.
       flags};
 
     // Note: not recursive.

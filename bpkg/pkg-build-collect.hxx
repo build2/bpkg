@@ -1248,15 +1248,31 @@ namespace bpkg
     // exception if such a cycle is detected.
     //
     // If {0,0} is specified as the reeval_pos argument, then perform the
-    // pre-reevaluation. In this read-only mode perform the regular dependency
-    // alternative selection but not the actual dependency collection and stop
-    // when all the depends clauses are processed or an alternative with the
-    // configuration clause is encountered. In the latter case return the list
-    // of the selected alternative dependencies/positions, where the last
-    // entry corresponds to the alternative with the encountered configuration
-    // clause. Return nullopt otherwise. Also look for any deviation in the
-    // dependency alternatives selection and throw reeval_deviated exception
-    // if such a deviation is detected.
+    // pre-reevaluation of an existing dependent, requested due to the
+    // specific dependency up/down-grade or reconfiguration (must be passed as
+    // the orig_dep; we call it originating dependency). The main purpose of
+    // this read-only mode is to obtain the position of the earliest selected
+    // dependency alternative with the config clause, if any, which the
+    // re-evaluation needs to be performed to and to determine if such a
+    // re-evaluation is optional (see pre_reevaluate_result for the full
+    // information being retrieved). The re-evaluation is considered to be
+    // optional if the existing dependent has no config clause for the
+    // originating dependency and the enable and reflect clauses do not refer
+    // to any of the dependency configuration variables (which can only be
+    // those which the dependent has the configuration clauses for; see the
+    // bpkg manual for details). The thinking here is that such an existing
+    // dependent may not change any configuration it applies to its
+    // dependencies and thus it doesn't call for any negotiations (note: if
+    // there are config clauses for the upgraded originating dependency, then
+    // the potentially different defaults for its config variables may affect
+    // the configuration this dependent applies to its dependencies). Such a
+    // dependent can also be reconfigured without pre-selection of its
+    // dependency alternatives since pkg-configure is capable of doing that on
+    // its own for such a simple case (see pkg_configure_prerequisites() for
+    // details). Also look for any deviation in the dependency alternatives
+    // selection and throw reevaluation_deviated exception if such a deviation
+    // is detected. Return nullopt if no dependency alternative with the
+    // config clause is selected.
     //
     // If the package is a dependency of configured dependents and needs to be
     // reconfigured (being upgraded, has configuration specified, etc), then
@@ -1319,9 +1335,19 @@ namespace bpkg
       size_t depth;
     };
 
-    struct reeval_deviated {};
+    struct reevaluation_deviated {};
 
-    optional<vector<postponed_configuration::dependency>>
+    struct pre_reevaluate_result
+    {
+      using packages = postponed_configuration::packages;
+
+      pair<size_t, size_t> reevaluation_position;
+      packages             reevaluation_dependencies;
+      bool                 reevaluation_optional = true;
+      pair<size_t, size_t> originating_dependency_position;
+    };
+
+    optional<pre_reevaluate_result>
     collect_build_prerequisites (const pkg_build_options&,
                                  build_package&,
                                  build_package_refs& dep_chain,
@@ -1337,7 +1363,8 @@ namespace bpkg
                                  postponed_dependencies&,
                                  postponed_configurations&,
                                  unacceptable_alternatives&,
-                                 optional<pair<size_t, size_t>> reeval_pos = nullopt);
+                                 optional<pair<size_t, size_t>> reeval_pos = nullopt,
+                                 const optional<package_key>& orig_dep = nullopt);
 
     void
     collect_build_prerequisites (const pkg_build_options&,
@@ -1476,28 +1503,26 @@ namespace bpkg
     // in the map) or expected to be built or dropped (present in rpt_depts or
     // replaced_vers). Also skip dependents which impose the version
     // constraint on this dependency and the dependency doesn't satisfy this
-    // constraint.
+    // constraint. Optionally, skip the existing dependents for which
+    // re-evaluation is considered optional (exclude_optional argument; see
+    // pre-reevaluation mode of collect_build_prerequisites() for details).
     //
     struct existing_dependent
     {
       // Dependent.
       //
-      reference_wrapper<database>    db;
-      shared_ptr<selected_package>   selected;
+      reference_wrapper<database>  db;
+      shared_ptr<selected_package> selected;
 
       // Earliest dependency with config clause.
       //
-      optional<package_key>          dependency;
-      pair<size_t, size_t>           dependency_position;
+      optional<package_key>        dependency;
+      pair<size_t, size_t>         dependency_position;
 
-      // Original dependency.
+      // Originating dependency passed to the function call.
       //
-      // Note that we always know the original dependency but may not be able
-      // to obtain its position if it comes after the earliest dependency with
-      // config clause or the dependent deviates.
-      //
-      package_key                    orig_dependency;
-      optional<pair<size_t, size_t>> orig_dependency_position;
+      package_key                  originating_dependency;
+      pair<size_t, size_t>         originating_dependency_position;
     };
 
     // This exception is thrown by collect_build_prerequisites() and
@@ -1517,6 +1542,7 @@ namespace bpkg
       const pkg_build_options&,
       database&,
       const package_name&,
+      bool exclude_optional,
       const function<find_database_function>&,
       const repointed_dependents&,
       const replaced_versions&);
