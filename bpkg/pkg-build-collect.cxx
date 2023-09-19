@@ -109,6 +109,15 @@ namespace bpkg
   }
 
   bool build_package::
+  recursive_collection_postponed () const
+  {
+    assert (action && *action == build_package::build && available != nullptr);
+
+    return dependencies &&
+           dependencies->size () != available->dependencies.size ();
+  }
+
+  bool build_package::
   reconfigure () const
   {
     assert (action && *action != drop);
@@ -3902,16 +3911,16 @@ namespace bpkg
                 build_package* b (entered_build (p));
                 assert (b != nullptr);
 
+                assert (b->skeleton); // Should have been init'ed above.
+
+                package_skeleton& ps (*b->skeleton);
+
                 if (!b->recursive_collection)
                 {
                   l5 ([&]{trace << "collecting cfg-postponed dependency "
                                 << b->available_name_version_db ()
                                 << " of dependent "
                                 << pkg.available_name_version_db ();});
-
-                  assert (b->skeleton); // Should have been init'ed above.
-
-                  package_skeleton& ps (*b->skeleton);
 
                   // Similar to the inital negotiation case, verify and set
                   // the dependent configuration for this dependency.
@@ -3953,21 +3962,6 @@ namespace bpkg
                                                postponed_deps,
                                                postponed_cfgs,
                                                unacceptable_alts);
-
-                  // Unless the dependency is already being reconfigured,
-                  // reconfigure it if its configuration changes.
-                  //
-                  if (!b->reconfigure ())
-                  {
-                    const shared_ptr<selected_package>& sp (b->selected);
-
-                    if (sp != nullptr                          &&
-                        sp->state == package_state::configured &&
-                        sp->config_checksum != ps.config_checksum ())
-                    {
-                      b->flags |= build_package::adjust_reconfigure;
-                    }
-                  }
                 }
                 else
                   l5 ([&]{trace << "dependency "
@@ -3976,6 +3970,22 @@ namespace bpkg
                                 << pkg.available_name_version_db ()
                                 << " is already (being) recursively "
                                 << "collected, skipping";});
+
+                // Unless the dependency collection has been postponed or it
+                // is already being reconfigured, reconfigure it if its
+                // configuration changes.
+                //
+                if (!b->recursive_collection_postponed () && !b->reconfigure ())
+                {
+                  const shared_ptr<selected_package>& sp (b->selected);
+
+                  if (sp != nullptr                          &&
+                      sp->state == package_state::configured &&
+                      sp->config_checksum != ps.config_checksum ())
+                  {
+                    b->flags |= build_package::adjust_reconfigure;
+                  }
+                }
               }
 
               return true;
@@ -5487,26 +5497,31 @@ namespace bpkg
                                        postponed_deps,
                                        postponed_cfgs,
                                        unacceptable_alts);
-
-          // Unless the dependency is already being reconfigured, reconfigure
-          // it if its configuration changes.
-          //
-          if (!b->reconfigure ())
-          {
-            const shared_ptr<selected_package>& sp (b->selected);
-
-            if (sp != nullptr                          &&
-                sp->state == package_state::configured &&
-                sp->config_checksum != ps.config_checksum ())
-            {
-              b->flags |= build_package::adjust_reconfigure;
-            }
-          }
         }
         else
           l5 ([&]{trace << "dependency " << b->available_name_version_db ()
                         << " is already (being) recursively collected, "
                         << "skipping";});
+
+        // Unless the dependency collection has been postponed or it is
+        // already being reconfigured, reconfigure it if its configuration
+        // changes.
+        //
+        if (!b->recursive_collection_postponed () && !b->reconfigure ())
+        {
+          const shared_ptr<selected_package>& sp (b->selected);
+
+          assert (b->skeleton); // Should have been init'ed above.
+
+          package_skeleton& ps (*b->skeleton);
+
+          if (sp != nullptr                          &&
+              sp->state == package_state::configured &&
+              sp->config_checksum != ps.config_checksum ())
+          {
+            b->flags |= build_package::adjust_reconfigure;
+          }
+        }
       }
 
       // Continue processing dependents with this config.

@@ -184,6 +184,12 @@ namespace bpkg
     //
     bool recursive_collection;
 
+    // Return true if the recursive collection started but has been postponed
+    // for any reason.
+    //
+    bool
+    recursive_collection_postponed () const;
+
     // Hold flags. Note that we only "increase" the hold_package value that is
     // already in the selected package.
     //

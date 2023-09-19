@@ -14516,11 +14516,6 @@ test.arguments += --sys-no-query
         build plan:
           new libbox/1.0.0 (required by tez)
             config.libbox.extras=true (set by tez)
-          reconfigure/update tex/1.0.0 (required by tiz)
-            config.tex.extras=true (set by tiz)
-            config.tex.libfoo_extras=true (set by tex)
-          reconfigure tiz/1.0.0 (dependent of libbar)
-            config.tiz.tex_extras=true (set by tiz)
           drop libbaz/1.0.0 (unused)
           downgrade toz/0.1.0 (required by tez)
             config.toz.extras=true (set by tez)
@@ -14944,11 +14939,6 @@ test.arguments += --sys-no-query
         build plan:
           new libbaz/1.0.0 (required by toz)
             config.libbaz.extras=true (set by toz)
-          reconfigure/update tex/1.0.0 (required by tix, tiz)
-            config.tex.extras=true (set by tix)
-            config.tex.libfoo_extras=true (set by tex)
-          reconfigure tiz/1.0.0 (dependent of libbar)
-            config.tiz.tex_extras=true (set by tiz)
           new tix/1.0.0
           upgrade toz/1.0.0
             config.toz.extras=true (set by tuz)
