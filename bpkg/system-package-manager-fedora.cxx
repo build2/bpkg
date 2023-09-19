@@ -4411,7 +4411,9 @@ namespace bpkg
 
       const string& package_arch (!build_arch.empty () ? build_arch : arch);
 
-      auto add_package = [&r, &expressions, &rpmfile, &add_macro]
+      vector<binary_file> files;
+
+      auto add_package = [&files, &expressions, &rpmfile, &add_macro]
                          (const string& name,
                           const string& arch,
                           const char* type) -> size_t
@@ -4419,8 +4421,11 @@ namespace bpkg
         add_macro ("NAME", name);
         add_macro ("ARCH", arch);
         expressions += rpmfile + '\n';
-        r.push_back (binary_file {type, path (), name}); // Reserve.
-        return r.size () - 1;
+
+        // Note: path is unknown yet.
+        //
+        files.push_back (binary_file {type, path (), name});
+        return files.size () - 1;
       };
 
       if (gen_main)
@@ -4449,11 +4454,11 @@ namespace bpkg
 
       strings expansions (eval (cstrings ({expressions.c_str ()})));
 
-      if (expansions.size () != r.size ())
+      if (expansions.size () != files.size ())
         fail << "number of RPM file path expansions differs from number "
              << "of path expressions";
 
-      for (size_t i (0); i != r.size(); ++i)
+      for (size_t i (0); i != files.size(); ++i)
       {
         try
         {
@@ -4467,7 +4472,12 @@ namespace bpkg
           // etc).
           //
           if (exists (p))
-            r[i].path = move (p);
+          {
+            binary_file& f (files[i]);
+
+            r.push_back (
+              binary_file {move (f.type), move (p), move (f.system_name)});
+          }
           else if (!di || i != *di) // Not a -debuginfo sub-package?
             fail << "expected output file " << p << " does not exist";
         }
