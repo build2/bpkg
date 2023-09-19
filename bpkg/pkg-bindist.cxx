@@ -237,7 +237,7 @@ namespace bpkg
         if      (m == "auto")     rec = recursive_mode::auto_;
         else if (m == "full")     rec = recursive_mode::full;
         else if (m == "separate") rec = recursive_mode::separate;
-        else
+        else if (m != "none")
           dr << fail << "unknown --recursive mode '" << m << "'";
       }
 
@@ -579,9 +579,9 @@ namespace bpkg
     {
       json::stream_serializer s (cout);
 
-      auto member = [&s] (const char* n, const string& v)
+      auto member = [&s] (const char* n, const string& v, const char* d = "")
       {
-        if (!v.empty ())
+        if (v != d)
           s.member (n, v);
       };
 
@@ -641,7 +641,7 @@ namespace bpkg
         }
         s.end_object (); // os_release
 
-        member ("recursive", o.recursive ());
+        member ("recursive", o.recursive (), "none");
         if (o.private_ ()) s.member ("private", true);
         if (dependent_config) s.member ("dependent_config", true);
 

@@ -94,14 +94,16 @@ namespace bpkg
        If unspecified, the host architecture is used."
     }
 
-    string --recursive
+    string --recursive = "none"
     {
       "<mode>",
       "Bundle or generate dependencies of the specified packages. The <mode>
        value can be either \cb{auto}, in which case only the required files
        from each dependency package are bundled, \cb{full}, in which case
        all the files are bundled, or \cb{separate}, in which case a separate
-       binary package is generated for each non-system dependency.
+       binary package is generated for each non-system dependency. It can
+       also be \cb{none} which is equivalent to not specifying this option
+       (primarily useful for overriding a previously-specified value).
 
        Specifically, in the \cb{auto} mode any required files, such as shared
        libraries, are pulled implicitly by the \cb{install} build system
