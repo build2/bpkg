@@ -132,6 +132,10 @@ $* --name $rep/testing >"pkg:build2.org/rep-info/testing ($rep/testing)"
       : dir
       :
       {
+        # Note that on Windows we still use tar rather than bsdtar here, since
+        # the later fails for dangling symlinks and we have such symlinks in
+        # this repository archive.
+        #
         tar ($posix ? : --force-local) -xf $src/git/libbar.tar &state0/***;
 
         $* --type dir "state0/libbar.git" >>~%EOO%d;

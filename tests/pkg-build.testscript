@@ -490,7 +490,7 @@ end
 
 config_cxx = [cmdline] config.cxx=$quote($recall($cxx.path) $cxx.config.mode, true)
 
-tar = [cmdline] tar (!$posix ? --force-local : )
+tar = [cmdline] ($posix ? tar : bsdtar)
 
 cfg_create    += 2>!
 cfg_link      += 2>!
@@ -1887,10 +1887,7 @@ test.arguments += --sys-no-query
   : Test build scenarios described in
   : https://github.com/conan-io/conan/issues/9547.
   :
-  : Note: using tar on Windows is a bit hairy (needs --force-local, etc), so
-  : we do not run this test on Windows.
-  :
-  if ($posix && !$remote)
+  if (!$remote)
   {
     +mkdir 1/
 
@@ -1900,10 +1897,10 @@ test.arguments += --sys-no-query
     #
     r = 1/t9-1
     +cp -r $rep/t9 $r && \
-     tar xzf $r/libbar-1.0.0.tar.gz -C $r && \
+     $tar xzf $r/libbar-1.0.0.tar.gz -C $r && \
      mv $r/libbar-1.0.0 $r/libbar-2.0.0 && \
      sed -i -e 's/(version:).+/\1 2.0.0/' $r/libbar-2.0.0/manifest && \
-     tar cfz $r/libbar-2.0.0.tar.gz -C $r libbar-2.0.0 &$r/libbar-2.0.0.tar.gz && \
+     $tar cfz $r/libbar-2.0.0.tar.gz -C $r libbar-2.0.0 &$r/libbar-2.0.0.tar.gz && \
      rm -r $r/libbar-2.0.0 && \
      $rep_create $r &$r/packages.manifest
 
@@ -1912,10 +1909,10 @@ test.arguments += --sys-no-query
     #
     r = 1/t9-2
     +cp -r 1/t9-1 $r && \
-     tar xzf $r/libbaz-1.0.0.tar.gz -C $r && \
+     $tar xzf $r/libbaz-1.0.0.tar.gz -C $r && \
      mv $r/libbaz-1.0.0 $r/libbaz-2.0.0 && \
      sed -i -e 's/(version:).+/\1 2.0.0/' -e 's/(depends: libbar).+/\1 ^2.0.0/' $r/libbaz-2.0.0/manifest && \
-     tar cfz $r/libbaz-2.0.0.tar.gz -C $r libbaz-2.0.0 &$r/libbaz-2.0.0.tar.gz && \
+     $tar cfz $r/libbaz-2.0.0.tar.gz -C $r libbaz-2.0.0 &$r/libbaz-2.0.0.tar.gz && \
      rm -r $r/libbaz-2.0.0 && \
      $rep_create $r &$r/packages.manifest
 
@@ -1924,10 +1921,10 @@ test.arguments += --sys-no-query
     #
     r = 1/t9-3
     +cp -r 1/t9-2 $r && \
-     tar xzf $r/libbox-1.0.0.tar.gz -C $r && \
+     $tar xzf $r/libbox-1.0.0.tar.gz -C $r && \
      mv $r/libbox-1.0.0 $r/libbox-1.1.0 && \
      sed -i -e 's/(version:).+/\1 1.1.0/' $r/libbox-1.1.0/manifest && \
-     tar cfz $r/libbox-1.1.0.tar.gz -C $r libbox-1.1.0 &$r/libbox-1.1.0.tar.gz && \
+     $tar cfz $r/libbox-1.1.0.tar.gz -C $r libbox-1.1.0 &$r/libbox-1.1.0.tar.gz && \
      rm -r $r/libbox-1.1.0 && \
      $rep_create $r &$r/packages.manifest
 
