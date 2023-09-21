@@ -2651,7 +2651,7 @@ namespace bpkg
     dir_path licensedir;
     dir_path build2dir;
 
-    // Note that the ~/rpmbuild/{BUILD,BUILDROOT,RPMS,SOURCES,SPECS,SRPMS}
+    // Note that the ~/rpmbuild/{.,BUILD,BUILDROOT,RPMS,SOURCES,SPECS,SRPMS}
     // directory paths used by rpmbuild are actually defined as the
     // %{_topdir}, %{_builddir}, %{_buildrootdir}, %{_rpmdir}, %{_sourcedir},
     // %{_specdir}, and %{_srcrpmdir} RPM macros. These macros can potentially
@@ -2691,6 +2691,15 @@ namespace bpkg
 
       expressions.push_back ("%{_rpmdir}/%{_rpmfilename}");
 
+      // Note that we rely on the fact that these macros are defined while
+      // refer to them in the spec file, etc. Thus, let's verify that and fail
+      // early if that's not the case for whatever reason.
+      //
+      expressions.push_back ("%{?_rpmdir}");
+      expressions.push_back ("%{?_rpmfilename}");
+      expressions.push_back ("%{?_usrsrc}");
+      expressions.push_back ("%{?buildroot}");
+
       // Note that if the architecture passed with the --target option is
       // invalid, then rpmbuild will fail with some ugly diagnostics since
       // %{_arch} macro stays unexpanded in some commands executed by
@@ -2725,13 +2734,13 @@ namespace bpkg
         return r;
       };
 
-      auto pop_dir = [&expansions, &expressions] ()
+      auto pop_path = [&expansions, &expressions] ()
       {
         assert (!expansions.empty ());
 
         try
         {
-          dir_path r (move (expansions.back ()));
+          path r (move (expansions.back ()));
 
           if (r.empty ())
             fail << "macro '" << expressions.back () << "' expands into empty "
@@ -2748,6 +2757,11 @@ namespace bpkg
         }
       };
 
+      auto pop_dir = [&pop_path] ()
+      {
+        return path_cast<dir_path> (pop_path ());
+      };
+
       // The source of a potentially invalid architecture is likely to be the
       // --architecture option specified by the user. But can probably also be
       // some mis-configuration.
@@ -2755,7 +2769,13 @@ namespace bpkg
       if (expansions.back ().empty ()) // %{?_arch}
         fail << "unknown target architecture '" << arch << "'";
 
-      pop_string (); // We only need %{?_arch} expansion for the verification.
+      // We only need the following macro expansions for the verification.
+      //
+      pop_string (); // %{?_arch}
+      pop_dir ();    // %{?buildroot}
+      pop_dir ();    // %{?_usrsrc}
+      pop_string (); // %{?_rpmfilename}
+      pop_dir ();    // %{?_rpmdir}
 
       rpmfile = pop_string ();
       specdir = pop_dir ();
@@ -3134,6 +3154,10 @@ namespace bpkg
     // rather than hardcoding values, trying to comply with Fedora guidelines
     // and recommendations, etc) with the view that this can be used as a
     // starting point for manual packaging.
+    //
+    // NOTE: if changing anything here make sure that all the macros expanded
+    //       in the spec file unconditionally are defined (see above how we do
+    //       that for the _usrsrc macro as an example).
     //
     try
     {
@@ -3569,34 +3593,77 @@ namespace bpkg
         {
           os << "%undefine _debugsource_packages"                       << '\n';
 
-          // Append the -ffile-prefix-map option (if specified) which is used
-          // to strip source file path prefix in debug information (besides
-          // other places). By default it is not used, presumably since we
-          // disable generating the -debugsource sub-packages. We change it to
-          // point to the bpkg configuration directory. Note that this won't
-          // work for external packages with source out of configuration
-          // (e.g., managed by bdep).
+          // Append the -ffile-prefix-map option which is normally used to
+          // strip source file path prefix in debug information (besides other
+          // places). By default it is not used since rpmbuild replaces the
+          // recognized prefixes by using the debugedit program (see below for
+          // details) and we cannot rely on that since in our case the prefix
+          // (bpkg configuration directory) is not recognized. We need to
+          // replace the bpkg configuration directory prefix in the source
+          // file paths with the destination directory where the -debugsource
+          // sub-package files would be installed (if we were to generate it).
+          // For example:
           //
-          // @@ Supposedly this code won't be necessary when we add support for
-          //    -debugsource sub-packages.
+          // /usr/src/debug/foo-1.0.0-1.fc35.x86_64
           //
-          //    Note that adding this option may also result in notification
-          //    messages for probably all the source files as following:
+          // There is just one complication:
           //
-          //    cpio: libfoo-1.2.3/foo.cxx: Cannot stat: No such file or directory
+          // While the generation of the -debugsource sub-packages is
+          // currently disabled, the executed by rpmbuild find-debuginfo
+          // script still performs some preparations for them. It runs the
+          // debugedit program, which, in particular, reads the source file
+          // paths from the debug information in package binaries and saves
+          // those which start with the ~/rpmbuild/BUILD/foo-1.0.0 or
+          // /usr/src/debug/foo-1.0.0-1.fc35.x86_64 directory prefix into the
+          // ~/rpmbuild/BUILD/foo-1.0.0/debugsources.list file, stripping the
+          // prefixes. It also saves all the relative source file paths as is
+          // (presumably assuming they are sub-entries of the
+          // ~/rpmbuild/BUILD/foo-1.0.0 directory where the package archive
+          // would normally be extracted). Afterwards, the content of the
+          // debugsources.list file is piped as an input to the cpio program
+          // executed in the ~/rpmbuild/BUILD/foo-1.0.0 directory as its
+          // current working directory, which tries to copy these source files
+          // to the
+          // ~/rpmbuild/BUILDROOT/foo-1.0.0-1.fc35.x86_64/usr/src/debug/foo-1.0.0-1.fc35.x86_64
+          // directory. Given that these source files are actually located in
+          // the bpkg configuration directory rather than in the
+          // ~/rpmbuild/BUILD/foo-1.0.0 directory the cpio program fails to
+          // stat them and complains. To work around that we need to change
+          // the replacement directory path in the -ffile-prefix-map option
+          // value with some other absolute (not necessarily existing) path
+          // which is not a subdirectory of the directory prefixes recognized
+          // by the debugedit program. This way debugedit won't recognize any
+          // of the package source files, will create an empty
+          // debugsources.list file, and thus the cpio program won't try to
+          // copy anything. Not to confuse the user (who can potentially see
+          // such paths in gdb while examining a core file produced by the
+          // package binary), we will keep this replacement directory path
+          // close to the desired one, but will also make it clear that the
+          // path is bogus:
           //
-          //    This bloats the rpmbuild output but doesn't seem to break
-          //    anything.
+          // /usr/src/debug/bogus/foo-1.0.0-1.fc35.x86_64
+          //
+          // Note that this path mapping won't work for external packages with
+          // source out of configuration (e.g., managed by bdep).
+          //
+          // @@ Supposedly this code won't be necessary when we add support
+          //    for -debugsource sub-packages somehow. Feels like one way
+          //    would be to make ~/rpmbuild/BUILD/foo-1.0.0 a symlink to the
+          //    bpkg configuration (or to the primary package inside, if not
+          //    --recursive).
           //
           if (ops_->fedora_buildflags () != "ignore")
           {
+            const char* debugsource_dir (
+              "%{_usrsrc}/debug/bogus/%{name}-%{evr}.%{_arch}");
+
             if (lang_c || lang_cc)
               os << "%global build_cflags %{?build_cflags} -ffile-prefix-map="
-                 << cfg_dir.string () << "=." << '\n';
+                 << cfg_dir.string () << '=' << debugsource_dir << '\n';
 
             if (lang_cxx || lang_cc)
               os << "%global build_cxxflags %{?build_cxxflags} -ffile-prefix-map="
-                 << cfg_dir.string () << "=." << '\n';
+                 << cfg_dir.string () << '=' << debugsource_dir << '\n';
           }
         }
         else
