@@ -546,7 +546,9 @@ namespace bpkg
       // @@ Maybe we should just do "soft" version like in <distribution>?
       //
       // Note that we allow multiple values for the same language to support
-      // cases like --archive-lang cc=gcc12 --archive-lang cc=g++12.
+      // cases like --archive-lang cc=gcc12 --archive-lang cc=g++12. But
+      // we treat an empty value as a request to clear all the previous
+      // entries.
       //
 
       auto find = [] (const std::multimap<string, string>& m, const string& n)
@@ -564,18 +566,36 @@ namespace bpkg
         return p;
       };
 
-      auto add = [&langrt] (const pair<const string, string>& p)
+      // We don't want to clear entries specified with --*-lang with an empty
+      // value specified with --*-lang-impl.
+      //
+      size_t clear_limit (0);
+
+      auto add = [&langrt, &clear_limit] (const pair<const string, string>& p)
       {
         // Suppress duplicates.
         //
-        if (find_if (langrt.begin (), langrt.end (),
-                     [&p] (const pair<const string, string>& x)
-                     {
-                       // @@ TODO: keep highest version.
-                       return p.second == x.second;
-                     }) == langrt.end ())
+        if (!p.second.empty ())
         {
-          langrt.push_back (p);
+          if (find_if (langrt.begin (), langrt.end (),
+                       [&p] (const pair<const string, string>& x)
+                       {
+                         // @@ TODO: keep highest version.
+                         return p.second == x.second;
+                       }) == langrt.end ())
+          {
+            langrt.push_back (p);
+          }
+        }
+        else if (clear_limit != langrt.size ())
+        {
+          for (auto i (langrt.begin () + clear_limit); i != langrt.end (); )
+          {
+            if (i->get ().first == p.first)
+              i = langrt.erase (i);
+            else
+              ++i;
+          }
         }
       };
 
@@ -605,13 +625,10 @@ namespace bpkg
               info << "or alternatively specify --archive-build-meta";
 
           for (auto i (p.first); i != p.second; ++i)
-          {
-            if (i->second.empty ())
-              continue; // Unimportant.
-
             add (*i);
-          }
         }
+
+        clear_limit = langrt.size ();
       }
 
       for (const language& l: langs)
@@ -625,12 +642,7 @@ namespace bpkg
           continue; // Unimportant.
 
         for (auto i (p.first); i != p.second; ++i)
-        {
-          if (i->second.empty ())
-            continue; // Unimportant.
-
           add (*i);
-        }
       }
     }
 

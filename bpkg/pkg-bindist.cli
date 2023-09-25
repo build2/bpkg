@@ -698,7 +698,8 @@ namespace bpkg
        the mapping specified with this option is only considered if the
        package type is a library (for other package types all languages used
        are implementation). Note also that multiple runtime ids specified for
-       the same language are combined."
+       the same language are combined except for an empty id, which is treated
+       as a request to clear previous entries."
     }
 
     std::multimap<string, string> --archive-lang-impl
