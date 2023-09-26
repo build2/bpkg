@@ -499,11 +499,11 @@ namespace bpkg
       dr << info << "package " << p.available_name_version ()
          << " required by" << rb;
 
-    dr << info << "explicitly request up/downgrade of package "
-       << dk.name;
-
-    dr << info << "or explicitly specify package " << n
-       << " version to manually satisfy these constraints" << endf;
+    dr << info << "consider re-trying with --upgrade|-u potentially combined "
+               << "with --recursive|-r" <<
+          info << "or explicitly request up/downgrade of package " << dk.name <<
+          info << "or explicitly specify package " << n << " version to "
+               << "manually satisfy these constraints" << endf;
   }
 
   // postponed_configuration

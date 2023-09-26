@@ -1271,7 +1271,8 @@ test.arguments += --sys-no-query
       $* libfoo/1.0.0 2>>EOE != 0;
         error: unable to downgrade package libfoo/1.1.0 to 1.0.0
           info: because package libbar depends on (libfoo == 1.1.0)
-          info: explicitly request up/downgrade of package libbar
+          info: consider re-trying with --upgrade|-u potentially combined with --recursive|-r
+          info: or explicitly request up/downgrade of package libbar
           info: or explicitly specify package libfoo version to manually satisfy these constraints
         EOE
 
@@ -1306,7 +1307,8 @@ test.arguments += --sys-no-query
       $* libfoo/1.0.0 +{ --config-id 1 } 2>>~%EOE% != 0;
         %error: unable to downgrade package libfoo/1.1.0 \[cfg.\] to 1.0.0%
         %  info: because package libbar \[cfg.\] depends on \(libfoo == 1.1.0\)%
-          info: explicitly request up/downgrade of package libbar
+          info: consider re-trying with --upgrade|-u potentially combined with --recursive|-r
+          info: or explicitly request up/downgrade of package libbar
           info: or explicitly specify package libfoo version to manually satisfy these constraints
         EOE
 
@@ -2112,7 +2114,8 @@ test.arguments += --sys-no-query
           error: unable to upgrade package libbar/1.0.0 to 2.0.0
             info: because package libbox depends on (libbar ^1.0.0)
             info: package libbar/2.0.0 required by libbaz
-            info: explicitly request up/downgrade of package libbox
+            info: consider re-trying with --upgrade|-u potentially combined with --recursive|-r
+            info: or explicitly request up/downgrade of package libbox
             info: or explicitly specify package libbar version to manually satisfy these constraints
           EOE
 
@@ -2206,7 +2209,8 @@ test.arguments += --sys-no-query
           error: unable to upgrade package libbar/1.0.0 to 2.0.0
             info: because package libbox depends on (libbar ^1.0.0)
             info: package libbar/2.0.0 required by libbaz
-            info: explicitly request up/downgrade of package libbox
+            info: consider re-trying with --upgrade|-u potentially combined with --recursive|-r
+            info: or explicitly request up/downgrade of package libbox
             info: or explicitly specify package libbar version to manually satisfy these constraints
           EOE
 
@@ -5463,7 +5467,8 @@ test.arguments += --sys-no-query
           error: unable to downgrade package libfoo/2.0.0 to 1.0.0
             info: because package tpx depends on (libfoo >= 2.0.0)
             info: package libfoo/1.0.0 required by tax
-            info: explicitly request up/downgrade of package tpx
+            info: consider re-trying with --upgrade|-u potentially combined with --recursive|-r
+            info: or explicitly request up/downgrade of package tpx
             info: or explicitly specify package libfoo version to manually satisfy these constraints
           EOE
 
@@ -5475,7 +5480,8 @@ test.arguments += --sys-no-query
         $* tax tpx ?libfoo/1.0.0 2>>EOE != 0;
           error: unable to downgrade package libfoo/2.0.0 to 1.0.0
             info: because package tpx depends on (libfoo >= 2.0.0)
-            info: explicitly request up/downgrade of package tpx
+            info: consider re-trying with --upgrade|-u potentially combined with --recursive|-r
+            info: or explicitly request up/downgrade of package tpx
             info: or explicitly specify package libfoo version to manually satisfy these constraints
           EOE
 
@@ -24079,7 +24085,8 @@ else
       $* ?libbaz/1.0.0 +{ --config-name h2 } 2>>~%EOE% != 0;
         %error: unable to downgrade package libbaz/1.1.0 \[h2.\] to 1.0.0%
         %  info: because package foo \[h2.\] depends on \(libbaz \^1.1.0\)%
-          info: explicitly request up/downgrade of package foo
+          info: consider re-trying with --upgrade|-u potentially combined with --recursive|-r
+          info: or explicitly request up/downgrade of package foo
           info: or explicitly specify package libbaz version to manually satisfy these constraints
         EOE
 
