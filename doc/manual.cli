@@ -2234,20 +2234,20 @@ name or a parenthesized expression. Some examples (based on the
 \l{https://ci.cppget.org/?build-configs cppget.org} deployment):
 
 \
-builds: none                         ; None.
-builds: all                          ; All (suitable for libraries).
-builds: host                         ; All host (suitable for tools).
-builds: default                      ; All default.
-builds: host : &default              ; Host default.
-builds: default legacy               ; All default and legacy.
-builds: host : &( +default +legacy ) ; Host default and legacy.
-builds: -windows                     ; Default except Windows.
-builds: all : -windows               ; All except Windows.
-builds: all : -mobile                ; All except mobile.
-builds: all : &gcc                   ; All with GCC only.
-builds: all : &gcc-8+                ; All with GCC 8 and up only.
-builds: gcc : -optimized             ; GCC without optimization.
-builds: gcc : &( +linux +macos )     ; GCC on Linux and Mac OS.
+builds: none                          ; None.
+builds: all                           ; All (suitable for libraries).
+builds: all : &host                   ; All host (suitable for tools).
+builds: default                       ; All default.
+builds: default : &host               ; Default host.
+builds: default legacy                ; All default and legacy.
+builds: default legacy : &host        ; Default and legacy host.
+builds: -windows                      ; Default except Windows.
+builds: all : -windows                ; All except Windows.
+builds: all : -mobile                 ; All except mobile.
+builds: all : &gcc                    ; All with GCC only.
+builds: all : &gcc-8+                 ; All with GCC 8 and up only.
+builds: all : &gcc -optimized         ; All GCC without optimization.
+builds: all : &gcc &( +linux +macos ) ; All GCC on Linux and Mac OS.
 \
 
 Notice that the colon and parentheses must be separated with spaces from both
