@@ -1090,6 +1090,10 @@ license: <licenses> [; <comment>]
 [*-build-include]: <config>[/<target>] [; <comment>]
 [*-build-exclude]: <config>[/<target>] [; <comment>]
 
+[*-build-email]: <email> [; <comment>]
+[*-build-warning-email]: <email> [; <comment>]
+[*-build-error-email]: <email> [; <comment>]
+
 [build-file]: <path>
 
 [bootstrap-build]: <text>
@@ -2343,6 +2347,10 @@ Note that the comment of the matching exclusion is used by the web interface
 [*-builds]: <class-expr> [; <comment>]
 [*-build-include]: <config>[/<target>] [; <comment>]
 [*-build-exclude]: <config>[/<target>] [; <comment>]
+
+[*-build-email]: <email> [; <comment>]
+[*-build-warning-email]: <email> [; <comment>]
+[*-build-error-email]: <email> [; <comment>]
 \
 
 The package build configurations where the substring matched by \c{*} in
@@ -2426,6 +2434,33 @@ network-build-config: config.libfoo.network=true; Enable networking API.
 Note that the common build target configurations set is overridden
 hierarchically meaning that the \c{*-build-{include, exclude\}} overrides
 don't discard the common \c{builds} values.
+
+The package build configuration can also override the common build
+notification email addresses (specified with \l{#manifest-package-build-email
+\c{build-email}}, \l{#manifest-package-warning-email \c{build-warning-email}},
+and \l{#manifest-package-error-email \c{build-error-email}}) by specifying the
+matching \c{*-build-email} and/or \c{*-build-{warning, error\}-email} values.
+For example:
+
+\
+bindist-build-config:
+\\
++bpkg.bindist.debian:--recursive=full
++bbot.bindist.upload:
+;
+Generate and upload binary distribution package.
+\\
+bindist-build-error-email: builds@example.org
+\
+
+Note that to disable all the build notification emails for a specific package
+build configuration the empty \c{*-build-email} value needs to be specified.
+For example:
+
+\
+sys-build-config: ?sys:libz; Test with system dependencies.
+sys-build-email:
+\
 
 The default configuration should normally build the package with no
 configuration arguments and for the common target build configurations
