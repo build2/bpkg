@@ -2454,8 +2454,7 @@ bindist-build-error-email: builds@example.org
 \
 
 Note that to disable all the build notification emails for a specific package
-build configuration the empty \c{*-build-email} value needs to be specified.
-For example:
+build configuration, specify the empty \c{*-build-email} value. For example:
 
 \
 sys-build-config: ?sys:libz; Test with system dependencies.
