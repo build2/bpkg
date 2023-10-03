@@ -103,7 +103,7 @@ namespace bpkg
   void trace_mark_base::
   execute (odb::connection&, const char* stmt)
   {
-    if (verb >= 5)
+    if (verb >= 6)
       static_cast<trace_mark&> (*this) << stmt;
   }
 

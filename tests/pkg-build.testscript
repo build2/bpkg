@@ -5740,7 +5740,7 @@ test.arguments += --sys-no-query
     # pipe bpkg's stderr through the sed-based pipeline filtering the stream
     # content and simplify the stderr-matching regular expressions.
     #
-    filter = [cmdline] sed -e "'"'s/^(trace: \S+: (SELECT|UPDATE|DELETE|INSERT|BEGIN|COMMIT|ROLLBACK)|mkdir -p).*//'"'" | \
+    filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
                        sed -n -e "'"'s/(.+)/\1/p'"'" >&2
 
     : initial-collection
