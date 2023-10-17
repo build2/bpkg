@@ -442,7 +442,7 @@ namespace bpkg
   }
 
   void unsatisfied_dependents::
-  diag ()
+  diag (const build_packages& pkgs)
   {
     assert (!empty ());
 
@@ -487,6 +487,13 @@ namespace bpkg
 
     dr << info << "because package " << dk << " depends on (" << n << " "
        << c << ")";
+
+    {
+      //             "  info: ..."
+      string indent ("          ");
+      set<package_key> printed;
+      pkgs.print_constraints (dr, dk, indent, printed);
+    }
 
     string rb;
     if (!p.user_selection ())
@@ -1355,19 +1362,28 @@ namespace bpkg
             //
             if (auto c1 = test (p2, p1))
             {
-              const package_name& n  (i->first.name);
-              const string&       d1 (c1->dependent);
-              const string&       d2 (c2->dependent);
+              const package_name& n (i->first.name);
 
-              fail << "unable to satisfy constraints on package " << n <<
-                info << d1 << c1->db << " depends on (" << n << " "
-                   << c1->value << ")" <<
-                info << d2 << c2->db << " depends on (" << n << " "
-                   << c2->value << ")" <<
-                info << "available " << p1->available_name_version () <<
-                info << "available " << p2->available_name_version () <<
-                info << "explicitly specify " << n << " version to manually "
-                   << "satisfy both constraints";
+              //             "  info: ..."
+              string indent ("          ");
+              set<package_key> printed;
+
+              diag_record dr (fail);
+              dr << "unable to satisfy constraints on package " << n <<
+                info << c1->dependent << c1->db << " depends on (" << n << ' '
+                     << c1->value << ")";
+
+              print_constraints (dr, *c1, indent, printed);
+
+              dr << info << c2->dependent << c2->db << " depends on (" << n
+                         << ' ' << c2->value << ")";
+
+              print_constraints (dr, *c2, indent, printed);
+
+              dr << info << "available " << p1->available_name_version () <<
+                    info << "available " << p2->available_name_version () <<
+                    info << "explicitly specify " << n << " version to "
+                         << "manually satisfy both constraints";
             }
             else
               swap (p1, p2);
@@ -2229,14 +2245,26 @@ namespace bpkg
                   assert (!pre_reeval || dr == nullptr);
 
                   if (dr != nullptr)
+                  {
+                    //             "  info: ..."
+                    string indent ("          ");
+                    set<package_key> printed;
+
                     *dr << error << "unable to satisfy constraints on package "
                         << dn <<
-                      info << nm << pdb << " depends on (" << dn
-                           << " " << *dp.constraint << ")" <<
-                      info << c.dependent << c.db << " depends on (" << dn
-                           << " " << c.value << ")" <<
-                      info << "specify " << dn << " version to satisfy " << nm
-                           << " constraint";
+                      info << nm << pdb << " depends on (" << dn << ' '
+                           << *dp.constraint << ")";
+
+                    print_constraints (*dr, pkg, indent, printed);
+
+                    *dr << info << c.dependent << c.db << " depends on (" << dn
+                                << ' ' << c.value << ")";
+
+                    print_constraints (*dr, c, indent, printed);
+
+                    *dr << info << "specify " << dn << " version to satisfy "
+                                << nm << " constraint";
+                  }
 
                   return precollect_result (false /* postpone */);
                 }
@@ -2930,30 +2958,40 @@ namespace bpkg
                     {
                       if (!satisfies (v1, c2.value))
                       {
-                        // We should end up throwing reevaluation_deviated exception
-                        // before the diagnostics run in the pre-reevaluation
-                        // mode.
+                        // We should end up throwing reevaluation_deviated
+                        // exception before the diagnostics run in the
+                        // pre-reevaluation mode.
                         //
                         assert (!pre_reeval || dr == nullptr);
 
                         if (dr != nullptr)
                         {
-                          const package_name& n  (d.name);
-                          const string&       d1 (c1.dependent);
-                          const string&       d2 (c2.dependent);
+                          const package_name& n (d.name);
+
+                          //             "  info: ..."
+                          string indent ("          ");
+                          set<package_key> printed;
 
                           *dr << error << "unable to satisfy constraints on "
                               << "package " << n <<
-                            info << d2 << c2.db << " depends on (" << n << ' '
-                                 << c2.value << ")" <<
-                            info << d1 << c1.db << " depends on (" << n << ' '
-                                 << c1.value << ")" <<
-                            info << "available "
-                                 << bp.available_name_version () <<
-                            info << "available "
-                                 << package_string (n, v1, b.system) <<
-                            info << "explicitly specify " << n << " version "
-                                 << "to manually satisfy both constraints";
+                            info << c2.dependent << c2.db << " depends on ("
+                                 << n << ' ' << c2.value << ")";
+
+                          print_constraints (*dr, c2, indent, printed);
+
+                          *dr << info << c1.dependent << c1.db
+                                      << " depends on (" << n << ' '
+                                      << c1.value << ")";
+
+                          print_constraints (*dr, c1, indent, printed);
+
+                          *dr << info << "available "
+                                      << bp.available_name_version () <<
+                                 info << "available "
+                                      << package_string (n, v1, b.system) <<
+                                 info << "explicitly specify " << n
+                                      << " version to manually satisfy both "
+                                      << "constraints";
                         }
 
                         return precollect_result (reused, move (r));
@@ -4884,28 +4922,28 @@ namespace bpkg
     {
       build_package p {
         build_package::adjust,
-          db,
-          sp,
-          nullptr,
-          nullptr,
-          nullopt,       // Dependencies.
-          nullopt,       // Dependencies alternatives.
-          nullopt,       // Package skeleton.
-          nullopt,       // Postponed dependency alternatives.
-          false,         // Recursive collection.
-          nullopt,       // Hold package.
-          nullopt,       // Hold version.
-          {},            // Constraints.
-          sp->system (),
-          false,         // Keep output directory.
-          false,         // Disfigure (from-scratch reconf).
-          false,         // Configure-only.
-          nullopt,       // Checkout root.
-          false,         // Checkout purge.
-          strings (),    // Configuration variables.
-          {},            // Required by.
-          false,         // Required by dependents.
-          build_package::adjust_unhold};
+        db,
+        sp,
+        nullptr,
+        nullptr,
+        nullopt,       // Dependencies.
+        nullopt,       // Dependencies alternatives.
+        nullopt,       // Package skeleton.
+        nullopt,       // Postponed dependency alternatives.
+        false,         // Recursive collection.
+        nullopt,       // Hold package.
+        nullopt,       // Hold version.
+        {},            // Constraints.
+        sp->system (),
+        false,         // Keep output directory.
+        false,         // Disfigure (from-scratch reconf).
+        false,         // Configure-only.
+        nullopt,       // Checkout root.
+        false,         // Checkout purge.
+        strings (),    // Configuration variables.
+        {},            // Required by.
+        false,         // Required by dependents.
+        build_package::adjust_unhold};
 
       p.merge (move (bp));
       bp = move (p);
@@ -6537,6 +6575,8 @@ namespace bpkg
       for (auto& pd: query_dependents_cache (ddb, n, pdb))
       {
         package_name& dn (pd.name);
+        optional<version_constraint>& dc (pd.constraint);
+
         auto i (map_.find (ddb, dn));
 
         // Make sure the up/downgraded package still satisfies this
@@ -6547,7 +6587,7 @@ namespace bpkg
         // all their collected prerequisites ordered (including new and old
         // ones). See collect_build_prerequisites() and order() for details.
         //
-        bool check (ud != 0 && pd.constraint);
+        bool check (ud != 0 && dc);
 
         if (i != map_.end () && i->second.position != end ())
         {
@@ -6584,7 +6624,7 @@ namespace bpkg
         if (check)
         {
           const version& av (p.available_version ());
-          version_constraint& c (*pd.constraint);
+          const version_constraint& c (*dc);
 
           // If the new dependency version doesn't satisfy the existing
           // dependent, then postpone the failure in the hope that this
@@ -6617,19 +6657,13 @@ namespace bpkg
               assert (i == deps.end () || i->second == c);
 
               if (i == deps.end ())
-                deps.push_back (make_pair (&p, move (c)));
+                deps.push_back (make_pair (&p, c));
             }
             else
             {
               unsatisfied_depts.push_back (
-                unsatisfied_dependent {move (dk), {make_pair (&p, move (c))}});
+                unsatisfied_dependent {move (dk), {make_pair (&p, c)}});
             }
-          }
-          else
-          {
-            // Add this contraint to the list for completeness.
-            //
-            p.constraints.emplace_back (ddb, dn.string (), move (c));
           }
         }
 
@@ -6643,28 +6677,28 @@ namespace bpkg
 
           return build_package {
             build_package::adjust,
-              ddb,
-              move (dsp),
-              nullptr,                   // No available pkg/repo fragment.
-              nullptr,
-              nullopt,                   // Dependencies.
-              nullopt,                   // Dependencies alternatives.
-              nullopt,                   // Package skeleton.
-              nullopt,                   // Postponed dependency alternatives.
-              false,                     // Recursive collection.
-              nullopt,                   // Hold package.
-              nullopt,                   // Hold version.
-              {},                        // Constraints.
-              false,                     // System.
-              false,                     // Keep output directory.
-              false,                     // Disfigure (from-scratch reconf).
-              false,                     // Configure-only.
-              nullopt,                   // Checkout root.
-              false,                     // Checkout purge.
-              strings (),                // Configuration variables.
-              {package_key {pdb, n}},    // Required by (dependency).
-              false,                     // Required by dependents.
-              build_package::adjust_reconfigure};
+            ddb,
+            move (dsp),
+            nullptr,                   // No available pkg/repo fragment.
+            nullptr,
+            nullopt,                   // Dependencies.
+            nullopt,                   // Dependencies alternatives.
+            nullopt,                   // Package skeleton.
+            nullopt,                   // Postponed dependency alternatives.
+            false,                     // Recursive collection.
+            nullopt,                   // Hold package.
+            nullopt,                   // Hold version.
+            {},                        // Constraints.
+            false,                     // System.
+            false,                     // Keep output directory.
+            false,                     // Disfigure (from-scratch reconf).
+            false,                     // Configure-only.
+            nullopt,                   // Checkout root.
+            false,                     // Checkout purge.
+            strings (),                // Configuration variables.
+            {package_key {pdb, n}},    // Required by (dependency).
+            false,                     // Required by dependents.
+            build_package::adjust_reconfigure};
         };
 
         // We can have three cases here: the package is already on the list,
@@ -6729,6 +6763,12 @@ namespace bpkg
           i->second.position = insert (pos, i->second.package);
         }
 
+        // Add this dependent's contraint, if present, to the dependency's
+        // constraints list for completeness.
+        //
+        if (dc)
+          p.constraints.emplace_back (ddb, move (dn).string (), move (*dc));
+
         // Recursively collect our own dependents inserting them before us.
         //
         // Note that we cannot end up with an infinite recursion for
@@ -6757,6 +6797,106 @@ namespace bpkg
 
     for (auto& p: map_)
       p.second.position = end ();
+  }
+
+  void build_packages::
+  print_constraints (diag_record& dr,
+                     const build_package& p,
+                     string& indent,
+                     set<package_key>& printed) const
+  {
+    using constraint_type = build_package::constraint_type;
+
+    const vector<constraint_type>& cs (p.constraints);
+
+    if (!cs.empty ())
+    {
+      package_key pk (p.db, p.name ());
+
+      if (printed.find (pk) == printed.end ())
+      {
+        printed.insert (pk);
+
+        for (const constraint_type& c: cs)
+        {
+          if (c.dependent != "command line")
+          {
+            const build_package* d;
+
+            try
+            {
+              d = entered_build (package_key (c.db,
+                                              package_name (c.dependent)));
+
+              assert (d != nullptr); // Expected to be collected.
+            }
+            catch (const invalid_argument&)
+            {
+              // Must be a package name, unless it is 'command line'.
+              //
+              assert (false);
+            }
+
+            dr << '\n' << indent << c.dependent << '/';
+
+            // The dependent can only be collected as a build or adjustment.
+            //
+            assert (d->action                        &&
+                    d->action != build_package::drop &&
+                    (d->available || d->selected));
+
+            dr << (d->available != nullptr
+                   ? d->available_version ()
+                   : d->selected->version) << c.db << " requires (" << pk
+               << ' ' << c.value << ")";
+
+            indent += "  ";
+            print_constraints (dr, *d, indent, printed);
+            indent.resize (indent.size () - 2);
+          }
+          else
+            dr << '\n' << indent << c.dependent << " requires (" << pk << ' '
+               << c.value << ")";
+        }
+      }
+      else
+      {
+        dr << '\n' << indent << "...";
+      }
+    }
+  }
+
+  void build_packages::
+  print_constraints (diag_record& dr,
+                     const package_key& pk,
+                     string& indent,
+                     set<package_key>& printed) const
+  {
+    const build_package* p (entered_build (pk));
+    assert (p != nullptr); // Expected to be collected.
+    print_constraints (dr, *p, indent, printed);
+  }
+
+  void build_packages::
+  print_constraints (diag_record& dr,
+                     const build_package::constraint_type& c,
+                     string& indent,
+                     set<package_key>& printed) const
+  {
+    const string& d (c.dependent);
+
+    if (d != "command line")
+    try
+    {
+      print_constraints (dr,
+                         package_key (c.db, package_name (d)),
+                         indent,
+                         printed);
+    }
+    catch (const invalid_argument&)
+    {
+      assert (false); // Must be a package name, unless it is 'command line'.
+    }
   }
 
   void build_packages::

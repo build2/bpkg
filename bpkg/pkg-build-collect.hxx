@@ -198,8 +198,13 @@ namespace bpkg
 
     // Constraint value plus, normally, the dependent package name that placed
     // this constraint but can also be some other name for the initial
-    // selection (e.g., package version specified by the user on the command
-    // line). This why we use the string type, rather than package_name.
+    // selection. This is why we use the string type, rather than
+    // package_name. Currently, the only valid non-package name is "command
+    // line", which is used when the package version is specified by the user
+    // on the command line.
+    //
+    // Note that if the dependent is a package name, then this package is
+    // expected to be collected (present in the map).
     //
     struct constraint_type
     {
@@ -726,6 +731,8 @@ namespace bpkg
     vector<pair<build_package*, version_constraint>> dependencies;
   };
 
+  struct build_packages;
+
   class unsatisfied_dependents: public vector<unsatisfied_dependent>
   {
   public:
@@ -738,7 +745,7 @@ namespace bpkg
     // and throw failed.
     //
     [[noreturn]] void
-    diag ();
+    diag (const build_packages&);
   };
 
   // List of dependency groups whose recursive processing should be postponed
@@ -1106,6 +1113,19 @@ namespace bpkg
 
     build_package*
     entered_build (const package_key& p)
+    {
+      return entered_build (p.db, p.name);
+    }
+
+    const build_package*
+    entered_build (database& db, const package_name& name) const
+    {
+      auto i (map_.find (db, name));
+      return i != map_.end () ? &i->second.package : nullptr;
+    }
+
+    const build_package*
+    entered_build (const package_key& p) const
     {
       return entered_build (p.db, p.name);
     }
@@ -1491,6 +1511,34 @@ namespace bpkg
     void
     clear_order ();
 
+    // Print all the version constraints (one per line) applied to this
+    // package and its dependents, recursively. The specified package is
+    // expected to be collected (present in the map). Don't print the version
+    // constraints for the same package twice, printing "..." instead. Noop if
+    // there are no constraints for this package.
+    //
+    void
+    print_constraints (diag_record&,
+                       const build_package&,
+                       string& indent,
+                       std::set<package_key>& printed) const;
+
+    void
+    print_constraints (diag_record&,
+                       const package_key&,
+                       string& indent,
+                       std::set<package_key>& printed) const;
+
+    // Wraps the above function for the case when the package is a dependent
+    // from the dependency's constraints list. Noop if the dependent is not a
+    // package name (command line, etc; see constraint_type for details).
+    //
+    void
+    print_constraints (diag_record&,
+                       const build_package::constraint_type&,
+                       string& indent,
+                       std::set<package_key>& printed) const;
+
     // Verify that builds ordering is consistent across all the data
     // structures and the ordering expectations are fulfilled (real build
     // actions are all ordered, etc).
@@ -1647,6 +1695,12 @@ namespace bpkg
 
       iterator
       find (database& db, const package_name& pn)
+      {
+        return find (package_key {db, pn});
+      }
+
+      const_iterator
+      find (database& db, const package_name& pn) const
       {
         return find (package_key {db, pn});
       }

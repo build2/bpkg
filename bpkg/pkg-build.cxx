@@ -5308,7 +5308,7 @@ namespace bpkg
           // dependencies.
           //
           if (!refine && !unsatisfied_depts.empty ())
-            unsatisfied_depts.diag ();
+            unsatisfied_depts.diag (pkgs);
 
           // Re-link the private configurations that were created during the
           // collection of the package builds with their parent

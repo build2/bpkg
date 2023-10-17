@@ -2679,6 +2679,7 @@ test.arguments += --sys-no-query
       $* libbar/0.0.1 ?libbaz/0.0.2 2>>EOE != 0;
         error: unable to satisfy constraints on package libbaz
           info: libbar depends on (libbaz == 0.0.1)
+                  command line requires (libbar == 0.0.1)
           info: command line depends on (libbaz == 0.0.2)
           info: specify libbaz version to satisfy libbar constraint
         info: while satisfying libbar/0.0.1
@@ -2687,6 +2688,7 @@ test.arguments += --sys-no-query
       $* -- libbar/0.0.1 '?libbaz>=0.0.2' 2>>EOE != 0
         error: unable to satisfy constraints on package libbaz
           info: libbar depends on (libbaz == 0.0.1)
+                  command line requires (libbar == 0.0.1)
           info: command line depends on (libbaz >= 0.0.2)
           info: specify libbaz version to satisfy libbar constraint
         info: while satisfying libbar/0.0.1
@@ -27524,6 +27526,7 @@ else
           error: unable to satisfy constraints on package libfoo
             info: command line depends on (libfoo == 1.0.0)
             info: libbar depends on (libfoo == 1.1.0)
+                    command line requires (libbar == 1.1.0)
             info: available libfoo/1.0.0
             info: available libfoo/1.1.0
             info: explicitly specify libfoo version to manually satisfy both constraints
@@ -27953,6 +27956,7 @@ else
           error: unable to satisfy constraints on package libfoo
             info: command line depends on (libfoo == 1.0.0)
             info: libbar depends on (libfoo == 1.1.0)
+                    command line requires (libbar == 1.1.0)
             info: available libfoo/1.0.0
             info: available libfoo/1.1.0
             info: explicitly specify libfoo version to manually satisfy both constraints
@@ -28342,6 +28346,7 @@ else
         $* $src/libbar-1.1.0.tar.gz "?$src/libfoo-1.0.0.tar.gz" 2>>~%EOE% != 0
           error: unable to satisfy constraints on package libfoo
             info: libbar depends on (libfoo == 1.1.0)
+                    command line requires (libbar == 1.1.0)
             info: command line depends on (libfoo == 1.0.0)
             info: specify libfoo version to satisfy libbar constraint
           info: while satisfying libbar/1.1.0
@@ -28753,6 +28758,7 @@ else
         $* $d/libbar-1.1.0/ "?$d/libfoo-1.0.0/" 2>>~%EOE% != 0
           error: unable to satisfy constraints on package libfoo
             info: libbar depends on (libfoo == 1.1.0)
+                    command line requires (libbar == 1.1.0)
             info: command line depends on (libfoo == 1.0.0)
             info: specify libfoo version to satisfy libbar constraint
           info: while satisfying libbar/1.1.0
