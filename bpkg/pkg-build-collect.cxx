@@ -1366,19 +1366,24 @@ namespace bpkg
 
               //             "  info: ..."
               string indent ("          ");
-              set<package_key> printed;
 
               diag_record dr (fail);
               dr << "unable to satisfy constraints on package " << n <<
                 info << c1->dependent << c1->db << " depends on (" << n << ' '
                      << c1->value << ")";
 
-              print_constraints (dr, *c1, indent, printed);
+              {
+                set<package_key> printed;
+                print_constraints (dr, *c1, indent, printed);
+              }
 
               dr << info << c2->dependent << c2->db << " depends on (" << n
                          << ' ' << c2->value << ")";
 
-              print_constraints (dr, *c2, indent, printed);
+              {
+                set<package_key> printed;
+                print_constraints (dr, *c2, indent, printed);
+              }
 
               dr << info << "available " << p1->available_name_version () <<
                     info << "available " << p2->available_name_version () <<
@@ -2248,19 +2253,24 @@ namespace bpkg
                   {
                     //             "  info: ..."
                     string indent ("          ");
-                    set<package_key> printed;
 
                     *dr << error << "unable to satisfy constraints on package "
                         << dn <<
                       info << nm << pdb << " depends on (" << dn << ' '
                            << *dp.constraint << ")";
 
-                    print_constraints (*dr, pkg, indent, printed);
+                    {
+                      set<package_key> printed;
+                      print_constraints (*dr, pkg, indent, printed);
+                    }
 
                     *dr << info << c.dependent << c.db << " depends on (" << dn
                                 << ' ' << c.value << ")";
 
-                    print_constraints (*dr, c, indent, printed);
+                    {
+                      set<package_key> printed;
+                      print_constraints (*dr, c, indent, printed);
+                    }
 
                     *dr << info << "specify " << dn << " version to satisfy "
                                 << nm << " constraint";
@@ -2970,20 +2980,25 @@ namespace bpkg
 
                           //             "  info: ..."
                           string indent ("          ");
-                          set<package_key> printed;
 
                           *dr << error << "unable to satisfy constraints on "
                               << "package " << n <<
                             info << c2.dependent << c2.db << " depends on ("
                                  << n << ' ' << c2.value << ")";
 
-                          print_constraints (*dr, c2, indent, printed);
+                          {
+                            set<package_key> printed;
+                            print_constraints (*dr, c2, indent, printed);
+                          }
 
                           *dr << info << c1.dependent << c1.db
                                       << " depends on (" << n << ' '
                                       << c1.value << ")";
 
-                          print_constraints (*dr, c1, indent, printed);
+                          {
+                            set<package_key> printed;
+                            print_constraints (*dr, c1, indent, printed);
+                          }
 
                           *dr << info << "available "
                                       << bp.available_name_version () <<
