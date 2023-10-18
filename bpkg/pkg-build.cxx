@@ -4243,7 +4243,8 @@ namespace bpkg
             // specify packages on the command line does not matter).
             //
             for (const build_package& p: hold_pkgs)
-              pkgs.collect_build (o, p, replaced_vers, postponed_cfgs);
+              pkgs.collect_build (
+                o, p, replaced_vers, postponed_cfgs, unsatisfied_depts);
 
             // Collect all the prerequisites of the user selection.
             //
@@ -4294,7 +4295,8 @@ namespace bpkg
                     postponed_edeps,
                     postponed_deps,
                     postponed_cfgs,
-                    unacceptable_alts);
+                    unacceptable_alts,
+                    unsatisfied_depts);
                 }
               }
             }
@@ -4340,6 +4342,7 @@ namespace bpkg
                                                postponed_deps,
                                                postponed_cfgs,
                                                unacceptable_alts,
+                                               unsatisfied_depts,
                                                find_prereq_database,
                                                add_priv_cfg);
           }
@@ -4419,7 +4422,8 @@ namespace bpkg
 
                 // Note: not recursive.
                 //
-                pkgs.collect_build (o, move (p), replaced_vers, postponed_cfgs);
+                pkgs.collect_build (
+                  o, move (p), replaced_vers, postponed_cfgs, unsatisfied_depts);
 
                 l5 ([&]{trace << "dep-postpone user-specified dependency "
                               << pk;});
@@ -4436,7 +4440,8 @@ namespace bpkg
                   pkgs.collect_build (o,
                                       move (p),
                                       replaced_vers,
-                                      postponed_cfgs);
+                                      postponed_cfgs,
+                                      unsatisfied_depts);
 
                   l5 ([&]{trace << "dep-postpone user-specified dependency "
                                 << pk << " since already in cluster "
@@ -4452,6 +4457,7 @@ namespace bpkg
                                       move (p),
                                       replaced_vers,
                                       postponed_cfgs,
+                                      unsatisfied_depts,
                                       &dep_chain,
                                       find_prereq_database,
                                       add_priv_cfg,
@@ -4492,6 +4498,7 @@ namespace bpkg
                                           postponed_cfgs,
                                           postponed_cfgs_history,
                                           unacceptable_alts,
+                                          unsatisfied_depts,
                                           find_prereq_database,
                                           rpt_depts,
                                           add_priv_cfg);
@@ -6484,7 +6491,8 @@ namespace bpkg
                                                nullptr /* prev_prerequisites */,
                                                simulate,
                                                fdb,
-                                               configured_state);
+                                               configured_state,
+                                               unconstrain_deps ());
           }
           else
           {

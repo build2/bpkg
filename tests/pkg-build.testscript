@@ -150,9 +150,14 @@
 # |   |-- libfoo-2.0.0.tar.gz
 # |   |-- bar-1.0.0.tar.gz      -> libbar
 # |   |-- baz-1.0.0.tar.gz      -> libbaz
+# |   |-- bax-0.1.0.tar.gz      -> libbox config.bax.backend=libbox
+# |   |-- bax-1.0.0.tar.gz      -> libbox >= 0.1.1 config.bax.backend=libbox
+# |   |-- bix-0.1.0.tar.gz
+# |   |-- bix-1.0.0.tar.gz      -> bax == 0.1.0
 # |   |-- box-1.0.0.tar.gz      -> libbiz ^1.0.0 config.box.backend=libbiz |
 # |   |                            libbox >= 0.1.1 config.box.backend=libbox,
 # |   |                            libbaz
+# |   |-- bux-1.0.0.tar.gz      -> bix
 # |   |-- fax-1.0.0.tar.gz      -> libbar ^1.0.0 ? ($cxx.target.class == 'windows') config.fax.backend=libbar |
 # |   |                            libbaz ^1.0.0 ? ($cxx.target.class != 'windows') config.fax.backend=libbaz,
 # |   |                            libbiz ? ($config.fax.libbiz) config.fax.extras='[b\i$z]',
@@ -2785,10 +2790,10 @@ test.arguments += --sys-no-query
 
         $* libbiz 2>>EOE != 0;
           error: unable to satisfy constraints on package libfoo
-            info: libfox depends on (libfoo == 0.0.1)
             info: libbox depends on (libfoo == 1.0.0)
-            info: available libfoo/0.0.1
+            info: libfox depends on (libfoo == 0.0.1)
             info: available libfoo/1.0.0
+            info: available libfoo/0.0.1
             info: explicitly specify libfoo version to manually satisfy both constraints
           info: while satisfying libbox/0.0.2
           info: while satisfying libbiz/0.0.1
@@ -3949,7 +3954,7 @@ test.arguments += --sys-no-query
       $pkg_drop foo
     }
 
-    : multiple-alternatives
+    : multiple-alts
     :
     {
       +$clone_cfg
@@ -4206,7 +4211,7 @@ test.arguments += --sys-no-query
       {
         +$clone_cfg
 
-        : reevaluate-alternatives
+        : reevaluate-alts
         :
         {
           +$clone_cfg
@@ -4320,19 +4325,16 @@ test.arguments += --sys-no-query
             $* box libbox 2>!;
 
             # While at it, test the reused-only alternative selection mode.
+            # Also test the postponement of the 'unable to satisfy constraints
+            # on package' failure which ends up with the 'unable to downgrade
+            # package' failure.
             #
             $* box +{ config.box.extras=true } libbox/0.1.0 2>>EOE != 0;
-              error: unable to select dependency alternative for package box/1.0.0
-                info: explicitly specify dependency packages to manually select the alternative
-                info: alternative: libbiz
-                info: unsatisfactory alternative: libbox
-                error: unable to satisfy constraints on package libbox
-                info: command line depends on (libbox == 0.1.0)
-                info: box depends on (libbox >= 0.1.1)
-                info: available libbox/0.1.0
-                info: available libbox/1.0.0
-                info: explicitly specify libbox version to manually satisfy both constraints
-              info: while satisfying box/1.0.0
+              error: unable to downgrade package libbox/1.0.0 to 0.1.0
+                info: because package box depends on (libbox >= 0.1.1)
+                info: consider re-trying with --upgrade|-u potentially combined with --recursive|-r
+                info: or explicitly request up/downgrade of package box
+                info: or explicitly specify package libbox version to manually satisfy these constraints
               EOE
 
             $* box +{ config.box.extras=true } libbox/0.1.0 ?libbiz 2>>~%EOE%;
@@ -4370,6 +4372,93 @@ test.arguments += --sys-no-query
               EOO
 
             $pkg_drop box;
+            $pkg_drop libbox
+          }
+
+          : postpone-unable-satisfy
+          :
+          : Similar to the above, but this time the postponement of the
+          : 'unable to satisfy constraints on package' failure ends up with
+          : downgrading of the unsatisfied dependent (bax).
+          :
+          {
+            $clone_cfg;
+
+            $* bax libbox 2>!;
+
+            $* bax +{ config.bax.extras=true } libbox/0.1.0 bix 2>>~%EOE%;
+              build plan:
+                downgrade libbox/0.1.0
+                downgrade bax/0.1.0
+                  config.bax.extras=true (user configuration)
+                  config.bax.backend=libbox (set by bax)
+                new bix/1.0.0
+              disfigured bax/1.0.0
+              disfigured libbox/1.0.0
+              fetched libbox/0.1.0
+              unpacked libbox/0.1.0
+              fetched bax/0.1.0
+              unpacked bax/0.1.0
+              fetched bix/1.0.0
+              unpacked bix/1.0.0
+              configured libbox/0.1.0
+              configured bax/0.1.0
+              configured bix/1.0.0
+              %info: .+libbox-0.1.0.+ is up to date%
+              %info: .+bax-0.1.0.+ is up to date%
+              %info: .+bix-1.0.0.+ is up to date%
+              updated libbox/0.1.0
+              updated bax/0.1.0
+              updated bix/1.0.0
+              EOE
+
+            $pkg_drop bix;
+            $pkg_drop bax;
+            $pkg_drop libbox
+          }
+
+          : postpone-unable-satisfy-dep
+          :
+          : Similar to the above, but the failure postponement ends up with
+          : downgrading on the next dependency refinement iteration.
+          :
+          {
+            $clone_cfg;
+
+            $* bax libbox bux ?bix/0.1.0 2>!;
+
+            $* bax +{ config.bax.extras=true } libbox/0.1.0 ?bix 2>>~%EOE%;
+              build plan:
+                downgrade libbox/0.1.0
+                downgrade bax/0.1.0
+                  config.bax.extras=true (user configuration)
+                  config.bax.backend=libbox (set by bax)
+                upgrade bix/1.0.0
+                reconfigure bux (dependent of bix)
+              disfigured bux/1.0.0
+              disfigured bix/0.1.0
+              disfigured bax/1.0.0
+              disfigured libbox/1.0.0
+              fetched libbox/0.1.0
+              unpacked libbox/0.1.0
+              fetched bax/0.1.0
+              unpacked bax/0.1.0
+              fetched bix/1.0.0
+              unpacked bix/1.0.0
+              configured libbox/0.1.0
+              configured bax/0.1.0
+              configured bix/1.0.0
+              configured bux/1.0.0
+              %info: .+libbox-0.1.0.+ is up to date%
+              %info: .+bax-0.1.0.+ is up to date%
+              %info: .+bux-1.0.0.+ is up to date%
+              updated libbox/0.1.0
+              updated bax/0.1.0
+              updated bux/1.0.0
+              EOE
+
+            $pkg_drop bux;
+            $pkg_drop bax;
             $pkg_drop libbox
           }
         }

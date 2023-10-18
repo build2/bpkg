@@ -716,6 +716,13 @@ namespace bpkg
   // dropped, dependencies will be up/downgraded to a different versions,
   // etc).
   //
+  // Also note that we may discover that a being up/downgraded dependency
+  // doesn't satisfy an existing dependent which we re-collect recursively for
+  // some reason (configuration variables are specified, etc). In this case we
+  // may also postpone the failure in the hope that the problem will resolve
+  // naturally as it is described above (see collect_build() implementation
+  // for details).
+  //
   // Specifically, we cache such unsatisfied constraints, pretend that the
   // dependents don't impose them and proceed with the remaining
   // collecting/ordering, simulating the plan execution, and evaluating the
@@ -728,7 +735,7 @@ namespace bpkg
   struct unsatisfied_dependent
   {
     package_key dependent;
-    vector<pair<build_package*, version_constraint>> dependencies;
+    vector<pair<const build_package*, version_constraint>> dependencies;
   };
 
   struct build_packages;
@@ -736,6 +743,13 @@ namespace bpkg
   class unsatisfied_dependents: public vector<unsatisfied_dependent>
   {
   public:
+    // Add a dependent together with the unsatisfied dependency constraint.
+    //
+    void
+    add (const package_key& dependent,
+         const build_package* dependency,
+         const version_constraint&);
+
     // Try to find the dependent entry and return NULL if not found.
     //
     unsatisfied_dependent*
@@ -1130,6 +1144,14 @@ namespace bpkg
       return entered_build (p.db, p.name);
     }
 
+    // Return NULL if the dependent in the constraint is not a package name
+    // (command line, etc; see build_package::constraint_type for details).
+    // Otherwise, return the dependent package build which is expected to be
+    // collected.
+    //
+    const build_package*
+    dependent_build (const build_package::constraint_type&) const;
+
     // Collect the package being built. Return its pointer if this package
     // version was, in fact, added to the map and NULL if it was already there
     // and the existing version was preferred or if the package build has been
@@ -1176,6 +1198,7 @@ namespace bpkg
                    build_package,
                    replaced_versions&,
                    postponed_configurations&,
+                   unsatisfied_dependents&,
                    build_package_refs* dep_chain = nullptr,
                    const function<find_database_function>& = nullptr,
                    const function<add_priv_cfg_function>& = nullptr,
@@ -1389,6 +1412,7 @@ namespace bpkg
                                  postponed_dependencies&,
                                  postponed_configurations&,
                                  unacceptable_alternatives&,
+                                 unsatisfied_dependents&,
                                  optional<pair<size_t, size_t>> reeval_pos = nullopt,
                                  const optional<package_key>& orig_dep = nullopt);
 
@@ -1407,7 +1431,8 @@ namespace bpkg
                                  postponed_existing_dependencies&,
                                  postponed_dependencies&,
                                  postponed_configurations&,
-                                 unacceptable_alternatives&);
+                                 unacceptable_alternatives&,
+                                 unsatisfied_dependents&);
 
     // Collect the repointed dependents and their replaced prerequisites,
     // recursively.
@@ -1428,6 +1453,7 @@ namespace bpkg
                                   postponed_dependencies&,
                                   postponed_configurations&,
                                   unacceptable_alternatives&,
+                                  unsatisfied_dependents&,
                                   const function<find_database_function>&,
                                   const function<add_priv_cfg_function>&);
 
@@ -1459,6 +1485,7 @@ namespace bpkg
                              postponed_configurations&,
                              strings& postponed_cfgs_history,
                              unacceptable_alternatives&,
+                             unsatisfied_dependents&,
                              const function<find_database_function>&,
                              const repointed_dependents&,
                              const function<add_priv_cfg_function>&,
@@ -1526,16 +1553,6 @@ namespace bpkg
     void
     print_constraints (diag_record&,
                        const package_key&,
-                       string& indent,
-                       std::set<package_key>& printed) const;
-
-    // Wraps the above function for the case when the package is a dependent
-    // from the dependency's constraints list. Noop if the dependent is not a
-    // package name (command line, etc; see constraint_type for details).
-    //
-    void
-    print_constraints (diag_record&,
-                       const build_package::constraint_type&,
                        string& indent,
                        std::set<package_key>& printed) const;
 
@@ -1610,7 +1627,8 @@ namespace bpkg
       const pkg_build_options&,
       const existing_dependent&,
       replaced_versions&,
-      postponed_configurations&);
+      postponed_configurations&,
+      unsatisfied_dependents&);
 
     // Non-recursively collect an existing non-deviated dependent previously
     // returned by the query_existing_dependents() function call for the
@@ -1622,7 +1640,8 @@ namespace bpkg
       const existing_dependent&,
       postponed_configuration::packages&& dependencies,
       replaced_versions&,
-      postponed_configurations&);
+      postponed_configurations&,
+      unsatisfied_dependents&);
 
     // Non-recursively collect an existing dependent previously returned by
     // the query_existing_dependents() function call with the
@@ -1639,7 +1658,8 @@ namespace bpkg
                                   const existing_dependent&,
                                   replaced_versions&,
                                   postponed_packages& postponed_recs,
-                                  postponed_configurations&);
+                                  postponed_configurations&,
+                                  unsatisfied_dependents&);
 
     struct package_ref
     {
