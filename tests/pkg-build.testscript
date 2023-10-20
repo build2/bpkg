@@ -159,7 +159,10 @@
 # |   |                            libbaz
 # |   |-- bux-1.0.0.tar.gz      -> bix
 # |   |-- dax-1.0.0.tar.gz      -> libbar ? ($config.dax.extras)
+# |   |                            libbaz
+# |   |-- dix-0.1.0.tar.gz
 # |   |-- dix-1.0.0.tar.gz      -> dax require {config.dax.extras=true}
+# |   |-- dux-1.0.0.tar.gz      -> dix
 # |   |-- fax-1.0.0.tar.gz      -> libbar ^1.0.0 ? ($cxx.target.class == 'windows') config.fax.backend=libbar |
 # |   |                            libbaz ^1.0.0 ? ($cxx.target.class != 'windows') config.fax.backend=libbaz,
 # |   |                            libbiz ? ($config.fax.libbiz) config.fax.extras='[b\i$z]',
@@ -4658,9 +4661,13 @@ test.arguments += --sys-no-query
         test.arguments += --plan "";
 
         $* dax 2>>~%EOE%;
+            new libbaz/1.1.0 (required by dax)
             new dax/1.0.0
+          fetched libbaz/1.1.0
+          unpacked libbaz/1.1.0
           fetched dax/1.0.0
           unpacked dax/1.0.0
+          configured libbaz/1.1.0
           configured dax/1.0.0
           %info: .+dax-1.0.0.+ is up to date%
           updated dax/1.0.0
@@ -4668,6 +4675,7 @@ test.arguments += --sys-no-query
 
         $pkg_status -r >>EOO;
           !dax configured 1.0.0
+            libbaz configured 1.1.0
           EOO
 
         $* dix 2>>~%EOE%;
@@ -4690,12 +4698,100 @@ test.arguments += --sys-no-query
         $pkg_status -r >>EOO;
           !dax configured 1.0.0
             libbar configured 1.0.0
+            libbaz configured 1.1.0
           !dix configured 1.0.0
             !dax configured 1.0.0
               libbar configured 1.0.0
+              libbaz configured 1.1.0
           EOO
 
         $pkg_drop dax dix
+      }
+
+      : repoint-enable-indirect-dependency
+      :
+      {
+        $clone_cfg;
+
+        test.arguments += --plan "";
+
+        $* dax dux ?dix/0.1.0 2>>~%EOE%;
+            new libbaz/1.1.0 (required by dax)
+            new dax/1.0.0
+            new dix/0.1.0 (required by dux)
+            new dux/1.0.0
+          fetched libbaz/1.1.0
+          unpacked libbaz/1.1.0
+          fetched dax/1.0.0
+          unpacked dax/1.0.0
+          fetched dix/0.1.0
+          unpacked dix/0.1.0
+          fetched dux/1.0.0
+          unpacked dux/1.0.0
+          configured libbaz/1.1.0
+          configured dax/1.0.0
+          configured dix/0.1.0
+          configured dux/1.0.0
+          %info: .+dax-1.0.0.+ is up to date%
+          %info: .+dux-1.0.0.+ is up to date%
+          updated dax/1.0.0
+          updated dux/1.0.0
+          EOE
+
+        $pkg_status -r >>EOO;
+          !dax configured 1.0.0
+            libbaz configured 1.1.0
+          !dux configured 1.0.0
+            dix configured !0.1.0 available 1.0.0
+          EOO
+
+        $cfg_create -d cfg2 --name cfg2 &cfg2/***;
+        $cfg_link -d cfg cfg2;
+        $rep_add -d cfg2 $rep/t8a && $rep_fetch -d cfg2;
+
+        $* libbaz +{ --config-name cfg2 } ?dix 2>>~%EOE%;
+          %  new libbaz/1.1.0 \[cfg2.\]%
+            new libbar/1.0.0 (required by dax)
+            drop libbaz/1.1.0 (unused)
+          %  reconfigure/update dax/1.0.0 \(dependent of libbaz \[cfg2.\]\)%
+              config.dax.extras=true (set by dix)
+            upgrade dix/1.0.0
+            reconfigure dux (dependent of dix)
+          disfigured dux/1.0.0
+          disfigured dix/0.1.0
+          disfigured dax/1.0.0
+          disfigured libbaz/1.1.0
+          %fetched libbaz/1.1.0 \[cfg2.\]%
+          %unpacked libbaz/1.1.0 \[cfg2.\]%
+          fetched libbar/1.0.0
+          unpacked libbar/1.0.0
+          purged libbaz/1.1.0
+          fetched dix/1.0.0
+          unpacked dix/1.0.0
+          %configured libbaz/1.1.0 \[cfg2.\]%
+          configured libbar/1.0.0
+          configured dax/1.0.0
+          configured dix/1.0.0
+          configured dux/1.0.0
+          %info: .+libbaz-1.1.0.+ is up to date%
+          %info: .+dux-1.0.0.+ is up to date%
+          %updated libbaz/1.1.0 \[cfg2.\]%
+          updated dux/1.0.0
+          EOE
+
+        $pkg_status -r >>/EOO;
+          !dax configured 1.0.0
+            libbar configured 1.0.0
+            !libbaz [cfg2/] configured 1.1.0
+          !dux configured 1.0.0
+            dix configured 1.0.0
+              !dax configured 1.0.0
+                libbar configured 1.0.0
+                !libbaz [cfg2/] configured 1.1.0
+          EOO
+
+        $pkg_drop dux;
+        $pkg_drop dax
       }
 
       : reevaluate-alternatives

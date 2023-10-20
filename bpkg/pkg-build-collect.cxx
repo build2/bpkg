@@ -4955,23 +4955,27 @@ namespace bpkg
     const function<find_database_function>& fdb,
     const function<add_priv_cfg_function>& apc)
   {
+    tracer trace ("collect_repointed_dependents");
+
     for (const auto& rd: rpt_depts)
     {
       database&           db (rd.first.db);
       const package_name& nm (rd.first.name);
 
-      auto i (map_.find (db, nm));
-      if (i != map_.end ())
       {
-        build_package& b (i->second.package);
-
-        if (!b.action || *b.action != build_package::adjust)
+        auto i (map_.find (db, nm));
+        if (i != map_.end ())
         {
-          if (!b.action ||
-              (*b.action != build_package::drop && !b.reconfigure ()))
-            b.flags |= build_package::adjust_reconfigure;
+          build_package& b (i->second.package);
 
-          continue;
+          if (!b.action || *b.action != build_package::adjust)
+          {
+            if (!b.action ||
+                (*b.action != build_package::drop && !b.reconfigure ()))
+              b.flags |= build_package::adjust_reconfigure;
+
+            continue;
+          }
         }
       }
 
@@ -5021,23 +5025,64 @@ namespace bpkg
 
       build_package_refs dep_chain;
 
-      // Note: recursive.
+      package_key pk {db, nm};
+
+      // Note that the repointed dependent can well be a dependency whose
+      // recursive processing should be postponed.
       //
-      collect_build (o,
-                     move (p),
-                     replaced_vers,
-                     postponed_cfgs,
-                     unsatisfied_depts,
-                     &dep_chain,
-                     fdb,
-                     apc,
-                     &rpt_depts,
-                     &postponed_repo,
-                     &postponed_alts,
-                     &postponed_recs,
-                     &postponed_edeps,
-                     &postponed_deps,
-                     &unacceptable_alts);
+      auto i (postponed_deps.find (pk));
+      if (i != postponed_deps.end ())
+      {
+        // Note that here we would collect the repointed dependent recursively
+        // without specifying any configuration for it.
+        //
+        i->second.wout_config = true;
+
+        // Note: not recursive.
+        //
+        collect_build (
+          o, move (p), replaced_vers, postponed_cfgs, unsatisfied_depts);
+
+        l5 ([&]{trace << "dep-postpone repointed dependent " << pk;});
+      }
+      else
+      {
+        const postponed_configuration* pcfg (
+          postponed_cfgs.find_dependency (pk));
+
+        if (pcfg != nullptr)
+        {
+          // Note: not recursive.
+          //
+          collect_build (
+            o, move (p), replaced_vers, postponed_cfgs, unsatisfied_depts);
+
+          l5 ([&]{trace << "dep-postpone repointed dependent " << pk
+                        << " since already in cluster " << *pcfg;});
+        }
+        else
+        {
+          build_package_refs dep_chain;
+
+          // Note: recursive.
+          //
+          collect_build (o,
+                         move (p),
+                         replaced_vers,
+                         postponed_cfgs,
+                         unsatisfied_depts,
+                         &dep_chain,
+                         fdb,
+                         apc,
+                         &rpt_depts,
+                         &postponed_repo,
+                         &postponed_alts,
+                         &postponed_recs,
+                         &postponed_edeps,
+                         &postponed_deps,
+                         &unacceptable_alts);
+        }
+      }
     }
   }
 
