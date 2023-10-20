@@ -5298,7 +5298,8 @@ namespace bpkg
                 const replaced_versions& replaced_vers,
                 const postponed_existing_dependencies& postponed_edeps,
                 const postponed_dependencies& postponed_deps,
-                const postponed_configurations& postponed_cfgs)
+                const postponed_configurations& postponed_cfgs,
+                const unsatisfied_dependents& unsatisfied_depts)
           : pkgs_ (pkgs),
             replaced_vers_ (replaced_vers),
             postponed_edeps_ (postponed_edeps),
@@ -5316,6 +5317,21 @@ namespace bpkg
         save (postponed_repo_, postponed_repo);
         save (postponed_alts_, postponed_alts);
         save (postponed_recs_, postponed_recs);
+
+        unsatisfied_depts_.reserve (unsatisfied_depts.size ());
+
+        for (const auto& ud: unsatisfied_depts)
+        {
+          vector<pair<package_key, version_constraint>> deps;
+          deps.reserve (ud.dependencies.size());
+
+          for (const auto& d: ud.dependencies)
+            deps.emplace_back (package_key (d.first->db, d.first->name ()),
+                               d.second);
+
+          unsatisfied_depts_.push_back (
+            unsatisfied_dependent {ud.dependent, move (deps)});
+        }
       }
 
       void
@@ -5326,7 +5342,8 @@ namespace bpkg
                replaced_versions& replaced_vers,
                postponed_existing_dependencies& postponed_edeps,
                postponed_dependencies& postponed_deps,
-               postponed_configurations& postponed_cfgs)
+               postponed_configurations& postponed_cfgs,
+               unsatisfied_dependents& unsatisfied_depts)
       {
         pkgs            = move (pkgs_);
         replaced_vers   = move (replaced_vers_);
@@ -5350,6 +5367,25 @@ namespace bpkg
         restore (postponed_repo, postponed_repo_);
         restore (postponed_alts, postponed_alts_);
         restore (postponed_recs, postponed_recs_);
+
+        unsatisfied_depts.clear ();
+        unsatisfied_depts.reserve (unsatisfied_depts_.size ());
+
+        for (auto& ud: unsatisfied_depts_)
+        {
+          vector<pair<const build_package*, version_constraint>> deps;
+          deps.reserve (ud.dependencies.size());
+
+          for (const auto& d: ud.dependencies)
+          {
+            build_package* b (pkgs.entered_build (d.first));
+            assert (b != nullptr);
+            deps.emplace_back (b, move (d.second));
+          }
+
+          unsatisfied_depts.push_back (
+            bpkg::unsatisfied_dependent {move (ud.dependent), move (deps)});
+        }
       }
 
     private:
@@ -5365,6 +5401,13 @@ namespace bpkg
       postponed_existing_dependencies postponed_edeps_;
       postponed_dependencies          postponed_deps_;
       postponed_configurations        postponed_cfgs_;
+
+      struct unsatisfied_dependent
+      {
+        package_key dependent;
+        vector<pair<package_key, version_constraint>> dependencies;
+      };
+      vector<unsatisfied_dependent> unsatisfied_depts_;
     };
 
     size_t depth (pcfg != nullptr ? pcfg->depth : 0);
@@ -6208,7 +6251,8 @@ namespace bpkg
                       replaced_vers,
                       postponed_edeps,
                       postponed_deps,
-                      postponed_cfgs);
+                      postponed_cfgs,
+                      unsatisfied_depts);
 
           try
           {
@@ -6261,7 +6305,8 @@ namespace bpkg
                        replaced_vers,
                        postponed_edeps,
                        postponed_deps,
-                       postponed_cfgs);
+                       postponed_cfgs,
+                       unsatisfied_depts);
 
             pc = &postponed_cfgs[ci];
 
@@ -6310,7 +6355,8 @@ namespace bpkg
                        replaced_vers,
                        postponed_edeps,
                        postponed_deps,
-                       postponed_cfgs);
+                       postponed_cfgs,
+                       unsatisfied_depts);
 
             pc = &postponed_cfgs[ci];
 
@@ -6392,7 +6438,8 @@ namespace bpkg
                        replaced_vers,
                        postponed_edeps,
                        postponed_deps,
-                       postponed_cfgs);
+                       postponed_cfgs,
+                       unsatisfied_depts);
 
             pc = &postponed_cfgs[ci];
 
