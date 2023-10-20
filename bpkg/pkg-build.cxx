@@ -4551,24 +4551,16 @@ namespace bpkg
         // appear (e.g., on the plan) last.
         //
         for (const dep& d: deps)
-          pkgs.order (d.db,
-                      d.name,
-                      nullopt               /* buildtime */,
-                      find_prereq_database,
-                      false                 /* reorder */);
+          pkgs.order (d.db, d.name, find_prereq_database, false /* reorder */);
 
         for (const build_package& p: reverse_iterate (hold_pkgs))
-          pkgs.order (p.db,
-                      p.name (),
-                      nullopt /* buildtime */,
-                      find_prereq_database);
+          pkgs.order (p.db, p.name (), find_prereq_database);
 
         for (const auto& rd: rpt_depts)
           pkgs.order (rd.first.db,
                       rd.first.name,
-                      nullopt               /* buildtime */,
                       find_prereq_database,
-                      false                 /* reorder */);
+                      false /* reorder */);
 
         for (const postponed_configuration& cfg: postponed_cfgs)
         {
@@ -4577,11 +4569,7 @@ namespace bpkg
             if (d.second.existing)
             {
               const package_key& p (d.first);
-
-              pkgs.order (p.db,
-                          p.name,
-                          nullopt /* buildtime */,
-                          find_prereq_database);
+              pkgs.order (p.db, p.name, find_prereq_database);
             }
           }
         }
@@ -4590,10 +4578,7 @@ namespace bpkg
         {
           assert (p->recursive_collection);
 
-          pkgs.order (p->db,
-                      p->name (),
-                      nullopt /* buildtime */,
-                      find_prereq_database);
+          pkgs.order (p->db, p->name (), find_prereq_database);
         }
 
         // Collect and order all the dependents that we will need to
@@ -4617,9 +4602,8 @@ namespace bpkg
             if (sp != nullptr && sp->hold_package)
               pkgs.order (db,
                           p.name,
-                          nullopt               /* buildtime */,
                           find_prereq_database,
-                          false                 /* reorder */);
+                          false /* reorder */);
           };
 
           if (p.db != nullptr)

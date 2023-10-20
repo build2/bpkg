@@ -158,6 +158,8 @@
 # |   |                            libbox >= 0.1.1 config.box.backend=libbox,
 # |   |                            libbaz
 # |   |-- bux-1.0.0.tar.gz      -> bix
+# |   |-- dax-1.0.0.tar.gz      -> libbar ? ($config.dax.extras)
+# |   |-- dix-1.0.0.tar.gz      -> dax require {config.dax.extras=true}
 # |   |-- fax-1.0.0.tar.gz      -> libbar ^1.0.0 ? ($cxx.target.class == 'windows') config.fax.backend=libbar |
 # |   |                            libbaz ^1.0.0 ? ($cxx.target.class != 'windows') config.fax.backend=libbaz,
 # |   |                            libbiz ? ($config.fax.libbiz) config.fax.extras='[b\i$z]',
@@ -4646,6 +4648,54 @@ test.arguments += --sys-no-query
           EOO
 
         $pkg_drop fax
+      }
+
+      : enable-indirect-dependency
+      :
+      {
+        $clone_cfg;
+
+        test.arguments += --plan "";
+
+        $* dax 2>>~%EOE%;
+            new dax/1.0.0
+          fetched dax/1.0.0
+          unpacked dax/1.0.0
+          configured dax/1.0.0
+          %info: .+dax-1.0.0.+ is up to date%
+          updated dax/1.0.0
+          EOE
+
+        $pkg_status -r >>EOO;
+          !dax configured 1.0.0
+          EOO
+
+        $* dix 2>>~%EOE%;
+            new libbar/1.0.0 (required by dax)
+            reconfigure/update dax/1.0.0 (required by dix)
+              config.dax.extras=true (set by dix)
+            new dix/1.0.0
+          disfigured dax/1.0.0
+          fetched libbar/1.0.0
+          unpacked libbar/1.0.0
+          fetched dix/1.0.0
+          unpacked dix/1.0.0
+          configured libbar/1.0.0
+          configured dax/1.0.0
+          configured dix/1.0.0
+          %info: .+dix-1.0.0.+ is up to date%
+          updated dix/1.0.0
+          EOE
+
+        $pkg_status -r >>EOO;
+          !dax configured 1.0.0
+            libbar configured 1.0.0
+          !dix configured 1.0.0
+            !dax configured 1.0.0
+              libbar configured 1.0.0
+          EOO
+
+        $pkg_drop dax dix
       }
 
       : reevaluate-alternatives
@@ -17568,9 +17618,9 @@ test.arguments += --sys-no-query
         build plan:
           upgrade libbar/1.0.0
             config.libbar.extras=true (set by bax)
+          upgrade libbiz/1.0.0
           reconfigure/update bax/1.0.0
             config.bax.libfoo_extras=true (set by bax)
-          upgrade libbiz/1.0.0
         trace: execute_plan: simulate: no
         %.*
         EOE
@@ -24494,14 +24544,14 @@ else
         %  upgrade libbaz/1.1.0 \[h1.\] \(required by foo \[h1.\]\)%
         %  drop libbuild2-bar/1.0.0 \[h1..bpkg.build2.\] \(unused\)%
         %  upgrade foo/1.1.0 \[h1.\]%
-        %  reconfigure libbox \(dependent of foo \[h1.\]\)%
         %  reconfigure libbar \(dependent of foo \[h1.\]\)%
+        %  reconfigure libbox \(dependent of foo \[h1.\]\)%
         %  drop libfax/1.0.0 \(unused\)%
           reconfigure/update libfix/1.0.0
         continue? [Y/n] update dependent packages? [Y/n] disfigured libfix/1.0.0
         disfigured libfax/1.0.0
-        disfigured libbar/1.0.0
         disfigured libbox/1.0.0
+        disfigured libbar/1.0.0
         %disfigured foo/1.0.0 \[h1.\]%
         %disfigured libbuild2-bar/1.0.0 \[h1..bpkg.build2.\]%
         %disfigured libbaz/1.0.0 \[h1.\]%
@@ -24516,19 +24566,19 @@ else
         %configured libfax/1.0.0 \[t2.\]%
         %configured libbaz/1.1.0 \[h1.\]%
         %configured foo/1.1.0 \[h1.\]%
-        configured libbox/1.0.0
         configured libbar/1.0.0
+        configured libbox/1.0.0
         configured libfix/1.0.0
         %info: t2.+libfax-1.0.0.+ is up to date%
         %info: h1.+foo-1.1.0.+ is up to date%
         %info: t1.+libfix-1.0.0.+ is up to date%
-        %info: t1.+libbox-1.0.0.+ is up to date%
         %info: t1.+libbar-1.0.0.+ is up to date%
+        %info: t1.+libbox-1.0.0.+ is up to date%
         %updated libfax/1.0.0 \[t2.\]%
         %updated foo/1.1.0 \[h1.\]%
         updated libfix/1.0.0
-        updated libbox/1.0.0
         updated libbar/1.0.0
+        updated libbox/1.0.0
         EOE
 
       $pkg_status -d t1 --link -r >>/EOO

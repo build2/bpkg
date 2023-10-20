@@ -1491,23 +1491,16 @@ namespace bpkg
                              const function<add_priv_cfg_function>&,
                              postponed_configuration* = nullptr);
 
-    // Order the previously-collected package with the specified name
-    // returning its positions.
+    // Order the previously-collected package with the specified name and
+    // configuration returning its position.
     //
-    // If buildtime is nullopt, then search for the specified package build in
-    // only the specified configuration. Otherwise, treat the package as a
-    // dependency and use the custom search function to find its build
-    // configuration. Failed that, search for it recursively (see
-    // package_map::find_dependency() for details).
-    //
-    // Recursively order the package dependencies being ordered failing if a
+    // Recursively order the collected package dependencies, failing if a
     // dependency cycle is detected. If reorder is true, then reorder this
     // package to be considered as "early" as possible.
     //
     iterator
     order (database&,
            const package_name&,
-           optional<bool> buildtime,
            const function<find_database_function>&,
            bool reorder = true);
 
@@ -1674,7 +1667,6 @@ namespace bpkg
     iterator
     order (database&,
            const package_name&,
-           optional<bool> buildtime,
            package_refs& chain,
            const function<find_database_function>&,
            bool reorder);

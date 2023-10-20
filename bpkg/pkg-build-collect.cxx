@@ -6780,12 +6780,11 @@ namespace bpkg
   build_packages::iterator build_packages::
   order (database& db,
          const package_name& name,
-         optional<bool> buildtime,
          const function<find_database_function>& fdb,
          bool reorder)
   {
     package_refs chain;
-    return order (db, name, buildtime, chain, fdb, reorder);
+    return order (db, name, chain, fdb, reorder);
   }
 
   void build_packages::
@@ -7581,23 +7580,11 @@ namespace bpkg
   build_packages::iterator build_packages::
   order (database& db,
          const package_name& name,
-         optional<bool> buildtime,
          package_refs& chain,
          const function<find_database_function>& fdb,
          bool reorder)
   {
-    package_map::iterator mi;
-
-    if (buildtime)
-    {
-      database* ddb (fdb (db, name, *buildtime));
-
-      mi = ddb != nullptr
-        ? map_.find (*ddb, name)
-        : map_.find_dependency (db, name, *buildtime);
-    }
-    else
-      mi = map_.find (db, name);
+    package_map::iterator mi (map_.find (db, name));
 
     // Every package that we order should have already been collected.
     //
@@ -7607,18 +7594,16 @@ namespace bpkg
 
     assert (p.action); // Can't order just a pre-entered package.
 
-    database& pdb (p.db);
-
     // Make sure there is no dependency cycle.
     //
-    package_ref cp {pdb, name};
+    package_ref cp {db, name};
     {
       auto i (find (chain.begin (), chain.end (), cp));
 
       if (i != chain.end ())
       {
         diag_record dr (fail);
-        dr << "dependency cycle detected involving package " << name << pdb;
+        dr << "dependency cycle detected involving package " << name << db;
 
         auto nv = [this] (const package_ref& cp)
         {
@@ -7687,20 +7672,21 @@ namespace bpkg
           i = j;
     };
 
-    // Similar to collect_build(), we can prune if the package is already
-    // configured, right? While in collect_build() we didn't need to add
-    // prerequisites of such a package, it doesn't mean that they actually
-    // never ended up in the map via another dependency path. For example,
-    // some can be a part of the initial selection. And in that case we must
-    // order things properly.
+    // Similar to collect_build_prerequisites(), we can prune if the package
+    // is already configured, right? While in collect_build_prerequisites() we
+    // didn't need to add prerequisites of such a package, it doesn't mean
+    // that they actually never ended up in the map via another dependency
+    // path. For example, some can be a part of the initial selection. And in
+    // that case we must order things properly.
     //
     // Also, if the package we are ordering is not a system one and needs to
     // be disfigured during the plan execution, then we must order its
     // (current) dependencies that also need to be disfigured.
     //
     // And yet, if the package we are ordering is a repointed dependent, then
-    // we must order not only its unamended and new prerequisites but also its
-    // replaced prerequisites, which can also be disfigured.
+    // we must order not only its unamended and new prerequisites
+    // (prerequisite replacements) but also its replaced prerequisites, which
+    // can also be disfigured.
     //
     bool src_conf (sp != nullptr &&
                    sp->state == package_state::configured &&
@@ -7720,34 +7706,38 @@ namespace bpkg
     if (build && !p.system)
     {
       // So here we are going to do things differently depending on whether
-      // the package is already configured or not. If it is and not as a
-      // system package, then that means we can use its prerequisites
-      // list. Otherwise, we use the manifest data.
+      // the package prerequisites builds are collected or not. If they are
+      // not, then the package is being reconfigured and we use its configured
+      // prerequisites list. Otherwise, we use its collected prerequisites
+      // builds.
       //
-      if (src_conf                              &&
-          sp->version == p.available_version () &&
-          (p.config_vars.empty () ||
-           !has_buildfile_clause (ap->dependencies)))
+      if (!p.dependencies)
       {
+        assert (src_conf); // Shouldn't be here otherwise.
+
+        // A repointed dependent have always its prerequisite replacements
+        // collected, so p.dependencies must always be present for them.
+        //
+        assert ((p.flags & build_package::build_repoint) == 0);
+
         for (const auto& p: sp->prerequisites)
         {
           database& db (p.first.database ());
           const package_name& name (p.first.object_id ());
 
-          // The prerequisites may not necessarily be in the map.
-          //
-          // Note that for the repointed dependent we also order its new and
-          // replaced prerequisites here, since they all are in the selected
-          // package prerequisites set.
+          // The prerequisites may not necessarily be in the map or have an
+          // action be present, but they can never be dropped.
           //
           auto i (map_.find (db, name));
-          if (i != map_.end () && i->second.package.action)
-            update (order (db,
-                           name,
-                           nullopt /* buildtime */,
-                           chain,
-                           fdb,
-                           false   /* reorder */));
+          if (i != map_.end ())
+          {
+            optional<build_package::action_type> a (i->second.package.action);
+
+            assert (!a || *a != build_package::drop); // See above.
+
+            if (a)
+              update (order (db, name, chain, fdb, false /* reorder */));
+          }
         }
 
         // We just ordered them among other prerequisites.
@@ -7756,11 +7746,10 @@ namespace bpkg
       }
       else
       {
-        // The package prerequisites builds must already be collected and
-        // thus the resulting dependency list is complete.
+        // If the package prerequisites builds are collected, then the
+        // resulting dependency list must be complete.
         //
-        assert (p.dependencies &&
-                p.dependencies->size () == ap->dependencies.size ());
+        assert (p.dependencies->size () == ap->dependencies.size ());
 
         // We are iterating in reverse so that when we iterate over the
         // dependency list (also in reverse), prerequisites will be built in
@@ -7779,18 +7768,44 @@ namespace bpkg
 
           assert (das.size () == 1);
 
+          bool buildtime (das.buildtime);
+
           for (const dependency& d: das.front ())
           {
-            // Note that for the repointed dependent we only order its new and
-            // unamended prerequisites here. Its replaced prerequisites will
-            // be ordered below.
+            const package_name& n (d.name);
+
+            // Use the custom search function to find the dependency's build
+            // configuration. Failed that, search for it recursively.
             //
-            update (order (pdb,
-                           d.name,
-                           das.buildtime,
-                           chain,
-                           fdb,
-                           false /* reorder */));
+            database* ddb (fdb (db, n, buildtime));
+
+            auto i (ddb != nullptr
+                    ? map_.find (*ddb, n)
+                    : map_.find_dependency (db, n, buildtime));
+
+            // Note that for the repointed dependent we only order its new and
+            // potentially unamended prerequisites here (see
+            // collect_build_prerequisites() for details). Thus its
+            // (unamended) prerequisites may not necessarily be in the map or
+            // have an action be present, but they can never be dropped. Its
+            // replaced prerequisites will be ordered below.
+            //
+            if (i != map_.end ())
+            {
+              optional<build_package::action_type> a (
+                i->second.package.action);
+
+              assert (!a || *a != build_package::drop); // See above.
+
+              if (a)
+              {
+                update (order (i->first.db,
+                               n,
+                               chain,
+                               fdb,
+                               false /* reorder */));
+              }
+            }
           }
         }
       }
@@ -7815,12 +7830,7 @@ namespace bpkg
         // since we do not reorder.
         //
         if (i != map_.end () && disfigure (i->second.package))
-          update (order (db,
-                         name,
-                         nullopt /* buildtime */,
-                         chain,
-                         fdb,
-                         false   /* reorder */));
+          update (order (db, name, chain, fdb, false /* reorder */));
       }
     }
 
