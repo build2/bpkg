@@ -4828,15 +4828,15 @@ namespace bpkg
         }
       }
 
-      // Bail out if the collection is postponed or we are in the
-      // pre-reevaluation mode and have already collected all the required
-      // information.
+      // Bail out if the collection is postponed.
       //
-      if (postponed ||
-          (pre_reeval                                   &&
-           r.reevaluation_position.first != 0           &&
-           r.originating_dependency_position.first != 0 &&
-           !r.reevaluation_optional))
+      // Note that it's tempting to also bail out in the pre-reevaluation mode
+      // if we have already collected all the required resulting information
+      // (reevaluation position, originating dependency position, etc).
+      // However, in this case we may not detect the dependent deviation and
+      // thus we always iterate through all the depends clauses.
+      //
+      if (postponed)
         break;
     }
 

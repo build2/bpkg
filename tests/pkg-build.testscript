@@ -284,6 +284,7 @@
 # |   |-- tuz-1.0.0.tar.gz      -> toz {require {config.toz.extras=true}}
 # |   |-- tux-1.0.0.tar.gz      -> libbox {require {config.libbox.extras=true}},
 # |   |                            tix == 0.1.0
+# |   |-- tvz-1.0.0.tar.gz      -> toz == 0.2.0 {require {config.toz.extras=true}}
 # |   |-- dex-1.0.0.tar.gz      -> bar {require {config.bar.extras=true}},
 # |   |                            libfoo {require {config.libfoo.extras=true}}
 # |   |-- dix-1.0.0.tar.gz      -> libbar {require {config.libbar.extras=true}},
@@ -16062,6 +16063,8 @@ test.arguments += --sys-no-query
       #       depends: toz == 0.1.0 (c)
       #       depends: libbar(c)
       #
+      #  tvz: depends: toz == 0.2.0 (c)
+      #
       #  toz/0.1.0:
       #
       $* bax tiz --verbose 1 2>!;
@@ -16520,6 +16523,18 @@ test.arguments += --sys-no-query
           libbox configured 1.0.0
           toz configured 0.1.0 available 1.0.0 0.2.0
         EOO
+
+     # While at it make sure that we won't be able to build tvz since it
+     # requires toz of the 0.2.0 version, which can't be satisfied.
+     #
+     $* tvz --verbose 1 2>>EOE != 0;
+       error: unable to upgrade package toz/0.1.0 to 0.2.0
+         info: because package tez depends on (toz == 0.1.0)
+         info: package toz/0.2.0 required by tez, tvz
+         info: consider re-trying with --upgrade|-u potentially combined with --recursive|-r
+         info: or explicitly request up/downgrade of package tez
+         info: or explicitly specify package toz version to manually satisfy these constraints
+       EOE
 
       $pkg_drop bax tiz tez
     }
@@ -19490,7 +19505,7 @@ test.arguments += --sys-no-query
 
             ds = foo fox fux fix fex bar baz bac bat bas bus box bax bux bix \
                  bex boo biz buz buc tax tex tix tiz toz tez tuz tux dex dix \
-                 diz dox '';
+                 diz dox tvz '';
 
             # Prepare the package build list.
             #
