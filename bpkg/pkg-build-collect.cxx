@@ -311,13 +311,27 @@ namespace bpkg
     if (p.required_by_dependents == required_by_dependents)
       required_by.insert (p.required_by.begin (), p.required_by.end ());
 
-    // Copy constraints.
+    // Copy constraints, suppressing duplicates.
     //
-    // Note that we may duplicate them, but this is harmless.
-    //
-    constraints.insert (constraints.end (),
-                        make_move_iterator (p.constraints.begin ()),
-                        make_move_iterator (p.constraints.end ()));
+    if (!constraints.empty ())
+    {
+      for (constraint_type& c: p.constraints)
+      {
+        if (find_if (constraints.begin (), constraints.end (),
+                     [&c] (const constraint_type& v)
+                     {
+                       return v.db.get () == c.db.get () &&
+                              v.dependent == c.dependent &&
+                              v.value     == c.value;
+
+                     }) == constraints.end ())
+        {
+          constraints.push_back (move (c));
+        }
+      }
+    }
+    else
+      constraints = move (p.constraints);
 
     // Copy hold_* flags if they are "stronger".
     //
