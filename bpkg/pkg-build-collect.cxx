@@ -432,13 +432,14 @@ namespace bpkg
   //
   void unsatisfied_dependents::
   add (const package_key& dpt,
-       const build_package* dep,
-       const version_constraint& c)
+       const package_key& dep,
+       const version_constraint& c,
+       vector<unsatisfied_constraint>&& ucs,
+       vector<package_key>&& dc)
   {
     if (unsatisfied_dependent* ud = find_dependent (dpt))
     {
-      vector<pair<const build_package*, version_constraint>>& deps (
-        ud->dependencies);
+      vector<ignored_constraint>& ics (ud->ignored_constraints);
 
       // Skip the dependency if it is already in the list.
       //
@@ -446,15 +447,17 @@ namespace bpkg
       // constraint (think of multiple depends clauses with the same
       // dependency), in which case we leave it unchanged.
       //
-      if (find_if (deps.begin (), deps.end (),
-                   [dep] (const auto& v) {return v.first == dep;}) ==
-          deps.end ())
+      if (find_if (ics.begin (), ics.end (),
+                   [dep] (const auto& v) {return v.dependency == dep;}) ==
+          ics.end ())
       {
-        deps.push_back (make_pair (dep, c));
+        ics.emplace_back (dep, c, move (ucs), move (dc));
       }
     }
     else
-      push_back (unsatisfied_dependent {dpt, {make_pair (dep, c)}});
+      push_back (
+        unsatisfied_dependent {
+          dpt, {ignored_constraint (dep, c, move (ucs), move (dc))}});
   }
 
   unsatisfied_dependent* unsatisfied_dependents::
@@ -474,73 +477,118 @@ namespace bpkg
     assert (!empty ());
 
     const unsatisfied_dependent& dpt (front ());
-
-    assert (!dpt.dependencies.empty ());
-
     const package_key& dk (dpt.dependent);
-    const build_package& p (*dpt.dependencies.front ().first);
-    const version_constraint& c (dpt.dependencies.front ().second);
 
-    database& pdb (p.db);
-    const shared_ptr<selected_package>& sp (p.selected);
+    assert (!dpt.ignored_constraints.empty ());
 
-    const package_name& n (sp->name);
+    const ignored_constraint& ic (dpt.ignored_constraints.front ());
 
-    // Otherwise, this would be a dependency adjustment (not an
-    // up/down-grade), and thus the dependent must be satisfied with the
-    // already configured dependency.
-    //
-    assert (p.available != nullptr);
+    const build_package* p (pkgs.entered_build (ic.dependency));
+    assert (p != nullptr); // The dependency must be collected.
 
-    const version& av (p.available_version ());
+    const version_constraint& c (ic.constraint);
+    const vector<unsatisfied_constraint>& ucs (ic.unsatisfied_constraints);
 
-    // See if we are upgrading or downgrading this package.
-    //
-    int ud (sp->version.compare (av));
+    const package_name& n (p->name ());
 
-    // Otherwise, the dependent must be satisfied with the already configured
-    // dependency.
-    //
-    assert (ud != 0);
+    //             "  info: ..."
+    string indent ("          ");
 
-    diag_record dr (fail);
-    dr << "unable to " << (ud < 0 ? "up" : "down") << "grade "
-       << "package " << *sp << pdb << " to ";
-
-    // Print both (old and new) package names in full if the system
-    // attribution changes.
-    //
-    if (p.system != sp->system ())
-      dr << p.available_name_version ();
-    else
-      dr << av; // Can't be the wildcard otherwise would satisfy.
-
-    dr << info << "because package " << dk << " depends on (" << n << ' '
-               << c << ')';
-
+    if (ucs.empty ()) // 'unable to up/downgrade package' failure.
     {
-      //             "  info: ..."
-      string indent ("          ");
-      set<package_key> printed;
-      pkgs.print_constraints (dr, dk, indent, printed);
-    }
+      database& pdb (p->db);
+      const shared_ptr<selected_package>& sp (p->selected);
 
-    string rb;
-    if (!p.user_selection ())
+      // Otherwise, this would be a dependency adjustment (not an
+      // up/down-grade), and thus the dependent must be satisfied with the
+      // already configured dependency.
+      //
+      assert (p->available != nullptr);
+
+      const version& av (p->available_version ());
+
+      // See if we are upgrading or downgrading this package.
+      //
+      int ud (sp->version.compare (av));
+
+      // Otherwise, the dependent must be satisfied with the already configured
+      // dependency.
+      //
+      assert (ud != 0);
+
+      diag_record dr (fail);
+      dr << "unable to " << (ud < 0 ? "up" : "down") << "grade "
+         << "package " << *sp << pdb << " to ";
+
+      // Print both (old and new) package names in full if the system
+      // attribution changes.
+      //
+      if (p->system != sp->system ())
+        dr << p->available_name_version ();
+      else
+        dr << av; // Can't be the wildcard otherwise would satisfy.
+
+      dr << info << "because package " << dk << " depends on (" << n << ' '
+                 << c << ')';
+
+      {
+        set<package_key> printed;
+        pkgs.print_constraints (dr, dk, indent, printed);
+      }
+
+      string rb;
+      if (!p->user_selection ())
+      {
+        for (const package_key& pk: p->required_by)
+          rb += (rb.empty () ? " " : ", ") + pk.string ();
+      }
+
+      if (!rb.empty ())
+        dr << info << "package " << p->available_name_version ()
+                   << " required by" << rb;
+
+      dr << info << "consider re-trying with --upgrade|-u potentially combined "
+                 << "with --recursive|-r" <<
+        info << "or explicitly request up/downgrade of package " << dk.name <<
+        info << "or explicitly specify package " << n << " version to "
+             << "manually satisfy these constraints" << endf;
+    }
+    else              // 'unable to satisfy constraints' failure.
     {
-      for (const package_key& pk: p.required_by)
-        rb += (rb.empty () ? " " : ", ") + pk.string ();
+      diag_record dr (fail);
+      dr << "unable to satisfy constraints on package " << n;
+
+      for (const unsatisfied_constraint& uc: ucs)
+      {
+        const build_package::constraint_type& c (uc.constraint);
+
+        dr << info << c.dependent << c.db << " depends on (" << n
+                   << ' ' << c.value << ")";
+
+        if (const build_package* d = pkgs.dependent_build (c))
+        {
+          set<package_key> printed;
+          pkgs.print_constraints (dr, *d, indent, printed);
+        }
+      }
+
+      for (const unsatisfied_constraint& uc: ucs)
+      {
+        dr << info << "available "
+           << package_string (n, uc.available_version, uc.available_system);
+      }
+
+      for (const package_key& d: reverse_iterate (ic.dependency_chain))
+      {
+        const build_package* p (pkgs.entered_build (d));
+        assert (p != nullptr);
+
+        dr << info << "while satisfying " << p->available_name_version_db ();
+      }
+
+      dr << info << "explicitly specify " << n << " version to "
+                 << "manually satisfy both constraints" << endf;
     }
-
-    if (!rb.empty ())
-      dr << info << "package " << p.available_name_version ()
-                 << " required by" << rb;
-
-    dr << info << "consider re-trying with --upgrade|-u potentially combined "
-               << "with --recursive|-r" <<
-          info << "or explicitly request up/downgrade of package " << dk.name <<
-          info << "or explicitly specify package " << n << " version to "
-               << "manually satisfy these constraints" << endf;
   }
 
   // postponed_configuration
@@ -1263,8 +1311,9 @@ namespace bpkg
 
     // See the above notes.
     //
-    bool recursive (dep_chain != nullptr);
-    assert ((fdb               != nullptr) == recursive &&
+    bool recursive (fdb != nullptr);
+
+    assert ((!recursive || dep_chain != nullptr)        &&
             (rpt_depts         != nullptr) == recursive &&
             (postponed_repo    != nullptr) == recursive &&
             (postponed_alts    != nullptr) == recursive &&
@@ -1315,10 +1364,51 @@ namespace bpkg
     }
 
     // Add the version replacement entry, call the verification function if
-    // specified, and throw replace_version.
+    // specified, and throw replace_version, unless the package is in the
+    // unsatisfied dependents list on the dependency side and the version
+    // replacement doesn't satisfy the ignored constraint. In the later case,
+    // report the first encountered ignored (unsatisfied) dependency
+    // constraint and fail.
     //
-    auto replace_ver = [&pk, &vpb, &vi, &replaced_vers] (const build_package& p)
+    // The thinking for the above failure is as follows: if we add the
+    // replacement entry and throw, then on the next iteration there won't be
+    // any information preserved that this version is actually unsatisfactory
+    // for some dependent and we need to ignore the respective constraint
+    // during simulating the configuration of this dependent and to fail if
+    // the problem doesn't resolve naturally (see unsatisfied_depts for
+    // details). This approach may potentially end up with some failures which
+    // we could potentially avoid if postpone them for some longer. Let's,
+    // however, keep it simple for now and reconsider if it turn out to be an
+    // issue.
+    //
+    auto replace_ver = [&pk,
+                        &vpb,
+                        &vi,
+                        &replaced_vers,
+                        &unsatisfied_depts,
+                        &trace,
+                        this] (const build_package& p)
     {
+
+      const version& v (p.available_version ());
+
+      for (const unsatisfied_dependent& ud: unsatisfied_depts)
+      {
+        for (const auto& c: ud.ignored_constraints)
+        {
+          if (c.dependency == pk && !satisfies (v, c.constraint))
+          {
+            l5 ([&]{trace << "dependency " << p.available_name_version_db ()
+                          << " is unsatisfactory for dependent "
+                          << ud.dependent << " (" << p.name () << ' '
+                          << c.constraint << "), so the failure can't be "
+                          << "postponed anymore";});
+
+            unsatisfied_depts.diag (*this);
+          }
+        }
+      }
+
       replaced_version rv (p.available, p.repository_fragment, p.system);
 
       if (vi != replaced_vers.end ())
@@ -1388,11 +1478,9 @@ namespace bpkg
         // satisfactory, then keep the preferred.
         //
         // If neither of the versions is satisfactory, then ignore those
-        // unsatisfied constraints which are imposed by the existing
-        // dependents which are not being up/downgraded and record them in
-        // unsatisfied_depts in the hope that the problem will resolve
-        // naturally (see unsatisfied_dependents for details). Fail if neither
-        // of the versions is still satisfactory after that.
+        // unsatisfied constraints which prevent us from picking the package
+        // version which is currently in the map (this way we try to avoid the
+        // postponed failure; see replace_ver() lambda for details).
         //
         if (p1->available_version () != p2->available_version ())
         {
@@ -1417,9 +1505,8 @@ namespace bpkg
             return nullptr;
           };
 
-          // Iterate until some of the version becomes satisfactory due to
-          // ignoring some of the constraints or until there is nothing more
-          // to ignore, in which case we fail.
+          // Iterate until one of the versions becomes satisfactory due to
+          // ignoring some of the constraints.
           //
           for (;;)
           {
@@ -1431,79 +1518,63 @@ namespace bpkg
               //
               if (auto c1 = test (p2, p1))
               {
-                // Return true if a constraint is imposed by a being
-                // reconfigured (not being up/downgraded) dependent.
-                //
-                auto existing_dependent = [this] (const constraint_type& c)
-                {
-                  const build_package* p (dependent_build (c));
-                  return p != nullptr           &&
-                         p->selected != nullptr &&
-                         (p->available == nullptr ||
-                          p->selected->version.compare (
-                            p->available_version ()) == 0);
-                };
-
                 // Add a constraint to the igrore-list and the dependent to
                 // the unsatisfied-list.
                 //
-                auto ignore_constraint = [&ics,
-                                          &bp,
-                                          &unsatisfied_depts,
-                                          this] (const constraint_type& c)
-                {
-                  ics.push_back (&c);
+                const constraint_type* c (p1 == &bp ? c2 : c1);
+                const build_package* p (dependent_build (*c));
 
-                  const build_package* p (dependent_build (c));
+                // Note that if one of the constraints is imposed on the
+                // package by the command line, then another constraint must
+                // be imposed by a dependent. Also, in this case it feels that
+                // the map must contain the dependency constrained by the
+                // command line and so p may not be NULL. If that (suddenly)
+                // is not the case, then we will have to ignore the constraint
+                // imposed by the dependent which is not in the map, replace
+                // the version, and as a result fail immediately (see
+                // replace_ver() lambda for details).
+                //
+                if (p == nullptr)
+                {
+                  c = (c == c1 ? c2 : c1);
+                  p = dependent_build (*c);
+
+                  // One of the dependents must be a real package.
+                  //
                   assert (p != nullptr);
-
-                  unsatisfied_depts.add (package_key (p->db, p->name ()),
-                                         &bp,
-                                         c.value);
-                };
-
-                if (existing_dependent (*c2))
-                {
-                  ignore_constraint (*c2);
-                  continue;
                 }
 
-                if (existing_dependent (*c1))
+                ics.push_back (c);
+
+                package_key d (p->db, p->name ());
+
+                l5 ([&]{trace << "postpone failure for dependent " << d
+                              << " unsatisfied with dependency "
+                              << bp.available_name_version_db () << " ("
+                              << c->value << ')';});
+
+                // Note that in contrast to collect_order_dependents(), here
+                // we also save both unsatisfied constraints and the
+                // dependency chain, for the sake of the diagnostics.
+                //
+                vector<unsatisfied_constraint> ucs {
+                  unsatisfied_constraint {
+                    *c1, p1->available_version (), p1->system},
+                  unsatisfied_constraint {
+                    *c2, p2->available_version (), p2->system}};
+
+                vector<package_key> dc;
+
+                if (dep_chain != nullptr)
                 {
-                  ignore_constraint (*c1);
-                  swap (p1, p2);
-                  continue;
+                  dc.reserve (dep_chain->size ());
+
+                  for (const build_package& p: *dep_chain)
+                    dc.emplace_back (p.db, p.name ());
                 }
 
-                const package_name& n (i->first.name);
-
-                //             "  info: ..."
-                string indent ("          ");
-
-                diag_record dr (fail);
-                dr << "unable to satisfy constraints on package " << n <<
-                  info << c1->dependent << c1->db << " depends on (" << n
-                       << ' ' << c1->value << ")";
-
-                if (const build_package* d = dependent_build (*c1))
-                {
-                  set<package_key> printed;
-                  print_constraints (dr, *d, indent, printed);
-                }
-
-                dr << info << c2->dependent << c2->db << " depends on (" << n
-                           << ' ' << c2->value << ")";
-
-                if (const build_package* d = dependent_build (*c2))
-                {
-                  set<package_key> printed;
-                  print_constraints (dr, *d, indent, printed);
-                }
-
-                dr << info << "available " << p1->available_name_version () <<
-                      info << "available " << p2->available_name_version () <<
-                      info << "explicitly specify " << n << " version to "
-                           << "manually satisfy both constraints";
+                unsatisfied_depts.add (d, pk, c->value, move (ucs), move (dc));
+                continue;
               }
               else
                 swap (p1, p2);
@@ -1520,7 +1591,7 @@ namespace bpkg
         // collect its prerequisites since that should have already been done.
         // Remember, p1 points to the object we want to keep.
         //
-        bool replace (p1 != &i->second.package);
+        bool replace (p1 != &bp);
 
         if (replace)
         {
@@ -3371,7 +3442,7 @@ namespace bpkg
                              replaced_vers,
                              postponed_cfgs,
                              unsatisfied_depts,
-                             nullptr /* dep_chain */,
+                             &dep_chain,
                              nullptr /* fdb */,
                              nullptr /* apc */,
                              nullptr /* rpt_depts */,
@@ -5304,7 +5375,8 @@ namespace bpkg
             replaced_vers_ (replaced_vers),
             postponed_edeps_ (postponed_edeps),
             postponed_deps_ (postponed_deps),
-            postponed_cfgs_ (postponed_cfgs)
+            postponed_cfgs_ (postponed_cfgs),
+            unsatisfied_depts_ (unsatisfied_depts)
       {
         auto save = [] (vector<package_key>& d, const postponed_packages& s)
         {
@@ -5317,21 +5389,6 @@ namespace bpkg
         save (postponed_repo_, postponed_repo);
         save (postponed_alts_, postponed_alts);
         save (postponed_recs_, postponed_recs);
-
-        unsatisfied_depts_.reserve (unsatisfied_depts.size ());
-
-        for (const auto& ud: unsatisfied_depts)
-        {
-          vector<pair<package_key, version_constraint>> deps;
-          deps.reserve (ud.dependencies.size());
-
-          for (const auto& d: ud.dependencies)
-            deps.emplace_back (package_key (d.first->db, d.first->name ()),
-                               d.second);
-
-          unsatisfied_depts_.push_back (
-            unsatisfied_dependent {ud.dependent, move (deps)});
-        }
       }
 
       void
@@ -5368,24 +5425,7 @@ namespace bpkg
         restore (postponed_alts, postponed_alts_);
         restore (postponed_recs, postponed_recs_);
 
-        unsatisfied_depts.clear ();
-        unsatisfied_depts.reserve (unsatisfied_depts_.size ());
-
-        for (auto& ud: unsatisfied_depts_)
-        {
-          vector<pair<const build_package*, version_constraint>> deps;
-          deps.reserve (ud.dependencies.size());
-
-          for (const auto& d: ud.dependencies)
-          {
-            build_package* b (pkgs.entered_build (d.first));
-            assert (b != nullptr);
-            deps.emplace_back (b, move (d.second));
-          }
-
-          unsatisfied_depts.push_back (
-            bpkg::unsatisfied_dependent {move (ud.dependent), move (deps)});
-        }
+        unsatisfied_depts = move (unsatisfied_depts_);
       }
 
     private:
@@ -5401,13 +5441,7 @@ namespace bpkg
       postponed_existing_dependencies postponed_edeps_;
       postponed_dependencies          postponed_deps_;
       postponed_configurations        postponed_cfgs_;
-
-      struct unsatisfied_dependent
-      {
-        package_key dependent;
-        vector<pair<package_key, version_constraint>> dependencies;
-      };
-      vector<unsatisfied_dependent> unsatisfied_depts_;
+      unsatisfied_dependents          unsatisfied_depts_;
     };
 
     size_t depth (pcfg != nullptr ? pcfg->depth : 0);
@@ -7004,7 +7038,16 @@ namespace bpkg
           // up/downgraded, etc; see unsatisfied_dependents for details).
           //
           if (!satisfies (av, c))
-            unsatisfied_depts.add (package_key (ddb, dn), &p, c);
+          {
+            package_key d (ddb, dn);
+
+            l5 ([&]{trace << "postpone failure for existing dependent " << d
+                          << " unsatisfied with dependency "
+                          << p.available_name_version_db () << " ("
+                          << c << ')';});
+
+            unsatisfied_depts.add (d, package_key (p.db, p.name ()), c);
+          }
         }
 
         auto adjustment = [&dn, &ddb, &n, &pdb] () -> build_package

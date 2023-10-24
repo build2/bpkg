@@ -6413,6 +6413,7 @@ namespace bpkg
         //
         auto unconstrain_deps = [simulate,
                                  &p,
+                                 &trace,
                                  deps = vector<package_key> ()] () mutable
         {
           if (simulate)
@@ -6424,12 +6425,16 @@ namespace bpkg
             {
               assert (deps.empty ());
 
-              deps.reserve (ud->dependencies.size ());
+              deps.reserve (ud->ignored_constraints.size ());
 
-              for (const auto& d: ud->dependencies)
+              for (const auto& c: ud->ignored_constraints)
               {
-                const build_package& p (*d.first);
-                deps.emplace_back (p.db, p.name ());
+                l5 ([&]{trace << "while configuring dependent "
+                              << p.available_name_version_db ()
+                              << " in simulation mode unconstrain ("
+                              << c.dependency << ' ' << c.constraint << ')';});
+
+                deps.emplace_back (c.dependency);
               }
             }
           }

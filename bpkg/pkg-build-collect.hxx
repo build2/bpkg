@@ -702,40 +702,81 @@ namespace bpkg
     cancel_bogus (tracer&, bool scratch);
   };
 
-  // Existing dependents with their up/downgraded dependencies which don't
-  // satisfy the version constraints.
+
+  // Dependents with their unsatisfactory dependencies and the respective
+  // ignored constraints.
   //
-  // Note that after collecting/ordering of all the explicitly specified
+  // Note that during the collecting of all the explicitly specified packages
+  // and their dependencies for the build, we may discover that a being
+  // up/downgraded dependency doesn't satisfy all the being reconfigured,
+  // up/downgraded, or newly built dependents. Rather than fail immediately in
+  // such a case, we postpone the failure, add the unsatisfied dependents and
+  // their respective constraints to the unsatisfied dependents list, and
+  // continue the collection/ordering in the hope that these problems will be
+  // resolved naturally as a result of the requested recollection from scratch
+  // or execution plan refinement (dependents will also be up/downgraded or
+  // dropped, dependencies will be up/downgraded to a different versions,
+  // etc).
+  //
+  // Also note that after collecting/ordering of all the explicitly specified
   // packages and their dependencies for the build we also collect/order their
   // existing dependents for reconfiguration, recursively. It may happen that
   // some of the up/downgraded dependencies don't satisfy the version
   // constraints which some of the existing dependents impose on them. Rather
-  // than fail immediately in such a case, we postpone the failure in the hope
-  // that these problems will be resolved naturally as a result of the
-  // execution plan refinement (dependents will also be up/downgraded or
-  // dropped, dependencies will be up/downgraded to a different versions,
-  // etc).
+  // than fail immediately in such a case, we postpone the failure, add this
+  // dependent and the unsatisfactory dependency to the unsatisfied dependents
+  // list, and continue the collection/ordering in the hope that these
+  // problems will be resolved naturally as a result of the execution plan
+  // refinement.
   //
-  // Also note that we may discover that a being up/downgraded dependency
-  // doesn't satisfy an existing dependent which we re-collect recursively for
-  // some reason (configuration variables are specified, etc). In this case we
-  // may also postpone the failure in the hope that the problem will resolve
-  // naturally as it is described above (see collect_build() implementation
-  // for details).
-  //
-  // Specifically, we cache such unsatisfied constraints, pretend that the
-  // dependents don't impose them and proceed with the remaining
+  // Specifically, we cache such unsatisfied dependents/constraints, pretend
+  // that the dependents don't impose them and proceed with the remaining
   // collecting/ordering, simulating the plan execution, and evaluating the
-  // dependency versions. After that we check if the execution plan is
-  // finalized or a further refinement is required. In the former case we
-  // report the first encountered unsatisfied dependency constraint and
+  // dependency versions. After that, if scratch_collection exception has not
+  // been thrown, we check if the execution plan is finalized or a further
+  // refinement is required. In the former case we report the first
+  // encountered unsatisfied (and ignored) dependency constraint and
   // fail. Otherwise, we drop the cache and proceed with the next iteration of
   // the execution plan refinement which may resolve these problems naturally.
   //
+  struct unsatisfied_constraint
+  {
+    // Note: also contains the unsatisfied dependent information.
+    //
+    build_package::constraint_type constraint;
+
+    // Available package version which satisfies the above constraint.
+    //
+    version available_version;
+    bool    available_system;
+  };
+
+  struct ignored_constraint
+  {
+    package_key dependency;
+    version_constraint constraint;
+
+    // Only specified when the failure is postponed during the collection of
+    // the explicitly specified packages and their dependencies. Only used to
+    // properly reproduce the postponed failure diagnostics.
+    //
+    vector<unsatisfied_constraint> unsatisfied_constraints;
+    vector<package_key> dependency_chain;
+
+    ignored_constraint (const package_key& d,
+                        const version_constraint& c,
+                        vector<unsatisfied_constraint>&& ucs = {},
+                        vector<package_key>&& dc = {})
+        : dependency (d),
+          constraint (c),
+          unsatisfied_constraints (move (ucs)),
+          dependency_chain (move (dc)) {}
+  };
+
   struct unsatisfied_dependent
   {
     package_key dependent;
-    vector<pair<const build_package*, version_constraint>> dependencies;
+    vector<ignored_constraint> ignored_constraints;
   };
 
   struct build_packages;
@@ -743,20 +784,23 @@ namespace bpkg
   class unsatisfied_dependents: public vector<unsatisfied_dependent>
   {
   public:
-    // Add a dependent together with the unsatisfied dependency constraint.
+    // Add a dependent together with the ignored dependency constraint and,
+    // potentially, with the unsatisfied constraints and the dependency chain.
     //
     void
     add (const package_key& dependent,
-         const build_package* dependency,
-         const version_constraint&);
+         const package_key& dependency,
+         const version_constraint&,
+         vector<unsatisfied_constraint>&& ucs = {},
+         vector<package_key>&& dc = {});
 
     // Try to find the dependent entry and return NULL if not found.
     //
     unsatisfied_dependent*
     find_dependent (const package_key&);
 
-    // Issue the diagnostics for the first unsatisfied dependency constraint
-    // and throw failed.
+    // Issue the diagnostics for the first unsatisfied (and ignored)
+    // dependency constraint and throw failed.
     //
     [[noreturn]] void
     diag (const build_packages&);
@@ -1169,7 +1213,7 @@ namespace bpkg
     // the package version needs to be replaced but in-place replacement is
     // not possible (see replaced_versions for details).
     //
-    // Also, in the recursive mode (dep_chain is not NULL):
+    // Also, in the recursive mode (find database function is not NULL):
     //
     // - Use the custom search function to find the package dependency
     //   databases.
@@ -1180,8 +1224,10 @@ namespace bpkg
     // - Call add_priv_cfg_function callback for the created private
     //   configurations.
     //
-    // Note that postponed_* and dep_chain arguments must all be either
-    // specified or not.
+    // Note that postponed_* arguments must all be either specified or not.
+    // The dep_chain argument can be specified in the non-recursive mode (for
+    // the sake of the diagnostics) and must be specified in the recursive
+    // mode.
     //
     struct replace_version: scratch_collection
     {

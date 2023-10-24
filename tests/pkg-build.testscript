@@ -284,6 +284,9 @@
 # |   |-- tuz-1.0.0.tar.gz      -> toz {require {config.toz.extras=true}}
 # |   |-- tux-1.0.0.tar.gz      -> libbox {require {config.libbox.extras=true}},
 # |   |                            tix == 0.1.0
+# |   |-- tvz-0.1.0.tar.gz      -> toz == 0.2.0 {require {config.toz.extras=true}},
+# |   |                            bax,
+# |   |                            libfoo {require {config.libfoo.network=true}}
 # |   |-- tvz-1.0.0.tar.gz      -> toz == 0.2.0 {require {config.toz.extras=true}}
 # |   |-- dex-1.0.0.tar.gz      -> bar {require {config.bar.extras=true}},
 # |   |                            libfoo {require {config.libfoo.extras=true}}
@@ -1183,38 +1186,146 @@ test.arguments += --sys-no-query
       new libbaz/1.1.0
       EOO
 
-    : unable-satisfy
+    : libbaz-unable-satisfy
     :
-    $clone_cfg;
-    $* libfoo/1.0.0 libbaz 2>>EOE != 0
-      error: unable to satisfy constraints on package libfoo
-        info: command line depends on (libfoo == 1.0.0)
-        info: libbar depends on (libfoo == 1.1.0)
-        info: available libfoo/1.0.0
-        info: available libfoo/1.1.0
-        info: explicitly specify libfoo version to manually satisfy both constraints
-      info: while satisfying libbar/1.1.0
-      info: while satisfying libbaz/1.1.0
-      EOE
+    {
+      +$clone_cfg
 
-    : unable-satisfy-config
+      : basic
+      :
+      {
+        $clone_cfg;
+
+        $* libfoo/1.0.0 libbaz 2>>EOE != 0
+        error: unable to satisfy constraints on package libfoo
+          info: command line depends on (libfoo == 1.0.0)
+          info: libbar/1.1.0 depends on (libfoo == 1.1.0)
+          info: available libfoo/1.0.0
+          info: available libfoo/1.1.0
+          info: while satisfying libbar/1.1.0
+          info: while satisfying libbaz/1.1.0
+          info: explicitly specify libfoo version to manually satisfy both constraints
+        EOE
+      }
+
+      : unable-satisfy-reorder
+      :
+      : As above but the packages are specified in a different order on the
+      : command line.
+      :
+      {
+        $clone_cfg;
+
+        $* libbaz libfoo/1.0.0 2>>EOE != 0
+          error: unable to satisfy constraints on package libfoo
+            info: command line depends on (libfoo == 1.0.0)
+            info: libbar/1.1.0 depends on (libfoo == 1.1.0)
+            info: available libfoo/1.0.0
+            info: available libfoo/1.1.0
+            info: while satisfying libbar/1.1.0
+            info: while satisfying libbaz/1.1.0
+            info: explicitly specify libfoo version to manually satisfy both constraints
+          EOE
+      }
+
+      : unable-satisfy-dependency
+      :
+      : As above but specify libfoo as a dependency.
+      :
+      {
+        $clone_cfg;
+
+        $* libbaz ?libfoo/1.0.0 2>>EOE != 0
+          error: unable to satisfy constraints on package libfoo
+            info: libbaz/1.1.0 depends on (libfoo == 1.0.0)
+            info: libbar/1.1.0 depends on (libfoo == 1.1.0)
+            info: available libfoo/1.0.0
+            info: available libfoo/1.1.0
+            info: while satisfying libbar/1.1.0
+            info: while satisfying libbaz/1.1.0
+            info: explicitly specify libfoo version to manually satisfy both constraints
+          EOE
+      }
+
+      : unable-satisfy-config
+      :
+      : As above but with a linked configuration.
+      :
+      {
+        $clone_cfg;
+        $cfg_create -d cfg2 &cfg2/***;
+        $cfg_link -d cfg cfg2;
+        $rep_add -d cfg2 $rep/t4c && $rep_fetch -d cfg2;
+        $* libbaz ?libbar +{ --config-id 1 } libfoo/1.0.0 +{ --config-id 1 } 2>>~%EOE% != 0
+          error: unable to satisfy constraints on package libfoo
+            info: command line depends on (libfoo == 1.0.0)
+          %  info: libbar/1.1.0 \[cfg2.\] depends on \(libfoo == 1.1.0\)%
+            info: available libfoo/1.0.0
+            info: available libfoo/1.1.0
+          %  info: while satisfying libbar/1.1.0 \[cfg2.\]%
+            info: while satisfying libbaz/1.1.0
+            info: explicitly specify libfoo version to manually satisfy both constraints
+          EOE
+      }
+    }
+
+    : libbar-unable-satisfy
     :
-    : As above but with a linked configuration.
-    :
-    $clone_cfg;
-    $cfg_create -d cfg2 &cfg2/***;
-    $cfg_link -d cfg cfg2;
-    $rep_add -d cfg2 $rep/t4c && $rep_fetch -d cfg2;
-    $* libbaz ?libbar +{ --config-id 1 } libfoo/1.0.0 +{ --config-id 1 } 2>>~%EOE% != 0
-      error: unable to satisfy constraints on package libfoo
-        info: command line depends on (libfoo == 1.0.0)
-      %  info: libbar \[cfg2.\] depends on \(libfoo == 1.1.0\)%
-        info: available libfoo/1.0.0
-        info: available libfoo/1.1.0
-        info: explicitly specify libfoo version to manually satisfy both constraints
-      %info: while satisfying libbar/1.1.0 \[cfg2.\]%
-      info: while satisfying libbaz/1.1.0
-      EOE
+    {
+      +$clone_cfg
+      +$rep_add $rep/t4b && $rep_fetch
+
+      : basic
+      :
+      {
+        $clone_cfg;
+
+        $* libfoo/1.0.0 libbar 2>>EOE != 0
+        error: unable to satisfy constraints on package libfoo
+          info: command line depends on (libfoo == 1.0.0)
+          info: libbar/1.1.0 depends on (libfoo == 1.1.0)
+          info: available libfoo/1.0.0
+          info: available libfoo/1.1.0
+          info: while satisfying libbar/1.1.0
+          info: explicitly specify libfoo version to manually satisfy both constraints
+        EOE
+      }
+
+      : unable-satisfy-reorder
+      :
+      : As above but the packages are specified in a different order on the
+      : command line.
+      :
+      {
+        $clone_cfg;
+
+        $* libbar libfoo/1.0.0 2>>EOE != 0
+          error: unable to satisfy constraints on package libfoo
+            info: command line depends on (libfoo == 1.0.0)
+            info: libbar/1.1.0 depends on (libfoo == 1.1.0)
+            info: available libfoo/1.0.0
+            info: available libfoo/1.1.0
+            info: while satisfying libbar/1.1.0
+            info: explicitly specify libfoo version to manually satisfy both constraints
+          EOE
+      }
+
+      : unable-satisfy-dependency
+      :
+      : As above but specify libfoo as a dependency.
+      :
+      {
+        $clone_cfg;
+
+        $* libbar ?libfoo/1.0.0 2>>EOE != 0
+          error: unable to satisfy constraints on package libfoo
+            info: libbar depends on (libfoo == 1.1.0)
+            info: command line depends on (libfoo == 1.0.0)
+            info: specify libfoo version to satisfy libbar constraint
+          info: while satisfying libbar/1.1.0
+          EOE
+      }
+    }
 
     : not-available
     :
@@ -2057,9 +2168,9 @@ test.arguments += --sys-no-query
             info: libbox depends on (libbar ^1.0.0)
             info: available libbar/2.0.0
             info: available libbar/1.0.0
+            info: while satisfying libbox/1.0.0
+            info: while satisfying foo/1.0.0
             info: explicitly specify libbar version to manually satisfy both constraints
-          info: while satisfying libbox/1.0.0
-          info: while satisfying foo/1.0.0
           EOE
 
         $* foo ?libbaz/1.0.0 2>!;
@@ -2152,9 +2263,9 @@ test.arguments += --sys-no-query
             info: libbox depends on (libbar ^1.0.0)
             info: available libbar/2.0.0
             info: available libbar/1.0.0
+            info: while satisfying libbox/1.1.0
+            info: while satisfying foo/1.0.0
             info: explicitly specify libbar version to manually satisfy both constraints
-          info: while satisfying libbox/1.1.0
-          info: while satisfying foo/1.0.0
           EOE
 
         $* foo ?libbaz/1.0.0 2>!;
@@ -2234,8 +2345,8 @@ test.arguments += --sys-no-query
             info: libbox depends on (libbar ^1.0.0)
             info: available libbar/2.0.0
             info: available libbar/1.0.0
+            info: while satisfying libbox/1.1.0
             info: explicitly specify libbar version to manually satisfy both constraints
-          info: while satisfying libbox/1.1.0
           EOE
 
         $* ?libbox 2>!;
@@ -2726,8 +2837,8 @@ test.arguments += --sys-no-query
             info: libbiz depends on (libbaz <= 0.0.3)
             info: available libbaz/0.1.0
             info: available libbaz/0.0.2
+            info: while satisfying libbiz/0.0.2
             info: explicitly specify libbaz version to manually satisfy both constraints
-          info: while satisfying libbiz/0.0.2
           EOE
 
         $* libfix libbiz ?libbaz/0.0.3 2>>EOE;
@@ -2800,9 +2911,9 @@ test.arguments += --sys-no-query
             info: libfox depends on (libfoo == 0.0.1)
             info: available libfoo/1.0.0
             info: available libfoo/0.0.1
+            info: while satisfying libbox/0.0.2
+            info: while satisfying libbiz/0.0.1
             info: explicitly specify libfoo version to manually satisfy both constraints
-          info: while satisfying libbox/0.0.2
-          info: while satisfying libbiz/0.0.1
           EOE
 
         $* libbiz ?libfox/0.0.1 2>>EOE;
@@ -4332,15 +4443,16 @@ test.arguments += --sys-no-query
 
             # While at it, test the reused-only alternative selection mode.
             # Also test the postponement of the 'unable to satisfy constraints
-            # on package' failure which ends up with the 'unable to downgrade
-            # package' failure.
+            # on package' failure.
             #
             $* box +{ config.box.extras=true } libbox/0.1.0 2>>EOE != 0;
-              error: unable to downgrade package libbox/1.0.0 to 0.1.0
-                info: because package box depends on (libbox >= 0.1.1)
-                info: consider re-trying with --upgrade|-u potentially combined with --recursive|-r
-                info: or explicitly request up/downgrade of package box
-                info: or explicitly specify package libbox version to manually satisfy these constraints
+              error: unable to satisfy constraints on package libbox
+                info: command line depends on (libbox == 0.1.0)
+                info: box depends on (libbox >= 0.1.1)
+                info: available libbox/0.1.0
+                info: available libbox/1.0.0
+                info: while satisfying box/1.0.0
+                info: explicitly specify libbox version to manually satisfy both constraints
               EOE
 
             $* box +{ config.box.extras=true } libbox/0.1.0 ?libbiz 2>>~%EOE%;
@@ -9424,6 +9536,322 @@ test.arguments += --sys-no-query
           EOO
 
         $pkg_drop tax toz tez
+      }
+
+      : unconstrain-deps
+      :
+      {
+        $clone_cfg;
+
+        #  Dependencies:
+        #
+        #  tvz: depends: toz == 0.2.0 (c)
+        #
+        #  toz/0.2.0: depends: libfoo(c)
+        #             depends: libbar(c)
+        #
+        #  tez: depends: libbox(c)
+        #       depends: toz == 0.1.0 (c)
+        #       depends: libbar(c)
+        #
+        $* tvz 2>!;
+
+        $pkg_status -r >>EOO;
+          !tvz configured 1.0.0
+            toz configured 0.2.0 available 1.0.0
+              libbar configured 1.0.0
+              libfoo configured 1.0.0
+          EOO
+
+        $* tvz +{ config.tvz.extras=true } tez 2>&1 != 0 | $filter 2>>~%EOE%;
+          %.*
+          trace: pkg_build: refine package collection/plan execution from scratch
+          trace: collect_build: add tvz/1.0.0
+          trace: collect_build: add tez/1.0.0
+          trace: collect_build_prerequisites: begin tvz/1.0.0
+          trace: collect_build: add toz/0.2.0
+          trace: collect_build_prerequisites: cfg-postpone dependency toz/0.2.0 of dependent tvz/1.0.0
+          trace: postponed_configurations::add: create {tvz | toz->{tvz/1,1}}
+          trace: collect_build_prerequisites: postpone tvz/1.0.0
+          trace: collect_build_prerequisites: begin tez/1.0.0
+          trace: collect_build: add libbox/1.0.0
+          trace: collect_build_prerequisites: cfg-postpone dependency libbox/1.0.0 of dependent tez/1.0.0
+          trace: postponed_configurations::add: create {tez | libbox->{tez/1,1}}
+          trace: collect_build_prerequisites: postpone tez/1.0.0
+          trace: collect_build_postponed (0): begin
+          trace: collect_build_postponed (1): begin {tvz | toz->{tvz/1,1}}
+          trace: collect_build_postponed (1): skip being built existing dependent tvz of dependency toz
+          trace: collect_build_postponed (1): cfg-negotiate begin {tvz | toz->{tvz/1,1}}
+          trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
+          trace: collect_build_prerequisites: begin toz/0.2.0
+          trace: collect_build: add libfoo/1.0.0
+          trace: collect_build_prerequisites: cfg-postpone dependency libfoo/1.0.0 of dependent toz/0.2.0
+          trace: postponed_configurations::add: create {toz | libfoo->{toz/1,1}}
+          trace: collect_build_prerequisites: postpone toz/0.2.0
+          trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
+          trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent tvz/1.0.0
+          trace: collect_build_prerequisites: resume tvz/1.0.0
+          trace: collect_build_prerequisites: end tvz/1.0.0
+          trace: collect_build_postponed (1): cfg-negotiate end {tvz | toz->{tvz/1,1}}!
+          trace: collect_build_postponed (2): begin {tez | libbox->{tez/1,1}}
+          trace: collect_build_postponed (2): cfg-negotiate begin {tez | libbox->{tez/1,1}}
+          trace: collect_build_postponed (2): recursively collect cfg-negotiated dependencies
+          trace: collect_build_prerequisites: begin libbox/1.0.0
+          trace: collect_build_prerequisites: end libbox/1.0.0
+          trace: collect_build_postponed (2): recursively collect cfg-negotiated dependents
+          trace: collect_build_postponed (2): select cfg-negotiated dependency alternative for dependent tez/1.0.0
+          trace: collect_build_prerequisites: resume tez/1.0.0
+          trace: collect_build: postpone failure for dependent tez unsatisfied with dependency toz/0.2.0 (== 0.1.0)
+          trace: collect_build: pick toz/0.2.0 over toz/0.1.0
+          trace: collect_build_prerequisites: cfg-postpone dependency toz/0.2.0 of dependent tez/1.0.0
+          trace: postponed_configurations::add: add {tez 2,1: toz} to {tvz | toz->{tvz/1,1}}!
+          trace: collect_build_prerequisites: configuration for cfg-postponed dependencies of dependent tez/1.0.0 is negotiated
+          trace: collect_build_prerequisites: dependency toz/0.2.0 of dependent tez/1.0.0 is already (being) recursively collected, skipping
+          trace: collect_build: add libbar/1.0.0
+          trace: collect_build_prerequisites: cfg-postpone dependency libbar/1.0.0 of dependent tez/1.0.0
+          trace: postponed_configurations::add: create {tez | libbar->{tez/3,1}}
+          trace: collect_build_prerequisites: postpone tez/1.0.0
+          trace: collect_build_postponed (2): cfg-negotiate end {tez | libbox->{tez/1,1}}!
+          trace: collect_build_postponed (3): begin {toz | libfoo->{toz/1,1}}
+          trace: collect_build_postponed (3): skip being built existing dependent toz of dependency libfoo
+          trace: collect_build_postponed (3): cfg-negotiate begin {toz | libfoo->{toz/1,1}}
+          trace: collect_build_postponed (3): recursively collect cfg-negotiated dependencies
+          trace: collect_build_prerequisites: skip configured libfoo/1.0.0
+          trace: collect_build_postponed (3): recursively collect cfg-negotiated dependents
+          trace: collect_build_postponed (3): select cfg-negotiated dependency alternative for dependent toz/0.2.0
+          trace: collect_build_prerequisites: resume toz/0.2.0
+          trace: collect_build_prerequisites: cfg-postpone dependency libbar/1.0.0 of dependent toz/0.2.0
+          trace: postponed_configurations::add: add {toz 2,1: libbar} to {tez | libbar->{tez/3,1}}
+          trace: collect_build_prerequisites: postpone toz/0.2.0
+          trace: collect_build_postponed (3): cfg-negotiate end {toz | libfoo->{toz/1,1}}!
+          trace: collect_build_postponed (4): begin {tez toz | libbar->{tez/3,1 toz/2,1}}
+          trace: collect_build_postponed (4): skip being built existing dependent toz of dependency libbar
+          trace: collect_build_postponed (4): cfg-negotiate begin {tez toz | libbar->{tez/3,1 toz/2,1}}
+          trace: collect_build_postponed (4): recursively collect cfg-negotiated dependencies
+          trace: collect_build_prerequisites: skip configured libbar/1.0.0
+          trace: collect_build_postponed (4): recursively collect cfg-negotiated dependents
+          trace: collect_build_postponed (4): select cfg-negotiated dependency alternative for dependent tez/1.0.0
+          trace: collect_build_prerequisites: resume tez/1.0.0
+          trace: collect_build_prerequisites: end tez/1.0.0
+          trace: collect_build_postponed (4): select cfg-negotiated dependency alternative for dependent toz/0.2.0
+          trace: collect_build_prerequisites: resume toz/0.2.0
+          trace: collect_build_prerequisites: end toz/0.2.0
+          trace: collect_build_postponed (4): cfg-negotiate end {tez toz | libbar->{tez/3,1 toz/2,1}}!
+          trace: collect_build_postponed (4): end {tez toz | libbar->{tez/3,1 toz/2,1}}
+          trace: collect_build_postponed (3): end {toz | libfoo->{toz/1,1}}
+          trace: collect_build_postponed (2): end {tez | libbox->{tez/1,1}}
+          trace: collect_build_postponed (1): end {tvz | toz->{tvz/1,1}}
+          trace: collect_build_postponed (0): end
+          trace: execute_plan: simulate: yes
+          %.*
+          trace: execute_plan: while configuring dependent tez/1.0.0 in simulation mode unconstrain (toz == 0.1.0)
+          %.*
+          error: unable to satisfy constraints on package toz
+            info: tvz depends on (toz == 0.2.0)
+            info: tez depends on (toz == 0.1.0)
+            info: available toz/0.2.0
+            info: available toz/0.1.0
+            info: while satisfying tez/1.0.0
+            info: explicitly specify toz version to manually satisfy both constraints
+          %.*
+          EOE
+
+        $pkg_drop tvz
+      }
+
+      : restore-unsatisfied-depts
+      :
+      {
+        $clone_cfg;
+
+        #  Dependencies:
+        #
+        #  tez: depends: libbox(c)
+        #       depends: toz == 0.1.0 (c)
+        #       depends: libbar(c)
+        #
+        #  toz/0.1.0:
+        #
+        #  toz/0.2.0: depends: libfoo(c)
+        #             depends: libbar(c)
+        #
+        #  tvz: depends: toz == 0.2.0 (c)
+        #       depends: bax
+        #       depends: libfoo(c)
+        #
+        #  bax: depends: libfoo(c)
+        #       depends: {libbox libbar} (c)
+        #
+        $* tez 2>!;
+
+        $pkg_status -r >>EOO;
+          !tez configured 1.0.0
+            libbar configured 1.0.0
+            libbox configured 1.0.0
+            toz configured 0.1.0 available 1.0.0 0.2.0
+          EOO
+
+        $* tvz/0.1.0 tez +{ config.tvz.extras=true } 2>&1 != 0 | $filter 2>>~%EOE%;
+          %.*
+          trace: pkg_build: refine package collection/plan execution from scratch
+          trace: collect_build: add tvz/0.1.0
+          trace: collect_build: add tez/1.0.0
+          trace: collect_build_prerequisites: begin tvz/0.1.0
+          trace: collect_build: add toz/0.2.0
+          info: package tvz dependency on (toz == 0.2.0) is forcing upgrade of toz/0.1.0 to 0.2.0
+          trace: collect_build_prerequisites: cfg-postpone dependency toz/0.2.0 of dependent tvz/0.1.0
+          trace: postponed_configurations::add: create {tvz | toz->{tvz/1,1}}
+          trace: collect_build_prerequisites: postpone tvz/0.1.0
+          trace: collect_build_prerequisites: begin tez/1.0.0
+          trace: collect_build: add libbox/1.0.0
+          trace: collect_build_prerequisites: cfg-postpone dependency libbox/1.0.0 of dependent tez/1.0.0
+          trace: postponed_configurations::add: create {tez | libbox->{tez/1,1}}
+          trace: collect_build_prerequisites: postpone tez/1.0.0
+          trace: collect_build_postponed (0): begin
+          trace: collect_build_postponed (1): begin {tvz | toz->{tvz/1,1}}
+          trace: collect_build_postponed (1): skip being built existing dependent tez of dependency toz
+          trace: collect_build_postponed (1): cfg-negotiate begin {tvz | toz->{tvz/1,1}}
+          trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
+          trace: collect_build_prerequisites: begin toz/0.2.0
+          trace: collect_build: add libfoo/1.0.0
+          trace: collect_build_prerequisites: cfg-postpone dependency libfoo/1.0.0 of dependent toz/0.2.0
+          trace: postponed_configurations::add: create {toz | libfoo->{toz/1,1}}
+          trace: collect_build_prerequisites: postpone toz/0.2.0
+          trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
+          trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent tvz/0.1.0
+          trace: collect_build_prerequisites: resume tvz/0.1.0
+          trace: collect_build: add bax/1.0.0
+          trace: collect_build_prerequisites: no cfg-clause for dependency bax/1.0.0 of dependent tvz/0.1.0
+          trace: collect_build_prerequisites: begin bax/1.0.0
+          trace: collect_build_prerequisites: cfg-postpone dependency libfoo/1.0.0 of dependent bax/1.0.0
+          trace: postponed_configurations::add: add {bax 1,1: libfoo} to {toz | libfoo->{toz/1,1}}
+          trace: collect_build_prerequisites: postpone bax/1.0.0
+          trace: collect_build_prerequisites: cfg-postpone dependency libfoo/1.0.0 of dependent tvz/0.1.0
+          trace: postponed_configurations::add: add {tvz 3,1: libfoo} to {bax toz | libfoo->{bax/1,1 toz/1,1}}
+          trace: collect_build_prerequisites: postpone tvz/0.1.0
+          trace: collect_build_postponed (1): cfg-negotiate end {tvz | toz->{tvz/1,1}}!
+          trace: collect_build_postponed (2): begin {tez | libbox->{tez/1,1}}
+          trace: collect_build_postponed (2): skip being built existing dependent tez of dependency libbox
+          trace: collect_build_postponed (2): cfg-negotiate begin {tez | libbox->{tez/1,1}}
+          trace: collect_build_postponed (2): recursively collect cfg-negotiated dependencies
+          trace: collect_build_prerequisites: skip configured libbox/1.0.0
+          trace: collect_build_postponed (2): recursively collect cfg-negotiated dependents
+          trace: collect_build_postponed (2): select cfg-negotiated dependency alternative for dependent tez/1.0.0
+          trace: collect_build_prerequisites: resume tez/1.0.0
+          trace: collect_build: postpone failure for dependent tez unsatisfied with dependency toz/0.2.0 (== 0.1.0)
+          trace: collect_build: pick toz/0.2.0 over toz/0.1.0
+          trace: collect_build_prerequisites: cfg-postpone dependency toz/0.2.0 of dependent tez/1.0.0
+          trace: postponed_configurations::add: add {tez 2,1: toz} to {tvz | toz->{tvz/1,1}}!
+          trace: collect_build_prerequisites: configuration for cfg-postponed dependencies of dependent tez/1.0.0 is negotiated
+          trace: collect_build_prerequisites: dependency toz/0.2.0 of dependent tez/1.0.0 is already (being) recursively collected, skipping
+          trace: collect_build: add libbar/1.0.0
+          trace: collect_build_prerequisites: cfg-postpone dependency libbar/1.0.0 of dependent tez/1.0.0
+          trace: postponed_configurations::add: create {tez | libbar->{tez/3,1}}
+          trace: collect_build_prerequisites: postpone tez/1.0.0
+          trace: collect_build_postponed (2): cfg-negotiate end {tez | libbox->{tez/1,1}}!
+          trace: collect_build_postponed (3): begin {bax toz tvz | libfoo->{bax/1,1 toz/1,1 tvz/3,1}}
+          trace: collect_build_postponed (3): cfg-negotiate begin {bax toz tvz | libfoo->{bax/1,1 toz/1,1 tvz/3,1}}
+          trace: collect_build_postponed (3): recursively collect cfg-negotiated dependencies
+          trace: collect_build_prerequisites: begin libfoo/1.0.0
+          trace: collect_build_prerequisites: end libfoo/1.0.0
+          trace: collect_build_postponed (3): recursively collect cfg-negotiated dependents
+          trace: collect_build_postponed (3): select cfg-negotiated dependency alternative for dependent bax/1.0.0
+          trace: collect_build_prerequisites: resume bax/1.0.0
+          trace: collect_build_prerequisites: cfg-postpone dependency libbox/1.0.0 of dependent bax/1.0.0
+          trace: collect_build_prerequisites: cfg-postpone dependency libbar/1.0.0 of dependent bax/1.0.0
+          trace: postponed_configurations::add: add {bax 2,1: libbox libbar} to {tez | libbox->{tez/1,1}}!
+          trace: postponed_configurations::add: merge {tez | libbar->{tez/3,1}} into {bax tez | libbox->{bax/2,1 tez/1,1} libbar->{bax/2,1}}!
+          trace: collect_build_prerequisites: cfg-postponing dependent bax/1.0.0 merges non-negotiated and/or being negotiated configurations in and results in {bax tez | libbox->{bax/2,1 tez/1,1} libbar->{bax/2,1 tez/3,1}}!, throwing merge_configuration
+          trace: collect_build_postponed (1): cfg-negotiation of {tez | libbox->{tez/1,1}} failed due to non-negotiated clusters, force-merging based on shadow cluster {bax tez | libbox->{bax/2,1 tez/1,1} libbar->{bax/2,1 tez/3,1}}!
+          trace: collect_build_postponed (2): begin {tez | libbox->{tez/1,1}}
+          trace: collect_build_postponed (2): skip being built existing dependent tez of dependency libbox
+          trace: collect_build_postponed (2): cfg-negotiate begin {tez | libbox->{tez/1,1}}
+          trace: collect_build_postponed (2): recursively collect cfg-negotiated dependencies
+          trace: collect_build_prerequisites: skip configured libbox/1.0.0
+          trace: collect_build_postponed (2): recursively collect cfg-negotiated dependents
+          trace: collect_build_postponed (2): select cfg-negotiated dependency alternative for dependent tez/1.0.0
+          trace: collect_build_prerequisites: resume tez/1.0.0
+          trace: collect_build: postpone failure for dependent tez unsatisfied with dependency toz/0.2.0 (== 0.1.0)
+          trace: collect_build: pick toz/0.2.0 over toz/0.1.0
+          trace: collect_build_prerequisites: cfg-postpone dependency toz/0.2.0 of dependent tez/1.0.0
+          trace: postponed_configurations::add: add {tez 2,1: toz} to {tvz | toz->{tvz/1,1}}!
+          trace: collect_build_prerequisites: configuration for cfg-postponed dependencies of dependent tez/1.0.0 is negotiated
+          trace: collect_build_prerequisites: dependency toz/0.2.0 of dependent tez/1.0.0 is already (being) recursively collected, skipping
+          trace: collect_build: add libbar/1.0.0
+          trace: collect_build_prerequisites: cfg-postpone dependency libbar/1.0.0 of dependent tez/1.0.0
+          trace: postponed_configurations::add: add {tez 3,1: libbar} to {tez | libbox->{tez/1,1}}? (shadow cluster-based)
+          trace: collect_build_prerequisites: skip being built existing dependent tez of dependency libbar
+          trace: collect_build_prerequisites: cfg-postponing dependent tez/1.0.0 involves (being) negotiated configurations and results in {tez | libbox->{tez/1,1} libbar->{tez/3,1}}?, throwing retry_configuration
+          trace: collect_build_postponed (1): cfg-negotiation of {tez | libbox->{tez/1,1}} failed due to dependent tez, refining configuration
+          trace: collect_build_postponed (2): begin {tez | libbox->{tez/1,1}}
+          trace: collect_build_postponed (2): skip being built existing dependent tez of dependency libbox
+          trace: collect_build_postponed (2): cfg-negotiate begin {tez | libbox->{tez/1,1}}
+          trace: collect_build_postponed (2): recursively collect cfg-negotiated dependencies
+          trace: collect_build_prerequisites: skip configured libbox/1.0.0
+          trace: collect_build_postponed (2): recursively collect cfg-negotiated dependents
+          trace: collect_build_postponed (2): select cfg-negotiated dependency alternative for dependent tez/1.0.0
+          trace: collect_build_prerequisites: resume tez/1.0.0
+          trace: collect_build: postpone failure for dependent tez unsatisfied with dependency toz/0.2.0 (== 0.1.0)
+          trace: collect_build: pick toz/0.2.0 over toz/0.1.0
+          trace: collect_build_prerequisites: cfg-postpone dependency toz/0.2.0 of dependent tez/1.0.0
+          trace: postponed_configurations::add: add {tez 2,1: toz} to {tvz | toz->{tvz/1,1}}!
+          trace: collect_build_prerequisites: configuration for cfg-postponed dependencies of dependent tez/1.0.0 is negotiated
+          trace: collect_build_prerequisites: dependency toz/0.2.0 of dependent tez/1.0.0 is already (being) recursively collected, skipping
+          trace: collect_build: add libbar/1.0.0
+          trace: collect_build_prerequisites: cfg-postpone dependency libbar/1.0.0 of dependent tez/1.0.0
+          trace: postponed_configurations::add: add {tez 3,1: libbar} to {tez | libbox->{tez/1,1}}? (shadow cluster-based)
+          trace: collect_build_prerequisites: skip being built existing dependent tez of dependency libbar
+          trace: collect_build_prerequisites: configuration for cfg-postponed dependencies of dependent tez/1.0.0 is shadow-negotiated
+          trace: collect_build_prerequisites: collecting cfg-postponed dependency libbar/1.0.0 of dependent tez/1.0.0
+          trace: collect_build_prerequisites: skip configured libbar/1.0.0
+          trace: collect_build_prerequisites: end tez/1.0.0
+          trace: collect_build_postponed (2): cfg-negotiate end {tez | libbox->{tez/1,1} libbar->{tez/3,1}}!
+          trace: collect_build_postponed (3): begin {bax toz tvz | libfoo->{bax/1,1 toz/1,1 tvz/3,1}}
+          trace: collect_build_postponed (3): cfg-negotiate begin {bax toz tvz | libfoo->{bax/1,1 toz/1,1 tvz/3,1}}
+          trace: collect_build_postponed (3): recursively collect cfg-negotiated dependencies
+          trace: collect_build_prerequisites: begin libfoo/1.0.0
+          trace: collect_build_prerequisites: end libfoo/1.0.0
+          trace: collect_build_postponed (3): recursively collect cfg-negotiated dependents
+          trace: collect_build_postponed (3): select cfg-negotiated dependency alternative for dependent bax/1.0.0
+          trace: collect_build_prerequisites: resume bax/1.0.0
+          trace: collect_build_prerequisites: cfg-postpone dependency libbox/1.0.0 of dependent bax/1.0.0
+          trace: collect_build_prerequisites: cfg-postpone dependency libbar/1.0.0 of dependent bax/1.0.0
+          trace: postponed_configurations::add: add {bax 2,1: libbox libbar} to {tez | libbox->{tez/1,1} libbar->{tez/3,1}}! (shadow cluster-based)
+          trace: collect_build_prerequisites: configuration for cfg-postponed dependencies of dependent bax/1.0.0 is shadow-negotiated
+          trace: collect_build_prerequisites: dependency libbox/1.0.0 of dependent bax/1.0.0 is already (being) recursively collected, skipping
+          trace: collect_build_prerequisites: dependency libbar/1.0.0 of dependent bax/1.0.0 is already (being) recursively collected, skipping
+          trace: collect_build_prerequisites: end bax/1.0.0
+          trace: collect_build_postponed (3): select cfg-negotiated dependency alternative for dependent toz/0.2.0
+          trace: collect_build_prerequisites: resume toz/0.2.0
+          trace: collect_build_prerequisites: cfg-postpone dependency libbar/1.0.0 of dependent toz/0.2.0
+          trace: postponed_configurations::add: add {toz 2,1: libbar} to {bax tez | libbox->{bax/2,1 tez/1,1} libbar->{bax/2,1 tez/3,1}}!
+          trace: collect_build_prerequisites: configuration for cfg-postponed dependencies of dependent toz/0.2.0 is negotiated
+          trace: collect_build_prerequisites: dependency libbar/1.0.0 of dependent toz/0.2.0 is already (being) recursively collected, skipping
+          trace: collect_build_prerequisites: end toz/0.2.0
+          trace: collect_build_postponed (3): select cfg-negotiated dependency alternative for dependent tvz/0.1.0
+          trace: collect_build_prerequisites: resume tvz/0.1.0
+          trace: collect_build_prerequisites: end tvz/0.1.0
+          trace: collect_build_postponed (3): cfg-negotiate end {bax toz tvz | libfoo->{bax/1,1 toz/1,1 tvz/3,1}}!
+          trace: collect_build_postponed (3): end {bax toz tvz | libfoo->{bax/1,1 toz/1,1 tvz/3,1}}
+          trace: collect_build_postponed (2): end {tez | libbox->{tez/1,1}}
+          trace: collect_build_postponed (1): end {tvz | toz->{tvz/1,1}}
+          trace: collect_build_postponed (0): end
+          trace: execute_plan: simulate: yes
+          %.*
+          trace: execute_plan: while configuring dependent tez/1.0.0 in simulation mode unconstrain (toz == 0.1.0)
+          %.*
+          error: unable to satisfy constraints on package toz
+            info: tvz depends on (toz == 0.2.0)
+                    command line requires (tvz == 0.1.0)
+            info: tez depends on (toz == 0.1.0)
+            info: available toz/0.2.0
+            info: available toz/0.1.0
+            info: while satisfying tez/1.0.0
+            info: explicitly specify toz version to manually satisfy both constraints
+          %.*
+          EOE
+
+        $pkg_drop tez
       }
     }
 
@@ -16528,12 +16956,13 @@ test.arguments += --sys-no-query
      # requires toz of the 0.2.0 version, which can't be satisfied.
      #
      $* tvz --verbose 1 2>>EOE != 0;
-       error: unable to upgrade package toz/0.1.0 to 0.2.0
-         info: because package tez depends on (toz == 0.1.0)
-         info: package toz/0.2.0 required by tez, tvz
-         info: consider re-trying with --upgrade|-u potentially combined with --recursive|-r
-         info: or explicitly request up/downgrade of package tez
-         info: or explicitly specify package toz version to manually satisfy these constraints
+       error: unable to satisfy constraints on package toz
+         info: tvz depends on (toz == 0.2.0)
+         info: tez depends on (toz == 0.1.0)
+         info: available toz/0.2.0
+         info: available toz/0.1.0
+         info: while satisfying tez/1.0.0
+         info: explicitly specify toz version to manually satisfy both constraints
        EOE
 
       $pkg_drop bax tiz tez
@@ -27759,8 +28188,8 @@ else
             info: libbar depends on (libfoo == 1.1.0)
             info: available libfoo/1.0.0
             info: available libfoo/1.1.0
+            info: while satisfying libbar/1.1.0
             info: explicitly specify libfoo version to manually satisfy both constraints
-          info: while satisfying libbar/1.1.0
           EOE
       }
 
@@ -27779,8 +28208,8 @@ else
                     command line requires (libbar == 1.1.0)
             info: available libfoo/1.0.0
             info: available libfoo/1.1.0
+            info: while satisfying libbar/1.1.0
             info: explicitly specify libfoo version to manually satisfy both constraints
-          info: while satisfying libbar/1.1.0
           EOE
       }
 
@@ -28189,8 +28618,8 @@ else
             info: libbar depends on (libfoo == 1.1.0)
             info: available libfoo/1.0.0
             info: available libfoo/1.1.0
+            info: while satisfying libbar/1.1.0
             info: explicitly specify libfoo version to manually satisfy both constraints
-          info: while satisfying libbar/1.1.0
           EOE
       }
 
@@ -28209,8 +28638,8 @@ else
                     command line requires (libbar == 1.1.0)
             info: available libfoo/1.0.0
             info: available libfoo/1.1.0
+            info: while satisfying libbar/1.1.0
             info: explicitly specify libfoo version to manually satisfy both constraints
-          info: while satisfying libbar/1.1.0
           EOE
       }
 

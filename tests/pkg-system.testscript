@@ -714,8 +714,8 @@ rep_remove += -d cfg 2>!
         info: foo depends on (libbar >= 2)
         info: available sys:libbar/1
         info: available sys:libbar/2
+        info: while satisfying foo/2
         info: explicitly specify libbar version to manually satisfy both constraints
-      info: while satisfying foo/2
       EOE
 
     $pkg_drop libbar
