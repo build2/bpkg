@@ -1614,12 +1614,6 @@ namespace bpkg
 
     package_key (database& d, package_name n): db (d), name (move (n)) {}
 
-    // Create a pseudo-package (command line as a dependent, etc).
-    //
-    package_key (database& d, string n)
-        : db (d),
-          name (n.empty () ? package_name () : package_name (move (n))) {}
-
     bool
     operator== (const package_key& v) const
     {
@@ -1647,6 +1641,66 @@ namespace bpkg
 
   inline ostream&
   operator<< (ostream& os, const package_key& p)
+  {
+    return os << p.string ();
+  }
+
+  // Database, package name, and package version.
+  //
+  // It is normally used as a key for maps containing data for package
+  // versions across multiple linked configurations. Assumes that the
+  // respective databases are not detached during such map lifetimes.
+  // Considers all package name, package version, and database for objects
+  // comparison.
+  //
+  // The package name can be a pseudo-package (command line as a dependent,
+  // etc), in which case the version is absent. The version can also be empty,
+  // denoting a package of an unknown version.
+  //
+  struct package_version_key
+  {
+    reference_wrapper<database> db;
+    package_name                name;
+    optional<bpkg::version>     version;
+
+    package_version_key (database& d, package_name n, bpkg::version v)
+        : db (d), name (move (n)), version (move (v)) {}
+
+    // Create a pseudo-package (command line as a dependent, etc).
+    //
+    package_version_key (database& d, string n)
+        : db (d),
+          name (move (n), package_name::raw_string) {}
+
+    bool
+    operator== (const package_version_key& v) const
+    {
+      // See operator==(database, database).
+      //
+      return name == v.name       &&
+             version == v.version &&
+             &db.get () == &v.db.get ();
+    }
+
+    bool
+    operator!= (const package_version_key& v) const
+    {
+      return !(*this == v);
+    }
+
+    bool
+    operator< (const package_version_key&) const;
+
+    // Return the package string representation in the form:
+    //
+    // <name>[/<version>] [ <config-dir>]
+    //
+    std::string
+    string (bool ignore_version = false) const;
+  };
+
+  inline ostream&
+  operator<< (ostream& os, const package_version_key& p)
   {
     return os << p.string ();
   }

@@ -1392,7 +1392,7 @@ test.arguments += --sys-no-query
 
       $* libfoo/1.0.0 2>>EOE != 0;
         error: unable to downgrade package libfoo/1.1.0 to 1.0.0
-          info: because package libbar depends on (libfoo == 1.1.0)
+          info: because configured package libbar/1.1.0 depends on (libfoo == 1.1.0)
           info: consider re-trying with --upgrade|-u potentially combined with --recursive|-r
           info: or explicitly request up/downgrade of package libbar
           info: or explicitly specify package libfoo version to manually satisfy these constraints
@@ -1428,7 +1428,7 @@ test.arguments += --sys-no-query
 
       $* libfoo/1.0.0 +{ --config-id 1 } 2>>~%EOE% != 0;
         %error: unable to downgrade package libfoo/1.1.0 \[cfg.\] to 1.0.0%
-        %  info: because package libbar \[cfg.\] depends on \(libfoo == 1.1.0\)%
+        %  info: because configured package libbar/1.1.0 \[cfg.\] depends on \(libfoo == 1.1.0\)%
           info: consider re-trying with --upgrade|-u potentially combined with --recursive|-r
           info: or explicitly request up/downgrade of package libbar
           info: or explicitly specify package libfoo version to manually satisfy these constraints
@@ -2164,8 +2164,8 @@ test.arguments += --sys-no-query
         #
         $* foo 2>>EOE != 0;
           error: unable to satisfy constraints on package libbar
-            info: libbaz depends on (libbar ^2.0.0)
-            info: libbox depends on (libbar ^1.0.0)
+            info: libbaz/2.0.0 depends on (libbar ^2.0.0)
+            info: libbox/1.0.0 depends on (libbar ^1.0.0)
             info: available libbar/2.0.0
             info: available libbar/1.0.0
             info: while satisfying libbox/1.0.0
@@ -2234,8 +2234,9 @@ test.arguments += --sys-no-query
         #
         $* ?libbaz 2>>EOE != 0;
           error: unable to upgrade package libbar/1.0.0 to 2.0.0
-            info: because package libbox depends on (libbar ^1.0.0)
-            info: package libbar/2.0.0 required by libbaz
+            info: because configured package libbox/1.0.0 depends on (libbar ^1.0.0)
+            info: package libbar/2.0.0 required by
+                    libbaz/2.0.0 (libbar ^2.0.0)
             info: consider re-trying with --upgrade|-u potentially combined with --recursive|-r
             info: or explicitly request up/downgrade of package libbox
             info: or explicitly specify package libbar version to manually satisfy these constraints
@@ -2259,8 +2260,8 @@ test.arguments += --sys-no-query
         #
         $* foo 2>>EOE != 0;
           error: unable to satisfy constraints on package libbar
-            info: libbaz depends on (libbar ^2.0.0)
-            info: libbox depends on (libbar ^1.0.0)
+            info: libbaz/2.0.0 depends on (libbar ^2.0.0)
+            info: libbox/1.1.0 depends on (libbar ^1.0.0)
             info: available libbar/2.0.0
             info: available libbar/1.0.0
             info: while satisfying libbox/1.1.0
@@ -2329,8 +2330,9 @@ test.arguments += --sys-no-query
         #
         $* foo ?libbaz 2>>EOE != 0;
           error: unable to upgrade package libbar/1.0.0 to 2.0.0
-            info: because package libbox depends on (libbar ^1.0.0)
-            info: package libbar/2.0.0 required by libbaz
+            info: because configured package libbox/1.0.0 depends on (libbar ^1.0.0)
+            info: package libbar/2.0.0 required by
+                    libbaz/2.0.0 (libbar ^2.0.0)
             info: consider re-trying with --upgrade|-u potentially combined with --recursive|-r
             info: or explicitly request up/downgrade of package libbox
             info: or explicitly specify package libbar version to manually satisfy these constraints
@@ -2341,8 +2343,8 @@ test.arguments += --sys-no-query
         #
         $* foo ?libbaz ?libbox 2>>EOE != 0;
           error: unable to satisfy constraints on package libbar
-            info: libbaz depends on (libbar ^2.0.0)
-            info: libbox depends on (libbar ^1.0.0)
+            info: libbaz/2.0.0 depends on (libbar ^2.0.0)
+            info: libbox/1.1.0 depends on (libbar ^1.0.0)
             info: available libbar/2.0.0
             info: available libbar/1.0.0
             info: while satisfying libbox/1.1.0
@@ -2833,8 +2835,8 @@ test.arguments += --sys-no-query
 
         $* libfix libbiz 2>>EOE != 0;
           error: unable to satisfy constraints on package libbaz
-            info: libfix depends on (libbaz >= 0.0.3)
-            info: libbiz depends on (libbaz <= 0.0.3)
+            info: libfix/0.0.3 depends on (libbaz >= 0.0.3)
+            info: libbiz/0.0.2 depends on (libbaz <= 0.0.3)
             info: available libbaz/0.1.0
             info: available libbaz/0.0.2
             info: while satisfying libbiz/0.0.2
@@ -2907,8 +2909,8 @@ test.arguments += --sys-no-query
 
         $* libbiz 2>>EOE != 0;
           error: unable to satisfy constraints on package libfoo
-            info: libbox depends on (libfoo == 1.0.0)
-            info: libfox depends on (libfoo == 0.0.1)
+            info: libbox/0.0.2 depends on (libfoo == 1.0.0)
+            info: libfox/0.0.2 depends on (libfoo == 0.0.1)
             info: available libfoo/1.0.0
             info: available libfoo/0.0.1
             info: while satisfying libbox/0.0.2
@@ -4448,7 +4450,7 @@ test.arguments += --sys-no-query
             $* box +{ config.box.extras=true } libbox/0.1.0 2>>EOE != 0;
               error: unable to satisfy constraints on package libbox
                 info: command line depends on (libbox == 0.1.0)
-                info: box depends on (libbox >= 0.1.1)
+                info: box/1.0.0 depends on (libbox >= 0.1.1)
                 info: available libbox/0.1.0
                 info: available libbox/1.0.0
                 info: while satisfying box/1.0.0
@@ -5815,8 +5817,9 @@ test.arguments += --sys-no-query
 
         $* tax 2>>EOE != 0;
           error: unable to downgrade package libfoo/2.0.0 to 1.0.0
-            info: because package tpx depends on (libfoo >= 2.0.0)
-            info: package libfoo/1.0.0 required by tax
+            info: because configured package tpx/1.0.0 depends on (libfoo >= 2.0.0)
+            info: package libfoo/1.0.0 required by
+                    tax/1.0.0 (libfoo == 1.0.0)
             info: consider re-trying with --upgrade|-u potentially combined with --recursive|-r
             info: or explicitly request up/downgrade of package tpx
             info: or explicitly specify package libfoo version to manually satisfy these constraints
@@ -5829,7 +5832,7 @@ test.arguments += --sys-no-query
         #
         $* tax tpx ?libfoo/1.0.0 2>>EOE != 0;
           error: unable to downgrade package libfoo/2.0.0 to 1.0.0
-            info: because package tpx depends on (libfoo >= 2.0.0)
+            info: because configured package tpx/1.0.0 depends on (libfoo >= 2.0.0)
             info: consider re-trying with --upgrade|-u potentially combined with --recursive|-r
             info: or explicitly request up/downgrade of package tpx
             info: or explicitly specify package libfoo version to manually satisfy these constraints
@@ -9647,8 +9650,8 @@ test.arguments += --sys-no-query
           trace: execute_plan: while configuring dependent tez/1.0.0 in simulation mode unconstrain (toz == 0.1.0)
           %.*
           error: unable to satisfy constraints on package toz
-            info: tvz depends on (toz == 0.2.0)
-            info: tez depends on (toz == 0.1.0)
+            info: tvz/1.0.0 depends on (toz == 0.2.0)
+            info: tez/1.0.0 depends on (toz == 0.1.0)
             info: available toz/0.2.0
             info: available toz/0.1.0
             info: while satisfying tez/1.0.0
@@ -9841,9 +9844,9 @@ test.arguments += --sys-no-query
           trace: execute_plan: while configuring dependent tez/1.0.0 in simulation mode unconstrain (toz == 0.1.0)
           %.*
           error: unable to satisfy constraints on package toz
-            info: tvz depends on (toz == 0.2.0)
+            info: tvz/0.1.0 depends on (toz == 0.2.0)
                     command line requires (tvz == 0.1.0)
-            info: tez depends on (toz == 0.1.0)
+            info: tez/1.0.0 depends on (toz == 0.1.0)
             info: available toz/0.2.0
             info: available toz/0.1.0
             info: while satisfying tez/1.0.0
@@ -16957,8 +16960,8 @@ test.arguments += --sys-no-query
      #
      $* tvz --verbose 1 2>>EOE != 0;
        error: unable to satisfy constraints on package toz
-         info: tvz depends on (toz == 0.2.0)
-         info: tez depends on (toz == 0.1.0)
+         info: tvz/1.0.0 depends on (toz == 0.2.0)
+         info: tez/1.0.0 depends on (toz == 0.1.0)
          info: available toz/0.2.0
          info: available toz/0.1.0
          info: while satisfying tez/1.0.0
@@ -24765,7 +24768,7 @@ else
 
       $* ?libbaz/1.0.0 +{ --config-name h2 } 2>>~%EOE% != 0;
         %error: unable to downgrade package libbaz/1.1.0 \[h2.\] to 1.0.0%
-        %  info: because package foo \[h2.\] depends on \(libbaz \^1.1.0\)%
+        %  info: because configured package foo/1.1.0 \[h2.\] depends on \(libbaz \^1.1.0\)%
           info: consider re-trying with --upgrade|-u potentially combined with --recursive|-r
           info: or explicitly request up/downgrade of package foo
           info: or explicitly specify package libbaz version to manually satisfy these constraints
@@ -28185,7 +28188,7 @@ else
         $* libbar $src/libfoo-1.0.0.tar.gz 2>>~%EOE% != 0
           error: unable to satisfy constraints on package libfoo
             info: command line depends on (libfoo == 1.0.0)
-            info: libbar depends on (libfoo == 1.1.0)
+            info: libbar/1.1.0 depends on (libfoo == 1.1.0)
             info: available libfoo/1.0.0
             info: available libfoo/1.1.0
             info: while satisfying libbar/1.1.0
@@ -28204,7 +28207,7 @@ else
         $* $src/libbar-1.1.0.tar.gz $src/libfoo-1.0.0.tar.gz 2>>~%EOE% != 0
           error: unable to satisfy constraints on package libfoo
             info: command line depends on (libfoo == 1.0.0)
-            info: libbar depends on (libfoo == 1.1.0)
+            info: libbar/1.1.0 depends on (libfoo == 1.1.0)
                     command line requires (libbar == 1.1.0)
             info: available libfoo/1.0.0
             info: available libfoo/1.1.0
@@ -28615,7 +28618,7 @@ else
         $* libbar $d/libfoo-1.0.0/ 2>>~%EOE% != 0
           error: unable to satisfy constraints on package libfoo
             info: command line depends on (libfoo == 1.0.0)
-            info: libbar depends on (libfoo == 1.1.0)
+            info: libbar/1.1.0 depends on (libfoo == 1.1.0)
             info: available libfoo/1.0.0
             info: available libfoo/1.1.0
             info: while satisfying libbar/1.1.0
@@ -28634,7 +28637,7 @@ else
         $* $d/libbar-1.1.0/ $d/libfoo-1.0.0/ 2>>~%EOE% != 0
           error: unable to satisfy constraints on package libfoo
             info: command line depends on (libfoo == 1.0.0)
-            info: libbar depends on (libfoo == 1.1.0)
+            info: libbar/1.1.0 depends on (libfoo == 1.1.0)
                     command line requires (libbar == 1.1.0)
             info: available libfoo/1.0.0
             info: available libfoo/1.1.0

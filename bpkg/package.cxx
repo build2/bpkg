@@ -70,6 +70,39 @@ namespace bpkg
     return r != 0 ? (r < 0) : (db < v.db);
   }
 
+  // package_version_key
+  //
+  string package_version_key::
+  string (bool ignore_version) const
+  {
+    std::string r (name.string ());
+
+    if (version && !version->empty () && !ignore_version)
+    {
+      r += '/';
+      r += version->string ();
+    }
+
+    const std::string& d (db.get ().string);
+
+    if (!d.empty ())
+    {
+      r += ' ';
+      r += d;
+    }
+
+    return r;
+  }
+
+  bool package_version_key::
+  operator< (const package_version_key& v) const
+  {
+    if (int r = name.compare (v.name))
+      return r < 0;
+
+    return version != v.version ? (version < v.version) : (db < v.db);
+  }
+
   // available_package
   //
   const version* available_package::

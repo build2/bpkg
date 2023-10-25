@@ -1660,6 +1660,10 @@ namespace bpkg
                    ? empty_string
                    : '[' + config_dirs[0].representation () + ']'));
 
+    // Command line as a dependent.
+    //
+    package_version_key cmd_line (mdb, "command line");
+
     current_configs.push_back (mdb);
 
     if (config_dirs.size () != 1)
@@ -3609,7 +3613,7 @@ namespace bpkg
            : optional<dir_path> ()),
           pa.options.checkout_purge (),
           move (pa.config_vars),
-          {package_key {mdb, ""}},    // Required by (command line).
+          {cmd_line},                 // Required by (command line).
           false,                      // Required by dependents.
           replace ? build_package::build_replace : uint16_t (0)};
 
@@ -3623,7 +3627,7 @@ namespace bpkg
         //
         if (pa.constraint)
           p.constraints.emplace_back (
-            mdb, "command line", move (*pa.constraint));
+            move (*pa.constraint), cmd_line.db, cmd_line.name.string ());
 
         pkg_confs.emplace_back (p.db, p.name ());
 
@@ -3741,7 +3745,7 @@ namespace bpkg
                 nullopt,                 // Checkout root.
                 false,                   // Checkout purge.
                 strings (),              // Configuration variables.
-                {package_key {mdb, ""}}, // Required by (command line).
+                {cmd_line},              // Required by (command line).
                 false,                   // Required by dependents.
                 deorphan ? build_package::build_replace : uint16_t (0)};
 
@@ -4082,7 +4086,8 @@ namespace bpkg
         // Also, if a dependency package already has selected package that
         // is held, then we need to unhold it.
         //
-        auto enter = [&mdb, &pkgs] (database& db, const dependency_package& p)
+        auto enter = [&pkgs, &cmd_line] (database& db,
+                                         const dependency_package& p)
         {
           build_package bp {
             nullopt,                    // Action.
@@ -4105,13 +4110,14 @@ namespace bpkg
             p.checkout_root,
             p.checkout_purge,
             p.config_vars,
-            {package_key {mdb, ""}},    // Required by (command line).
+            {cmd_line},                 // Required by (command line).
             false,                      // Required by dependents.
             0};                         // State flags.
 
           if (p.constraint)
-            bp.constraints.emplace_back (
-              mdb, "command line", *p.constraint);
+            bp.constraints.emplace_back (*p.constraint,
+                                         cmd_line.db,
+                                         cmd_line.name.string ());
 
           pkgs.enter (p.name, move (bp));
         };
@@ -4403,7 +4409,7 @@ namespace bpkg
                 nullopt,                 // Checkout root.
                 false,                   // Checkout purge.
                 strings (),              // Configuration variables.
-                {package_key {mdb, ""}}, // Required by (command line).
+                {cmd_line},              // Required by (command line).
                 false,                   // Required by dependents.
                 (d.existing || d.deorphan
                  ? build_package::build_replace
@@ -5600,12 +5606,17 @@ namespace bpkg
               // can a dependent-dependency structure change without any of
               // the package versions changing? Doesn't feel like it should.
               //
-              for (const package_key& pk: p.required_by)
+              for (const package_version_key& pvk: p.required_by)
               {
-                // Skip the command-line dependent.
+                // Skip the command-line, etc dependents and don't print the
+                // package version (which is not always available; see
+                // build_package::required_by for details).
                 //
-                if (!pk.name.empty ())
-                  rb += (rb.empty () ? " " : ", ") + pk.string ();
+                if (pvk.version) // Is it a real package?
+                {
+                  rb += (rb.empty () ? " " : ", ") +
+                        pvk.string (true /* ignore_version */);
+                }
               }
 
               // If not user-selected, then there should be another (implicit)

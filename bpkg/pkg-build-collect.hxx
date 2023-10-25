@@ -196,24 +196,43 @@ namespace bpkg
     optional<bool> hold_package;
     optional<bool> hold_version;
 
-    // Constraint value plus, normally, the dependent package name that placed
-    // this constraint but can also be some other name for the initial
-    // selection. This is why we use the string type, rather than
-    // package_name. Currently, the only valid non-package name is "command
-    // line", which is used when the package version is specified by the user
-    // on the command line.
+    // Constraint value plus, normally, the dependent package name/version
+    // that placed this constraint but can also be some other name (in which
+    // case the version is absent) for the initial selection. Currently, the
+    // only valid non-package name is 'command line', which is used when the
+    // package version is constrained by the user on the command line.
     //
     // Note that if the dependent is a package name, then this package is
     // expected to be collected (present in the map).
     //
     struct constraint_type
     {
-      reference_wrapper<database> db; // Main database for non-packages.
-      string dependent;
       version_constraint value;
 
-      constraint_type (database& d, string dp, version_constraint v)
-          : db (d), dependent (move (dp)), value (move (v)) {}
+      package_version_key dependent;
+
+      // False for non-packages. Otherwise, indicates whether the constraint
+      // comes from the selected dependent or not.
+      //
+      bool selected_dependent;
+
+      // Create constraint for a package dependent.
+      //
+      constraint_type (version_constraint v,
+                       database& db,
+                       package_name nm,
+                       version ver,
+                       bool s)
+          : value (move (v)),
+            dependent (db, move (nm), move (ver)),
+            selected_dependent (s) {}
+
+      // Create constraint for a non-package dependent.
+      //
+      constraint_type (version_constraint v, database& db, string nm)
+          : value (move (v)),
+            dependent (db, move (nm)),
+            selected_dependent (false) {}
     };
 
     vector<constraint_type> constraints;
@@ -273,11 +292,23 @@ namespace bpkg
     strings config_vars;
 
     // Set of packages (dependents or dependencies but not a mix) that caused
-    // this package to be built or adjusted. Empty name signifies user
-    // selection and can be present regardless of the required_by_dependents
-    // flag value.
+    // this package to be built or adjusted. The 'command line' name signifies
+    // user selection and can be present regardless of the
+    // required_by_dependents flag value.
     //
-    std::set<package_key> required_by;
+    // Note that if this is a package name, then this package is expected to
+    // be collected (present in the map), potentially just pre-entered if
+    // required_by_dependents is false.
+    //
+    // Also note that if required_by_dependents is true, then all the
+    // dependent package versions in the required_by set are expected to be
+    // known (the version members are not empty). Otherwise (the required_by
+    // set contains dependencies), since it's not always easy to deduce the
+    // dependency versions at the time of collecting the dependent build (see
+    // collect_repointed_dependents() implementation for details), the
+    // dependency package versions are expected to all be unknown.
+    //
+    std::set<package_version_key> required_by;
 
     // If this flags is true, then required_by contains dependents.
     //
@@ -1583,17 +1614,22 @@ namespace bpkg
     // constraints for the same package twice, printing "..." instead. Noop if
     // there are no constraints for this package.
     //
+    // Optionally, only print constraints from the selected or being built
+    // dependents (see build_package::constraint_type for details).
+    //
     void
     print_constraints (diag_record&,
                        const build_package&,
                        string& indent,
-                       std::set<package_key>& printed) const;
+                       std::set<package_key>& printed,
+                       optional<bool> selected_dependent = nullopt) const;
 
     void
     print_constraints (diag_record&,
                        const package_key&,
                        string& indent,
-                       std::set<package_key>& printed) const;
+                       std::set<package_key>& printed,
+                       optional<bool> selected_dependent = nullopt) const;
 
     // Verify that builds ordering is consistent across all the data
     // structures and the ordering expectations are fulfilled (real build
@@ -1698,7 +1734,8 @@ namespace bpkg
                                   replaced_versions&,
                                   postponed_packages& postponed_recs,
                                   postponed_configurations&,
-                                  unsatisfied_dependents&);
+                                  unsatisfied_dependents&,
+                                  bool add_required_by);
 
     struct package_ref
     {
