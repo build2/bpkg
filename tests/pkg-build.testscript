@@ -9647,7 +9647,7 @@ test.arguments += --sys-no-query
           trace: collect_build_postponed (0): end
           trace: execute_plan: simulate: yes
           %.*
-          trace: execute_plan: while configuring dependent tez/1.0.0 in simulation mode unconstrain (toz == 0.1.0)
+          trace: execute_plan: while configuring dependent tez in simulation mode unconstrain (toz == 0.1.0)
           %.*
           error: unable to satisfy constraints on package toz
             info: tvz/1.0.0 depends on (toz == 0.2.0)
@@ -9841,7 +9841,7 @@ test.arguments += --sys-no-query
           trace: collect_build_postponed (0): end
           trace: execute_plan: simulate: yes
           %.*
-          trace: execute_plan: while configuring dependent tez/1.0.0 in simulation mode unconstrain (toz == 0.1.0)
+          trace: execute_plan: while configuring dependent tez in simulation mode unconstrain (toz == 0.1.0)
           %.*
           error: unable to satisfy constraints on package toz
             info: tvz/0.1.0 depends on (toz == 0.2.0)

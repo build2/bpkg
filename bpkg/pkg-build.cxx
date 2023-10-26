@@ -6440,9 +6440,8 @@ namespace bpkg
 
               for (const auto& c: ud->ignored_constraints)
               {
-                l5 ([&]{trace << "while configuring dependent "
-                              << p.available_name_version_db ()
-                              << " in simulation mode unconstrain ("
+                l5 ([&]{trace << "while configuring dependent " << p.name ()
+                              << p.db << " in simulation mode unconstrain ("
                               << c.dependency << ' ' << c.constraint << ')';});
 
                 deps.emplace_back (c.dependency);
