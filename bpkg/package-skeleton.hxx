@@ -68,7 +68,8 @@ namespace bpkg
                       bool disfigure,
                       const vector<config_variable>* config_srcs,
                       optional<dir_path> src_root,
-                      optional<dir_path> out_root);
+                      optional<dir_path> out_root,
+                      bool load_old_dependent_config);
 
 
     package_key package;
@@ -253,12 +254,21 @@ namespace bpkg
     string var_prefix_; // config.<project>
 
     strings config_vars_;
+
+    // Configuration sources for variables in config_vars_ (parallel). Can
+    // only contain config_source::{user,dependent} entries (see
+    // load_old_config() for details).
+    //
+    vector<config_source> config_var_srcs_;
+
     bool disfigure_;
     const vector<config_variable>* config_srcs_; // NULL if nothing to do or
                                                  // already done.
 
     dir_path src_root_; // Must be absolute and normalized.
     dir_path out_root_; // If empty, the same as src_root_.
+
+    bool load_old_dependent_config_;
 
     bool created_ = false;
     bool verified_ = false;

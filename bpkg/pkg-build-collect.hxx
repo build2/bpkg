@@ -455,7 +455,8 @@ namespace bpkg
     init_skeleton (const common_options&,
                    const shared_ptr<available_package>& override = nullptr,
                    optional<dir_path> src_root = nullopt,
-                   optional<dir_path> out_root = nullopt);
+                   optional<dir_path> out_root = nullopt,
+                   bool load_old_dependent_config = false);
   };
 
   using build_package_list = std::list<reference_wrapper<build_package>>;

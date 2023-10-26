@@ -366,7 +366,8 @@ namespace bpkg
   init_skeleton (const common_options& options,
                  const shared_ptr<available_package>& override,
                  optional<dir_path> src_root,
-                 optional<dir_path> out_root)
+                 optional<dir_path> out_root,
+                 bool load_old_dependent_config)
   {
     shared_ptr<available_package> ap (override != nullptr
                                       ? override
@@ -406,7 +407,8 @@ namespace bpkg
       disfigure,
       (selected != nullptr ? &selected->config_variables : nullptr),
       move (src_root),
-      move (out_root));
+      move (out_root),
+      load_old_dependent_config);
 
     return *skeleton;
   }
@@ -2108,15 +2110,16 @@ namespace bpkg
 
       if (!pkg.skeleton)
       {
-        // In the pre-reevaluation mode make sure that the user-specified
-        // configuration is loaded by the skeleton.
+        // In the (pre-)reevaluation mode make sure that the user-specified
+        // and the dependent configurations are both loaded by the skeleton.
         //
-        if (pre_reeval)
+        if (pre_reeval || reeval)
         {
           pkg.init_skeleton (options,
                              nullptr /* override */,
                              sp->effective_src_root (pdb.config),
-                             sp->effective_out_root (pdb.config));
+                             sp->effective_out_root (pdb.config),
+                             true /* load_old_dependent_config */);
         }
         else
           pkg.init_skeleton (options);

@@ -1108,7 +1108,8 @@ namespace bpkg
                                        false /* disfigure */,
                                        &p->config_variables,
                                        move (src_root),
-                                       move (out_root)),
+                                       move (out_root),
+                                       true /* load_old_dependent_config */),
                      nullptr /* prerequisites */,
                      false /* disfigured */,
                      false /* simulate */);

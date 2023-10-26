@@ -157,10 +157,12 @@ namespace bpkg
         db_ (v.db_),
         var_prefix_ (move (v.var_prefix_)),
         config_vars_ (move (v.config_vars_)),
+        config_var_srcs_ (move (v.config_var_srcs_)),
         disfigure_ (v.disfigure_),
         config_srcs_ (v.config_srcs_),
         src_root_ (move (v.src_root_)),
         out_root_ (move (v.out_root_)),
+        load_old_dependent_config_ (v.load_old_dependent_config_),
         created_ (v.created_),
         verified_ (v.verified_),
         loaded_old_config_ (v.loaded_old_config_),
@@ -194,10 +196,12 @@ namespace bpkg
       db_ = v.db_;
       var_prefix_ = move (v.var_prefix_);
       config_vars_ = move (v.config_vars_);
+      config_var_srcs_ = move (v.config_var_srcs_);
       disfigure_ = v.disfigure_;
       config_srcs_ = v.config_srcs_;
       src_root_ = move (v.src_root_);
       out_root_ = move (v.out_root_);
+      load_old_dependent_config_ = v.load_old_dependent_config_;
       created_ = v.created_;
       verified_ = v.verified_;
       loaded_old_config_ = v.loaded_old_config_;
@@ -231,10 +235,12 @@ namespace bpkg
         db_ (v.db_),
         var_prefix_ (v.var_prefix_),
         config_vars_ (v.config_vars_),
+        config_var_srcs_ (v.config_var_srcs_),
         disfigure_ (v.disfigure_),
         config_srcs_ (v.config_srcs_),
         src_root_ (v.src_root_),
         out_root_ (v.out_root_),
+        load_old_dependent_config_ (v.load_old_dependent_config_),
         created_ (v.created_),
         verified_ (v.verified_),
         loaded_old_config_ (v.loaded_old_config_),
@@ -296,7 +302,8 @@ namespace bpkg
                     bool df,
                     const vector<config_variable>* css,
                     optional<dir_path> src_root,
-                    optional<dir_path> out_root)
+                    optional<dir_path> out_root,
+                    bool load_old_dependent_config)
       : package (move (pk)),
         system (sys),
         available (move (ap)),
@@ -305,21 +312,28 @@ namespace bpkg
         var_prefix_ ("config." + package.name.variable ()),
         config_vars_ (move (cvs)),
         disfigure_ (df),
-        config_srcs_ (df ? nullptr : css)
+        config_srcs_ (df ? nullptr : css),
+        load_old_dependent_config_ (load_old_dependent_config)
   {
     if (available != nullptr)
       assert (available->bootstrap_build); // Should have skeleton info.
     else
       assert (system);
 
+    if (!config_vars_.empty ())
+      config_var_srcs_ = vector<config_source> (config_vars_.size (),
+                                                config_source::user);
+
     // We are only interested in old user configuration variables.
     //
     if (config_srcs_ != nullptr)
     {
       if (find_if (config_srcs_->begin (), config_srcs_->end (),
-                   [] (const config_variable& v)
+                   [this] (const config_variable& v)
                    {
-                     return v.source == config_source::user;
+                     return v.source == config_source::user ||
+                            (load_old_dependent_config_ &&
+                             v.source == config_source::dependent);
                    }) == config_srcs_->end ())
         config_srcs_ = nullptr;
     }
@@ -1896,8 +1910,10 @@ namespace bpkg
 
     // First comes the user configuration.
     //
-    for (const string& v: config_vars_)
+    for (size_t i (0); i != config_vars_.size (); ++i)
     {
+      const string& v (config_vars_[i]);
+
       size_t vn;
       if (project_override (v, var_prefix_, &vn))
       {
@@ -1911,8 +1927,17 @@ namespace bpkg
             continue;
         }
 
+        const char* s (nullptr);
+
+        switch (config_var_srcs_[i])
+        {
+        case config_source::user: s = "user"; break;
+        case config_source::dependent: s = "dependent"; break;
+        case config_source::reflect: assert (false); // Must never be loaded.
+        }
+
         print (v) << " (" << (system ? "expected " : "")
-                  << "user configuration)";
+                  << s << " configuration)";
       }
     }
 
@@ -2253,12 +2278,15 @@ namespace bpkg
       {
         assert (!disfigure_);
 
-        auto i (config_vars_.begin ()); // Insert position, see below.
+        auto i (config_vars_.begin ());     // Insert position, see below.
+        auto j (config_var_srcs_.begin ()); // Insert position, see below.
 
         names storage;
         for (const config_variable& v: *config_srcs_)
         {
-          if (v.source != config_source::user)
+          if (!(v.source == config_source::user ||
+                (load_old_dependent_config_ &&
+                 v.source == config_source::dependent)))
             continue;
 
           using config::variable_origin;
@@ -2288,6 +2316,7 @@ namespace bpkg
                 i,
                 serialize_cmdline (v.name, *ol.second, storage)) + 1;
 
+              j = config_var_srcs_.insert (j, v.source) + 1;
               break;
             }
           case variable_origin::undefined:
