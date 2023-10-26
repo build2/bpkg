@@ -4926,11 +4926,14 @@ namespace bpkg
           // diagnostics run. Otherwise, if any dependency configuration
           // negotiation has been performed during the current plan refinement
           // iteration, then rebuild the plan from scratch (see above for
-          // details).
+          // details). Also rebuild it from from scratch if any unsatisfied
+          // dependents have been ignored, since their unsatisfied constraints
+          // are now added to the dependencies' build_package::constraints
+          // lists.
           //
           if (!refine)
             need_refinement (true /* diag */);
-          else if (!postponed_cfgs.empty ())
+          else if (!postponed_cfgs.empty () || !unsatisfied_depts.empty ())
             scratch_exe = true;
         }
 
