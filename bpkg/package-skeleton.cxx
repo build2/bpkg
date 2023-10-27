@@ -141,7 +141,7 @@ namespace bpkg
   // (build2 stuff is only forward-declared in the header).
   //
   static build2::scope_map::iterator
-  bootstrap (package_skeleton&, const strings&);
+  bootstrap (package_skeleton&, const strings&, bool old = false);
 
   package_skeleton::
   ~package_skeleton ()
@@ -153,6 +153,7 @@ namespace bpkg
       : package (move (v.package)),
         system (v.system),
         available (move (v.available)),
+        load_config_flags (v.load_config_flags),
         co_ (v.co_),
         db_ (v.db_),
         var_prefix_ (move (v.var_prefix_)),
@@ -162,7 +163,9 @@ namespace bpkg
         config_srcs_ (v.config_srcs_),
         src_root_ (move (v.src_root_)),
         out_root_ (move (v.out_root_)),
-        load_old_dependent_config_ (v.load_old_dependent_config_),
+        src_root_specified_ (v.src_root_specified_),
+        old_src_root_ (move (v.old_src_root_)),
+        old_out_root_ (move (v.old_out_root_)),
         created_ (v.created_),
         verified_ (v.verified_),
         loaded_old_config_ (v.loaded_old_config_),
@@ -192,6 +195,7 @@ namespace bpkg
       package = move (v.package);
       system = v.system;
       available = move (v.available);
+      load_config_flags = v.load_config_flags;
       co_ = v.co_;
       db_ = v.db_;
       var_prefix_ = move (v.var_prefix_);
@@ -201,7 +205,9 @@ namespace bpkg
       config_srcs_ = v.config_srcs_;
       src_root_ = move (v.src_root_);
       out_root_ = move (v.out_root_);
-      load_old_dependent_config_ = v.load_old_dependent_config_;
+      src_root_specified_ = v.src_root_specified_;
+      old_src_root_ = move (v.old_src_root_);
+      old_out_root_ = move (v.old_out_root_);
       created_ = v.created_;
       verified_ = v.verified_;
       loaded_old_config_ = v.loaded_old_config_;
@@ -231,6 +237,7 @@ namespace bpkg
       : package (v.package),
         system (v.system),
         available (v.available),
+        load_config_flags (v.load_config_flags),
         co_ (v.co_),
         db_ (v.db_),
         var_prefix_ (v.var_prefix_),
@@ -240,7 +247,9 @@ namespace bpkg
         config_srcs_ (v.config_srcs_),
         src_root_ (v.src_root_),
         out_root_ (v.out_root_),
-        load_old_dependent_config_ (v.load_old_dependent_config_),
+        src_root_specified_ (v.src_root_specified_),
+        old_src_root_ (v.old_src_root_),
+        old_out_root_ (v.old_out_root_),
         created_ (v.created_),
         verified_ (v.verified_),
         loaded_old_config_ (v.loaded_old_config_),
@@ -303,17 +312,19 @@ namespace bpkg
                     const vector<config_variable>* css,
                     optional<dir_path> src_root,
                     optional<dir_path> out_root,
-                    bool load_old_dependent_config)
+                    optional<dir_path> old_src_root,
+                    optional<dir_path> old_out_root,
+                    uint16_t lcf)
       : package (move (pk)),
         system (sys),
         available (move (ap)),
+        load_config_flags (lcf),
         co_ (&co),
         db_ (&package.db.get ()),
         var_prefix_ ("config." + package.name.variable ()),
         config_vars_ (move (cvs)),
         disfigure_ (df),
-        config_srcs_ (df ? nullptr : css),
-        load_old_dependent_config_ (load_old_dependent_config)
+        config_srcs_ (df ? nullptr : css)
   {
     if (available != nullptr)
       assert (available->bootstrap_build); // Should have skeleton info.
@@ -331,8 +342,9 @@ namespace bpkg
       if (find_if (config_srcs_->begin (), config_srcs_->end (),
                    [this] (const config_variable& v)
                    {
-                     return v.source == config_source::user ||
-                            (load_old_dependent_config_ &&
+                     return ((load_config_flags & load_config_user) != 0 &&
+                             v.source == config_source::user) ||
+                            ((load_config_flags & load_config_dependent) != 0 &&
                              v.source == config_source::dependent);
                    }) == config_srcs_->end ())
         config_srcs_ = nullptr;
@@ -355,8 +367,8 @@ namespace bpkg
                  {
                    // For now tighten it even further so that we can continue
                    // using repositories without package skeleton information
-                   // (bootstrap.build, root.build). See load_old_config() for
-                   // details.
+                   // (bootstrap.build, root.build). See
+                   // load_old_config_impl() for details.
                    //
 #if 0
                    return project_override (v, var_prefix_);
@@ -372,11 +384,27 @@ namespace bpkg
     {
       src_root_ = move (*src_root);
 
+      assert (!src_root_.empty ()); // Must exist.
+
+      src_root_specified_ = true;
+
       if (out_root)
         out_root_ = move (*out_root);
     }
     else
       assert (!out_root);
+
+    if (old_src_root)
+    {
+      old_src_root_ = move (*old_src_root);
+
+      assert (!old_src_root_.empty ()); // Must exist.
+
+      if (old_out_root)
+        old_out_root_ = move (*old_out_root);
+    }
+    else
+      assert (!old_out_root);
   }
 
   // Serialize a variable assignment for a command line override.
@@ -466,7 +494,7 @@ namespace bpkg
             ctx_ == nullptr);
 
     if (!loaded_old_config_)
-      load_old_config ();
+      load_old_config_impl ();
 
     try
     {
@@ -708,7 +736,7 @@ namespace bpkg
             ctx_ == nullptr);
 
     if (!loaded_old_config_)
-      load_old_config ();
+      load_old_config_impl ();
 
     try
     {
@@ -721,10 +749,10 @@ namespace bpkg
       // (e.g., either via an attribute or via special config.assert directive
       // or some such).
       //
-      // For now we rely on load_defaults() and load_old_config() to "flush"
-      // out any unrelated errors (e.g., one of the modules configuration is
-      // bad, etc). However, if that did not happen naturally, then we must do
-      // it ourselves.
+      // For now we rely on load_defaults() and load_old_config_impl() to
+      // "flush" out any unrelated errors (e.g., one of the modules
+      // configuration is bad, etc). However, if that did not happen
+      // naturally, then we must do it ourselves.
       //
       if (!verified_)
       {
@@ -787,10 +815,12 @@ namespace bpkg
 
   // Print the location of a depends value in the specified manifest file.
   //
-  // Note that currently we only use this function for the external packages.
-  // We could also do something similar for normal packages by pointing to the
-  // manifest we have serialized. In this case we would also need to make sure
-  // the temp directory is not cleaned in case of an error. Maybe one day.
+  // Note that currently we only use this function for the being reconfigured
+  // and external packages (i.e. when the existing source directory is
+  // specified). We could also do something similar for the remaining cases by
+  // pointing to the manifest we have serialized. In this case we would also
+  // need to make sure the temp directory is not cleaned in case of an error.
+  // Maybe one day.
   //
   static void
   depends_location (const build2::diag_record& dr,
@@ -863,20 +893,19 @@ namespace bpkg
       uint64_t il (1);
 
       auto df = build2::make_diag_frame (
-        [this, &cond, &rs, depends_index] (const build2::diag_record& dr)
+        [this, &cond, depends_index] (const build2::diag_record& dr)
         {
           dr << info << "enable condition: (" << cond << ")";
 
-          // For external packages we have the manifest so print the location
-          // of the depends value in questions.
+          // If an existing source directory has been specified, then we have
+          // the manifest and so print the location of the depends value in
+          // questions.
           //
-          if (rs.out_eq_src ())
+          if (src_root_specified_)
+            depends_location (dr, src_root_ / manifest_file, depends_index);
+          else
             dr << info << "in depends manifest value of package "
                << package.name;
-          else
-            depends_location (dr,
-                              rs.src_path () / manifest_file,
-                              depends_index);
         });
 
       lexer l (is, in, il /* start line */);
@@ -932,9 +961,9 @@ namespace bpkg
     // values that are derived from them in root.build). It seems like we have
     // two options here: either enter them as true overrides similar to
     // config_vars_ or just evaluate them similar to loading config.build
-    // (which, BTW, we might have, in case of an external package). The big
-    // problem with the former approach is that it will then prevent any
-    // further reflect clauses from modifying the same values.
+    // (which, BTW, we might have, in case of a being reconfigured or external
+    // package). The big problem with the former approach is that it will then
+    // prevent any further reflect clauses from modifying the same values.
     //
     // So overall it feels like we have iterative/compartmentalized
     // configuration process. A feedback loop, in a sense. And it's the
@@ -1060,7 +1089,7 @@ namespace bpkg
       // Note: keep it active until the end (see the override detection).
       //
       auto df = build2::make_diag_frame (
-        [this, &refl, &rs, depends_index] (const build2::diag_record& dr)
+        [this, &refl, depends_index] (const build2::diag_record& dr)
         {
           // Probably safe to assume a one-line fragment contains a variable
           // assignment.
@@ -1071,16 +1100,15 @@ namespace bpkg
             dr << info << "reflect clause:\n"
                << trim_right (string (refl));
 
-          // For external packages we have the manifest so print the
-          // location of the depends value in questions.
+          // If an existing source directory has been specified, then we have
+          // the manifest and so print the location of the depends value in
+          // questions.
           //
-          if (rs.out_eq_src ())
+          if (src_root_specified_)
+            depends_location (dr, src_root_ / manifest_file, depends_index);
+          else
             dr << info << "in depends manifest value of package "
                << package.name;
-          else
-            depends_location (dr,
-                              rs.src_path () / manifest_file,
-                              depends_index);
         });
 
       lexer l (is, in, il /* start line */);
@@ -1278,21 +1306,20 @@ namespace bpkg
         uint64_t il (1);
 
         auto df = build2::make_diag_frame (
-          [this, &prefer, &rs, depends_index] (const build2::diag_record& dr)
+          [this, &prefer, depends_index] (const build2::diag_record& dr)
           {
             dr << info << "prefer clause:\n"
                << trim_right (string (prefer));
 
-            // For external packages we have the manifest so print the
-            // location of the depends value in questions.
+            // If an existing source directory has been specified, then we
+            // have the manifest and so print the location of the depends
+            // value in questions.
             //
-            if (rs.out_eq_src ())
+            if (src_root_specified_)
+              depends_location (dr, src_root_ / manifest_file, depends_index);
+            else
               dr << info << "in depends manifest value of package "
                  << package.name;
-            else
-              depends_location (dr,
-                                rs.src_path () / manifest_file,
-                                depends_index);
           });
 
         lexer l (is, in, il /* start line */);
@@ -1340,20 +1367,19 @@ namespace bpkg
         uint64_t il (1);
 
         auto df = build2::make_diag_frame (
-          [this, &accept, &rs, depends_index] (const build2::diag_record& dr)
+          [this, &accept, depends_index] (const build2::diag_record& dr)
           {
             dr << info << "accept condition: (" << accept << ")";
 
-            // For external packages we have the manifest so print the
-            // location of the depends value in questions.
+            // If an existing source directory has been specified, then we
+            // have the manifest and so print the location of the depends
+            // value in questions.
             //
-            if (rs.out_eq_src ())
+            if (src_root_specified_)
+              depends_location (dr, src_root_ / manifest_file, depends_index);
+            else
               dr << info << "in depends manifest value of package "
                  << package.name;
-            else
-              depends_location (dr,
-                                rs.src_path () / manifest_file,
-                                depends_index);
           });
 
         lexer l (is, in, il /* start line */);
@@ -1573,21 +1599,20 @@ namespace bpkg
         uint64_t il (1);
 
         auto df = build2::make_diag_frame (
-          [this, &require, &rs, depends_index] (const build2::diag_record& dr)
+          [this, &require, depends_index] (const build2::diag_record& dr)
           {
             dr << info << "require clause:\n"
                << trim_right (string (require));
 
-            // For external packages we have the manifest so print the
-            // location of the depends value in questions.
+            // If an existing source directory has been specified, then we
+            // have the manifest and so print the location of the depends
+            // value in questions.
             //
-            if (rs.out_eq_src ())
+            if (src_root_specified_)
+              depends_location (dr, src_root_ / manifest_file, depends_index);
+            else
               dr << info << "in depends manifest value of package "
                  << package.name;
-            else
-              depends_location (dr,
-                                rs.src_path () / manifest_file,
-                                depends_index);
           });
 
         lexer l (is, in, il /* start line */);
@@ -1854,7 +1879,7 @@ namespace bpkg
   empty_print ()
   {
     if (!loaded_old_config_)
-      load_old_config ();
+      load_old_config_impl ();
 
     return (dependent_vars_.empty () &&
             reflect_.empty ()        &&
@@ -1885,7 +1910,7 @@ namespace bpkg
     using build2::config::variable_origin;
 
     if (!loaded_old_config_)
-      load_old_config ();
+      load_old_config_impl ();
 
     auto print = [&os,
                   indent,
@@ -1965,6 +1990,13 @@ namespace bpkg
     }
   }
 
+  void package_skeleton::
+  load_old_config ()
+  {
+    if (!loaded_old_config_)
+      load_old_config_impl ();
+  }
+
   pair<strings, vector<config_variable>> package_skeleton::
   collect_config () &&
   {
@@ -1975,7 +2007,7 @@ namespace bpkg
     using build2::config::variable_origin;
 
     if (!loaded_old_config_)
-      load_old_config ();
+      load_old_config_impl ();
 
     // Merge all the variables into a single list in the correct order
     // and assign their sources while at it.
@@ -2098,7 +2130,7 @@ namespace bpkg
     assert (db_ != nullptr); // Must be called before collect_config().
 
     if (!loaded_old_config_)
-      load_old_config ();
+      load_old_config_impl ();
 
     sha256 cs;
 
@@ -2144,7 +2176,7 @@ namespace bpkg
                   bool cache)
   {
     // Merge variable overrides (note that the order is important). See also a
-    // custom/optimized version in load_old_config().
+    // custom/optimized version in load_old_config_impl().
     //
     if (!cache || !cmd_vars_cache_)
     {
@@ -2192,7 +2224,7 @@ namespace bpkg
   }
 
   void package_skeleton::
-  load_old_config ()
+  load_old_config_impl ()
   {
     assert (!loaded_old_config_ && ctx_ == nullptr);
 
@@ -2245,7 +2277,7 @@ namespace bpkg
                << package.name;
           });
 
-        rs = bootstrap (*this, *cmd_vars)->second.front ();
+        rs = bootstrap (*this, *cmd_vars, true /* old */)->second.front ();
 
         // Load project's root.build.
         //
@@ -2268,11 +2300,12 @@ namespace bpkg
       //
       //    Also, build2 warns about unused variables being dropped.
       //
-      //    Note that currently load_old_config() is disabled unless there is
-      //    a config.*.develop variable; see package_skeleton ctor.
+      //    Note that currently load_old_config_impl() is disabled unless
+      //    there is a config.*.develop variable or we were asked to load
+      //    dependent configuration; see package_skeleton ctor.
 
-      // Extract and merge old user configuration variables from config.build
-      // (or equivalent) into config_vars.
+      // Extract and merge old user and/or dependent configuration variables
+      // from config.build (or equivalent) into config_vars.
       //
       if (config_srcs_ != nullptr)
       {
@@ -2284,8 +2317,9 @@ namespace bpkg
         names storage;
         for (const config_variable& v: *config_srcs_)
         {
-          if (!(v.source == config_source::user ||
-                (load_old_dependent_config_ &&
+          if (!(((load_config_flags & load_config_user) != 0 &&
+                 v.source == config_source::user) ||
+                ((load_config_flags & load_config_dependent) != 0 &&
                  v.source == config_source::dependent)))
             continue;
 
@@ -2335,7 +2369,10 @@ namespace bpkg
       }
 
       loaded_old_config_ = true;
-      verified_ = true; // Managed to load without errors.
+
+      if (old_src_root_.empty ())
+        verified_ = true; // Managed to load without errors.
+
       ctx_ = nullptr;
     }
     catch (const build2::failed&)
@@ -2358,7 +2395,7 @@ namespace bpkg
     }
 
     if (!loaded_old_config_)
-      load_old_config ();
+      load_old_config_impl ();
 
     try
     {
@@ -2578,7 +2615,7 @@ namespace bpkg
   // Bootstrap the package skeleton.
   //
   static build2::scope_map::iterator
-  bootstrap (package_skeleton& skl, const strings& cmd_vars)
+  bootstrap (package_skeleton& skl, const strings& cmd_vars, bool old)
   {
     assert (skl.db_ != nullptr       &&
             skl.ctx_ == nullptr      &&
@@ -2600,6 +2637,12 @@ namespace bpkg
 
     // Create the skeleton filesystem state, if it doesn't exist yet.
     //
+    if (old && skl.old_src_root_.empty ())
+      old = false;
+
+    dir_path& skl_src_root (old ? skl.old_src_root_ : skl.src_root_);
+    dir_path& skl_out_root (old ? skl.old_out_root_ : skl.out_root_);
+
     if (!skl.created_)
     {
       const available_package& ap (*skl.available);
@@ -2609,11 +2652,13 @@ namespace bpkg
       // they never clash with other temporary subdirectories (git
       // repositories, etc).
       //
-      if (skl.src_root_.empty () || skl.out_root_.empty ())
+      // Note: for old src/out, everything should already exist.
+      //
+      if (!old && (skl_src_root.empty () || skl_out_root.empty ()))
       {
         // Cannot be specified if src_root_ is unspecified.
         //
-        assert (skl.out_root_.empty ());
+        assert (skl_out_root.empty ());
 
         // Note that only configurations which can be used as repository
         // information sources has the temporary directory facility
@@ -2641,14 +2686,16 @@ namespace bpkg
         d /= "skeletons";
         d /= skl.package.name.string () + '-' + ap.version.string ();
 
-        if (skl.src_root_.empty ())
-          skl.src_root_ = move (d); // out_root_ is the same.
+        if (skl_src_root.empty ())
+          skl_src_root = move (d); // out_root_ is the same.
         else
-          skl.out_root_ = move (d); // Don't even need to create it.
+          skl_out_root = move (d); // Don't even need to create it.
       }
 
-      if (!exists (skl.src_root_))
+      if (!exists (skl_src_root))
       {
+        assert (!old); // An old package version cannot not exist.
+
         // Create the buildfiles.
         //
         // Note that it's probably doesn't matter which naming scheme to use
@@ -2658,7 +2705,7 @@ namespace bpkg
         {
           bool an (*ap.alt_naming);
 
-          path bf (skl.src_root_ /
+          path bf (skl_src_root /
                    (an ? alt_bootstrap_file : std_bootstrap_file));
 
           mk_p (bf.directory ());
@@ -2683,11 +2730,11 @@ namespace bpkg
 
           if (ap.root_build)
             save (*ap.root_build,
-                  skl.src_root_ / (an ? alt_root_file : std_root_file));
+                  skl_src_root / (an ? alt_root_file : std_root_file));
 
           for (const buildfile& f: ap.buildfiles)
           {
-            path p (skl.src_root_                        /
+            path p (skl_src_root                         /
                     (an ? alt_build_dir : std_build_dir) /
                     f.path);
 
@@ -2728,7 +2775,7 @@ namespace bpkg
               m.dependencies.push_back (das);
           }
 
-          path mf (skl.src_root_ / manifest_file);
+          path mf (skl_src_root / manifest_file);
 
           try
           {
@@ -2753,7 +2800,8 @@ namespace bpkg
         }
       }
 
-      skl.created_ = true;
+      if (!old)
+        skl.created_ = true;
     }
 
     try
@@ -2786,10 +2834,10 @@ namespace bpkg
 
       // Note that it's ok for out_root to not exist (external package).
       //
-      const dir_path& src_root (skl.src_root_);
-      const dir_path& out_root (skl.out_root_.empty ()
-                                ? skl.src_root_
-                                : skl.out_root_);
+      const dir_path& src_root (skl_src_root);
+      const dir_path& out_root (skl_out_root.empty ()
+                                ? skl_src_root
+                                : skl_out_root);
 
       auto rsi (create_root (ctx, out_root, src_root));
       scope& rs (*rsi->second.front ());

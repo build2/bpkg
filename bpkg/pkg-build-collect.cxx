@@ -364,10 +364,8 @@ namespace bpkg
 
   package_skeleton& build_package::
   init_skeleton (const common_options& options,
-                 const shared_ptr<available_package>& override,
-                 optional<dir_path> src_root,
-                 optional<dir_path> out_root,
-                 bool load_old_dependent_config)
+                 bool load_old_dependent_config,
+                 const shared_ptr<available_package>& override)
   {
     shared_ptr<available_package> ap (override != nullptr
                                       ? override
@@ -390,12 +388,59 @@ namespace bpkg
         ap = nullptr;
     }
 
-    if (!src_root && ap != nullptr)
+    optional<dir_path> src_root;
+    optional<dir_path> out_root;
+
+    optional<dir_path> old_src_root;
+    optional<dir_path> old_out_root;
+    uint16_t load_config_flags (0);
+
+    if (ap != nullptr)
     {
-      src_root = external_dir ();
-      out_root = (src_root && !disfigure
-                  ? dir_path (db.get ().config) /= name ().string ()
-                  : optional<dir_path> ());
+      bool src_conf (selected != nullptr                          &&
+                     selected->state == package_state::configured &&
+                     selected->substate != package_substate::system);
+
+      database& pdb (db);
+
+      // If the package is being reconfigured, then specify {src,out}_root as
+      // the existing source and output root directories not to create the
+      // skeleton directory needlessly. Otherwise, if the being built package
+      // is external, then specify src_root as its existing source directory
+      // and out_root as its potentially non-existing output directory.
+      //
+      // Can we actually use the existing output root directory if the package
+      // is being reconfigured but we are requested to ignore the current
+      // configuration? Yes we can, since load_config_flags stays 0 in this
+      // case and all the variables in config.build will be ignored.
+      //
+      if (src_conf && ap->version == selected->version)
+      {
+        src_root = selected->effective_src_root (pdb.config);
+        out_root = selected->effective_out_root (pdb.config);
+      }
+      else
+      {
+        src_root = external_dir ();
+
+        if (src_root)
+          out_root = dir_path (pdb.config) /= name ().string ();
+      }
+
+      // Specify old_{src,out}_root paths and set load_config_flags if the old
+      // configuration is present and is requested to be loaded.
+      //
+      if (src_conf && (!disfigure || load_old_dependent_config))
+      {
+        old_src_root = selected->effective_src_root (pdb.config);
+        old_out_root = selected->effective_out_root (pdb.config);
+
+        if (!disfigure)
+          load_config_flags |= package_skeleton::load_config_user;
+
+        if (load_old_dependent_config)
+          load_config_flags |= package_skeleton::load_config_dependent;
+      }
     }
 
     skeleton = package_skeleton (
@@ -408,7 +453,9 @@ namespace bpkg
       (selected != nullptr ? &selected->config_variables : nullptr),
       move (src_root),
       move (out_root),
-      load_old_dependent_config);
+      move (old_src_root),
+      move (old_out_root),
+      load_config_flags);
 
     return *skeleton;
   }
@@ -2049,7 +2096,7 @@ namespace bpkg
     // Bail out if this is a configured non-system package and no recursive
     // collection is required.
     //
-    bool src_conf (sp != nullptr &&
+    bool src_conf (sp != nullptr                          &&
                    sp->state == package_state::configured &&
                    sp->substate != package_substate::system);
 
@@ -2109,21 +2156,7 @@ namespace bpkg
       }
 
       if (!pkg.skeleton)
-      {
-        // In the (pre-)reevaluation mode make sure that the user-specified
-        // and the dependent configurations are both loaded by the skeleton.
-        //
-        if (pre_reeval || reeval)
-        {
-          pkg.init_skeleton (options,
-                             nullptr /* override */,
-                             sp->effective_src_root (pdb.config),
-                             sp->effective_out_root (pdb.config),
-                             true /* load_old_dependent_config */);
-        }
-        else
-          pkg.init_skeleton (options);
-      }
+        pkg.init_skeleton (options);
     }
     else
       l5 ([&]{trace << "resume " << pkg.available_name_version_db ();});
@@ -4219,19 +4252,33 @@ namespace bpkg
                     build_package* b (entered_build (pk));
                     assert (b != nullptr);
 
+                    optional<package_skeleton>& ps (b->skeleton);
+
+                    // If the dependency's skeleton is already present, then
+                    // this dependency's configuration has already been
+                    // initially negotiated (see collect_build_postponed() for
+                    // details) and will now be be up-negotiated. Thus, in
+                    // particular, the skeleton must not have the old
+                    // configuration dependent variables be loaded.
+                    //
+                    assert (!ps ||
+                            (ps->load_config_flags &
+                             package_skeleton::load_config_dependent) == 0);
+
                     package_skeleton* depc;
                     if (b->recursive_collection)
                     {
-                      assert (b->skeleton);
+                      assert (ps);
 
-                      depcs_storage.push_front (*b->skeleton);
+                      depcs_storage.push_front (*ps);
                       depc = &depcs_storage.front ();
                       depc->reset ();
                     }
                     else
-                      depc = &(b->skeleton
-                               ? *b->skeleton
-                               : b->init_skeleton (options));
+                      depc = &(ps
+                               ? *ps
+                               : b->init_skeleton (options,
+                                                   false /* load_old_dependent_config */));
 
                     depcs.push_back (*depc);
                   }
@@ -5890,9 +5937,11 @@ namespace bpkg
             //
             assert (b != nullptr && !b->recursive_collection);
 
-            package_skeleton* depc (&(b->skeleton
-                                      ? *b->skeleton
-                                      : b->init_skeleton (o /* options */)));
+            package_skeleton* depc (
+              &(b->skeleton
+                ? *b->skeleton
+                : b->init_skeleton (o,
+                                    false /* load_old_dependent_config */)));
 
             depcs.push_back (*depc);
           }
@@ -5984,7 +6033,7 @@ namespace bpkg
           // throwing the retry_configuration exception).
           //
           if (!b->skeleton)
-            b->init_skeleton (o /* options */);
+            b->init_skeleton (o, false /* load_old_dependent_config */);
 
           package_skeleton& ps (*b->skeleton);
 

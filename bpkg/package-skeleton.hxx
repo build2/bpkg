@@ -27,14 +27,27 @@ namespace bpkg
     // is NULL, then the skeleton can only be used to print and collect the
     // configuration information.
     //
-    // If the package is external, then the existing package source root
+    // If the package is being reconfigured (rather than up/downgraded), then
+    // the existing package source and output root directories (src_root and
+    // out_root) need to be specified (as absolute and normalized). Otherwise,
+    // if the package is external, then the existing package source root
     // directory needs to be specified (as absolute and normalized). In this
     // case, if output root is specified (as absolute and normalized; normally
     // <config-dir>/<package-name>), then it's used as is. Otherwise, an empty
     // skeleton directory is used as output root.
     //
-    // If the package is not external, then none of the root directories
-    // should be specified.
+    // If the package is neither being reconfigured nor is external, then none
+    // of the root directories should be specified.
+    //
+    // If the package is configured as source and the user and/or dependent
+    // configuration is requested to be loaded from config.build, then the
+    // existing package old source and output root directories (old_src_root
+    // and old_out_root) need to be specified (as absolute and normalized). If
+    // specified, they are used instead of package source and output root
+    // directories to load the current user and/or dependent configuration.
+    // The idea here is that during package upgrade/downgrade, we want to load
+    // the old configuration from the old version's src/out but then continue
+    // evaluating clauses using the new version's src/out.
     //
     // The disfigure argument should indicate whether the package is being
     // reconfigured from scratch (--disfigure).
@@ -69,12 +82,20 @@ namespace bpkg
                       const vector<config_variable>* config_srcs,
                       optional<dir_path> src_root,
                       optional<dir_path> out_root,
-                      bool load_old_dependent_config);
-
+                      optional<dir_path> old_src_root,
+                      optional<dir_path> old_out_root,
+                      uint16_t load_config_flags);
 
     package_key package;
     bool system;
     shared_ptr<const available_package> available;
+
+    // Load package (old) configuration flags.
+    //
+    uint16_t load_config_flags;
+
+    static const uint16_t load_config_user      = 0x1;
+    static const uint16_t load_config_dependent = 0x2;
 
     // The following functions should be called in the following sequence
     // (* -- zero or more, ? -- zero or one):
@@ -85,6 +106,10 @@ namespace bpkg
     // * empty() | print_config()
     // * config_checksum()
     //   collect_config()
+    //
+    // Note that the load_old_config() function can be called at eny point
+    // before collect_config() (and is called implicitly by most other
+    // functions).
     //
     // Note that a copy of the skeleton is expected to continue with the
     // sequence rather than starting from scratch, unless reset() is called.
@@ -170,6 +195,11 @@ namespace bpkg
     void
     print_config (ostream&, const char* indent);
 
+    // Load the package's old configuration, unless it is already loaded.
+    //
+    void
+    load_old_config ();
+
     // Return the accumulated configuration variables (first) and project
     // configuration variable sources (second). Note that the arrays are not
     // necessarily parallel (config_vars may contain non-project variables).
@@ -203,9 +233,10 @@ namespace bpkg
     package_skeleton& operator= (const package_skeleton&) = delete;
 
   private:
-    // Load old user configuration variables from config.build (or equivalent)
-    // and merge them into config_vars_. Also verify new user configuration
-    // already in config_vars_ makes sense.
+    // Load old user and/or dependent configuration variables from
+    // config.build (or equivalent) and merge them into config_vars_ and
+    // config_var_srcs_. Also verify new user configuration already in
+    // config_vars_ makes sense.
     //
     // This should be done before any attempt to load the configuration with
     // config.config.disfigure and, if this did not happen, inside
@@ -213,7 +244,7 @@ namespace bpkg
     // config.config.disfigure).
     //
     void
-    load_old_config ();
+    load_old_config_impl ();
 
     // (Re)load the build system state.
     //
@@ -257,7 +288,7 @@ namespace bpkg
 
     // Configuration sources for variables in config_vars_ (parallel). Can
     // only contain config_source::{user,dependent} entries (see
-    // load_old_config() for details).
+    // load_old_config_impl() for details).
     //
     vector<config_source> config_var_srcs_;
 
@@ -268,7 +299,18 @@ namespace bpkg
     dir_path src_root_; // Must be absolute and normalized.
     dir_path out_root_; // If empty, the same as src_root_.
 
-    bool load_old_dependent_config_;
+    // True if the existing source root directory has been specified.
+    //
+    // Note that if that's the case, we can use the manifest file this
+    // directory contains for diagnostics.
+    //
+    bool src_root_specified_ = false;
+
+    // If specified, are used instead of {src,out}_root_ for loading of the
+    // project configuration variables.
+    //
+    dir_path old_src_root_;
+    dir_path old_out_root_;
 
     bool created_ = false;
     bool verified_ = false;

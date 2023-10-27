@@ -5511,7 +5511,9 @@ namespace bpkg
                 // Since there is no available package specified we need to
                 // find it (or create a transient one).
                 //
-                cfg = &p.init_skeleton (o, find_available (o, pdb, sp));
+                cfg = &p.init_skeleton (o,
+                                        true /* load_old_dependent_config */,
+                                        find_available (o, pdb, sp));
               }
             }
             else
@@ -5902,6 +5904,8 @@ namespace bpkg
       database& pdb (p.db);
       shared_ptr<selected_package>& sp (p.selected);
 
+      assert (sp != nullptr); // Shouldn't be here otherwise.
+
       // Each package is disfigured in its own transaction, so that we
       // always leave the configuration in a valid state.
       //
@@ -5913,7 +5917,7 @@ namespace bpkg
       bool external (false);
       if (!simulate)
       {
-        external = (sp != nullptr && sp->external () && p.external ());
+        external = (sp->external () && p.external ());
 
         // Reset the keep_out flag if the package being unpacked is not
         // external.
@@ -5934,8 +5938,6 @@ namespace bpkg
       {
         vector<package_name>& ps (previous_prerequisites[&p]);
 
-        assert (sp != nullptr); // Shouldn't be here otherwise.
-
         if (!sp->prerequisites.empty ())
         {
           ps.reserve (sp->prerequisites.size ());
@@ -5948,16 +5950,38 @@ namespace bpkg
       // For an external package being replaced with another external, keep
       // the configuration unless requested not to with --disfigure.
       //
-      // Note that for other cases the preservation of the configuration is
-      // still a @@ TODO (the idea is to use our config.config.{save,load}
-      // machinery). Also see "parallel" logic in package_skeleton.
+      bool disfigure (p.disfigure || !external);
+
+      // If the skeleton was not initialized yet (this is an existing package
+      // reconfiguration and no configuration was printed as a part of the
+      // plan, etc), then initialize it now. Whether the skeleton is newly
+      // initialized or not, make sure that the current configuration is
+      // loaded, unless the package project is not being disfigured.
       //
+      if (*p.action != build_package::drop && !p.system)
+      {
+        if (!p.skeleton)
+        {
+          // If there is no available package specified for the build package
+          // object, then we need to find it (or create a transient one).
+          //
+          p.init_skeleton (o,
+                           true /* load_old_dependent_config */,
+                           (p.available == nullptr
+                            ? find_available (o, pdb, sp)
+                            : nullptr));
+        }
+
+        if (disfigure)
+          p.skeleton->load_old_config ();
+      }
+
       // Commits the transaction.
       //
       pkg_disfigure (o, pdb, t,
                      sp,
                      !p.keep_out /* clean */,
-                     p.disfigure || !external /* disfigure */,
+                     disfigure,
                      simulate);
 
       r = true;
@@ -6498,14 +6522,7 @@ namespace bpkg
           }
           else
           {
-            assert (sp != nullptr); // See above.
-
-            // Note that the skeleton can be present if, for example, this is
-            // a dependency which configuration has been negotiated but it is
-            // not collected recursively since it has no buildfile clauses.
-            //
-            if (!p.skeleton)
-              p.init_skeleton (o);
+            assert (p.skeleton); // Must be initialized before disfiguring.
 
             cpr = pkg_configure_prerequisites (o,
                                                pdb,
@@ -6533,22 +6550,10 @@ namespace bpkg
           //
           assert (sp->state == package_state::unpacked);
 
-          // Initialize the skeleton if it is not initialized yet.
+          // The skeleton must be initialized before disfiguring and the
+          // package can't be system.
           //
-          // Note that the skeleton can only be present here if it was
-          // initialized during the preparation of the plan and so this plan
-          // execution is not simulated (see above for details).
-          //
-          // Also note that there is no available package specified for the
-          // build package object here and so we need to find it (or create a
-          // transient one).
-          //
-          assert (p.available == nullptr && (!p.skeleton || !simulate));
-
-          if (!p.skeleton)
-            p.init_skeleton (o, find_available (o, pdb, sp));
-
-          assert (p.skeleton->available != nullptr); // Can't be system.
+          assert (p.skeleton && p.skeleton->available != nullptr);
 
           const dependencies& deps (p.skeleton->available->dependencies);
 

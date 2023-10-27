@@ -1109,7 +1109,10 @@ namespace bpkg
                                        &p->config_variables,
                                        move (src_root),
                                        move (out_root),
-                                       true /* load_old_dependent_config */),
+                                       nullopt /* old_src_root */,
+                                       nullopt /* old_out_root */,
+                                       package_skeleton::load_config_user |
+                                       package_skeleton::load_config_dependent),
                      nullptr /* prerequisites */,
                      false /* disfigured */,
                      false /* simulate */);

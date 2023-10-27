@@ -75,6 +75,7 @@
 # |
 # |-- t2
 # |   |-- libbar-1.0.0.tar.gz   -> libfoo
+# |   |-- libfoo-0.1.0.tar.gz
 # |   |-- libfoo-1.0.0.tar.gz
 # |   `-- repositories.manifest
 # |
@@ -223,6 +224,7 @@
 # |   |                            libbar {require {config.libbar.extras=true}}
 # |   |-- fox-1.0.0.tar.gz      -> libfoo {require {config.libfoo.extras=true}}
 # |   |-- fux-0.1.0.tar.gz      -> libfoo ? ($config.fux.extras=true)
+# |   |-- fux-0.1.1.tar.gz      -> libfoo ? ($config.fux.extras=true)
 # |   |-- fux-0.2.0.tar.gz      -> libfoo {enable($config.fux.extras=true) require {config.libfoo.extras=true}}
 # |   |-- fux-1.0.0.tar.gz      -> libfoo
 # |   |-- fix-0.1.0.tar.gz      -> foo == 0.1.0
@@ -1889,7 +1891,7 @@ test.arguments += --sys-no-query
       updated libbar/1.2.0
       EOE
 
-    $pkg_status libfoo >'libfoo available 1.0.0';
+    $pkg_status libfoo >'libfoo available 1.0.0 0.1.0';
     $pkg_status libbar >'!libbar configured 1.2.0';
 
     $* libbar/1.0.0 libfoo 2>>~%EOE%;
@@ -2684,7 +2686,7 @@ test.arguments += --sys-no-query
         configured libbar/1.2.0
         EOE
 
-      $pkg_status libfoo >'libfoo available 1.0.0';
+      $pkg_status libfoo >'libfoo available 1.0.0 0.1.0';
 
       $pkg_disfigure libbar 2>'disfigured libbar/1.2.0';
       $pkg_purge     libbar 2>'purged libbar/1.2.0'
@@ -6088,7 +6090,7 @@ test.arguments += --sys-no-query
   {
     +$clone_root_cfg && $rep_add $rep/t11a && $rep_fetch
 
-    test.arguments += --yes --plan 'build plan:' --verbose 5 --build-option --quiet
+    test.arguments += --yes --plan='build plan:' --verbose 5 --build-option --quiet
 
     # Note that on some platforms matching bpkg's stderr using a regular
     # expression which contains too may '%.*' lines ends up with the
@@ -6362,10 +6364,262 @@ test.arguments += --sys-no-query
         $pkg_drop fex
       }
 
-      : reconfigure-existing-dependent
+      : reconf-existing-dept
       :
       {
         +$clone_cfg
+
+        : no-build-clause
+        :
+        {
+          +$clone_cfg
+
+          : no-config
+          :
+          {
+            $clone_cfg;
+
+            #  Dependencies:
+            #
+            #  fex: depends: fux(c)
+            #
+            #  fux: depends: libfoo
+            #
+            $* fex/0.1.0 fux libfoo 2>!;
+
+            $pkg_status -r >>EOO;
+              !libfoo configured 1.0.0
+              !fux configured 1.0.0
+                !libfoo configured 1.0.0
+              !fex configured !0.1.0 available 1.0.0
+                !fux configured 1.0.0
+                  !libfoo configured 1.0.0
+              EOO
+
+            cat cfg/fux-1.0.0/build/config.build >>~%EOO%;
+              %.*
+              config.fux.extras = true
+              config.fux.network = false
+              %.*
+              EOO
+
+            $* libfoo/0.1.0 2>!;
+
+            $pkg_status -r >>EOO;
+              !libfoo configured !0.1.0 available 1.0.0
+              !fux configured 1.0.0
+                !libfoo configured !0.1.0 available 1.0.0
+              !fex configured !0.1.0 available 1.0.0
+                !fux configured 1.0.0
+                  !libfoo configured !0.1.0 available 1.0.0
+              EOO
+
+            cat cfg/fux-1.0.0/build/config.build >>~%EOO%;
+              %.*
+              config.fux.extras = true
+              config.fux.network = false
+              %.*
+              EOO
+
+            $pkg_drop fex fux libfoo
+          }
+
+          : dept-upgrade
+          :
+          {
+            $clone_cfg;
+
+            #  Dependencies:
+            #
+            #  fux: depends: libfoo ?
+            #
+            $* fux/0.1.0 +{ config.fux.extras=true } 2>!;
+
+            $pkg_status -r >>EOO;
+              !fux configured !0.1.0 available 1.0.0 0.2.0 0.1.1
+                libfoo configured 1.0.0
+              EOO
+
+            cat cfg/fux-0.1.0/build/config.build >>~%EOO%;
+              %.*
+              config.fux.extras = true
+              config.fux.network = false
+              %.*
+              EOO
+
+            $* fux/0.1.1 2>!;
+
+            $pkg_status -r >>EOO;
+              !fux configured !0.1.1 available 1.0.0 0.2.0
+                libfoo configured 1.0.0
+              EOO
+
+            cat cfg/fux-0.1.1/build/config.build >>~%EOO%;
+              %.*
+              config.fux.extras = true
+              config.fux.network = false
+              %.*
+              EOO
+
+            $pkg_drop fux
+          }
+
+          : dept-depc
+          :
+          {
+            $clone_cfg;
+
+            #  Dependencies:
+            #
+            #  fux: depends: libfoo
+            #
+            $* fux +{ config.fux.extras=true } ?libfoo +{ config.libfoo.extras=true } 2>!;
+
+            $pkg_status -r >>EOO;
+              !fux configured 1.0.0
+                libfoo configured 1.0.0
+              EOO
+
+            cat cfg/fux-1.0.0/build/config.build >>~%EOO%;
+              %.*
+              config.fux.extras = true
+              config.fux.network = false
+              %.*
+              EOO
+
+            cat cfg/libfoo-1.0.0/build2/config.build2 >>~%EOO%;
+              %.*
+              config.libfoo.extras = true
+              config.libfoo.network = false
+              %.*
+              EOO
+
+            $* ?libfoo/0.1.0 2>!;
+
+            $pkg_status -r >>EOO;
+              !fux configured 1.0.0
+                libfoo configured !0.1.0 available 1.0.0
+              EOO
+
+            cat cfg/fux-1.0.0/build/config.build >>~%EOO%;
+              %.*
+              config.fux.extras = true
+              config.fux.network = false
+              %.*
+              EOO
+
+            cat cfg/libfoo-0.1.0/build/config.build >>~%EOO%;
+              %.*
+              config.libfoo.extras = true
+              EOO
+
+            $pkg_drop fux
+          }
+
+          : dept-depc-no-plan
+          :
+          : As above but the configuration is not printed (as a part of the
+          : plan) before the plan execution.
+          :
+          {
+            $clone_cfg;
+
+            #  Dependencies:
+            #
+            #  fux: depends: libfoo
+            #
+            $* fux +{ config.fux.extras=true } ?libfoo +{ config.libfoo.extras=true } 2>!;
+
+            $pkg_status -r >>EOO;
+              !fux configured 1.0.0
+                libfoo configured 1.0.0
+              EOO
+
+            cat cfg/fux-1.0.0/build/config.build >>~%EOO%;
+              %.*
+              config.fux.extras = true
+              config.fux.network = false
+              %.*
+              EOO
+
+            cat cfg/libfoo-1.0.0/build2/config.build2 >>~%EOO%;
+              %.*
+              config.libfoo.extras = true
+              config.libfoo.network = false
+              EOO
+
+            test.arguments = $regex.filter_out_match($test.arguments, '--plan=.*');
+
+            $* ?libfoo/0.1.0 2>!;
+
+            $pkg_status -r >>EOO;
+              !fux configured 1.0.0
+                libfoo configured !0.1.0 available 1.0.0
+              EOO
+
+            cat cfg/fux-1.0.0/build/config.build >>~%EOO%;
+              %.*
+              config.fux.extras = true
+              config.fux.network = false
+              %.*
+              EOO
+
+            cat cfg/libfoo-0.1.0/build/config.build >>~%EOO%;
+              %.*
+              config.libfoo.extras = true
+              EOO
+
+            $pkg_drop fux
+          }
+        }
+
+        : enabled-clause
+        :
+        {
+          $clone_cfg;
+
+          #  Dependencies:
+          #
+          #  fex: depends: fux(c)
+          #
+          #  fux: depends: libfoo ?
+          #
+          $* fex/0.1.0 fux/0.1.0 2>!;
+
+          $pkg_status -r >>EOO;
+            !fux configured !0.1.0 available 1.0.0 0.2.0 0.1.1
+              libfoo configured 1.0.0
+            !fex configured !0.1.0 available 1.0.0
+              !fux configured !0.1.0 available 1.0.0 0.2.0 0.1.1
+                libfoo configured 1.0.0
+            EOO
+
+          cat cfg/fux-0.1.0/build/config.build >>~%EOO%;
+            %.*
+            config.fux.extras = true
+            config.fux.network = false
+            %.*
+            EOO
+
+          $* ?libfoo/0.1.0 2>!;
+
+          $pkg_status -r >>EOO;
+            !fux configured !0.1.0 available 1.0.0 0.2.0 0.1.1
+              libfoo configured !0.1.0 available 1.0.0
+            !fex configured !0.1.0 available 1.0.0
+              !fux configured !0.1.0 available 1.0.0 0.2.0 0.1.1
+                libfoo configured !0.1.0 available 1.0.0
+            EOO
+
+          cat cfg/fux-0.1.0/build/config.build >>~%EOO%;
+            %.*
+            config.fux.extras = true
+            config.fux.network = false
+            %.*
+            EOO
+
+          $pkg_drop fex fux
+        }
 
         : require-clause
         :
@@ -6395,6 +6649,13 @@ test.arguments += --sys-no-query
             %.*
             EOO
 
+          cat cfg/libfoo-1.0.0/build2/config.build2 >>~%EOO%;
+            %.*
+            config.libfoo.extras = true
+            config.libfoo.network = false
+            %.*
+            EOO
+
           $* ?libfoo/0.1.0 2>&1 | $filter 2>>~%EOE%;
             %.*
             trace: pkg_build: refine package collection/plan execution from scratch
@@ -6454,98 +6715,67 @@ test.arguments += --sys-no-query
             %.*
             EOO
 
-          $pkg_drop fex fux
-        }
-
-        : require-clause-user-config
-        :
-        {
-          $clone_cfg;
-
-          #  Dependencies:
-          #
-          #  fex: depends: fux(c)
-          #
-          #  fux: depends: libfoo(c) ?
-          #
-          $* fex/0.1.0 fux/0.2.0 +{ config.fux.network=true } 2>!;
-
-          $pkg_status -r >>EOO;
-            !fux configured !0.2.0 available 1.0.0
-              libfoo configured 1.0.0
-            !fex configured !0.1.0 available 1.0.0
-              !fux configured !0.2.0 available 1.0.0
-                libfoo configured 1.0.0
+          cat cfg/libfoo-0.1.0/build/config.build >>~%EOO%;
+            %.*
+            config.libfoo.extras = true
             EOO
 
-          cat cfg/fux-0.2.0/build/config.build >>~%EOO%;
-            %.*
-            config.fux.extras = true
-            config.fux.network = true
-            %.*
-            EOO
-
-          $* ?libfoo/0.1.0 2>&1 | $filter 2>>~%EOE%;
+          $* ?fex ?fux libfoo/0.1.0 2>&1 | $filter 2>>~%EOE%;
             %.*
             trace: pkg_build: refine package collection/plan execution from scratch
+            trace: collect_build: add libfoo/0.1.0
+            trace: collect_build_prerequisites: skip configured libfoo/0.1.0
             trace: execute_plan: simulate: yes
-            trace: evaluate_dependency: libfoo/1.0.0: update to libfoo/0.1.0
+            trace: evaluate_dependency: fux/0.2.0: update to fux/1.0.0
+            trace: evaluate_dependency: fex/0.1.0: unused
             trace: pkg_build: refine package collection/plan execution
-            trace: collect_build_prerequisites: pre-reeval fux/0.2.0
-            trace: collect_build_prerequisites: pre-reevaluated fux/0.2.0: 1,1
-            trace: collect_build_prerequisites: cfg-postpone dependency libfoo/0.1.0 of existing dependent fux/0.2.0 due to dependency libfoo/0.1.0
-            trace: collect_build: add fux/0.2.0
-            trace: postponed_configurations::add: create {fux^ | libfoo->{fux/1,1}}
-            trace: collect_build_postponed (0): begin
-            trace: collect_build_postponed (1): begin {fux^ | libfoo->{fux/1,1}}
-            trace: collect_build_prerequisites: pre-reeval fux/0.2.0
-            trace: collect_build_prerequisites: pre-reevaluated fux/0.2.0: 1,1
-            trace: collect_build_postponed (1): re-evaluate existing dependents for {fux^ | libfoo->{fux/1,1}}
-            trace: collect_build_prerequisites: reeval fux/0.2.0
-            trace: collect_build: pick libfoo/0.1.0 over libfoo/1.0.0
-            trace: postponed_configurations::add: add {fux^ 1,1: libfoo} to {fux^ | libfoo->{fux/1,1}}
-            trace: collect_build_prerequisites: re-evaluating dependent fux/0.2.0 results in {fux^ | libfoo->{fux/1,1}}
-            trace: collect_build_prerequisites: re-evaluated fux/0.2.0
-            trace: collect_build_postponed (1): cfg-negotiate begin {fux^ | libfoo->{fux/1,1}}
-            trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
-            trace: collect_build_prerequisites: begin libfoo/0.1.0
-            trace: collect_build_prerequisites: end libfoo/0.1.0
-            trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
-            trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent fux/0.2.0
-            trace: collect_build_prerequisites: resume fux/0.2.0
-            trace: collect_build_prerequisites: end fux/0.2.0
-            trace: collect_build_postponed (1): cfg-negotiate end {fux^ | libfoo->{fux/1,1}}!
-            trace: collect_build_postponed (1): end {fux^ | libfoo->{fux/1,1}}
-            trace: collect_build_postponed (0): end
+            trace: collect_build_prerequisites: pre-reeval fex/0.1.0
+            trace: collect_build_prerequisites: pre-reevaluated fex/0.1.0: 1,1
+            trace: collect_build_prerequisites: cfg-postpone dependency fux/1.0.0 of existing dependent fex/0.1.0 due to dependency fux/1.0.0
+            trace: postponed_configurations::add: create {fex^ | fux->{fex/1,1}}
+            trace: collect_drop: fex/0.1.0 package version needs to be replaced with drop
+            trace: pkg_build: collection failed due to package version replacement, retry from scratch
+            trace: pkg_build: refine package collection/plan execution from scratch
+            trace: collect_build: add libfoo/0.1.0
+            trace: collect_build_prerequisites: skip configured libfoo/0.1.0
+            trace: collect_build_prerequisites: skip expected to be dropped existing dependent fex of dependency fux
+            trace: collect_build_prerequisites: begin fux/1.0.0
+            trace: collect_build_prerequisites: no cfg-clause for dependency libfoo/0.1.0 of dependent fux/1.0.0
+            trace: collect_build_prerequisites: end fux/1.0.0
+            trace: collect_drop: overwrite fex
+            trace: execute_plan: simulate: yes
+            %.*
+            trace: evaluate_dependency: fux/1.0.0: unused
+            trace: pkg_build: refine package collection/plan execution from scratch
+            trace: collect_build: add libfoo/0.1.0
+            trace: collect_build_prerequisites: skip configured libfoo/0.1.0
+            trace: collect_drop: overwrite fex
+            trace: execute_plan: simulate: yes
+            %.*
+            trace: evaluate_dependency: fux/0.2.0: unused
+            trace: pkg_build: refine package collection/plan execution
+            trace: collect_drop: overwrite fex
+            trace: collect_drop: overwrite fux
             trace: execute_plan: simulate: yes
             %.*
             build plan:
-              downgrade libfoo/0.1.0
-                config.libfoo.extras=true (set by fux)
-              reconfigure fux/0.2.0 (dependent of libfoo)
-                config.fux.network=true (user configuration)
-                config.fux.extras=true (dependent configuration)
-              reconfigure fex (dependent of fux)
+              update libfoo/0.1.0
+              drop fux/0.2.0 (unused)
+              drop fex/0.1.0 (unused)
             trace: execute_plan: simulate: no
             %.*
             EOE
 
           $pkg_status -r >>EOO;
-            !fux configured !0.2.0 available 1.0.0
-              libfoo configured !0.1.0 available 1.0.0
-            !fex configured !0.1.0 available 1.0.0
-              !fux configured !0.2.0 available 1.0.0
-                libfoo configured !0.1.0 available 1.0.0
+            !libfoo configured !0.1.0 available 1.0.0
             EOO
 
-          cat cfg/fux-0.2.0/build/config.build >>~%EOO%;
+          cat cfg/libfoo-0.1.0/build/config.build >>~%EOO%;
             %.*
-            config.fux.extras = true
-            config.fux.network = true
-            %.*
+            config.libfoo.extras = true
             EOO
 
-          $pkg_drop fex fux
+          $pkg_drop libfoo
         }
       }
 
@@ -6807,7 +7037,7 @@ test.arguments += --sys-no-query
           #
           #  foo/1.0.0: depends: libfoo(c)
           #
-          $* foo 2>>~%EOE%;
+          $* foo +{ config.foo.extras=true } 2>>~%EOE%;
             %.*
             trace: pkg_build: refine package collection/plan execution from scratch
             %.*
@@ -6835,7 +7065,33 @@ test.arguments += --sys-no-query
             trace: collect_build_postponed (0): end
             trace: execute_plan: simulate: yes
             %.*
+            build plan:
+              new libfoo/1.0.0 (required by foo)
+                config.libfoo.extras=true (set by foo)
+              new foo/1.0.0
+                config.foo.extras=true (user configuration)
+                config.foo.libfoo_extras=true (set by foo)
+            trace: execute_plan: simulate: no
+            %.*
             EOE
+
+          $pkg_status -r >>EOO;
+            !foo configured 1.0.0
+              libfoo configured 1.0.0
+            EOO
+
+          cat cfg/foo-1.0.0/build/config.build >>~%EOO%;
+            %.*
+            config.foo.extras = true
+            config.foo.libfoo_extras = true
+            %.*
+            EOO
+
+          cat cfg/libfoo-1.0.0/build2/config.build2 >>~%EOO%;
+            %.*
+            config.libfoo.extras = true
+            %.*
+            EOO
 
           # Downgrade the dependency.
           #
@@ -6909,6 +7165,19 @@ test.arguments += --sys-no-query
               libfoo configured !0.1.0 available 1.0.0
             EOO
 
+          cat cfg/foo-1.0.0/build/config.build >>~%EOO%;
+            %.*
+            config.foo.extras = true
+            config.foo.libfoo_extras = true
+            %.*
+            EOO
+
+          cat cfg/libfoo-0.1.0/build/config.build >>~%EOO%;
+            %.*
+            config.libfoo.extras = true
+            %.*
+            EOO
+
           # Reconfigure the dependency and hold.
           #
           $* libfoo/0.1.0 +{ config.libfoo.extras=true } 2>>~%EOE%;
@@ -6972,6 +7241,19 @@ test.arguments += --sys-no-query
             !libfoo configured !0.1.0 available 1.0.0
             !foo configured 1.0.0
               !libfoo configured !0.1.0 available 1.0.0
+            EOO
+
+          cat cfg/foo-1.0.0/build/config.build >>~%EOO%;
+            %.*
+            config.foo.extras = true
+            config.foo.libfoo_extras = true
+            %.*
+            EOO
+
+          cat cfg/libfoo-0.1.0/build/config.build >>~%EOO%;
+            %.*
+            config.libfoo.extras = true
+            %.*
             EOO
 
           # Upgrade the dependency and unhold existing dependent.
@@ -7042,6 +7324,7 @@ test.arguments += --sys-no-query
             %.*
             build plan:
               upgrade libfoo/1.0.0
+                config.libfoo.extras=true (user configuration)
               drop foo/1.0.0 (unused)
             %.*
             disfigured foo/1.0.0
@@ -7062,6 +7345,12 @@ test.arguments += --sys-no-query
 
           $pkg_status -r >>EOO;
             !libfoo configured 1.0.0
+            EOO
+
+          cat cfg/libfoo-1.0.0/build2/config.build2 >>~%EOO%;
+            %.*
+            config.libfoo.extras = true
+            %.*
             EOO
 
           $pkg_drop libfoo
@@ -7381,6 +7670,7 @@ test.arguments += --sys-no-query
               downgrade libfoo/0.1.0
                 config.libfoo.extras=true (set by foo)
               downgrade foo/0.1.0 (required by fix)
+                config.foo.extras=true (dependent configuration)
               downgrade fix/0.1.0
             trace: execute_plan: simulate: no
             %.*
@@ -27088,7 +27378,7 @@ else
 
         $pkg_status -or libbar >>EOO;
           !libbar configured 1.0.0 available 1.1.0 (1.0.0)
-            libfoo configured !1.0.0 available 1.1.0+1 [1.1.0] (1.0.0)
+            libfoo configured !1.0.0 available 1.1.0+1 [1.1.0] (1.0.0) 0.1.0
           EOO
 
         $pkg_drop libbar
@@ -27138,7 +27428,7 @@ else
 
         $pkg_status -or libbar >>EOO;
           !libbar configured 1.0.0 available 1.1.0 (1.0.0)
-            libfoo configured !1.0.0 available [1.2.0] [1.1.1] 1.1.0+1 [1.1.0] (1.0.0)
+            libfoo configured !1.0.0 available [1.2.0] [1.1.1] 1.1.0+1 [1.1.0] (1.0.0) 0.1.0
           EOO
 
         $pkg_drop libbar
@@ -27178,7 +27468,7 @@ else
 
         $pkg_status -or libbar >>EOO;
           !libbar configured 1.0.0 available 1.1.0 (1.0.0)
-            libfoo configured !1.0.0 available 1.1.0+1 [1.1.0] (1.0.0)
+            libfoo configured !1.0.0 available 1.1.0+1 [1.1.0] (1.0.0) 0.1.0
           EOO
 
         $pkg_drop libbar
@@ -27246,7 +27536,7 @@ else
         $pkg_status -or libbaz >>EOO;
           !libbaz configured 1.0.0 available (1.0.0)
             !libbar configured 1.0.0 available (1.0.0)
-              libfoo configured !1.1.0 available [1.2.0] [1.1.1] (1.1.0) [1.0.0]
+              libfoo configured !1.1.0 available [1.2.0] [1.1.1] (1.1.0) [1.0.0] [0.1.0]
           EOO
 
         cat <<"EOI" >=libbar/repositories.manifest;
@@ -27282,7 +27572,7 @@ else
         $pkg_status -or libbaz >>EOO;
           !libbaz configured 1.0.0 available (1.0.0)
             !libbar configured 1.0.0 available (1.0.0)
-              libfoo configured !1.1.1 available [1.2.0] (1.1.1) [1.0.0]
+              libfoo configured !1.1.1 available [1.2.0] (1.1.1) [1.0.0] [0.1.0]
           EOO
 
         $pkg_drop libbaz libbar
@@ -27344,7 +27634,7 @@ else
 
         $pkg_status -or libbar >>EOO;
           !libbar configured 1.0.0 available 1.1.0 (1.0.0)
-            libfoo configured !1.0.0 available 1.1.0+1 [1.1.0] (1.0.0)
+            libfoo configured !1.0.0 available 1.1.0+1 [1.1.0] (1.0.0) 0.1.0
           EOO
 
         $pkg_drop libbar
@@ -27384,7 +27674,7 @@ else
 
         $pkg_status -or libbar >>EOO;
           !libbar configured 1.0.0 available 1.1.0 (1.0.0)
-            libfoo configured !1.0.0 available 1.1.0+1 [1.1.0] (1.0.0)
+            libfoo configured !1.0.0 available 1.1.0+1 [1.1.0] (1.0.0) 0.1.0
           EOO
 
         $pkg_drop libbar

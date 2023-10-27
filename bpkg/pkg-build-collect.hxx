@@ -310,7 +310,7 @@ namespace bpkg
     //
     std::set<package_version_key> required_by;
 
-    // If this flags is true, then required_by contains dependents.
+    // If this flag is true, then required_by contains dependents.
     //
     // We need this because required_by packages have different semantics for
     // different actions: the dependent for regular builds and dependency for
@@ -453,10 +453,8 @@ namespace bpkg
     //
     package_skeleton&
     init_skeleton (const common_options&,
-                   const shared_ptr<available_package>& override = nullptr,
-                   optional<dir_path> src_root = nullopt,
-                   optional<dir_path> out_root = nullopt,
-                   bool load_old_dependent_config = false);
+                   bool load_old_dependent_config = true,
+                   const shared_ptr<available_package>& override = nullptr);
   };
 
   using build_package_list = std::list<reference_wrapper<build_package>>;
