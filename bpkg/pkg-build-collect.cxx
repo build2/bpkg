@@ -5158,28 +5158,28 @@ namespace bpkg
 
       build_package p {
         build_package::build,
-          db,
-          sp,
-          move (rp.first),
-          move (rp.second),
-          nullopt,                    // Dependencies.
-          nullopt,                    // Dependencies alternatives.
-          nullopt,                    // Package skeleton.
-          nullopt,                    // Postponed dependency alternatives.
-          false,                      // Recursive collection.
-          nullopt,                    // Hold package.
-          nullopt,                    // Hold version.
-          {},                         // Constraints.
-          sp->system (),
-          false,                      // Keep output directory.
-          false,                      // Disfigure (from-scratch reconf).
-          false,                      // Configure-only.
-          nullopt,                    // Checkout root.
-          false,                      // Checkout purge.
-          strings (),                 // Configuration variables.
-          move (required_by),         // Required by (dependencies).
-          false,                      // Required by dependents.
-          build_package::adjust_reconfigure | build_package::build_repoint};
+        db,
+        sp,
+        move (rp.first),
+        move (rp.second),
+        nullopt,                    // Dependencies.
+        nullopt,                    // Dependencies alternatives.
+        nullopt,                    // Package skeleton.
+        nullopt,                    // Postponed dependency alternatives.
+        false,                      // Recursive collection.
+        nullopt,                    // Hold package.
+        nullopt,                    // Hold version.
+        {},                         // Constraints.
+        sp->system (),
+        false,                      // Keep output directory.
+        false,                      // Disfigure (from-scratch reconf).
+        false,                      // Configure-only.
+        nullopt,                    // Checkout root.
+        false,                      // Checkout purge.
+        strings (),                 // Configuration variables.
+        move (required_by),         // Required by (dependencies).
+        false,                      // Required by dependents.
+        build_package::adjust_reconfigure | build_package::build_repoint};
 
       build_package_refs dep_chain;
 
@@ -5639,11 +5639,12 @@ namespace bpkg
               {
                 package_key pk (ed.db, ed.selected->name);
 
-                // If this dependent is present in postponed_deps, then it
-                // means someone depends on it with configuration and it's no
-                // longer considered an existing dependent (it will be
-                // reconfigured). However, this fact may not be reflected
-                // yet. And it can actually turn out bogus.
+                // If this dependent is present in postponed_deps or in some
+                // cluster as a dependency, then it means that someone depends
+                // on it with configuration and it's no longer considered an
+                // existing dependent (it will be reconfigured). However, this
+                // fact may not be reflected yet. And it can actually turn out
+                // bogus.
                 //
                 auto pi (postponed_deps.find (pk));
                 if (pi != postponed_deps.end ())
@@ -5655,6 +5656,20 @@ namespace bpkg
                   // dependent without specifying any configuration for it.
                   //
                   pi->second.wout_config = true;
+
+                  postponed_existing_dependents.insert (pk);
+                  continue;
+                }
+
+                const postponed_configuration* pcfg (
+                  postponed_cfgs.find_dependency (pk));
+
+                if (pcfg != nullptr)
+                {
+                  l5 ([&]{trace << "skip existing dependent " << pk
+                                << " of dependency " << p << " since "
+                                << "dependent already in cluster " << *pcfg
+                                << " (as a dependency)";});
 
                   postponed_existing_dependents.insert (pk);
                   continue;
@@ -5786,14 +5801,29 @@ namespace bpkg
         }
       }
 
-      l5 ([&]{trace << "cfg-negotiate begin " << *pcfg;});
-
       // Negotiate the configuration.
       //
       // The overall plan is as follows: continue refining the configuration
       // until there are no more changes by giving each dependent a chance to
       // make further adjustments.
       //
+      l5 ([&]{trace << "cfg-negotiate begin " << *pcfg;});
+
+      // For the cluster's dependencies, the skeleton should not be present
+      // since we haven't yet started recursively collecting them. And we
+      // couldn't have started collecting them before we negotiated their
+      // configurations (that's in contrast to the up-negotiation). Let's
+      // assert for that here to make sure that's also true for dependencies
+      // of the postponed existing dependents of this cluster.
+      //
+#ifndef NDEBUG
+      for (const package_key& p: pcfg->dependencies)
+      {
+        build_package* b (entered_build (p));
+        assert (b != nullptr && !b->skeleton && !b->recursive_collection);
+      }
+#endif
+
       for (auto b (pcfg->dependents.begin ()),
                 i (b),
                 e (pcfg->dependents.end ()); i != e; )
@@ -5831,7 +5861,6 @@ namespace bpkg
         //
         pair<size_t, size_t> pos;
         small_vector<reference_wrapper<package_skeleton>, 1> depcs;
-        forward_list<package_skeleton> depcs_storage; // Ref stability.
         bool has_alt;
         {
           // A non-negotiated cluster must only have one depends position for
@@ -5856,21 +5885,14 @@ namespace bpkg
           for (const package_key& pk: ds)
           {
             build_package* b (entered_build (pk));
-            assert (b != nullptr);
 
-            package_skeleton* depc;
-            if (b->recursive_collection)
-            {
-              assert (b->skeleton);
+            // Shouldn't be here otherwise.
+            //
+            assert (b != nullptr && !b->recursive_collection);
 
-              depcs_storage.push_front (*b->skeleton);
-              depc = &depcs_storage.front ();
-              depc->reset ();
-            }
-            else
-              depc = &(b->skeleton
-                       ? *b->skeleton
-                       : b->init_skeleton (o /* options */));
+            package_skeleton* depc (&(b->skeleton
+                                      ? *b->skeleton
+                                      : b->init_skeleton (o /* options */)));
 
             depcs.push_back (*depc);
           }
