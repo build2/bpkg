@@ -4553,11 +4553,19 @@ namespace bpkg
         // dependencies between the specified packages).
         //
         // The order of dependency upgrades/downgrades/drops is not really
-        // deterministic. We, however, do them before hold_pkgs so that they
-        // appear (e.g., on the plan) last.
+        // deterministic. We, however, do upgrades/downgrades before hold_pkgs
+        // so that they appear (e.g., on the plan) last. We handle drops
+        // later, though, after collecting/ordering dependents when all the
+        // package reconfigurations are determined.
         //
         for (const dep& d: deps)
-          pkgs.order (d.db, d.name, find_prereq_database, false /* reorder */);
+        {
+          if (d.available != nullptr)
+            pkgs.order (d.db,
+                        d.name,
+                        find_prereq_database,
+                        false /* reorder */);
+        }
 
         for (const build_package& p: reverse_iterate (hold_pkgs))
           pkgs.order (p.db, p.name (), find_prereq_database);
@@ -4593,8 +4601,7 @@ namespace bpkg
         //
         pkgs.collect_order_dependents (rpt_depts, unsatisfied_depts);
 
-        // And, finally, make sure all the packages that we need to unhold
-        // are on the list.
+        // Make sure all the packages that we need to unhold are on the list.
         //
         for (const dependency_package& p: dep_pkgs)
         {
@@ -4621,6 +4628,17 @@ namespace bpkg
             for (database& db: dep_dbs)
               order_unheld (db);
           }
+        }
+
+        // And, finally, order the package drops.
+        //
+        for (const dep& d: deps)
+        {
+          if (d.available == nullptr)
+            pkgs.order (d.db,
+                        d.name,
+                        find_prereq_database,
+                        false /* reorder */);
         }
 
         // Make sure all the postponed dependencies of existing dependents

@@ -7159,13 +7159,18 @@ namespace bpkg
         // dependent. But first "prune" if the dependent is being dropped or
         // this is a replaced prerequisite of the repointed dependent.
         //
-        // Note that the repointed dependents are always collected and have
-        // all their collected prerequisites ordered (including new and old
-        // ones). See collect_build_prerequisites() and order() for details.
+        // Note that the package drops are not ordered at this stage, since to
+        // order them properly all the package reconfigurations must be
+        // determined.
+        //
+        // Also note that the repointed dependents are always collected and
+        // have all their collected prerequisites ordered (including new and
+        // old ones). See collect_build_prerequisites() and order() for
+        // details.
         //
         bool check (ud != 0 && dc);
 
-        if (i != map_.end () && i->second.position != end ())
+        if (i != map_.end ())
         {
           build_package& dp (i->second.package);
 
@@ -7174,27 +7179,30 @@ namespace bpkg
           if (dp.action && *dp.action == build_package::drop)
             continue;
 
-          repointed_dependents::const_iterator j (
-            rpt_depts.find (package_key {ddb, dn}));
-
-          if (j != rpt_depts.end ())
+          if (i->second.position != end ())
           {
-            const map<package_key, bool>& prereqs_flags (j->second);
+            repointed_dependents::const_iterator j (
+              rpt_depts.find (package_key {ddb, dn}));
 
-            auto k (prereqs_flags.find (package_key {pdb, n}));
+            if (j != rpt_depts.end ())
+            {
+              const map<package_key, bool>& prereqs_flags (j->second);
 
-            if (k != prereqs_flags.end () && !k->second)
-              continue;
+              auto k (prereqs_flags.find (package_key {pdb, n}));
+
+              if (k != prereqs_flags.end () && !k->second)
+                continue;
+            }
+
+            // There is one tricky aspect: the dependent could be in the
+            // process of being reconfigured or up/downgraded as well. In this
+            // case all we need to do is detect this situation and skip the
+            // test since all the (new) constraints of this package have been
+            // satisfied in collect_build().
+            //
+            if (check)
+              check = !dp.dependencies;
           }
-
-          // There is one tricky aspect: the dependent could be in the process
-          // of being reconfigured or up/downgraded as well. In this case all
-          // we need to do is detect this situation and skip the test since
-          // all the (new) constraints of this package have been satisfied in
-          // collect_build().
-          //
-          if (check)
-            check = !dp.dependencies;
         }
 
         if (check)

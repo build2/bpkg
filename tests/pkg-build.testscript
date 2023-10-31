@@ -2725,6 +2725,43 @@ test.arguments += --sys-no-query
       $pkg_purge     libfoo 2>'purged libfoo/1.0.0'
     }
 
+    : order-drop
+    :
+    {
+      test.arguments += --yes
+
+      $clone_root_cfg;
+      $rep_fetch $rep/t2 $rep/t3;
+
+      $* libbaz libbar 2>!;
+
+      $pkg_status -r >>EOO;
+        !libbar configured 1.0.0
+          libfoo configured 1.0.0
+        !libbaz configured 1.0.0
+          !libbar configured 1.0.0
+            libfoo configured 1.0.0
+        EOO
+
+      $* ?libbaz ?libfoo/0.1.0 2>>EOE;
+        disfigured libbaz/1.0.0
+        disfigured libbar/1.0.0
+        disfigured libfoo/1.0.0
+        fetched libfoo/0.1.0
+        unpacked libfoo/0.1.0
+        purged libbaz/1.0.0
+        configured libfoo/0.1.0
+        configured libbar/1.0.0
+        EOE
+
+      $pkg_status -r >>EOO;
+        !libbar configured 1.0.0
+          libfoo configured !0.1.0 available 1.0.0
+        EOO
+
+      $pkg_drop libbar
+    }
+
     : drop-recursive
     :
     {
@@ -2742,10 +2779,10 @@ test.arguments += --sys-no-query
         disfigured libbar/0.0.1
         disfigured libbaz/0.0.1
         disfigured libfox/0.0.1
-        fetched libfoo/1.0.0
-        unpacked libfoo/1.0.0
         purged libfox/0.0.1
         purged libbaz/0.0.1
+        fetched libfoo/1.0.0
+        unpacked libfoo/1.0.0
         fetched libbar/1.0.0
         unpacked libbar/1.0.0
         configured libfoo/1.0.0
@@ -4395,7 +4432,7 @@ test.arguments += --sys-no-query
             $pkg_drop libbiz
           }
 
-          : change-downgraded-depenency
+          : change-downgraded-dependency
           :
           : Test that libbiz is selected as a dependency since the existing
           : dependency decision cannot be preserved (libbox is downgraded to
@@ -4408,16 +4445,16 @@ test.arguments += --sys-no-query
 
             $* box +{ config.box.extras=true } ?libbox/0.1.0 2>>~%EOE%;
               build plan:
-                new libbiz/1.0.0 (required by box)
                 drop libbox/1.0.0 (unused)
+                new libbiz/1.0.0 (required by box)
                 reconfigure/update box/1.0.0
                   config.box.extras=true (user configuration)
                   config.box.backend=libbiz (set by box)
               disfigured box/1.0.0
               disfigured libbox/1.0.0
+              purged libbox/1.0.0
               fetched libbiz/1.0.0
               unpacked libbiz/1.0.0
-              purged libbox/1.0.0
               configured libbiz/1.0.0
               configured box/1.0.0
               %info: .+box-1.0.0.+ is up to date%
@@ -4871,8 +4908,8 @@ test.arguments += --sys-no-query
 
         $* libbaz +{ --config-name cfg2 } ?dix 2>>~%EOE%;
           %  new libbaz/1.1.0 \[cfg2.\]%
-            new libbar/1.0.0 (required by dax)
             drop libbaz/1.1.0 (unused)
+            new libbar/1.0.0 (required by dax)
           %  reconfigure/update dax/1.0.0 \(dependent of libbaz \[cfg2.\]\)%
               config.dax.extras=true (set by dix)
             upgrade dix/1.0.0
@@ -4883,9 +4920,9 @@ test.arguments += --sys-no-query
           disfigured libbaz/1.1.0
           %fetched libbaz/1.1.0 \[cfg2.\]%
           %unpacked libbaz/1.1.0 \[cfg2.\]%
+          purged libbaz/1.1.0
           fetched libbar/1.0.0
           unpacked libbar/1.0.0
-          purged libbaz/1.1.0
           fetched dix/1.0.0
           unpacked dix/1.0.0
           %configured libbaz/1.1.0 \[cfg2.\]%
@@ -6759,9 +6796,9 @@ test.arguments += --sys-no-query
             trace: execute_plan: simulate: yes
             %.*
             build plan:
-              update libfoo/0.1.0
               drop fux/0.2.0 (unused)
               drop fex/0.1.0 (unused)
+              update libfoo/0.1.0
             trace: execute_plan: simulate: no
             %.*
             EOE
@@ -6776,6 +6813,157 @@ test.arguments += --sys-no-query
             EOO
 
           $pkg_drop libfoo
+        }
+
+        : require-clause-user-config
+        :
+        {
+          $clone_cfg;
+
+          #  Dependencies:
+          #
+          #  fex: depends: fux(c)
+          #
+          #  fux: depends: libfoo(c) ?
+          #
+          $* fex/0.1.0 fux/0.2.0 +{ config.fux.network=true } 2>!;
+
+          $pkg_status -r >>EOO;
+            !fux configured !0.2.0 available 1.0.0
+              libfoo configured 1.0.0
+            !fex configured !0.1.0 available 1.0.0
+              !fux configured !0.2.0 available 1.0.0
+                libfoo configured 1.0.0
+            EOO
+
+          cat cfg/fux-0.2.0/build/config.build >>~%EOO%;
+            %.*
+            config.fux.extras = true
+            config.fux.network = true
+            %.*
+            EOO
+
+          cat cfg/libfoo-1.0.0/build2/config.build2 >>~%EOO%;
+            %.*
+            config.libfoo.extras = true
+            config.libfoo.network = false
+            %.*
+            EOO
+
+          $* ?libfoo/0.1.0 2>&1 | $filter 2>>~%EOE%;
+            %.*
+            trace: pkg_build: refine package collection/plan execution from scratch
+            trace: execute_plan: simulate: yes
+            trace: evaluate_dependency: libfoo/1.0.0: update to libfoo/0.1.0
+            trace: pkg_build: refine package collection/plan execution
+            trace: collect_build_prerequisites: pre-reeval fux/0.2.0
+            trace: collect_build_prerequisites: pre-reevaluated fux/0.2.0: 1,1
+            trace: collect_build_prerequisites: cfg-postpone dependency libfoo/0.1.0 of existing dependent fux/0.2.0 due to dependency libfoo/0.1.0
+            trace: collect_build: add fux/0.2.0
+            trace: postponed_configurations::add: create {fux^ | libfoo->{fux/1,1}}
+            trace: collect_build_postponed (0): begin
+            trace: collect_build_postponed (1): begin {fux^ | libfoo->{fux/1,1}}
+            trace: collect_build_prerequisites: pre-reeval fux/0.2.0
+            trace: collect_build_prerequisites: pre-reevaluated fux/0.2.0: 1,1
+            trace: collect_build_postponed (1): re-evaluate existing dependents for {fux^ | libfoo->{fux/1,1}}
+            trace: collect_build_prerequisites: reeval fux/0.2.0
+            trace: collect_build: pick libfoo/0.1.0 over libfoo/1.0.0
+            trace: postponed_configurations::add: add {fux^ 1,1: libfoo} to {fux^ | libfoo->{fux/1,1}}
+            trace: collect_build_prerequisites: re-evaluating dependent fux/0.2.0 results in {fux^ | libfoo->{fux/1,1}}
+            trace: collect_build_prerequisites: re-evaluated fux/0.2.0
+            trace: collect_build_postponed (1): cfg-negotiate begin {fux^ | libfoo->{fux/1,1}}
+            trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
+            trace: collect_build_prerequisites: begin libfoo/0.1.0
+            trace: collect_build_prerequisites: end libfoo/0.1.0
+            trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
+            trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent fux/0.2.0
+            trace: collect_build_prerequisites: resume fux/0.2.0
+            trace: collect_build_prerequisites: end fux/0.2.0
+            trace: collect_build_postponed (1): cfg-negotiate end {fux^ | libfoo->{fux/1,1}}!
+            trace: collect_build_postponed (1): end {fux^ | libfoo->{fux/1,1}}
+            trace: collect_build_postponed (0): end
+            trace: execute_plan: simulate: yes
+            %.*
+            build plan:
+              downgrade libfoo/0.1.0
+                config.libfoo.extras=true (set by fux)
+              reconfigure fux/0.2.0 (dependent of libfoo)
+                config.fux.network=true (user configuration)
+                config.fux.extras=true (dependent configuration)
+              reconfigure fex (dependent of fux)
+            trace: execute_plan: simulate: no
+            %.*
+            EOE
+
+          $pkg_status -r >>EOO;
+            !fux configured !0.2.0 available 1.0.0
+              libfoo configured !0.1.0 available 1.0.0
+            !fex configured !0.1.0 available 1.0.0
+              !fux configured !0.2.0 available 1.0.0
+                libfoo configured !0.1.0 available 1.0.0
+            EOO
+
+          cat cfg/fux-0.2.0/build/config.build >>~%EOO%;
+            %.*
+            config.fux.extras = true
+            config.fux.network = true
+            %.*
+            EOO
+
+          cat cfg/libfoo-0.1.0/build/config.build >>~%EOO%;
+            %.*
+            config.libfoo.extras = true
+            %.*
+            EOO
+
+          $* ?fex ?libfoo 2>&1 | $filter 2>>~%EOE%;
+            %.*
+            trace: pkg_build: refine package collection/plan execution from scratch
+            trace: execute_plan: simulate: yes
+            trace: evaluate_dependency: libfoo/0.1.0: update to libfoo/1.0.0
+            trace: evaluate_dependency: fex/0.1.0: unused
+            trace: pkg_build: refine package collection/plan execution
+            trace: collect_build_prerequisites: pre-reeval fux/0.2.0
+            trace: collect_build_prerequisites: pre-reevaluated fux/0.2.0: 1,1
+            trace: collect_build_prerequisites: cfg-postpone dependency libfoo/1.0.0 of existing dependent fux/0.2.0 due to dependency libfoo/1.0.0
+            trace: collect_build: add fux/0.2.0
+            trace: postponed_configurations::add: create {fux^ | libfoo->{fux/1,1}}
+            trace: collect_drop: overwrite fex
+            trace: collect_build_postponed (0): begin
+            trace: collect_build_postponed (1): begin {fux^ | libfoo->{fux/1,1}}
+            trace: collect_build_prerequisites: pre-reeval fux/0.2.0
+            trace: collect_build_prerequisites: pre-reevaluated fux/0.2.0: 1,1
+            trace: collect_build_postponed (1): re-evaluate existing dependents for {fux^ | libfoo->{fux/1,1}}
+            trace: collect_build_prerequisites: reeval fux/0.2.0
+            trace: collect_build: pick libfoo/1.0.0 over libfoo/0.1.0
+            trace: postponed_configurations::add: add {fux^ 1,1: libfoo} to {fux^ | libfoo->{fux/1,1}}
+            trace: collect_build_prerequisites: re-evaluating dependent fux/0.2.0 results in {fux^ | libfoo->{fux/1,1}}
+            trace: collect_build_prerequisites: re-evaluated fux/0.2.0
+            trace: collect_build_postponed (1): cfg-negotiate begin {fux^ | libfoo->{fux/1,1}}
+            trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
+            trace: collect_build_prerequisites: begin libfoo/1.0.0
+            trace: collect_build_prerequisites: end libfoo/1.0.0
+            trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
+            trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent fux/0.2.0
+            trace: collect_build_prerequisites: resume fux/0.2.0
+            trace: collect_build_prerequisites: end fux/0.2.0
+            trace: collect_build_postponed (1): cfg-negotiate end {fux^ | libfoo->{fux/1,1}}!
+            trace: collect_build_postponed (1): end {fux^ | libfoo->{fux/1,1}}
+            trace: collect_build_postponed (0): end
+            trace: execute_plan: simulate: yes
+            %.*
+            build plan:
+              upgrade libfoo/1.0.0
+                config.libfoo.extras=true (set by fux)
+              reconfigure fux/0.2.0 (dependent of libfoo)
+                config.fux.network=true (user configuration)
+                config.fux.extras=true (user configuration)
+              drop fex/0.1.0 (unused)
+            trace: execute_plan: simulate: no
+            %.*
+            EOE
+
+          $pkg_drop fux
         }
       }
 
@@ -8417,11 +8605,11 @@ test.arguments += --sys-no-query
               trace: execute_plan: simulate: yes
               %.*
               build plan:
+                drop baz/1.0.0 (unused)
                 downgrade libbox/0.1.0
                   config.libbox.extras=true (set by bax)
                 reconfigure bax/1.0.0 (dependent of libbox, libfoo)
                   config.bax.libfoo_extras=true (set by bax)
-                drop baz/1.0.0 (unused)
               trace: execute_plan: simulate: no
               %.*
               EOE
@@ -16275,14 +16463,14 @@ test.arguments += --sys-no-query
         trace: execute_plan: simulate: yes
         %.*
         build plan:
+          drop libbox/1.0.0 (unused)
           new libbaz/1.0.0 (required by toz)
             config.libbaz.extras=true (set by toz)
           new tix/1.0.0
           upgrade toz/1.0.0
             config.toz.extras=true (set by tuz)
-          reconfigure tuz/1.0.0 (dependent of toz)
-          drop libbox/1.0.0 (unused)
           drop tez/0.1.0 (unused)
+          reconfigure tuz/1.0.0 (dependent of toz)
         trace: execute_plan: simulate: no
         %.*
         EOE
@@ -19359,7 +19547,7 @@ test.arguments += --sys-no-query
             $clone_cfg;
 
             $* ?libfoo/0.1.0 ?libbar/0.1.0 ?libbaz/0.1.0 ?libbox/0.1.0 \
-               ?libbiz/0.1.0 foo/0.1.0 fox/0.1.0 fux/1.0.0 fix/0.1.0 fex/1.0.0 \
+               ?libbiz/0.1.0 foo/0.1.0 fox/0.1.0 fux/0.1.0 fix/0.1.0 fex/0.1.0 \
                bar/0.1.0 baz/0.1.0 bac/1.0.0 bat/1.0.0 bas/1.0.0 bus/0.1.0 \
                box/0.1.0 bax/1.0.0 bux/1.0.0 bix/1.0.0 bex/1.0.0 boo/1.0.0 \
                biz/0.1.0 buz/1.0.0 buc/1.0.0 tax/1.0.0 tex/0.1.0 tix/0.1.0 \
@@ -19405,8 +19593,11 @@ test.arguments += --sys-no-query
                 libbar configured !0.1.0 available 1.0.0
               !foo configured !0.1.0 available 1.0.0 0.2.0
                 libfoo configured !0.1.0 available 1.0.0
-              !fux configured !1.0.0
+              !fux configured !0.1.0 available 1.0.0 0.2.0 0.1.1
                 libfoo configured !0.1.0 available 1.0.0
+              !fex configured !0.1.0 available 1.0.0
+                !fux configured !0.1.0 available 1.0.0 0.2.0 0.1.1
+                  libfoo configured !0.1.0 available 1.0.0
               !baz configured !0.1.0 available 1.0.0
                 libbar configured !0.1.0 available 1.0.0
                 libfoo configured !0.1.0 available 1.0.0
@@ -19417,10 +19608,6 @@ test.arguments += --sys-no-query
               !fix configured !0.1.0 available 1.0.0
                 !foo configured !0.1.0 available 1.0.0 0.2.0
                   libfoo configured !0.1.0 available 1.0.0
-              !fex configured !1.0.0
-                !foo configured !0.1.0 available 1.0.0 0.2.0
-                  libfoo configured !0.1.0 available 1.0.0
-                libfoo configured !0.1.0 available 1.0.0
               !bus configured !0.1.0 available 1.0.0
                 !foo configured !0.1.0 available 1.0.0 0.2.0
                   libfoo configured !0.1.0 available 1.0.0
@@ -19518,6 +19705,10 @@ test.arguments += --sys-no-query
                 libfoo configured !1.0.0
               !fux configured 1.0.0
                 libfoo configured !1.0.0
+              !fex configured 1.0.0
+                !foo configured 1.0.0
+                  libfoo configured !1.0.0
+                libfoo configured !1.0.0
               !baz configured 1.0.0
                 libbar configured !1.0.0
                 libfoo configured !1.0.0
@@ -19528,10 +19719,6 @@ test.arguments += --sys-no-query
               !fix configured 1.0.0
                 !foo configured 1.0.0
                   libfoo configured !1.0.0
-              !fex configured 1.0.0
-                !foo configured 1.0.0
-                  libfoo configured !1.0.0
-                libfoo configured !1.0.0
               !bus configured 1.0.0
                 !foo configured 1.0.0
                   libfoo configured !1.0.0
@@ -19853,7 +20040,7 @@ test.arguments += --sys-no-query
             $clone_cfg;
 
             $* ?libfoo/0.1.0 ?libbar/0.1.0 ?libbaz/0.1.0 ?libbox/0.1.0 \
-               ?libbiz/0.1.0 foo/0.1.0 fox/0.1.0 fux/1.0.0 fix/0.1.0 fex/1.0.0 \
+               ?libbiz/0.1.0 foo/0.1.0 fox/0.1.0 fux/0.1.0 fix/0.1.0 fex/0.1.0 \
                bar/0.1.0 baz/0.1.0 bac/1.0.0 bat/1.0.0 bas/1.0.0 bus/0.1.0 \
                box/0.1.0 bax/1.0.0 bux/1.0.0 bix/1.0.0 bex/1.0.0 boo/1.0.0 \
                biz/0.1.0 buz/1.0.0 buc/1.0.0 tax/1.0.0 tex/0.1.0 tix/0.1.0 \
@@ -19899,8 +20086,11 @@ test.arguments += --sys-no-query
                 libbar configured !0.1.0 available 1.0.0
               !foo configured !0.1.0 available 1.0.0 0.2.0
                 libfoo configured !0.1.0 available 1.0.0
-              !fux configured !1.0.0
+              !fux configured !0.1.0 available 1.0.0 0.2.0 0.1.1
                 libfoo configured !0.1.0 available 1.0.0
+              !fex configured !0.1.0 available 1.0.0
+                !fux configured !0.1.0 available 1.0.0 0.2.0 0.1.1
+                  libfoo configured !0.1.0 available 1.0.0
               !baz configured !0.1.0 available 1.0.0
                 libbar configured !0.1.0 available 1.0.0
                 libfoo configured !0.1.0 available 1.0.0
@@ -19911,10 +20101,6 @@ test.arguments += --sys-no-query
               !fix configured !0.1.0 available 1.0.0
                 !foo configured !0.1.0 available 1.0.0 0.2.0
                   libfoo configured !0.1.0 available 1.0.0
-              !fex configured !1.0.0
-                !foo configured !0.1.0 available 1.0.0 0.2.0
-                  libfoo configured !0.1.0 available 1.0.0
-                libfoo configured !0.1.0 available 1.0.0
               !bus configured !0.1.0 available 1.0.0
                 !foo configured !0.1.0 available 1.0.0 0.2.0
                   libfoo configured !0.1.0 available 1.0.0
@@ -20012,6 +20198,10 @@ test.arguments += --sys-no-query
                 libfoo configured !1.0.0
               !fux configured 1.0.0
                 libfoo configured !1.0.0
+              !fex configured 1.0.0
+                !foo configured 1.0.0
+                  libfoo configured !1.0.0
+                libfoo configured !1.0.0
               !baz configured 1.0.0
                 libbar configured !1.0.0
                 libfoo configured !1.0.0
@@ -20022,10 +20212,6 @@ test.arguments += --sys-no-query
               !fix configured 1.0.0
                 !foo configured 1.0.0
                   libfoo configured !1.0.0
-              !fex configured 1.0.0
-                !foo configured 1.0.0
-                  libfoo configured !1.0.0
-                libfoo configured !1.0.0
               !bus configured 1.0.0
                 !foo configured 1.0.0
                   libfoo configured !1.0.0
@@ -24201,17 +24387,17 @@ else
         $rep_add $rep/t7b && $rep_fetch;
 
         $* libbar <'y' 2>>~%EOE%;
-          %  upgrade libbaz/1.1.0 \[cfg2.\] \(required by foo \[cfg2.\]\)%
           %  drop libbuild2-bar/1.0.0 \[cfg2..bpkg.build2.\] \(unused\)%
+          %  upgrade libbaz/1.1.0 \[cfg2.\] \(required by foo \[cfg2.\]\)%
           %  upgrade foo/1.1.0 \[cfg2.\] \(required by libbar\)%
             upgrade libbar/1.1.0
           %continue\? \[Y/n\] disfigured libbar/1.0.0%
           %disfigured foo/1.0.0 \[cfg2.\]%
-          %disfigured libbuild2-bar/1.0.0 \[cfg2..bpkg.build2.\]%
           %disfigured libbaz/1.0.0 \[cfg2.\]%
+          %disfigured libbuild2-bar/1.0.0 \[cfg2..bpkg.build2.\]%
+          %purged libbuild2-bar/1.0.0 \[cfg2..bpkg.build2.\]%
           %fetched libbaz/1.1.0 \[cfg2.\]%
           %unpacked libbaz/1.1.0 \[cfg2.\]%
-          %purged libbuild2-bar/1.0.0 \[cfg2..bpkg.build2.\]%
           %fetched foo/1.1.0 \[cfg2.\]%
           %unpacked foo/1.1.0 \[cfg2.\]%
           fetched libbar/1.1.0
@@ -24383,17 +24569,17 @@ else
       $rep_add $rep/t7b && $rep_fetch;
 
       $* libbar <'y' 2>>~%EOE%;
-        %  upgrade libbaz/1.1.0 \[cfg..bpkg.host.\] \(required by foo \[cfg..bpkg.host.\]\)%
         %  drop libbuild2-bar/1.0.0 \[cfg..bpkg.build2.\] \(unused\)%
+        %  upgrade libbaz/1.1.0 \[cfg..bpkg.host.\] \(required by foo \[cfg..bpkg.host.\]\)%
         %  upgrade foo/1.1.0 \[cfg..bpkg.host.\] \(required by libbar\)%
           upgrade libbar/1.1.0
         %continue\? \[Y/n\] disfigured libbar/1.0.0%
         %disfigured foo/1.0.0 \[cfg..bpkg.host.\]%
-        %disfigured libbuild2-bar/1.0.0 \[cfg..bpkg.build2.\]%
         %disfigured libbaz/1.0.0 \[cfg..bpkg.host.\]%
+        %disfigured libbuild2-bar/1.0.0 \[cfg..bpkg.build2.\]%
+        %purged libbuild2-bar/1.0.0 \[cfg..bpkg.build2.\]%
         %fetched libbaz/1.1.0 \[cfg..bpkg.host.\]%
         %unpacked libbaz/1.1.0 \[cfg..bpkg.host.\]%
-        %purged libbuild2-bar/1.0.0 \[cfg..bpkg.build2.\]%
         %fetched foo/1.1.0 \[cfg..bpkg.host.\]%
         %unpacked foo/1.1.0 \[cfg..bpkg.host.\]%
         fetched libbar/1.1.0
@@ -24453,17 +24639,17 @@ else
       $rep_add $rep/t7b && $rep_fetch;
 
       $* libbar <'y' 2>>~%EOE%;
-          upgrade libbaz/1.1.0 (required by foo, libbar)
         %  drop libbuild2-bar/1.0.0 \[cfg..bpkg.build2.\] \(unused\)%
+          upgrade libbaz/1.1.0 (required by foo, libbar)
           upgrade foo/1.1.0 (required by libbar)
           upgrade libbar/1.1.0
         continue? [Y/n] disfigured libbar/1.0.0
         disfigured foo/1.0.0
-        %disfigured libbuild2-bar/1.0.0 \[cfg..bpkg.build2.\]%
         disfigured libbaz/1.0.0
+        %disfigured libbuild2-bar/1.0.0 \[cfg..bpkg.build2.\]%
+        %purged libbuild2-bar/1.0.0 \[cfg..bpkg.build2.\]%
         fetched libbaz/1.1.0
         unpacked libbaz/1.1.0
-        %purged libbuild2-bar/1.0.0 \[cfg..bpkg.build2.\]%
         fetched foo/1.1.0
         unpacked foo/1.1.0
         fetched libbar/1.1.0
@@ -24864,14 +25050,14 @@ else
         y
         y
         EOI
-        %  new libbaz/1.0.0 \[t2.\]%
           drop libbaz/1.0.0 (unused)
+        %  new libbaz/1.0.0 \[t2.\]%
         %  reconfigure foo/1.0.0 \(dependent of libbaz \[t2.\]\)%
         continue? [Y/n] update dependent packages? [Y/n] disfigured foo/1.0.0
         disfigured libbaz/1.0.0
+        purged libbaz/1.0.0
         %fetched libbaz/1.0.0 \[t2.\]%
         %unpacked libbaz/1.0.0 \[t2.\]%
-        purged libbaz/1.0.0
         %configured libbaz/1.0.0 \[t2.\]%
         configured foo/1.0.0
         %info: t2.+libbaz-1.0.0.+ is up to date%
@@ -24952,10 +25138,10 @@ else
         %.*
         trace: execute_plan: simulate: yes
         %.*
-        %  new libbaz/1.0.0 \[t2.\]%
         %  drop libbuild2-bar/1.0.0 \[t1..bpkg.build2.\] \(unused\)%
           drop libbaz/1.0.0 (unused)
           drop foo/1.0.0 (unused)
+        %  new libbaz/1.0.0 \[t2.\]%
         continue? [Y/n] trace: execute_plan: simulate: no
         %.*
         disfigured foo/1.0.0
@@ -24964,15 +25150,15 @@ else
         %.*
         %disfigured libbuild2-bar/1.0.0 \[t1..bpkg.build2.\]%
         %.*
-        %fetched libbaz/1.0.0 \[t2.\]%
-        %.*
-        %unpacked libbaz/1.0.0 \[t2.\]%
-        %.*
         %purged libbuild2-bar/1.0.0 \[t1..bpkg.build2.\]%
         %.*
         purged libbaz/1.0.0
         %.*
         purged foo/1.0.0
+        %.*
+        %fetched libbaz/1.0.0 \[t2.\]%
+        %.*
+        %unpacked libbaz/1.0.0 \[t2.\]%
         %.*
         %configured libbaz/1.0.0 \[t2.\]%
         %.*
@@ -25012,15 +25198,15 @@ else
       $* libbar libbaz +{ --config-name h2 } <<EOI 2>>~%EOE%;
         y
         EOI
-        %  new libbaz/1.0.0 \[h2.\]%
           drop libbaz/1.0.0 (unused)
+        %  new libbaz/1.0.0 \[h2.\]%
           reconfigure/update foo/1.0.0 (required by libbar)
           new libbar/1.0.0
         continue? [Y/n] disfigured foo/1.0.0
         disfigured libbaz/1.0.0
+        purged libbaz/1.0.0
         %fetched libbaz/1.0.0 \[h2.\]%
         %unpacked libbaz/1.0.0 \[h2.\]%
-        purged libbaz/1.0.0
         fetched libbar/1.0.0
         unpacked libbar/1.0.0
         %configured libbaz/1.0.0 \[h2.\]%
@@ -25069,23 +25255,23 @@ else
                  ?libbaz +{ --config-name h2 } <<EOI 2>>~%EOE%;
         y
         EOI
-        %  new libbaz/1.0.0 \[h2.\] \(required by libbar\)%
         %  drop libbuild2-bar/1.0.0 \[h1..bpkg.build2.\] \(unused\)%
           drop libbaz/1.0.0 (unused)
           reconfigure/unhold sys:foo/1.2.0
+        %  new libbaz/1.0.0 \[h2.\] \(required by libbar\)%
           new libbar/1.0.0
         continue? [Y/n] disfigured foo/1.0.0
         disfigured libbaz/1.0.0
         %disfigured libbuild2-bar/1.0.0 \[h1..bpkg.build2.\]%
-        %fetched libbaz/1.0.0 \[h2.\]%
-        %unpacked libbaz/1.0.0 \[h2.\]%
         %purged libbuild2-bar/1.0.0 \[h1..bpkg.build2.\]%
         purged libbaz/1.0.0
         purged foo/1.0.0
+        %fetched libbaz/1.0.0 \[h2.\]%
+        %unpacked libbaz/1.0.0 \[h2.\]%
         fetched libbar/1.0.0
         unpacked libbar/1.0.0
-        %configured libbaz/1.0.0 \[h2.\]%
         configured sys:foo/1.2.0
+        %configured libbaz/1.0.0 \[h2.\]%
         configured libbar/1.0.0
         %info: h1.+libbar-1.0.0.+ is up to date%
         updated libbar/1.0.0
@@ -25161,17 +25347,17 @@ else
       # While at it, test foo deorphaning.
       #
       $* foo +{ --deorphan } libbaz +{ --config-name h2 } --yes --plan "" 2>>~%EOE%;
+          drop libbaz/1.1.0 (unused)
         %  new libbuild2-bar/1.0.0 \[h1.\.bpkg.build2.\] \(required by foo\)%
         %  new libbaz/1.0.0 \[h2.\]%
-          drop libbaz/1.1.0 (unused)
           replace/downgrade foo/1.0.0
         disfigured foo/1.1.0
         disfigured libbaz/1.1.0
+        purged libbaz/1.1.0
         %fetched libbuild2-bar/1.0.0 \[h1.\.bpkg.build2.\]%
         %unpacked libbuild2-bar/1.0.0 \[h1.\.bpkg.build2.\]%
         %fetched libbaz/1.0.0 \[h2.\]%
         %unpacked libbaz/1.0.0 \[h2.\]%
-        purged libbaz/1.1.0
         fetched foo/1.0.0
         unpacked foo/1.0.0
         %configured libbuild2-bar/1.0.0 \[h1.\.bpkg.build2.\]%
@@ -25219,17 +25405,17 @@ else
       #
       $* foo +{ --deorphan } libbaz +{ --config-name h2 } --yes --plan "" \
              --mask-repository $rep/t7b 2>>~%EOE%;
+          drop libbaz/1.1.0 (unused)
         %  new libbuild2-bar/1.0.0 \[h1.\.bpkg.build2.\] \(required by foo\)%
         %  new libbaz/1.0.0 \[h2.\]%
-          drop libbaz/1.1.0 (unused)
           replace/downgrade foo/1.0.0
         disfigured foo/1.1.0
         disfigured libbaz/1.1.0
+        purged libbaz/1.1.0
         %fetched libbuild2-bar/1.0.0 \[h1.\.bpkg.build2.\]%
         %unpacked libbuild2-bar/1.0.0 \[h1.\.bpkg.build2.\]%
         %fetched libbaz/1.0.0 \[h2.\]%
         %unpacked libbaz/1.0.0 \[h2.\]%
-        purged libbaz/1.1.0
         fetched foo/1.0.0
         unpacked foo/1.0.0
         %configured libbuild2-bar/1.0.0 \[h1.\.bpkg.build2.\]%
@@ -25273,15 +25459,15 @@ else
       $* libbar ?foo libbaz +{ --config-name h2 } <<EOI 2>>~%EOE%;
         y
         EOI
-        %  new libbaz/1.0.0 \[h2.\]%
           drop libbaz/1.0.0 (unused)
+        %  new libbaz/1.0.0 \[h2.\]%
           reconfigure/update/unhold foo/1.0.0
           new libbar/1.0.0
         continue? [Y/n] disfigured foo/1.0.0
         disfigured libbaz/1.0.0
+        purged libbaz/1.0.0
         %fetched libbaz/1.0.0 \[h2.\]%
         %unpacked libbaz/1.0.0 \[h2.\]%
-        purged libbaz/1.0.0
         fetched libbar/1.0.0
         unpacked libbar/1.0.0
         %configured libbaz/1.0.0 \[h2.\]%
@@ -25360,8 +25546,8 @@ else
         y
         n
         EOI
-        %  update libbaz/1.1.0 \[h2.\]%
           drop libbaz/1.0.0 (unused)
+        %  update libbaz/1.1.0 \[h2.\]%
         %  reconfigure foo/1.0.0 \(dependent of libbaz \[h2.\]\)%
         continue? [Y/n] update dependent packages? [Y/n] disfigured foo/1.0.0
         disfigured libbaz/1.0.0
@@ -25406,23 +25592,23 @@ else
       $* libbar ?foo +{ --config-name h1 } <<EOI 2>>~%EOE%;
         y
         EOI
-        %  new libbaz/1.1.0 \[h1.\] \(required by foo \[h1.\]\)%
-        %  new foo/1.1.0 \[h1.\] \(required by libbar\)%
         %  drop libbuild2-bar/1.0.0 \[t1..bpkg.build2.\] \(unused\)%
         %  drop libbaz/1.0.0 \[t1..bpkg.host.\] \(unused\)%
         %  drop foo/1.0.0 \[t1..bpkg.host.\] \(unused\)%
+        %  new libbaz/1.1.0 \[h1.\] \(required by foo \[h1.\]\)%
+        %  new foo/1.1.0 \[h1.\] \(required by libbar\)%
           upgrade libbar/1.1.0
         continue? [Y/n] disfigured libbar/1.0.0
         %disfigured foo/1.0.0 \[t1..bpkg.host.\]%
         %disfigured libbaz/1.0.0 \[t1..bpkg.host.\]%
         %disfigured libbuild2-bar/1.0.0 \[t1..bpkg.build2.\]%
+        %purged libbuild2-bar/1.0.0 \[t1..bpkg.build2.\]%
+        %purged libbaz/1.0.0 \[t1..bpkg.host.\]%
+        %purged foo/1.0.0 \[t1..bpkg.host.\]%
         %fetched libbaz/1.1.0 \[h1.\]%
         %unpacked libbaz/1.1.0 \[h1.\]%
         %fetched foo/1.1.0 \[h1.\]%
         %unpacked foo/1.1.0 \[h1.\]%
-        %purged libbuild2-bar/1.0.0 \[t1..bpkg.build2.\]%
-        %purged libbaz/1.0.0 \[t1..bpkg.host.\]%
-        %purged foo/1.0.0 \[t1..bpkg.host.\]%
         fetched libbar/1.1.0
         unpacked libbar/1.1.0
         %configured libbaz/1.1.0 \[h1.\]%
@@ -25468,19 +25654,19 @@ else
         y
         y
         EOI
-        %  new libbaz/1.1.0 \[h2.\] \(required by foo, libbar\)%
         %  drop libbuild2-bar/1.0.0 \[h1..bpkg.build2.\] \(unused\)%
           drop libbaz/1.0.0 (unused)
+        %  new libbaz/1.1.0 \[h2.\] \(required by foo, libbar\)%
           upgrade foo/1.1.0
           upgrade libbar/1.1.0
         continue? [Y/n] disfigured libbar/1.0.0
         disfigured foo/1.0.0
         disfigured libbaz/1.0.0
         %disfigured libbuild2-bar/1.0.0 \[h1..bpkg.build2.\]%
-        %fetched libbaz/1.1.0 \[h2.\]%
-        %unpacked libbaz/1.1.0 \[h2.\]%
         %purged libbuild2-bar/1.0.0 \[h1..bpkg.build2.\]%
         purged libbaz/1.0.0
+        %fetched libbaz/1.1.0 \[h2.\]%
+        %unpacked libbaz/1.1.0 \[h2.\]%
         fetched foo/1.1.0
         unpacked foo/1.1.0
         fetched libbar/1.1.0
@@ -25537,15 +25723,15 @@ else
         y
         y
         EOI
-        %  upgrade libbaz/1.1.0 \[t2.\]%
           drop libbaz/1.0.0 (unused)
+        %  upgrade libbaz/1.1.0 \[t2.\]%
         %  reconfigure libbar/1.0.0 \(dependent of libbaz \[t2.\]\)%
         continue? [Y/n] update dependent packages? [Y/n] disfigured libbar/1.0.0
-        disfigured libbaz/1.0.0
         %disfigured libbaz/1.0.0 \[t2.\]%
+        disfigured libbaz/1.0.0
+        purged libbaz/1.0.0
         %fetched libbaz/1.1.0 \[t2.\]%
         %unpacked libbaz/1.1.0 \[t2.\]%
-        purged libbaz/1.0.0
         %configured libbaz/1.1.0 \[t2.\]%
         configured libbar/1.0.0
         %info: t2.+libbaz-1.1.0.+ is up to date%
@@ -25665,29 +25851,29 @@ else
         y
         y
         EOI
+        %  drop libfax/1.0.0 \(unused\)%
         %  new libfax/1.0.0 \[t2.\]%
-        %  upgrade libbaz/1.1.0 \[h1.\] \(required by foo \[h1.\]\)%
         %  drop libbuild2-bar/1.0.0 \[h1..bpkg.build2.\] \(unused\)%
+        %  upgrade libbaz/1.1.0 \[h1.\] \(required by foo \[h1.\]\)%
         %  upgrade foo/1.1.0 \[h1.\]%
         %  reconfigure libbar \(dependent of foo \[h1.\]\)%
         %  reconfigure libbox \(dependent of foo \[h1.\]\)%
-        %  drop libfax/1.0.0 \(unused\)%
           reconfigure/update libfix/1.0.0
         continue? [Y/n] update dependent packages? [Y/n] disfigured libfix/1.0.0
-        disfigured libfax/1.0.0
         disfigured libbox/1.0.0
         disfigured libbar/1.0.0
         %disfigured foo/1.0.0 \[h1.\]%
-        %disfigured libbuild2-bar/1.0.0 \[h1..bpkg.build2.\]%
         %disfigured libbaz/1.0.0 \[h1.\]%
+        %disfigured libbuild2-bar/1.0.0 \[h1..bpkg.build2.\]%
+        disfigured libfax/1.0.0
+        purged libfax/1.0.0
         %fetched libfax/1.0.0 \[t2.\]%
         %unpacked libfax/1.0.0 \[t2.\]%
+        %purged libbuild2-bar/1.0.0 \[h1..bpkg.build2.\]%
         %fetched libbaz/1.1.0 \[h1.\]%
         %unpacked libbaz/1.1.0 \[h1.\]%
-        %purged libbuild2-bar/1.0.0 \[h1..bpkg.build2.\]%
         %fetched foo/1.1.0 \[h1.\]%
         %unpacked foo/1.1.0 \[h1.\]%
-        purged libfax/1.0.0
         %configured libfax/1.0.0 \[t2.\]%
         %configured libbaz/1.1.0 \[h1.\]%
         %configured foo/1.1.0 \[h1.\]%
@@ -25983,25 +26169,25 @@ else
         y
         y
         EOI
-        %  new libbuild2-bar/1.0.0 \[cfg4.\] \(required by foo \[cfg.\], foo \[cfg2.\]\)%
-        %  new libbaz/1.0.0 \[cfg5.\] \(required by foo \[cfg.\], foo \[cfg2.\]\)%
         %  drop libbaz/1.0.0 \[cfg2.\] \(unused\)%
         %  drop libbuild2-bar/1.0.0 \[cfg3.\] \(unused\)%
-        %  reconfigure foo/1.0.0 \[cfg2.\] \(dependent of libbaz \[cfg5.\], libbuild2-bar \[cfg4.\]\)%
         %  drop libbaz/1.0.0 \[cfg.\] \(unused\)%
+        %  new libbuild2-bar/1.0.0 \[cfg4.\] \(required by foo \[cfg.\], foo \[cfg2.\]\)%
+        %  new libbaz/1.0.0 \[cfg5.\] \(required by foo \[cfg.\], foo \[cfg2.\]\)%
+        %  reconfigure foo/1.0.0 \[cfg2.\] \(dependent of libbaz \[cfg5.\], libbuild2-bar \[cfg4.\]\)%
         %  reconfigure foo/1.0.0 \[cfg.\] \(dependent of libbaz \[cfg5.\], libbuild2-bar \[cfg4.\]\)%
         %continue\? \[Y/n\] update dependent packages\? \[Y/n\] disfigured foo/1.0.0 \[cfg.\]%
-        %disfigured libbaz/1.0.0 \[cfg.\]%
         %disfigured foo/1.0.0 \[cfg2.\]%
+        %disfigured libbaz/1.0.0 \[cfg.\]%
         %disfigured libbuild2-bar/1.0.0 \[cfg3.\]%
         %disfigured libbaz/1.0.0 \[cfg2.\]%
+        %purged libbaz/1.0.0 \[cfg2.\]%
+        %purged libbuild2-bar/1.0.0 \[cfg3.\]%
+        %purged libbaz/1.0.0 \[cfg.\]%
         %fetched libbuild2-bar/1.0.0 \[cfg4.\]%
         %unpacked libbuild2-bar/1.0.0 \[cfg4.\]%
         %fetched libbaz/1.0.0 \[cfg5.\]%
         %unpacked libbaz/1.0.0 \[cfg5.\]%
-        %purged libbaz/1.0.0 \[cfg2.\]%
-        %purged libbuild2-bar/1.0.0 \[cfg3.\]%
-        %purged libbaz/1.0.0 \[cfg.\]%
         %configured libbuild2-bar/1.0.0 \[cfg4.\]%
         %configured libbaz/1.0.0 \[cfg5.\]%
         %configured foo/1.0.0 \[cfg2.\]%
@@ -26059,15 +26245,15 @@ else
          ?libbaz +{ --config-uuid $cfg5_uuid } <<EOI 2>>~%EOE%;
         y
         EOI
-        %  upgrade libbaz/1.1.0 \[cfg5.\]%
         %  drop libbuild2-bar/1.0.0 \[cfg4.\] \(unused\)%
+        %  upgrade libbaz/1.1.0 \[cfg5.\]%
         %  upgrade foo/1.1.0 \[cfg2.\]%
         %continue\? \[Y/n\] disfigured foo/1.0.0 \[cfg2.\]%
-        %disfigured libbuild2-bar/1.0.0 \[cfg4.\]%
         %disfigured libbaz/1.0.0 \[cfg5.\]%
+        %disfigured libbuild2-bar/1.0.0 \[cfg4.\]%
+        %purged libbuild2-bar/1.0.0 \[cfg4.\]%
         %fetched libbaz/1.1.0 \[cfg5.\]%
         %unpacked libbaz/1.1.0 \[cfg5.\]%
-        %purged libbuild2-bar/1.0.0 \[cfg4.\]%
         %fetched foo/1.1.0 \[cfg2.\]%
         %unpacked foo/1.1.0 \[cfg2.\]%
         %configured libbaz/1.1.0 \[cfg5.\]%
