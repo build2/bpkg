@@ -5704,6 +5704,13 @@ namespace bpkg
                   //
                   pi->second.wout_config = true;
 
+                  collect_existing_dependent (o,
+                                              ed,
+                                              {p},
+                                              replaced_vers,
+                                              postponed_cfgs,
+                                              unsatisfied_depts);
+
                   postponed_existing_dependents.insert (pk);
                   continue;
                 }
@@ -6842,17 +6849,13 @@ namespace bpkg
                           << ed.db << " due to bogus postponement of "
                           << "dependency " << pk;});
 
-            // Note that we pass false as the add_required_by argument since
-            // the postponment is bogus and thus the originating dependency
-            // for this existing dependent may not be collected.
-            //
             recollect_existing_dependent (o,
                                           ed,
                                           replaced_vers,
                                           postponed_recs,
                                           postponed_cfgs,
                                           unsatisfied_depts,
-                                          false /* add_required_by */);
+                                          true /* add_required_by */);
             prog = true;
             break;
           }

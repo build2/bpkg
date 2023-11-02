@@ -536,6 +536,10 @@ namespace bpkg
   // type of dependent and then just process dependencies that have the first
   // (without config) but not the second (with config).
   //
+  // Note that if any of these flags is set to true, then the dependency is
+  // expected to be collected (present in the build_packages's map; see below
+  // for the class definition).
+  //
   struct postponed_dependency
   {
     bool wout_config; // Has dependent without config.
@@ -1640,17 +1644,21 @@ namespace bpkg
   private:
     // Return the list of existing dependents that has a configuration clause
     // for any of the selected alternatives together with the dependencies for
-    // the earliest such an alternative and the original dependency (for which
-    // the function is called for) position. Return absent dependency for
-    // those dependents which dependency alternatives selection has deviated
-    // (normally due to the dependency up/downgrade). Skip dependents which
-    // are being built and require recursive recollection or dropped (present
-    // in the map) or expected to be built or dropped (present in rpt_depts or
-    // replaced_vers). Also skip dependents which impose the version
-    // constraint on this dependency and the dependency doesn't satisfy this
-    // constraint. Optionally, skip the existing dependents for which
-    // re-evaluation is considered optional (exclude_optional argument; see
-    // pre-reevaluation mode of collect_build_prerequisites() for details).
+    // the earliest such an alternative and the originating dependency (for
+    // which the function is called for) position. Return absent dependency
+    // for those dependents which dependency alternatives selection has
+    // deviated (normally due to the dependency up/downgrade). Skip dependents
+    // which are being built and require recursive recollection or dropped
+    // (present in the map) or expected to be built or dropped (present in
+    // rpt_depts or replaced_vers). Also skip dependents which impose the
+    // version constraint on this dependency and the dependency doesn't
+    // satisfy this constraint. Optionally, skip the existing dependents for
+    // which re-evaluation is considered optional (exclude_optional argument;
+    // see pre-reevaluation mode of collect_build_prerequisites() for
+    // details).
+    //
+    // Note that the originating dependency is expected to be collected
+    // (present in the map).
     //
     struct existing_dependent
     {
