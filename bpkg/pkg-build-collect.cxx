@@ -603,11 +603,12 @@ namespace bpkg
       //
       {
         set<package_key> printed;
-        pkgs.print_constraints (dr,
-                                dk,
-                                indent,
-                                printed,
-                                true /* selected_dependent */);
+        pkgs.print_constraints (
+          dr,
+          dk,
+          indent,
+          printed,
+          (verb >= 2 ? optional<bool> () : true) /* selected_dependent */);
       }
 
       // If the dependency we failed to up/downgrade is not explicitly
@@ -655,15 +656,19 @@ namespace bpkg
           }
 
           indent += "  ";
-          pkgs.print_constraints (dr,
-                                  package_key (pvk.db, pvk.name),
-                                  indent,
-                                  printed,
-                                  false /* selected_dependent */);
+          pkgs.print_constraints (
+            dr,
+            package_key (pvk.db, pvk.name),
+            indent,
+            printed,
+            (verb >= 2 ? optional<bool> () : false) /* selected_dependent */);
 
           indent.resize (indent.size () - 2);
         }
       }
+
+      if (verb < 2)
+        dr << info << "re-run with -v for additional dependency information";
 
       dr << info << "consider re-trying with --upgrade|-u potentially combined "
                  << "with --recursive|-r" <<
