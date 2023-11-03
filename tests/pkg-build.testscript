@@ -1398,6 +1398,7 @@ test.arguments += --sys-no-query
       $* libfoo/1.0.0 2>>EOE != 0;
         error: unable to downgrade package libfoo/1.1.0 to 1.0.0
           info: because configured package libbar/1.1.0 depends on (libfoo == 1.1.0)
+          info: re-run with -v for additional dependency information
           info: consider re-trying with --upgrade|-u potentially combined with --recursive|-r
           info: or explicitly request up/downgrade of package libbar
           info: or explicitly specify package libfoo version to manually satisfy these constraints
@@ -1434,6 +1435,7 @@ test.arguments += --sys-no-query
       $* libfoo/1.0.0 +{ --config-id 1 } 2>>~%EOE% != 0;
         %error: unable to downgrade package libfoo/1.1.0 \[cfg.\] to 1.0.0%
         %  info: because configured package libbar/1.1.0 \[cfg.\] depends on \(libfoo == 1.1.0\)%
+          info: re-run with -v for additional dependency information
           info: consider re-trying with --upgrade|-u potentially combined with --recursive|-r
           info: or explicitly request up/downgrade of package libbar
           info: or explicitly specify package libfoo version to manually satisfy these constraints
@@ -2242,6 +2244,7 @@ test.arguments += --sys-no-query
             info: because configured package libbox/1.0.0 depends on (libbar ^1.0.0)
             info: package libbar/2.0.0 required by
                     libbaz/2.0.0 (libbar ^2.0.0)
+            info: re-run with -v for additional dependency information
             info: consider re-trying with --upgrade|-u potentially combined with --recursive|-r
             info: or explicitly request up/downgrade of package libbox
             info: or explicitly specify package libbar version to manually satisfy these constraints
@@ -2338,6 +2341,7 @@ test.arguments += --sys-no-query
             info: because configured package libbox/1.0.0 depends on (libbar ^1.0.0)
             info: package libbar/2.0.0 required by
                     libbaz/2.0.0 (libbar ^2.0.0)
+            info: re-run with -v for additional dependency information
             info: consider re-trying with --upgrade|-u potentially combined with --recursive|-r
             info: or explicitly request up/downgrade of package libbox
             info: or explicitly specify package libbar version to manually satisfy these constraints
@@ -5862,6 +5866,7 @@ test.arguments += --sys-no-query
             info: because configured package tpx/1.0.0 depends on (libfoo >= 2.0.0)
             info: package libfoo/1.0.0 required by
                     tax/1.0.0 (libfoo == 1.0.0)
+            info: re-run with -v for additional dependency information
             info: consider re-trying with --upgrade|-u potentially combined with --recursive|-r
             info: or explicitly request up/downgrade of package tpx
             info: or explicitly specify package libfoo version to manually satisfy these constraints
@@ -5875,6 +5880,7 @@ test.arguments += --sys-no-query
         $* tax tpx ?libfoo/1.0.0 2>>EOE != 0;
           error: unable to downgrade package libfoo/2.0.0 to 1.0.0
             info: because configured package tpx/1.0.0 depends on (libfoo >= 2.0.0)
+            info: re-run with -v for additional dependency information
             info: consider re-trying with --upgrade|-u potentially combined with --recursive|-r
             info: or explicitly request up/downgrade of package tpx
             info: or explicitly specify package libfoo version to manually satisfy these constraints
@@ -25422,6 +25428,7 @@ else
       $* ?libbaz/1.0.0 +{ --config-name h2 } 2>>~%EOE% != 0;
         %error: unable to downgrade package libbaz/1.1.0 \[h2.\] to 1.0.0%
         %  info: because configured package foo/1.1.0 \[h2.\] depends on \(libbaz \^1.1.0\)%
+          info: re-run with -v for additional dependency information
           info: consider re-trying with --upgrade|-u potentially combined with --recursive|-r
           info: or explicitly request up/downgrade of package foo
           info: or explicitly specify package libbaz version to manually satisfy these constraints
