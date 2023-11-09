@@ -1675,9 +1675,9 @@ namespace bpkg
                               << bp.available_name_version_db () << " ("
                               << c->value << ')';});
 
-                // Note that in contrast to collect_order_dependents(), here
-                // we also save both unsatisfied constraints and the
-                // dependency chain, for the sake of the diagnostics.
+                // Note that in contrast to collect_dependents(), here we also
+                // save both unsatisfied constraints and the dependency chain,
+                // for the sake of the diagnostics.
                 //
                 vector<unsatisfied_constraint> ucs {
                   unsatisfied_constraint {
@@ -5806,7 +5806,7 @@ namespace bpkg
               // then it doesn't need to be reconfigured either since nothing
               // changes for its config clauses. Otherwise, the
               // build_package::adjust_reconfigure flag will be added normally
-              // by collect_order_dependents().
+              // by collect_dependents().
               //
               collect_existing_dependent (o,
                                           ed,
@@ -7091,50 +7091,49 @@ namespace bpkg
     return order (db, name, chain, fdb, reorder);
   }
 
-  void build_packages::
-  collect_order_dependents (const repointed_dependents& rpt_depts,
-                            unsatisfied_dependents& unsatisfied_depts)
+  set<package_key> build_packages::
+  collect_dependents (const repointed_dependents& rpt_depts,
+                      unsatisfied_dependents& unsatisfied_depts)
   {
+    set<package_key> r;
+
+    // First, cache the packages in the map since we will be adding new
+    // entries to the map while collecting dependents of the initial package
+    // set, recursively.
+    //
     // Note: the pointer is stable (points to a value in std::map).
     //
-    set<const build_package*> visited_deps;
+    vector<build_package*> deps;
 
-    // For each package on the list we want to insert all its dependents
-    // before it so that they get configured after the package on which they
-    // depend is configured (remember, our build order is reverse, with the
-    // last package being built first). This applies to both packages that are
-    // already on the list as well as the ones that we add, recursively.
-    //
-    for (auto i (begin ()); i != end (); ++i)
+    for (auto& p: map_)
     {
-      const build_package& p (*i);
+      build_package& d (p.second.package);
 
       // Prune if this is not a configured package being up/down-graded
       // or reconfigured.
       //
-      assert (p.action);
-
-      // Dropped package may have no dependents.
-      //
-      if (*p.action != build_package::drop && p.reconfigure ())
-        collect_order_dependents (i,
-                                  rpt_depts,
-                                  unsatisfied_depts,
-                                  visited_deps);
+      if (d.action && *d.action != build_package::drop && d.reconfigure ())
+        deps.push_back (&d);
     }
+
+    // Note: the pointer is stable (see above for details).
+    //
+    set<const build_package*> visited_deps;
+
+    for (build_package* p: deps)
+      collect_dependents (*p, rpt_depts, unsatisfied_depts, visited_deps, r);
+
+    return r;
   }
 
   void build_packages::
-  collect_order_dependents (iterator pos,
-                            const repointed_dependents& rpt_depts,
-                            unsatisfied_dependents& unsatisfied_depts,
-                            set<const build_package*>& visited_deps)
+  collect_dependents (build_package& p,
+                      const repointed_dependents& rpt_depts,
+                      unsatisfied_dependents& unsatisfied_depts,
+                      set<const build_package*>& visited_deps,
+                      set<package_key>& r)
   {
-    tracer trace ("collect_order_dependents");
-
-    assert (pos != end ());
-
-    build_package& p (*pos);
+    tracer trace ("collect_dependents");
 
     // Bail out if the dependency has already been visited and add it to the
     // visited set otherwise.
@@ -7167,14 +7166,8 @@ namespace bpkg
         // dependent. But first "prune" if the dependent is being dropped or
         // this is a replaced prerequisite of the repointed dependent.
         //
-        // Note that the package drops are not ordered at this stage, since to
-        // order them properly all the package reconfigurations must be
-        // determined.
-        //
-        // Also note that the repointed dependents are always collected and
-        // have all their collected prerequisites ordered (including new and
-        // old ones). See collect_build_prerequisites() and order() for
-        // details.
+        // Note that the repointed dependents are always collected (see
+        // collect_build_prerequisites() for details).
         //
         bool check (ud != 0 && dc);
 
@@ -7187,30 +7180,27 @@ namespace bpkg
           if (dp.action && *dp.action == build_package::drop)
             continue;
 
-          if (i->second.position != end ())
+          repointed_dependents::const_iterator j (
+            rpt_depts.find (package_key {ddb, dn}));
+
+          if (j != rpt_depts.end ())
           {
-            repointed_dependents::const_iterator j (
-              rpt_depts.find (package_key {ddb, dn}));
+            const map<package_key, bool>& prereqs_flags (j->second);
 
-            if (j != rpt_depts.end ())
-            {
-              const map<package_key, bool>& prereqs_flags (j->second);
+            auto k (prereqs_flags.find (package_key {pdb, n}));
 
-              auto k (prereqs_flags.find (package_key {pdb, n}));
-
-              if (k != prereqs_flags.end () && !k->second)
-                continue;
-            }
-
-            // There is one tricky aspect: the dependent could be in the
-            // process of being reconfigured or up/downgraded as well. In this
-            // case all we need to do is detect this situation and skip the
-            // test since all the (new) constraints of this package have been
-            // satisfied in collect_build().
-            //
-            if (check)
-              check = !dp.dependencies;
+            if (k != prereqs_flags.end () && !k->second)
+              continue;
           }
+
+          // There is one tricky aspect: the dependent could be in the process
+          // of being reconfigured or up/downgraded as well. In this case all
+          // we need to do is detect this situation and skip the test since
+          // all the (new) constraints of this package have been satisfied in
+          // collect_build().
+          //
+          if (check)
+            check = !dp.dependencies;
         }
 
         if (check)
@@ -7272,57 +7262,32 @@ namespace bpkg
             build_package::adjust_reconfigure};
         };
 
-        // We can have three cases here: the package is already on the list,
-        // the package is in the map (but not on the list) and it is in
-        // neither.
+        // If the existing entry is pre-entered or is an adjustment, then we
+        // merge it into the new adjustment entry. Otherwise (is a build), we
+        // just add the reconfigure adjustment flag to it, unless it is
+        // already being reconfigured. In the later case we don't add the
+        // dependent to the resulting set since we neither add a new entry to
+        // the map nor modify an existing one.
         //
-        // If the existing entry is pre-entered, is an adjustment, or is a
-        // build that is not supposed to be built (not in the list), then we
-        // merge it into the new adjustment entry. Otherwise (is a build in
-        // the list), we just add the reconfigure adjustment flag to it.
-        //
+        bool add (true);
         if (i != map_.end ())
         {
           build_package& dp (i->second.package);
-          iterator& dpos (i->second.position);
 
-          if (!dp.action                         || // Pre-entered.
-              *dp.action != build_package::build || // Non-build.
-              dpos == end ())                       // Build not in the list.
+          if (!dp.action ||                       // Pre-entered.
+              *dp.action != build_package::build) // Adjustment.
           {
             build_package bp (adjustment ());
             bp.merge (move (dp));
             dp = move (bp);
           }
-          else                                       // Build in the list.
-            dp.flags |= build_package::adjust_reconfigure;
-
-          // It may happen that the dependent is already in the list but is
-          // not properly ordered against its dependencies that get into the
-          // list via another dependency path. Thus, we check if the dependent
-          // is to the right of its dependency and, if that's the case,
-          // reinsert it in front of the dependency.
-          //
-          if (dpos != end ())
+          else                                    // Build.
           {
-            for (auto i (pos); i != end (); ++i)
-            {
-              if (i == dpos)
-              {
-                erase (dpos);
-                dpos = insert (pos, dp);
-
-                // Remove the moved dependent from the visited dependencies
-                // set, if present, so its own dependents can be reordered to
-                // the left of this dependent.
-                //
-                visited_deps.erase (&dp);
-                break;
-              }
-            }
+            if (!dp.reconfigure ())
+              dp.flags |= build_package::adjust_reconfigure;
+            else
+              add = false;
           }
-          else
-            dpos = insert (pos, dp);
         }
         else
         {
@@ -7330,9 +7295,12 @@ namespace bpkg
           //
           i = map_.emplace (package_key {ddb, dn},
                             data_type {end (), adjustment ()}).first;
-
-          i->second.position = insert (pos, i->second.package);
         }
+
+        if (add)
+          r.insert (i->first);
+
+        build_package& dp (i->second.package);
 
         // Add this dependent's constraint, if present, to the dependency's
         // constraints list for completeness, while suppressing duplicates.
@@ -7344,7 +7312,7 @@ namespace bpkg
           constraint_type c (move (*dc),
                              ddb,
                              move (dn),
-                             i->second.package.selected->version,
+                             dp.selected->version,
                              true /* selected_dependent */);
 
           if (find_if (p.constraints.begin (), p.constraints.end (),
@@ -7358,16 +7326,13 @@ namespace bpkg
           }
         }
 
-        // Recursively collect our own dependents inserting them before us.
+        // Recursively collect our own dependents.
         //
         // Note that we cannot end up with an infinite recursion for
-        // configured packages due to a dependency cycle (see order() for
-        // details).
+        // configured packages due to a dependency cycle since we "prune" for
+        // visited dependencies (also see order() for details).
         //
-        collect_order_dependents (i->second.position,
-                                  rpt_depts,
-                                  unsatisfied_depts,
-                                  visited_deps);
+        collect_dependents (dp, rpt_depts, unsatisfied_depts, visited_deps, r);
       }
     }
   }

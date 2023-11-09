@@ -1571,6 +1571,27 @@ namespace bpkg
                              const function<add_priv_cfg_function>&,
                              postponed_configuration* = nullptr);
 
+    // If a configured package is being up/down-graded or reconfigured then
+    // that means all its configured dependents could be affected and we have
+    // to reconfigure them. This function examines every such a package that
+    // is already in the map and collects all its configured dependents. We
+    // also need to make sure the dependents are ok with the up/downgrade. If
+    // some dependency constraints are not satisfied, then cache them and
+    // proceed further as if no problematic constraints are imposed (see
+    // unsatisfied_dependents for details). Return the set of the collected
+    // dependents.
+    //
+    // Should we reconfigure just the direct depends or also include indirect,
+    // recursively? Consider this plausible scenario as an example: We are
+    // upgrading a package to a version that provides an additional API. When
+    // its direct dependent gets reconfigured, it notices this new API and
+    // exposes its own extra functionality that is based on it. Now it would
+    // make sense to let its own dependents (which would be our original
+    // package's indirect ones) to also notice this.
+    //
+    std::set<package_key>
+    collect_dependents (const repointed_dependents&, unsatisfied_dependents&);
+
     // Order the previously-collected package with the specified name and
     // configuration returning its position.
     //
@@ -1583,27 +1604,6 @@ namespace bpkg
            const package_name&,
            const function<find_database_function>&,
            bool reorder = true);
-
-    // If a configured package is being up/down-graded then that means all its
-    // dependents could be affected and we have to reconfigure them. This
-    // function examines every package that is already on the list and
-    // collects and orders all its dependents. We also need to make sure the
-    // dependents are ok with the up/downgrade. If some dependency constraints
-    // are not satisfied, then cache them and proceed further as if no
-    // problematic constraints are imposed (see unsatisfied_dependents for
-    // details).
-    //
-    // Should we reconfigure just the direct depends or also include indirect,
-    // recursively? Consider this plauisible scenario as an example: We are
-    // upgrading a package to a version that provides an additional API. When
-    // its direct dependent gets reconfigured, it notices this new API and
-    // exposes its own extra functionality that is based on it. Now it would
-    // make sense to let its own dependents (which would be our original
-    // package's indirect ones) to also notice this.
-    //
-    void
-    collect_order_dependents (const repointed_dependents&,
-                              unsatisfied_dependents&);
 
     void
     clear ();
@@ -1744,6 +1744,20 @@ namespace bpkg
                                   unsatisfied_dependents&,
                                   bool add_required_by);
 
+    // Skip the dependents collection for the specified dependency if that has
+    // already been done.
+    //
+    // Note that if this function has already been called for this dependency,
+    // then all its dependents are already in the map and their dependency
+    // constraints have been checked.
+    //
+    void
+    collect_dependents (build_package&,
+                        const repointed_dependents&,
+                        unsatisfied_dependents&,
+                        std::set<const build_package*>& visited_deps,
+                        std::set<package_key>& result);
+
     struct package_ref
     {
       database& db;
@@ -1760,26 +1774,6 @@ namespace bpkg
            package_refs& chain,
            const function<find_database_function>&,
            bool reorder);
-
-    // Skip the dependents collection/ordering for the specified dependency if
-    // that has already been done.
-    //
-    // Note that if this function has already been called for this dependency,
-    // then all its dependents are already in the map and the dependency
-    // constraints have been checked for them. Also they are in the list and
-    // are ordered to the left of this dependency, unless this dependency has
-    // been moved to the left itself since the previous visit. Such a move can
-    // only happen if this dependency is a dependent of some other dependency
-    // whose dependents have been collected/ordered since that previous visit.
-    // This function tracks such moves and just removes the moved dependencies
-    // from the visited set, so their dependents can be properly reordered
-    // after the move.
-    //
-    void
-    collect_order_dependents (iterator,
-                              const repointed_dependents&,
-                              unsatisfied_dependents&,
-                              std::set<const build_package*>& visited_deps);
 
   private:
     struct data_type

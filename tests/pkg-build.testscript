@@ -106,6 +106,16 @@
 # |   |-- libfoo-1.1.0+1.tar.gz
 # |   `-- repositories.manifest
 # |
+# |-- t4f
+# |   |-- libfoo-2.0.0.tar.gz   -> libbar == 1.2.0
+# |   |-- libbar-1.2.0.tar.gz
+# |   |-- libbar-2.1.0.tar.gz   -> libbox
+# |   |-- libbox-1.0.0.tar.gz   -> libbax
+# |   |-- libbox-2.0.0.tar.gz   -> libbax == 1.0.0
+# |   |-- libbax-1.0.0.tar.gz
+# |   |-- libbax-2.0.0.tar.gz
+# |   `-- repositories.manifest
+# |
 # |-- t5
 # |   |-- libbar-1.2.0.tar.gz
 # |   |-- libbox-1.2.0.tar.gz
@@ -486,6 +496,7 @@ posix = ($cxx.target.class != 'windows')
   cp -r $src/t4c  $out/t4c  && $rep_create $out/t4c  &$out/t4c/packages.manifest
   cp -r $src/t4d  $out/t4d  && $rep_create $out/t4d  &$out/t4d/packages.manifest
   cp -r $src/t4e  $out/t4e  && $rep_create $out/t4e  &$out/t4e/packages.manifest
+  cp -r $src/t4f  $out/t4f  && $rep_create $out/t4f  &$out/t4f/packages.manifest
   cp -r $src/t5   $out/t5   && $rep_create $out/t5   &$out/t5/packages.manifest
   cp -r $src/t6   $out/t6   && $rep_create $out/t6   &$out/t6/packages.manifest
   cp -r $src/t7a  $out/t7a  && $rep_create $out/t7a  &$out/t7a/packages.manifest
@@ -3849,10 +3860,9 @@ test.arguments += --sys-no-query
 
     : adjust-merge-build
     :
-    : Test that the registered in the map but not ordered package build
-    : (libfoo) is properly merged into the reconfigure adjustment as a
-    : dependent of the reconfigured dependency (see collect_order_dependents()
-    : for more details).
+    : Test that the registered in the map package build (libfoo) is properly
+    : merged into the reconfigure adjustment as a dependent of the
+    : reconfigured dependency (see collect_dependents() for more details).
     :
     {
       $clone_root_cfg;
@@ -3886,6 +3896,113 @@ test.arguments += --sys-no-query
 
       $pkg_drop libbaz libbar libfoo
     }
+
+    : reconfiguration
+    :
+    {
+      +$clone_root_cfg
+      +$rep_add $rep/t4f && $rep_fetch
+
+      : re-order
+      :
+      : This test reproduced a failure of the collect_order_dependents()
+      : function (now turned into collect_dependents()) to properly order
+      : dependents of a being upgraded package, if the current version of this
+      : package is a dependent of a being reconfigured dependency. The now
+      : fixed bug ended up with the 'unable to satisfy dependency' failure of
+      : the subsequent pkg_configure() function call for the described case.
+      :
+      {
+        $clone_cfg;
+
+        $* libbar libbox/1.0.0 ?libbax/1.0.0 2>!;
+
+        $pkg_status -ar >>EOO;
+          libbax configured !1.0.0 available 2.0.0
+          !libbox configured !1.0.0 available 2.0.0
+            libbax configured !1.0.0 available 2.0.0
+          !libbar configured 2.1.0
+            !libbox configured !1.0.0 available 2.0.0
+              libbax configured !1.0.0 available 2.0.0
+          EOO
+
+        $* libfoo libbax 2>>EOE;
+          warning: package libfoo dependency on (libbar == 1.2.0) is forcing downgrade of libbar/2.1.0 to 1.2.0
+          disfigured libbar/2.1.0
+          disfigured libbox/1.0.0
+          disfigured libbax/1.0.0
+          fetched libbax/2.0.0
+          unpacked libbax/2.0.0
+          fetched libbar/1.2.0
+          unpacked libbar/1.2.0
+          fetched libfoo/2.0.0
+          unpacked libfoo/2.0.0
+          configured libbax/2.0.0
+          configured libbox/1.0.0
+          configured libbar/1.2.0
+          configured libfoo/2.0.0
+          EOE
+
+        $pkg_status -ar >>EOO;
+          !libbax configured 2.0.0
+          !libbox configured !1.0.0 available 2.0.0
+            !libbax configured 2.0.0
+          !libbar configured 1.2.0 available 2.1.0
+          !libfoo configured 2.0.0
+            !libbar configured 1.2.0 available 2.1.0
+          EOO
+
+        $pkg_drop libbax libbox libbar libfoo
+      }
+
+      : re-order-unsatisfied
+      :
+      : Similar to the above but the dependent of the mentioned package is
+      : unsatisfied with its dependencies.
+      :
+      {
+        $clone_cfg;
+
+        $* libbar libbox ?libbax/1.0.0 2>!;
+
+        $pkg_status -ar >>EOO;
+          libbax configured !1.0.0 available 2.0.0
+          !libbox configured 2.0.0
+            libbax configured !1.0.0 available 2.0.0
+          !libbar configured 2.1.0
+            !libbox configured 2.0.0
+              libbax configured !1.0.0 available 2.0.0
+          EOO
+
+        $* libfoo libbax/2.0.0 --verbose 5 2>>~%EOE% != 0;
+          %.*
+          trace: pkg_build: refine package collection/plan execution from scratch
+          trace: collect_build: add libfoo/2.0.0
+          trace: collect_build: add libbax/2.0.0
+          trace: collect_build_prerequisites: begin libfoo/2.0.0
+          trace: collect_build: add libbar/1.2.0
+          warning: package libfoo dependency on (libbar == 1.2.0) is forcing downgrade of libbar/2.1.0 to 1.2.0
+          trace: collect_build_prerequisites: no cfg-clause for dependency libbar/1.2.0 of dependent libfoo/2.0.0
+          trace: collect_build_prerequisites: begin libbar/1.2.0
+          trace: collect_build_prerequisites: end libbar/1.2.0
+          trace: collect_build_prerequisites: end libfoo/2.0.0
+          trace: collect_build_prerequisites: skip unsatisfied existing dependent libbox of dependency libbax/2.0.0 due to constraint (libbax == 1.0.0)
+          trace: collect_build_prerequisites: begin libbax/2.0.0
+          trace: collect_build_prerequisites: end libbax/2.0.0
+          trace: collect_dependents: postpone failure for existing dependent libbox unsatisfied with dependency libbax/2.0.0 (== 1.0.0)
+          trace: execute_plan: simulate: yes
+          %.*
+          error: unable to upgrade package libbax/1.0.0 to 2.0.0
+            info: because configured package libbox/2.0.0 depends on (libbax == 1.0.0)
+            info: consider re-trying with --upgrade|-u potentially combined with --recursive|-r
+            info: or explicitly request up/downgrade of package libbox
+            info: or explicitly specify package libbax version to manually satisfy these constraints
+          %.*
+          EOE
+
+        $pkg_drop libbox libbar
+      }
+    }
   }
 
   : upgrade
@@ -3912,6 +4029,19 @@ test.arguments += --sys-no-query
        configured libbaz/0.0.2
        configured libbar/0.0.2
        EOE
+
+    +$pkg_status -ar >>EOO
+      libfix configured 0.0.1 available 0.0.3
+      !libfoo configured !0.0.1 available 1.0.0
+        libfix configured 0.0.1 available 0.0.3
+      !libbaz configured !0.0.2 available 0.1.0 0.0.4 0.0.3
+        !libfoo configured !0.0.1 available 1.0.0
+          libfix configured 0.0.1 available 0.0.3
+      !libbar configured !0.0.2 available 1.0.0 0.0.3
+        !libbaz configured !0.0.2 available 0.1.0 0.0.4 0.0.3
+          !libfoo configured !0.0.1 available 1.0.0
+            libfix configured 0.0.1 available 0.0.3
+      EOO
 
     clone_cfg = [cmdline] cp --no-cleanup -r ../cfg ./ &cfg/***
 

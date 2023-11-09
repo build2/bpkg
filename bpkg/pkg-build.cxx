@@ -4543,6 +4543,9 @@ namespace bpkg
           continue;
         }
 
+        set<package_key> depts (
+          pkgs.collect_dependents (rpt_depts, unsatisfied_depts));
+
         // Now that we have collected all the package versions that we need to
         // build, arrange them in the "dependency order", that is, with every
         // package on the list only possibly depending on the ones after
@@ -4554,9 +4557,10 @@ namespace bpkg
         //
         // The order of dependency upgrades/downgrades/drops is not really
         // deterministic. We, however, do upgrades/downgrades before hold_pkgs
-        // so that they appear (e.g., on the plan) last. We handle drops
-        // later, though, after collecting/ordering dependents when all the
-        // package reconfigurations are determined.
+        // so that they appear (e.g., on the plan) after the packages being
+        // built to hold. We handle drops last, though, so that the unused
+        // packages are likely get purged before the package fetches, so that
+        // the disk space they occupy can be reused.
         //
         for (const dep& d: deps)
         {
@@ -4576,6 +4580,9 @@ namespace bpkg
                       find_prereq_database,
                       false /* reorder */);
 
+        // Order the existing dependents which have participated in
+        // negotiation of the configuration of their dependencies.
+        //
         for (const postponed_configuration& cfg: postponed_cfgs)
         {
           for (const auto& d: cfg.dependents)
@@ -4588,18 +4595,20 @@ namespace bpkg
           }
         }
 
+        // Order the existing dependents whose dependencies are being
+        // up/down-graded or reconfigured.
+        //
+        for (const package_key& p: depts)
+          pkgs.order (p.db, p.name, find_prereq_database, false /* reorder */);
+
+        // Order the re-collected packages (deviated dependents, etc).
+        //
         for (build_package* p: postponed_recs)
         {
           assert (p->recursive_collection);
 
           pkgs.order (p->db, p->name (), find_prereq_database);
         }
-
-        // Collect and order all the dependents that we will need to
-        // reconfigure because of the up/down-grades of packages that are now
-        // on the list.
-        //
-        pkgs.collect_order_dependents (rpt_depts, unsatisfied_depts);
 
         // Make sure all the packages that we need to unhold are on the list.
         //
@@ -6463,7 +6472,7 @@ namespace bpkg
 
         // In the simulation mode unconstrain all the unsatisfactory
         // dependencies, if any, while configuring the dependent (see
-        // build_packages::collect_order_dependents() for details).
+        // build_packages::collect_dependents() for details).
         //
         // Note: must be called at most once.
         //
