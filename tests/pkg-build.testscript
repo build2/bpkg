@@ -127,6 +127,15 @@
 # |   |-- libbar-0.1.0.tar.gz
 # |   `-- repositories.manifest
 # |
+# |-- t4j
+# |   |-- libbar-0.1.0.tar.gz
+# |   |-- libbar-1.2.0.tar.gz
+# |   |-- libfoo-3.0.0.tar.gz   -> libbar
+# |   |-- libfox-3.0.0.tar.gz   -> libbar == 0.1.0, libbaz == 1.2.0
+# |   |-- libbaz-1.2.0.tar.gz   -> libbar == 1.2.0
+# |   |-- libbaz-2.1.0.tar.gz
+# |   `-- repositories.manifest
+# |
 # |-- t5
 # |   |-- libbar-1.2.0.tar.gz
 # |   |-- libbox-1.2.0.tar.gz
@@ -509,6 +518,7 @@ posix = ($cxx.target.class != 'windows')
   cp -r $src/t4e  $out/t4e  && $rep_create $out/t4e  &$out/t4e/packages.manifest
   cp -r $src/t4f  $out/t4f  && $rep_create $out/t4f  &$out/t4f/packages.manifest
   cp -r $src/t4i  $out/t4i  && $rep_create $out/t4i  &$out/t4i/packages.manifest
+  cp -r $src/t4j  $out/t4j  && $rep_create $out/t4j  &$out/t4j/packages.manifest
   cp -r $src/t5   $out/t5   && $rep_create $out/t5   &$out/t5/packages.manifest
   cp -r $src/t6   $out/t6   && $rep_create $out/t6   &$out/t6/packages.manifest
   cp -r $src/t7a  $out/t7a  && $rep_create $out/t7a  &$out/t7a/packages.manifest
@@ -4013,6 +4023,95 @@ test.arguments += --sys-no-query
           EOE
 
         $pkg_drop libbox libbar
+      }
+    }
+
+    : version-replacement
+    :
+    {
+      +$clone_root_cfg
+      +$rep_add $rep/t4j && $rep_fetch
+
+      : denied
+      :
+      {
+        $clone_cfg;
+
+        $* libbaz libfoo libfox --verbose 5 2>>~%EOE% != 0
+          %.*
+          trace: pkg_build: refine package collection/plan execution from scratch
+          trace: collect_build: add libbaz/2.1.0
+          trace: collect_build: add libfoo/3.0.0
+          trace: collect_build: add libfox/3.0.0
+          trace: collect_build_prerequisites: begin libbaz/2.1.0
+          trace: collect_build_prerequisites: end libbaz/2.1.0
+          trace: collect_build_prerequisites: begin libfoo/3.0.0
+          trace: collect_build: add libbar/1.2.0
+          trace: collect_build_prerequisites: no cfg-clause for dependency libbar/1.2.0 of dependent libfoo/3.0.0
+          trace: collect_build_prerequisites: begin libbar/1.2.0
+          trace: collect_build_prerequisites: end libbar/1.2.0
+          trace: collect_build_prerequisites: end libfoo/3.0.0
+          trace: collect_build_prerequisites: begin libfox/3.0.0
+          trace: collect_build: pick libbar/0.1.0 over libbar/1.2.0
+          trace: collect_build: libbar/1.2.0 package version needs to be replaced with libbar/0.1.0
+          trace: pkg_build: collection failed due to package version replacement, retry from scratch
+          trace: pkg_build: refine package collection/plan execution from scratch
+          trace: collect_build: add libbaz/2.1.0
+          trace: collect_build: add libfoo/3.0.0
+          trace: collect_build: add libfox/3.0.0
+          trace: collect_build_prerequisites: begin libbaz/2.1.0
+          trace: collect_build_prerequisites: end libbaz/2.1.0
+          trace: collect_build_prerequisites: begin libfoo/3.0.0
+          trace: collect_build: apply version replacement for libbar/1.2.0
+          trace: collect_build: replacement: libbar/0.1.0
+          trace: collect_build: add libbar/0.1.0
+          trace: collect_build_prerequisites: no cfg-clause for dependency libbar/0.1.0 of dependent libfoo/3.0.0
+          trace: collect_build_prerequisites: begin libbar/0.1.0
+          trace: collect_build_prerequisites: end libbar/0.1.0
+          trace: collect_build_prerequisites: end libfoo/3.0.0
+          trace: collect_build_prerequisites: begin libfox/3.0.0
+          trace: collect_build_prerequisites: no cfg-clause for dependency libbar/0.1.0 of dependent libfox/3.0.0
+          trace: collect_build: pick libbaz/1.2.0 over libbaz/2.1.0
+          trace: collect_build: libbaz/2.1.0 package version needs to be replaced with libbaz/1.2.0
+          trace: pkg_build: collection failed due to package version replacement, retry from scratch
+          trace: pkg_build: refine package collection/plan execution from scratch
+          trace: collect_build: apply version replacement for libbaz/2.1.0
+          trace: collect_build: replacement: libbaz/1.2.0
+          trace: collect_build: add libbaz/1.2.0
+          trace: collect_build: add libfoo/3.0.0
+          trace: collect_build: add libfox/3.0.0
+          trace: collect_build_prerequisites: begin libbaz/1.2.0
+          trace: collect_build: apply version replacement for libbar/1.2.0
+          trace: collect_build: replacement to 0.1.0 is denied since libbaz/1.2.0 depends on (libbar == 1.2.0)
+          trace: collect_build: add libbar/1.2.0
+          trace: collect_build_prerequisites: no cfg-clause for dependency libbar/1.2.0 of dependent libbaz/1.2.0
+          trace: collect_build_prerequisites: begin libbar/1.2.0
+          trace: collect_build_prerequisites: end libbar/1.2.0
+          trace: collect_build_prerequisites: end libbaz/1.2.0
+          trace: collect_build_prerequisites: begin libfoo/3.0.0
+          trace: collect_build: apply version replacement for libbar/1.2.0
+          trace: collect_build: replacement: libbar/0.1.0
+          trace: collect_build: pick libbar/1.2.0 over libbar/0.1.0
+          trace: collect_build_prerequisites: no cfg-clause for dependency libbar/1.2.0 of dependent libfoo/3.0.0
+          trace: collect_build_prerequisites: end libfoo/3.0.0
+          trace: collect_build_prerequisites: begin libfox/3.0.0
+          trace: collect_build: postpone failure for dependent libfox unsatisfied with dependency libbar/1.2.0 (== 0.1.0)
+          trace: collect_build: pick libbar/1.2.0 over libbar/0.1.0
+          trace: collect_build_prerequisites: no cfg-clause for dependency libbar/1.2.0 of dependent libfox/3.0.0
+          trace: collect_build_prerequisites: no cfg-clause for dependency libbaz/1.2.0 of dependent libfox/3.0.0
+          trace: collect_build_prerequisites: end libfox/3.0.0
+          trace: execute_plan: simulate: yes
+          %.*
+          error: unable to satisfy constraints on package libbar
+            info: libbaz/1.2.0 depends on (libbar == 1.2.0)
+                    libfox/3.0.0 requires (libbaz == 1.2.0)
+            info: libfox/3.0.0 depends on (libbar == 0.1.0)
+            info: available libbar/1.2.0
+            info: available libbar/0.1.0
+            info: while satisfying libfox/3.0.0
+            info: explicitly specify libbar version to manually satisfy both constraints
+          %.*
+          EOE
       }
     }
 

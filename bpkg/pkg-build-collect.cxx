@@ -1426,6 +1426,8 @@ namespace bpkg
   {
     using std::swap; // ...and not list::swap().
 
+    using constraint_type = build_package::constraint_type;
+
     tracer trace ("collect_build");
 
     assert (pkg.repository_fragment == nullptr ||
@@ -1452,7 +1454,8 @@ namespace bpkg
     package_key pk (pkg.db, pkg.available->id.name);
 
     // Apply the version replacement, if requested, and indicate that it was
-    // applied.
+    // applied. Ignore the replacement if its version doesn't satisfy the
+    // dependency constraints specified by the caller.
     //
     auto vi (replaced_vers.find (pk));
 
@@ -1463,22 +1466,47 @@ namespace bpkg
 
       replaced_version& v (vi->second);
 
-      v.replaced = true;
-
       if (v.available != nullptr)
       {
-        pkg.available = v.available;
-        pkg.repository_fragment = v.repository_fragment;
-        pkg.system = v.system;
+        const version& rv (v.system
+                           ? *v.available->system_version (pk.db)
+                           : v.available->version);
 
-        l5 ([&]{trace << "replacement: "
-                      << pkg.available_name_version_db ();});
+        bool replace (true);
+        for (const constraint_type& c: pkg.constraints)
+        {
+          if (!satisfies (rv, c.value))
+          {
+            replace = false;
+
+            l5 ([&]{trace << "replacement to " << rv << " is denied since "
+                          << c.dependent << " depends on (" << pk.name << ' '
+                          << c.value << ')';});
+          }
+        }
+
+        if (replace)
+        {
+          v.replaced = true;
+
+          pkg.available = v.available;
+          pkg.repository_fragment = v.repository_fragment;
+          pkg.system = v.system;
+
+          l5 ([&]{trace << "replacement: "
+                        << pkg.available_name_version_db ();});
+        }
       }
       else
       {
+        v.replaced = true;
+
         l5 ([&]{trace << "replacement: drop";});
 
-        assert (pkg.selected != nullptr);
+        // We shouldn't be replacing a package build with the drop if someone
+        // depends on this package.
+        //
+        assert (pkg.selected != nullptr && !pkg.required_by_dependents);
 
         collect_drop (options, pkg.db, pkg.selected, replaced_vers);
         return nullptr;
@@ -1486,51 +1514,18 @@ namespace bpkg
     }
 
     // Add the version replacement entry, call the verification function if
-    // specified, and throw replace_version, unless the package is in the
-    // unsatisfied dependents list on the dependency side and the version
-    // replacement doesn't satisfy the ignored constraint. In the later case,
-    // report the first encountered ignored (unsatisfied) dependency
-    // constraint and fail.
+    // specified, and throw replace_version.
     //
-    // The thinking for the above failure is as follows: if we add the
-    // replacement entry and throw, then on the next iteration there won't be
-    // any information preserved that this version is actually unsatisfactory
-    // for some dependent and we need to ignore the respective constraint
-    // during simulating the configuration of this dependent and to fail if
-    // the problem doesn't resolve naturally (see unsatisfied_depts for
-    // details). This approach may potentially end up with some failures which
-    // we could potentially avoid if postpone them for some longer. Let's,
-    // however, keep it simple for now and reconsider if it turn out to be an
-    // issue.
+    // Note that this package can potentially be present in the unsatisfied
+    // dependents list on the dependency side with the replacement version
+    // being unsatisfactory for the ignored constraint. In this case, during
+    // the from-scratch re-collection this replacement will be ignored if/when
+    // this package is collected with this constraint specified. But it can
+    // still be applied for some later collect_build() call or potentially
+    // turn out bogus.
     //
-    auto replace_ver = [&pk,
-                        &vpb,
-                        &vi,
-                        &replaced_vers,
-                        &unsatisfied_depts,
-                        &trace,
-                        this] (const build_package& p)
+    auto replace_ver = [&pk, &vpb, &vi, &replaced_vers] (const build_package& p)
     {
-
-      const version& v (p.available_version ());
-
-      for (const unsatisfied_dependent& ud: unsatisfied_depts)
-      {
-        for (const auto& c: ud.ignored_constraints)
-        {
-          if (c.dependency == pk && !satisfies (v, c.constraint))
-          {
-            l5 ([&]{trace << "dependency " << p.available_name_version_db ()
-                          << " is unsatisfactory for dependent "
-                          << ud.dependent << " (" << p.name () << ' '
-                          << c.constraint << "), so the failure can't be "
-                          << "postponed anymore";});
-
-            unsatisfied_depts.diag (*this);
-          }
-        }
-      }
-
       replaced_version rv (p.available, p.repository_fragment, p.system);
 
       if (vi != replaced_vers.end ())
@@ -1601,13 +1596,13 @@ namespace bpkg
         //
         // If neither of the versions is satisfactory, then ignore those
         // unsatisfied constraints which prevent us from picking the package
-        // version which is currently in the map (this way we try to avoid the
-        // postponed failure; see replace_ver() lambda for details).
+        // version which is currently in the map. It feels that the version in
+        // the map is no worse than the other one and we choose it
+        // specifically for the sake of optimization, trying to avoid throwing
+        // the replace_version exception.
         //
         if (p1->available_version () != p2->available_version ())
         {
-          using constraint_type = build_package::constraint_type;
-
           // See if pv's version satisfies pc's constraints, skipping those
           // which are meant to be ignored (ics). Return the pointer to the
           // unsatisfied constraint or NULL if all are satisfied.
@@ -1653,8 +1648,7 @@ namespace bpkg
                 // command line and so p may not be NULL. If that (suddenly)
                 // is not the case, then we will have to ignore the constraint
                 // imposed by the dependent which is not in the map, replace
-                // the version, and as a result fail immediately (see
-                // replace_ver() lambda for details).
+                // the version, and call replace_ver().
                 //
                 if (p == nullptr)
                 {

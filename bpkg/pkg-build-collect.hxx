@@ -1236,8 +1236,15 @@ namespace bpkg
     // replaced with the drop. So can be used as bool.
     //
     // Consult replaced_vers for an existing version replacement entry and
-    // follow it, if present, potentially collecting the package drop
-    // instead. Add entry to replaced_vers and throw replace_version if the
+    // follow it, if present, potentially collecting the package drop instead.
+    // Ignore the entry if its version doesn't satisfy the dependency
+    // constraints specified by the caller. In this case it's likely that this
+    // replacement will be applied for some later collect_build() call but can
+    // potentially turn out bogus. Note that a version replacement for a
+    // specific package may only be applied once during the collection
+    // iteration.
+    //
+    // Add entry to replaced_vers and throw replace_version if the
     // existing version needs to be replaced but the new version cannot be
     // re-collected recursively in-place (see replaced_versions for details).
     //
