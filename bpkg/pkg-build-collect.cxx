@@ -257,6 +257,10 @@ namespace bpkg
     //
     assert ((flags & build_repoint) == 0 || (p.flags & build_repoint) == 0);
 
+    // If true, then add the user-selection tag.
+    //
+    bool add_user_selection (false);
+
     // Copy the user-specified options/variables.
     //
     if (p.user_selection ())
@@ -304,13 +308,31 @@ namespace bpkg
 
       // Propagate the user-selection tag.
       //
-      required_by.emplace (db.get ().main_database (), "command line");
+      add_user_selection = true;
     }
 
-    // Copy the required-by package names only if semantics matches.
+    // Merge in the required-by package names only if semantics matches.
+    // Otherwise, prefer the "required by dependents" semantics since we, in
+    // particular, should never replace such package builds in the map with
+    // package drops (see collect_drop() for details).
     //
     if (p.required_by_dependents == required_by_dependents)
+    {
       required_by.insert (p.required_by.begin (), p.required_by.end ());
+    }
+    else if (p.required_by_dependents)
+    {
+      // Restore the user-selection tag.
+      //
+      if (user_selection ())
+        add_user_selection = true;
+
+      required_by_dependents = true;
+      required_by = move (p.required_by);
+    }
+
+    if (add_user_selection)
+      required_by.emplace (db.get ().main_database (), "command line");
 
     // Copy constraints, suppressing duplicates.
     //
@@ -1455,7 +1477,9 @@ namespace bpkg
 
     // Apply the version replacement, if requested, and indicate that it was
     // applied. Ignore the replacement if its version doesn't satisfy the
-    // dependency constraints specified by the caller.
+    // dependency constraints specified by the caller. Also ignore if this is
+    // a drop and the required-by package names of the specified build package
+    // object have the "required by dependents" semantics
     //
     auto vi (replaced_vers.find (pk));
 
@@ -1499,17 +1523,35 @@ namespace bpkg
       }
       else
       {
-        v.replaced = true;
+        if (!pkg.required_by_dependents)
+        {
+          v.replaced = true;
 
-        l5 ([&]{trace << "replacement: drop";});
+          l5 ([&]{trace << "replacement: drop";});
 
-        // We shouldn't be replacing a package build with the drop if someone
-        // depends on this package.
-        //
-        assert (pkg.selected != nullptr && !pkg.required_by_dependents);
+          // We shouldn't be replacing a package build with the drop if someone
+          // depends on this package.
+          //
+          assert (pkg.selected != nullptr);
 
-        collect_drop (options, pkg.db, pkg.selected, replaced_vers);
-        return nullptr;
+          collect_drop (options, pkg.db, pkg.selected, replaced_vers);
+          return nullptr;
+        }
+        else
+        {
+          assert (!pkg.required_by.empty ());
+
+          l5 ([&]
+              {
+                diag_record dr (trace);
+                dr << "replacement to drop is denied since " << pk
+                   << " is required by ";
+                for (auto b (pkg.required_by.begin ()), i (b);
+                     i != pkg.required_by.end ();
+                     ++i)
+                  dr << (i != b ? ", " : "") << *i;
+              });
+        }
       }
     }
 
@@ -3590,7 +3632,14 @@ namespace bpkg
             if (p == nullptr)
             {
               p = entered_build (dpk);
-              assert (p != nullptr);
+
+              // We don't expect the collected build to be replaced with the
+              // drop since its required-by package names have the "required
+              // by dependents" semantics.
+              //
+              assert (p != nullptr &&
+                      p->action    &&
+                      *p->action == build_package::build);
             }
 
             bool collect_prereqs (!p->recursive_collection);
@@ -5361,58 +5410,78 @@ namespace bpkg
     {
       build_package& bp (i->second.package);
 
-      if (bp.available != nullptr)
+      // Don't overwrite the build object if its required-by package names
+      // have the "required by dependents" semantics.
+      //
+      if (!bp.required_by_dependents)
       {
-        // Similar to the version replacement in collect_build(), see if
-        // in-place drop is possible (no dependencies, etc) and set scratch to
-        // false if that's the case.
-        //
-        bool scratch (true);
+        if (bp.available != nullptr)
+        {
+          // Similar to the version replacement in collect_build(), see if
+          // in-place drop is possible (no dependencies, etc) and set scratch
+          // to false if that's the case.
+          //
+          bool scratch (true);
 
-        // While checking if the package has any dependencies skip the
-        // toolchain build-time dependencies since they should be quite
-        // common.
-        //
-        // An update: it turned out that just absence of dependencies is not
-        // the only condition that causes a package to be dropped in place.
-        // The following conditions must also be met:
-        //
-        // - The package must also not participate in any configuration
-        //   negotiation on the dependency side (otherwise it could have been
-        //   added to a cluster as a dependency).
-        //
-        // - The package must not be added to unsatisfied_depts on the
-        //   dependency side.
-        //
-        // This feels quite hairy at the moment, so we won't be dropping in
-        // place for now.
-        //
+          // While checking if the package has any dependencies skip the
+          // toolchain build-time dependencies since they should be quite
+          // common.
+          //
+          // An update: it turned out that just absence of dependencies is not
+          // the only condition that causes a package to be dropped in place.
+          // The following conditions must also be met:
+          //
+          // - The package must also not participate in any configuration
+          //   negotiation on the dependency side (otherwise it could have
+          //   been added to a cluster as a dependency).
+          //
+          // - The package must not be added to unsatisfied_depts on the
+          //   dependency side.
+          //
+          // This feels quite hairy at the moment, so we won't be dropping in
+          // place for now.
+          //
 #if 0
-        if (!has_dependencies (options, bp.available->dependencies))
-          scratch = false;
+          if (!has_dependencies (options, bp.available->dependencies))
+            scratch = false;
 #endif
 
-        l5 ([&]{trace << bp.available_name_version_db ()
-                      << " package version needs to be replaced "
-                      << (!scratch ? "in-place " : "") << "with drop";});
+          l5 ([&]{trace << bp.available_name_version_db ()
+                        << " package version needs to be replaced "
+                        << (!scratch ? "in-place " : "") << "with drop";});
 
-        if (scratch)
-        {
-          if (vi != replaced_vers.end ())
-            vi->second = replaced_version ();
-          else
-            replaced_vers.emplace (move (pk), replaced_version ());
+          if (scratch)
+          {
+            if (vi != replaced_vers.end ())
+              vi->second = replaced_version ();
+            else
+              replaced_vers.emplace (move (pk), replaced_version ());
 
-          throw replace_version ();
+            throw replace_version ();
+          }
         }
+
+        // Overwrite the existing (possibly pre-entered, adjustment, or
+        // repoint) entry.
+        //
+        l4 ([&]{trace << "overwrite " << pk;});
+
+        bp = move (p);
       }
+      else
+      {
+        assert (!bp.required_by.empty ());
 
-      // Overwrite the existing (possibly pre-entered, adjustment, or repoint)
-      // entry.
-      //
-      l4 ([&]{trace << "overwrite " << pk;});
-
-      bp = move (p);
+        l5 ([&]
+            {
+              diag_record dr (trace);
+              dr << pk << " cannot be dropped since it is required by ";
+              for (auto b (bp.required_by.begin ()), i (b);
+                   i != bp.required_by.end ();
+                   ++i)
+                dr << (i != b ? ", " : "") << *i;
+            });
+      }
     }
     else
     {

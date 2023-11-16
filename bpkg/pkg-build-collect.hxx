@@ -1237,12 +1237,13 @@ namespace bpkg
     //
     // Consult replaced_vers for an existing version replacement entry and
     // follow it, if present, potentially collecting the package drop instead.
-    // Ignore the entry if its version doesn't satisfy the dependency
-    // constraints specified by the caller. In this case it's likely that this
-    // replacement will be applied for some later collect_build() call but can
-    // potentially turn out bogus. Note that a version replacement for a
-    // specific package may only be applied once during the collection
-    // iteration.
+    // Ignore the entry if its version doesn't satisfy the specified
+    // dependency constraints or the entry is a package drop and the specified
+    // required-by package names have the "required by dependents" semantics.
+    // In this case it's likely that this replacement will be applied for some
+    // later collect_build() call but can potentially turn out bogus. Note
+    // that a version replacement for a specific package may only be applied
+    // once during the collection iteration.
     //
     // Add entry to replaced_vers and throw replace_version if the
     // existing version needs to be replaced but the new version cannot be
@@ -1544,7 +1545,9 @@ namespace bpkg
                                   const function<find_database_function>&,
                                   const function<add_priv_cfg_function>&);
 
-    // Collect the package being dropped.
+    // Collect the package being dropped. Noop if the specified package is
+    // already being built and its required-by package names have the
+    // "required by dependents" semantics.
     //
     // Add entry to replaced_vers and throw replace_version if the existing
     // version needs to be dropped but this can't be done in-place (see

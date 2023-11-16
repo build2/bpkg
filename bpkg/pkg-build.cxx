@@ -4858,6 +4858,10 @@ namespace bpkg
             ++i;
         }
 
+        if (scratch_exe)
+          l5 ([&]{trace << "one of dependency evaluation decisions has "
+                        << "changed, re-collecting from scratch";});
+
         // If the execute_plan() call was noop, there are no user expectations
         // regarding any dependency, and no upgrade is requested, then the
         // only possible refinement outcome can be recommendations to drop

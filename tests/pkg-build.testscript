@@ -131,6 +131,8 @@
 # |   |-- libbar-0.1.0.tar.gz
 # |   |-- libbar-1.2.0.tar.gz
 # |   |-- libfoo-3.0.0.tar.gz   -> libbar
+# |   |-- libfox-0.0.1.tar.gz
+# |   |-- libfox-2.1.0.tar.gz   -> libbar, libbaz == 1.2.0
 # |   |-- libfox-3.0.0.tar.gz   -> libbar == 0.1.0, libbaz == 1.2.0
 # |   |-- libbaz-1.2.0.tar.gz   -> libbar == 1.2.0
 # |   |-- libbaz-2.1.0.tar.gz
@@ -4026,13 +4028,13 @@ test.arguments += --sys-no-query
       }
     }
 
-    : version-replacement
+    : denied-version-replacements
     :
     {
       +$clone_root_cfg
       +$rep_add $rep/t4j && $rep_fetch
 
-      : denied
+      : unsatisfactory-version
       :
       {
         $clone_cfg;
@@ -4112,6 +4114,82 @@ test.arguments += --sys-no-query
             info: explicitly specify libbar version to manually satisfy both constraints
           %.*
           EOE
+      }
+
+      : collect-drop
+      :
+      {
+        $clone_cfg;
+
+        $* libfix ?libfox/0.0.1 libbaz 2>!;
+
+        $pkg_status -ar >>EOO;
+          libfox configured !0.0.1 available 3.0.0 2.1.0
+          !libfix configured 1.0.0
+            libfox configured !0.0.1 available 3.0.0 2.1.0
+          !libbaz configured 2.1.0
+          EOO
+
+        $* ?libbaz ?libfox/2.1.0 --verbose 5 2>>~%EOE%;
+          %.*
+          trace: pkg_build: refine package collection/plan execution from scratch
+          trace: execute_plan: simulate: yes
+          trace: evaluate_dependency: libfox/0.0.1: update to libfox/2.1.0
+          trace: evaluate_dependency: libbaz/2.1.0: unused
+          trace: pkg_build: refine package collection/plan execution
+          trace: collect_build_prerequisites: pre-reeval libfix/1.0.0
+          trace: collect_build_prerequisites: pre-reevaluated libfix/1.0.0: end reached
+          trace: collect_build_prerequisites: begin libfox/2.1.0
+          trace: collect_build: add libbar/1.2.0
+          trace: collect_build_prerequisites: no cfg-clause for dependency libbar/1.2.0 of dependent libfox/2.1.0
+          trace: collect_build_prerequisites: begin libbar/1.2.0
+          trace: collect_build_prerequisites: end libbar/1.2.0
+          warning: package libfox dependency on (libbaz == 1.2.0) is forcing downgrade of libbaz/2.1.0 to 1.2.0
+          trace: collect_build_prerequisites: no cfg-clause for dependency libbaz/1.2.0 of dependent libfox/2.1.0
+          trace: collect_build_prerequisites: begin libbaz/1.2.0
+          trace: collect_build_prerequisites: no cfg-clause for dependency libbar/1.2.0 of dependent libbaz/1.2.0
+          trace: collect_build_prerequisites: end libbaz/1.2.0
+          trace: collect_build_prerequisites: end libfox/2.1.0
+          trace: collect_drop: libbaz cannot be dropped since it is required by command line, libfox/2.1.0
+          trace: execute_plan: simulate: yes
+          %.*
+          trace: pkg_build: one of dependency evaluation decisions has changed, re-collecting from scratch
+          trace: pkg_build: refine package collection/plan execution from scratch
+          trace: collect_build_prerequisites: pre-reeval libfix/1.0.0
+          trace: collect_build_prerequisites: pre-reevaluated libfix/1.0.0: end reached
+          trace: collect_build_prerequisites: begin libfox/2.1.0
+          trace: collect_build: add libbar/1.2.0
+          trace: collect_build_prerequisites: no cfg-clause for dependency libbar/1.2.0 of dependent libfox/2.1.0
+          trace: collect_build_prerequisites: begin libbar/1.2.0
+          trace: collect_build_prerequisites: end libbar/1.2.0
+          warning: package libfox dependency on (libbaz == 1.2.0) is forcing downgrade of libbaz/2.1.0 to 1.2.0
+          trace: collect_build_prerequisites: no cfg-clause for dependency libbaz/1.2.0 of dependent libfox/2.1.0
+          trace: collect_build_prerequisites: begin libbaz/1.2.0
+          trace: collect_build_prerequisites: no cfg-clause for dependency libbar/1.2.0 of dependent libbaz/1.2.0
+          trace: collect_build_prerequisites: end libbaz/1.2.0
+          trace: collect_build_prerequisites: end libfox/2.1.0
+          trace: execute_plan: simulate: yes
+          %.*
+          trace: execute_plan: simulate: no
+          %.*
+          EOE
+
+        $pkg_status -ar >>EOO;
+          libfox configured !2.1.0 available 3.0.0
+            libbar configured 1.2.0
+            libbaz configured 1.2.0 available 2.1.0
+              libbar configured 1.2.0
+          !libfix configured 1.0.0
+            libfox configured !2.1.0 available 3.0.0
+              libbar configured 1.2.0
+              libbaz configured 1.2.0 available 2.1.0
+                libbar configured 1.2.0
+          libbaz configured 1.2.0 available 2.1.0
+            libbar configured 1.2.0
+          libbar configured 1.2.0
+          EOO
+
+        $pkg_drop libfix
       }
     }
 
@@ -5632,7 +5710,7 @@ test.arguments += --sys-no-query
           %  new libbaz/1.1.0 \[cfg2.\]%
             drop libbaz/1.1.0 (unused)
             new libbar/1.0.0 (required by dax)
-          %  reconfigure/update dax/1.0.0 \(dependent of libbaz \[cfg2.\]\)%
+            reconfigure/update dax/1.0.0 (required by dix)
               config.dax.extras=true (set by dix)
             upgrade dix/1.0.0
             reconfigure dux (dependent of dix)
@@ -7507,6 +7585,7 @@ test.arguments += --sys-no-query
             trace: execute_plan: simulate: yes
             %.*
             trace: evaluate_dependency: fux/1.0.0: unused
+            trace: pkg_build: one of dependency evaluation decisions has changed, re-collecting from scratch
             trace: pkg_build: refine package collection/plan execution from scratch
             trace: collect_build: add libfoo/0.1.0
             trace: collect_build_prerequisites: skip configured libfoo/0.1.0
@@ -14831,7 +14910,7 @@ test.arguments += --sys-no-query
         build plan:
           upgrade libfoo/1.0.0
             config.libfoo.extras=true (set by tex)
-          reconfigure/update tex/1.0.0 (dependent of libbar, libfoo)
+          reconfigure/update tex/1.0.0 (required by tix)
             config.tex.extras=true (set by tix)
             config.tex.libfoo_extras=true (set by tex)
           reconfigure/update tix/1.0.0
@@ -15005,7 +15084,7 @@ test.arguments += --sys-no-query
         build plan:
           upgrade libfoo/1.0.0
             config.libfoo.extras=true (set by tex)
-          reconfigure/update tex/1.0.0 (dependent of libbar, libfoo)
+          reconfigure/update tex/1.0.0 (required by tiz)
             config.tex.extras=true (set by tiz)
             config.tex.libfoo_extras=true (set by tex)
           reconfigure/update tiz/1.0.0
@@ -15833,7 +15912,7 @@ test.arguments += --sys-no-query
         build plan:
           upgrade libbar/1.0.0
             config.libbar.extras=true (set by diz)
-          reconfigure/update bar/1.0.0 (dependent of libbar)
+          reconfigure/update bar/1.0.0 (required by dex)
             config.bar.extras=true (set by dex)
           reconfigure/update dex/1.0.0 (required by dox)
             config.dex.extras=true (set by dox)
@@ -16198,7 +16277,7 @@ test.arguments += --sys-no-query
         build plan:
           upgrade libbar/1.0.0
             config.libbar.extras=true (set by diz)
-          reconfigure/update bar/1.0.0 (dependent of libbar)
+          reconfigure/update bar/1.0.0 (required by dex)
             config.bar.extras=true (set by dex)
           reconfigure/update dex/1.0.0
             config.dex.extras=true (set by dox)
@@ -16359,7 +16438,7 @@ test.arguments += --sys-no-query
         build plan:
           upgrade libbar/1.0.0
             config.libbar.extras=true (set by tex)
-          reconfigure/update tex/1.0.0 (dependent of libbar)
+          reconfigure/update tex/1.0.0 (required by tiz)
             config.tex.extras=true (set by tiz)
             config.tex.libfoo_extras=true (set by tex)
           reconfigure/update tiz/1.0.0
