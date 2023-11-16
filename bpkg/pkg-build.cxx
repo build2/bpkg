@@ -4204,8 +4204,10 @@ namespace bpkg
 
               scratch_exe = false;
             }
-            else if (scratch_col)
+            else
             {
+              assert (scratch_col); // See the scratch definition above.
+
               // Reset to detect bogus entries.
               //
               for (auto& rv: replaced_vers)
@@ -5330,13 +5332,6 @@ namespace bpkg
             }
           }
 
-          // Issue diagnostics and fail if the execution plan is finalized and
-          // any existing dependents are not satisfied with their
-          // dependencies.
-          //
-          if (!refine && !unsatisfied_depts.empty ())
-            unsatisfied_depts.diag (pkgs);
-
           // Re-link the private configurations that were created during the
           // collection of the package builds with their parent
           // configurations. Note that these links were lost on the previous
@@ -5351,6 +5346,13 @@ namespace bpkg
 
           t.commit ();
         }
+
+        // Issue diagnostics and fail if the execution plan is finalized and
+        // any existing dependents are not satisfied with their
+        // dependencies.
+        //
+        if (!refine && !unsatisfied_depts.empty ())
+          unsatisfied_depts.diag (pkgs);
       }
     }
 
