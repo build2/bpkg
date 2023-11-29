@@ -353,6 +353,17 @@ namespace bpkg
     else
       constraints = move (p.constraints);
 
+    // Copy upgrade flag if "stronger" (existing wins over non-existing and
+    // upgrade wins over patch).
+    //
+    if (upgrade < p.upgrade)
+      upgrade = p.upgrade;
+
+    // Copy deorphan flag if greater.
+    //
+    if (p.deorphan)
+      deorphan = true;
+
     // Copy hold_* flags if they are "stronger".
     //
     if (!hold_package || (p.hold_package && *p.hold_package > *hold_package))
@@ -2409,6 +2420,18 @@ namespace bpkg
       // the specified diag record. In the dry-run mode don't change the
       // packages collection state (postponed_repo set, etc).
       //
+      // If an alternative dependency package is specified as a dependency
+      // with a version constraint on the command line, then overwrite the
+      // dependent's constraint with the command line's constraint, if the
+      // latter is a subset of former. If it is not a subset, then bail out
+      // indicating that the alternative dependencies cannot be resolved
+      // (builds is nullopt), unless ignore_unsatisfactory_dep_spec argument
+      // is true. In the latter case continue precollecting as if no
+      // constraint is specified on the command line for this dependency. That
+      // will likely result in the unsatisfied dependent problem, which will
+      // be either resolved or end up with the failure (see
+      // unsatisfied_dependents for details).
+      //
       // Note that rather than considering an alternative as unsatisfactory
       // (returning no pre-builds) the function can fail in some cases
       // (multiple possible configurations for a build-time dependency, orphan
@@ -2498,6 +2521,7 @@ namespace bpkg
          bool buildtime,
          const package_prerequisites* prereqs,
          bool check_constraints,
+         bool ignore_unsatisfactory_dep_spec,
          diag_record* dr = nullptr,
          bool dry_run = false) -> precollect_result
         {
@@ -2577,55 +2601,59 @@ namespace bpkg
                   //
                   // The version constraint is specified,
                   //
-                  bp.hold_version && *bp.hold_version)
+                  !bp.constraints.empty ())
               {
                 assert (bp.constraints.size () == 1);
 
                 const build_package::constraint_type& c (bp.constraints[0]);
 
-                dep_constr = &c.value;
-                system = bp.system;
-
                 // If the user-specified dependency constraint is the wildcard
                 // version, then it satisfies any dependency constraint.
                 //
-                if (!wildcard (*dep_constr) &&
-                    !satisfies (*dep_constr, dp.constraint))
+                if (!wildcard (c.value) && !satisfies (c.value, dp.constraint))
                 {
                   // We should end up throwing reevaluation_deviated exception
                   // before the diagnostics run in the pre-reevaluation mode.
                   //
                   assert (!pre_reeval || dr == nullptr);
 
-                  if (dr != nullptr)
+                  if (!ignore_unsatisfactory_dep_spec)
                   {
-                    //             "  info: ..."
-                    string indent ("          ");
-
-                    *dr << error << "unable to satisfy constraints on package "
-                        << dn <<
-                      info << nm << pdb << " depends on (" << dn << ' '
-                           << *dp.constraint << ')';
-
+                    if (dr != nullptr)
                     {
-                      set<package_key> printed;
-                      print_constraints (*dr, pkg, indent, printed);
+                      //             "  info: ..."
+                      string indent ("          ");
+
+                      *dr << error << "unable to satisfy constraints on package "
+                          << dn <<
+                        info << nm << pdb << " depends on (" << dn << ' '
+                          << *dp.constraint << ')';
+
+                      {
+                        set<package_key> printed;
+                        print_constraints (*dr, pkg, indent, printed);
+                      }
+
+                      *dr << info << c.dependent << " depends on (" << dn << ' '
+                          << c.value << ')';
+
+                      if (const build_package* d = dependent_build (c))
+                      {
+                        set<package_key> printed;
+                        print_constraints (*dr, *d, indent, printed);
+                      }
+
+                      *dr << info << "specify " << dn << " version to satisfy "
+                          << nm << " constraint";
                     }
 
-                    *dr << info << c.dependent << " depends on (" << dn << ' '
-                                << c.value << ')';
-
-                    if (const build_package* d = dependent_build (c))
-                    {
-                      set<package_key> printed;
-                      print_constraints (*dr, *d, indent, printed);
-                    }
-
-                    *dr << info << "specify " << dn << " version to satisfy "
-                                << nm << " constraint";
+                    return precollect_result (false /* postpone */);
                   }
-
-                  return precollect_result (false /* postpone */);
+                }
+                else
+                {
+                  dep_constr = &c.value;
+                  system = bp.system;
                 }
               }
             }
@@ -3417,7 +3445,8 @@ namespace bpkg
          size_t dai,
          prebuilds&& bs,
          const package_prerequisites* prereqs,
-         bool check_constraints)
+         bool check_constraints,
+         bool ignore_unsatisfactory_dep_spec)
         {
           // Dependency alternative position.
           //
@@ -3468,6 +3497,8 @@ namespace bpkg
               nullopt,                    // Checkout root.
               false,                      // Checkout purge.
               strings (),                 // Configuration variables.
+              nullopt,                    // Upgrade.
+              false,                      // Deorphan.
               {pvk},                      // Required by (dependent).
               true,                       // Required by dependents.
               0};                         // State flags.
@@ -3884,12 +3915,14 @@ namespace bpkg
 
                 const dependency_alternative& a (edas[i].first);
 
-                precollect_result r (precollect (a,
-                                                 das.buildtime,
-                                                 prereqs,
-                                                 check_constraints,
-                                                 nullptr /* diag_record */,
-                                                 true /* dry_run */));
+                precollect_result r (
+                  precollect (a,
+                              das.buildtime,
+                              prereqs,
+                              check_constraints,
+                              ignore_unsatisfactory_dep_spec,
+                              nullptr /* diag_record */,
+                              true /* dry_run */));
 
                 if (r.builds && r.reused)
                 {
@@ -3918,12 +3951,14 @@ namespace bpkg
 
                   if (&a != &da) // Skip the current dependency alternative.
                   {
-                    precollect_result r (precollect (a,
-                                                     das.buildtime,
-                                                     nullptr /* prereqs */,
-                                                     check_constraints,
-                                                     nullptr /* diag_record */,
-                                                     true /* dry_run */));
+                    precollect_result r (
+                      precollect (a,
+                                  das.buildtime,
+                                  nullptr /* prereqs */,
+                                  check_constraints,
+                                  ignore_unsatisfactory_dep_spec,
+                                  nullptr /* diag_record */,
+                                  true /* dry_run */));
 
                     if (r.builds && r.reused)
                     {
@@ -3940,8 +3975,11 @@ namespace bpkg
               // If there are none and we are in the "check constraints" mode,
               // then repeat the search with this mode off.
               //
+              bool cc (check_constraints);
               if (!has_alt && check_constraints && unsatisfactory)
               {
+                cc = false;
+
                 for (i = 0; i != edas.size (); ++i)
                 {
                   if (unacceptable ())
@@ -3956,6 +3994,36 @@ namespace bpkg
                                   das.buildtime,
                                   nullptr /* prereqs */,
                                   false /* check_constraints */,
+                                  ignore_unsatisfactory_dep_spec,
+                                  nullptr /* diag_record */,
+                                  true /* dry_run */));
+
+                    if (r.builds && r.reused)
+                    {
+                      has_alt = true;
+                      break;
+                    }
+                  }
+                }
+              }
+
+              if (!has_alt && !ignore_unsatisfactory_dep_spec)
+              {
+                for (i = 0; i != edas.size (); ++i)
+                {
+                  if (unacceptable ())
+                    continue;
+
+                  const dependency_alternative& a (edas[i].first);
+
+                  if (&a != &da) // Skip the current dependency alternative.
+                  {
+                    precollect_result r (
+                      precollect (a,
+                                  das.buildtime,
+                                  nullptr /* prereqs */,
+                                  cc,
+                                  true /* ignore_unsatisfactory_dep_spec */,
                                   nullptr /* diag_record */,
                                   true /* dry_run */));
 
@@ -4626,6 +4694,20 @@ namespace bpkg
       //
       bool check_constraints (true);
 
+      // Initially don't ignore the unsatisfactory user-specified dependency
+      // specs, considering the dependency alternative as unsatisfactory if
+      // there are any. Failed that, re-try but this time ignore such specs,
+      // so that the unsatisfactory dependency can later be handled by
+      // collect_build() (which can fail, postpone failure, etc; see its
+      // implementation for details).
+      //
+      // The thinking here is that we don't ignore the unsatisfactory
+      // dependency specs initially to skip the alternatives which are
+      // unresolvable for that reason and prefer alternatives which satisfy
+      // the command line constraints.
+      //
+      bool ignore_unsatisfactory_dep_spec (false);
+
       for (bool unacceptable (false);;)
       {
         // The index and pre-collection result of the first satisfactory
@@ -4691,7 +4773,11 @@ namespace bpkg
           const dependency_alternative& da (edas[i].first);
 
           precollect_result pcr (
-            precollect (da, das.buildtime, prereqs, check_constraints));
+            precollect (da,
+                        das.buildtime,
+                        prereqs,
+                        check_constraints,
+                        ignore_unsatisfactory_dep_spec));
 
           // If we didn't come up with satisfactory dependency builds, then
           // skip this alternative and try the next one, unless the collecting
@@ -4757,6 +4843,7 @@ namespace bpkg
                              di,
                              &prereqs,
                              &check_constraints,
+                             &ignore_unsatisfactory_dep_spec,
                              pre_reeval,
                              reeval,
                              &trace,
@@ -4817,7 +4904,8 @@ namespace bpkg
                                  dai,
                                  move (*pcr.builds),
                                  prereqs,
-                                 check_constraints))
+                                 check_constraints,
+                                 ignore_unsatisfactory_dep_spec))
               {
                 postpone (nullptr); // Already inserted into postponed_cfgs.
                 return true;
@@ -4904,7 +4992,8 @@ namespace bpkg
                                dai,
                                move (*pcr.builds),
                                prereqs,
-                               check_constraints))
+                               check_constraints,
+                               ignore_unsatisfactory_dep_spec))
             {
               postpone (nullptr); // Already inserted into postponed_cfgs.
               break;
@@ -4956,6 +5045,12 @@ namespace bpkg
           continue;
         }
 
+        if (!ignore_unsatisfactory_dep_spec)
+        {
+          ignore_unsatisfactory_dep_spec = true;
+          continue;
+        }
+
         // Otherwise we would have thrown/failed earlier.
         //
         assert (!pre_reeval && !reeval);
@@ -4976,7 +5071,8 @@ namespace bpkg
             precollect (da.first,
                         das.buildtime,
                         nullptr /* prereqs */,
-                        false /* check_constraints */,
+                        true /* check_constraints */,
+                        false /* ignore_unsatisfactory_dep_spec */,
                         &dr);
           }
 
@@ -5017,10 +5113,17 @@ namespace bpkg
 
         for (const auto& da: edas)
         {
-          precollect_result r (precollect (da.first,
-                                           das.buildtime,
-                                           nullptr /* prereqs */,
-                                           false /* check_constraints */));
+          // Note that we pass false as the check_constraints argument to make
+          // sure that the alternatives are always saved into
+          // precollect_result::builds rather than into
+          // precollect_result::unsatisfactory.
+          //
+          precollect_result r (
+            precollect (da.first,
+                        das.buildtime,
+                        nullptr /* prereqs */,
+                        false /* check_constraints */,
+                        true /* ignore_unsatisfactory_dep_spec */));
 
           if (r.builds)
           {
@@ -5049,10 +5152,12 @@ namespace bpkg
 
           for (const auto& da: edas)
           {
-            precollect_result r (precollect (da.first,
-                                             das.buildtime,
-                                             nullptr /* prereqs */,
-                                             true /* check_constraints */));
+            precollect_result r (
+              precollect (da.first,
+                          das.buildtime,
+                          nullptr /* prereqs */,
+                          true /* check_constraints */,
+                          false /* ignore_unsatisfactory_dep_spec */));
 
             if (r.reused && r.unsatisfactory)
             {
@@ -5069,6 +5174,7 @@ namespace bpkg
                           das.buildtime,
                           nullptr /* prereqs */,
                           true /* check_constraints */,
+                          false /* ignore_unsatisfactory_dep_spec */,
                           &dr);
             }
           }
@@ -5272,6 +5378,8 @@ namespace bpkg
         nullopt,                    // Checkout root.
         false,                      // Checkout purge.
         strings (),                 // Configuration variables.
+        nullopt,                    // Upgrade.
+        false,                      // Deorphan.
         move (required_by),         // Required by (dependencies).
         false,                      // Required by dependents.
         build_package::adjust_reconfigure | build_package::build_repoint};
@@ -5400,6 +5508,8 @@ namespace bpkg
       nullopt,    // Checkout root.
       false,      // Checkout purge.
       strings (), // Configuration variables.
+      nullopt,    // Upgrade.
+      false,      // Deorphan.
       {},         // Required by.
       false,      // Required by dependents.
       0};         // State flags.
@@ -5525,6 +5635,8 @@ namespace bpkg
         nullopt,       // Checkout root.
         false,         // Checkout purge.
         strings (),    // Configuration variables.
+        nullopt,       // Upgrade.
+        false,         // Deorphan.
         {},            // Required by.
         false,         // Required by dependents.
         build_package::adjust_unhold};
@@ -7320,6 +7432,8 @@ namespace bpkg
             nullopt,                   // Checkout root.
             false,                     // Checkout purge.
             strings (),                // Configuration variables.
+            nullopt,                   // Upgrade.
+            false,                     // Deorphan.
             {move (pvk)},              // Required by (dependency).
             false,                     // Required by dependents.
             build_package::adjust_reconfigure};
@@ -7382,7 +7496,7 @@ namespace bpkg
                        [&c] (const constraint_type& v)
                        {
                          return v.dependent == c.dependent &&
-                                v.value == c.value;
+                                v.value     == c.value;
                        }) == p.constraints.end ())
           {
             p.constraints.emplace_back (move (c));
@@ -7698,6 +7812,8 @@ namespace bpkg
             nullopt,                    // Checkout root.
             false,                      // Checkout purge.
             strings (),                 // Configuration variables.
+            nullopt,                    // Upgrade.
+            false,                      // Deorphan.
             {},                         // Required by (dependency).
             false,                      // Required by dependents.
             0};                         // State flags.
@@ -7808,28 +7924,30 @@ namespace bpkg
 
     build_package p {
       build_package::build,
-        dep.db,
-        move (sp),
-        move (rp.first),
-        move (rp.second),
-        nullopt,                    // Dependencies.
-        nullopt,                    // Dependencies alternatives.
-        nullopt,                    // Package skeleton.
-        nullopt,                    // Postponed dependency alternatives.
-        false,                      // Recursive collection.
-        nullopt,                    // Hold package.
-        nullopt,                    // Hold version.
-        {},                         // Constraints.
-        system,                     // System.
-        false,                      // Keep output directory.
-        false,                      // Disfigure (from-scratch reconf).
-        false,                      // Configure-only.
-        nullopt,                    // Checkout root.
-        false,                      // Checkout purge.
-        strings (),                 // Configuration variables.
-        {dpt},                      // Required by (dependent).
-        true,                       // Required by dependents.
-        0};                         // State flags.
+      dep.db,
+      move (sp),
+      move (rp.first),
+      move (rp.second),
+      nullopt,                    // Dependencies.
+      nullopt,                    // Dependencies alternatives.
+      nullopt,                    // Package skeleton.
+      nullopt,                    // Postponed dependency alternatives.
+      false,                      // Recursive collection.
+      nullopt,                    // Hold package.
+      nullopt,                    // Hold version.
+      {},                         // Constraints.
+      system,                     // System.
+      false,                      // Keep output directory.
+      false,                      // Disfigure (from-scratch reconf).
+      false,                      // Configure-only.
+      nullopt,                    // Checkout root.
+      false,                      // Checkout purge.
+      strings (),                 // Configuration variables.
+      nullopt,                    // Upgrade.
+      false,                      // Deorphan.
+      {dpt},                      // Required by (dependent).
+      true,                       // Required by dependents.
+      0};                         // State flags.
 
     // Add constraints, if present.
     //
@@ -7893,6 +8011,8 @@ namespace bpkg
       nullopt,                            // Checkout root.
       false,                              // Checkout purge.
       strings (),                         // Configuration variables.
+      nullopt,                            // Upgrade.
+      false,                              // Deorphan.
       move (rb),                          // Required by (dependency).
       false,                              // Required by dependents.
       build_package::build_reevaluate};
@@ -7955,6 +8075,8 @@ namespace bpkg
       nullopt,                     // Checkout root.
       false,                       // Checkout purge.
       strings (),                  // Configuration variables.
+      nullopt,                     // Upgrade.
+      false,                       // Deorphan.
       move (rb),                   // Required by (dependency).
       false,                       // Required by dependents.
       flags};

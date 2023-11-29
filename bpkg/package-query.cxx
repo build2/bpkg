@@ -249,7 +249,7 @@ namespace bpkg
           // prerequisites? I'd say not.
           //
           if (shared_ptr<repository_fragment> r =
-              find (fr.fragment.load (), ap, chain, false))
+              find (fr.fragment.load (), ap, chain, false /* prereq */))
             return r;
         }
       }
@@ -264,7 +264,7 @@ namespace bpkg
           for (const auto& fr: pr.load ()->fragments)
           {
             if (shared_ptr<repository_fragment> r =
-                find (fr.fragment.load (), ap, chain, false))
+                find (fr.fragment.load (), ap, chain, false /* prereq */))
               return r;
           }
         }

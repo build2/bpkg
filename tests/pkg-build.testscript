@@ -1352,17 +1352,17 @@ test.arguments += --sys-no-query
 
       : unable-satisfy-dependency
       :
-      : As above but specify libfoo as a dependency.
+      : Similar to the above, but specify libfoo as a dependency.
       :
       {
         $clone_cfg;
 
-        $* libbar ?libfoo/1.0.0 2>>EOE != 0
-          error: unable to satisfy constraints on package libfoo
-            info: libbar depends on (libfoo == 1.1.0)
-            info: command line depends on (libfoo == 1.0.0)
-            info: specify libfoo version to satisfy libbar constraint
-          info: while satisfying libbar/1.1.0
+        # Add libbaz, so that libfoo package is available from its dependents
+        # (libbaz) repositories.
+        #
+        $* libbar ?libfoo/1.0.0 libbaz 2>>EOE != 0
+          error: package libfoo doesn't satisfy its dependents
+            info: libfoo/1.0.0 doesn't satisfy libbar/1.1.0
           EOE
       }
     }
@@ -2658,9 +2658,12 @@ test.arguments += --sys-no-query
       %error: package sys:libhello/2\.0 is not found in .+t0a%
       EOE
 
-    $* libfoo '?sys:libhello/0.1' 2>>~%EOE% != 0;
+    $* libfoo '?sys:libhello/0.1' 2>>EOE != 0;
       error: unable to satisfy constraints on package libhello
-      %.+
+        info: libfoo depends on (libhello >= 1.0)
+        info: command line depends on (libhello == 0.1)
+        info: specify libhello version to satisfy libfoo constraint
+      info: while satisfying libfoo/1.1.0
       EOE
 
     $* libfoo '?sys:libhello/*' 2>>~%EOE%;
@@ -2881,22 +2884,33 @@ test.arguments += --sys-no-query
       $clone_root_cfg;
       $rep_fetch $rep/t0a $rep/t0b;
 
+      # Note that before we have implemented the unsatisfied constraints
+      # resolution this command has failed as follows:
+      #
+      # error: unable to satisfy constraints on package libbaz
+      #   info: libbar depends on (libbaz == 0.0.1)
+      #           command line requires (libbar == 0.0.1)
+      #   info: command line depends on (libbaz == 0.0.2)
+      #   info: specify libbaz version to satisfy libbar constraint
+      # info: while satisfying libbar/0.0.1
+      #
       $* libbar/0.0.1 ?libbaz/0.0.2 2>>EOE != 0;
-        error: unable to satisfy constraints on package libbaz
-          info: libbar depends on (libbaz == 0.0.1)
-                  command line requires (libbar == 0.0.1)
-          info: command line depends on (libbaz == 0.0.2)
-          info: specify libbaz version to satisfy libbar constraint
-        info: while satisfying libbar/0.0.1
+        error: libbaz/0.0.2 is not available from its dependents' repositories
         EOE
 
+      # Note that before we have implemented the unsatisfied constraints
+      # resolution this command has failed as follows:
+      #
+      # error: unable to satisfy constraints on package libbaz
+      #   info: libbar depends on (libbaz == 0.0.1)
+      #           command line requires (libbar == 0.0.1)
+      #   info: command line depends on (libbaz >= 0.0.2)
+      #   info: specify libbaz version to satisfy libbar constraint
+      # info: while satisfying libbar/0.0.1
+      #
       $* -- libbar/0.0.1 '?libbaz>=0.0.2' 2>>EOE != 0
-        error: unable to satisfy constraints on package libbaz
-          info: libbar depends on (libbaz == 0.0.1)
-                  command line requires (libbar == 0.0.1)
-          info: command line depends on (libbaz >= 0.0.2)
-          info: specify libbaz version to satisfy libbar constraint
-        info: while satisfying libbar/0.0.1
+        error: package libbaz doesn't satisfy its dependents
+          info: libbaz/0.0.3 doesn't satisfy libbar/0.0.1
         EOE
     }
 
@@ -2907,39 +2921,59 @@ test.arguments += --sys-no-query
       :
       : Test resolving a conflict when libfix and libbiz have selected such
       : versions of their dependency libbaz, that do not satisfy each other
-      : constraints. We resolve the conflict explicitly specifying
+      : constraints. We resolve the conflict automatically as if by specifying
       : ?libbaz/0.0.3 on the command line, which satisfies both constraints.
       :
       {
         $clone_root_cfg;
         $rep_fetch $rep/t0b $rep/t0c;
 
-        $* libfix libbiz 2>>EOE != 0;
-          error: unable to satisfy constraints on package libbaz
-            info: libfix/0.0.3 depends on (libbaz >= 0.0.3)
-            info: libbiz/0.0.2 depends on (libbaz <= 0.0.3)
-            info: available libbaz/0.1.0
-            info: available libbaz/0.0.2
-            info: while satisfying libbiz/0.0.2
-            info: explicitly specify libbaz version to manually satisfy both constraints
+        $* libfix libbiz --plan '' --verbose 5 2>>~%EOE%;
+          %.*
+          trace: pkg_build: refine package collection/plan execution from scratch
+          trace: collect_build: add libfix/0.0.3
+          trace: collect_build: add libbiz/0.0.2
+          trace: collect_build_prerequisites: begin libfix/0.0.3
+          trace: collect_build: add libbaz/0.1.0
+          trace: collect_build_prerequisites: no cfg-clause for dependency libbaz/0.1.0 of dependent libfix/0.0.3
+          trace: collect_build_prerequisites: begin libbaz/0.1.0
+          trace: collect_build_prerequisites: end libbaz/0.1.0
+          trace: collect_build_prerequisites: end libfix/0.0.3
+          trace: collect_build_prerequisites: begin libbiz/0.0.2
+          trace: collect_build: postpone failure for dependent libbiz unsatisfied with dependency libbaz/0.1.0 (<= 0.0.3)
+          trace: collect_build: pick libbaz/0.1.0 over libbaz/0.0.2
+          trace: collect_build_prerequisites: no cfg-clause for dependency libbaz/0.1.0 of dependent libbiz/0.0.2
+          trace: collect_build_prerequisites: end libbiz/0.0.2
+          trace: execute_plan: simulate: yes
+          %.*
+          trace: try_replace_dependency: replace unsatisfactory package version libbaz/0.1.0 with 0.0.3 by adding package spec '?libbaz == 0.0.3' to command line
+          trace: pkg_build: refine package collection/plan execution from scratch
+          trace: collect_build: add libfix/0.0.3
+          trace: collect_build: add libbiz/0.0.2
+          trace: collect_build_prerequisites: begin libfix/0.0.3
+          trace: collect_build_prerequisites: no cfg-clause for dependency libbaz/0.0.3 of dependent libfix/0.0.3
+          trace: collect_build_prerequisites: begin libbaz/0.0.3
+          trace: collect_build: add libfoo/1.0.0
+          trace: collect_build_prerequisites: no cfg-clause for dependency libfoo/1.0.0 of dependent libbaz/0.0.3
+          trace: collect_build_prerequisites: begin libfoo/1.0.0
+          trace: collect_build_prerequisites: end libfoo/1.0.0
+          trace: collect_build_prerequisites: end libbaz/0.0.3
+          trace: collect_build_prerequisites: end libfix/0.0.3
+          trace: collect_build_prerequisites: begin libbiz/0.0.2
+          trace: collect_build: pick libbaz/0.0.3 over libbaz/0.0.2
+          trace: collect_build_prerequisites: no cfg-clause for dependency libbaz/0.0.3 of dependent libbiz/0.0.2
+          trace: collect_build_prerequisites: end libbiz/0.0.2
+          trace: execute_plan: simulate: yes
+          %.*
+            new libfoo/1.0.0 (required by libbaz)
+            new libbaz/0.0.3 (required by libbiz, libfix)
+            new libfix/0.0.3
+            new libbiz/0.0.2
+          trace: execute_plan: simulate: no
+          %.*
           EOE
 
-        $* libfix libbiz ?libbaz/0.0.3 2>>EOE;
-          fetched libfoo/1.0.0
-          unpacked libfoo/1.0.0
-          fetched libbaz/0.0.3
-          unpacked libbaz/0.0.3
-          fetched libfix/0.0.3
-          unpacked libfix/0.0.3
-          fetched libbiz/0.0.2
-          unpacked libbiz/0.0.2
-          configured libfoo/1.0.0
-          configured libbaz/0.0.3
-          configured libfix/0.0.3
-          configured libbiz/0.0.2
-          EOE
-
-        $pkg_status libbaz >'libbaz configured !0.0.3 available 0.1.0 0.0.4';
+        $pkg_status libbaz >'libbaz configured 0.0.3 available 0.1.0 0.0.4';
 
         $pkg_drop libbiz libfix
       }
@@ -3624,12 +3658,9 @@ test.arguments += --sys-no-query
 
         $pkg_status libbaz >'libbaz configured 0.0.1 available 0.1.0 0.0.4 0.0.3';
 
-        $* ?libbaz/0.0.3 +{ --config-id 1 } 2>>EOE != 0;
-          error: unable to satisfy constraints on package libbaz
-            info: libbar depends on (libbaz == 0.0.1)
-            info: command line depends on (libbaz == 0.0.3)
-            info: specify libbaz version to satisfy libbar constraint
-          info: while satisfying libbar/0.0.1
+        $* ?libbaz/0.0.3 +{ --config-id 1 } 2>>~%EOE% != 0;
+          %error: package libbaz \[cfg2.\] doesn't satisfy its dependents%
+            info: libbaz/0.0.3 doesn't satisfy libbar/0.0.1
           EOE
 
         $pkg_status libbaz >'libbaz configured 0.0.1 available 0.1.0 0.0.4 0.0.3';
@@ -4199,474 +4230,909 @@ test.arguments += --sys-no-query
       +$clone_root_cfg
       +$rep_add $rep/t4f && $rep_fetch
 
+      test.arguments += --plan "" --verbose 5
+
       : replace-dependent
       :
-      : This test demonstrates a case when the dependency resolution machinery
-      : fails to resolve unsatisfied dependency constraints by replacing an
-      : unsatisfied dependent version with a satisfied one.
-      :
       {
-        $clone_cfg;
+        +$clone_cfg
 
-        $* libfoo libfix --verbose 5 2>>~%EOE% != 0;
-          %.*
-          trace: pkg_build: refine package collection/plan execution from scratch
-          trace: collect_build: add libfoo/2.0.0
-          trace: collect_build: add libfix/1.0.0
-          trace: collect_build_prerequisites: begin libfoo/2.0.0
-          trace: collect_build: add libbar/1.2.0
-          trace: collect_build_prerequisites: no cfg-clause for dependency libbar/1.2.0 of dependent libfoo/2.0.0
-          trace: collect_build_prerequisites: begin libbar/1.2.0
-          trace: collect_build_prerequisites: end libbar/1.2.0
-          trace: collect_build_prerequisites: end libfoo/2.0.0
-          trace: collect_build_prerequisites: begin libfix/1.0.0
-          trace: collect_build: add libfox/2.0.0
-          trace: collect_build_prerequisites: no cfg-clause for dependency libfox/2.0.0 of dependent libfix/1.0.0
-          trace: collect_build_prerequisites: begin libfox/2.0.0
-          trace: collect_build: postpone failure for dependent libfox unsatisfied with dependency libbar/1.2.0 (>= 2.0.0)
-          trace: collect_build: pick libbar/1.2.0 over libbar/2.1.0
-          trace: collect_build_prerequisites: no cfg-clause for dependency libbar/1.2.0 of dependent libfox/2.0.0
-          trace: collect_build_prerequisites: end libfox/2.0.0
-          trace: collect_build_prerequisites: end libfix/1.0.0
-          trace: execute_plan: simulate: yes
-          %.*
-          error: unable to satisfy constraints on package libbar
-            info: libfox/2.0.0 depends on (libbar >= 2.0.0)
-            info: libfoo/2.0.0 depends on (libbar == 1.2.0)
-            info: available libbar/2.1.0
-            info: available libbar/1.2.0
-            info: while satisfying libfox/2.0.0
-            info: while satisfying libfix/1.0.0
-            info: explicitly specify libbar version to manually satisfy both constraints
-          %.*
-          EOE
+        : basics
+        :
+        : This test demonstrates a case when the dependency resolution machinery
+        : fails to resolve unsatisfied dependency constraints by replacing an
+        : unsatisfied dependent version with a satisfied one.
+        :
+        {
+          $clone_cfg;
 
-        $* libfoo libfix ?libfox/1.1.0 2>>EOE;
-          fetched libbar/1.2.0
-          unpacked libbar/1.2.0
-          fetched libfoo/2.0.0
-          unpacked libfoo/2.0.0
-          fetched libfox/1.1.0
-          unpacked libfox/1.1.0
-          fetched libfix/1.0.0
-          unpacked libfix/1.0.0
-          configured libbar/1.2.0
-          configured libfoo/2.0.0
-          configured libfox/1.1.0
-          configured libfix/1.0.0
-          EOE
+          $* libfoo libfix 2>>~%EOE% != 0;
+            %.*
+            trace: pkg_build: refine package collection/plan execution from scratch
+            trace: collect_build: add libfoo/2.0.0
+            trace: collect_build: add libfix/1.0.0
+            trace: collect_build_prerequisites: begin libfoo/2.0.0
+            trace: collect_build: add libbar/1.2.0
+            trace: collect_build_prerequisites: no cfg-clause for dependency libbar/1.2.0 of dependent libfoo/2.0.0
+            trace: collect_build_prerequisites: begin libbar/1.2.0
+            trace: collect_build_prerequisites: end libbar/1.2.0
+            trace: collect_build_prerequisites: end libfoo/2.0.0
+            trace: collect_build_prerequisites: begin libfix/1.0.0
+            trace: collect_build: add libfox/2.0.0
+            trace: collect_build_prerequisites: no cfg-clause for dependency libfox/2.0.0 of dependent libfix/1.0.0
+            trace: collect_build_prerequisites: begin libfox/2.0.0
+            trace: collect_build: postpone failure for dependent libfox unsatisfied with dependency libbar/1.2.0 (>= 2.0.0)
+            trace: collect_build: pick libbar/1.2.0 over libbar/2.1.0
+            trace: collect_build_prerequisites: no cfg-clause for dependency libbar/1.2.0 of dependent libfox/2.0.0
+            trace: collect_build_prerequisites: end libfox/2.0.0
+            trace: collect_build_prerequisites: end libfix/1.0.0
+            trace: execute_plan: simulate: yes
+            %.*
+            error: unable to satisfy constraints on package libbar
+              info: libfox/2.0.0 depends on (libbar >= 2.0.0)
+              info: libfoo/2.0.0 depends on (libbar == 1.2.0)
+              info: available libbar/2.1.0
+              info: available libbar/1.2.0
+              info: while satisfying libfox/2.0.0
+              info: while satisfying libfix/1.0.0
+              info: explicitly specify libbar version to manually satisfy both constraints
+            %.*
+            EOE
 
-        $pkg_status -ar >>EOO;
-          libbar configured 1.2.0 available 2.1.0
-          !libfoo configured 2.0.0
+          $* libfoo libfix ?libfox/1.1.0 --verbose 1 2>>EOE;
+              new libbar/1.2.0 (required by libfoo, libfox)
+              new libfoo/2.0.0
+              new libfox/1.1.0 (required by libfix)
+              new libfix/1.0.0
+            fetched libbar/1.2.0
+            unpacked libbar/1.2.0
+            fetched libfoo/2.0.0
+            unpacked libfoo/2.0.0
+            fetched libfox/1.1.0
+            unpacked libfox/1.1.0
+            fetched libfix/1.0.0
+            unpacked libfix/1.0.0
+            configured libbar/1.2.0
+            configured libfoo/2.0.0
+            configured libfox/1.1.0
+            configured libfix/1.0.0
+            EOE
+
+          $pkg_status -ar >>EOO;
             libbar configured 1.2.0 available 2.1.0
-          libfox configured !1.1.0 available 2.0.0
-            libbar configured 1.2.0 available 2.1.0
-          !libfix configured 1.0.0
+            !libfoo configured 2.0.0
+              libbar configured 1.2.0 available 2.1.0
             libfox configured !1.1.0 available 2.0.0
               libbar configured 1.2.0 available 2.1.0
-          EOO
+            !libfix configured 1.0.0
+              libfox configured !1.1.0 available 2.0.0
+                libbar configured 1.2.0 available 2.1.0
+            EOO
 
-        $pkg_drop libfoo libfix
-      }
+          $pkg_drop libfoo libfix
+        }
 
-      : replace-dependent-reorder
-      :
-      : Similar to the above, but the unsatisfied dependent which needs to be
-      : replaced differs from the one added to the unsatisfied dependents list.
-      :
-      {
-        $clone_cfg;
+        : reorder
+        :
+        : Similar to the above, but the unsatisfied dependent which needs to be
+        : replaced differs from the one added to the unsatisfied dependents list.
+        :
+        {
+          $clone_cfg;
 
-        $* libfix libfoo --verbose 5 2>>~%EOE% != 0;
-          %.*
-          trace: pkg_build: refine package collection/plan execution from scratch
-          trace: collect_build: add libfix/1.0.0
-          trace: collect_build: add libfoo/2.0.0
-          trace: collect_build_prerequisites: begin libfix/1.0.0
-          trace: collect_build: add libfox/2.0.0
-          trace: collect_build_prerequisites: no cfg-clause for dependency libfox/2.0.0 of dependent libfix/1.0.0
-          trace: collect_build_prerequisites: begin libfox/2.0.0
-          trace: collect_build: add libbar/2.1.0
-          trace: collect_build_prerequisites: no cfg-clause for dependency libbar/2.1.0 of dependent libfox/2.0.0
-          trace: collect_build_prerequisites: begin libbar/2.1.0
-          trace: collect_build: add libbox/2.0.0
-          trace: collect_build_prerequisites: no cfg-clause for dependency libbox/2.0.0 of dependent libbar/2.1.0
-          trace: collect_build_prerequisites: begin libbox/2.0.0
-          trace: collect_build: add libbax/1.0.0
-          trace: collect_build_prerequisites: no cfg-clause for dependency libbax/1.0.0 of dependent libbox/2.0.0
-          trace: collect_build_prerequisites: begin libbax/1.0.0
-          trace: collect_build_prerequisites: end libbax/1.0.0
-          trace: collect_build_prerequisites: end libbox/2.0.0
-          trace: collect_build_prerequisites: end libbar/2.1.0
-          trace: collect_build_prerequisites: end libfox/2.0.0
-          trace: collect_build_prerequisites: end libfix/1.0.0
-          trace: collect_build_prerequisites: begin libfoo/2.0.0
-          trace: collect_build: postpone failure for dependent libfoo unsatisfied with dependency libbar/2.1.0 (== 1.2.0)
-          trace: collect_build: pick libbar/2.1.0 over libbar/1.2.0
-          trace: collect_build_prerequisites: no cfg-clause for dependency libbar/2.1.0 of dependent libfoo/2.0.0
-          trace: collect_build_prerequisites: end libfoo/2.0.0
-          trace: execute_plan: simulate: yes
-          %.*
-          error: unable to satisfy constraints on package libbar
-            info: libfox/2.0.0 depends on (libbar >= 2.0.0)
-            info: libfoo/2.0.0 depends on (libbar == 1.2.0)
-            info: available libbar/2.1.0
-            info: available libbar/1.2.0
-            info: while satisfying libfoo/2.0.0
-            info: explicitly specify libbar version to manually satisfy both constraints
-          %.*
-          EOE
+          $* libfix libfoo 2>>~%EOE% != 0;
+            %.*
+            trace: pkg_build: refine package collection/plan execution from scratch
+            trace: collect_build: add libfix/1.0.0
+            trace: collect_build: add libfoo/2.0.0
+            trace: collect_build_prerequisites: begin libfix/1.0.0
+            trace: collect_build: add libfox/2.0.0
+            trace: collect_build_prerequisites: no cfg-clause for dependency libfox/2.0.0 of dependent libfix/1.0.0
+            trace: collect_build_prerequisites: begin libfox/2.0.0
+            trace: collect_build: add libbar/2.1.0
+            trace: collect_build_prerequisites: no cfg-clause for dependency libbar/2.1.0 of dependent libfox/2.0.0
+            trace: collect_build_prerequisites: begin libbar/2.1.0
+            trace: collect_build: add libbox/2.0.0
+            trace: collect_build_prerequisites: no cfg-clause for dependency libbox/2.0.0 of dependent libbar/2.1.0
+            trace: collect_build_prerequisites: begin libbox/2.0.0
+            trace: collect_build: add libbax/1.0.0
+            trace: collect_build_prerequisites: no cfg-clause for dependency libbax/1.0.0 of dependent libbox/2.0.0
+            trace: collect_build_prerequisites: begin libbax/1.0.0
+            trace: collect_build_prerequisites: end libbax/1.0.0
+            trace: collect_build_prerequisites: end libbox/2.0.0
+            trace: collect_build_prerequisites: end libbar/2.1.0
+            trace: collect_build_prerequisites: end libfox/2.0.0
+            trace: collect_build_prerequisites: end libfix/1.0.0
+            trace: collect_build_prerequisites: begin libfoo/2.0.0
+            trace: collect_build: postpone failure for dependent libfoo unsatisfied with dependency libbar/2.1.0 (== 1.2.0)
+            trace: collect_build: pick libbar/2.1.0 over libbar/1.2.0
+            trace: collect_build_prerequisites: no cfg-clause for dependency libbar/2.1.0 of dependent libfoo/2.0.0
+            trace: collect_build_prerequisites: end libfoo/2.0.0
+            trace: execute_plan: simulate: yes
+            %.*
+            error: unable to satisfy constraints on package libbar
+              info: libfox/2.0.0 depends on (libbar >= 2.0.0)
+              info: libfoo/2.0.0 depends on (libbar == 1.2.0)
+              info: available libbar/2.1.0
+              info: available libbar/1.2.0
+              info: while satisfying libfoo/2.0.0
+              info: explicitly specify libbar version to manually satisfy both constraints
+            %.*
+            EOE
 
-        $* libfix libfoo ?libfox/1.1.0 2>>EOE;
-          fetched libbar/1.2.0
-          unpacked libbar/1.2.0
-          fetched libfox/1.1.0
-          unpacked libfox/1.1.0
-          fetched libfix/1.0.0
-          unpacked libfix/1.0.0
-          fetched libfoo/2.0.0
-          unpacked libfoo/2.0.0
-          configured libbar/1.2.0
-          configured libfox/1.1.0
-          configured libfix/1.0.0
-          configured libfoo/2.0.0
-          EOE
+          $* libfix libfoo ?libfox/1.1.0 --verbose 1 2>>EOE;
+              new libbar/1.2.0 (required by libfoo, libfox)
+              new libfox/1.1.0 (required by libfix)
+              new libfix/1.0.0
+              new libfoo/2.0.0
+            fetched libbar/1.2.0
+            unpacked libbar/1.2.0
+            fetched libfox/1.1.0
+            unpacked libfox/1.1.0
+            fetched libfix/1.0.0
+            unpacked libfix/1.0.0
+            fetched libfoo/2.0.0
+            unpacked libfoo/2.0.0
+            configured libbar/1.2.0
+            configured libfox/1.1.0
+            configured libfix/1.0.0
+            configured libfoo/2.0.0
+            EOE
 
-        $pkg_status -ar >>EOO;
-          libbar configured 1.2.0 available 2.1.0
-          libfox configured !1.1.0 available 2.0.0
+          $pkg_status -ar >>EOO;
             libbar configured 1.2.0 available 2.1.0
-          !libfix configured 1.0.0
             libfox configured !1.1.0 available 2.0.0
               libbar configured 1.2.0 available 2.1.0
-          !libfoo configured 2.0.0
+            !libfix configured 1.0.0
+              libfox configured !1.1.0 available 2.0.0
+                libbar configured 1.2.0 available 2.1.0
+            !libfoo configured 2.0.0
+              libbar configured 1.2.0 available 2.1.0
+            EOO
+
+          $pkg_drop libfoo libfix
+        }
+
+        : to-hold
+        :
+        : Similar to the replace-dependent test, but the unsatisfied dependent
+        : is being built to hold rather than as a dependency.
+        :
+        {
+          $clone_cfg;
+
+          $* libfoo libfox 2>>~%EOE% != 0;
+            %.*
+            trace: pkg_build: refine package collection/plan execution from scratch
+            trace: collect_build: add libfoo/2.0.0
+            trace: collect_build: add libfox/2.0.0
+            trace: collect_build_prerequisites: begin libfoo/2.0.0
+            trace: collect_build: add libbar/1.2.0
+            trace: collect_build_prerequisites: no cfg-clause for dependency libbar/1.2.0 of dependent libfoo/2.0.0
+            trace: collect_build_prerequisites: begin libbar/1.2.0
+            trace: collect_build_prerequisites: end libbar/1.2.0
+            trace: collect_build_prerequisites: end libfoo/2.0.0
+            trace: collect_build_prerequisites: begin libfox/2.0.0
+            trace: collect_build: postpone failure for dependent libfox unsatisfied with dependency libbar/1.2.0 (>= 2.0.0)
+            trace: collect_build: pick libbar/1.2.0 over libbar/2.1.0
+            trace: collect_build_prerequisites: no cfg-clause for dependency libbar/1.2.0 of dependent libfox/2.0.0
+            trace: collect_build_prerequisites: end libfox/2.0.0
+            trace: execute_plan: simulate: yes
+            %.*
+            error: unable to satisfy constraints on package libbar
+              info: libfox/2.0.0 depends on (libbar >= 2.0.0)
+              info: libfoo/2.0.0 depends on (libbar == 1.2.0)
+              info: available libbar/2.1.0
+              info: available libbar/1.2.0
+              info: while satisfying libfox/2.0.0
+              info: explicitly specify libbar version to manually satisfy both constraints
+            %.*
+            EOE
+
+          $* libfoo libfox/1.1.0 --verbose 1 2>>EOE;
+              new libbar/1.2.0 (required by libfoo, libfox)
+              new libfoo/2.0.0
+              new libfox/1.1.0
+            fetched libbar/1.2.0
+            unpacked libbar/1.2.0
+            fetched libfoo/2.0.0
+            unpacked libfoo/2.0.0
+            fetched libfox/1.1.0
+            unpacked libfox/1.1.0
+            configured libbar/1.2.0
+            configured libfoo/2.0.0
+            configured libfox/1.1.0
+            EOE
+
+          $pkg_status -ar >>EOO;
             libbar configured 1.2.0 available 2.1.0
-          EOO
+            !libfoo configured 2.0.0
+              libbar configured 1.2.0 available 2.1.0
+            !libfox configured !1.1.0 available 2.0.0
+              libbar configured 1.2.0 available 2.1.0
+            EOO
 
-        $pkg_drop libfoo libfix
-      }
+          $pkg_drop libfoo libfox
+        }
 
-      : replace-dependent-to-hold
-      :
-      : Similar to the replace-dependent test, but the unsatisfied dependent
-      : is being built to hold rather than as a dependency.
-      :
-      {
-        $clone_cfg;
+        : to-hold-reorder
+        :
+        : Similar to the above, but the unsatisfied dependent which needs to be
+        : replaced differs from the one added to the unsatisfied dependents list.
+        :
+        {
+          $clone_cfg;
 
-        $* libfoo libfox --verbose 5 2>>~%EOE% != 0;
-          %.*
-          trace: pkg_build: refine package collection/plan execution from scratch
-          trace: collect_build: add libfoo/2.0.0
-          trace: collect_build: add libfox/2.0.0
-          trace: collect_build_prerequisites: begin libfoo/2.0.0
-          trace: collect_build: add libbar/1.2.0
-          trace: collect_build_prerequisites: no cfg-clause for dependency libbar/1.2.0 of dependent libfoo/2.0.0
-          trace: collect_build_prerequisites: begin libbar/1.2.0
-          trace: collect_build_prerequisites: end libbar/1.2.0
-          trace: collect_build_prerequisites: end libfoo/2.0.0
-          trace: collect_build_prerequisites: begin libfox/2.0.0
-          trace: collect_build: postpone failure for dependent libfox unsatisfied with dependency libbar/1.2.0 (>= 2.0.0)
-          trace: collect_build: pick libbar/1.2.0 over libbar/2.1.0
-          trace: collect_build_prerequisites: no cfg-clause for dependency libbar/1.2.0 of dependent libfox/2.0.0
-          trace: collect_build_prerequisites: end libfox/2.0.0
-          trace: execute_plan: simulate: yes
-          %.*
-          error: unable to satisfy constraints on package libbar
-            info: libfox/2.0.0 depends on (libbar >= 2.0.0)
-            info: libfoo/2.0.0 depends on (libbar == 1.2.0)
-            info: available libbar/2.1.0
-            info: available libbar/1.2.0
-            info: while satisfying libfox/2.0.0
-            info: explicitly specify libbar version to manually satisfy both constraints
-          %.*
-          EOE
+          $* libfox libfoo 2>>~%EOE% != 0;
+            %.*
+            trace: pkg_build: refine package collection/plan execution from scratch
+            trace: collect_build: add libfox/2.0.0
+            trace: collect_build: add libfoo/2.0.0
+            trace: collect_build_prerequisites: begin libfox/2.0.0
+            trace: collect_build: add libbar/2.1.0
+            trace: collect_build_prerequisites: no cfg-clause for dependency libbar/2.1.0 of dependent libfox/2.0.0
+            trace: collect_build_prerequisites: begin libbar/2.1.0
+            trace: collect_build: add libbox/2.0.0
+            trace: collect_build_prerequisites: no cfg-clause for dependency libbox/2.0.0 of dependent libbar/2.1.0
+            trace: collect_build_prerequisites: begin libbox/2.0.0
+            trace: collect_build: add libbax/1.0.0
+            trace: collect_build_prerequisites: no cfg-clause for dependency libbax/1.0.0 of dependent libbox/2.0.0
+            trace: collect_build_prerequisites: begin libbax/1.0.0
+            trace: collect_build_prerequisites: end libbax/1.0.0
+            trace: collect_build_prerequisites: end libbox/2.0.0
+            trace: collect_build_prerequisites: end libbar/2.1.0
+            trace: collect_build_prerequisites: end libfox/2.0.0
+            trace: collect_build_prerequisites: begin libfoo/2.0.0
+            trace: collect_build: postpone failure for dependent libfoo unsatisfied with dependency libbar/2.1.0 (== 1.2.0)
+            trace: collect_build: pick libbar/2.1.0 over libbar/1.2.0
+            trace: collect_build_prerequisites: no cfg-clause for dependency libbar/2.1.0 of dependent libfoo/2.0.0
+            trace: collect_build_prerequisites: end libfoo/2.0.0
+            trace: execute_plan: simulate: yes
+            %.*
+            error: unable to satisfy constraints on package libbar
+              info: libfox/2.0.0 depends on (libbar >= 2.0.0)
+              info: libfoo/2.0.0 depends on (libbar == 1.2.0)
+              info: available libbar/2.1.0
+              info: available libbar/1.2.0
+              info: while satisfying libfoo/2.0.0
+              info: explicitly specify libbar version to manually satisfy both constraints
+            %.*
+            EOE
 
-        $* libfoo libfox/1.1.0 2>>EOE;
-          fetched libbar/1.2.0
-          unpacked libbar/1.2.0
-          fetched libfoo/2.0.0
-          unpacked libfoo/2.0.0
-          fetched libfox/1.1.0
-          unpacked libfox/1.1.0
-          configured libbar/1.2.0
-          configured libfoo/2.0.0
-          configured libfox/1.1.0
-          EOE
+          $* libfox/1.1.0 libfoo --verbose 1 2>>EOE;
+              new libbar/1.2.0 (required by libfoo, libfox)
+              new libfox/1.1.0
+              new libfoo/2.0.0
+            fetched libbar/1.2.0
+            unpacked libbar/1.2.0
+            fetched libfox/1.1.0
+            unpacked libfox/1.1.0
+            fetched libfoo/2.0.0
+            unpacked libfoo/2.0.0
+            configured libbar/1.2.0
+            configured libfox/1.1.0
+            configured libfoo/2.0.0
+            EOE
 
-        $pkg_status -ar >>EOO;
-          libbar configured 1.2.0 available 2.1.0
-          !libfoo configured 2.0.0
+          $pkg_status -ar >>EOO;
             libbar configured 1.2.0 available 2.1.0
-          !libfox configured !1.1.0 available 2.0.0
-            libbar configured 1.2.0 available 2.1.0
-          EOO
+            !libfox configured !1.1.0 available 2.0.0
+              libbar configured 1.2.0 available 2.1.0
+            !libfoo configured 2.0.0
+              libbar configured 1.2.0 available 2.1.0
+            EOO
 
-        $pkg_drop libfoo libfox
-      }
+          $pkg_drop libfoo libfox
+        }
 
-      : replace-dependent-to-hold-reorder
-      :
-      : Similar to the above, but the unsatisfied dependent which needs to be
-      : replaced differs from the one added to the unsatisfied dependents list.
-      :
-      {
-        $clone_cfg;
+        : unsatisfied-dependent
+        :
+        : This test demonstrates a case when the dependency resolution machinery
+        : fails to complete successfully as noop.
+        :
+        : Note that there is no version constraints are specified on the command
+        : line, the request is to upgrade all packages to the latest possible
+        : versions, and thus noop in this case would be an appropriate outcome.
+        :
+        {
+          $clone_cfg;
 
-        $* libfox libfoo --verbose 5 2>>~%EOE% != 0;
-          %.*
-          trace: pkg_build: refine package collection/plan execution from scratch
-          trace: collect_build: add libfox/2.0.0
-          trace: collect_build: add libfoo/2.0.0
-          trace: collect_build_prerequisites: begin libfox/2.0.0
-          trace: collect_build: add libbar/2.1.0
-          trace: collect_build_prerequisites: no cfg-clause for dependency libbar/2.1.0 of dependent libfox/2.0.0
-          trace: collect_build_prerequisites: begin libbar/2.1.0
-          trace: collect_build: add libbox/2.0.0
-          trace: collect_build_prerequisites: no cfg-clause for dependency libbox/2.0.0 of dependent libbar/2.1.0
-          trace: collect_build_prerequisites: begin libbox/2.0.0
-          trace: collect_build: add libbax/1.0.0
-          trace: collect_build_prerequisites: no cfg-clause for dependency libbax/1.0.0 of dependent libbox/2.0.0
-          trace: collect_build_prerequisites: begin libbax/1.0.0
-          trace: collect_build_prerequisites: end libbax/1.0.0
-          trace: collect_build_prerequisites: end libbox/2.0.0
-          trace: collect_build_prerequisites: end libbar/2.1.0
-          trace: collect_build_prerequisites: end libfox/2.0.0
-          trace: collect_build_prerequisites: begin libfoo/2.0.0
-          trace: collect_build: postpone failure for dependent libfoo unsatisfied with dependency libbar/2.1.0 (== 1.2.0)
-          trace: collect_build: pick libbar/2.1.0 over libbar/1.2.0
-          trace: collect_build_prerequisites: no cfg-clause for dependency libbar/2.1.0 of dependent libfoo/2.0.0
-          trace: collect_build_prerequisites: end libfoo/2.0.0
-          trace: execute_plan: simulate: yes
-          %.*
-          error: unable to satisfy constraints on package libbar
-            info: libfox/2.0.0 depends on (libbar >= 2.0.0)
-            info: libfoo/2.0.0 depends on (libbar == 1.2.0)
-            info: available libbar/2.1.0
-            info: available libbar/1.2.0
-            info: while satisfying libfoo/2.0.0
-            info: explicitly specify libbar version to manually satisfy both constraints
-          %.*
-          EOE
+          $* libbox ?libbix/1.0.0 libbux 2>!;
 
-        $* libfox/1.1.0 libfoo 2>>EOE;
-          fetched libbar/1.2.0
-          unpacked libbar/1.2.0
-          fetched libfox/1.1.0
-          unpacked libfox/1.1.0
-          fetched libfoo/2.0.0
-          unpacked libfoo/2.0.0
-          configured libbar/1.2.0
-          configured libfox/1.1.0
-          configured libfoo/2.0.0
-          EOE
+          $pkg_status -ar >>EOO;
+            libbax configured 1.0.0 available 2.0.0
+            !libbox configured 2.0.0
+              libbax configured 1.0.0 available 2.0.0
+            libbix configured !1.0.0 available 2.0.0
+              libbax configured 1.0.0 available 2.0.0
+            !libbux configured 1.0.0
+              libbix configured !1.0.0 available 2.0.0
+                libbax configured 1.0.0 available 2.0.0
+            EOO
 
-        $pkg_status -ar >>EOO;
-          libbar configured 1.2.0 available 2.1.0
-          !libfox configured !1.1.0 available 2.0.0
-            libbar configured 1.2.0 available 2.1.0
-          !libfoo configured 2.0.0
-            libbar configured 1.2.0 available 2.1.0
-          EOO
+          $* --upgrade --recursive 2>>~%EOE% != 0;
+            %.*
+            trace: pkg_build: refine package collection/plan execution from scratch
+            trace: collect_build: add libbox/2.0.0
+            trace: collect_build: add libbux/1.0.0
+            trace: collect_build_prerequisites: skip configured libbox/2.0.0
+            trace: collect_build_prerequisites: skip configured libbux/1.0.0
+            trace: execute_plan: simulate: yes
+            %.*
+            trace: evaluate_dependency: libbix/1.0.0: update to libbix/2.0.0
+            %.*
+            trace: pkg_build: refine package collection/plan execution
+            trace: collect_build: add libbix/2.0.0
+            trace: collect_build_prerequisites: pre-reeval libbux/1.0.0
+            trace: collect_build_prerequisites: pre-reevaluated libbux/1.0.0: end reached
+            trace: collect_build_prerequisites: begin libbix/2.0.0
+            trace: collect_build: add libbax/2.0.0
+            info: package libbix dependency on (libbax == 2.0.0) is forcing upgrade of libbax/1.0.0 to 2.0.0
+            trace: collect_build_prerequisites: no cfg-clause for dependency libbax/2.0.0 of dependent libbix/2.0.0
+            trace: collect_build_prerequisites: skip unsatisfied existing dependent libbox of dependency libbax/2.0.0 due to constraint (libbax == 1.0.0)
+            trace: collect_build_prerequisites: skip being built existing dependent libbix of dependency libbax
+            trace: collect_build_prerequisites: begin libbax/2.0.0
+            trace: collect_build_prerequisites: end libbax/2.0.0
+            trace: collect_build_prerequisites: end libbix/2.0.0
+            trace: collect_dependents: postpone failure for existing dependent libbox unsatisfied with dependency libbax/2.0.0 (== 1.0.0)
+            trace: execute_plan: simulate: yes
+            %.*
+            error: unable to upgrade package libbax/1.0.0 to 2.0.0
+              info: because configured package libbox/2.0.0 depends on (libbax == 1.0.0)
+              info: package libbax/2.0.0 required by
+                      libbix/2.0.0 (libbax == 2.0.0)
+              info: consider re-trying with --upgrade|-u potentially combined with --recursive|-r
+              info: or explicitly request up/downgrade of package libbox
+              info: or explicitly specify package libbax version to manually satisfy these constraints
+            %.*
+            EOE
 
-        $pkg_drop libfoo libfox
+          $pkg_drop libbox libbux
+        }
       }
 
       : replace-dependency
       :
-      : This test demonstrates a case when the dependency resolution machinery
-      : fails to resolve unsatisfied dependency constraints by replacing the
-      : unsatisfactory dependency versions with a satisfactory one.
-      :
       {
-        $clone_cfg;
-        $rep_add $rep/t4i && $rep_fetch;
+        +$clone_cfg
+        +$rep_add $rep/t4i && $rep_fetch
 
-        $* libfox/1.1.0 libbaz --verbose 5 2>>~%EOE% != 0;
-          %.*
-          trace: pkg_build: refine package collection/plan execution from scratch
-          trace: collect_build: add libfox/1.1.0
-          trace: collect_build: add libbaz/2.0.0
-          trace: collect_build_prerequisites: begin libfox/1.1.0
-          trace: collect_build: add libbar/2.1.0
-          trace: collect_build_prerequisites: no cfg-clause for dependency libbar/2.1.0 of dependent libfox/1.1.0
-          trace: collect_build_prerequisites: begin libbar/2.1.0
-          trace: collect_build: add libbox/2.0.0
-          trace: collect_build_prerequisites: no cfg-clause for dependency libbox/2.0.0 of dependent libbar/2.1.0
-          trace: collect_build_prerequisites: begin libbox/2.0.0
-          trace: collect_build: add libbax/1.0.0
-          trace: collect_build_prerequisites: no cfg-clause for dependency libbax/1.0.0 of dependent libbox/2.0.0
-          trace: collect_build_prerequisites: begin libbax/1.0.0
-          trace: collect_build_prerequisites: end libbax/1.0.0
-          trace: collect_build_prerequisites: end libbox/2.0.0
-          trace: collect_build_prerequisites: end libbar/2.1.0
-          trace: collect_build_prerequisites: end libfox/1.1.0
-          trace: collect_build_prerequisites: begin libbaz/2.0.0
-          trace: collect_build: postpone failure for dependent libbaz unsatisfied with dependency libbar/2.1.0 (< 2.1.0)
-          trace: collect_build: pick libbar/2.1.0 over libbar/0.1.0
-          trace: collect_build_prerequisites: no cfg-clause for dependency libbar/2.1.0 of dependent libbaz/2.0.0
-          trace: collect_build_prerequisites: end libbaz/2.0.0
-          trace: execute_plan: simulate: yes
-          %.*
-          error: unable to satisfy constraints on package libbar
-            info: libfox/1.1.0 depends on (libbar >= 1.0.0)
-                    command line requires (libfox == 1.1.0)
-            info: libbaz/2.0.0 depends on (libbar < 2.1.0)
-            info: available libbar/2.1.0
-            info: available libbar/0.1.0
-            info: while satisfying libbaz/2.0.0
-            info: explicitly specify libbar version to manually satisfy both constraints
-          %.*
-          EOE
+        : basics
+        :
+        : This test demonstrates a case when the dependency resolution machinery
+        : resolves unsatisfied dependency constraints by adding the package spec
+        : to the command line for an unsatisfactory dependency version.
+        :
+        {
+          $clone_cfg;
 
-        $* libfox/1.1.0 libbaz ?libbar/1.2.0 2>>EOE;
-          fetched libbar/1.2.0
-          unpacked libbar/1.2.0
-          fetched libfox/1.1.0
-          unpacked libfox/1.1.0
-          fetched libbaz/2.0.0
-          unpacked libbaz/2.0.0
-          configured libbar/1.2.0
-          configured libfox/1.1.0
-          configured libbaz/2.0.0
-          EOE
+          $* libfox/1.1.0 libbaz 2>>~%EOE%;
+            %.*
+            trace: pkg_build: refine package collection/plan execution from scratch
+            trace: collect_build: add libfox/1.1.0
+            trace: collect_build: add libbaz/2.0.0
+            trace: collect_build_prerequisites: begin libfox/1.1.0
+            trace: collect_build: add libbar/2.1.0
+            trace: collect_build_prerequisites: no cfg-clause for dependency libbar/2.1.0 of dependent libfox/1.1.0
+            trace: collect_build_prerequisites: begin libbar/2.1.0
+            trace: collect_build: add libbox/2.0.0
+            trace: collect_build_prerequisites: no cfg-clause for dependency libbox/2.0.0 of dependent libbar/2.1.0
+            trace: collect_build_prerequisites: begin libbox/2.0.0
+            trace: collect_build: add libbax/1.0.0
+            trace: collect_build_prerequisites: no cfg-clause for dependency libbax/1.0.0 of dependent libbox/2.0.0
+            trace: collect_build_prerequisites: begin libbax/1.0.0
+            trace: collect_build_prerequisites: end libbax/1.0.0
+            trace: collect_build_prerequisites: end libbox/2.0.0
+            trace: collect_build_prerequisites: end libbar/2.1.0
+            trace: collect_build_prerequisites: end libfox/1.1.0
+            trace: collect_build_prerequisites: begin libbaz/2.0.0
+            trace: collect_build: postpone failure for dependent libbaz unsatisfied with dependency libbar/2.1.0 (< 2.1.0)
+            trace: collect_build: pick libbar/2.1.0 over libbar/0.1.0
+            trace: collect_build_prerequisites: no cfg-clause for dependency libbar/2.1.0 of dependent libbaz/2.0.0
+            trace: collect_build_prerequisites: end libbaz/2.0.0
+            trace: execute_plan: simulate: yes
+            %.*
+            trace: try_replace_dependency: replace unsatisfactory package version libbar/2.1.0 with 1.2.0 by adding package spec '?libbar == 1.2.0' to command line
+            trace: pkg_build: refine package collection/plan execution from scratch
+            trace: collect_build: add libfox/1.1.0
+            trace: collect_build: add libbaz/2.0.0
+            trace: collect_build_prerequisites: begin libfox/1.1.0
+            trace: collect_build_prerequisites: no cfg-clause for dependency libbar/1.2.0 of dependent libfox/1.1.0
+            trace: collect_build_prerequisites: begin libbar/1.2.0
+            trace: collect_build_prerequisites: end libbar/1.2.0
+            trace: collect_build_prerequisites: end libfox/1.1.0
+            trace: collect_build_prerequisites: begin libbaz/2.0.0
+            trace: collect_build: pick libbar/1.2.0 over libbar/0.1.0
+            trace: collect_build_prerequisites: no cfg-clause for dependency libbar/1.2.0 of dependent libbaz/2.0.0
+            trace: collect_build_prerequisites: end libbaz/2.0.0
+            trace: execute_plan: simulate: yes
+            %.*
+            trace: execute_plan: simulate: no
+            %.*
+            EOE
 
-        $pkg_status -ar >>EOO;
-          libbar configured !1.2.0 available 2.1.0
-          !libfox configured !1.1.0 available 2.0.0
+          $pkg_status -ar >>EOO;
+            libbar configured 1.2.0 available 2.1.0
+            !libfox configured !1.1.0 available 2.0.0
+              libbar configured 1.2.0 available 2.1.0
+            !libbaz configured 2.0.0
+              libbar configured 1.2.0 available 2.1.0
+            EOO
+
+          $pkg_drop libfox libbaz
+        }
+
+        : reorder
+        :
+        : Similar to the above, but the order of the dependents on the command
+        : line is swapped.
+        :
+        {
+          $clone_cfg;
+
+          $* libbaz libfox/1.1.0 2>>~%EOE%;
+            %.*
+            trace: pkg_build: refine package collection/plan execution from scratch
+            trace: collect_build: add libbaz/2.0.0
+            trace: collect_build: add libfox/1.1.0
+            trace: collect_build_prerequisites: begin libbaz/2.0.0
+            trace: collect_build: add libbar/0.1.0
+            trace: collect_build_prerequisites: no cfg-clause for dependency libbar/0.1.0 of dependent libbaz/2.0.0
+            trace: collect_build_prerequisites: begin libbar/0.1.0
+            trace: collect_build_prerequisites: end libbar/0.1.0
+            trace: collect_build_prerequisites: end libbaz/2.0.0
+            trace: collect_build_prerequisites: begin libfox/1.1.0
+            trace: collect_build: postpone failure for dependent libfox unsatisfied with dependency libbar/0.1.0 (>= 1.0.0)
+            trace: collect_build: pick libbar/0.1.0 over libbar/2.1.0
+            trace: collect_build_prerequisites: no cfg-clause for dependency libbar/0.1.0 of dependent libfox/1.1.0
+            trace: collect_build_prerequisites: end libfox/1.1.0
+            trace: execute_plan: simulate: yes
+            %.*
+            trace: try_replace_dependency: replace unsatisfactory package version libbar/0.1.0 with 1.2.0 by adding package spec '?libbar == 1.2.0' to command line
+            trace: pkg_build: refine package collection/plan execution from scratch
+            trace: collect_build: add libbaz/2.0.0
+            trace: collect_build: add libfox/1.1.0
+            trace: collect_build_prerequisites: begin libbaz/2.0.0
+            trace: collect_build_prerequisites: rep-postpone dependent libbaz/2.0.0 due to dependency libbar < 2.1.0 and user-specified constraint == 1.2.0
+            trace: collect_build_prerequisites: postpone libbaz/2.0.0
+            trace: collect_build_prerequisites: begin libfox/1.1.0
+            trace: collect_build_prerequisites: no cfg-clause for dependency libbar/1.2.0 of dependent libfox/1.1.0
+            trace: collect_build_prerequisites: begin libbar/1.2.0
+            trace: collect_build_prerequisites: end libbar/1.2.0
+            trace: collect_build_prerequisites: end libfox/1.1.0
+            trace: collect_build_postponed (0): begin
+            trace: collect_build_postponed (0): collect rep-postponed libbaz/2.0.0
+            trace: collect_build_prerequisites: resume libbaz/2.0.0
+            trace: collect_build: pick libbar/1.2.0 over libbar/0.1.0
+            trace: collect_build_prerequisites: no cfg-clause for dependency libbar/1.2.0 of dependent libbaz/2.0.0
+            trace: collect_build_prerequisites: end libbaz/2.0.0
+            trace: collect_build_postponed (0): end
+            trace: execute_plan: simulate: yes
+            %.*
+            trace: execute_plan: simulate: no
+            %.*
+            EOE
+
+          $pkg_status -ar >>EOO;
+            libbar configured 1.2.0 available 2.1.0
+            !libbaz configured 2.0.0
+              libbar configured 1.2.0 available 2.1.0
+            !libfox configured !1.1.0 available 2.0.0
+              libbar configured 1.2.0 available 2.1.0
+            EOO
+
+          $pkg_drop libfox libbaz
+        }
+
+        : dependency
+        :
+        : Similar to the above, but the dependency is also specified on the
+        : command line.
+        :
+        {
+          $clone_cfg;
+
+          $* libbaz libfox/1.1.0 '?libbar' 2>>~%EOE%;
+            %.*
+            trace: pkg_build: refine package collection/plan execution from scratch
+            trace: collect_build: add libbaz/2.0.0
+            trace: collect_build: add libfox/1.1.0
+            trace: collect_build_prerequisites: begin libbaz/2.0.0
+            trace: collect_build_prerequisites: no cfg-clause for dependency libbar/0.1.0 of dependent libbaz/2.0.0
+            trace: collect_build_prerequisites: begin libbar/0.1.0
+            trace: collect_build_prerequisites: end libbar/0.1.0
+            trace: collect_build_prerequisites: end libbaz/2.0.0
+            trace: collect_build_prerequisites: begin libfox/1.1.0
+            trace: collect_build: postpone failure for dependent libfox unsatisfied with dependency libbar/0.1.0 (>= 1.0.0)
+            trace: collect_build: pick libbar/0.1.0 over libbar/2.1.0
+            trace: collect_build_prerequisites: no cfg-clause for dependency libbar/0.1.0 of dependent libfox/1.1.0
+            trace: collect_build_prerequisites: end libfox/1.1.0
+            trace: execute_plan: simulate: yes
+            %.*
+            trace: evaluate_dependency: libbar/0.1.0: update to libbar/1.2.0
+            trace: pkg_build: refine package collection/plan execution from scratch
+            trace: collect_build: add libbaz/2.0.0
+            trace: collect_build: add libfox/1.1.0
+            trace: collect_build_prerequisites: begin libbaz/2.0.0
+            trace: collect_build_prerequisites: no cfg-clause for dependency libbar/0.1.0 of dependent libbaz/2.0.0
+            trace: collect_build_prerequisites: begin libbar/0.1.0
+            trace: collect_build_prerequisites: end libbar/0.1.0
+            trace: collect_build_prerequisites: end libbaz/2.0.0
+            trace: collect_build_prerequisites: begin libfox/1.1.0
+            trace: collect_build: postpone failure for dependent libfox unsatisfied with dependency libbar/0.1.0 (>= 1.0.0)
+            trace: collect_build: pick libbar/0.1.0 over libbar/2.1.0
+            trace: collect_build_prerequisites: no cfg-clause for dependency libbar/0.1.0 of dependent libfox/1.1.0
+            trace: collect_build_prerequisites: end libfox/1.1.0
+            trace: collect_build: pick libbar/1.2.0 over libbar/0.1.0
+            trace: collect_build: libbar/0.1.0 package version needs to be replaced with libbar/1.2.0
+            trace: pkg_build: collection failed due to package version replacement, retry from scratch
+            trace: pkg_build: refine package collection/plan execution from scratch
+            trace: collect_build: add libbaz/2.0.0
+            trace: collect_build: add libfox/1.1.0
+            trace: collect_build_prerequisites: begin libbaz/2.0.0
+            trace: collect_build: apply version replacement for libbar/0.1.0
+            trace: collect_build: replacement: libbar/1.2.0
+            trace: collect_build_prerequisites: no cfg-clause for dependency libbar/1.2.0 of dependent libbaz/2.0.0
+            trace: collect_build_prerequisites: begin libbar/1.2.0
+            trace: collect_build_prerequisites: end libbar/1.2.0
+            trace: collect_build_prerequisites: end libbaz/2.0.0
+            trace: collect_build_prerequisites: begin libfox/1.1.0
+            trace: collect_build: pick libbar/1.2.0 over libbar/2.1.0
+            trace: collect_build_prerequisites: no cfg-clause for dependency libbar/1.2.0 of dependent libfox/1.1.0
+            trace: collect_build_prerequisites: end libfox/1.1.0
+            trace: execute_plan: simulate: yes
+            %.*
+              new libbar/1.2.0 (required by libbaz, libfox)
+              new libbaz/2.0.0
+              new libfox/1.1.0
+            trace: execute_plan: simulate: no
+            %.*
+            EOE
+
+          $pkg_status -ar >>EOO;
+            libbar configured 1.2.0 available 2.1.0
+            !libbaz configured 2.0.0
+              libbar configured 1.2.0 available 2.1.0
+            !libfox configured !1.1.0 available 2.0.0
+              libbar configured 1.2.0 available 2.1.0
+            EOO
+
+          $pkg_drop libfox libbaz libbar
+        }
+
+        : dependency-constr
+        :
+        : Similar to the above, but also specify the version constraint.
+        :
+        {
+          $clone_cfg;
+
+          $* libbaz libfox/1.1.0 '?libbar < 3.0.0' 2>>~%EOE%;
+            %.*
+            trace: pkg_build: refine package collection/plan execution from scratch
+            trace: collect_build: add libbaz/2.0.0
+            trace: collect_build: add libfox/1.1.0
+            trace: collect_build_prerequisites: begin libbaz/2.0.0
+            trace: collect_build_prerequisites: no cfg-clause for dependency libbar/0.1.0 of dependent libbaz/2.0.0
+            trace: collect_build_prerequisites: begin libbar/0.1.0
+            trace: collect_build_prerequisites: end libbar/0.1.0
+            trace: collect_build_prerequisites: end libbaz/2.0.0
+            trace: collect_build_prerequisites: begin libfox/1.1.0
+            trace: collect_build: postpone failure for dependent libfox unsatisfied with dependency libbar/0.1.0 (>= 1.0.0)
+            trace: collect_build: pick libbar/0.1.0 over libbar/2.1.0
+            trace: collect_build_prerequisites: no cfg-clause for dependency libbar/0.1.0 of dependent libfox/1.1.0
+            trace: collect_build_prerequisites: end libfox/1.1.0
+            trace: execute_plan: simulate: yes
+            %.*
+            trace: try_replace_dependency: replace unsatisfactory package version libbar/0.1.0 with 1.2.0 by overwriting constraint '?libbar < 3.0.0' by '?libbar == 1.2.0' on command line
+            trace: pkg_build: refine package collection/plan execution from scratch
+            trace: collect_build: add libbaz/2.0.0
+            trace: collect_build: add libfox/1.1.0
+            trace: collect_build_prerequisites: begin libbaz/2.0.0
+            trace: collect_build_prerequisites: rep-postpone dependent libbaz/2.0.0 due to dependency libbar < 2.1.0 and user-specified constraint == 1.2.0
+            trace: collect_build_prerequisites: postpone libbaz/2.0.0
+            trace: collect_build_prerequisites: begin libfox/1.1.0
+            trace: collect_build_prerequisites: no cfg-clause for dependency libbar/1.2.0 of dependent libfox/1.1.0
+            trace: collect_build_prerequisites: begin libbar/1.2.0
+            trace: collect_build_prerequisites: end libbar/1.2.0
+            trace: collect_build_prerequisites: end libfox/1.1.0
+            trace: collect_build_postponed (0): begin
+            trace: collect_build_postponed (0): collect rep-postponed libbaz/2.0.0
+            trace: collect_build_prerequisites: resume libbaz/2.0.0
+            trace: collect_build: pick libbar/1.2.0 over libbar/0.1.0
+            trace: collect_build_prerequisites: no cfg-clause for dependency libbar/1.2.0 of dependent libbaz/2.0.0
+            trace: collect_build_prerequisites: end libbaz/2.0.0
+            trace: collect_build_postponed (0): end
+            trace: execute_plan: simulate: yes
+            %.*
+              new libbar/1.2.0 (required by libbaz, libfox)
+              new libbaz/2.0.0
+              new libfox/1.1.0
+            trace: execute_plan: simulate: no
+            %.*
+            EOE
+
+          $pkg_status -ar >>EOO;
             libbar configured !1.2.0 available 2.1.0
-          !libbaz configured 2.0.0
-            libbar configured !1.2.0 available 2.1.0
-          EOO
+            !libbaz configured 2.0.0
+              libbar configured !1.2.0 available 2.1.0
+            !libfox configured !1.1.0 available 2.0.0
+              libbar configured !1.2.0 available 2.1.0
+            EOO
 
-        $pkg_drop libfox libbaz
-      }
+          $pkg_drop libfox libbaz libbar
+        }
 
-      : replace-dependency-reorder
-      :
-      : Similar to the above, but the order of the dependents on the command
-      : line is swapped.
-      :
-      {
-        $clone_cfg;
-        $rep_add $rep/t4i && $rep_fetch;
+        : to-hold
+        :
+        : Similar to the dependency test, but the dependency is specified as
+        : build-to-hold.
+        :
+        {
+          $clone_cfg;
 
-        $* libbaz libfox/1.1.0 --verbose 5 2>>~%EOE% != 0;
-          %.*
-          trace: pkg_build: refine package collection/plan execution from scratch
-          trace: collect_build: add libbaz/2.0.0
-          trace: collect_build: add libfox/1.1.0
-          trace: collect_build_prerequisites: begin libbaz/2.0.0
-          trace: collect_build: add libbar/0.1.0
-          trace: collect_build_prerequisites: no cfg-clause for dependency libbar/0.1.0 of dependent libbaz/2.0.0
-          trace: collect_build_prerequisites: begin libbar/0.1.0
-          trace: collect_build_prerequisites: end libbar/0.1.0
-          trace: collect_build_prerequisites: end libbaz/2.0.0
-          trace: collect_build_prerequisites: begin libfox/1.1.0
-          trace: collect_build: postpone failure for dependent libfox unsatisfied with dependency libbar/0.1.0 (>= 1.0.0)
-          trace: collect_build: pick libbar/0.1.0 over libbar/2.1.0
-          trace: collect_build_prerequisites: no cfg-clause for dependency libbar/0.1.0 of dependent libfox/1.1.0
-          trace: collect_build_prerequisites: end libfox/1.1.0
-          trace: execute_plan: simulate: yes
-          %.*
-          error: unable to satisfy constraints on package libbar
-            info: libfox/1.1.0 depends on (libbar >= 1.0.0)
-                    command line requires (libfox == 1.1.0)
-            info: libbaz/2.0.0 depends on (libbar < 2.1.0)
-            info: available libbar/2.1.0
-            info: available libbar/0.1.0
-            info: while satisfying libfox/1.1.0
-            info: explicitly specify libbar version to manually satisfy both constraints
-          %.*
-          EOE
+          $* libbaz libfox/1.1.0 libbar 2>>~%EOE%;
+            %.*
+            trace: pkg_build: refine package collection/plan execution from scratch
+            trace: collect_build: add libbaz/2.0.0
+            trace: collect_build: add libfox/1.1.0
+            trace: collect_build: add libbar/2.1.0
+            trace: collect_build_prerequisites: begin libbaz/2.0.0
+            trace: collect_build: pick libbar/0.1.0 over libbar/2.1.0
+            trace: collect_build: libbar/2.1.0 package version needs to be replaced with libbar/0.1.0
+            trace: pkg_build: collection failed due to package version replacement, retry from scratch
+            trace: pkg_build: refine package collection/plan execution from scratch
+            trace: collect_build: add libbaz/2.0.0
+            trace: collect_build: add libfox/1.1.0
+            trace: collect_build: apply version replacement for libbar/2.1.0
+            trace: collect_build: replacement: libbar/0.1.0
+            trace: collect_build: add libbar/0.1.0
+            trace: collect_build_prerequisites: begin libbaz/2.0.0
+            trace: collect_build_prerequisites: no cfg-clause for dependency libbar/0.1.0 of dependent libbaz/2.0.0
+            trace: collect_build_prerequisites: begin libbar/0.1.0
+            trace: collect_build_prerequisites: end libbar/0.1.0
+            trace: collect_build_prerequisites: end libbaz/2.0.0
+            trace: collect_build_prerequisites: begin libfox/1.1.0
+            trace: collect_build: postpone failure for dependent libfox unsatisfied with dependency libbar/0.1.0 (>= 1.0.0)
+            trace: collect_build: pick libbar/0.1.0 over libbar/2.1.0
+            trace: collect_build_prerequisites: no cfg-clause for dependency libbar/0.1.0 of dependent libfox/1.1.0
+            trace: collect_build_prerequisites: end libfox/1.1.0
+            trace: collect_build_prerequisites: resume libbar/0.1.0
+            trace: collect_build_prerequisites: end libbar/0.1.0
+            trace: execute_plan: simulate: yes
+            %.*
+            trace: try_replace_dependency: replace unsatisfactory package version libbar/0.1.0 with 1.2.0 by overwriting spec 'libbar' by 'libbar == 1.2.0' on command line
+            trace: pkg_build: refine package collection/plan execution from scratch
+            trace: collect_build: add libbaz/2.0.0
+            trace: collect_build: add libfox/1.1.0
+            trace: collect_build: add libbar/1.2.0
+            trace: collect_build_prerequisites: begin libbaz/2.0.0
+            trace: collect_build: pick libbar/1.2.0 over libbar/0.1.0
+            trace: collect_build_prerequisites: no cfg-clause for dependency libbar/1.2.0 of dependent libbaz/2.0.0
+            trace: collect_build_prerequisites: begin libbar/1.2.0
+            trace: collect_build_prerequisites: end libbar/1.2.0
+            trace: collect_build_prerequisites: end libbaz/2.0.0
+            trace: collect_build_prerequisites: begin libfox/1.1.0
+            trace: collect_build: pick libbar/1.2.0 over libbar/2.1.0
+            trace: collect_build_prerequisites: no cfg-clause for dependency libbar/1.2.0 of dependent libfox/1.1.0
+            trace: collect_build_prerequisites: end libfox/1.1.0
+            trace: collect_build_prerequisites: resume libbar/1.2.0
+            trace: collect_build_prerequisites: end libbar/1.2.0
+            trace: execute_plan: simulate: yes
+            %.*
+              new libbar/1.2.0
+              new libbaz/2.0.0
+              new libfox/1.1.0
+            trace: execute_plan: simulate: no
+            %.*
+            EOE
 
-        $* libfox/1.1.0 libbaz ?libbar/1.2.0 2>>EOE;
-          fetched libbar/1.2.0
-          unpacked libbar/1.2.0
-          fetched libfox/1.1.0
-          unpacked libfox/1.1.0
-          fetched libbaz/2.0.0
-          unpacked libbaz/2.0.0
-          configured libbar/1.2.0
-          configured libfox/1.1.0
-          configured libbaz/2.0.0
-          EOE
+          $pkg_status -ar >>EOO;
+            !libbar configured 1.2.0 available 2.1.0
+            !libbaz configured 2.0.0
+              !libbar configured 1.2.0 available 2.1.0
+            !libfox configured !1.1.0 available 2.0.0
+              !libbar configured 1.2.0 available 2.1.0
+            EOO
 
-        $pkg_status -ar >>EOO;
-          libbar configured !1.2.0 available 2.1.0
-          !libfox configured !1.1.0 available 2.0.0
-            libbar configured !1.2.0 available 2.1.0
-          !libbaz configured 2.0.0
-            libbar configured !1.2.0 available 2.1.0
-          EOO
+          $pkg_drop libfox libbaz libbar
+        }
 
-        $pkg_drop libfox libbaz
-      }
+        : to-hold-constr
+        :
+        : Similar to the above, but also specify the version constraint.
+        :
+        {
+          $clone_cfg;
 
-      : unsatisfied-dependent
-      :
-      : This test demonstrates a case when the dependency resolution machinery
-      : fails to complete successfully as noop.
-      :
-      : Note that there is no version constraints are specified on the command
-      : line, the request is to upgrade all packages to the latest possible
-      : versions, and thus noop in this case would an appropriate outcome.
-      :
-      {
-        $clone_cfg;
+          $* libbaz libfox/1.1.0 'libbar < 3.0.0' 2>>~%EOE%;
+            %.*
+            trace: pkg_build: refine package collection/plan execution from scratch
+            trace: collect_build: add libbaz/2.0.0
+            trace: collect_build: add libfox/1.1.0
+            trace: collect_build: add libbar/2.1.0
+            trace: collect_build_prerequisites: begin libbaz/2.0.0
+            trace: collect_build: pick libbar/0.1.0 over libbar/2.1.0
+            trace: collect_build: libbar/2.1.0 package version needs to be replaced with libbar/0.1.0
+            trace: pkg_build: collection failed due to package version replacement, retry from scratch
+            trace: pkg_build: refine package collection/plan execution from scratch
+            trace: collect_build: add libbaz/2.0.0
+            trace: collect_build: add libfox/1.1.0
+            trace: collect_build: apply version replacement for libbar/2.1.0
+            trace: collect_build: replacement: libbar/0.1.0
+            trace: collect_build: add libbar/0.1.0
+            trace: collect_build_prerequisites: begin libbaz/2.0.0
+            trace: collect_build_prerequisites: no cfg-clause for dependency libbar/0.1.0 of dependent libbaz/2.0.0
+            trace: collect_build_prerequisites: begin libbar/0.1.0
+            trace: collect_build_prerequisites: end libbar/0.1.0
+            trace: collect_build_prerequisites: end libbaz/2.0.0
+            trace: collect_build_prerequisites: begin libfox/1.1.0
+            trace: collect_build: postpone failure for dependent libfox unsatisfied with dependency libbar/0.1.0 (>= 1.0.0)
+            trace: collect_build: pick libbar/0.1.0 over libbar/2.1.0
+            trace: collect_build_prerequisites: no cfg-clause for dependency libbar/0.1.0 of dependent libfox/1.1.0
+            trace: collect_build_prerequisites: end libfox/1.1.0
+            trace: collect_build_prerequisites: resume libbar/0.1.0
+            trace: collect_build_prerequisites: end libbar/0.1.0
+            trace: execute_plan: simulate: yes
+            %.*
+            trace: try_replace_dependency: replace unsatisfactory package version libbar/0.1.0 with 1.2.0 by overwriting constraint 'libbar < 3.0.0' by 'libbar == 1.2.0' on command line
+            trace: pkg_build: refine package collection/plan execution from scratch
+            trace: collect_build: add libbaz/2.0.0
+            trace: collect_build: add libfox/1.1.0
+            trace: collect_build: add libbar/1.2.0
+            trace: collect_build_prerequisites: begin libbaz/2.0.0
+            trace: collect_build: pick libbar/1.2.0 over libbar/0.1.0
+            trace: collect_build_prerequisites: no cfg-clause for dependency libbar/1.2.0 of dependent libbaz/2.0.0
+            trace: collect_build_prerequisites: begin libbar/1.2.0
+            trace: collect_build_prerequisites: end libbar/1.2.0
+            trace: collect_build_prerequisites: end libbaz/2.0.0
+            trace: collect_build_prerequisites: begin libfox/1.1.0
+            trace: collect_build: pick libbar/1.2.0 over libbar/2.1.0
+            trace: collect_build_prerequisites: no cfg-clause for dependency libbar/1.2.0 of dependent libfox/1.1.0
+            trace: collect_build_prerequisites: end libfox/1.1.0
+            trace: collect_build_prerequisites: resume libbar/1.2.0
+            trace: collect_build_prerequisites: end libbar/1.2.0
+            trace: execute_plan: simulate: yes
+            %.*
+            trace: execute_plan: simulate: no
+            %.*
+            EOE
 
-        $* libbox ?libbix/1.0.0 libbux 2>!;
+          $pkg_status -ar >>EOO;
+            !libbar configured !1.2.0 available 2.1.0
+            !libbaz configured 2.0.0
+              !libbar configured !1.2.0 available 2.1.0
+            !libfox configured !1.1.0 available 2.0.0
+              !libbar configured !1.2.0 available 2.1.0
+            EOO
 
-        $pkg_status -ar >>EOO;
-          libbax configured 1.0.0 available 2.0.0
-          !libbox configured 2.0.0
-            libbax configured 1.0.0 available 2.0.0
-          libbix configured !1.0.0 available 2.0.0
-            libbax configured 1.0.0 available 2.0.0
-          !libbux configured 1.0.0
-            libbix configured !1.0.0 available 2.0.0
-              libbax configured 1.0.0 available 2.0.0
-          EOO
+          $pkg_drop libfox libbaz libbar
+        }
 
-        $* --upgrade --recursive --verbose 5 2>>~%EOE% != 0;
-          %.*
-          trace: pkg_build: refine package collection/plan execution from scratch
-          trace: collect_build: add libbox/2.0.0
-          trace: collect_build: add libbux/1.0.0
-          trace: collect_build_prerequisites: skip configured libbox/2.0.0
-          trace: collect_build_prerequisites: skip configured libbux/1.0.0
-          trace: execute_plan: simulate: yes
-          %.*
-          trace: evaluate_dependency: libbix/1.0.0: update to libbix/2.0.0
-          %.*
-          trace: pkg_build: refine package collection/plan execution
-          trace: collect_build: add libbix/2.0.0
-          trace: collect_build_prerequisites: pre-reeval libbux/1.0.0
-          trace: collect_build_prerequisites: pre-reevaluated libbux/1.0.0: end reached
-          trace: collect_build_prerequisites: begin libbix/2.0.0
-          trace: collect_build: add libbax/2.0.0
-          info: package libbix dependency on (libbax == 2.0.0) is forcing upgrade of libbax/1.0.0 to 2.0.0
-          trace: collect_build_prerequisites: no cfg-clause for dependency libbax/2.0.0 of dependent libbix/2.0.0
-          trace: collect_build_prerequisites: skip unsatisfied existing dependent libbox of dependency libbax/2.0.0 due to constraint (libbax == 1.0.0)
-          trace: collect_build_prerequisites: skip being built existing dependent libbix of dependency libbax
-          trace: collect_build_prerequisites: begin libbax/2.0.0
-          trace: collect_build_prerequisites: end libbax/2.0.0
-          trace: collect_build_prerequisites: end libbix/2.0.0
-          trace: collect_dependents: postpone failure for existing dependent libbox unsatisfied with dependency libbax/2.0.0 (== 1.0.0)
-          trace: execute_plan: simulate: yes
-          %.*
-          error: unable to upgrade package libbax/1.0.0 to 2.0.0
-            info: because configured package libbox/2.0.0 depends on (libbax == 1.0.0)
-            info: package libbax/2.0.0 required by
-                    libbix/2.0.0 (libbax == 2.0.0)
-            info: consider re-trying with --upgrade|-u potentially combined with --recursive|-r
-            info: or explicitly request up/downgrade of package libbox
-            info: or explicitly specify package libbax version to manually satisfy these constraints
-          %.*
-          EOE
+        : configured
+        :
+        : Similar to replace-dependency but the dependency is already configured
+        : as built-to-hold.
+        :
+        {
+          $clone_cfg;
 
-        $pkg_drop libbox libbux
+          $* libbar 2>!;
+
+          $* libfox/1.1.0 libbaz 2>>~%EOE%;
+            %.*
+            trace: pkg_build: refine package collection/plan execution from scratch
+            trace: collect_build: add libfox/1.1.0
+            trace: collect_build: add libbaz/2.0.0
+            trace: collect_build_prerequisites: begin libfox/1.1.0
+            trace: collect_build: add libbar/2.1.0
+            trace: collect_build_prerequisites: no cfg-clause for dependency libbar/2.1.0 of dependent libfox/1.1.0
+            trace: collect_build_prerequisites: skip configured libbar/2.1.0
+            trace: collect_build_prerequisites: end libfox/1.1.0
+            trace: collect_build_prerequisites: begin libbaz/2.0.0
+            trace: collect_build: postpone failure for dependent libbaz unsatisfied with dependency libbar/2.1.0 (< 2.1.0)
+            trace: collect_build: pick libbar/2.1.0 over libbar/0.1.0
+            trace: collect_build_prerequisites: no cfg-clause for dependency libbar/2.1.0 of dependent libbaz/2.0.0
+            trace: collect_build_prerequisites: end libbaz/2.0.0
+            trace: execute_plan: simulate: yes
+            %.*
+            warning: package libbaz/2.0.0 dependency on (libbar < 2.1.0) is forcing downgrade of libbar/2.1.0 to 1.2.0
+            trace: try_replace_dependency: replace unsatisfactory package version libbar/2.1.0 with 1.2.0 by adding package spec 'libbar == 1.2.0' to command line
+            trace: pkg_build: refine package collection/plan execution from scratch
+            trace: collect_build: add libfox/1.1.0
+            trace: collect_build: add libbaz/2.0.0
+            trace: collect_build: add libbar/1.2.0
+            trace: collect_build_prerequisites: begin libfox/1.1.0
+            trace: collect_build: pick libbar/1.2.0 over libbar/2.1.0
+            trace: collect_build_prerequisites: no cfg-clause for dependency libbar/1.2.0 of dependent libfox/1.1.0
+            trace: collect_build_prerequisites: begin libbar/1.2.0
+            trace: collect_build_prerequisites: end libbar/1.2.0
+            trace: collect_build_prerequisites: end libfox/1.1.0
+            trace: collect_build_prerequisites: begin libbaz/2.0.0
+            trace: collect_build: pick libbar/1.2.0 over libbar/0.1.0
+            trace: collect_build_prerequisites: no cfg-clause for dependency libbar/1.2.0 of dependent libbaz/2.0.0
+            trace: collect_build_prerequisites: end libbaz/2.0.0
+            trace: collect_build_prerequisites: resume libbar/1.2.0
+            trace: collect_build_prerequisites: end libbar/1.2.0
+            trace: execute_plan: simulate: yes
+            %.*
+            trace: evaluate_dependency: libbox/2.0.0: unused
+            trace: pkg_build: refine package collection/plan execution
+            trace: collect_drop: add libbox
+            trace: execute_plan: simulate: yes
+            %.*
+            trace: evaluate_dependency: libbax/1.0.0: unused
+            trace: pkg_build: refine package collection/plan execution
+            trace: collect_drop: overwrite libbox
+            trace: collect_drop: add libbax
+            trace: execute_plan: simulate: yes
+            %.*
+              drop libbax/1.0.0 (unused)
+              drop libbox/2.0.0 (unused)
+              downgrade libbar/1.2.0
+              new libfox/1.1.0
+              new libbaz/2.0.0
+            trace: execute_plan: simulate: no
+            %.*
+            EOE
+
+          $pkg_status -ar >>EOO;
+            !libbar configured 1.2.0 available 2.1.0
+            !libfox configured !1.1.0 available 2.0.0
+              !libbar configured 1.2.0 available 2.1.0
+            !libbaz configured 2.0.0
+              !libbar configured 1.2.0 available 2.1.0
+            EOO
+
+          $pkg_drop libfox libbaz libbar
+        }
+
+        : unsatisfied-dependent
+        :
+        : Test that not being able to upgrade a dependency to a later version
+        : which doesn't satisfy an existing dependent, we don't upgrade the
+        : dependency.
+        :
+        {
+          $clone_cfg;
+
+          $* libfoo 2>!;
+
+          $pkg_status -ar >>EOO;
+            libbar configured 1.2.0 available 2.1.0
+            !libfoo configured 2.0.0
+              libbar configured 1.2.0 available 2.1.0
+            EOO
+
+          $* libbar 2>>~%EOE%;
+            %.*
+            trace: pkg_build: refine package collection/plan execution from scratch
+            trace: collect_build: add libbar/2.1.0
+            trace: collect_build_prerequisites: skip unsatisfied existing dependent libfoo of dependency libbar/2.1.0 due to constraint (libbar == 1.2.0)
+            trace: collect_build_prerequisites: begin libbar/2.1.0
+            trace: collect_build: add libbox/2.0.0
+            trace: collect_build_prerequisites: no cfg-clause for dependency libbox/2.0.0 of dependent libbar/2.1.0
+            trace: collect_build_prerequisites: begin libbox/2.0.0
+            trace: collect_build: add libbax/1.0.0
+            trace: collect_build_prerequisites: no cfg-clause for dependency libbax/1.0.0 of dependent libbox/2.0.0
+            trace: collect_build_prerequisites: begin libbax/1.0.0
+            trace: collect_build_prerequisites: end libbax/1.0.0
+            trace: collect_build_prerequisites: end libbox/2.0.0
+            trace: collect_build_prerequisites: end libbar/2.1.0
+            trace: collect_dependents: postpone failure for existing dependent libfoo unsatisfied with dependency libbar/2.1.0 (== 1.2.0)
+            trace: execute_plan: simulate: yes
+            %.*
+            trace: try_replace_dependency: replace unsatisfactory package version libbar/2.1.0 with 1.2.0 by overwriting spec 'libbar' by 'libbar == 1.2.0' on command line
+            trace: pkg_build: refine package collection/plan execution from scratch
+            trace: collect_build: add libbar/1.2.0
+            trace: collect_build_prerequisites: skip configured libbar/1.2.0
+            trace: execute_plan: simulate: yes
+            trace: execute_plan: simulate: no
+            %.*
+            EOE
+
+          $pkg_drop libfoo libbar
+        }
       }
     }
   }
@@ -30465,12 +30931,9 @@ else
         $clone_root_cfg;
         $rep_add $rep/t4b && $rep_fetch;
 
-        $* libbar "?$src/libfoo-1.0.0.tar.gz" 2>>~%EOE% != 0
-          error: unable to satisfy constraints on package libfoo
-            info: libbar depends on (libfoo == 1.1.0)
-            info: command line depends on (libfoo == 1.0.0)
-            info: specify libfoo version to satisfy libbar constraint
-          info: while satisfying libbar/1.1.0
+        $* libbar "?$src/libfoo-1.0.0.tar.gz" 2>>EOE != 0
+          error: package libfoo doesn't satisfy its dependents
+            info: libfoo/1.0.0 doesn't satisfy libbar/1.1.0
           EOE
       }
 
@@ -30482,13 +30945,9 @@ else
         $clone_root_cfg;
         $rep_add $rep/t4a && $rep_fetch;
 
-        $* $src/libbar-1.1.0.tar.gz "?$src/libfoo-1.0.0.tar.gz" 2>>~%EOE% != 0
-          error: unable to satisfy constraints on package libfoo
-            info: libbar depends on (libfoo == 1.1.0)
-                    command line requires (libbar == 1.1.0)
-            info: command line depends on (libfoo == 1.0.0)
-            info: specify libfoo version to satisfy libbar constraint
-          info: while satisfying libbar/1.1.0
+        $* $src/libbar-1.1.0.tar.gz "?$src/libfoo-1.0.0.tar.gz" 2>>EOE != 0
+          error: package libfoo doesn't satisfy its dependents
+            info: libfoo/1.0.0 doesn't satisfy libbar/1.1.0
           EOE
       }
 
@@ -30877,12 +31336,9 @@ else
         $clone_root_cfg;
         $rep_add $rep/t4b && $rep_fetch;
 
-        $* libbar "?$d/libfoo-1.0.0/" 2>>~%EOE% != 0
-          error: unable to satisfy constraints on package libfoo
-            info: libbar depends on (libfoo == 1.1.0)
-            info: command line depends on (libfoo == 1.0.0)
-            info: specify libfoo version to satisfy libbar constraint
-          info: while satisfying libbar/1.1.0
+        $* libbar "?$d/libfoo-1.0.0/" 2>>EOE != 0
+          error: package libfoo doesn't satisfy its dependents
+            info: libfoo/1.0.0 doesn't satisfy libbar/1.1.0
           EOE
       }
 
@@ -30894,13 +31350,9 @@ else
         $clone_root_cfg;
         $rep_add $rep/t4a && $rep_fetch;
 
-        $* $d/libbar-1.1.0/ "?$d/libfoo-1.0.0/" 2>>~%EOE% != 0
-          error: unable to satisfy constraints on package libfoo
-            info: libbar depends on (libfoo == 1.1.0)
-                    command line requires (libbar == 1.1.0)
-            info: command line depends on (libfoo == 1.0.0)
-            info: specify libfoo version to satisfy libbar constraint
-          info: while satisfying libbar/1.1.0
+        $* $d/libbar-1.1.0/ "?$d/libfoo-1.0.0/" 2>>EOE != 0
+          error: package libfoo doesn't satisfy its dependents
+            info: libfoo/1.0.0 doesn't satisfy libbar/1.1.0
           EOE
       }
 

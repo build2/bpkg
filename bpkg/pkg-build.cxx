@@ -293,6 +293,11 @@ namespace bpkg
     database*                    db;            // Can only be NULL if system.
     package_name                 name;
     optional<version_constraint> constraint;    // nullopt if unspecified.
+
+    // Can only be true if constraint is specified.
+    //
+    bool                         hold_version;
+
     shared_ptr<selected_package> selected;
     bool                         system;
     bool                         existing;      // Build as archive or directory.
@@ -364,8 +369,8 @@ namespace bpkg
   //
   struct evaluate_result
   {
-    // The system, existing, and orphan members are meaningless if the unused
-    // flag is true.
+    // The system, existing, upgrade, and orphan members are meaningless if
+    // the unused flag is true.
     //
     reference_wrapper<database>                db;
     shared_ptr<available_package>              available;
@@ -373,6 +378,7 @@ namespace bpkg
     bool                                       unused;
     bool                                       system;
     bool                                       existing;
+    optional<bool>                             upgrade;
 
     // Original orphan version which needs to be deorphaned. May only be
     // present for the deorphan mode.
@@ -443,6 +449,7 @@ namespace bpkg
                               false   /* unused */,
                               false   /* system */,
                               false   /* existing */,
+                              nullopt /* upgrade */,
                               nullopt /* orphan */};
     };
 
@@ -580,6 +587,7 @@ namespace bpkg
                               true    /* unused */,
                               false   /* system */,
                               false   /* existing */,
+                              nullopt /* upgrade */,
                               nullopt /* orphan */};
     }
 
@@ -709,6 +717,7 @@ namespace bpkg
                               false   /* unused */,
                               false   /* system */,
                               false   /* existing */,
+                              nullopt /* upgrade */,
                               nullopt /* orphan */};
     };
 
@@ -826,8 +835,9 @@ namespace bpkg
     // function description for details). Collect (and sort) unsatisfied
     // dependents per the unsatisfiable version in case we need to print them.
     //
-    // NOTE: don't forget to update the find_orphan_match() lambda if changing
-    // anything deorphan-related here.
+    // NOTE: don't forget to update the find_orphan_match() lambda and the
+    // try_replace_dependency() function if changing anything deorphan-related
+    // here.
     //
     using sp_set = set<config_selected_package>;
 
@@ -883,6 +893,7 @@ namespace bpkg
                             dsys,
                             deorphaned, dov,
                             existing,
+                            upgrade,
                             &no_change,
                             &trace] (available&& a, const char* what)
     {
@@ -901,6 +912,7 @@ namespace bpkg
         false /* unused */,
         dsys,
         existing,
+        upgrade,
         *dov};
     };
 
@@ -1026,7 +1038,7 @@ namespace bpkg
         // Save the latest available package version.
         //
         if (deorphan_latest_available.first == nullptr)
-          deorphan_latest_available = af;
+          deorphan_latest_available = move (af);
 
         // If the available package version is less then the orphan revision
         // then we can bail out from the loop, since all the versions from the
@@ -1081,27 +1093,31 @@ namespace bpkg
           false /* unused */,
           dsys,
           existing,
+          upgrade,
           nullopt /* orphan */};
       }
     }
 
-    if (deorphan_latest_iteration.first != nullptr)
-      return deorphan_result (move (deorphan_latest_iteration),
-                              "latest iteration");
+    if (orphan_best_match)
+    {
+      if (deorphan_latest_iteration.first != nullptr)
+        return deorphan_result (move (deorphan_latest_iteration),
+                                "latest iteration");
 
-    if (deorphan_later_revision.first != nullptr)
-      return deorphan_result (move (deorphan_later_revision),
-                              "later revision");
+      if (deorphan_later_revision.first != nullptr)
+        return deorphan_result (move (deorphan_later_revision),
+                                "later revision");
 
-    if (deorphan_later_patch.first != nullptr)
-      return deorphan_result (move (deorphan_later_patch), "later patch");
+      if (deorphan_later_patch.first != nullptr)
+        return deorphan_result (move (deorphan_later_patch), "later patch");
 
-    if (deorphan_later_minor.first != nullptr)
-      return deorphan_result (move (deorphan_later_minor), "later minor");
+      if (deorphan_later_minor.first != nullptr)
+        return deorphan_result (move (deorphan_later_minor), "later minor");
 
-    if (deorphan_latest_available.first != nullptr)
-      return deorphan_result (move (deorphan_latest_available),
-                              "latest available");
+      if (deorphan_latest_available.first != nullptr)
+        return deorphan_result (move (deorphan_latest_available),
+                                "latest available");
+    }
 
     // If we aim to upgrade to the latest version, then what we currently have
     // is the only thing that we can get, and so returning the "no change"
@@ -1187,6 +1203,9 @@ namespace bpkg
       size_t i (0), n (ps.size ());
       for (auto p (ps.begin ()); i != n; ++p)
       {
+        // It would probably be nice to also print the unsatisfied constraint
+        // here, but let's keep it simple for now.
+        //
         dr << (i == 0 ? " " : ", ") << *p->package << p->db;
 
         if (++i == 5 && n != 6) // Printing 'and 1 more' looks stupid.
@@ -1438,6 +1457,609 @@ namespace bpkg
     //
     assert (!r || !r->unused);
     return r && r->available == nullptr ? nullopt : r;
+  }
+
+  // Try to replace a collected package which is unsatisfactory for some of
+  // its new and/or existing dependents with a satisfactory available version.
+  //
+  // Specifically, try to find the best available package version considering
+  // all the imposed constraints as per unsatisfied_dependents description. If
+  // succeed, update/add the respective entry to hold_pkgs or dep_pkgs and
+  // return true.
+  //
+  // Notes:
+  //
+  // - Expected to be called after the execution plan is fully refined. That,
+  //   in particular, means that all the existing dependents are also
+  //   collected and thus the constraints they impose are already in their
+  //   dependencies' constraints lists.
+  //
+  // - The replacement is denied in the following cases:
+  //
+  //   - If it turns out that the package have been specified on the command
+  //     line (by the user or by us on some previous iteration) with an exact
+  //     version constraint, then we cannot try any other version.
+  //
+  //   - If the dependency is system, then it is either specified with the
+  //     wildcard version or its exact version have been specified by the user
+  //     or have been deduced by the system package manager. In the former
+  //     case we actually won't be calling this function for this package
+  //     since the wildcard version satisfies any constraint. Thus, an exact
+  //     version has been specified/deduced for this dependency and so we
+  //     cannot try any other version.
+  //
+  //   - If the dependency is being built as an existing archive/directory,
+  //     then its version is determined and so we cannot try any other
+  //     version.
+  //
+  //   - If the package is already configured with the version held and the
+  //     user didn't specify this package on the command line and it is not
+  //     requested to be upgraded, patched, and/or deorphaned, then we
+  //     shouldn't be silently up/down-grading it.
+  //
+  bool
+  try_replace_dependency (const common_options& o,
+                          const build_package& p,
+                          const build_packages& pkgs,
+                          vector<build_package>& hold_pkgs,
+                          dependency_packages& dep_pkgs)
+  {
+    tracer trace ("try_replace_dependency");
+
+    // Bail out for the system package build.
+    //
+    if (p.system)
+    {
+      l4 ([&]{trace << "replacement of unsatisfactory package version "
+                    << p.available_name_version_db () << " is denied "
+                    << "since it is being configured as system";});
+
+      return false;
+    }
+
+    // Bail out for an existing package archive/directory.
+    //
+    database& db (p.db);
+    const package_name& nm (p.name ());
+
+    if (find_existing (db,
+                       nm,
+                       nullopt /* version_constraint */).first != nullptr)
+    {
+      l4 ([&]{trace << "replacement of unsatisfactory package version "
+                    << p.available_name_version_db () << " is denied since "
+                    << "it is being built as existing archive/directory";});
+
+      return false;
+    }
+
+    // Find the package command line entry and stash the reference to its
+    // version constraint, if any. Bail out if the constraint is specified as
+    // an exact package version.
+    //
+    build_package*      hold_pkg   (nullptr);
+    dependency_package* dep_pkg    (nullptr);
+    version_constraint* constraint (nullptr);
+
+    for (build_package& hp: hold_pkgs)
+    {
+      if (hp.name () == nm && hp.db == db)
+      {
+        hold_pkg = &hp;
+
+        if (!hp.constraints.empty ())
+        {
+          // Can only contain the user-specified constraint.
+          //
+          assert (hp.constraints.size () == 1);
+
+          version_constraint& c (hp.constraints[0].value);
+
+          if (c.min_version == c.max_version)
+          {
+            l4 ([&]{trace << "replacement of unsatisfactory package version "
+                          << p.available_name_version_db () << " is denied "
+                          << "since it is specified on command line as '"
+                          << nm << ' ' << c << "'";});
+
+            return false;
+          }
+          else
+            constraint = &c;
+        }
+
+        break;
+      }
+    }
+
+    if (hold_pkg == nullptr)
+    {
+      for (dependency_package& dp: dep_pkgs)
+      {
+        if (dp.name == nm && dp.db != nullptr && *dp.db == db)
+        {
+          dep_pkg = &dp;
+
+          if (dp.constraint)
+          {
+            version_constraint& c (*dp.constraint);
+
+            if (c.min_version == c.max_version)
+            {
+              l4 ([&]{trace << "replacement of unsatisfactory package version "
+                            << p.available_name_version_db () << " is denied "
+                            << "since it is specified on command line as '?"
+                            << nm << ' ' << c << "'";});
+
+              return false;
+            }
+            else
+              constraint = &c;
+          }
+
+          break;
+        }
+      }
+    }
+
+    // Bail out if the selected package version is held and the package is not
+    // specified on the command line nor is being upgraded/deorphaned via its
+    // dependents recursively.
+    //
+    const shared_ptr<selected_package>& sp (p.selected);
+
+    if (sp != nullptr && sp->hold_version         &&
+        hold_pkg == nullptr && dep_pkg == nullptr &&
+        !p.upgrade && !p.deorphan)
+    {
+      l4 ([&]{trace << "replacement of unsatisfactory package version "
+                    << p.available_name_version_db () << " is denied since "
+                    << "it is not specified on command line nor is being "
+                    << "upgraded or deorphaned";});
+
+      return false;
+    }
+
+    transaction t (db);
+
+    assert (!p.constraints.empty ()); // Must contain unsatisfied constraints.
+
+    // Collect the repository fragments to search the available packages in.
+    //
+    config_repo_fragments rfs;
+
+    // Add a repository fragment to the specified list, suppressing duplicates.
+    //
+    auto add = [] (shared_ptr<repository_fragment>&& rf,
+                   vector<shared_ptr<repository_fragment>>& rfs)
+    {
+      if (find (rfs.begin (), rfs.end (), rf) == rfs.end ())
+        rfs.push_back (move (rf));
+    };
+
+    // If the package is specified as build-to-hold on the command line, then
+    // collect the root repository fragment from its database. Otherwise,
+    // collect the repository fragments its dependent packages come from.
+    //
+    if (hold_pkg != nullptr)
+    {
+      add (db.find<repository_fragment> (empty_string), rfs[db]);
+    }
+    else
+    {
+      // Collect the repository fragments the new dependents come from.
+      //
+      if (p.required_by_dependents)
+      {
+        for (const package_version_key& dvk: p.required_by)
+        {
+          if (dvk.version) // Real package?
+          {
+            const build_package* d (pkgs.entered_build (dvk.db, dvk.name));
+
+            // Must be collected as a package build (see
+            // build_package::required_by for details).
+            //
+            assert (d != nullptr                       &&
+                    d->action                          &&
+                    *d->action == build_package::build &&
+                    d->available != nullptr);
+
+            for (const package_location& pl: d->available->locations)
+            {
+              const lazy_shared_ptr<repository_fragment>& lrf (
+                pl.repository_fragment);
+
+              // Note that here we also handle dependents fetched/unpacked
+              // using the existing archive/directory adding the root
+              // repository fragments from their configurations.
+              //
+              if (!rep_masked_fragment (lrf))
+                add (lrf.load (), rfs[lrf.database ()]);
+            }
+          }
+        }
+      }
+
+      // Collect the repository fragments the existing dependents come from.
+      //
+      // Note that all the existing dependents are already in the map (since
+      // collect_dependents() has already been called) and are either
+      // reconfigure adjustments or non-collected recursively builds.
+      //
+      if (sp != nullptr)
+      {
+        for (database& ddb: db.dependent_configs ())
+        {
+          for (auto& pd: query_dependents (ddb, nm, db))
+          {
+            const build_package* d (pkgs.entered_build (ddb, pd.name));
+
+            // See collect_dependents() for details.
+            //
+            assert (d != nullptr && d->action);
+
+            if ((*d->action == build_package::adjust &&
+                 (d->flags & build_package::adjust_reconfigure) != 0) ||
+                (*d->action == build_package::build && !d->dependencies))
+            {
+              shared_ptr<selected_package> p (
+                ddb.load<selected_package> (pd.name));
+
+              add_dependent_repo_fragments (ddb, p, rfs);
+            }
+          }
+        }
+      }
+    }
+
+    // Query the dependency available packages from all the collected
+    // repository fragments and select the most appropriate one. Note that
+    // this code is inspired by the evaluate_dependency() function
+    // implementation, which documents the below logic in great detail.
+    //
+    optional<version_constraint> c (constraint != nullptr
+                                    ? *constraint
+                                    : optional<version_constraint> ());
+
+    if (!c && p.upgrade && !*p.upgrade)
+    {
+      assert (sp != nullptr); // See build_package::upgrade.
+
+      c = patch_constraint (sp);
+
+      assert (c); // See build_package::upgrade.
+    }
+
+    available_packages afs (find_available (nm, c, rfs));
+
+    using available = pair<shared_ptr<available_package>,
+                           lazy_shared_ptr<repository_fragment>>;
+
+    available r;
+
+    // Version to deorphan.
+    //
+    const version* dov (p.deorphan ? &sp->version : nullptr);
+
+    optional<version_constraint> dopc; // Patch constraint for the above.
+    optional<version_constraint> domc; // Minor constraint for the above.
+
+    bool orphan_best_match (p.deorphan && constraint == nullptr && !p.upgrade);
+
+    if (orphan_best_match)
+    {
+      // Note that non-zero iteration makes a version non-standard, so we
+      // reset it to 0 to produce the patch/minor constraints.
+      //
+      version v (dov->epoch,
+                 dov->upstream,
+                 dov->release,
+                 dov->revision,
+                 0 /* iteration */);
+
+      dopc = patch_constraint (nm, v, true /* quiet */);
+      domc = minor_constraint (nm, v, true /* quiet */);
+    }
+
+    available deorphan_latest_iteration;
+    available deorphan_later_revision;
+    available deorphan_later_patch;
+    available deorphan_later_minor;
+    available deorphan_latest_available;
+
+    // Return true if a version satisfy all the dependency constraints.
+    //
+    auto satisfactory = [&p] (const version& v)
+    {
+      for (const auto& c: p.constraints)
+      {
+        if (!satisfies (v, c.value))
+          return false;
+      }
+
+      return true;
+    };
+
+    for (available& af: afs)
+    {
+      shared_ptr<available_package>& ap (af.first);
+
+      if (ap->stub ())
+        continue;
+
+      const version& av (ap->version);
+
+      // If we aim to upgrade to the latest version and it tends to be less
+      // then the selected one, then what we currently have is the best that
+      // we can get. Thus, we use the selected version as a replacement,
+      // unless it doesn't satisfy all the constraints or we are deorphaning.
+      //
+      if (constraint == nullptr && sp != nullptr && av < sp->version)
+      {
+        if (!sp->system () && !p.deorphan && satisfactory (sp->version))
+        {
+          r = make_available_fragment (o, db, sp);
+          break;
+        }
+      }
+
+      // Skip if the available package version doesn't satisfy all the
+      // constraints.
+      //
+      if (!satisfactory (av))
+        continue;
+
+      if (orphan_best_match)
+      {
+        if (av == *dov)
+        {
+          r = move (af);
+          break;
+        }
+
+        if (deorphan_latest_iteration.first == nullptr &&
+            av.compare (*dov, false /* revision */, true /* iteration */) == 0)
+          deorphan_latest_iteration = af;
+
+        if (deorphan_later_revision.first == nullptr    &&
+            av.compare (*dov, true /* revision */) == 0 &&
+            av.compare (*dov, false /* revision */, true /* iteration */) > 0)
+          deorphan_later_revision = af;
+
+        if (deorphan_later_patch.first == nullptr &&
+            dopc && satisfies (av, *dopc)         &&
+            av.compare (*dov, true /* revision */) > 0) // Patch is greater?
+          deorphan_later_patch = af;
+
+        if (deorphan_later_minor.first == nullptr      &&
+            domc && satisfies (av, *domc)              &&
+            av.compare (*dov, true /* revision */) > 0 &&
+            deorphan_later_patch.first == nullptr)
+          deorphan_later_minor = af;
+
+        if (deorphan_latest_available.first == nullptr)
+          deorphan_latest_available = move (af);
+
+        if (av.compare (*dov, false /* revision */, true /* iteration */) < 0)
+        {
+          assert (deorphan_latest_iteration.first != nullptr ||
+                  deorphan_later_revision.first != nullptr   ||
+                  deorphan_later_patch.first != nullptr      ||
+                  deorphan_later_minor.first != nullptr      ||
+                  deorphan_latest_available.first != nullptr);
+
+          break;
+        }
+      }
+      else
+      {
+        r = move (af);
+        break;
+      }
+    }
+
+    shared_ptr<available_package>& rap (r.first);
+
+    if (rap == nullptr && orphan_best_match)
+    {
+      if (deorphan_latest_iteration.first != nullptr)
+        r = move (deorphan_latest_iteration);
+      else if (deorphan_later_revision.first != nullptr)
+        r = move (deorphan_later_revision);
+      else if (deorphan_later_patch.first != nullptr)
+        r = move (deorphan_later_patch);
+      else if (deorphan_later_minor.first != nullptr)
+        r = move (deorphan_later_minor);
+      else if (deorphan_latest_available.first != nullptr)
+        r = move (deorphan_latest_available);
+    }
+
+    t.commit ();
+
+    if (rap == nullptr)
+      return false;
+
+    // Now, as the replacement is found, punch the respective spec to the
+    // command line.
+    //
+    lazy_shared_ptr<repository_fragment>& raf (r.second);
+
+    // Should we use a different special name for the package specs we
+    // amend/add? Probably that would only make sense if some diagnostics
+    // becomes confusing. Let's wait and see and hopefully that won't be
+    // necessary.
+    //
+    package_version_key cmd_line (db.main_database (), "command line");
+
+    // If the package is present on the command line, then update its
+    // constraint, if present, and add the constraint otherwise. Otherwise,
+    // add the new package spec.
+    //
+    version_constraint vc (rap->version);
+
+    if (hold_pkg != nullptr || dep_pkg != nullptr)
+    {
+      if (hold_pkg != nullptr)
+      {
+        if (constraint != nullptr)
+        {
+          l4 ([&]{trace << "replace unsatisfactory package version "
+                        << p.available_name_version_db () << " with "
+                        << rap->version << " by overwriting constraint '"
+                        << nm << ' ' << *constraint << "' by '" << nm << ' '
+                        << vc << "' on command line";});
+        }
+        else
+        {
+          l4 ([&]{trace << "replace unsatisfactory package version "
+                        << p.available_name_version_db () << " with "
+                        << rap->version << " by overwriting spec '" << nm
+                        << "' by '" << nm << ' ' << vc << "' on command line";});
+
+          hold_pkg->constraints.emplace_back (move (vc),
+                                              cmd_line.db,
+                                              cmd_line.name.string ());
+        }
+
+        hold_pkg->available = move (rap);
+        hold_pkg->repository_fragment = move (raf);
+      }
+      else // dep_pkg != nullptr
+      {
+        if (constraint != nullptr)
+        {
+          l4 ([&]{trace << "replace unsatisfactory package version "
+                        << p.available_name_version_db () << " with "
+                        << rap->version << " by overwriting constraint '?"
+                        << nm << ' ' << *constraint << "' by '?" << nm << ' '
+                        << vc << "' on command line";});
+        }
+        else
+        {
+          // It feels like this case may never happen, since for a dependency
+          // specified without version constraint on the command line the
+          // dependency evaluation machinery will pick the best available
+          // version in pretty much the same way as we do in this
+          // function. This is in contrast to a dependency specified with a
+          // version constraint which will not be upgraded if the configured
+          // dependency satisfies this constraint (see evaluate_dependency()
+          // for details). Let's, however, handle this case, for good measure.
+          //
+          dep_pkg->constraint = move (vc);
+        }
+      }
+
+      if (constraint != nullptr)
+        *constraint = move (vc);
+    }
+    else // The package is not specified on the command line.
+    {
+      // If the package is configured as system, then since it is not
+      // specified by the user (both hold_pkg and dep_pkg are NULL) we may
+      // only build it as system. Thus we wouldn't be here (see above).
+      //
+      assert (sp == nullptr || !sp->system ());
+
+      // Similar to the collect lambda in collect_build_prerequisites(), issue
+      // the warning if we are forcing an up/down-grade.
+      //
+      if (sp != nullptr && (sp->hold_package || verb >= 2))
+      {
+        const version& av (rap->version);
+        const version& sv (sp->version);
+
+        int ud (sv.compare (av));
+
+        if (ud != 0)
+        {
+          for (const auto& c: p.constraints)
+          {
+            if (c.dependent.version && !satisfies (sv, c.value))
+            {
+              warn << "package " << c.dependent << " dependency on ("
+                   << nm << ' ' << c.value << ") is forcing "
+                   << (ud < 0 ? "up" : "down") << "grade of " << *sp << db
+                   << " to " << av;
+
+              break;
+            }
+          }
+        }
+      }
+
+      // For the selected built-to-hold package create the build-to-hold
+      // package spec and the dependency spec otherwise.
+      //
+      if (sp != nullptr && sp->hold_package)
+      {
+        l4 ([&]{trace << "replace unsatisfactory package version "
+                      << p.available_name_version_db () << " with "
+                      << rap->version << " by adding package spec '" << nm
+                      << ' ' << vc << "' to command line";});
+
+        build_package hp {
+          build_package::build,
+          db,
+          sp,
+          move (rap),
+          move (raf),
+          nullopt,                    // Dependencies.
+          nullopt,                    // Dependencies alternatives.
+          nullopt,                    // Package skeleton.
+          nullopt,                    // Postponed dependency alternatives.
+          false,                      // Recursive collection.
+          true,                       // Hold package.
+          false,                      // Hold version.
+          {},                         // Constraints.
+          false,                      // System.
+          false,                      // Keep output directory.
+          false,                      // Disfigure (from-scratch reconf).
+          false,                      // Configure-only.
+          nullopt,                    // Checkout root.
+          false,                      // Checkout purge.
+          strings (),                 // Configuration variables.
+          p.upgrade,
+          p.deorphan,
+          {cmd_line},                 // Required by (command line).
+          false,                      // Required by dependents.
+          (p.deorphan
+           ? build_package::build_replace
+           : uint16_t (0))};
+
+        hp.constraints.emplace_back (move (vc),
+                                     cmd_line.db,
+                                     cmd_line.name.string ());
+
+        hold_pkgs.push_back (move (hp));
+      }
+      else
+      {
+        l4 ([&]{trace << "replace unsatisfactory package version "
+                      << p.available_name_version_db () << " with "
+                      << rap->version << " by adding package spec '?" << nm
+                      << ' ' << vc << "' to command line";});
+
+        dep_pkgs.push_back (
+          dependency_package {&db,
+                              nm,
+                              move (vc),
+                              false /* hold_version */,
+                              sp,
+                              false /* system */,
+                              false /* existing */,
+                              p.upgrade,
+                              p.deorphan,
+                              false /* keep_out */,
+                              false /* disfigure */,
+                              nullopt /* checkout_root */,
+                              false /* checkout_purge */,
+                              strings () /* config_vars */,
+                              nullptr /* system_status */});
+      }
+    }
+
+    return true;
   }
 
   // Return false if the plan execution was noop. If unsatisfied dependents
@@ -3387,10 +4009,13 @@ namespace bpkg
             pkg_confs.emplace_back (*pdb, pa.name);
           }
 
+          bool hold_version (pa.constraint.has_value ());
+
           dep_pkgs.push_back (
             dependency_package {pdb,
                                 move (pa.name),
                                 move (pa.constraint),
+                                hold_version,
                                 move (sp),
                                 sys,
                                 existing,
@@ -3587,6 +4212,12 @@ namespace bpkg
 
         // Finally add this package to the list.
         //
+        optional<bool> upgrade (sp != nullptr  &&
+                                !pa.constraint &&
+                                (pa.options.upgrade () || pa.options.patch ())
+                                ? pa.options.upgrade ()
+                                : optional<bool> ());
+
         // @@ Pass pa.configure_only() when support for package-specific
         //    --configure-only is added.
         //
@@ -3613,6 +4244,8 @@ namespace bpkg
            : optional<dir_path> ()),
           pa.options.checkout_purge (),
           move (pa.config_vars),
+          upgrade,
+          deorphan,
           {cmd_line},                 // Required by (command line).
           false,                      // Required by dependents.
           replace ? build_package::build_replace : uint16_t (0)};
@@ -3726,28 +4359,32 @@ namespace bpkg
             //
             build_package p {
               build_package::build,
-                cdb,
-                move (sp),
-                move (ap),
-                move (apr.second),
-                nullopt,                 // Dependencies.
-                nullopt,                 // Dependencies alternatives.
-                nullopt,                 // Package skeleton.
-                nullopt,                 // Postponed dependency alternatives.
-                false,                   // Recursive collection.
-                true,                    // Hold package.
-                false,                   // Hold version.
-                {},                      // Constraints.
-                false,                   // System package.
-                keep_out,
-                o.disfigure (),
-                false,                   // Configure-only.
-                nullopt,                 // Checkout root.
-                false,                   // Checkout purge.
-                strings (),              // Configuration variables.
-                {cmd_line},              // Required by (command line).
-                false,                   // Required by dependents.
-                deorphan ? build_package::build_replace : uint16_t (0)};
+              cdb,
+              move (sp),
+              move (ap),
+              move (apr.second),
+              nullopt,                      // Dependencies.
+              nullopt,                      // Dependencies alternatives.
+              nullopt,                      // Package skeleton.
+              nullopt,                      // Postponed dependency alternatives.
+              false,                        // Recursive collection.
+              true,                         // Hold package.
+              false,                        // Hold version.
+              {},                           // Constraints.
+              false,                        // System package.
+              keep_out,
+              o.disfigure (),
+              false,                        // Configure-only.
+              nullopt,                      // Checkout root.
+              false,                        // Checkout purge.
+              strings (),                   // Configuration variables.
+              (o.upgrade () || o.patch ()
+               ? o.upgrade ()
+               : optional<bool> ()),
+              deorphan,
+              {cmd_line},                   // Required by (command line).
+              false,                        // Required by dependents.
+              deorphan ? build_package::build_replace : uint16_t (0)};
 
             l4 ([&]{trace << "stash held package "
                           << p.available_name_version_db ();});
@@ -3890,9 +4527,10 @@ namespace bpkg
         shared_ptr<available_package>              available;
         lazy_shared_ptr<bpkg::repository_fragment> repository_fragment;
 
-        bool system;
-        bool existing; // Build as an existing archive or directory.
-        bool deorphan;
+        bool           system;
+        bool           existing; // Build as an existing archive or directory.
+        optional<bool> upgrade;
+        bool           deorphan;
       };
       vector<dep> deps;
       existing_dependencies   existing_deps;
@@ -4089,6 +4727,14 @@ namespace bpkg
         auto enter = [&pkgs, &cmd_line] (database& db,
                                          const dependency_package& p)
         {
+          // Note that we don't set the upgrade and deorphan flags based on
+          // the --upgrade, --patch, and --deorphan options since an option
+          // presense doesn't necessarily means that the respective flag needs
+          // to be set (the package may not be selected, may not be patchable
+          // and/or an orphan, etc). The proper flags will be provided by
+          // evaluate_dependency() if/when any upgrade/deorphan recommendation
+          // is given.
+          //
           build_package bp {
             nullopt,                    // Action.
             db,
@@ -4101,7 +4747,7 @@ namespace bpkg
             nullopt,                    // Postponed dependency alternatives.
             false,                      // Recursive collection.
             false,                      // Hold package.
-            p.constraint.has_value (),  // Hold version.
+            p.hold_version,
             {},                         // Constraints.
             p.system,
             p.keep_out,
@@ -4110,6 +4756,8 @@ namespace bpkg
             p.checkout_root,
             p.checkout_purge,
             p.config_vars,
+            nullopt,                    // Upgrade.
+            false,                      // Deorphan.
             {cmd_line},                 // Required by (command line).
             false,                      // Required by dependents.
             0};                         // State flags.
@@ -4411,6 +5059,8 @@ namespace bpkg
                 nullopt,                 // Checkout root.
                 false,                   // Checkout purge.
                 strings (),              // Configuration variables.
+                d.upgrade,
+                d.deorphan,
                 {cmd_line},              // Required by (command line).
                 false,                   // Required by dependents.
                 (d.existing || d.deorphan
@@ -4933,6 +5583,7 @@ namespace bpkg
                                          move (er->repository_fragment),
                                          er->system,
                                          er->existing,
+                                         er->upgrade,
                                          er->orphan.has_value ()});
 
                     if (er->existing)
@@ -5352,11 +6003,49 @@ namespace bpkg
         }
 
         // Issue diagnostics and fail if the execution plan is finalized and
-        // any existing dependents are not satisfied with their
-        // dependencies.
+        // any existing dependents are not satisfied with their dependencies.
+        //
+        // But first, try to resolve the first encountered unsatisfied
+        // constraint by replacing the collected unsatisfactory dependency
+        // with some other available package version which, while not being
+        // the best possible choice, is satisfactory for all the new and
+        // existing dependents. If succeed, punch the replacement version into
+        // the command line and recollect from the very beginning. Note that
+        // at the moment there is no backtracking and so the once selected
+        // package version may not be reconsidered.
+        //
+        // @@ What if a new dependent appears after the recollection for which
+        //    the new dependency is also unsatisfactory and which we could
+        //    solve by picking yet another different version? We could
+        //    probably support this by marking this entry as amenable to
+        //    change. But we will also need to keep track of what we have
+        //    tried before in order not to yo-yo.
         //
         if (!refine && !unsatisfied_depts.empty ())
+        {
+          const unsatisfied_dependent& dpt (unsatisfied_depts.front ());
+
+          assert (!dpt.ignored_constraints.empty ());
+
+          const ignored_constraint& ic (dpt.ignored_constraints.front ());
+
+          const build_package* p (pkgs.entered_build (ic.dependency));
+          assert (p != nullptr); // The dependency must be collected.
+
+          if (try_replace_dependency (o, *p, pkgs, hold_pkgs, dep_pkgs))
+          {
+            refine = true;
+            scratch_exe = true;
+
+            deps.clear ();
+            existing_deps.clear ();
+            deorphaned_deps.clear ();
+
+            continue;
+          }
+
           unsatisfied_depts.diag (pkgs);
+        }
       }
     }
 

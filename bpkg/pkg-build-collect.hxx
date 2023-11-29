@@ -190,10 +190,19 @@ namespace bpkg
     bool
     recursive_collection_postponed () const;
 
-    // Hold flags. Note that we only "increase" the hold_package value that is
-    // already in the selected package.
+    // Hold flags.
+    //
+    // Note that we only "increase" the hold_package value that is already in
+    // the selected package, unless the adjust_unhold flag is set (see below).
     //
     optional<bool> hold_package;
+
+    // Note that it is perfectly valid for the hold_version flag to be false
+    // while the command line constraint is present in the constraints list
+    // (see below). This may happen if the package build is collected by the
+    // unsatisfied dependency constraints resolution logic (see
+    // try_replace_dependency() in pkg-build.cxx for details).
+    //
     optional<bool> hold_version;
 
     // Constraint value plus, normally, the dependent package name/version
@@ -291,6 +300,21 @@ namespace bpkg
     //
     strings config_vars;
 
+    // If present, then the package is requested to be upgraded (true) or
+    // patched (false). Can only be present if the package is already
+    // selected. Can only be false if the selected package version is
+    // patchable. Used by the unsatisfied dependency constraints resolution
+    // logic (see try_replace_dependency() in pkg-build.cxx for details).
+    //
+    optional<bool> upgrade;
+
+    // If true, then this package is requested to be deorphaned. Can only be
+    // true if the package is already selected and is orphaned. Used by the
+    // unsatisfied dependency constraints resolution logic (see
+    // try_replace_dependency() in pkg-build.cxx for details).
+    //
+    bool deorphan;
+
     // Set of packages (dependents or dependencies but not a mix) that caused
     // this package to be built or adjusted. The 'command line' name signifies
     // user selection and can be present regardless of the
@@ -298,7 +322,9 @@ namespace bpkg
     //
     // Note that if this is a package name, then this package is expected to
     // be collected (present in the map), potentially just pre-entered if
-    // required_by_dependents is false.
+    // required_by_dependents is false. If required_by_dependents is true,
+    // then the packages in the set are all expected to be collected as builds
+    // (action is build, available is not NULL, etc).
     //
     // Also note that if required_by_dependents is true, then all the
     // dependent package versions in the required_by set are expected to be
@@ -763,15 +789,26 @@ namespace bpkg
   // problems will be resolved naturally as a result of the execution plan
   // refinement.
   //
+  // And yet, if these problems do not resolve naturally, then we still try to
+  // resolve them by finding dependency versions which satisfy all the imposed
+  // constraints.
+  //
   // Specifically, we cache such unsatisfied dependents/constraints, pretend
   // that the dependents don't impose them and proceed with the remaining
   // collecting/ordering, simulating the plan execution, and evaluating the
   // dependency versions. After that, if scratch_collection exception has not
   // been thrown, we check if the execution plan is finalized or a further
-  // refinement is required. In the former case we report the first
-  // encountered unsatisfied (and ignored) dependency constraint and
-  // fail. Otherwise, we drop the cache and proceed with the next iteration of
-  // the execution plan refinement which may resolve these problems naturally.
+  // refinement is required. In the latter case we drop the cache and proceed
+  // with the next iteration of the execution plan refinement which may
+  // resolve these problems naturally. Otherwise, we pick the first collected
+  // unsatisfactory dependency and try to find the best available version,
+  // considering all the constraints imposed by the user (explicit version
+  // constraint, --patch and/or --deorphan options, etc) as well as by its new
+  // and existing dependents. If the search succeeds, we update an existing
+  // package spec or add the new one to the command line and recollect from
+  // the very beginning. Note that we always add a new spec with the
+  // hold_version flag set to false. If the search fails, we report the first
+  // encountered unsatisfied (and ignored) dependency constraint and fail.
   //
   struct unsatisfied_constraint
   {
