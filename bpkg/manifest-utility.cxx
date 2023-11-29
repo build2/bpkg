@@ -133,12 +133,16 @@ namespace bpkg
     if (s[n] == '\0') // No version (constraint) is specified?
       return nullopt;
 
-    const char* v (s + n); // Constraint or version including '/'.
+    const char* v (s + n); // Constraint or version including leading '/'.
 
-    // If only the version is allowed or the package name is followed by '/'
-    // then fallback to the version parsing.
+    if (version_only && v[0] != '/')
+      fail << "exact package version expected instead of version constraint "
+           << "in '" << s << "'";
+
+    // If the package name is followed by '/' then fallback to the version
+    // parsing.
     //
-    if (version_only || v[0] == '/')
+    if (v[0] == '/')
     try
     {
       return version_constraint (
