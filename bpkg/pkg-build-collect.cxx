@@ -5023,7 +5023,7 @@ namespace bpkg
             l5 ([&]{trace << "re-evaluation of dependent "
                           << pkg.available_name_version_db ()
                           << " deviated for depends clause " << di + 1
-                          << ": now can't select alternative, previously "
+                          << ": now cannot select alternative, previously "
                           << oi << " was selected";});
 
             throw reevaluation_deviated ();

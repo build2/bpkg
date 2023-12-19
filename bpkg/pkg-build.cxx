@@ -1459,20 +1459,591 @@ namespace bpkg
     return r && r->available == nullptr ? nullopt : r;
   }
 
-  // Try to replace a collected package which is unsatisfactory for some of
-  // its new and/or existing dependents with a satisfactory available version.
+  // Stack of the command line adjustments as per unsatisfied_dependents
+  // description.
+  //
+  struct cmdline_adjustment
+  {
+    enum class adjustment_type: uint8_t
+    {
+      hold_existing, // Adjust constraint in existing build-to-hold spec.
+      dep_existing,  // Adjust constraint in existing dependency spec.
+      hold_new,      // Add new build-to-hold spec.
+      dep_new        // Add new dependency spec.
+    };
+
+    adjustment_type                            type;
+    reference_wrapper<database>                db;
+    package_name                               name;
+    bpkg::version                              version; // Replacement.
+
+    // Meaningful only for the *_new types.
+    //
+    optional<bool>                             upgrade;
+    bool                                       deorphan = false;
+
+    // For the newly created or popped from the stack object the following
+    // three members contain the package version replacement information.
+    // Otherwise (pushed to the stack), they contain the original command line
+    // spec information.
+    //
+    shared_ptr<available_package>              available; // NULL for dep_* types.
+    lazy_shared_ptr<bpkg::repository_fragment> repository_fragment; // As above.
+    optional<version_constraint>               constraint;
+
+    // Create object of the hold_existing type.
+    //
+    cmdline_adjustment (database& d,
+                        const package_name& n,
+                        shared_ptr<available_package>&& a,
+                        lazy_shared_ptr<bpkg::repository_fragment>&& f)
+        : type (adjustment_type::hold_existing),
+          db (d),
+          name (n),
+          version (a->version),
+          available (move (a)),
+          repository_fragment (move (f)),
+          constraint (version_constraint (version)) {}
+
+    // Create object of the dep_existing type.
+    //
+    cmdline_adjustment (database& d,
+                        const package_name& n,
+                        const bpkg::version& v)
+        : type (adjustment_type::dep_existing),
+          db (d),
+          name (n),
+          version (v),
+          constraint (version_constraint (version)) {}
+
+    // Create object of the hold_new type.
+    //
+    cmdline_adjustment (database& d,
+                        const package_name& n,
+                        shared_ptr<available_package>&& a,
+                        lazy_shared_ptr<bpkg::repository_fragment>&& f,
+                        optional<bool> u,
+                        bool o)
+        : type (adjustment_type::hold_new),
+          db (d),
+          name (n),
+          version (a->version),
+          upgrade (u),
+          deorphan (o),
+          available (move (a)),
+          repository_fragment (move (f)),
+          constraint (version_constraint (version)) {}
+
+    // Create object of the dep_new type.
+    //
+    cmdline_adjustment (database& d,
+                        const package_name& n,
+                        const bpkg::version& v,
+                        optional<bool> u,
+                        bool o)
+        : type (adjustment_type::dep_new),
+          db (d),
+          name (n),
+          version (v),
+          upgrade (u),
+          deorphan (o),
+          constraint (version_constraint (version)) {}
+  };
+
+  class cmdline_adjustments
+  {
+  public:
+    cmdline_adjustments (vector<build_package>& hps, dependency_packages& dps)
+        : hold_pkgs_ (hps),
+          dep_pkgs_ (dps) {}
+
+    // Apply the specified adjustment to the command line, push the adjustment
+    // to the stack, and record the resulting command line state as the SHA256
+    // checksum.
+    //
+    void
+    push (cmdline_adjustment&& a)
+    {
+      using type = cmdline_adjustment::adjustment_type;
+
+      // We always set the `== <version>` constraint in the resulting spec.
+      //
+      assert (a.constraint);
+
+      database& db (a.db);
+      const package_name& nm (a.name);
+      package_version_key cmd_line (db.main_database (), "command line");
+
+      switch (a.type)
+      {
+      case type::hold_existing:
+        {
+          auto i (find_hold_pkg (a));
+          assert (i != hold_pkgs_.end ()); // As per adjustment type.
+
+          build_package& bp (*i);
+          swap (bp.available, a.available);
+          swap (bp.repository_fragment, a.repository_fragment);
+
+          if (!bp.constraints.empty ())
+          {
+            swap (bp.constraints[0].value, *a.constraint);
+          }
+          else
+          {
+            bp.constraints.emplace_back (move (*a.constraint),
+                                         cmd_line.db,
+                                         cmd_line.name.string ());
+            a.constraint = nullopt;
+          }
+
+          break;
+        }
+      case type::dep_existing:
+        {
+          auto i (find_dep_pkg (a));
+          assert (i != dep_pkgs_.end ()); // As per adjustment type.
+          swap (i->constraint, a.constraint);
+          break;
+        }
+      case type::hold_new:
+        {
+          // As per adjustment type.
+          //
+          assert (find_hold_pkg (a) == hold_pkgs_.end ());
+
+          // Start the database transaction to perform the
+          // database::find<selected_package> call, unless we are already in
+          // the transaction.
+          //
+          transaction t (db, !transaction::has_current ());
+
+          build_package bp {
+            build_package::build,
+            db,
+            db.find<selected_package> (nm),
+            move (a.available),
+            move (a.repository_fragment),
+            nullopt,                    // Dependencies.
+            nullopt,                    // Dependencies alternatives.
+            nullopt,                    // Package skeleton.
+            nullopt,                    // Postponed dependency alternatives.
+            false,                      // Recursive collection.
+            true,                       // Hold package.
+            false,                      // Hold version.
+            {},                         // Constraints.
+            false,                      // System.
+            false,                      // Keep output directory.
+            false,                      // Disfigure (from-scratch reconf).
+            false,                      // Configure-only.
+            nullopt,                    // Checkout root.
+            false,                      // Checkout purge.
+            strings (),                 // Configuration variables.
+            a.upgrade,
+            a.deorphan,
+            {cmd_line},                 // Required by (command line).
+            false,                      // Required by dependents.
+            (a.deorphan
+             ? build_package::build_replace
+             : uint16_t (0))};
+
+          t.commit ();
+
+          bp.constraints.emplace_back (move (*a.constraint),
+                                       cmd_line.db,
+                                       cmd_line.name.string ());
+
+          a.constraint = nullopt;
+
+          hold_pkgs_.push_back (move (bp));
+          break;
+        }
+      case type::dep_new:
+        {
+          // As per adjustment type.
+          //
+          assert (find_dep_pkg (a) == dep_pkgs_.end ());
+
+          // Start the database transaction to perform the
+          // database::find<selected_package> call, unless we are already in
+          // the transaction.
+          //
+          transaction t (db, !transaction::has_current ());
+
+          dep_pkgs_.push_back (
+            dependency_package {&db,
+                                nm,
+                                move (*a.constraint),
+                                false /* hold_version */,
+                                db.find<selected_package> (nm),
+                                false /* system */,
+                                false /* existing */,
+                                a.upgrade,
+                                a.deorphan,
+                                false /* keep_out */,
+                                false /* disfigure */,
+                                nullopt /* checkout_root */,
+                                false /* checkout_purge */,
+                                strings () /* config_vars */,
+                                nullptr /* system_status */});
+
+          t.commit ();
+
+          a.constraint = nullopt;
+          break;
+        }
+      }
+
+      packages_.insert (package_version_key (db, nm, a.version));
+      adjustments_.push_back (move (a));
+      former_states_.insert (state ());
+    }
+
+    // Roll back the latest (default) or first command line adjustment, pop it
+    // from the stack, and return the popped adjustment. Assume that the stack
+    // is not empty.
+    //
+    // Note that the returned object can be pushed to the stack again.
+    //
+    cmdline_adjustment
+    pop (bool first = false)
+    {
+      using type = cmdline_adjustment::adjustment_type;
+
+      assert (!empty ());
+
+      // Pop the adjustment.
+      //
+      cmdline_adjustment a (move (!first
+                                  ? adjustments_.back ()
+                                  : adjustments_.front ()));
+      if (!first)
+        adjustments_.pop_back ();
+      else
+        adjustments_.erase (adjustments_.begin ());
+
+      packages_.erase (package_version_key (a.db, a.name, a.version));
+
+      // Roll back the adjustment.
+      //
+      switch (a.type)
+      {
+      case type::hold_existing:
+        {
+          auto i (find_hold_pkg (a));
+          assert (i != hold_pkgs_.end ());
+
+          build_package& bp (*i);
+          swap (bp.available, a.available);
+          swap (bp.repository_fragment, a.repository_fragment);
+
+          // Must contain the replacement version.
+          //
+          assert (!bp.constraints.empty ());
+
+          version_constraint& c (bp.constraints[0].value);
+
+          if (a.constraint) // Original spec contains a version constraint?
+          {
+            swap (c, *a.constraint);
+          }
+          else
+          {
+            a.constraint = move (c);
+            bp.constraints.clear ();
+          }
+
+          break;
+        }
+      case type::dep_existing:
+        {
+          auto i (find_dep_pkg (a));
+          assert (i != dep_pkgs_.end ());
+          swap (i->constraint, a.constraint);
+          break;
+        }
+      case type::hold_new:
+        {
+          auto i (find_hold_pkg (a));
+          assert (i != hold_pkgs_.end ());
+
+          build_package& bp (*i);
+          a.available = move (bp.available);
+          a.repository_fragment = move (bp.repository_fragment);
+
+          // Must contain the replacement version.
+          //
+          assert (!bp.constraints.empty ());
+
+          a.constraint = move (bp.constraints[0].value);
+
+          hold_pkgs_.erase (i);
+          break;
+        }
+      case type::dep_new:
+        {
+          auto i (find_dep_pkg (a));
+          assert (i != dep_pkgs_.end ());
+
+          a.constraint = move (i->constraint);
+
+          dep_pkgs_.erase (i);
+          break;
+        }
+      }
+
+      return a;
+    }
+
+    // Return the specified adjustment's string representation in the
+    // following form:
+    //
+    //  hold_existing: '<pkg>[ <constraint>][ <database>]' -> '<pkg> <constraint>'
+    //  dep_existing:  '?<pkg>[ <constraint>][ <database>]' -> '?<pkg> <constraint>'
+    //  hold_new:      '<pkg> <constraint>[ <database>]'
+    //  dep_new:       '?<pkg> <constraint>[ <database>]'
+    //
+    // Note: the adjustment is assumed to be newly created or be popped from
+    // the stack.
+    //
+    string
+    to_string (const cmdline_adjustment& a) const
+    {
+      using type = cmdline_adjustment::adjustment_type;
+
+      assert (a.constraint); // Since not pushed.
+
+      const string& s (a.db.get ().string);
+
+      switch (a.type)
+      {
+      case type::hold_existing:
+        {
+          string r ("'" + a.name.string ());
+
+          auto i (find_hold_pkg (a));
+          assert (i != hold_pkgs_.end ());
+
+          const build_package& bp (*i);
+          if (!bp.constraints.empty ())
+            r += ' ' + bp.constraints[0].value.string ();
+
+          if (!s.empty ())
+            r += ' ' + s;
+
+          r += "' -> '" + a.name.string () + ' ' + a.constraint->string () +
+               "'";
+
+          return r;
+        }
+      case type::dep_existing:
+        {
+          string r ("'?" + a.name.string ());
+
+          auto i (find_dep_pkg (a));
+          assert (i != dep_pkgs_.end ());
+
+          if (i->constraint)
+            r += ' ' + i->constraint->string ();
+
+          if (!s.empty ())
+            r += ' ' + s;
+
+          r += "' -> '?" + a.name.string () + ' ' + a.constraint->string () +
+               "'";
+
+          return r;
+        }
+      case type::hold_new:
+        {
+          assert (find_hold_pkg (a) == hold_pkgs_.end ());
+
+          string r ("'" + a.name.string () + ' ' + a.constraint->string ());
+
+          if (!s.empty ())
+            r += ' ' + s;
+
+          r += "'";
+          return r;
+        }
+      case type::dep_new:
+        {
+          assert (find_dep_pkg (a) == dep_pkgs_.end ());
+
+          string r ("'?" + a.name.string () + ' ' + a.constraint->string ());
+
+          if (!s.empty ())
+            r += ' ' + s;
+
+          r += "'";
+          return r;
+        }
+      }
+
+      assert (false); // Can't be here.
+      return "";
+    }
+
+    // Return true, if there are no adjustments in the stack.
+    //
+    bool
+    empty () const
+    {
+      return adjustments_.empty ();
+    }
+
+    // Return true, if push() has been called at least once.
+    //
+    bool
+    tried () const
+    {
+      return !former_states_.empty ();
+    }
+
+    // Return the number of adjustments in the stack.
+    //
+    size_t
+    size () const
+    {
+      return adjustments_.size ();
+    }
+
+    // Return true if replacing a package build with the specified version
+    // will result in a command line which has already been (unsuccessfully)
+    // tried as a starting point for the package builds re-collection.
+    //
+    bool
+    tried_earlier (database& db, const package_name& n, const version& v) const
+    {
+      if (former_states_.empty ())
+        return false;
+
+      // Similar to the state() function, calculate the checksum over the
+      // packages set, but also consider the specified package version as if
+      // it were present in the set.
+      //
+      // Note that the specified package version may not be in the set, since
+      // we shouldn't be trying to replace with the package version which is
+      // already in the command line.
+      //
+      sha256 cs;
+
+      auto lt = [&db, &n, &v] (const package_version_key& pvk)
+      {
+        if (int r = n.compare (pvk.name))
+          return r < 0;
+
+        if (int r = v.compare (*pvk.version))
+          return r < 0;
+
+        return db < pvk.db;
+      };
+
+      bool appended (false);
+      for (const package_version_key& p: packages_)
+      {
+        assert (p.version); // Only the real packages can be here.
+
+        if (!appended && lt (p))
+        {
+          cs.append (db.config.string ());
+          cs.append (n.string ());
+          cs.append (v.string ());
+
+          appended = true;
+        }
+
+        cs.append (p.db.get ().config.string ());
+        cs.append (p.name.string ());
+        cs.append (p.version->string ());
+      }
+
+      if (!appended)
+      {
+        cs.append (db.config.string ());
+        cs.append (n.string ());
+        cs.append (v.string ());
+      }
+
+      return former_states_.find (cs.string ()) != former_states_.end ();
+    }
+
+  private:
+    // Return the SHA256 checksum of the current command line state.
+    //
+    string
+    state () const
+    {
+      // NOTE: remember to update tried_earlier() if changing anything here.
+      //
+      sha256 cs;
+      for (const package_version_key& p: packages_)
+      {
+        assert (p.version); // Only the real packages can be here.
+
+        cs.append (p.db.get ().config.string ());
+        cs.append (p.name.string ());
+        cs.append (p.version->string ());
+      }
+
+      return cs.string ();
+    }
+
+    // Find the command line package spec an adjustment applies to.
+    //
+    vector<build_package>::iterator
+    find_hold_pkg (const cmdline_adjustment& a) const
+    {
+      return find_if (hold_pkgs_.begin (), hold_pkgs_.end (),
+                      [&a] (const build_package& p)
+                      {
+                        return p.name () == a.name && p.db == a.db;
+                      });
+    }
+
+    dependency_packages::iterator
+    find_dep_pkg (const cmdline_adjustment& a) const
+    {
+      return find_if (dep_pkgs_.begin (), dep_pkgs_.end (),
+                      [&a] (const dependency_package& p)
+                      {
+                        return p.name == a.name  &&
+                               p.db   != nullptr &&
+                               *p.db  == a.db;
+                      });
+    }
+
+  private:
+    vector<build_package>& hold_pkgs_;
+    dependency_packages&   dep_pkgs_;
+
+    vector<cmdline_adjustment> adjustments_;   // Adjustments stack.
+    set<package_version_key>   packages_;      // Replacements.
+    set<string>                former_states_; // Command line seen states.
+  };
+
+  // Try to replace a collected package with a different available version,
+  // satisfactory for all its new and/or existing dependents. Return the
+  // command line adjustment if such a replacement is deduced and nullopt
+  // otherwise. In the latter case, also return the list of the being built
+  // dependents which are unsatisfied by some of the dependency available
+  // versions (unsatisfied_dpts argument).
   //
   // Specifically, try to find the best available package version considering
   // all the imposed constraints as per unsatisfied_dependents description. If
-  // succeed, update/add the respective entry to hold_pkgs or dep_pkgs and
-  // return true.
+  // succeed, return the command line adjustment reflecting the replacement.
   //
   // Notes:
+  //
+  // - Doesn't perform the actual adjustment of the command line.
   //
   // - Expected to be called after the execution plan is fully refined. That,
   //   in particular, means that all the existing dependents are also
   //   collected and thus the constraints they impose are already in their
   //   dependencies' constraints lists.
+  //
+  // - The specified package version may or may not be satisfactory for its
+  //   new and existing dependents.
   //
   // - The replacement is denied in the following cases:
   //
@@ -1497,51 +2068,57 @@ namespace bpkg
   //     requested to be upgraded, patched, and/or deorphaned, then we
   //     shouldn't be silently up/down-grading it.
   //
-  bool
+  optional<cmdline_adjustment>
   try_replace_dependency (const common_options& o,
                           const build_package& p,
                           const build_packages& pkgs,
-                          vector<build_package>& hold_pkgs,
-                          dependency_packages& dep_pkgs)
+                          const vector<build_package>& hold_pkgs,
+                          const dependency_packages& dep_pkgs,
+                          const cmdline_adjustments& cmdline_adjs,
+                          vector<package_key>& unsatisfied_dpts,
+                          const char* what)
   {
     tracer trace ("try_replace_dependency");
+
+    assert (p.available != nullptr); // By definition.
 
     // Bail out for the system package build.
     //
     if (p.system)
     {
-      l4 ([&]{trace << "replacement of unsatisfactory package version "
+      l5 ([&]{trace << "replacement of " << what << " version "
                     << p.available_name_version_db () << " is denied "
                     << "since it is being configured as system";});
 
-      return false;
+      return nullopt;
     }
 
     // Bail out for an existing package archive/directory.
     //
     database& db (p.db);
     const package_name& nm (p.name ());
+    const version& ver (p.available->version);
 
     if (find_existing (db,
                        nm,
                        nullopt /* version_constraint */).first != nullptr)
     {
-      l4 ([&]{trace << "replacement of unsatisfactory package version "
+      l5 ([&]{trace << "replacement of " << what << " version "
                     << p.available_name_version_db () << " is denied since "
                     << "it is being built as existing archive/directory";});
 
-      return false;
+      return nullopt;
     }
 
     // Find the package command line entry and stash the reference to its
     // version constraint, if any. Bail out if the constraint is specified as
     // an exact package version.
     //
-    build_package*      hold_pkg   (nullptr);
-    dependency_package* dep_pkg    (nullptr);
-    version_constraint* constraint (nullptr);
+    const build_package*      hold_pkg   (nullptr);
+    const dependency_package* dep_pkg    (nullptr);
+    const version_constraint* constraint (nullptr);
 
-    for (build_package& hp: hold_pkgs)
+    for (const build_package& hp: hold_pkgs)
     {
       if (hp.name () == nm && hp.db == db)
       {
@@ -1553,16 +2130,16 @@ namespace bpkg
           //
           assert (hp.constraints.size () == 1);
 
-          version_constraint& c (hp.constraints[0].value);
+          const version_constraint& c (hp.constraints[0].value);
 
           if (c.min_version == c.max_version)
           {
-            l4 ([&]{trace << "replacement of unsatisfactory package version "
+            l5 ([&]{trace << "replacement of " << what << " version "
                           << p.available_name_version_db () << " is denied "
                           << "since it is specified on command line as '"
                           << nm << ' ' << c << "'";});
 
-            return false;
+            return nullopt;
           }
           else
             constraint = &c;
@@ -1574,7 +2151,7 @@ namespace bpkg
 
     if (hold_pkg == nullptr)
     {
-      for (dependency_package& dp: dep_pkgs)
+      for (const dependency_package& dp: dep_pkgs)
       {
         if (dp.name == nm && dp.db != nullptr && *dp.db == db)
         {
@@ -1582,16 +2159,16 @@ namespace bpkg
 
           if (dp.constraint)
           {
-            version_constraint& c (*dp.constraint);
+            const version_constraint& c (*dp.constraint);
 
             if (c.min_version == c.max_version)
             {
-              l4 ([&]{trace << "replacement of unsatisfactory package version "
+              l5 ([&]{trace << "replacement of " << what << " version "
                             << p.available_name_version_db () << " is denied "
                             << "since it is specified on command line as '?"
                             << nm << ' ' << c << "'";});
 
-              return false;
+              return nullopt;
             }
             else
               constraint = &c;
@@ -1612,17 +2189,16 @@ namespace bpkg
         hold_pkg == nullptr && dep_pkg == nullptr &&
         !p.upgrade && !p.deorphan)
     {
-      l4 ([&]{trace << "replacement of unsatisfactory package version "
+      l5 ([&]{trace << "replacement of " << what << " version "
                     << p.available_name_version_db () << " is denied since "
-                    << "it is not specified on command line nor is being "
-                    << "upgraded or deorphaned";});
+                    << "it is already built to hold version and it is not "
+                    << "specified on command line nor is being upgraded or "
+                    << "deorphaned";});
 
-      return false;
+      return nullopt;
     }
 
     transaction t (db);
-
-    assert (!p.constraints.empty ()); // Must contain unsatisfied constraints.
 
     // Collect the repository fragments to search the available packages in.
     //
@@ -1691,7 +2267,7 @@ namespace bpkg
       {
         for (database& ddb: db.dependent_configs ())
         {
-          for (auto& pd: query_dependents (ddb, nm, db))
+          for (const auto& pd: query_dependents (ddb, nm, db))
           {
             const build_package* d (pkgs.entered_build (ddb, pd.name));
 
@@ -1736,7 +2312,7 @@ namespace bpkg
     using available = pair<shared_ptr<available_package>,
                            lazy_shared_ptr<repository_fragment>>;
 
-    available r;
+    available ra;
 
     // Version to deorphan.
     //
@@ -1768,17 +2344,33 @@ namespace bpkg
     available deorphan_later_minor;
     available deorphan_latest_available;
 
-    // Return true if a version satisfy all the dependency constraints.
+    // Return true if a version satisfies all the dependency constraints.
+    // Otherwise, save all the being built unsatisfied dependents into the
+    // resulting list, suppressing duplicates.
     //
-    auto satisfactory = [&p] (const version& v)
+    auto satisfactory = [&p, &unsatisfied_dpts] (const version& v)
     {
+      bool r (true);
+
       for (const auto& c: p.constraints)
       {
         if (!satisfies (v, c.value))
-          return false;
+        {
+          r = false;
+
+          if (c.dependent.version && !c.selected_dependent)
+          {
+            package_key pk (c.dependent.db, c.dependent.name);
+
+            if (find (unsatisfied_dpts.begin (),
+                      unsatisfied_dpts.end (),
+                      pk) == unsatisfied_dpts.end ())
+              unsatisfied_dpts.push_back (move (pk));
+          }
+        }
       }
 
-      return true;
+      return r;
     };
 
     for (available& af: afs)
@@ -1790,31 +2382,64 @@ namespace bpkg
 
       const version& av (ap->version);
 
+      // Skip if the available package version doesn't satisfy all the
+      // constraints (note: must be checked first since has a byproduct).
+      //
+      if (!satisfactory (av))
+        continue;
+
+      // Don't offer to replace to the same version.
+      //
+      if (av == ver)
+        continue;
+
+      // Don't repeatedly offer the same adjustments for the same command
+      // line.
+      //
+      if (cmdline_adjs.tried_earlier (db, nm, av))
+      {
+        l5 ([&]{trace << "replacement " << package_version_key (db, nm, av)
+                      << " tried earlier for same command line, skipping";});
+
+        continue;
+      }
+
       // If we aim to upgrade to the latest version and it tends to be less
       // then the selected one, then what we currently have is the best that
       // we can get. Thus, we use the selected version as a replacement,
       // unless it doesn't satisfy all the constraints or we are deorphaning.
       //
-      if (constraint == nullptr && sp != nullptr && av < sp->version)
+      if (constraint == nullptr && sp != nullptr)
       {
-        if (!sp->system () && !p.deorphan && satisfactory (sp->version))
+        const version& sv (sp->version);
+        if (av < sv && !sp->system () && !p.deorphan)
         {
-          r = make_available_fragment (o, db, sp);
-          break;
+          // Only consider the selected package if its version is satisfactory
+          // for its new dependents (note: must be checked first since has a
+          // byproduct), differs from the version being replaced, and was
+          // never used for the same command line (see above for details).
+          //
+          if (satisfactory (sv) && sv != ver)
+          {
+            if (!cmdline_adjs.tried_earlier (db, nm, sv))
+            {
+              ra = make_available_fragment (o, db, sp);
+              break;
+            }
+            else
+              l5 ([&]{trace << "selected package replacement "
+                            << package_version_key (db, nm, sp->version)
+                            << " tried earlier for same command line, "
+                            << "skipping";});
+          }
         }
       }
-
-      // Skip if the available package version doesn't satisfy all the
-      // constraints.
-      //
-      if (!satisfactory (av))
-        continue;
 
       if (orphan_best_match)
       {
         if (av == *dov)
         {
-          r = move (af);
+          ra = move (af);
           break;
         }
 
@@ -1854,104 +2479,82 @@ namespace bpkg
       }
       else
       {
-        r = move (af);
+        ra = move (af);
         break;
       }
     }
 
-    shared_ptr<available_package>& rap (r.first);
+    shared_ptr<available_package>& rap (ra.first);
 
     if (rap == nullptr && orphan_best_match)
     {
       if (deorphan_latest_iteration.first != nullptr)
-        r = move (deorphan_latest_iteration);
+        ra = move (deorphan_latest_iteration);
       else if (deorphan_later_revision.first != nullptr)
-        r = move (deorphan_later_revision);
+        ra = move (deorphan_later_revision);
       else if (deorphan_later_patch.first != nullptr)
-        r = move (deorphan_later_patch);
+        ra = move (deorphan_later_patch);
       else if (deorphan_later_minor.first != nullptr)
-        r = move (deorphan_later_minor);
+        ra = move (deorphan_later_minor);
       else if (deorphan_latest_available.first != nullptr)
-        r = move (deorphan_latest_available);
+        ra = move (deorphan_latest_available);
     }
 
     t.commit ();
 
+    // Bail out if no appropriate replacement is found and return the
+    // command line adjustment object otherwise.
+    //
     if (rap == nullptr)
-      return false;
+      return nullopt;
 
-    // Now, as the replacement is found, punch the respective spec to the
-    // command line.
-    //
-    lazy_shared_ptr<repository_fragment>& raf (r.second);
+    optional<cmdline_adjustment> r;
 
-    // Should we use a different special name for the package specs we
-    // amend/add? Probably that would only make sense if some diagnostics
-    // becomes confusing. Let's wait and see and hopefully that won't be
-    // necessary.
-    //
-    package_version_key cmd_line (db.main_database (), "command line");
+    lazy_shared_ptr<repository_fragment>& raf (ra.second);
 
-    // If the package is present on the command line, then update its
-    // constraint, if present, and add the constraint otherwise. Otherwise,
-    // add the new package spec.
-    //
-    version_constraint vc (rap->version);
-
-    if (hold_pkg != nullptr || dep_pkg != nullptr)
+    if (hold_pkg != nullptr || dep_pkg != nullptr) // Specified on command line?
     {
       if (hold_pkg != nullptr)
       {
+        r = cmdline_adjustment (hold_pkg->db,
+                                hold_pkg->name (),
+                                move (rap),
+                                move (raf));
+
         if (constraint != nullptr)
         {
-          l4 ([&]{trace << "replace unsatisfactory package version "
-                        << p.available_name_version_db () << " with "
-                        << rap->version << " by overwriting constraint '"
-                        << nm << ' ' << *constraint << "' by '" << nm << ' '
-                        << vc << "' on command line";});
+          l5 ([&]{trace << "replace " << what << " version "
+                        << p.available_name_version () << " with "
+                        << r->version << " by overwriting constraint "
+                        << cmdline_adjs.to_string (*r) << " on command line";});
         }
         else
         {
-          l4 ([&]{trace << "replace unsatisfactory package version "
-                        << p.available_name_version_db () << " with "
-                        << rap->version << " by overwriting spec '" << nm
-                        << "' by '" << nm << ' ' << vc << "' on command line";});
-
-          hold_pkg->constraints.emplace_back (move (vc),
-                                              cmd_line.db,
-                                              cmd_line.name.string ());
+          l5 ([&]{trace << "replace " << what << " version "
+                        << p.available_name_version () << " with "
+                        << r->version << " by adding constraint "
+                        << cmdline_adjs.to_string (*r) << " on command line";});
         }
-
-        hold_pkg->available = move (rap);
-        hold_pkg->repository_fragment = move (raf);
       }
       else // dep_pkg != nullptr
       {
+        r = cmdline_adjustment (*dep_pkg->db, dep_pkg->name, rap->version);
+
         if (constraint != nullptr)
         {
-          l4 ([&]{trace << "replace unsatisfactory package version "
-                        << p.available_name_version_db () << " with "
-                        << rap->version << " by overwriting constraint '?"
-                        << nm << ' ' << *constraint << "' by '?" << nm << ' '
-                        << vc << "' on command line";});
+          l5 ([&]{trace << "replace " << what << " version "
+                        << p.available_name_version () << " with "
+                        << r->version << " by overwriting constraint "
+                        << cmdline_adjs.to_string (*r) << " on command line";});
         }
         else
         {
-          // It feels like this case may never happen, since for a dependency
-          // specified without version constraint on the command line the
-          // dependency evaluation machinery will pick the best available
-          // version in pretty much the same way as we do in this
-          // function. This is in contrast to a dependency specified with a
-          // version constraint which will not be upgraded if the configured
-          // dependency satisfies this constraint (see evaluate_dependency()
-          // for details). Let's, however, handle this case, for good measure.
-          //
-          dep_pkg->constraint = move (vc);
+          l5 ([&]{trace << "replace " << what << " version "
+                        << p.available_name_version () << " with "
+                        << r->version << " by adding constraint "
+                        << cmdline_adjs.to_string (*r) << " on command line";});
         }
       }
-
-      if (constraint != nullptr)
-        *constraint = move (vc);
     }
     else // The package is not specified on the command line.
     {
@@ -1993,73 +2596,258 @@ namespace bpkg
       //
       if (sp != nullptr && sp->hold_package)
       {
-        l4 ([&]{trace << "replace unsatisfactory package version "
-                      << p.available_name_version_db () << " with "
-                      << rap->version << " by adding package spec '" << nm
-                      << ' ' << vc << "' to command line";});
+        r = cmdline_adjustment (db,
+                                nm,
+                                move (rap),
+                                move (raf),
+                                p.upgrade,
+                                p.deorphan);
 
-        build_package hp {
-          build_package::build,
-          db,
-          sp,
-          move (rap),
-          move (raf),
-          nullopt,                    // Dependencies.
-          nullopt,                    // Dependencies alternatives.
-          nullopt,                    // Package skeleton.
-          nullopt,                    // Postponed dependency alternatives.
-          false,                      // Recursive collection.
-          true,                       // Hold package.
-          false,                      // Hold version.
-          {},                         // Constraints.
-          false,                      // System.
-          false,                      // Keep output directory.
-          false,                      // Disfigure (from-scratch reconf).
-          false,                      // Configure-only.
-          nullopt,                    // Checkout root.
-          false,                      // Checkout purge.
-          strings (),                 // Configuration variables.
-          p.upgrade,
-          p.deorphan,
-          {cmd_line},                 // Required by (command line).
-          false,                      // Required by dependents.
-          (p.deorphan
-           ? build_package::build_replace
-           : uint16_t (0))};
-
-        hp.constraints.emplace_back (move (vc),
-                                     cmd_line.db,
-                                     cmd_line.name.string ());
-
-        hold_pkgs.push_back (move (hp));
+        l5 ([&]{trace << "replace " << what << " version "
+                      << p.available_name_version () << " with " << r->version
+                      << " by adding package spec "
+                      << cmdline_adjs.to_string (*r)
+                      << " to command line";});
       }
       else
       {
-        l4 ([&]{trace << "replace unsatisfactory package version "
-                      << p.available_name_version_db () << " with "
-                      << rap->version << " by adding package spec '?" << nm
-                      << ' ' << vc << "' to command line";});
+        r = cmdline_adjustment (db, nm, rap->version, p.upgrade, p.deorphan);
 
-        dep_pkgs.push_back (
-          dependency_package {&db,
-                              nm,
-                              move (vc),
-                              false /* hold_version */,
-                              sp,
-                              false /* system */,
-                              false /* existing */,
-                              p.upgrade,
-                              p.deorphan,
-                              false /* keep_out */,
-                              false /* disfigure */,
-                              nullopt /* checkout_root */,
-                              false /* checkout_purge */,
-                              strings () /* config_vars */,
-                              nullptr /* system_status */});
+        l5 ([&]{trace << "replace " << what << " version "
+                      << p.available_name_version () << " with " << r->version
+                      << " by adding package spec "
+                      << cmdline_adjs.to_string (*r)
+                      << " to command line";});
       }
     }
 
-    return true;
+    return r;
+  }
+
+  // Try to replace some of the being built, potentially indirect, dependents
+  // of the specified dependency with a different available version,
+  // satisfactory for all its new and existing dependents (if any). Return the
+  // command line adjustment if such a replacement is deduced and nullopt
+  // otherwise. It is assumed that the dependency replacement has been
+  // (unsuccessfully) tried by using the try_replace_dependency() call and its
+  // resulting list of the dependents, unsatisfied by some of the dependency
+  // available versions, is also passed to the function call as the
+  // unsatisfied_dpts argument.
+  //
+  // Specifically, try to replace the dependents in the following order by
+  // calling try_replace_dependency() for them:
+  //
+  // - Immediate dependents unsatisfied with the specified dependency. For the
+  //   sake of tracing and documentation, we (naturally) call them unsatisfied
+  //   dependents.
+  //
+  // - Immediate dependents satisfied with the dependency but applying the
+  //   version constraint which has prevented us from picking a version which
+  //   would be satisfactory to the unsatisfied dependents. Note that this
+  //   information is only available for the being built unsatisfied
+  //   dependents (added by collect_build() rather than collect_dependents()).
+  //   We call them conflicting dependents.
+  //
+  // - Immediate dependents which apply constraint to this dependency,
+  //   incompatible with constraints of some other dependents (both new and
+  //   existing). We call them unsatisfiable dependents.
+  //
+  // - Immediate dependents from unsatisfied_dpts argument. We call them
+  //   constraining dependents.
+  //
+  // - Dependents of all the above types of dependents, discovered by
+  //   recursively calling try_replace_dependent() for them.
+  //
+  optional<cmdline_adjustment>
+  try_replace_dependent (const common_options& o,
+                         const build_package& p, // Dependency.
+                         const vector<unsatisfied_constraint>* ucs,
+                         const build_packages& pkgs,
+                         const cmdline_adjustments& cmdline_adjs,
+                         const vector<package_key>& unsatisfied_dpts,
+                         vector<build_package>& hold_pkgs,
+                         dependency_packages& dep_pkgs,
+                         set<const build_package*>& visited_dpts)
+  {
+    tracer trace ("try_replace_dependent");
+
+    // Bail out if the dependent has already been visited and add it to the
+    // visited set otherwise.
+    //
+    if (!visited_dpts.insert (&p).second)
+      return nullopt;
+
+    using constraint_type = build_package::constraint_type;
+
+    const shared_ptr<available_package>& ap (p.available);
+    assert (ap != nullptr); // By definition.
+
+    const version& av (ap->version);
+
+    // List of the dependents which we have (unsuccessfully) tried to replace
+    // together with the lists of the constraining dependents.
+    //
+    vector<pair<package_key, vector<package_key>>> dpts;
+
+    // Try to replace a dependent, unless we have already tried to replace it.
+    //
+    auto try_replace = [&o,
+                        &p,
+                        &pkgs,
+                        &cmdline_adjs,
+                        &hold_pkgs,
+                        &dep_pkgs,
+                        &visited_dpts,
+                        &dpts,
+                        &trace] (package_key dk, const char* what)
+      -> optional<cmdline_adjustment>
+    {
+      if (find_if (dpts.begin (), dpts.end (),
+                   [&dk] (const auto& v) {return v.first == dk;}) ==
+          dpts.end ())
+      {
+        const build_package* d (pkgs.entered_build (dk));
+
+        // Always come from the dependency's constraints member.
+        //
+        assert (d != nullptr);
+
+        // Skip the visited dependents since, by definition, we have already
+        // tried to replace them.
+        //
+        if (find (visited_dpts.begin (), visited_dpts.end (), d) ==
+            visited_dpts.end ())
+        {
+          l5 ([&]{trace << "try to replace " << what << ' '
+                        << d->available_name_version_db () << " of dependency "
+                        << p.available_name_version_db () << " with some "
+                        << "other version";});
+
+          vector<package_key> uds;
+
+          if (optional<cmdline_adjustment> a = try_replace_dependency (
+                o,
+                *d,
+                pkgs,
+                hold_pkgs,
+                dep_pkgs,
+                cmdline_adjs,
+                uds,
+                what))
+          {
+            return a;
+          }
+
+          dpts.emplace_back (move (dk), move (uds));
+        }
+      }
+
+      return nullopt;
+    };
+
+    // Try to replace unsatisfied dependents.
+    //
+    for (const constraint_type& c: p.constraints)
+    {
+      const package_version_key& dvk (c.dependent);
+
+      if (dvk.version && !c.selected_dependent && !satisfies (av, c.value))
+      {
+        if (optional<cmdline_adjustment> a = try_replace (
+              package_key (dvk.db, dvk.name), "unsatisfied dependent"))
+        {
+          return a;
+        }
+      }
+    }
+
+    // Try to replace conflicting dependents.
+    //
+    if (ucs != nullptr)
+    {
+      for (const unsatisfied_constraint& uc: *ucs)
+      {
+        const package_version_key& dvk (uc.constraint.dependent);
+
+        if (dvk.version)
+        {
+          if (optional<cmdline_adjustment> a = try_replace (
+                package_key (dvk.db, dvk.name), "conflicting dependent"))
+          {
+            return a;
+          }
+        }
+      }
+    }
+
+    // Try to replace unsatisfiable dependents.
+    //
+    for (const constraint_type& c1: p.constraints)
+    {
+      const package_version_key& dvk (c1.dependent);
+
+      if (dvk.version && !c1.selected_dependent)
+      {
+        const version_constraint& v1 (c1.value);
+
+        bool unsatisfiable (false);
+        for (const constraint_type& c2: p.constraints)
+        {
+          const version_constraint& v2 (c2.value);
+
+          if (!satisfies (v1, v2) && !satisfies (v2, v1))
+          {
+            unsatisfiable = true;
+            break;
+          }
+        }
+
+        if (unsatisfiable)
+        {
+          if (optional<cmdline_adjustment> a = try_replace (
+                package_key (dvk.db, dvk.name), "unsatisfiable dependent"))
+          {
+            return a;
+          }
+        }
+      }
+    }
+
+    // Try to replace constraining dependents.
+    //
+    for (const auto& dk: unsatisfied_dpts)
+    {
+      if (optional<cmdline_adjustment> a = try_replace (
+            dk, "constraining dependent"))
+      {
+        return a;
+      }
+    }
+
+    // Try to replace dependents of the above dependents, recursively.
+    //
+    for (const auto& dep: dpts)
+    {
+      const build_package* d (pkgs.entered_build (dep.first));
+
+      assert (d != nullptr);
+
+      if (optional<cmdline_adjustment> a = try_replace_dependent (
+            o,
+            *d,
+            nullptr /* unsatisfied_constraints */,
+            pkgs,
+            cmdline_adjs,
+            dep.second,
+            hold_pkgs,
+            dep_pkgs,
+            visited_dpts))
+      {
+        return a;
+      }
+    }
+
+    return nullopt;
   }
 
   // Return false if the plan execution was noop. If unsatisfied dependents
@@ -3418,6 +4206,32 @@ namespace bpkg
     vector<build_package> hold_pkgs;
     dependency_packages   dep_pkgs;
     recursive_packages    rec_pkgs;
+
+    // Note that the command line adjustments which resolve the unsatisfied
+    // dependent issue (see unsatisfied_dependents for details) may
+    // potentially be sub-optimal, since we do not perform the full
+    // backtracking by trying all the possible adjustments and picking the
+    // most optimal combination. Instead, we keep collecting adjustments until
+    // either the package builds collection succeeds or there are no more
+    // adjustment combinations to try (and we don't try all of them). As a
+    // result we, for example, may end up with some redundant constraints on
+    // the command line just because the respective dependents have been
+    // evaluated first. Generally, dropping all the redundant adjustments can
+    // potentially be quite time-consuming, since we would need to try
+    // dropping all their possible combinations. We, however, will implement
+    // the refinement for only the common case (adjustments are independent),
+    // trying to drop just one adjustment per the refinement cycle iteration
+    // and wait and see how it goes.
+    //
+    cmdline_adjustments          cmdline_adjs (hold_pkgs, dep_pkgs);
+
+    // If both are present, then we are in the command line adjustments
+    // refinement cycle, where cmdline_refine_adjustment is the adjustment
+    // being currently dropped and cmdline_refine_index is its index on the
+    // stack (as it appears at the beginning of the cycle).
+    //
+    optional<cmdline_adjustment> cmdline_refine_adjustment;
+    optional<size_t>             cmdline_refine_index;
 
     {
       // Check if the package is a duplicate. Return true if it is but
@@ -6002,37 +6816,16 @@ namespace bpkg
           t.commit ();
         }
 
-        // Issue diagnostics and fail if the execution plan is finalized and
-        // any existing dependents are not satisfied with their dependencies.
-        //
-        // But first, try to resolve the first encountered unsatisfied
-        // constraint by replacing the collected unsatisfactory dependency
-        // with some other available package version which, while not being
-        // the best possible choice, is satisfactory for all the new and
-        // existing dependents. If succeed, punch the replacement version into
-        // the command line and recollect from the very beginning. Note that
-        // at the moment there is no backtracking and so the once selected
-        // package version may not be reconsidered.
-        //
-        // @@ What if a new dependent appears after the recollection for which
-        //    the new dependency is also unsatisfactory and which we could
-        //    solve by picking yet another different version? We could
-        //    probably support this by marking this entry as amenable to
-        //    change. But we will also need to keep track of what we have
-        //    tried before in order not to yo-yo.
-        //
-        if (!refine && !unsatisfied_depts.empty ())
+        if (!refine)
         {
-          const unsatisfied_dependent& dpt (unsatisfied_depts.front ());
-
-          assert (!dpt.ignored_constraints.empty ());
-
-          const ignored_constraint& ic (dpt.ignored_constraints.front ());
-
-          const build_package* p (pkgs.entered_build (ic.dependency));
-          assert (p != nullptr); // The dependency must be collected.
-
-          if (try_replace_dependency (o, *p, pkgs, hold_pkgs, dep_pkgs))
+          // Cleanup the package build collecting state, preparing for the
+          // re-collection from the very beginning.
+          //
+          auto prepare_recollect = [&refine,
+                                    &scratch_exe,
+                                    &deps,
+                                    &existing_deps,
+                                    &deorphaned_deps] ()
           {
             refine = true;
             scratch_exe = true;
@@ -6040,11 +6833,171 @@ namespace bpkg
             deps.clear ();
             existing_deps.clear ();
             deorphaned_deps.clear ();
+          };
 
-            continue;
+          // Issue diagnostics and fail if any existing dependents are not
+          // satisfied with their dependencies.
+          //
+          // But first, try to resolve the first encountered unsatisfied
+          // constraint by replacing the collected unsatisfactory dependency
+          // or some of its dependents with some other available package
+          // version. This version, while not being the best possible choice,
+          // must be satisfactory for all its new and existing dependents. If
+          // succeed, punch the replacement version into the command line and
+          // recollect from the very beginning (see unsatisfied_dependents for
+          // details).
+          //
+          if (!unsatisfied_depts.empty ())
+          {
+            if (!cmdline_refine_index) // Not command line adjustments refinement?
+            {
+              const unsatisfied_dependent& dpt (unsatisfied_depts.front ());
+
+              assert (!dpt.ignored_constraints.empty ());
+
+              const ignored_constraint& ic (dpt.ignored_constraints.front ());
+
+              const build_package* p (pkgs.entered_build (ic.dependency));
+              assert (p != nullptr); // The dependency must be collected.
+
+              l5 ([&]{trace << "try to replace unsatisfactory dependency "
+                            << p->available_name_version_db () << " with some "
+                            << "other version";});
+
+              optional<cmdline_adjustment> a;
+              vector<package_key> unsatisfied_dpts;
+              set<const build_package*> visited_dpts;
+
+              if ((a = try_replace_dependency (o,
+                                               *p,
+                                               pkgs,
+                                               hold_pkgs,
+                                               dep_pkgs,
+                                               cmdline_adjs,
+                                               unsatisfied_dpts,
+                                               "unsatisfactory dependency")) ||
+                  (a = try_replace_dependent (o,
+                                              *p,
+                                              &ic.unsatisfied_constraints,
+                                              pkgs,
+                                              cmdline_adjs,
+                                              unsatisfied_dpts,
+                                              hold_pkgs,
+                                              dep_pkgs,
+                                              visited_dpts))                 ||
+                  !cmdline_adjs.empty ())
+              {
+                if (a)
+                {
+                  cmdline_adjs.push (move (*a));
+                }
+                else
+                {
+                  cmdline_adjustment a (cmdline_adjs.pop ());
+
+                  l5 ([&]{trace << "cannot replace any package, rolling back "
+                                << "latest command line adjustment ("
+                                << cmdline_adjs.to_string (a) << ')';});
+                }
+
+                prepare_recollect ();
+              }
+              else
+                unsatisfied_depts.diag (pkgs); // Issue the diagnostics and fail.
+            }
+            else // We are in the command line adjustments refinement cycle.
+            {
+              // Since we have failed to collect, then the currently dropped
+              // command line adjustment is essential. Thus, push it back to
+              // the stack, drop the next one, and retry. If this is the last
+              // adjustment in the stack, then we assume that no further
+              // refinement is possible and we just recollect, assuming that
+              // this recollection will be successful.
+              //
+              assert (cmdline_refine_adjustment); // Wouldn't be here otherwise.
+
+              l5 ([&]{trace << "attempt to refine command line adjustments by "
+                            << "rolling back adjustment "
+                            << cmdline_adjs.to_string (
+                                 *cmdline_refine_adjustment)
+                            << " failed, pushing it back";});
+
+              cmdline_adjs.push (move (*cmdline_refine_adjustment));
+
+              // Index of the being previously dropped adjustment must be
+              // valid.
+              //
+              assert (*cmdline_refine_index != cmdline_adjs.size ());
+
+              if (++(*cmdline_refine_index) != cmdline_adjs.size ())
+              {
+                cmdline_refine_adjustment = cmdline_adjs.pop (true /* front */);
+
+                l5 ([&]{trace << "continue with command line adjustments "
+                              << "refinement cycle by rolling back adjustment "
+                              << cmdline_adjs.to_string (
+                                   *cmdline_refine_adjustment);});
+              }
+              else
+              {
+                cmdline_refine_adjustment = nullopt;
+
+                l5 ([&]{trace << "cannot further refine command line "
+                              << "adjustments, performing final collection";});
+              }
+
+              prepare_recollect ();
+            }
           }
+          //
+          // If the collection was successful, then see if we still need to
+          // perform the command line adjustments refinement.
+          //
+          else if (cmdline_adjs.tried () &&
+                   (!cmdline_refine_index ||
+                    *cmdline_refine_index != cmdline_adjs.size ()))
+          {
+            // If some command line adjustment is currently being dropped,
+            // that means that this adjustment is redundant.
+            //
+            bool initial (!cmdline_refine_index);
 
-          unsatisfied_depts.diag (pkgs);
+            if (!initial)
+            {
+              assert (cmdline_refine_adjustment);
+
+              l5 ([&]{trace << "command line adjustment "
+                            << cmdline_adjs.to_string (
+                                 *cmdline_refine_adjustment)
+                            << " is redundant, dropping it";});
+
+              cmdline_refine_adjustment = nullopt;
+              cmdline_refine_index      = nullopt;
+            }
+
+            // We cannot remove all the adjustments during the refinement.
+            // Otherwise, we shouldn't be failing in the first place.
+            //
+            assert (!cmdline_adjs.empty ());
+
+            // If there is just a single adjustment left, then there is
+            // nothing to refine anymore.
+            //
+            if (cmdline_adjs.size () != 1)
+            {
+              cmdline_refine_adjustment = cmdline_adjs.pop (true /* front */);
+              cmdline_refine_index      = 0;
+
+              l5 ([&]{trace << (initial ? "start" : "re-start") << " command "
+                            << "line adjustments refinement cycle by rolling "
+                            << "back first adjustment ("
+                            << cmdline_adjs.to_string (
+                                 *cmdline_refine_adjustment)
+                            << ')';});
+
+              prepare_recollect ();
+            }
+          }
         }
       }
     }

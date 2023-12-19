@@ -538,7 +538,7 @@ namespace bpkg
   inline ostream&
   operator<< (ostream& os, const database& db)
   {
-    const string& s (const_cast<database&> (db).string);
+    const string& s (db.string);
 
     if (!s.empty ())
       os << ' ' << s;

@@ -97,6 +97,9 @@ namespace bpkg
   bool package_version_key::
   operator< (const package_version_key& v) const
   {
+    // NOTE: remember to update cmdline_adjustments::tried_earlier() if
+    // changing anything here.
+    //
     if (int r = name.compare (v.name))
       return r < 0;
 

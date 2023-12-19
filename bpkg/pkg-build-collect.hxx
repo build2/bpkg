@@ -807,8 +807,28 @@ namespace bpkg
   // and existing dependents. If the search succeeds, we update an existing
   // package spec or add the new one to the command line and recollect from
   // the very beginning. Note that we always add a new spec with the
-  // hold_version flag set to false. If the search fails, we report the first
-  // encountered unsatisfied (and ignored) dependency constraint and fail.
+  // hold_version flag set to false. If the search fails, then, similarily, we
+  // try to find the replacement for some of the dependency's dependents,
+  // recursively. Note that we track the package build replacements and never
+  // repeat a replacement for the same command line state (which we adjust for
+  // each replacement). If no replacement is deduced, then we roll back the
+  // latest command line adjustment and recollect from the very beginning. If
+  // there are no adjustments left to try, then we give up the resolution
+  // search and report the first encountered unsatisfied (and ignored)
+  // dependency constraint and fail.
+  //
+  // Note that while we are trying to pick a dependent replacement for the
+  // subsequent re-collection, we cannot easily detect if the replacement is
+  // satisfied with the currently collected dependencies since that would
+  // effectively require to collect the replacement (select dependency
+  // alternatives, potentially re-negotiate dependency configurations,
+  // etc). Thus, we only verify that the replacement version satisfies its
+  // currently collected dependents. To reduce the number of potential
+  // dependent replacements to consider, we apply the heuristics and only
+  // consider those dependents which have or may have some satisfaction
+  // problems (not satisfied with a collected dependency, apply a dependency
+  // constraint which is incompatible with other dependents, etc; see
+  // try_replace_dependent() for details).
   //
   struct unsatisfied_constraint
   {
@@ -828,8 +848,7 @@ namespace bpkg
     version_constraint constraint;
 
     // Only specified when the failure is postponed during the collection of
-    // the explicitly specified packages and their dependencies. Only used to
-    // properly reproduce the postponed failure diagnostics.
+    // the explicitly specified packages and their dependencies.
     //
     vector<unsatisfied_constraint> unsatisfied_constraints;
     vector<package_key> dependency_chain;
