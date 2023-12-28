@@ -57,6 +57,8 @@ namespace bpkg
       if (r.size () < ds.size ()) dr << ds[r.size ()] << ' ';
       dr << "info: " << e <<
         info << "produced by '" << b << "'; use --build to override" << endf;
+
+      return vector<package_info> (); // Work around GCC 13.2.1 segfault.
     }
   }
 
