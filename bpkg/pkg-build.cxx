@@ -403,7 +403,8 @@ namespace bpkg
   using existing_dependencies = vector<package_key>;
 
   static evaluate_result
-  evaluate_dependency (database&,
+  evaluate_dependency (const common_options&,
+                       database&,
                        const shared_ptr<selected_package>&,
                        const optional<version_constraint>& desired,
                        bool desired_sys,
@@ -417,6 +418,7 @@ namespace bpkg
                        const dependent_constraints&,
                        const existing_dependencies&,
                        const deorphaned_dependencies&,
+                       const build_packages&,
                        bool ignore_unsatisfiable);
 
   // If there are no user expectations regarding this dependency, then we give
@@ -427,12 +429,14 @@ namespace bpkg
   // have dependents in the current configurations.
   //
   static optional<evaluate_result>
-  evaluate_dependency (database& db,
+  evaluate_dependency (const common_options& o,
+                       database& db,
                        const shared_ptr<selected_package>& sp,
                        const dependency_packages& deps,
                        bool no_move,
                        const existing_dependencies& existing_deps,
                        const deorphaned_dependencies& deorphaned_deps,
+                       const build_packages& pkgs,
                        bool ignore_unsatisfiable)
   {
     tracer trace ("evaluate_dependency");
@@ -648,7 +652,8 @@ namespace bpkg
       dpt_constrs.emplace_back (ddb, move (p), move (dep.constraint));
     }
 
-    return evaluate_dependency (db,
+    return evaluate_dependency (o,
+                                db,
                                 sp,
                                 dvc,
                                 dsys,
@@ -662,6 +667,7 @@ namespace bpkg
                                 dpt_constrs,
                                 existing_deps,
                                 deorphaned_deps,
+                                pkgs,
                                 ignore_unsatisfiable);
   }
 
@@ -689,7 +695,8 @@ namespace bpkg
   };
 
   static evaluate_result
-  evaluate_dependency (database& db,
+  evaluate_dependency (const common_options& o,
+                       database& db,
                        const shared_ptr<selected_package>& sp,
                        const optional<version_constraint>& dvc,
                        bool dsys,
@@ -703,6 +710,7 @@ namespace bpkg
                        const dependent_constraints& dpt_constrs,
                        const existing_dependencies& existing_deps,
                        const deorphaned_dependencies& deorphaned_deps,
+                       const build_packages& pkgs,
                        bool ignore_unsatisfiable)
   {
     tracer trace ("evaluate_dependency");
@@ -916,6 +924,39 @@ namespace bpkg
         *dov};
     };
 
+    auto build_result = [&ddb, dsys, existing, upgrade] (available&& a)
+    {
+      return evaluate_result {
+        ddb, move (a.first), move (a.second),
+        false /* unused */,
+        dsys,
+        existing,
+        upgrade,
+        nullopt /* orphan */};
+    };
+
+    // Note that if the selected dependency is the best that we can get, we
+    // normally issue the "no change" recommendation. However, if the
+    // configuration variables are specified for this dependency on the
+    // command line, then we issue the "reconfigure" recommendation instead.
+    //
+    // Return true, if the already selected dependency has been specified on
+    // the command line with the configuration variables, but has not yet been
+    // built on this pkg-build run.
+    //
+    auto reconfigure = [&ddb, &dsp, &nm, dsys, &pkgs] ()
+    {
+      assert (dsp != nullptr);
+
+      if (!dsys)
+      {
+        const build_package* p (pkgs.entered_build (ddb, nm));
+        return p != nullptr && !p->action && !p->config_vars.empty ();
+      }
+      else
+        return false;
+    };
+
     for (available& af: afs)
     {
       shared_ptr<available_package>& ap (af.first);
@@ -937,8 +978,16 @@ namespace bpkg
         //
         if (!dsp->system () && !deorphan)
         {
-          l5 ([&]{trace << *dsp << ddb << ": best";});
-          return no_change ();
+          if (reconfigure ())
+          {
+            l5 ([&]{trace << *dsp << ddb << ": reconfigure (best)";});
+            return build_result (find_available_fragment (o, ddb, dsp));
+          }
+          else
+          {
+            l5 ([&]{trace << *dsp << ddb << ": best";});
+            return no_change ();
+          }
         }
 
         // We can not upgrade the package to a stub version, so just skip it.
@@ -1081,20 +1130,24 @@ namespace bpkg
              find (existing_deps.begin (), existing_deps.end (),
                    package_key (ddb, nm)) != existing_deps.end ()))
         {
-          l5 ([&]{trace << *dsp << ddb << ": unchanged";});
-          return no_change ();
+          if (reconfigure ())
+          {
+            l5 ([&]{trace << *dsp << ddb << ": reconfigure";});
+            return build_result (move (af));
+          }
+          else
+          {
+            l5 ([&]{trace << *dsp << ddb << ": unchanged";});
+            return no_change ();
+          }
         }
+        else
+        {
+          l5 ([&]{trace << *sp << db << ": update to "
+                        << package_string (nm, av, dsys) << ddb;});
 
-        l5 ([&]{trace << *sp << db << ": update to "
-                      << package_string (nm, av, dsys) << ddb;});
-
-        return evaluate_result {
-          ddb, move (ap), move (af.second),
-          false /* unused */,
-          dsys,
-          existing,
-          upgrade,
-          nullopt /* orphan */};
+          return build_result (move (af));
+        }
       }
     }
 
@@ -1128,8 +1181,16 @@ namespace bpkg
     {
       assert (!dsys); // Version cannot be empty for the system package.
 
-      l5 ([&]{trace << *dsp << ddb << ": only";});
-      return no_change ();
+      if (reconfigure ())
+      {
+        l5 ([&]{trace << *dsp << ddb << ": reconfigure (only)";});
+        return build_result (find_available_fragment (o, ddb, dsp));
+      }
+      else
+      {
+        l5 ([&]{trace << *dsp << ddb << ": only";});
+        return no_change ();
+      }
     }
 
     // If the version satisfying the desired dependency version constraint is
@@ -1370,11 +1431,13 @@ namespace bpkg
   // evaluate_dependency() function description for details).
   //
   static optional<evaluate_result>
-  evaluate_recursive (database& db,
+  evaluate_recursive (const common_options& o,
+                      database& db,
                       const shared_ptr<selected_package>& sp,
                       const recursive_packages& recs,
                       const existing_dependencies& existing_deps,
                       const deorphaned_dependencies& deorphaned_deps,
+                      const build_packages& pkgs,
                       bool ignore_unsatisfiable,
                       upgrade_dependencies_cache& cache)
   {
@@ -1437,7 +1500,8 @@ namespace bpkg
            find_existing (db, sp->name, nullopt /* version_constraint */));
 
     optional<evaluate_result> r (
-      evaluate_dependency (db,
+      evaluate_dependency (o,
+                           db,
                            sp,
                            nullopt /* desired */,
                            false /* desired_sys */,
@@ -1451,6 +1515,7 @@ namespace bpkg
                            dpt_constrs,
                            existing_deps,
                            deorphaned_deps,
+                           pkgs,
                            ignore_unsatisfiable));
 
     // Translate the "no change" result into nullopt.
@@ -6219,6 +6284,7 @@ namespace bpkg
                          &o,
                          &existing_deps,
                          &deorphaned_deps,
+                         &pkgs,
                          cache = upgrade_dependencies_cache {}] (
                          database& db,
                          const shared_ptr<selected_package>& sp,
@@ -6230,12 +6296,14 @@ namespace bpkg
           // See if there is an optional dependency upgrade recommendation.
           //
           if (!sp->hold_package)
-            r = evaluate_dependency (db,
+            r = evaluate_dependency (o,
+                                     db,
                                      sp,
                                      dep_pkgs,
                                      o.no_move (),
                                      existing_deps,
                                      deorphaned_deps,
+                                     pkgs,
                                      ignore_unsatisfiable);
 
           // If none, then see for the recursive dependency upgrade
@@ -6245,11 +6313,13 @@ namespace bpkg
           // configured as such for a reason.
           //
           if (!r && !sp->system () && !rec_pkgs.empty ())
-            r = evaluate_recursive (db,
+            r = evaluate_recursive (o,
+                                    db,
                                     sp,
                                     rec_pkgs,
                                     existing_deps,
                                     deorphaned_deps,
+                                    pkgs,
                                     ignore_unsatisfiable,
                                     cache);
 

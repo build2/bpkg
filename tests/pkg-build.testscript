@@ -217,6 +217,7 @@
 # |   |                            libbaz
 # |   |-- dix-0.1.0.tar.gz
 # |   |-- dix-1.0.0.tar.gz      -> dax require {config.dax.extras=true}
+# |   |-- dox-1.0.0.tar.gz      -> dax
 # |   |-- dux-1.0.0.tar.gz      -> dix
 # |   |-- fax-1.0.0.tar.gz      -> libbar ^1.0.0 ? ($cxx.target.class == 'windows') config.fax.backend=libbar |
 # |   |                            libbaz ^1.0.0 ? ($cxx.target.class != 'windows') config.fax.backend=libbaz,
@@ -226,6 +227,8 @@
 # |   |-- foo-1.0.0.tar.gz      -> {libbar libbaz} ^1.0.0
 # |   |-- fox-1.0.0.tar.gz      -> libbar ^1.0.0 | libbaz ^1.0.0
 # |   |-- fux-1.0.0.tar.gz      -> libbiz ? (!$config.fux.libbiz_old) | libbiz ^0.1.0 ? ($config.fux.libbiz_old)
+# |   |-- fuz-1.0.0.tar.gz      -> libfoo
+# |   |-- foz-1.0.0.tar.gz      -> fuz
 # |   |-- tax-1.0.0.tar.gz      -> libfoo == 1.0.0 | libfoo == 2.0.0
 # |   |-- tex-1.0.0.tar.gz      -> libfoo prefer{} accept(true) reflect {...}
 # |   |-- tix-1.0.0.tar.gz      -> libfoo >= 2.0.0 reflect {...} | libfoo >= 1.0.0 reflect {...}
@@ -3212,7 +3215,7 @@ test.arguments += --sys-no-query
       : satisfy-dependents
       :
       : Test resolving a conflict when libfix and libbiz have selected such
-      : versions of their dependency libbaz, that do not satisfy each other
+      : versions of their dependency libbaz, that don't satisfy each other
       : constraints. We resolve the conflict automatically as if by specifying
       : ?libbaz/0.0.3 on the command line, which satisfies both constraints.
       :
@@ -3467,6 +3470,266 @@ test.arguments += --sys-no-query
           info: available libfoo versions: 1.0.0
         info: while satisfying libbar/1.0.0
         EOE
+    }
+  }
+
+  : reconfigure
+  :
+  {
+    test.arguments += --yes --configure-only
+
+    +$clone_root_cfg
+    +$rep_fetch $rep/t8a
+
+    : deps-with-buildfile-clause
+    :
+    {
+      $clone_cfg;
+
+      $* dox 2>!;
+
+      $pkg_status -r >>EOO;
+        !dox configured 1.0.0
+          dax configured 1.0.0
+            libbaz configured 1.1.0
+        EOO
+
+      $* ?dax; # Noop.
+
+      $* { config.dax.extras=true }+ ?dax 2>>EOE;
+        disfigured dox/1.0.0
+        disfigured dax/1.0.0
+        fetched libbar/1.0.0
+        unpacked libbar/1.0.0
+        configured libbar/1.0.0
+        configured dax/1.0.0
+        configured dox/1.0.0
+        EOE
+
+      cat cfg/dax-1.0.0/build/config.build >>~%EOO%;
+        %.*
+        config.dax.extras = true
+        %.*
+        EOO
+
+      $* ?dax; # Noop.
+
+      cat cfg/dax-1.0.0/build/config.build >>~%EOO%;
+        %.*
+        config.dax.extras = true
+        %.*
+        EOO
+
+      $pkg_status -r >>EOO;
+        !dox configured 1.0.0
+          dax configured 1.0.0
+            libbar configured 1.0.0
+            libbaz configured 1.1.0
+        EOO
+
+      $* { config.dax.extras=true }+ ?dax 2>>EOE;
+        disfigured dox/1.0.0
+        disfigured dax/1.0.0
+        configured dax/1.0.0
+        configured dox/1.0.0
+        EOE
+
+      $pkg_status -r >>EOO;
+        !dox configured 1.0.0
+          dax configured 1.0.0
+            libbar configured 1.0.0
+            libbaz configured 1.1.0
+        EOO
+
+      $* { config.dax.extras=false }+ ?dax 2>>EOE;
+        disfigured dox/1.0.0
+        disfigured dax/1.0.0
+        disfigured libbar/1.0.0
+        purged libbar/1.0.0
+        configured dax/1.0.0
+        configured dox/1.0.0
+        EOE
+
+      cat cfg/dax-1.0.0/build/config.build >>~%EOO%;
+        %.*
+        config.dax.extras = false
+        %.*
+        EOO
+
+      $pkg_status -r >>EOO;
+        !dox configured 1.0.0
+          dax configured 1.0.0
+            libbaz configured 1.1.0
+        EOO
+
+      # While at it, test that an attempt to reconfigure an orphan dependency
+      # which has its own dependencies with buildfile clauses fails.
+      #
+      $rep_remove $rep/t8a;
+
+      $* { config.dax.extras=true }+ ?dax 2>>/EOE != 0;
+        error: unknown package dax
+          info: configuration cfg/ has no repositories
+          info: use 'bpkg rep-add' to add a repository
+        EOE
+
+      cp -rp cfg/dax-1.0.0/ dax;
+
+      $rep_add --type dir "$~/dax";
+      $rep_fetch;
+
+      $* { config.dax.extras=true }+ ?dax 2>>EOE != 0;
+        error: package dax/1.0.0 is orphaned
+          info: explicitly upgrade it to a new version
+        info: while satisfying dax/1.0.0
+        EOE
+
+      $pkg_drop dox
+    }
+
+    : deps-without-buildfile-clause
+    :
+    {
+      $clone_cfg;
+
+      $* foz 2>!;
+
+      $pkg_status -r >>EOO;
+        !foz configured 1.0.0
+          fuz configured 1.0.0
+            libfoo configured 2.0.0
+        EOO
+
+      $* ?fuz; # Noop.
+
+      cat cfg/fuz-1.0.0/build/config.build >>~%EOO%;
+        %.*
+        config.fuz.extras = false
+        %.*
+        EOO
+
+      $* { config.fuz.extras=true }+ ?fuz 2>>EOE;
+        disfigured foz/1.0.0
+        disfigured fuz/1.0.0
+        configured fuz/1.0.0
+        configured foz/1.0.0
+        EOE
+
+      cat cfg/fuz-1.0.0/build/config.build >>~%EOO%;
+        %.*
+        config.fuz.extras = true
+        %.*
+        EOO
+
+      $* ?fuz; # Noop.
+
+      cat cfg/fuz-1.0.0/build/config.build >>~%EOO%;
+        %.*
+        config.fuz.extras = true
+        %.*
+        EOO
+
+      $* { config.fuz.extras=false }+ ?fuz 2>>EOE;
+        disfigured foz/1.0.0
+        disfigured fuz/1.0.0
+        configured fuz/1.0.0
+        configured foz/1.0.0
+        EOE
+
+      cat cfg/fuz-1.0.0/build/config.build >>~%EOO%;
+        %.*
+        config.fuz.extras = false
+        %.*
+        EOO
+
+      # While at it, test that we can also reconfigure an orphan with its own
+      # dependencies but without buildfile clauses.
+      #
+      $rep_remove $rep/t8a;
+
+      cp -rp cfg/fuz-1.0.0/ fuz;
+      sed -i -e 's/(version:) 1.0.0/\1 2.0.0/' fuz/manifest;
+
+      $rep_add --type dir "$~/fuz";
+      $rep_fetch;
+
+      $* { config.fuz.extras=true }+ ?fuz 2>>EOE;
+        disfigured foz/1.0.0
+        disfigured fuz/1.0.0
+        configured fuz/1.0.0
+        configured foz/1.0.0
+        EOE
+
+      cat cfg/fuz-1.0.0/build/config.build >>~%EOO%;
+        %.*
+        config.fuz.extras = true
+        %.*
+        EOO
+
+      $pkg_status -r >>EOO;
+        !foz configured 1.0.0
+          fuz configured 1.0.0 available 2.0.0
+            libfoo configured 2.0.0
+        EOO
+
+      $pkg_drop foz
+    }
+
+    : no-deps
+    :
+    {
+      $clone_cfg;
+
+      $* fuz 2>!;
+
+      $* ?libfoo; # Noop.
+
+      cat cfg/libfoo-2.0.0/build/config.build >>~%EOO%;
+        %.*
+        config.libfoo.protocol = 2
+        %.*
+        EOO
+
+      $* { config.libfoo.protocol=1 }+ ?libfoo 2>>EOE;
+        disfigured fuz/1.0.0
+        disfigured libfoo/2.0.0
+        configured libfoo/2.0.0
+        configured fuz/1.0.0
+        EOE
+
+      cat cfg/libfoo-2.0.0/build/config.build >>~%EOO%;
+        %.*
+        config.libfoo.protocol = 1
+        %.*
+        EOO
+
+      $* ?libfoo; # Noop.
+
+      # While at it, test that we can also reconfigure an orphan without
+      # dependencies.
+      #
+      $rep_remove $rep/t8a;
+
+      cp -rp cfg/libfoo-2.0.0/ libfoo;
+      sed -i -e 's/(version:) 2.0.0/\1 3.0.0/' libfoo/manifest;
+
+      $rep_add --type dir "$~/libfoo";
+      $rep_fetch;
+
+      $* { config.libfoo.protocol=3 }+ ?libfoo 2>>EOE;
+        disfigured fuz/1.0.0
+        disfigured libfoo/2.0.0
+        configured libfoo/2.0.0
+        configured fuz/1.0.0
+        EOE
+
+      cat cfg/libfoo-2.0.0/build/config.build >>~%EOO%;
+        %.*
+        config.libfoo.protocol = 3
+        %.*
+        EOO
+
+      $pkg_drop fuz
     }
   }
 
@@ -24132,7 +24395,7 @@ test.arguments += --sys-no-query
               #
               cps =
               for p: $ps
-                timeout 60
+                timeout 120
                 if $* $p 2>&1 | $warn_to_info 2>!
                   cps += $p
                 end
@@ -24142,7 +24405,7 @@ test.arguments += --sys-no-query
               # them into dependencies.
               #
               for p: $cps
-                timeout 60
+                timeout 120
                 $* ?$p 2>!
               end
             end
