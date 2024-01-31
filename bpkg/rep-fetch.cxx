@@ -1707,7 +1707,7 @@ namespace bpkg
                      << package_string (p->id.name, p->version);
             }
 
-            dependency_alternative da (nullopt /* enable */,
+            dependency_alternative da (td.enable,
                                        td.reflect,
                                        nullopt /* prefer */,
                                        nullopt /* accept */,

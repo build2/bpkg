@@ -2142,9 +2142,13 @@ configuration. See the \l{bbot \c{bbot} documentation} for details.
 \h2#manifest-package-tests-examples-benchmarks|\c{tests}, \c{examples}, \c{benchmarks}|
 
 \
-[tests]: [*] <name> [<version-constraint>]
-[examples]: [*] <name> [<version-constraint>]
-[benchmarks]: [*] <name> [<version-constraint>]
+[tests]: [*] <package> ['?' <enable-cond>] [<reflect-var>]
+[examples]: [*] <package> ['?' <enable-cond>] [<reflect-var>]
+[benchmarks]: [*] <package> ['?' <enable-cond>] [<reflect-var>]
+
+<package>     = <name> [<version-constraint>]
+<enable-cond> = '(' <buildfile-eval-expr> ')'
+<reflect-var> = <config-var> '=' <value>
 \
 
 Separate tests, examples, and benchmarks packages. If the value starts with
@@ -2163,7 +2167,7 @@ example:
 
 \
 name: hello
-tests : hello-tests
+tests: hello-tests
 examples: hello-examples
 \
 
@@ -2176,17 +2180,56 @@ it can also be specified in terms of the primary package's version (see the
 tests: hello-tests ~$
 \
 
-Note that normally the tests, etc., packages themselves do not have an
-explicit dependency on the primary package (in a sense, the primary package
-has a special dependency on them). They are also not built by automated build
-bots separately from their primary package but may have their own build
-constraints, for example, to be excluded from building on some platforms where
-the primary package is still built, for example:
+Note that normally the tests, etc., packages themselves (we'll call them all
+test packages for short) do not have an explicit dependency on the primary
+package (in a sense, the primary package has a special test dependency on
+them). They are also not built by automated build bots separately from their
+primary package but may have their own build constraints, for example, to be
+excluded from building on some platforms where the primary package is still
+built, for example:
 
 \
 name: hello-tests
 builds: -windows
 \
+
+Also note that a test package may potentially be used as a test dependency for
+multiple primary packages. In this case a primary package normally needs to
+reflect to the test package the fact that it is the one being tested. This can
+be achieved by setting the test package's configuration variable (see the
+\l{#manifest-package-depends \c{depends}} value for details on
+reflection). For example:
+
+\
+name: hello-foo
+tests: hello-tests config.hello_tests.test=hello-foo
+
+name: hello-bar
+tests: hello-tests config.hello_tests.test=hello-bar
+\
+
+If it is plausible that the test package may also be built explicitly, for
+example, to achieve a more complicated setup (test multiple main packages
+simultaneously, etc), then the test dependencies need to be made conditional
+in the primary packages so that the explicit configuration is preferred over
+the reflections (see the \l{#manifest-package-depends \c{depends}} value for
+details on conditional dependencies). For example:
+
+\
+name: hello-foo
+tests: hello-tests \
+? (!$defined(config.hello_tests.test)) config.hello_tests.test=hello-foo
+
+name: hello-bar
+tests: hello-tests \
+? (!$defined(config.hello_tests.test)) config.hello_tests.test=hello-bar
+\
+
+Note that in contrast to the \l{#manifest-package-depends \c{depends}} value,
+both the reflection and condition refer to the variables defined not by the
+package which specifies the test dependency (primary package), but the package
+such a dependency refers to (test package).
+
 
 \h2#manifest-package-builds|\c{builds}|
 

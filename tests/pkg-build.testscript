@@ -251,9 +251,12 @@
 # |   `-- repositories.manifest
 # |
 # |-- t10
-# |   |-- libfoo-bar-1.0.0.tar.gz   -> libfoo-tests
-# |   |-- libfoo-baz-1.0.0.tar.gz   -> libfoo-tests
+# |   |-- libfoo-bar-1.0.0.tar.gz   (tests) -> libfoo-tests
+# |   |-- libfoo-baz-1.0.0.tar.gz   (tests) -> libfoo-tests
 # |   |-- libfoo-tests-1.0.0.tar.gz
+# |   |-- libbar-foo-1.0.0.tar.gz   (tests) -> libbar-tests
+# |   |-- libbar-baz-1.0.0.tar.gz   (tests) -> libbar-tests
+# |   |-- libbar-tests-1.0.0.tar.gz         -> ? libbar-foo, ? libbar-baz
 # |   `-- repositories.manifest
 # |
 # | NOTE: remember to update
@@ -26378,6 +26381,155 @@ test.arguments += --sys-no-query
         info: alternative: libfoo-baz
       info: while satisfying libfoo-tests/1.0.0
       EOE
+  }
+
+  : reflection-foo
+  :
+  {
+    $clone_cfg;
+
+    $* libbar-tests 2>>EOE != 0;
+      error: unable to select dependency alternative for package libbar-tests/1.0.0
+        info: explicitly specify dependency packages to manually select the alternative
+        info: alternative: libbar-baz
+        info: alternative: libbar-foo
+      info: while satisfying libbar-tests/1.0.0
+      EOE
+
+    $* libbar-foo libbar-tests 2>>~%EOE%;
+      fetched libbar-foo/1.0.0
+      unpacked libbar-foo/1.0.0
+      fetched libbar-tests/1.0.0
+      unpacked libbar-tests/1.0.0
+      configured libbar-foo/1.0.0
+      configured libbar-tests/1.0.0
+      %info: .+libbar-foo-1.0.0.+ is up to date%
+      %info: .+libbar-tests-1.0.0.+ is up to date%
+      updated libbar-foo/1.0.0
+      updated libbar-tests/1.0.0
+      EOE
+
+    cat cfg/libbar-tests-1.0.0/build/config.build >>~%EOO%;
+      %.*
+      config.libbar_tests.test = libbar-foo
+      %.*
+      EOO
+
+    $* libbar-baz 2>>~%EOE%;
+      fetched libbar-baz/1.0.0
+      unpacked libbar-baz/1.0.0
+      configured libbar-baz/1.0.0
+      %info: .+libbar-baz-1.0.0.+ is up to date%
+      updated libbar-baz/1.0.0
+      EOE
+
+    cat cfg/libbar-tests-1.0.0/build/config.build >>~%EOO%;
+      %.*
+      config.libbar_tests.test = libbar-foo
+      %.*
+      EOO
+
+    $pkg_status -r >>EOO;
+      !libbar-foo configured 1.0.0
+      !libbar-tests configured 1.0.0
+        !libbar-foo configured 1.0.0
+      !libbar-baz configured 1.0.0
+      EOO
+
+    $pkg_drop libbar-foo libbar-baz libbar-tests
+  }
+
+  : reflection-baz
+  :
+  {
+    $clone_cfg;
+
+    $* libbar-baz libbar-tests 2>>~%EOE%;
+      fetched libbar-baz/1.0.0
+      unpacked libbar-baz/1.0.0
+      fetched libbar-tests/1.0.0
+      unpacked libbar-tests/1.0.0
+      configured libbar-baz/1.0.0
+      configured libbar-tests/1.0.0
+      %info: .+libbar-baz-1.0.0.+ is up to date%
+      %info: .+libbar-tests-1.0.0.+ is up to date%
+      updated libbar-baz/1.0.0
+      updated libbar-tests/1.0.0
+      EOE
+
+    cat cfg/libbar-tests-1.0.0/build/config.build >>~%EOO%;
+      %.*
+      config.libbar_tests.test = libbar-baz
+      %.*
+      EOO
+
+    $* libbar-foo 2>>~%EOE%;
+      fetched libbar-foo/1.0.0
+      unpacked libbar-foo/1.0.0
+      configured libbar-foo/1.0.0
+      %info: .+libbar-foo-1.0.0.+ is up to date%
+      updated libbar-foo/1.0.0
+      EOE
+
+    cat cfg/libbar-tests-1.0.0/build/config.build >>~%EOO%;
+      %.*
+      config.libbar_tests.test = libbar-baz
+      %.*
+      EOO
+
+    $pkg_status -r >>EOO;
+      !libbar-baz configured 1.0.0
+      !libbar-tests configured 1.0.0
+        !libbar-baz configured 1.0.0
+      !libbar-foo configured 1.0.0
+      EOO
+
+    $pkg_drop libbar-baz libbar-foo libbar-tests
+  }
+
+  : reflection-both
+  :
+  {
+    $clone_cfg;
+
+    $* libbar-foo libbar-baz libbar-tests 2>!;
+
+    cat cfg/libbar-tests-1.0.0/build/config.build >>~%EOO%;
+      %.*
+      config.libbar_tests.test = libbar-baz
+      %.*
+      EOO
+
+    $pkg_status -r >>EOO;
+      !libbar-foo configured 1.0.0
+      !libbar-baz configured 1.0.0
+      !libbar-tests configured 1.0.0
+        !libbar-baz configured 1.0.0
+      EOO
+
+    $pkg_drop libbar-foo libbar-baz libbar-tests
+  }
+
+  : configure-explicit
+  :
+  {
+    $clone_cfg;
+
+    $* --yes "config.libbar_tests.test = libbar-foo libbar-baz" -- libbar-tests 2>!;
+
+    cat cfg/libbar-tests-1.0.0/build/config.build >>~%EOO%;
+      %.*
+      config.libbar_tests.test = libbar-foo libbar-baz
+      %.*
+      EOO
+
+    $pkg_status -r >>EOO;
+      !libbar-tests configured 1.0.0
+        libbar-baz configured 1.0.0
+        libbar-foo configured 1.0.0
+      EOO
+
+    $pkg_drop libbar-tests
   }
 }
 
