@@ -3,6 +3,8 @@
 
 #include <bpkg/fetch.hxx>
 
+#include <libbutl/curl.hxx>
+
 #include <bpkg/diagnostics.hxx>
 
 using namespace std;
@@ -475,96 +477,16 @@ namespace bpkg
     if (out_is != nullptr)
     try
     {
-      // At this stage we will read until the empty line (containing just
-      // CRLF). Not being able to reach such a line is an error, which is the
-      // reason for the exception mask choice. When done, we will restore the
-      // original exception mask.
-      //
-      ifdstream&         is (*out_is);
-      ifdstream::iostate es (is.exceptions ());
-
-      is.exceptions (
-        ifdstream::badbit | ifdstream::failbit | ifdstream::eofbit);
-
+      ifdstream& is (*out_is);
       is.open (move (pr.in_ofd), out_ism);
+      sc = curl::read_http_status (*out_is).code;
+    }
+    catch (const invalid_argument& e)
+    {
+      close_streams ();
 
-      // Parse and return the HTTP status code. Return 0 if the argument is
-      // invalid.
-      //
-      auto status_code = [] (const string& s)
-      {
-        char* e (nullptr);
-        unsigned long c (strtoul (s.c_str (), &e, 10)); // Can't throw.
-        assert (e != nullptr);
-
-        return *e == '\0' && c >= 100 && c < 600
-               ? static_cast<uint16_t> (c)
-               : 0;
-      };
-
-      // Read the CRLF-terminated line from the stream stripping the trailing
-      // CRLF.
-      //
-      auto read_line = [&is] ()
-      {
-        string l;
-        getline (is, l); // Strips the trailing LF (0xA).
-
-        // Note that on POSIX CRLF is not automatically translated into LF, so
-        // we need to strip CR (0xD) manually.
-        //
-        if (!l.empty () && l.back () == '\r')
-          l.pop_back ();
-
-        return l;
-      };
-
-      auto read_status = [&read_line, &status_code, &url, &close_streams] ()
-           -> uint16_t
-      {
-        string l (read_line ());
-
-        for (;;) // Breakout loop.
-        {
-          if (l.compare (0, 5, "HTTP/") != 0)
-            break;
-
-          size_t p (l.find (' ', 5));           // The protocol end.
-          if (p == string::npos)
-            break;
-
-          p = l.find_first_not_of (' ', p + 1); // The code start.
-          if (p == string::npos)
-            break;
-
-          size_t e (l.find (' ', p + 1));       // The code end.
-          if (e == string::npos)
-            break;
-
-          uint16_t c (status_code (string (l, p, e - p)));
-          if (c == 0)
-            break;
-
-          return c;
-        }
-
-        close_streams ();
-
-        fail << "invalid HTTP response status line '" << l
-             << "' while fetching " << url << endf;
-      };
-
-      sc = read_status ();
-
-      if (sc == 100)
-      {
-        while (!read_line ().empty ()) ; // Skips the interim response.
-        sc = read_status ();             // Reads the final status code.
-      }
-
-      while (!read_line ().empty ()) ;   // Skips headers.
-
-      is.exceptions (es);
+      fail << "unable to read HTTP response status line for " << url << ": "
+           << e;
     }
     catch (const io_error&)
     {
