@@ -1617,12 +1617,17 @@ namespace bpkg
         {
           dependencies& ds (at.package->dependencies);
 
-          // Note that the special test dependencies entry is always the last
-          // one, if present.
+          // Note that there is only one special test dependencies entry in
+          // the test package.
           //
-          assert (!ds.empty () && ds.back ().type);
-
-          ds.pop_back ();
+          for (auto i (ds.begin ()), e (ds.end ()); i != e; ++i)
+          {
+            if (i->type)
+            {
+              ds.erase (i);
+              break;
+            }
+          }
 
           db.update (at.package);
         }
@@ -1634,13 +1639,15 @@ namespace bpkg
       for (const auto& am: db.query<available_main> ())
       {
         const shared_ptr<available_package>& p (am.package);
+        const package_name& n (p->id.name);
+        const version& v (p->version);
 
         vector<shared_ptr<repository_fragment>> rfs;
 
         for (const package_location& pl: p->locations)
           rfs.push_back (pl.repository_fragment.load ());
 
-        bool module (build2_module (p->id.name));
+        bool module (build2_module (n));
 
         for (const test_dependency& td: p->tests)
         {
@@ -1650,7 +1657,7 @@ namespace bpkg
           if (module && !td.buildtime)
             fail << "run-time " << td.type << ' ' << td.name << " for build "
                  << "system module "
-                 << package_string (p->id.name, p->version) <<
+                 << package_string (n, v) <<
               info << "build system modules cannot have run-time " << td.type;
 
           vector<pair<shared_ptr<available_package>,
@@ -1668,11 +1675,12 @@ namespace bpkg
 
             dependencies& ds (tp->dependencies);
 
-            if (ds.empty () || !ds.back ().type)
-              ds.push_back (dependency_alternatives_ex (td.type,
-                                                        td.buildtime));
-
-            dependency_alternatives_ex& das (ds.back ());
+            // Find the special test dependencies entry, if already present.
+            //
+            auto b  (ds.begin ());
+            auto e  (ds.end ());
+            auto oi (b);           // Old entry location.
+            for (; oi != e && !oi->type; ++oi) ;
 
             // Note that since we store all the primary packages as
             // alternative dependencies (which must be all of the same
@@ -1683,12 +1691,10 @@ namespace bpkg
             // `== <version>` constraints (see below), so we can use min
             // version of such a constraint as the primary package version.
             //
-            if (das.buildtime != td.buildtime)
+            if (oi != e && oi->buildtime != td.buildtime)
             {
-              // Could only be empty if we just added it, which cannot be the
-              // case since the build-time flag differs.
-              //
-              assert (!das.empty ());
+              dependency_alternatives_ex& das (*oi);
+              assert (!das.empty ()); // Cannot be empty if present.
 
               const dependency_alternative& da (das[0]);
 
@@ -1704,19 +1710,87 @@ namespace bpkg
                      << package_string (da[0].name,
                                         *da[0].constraint->min_version) <<
                 info << (td.buildtime ? "build-time for " : "run-time for ")
-                     << package_string (p->id.name, p->version);
+                     << package_string (n, v);
             }
 
+            // Find the (new) location for the special test dependencies entry.
+            //
+            // Note that if the entry is already present, it can only be moved
+            // towards the end of the list.
+            //
+            auto ni (e);
+
+            // First, find the last depends clause that explicitly specifies
+            // this main package but goes after the special entry current
+            // location, if present. Note that we only consider clauses with
+            // the matching buildtime flag.
+            //
+            for (auto i (oi != e ? oi + 1 : b); i != e; ++i)
+            {
+              const dependency_alternatives_ex& das (*i);
+              if (das.buildtime == td.buildtime)
+              {
+                bool specifies (false);
+
+                for (const dependency_alternative& da: das)
+                {
+                  for (const dependency& d: da)
+                  {
+                    if (d.name == n)
+                    {
+                      specifies = true;
+                      break;
+                    }
+                  }
+
+                  if (specifies)
+                    break;
+                }
+
+                if (specifies)
+                  ni = i;
+              }
+            }
+
+            // Now, set ni to refer to the special test dependencies entry,
+            // moving or creating one, if required.
+            //
+            if (oi != e)   // The entry already exists?
+            {
+              if (ni != e) // Move the entry to the new location?
+              {
+                // Move the [oi + 1, ni] range 1 position to the left and
+                // move the *oi element to the now vacant ni slot.
+                //
+                rotate (oi, oi + 1, ni + 1);
+              }
+              else
+                ni = oi;   // Leave the entry at the old location.
+            }
+            else           // The entry doesn't exist.
+            {
+              if (ni != e) // Create the entry right after ni?
+                ++ni;
+              else
+                ni = b;    // Create the entry at the beginning of the list.
+
+              ni = ds.emplace (ni, td.type, td.buildtime); // Create the entry.
+            }
+
+            // Finally, add the new dependency alternative to the special
+            // entry.
+            //
             dependency_alternative da (td.enable,
                                        td.reflect,
                                        nullopt /* prefer */,
                                        nullopt /* accept */,
                                        nullopt /* require */);
 
-            da.push_back (
-              dependency {p->id.name, version_constraint (p->version)});
+            da.push_back (dependency {n, version_constraint (v)});
 
-            das.push_back (move (da));
+            assert (ni != ds.end ()); // Must be deduced by now.
+
+            ni->push_back (move (da));
 
             db.update (tp);
           }

@@ -716,8 +716,17 @@ namespace bpkg
 
     // Package manifest data and, potentially, the special test dependencies.
     //
-    // Note that there can be only one special test dependencies entry in the
-    // list and it's always the last one, if present.
+    // Note that there can only be one special test dependencies entry in the
+    // list. It can only be present for a test package and specifies all the
+    // main packages as the alternative dependencies. If present, it is
+    // located right after the last explicit depends clause which specifies a
+    // main package for this test package, if such a clause is present, and as
+    // the first entry otherwise. The idea here is to inject the special
+    // depends clause as early as possible, so that the other clauses could
+    // potentially refer to the reflection variables it may set. But not too
+    // early, so that the explicit main package dependencies are already
+    // resolved by the time of resolving the special clause to avoid the
+    // 'unable to select dependency alternative' error.
     //
     using dependencies_type = bpkg::dependencies;
 
