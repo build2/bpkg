@@ -4857,36 +4857,44 @@ namespace bpkg
 
           bool sys (arg_sys (pa));
 
-          // Make sure that the package is known.
+          if (pdb != nullptr)
+            sp = pdb->find<selected_package> (pa.name);
+
+          // Make sure that the package is known. Only allow to unhold an
+          // unknown orphaned selected package.
           //
           if (!existing &&
               find_available (repo_configs,
                               pa.name,
                               !sys ? pa.constraint : nullopt).empty ())
           {
-            string n (arg_string (pa, false /* options */));
-
-            diag_record dr (fail);
-            dr << "unknown package " << n;
-            if (sys)
+            // Don't fail if the selected package is held and satisfies the
+            // constraints, if specified. Note that we may still fail later if
+            // the dependency is requested to be deorphaned and still have the
+            // dependents.
+            //
+            if (!(sp != nullptr    &&
+                  sp->hold_package &&
+                  (!pa.constraint || satisfies (sp->version, pa.constraint))))
             {
-              // Feels like we can't end up here if the version was specified
-              // explicitly.
-              //
-              dr << info << "consider specifying " << n << "/*";
+              string n (arg_string (pa, false /* options */));
+
+              diag_record dr (fail);
+              dr << "unknown package " << n;
+              if (sys)
+              {
+                // Feels like we can't end up here if the version was specified
+                // explicitly.
+                //
+                dr << info << "consider specifying " << n << "/*";
+              }
+              else
+                check_any_available (repo_configs, t, &dr);
             }
-            else
-              check_any_available (repo_configs, t, &dr);
           }
 
           if (pdb != nullptr)
-          {
-            // Save before the name move.
-            //
-            sp = pdb->find<selected_package> (pa.name);
-
             pkg_confs.emplace_back (*pdb, pa.name);
-          }
 
           bool hold_version (pa.constraint.has_value ());
 
