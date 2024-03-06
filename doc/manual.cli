@@ -1083,12 +1083,16 @@ license: <licenses> [; <comment>]
 [builds]: <class-expr> [; <comment>]
 [build-include]: <config>[/<target>] [; <comment>]
 [build-exclude]: <config>[/<target>] [; <comment>]
+[build-auxiliary]: <config> [; <comment>]
+[build-auxiliary-<name>]: <config> [; <comment>]
 
 [*-build-config]: <args> [; <comment>]
 
 [*-builds]: <class-expr> [; <comment>]
 [*-build-include]: <config>[/<target>] [; <comment>]
 [*-build-exclude]: <config>[/<target>] [; <comment>]
+[*-build-auxiliary]: <config> [; <comment>]
+[*-build-auxiliary-<name>]: <config> [; <comment>]
 
 [*-build-email]: <email> [; <comment>]
 [*-build-warning-email]: <email> [; <comment>]
@@ -2372,6 +2376,104 @@ Note that the comment of the matching exclusion is used by the web interface
 (\c{brep}) to display the reason for the build target configuration exclusion.
 
 
+\h2#manifest-package-build-auxiliary|\c{build-auxiliary}|
+
+\
+[build-auxiliary]: <config> [; <comment>]
+[build-auxiliary-<name>]: <config> [; <comment>]
+\
+
+The common package build auxiliary configurations. The \c{build-auxiliary}
+values can be used to specify auxiliary configurations that provide additional
+components which are required for building or testing a package and that are
+impossible or impractical to provide as part of the build configuration
+itself. For example, a package may need access to a suitably configured
+database, such as PostgreSQL, in order to run its tests.
+
+The \i{config} value is a filesystem wildcard patterns which is matched
+against the auxiliary configuration names (which are in turn derived from
+auxiliary machine names; see the \l{bbot \c{bbot} documentation} for
+details). In particular, the \c{*} wildcard matches zero or more characters
+within the name component while the \c{**} sequence matches across the
+components. Plus, wildcard-only pattern components match absent name
+components. For example:
+
+\
+build-auxiliary: linux_debian_12-postgresql_16
+build-auxiliary: linux_*-postgresql_*
+build-auxiliary: *-postgresql**
+\
+
+\N|If multiple auxiliary configurations match the specified pattern, then
+one is picked at random for every build.|
+
+If multiple auxiliary configurations are required, then they must be given
+distinct names with the \i{name} component. For example:
+
+\
+build-auxiliary-pgsql: *-postgresql_*
+build-auxiliary-mysql: *-mysql_*
+\
+
+Another example:
+
+\
+build-auxiliary-primary: *-postgresql_*
+build-auxiliary-secondary: *-postgresql_*
+\
+
+Auxiliary machines communicate information about their setup to the build
+machine using environment variables (see
+\l{bbot#arch-task-auxiliary-environment \c{auxiliary-environment}} for
+details). For example, an auxiliary machine that provides a test PostgreSQL
+database may need to communicate the host IP address and port on which it can
+be accessed as well as the user to login as and the database name to use. For
+example:
+
+\
+DATABASE_HOST=192.168.0.1
+DATABASE_PORT=5432
+DATABASE_USER=test
+DATABASE_NAME=test
+\
+
+If the auxiliary configuration is specified as \c{build-auxiliary-<name>},
+then capitalized \i{name}_ is used as a prefix in the environment variables
+corresponding to the machine. For example, for the auxiliary configurations
+specified as:
+
+\
+build-auxiliary-pgsql: *-postgresql_*
+build-auxiliary-mysql: *-mysql_*
+\
+
+The environment variables could be:
+
+\
+PGSQL_DATABASE_HOST=192.168.0.1
+PGSQL_DATABASE_PORT=5432
+...
+
+MYSQL_DATABASE_HOST=192.168.0.2
+MYSQL_DATABASE_PORT=3306
+...
+\
+
+The auxiliary environment variables are in effect for the entire build. The
+recommended place to propagate them to the package configuration is the
+\c{build-config} value. For example:
+
+\
+build-auxiliary: *-postgresql_*
+build-config:
+\\
+config.hello.pgsql_host=$getenv(DATABASE_HOST)
+config.hello.pgsql_port=$getenv(DATABASE_PORT)
+...
+\\
+\
+
+
 \h2#manifest-package-build-config|\c{*-build-config}|
 
 \
@@ -2390,6 +2492,8 @@ Note that the comment of the matching exclusion is used by the web interface
 [*-builds]: <class-expr> [; <comment>]
 [*-build-include]: <config>[/<target>] [; <comment>]
 [*-build-exclude]: <config>[/<target>] [; <comment>]
+[*-build-auxiliary]: <config> [; <comment>]
+[*-build-auxiliary-<name>]: <config> [; <comment>]
 
 [*-build-email]: <email> [; <comment>]
 [*-build-warning-email]: <email> [; <comment>]
