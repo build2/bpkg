@@ -2461,11 +2461,11 @@ MYSQL_DATABASE_PORT=3306
 
 The auxiliary environment variables are in effect for the entire build. The
 recommended place to propagate them to the package configuration is the
-\c{build-config} value. For example:
+\c{*-build-config} value. For example:
 
 \
 build-auxiliary: *-postgresql_*
-build-config:
+default-build-config:
 \\
 config.hello.pgsql_host=$getenv(DATABASE_HOST)
 config.hello.pgsql_port=$getenv(DATABASE_PORT)
