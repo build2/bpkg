@@ -1636,6 +1636,13 @@ namespace bpkg
       // Go through the available packages that have external tests and add
       // them as the special test dependencies to these test packages.
       //
+      // Note that not being able to resolve the test package for a main
+      // package is not an error, since the test package absence doesn't
+      // affect the main package building and internal testing. Dropping of an
+      // external test package from a repository may, however, be intentional.
+      // Think of a private repository crafted as a subset of some public
+      // repository with the external examples packages omitted.
+      //
       for (const auto& am: db.query<available_main> ())
       {
         const shared_ptr<available_package>& p (am.package);
