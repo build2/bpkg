@@ -2388,7 +2388,8 @@ values can be used to specify auxiliary configurations that provide additional
 components which are required for building or testing a package and that are
 impossible or impractical to provide as part of the build configuration
 itself. For example, a package may need access to a suitably configured
-database, such as PostgreSQL, in order to run its tests.
+database, such as PostgreSQL, in order to run its tests. Currently no more
+than \c{9} auxiliary configurations can be specified.
 
 The \i{config} value is a filesystem wildcard patterns which is matched
 against the auxiliary configuration names (which are in turn derived from
@@ -2438,24 +2439,24 @@ DATABASE_NAME=test
 \
 
 If the auxiliary configuration is specified as \c{build-auxiliary-<name>},
-then capitalized \i{name}_ is used as a prefix in the environment variables
-corresponding to the machine. For example, for the auxiliary configurations
-specified as:
+then capitalized and sanitized \i{name}_ is used as a prefix in the
+environment variables corresponding to the machine. For example, for the
+auxiliary configurations specified as:
 
 \
-build-auxiliary-pgsql: *-postgresql_*
-build-auxiliary-mysql: *-mysql_*
+build-auxiliary-pg-sql: *-postgresql_*
+build-auxiliary-my-sql: *-mysql_*
 \
 
 The environment variables could be:
 
 \
-PGSQL_DATABASE_HOST=192.168.0.1
-PGSQL_DATABASE_PORT=5432
+PG_SQL_DATABASE_HOST=192.168.0.1
+PG_SQL_DATABASE_PORT=5432
 ...
 
-MYSQL_DATABASE_HOST=192.168.0.2
-MYSQL_DATABASE_PORT=3306
+MY_SQL_DATABASE_HOST=192.168.0.2
+MY_SQL_DATABASE_PORT=3306
 ...
 \
 
