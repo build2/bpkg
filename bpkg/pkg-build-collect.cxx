@@ -2962,8 +2962,12 @@ namespace bpkg
 
                 const strings mods {"cc"};
 
+                // Use the *-no-warnings host/build2 configurations since the
+                // user has no control over such private configurations and
+                // they are primarily used for consumption.
+                //
                 const strings vars {
-                  "config.config.load=~" + type,
+                  "config.config.load=~" + type + "-no-warnings",
                     "config.config.persist+='config.*'@unused=drop"};
 
                 dir_path cd (bpkg_dir / dir_path (type));
