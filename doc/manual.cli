@@ -1085,6 +1085,7 @@ license: <licenses> [; <comment>]
 [build-exclude]: <config>[/<target>] [; <comment>]
 [build-auxiliary]: <config> [; <comment>]
 [build-auxiliary-<name>]: <config> [; <comment>]
+[build-bot]: <pub-key>
 
 [*-build-config]: <args> [; <comment>]
 
@@ -1093,6 +1094,7 @@ license: <licenses> [; <comment>]
 [*-build-exclude]: <config>[/<target>] [; <comment>]
 [*-build-auxiliary]: <config> [; <comment>]
 [*-build-auxiliary-<name>]: <config> [; <comment>]
+[*-build-bot]: <pub-key>
 
 [*-build-email]: <email> [; <comment>]
 [*-build-warning-email]: <email> [; <comment>]
@@ -2474,6 +2476,60 @@ config.hello.pgsql_port=$getenv(DATABASE_PORT)
 \\
 \
 
+\h2#manifest-package-build-bot|\c{build-bot}|
+
+\
+[build-bot]: <pub-key>
+\
+
+The common package build custom bot public key (see \l{bbot \c{build2} build
+bot manual} for background). Multiple \c{build-bot} values can be specified to
+list several custom build bots. If specified, then such custom bots will be
+used instead of (note: not in addition to) the default bots to build this
+package. Custom bots can be used, for example, to accommodate packages that
+have special requirements, such as proprietary dependencies, and which cannot
+be fulfilled using the default bots. The public key should be in the PEM
+format. For example:
+
+\
+build-bot:
+\\
+-----BEGIN PUBLIC KEY-----
+MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAw5liP5pyU9ebC/nD3djZ
+1H2dlKmUyiX0Z8POvKhLREd0B3rM59bPcnbRB4HMIhj0J0hUBvS8xb4u5udCPToa
+x0A/LMWZ6claiivNtJ3CdLV98eklWdNUg5WXOuqq9QDKXw2ZpGbwDwCOh6aHSWVq
+98N9AQx0ZMmMWz3qhRyxPfh+GeJ05uj2ohU9FeUJxeqUcgJT/UcMZ3+7KYbwr+Uq
+/HCoX1BmN6nvzhQGHvJIZ2IcjvOQ0AUrPmpSZN01Zr3ZEpkHM3hJWNLu3ntJLGBQ
+0aT5kG3iqFyr9q3M3c4J8c0AWrnDjvj0qnCyjNwqW+qIpatmCNT43DmgYr9fQLW0
+UHusburz53AbXs12zu3gZzkb0irlShatkMqqQaqaU0/+zw1LnoZ+rvmn2XV97UuK
+LFKMKXCnyi2ZG65IZHGkjBVAPuvsX6RgLNyner/QtkDJTbfhktInbG08dCPqv1EF
+1OtcYKMTn8I5P2VmMO6SXXDLMSdU8b5DA5EY6Ca6JBB8g06S9sqGqXgQFysAnZs1
+VFgMopf8WZqj23x+DX+9KKT2pVnjbwRvBAntuCDoO75gWoETDnCQXEei/PbyamPq
+9+NjNsTDn67iJTGncZbII+eciY2YiFHm6GMzBPsUYlQcxiuO4X36jW6m2rwuw37K
+oFDbGI3uY4LnhwmDFLbjtk8CAwEAAQ==
+-----END PUBLIC KEY-----
+\\
+\
+
+Note that such custom build bots must offer the same set of machines (or a
+subset thereof) as the default bots. In other words, you cannot invent new
+build configuration names (and the corresponding machines) with custom build
+bots \- for that you would need to run your own \c{brep} deployment. Note also
+that the list of machines offered by custom bots should be consistent with the
+build configurations enabled by the package (see \l{#manifest-package-builds
+\c{builds}} for details). For example, if the package enables a configuration
+that is not offered by any of the custom bots listed, then this configuration
+will remain unbuilt forever.
+
+\N|Note that custom build bot public keys are publicly known and nothing
+prevents someone else from specifying your bot's public key in their own
+package and thus triggering a build on your bot of a potentially rogue
+package. As a result, carefully consider the information that you make
+available in your custom machines (which will be easy to exfiltrate) as well
+as the environment in which you run your custom bots (which can potentially be
+compromised). In the future, \c{bbot} may offer mechanisms to restrict the
+names and locations of packages that it is allowed to build.|
+
 
 \h2#manifest-package-build-config|\c{*-build-config}|
 
@@ -2495,6 +2551,7 @@ config.hello.pgsql_port=$getenv(DATABASE_PORT)
 [*-build-exclude]: <config>[/<target>] [; <comment>]
 [*-build-auxiliary]: <config> [; <comment>]
 [*-build-auxiliary-<name>]: <config> [; <comment>]
+[*-build-bot]: <pub-key>
 
 [*-build-email]: <email> [; <comment>]
 [*-build-warning-email]: <email> [; <comment>]
@@ -2568,7 +2625,7 @@ Enable load testing.
 Note that options with values can only be specified using the single argument
 notation, for example, \c{--verbose=4}.
 
-The package build configuration can also override the common build target
+The package build configuration can override the common build target
 configurations set (specified with \l{#manifest-package-builds \c{builds}} and
 \l{#manifest-package-include-exclude \c{build-{include, exclude\}}}) by
 specifying the matching \c{*-builds} and/or \c{*-build-{include, exclude\}}
@@ -2583,8 +2640,18 @@ Note that the common build target configurations set is overridden
 hierarchically meaning that the \c{*-build-{include, exclude\}} overrides
 don't discard the common \c{builds} values.
 
-The package build configuration can also override the common build
-notification email addresses (specified with \l{#manifest-package-build-email
+The package build configuration can override the common build auxiliary
+machines. Note that the auxiliary machine set is overridden entirely, meaning
+that specifying one \c{*-build-auxiliary} value discard all the common
+\c{build-auxiliary} values for this package configuration.
+
+The package build configuration can override the common build custom bots.
+Note that the custom bot set is overridden entirely, meaning that specifying
+one \c{*-build-bot} value discards all the common \c{build-bot} values for
+this package configuration.
+
+The package build configuration can override the common build notification
+email addresses (specified with \l{#manifest-package-build-email
 \c{build-email}}, \l{#manifest-package-warning-email \c{build-warning-email}},
 and \l{#manifest-package-error-email \c{build-error-email}}) by specifying the
 matching \c{*-build-email} and/or \c{*-build-{warning, error\}-email} values.
