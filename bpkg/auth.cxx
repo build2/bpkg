@@ -23,15 +23,15 @@ using namespace butl;
 
 namespace bpkg
 {
-  static const string openssl_version ("version");
-  static const string openssl_pkeyutl ("pkeyutl");
-  static const string openssl_rsautl  ("rsautl");
-  static const string openssl_x509    ("x509");
+  static const string openssl_version_cmd ("version");
+  static const string openssl_pkeyutl_cmd ("pkeyutl");
+  static const string openssl_rsautl_cmd  ("rsautl");
+  static const string openssl_x509_cmd    ("x509");
 
-  const char* openssl_commands[5] = {openssl_version.c_str (),
-                                     openssl_pkeyutl.c_str (),
-                                     openssl_rsautl.c_str (),
-                                     openssl_x509.c_str (),
+  const char* openssl_commands[5] = {openssl_version_cmd.c_str (),
+                                     openssl_pkeyutl_cmd.c_str (),
+                                     openssl_rsautl_cmd.c_str (),
+                                     openssl_x509_cmd.c_str (),
                                      nullptr};
 
   // Print process command line.
@@ -43,9 +43,42 @@ namespace bpkg
       print_process (args, n);
   }
 
+  // Query the openssl information and return the openssl version. Cache the
+  // version on the first function call. Fail on the underlying process and IO
+  // error. Return the 0.0.0 version if unable to parse the openssl stdout.
+  //
+  static optional<semantic_version> openssl_ver;
+
+  static const semantic_version&
+  openssl_version (const common_options& co)
+  {
+    const path& openssl_path (co.openssl ()[openssl_version_cmd]);
+
+    if (!openssl_ver)
+    try
+    {
+      optional<openssl_info> oi (
+        openssl::info (print_command, 2, openssl_path));
+
+      openssl_ver = (oi && oi->name == "OpenSSL"
+                     ? move (oi->version)
+                     : semantic_version ());
+    }
+    catch (const process_error& e)
+    {
+      fail << "unable to execute " << openssl_path << ": " << e << endf;
+    }
+    catch (const io_error& e)
+    {
+      fail << "unable to read '" << openssl_path << "' output: " << e
+           << endf;
+    }
+
+    return *openssl_ver;
+  }
+
   // Return true if the openssl version is greater or equal to 3.0.0 and so
-  // pkeyutl needs to be used instead of rsautl. Cache the result on the first
-  // function call.
+  // pkeyutl needs to be used instead of rsautl.
   //
   // Note that openssl 3.0.0 deprecates rsautl in favor of pkeyutl.
   //
@@ -54,37 +87,28 @@ namespace bpkg
   // (see the 'pkeyutl -verifyrecover error "input data too long to be a
   // hash"' issue report for details).
   //
-  static optional<bool> use_pkeyutl;
-
-  static bool
+  static inline bool
   use_openssl_pkeyutl (const common_options& co)
   {
-    if (!use_pkeyutl)
-    {
-      const path& openssl_path (co.openssl ()[openssl_version]);
-
-      try
-      {
-        optional<openssl_info> oi (
-          openssl::info (print_command, 2, openssl_path));
-
-        use_pkeyutl = oi                    &&
-                      oi->name == "OpenSSL" &&
-                      oi->version >= semantic_version {3, 0, 0};
-      }
-      catch (const process_error& e)
-      {
-        fail << "unable to execute " << openssl_path << ": " << e << endf;
-      }
-      catch (const io_error& e)
-      {
-        fail << "unable to read '" << openssl_path << "' output: " << e
-             << endf;
-      }
-    }
-
-    return *use_pkeyutl;
+    return openssl_version (co) >= semantic_version {3, 0, 0};
   }
+
+  // Return true if some openssl commands (openssl x509 -fingerprint, etc) may
+  // issue the 'Reading certificate from stdin since no -in or -new option is
+  // given' warning. This is the case for the openssl version in the [3.2.0
+  // 3.3.0) range (see GH issue #353 for details).
+  //
+  // Note that there is no easy way to suppress this warning on Windows and
+  // thus we don't define this function there.
+  //
+#ifndef _WIN32
+  static inline bool
+  openssl_warn_stdin (const common_options& co)
+  {
+    const semantic_version& v (openssl_version (co));
+    return v >= semantic_version {3, 2, 0} && v < semantic_version {3, 3, 0};
+  }
+#endif
 
   // Find the repository location prefix that ends with the version component.
   // We consider all repositories under this location to be related.
@@ -190,15 +214,25 @@ namespace bpkg
         dr << ": " << *e;
     };
 
-    const path& openssl_path (co.openssl ()[openssl_x509]);
-    const strings& openssl_opts (co.openssl_option ()[openssl_x509]);
+    const path& openssl_path (co.openssl ()[openssl_x509_cmd]);
+    const strings& openssl_opts (co.openssl_option ()[openssl_x509_cmd]);
 
     try
     {
       openssl os (print_command,
                   fdstream_mode::text, fdstream_mode::text, 2,
-                  openssl_path, openssl_x509,
-                  openssl_opts, "-sha256", "-noout", "-fingerprint");
+                  openssl_path, openssl_x509_cmd,
+                  openssl_opts,
+                  "-sha256",
+                  "-noout",
+                  "-fingerprint"
+#ifndef _WIN32
+                  ,
+                  (openssl_warn_stdin (co)
+                   ? cstrings ({"-in", "/dev/stdin"})
+                   : cstrings ())
+#endif
+      );
 
       os.out << pem;
       os.out.close ();
@@ -288,8 +322,8 @@ namespace bpkg
         dr << ": " << *e;
     };
 
-    const path& openssl_path (co.openssl ()[openssl_x509]);
-    const strings& openssl_opts (co.openssl_option ()[openssl_x509]);
+    const path& openssl_path (co.openssl ()[openssl_x509_cmd]);
+    const strings& openssl_opts (co.openssl_option ()[openssl_x509_cmd]);
 
     try
     {
@@ -315,7 +349,7 @@ namespace bpkg
       openssl os (
         print_command,
         fdstream_mode::text, fdstream_mode::text, 2,
-        openssl_path, openssl_x509,
+        openssl_path, openssl_x509_cmd,
         openssl_opts, "-noout", "-subject", "-dates", "-email",
 
         // Previously we have used "RFC2253,sep_multiline" format to display
@@ -347,6 +381,13 @@ namespace bpkg
         // sep_multiline - display field per line.
         //
         "-nameopt", "utf8,esc_ctrl,dump_nostr,dump_der,sname,sep_multiline"
+
+#ifndef _WIN32
+        ,
+        (openssl_warn_stdin (co)
+         ? cstrings ({"-in", "/dev/stdin"})
+         : cstrings ())
+#endif
       );
 
       // We unset failbit to provide the detailed error description (which
@@ -877,7 +918,7 @@ namespace bpkg
     };
 
     bool ku (use_openssl_pkeyutl (co));
-    const string& cmd (ku ? openssl_pkeyutl : openssl_rsautl);
+    const string& cmd (ku ? openssl_pkeyutl_cmd : openssl_rsautl_cmd);
 
     const path& openssl_path (co.openssl ()[cmd]);
     const strings& openssl_opts (co.openssl_option ()[cmd]);
@@ -973,8 +1014,8 @@ namespace bpkg
     };
 
     const string& cmd (use_openssl_pkeyutl (co)
-                       ? openssl_pkeyutl
-                       : openssl_rsautl);
+                       ? openssl_pkeyutl_cmd
+                       : openssl_rsautl_cmd);
 
     const path& openssl_path (co.openssl ()[cmd]);
     const strings& openssl_opts (co.openssl_option ()[cmd]);
