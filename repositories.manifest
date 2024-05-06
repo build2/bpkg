@@ -12,15 +12,3 @@ location: ../libbutl.git##HEAD
 :
 role: prerequisite
 location: ../libbpkg.git##HEAD
-
-:
-role: prerequisite
-location: https://git.build2.org/packaging/sqlite/sqlite.git##HEAD
-
-:
-role: prerequisite
-location: https://git.codesynthesis.com/odb/libodb.git##HEAD
-
-:
-role: prerequisite
-location: https://git.codesynthesis.com/odb/libodb-sqlite.git##HEAD
