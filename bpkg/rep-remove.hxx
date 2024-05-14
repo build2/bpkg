@@ -57,6 +57,13 @@ namespace bpkg
   rep_remove_package_locations (database&,
                                 transaction&,
                                 const string& fragment_name);
+
+  // Verify that after all the repository/fragment removals the repository
+  // information is consistent in the database (if no repositories stayed then
+  // no fragments stayed either, etc).
+  //
+  void
+  rep_remove_verify (database&, transaction&, bool verify_packages = true);
 }
 
 #endif // BPKG_REP_REMOVE_HXX

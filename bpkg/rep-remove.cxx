@@ -178,12 +178,6 @@ namespace bpkg
     for (const repository::fragment_type& fr: r->fragments)
       rep_remove_fragment (db, t, fr.fragment.load (), mask);
 
-    // If there are no repositories stayed in the database then no repository
-    // fragments should stay either.
-    //
-    if (db.query_value<repository_count> () == 0)
-      assert (db.query_value<repository_fragment_count> () == 0);
-
     // Unless in the mask repositories mode, cleanup the repository state if
     // present and there are no more repositories referring this state.
     //
@@ -271,20 +265,6 @@ namespace bpkg
     // Remove the repository fragment.
     //
     db.erase (rf);
-
-    // If there are no repository fragments stayed in the database then no
-    // repositories nor packages should stay either.
-    //
-    // Note that a repository is removed prior to the removal of fragments it
-    // contains (see rep_remove()). Also note that the packages contained in a
-    // repository fragment are removed, if this is the only containing
-    // fragment, prior to the fragment removal (see above).
-    //
-    if (db.query_value<repository_fragment_count> () == 0)
-    {
-      assert (db.query_value<repository_count> () == 0);
-      assert (mask || db.query_value<available_package_count> () == 0);
-    }
 
     // Remove dangling complements and prerequisites.
     //
@@ -521,6 +501,10 @@ namespace bpkg
         text << "removed " << r.object_id ();
     }
 
+#ifndef NDEBUG
+    rep_remove_verify (db, t);
+#endif
+
     // If the --all option is specified then no user-added repositories should
     // remain.
     //
@@ -537,5 +521,36 @@ namespace bpkg
     t.commit ();
 
     return 0;
+  }
+
+  void
+  rep_remove_verify (database& db, transaction&, bool verify_packages)
+  {
+    size_t rn (db.query_value<repository_count> ());
+    size_t fn (db.query_value<repository_fragment_count> ());
+
+    // If there are no repositories stayed in the database then no repository
+    // fragments should stay either.
+    //
+    assert (rn != 0 || fn == 0);
+
+    // If there are no repository fragments stayed in the database then no
+    // repositories with fragments nor packages should stay either.
+    //
+    // Note that repositories may not have any fragments if they are not
+    // fetched yet or due to the refname exclusions in the repository URL
+    // fragments (see repository-types(1) for details).
+    //
+    if (fn == 0)
+    {
+      // If there are some repositories have stayed, then make sure that none
+      // of them have any fragments.
+      //
+      assert (rn == 0 ||
+              db.query_value<fragment_repository_count> ("repository!=''") == 0);
+
+      if (verify_packages)
+        assert (db.query_value<available_package_count> () == 0);
+    }
   }
 }

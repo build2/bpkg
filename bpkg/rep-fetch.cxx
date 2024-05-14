@@ -1552,6 +1552,10 @@ namespace bpkg
         }
       }
 
+#ifndef NDEBUG
+      rep_remove_verify (db, t);
+#endif
+
       // Make sure that the external packages are available from a single
       // directory-based repository.
       //

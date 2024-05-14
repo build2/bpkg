@@ -6,6 +6,7 @@
 #include <bpkg/package.hxx>
 #include <bpkg/package-odb.hxx>
 #include <bpkg/database.hxx>
+#include <bpkg/rep-remove.hxx>       // rep_remove_verify()
 #include <bpkg/diagnostics.hxx>
 #include <bpkg/package-query.hxx>    // repo_configs
 #include <bpkg/manifest-utility.hxx> // repository_name()
@@ -273,6 +274,16 @@ namespace bpkg
 
     for (database& db: repo_configs)
     {
+      // While at it, verify that the repository information has stayed
+      // consistent after the potential repository removals.
+      //
+      // Note that rep_remove() doesn't remove the available packages in the
+      // mask mode and thus we don't verify them.
+      //
+#ifndef NDEBUG
+      rep_remove_verify (db, t, false /* verify_packages */);
+#endif
+
       // Add the repository location canonical name to the database-specific
       // unmasked repositories or repository fragments lists. Note that
       // repository location is used only for tracing.
