@@ -1490,78 +1490,87 @@ namespace bpkg
     // applied. Ignore the replacement if its version doesn't satisfy the
     // dependency constraints specified by the caller. Also ignore if this is
     // a drop and the required-by package names of the specified build package
-    // object have the "required by dependents" semantics
+    // object have the "required by dependents" semantics.
     //
     auto vi (replaced_vers.find (pk));
+    const version* replacement_version (nullptr);
 
-    if (vi != replaced_vers.end () && !vi->second.replaced)
+    if (vi != replaced_vers.end ())
     {
-      l5 ([&]{trace << "apply version replacement for "
-                    << pkg.available_name_version_db ();});
-
       replaced_version& v (vi->second);
 
       if (v.available != nullptr)
-      {
-        const version& rv (v.system
-                           ? *v.available->system_version (pk.db)
-                           : v.available->version);
+        replacement_version = (v.system
+                               ? v.available->system_version (pk.db)
+                               : &v.available->version);
 
-        bool replace (true);
-        for (const constraint_type& c: pkg.constraints)
+      if (!vi->second.replaced)
+      {
+        l5 ([&]{trace << "apply version replacement for "
+                      << pkg.available_name_version_db ();});
+
+        if (v.available != nullptr)
         {
-          if (!satisfies (rv, c.value))
+          assert (replacement_version != nullptr);
+
+          const version& rv (*replacement_version);
+
+          bool replace (true);
+          for (const constraint_type& c: pkg.constraints)
           {
-            replace = false;
+            if (!satisfies (rv, c.value))
+            {
+              replace = false;
 
-            l5 ([&]{trace << "replacement to " << rv << " is denied since "
-                          << c.dependent << " depends on (" << pk.name << ' '
-                          << c.value << ')';});
+              l5 ([&]{trace << "replacement to " << rv << " is denied since "
+                            << c.dependent << " depends on (" << pk.name << ' '
+                            << c.value << ')';});
+            }
           }
-        }
 
-        if (replace)
-        {
-          v.replaced = true;
+          if (replace)
+          {
+            v.replaced = true;
 
-          pkg.available = v.available;
-          pkg.repository_fragment = v.repository_fragment;
-          pkg.system = v.system;
+            pkg.available = v.available;
+            pkg.repository_fragment = v.repository_fragment;
+            pkg.system = v.system;
 
-          l5 ([&]{trace << "replacement: "
-                        << pkg.available_name_version_db ();});
-        }
-      }
-      else
-      {
-        if (!pkg.required_by_dependents)
-        {
-          v.replaced = true;
-
-          l5 ([&]{trace << "replacement: drop";});
-
-          // We shouldn't be replacing a package build with the drop if someone
-          // depends on this package.
-          //
-          assert (pkg.selected != nullptr);
-
-          collect_drop (options, pkg.db, pkg.selected, replaced_vers);
-          return nullptr;
+            l5 ([&]{trace << "replacement: "
+                          << pkg.available_name_version_db ();});
+          }
         }
         else
         {
-          assert (!pkg.required_by.empty ());
+          if (!pkg.required_by_dependents)
+          {
+            v.replaced = true;
 
-          l5 ([&]
-              {
-                diag_record dr (trace);
-                dr << "replacement to drop is denied since " << pk
-                   << " is required by ";
-                for (auto b (pkg.required_by.begin ()), i (b);
-                     i != pkg.required_by.end ();
-                     ++i)
-                  dr << (i != b ? ", " : "") << *i;
-              });
+            l5 ([&]{trace << "replacement: drop";});
+
+            // We shouldn't be replacing a package build with the drop if someone
+            // depends on this package.
+            //
+            assert (pkg.selected != nullptr);
+
+            collect_drop (options, pkg.db, pkg.selected, replaced_vers);
+            return nullptr;
+          }
+          else
+          {
+            assert (!pkg.required_by.empty ());
+
+            l5 ([&]
+                {
+                  diag_record dr (trace);
+                  dr << "replacement to drop is denied since " << pk
+                     << " is required by ";
+                  for (auto b (pkg.required_by.begin ()), i (b);
+                       i != pkg.required_by.end ();
+                       ++i)
+                    dr << (i != b ? ", " : "") << *i;
+                });
+          }
         }
       }
     }
@@ -1629,19 +1638,28 @@ namespace bpkg
         build_package* p2 (&pkg);
 
         // Pick with the following preference order: user selection over
-        // implicit one, source package over a system one, newer version over
-        // an older one. So get the preferred into p1 and the other into p2.
+        // implicit one, source package over a system one, replacement version
+        // over a non-replacement one, newer version over an older one. So get
+        // the preferred into p1 and the other into p2.
         //
         {
+          const version& v1 (p1->available_version ());
+          const version& v2 (p2->available_version ());
+
           int us (p1->user_selection () - p2->user_selection ());
           int sf (p1->system - p2->system);
+          int rv (replacement_version != nullptr
+                  ? (v1 == *replacement_version) - (v2 == *replacement_version)
+                  : 0);
 
           if (us < 0              ||
               (us == 0 && sf > 0) ||
               (us == 0 &&
                sf == 0 &&
-               p2->available_version () > p1->available_version ()))
+               (rv < 0 || (rv == 0 && v2 > v1))))
+          {
             swap (p1, p2);
+          }
         }
 
         // If the versions differ, pick the satisfactory one and if both are
