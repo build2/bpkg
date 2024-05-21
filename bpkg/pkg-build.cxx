@@ -6761,7 +6761,7 @@ namespace bpkg
           // so we need to bring it back.
           //
           // Make sure that selected packages are only owned by the session
-          // and the build package list.
+          // and the build package (pkgs) and the dependency (dep_pkgs) lists.
           //
           build_pkgs.clear ();
 
@@ -6871,12 +6871,83 @@ namespace bpkg
             //
             if (!rescan)
             {
+              // Return true if the specified package is loaded as a
+              // prerequisite of some dependent package, cached in the
+              // session, and contained in a different database. In this case
+              // unload this package from all such dependents.
+              //
+              auto check_unload_prereq = [&ses, &sp_session]
+                (const shared_ptr<selected_package>& sp,
+                 const odb::database* db)
+              {
+                bool r (false);
+
+                for (const auto& dps: ses.map ())
+                {
+                  // Skip dependents from the same database.
+                  //
+                  if (dps.first == db)
+                    continue;
+
+                  if (const selected_packages* sps = sp_session (dps.second))
+                  {
+                    for (const auto& p: *sps)
+                    {
+                      for (auto& pr: p.second->prerequisites)
+                      {
+                        const lazy_shared_ptr<selected_package>& lp (pr.first);
+
+                        if (lp.loaded () && lp.get_eager () == sp)
+                        {
+                          lp.unload ();
+                          r = true;
+                        }
+                      }
+                    }
+                  }
+                }
+
+                return r;
+              };
+
               for (const auto& dps: ses.map ())
               {
                 if (const selected_packages* sps = sp_session (dps.second))
                 {
                   if (old_sp.find (dps.first) == old_sp.end ())
-                    assert (sps->empty ());
+                  {
+                    // Note that the valid reason for these packages to still
+                    // be present in the session is that some of them may be
+                    // referenced as prerequisites by some dependent packages
+                    // from other databases and reference the remaining
+                    // packages. For example:
+                    //
+                    // new session: A (X, 2) -> B (X, 2) -> C (Y, 2) -> D (Y, 2)
+                    // old session: A
+                    //
+                    // Here C and D are the packages in question, package A is
+                    // present in both sessions, X and Y are the databases,
+                    // the numbers are the package reference counts, and the
+                    // arrows denote the loaded prerequisite lazy pointers.
+                    //
+                    // Let's verify that's the only situation by unloading
+                    // these packages from such dependent prerequisites and
+                    // rescanning.
+                    //
+                    if (!sps->empty ())
+                    {
+                      for (const auto& p: *sps)
+                      {
+                        if (check_unload_prereq (p.second, dps.first))
+                          rescan = true;
+                      }
+
+                      // If we didn't unload any of these packages, then we
+                      // consider this a bug.
+                      //
+                      assert (rescan);
+                    }
+                  }
                 }
               }
             }
