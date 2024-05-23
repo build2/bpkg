@@ -6,7 +6,7 @@
 #include <map>
 
 #include <libbutl/git.hxx>
-#include <libbutl/filesystem.hxx>       // path_entry
+#include <libbutl/filesystem.hxx>       // path_entry(), try_rmsymlink()
 #include <libbutl/path-pattern.hxx>
 #include <libbutl/semantic-version.hxx>
 #include <libbutl/standard-version.hxx> // parse_standard_version()
@@ -2412,64 +2412,6 @@ namespace bpkg
   }
 
   void
-  git_checkout (const common_options& co,
-                const dir_path& dir,
-                const string& commit)
-  {
-    // For some (probably valid) reason the hard reset command doesn't remove
-    // a submodule directory that is not plugged into the repository anymore.
-    // It also prints the non-suppressible warning like this:
-    //
-    // warning: unable to rmdir libbar: Directory not empty
-    //
-    // That's why we run the clean command afterwards. It may also be helpful
-    // if we produce any untracked files in the tree between checkouts down
-    // the road.
-    //
-    if (!run_git (co,
-                  co.git_option (),
-                  "-C", dir,
-                  "reset",
-                  "--hard",
-                  verb < 2 ? "-q" : nullptr,
-                  commit))
-      fail << "unable to reset to " << commit << endg;
-
-    if (!run_git (co,
-                  co.git_option (),
-                  "-C", dir,
-                  "clean",
-                  "-d",
-                  "-x",
-                  "-ff",
-                  verb < 2 ? "-q" : nullptr))
-      fail << "unable to clean " << dir << endg;
-
-    // Iterate over the registered submodules and "deinitialize" those whose
-    // tip commit has changed.
-    //
-    // Note that not doing so will make git treat the repository worktree as
-    // modified (new commits in submodule). Also the caller may proceed with
-    // an inconsistent repository, having no indication that they need to
-    // re-run git_checkout_submodules().
-    //
-    for (const submodule& sm:
-           find_submodules (co, dir, dir_path () /* prefix */))
-    {
-      dir_path sd (dir / sm.path); // Submodule full directory path.
-
-      optional<string> commit (submodule_commit (co, sd));
-
-      // Note that we may re-initialize the submodule later due to the empty
-      // directory (see checkout_submodules() for details). Seems that git
-      // has no problem with such a re-initialization.
-      //
-      if (commit && *commit != sm.commit)
-        rm_r (sd, false /* dir_itself */);
-    }
-  }
-
-  void
   git_checkout_submodules (const common_options& co,
                            const repository_location& rl,
                            const dir_path& dir)
@@ -2591,6 +2533,111 @@ namespace bpkg
     // non-void function' warning.
     //
     submodule_failure ("unable to list repository files", prefix);
+  }
+
+  static void
+  git_checkout (const common_options& co,
+                const dir_path& dir,
+                const string& commit,
+#ifdef _WIN32
+                const dir_path& prefix)
+  {
+    // Note that on Windows git may incorrectly deduce the type of a symlink
+    // it needs to create. Thus, it is recommended to specify the link type
+    // for directory symlinks in the project's .gitattributes file (see the
+    // "Using Symlinks in build2 Projects" article for background). However,
+    // it turns out that if, for example, such a type has not been specified
+    // for some early package version and this have been fixed in some later
+    // version, then it may still cause problems even when this later package
+    // version is being built. That happens because during the git repository
+    // fetch, to produce the available packages list, bpkg sequentially checks
+    // out multiple package versions. Git, on the other hand, does not bother
+    // re-creating an existing symlink on check out (or git-reset which we
+    // use) even though .gitattributes indicates that its type has changed.
+    // Thus, on Windows, let's just remove all the existing symlinks prior to
+    // running git-reset.
+    //
+    for (const auto& l: find_symlinks (co, dir, prefix))
+    {
+      // Note that the symlinks may be filesystem-agnostic (see
+      // fixup_worktree() for details) and thus we check the types of the
+      // filesystem entries prior to their removal. Also note that the
+      // try_rmsymlink() implementation doesn't actually distinguish between
+      // the directory and file symlinks and thus we always remove them as the
+      // file symlinks.
+      //
+      path p (dir / l.first);
+
+      pair<bool, entry_stat> e (
+        path_entry (p, false /* follow_symlink */, true /* ignore_error */));
+
+      if (e.first && e.second.type == entry_type::symlink)
+        try_rmsymlink (p, false /* dir */, true /* ignore_error */);
+    }
+#else
+                const dir_path&)
+  {
+#endif
+
+    // For some (probably valid) reason the hard reset command doesn't remove
+    // a submodule directory that is not plugged into the repository anymore.
+    // It also prints the non-suppressible warning like this:
+    //
+    // warning: unable to rmdir libbar: Directory not empty
+    //
+    // That's why we run the clean command afterwards. It may also be helpful
+    // if we produce any untracked files in the tree between checkouts down
+    // the road.
+    //
+    if (!run_git (co,
+                  co.git_option (),
+                  "-C", dir,
+                  "reset",
+                  "--hard",
+                  verb < 2 ? "-q" : nullptr,
+                  commit))
+      fail << "unable to reset to " << commit << endg;
+
+    if (!run_git (co,
+                  co.git_option (),
+                  "-C", dir,
+                  "clean",
+                  "-d",
+                  "-x",
+                  "-ff",
+                  verb < 2 ? "-q" : nullptr))
+      fail << "unable to clean " << dir << endg;
+
+    // Iterate over the registered submodules and "deinitialize" those whose
+    // tip commit has changed.
+    //
+    // Note that not doing so will make git treat the repository worktree as
+    // modified (new commits in submodule). Also the caller may proceed with
+    // an inconsistent repository, having no indication that they need to
+    // re-run git_checkout_submodules().
+    //
+    for (const submodule& sm:
+           find_submodules (co, dir, dir_path () /* prefix */))
+    {
+      dir_path sd (dir / sm.path); // Submodule full directory path.
+
+      optional<string> commit (submodule_commit (co, sd));
+
+      // Note that we may re-initialize the submodule later due to the empty
+      // directory (see checkout_submodules() for details). Seems that git
+      // has no problem with such a re-initialization.
+      //
+      if (commit && *commit != sm.commit)
+        rm_r (sd, false /* dir_itself */);
+    }
+  }
+
+  void
+  git_checkout (const common_options& co,
+                const dir_path& dir,
+                const string& commit)
+  {
+    git_checkout (co, dir, commit, dir_path () /* prefix */);
   }
 
   // Verify symlinks in a working tree of a top repository or submodule,
