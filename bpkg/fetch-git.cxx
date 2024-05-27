@@ -927,11 +927,19 @@ namespace bpkg
 
   static repository_refs_map repository_refs;
 
-  // It is assumed that sense_capabilities() function was already called for
-  // the URL.
+  // If the advertized refs/commits are already cached for the specified URL,
+  // then return them from the cache. Otherwise, query them and cache. In the
+  // latter case, optionally, probe the URL first, calling the specified probe
+  // function. Otherwise (the probe function is not specified), it is assumed
+  // that the URL has already been probed (sense_capabilities() function was
+  // already called for this URL, etc).
   //
+  using probe_function = void ();
+
   static const refs&
-  load_refs (const common_options& co, const repository_url& url)
+  load_refs (const common_options& co,
+             const repository_url& url,
+             const function<probe_function>& probe = nullptr)
   {
     tracer trace ("load_refs");
 
@@ -943,6 +951,9 @@ namespace bpkg
 
     if ((verb && !co.no_progress ()) || co.progress ())
       text << "querying " << url;
+
+    if (probe)
+      probe ();
 
     refs rs;
 
@@ -1175,31 +1186,29 @@ namespace bpkg
       return *cap;
     };
 
-    auto references = [&co, &url, &caps] (const string& refname,
-                                          bool abbr_commit)
+    function<probe_function> probe ([&caps] () {caps ();});
+
+    auto references = [&co, &url, &probe] (const string& refname,
+                                           bool abbr_commit)
       -> refs::search_result
     {
       // Make sure the URL is probed before running git-ls-remote (see
       // load_refs() for details).
       //
-      caps ();
-
-      return load_refs (co, url ()).search_names (refname, abbr_commit);
+      return load_refs (co, url (), probe).search_names (refname, abbr_commit);
     };
 
     // Return the default reference set (see repository-types(1) for details).
     //
-    auto default_references = [&co, &url, &caps] () -> refs::search_result
+    auto default_references = [&co, &url, &probe] () -> refs::search_result
     {
       // Make sure the URL is probed before running git-ls-remote (see
       // load_refs() for details).
       //
-      caps ();
-
       refs::search_result r;
       vector<standard_version> vs; // Parallel to search_result.
 
-      for (const ref& rf: load_refs (co, url ()))
+      for (const ref& rf: load_refs (co, url (), probe))
       {
         if (!rf.peeled && rf.name.compare (0, 11, "refs/tags/v") == 0)
         {
@@ -1342,6 +1351,9 @@ namespace bpkg
         {
           // Reduce the reference to the commit id.
           //
+          // Note that it is assumed that the URL has already been probed by
+          // the above default_references() or references() call.
+          //
           const string& c (load_refs (co, url ()).peel (r).commit);
 
           if (!rf.exclusion)
@@ -1358,18 +1370,23 @@ namespace bpkg
             remove_spec (c);
         }
       }
+      //
       // Check if this is a commit exclusion and remove the corresponding
       // fetch spec if that's the case.
       //
       else if (rf.exclusion)
+      {
         remove_spec (*rf.commit);
-
+      }
+      //
       // Check if the commit is already fetched and, if that's the case, save
       // it, indicating that no fetch is required.
       //
       else if (commit_fetched (co, dir, *rf.commit))
+      {
         add_spec (*rf.commit);
-
+      }
+      //
       // If the shallow fetch is possible for the commit, then we fetch it.
       //
       else if (shallow ())
@@ -1378,6 +1395,7 @@ namespace bpkg
 
         add_spec (*rf.commit, strings ({*rf.commit}), true /* shallow */);
       }
+      //
       // If the shallow fetch is not possible for the commit but the refname
       // containing the commit is specified, then we fetch the whole history
       // of references the refname translates to.
@@ -1402,6 +1420,7 @@ namespace bpkg
 
         add_spec (*rf.commit, move (specs)); // Fetch deep.
       }
+      //
       // Otherwise, if the refname is not specified and the commit is not
       // advertised, we have to fetch the whole repository history.
       //
