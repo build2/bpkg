@@ -96,7 +96,7 @@ namespace bpkg
   // Return true if some openssl commands (openssl x509 -fingerprint, etc) may
   // issue the 'Reading certificate from stdin since no -in or -new option is
   // given' warning. This is the case for the openssl version in the [3.2.0
-  // 3.3.0) range (see GH issue #353 for details).
+  // 3.2.2) range (see GH issue #353 for details).
   //
   // Note that there is no easy way to suppress this warning on Windows and
   // thus we don't define this function there.
@@ -105,8 +105,12 @@ namespace bpkg
   static inline bool
   openssl_warn_stdin (const common_options& co)
   {
+    // Use 3.2.3 in the comparison rather than 3.2.2, to make sure that, for
+    // example, 3.2.2-dev (denotes a pre-release of 3.2.2) also falls into the
+    // range.
+    //
     const semantic_version& v (openssl_version (co));
-    return v >= semantic_version {3, 2, 0} && v < semantic_version {3, 3, 0};
+    return v >= semantic_version {3, 2, 0} && v < semantic_version {3, 2, 3};
   }
 #endif
 
