@@ -3367,7 +3367,7 @@ namespace bpkg
                                         pdb,
                                         nm,
                                         pkg.available_version (),
-                                        false /* selected_dependent */);
+                                        false /* existing_dependent */);
 
                     if (!satisfies (v2, c1.value))
                     {
@@ -3540,7 +3540,7 @@ namespace bpkg
                                             pdb,
                                             nm,
                                             pkg.available_version (),
-                                            false /* selected_dependent */);
+                                            false /* existing_dependent */);
 
             // Now collect this prerequisite. If it was actually collected
             // (i.e., it wasn't already there) and we are forcing a downgrade
@@ -7508,11 +7508,16 @@ namespace bpkg
         {
           using constraint_type = build_package::constraint_type;
 
+          // Pre-entered entries are always converted to adjustments (see
+          // above).
+          //
+          assert (dp.action);
+
           constraint_type c (move (*dc),
                              ddb,
                              move (dn),
                              dp.selected->version,
-                             true /* selected_dependent */);
+                             *dp.action != build_package::build);
 
           if (find_if (p.constraints.begin (), p.constraints.end (),
                        [&c] (const constraint_type& v)
@@ -7557,7 +7562,7 @@ namespace bpkg
                      const build_package& p,
                      string& indent,
                      set<package_key>& printed,
-                     optional<bool> selected_dependent) const
+                     optional<bool> existing_dependent) const
   {
     using constraint_type = build_package::constraint_type;
 
@@ -7573,8 +7578,8 @@ namespace bpkg
 
         for (const constraint_type& c: cs)
         {
-          if (!selected_dependent ||
-              *selected_dependent == c.selected_dependent)
+          if (!existing_dependent ||
+              *existing_dependent == c.existing_dependent)
           {
             if (const build_package* d = dependent_build (c))
             {
@@ -7582,7 +7587,7 @@ namespace bpkg
                  << ' ' << c.value << ')';
 
               indent += "  ";
-              print_constraints (dr, *d, indent, printed, selected_dependent);
+              print_constraints (dr, *d, indent, printed, existing_dependent);
               indent.resize (indent.size () - 2);
             }
             else
@@ -7595,8 +7600,8 @@ namespace bpkg
       {
         for (const constraint_type& c: cs)
         {
-          if (!selected_dependent ||
-              *selected_dependent == c.selected_dependent)
+          if (!existing_dependent ||
+              *existing_dependent == c.existing_dependent)
           {
             dr << '\n' << indent << "...";
             break;
@@ -7611,11 +7616,11 @@ namespace bpkg
                      const package_key& pk,
                      string& indent,
                      set<package_key>& printed,
-                     optional<bool> selected_dependent) const
+                     optional<bool> existing_dependent) const
   {
     const build_package* p (entered_build (pk));
     assert (p != nullptr); // Expected to be collected.
-    print_constraints (dr, *p, indent, printed, selected_dependent);
+    print_constraints (dr, *p, indent, printed, existing_dependent);
   }
 
   void build_packages::
@@ -7982,7 +7987,7 @@ namespace bpkg
                                     dpt.db,
                                     dpt.name,
                                     *dpt.version,
-                                    true /* selected_package */);
+                                    true /* existing_package */);
     }
 
     // Note: not recursive.

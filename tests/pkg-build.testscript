@@ -2369,8 +2369,8 @@ test.arguments += --sys-no-query
           trace: execute_plan: simulate: yes
           %.*
           trace: pkg_build: try to replace unsatisfactory dependency libbar/2.0.0 with some other version
-          trace: try_replace_dependent: try to replace unsatisfiable dependent libbaz/2.0.0 of dependency libbar/2.0.0 with some other version
-          trace: try_replace_dependency: replace unsatisfiable dependent version libbaz/2.0.0 with 1.0.0 by adding constraint '?libbaz' -> '?libbaz == 1.0.0' on command line
+          trace: try_replace_dependent: try to replace unsatisfied dependent libbaz/2.0.0 of dependency libbar/2.0.0 with some other version
+          trace: try_replace_dependency: replace unsatisfied dependent version libbaz/2.0.0 with 1.0.0 by adding constraint '?libbaz' -> '?libbaz == 1.0.0' on command line
           trace: pkg_build: refine package collection/plan execution from scratch
           trace: execute_plan: simulate: yes
           %.*
@@ -2584,8 +2584,8 @@ test.arguments += --sys-no-query
           trace: execute_plan: simulate: yes
           %.*
           trace: pkg_build: try to replace unsatisfactory dependency libbar/2.0.0 with some other version
-          trace: try_replace_dependent: try to replace unsatisfiable dependent libbaz/2.0.0 of dependency libbar/2.0.0 with some other version
-          trace: try_replace_dependency: replace unsatisfiable dependent version libbaz/2.0.0 with 1.0.0 by adding constraint '?libbaz' -> '?libbaz == 1.0.0' on command line
+          trace: try_replace_dependent: try to replace unsatisfied dependent libbaz/2.0.0 of dependency libbar/2.0.0 with some other version
+          trace: try_replace_dependency: replace unsatisfied dependent version libbaz/2.0.0 with 1.0.0 by adding constraint '?libbaz' -> '?libbaz == 1.0.0' on command line
           trace: pkg_build: refine package collection/plan execution from scratch
           trace: collect_build: add foo/1.0.0
           trace: collect_build_prerequisites: skip configured foo/1.0.0
@@ -2663,8 +2663,8 @@ test.arguments += --sys-no-query
           trace: execute_plan: simulate: yes
           %.*
           trace: pkg_build: try to replace unsatisfactory dependency libbar/2.0.0 with some other version
-          trace: try_replace_dependent: try to replace unsatisfiable dependent libbaz/2.0.0 of dependency libbar/2.0.0 with some other version
-          trace: try_replace_dependency: replace unsatisfiable dependent version libbaz/2.0.0 with 1.0.0 by adding constraint '?libbaz' -> '?libbaz == 1.0.0' on command line
+          trace: try_replace_dependent: try to replace unsatisfied dependent libbaz/2.0.0 of dependency libbar/2.0.0 with some other version
+          trace: try_replace_dependency: replace unsatisfied dependent version libbaz/2.0.0 with 1.0.0 by adding constraint '?libbaz' -> '?libbaz == 1.0.0' on command line
           trace: pkg_build: refine package collection/plan execution from scratch
           trace: collect_build: add foo/1.0.0
           trace: collect_build_prerequisites: skip configured foo/1.0.0
@@ -5217,7 +5217,7 @@ test.arguments += --sys-no-query
           $pkg_drop libfoo libfox
         }
 
-        : unsatisfied-dependent
+        : unsatisfied-dependent-noop
         :
         : This test demonstrates a case when the dependency resolution
         : machinery resolves unsatisfied dependency constraints by
@@ -5231,6 +5231,16 @@ test.arguments += --sys-no-query
         {
           $clone_cfg;
 
+          #  Dependencies:
+          #
+          #  libbox/2.0.0: depends: libbax == 1.0.0
+          #  libbox/1.0.0: depends: libbax
+          #
+          #  libbix/1.0.0: depends: libbax == 1.0.0
+          #  libbix/2.0.0: depends: libbax == 2.0.0
+          #
+          #  libbux: depends: libbix
+          #
           $* libbox ?libbix/1.0.0 libbux 2>!;
 
           $pkg_status -ar >>EOO;
@@ -5272,8 +5282,10 @@ test.arguments += --sys-no-query
             trace: execute_plan: simulate: yes
             %.*
             trace: pkg_build: try to replace unsatisfactory dependency libbax/2.0.0 with some other version
-            trace: try_replace_dependent: try to replace unsatisfiable dependent libbix/2.0.0 of dependency libbax/2.0.0 with some other version
-            trace: try_replace_dependency: replace unsatisfiable dependent version libbix/2.0.0 with 1.0.0 by adding package spec '?libbix == 1.0.0' to command line
+            trace: try_replace_dependent: try to replace unsatisfied dependent libbox/2.0.0 of dependency libbax/2.0.0 with some other version
+            trace: try_replace_dependency: downgrade for libbox/2.0.0 is not allowed, bailing out
+            trace: try_replace_dependent: try to replace unsatisfied dependent libbix/2.0.0 of dependency libbax/2.0.0 with some other version
+            trace: try_replace_dependency: replace unsatisfied dependent version libbix/2.0.0 with 1.0.0 by adding package spec '?libbix == 1.0.0' to command line
             trace: pkg_build: refine package collection/plan execution from scratch
             trace: collect_build: add libbox/2.0.0
             trace: collect_build: add libbux/1.0.0
@@ -5294,6 +5306,144 @@ test.arguments += --sys-no-query
             !libbux configured 1.0.0
               libbix configured !1.0.0 available 2.0.0
                 libbax configured 1.0.0 available 2.0.0
+            EOO
+
+          $pkg_drop libbox libbux
+        }
+
+        : unsatisfied-dependent
+        :
+        : Similar to the above, but this time noop is not a valid constraints
+        : resolution due to ?libbix/2.0.0. Thus, the dependency resolution
+        : machinery ends up with the downgrade of libbox/2.0.0 to 1.0.0.
+        :
+        {
+          $clone_cfg;
+
+          $* libbox ?libbix/1.0.0 libbux 2>!;
+
+          $pkg_status -ar >>EOO;
+            libbax configured 1.0.0 available 2.0.0
+            !libbox configured 2.0.0
+              libbax configured 1.0.0 available 2.0.0
+            libbix configured !1.0.0 available 2.0.0
+              libbax configured 1.0.0 available 2.0.0
+            !libbux configured 1.0.0
+              libbix configured !1.0.0 available 2.0.0
+                libbax configured 1.0.0 available 2.0.0
+            EOO
+
+          $* { libbox libbux ?libbax } +{ --upgrade --recursive } ?libbix/2.0.0 2>>~%EOE%;
+            %.*
+            trace: pkg_build: refine package collection/plan execution from scratch
+            trace: collect_build: add libbox/2.0.0
+            trace: collect_build: add libbux/1.0.0
+            trace: collect_build_prerequisites: skip configured libbox/2.0.0
+            trace: collect_build_prerequisites: skip configured libbux/1.0.0
+            trace: execute_plan: simulate: yes
+            %.*
+            trace: evaluate_dependency: libbix/1.0.0: update to libbix/2.0.0
+            %.*
+            trace: pkg_build: refine package collection/plan execution
+            trace: collect_build_prerequisites: pre-reeval libbux/1.0.0
+            trace: collect_build_prerequisites: pre-reevaluated libbux/1.0.0: end reached
+            trace: collect_build_prerequisites: begin libbix/2.0.0
+            trace: collect_build_prerequisites: no cfg-clause for dependency libbax/2.0.0 of dependent libbix/2.0.0
+            trace: collect_build_prerequisites: skip unsatisfied existing dependent libbox of dependency libbax/2.0.0 due to constraint (libbax == 1.0.0)
+            trace: collect_build_prerequisites: skip being built existing dependent libbix of dependency libbax
+            trace: collect_build_prerequisites: begin libbax/2.0.0
+            trace: collect_build_prerequisites: end libbax/2.0.0
+            trace: collect_build_prerequisites: end libbix/2.0.0
+            trace: collect_dependents: postpone failure for existing dependent libbox unsatisfied with dependency libbax/2.0.0 (== 1.0.0)
+            trace: execute_plan: simulate: yes
+            %.*
+            trace: pkg_build: try to replace unsatisfactory dependency libbax/2.0.0 with some other version
+            trace: try_replace_dependent: try to replace unsatisfied dependent libbox/2.0.0 of dependency libbax/2.0.0 with some other version
+            trace: try_replace_dependency: downgrade for libbox/2.0.0 is not allowed, bailing out
+            trace: try_replace_dependent: try to replace unsatisfied dependent libbix/2.0.0 of dependency libbax/2.0.0 with some other version
+            trace: try_replace_dependency: replacement of unsatisfied dependent version libbix/2.0.0 is denied since it is specified on command line as '?libbix == 2.0.0'
+            trace: pkg_build: cannot resolve unsatisfied dependency constraints, now allowing downgrades
+            trace: pkg_build: refine package collection/plan execution from scratch
+            trace: collect_build: add libbox/2.0.0
+            trace: collect_build: add libbux/1.0.0
+            trace: collect_build_prerequisites: skip configured libbox/2.0.0
+            trace: collect_build_prerequisites: skip configured libbux/1.0.0
+            trace: execute_plan: simulate: yes
+            %.*
+            trace: evaluate_dependency: libbix/1.0.0: update to libbix/2.0.0
+            %.*
+            trace: pkg_build: refine package collection/plan execution
+            trace: collect_build_prerequisites: pre-reeval libbux/1.0.0
+            trace: collect_build_prerequisites: pre-reevaluated libbux/1.0.0: end reached
+            trace: collect_build_prerequisites: begin libbix/2.0.0
+            trace: collect_build_prerequisites: no cfg-clause for dependency libbax/2.0.0 of dependent libbix/2.0.0
+            trace: collect_build_prerequisites: skip unsatisfied existing dependent libbox of dependency libbax/2.0.0 due to constraint (libbax == 1.0.0)
+            trace: collect_build_prerequisites: skip being built existing dependent libbix of dependency libbax
+            trace: collect_build_prerequisites: begin libbax/2.0.0
+            trace: collect_build_prerequisites: end libbax/2.0.0
+            trace: collect_build_prerequisites: end libbix/2.0.0
+            trace: collect_dependents: postpone failure for existing dependent libbox unsatisfied with dependency libbax/2.0.0 (== 1.0.0)
+            trace: execute_plan: simulate: yes
+            %.*
+            trace: pkg_build: try to replace unsatisfactory dependency libbax/2.0.0 with some other version
+            trace: try_replace_dependent: try to replace unsatisfied dependent libbox/2.0.0 of dependency libbax/2.0.0 with some other version
+            trace: try_replace_dependency: replace unsatisfied dependent version libbox/2.0.0 with 1.0.0 by adding constraint 'libbox' -> 'libbox == 1.0.0' on command line
+            trace: pkg_build: refine package collection/plan execution from scratch
+            trace: collect_build: add libbox/1.0.0
+            trace: collect_build: add libbux/1.0.0
+            trace: collect_build_prerequisites: begin libbox/1.0.0
+            trace: collect_build_prerequisites: no cfg-clause for dependency libbax/1.0.0 of dependent libbox/1.0.0
+            trace: collect_build_prerequisites: skip configured libbax/1.0.0
+            trace: collect_build_prerequisites: end libbox/1.0.0
+            trace: collect_build_prerequisites: skip configured libbux/1.0.0
+            trace: execute_plan: simulate: yes
+            %.*
+            trace: evaluate_dependency: libbix/1.0.0: update to libbix/2.0.0
+            %.*
+            trace: pkg_build: refine package collection/plan execution
+            trace: collect_build_prerequisites: pre-reeval libbux/1.0.0
+            trace: collect_build_prerequisites: pre-reevaluated libbux/1.0.0: end reached
+            trace: collect_build_prerequisites: begin libbix/2.0.0
+            trace: collect_build: pick libbax/2.0.0 over libbax/1.0.0
+            trace: collect_build: libbax/1.0.0 package version needs to be replaced with libbax/2.0.0
+            trace: pkg_build: collection failed due to package version replacement, retry from scratch
+            trace: pkg_build: refine package collection/plan execution from scratch
+            trace: collect_build: add libbox/1.0.0
+            trace: collect_build: add libbux/1.0.0
+            trace: collect_build_prerequisites: begin libbox/1.0.0
+            trace: collect_build: apply version replacement for libbax/1.0.0
+            trace: collect_build: replacement: libbax/2.0.0
+            trace: collect_build_prerequisites: no cfg-clause for dependency libbax/2.0.0 of dependent libbox/1.0.0
+            trace: collect_build_prerequisites: skip being built existing dependent libbox of dependency libbax
+            trace: collect_build_prerequisites: skip unsatisfied existing dependent libbix of dependency libbax/2.0.0 due to constraint (libbax == 1.0.0)
+            trace: collect_build_prerequisites: begin libbax/2.0.0
+            trace: collect_build_prerequisites: end libbax/2.0.0
+            trace: collect_build_prerequisites: end libbox/1.0.0
+            trace: collect_build_prerequisites: skip configured libbux/1.0.0
+            trace: collect_build_prerequisites: pre-reeval libbux/1.0.0
+            trace: collect_build_prerequisites: pre-reevaluated libbux/1.0.0: end reached
+            trace: collect_build_prerequisites: begin libbix/2.0.0
+            trace: collect_build_prerequisites: no cfg-clause for dependency libbax/2.0.0 of dependent libbix/2.0.0
+            trace: collect_build_prerequisites: end libbix/2.0.0
+            trace: execute_plan: simulate: yes
+            %.*
+              upgrade libbax/2.0.0
+              downgrade libbox/1.0.0
+              upgrade libbix/2.0.0
+              reconfigure libbux/1.0.0
+            trace: execute_plan: simulate: no
+            %.*
+            EOE
+
+          $pkg_status -ar >>EOO;
+            libbax configured 2.0.0
+            !libbox configured 1.0.0 available 2.0.0
+              libbax configured 2.0.0
+            libbix configured !2.0.0
+              libbax configured 2.0.0
+            !libbux configured 1.0.0
+              libbix configured !2.0.0
+                libbax configured 2.0.0
             EOO
 
           $pkg_drop libbox libbux

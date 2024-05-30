@@ -221,9 +221,9 @@ namespace bpkg
       package_version_key dependent;
 
       // False for non-packages. Otherwise, indicates whether the constraint
-      // comes from the selected dependent or not.
+      // comes from the existing rather than the being built dependent.
       //
-      bool selected_dependent;
+      bool existing_dependent;
 
       // Create constraint for a package dependent.
       //
@@ -231,17 +231,17 @@ namespace bpkg
                        database& db,
                        package_name nm,
                        version ver,
-                       bool s)
+                       bool e)
           : value (move (v)),
             dependent (db, move (nm), move (ver)),
-            selected_dependent (s) {}
+            existing_dependent (e) {}
 
       // Create constraint for a non-package dependent.
       //
       constraint_type (version_constraint v, database& db, string nm)
           : value (move (v)),
             dependent (db, move (nm)),
-            selected_dependent (false) {}
+            existing_dependent (false) {}
     };
 
     vector<constraint_type> constraints;
@@ -1683,7 +1683,7 @@ namespace bpkg
     // constraints for the same package twice, printing "..." instead. Noop if
     // there are no constraints for this package.
     //
-    // Optionally, only print constraints from the selected or being built
+    // Optionally, only print constraints from the existing or being built
     // dependents (see build_package::constraint_type for details).
     //
     void
@@ -1691,14 +1691,14 @@ namespace bpkg
                        const build_package&,
                        string& indent,
                        std::set<package_key>& printed,
-                       optional<bool> selected_dependent = nullopt) const;
+                       optional<bool> existing_dependent = nullopt) const;
 
     void
     print_constraints (diag_record&,
                        const package_key&,
                        string& indent,
                        std::set<package_key>& printed,
-                       optional<bool> selected_dependent = nullopt) const;
+                       optional<bool> existing_dependent = nullopt) const;
 
     // Verify that builds ordering is consistent across all the data
     // structures and the ordering expectations are fulfilled (real build

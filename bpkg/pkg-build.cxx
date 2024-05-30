@@ -2097,6 +2097,8 @@ namespace bpkg
   // Specifically, try to find the best available package version considering
   // all the imposed constraints as per unsatisfied_dependents description. If
   // succeed, return the command line adjustment reflecting the replacement.
+  // If allow_downgrade is false, then don't return a downgrade adjustment for
+  // the package, unless it is being deorphaned.
   //
   // Notes:
   //
@@ -2133,9 +2135,10 @@ namespace bpkg
   //     requested to be upgraded, patched, and/or deorphaned, then we
   //     shouldn't be silently up/down-grading it.
   //
-  optional<cmdline_adjustment>
+  static optional<cmdline_adjustment>
   try_replace_dependency (const common_options& o,
                           const build_package& p,
+                          bool allow_downgrade,
                           const build_packages& pkgs,
                           const vector<build_package>& hold_pkgs,
                           const dependency_packages& dep_pkgs,
@@ -2423,7 +2426,7 @@ namespace bpkg
         {
           r = false;
 
-          if (c.dependent.version && !c.selected_dependent)
+          if (c.dependent.version && !c.existing_dependent)
           {
             package_key pk (c.dependent.db, c.dependent.name);
 
@@ -2473,18 +2476,21 @@ namespace bpkg
       // then the selected one, then what we currently have is the best that
       // we can get. Thus, we use the selected version as a replacement,
       // unless it doesn't satisfy all the constraints or we are deorphaning.
+      // Bail out if we cannot stay with the selected version and downgrade is
+      // not allowed.
       //
       if (constraint == nullptr && sp != nullptr)
       {
         const version& sv (sp->version);
-        if (av < sv && !sp->system () && !p.deorphan)
+        if (av < sv && !p.deorphan)
         {
-          // Only consider the selected package if its version is satisfactory
-          // for its new dependents (note: must be checked first since has a
-          // byproduct), differs from the version being replaced, and was
-          // never used for the same command line (see above for details).
+          // Only consider to keep the selected non-system package if its
+          // version is satisfactory for its new dependents (note: must be
+          // checked first since has a byproduct), differs from the version
+          // being replaced, and was never used for the same command line (see
+          // above for details).
           //
-          if (satisfactory (sv) && sv != ver)
+          if (!sp->system () && satisfactory (sv) && sv != ver)
           {
             if (!cmdline_adjs.tried_earlier (db, nm, sv))
             {
@@ -2493,9 +2499,17 @@ namespace bpkg
             }
             else
               l5 ([&]{trace << "selected package replacement "
-                            << package_version_key (db, nm, sp->version)
-                            << " tried earlier for same command line, "
-                            << "skipping";});
+                            << package_version_key (db, nm, sv) << " tried "
+                            << "earlier for same command line, skipping";});
+          }
+
+          if (!allow_downgrade)
+          {
+            l5 ([&]{trace << "downgrade for "
+                          << package_version_key (db, nm, sv) << " is not "
+                          << "allowed, bailing out";});
+
+            break;
           }
         }
       }
@@ -2693,11 +2707,12 @@ namespace bpkg
   // of the specified dependency with a different available version,
   // satisfactory for all its new and existing dependents (if any). Return the
   // command line adjustment if such a replacement is deduced and nullopt
-  // otherwise. It is assumed that the dependency replacement has been
-  // (unsuccessfully) tried by using the try_replace_dependency() call and its
-  // resulting list of the dependents, unsatisfied by some of the dependency
-  // available versions, is also passed to the function call as the
-  // unsatisfied_dpts argument.
+  // otherwise. If allow_downgrade is false, then don't return a downgrade
+  // adjustment, except for a being deorphaned dependent. It is assumed that
+  // the dependency replacement has been (unsuccessfully) tried by using the
+  // try_replace_dependency() call and its resulting list of the dependents,
+  // unsatisfied by some of the dependency available versions, is also passed
+  // to the function call as the unsatisfied_dpts argument.
   //
   // Specifically, try to replace the dependents in the following order by
   // calling try_replace_dependency() for them:
@@ -2723,9 +2738,10 @@ namespace bpkg
   // - Dependents of all the above types of dependents, discovered by
   //   recursively calling try_replace_dependent() for them.
   //
-  optional<cmdline_adjustment>
+  static optional<cmdline_adjustment>
   try_replace_dependent (const common_options& o,
                          const build_package& p, // Dependency.
+                         bool allow_downgrade,
                          const vector<unsatisfied_constraint>* ucs,
                          const build_packages& pkgs,
                          const cmdline_adjustments& cmdline_adjs,
@@ -2758,6 +2774,7 @@ namespace bpkg
     //
     auto try_replace = [&o,
                         &p,
+                        allow_downgrade,
                         &pkgs,
                         &cmdline_adjs,
                         &hold_pkgs,
@@ -2793,6 +2810,7 @@ namespace bpkg
           if (optional<cmdline_adjustment> a = try_replace_dependency (
                 o,
                 *d,
+                allow_downgrade,
                 pkgs,
                 hold_pkgs,
                 dep_pkgs,
@@ -2816,7 +2834,7 @@ namespace bpkg
     {
       const package_version_key& dvk (c.dependent);
 
-      if (dvk.version && !c.selected_dependent && !satisfies (av, c.value))
+      if (dvk.version && !c.existing_dependent && !satisfies (av, c.value))
       {
         if (optional<cmdline_adjustment> a = try_replace (
               package_key (dvk.db, dvk.name), "unsatisfied dependent"))
@@ -2851,7 +2869,7 @@ namespace bpkg
     {
       const package_version_key& dvk (c1.dependent);
 
-      if (dvk.version && !c1.selected_dependent)
+      if (dvk.version && !c1.existing_dependent)
       {
         const version_constraint& v1 (c1.value);
 
@@ -2900,6 +2918,7 @@ namespace bpkg
       if (optional<cmdline_adjustment> a = try_replace_dependent (
             o,
             *d,
+            allow_downgrade,
             nullptr /* unsatisfied_constraints */,
             pkgs,
             cmdline_adjs,
@@ -4298,6 +4317,14 @@ namespace bpkg
     optional<cmdline_adjustment> cmdline_refine_adjustment;
     optional<size_t>             cmdline_refine_index;
 
+    // If an --upgrade* or --patch* option is used on the command line, then
+    // we try to avoid any package downgrades initially. However, if the
+    // resolution fails in this mode, we fall back to allowing such
+    // downgrades. Without this logic, we may end up downgrading one package
+    // in order to upgrade another, which would be incorrect.
+    //
+    bool cmdline_allow_downgrade (true);
+
     {
       // Check if the package is a duplicate. Return true if it is but
       // harmless.
@@ -4843,9 +4870,14 @@ namespace bpkg
             // configuration.
             //
             if (pdb != nullptr)
+            {
+              if (u)
+                cmdline_allow_downgrade = false;
+
               rec_pkgs.push_back (recursive_package {*pdb, pa.name,
                                                      r, u && *u,
                                                      d});
+            }
           }
         }
 
@@ -4901,6 +4933,10 @@ namespace bpkg
 
           bool hold_version (pa.constraint.has_value ());
 
+          optional<bool> upgrade (pa.options.upgrade () || pa.options.patch ()
+                                  ? pa.options.upgrade ()
+                                  : optional<bool> ());
+
           dep_pkgs.push_back (
             dependency_package {pdb,
                                 move (pa.name),
@@ -4909,9 +4945,7 @@ namespace bpkg
                                 move (sp),
                                 sys,
                                 existing,
-                                (pa.options.upgrade () || pa.options.patch ()
-                                 ? pa.options.upgrade ()
-                                 : optional<bool> ()),
+                                upgrade,
                                 pa.options.deorphan (),
                                 pa.options.keep_out (),
                                 pa.options.disfigure (),
@@ -4921,6 +4955,10 @@ namespace bpkg
                                 pa.options.checkout_purge (),
                                 move (pa.config_vars),
                                 pa.system_status});
+
+          if (upgrade)
+            cmdline_allow_downgrade = false;
+
           continue;
         }
 
@@ -5154,6 +5192,9 @@ namespace bpkg
 
         pkg_confs.emplace_back (p.db, p.name ());
 
+        if (p.upgrade)
+          cmdline_allow_downgrade = false;
+
         hold_pkgs.push_back (move (p));
       }
 
@@ -5278,6 +5319,9 @@ namespace bpkg
 
             l4 ([&]{trace << "stash held package "
                           << p.available_name_version_db ();});
+
+            if (p.upgrade)
+              cmdline_allow_downgrade = false;
 
             hold_pkgs.push_back (move (p));
 
@@ -7022,6 +7066,7 @@ namespace bpkg
 
               if ((a = try_replace_dependency (o,
                                                *p,
+                                               cmdline_allow_downgrade,
                                                pkgs,
                                                hold_pkgs,
                                                dep_pkgs,
@@ -7030,6 +7075,7 @@ namespace bpkg
                                                "unsatisfactory dependency")) ||
                   (a = try_replace_dependent (o,
                                               *p,
+                                              cmdline_allow_downgrade,
                                               &ic.unsatisfied_constraints,
                                               pkgs,
                                               cmdline_adjs,
@@ -7055,7 +7101,27 @@ namespace bpkg
                 prepare_recollect ();
               }
               else
-                unsatisfied_depts.diag (pkgs); // Issue the diagnostics and fail.
+              {
+                // If we fail to resolve the unsatisfied dependency
+                // constraints with the downgrades disallowed, then allow
+                // downgrades and retry from the very beginning.
+                //
+                if (!cmdline_allow_downgrade)
+                {
+                  l5 ([&]{trace << "cannot resolve unsatisfied dependency "
+                                << "constraints, now allowing downgrades";});
+
+                  cmdline_allow_downgrade = true;
+
+                  prepare_recollect ();
+                }
+                else
+                {
+                  // Issue the diagnostics and fail.
+                  //
+                  unsatisfied_depts.diag (pkgs);
+                }
+              }
             }
             else // We are in the command line adjustments refinement cycle.
             {
