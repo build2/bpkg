@@ -1,3 +1,23 @@
+Version 0.17.0
+
+  * Support for preserving existing package configuration on up/downgrade
+    and reconfiguration.
+
+  * Support for the enable clause in the `tests` package manifest value.
+
+  * New per package configuration *-build-*email manifest values.
+
+  * New build-bot package manifest value allows specifying package-custom
+    build bots.
+
+  * Support for specifying package archives and directories as dependencies
+    for pkg-build.
+
+  * New `none` value for the --recursive option in pkg-bindist.
+
+  * Empty --archive-lang* option values in pkg-bindist are now treated as a
+    request to clear previous entries.
+
 Version 0.16.0
 
   * System package manager query/installation support for Debian and Fedora
