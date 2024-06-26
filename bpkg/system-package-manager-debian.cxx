@@ -4,6 +4,8 @@
 #include <bpkg/system-package-manager-debian.hxx>
 
 #include <locale>
+#include <thread> // this_thread::sleep_for()
+#include <chrono>
 
 #include <libbutl/timestamp.hxx>
 #include <libbutl/filesystem.hxx> // permissions
@@ -1487,6 +1489,13 @@ namespace bpkg
       }
 
       apt_get_install (specs);
+
+      // Note that installing packages on Debian and Debian-like distributions
+      // may end up with asynchronous restart of some system services. That,
+      // in particular, may result in the network short-term unavailability.
+      // Thus, let's pause for a while before fetching the source packages.
+      //
+      std::this_thread::sleep_for (std::chrono::seconds (1));
     }
 
     // Verify that versions we have promised in status() match what actually

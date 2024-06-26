@@ -4,6 +4,8 @@
 #include <bpkg/system-package-manager-fedora.hxx>
 
 #include <locale>
+#include <thread> // this_thread::sleep_for()
+#include <chrono>
 
 #include <bpkg/diagnostics.hxx>
 
@@ -1810,7 +1812,17 @@ namespace bpkg
     // Install.
     //
     if (install)
+    {
       dnf_install (specs);
+
+      // Note that installing packages on Fedora and Fedora-like distributions
+      // may end up with asynchronous restart of some system services (see the
+      // %systemd_postun_with_restart RPM macro for details). That, in
+      // particular, may result in the network short-term unavailability.
+      // Thus, let's pause for a while before fetching the source packages.
+      //
+      std::this_thread::sleep_for (std::chrono::seconds (1));
+    }
 
     // Mark as installed by the user.
     //
