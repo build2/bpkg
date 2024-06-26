@@ -8019,7 +8019,11 @@ namespace bpkg
 
           // Distinguish between the package and archive/directory cases.
           //
-          const package_location& pl (ap->locations[0]); // Got to have one.
+          assert (!ap->locations.empty ()); // Got to have one.
+
+          const package_location& pl (ap->locations[0]);
+
+          assert (pl.repository_fragment != nullptr);
 
           if (pl.repository_fragment.object_id () != "") // Special root?
           {
