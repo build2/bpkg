@@ -8023,6 +8023,8 @@ namespace bpkg
 
           const package_location& pl (ap->locations[0]);
 
+          // The package location always belongs to some repository fragment.
+          //
           assert (pl.repository_fragment != nullptr);
 
           if (pl.repository_fragment.object_id () != "") // Special root?

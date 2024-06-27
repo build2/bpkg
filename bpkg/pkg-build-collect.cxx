@@ -1639,27 +1639,35 @@ namespace bpkg
 
         // Pick with the following preference order: user selection over
         // implicit one, source package over a system one, replacement version
-        // over a non-replacement one, newer version over an older one. So get
-        // the preferred into p1 and the other into p2.
+        // over a non-replacement one, deorphaning target version over the
+        // other one, newer version over an older one. So get the preferred
+        // into p1 and the other into p2.
         //
         {
-          const version& v1 (p1->available_version ());
-          const version& v2 (p2->available_version ());
-
-          int us (p1->user_selection () - p2->user_selection ());
-          int sf (p1->system - p2->system);
-          int rv (replacement_version != nullptr
-                  ? (v1 == *replacement_version) - (v2 == *replacement_version)
-                  : 0);
-
-          if (us < 0              ||
-              (us == 0 && sf > 0) ||
-              (us == 0 &&
-               sf == 0 &&
-               (rv < 0 || (rv == 0 && v2 > v1))))
+          auto prefer_p2 = [p1, p2, replacement_version] ()
           {
+            const version& v1 (p1->available_version ());
+            const version& v2 (p2->available_version ());
+
+            if (int us = p1->user_selection () - p2->user_selection ())
+              return us < 0;
+
+            if (int sf = p1->system - p2->system)
+              return sf > 0;
+
+            if (int rv = replacement_version != nullptr
+                ? (v1 == *replacement_version) - (v2 == *replacement_version)
+                : 0)
+              return rv < 0;
+
+            if (int d = p1->deorphan - p2->deorphan)
+              return d < 0;
+
+            return v2 > v1;
+          };
+
+          if (prefer_p2 ())
             swap (p1, p2);
-          }
         }
 
         // If the versions differ, pick the satisfactory one and if both are

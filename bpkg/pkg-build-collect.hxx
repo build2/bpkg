@@ -311,7 +311,9 @@ namespace bpkg
     // If true, then this package is requested to be deorphaned. Can only be
     // true if the package is already selected and is orphaned. Used by the
     // unsatisfied dependency constraints resolution logic (see
-    // try_replace_dependency() in pkg-build.cxx for details).
+    // try_replace_dependency() in pkg-build.cxx for details). Also, the
+    // package deorphaning target versions are normally preferred over the
+    // other versions by collect_build().
     //
     bool deorphan;
 
