@@ -1740,11 +1740,46 @@ namespace bpkg
     // or not we will also always run `dnf mark install` afterwards for all
     // the packages to mark them as installed by the user.
     //
-    // Note also that for partially/not installed we don't specify the
-    // version, expecting the candidate version to be installed. We, however,
-    // still specify the candidate architecture in this case, since for
+    // Note also that for partially/not installed packages we used to not
+    // specify the version, expecting the candidate version to always be
+    // installed (we did specify the candidate architecture though, since for
     // reasons unknown dnf may install a package of a different architecture
-    // otherwise.
+    // otherwise). This, however, turned out to not always be the case.
+    // Moreover, we have observed such an undocumented behavior, that if the
+    // package versions are not specified, then the dnf-install command
+    // outcome may depend on the order of the packages specified on the
+    // command line:
+    //
+    // $ dnf list expat.x86_64 expat-devel.x86_64
+    // Installed Packages
+    // expat.x86_64       2.5.0-3.fc39 @fedora
+    // Available Packages
+    // expat.x86_64       2.6.2-1.fc39 updates
+    // expat-devel.x86_64 2.6.2-1.fc39 updates
+    //
+    // $ sudo dnf install expat-devel.x86_64 expat.x86_64
+    // Installing:
+    //  expat-devel x86_64 2.6.2-1.fc39 updates  54 k
+    // Upgrading:
+    //  expat       x86_64 2.6.2-1.fc39 updates 114 k
+    //
+    // $ sudo dnf install expat.x86_64 expat-devel.x86_64
+    // Installing:
+    //  expat-devel x86_64 2.5.0-3.fc39 fedora 52 k
+    //
+    // $ sudo dnf install expat.x86_64
+    // Nothing to do.
+    //
+    // $ sudo dnf install expat-devel.x86_64
+    // Installing:
+    //  expat-devel x86_64 2.6.2-1.fc39 updates  54 k
+    // Upgrading:
+    //  expat       x86_64 2.6.2-1.fc39 updates 114 k
+    //
+    // Thus, we now explicitly specify the versions for the partially/not
+    // installed packages as well. While this approach may potentially result
+    // in unnecessary upgrades (in the above example we would prefer to just
+    // install expat-devel 2.5.0-3), it feels much simpler and more robust.
     //
     bool install (false);
 
@@ -1762,7 +1797,8 @@ namespace bpkg
       for (const package_info& pi: ps.package_infos)
       {
         string n (pi.name);
-        string v (fi ? pi.installed_version : string ());
+        //string v (fi ? pi.installed_version : string ());
+        string v (fi ? pi.installed_version : pi.candidate_version);
         string a (fi ? pi.installed_arch    : pi.candidate_arch);
 
         auto i (find_if (pkgs.begin (), pkgs.end (),
