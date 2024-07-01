@@ -252,9 +252,12 @@ namespace bpkg
       fail << "package " << n << " " << v
            << " is not available from an archive-based repository";
 
-    if (verb > 1)
+    if (verb > 1 && !simulate)
       text << "fetching " << pl->location.leaf () << " "
            << "from " << pl->repository_fragment->name;
+    else
+      l4 ([&]{trace << pl->location.leaf () << " from "
+                    << pl->repository_fragment->name << pdb;});
 
     auto_rmfile arm;
     path an (pl->location.leaf ());
