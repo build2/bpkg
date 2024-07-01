@@ -849,7 +849,13 @@ namespace bpkg
     //
     using sp_set = set<config_selected_package>;
 
-    vector<pair<version, sp_set>> unsatisfiable;
+    // If there are no available package versions which don't satisfy some
+    // dependents, then it is left absent. Otherwise, it is filled with the
+    // unsatisfiable versions together with the respective unsatisfied
+    // dependents, unless we are in the ignore unsatisfiable mode, in which
+    // case it is empty.
+    //
+    optional<vector<pair<version, sp_set>>> unsatisfiable;
 
     bool stub (false);
 
@@ -1023,8 +1029,11 @@ namespace bpkg
 
       if (!satisfactory)
       {
+        if (!unsatisfiable)
+          unsatisfiable = vector<pair<version, sp_set>> ();
+
         if (!ignore_unsatisfiable)
-          unsatisfiable.emplace_back (av, move (unsatisfied_dependents));
+          unsatisfiable->emplace_back (av, move (unsatisfied_dependents));
 
         // If the dependency is expected to be configured as system, then bail
         // out, as an available package version will always resolve to the
@@ -1201,17 +1210,22 @@ namespace bpkg
     if (ignore_unsatisfiable)
     {
       l5 ([&]{trace << package_string (nm, dvc, dsys) << ddb
-                    << (unsatisfiable.empty ()
+                    << (!unsatisfiable
                         ? ": no source"
                         : ": unsatisfiable");});
 
       return no_change ();
     }
 
+    // If not in the ignore-unsatisfiable mode the unsatisfiable list is
+    // either absent or non-empty.
+    //
+    assert (!unsatisfiable || !unsatisfiable->empty ());
+
     // If there are no unsatisfiable versions then the package is not present
     // (or is not available in source) in its dependents' repositories.
     //
-    if (unsatisfiable.empty ())
+    if (!unsatisfiable)
     {
       diag_record dr (fail);
 
@@ -1255,9 +1269,9 @@ namespace bpkg
     // dependents each.
     //
     size_t nv (0);
-    for (const auto& u: unsatisfiable)
+    for (const auto& u: *unsatisfiable)
     {
-      dr << info << package_string (nm, u.first) << " doesn't satisfy";
+      dr << info << package_string (nm, u.first, dsys) << " doesn't satisfy";
 
       const sp_set& ps (u.second);
 
@@ -1276,12 +1290,12 @@ namespace bpkg
       if (i != n)
         dr << " and " << n - i << " more";
 
-      if (++nv == 3 && unsatisfiable.size () != 4)
+      if (++nv == 3 && unsatisfiable->size () != 4)
         break;
     }
 
-    if (nv != unsatisfiable.size ())
-      dr << info << "and " << unsatisfiable.size () - nv << " more";
+    if (nv != unsatisfiable->size ())
+      dr << info << "and " << unsatisfiable->size () - nv << " more";
 
     dr << endf;
   }

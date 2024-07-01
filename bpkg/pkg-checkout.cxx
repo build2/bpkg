@@ -167,9 +167,12 @@ namespace bpkg
       fail << "package " << n << " " << v
            << " is not available from a version control-based repository";
 
-    if (verb > 1)
+    if (verb > 1 && !simulate)
       text << "checking out " << pl->location.leaf () << " "
            << "from " << pl->repository_fragment->name;
+    else
+      l4 ([&]{trace << pl->location.leaf () << " from "
+                    << pl->repository_fragment->name << pdb;});
 
     const repository_location& rl (pl->repository_fragment->location);
 
