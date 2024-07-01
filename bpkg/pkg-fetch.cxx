@@ -252,9 +252,16 @@ namespace bpkg
       fail << "package " << n << " " << v
            << " is not available from an archive-based repository";
 
-    if (verb > 1)
+    // @@ Shouldn't we do the same (only print progress if verb > 1 &&
+    //    !simulate and trace otherwise) also for pkg_checkout() and
+    //    pkg_unpack()?
+    //
+    if (verb > 1 && !simulate)
       text << "fetching " << pl->location.leaf () << " "
            << "from " << pl->repository_fragment->name;
+    else
+      l4 ([&]{trace << pl->location.leaf () << " from "
+                    << pl->repository_fragment->name << pdb;});
 
     auto_rmfile arm;
     path an (pl->location.leaf ());
