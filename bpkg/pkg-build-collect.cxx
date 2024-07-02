@@ -2557,8 +2557,9 @@ namespace bpkg
           const lazy_shared_ptr<repository_fragment>& af (
             pkg.repository_fragment);
 
-          for (const dependency& dp: da)
+          for (auto di (da.begin ()); di != da.end (); )
           {
+            const dependency&   dp (*di);
             const package_name& dn (dp.name);
 
             if (buildtime && pdb.type == build2_config_type)
@@ -2753,7 +2754,10 @@ namespace bpkg
                 assert (unamended || replacement);
 
                 if (!(replacement || (unamended && ud)))
+                {
+                  ++di;
                   continue;
+                }
               }
 
               if (dsp->state == package_state::broken)
@@ -3029,6 +3033,15 @@ namespace bpkg
                 apc (sdb, move (cd));
 
                 db = &sdb.find_attached (*lc->id);
+
+                // If the above apc() call has also collected this dependency
+                // (may be the case for a system dependency spec), then just
+                // re-iterate the pre-collection of this dependency,
+                // potentially overriding its version constraint using the
+                // command line spec.
+                //
+                if (map_.find (*db, dn) != map_.end ())
+                  continue;
               }
 
               ddb = db; // Switch to the dependency configuration.
@@ -3328,6 +3341,8 @@ namespace bpkg
                                    specified,
                                    force,
                                    ru});
+
+            ++di;
           }
 
           // Now, as we have pre-collected the dependency builds, if
