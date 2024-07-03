@@ -1306,7 +1306,7 @@ test.arguments += --sys-no-query
 
         $* libbaz ?libfoo/1.0.0 2>>EOE != 0
           error: unable to satisfy constraints on package libfoo
-            info: libbaz/1.1.0 depends on (libfoo == 1.0.0)
+            info: command line depends on (libfoo == 1.0.0)
             info: libbar/1.1.0 depends on (libfoo == 1.1.0)
             info: available libfoo/1.0.0
             info: available libfoo/1.1.0
@@ -1326,7 +1326,7 @@ test.arguments += --sys-no-query
         $cfg_link -d cfg cfg2;
         $rep_add -d cfg2 $rep/t4c && $rep_fetch -d cfg2;
         $* libbaz ?libbar +{ --config-id 1 } libfoo/1.0.0 +{ --config-id 1 } 2>>~%EOE% != 0
-          error: unable to satisfy constraints on package libfoo
+          %error: unable to satisfy constraints on package libfoo \[cfg2.\]%
             info: command line depends on (libfoo == 1.0.0)
           %  info: libbar/1.1.0 \[cfg2.\] depends on \(libfoo == 1.1.0\)%
             info: available libfoo/1.0.0
@@ -1390,8 +1390,13 @@ test.arguments += --sys-no-query
         # (libbaz) repositories.
         #
         $* libbar ?libfoo/1.0.0 libbaz 2>>EOE != 0
-          error: package libfoo doesn't satisfy its dependents
-            info: libfoo/1.0.0 doesn't satisfy libbar/1.1.0
+          error: unable to satisfy constraints on package libfoo
+            info: command line depends on (libfoo == 1.0.0)
+            info: libbar/1.1.0 depends on (libfoo == 1.1.0)
+            info: available libfoo/1.0.0
+            info: available libfoo/1.1.0
+            info: while satisfying libbar/1.1.0
+            info: explicitly specify libfoo version to manually satisfy both constraints
           EOE
       }
     }
@@ -2951,17 +2956,17 @@ test.arguments += --sys-no-query
         info: consider specifying sys:libhello/*
       EOE
 
+    $* libfoo '?sys:libhello/0.1' 2>>EOE != 0;
+      error: unable to satisfy constraints on package libhello
+        info: libfoo/1.1.0 depends on (libhello >= 1.0)
+        info: command line depends on (libhello == 0.1)
+        info: while satisfying libfoo/1.1.0
+        info: explicitly specify libhello version to manually satisfy both constraints
+      EOE
+
     $* "sys:libhello/2.0@$rep/t0a" --trust-yes 2>>~%EOE% != 0;
       %.+
       %error: package sys:libhello/2\.0 is not found in .+t0a%
-      EOE
-
-    $* libfoo '?sys:libhello/0.1' 2>>EOE != 0;
-      error: unable to satisfy constraints on package libhello
-        info: libfoo depends on (libhello >= 1.0)
-        info: command line depends on (libhello == 0.1)
-        info: specify libhello version to satisfy libfoo constraint
-      info: while satisfying libfoo/1.1.0
       EOE
 
     $* libfoo '?sys:libhello/*' 2>>~%EOE%;
@@ -3192,8 +3197,16 @@ test.arguments += --sys-no-query
       #   info: specify libbaz version to satisfy libbar constraint
       # info: while satisfying libbar/0.0.1
       #
+      # Then, before we have started to ignore the dependent constraints which
+      # are not satisfied with the command line constraints and to add them to
+      # the unsatisfied dependents list, this command has failed as follows:
+      #
+      # error: libbaz/0.0.2 is not available from its dependents' repositories
+      #
       $* libbar/0.0.1 ?libbaz/0.0.2 2>>EOE != 0;
-        error: libbaz/0.0.2 is not available from its dependents' repositories
+        error: unable to satisfy command line constraint (libbaz == 0.0.2)
+          info: available libbaz versions: 0.0.3 0.0.1
+        info: while satisfying libbar/0.0.1
         EOE
 
       # Note that before we have implemented the unsatisfied constraints
@@ -3206,9 +3219,20 @@ test.arguments += --sys-no-query
       #   info: specify libbaz version to satisfy libbar constraint
       # info: while satisfying libbar/0.0.1
       #
+      # Then, before we have started to ignore the dependent constraints which
+      # are not satisfied with the command line constraints and to add them to
+      # the unsatisfied dependents list, this command has failed as follows:
+      #
+      # error: package libbaz doesn't satisfy its dependents
+      #   info: libbaz/0.0.3 doesn't satisfy libbar/0.0.1
+      #
       $* -- libbar/0.0.1 '?libbaz>=0.0.2' 2>>EOE != 0
-        error: package libbaz doesn't satisfy its dependents
-          info: libbaz/0.0.3 doesn't satisfy libbar/0.0.1
+        error: unable to satisfy constraints on package libbaz
+          info: libbar/0.0.1 depends on (libbaz == 0.0.1)
+                  command line requires (libbar == 0.0.1)
+          info: command line depends on (libbaz >= 0.0.2)
+          info: while satisfying libbar/0.0.1
+          info: explicitly specify libbaz version to manually satisfy both constraints
         EOE
     }
 
@@ -3469,7 +3493,7 @@ test.arguments += --sys-no-query
       $rep_fetch $rep/t0a $rep/t0c;
 
       $* libbar/1.0.0 ?libfoo/0.0.1 2>>EOE != 0
-        error: unable to satisfy dependency constraint (libfoo == 0.0.1) of package libbar
+        error: unable to satisfy command line constraint (libfoo == 0.0.1)
           info: available libfoo versions: 1.0.0
         info: while satisfying libbar/1.0.0
         EOE
@@ -4249,8 +4273,11 @@ test.arguments += --sys-no-query
         $pkg_status libbaz >'libbaz configured 0.0.1 available 0.1.0 0.0.4 0.0.3';
 
         $* ?libbaz/0.0.3 +{ --config-id 1 } 2>>~%EOE% != 0;
-          %error: package libbaz \[cfg2.\] doesn't satisfy its dependents%
-            info: libbaz/0.0.3 doesn't satisfy libbar/0.0.1
+          %error: unable to satisfy constraints on package libbaz \[cfg2.\]%
+            info: libbar/0.0.1 depends on (libbaz == 0.0.1)
+            info: command line depends on (libbaz == 0.0.3)
+            info: while satisfying libbar/0.0.1
+            info: explicitly specify libbaz version to manually satisfy both constraints
           EOE
 
         $pkg_status libbaz >'libbaz configured 0.0.1 available 0.1.0 0.0.4 0.0.3';
@@ -5916,12 +5943,20 @@ test.arguments += --sys-no-query
         {
           $clone_cfg;
 
+          #  Dependencies:
+          #
+          #  libbaz/2.0.0: depends: libbar < 2.1.0
+          #  libfox/1.1.0: depends: libbar >= 1.0.0
+          #
+          #  libbar: 0.1.0, 1.2.0, 2.1.0
+          #
           $* libbaz libfox/1.1.0 '?libbar < 3.0.0' 2>>~%EOE%;
             %.*
             trace: pkg_build: refine package collection/plan execution from scratch
             trace: collect_build: add libbaz/2.0.0
             trace: collect_build: add libfox/1.1.0
             trace: collect_build_prerequisites: begin libbaz/2.0.0
+            trace: collect_build_prerequisites: postpone failure for constraint (libbar < 2.1.0) of dependent libbaz unsatisfied with user-specified constraint (libbar < 3.0.0)
             trace: collect_build_prerequisites: no cfg-clause for dependency libbar/0.1.0 of dependent libbaz/2.0.0
             trace: collect_build_prerequisites: begin libbar/0.1.0
             trace: collect_build_prerequisites: end libbar/0.1.0
@@ -33736,8 +33771,11 @@ else
         $rep_add $rep/t4b && $rep_fetch;
 
         $* libbar "?$src/libfoo-1.0.0.tar.gz" 2>>EOE != 0
-          error: package libfoo doesn't satisfy its dependents
-            info: libfoo/1.0.0 doesn't satisfy libbar/1.1.0
+          error: unable to satisfy constraints on package libfoo
+            info: libbar/1.1.0 depends on (libfoo == 1.1.0)
+            info: command line depends on (libfoo == 1.0.0)
+            info: while satisfying libbar/1.1.0
+            info: explicitly specify libfoo version to manually satisfy both constraints
           EOE
       }
 
@@ -33750,8 +33788,12 @@ else
         $rep_add $rep/t4a && $rep_fetch;
 
         $* $src/libbar-1.1.0.tar.gz "?$src/libfoo-1.0.0.tar.gz" 2>>EOE != 0
-          error: package libfoo doesn't satisfy its dependents
-            info: libfoo/1.0.0 doesn't satisfy libbar/1.1.0
+          error: unable to satisfy constraints on package libfoo
+            info: libbar/1.1.0 depends on (libfoo == 1.1.0)
+                    command line requires (libbar == 1.1.0)
+            info: command line depends on (libfoo == 1.0.0)
+            info: while satisfying libbar/1.1.0
+            info: explicitly specify libfoo version to manually satisfy both constraints
           EOE
       }
 
@@ -34141,8 +34183,11 @@ else
         $rep_add $rep/t4b && $rep_fetch;
 
         $* libbar "?$d/libfoo-1.0.0/" 2>>EOE != 0
-          error: package libfoo doesn't satisfy its dependents
-            info: libfoo/1.0.0 doesn't satisfy libbar/1.1.0
+          error: unable to satisfy constraints on package libfoo
+            info: libbar/1.1.0 depends on (libfoo == 1.1.0)
+            info: command line depends on (libfoo == 1.0.0)
+            info: while satisfying libbar/1.1.0
+            info: explicitly specify libfoo version to manually satisfy both constraints
           EOE
       }
 
@@ -34155,8 +34200,12 @@ else
         $rep_add $rep/t4a && $rep_fetch;
 
         $* $d/libbar-1.1.0/ "?$d/libfoo-1.0.0/" 2>>EOE != 0
-          error: package libfoo doesn't satisfy its dependents
-            info: libfoo/1.0.0 doesn't satisfy libbar/1.1.0
+          error: unable to satisfy constraints on package libfoo
+            info: libbar/1.1.0 depends on (libfoo == 1.1.0)
+                    command line requires (libbar == 1.1.0)
+            info: command line depends on (libfoo == 1.0.0)
+            info: while satisfying libbar/1.1.0
+            info: explicitly specify libfoo version to manually satisfy both constraints
           EOE
       }
 
