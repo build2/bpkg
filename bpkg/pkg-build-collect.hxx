@@ -764,21 +764,22 @@ namespace bpkg
     cancel_bogus (tracer&, bool scratch);
   };
 
-
-  // Dependents with their unsatisfactory dependencies and the respective
-  // ignored constraints.
+  // Dependents with their ignored dependency constraints and, optionally,
+  // with the respective unsatisfactory dependency versions.
   //
   // Note that during the collecting of all the explicitly specified packages
   // and their dependencies for the build, we may discover that a being
   // up/downgraded dependency doesn't satisfy all the being reconfigured,
-  // up/downgraded, or newly built dependents. Rather than fail immediately in
-  // such a case, we postpone the failure, add the unsatisfied dependents and
-  // their respective constraints to the unsatisfied dependents list, and
-  // continue the collection/ordering in the hope that these problems will be
-  // resolved naturally as a result of the requested recollection from scratch
-  // or execution plan refinement (dependents will also be up/downgraded or
-  // dropped, dependencies will be up/downgraded to a different versions,
-  // etc).
+  // up/downgraded, or newly built dependents. We may also discover that a
+  // user-specified dependency constraint does not satisfy constraints imposed
+  // by some dependent packages on this dependency. Rather than fail
+  // immediately in such cases, we postpone the failure, add the unsatisfied
+  // dependents and their respective constraints to the unsatisfied dependents
+  // list, and continue the collection/ordering in the hope that these
+  // problems will be resolved naturally as a result of the requested
+  // recollection from scratch or execution plan refinement (dependents will
+  // also be up/downgraded or dropped, dependencies will be up/downgraded to a
+  // different versions, etc).
   //
   // Also note that after collecting/ordering of all the explicitly specified
   // packages and their dependencies for the build we also collect/order their
@@ -838,10 +839,11 @@ namespace bpkg
     //
     build_package::constraint_type constraint;
 
-    // Available package version which satisfies the above constraint.
+    // Optional available package version which satisfies the above
+    // constraint.
     //
-    version available_version;
-    bool    available_system;
+    optional<version> available_version;
+    bool              available_system;
   };
 
   struct ignored_constraint
@@ -885,6 +887,9 @@ namespace bpkg
          const version_constraint&,
          vector<unsatisfied_constraint>&& ucs = {},
          vector<package_key>&& dc = {});
+
+    void
+    add (unsatisfied_dependent&&);
 
     // Try to find the dependent entry and return NULL if not found.
     //
