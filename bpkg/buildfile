@@ -15,7 +15,7 @@ import libs = build2%lib{build2}
 for m: bash bin c cc cli cxx in version
   import libs += build2%lib{build2-$m}
 
-# @@ TMP we require libsqlite3 to be interface dependency of libbut-odb only
+# @@ TMP we require libsqlite3 to be interface dependency of libbutl-odb only
 #    for the database migrations to schema versions 13 and 14.
 #
 import libs += libbpkg%lib{bpkg}
