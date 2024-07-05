@@ -41,7 +41,8 @@
       url: http://www.example.org/bar
       email: bar-users@example.org
       depends: foo == 1
-      bootstrap-build:\
+      bootstrap-build:
+      \
       project = bar
 
       \
@@ -54,7 +55,8 @@
       license: MIT
       url: http://www.example.org/foo
       email: foo-users@example.org
-      bootstrap-build:\
+      bootstrap-build:
+      \
       project = foo
 
       \
@@ -86,7 +88,8 @@
       url: http://www.example.org/bar
       email: bar-users@example.org
       depends: foo == 1
-      bootstrap-build:\
+      bootstrap-build:
+      \
       project = bar
 
       \
@@ -99,7 +102,8 @@
       license: MIT
       url: http://www.example.org/foo
       email: foo-users@example.org
-      bootstrap-build:\
+      bootstrap-build:
+      \
       project = foo
 
       \
@@ -148,7 +152,8 @@
       url: http://www.example.org/bar
       email: bar-users@example.org
       depends: foo == 1
-      bootstrap-build:\\
+      bootstrap-build:
+      \\
       project = bar
 
       \\
@@ -161,7 +166,8 @@
       license: MIT
       url: http://www.example.org/foo
       email: foo-users@example.org
-      bootstrap-build:\\
+      bootstrap-build:
+      \\
       project = foo
 
       \\
