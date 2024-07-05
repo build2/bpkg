@@ -78,12 +78,14 @@ $* --deep --ignore-unknown --manifest $src/foo-2.tar.gz >>EOO
   version: 2
   summary: The "Foo" utility
   license: MIT
-  description:\
+  description:
+  \
   This package contains the foo utility.
 
   \
   description-type: text/plain
-  changes:\
+  changes:
+  \
   Version 2
 
     * First public release.
@@ -93,7 +95,8 @@ $* --deep --ignore-unknown --manifest $src/foo-2.tar.gz >>EOO
   url: http://www.example.org/foo
   email: foo-users@example.org
   depends: bar == 2
-  bootstrap-build:\
+  bootstrap-build:
+  \
   project = foo
 
   \
