@@ -35,277 +35,7 @@
     </alter-table>
   </changeset>
 
-  <changeset version="23">
-    <alter-table name="main.available_package">
-      <add-column name="type" type="TEXT" null="true"/>
-    </alter-table>
-    <add-table name="main.available_package_languages" kind="container">
-      <column name="name" type="TEXT" null="true" options="COLLATE NOCASE"/>
-      <column name="version_epoch" type="INTEGER" null="true"/>
-      <column name="version_canonical_upstream" type="TEXT" null="true"/>
-      <column name="version_canonical_release" type="TEXT" null="true" options="COLLATE BINARY"/>
-      <column name="version_revision" type="INTEGER" null="true"/>
-      <column name="version_iteration" type="INTEGER" null="true"/>
-      <column name="index" type="INTEGER" null="true"/>
-      <column name="language_name" type="TEXT" null="true"/>
-      <column name="language_impl" type="INTEGER" null="true"/>
-      <foreign-key name="object_id_fk" on-delete="CASCADE">
-        <column name="name"/>
-        <column name="version_epoch"/>
-        <column name="version_canonical_upstream"/>
-        <column name="version_canonical_release"/>
-        <column name="version_revision"/>
-        <column name="version_iteration"/>
-        <references table="main.available_package">
-          <column name="name"/>
-          <column name="version_epoch"/>
-          <column name="version_canonical_upstream"/>
-          <column name="version_canonical_release"/>
-          <column name="version_revision"/>
-          <column name="version_iteration"/>
-        </references>
-      </foreign-key>
-      <index name="available_package_languages_object_id_i">
-        <column name="name"/>
-        <column name="version_epoch"/>
-        <column name="version_canonical_upstream"/>
-        <column name="version_canonical_release"/>
-        <column name="version_revision"/>
-        <column name="version_iteration"/>
-      </index>
-      <index name="available_package_languages_index_i">
-        <column name="index"/>
-      </index>
-    </add-table>
-  </changeset>
-
-  <changeset version="22">
-    <alter-table name="main.available_package">
-      <add-column name="upstream_version" type="TEXT" null="true"/>
-      <add-column name="project" type="TEXT" null="true" options="COLLATE NOCASE"/>
-    </alter-table>
-  </changeset>
-
-  <changeset version="21">
-    <add-table name="main.available_package_distribution_values" kind="container">
-      <column name="name" type="TEXT" null="true" options="COLLATE NOCASE"/>
-      <column name="version_epoch" type="INTEGER" null="true"/>
-      <column name="version_canonical_upstream" type="TEXT" null="true"/>
-      <column name="version_canonical_release" type="TEXT" null="true" options="COLLATE BINARY"/>
-      <column name="version_revision" type="INTEGER" null="true"/>
-      <column name="version_iteration" type="INTEGER" null="true"/>
-      <column name="index" type="INTEGER" null="true"/>
-      <column name="dist_name" type="TEXT" null="true"/>
-      <column name="dist_value" type="TEXT" null="true"/>
-      <foreign-key name="object_id_fk" on-delete="CASCADE">
-        <column name="name"/>
-        <column name="version_epoch"/>
-        <column name="version_canonical_upstream"/>
-        <column name="version_canonical_release"/>
-        <column name="version_revision"/>
-        <column name="version_iteration"/>
-        <references table="main.available_package">
-          <column name="name"/>
-          <column name="version_epoch"/>
-          <column name="version_canonical_upstream"/>
-          <column name="version_canonical_release"/>
-          <column name="version_revision"/>
-          <column name="version_iteration"/>
-        </references>
-      </foreign-key>
-      <index name="available_package_distribution_values_object_id_i">
-        <column name="name"/>
-        <column name="version_epoch"/>
-        <column name="version_canonical_upstream"/>
-        <column name="version_canonical_release"/>
-        <column name="version_revision"/>
-        <column name="version_iteration"/>
-      </index>
-      <index name="available_package_distribution_values_index_i">
-        <column name="index"/>
-      </index>
-    </add-table>
-  </changeset>
-
-  <changeset version="20">
-    <alter-table name="main.available_package">
-      <add-column name="alt_naming" type="INTEGER" null="true" default="0"/>
-    </alter-table>
-    <add-table name="main.available_package_buildfiles" kind="container">
-      <column name="name" type="TEXT" null="true" options="COLLATE NOCASE"/>
-      <column name="version_epoch" type="INTEGER" null="true"/>
-      <column name="version_canonical_upstream" type="TEXT" null="true"/>
-      <column name="version_canonical_release" type="TEXT" null="true" options="COLLATE BINARY"/>
-      <column name="version_revision" type="INTEGER" null="true"/>
-      <column name="version_iteration" type="INTEGER" null="true"/>
-      <column name="index" type="INTEGER" null="true"/>
-      <column name="path" type="TEXT" null="true"/>
-      <column name="content" type="TEXT" null="true"/>
-      <foreign-key name="object_id_fk" on-delete="CASCADE">
-        <column name="name"/>
-        <column name="version_epoch"/>
-        <column name="version_canonical_upstream"/>
-        <column name="version_canonical_release"/>
-        <column name="version_revision"/>
-        <column name="version_iteration"/>
-        <references table="main.available_package">
-          <column name="name"/>
-          <column name="version_epoch"/>
-          <column name="version_canonical_upstream"/>
-          <column name="version_canonical_release"/>
-          <column name="version_revision"/>
-          <column name="version_iteration"/>
-        </references>
-      </foreign-key>
-      <index name="available_package_buildfiles_object_id_i">
-        <column name="name"/>
-        <column name="version_epoch"/>
-        <column name="version_canonical_upstream"/>
-        <column name="version_canonical_release"/>
-        <column name="version_revision"/>
-        <column name="version_iteration"/>
-      </index>
-      <index name="available_package_buildfiles_index_i">
-        <column name="index"/>
-      </index>
-    </add-table>
-  </changeset>
-
-  <changeset version="19">
-    <alter-table name="main.selected_package_prerequisites">
-      <add-column name="config_dependency_index" type="INTEGER" null="true" default="0"/>
-      <add-column name="config_alternative_index" type="INTEGER" null="true" default="0"/>
-    </alter-table>
-  </changeset>
-
-  <changeset version="18">
-    <add-table name="main.selected_package_config_variables" kind="container">
-      <column name="package" type="TEXT" null="true" options="COLLATE NOCASE"/>
-      <column name="index" type="INTEGER" null="true"/>
-      <column name="name" type="TEXT" null="true"/>
-      <column name="source" type="TEXT" null="true"/>
-      <foreign-key name="package_fk" on-delete="CASCADE">
-        <column name="package"/>
-        <references table="main.selected_package">
-          <column name="name"/>
-        </references>
-      </foreign-key>
-      <index name="selected_package_config_variables_package_i">
-        <column name="package"/>
-      </index>
-      <index name="selected_package_config_variables_index_i">
-        <column name="index"/>
-      </index>
-    </add-table>
-  </changeset>
-
-  <changeset version="17">
-    <alter-table name="main.selected_package">
-      <add-column name="buildfiles_checksum" type="TEXT" null="true"/>
-    </alter-table>
-  </changeset>
-
-  <changeset version="16">
-    <alter-table name="main.available_package_tests">
-      <add-column name="test_reflect" type="TEXT" null="true"/>
-    </alter-table>
-  </changeset>
-
-  <changeset version="15">
-    <alter-table name="main.available_package">
-      <add-column name="bootstrap_build" type="TEXT" null="true" default="''"/>
-      <add-column name="root_build" type="TEXT" null="true"/>
-    </alter-table>
-  </changeset>
-
-  <changeset version="14">
-    <alter-table name="main.available_package_dependencies">
-      <drop-column name="conditional"/>
-    </alter-table>
-    <alter-table name="main.available_package_dependency_alternatives">
-      <add-column name="reflect" type="TEXT" null="true"/>
-      <add-column name="prefer" type="TEXT" null="true"/>
-      <add-column name="accept" type="TEXT" null="true"/>
-      <add-column name="require" type="TEXT" null="true"/>
-    </alter-table>
-  </changeset>
-
-  <changeset version="13">
-    <alter-table name="main.available_package_dependency_alternatives">
-      <add-column name="enable" type="TEXT" null="true"/>
-      <drop-column name="dep_name"/>
-      <drop-column name="dep_min_version_epoch"/>
-      <drop-column name="dep_min_version_canonical_upstream"/>
-      <drop-column name="dep_min_version_canonical_release"/>
-      <drop-column name="dep_min_version_revision"/>
-      <drop-column name="dep_min_version_iteration"/>
-      <drop-column name="dep_min_version_upstream"/>
-      <drop-column name="dep_min_version_release"/>
-      <drop-column name="dep_max_version_epoch"/>
-      <drop-column name="dep_max_version_canonical_upstream"/>
-      <drop-column name="dep_max_version_canonical_release"/>
-      <drop-column name="dep_max_version_revision"/>
-      <drop-column name="dep_max_version_iteration"/>
-      <drop-column name="dep_max_version_upstream"/>
-      <drop-column name="dep_max_version_release"/>
-      <drop-column name="dep_min_open"/>
-      <drop-column name="dep_max_open"/>
-    </alter-table>
-    <add-table name="main.available_package_dependency_alternative_dependencies" kind="container">
-      <column name="name" type="TEXT" null="true" options="COLLATE NOCASE"/>
-      <column name="version_epoch" type="INTEGER" null="true"/>
-      <column name="version_canonical_upstream" type="TEXT" null="true"/>
-      <column name="version_canonical_release" type="TEXT" null="true" options="COLLATE BINARY"/>
-      <column name="version_revision" type="INTEGER" null="true"/>
-      <column name="version_iteration" type="INTEGER" null="true"/>
-      <column name="dependency_index" type="INTEGER" null="true"/>
-      <column name="alternative_index" type="INTEGER" null="true"/>
-      <column name="index" type="INTEGER" null="true"/>
-      <column name="dep_name" type="TEXT" null="true" options="COLLATE NOCASE"/>
-      <column name="dep_min_version_epoch" type="INTEGER" null="true"/>
-      <column name="dep_min_version_canonical_upstream" type="TEXT" null="true"/>
-      <column name="dep_min_version_canonical_release" type="TEXT" null="true"/>
-      <column name="dep_min_version_revision" type="INTEGER" null="true"/>
-      <column name="dep_min_version_iteration" type="INTEGER" null="true"/>
-      <column name="dep_min_version_upstream" type="TEXT" null="true"/>
-      <column name="dep_min_version_release" type="TEXT" null="true"/>
-      <column name="dep_max_version_epoch" type="INTEGER" null="true"/>
-      <column name="dep_max_version_canonical_upstream" type="TEXT" null="true"/>
-      <column name="dep_max_version_canonical_release" type="TEXT" null="true"/>
-      <column name="dep_max_version_revision" type="INTEGER" null="true"/>
-      <column name="dep_max_version_iteration" type="INTEGER" null="true"/>
-      <column name="dep_max_version_upstream" type="TEXT" null="true"/>
-      <column name="dep_max_version_release" type="TEXT" null="true"/>
-      <column name="dep_min_open" type="INTEGER" null="true"/>
-      <column name="dep_max_open" type="INTEGER" null="true"/>
-      <foreign-key name="object_id_fk" on-delete="CASCADE">
-        <column name="name"/>
-        <column name="version_epoch"/>
-        <column name="version_canonical_upstream"/>
-        <column name="version_canonical_release"/>
-        <column name="version_revision"/>
-        <column name="version_iteration"/>
-        <references table="main.available_package">
-          <column name="name"/>
-          <column name="version_epoch"/>
-          <column name="version_canonical_upstream"/>
-          <column name="version_canonical_release"/>
-          <column name="version_revision"/>
-          <column name="version_iteration"/>
-        </references>
-      </foreign-key>
-      <index name="available_package_dependency_alternative_dependencies_object_id_i">
-        <column name="name"/>
-        <column name="version_epoch"/>
-        <column name="version_canonical_upstream"/>
-        <column name="version_canonical_release"/>
-        <column name="version_revision"/>
-        <column name="version_iteration"/>
-      </index>
-    </add-table>
-  </changeset>
-
-  <model version="12">
+  <model version="23">
     <table name="main.repository_fragment" kind="object">
       <column name="name" type="TEXT" null="true"/>
       <column name="url" type="TEXT" null="true"/>
@@ -396,6 +126,12 @@
       <column name="version_upstream" type="TEXT" null="true"/>
       <column name="version_release" type="TEXT" null="true"/>
       <column name="sha256sum" type="TEXT" null="true"/>
+      <column name="bootstrap_build" type="TEXT" null="true" default="''"/>
+      <column name="root_build" type="TEXT" null="true"/>
+      <column name="alt_naming" type="INTEGER" null="true" default="0"/>
+      <column name="upstream_version" type="TEXT" null="true"/>
+      <column name="project" type="TEXT" null="true" options="COLLATE NOCASE"/>
+      <column name="type" type="TEXT" null="true"/>
       <primary-key>
         <column name="name"/>
         <column name="version_epoch"/>
@@ -453,7 +189,6 @@
       <column name="version_revision" type="INTEGER" null="true"/>
       <column name="version_iteration" type="INTEGER" null="true"/>
       <column name="index" type="INTEGER" null="true"/>
-      <column name="conditional" type="INTEGER" null="true"/>
       <column name="buildtime" type="INTEGER" null="true"/>
       <column name="comment" type="TEXT" null="true"/>
       <column name="type" type="TEXT" null="true"/>
@@ -494,23 +229,11 @@
       <column name="version_iteration" type="INTEGER" null="true"/>
       <column name="dependency_index" type="INTEGER" null="true"/>
       <column name="index" type="INTEGER" null="true"/>
-      <column name="dep_name" type="TEXT" null="true" options="COLLATE NOCASE"/>
-      <column name="dep_min_version_epoch" type="INTEGER" null="true"/>
-      <column name="dep_min_version_canonical_upstream" type="TEXT" null="true"/>
-      <column name="dep_min_version_canonical_release" type="TEXT" null="true"/>
-      <column name="dep_min_version_revision" type="INTEGER" null="true"/>
-      <column name="dep_min_version_iteration" type="INTEGER" null="true"/>
-      <column name="dep_min_version_upstream" type="TEXT" null="true"/>
-      <column name="dep_min_version_release" type="TEXT" null="true"/>
-      <column name="dep_max_version_epoch" type="INTEGER" null="true"/>
-      <column name="dep_max_version_canonical_upstream" type="TEXT" null="true"/>
-      <column name="dep_max_version_canonical_release" type="TEXT" null="true"/>
-      <column name="dep_max_version_revision" type="INTEGER" null="true"/>
-      <column name="dep_max_version_iteration" type="INTEGER" null="true"/>
-      <column name="dep_max_version_upstream" type="TEXT" null="true"/>
-      <column name="dep_max_version_release" type="TEXT" null="true"/>
-      <column name="dep_min_open" type="INTEGER" null="true"/>
-      <column name="dep_max_open" type="INTEGER" null="true"/>
+      <column name="enable" type="TEXT" null="true"/>
+      <column name="reflect" type="TEXT" null="true"/>
+      <column name="prefer" type="TEXT" null="true"/>
+      <column name="accept" type="TEXT" null="true"/>
+      <column name="require" type="TEXT" null="true"/>
       <foreign-key name="object_id_fk" on-delete="CASCADE">
         <column name="name"/>
         <column name="version_epoch"/>
@@ -557,6 +280,7 @@
       <column name="purge_src" type="INTEGER" null="true"/>
       <column name="manifest_checksum" type="TEXT" null="true"/>
       <column name="out_root" type="TEXT" null="true"/>
+      <column name="buildfiles_checksum" type="TEXT" null="true"/>
       <primary-key>
         <column name="name"/>
       </primary-key>
@@ -581,6 +305,8 @@
       <column name="min_open" type="INTEGER" null="true"/>
       <column name="max_open" type="INTEGER" null="true"/>
       <column name="configuration" type="TEXT" null="true"/>
+      <column name="config_dependency_index" type="INTEGER" null="true" default="0"/>
+      <column name="config_alternative_index" type="INTEGER" null="true" default="0"/>
       <foreign-key name="package_fk" on-delete="CASCADE">
         <column name="package"/>
         <references table="main.selected_package">
@@ -630,6 +356,7 @@
       <column name="test_max_open" type="INTEGER" null="true"/>
       <column name="test_type" type="TEXT" null="true"/>
       <column name="test_buildtime" type="INTEGER" null="true" default="0"/>
+      <column name="test_reflect" type="TEXT" null="true"/>
       <foreign-key name="object_id_fk" on-delete="CASCADE">
         <column name="name"/>
         <column name="version_epoch"/>
@@ -676,6 +403,190 @@
       </index>
       <index name="configuration_path_i" type="UNIQUE">
         <column name="path"/>
+      </index>
+    </table>
+    <table name="main.available_package_dependency_alternative_dependencies" kind="container">
+      <column name="name" type="TEXT" null="true" options="COLLATE NOCASE"/>
+      <column name="version_epoch" type="INTEGER" null="true"/>
+      <column name="version_canonical_upstream" type="TEXT" null="true"/>
+      <column name="version_canonical_release" type="TEXT" null="true" options="COLLATE BINARY"/>
+      <column name="version_revision" type="INTEGER" null="true"/>
+      <column name="version_iteration" type="INTEGER" null="true"/>
+      <column name="dependency_index" type="INTEGER" null="true"/>
+      <column name="alternative_index" type="INTEGER" null="true"/>
+      <column name="index" type="INTEGER" null="true"/>
+      <column name="dep_name" type="TEXT" null="true" options="COLLATE NOCASE"/>
+      <column name="dep_min_version_epoch" type="INTEGER" null="true"/>
+      <column name="dep_min_version_canonical_upstream" type="TEXT" null="true"/>
+      <column name="dep_min_version_canonical_release" type="TEXT" null="true"/>
+      <column name="dep_min_version_revision" type="INTEGER" null="true"/>
+      <column name="dep_min_version_iteration" type="INTEGER" null="true"/>
+      <column name="dep_min_version_upstream" type="TEXT" null="true"/>
+      <column name="dep_min_version_release" type="TEXT" null="true"/>
+      <column name="dep_max_version_epoch" type="INTEGER" null="true"/>
+      <column name="dep_max_version_canonical_upstream" type="TEXT" null="true"/>
+      <column name="dep_max_version_canonical_release" type="TEXT" null="true"/>
+      <column name="dep_max_version_revision" type="INTEGER" null="true"/>
+      <column name="dep_max_version_iteration" type="INTEGER" null="true"/>
+      <column name="dep_max_version_upstream" type="TEXT" null="true"/>
+      <column name="dep_max_version_release" type="TEXT" null="true"/>
+      <column name="dep_min_open" type="INTEGER" null="true"/>
+      <column name="dep_max_open" type="INTEGER" null="true"/>
+      <foreign-key name="object_id_fk" on-delete="CASCADE">
+        <column name="name"/>
+        <column name="version_epoch"/>
+        <column name="version_canonical_upstream"/>
+        <column name="version_canonical_release"/>
+        <column name="version_revision"/>
+        <column name="version_iteration"/>
+        <references table="main.available_package">
+          <column name="name"/>
+          <column name="version_epoch"/>
+          <column name="version_canonical_upstream"/>
+          <column name="version_canonical_release"/>
+          <column name="version_revision"/>
+          <column name="version_iteration"/>
+        </references>
+      </foreign-key>
+      <index name="available_package_dependency_alternative_dependencies_object_id_i">
+        <column name="name"/>
+        <column name="version_epoch"/>
+        <column name="version_canonical_upstream"/>
+        <column name="version_canonical_release"/>
+        <column name="version_revision"/>
+        <column name="version_iteration"/>
+      </index>
+    </table>
+    <table name="main.selected_package_config_variables" kind="container">
+      <column name="package" type="TEXT" null="true" options="COLLATE NOCASE"/>
+      <column name="index" type="INTEGER" null="true"/>
+      <column name="name" type="TEXT" null="true"/>
+      <column name="source" type="TEXT" null="true"/>
+      <foreign-key name="package_fk" on-delete="CASCADE">
+        <column name="package"/>
+        <references table="main.selected_package">
+          <column name="name"/>
+        </references>
+      </foreign-key>
+      <index name="selected_package_config_variables_package_i">
+        <column name="package"/>
+      </index>
+      <index name="selected_package_config_variables_index_i">
+        <column name="index"/>
+      </index>
+    </table>
+    <table name="main.available_package_buildfiles" kind="container">
+      <column name="name" type="TEXT" null="true" options="COLLATE NOCASE"/>
+      <column name="version_epoch" type="INTEGER" null="true"/>
+      <column name="version_canonical_upstream" type="TEXT" null="true"/>
+      <column name="version_canonical_release" type="TEXT" null="true" options="COLLATE BINARY"/>
+      <column name="version_revision" type="INTEGER" null="true"/>
+      <column name="version_iteration" type="INTEGER" null="true"/>
+      <column name="index" type="INTEGER" null="true"/>
+      <column name="path" type="TEXT" null="true"/>
+      <column name="content" type="TEXT" null="true"/>
+      <foreign-key name="object_id_fk" on-delete="CASCADE">
+        <column name="name"/>
+        <column name="version_epoch"/>
+        <column name="version_canonical_upstream"/>
+        <column name="version_canonical_release"/>
+        <column name="version_revision"/>
+        <column name="version_iteration"/>
+        <references table="main.available_package">
+          <column name="name"/>
+          <column name="version_epoch"/>
+          <column name="version_canonical_upstream"/>
+          <column name="version_canonical_release"/>
+          <column name="version_revision"/>
+          <column name="version_iteration"/>
+        </references>
+      </foreign-key>
+      <index name="available_package_buildfiles_object_id_i">
+        <column name="name"/>
+        <column name="version_epoch"/>
+        <column name="version_canonical_upstream"/>
+        <column name="version_canonical_release"/>
+        <column name="version_revision"/>
+        <column name="version_iteration"/>
+      </index>
+      <index name="available_package_buildfiles_index_i">
+        <column name="index"/>
+      </index>
+    </table>
+    <table name="main.available_package_distribution_values" kind="container">
+      <column name="name" type="TEXT" null="true" options="COLLATE NOCASE"/>
+      <column name="version_epoch" type="INTEGER" null="true"/>
+      <column name="version_canonical_upstream" type="TEXT" null="true"/>
+      <column name="version_canonical_release" type="TEXT" null="true" options="COLLATE BINARY"/>
+      <column name="version_revision" type="INTEGER" null="true"/>
+      <column name="version_iteration" type="INTEGER" null="true"/>
+      <column name="index" type="INTEGER" null="true"/>
+      <column name="dist_name" type="TEXT" null="true"/>
+      <column name="dist_value" type="TEXT" null="true"/>
+      <foreign-key name="object_id_fk" on-delete="CASCADE">
+        <column name="name"/>
+        <column name="version_epoch"/>
+        <column name="version_canonical_upstream"/>
+        <column name="version_canonical_release"/>
+        <column name="version_revision"/>
+        <column name="version_iteration"/>
+        <references table="main.available_package">
+          <column name="name"/>
+          <column name="version_epoch"/>
+          <column name="version_canonical_upstream"/>
+          <column name="version_canonical_release"/>
+          <column name="version_revision"/>
+          <column name="version_iteration"/>
+        </references>
+      </foreign-key>
+      <index name="available_package_distribution_values_object_id_i">
+        <column name="name"/>
+        <column name="version_epoch"/>
+        <column name="version_canonical_upstream"/>
+        <column name="version_canonical_release"/>
+        <column name="version_revision"/>
+        <column name="version_iteration"/>
+      </index>
+      <index name="available_package_distribution_values_index_i">
+        <column name="index"/>
+      </index>
+    </table>
+    <table name="main.available_package_languages" kind="container">
+      <column name="name" type="TEXT" null="true" options="COLLATE NOCASE"/>
+      <column name="version_epoch" type="INTEGER" null="true"/>
+      <column name="version_canonical_upstream" type="TEXT" null="true"/>
+      <column name="version_canonical_release" type="TEXT" null="true" options="COLLATE BINARY"/>
+      <column name="version_revision" type="INTEGER" null="true"/>
+      <column name="version_iteration" type="INTEGER" null="true"/>
+      <column name="index" type="INTEGER" null="true"/>
+      <column name="language_name" type="TEXT" null="true"/>
+      <column name="language_impl" type="INTEGER" null="true"/>
+      <foreign-key name="object_id_fk" on-delete="CASCADE">
+        <column name="name"/>
+        <column name="version_epoch"/>
+        <column name="version_canonical_upstream"/>
+        <column name="version_canonical_release"/>
+        <column name="version_revision"/>
+        <column name="version_iteration"/>
+        <references table="main.available_package">
+          <column name="name"/>
+          <column name="version_epoch"/>
+          <column name="version_canonical_upstream"/>
+          <column name="version_canonical_release"/>
+          <column name="version_revision"/>
+          <column name="version_iteration"/>
+        </references>
+      </foreign-key>
+      <index name="available_package_languages_object_id_i">
+        <column name="name"/>
+        <column name="version_epoch"/>
+        <column name="version_canonical_upstream"/>
+        <column name="version_canonical_release"/>
+        <column name="version_revision"/>
+        <column name="version_iteration"/>
+      </index>
+      <index name="available_package_languages_index_i">
+        <column name="index"/>
       </index>
     </table>
   </model>

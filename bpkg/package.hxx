@@ -30,7 +30,7 @@
 //       migration is no longer supported (i.e., the current and base schema
 //       versions are the same).
 //
-#define DB_SCHEMA_VERSION_BASE 12
+#define DB_SCHEMA_VERSION_BASE 23
 
 #pragma db model version(DB_SCHEMA_VERSION_BASE, 26, closed)
 
