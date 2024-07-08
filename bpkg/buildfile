@@ -18,6 +18,10 @@ for m: bash bin c cc cli cxx in version
 # @@ TMP we require libsqlite3 to be interface dependency of libbutl-odb only
 #    for the database migrations to schema versions 13 and 14.
 #
+#    Doesn't seem to be the case since bunch of public headers in
+#    libbutl-odb/odb/sqlite/ (some of which are included by bpkg) include
+#    <sqlite3.h>.
+#
 import libs += libbpkg%lib{bpkg}
 import libs += libbutl%lib{butl}
 import libs += libbutl%lib{butl-odb}

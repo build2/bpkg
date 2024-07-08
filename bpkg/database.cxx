@@ -3,8 +3,6 @@
 
 #include <bpkg/database.hxx>
 
-#include <sqlite3.h> // @@ TMP sqlite3_libversion_number()
-
 #include <map>
 
 #include <odb/schema-catalog.hxx>
@@ -58,99 +56,15 @@ namespace bpkg
   // NOTE: remember to qualify table/index names with \"main\". if using
   // native statements.
   //
+#if 0
   template <odb::schema_version v>
   using migration_entry = odb::data_migration_entry<v, DB_SCHEMA_VERSION_BASE>;
 
-  // @@ Since there is no proper support for dropping table columns not in
-  //    SQLite prior to 3.35.5 nor in ODB, we will drop the
-  //    available_package_dependency_alternatives.dep_* columns manually. We,
-  //    however, cannot do it here since ODB will try to set the dropped
-  //    column values to NULL at the end of migration. Thus, we will do it
-  //    ad hoc after the below schema_catalog::migrate() call.
-  //
-  //    NOTE: remove the mentioned ad hoc migration when removing this
-  //    function.
-  //
-  static const migration_entry<13>
-  migrate_v13 ([] (odb::database& db)
-  {
-    // Note that
-    // available_package_dependency_alternative_dependencies.alternative_index
-    // is copied from available_package_dependency_alternatives.index and
-    // available_package_dependency_alternative_dependencies.index is set to 0.
-    //
-    db.execute (
-      "INSERT INTO \"main\".\"available_package_dependency_alternative_dependencies\" "
-      "(\"name\", "
-      "\"version_epoch\", "
-      "\"version_canonical_upstream\", "
-      "\"version_canonical_release\", "
-      "\"version_revision\", "
-      "\"version_iteration\", "
-      "\"dependency_index\", "
-      "\"alternative_index\", "
-      "\"index\", "
-      "\"dep_name\", "
-      "\"dep_min_version_epoch\", "
-      "\"dep_min_version_canonical_upstream\", "
-      "\"dep_min_version_canonical_release\", "
-      "\"dep_min_version_revision\", "
-      "\"dep_min_version_iteration\", "
-      "\"dep_min_version_upstream\", "
-      "\"dep_min_version_release\", "
-      "\"dep_max_version_epoch\", "
-      "\"dep_max_version_canonical_upstream\", "
-      "\"dep_max_version_canonical_release\", "
-      "\"dep_max_version_revision\", "
-      "\"dep_max_version_iteration\", "
-      "\"dep_max_version_upstream\", "
-      "\"dep_max_version_release\", "
-      "\"dep_min_open\", "
-      "\"dep_max_open\") "
-      "SELECT "
-      "\"name\", "
-      "\"version_epoch\", "
-      "\"version_canonical_upstream\", "
-      "\"version_canonical_release\", "
-      "\"version_revision\", "
-      "\"version_iteration\", "
-      "\"dependency_index\", "
-      "\"index\", "
-      "0, "
-      "\"dep_name\", "
-      "\"dep_min_version_epoch\", "
-      "\"dep_min_version_canonical_upstream\", "
-      "\"dep_min_version_canonical_release\", "
-      "\"dep_min_version_revision\", "
-      "\"dep_min_version_iteration\", "
-      "\"dep_min_version_upstream\", "
-      "\"dep_min_version_release\", "
-      "\"dep_max_version_epoch\", "
-      "\"dep_max_version_canonical_upstream\", "
-      "\"dep_max_version_canonical_release\", "
-      "\"dep_max_version_revision\", "
-      "\"dep_max_version_iteration\", "
-      "\"dep_max_version_upstream\", "
-      "\"dep_max_version_release\", "
-      "\"dep_min_open\", "
-      "\"dep_max_open\" "
-      "FROM \"main\".\"available_package_dependency_alternatives\"");
-  });
-
-  // @@ Since there is no proper support for dropping table columns not in
-  //    SQLite prior to 3.35.5 nor in ODB, we will drop the
-  //    available_package_dependencies.conditional column manually. We,
-  //    however, cannot do it here since ODB will try to set the dropped
-  //    column values to NULL at the end of migration. Thus, we will do it
-  //    ad hoc after the below schema_catalog::migrate() call.
-  //
-  //    NOTE: remove the mentioned ad hoc migration when removing this
-  //    function.
-  //
-  static const migration_entry<14>
-  migrate_v14 ([] (odb::database&)
+  static const migration_entry<27>
+  migrate_v27 ([] (odb::database&)
   {
   });
+#endif
 
   static inline path
   cfg_path (const dir_path& d, bool create)
@@ -453,54 +367,6 @@ namespace bpkg
       // ones to properly handle link cycles.
       //
       schema_catalog::migrate (*this);
-
-      // Note that the potential data corruption with `DROP COLUMN` is fixed
-      // in 3.35.5.
-      //
-      // @@ TMP Get rid of manual column dropping when ODB starts supporting
-      //    that properly. Not doing so will result in failure of the below
-      //    queries.
-      //
-      if (sqlite3_libversion_number () >= 3035005)
-      {
-        auto drop = [this] (const char* table, const char* column)
-        {
-          execute (std::string ("ALTER TABLE \"main\".") + table +
-                   " DROP COLUMN \"" + column + '"');
-        };
-
-        // @@ TMP See migrate_v13() for details.
-        //
-        if (sv < 13)
-        {
-          const char* cs[] = {"dep_name",
-                              "dep_min_version_epoch",
-                              "dep_min_version_canonical_upstream",
-                              "dep_min_version_canonical_release",
-                              "dep_min_version_revision",
-                              "dep_min_version_iteration",
-                              "dep_min_version_upstream",
-                              "dep_min_version_release",
-                              "dep_max_version_epoch",
-                              "dep_max_version_canonical_upstream",
-                              "dep_max_version_canonical_release",
-                              "dep_max_version_revision",
-                              "dep_max_version_iteration",
-                              "dep_max_version_upstream",
-                              "dep_max_version_release",
-                              "dep_min_open",
-                              "dep_max_open",
-                              nullptr};
-
-          for (const char** c (cs); *c != nullptr; ++c)
-            drop ("available_package_dependency_alternatives", *c);
-        }
-
-        // @@ TMP See migrate_v14() for details.
-        //
-        if (sv < 14)
-          drop ("available_package_dependencies", "conditional");
-      }
 
       for (auto& c: query<configuration> (odb::query<configuration>::id != 0))
       {
