@@ -7857,7 +7857,7 @@ namespace bpkg
       // For an external package being replaced with another external, keep
       // the configuration unless requested not to with --disfigure.
       //
-      bool disfigure (p.disfigure || !external);
+      bool disfigure (!simulate && (p.disfigure || !external));
 
       // If the skeleton was not initialized yet (this is an existing package
       // reconfiguration and no configuration was printed as a part of the
