@@ -7879,7 +7879,7 @@ namespace bpkg
                             : nullptr));
         }
 
-        if (disfigure)
+        if (disfigure && !simulate)
           p.skeleton->load_old_config ();
       }
 
