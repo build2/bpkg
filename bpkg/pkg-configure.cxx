@@ -680,6 +680,29 @@ namespace bpkg
         print_b (o, verb_b::quiet, cpr.config_variables, bspec);
       }
 
+      const small_vector<pair<const path*, const path*>, 2> cfs ({
+        {&std_config_file,   &alt_config_file},
+        {&std_src_root_file, &alt_src_root_file}});
+
+      small_vector<pair<path, string>, 2> cfg;
+
+      for (const auto& f: cfs)
+      {
+        path cf;
+
+        if (exists (cf = out_root / *f.second) ||
+            exists (cf = out_root / *f.first))
+        try
+        {
+          ifdstream ifs (cf);
+          cfg.emplace_back (move (cf), ifs.read_text ());
+        }
+        catch (const io_error& e)
+        {
+          fail << "unable to read from " << cf << ": " << e;
+        }
+      }
+
       try
       {
         // Note: no bpkg::failed should be thrown from this block.
@@ -848,25 +871,47 @@ namespace bpkg
       {
         // Assume the diagnostics has already been issued.
 
-        // If we failed to configure the package, make sure we revert
-        // it back to the unpacked state by running disfigure (it is
-        // valid to run disfigure on an un-configured build). And if
-        // disfigure fails as well, then the package will be set into
-        // the broken state.
-
-        // Indicate to pkg_disfigure() we are partially configured.
+        // If we can restore the build2 configuration, then do that and leave
+        // the package in the current (unpacked) state, assuming that the
+        // transaction will be rolled back when the failed exception is thrown.
         //
-        p->out_root = out_root.leaf ();
-        p->state = package_state::broken;
+        if (!cfg.empty ())
+        {
+          for (const auto& cf: cfg)
+          {
+            try
+            {
+              ofdstream ofs (cf.first);
+              ofs << cf.second;
+              ofs.close ();
+            }
+            catch (const io_error& e)
+            {
+              fail << "unable to write to " << cf.first << ": " << e;
+            }
+          }
+        }
+        else
+        {
+          // If we failed to configure the package, make sure we revert
+          // it back to the unpacked state by running disfigure (it is
+          // valid to run disfigure on an un-configured build). And if
+          // disfigure fails as well, then the package will be set into
+          // the broken state.
 
-        // Commits the transaction.
-        //
-        pkg_disfigure (o, db, t,
-                       p,
-                       true /* clean */,
-                       true /* disfigure */,
-                       false /* simulate */);
+          // Indicate to pkg_disfigure() we are partially configured.
+          //
+          p->out_root = out_root.leaf ();
+          p->state = package_state::broken;
 
+          // Commits the transaction.
+          //
+          pkg_disfigure (o, db, t,
+                         p,
+                         true /* clean */,
+                         true /* disfigure */,
+                         false /* simulate */);
+        }
 
         throw bpkg::failed ();
       }

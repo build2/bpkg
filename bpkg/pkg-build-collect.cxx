@@ -404,6 +404,8 @@ namespace bpkg
                                       ? override
                                       : available);
 
+    const shared_ptr<selected_package>& sp (selected);
+
     assert (!skeleton && ap != nullptr);
 
     package_key pk (db, ap->id.name);
@@ -430,11 +432,12 @@ namespace bpkg
 
     if (ap != nullptr)
     {
-      bool src_conf (selected != nullptr                          &&
-                     selected->state == package_state::configured &&
-                     selected->substate != package_substate::system);
+      bool src_conf (sp != nullptr                          &&
+                     sp->state == package_state::configured &&
+                     sp->substate != package_substate::system);
 
       database& pdb (db);
+      const dir_path& c (pdb.config);
 
       // If the package is being reconfigured, then specify {src,out}_root as
       // the existing source and output root directories not to create the
@@ -447,26 +450,52 @@ namespace bpkg
       // configuration? Yes we can, since load_config_flags stays 0 in this
       // case and all the variables in config.build will be ignored.
       //
-      if (src_conf && ap->version == selected->version)
+      optional<dir_path> unpacked_conf;
+
+      if (src_conf && ap->version == sp->version)
       {
-        src_root = selected->effective_src_root (pdb.config);
-        out_root = selected->effective_out_root (pdb.config);
+        src_root = sp->effective_src_root (c);
+        out_root = sp->effective_out_root (c);
       }
-      else
+      else if (sp != nullptr && sp->state == package_state::unpacked)
+      {
+        dir_path d (
+          sp->external ()
+          ? c / dir_path (sp->name.string ())
+          : c / dir_path (sp->name.string () + '-' + sp->version.string ()));
+
+        if (exists (d / alt_config_file) ||
+            exists (d / std_config_file))
+        {
+          unpacked_conf = move (d);
+
+          if (ap->version == sp->version)
+          {
+            src_root = sp->effective_src_root (c);
+            out_root = unpacked_conf;
+          }
+        }
+      }
+
+      if (!src_root)
       {
         src_root = external_dir ();
 
         if (src_root)
-          out_root = dir_path (pdb.config) /= name ().string ();
+          out_root = dir_path (c) /= name ().string ();
       }
 
       // Specify old_{src,out}_root paths and set load_config_flags if the old
       // configuration is present and is requested to be loaded.
       //
-      if (src_conf && (!disfigure || load_old_dependent_config))
+      if ((src_conf || unpacked_conf) &&
+          (!disfigure || load_old_dependent_config))
       {
-        old_src_root = selected->effective_src_root (pdb.config);
-        old_out_root = selected->effective_out_root (pdb.config);
+        old_src_root = sp->effective_src_root (c);
+
+        old_out_root = src_conf
+                       ? sp->effective_out_root (c)
+                       : move (unpacked_conf);
 
         if (!disfigure)
           load_config_flags |= package_skeleton::load_config_user;
@@ -483,7 +512,7 @@ namespace bpkg
       move (ap),
       config_vars, // @@ Maybe make optional<strings> and move?
       disfigure,
-      (selected != nullptr ? &selected->config_variables : nullptr),
+      (sp != nullptr ? &sp->config_variables : nullptr),
       move (src_root),
       move (out_root),
       move (old_src_root),
