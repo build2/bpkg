@@ -34,6 +34,9 @@ namespace bpkg
   const dir_path std_config_dir     (dir_path (std_build_dir) /= "config");
   const path     std_bootstrap_file (dir_path (std_build_dir) /= "bootstrap.build");
   const path     std_root_file      (dir_path (std_build_dir) /= "root.build");
+  const path     std_config_file    (dir_path (std_build_dir) /= "config.build");
+  const dir_path std_bootstrap_dir  (dir_path (std_build_dir) /= "bootstrap");
+  const path     std_src_root_file  (dir_path (std_bootstrap_dir) /= "src-root.build");
   const string   std_build_ext      ("build");
 
   // build2:
@@ -42,6 +45,9 @@ namespace bpkg
   const dir_path alt_config_dir     (dir_path (alt_build_dir) /= "config");
   const path     alt_bootstrap_file (dir_path (alt_build_dir) /= "bootstrap.build2");
   const path     alt_root_file      (dir_path (alt_build_dir) /= "root.build2");
+  const path     alt_config_file    (dir_path (alt_build_dir) /= "config.build2");
+  const dir_path alt_bootstrap_dir  (dir_path (alt_build_dir) /= "bootstrap");
+  const path     alt_src_root_file  (dir_path (alt_bootstrap_dir) /= "src-root.build2");
   const string   alt_build_ext      ("build2");
 
   const dir_path current_dir (".");

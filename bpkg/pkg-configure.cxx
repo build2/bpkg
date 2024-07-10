@@ -632,6 +632,9 @@ namespace bpkg
       // (but not with the % project visibility -- they must still be visible
       // in subprojects).
       //
+      // Also note that we didn't bother adding configuration saving (see
+      // below) for the outproc version.
+      //
 #ifdef BPKG_OUTPROC_CONFIGURE
       // Form the buildspec.
       //
@@ -679,6 +682,46 @@ namespace bpkg
 
         print_b (o, verb_b::quiet, cpr.config_variables, bspec);
       }
+
+      // If failed to configure the package, we try to revert it to the
+      // original state, as close as possible.
+      //
+      // Specifically, if the (unpacked) package has the build2 configuration
+      // (external package disfigured for reconfiguration during pkg-build,
+      // etc), then we just stash its configuration files before running `b
+      // configure` and restore them on failure. Otherwise, we disfigure the
+      // package on failure. Since the configuration files are unlikely to be
+      // large, let's stash them in memory.
+      //
+      // See disfigure_project() in build2's config module for background.
+      //
+      const small_vector<pair<const path*, const path*>, 2> cfs ({
+        {&std_config_file,   &alt_config_file},
+        {&std_src_root_file, &alt_src_root_file}});
+
+      small_vector<pair<path, string /* content */>, 2> cfg;
+
+      auto stash_cfg = [&cfg, &cfs] (const dir_path& prj_out)
+      {
+        for (const auto& f: cfs)
+        {
+          path cf;
+
+          if (exists (cf = prj_out / *f.second) ||
+              exists (cf = prj_out / *f.first))
+          try
+          {
+            ifdstream ifs (cf);
+            cfg.emplace_back (move (cf), ifs.read_text ());
+          }
+          catch (const io_error& e)
+          {
+            fail << "unable to read from " << cf << ": " << e;
+          }
+        }
+      };
+
+      stash_cfg (out_root);
 
       try
       {
@@ -747,6 +790,14 @@ namespace bpkg
         bootstrap_src (rs, altn,
                        c.relative (out_root) /* amalgamation */,
                        true                  /* subprojects */);
+
+        // Note: do as early as possible since subsequent actions may fail.
+        //
+        if (const subprojects* ps = *rs.root_extra->subprojects)
+        {
+          for (const auto& p: *ps)
+            stash_cfg (out_root / p.second);
+        }
 
         create_bootstrap_outer (rs, true /* subprojects */);
         bootstrap_post (rs);
@@ -848,25 +899,51 @@ namespace bpkg
       {
         // Assume the diagnostics has already been issued.
 
-        // If we failed to configure the package, make sure we revert
-        // it back to the unpacked state by running disfigure (it is
-        // valid to run disfigure on an un-configured build). And if
-        // disfigure fails as well, then the package will be set into
-        // the broken state.
-
-        // Indicate to pkg_disfigure() we are partially configured.
+        // If the build2 configuration is stashed, then restore it and leave
+        // the package in the current (unpacked) state (note: the transaction
+        // will be rolled back when the failed exception is thrown).
+        // Otherwise, revert it back to the unpacked state by running
+        // disfigure (it is valid to run disfigure on an un-configured
+        // build). And if disfigure fails as well, then the package will be
+        // set into the broken state.
         //
-        p->out_root = out_root.leaf ();
-        p->state = package_state::broken;
+        if (!cfg.empty ())
+        {
+          for (const auto& cf: cfg)
+          {
+            const path& f (cf.first);
 
-        // Commits the transaction.
-        //
-        pkg_disfigure (o, db, t,
-                       p,
-                       true /* clean */,
-                       true /* disfigure */,
-                       false /* simulate */);
+            // Make sure the original file directory is present.
+            //
+            mk_p (f.directory ());
 
+            try
+            {
+              ofdstream ofs (f);
+              ofs << cf.second;
+              ofs.close ();
+            }
+            catch (const io_error& e)
+            {
+              fail << "unable to write to " << f << ": " << e;
+            }
+          }
+        }
+        else
+        {
+          // Indicate to pkg_disfigure() we are partially configured.
+          //
+          p->out_root = out_root.leaf ();
+          p->state = package_state::broken;
+
+          // Commits the transaction.
+          //
+          pkg_disfigure (o, db, t,
+                         p,
+                         true /* clean */,
+                         true /* disfigure */,
+                         false /* simulate */);
+        }
 
         throw bpkg::failed ();
       }
