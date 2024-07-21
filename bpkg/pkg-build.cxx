@@ -5964,7 +5964,7 @@ namespace bpkg
               // We will keep the output directory only if the external package
               // is replaced with an external one (see above for details).
               //
-              bool keep_out (o.keep_out () && sp->external ());
+              bool keep_out (o.keep_out () && sp != nullptr && sp->external ());
 
               // Marking upgraded dependencies as "required by command line"
               // may seem redundant as they should already be pre-entered as
