@@ -4,6 +4,7 @@
 #include <bpkg/fetch.hxx>
 
 #include <libbutl/curl.hxx>
+#include <libbutl/semantic-version.hxx>
 
 #include <bpkg/diagnostics.hxx>
 
@@ -45,7 +46,7 @@ namespace bpkg
         getline (is, l);
         is.close ();
 
-        if (!(pr.wait () && l.compare (0, 9, "GNU Wget ") == 0))
+        if (!pr.wait () || l.compare (0, 9, "GNU Wget ") != 0)
           return false;
       }
       catch (const io_error&)
@@ -250,6 +251,8 @@ namespace bpkg
 
   // curl
   //
+  static semantic_version curl_version;
+
   static bool
   check_curl (const path& prog)
   {
@@ -265,32 +268,58 @@ namespace bpkg
       if (verb >= 3)
         print_process (args);
 
-      process pr (pp, args, 0, -1); // Redirect stdout to a pipe.
+      // Redirect stdout to a pipe and stderr to /dev/null, unless in the
+      // verbose mode, since it may print the following line to stderr if
+      // built with the --enable-debug option:
+      //
+      // WARNING: this libcurl is Debug-enabled, do not use in production
+      //
+      process pr (pp, args, 0, -1, verb >= 3 ? 2 : -2);
+
+      string l;
 
       try
       {
         ifdstream is (move (pr.in_ofd), fdstream_mode::skip);
 
-        string l;
         getline (is, l);
         is.close ();
 
-        return pr.wait () && l.compare (0, 5, "curl ") == 0;
+        if (!pr.wait () || l.compare (0, 5, "curl ") != 0)
+          return false;
       }
       catch (const io_error&)
       {
-        // Fall through.
+        return false;
       }
+
+      // Extract the version. If something goes wrong, set the version
+      // to 0.0.0 so that we treat it as a really old curl.
+      //
+      // Note that there is some variety across the build configurations:
+      //
+      // curl 8.9.1-DEV (x86_64-pc-linux-gnu) libcurl/8.9.1-DEV OpenSSL/3.1.1 zlib/1.2.13 libpsl/0.21.2 OpenLDAP/2.6.7
+      // curl 8.7.1 (x86_64-pc-linux-gnu) libcurl/8.7.1 OpenSSL/3.2.2 zlib/1.2.11 brotli/1.0.9 zstd/1.5.5 libidn2/2.3.3 libpsl/0.21.2 libssh2/1.11.0 nghttp2/1.50.0 librtmp/2.3 OpenLDAP/2.5.13
+      //
+      if (optional<semantic_version> v =
+          parse_semantic_version (l, 5,
+                                  semantic_version::allow_build,
+                                  "" /* build_separators */))
+      {
+        curl_version = move (*v);
+      }
+      else
+        curl_version = semantic_version {0, 0, 0};
+
+      return true;
     }
     catch (const process_error& e)
     {
       if (e.child)
         exit (1);
 
-      // Fall through.
+      return false;
     }
-
-    return false;
   }
 
   // If HTTP status code needs to be retrieved (out_is != NULL), then open the
@@ -413,8 +442,20 @@ namespace bpkg
     // option in the presence of the --fail|-f option on HTTP errors and don't
     // print the response status line and headers.
     //
+    // Also note that in the presence of the --include|-i option, the output
+    // may include the CONNECT request response headers if curl tunnels
+    // through a proxy. To suppress these headers we also add the
+    // --suppress-connect-headers option for the curl versions 7.54.0 (when
+    // the option was invented) and above. For the earlier versions we just
+    // don't support the tunneling.
+    //
     if (out_is != nullptr)
+    {
       args.push_back ("-i");
+
+      if (curl_version >= semantic_version {7, 54, 0})
+        args.push_back ("--suppress-connect-headers");
+    }
     else
       args.push_back ("-f");
 
