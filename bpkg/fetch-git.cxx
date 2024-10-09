@@ -119,7 +119,8 @@ namespace bpkg
 
   template <typename O, typename E, typename... A>
   static process
-  start_git (const common_options& co,
+  start_git (uint16_t verbosity,
+             const common_options& co,
              O&& out,
              E&& err,
              A&&... args)
@@ -162,7 +163,8 @@ namespace bpkg
 
           // We assume that non-sanitized git environment can't harm this call.
           //
-          process pr (start_git (co,
+          process pr (start_git (2 /* verbosity */,
+                                 co,
                                  pipe, 2 /* stderr */,
                                  co.git_option (),
                                  "rev-parse",
@@ -231,9 +233,10 @@ namespace bpkg
       ep = "--exec-path=" + pp.effect.directory ().string ();
 #endif
 
-      return process_start_callback ([] (const char* const args[], size_t n)
+      return process_start_callback ([verbosity] (const char* const args[],
+                                                  size_t n)
                                      {
-                                       if (verb >= 2)
+                                       if (verb >= verbosity)
                                          print_process (args, n);
                                      },
                                      0 /* stdin */, out, err,
@@ -245,6 +248,16 @@ namespace bpkg
     {
       fail << "unable to execute " << co.git () << ": " << e << endg;
     }
+  }
+
+  template <typename O, typename E, typename... A>
+  inline static process
+  start_git (const common_options& co,
+             O&& out,
+             E&& err,
+             A&&... args)
+  {
+    return start_git (2 /* verbosity */, co, out, err, forward<A> (args)...);
   }
 
   // Run git process, optionally suppressing progress.
@@ -2569,7 +2582,8 @@ namespace bpkg
       path tp;
 
       fdpipe pipe (open_pipe ());
-      process pr (start_git (co,
+      process pr (start_git (3 /* verbosity */,
+                             co,
                              pipe, 2 /* stderr */,
                              co.git_option (),
                              "-C", dir,
