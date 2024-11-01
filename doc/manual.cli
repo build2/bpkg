@@ -2576,7 +2576,11 @@ variables, and dependencies are passed to the \l{bpkg-pkg-build(1)} command at
 the \c{bpkg.configure.build} step. The package-specific configuration
 variables for this and/or the separate test packages are passed to
 \l{bpkg-pkg-build(1)} at the \c{bpkg.configure.build} and
-\c{bpkg.test-separate-installed.configure.build} steps. For example:
+\c{bpkg.test-separate-installed.configure.build} steps. The dependencies of
+these packages can be configured at these steps in various configurations by
+specifying the package-specific \c{--config-uuid} option(s) and configuration
+variables or the \c{[?]sys:} prefix (see \l{bbot#arch-worker configuration
+UUIDs}). For example:
 
 \
 network-build-config: config.libfoo.network=true; Enable networking API.
@@ -2619,6 +2623,15 @@ load-tests-build-config:
 { config.libfoo_tests.load=true }+ libfoo-tests
 ;
 Enable load testing.
+\\
+
+default-build-config:
+\\
+# Configure libbar-tests package's dependency libfoo as system on the
+# bpkg.test-separate-installed.configure.build step, since it is
+# already installed as a dependency of libbar.
+#
+{ --config-uuid=00000000-0000-0000-0000-000000000005 }+ ?sys:libfoo/*
 \\
 \
 
