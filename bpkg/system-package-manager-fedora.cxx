@@ -204,13 +204,14 @@ namespace bpkg
 
     assert (n != 0 && n <= pis.size ());
 
+    // Lists all packages: installed, available, or both.
+    //
     // The --quiet option makes sure we don't get 'Last metadata expiration
     // check: <timestamp>' printed to stderr. It does not appear to affect
     // error diagnostics (try specifying a single unknown package).
     //
     cstrings args {
       "dnf", "list",
-      "--all",       // Look for both installed and available.
       "--cacheonly", // Don't automatically update the metadata.
       "--quiet"};
 
